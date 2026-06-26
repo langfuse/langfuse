@@ -4,17 +4,17 @@ import {
   protectedOrganizationProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
+import { v4MigrationOrgScope } from "@/src/features/rbac/constants/organizationAccessRights";
+import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
   AnalyticsIntegrationExportSource,
   Prisma,
-  Role,
 } from "@langfuse/shared/src/db";
 import {
   convertDateToClickhouseDateTime,
   queryClickhouse,
   systemTableRef,
 } from "@langfuse/shared/src/server";
-import { TRPCError } from "@trpc/server";
 
 const timelineGranularity = z.literal("auto");
 type ResolvedTimelineGranularity = "minute" | "2m" | "5m" | "hour" | "day";
@@ -361,18 +361,12 @@ const fillTraceLevelEvalExecutionBucketsByProject = ({
   );
 };
 
-const assertOrgAdminOrOwner = (role: Role) => {
-  if (role === Role.OWNER || role === Role.ADMIN) return;
-
-  throw new TRPCError({
-    code: "FORBIDDEN",
-    message: "Only organization admins and owners can access this page",
-  });
-};
-
-const protectedOrgAdminProcedure = protectedOrganizationProcedure.use(
+const protectedV4MigrationOrgProcedure = protectedOrganizationProcedure.use(
   ({ ctx, next }) => {
-    assertOrgAdminOrOwner(ctx.session.orgRole);
+    throwIfNoOrganizationAccess({
+      role: ctx.session.orgRole,
+      scope: v4MigrationOrgScope,
+    });
     return next();
   },
 );
@@ -445,7 +439,7 @@ export const v4TransitionRouter = createTRPCRouter({
       };
     }),
 
-  summaryByProject: protectedOrgAdminProcedure
+  summaryByProject: protectedV4MigrationOrgProcedure
     .input(z.object({ orgId: z.string() }))
     .query(async ({ input, ctx }) => {
       const projects = await ctx.prisma.project.findMany({
@@ -592,7 +586,7 @@ ORDER BY bucket_time ASC, score_name ASC
       });
     }),
 
-  traceLevelEvalExecutionsTimeSeriesByProject: protectedOrgAdminProcedure
+  traceLevelEvalExecutionsTimeSeriesByProject: protectedV4MigrationOrgProcedure
     .input(organizationTimelineInputSchema)
     .query(async ({ input, ctx }) => {
       const projects = await ctx.prisma.project.findMany({
@@ -775,7 +769,7 @@ SETTINGS skip_unavailable_shards = 1
             .sort(compareTimelineRows);
     }),
 
-  timeSeriesByEntrypointByProject: protectedOrgAdminProcedure
+  timeSeriesByEntrypointByProject: protectedV4MigrationOrgProcedure
     .input(organizationTimelineInputSchema)
     .query(async ({ input, ctx }) => {
       const projects = await ctx.prisma.project.findMany({
