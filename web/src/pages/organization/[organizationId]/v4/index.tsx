@@ -227,6 +227,7 @@ export default function OrganizationV4Page() {
             onTimeRangeChange={setTimeRange}
             timeRangePresets={V4_TIME_RANGE_PRESETS}
             disabled={{ before: earliestSelectableDate }}
+            maxRangeMs={MAX_V4_TIMELINE_RANGE_MS}
             className="my-0 max-w-full overflow-x-auto"
           />
         ),
