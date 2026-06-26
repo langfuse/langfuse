@@ -1086,18 +1086,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
     `[BLOB INTEGRATION] Calculated maxTimestamp for project ${projectId}: ${maxTimestamp}, isValid: ${!isNaN(maxTimestamp.getTime())}, getTime: ${maxTimestamp.getTime()}, frequencyIntervalMs: ${frequencyIntervalMs}`,
   );
 
-  // How far behind real-time this project's export frontier is. maxTimestamp is
-  // the end of the window this job advances to, so lag ≈ the export buffer when
-  // caught up and grows during historic catch-up. Per-job emit, so it goes stale
-  // if the exporter stops entirely for a project (see LFE-10521).
-  if (!isNaN(maxTimestamp.getTime())) {
-    recordGauge(
-      "langfuse.blobstorage.export_delay_seconds",
-      (now.getTime() - maxTimestamp.getTime()) / 1000,
-      { projectId },
-    );
-  }
-
   // Skip export if the time window is empty or invalid
   if (minTimestamp >= maxTimestamp) {
     logger.info(
@@ -1214,6 +1202,12 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
+    // Elapsed time spent exporting this one window's data, used to detect
+    // exporters that can't keep up (see metric emit below). Monotonic
+    // performance.now() — matches the file's other deltas and avoids a clock
+    // step (NTP/suspend) producing a negative duration.
+    const exportStartedAt = performance.now();
+
     if (isTraceOnlyProject) {
       // Only process traces table for projects in the trace-only list (legacy behavior)
       logger.info(
@@ -1260,8 +1254,35 @@ export const handleBlobStorageIntegrationProjectJob = async (
       await Promise.all(processPromises);
     }
 
+    const exportDurationMs = performance.now() - exportStartedAt;
+
     // Determine if we've caught up with present-day data
     const caughtUp = maxTimestamp.getTime() >= uncappedMaxTimestamp.getTime();
+
+    // Falling-behind signal: how long it took to export one window's data
+    // relative to that window's scheduling cadence (the frequency interval).
+    // A ratio > 1 means a single run takes longer than the period it covers, so
+    // the exporter cannot keep up and lag grows over time. frequencyIntervalMs
+    // is the stable denominator the user reasons about ("exports every 20 min")
+    // — the actual data window collapses toward zero near the lag buffer in
+    // steady state and would make the ratio meaningless (LFE-10521). caughtUp
+    // is tagged so steady-state lag can be separated from expected back-to-back
+    // catch-up runs.
+    const durationTags = {
+      projectId,
+      exportFrequency: blobStorageIntegration.exportFrequency,
+      caughtUp: String(caughtUp),
+    };
+    recordHistogram(
+      "langfuse.blobstorage.window_export_duration_seconds",
+      exportDurationMs / 1000,
+      durationTags,
+    );
+    recordGauge(
+      "langfuse.blobstorage.window_export_duration_ratio",
+      exportDurationMs / frequencyIntervalMs,
+      durationTags,
+    );
 
     let nextSyncAt: Date;
     if (caughtUp) {

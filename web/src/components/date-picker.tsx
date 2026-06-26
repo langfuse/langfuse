@@ -124,6 +124,14 @@ export function nextRangeForDayClick(
   return { from: clickedDay, to: undefined };
 }
 
+export function isRangeWithinMaxDuration(
+  range: RDPDateRange | undefined,
+  maxDurationMs: number | undefined,
+): boolean {
+  if (!range?.from || !range.to || maxDurationMs === undefined) return true;
+  return range.to.getTime() - range.from.getTime() <= maxDurationMs;
+}
+
 export function DatePickerWithRange({
   className,
   dateRange,
@@ -302,6 +310,7 @@ export type TimeRangePickerProps = {
   timeRangePresets: readonly string[];
   className?: string;
   disabled?: boolean | { before?: Date; after?: Date } | Date | Date[];
+  maxRangeMs?: number;
 };
 
 export function TimeRangePicker({
@@ -310,6 +319,7 @@ export function TimeRangePicker({
   timeRangePresets,
   onTimeRangeChange,
   disabled,
+  maxRangeMs,
 }: TimeRangePickerProps) {
   // Determine the range type
   const rangeType: "named" | "custom" | null = timeRange
@@ -318,19 +328,6 @@ export function TimeRangePicker({
       : "named"
     : null;
 
-  // Disable future dates by default, plus any additional disabled prop
-  const calendarDisabled = React.useMemo(() => {
-    const futureDisabled = { after: new Date() };
-
-    if (!disabled) return futureDisabled;
-    if (typeof disabled === "boolean") return disabled;
-
-    // Always return an array when combining with additional restrictions
-    const disabledArray = Array.isArray(disabled) ? disabled : [disabled];
-    return [...disabledArray, futureDisabled] as React.ComponentProps<
-      typeof Calendar
-    >["disabled"];
-  }, [disabled]);
   const namedRangeValue =
     rangeType === "named" && timeRange && "range" in timeRange
       ? timeRange.range
@@ -366,6 +363,46 @@ export function TimeRangePicker({
     setInternalDateRange(committedDateRange);
   }, [committedDateRange]);
 
+  // Disable future dates by default, plus any additional disabled prop.
+  // When a custom range is mid-selection, also disable days that would complete
+  // a range longer than the caller's maximum duration.
+  const calendarDisabled = React.useMemo(() => {
+    const futureDisabled = { after: new Date() };
+
+    if (typeof disabled === "boolean") return disabled;
+
+    const disabledArray = disabled
+      ? Array.isArray(disabled)
+        ? disabled
+        : [disabled]
+      : [];
+    const maxRangeDisabled =
+      maxRangeMs !== undefined &&
+      internalDateRange?.from &&
+      !internalDateRange.to
+        ? [
+            {
+              before: new Date(
+                setEndOfDay(internalDateRange.from).getTime() - maxRangeMs + 1,
+              ),
+            },
+            {
+              after: new Date(
+                setBeginningOfDay(internalDateRange.from).getTime() +
+                  maxRangeMs -
+                  1,
+              ),
+            },
+          ]
+        : [];
+
+    return [
+      ...disabledArray,
+      futureDisabled,
+      ...maxRangeDisabled,
+    ] as React.ComponentProps<typeof Calendar>["disabled"];
+  }, [disabled, internalDateRange, maxRangeMs]);
+
   const setNewDateRange = (
     internalDateRange: RDPDateRange | undefined,
     newFromDate: Date | undefined,
@@ -381,6 +418,8 @@ export function TimeRangePicker({
 
   const updateDateRange = (newRange: RDPDateRange | undefined) => {
     if (newRange && newRange.from && newRange.to) {
+      if (!isRangeWithinMaxDuration(newRange, maxRangeMs)) return;
+
       onTimeRangeChange({
         from: newRange.from,
         to: newRange.to,
@@ -395,6 +434,8 @@ export function TimeRangePicker({
       from: setBeginningOfDay(next.from),
       to: next.to ? setEndOfDay(next.to) : undefined,
     };
+    if (!isRangeWithinMaxDuration(newRange, maxRangeMs)) return;
+
     setInternalDateRange(newRange);
     updateDateRange(newRange);
   };
@@ -406,6 +447,8 @@ export function TimeRangePicker({
       newDateTime,
       internalDateRange?.to,
     );
+    if (!isRangeWithinMaxDuration(newRange, maxRangeMs)) return;
+
     setInternalDateRange(newRange);
     updateDateRange(newRange);
   };
@@ -417,6 +460,8 @@ export function TimeRangePicker({
       internalDateRange?.from,
       newDateTime,
     );
+    if (!isRangeWithinMaxDuration(newRange, maxRangeMs)) return;
+
     setInternalDateRange(newRange);
     updateDateRange(newRange);
   };

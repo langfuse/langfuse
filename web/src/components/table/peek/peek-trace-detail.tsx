@@ -1,28 +1,11 @@
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import { useRouter } from "next/router";
-import { Trace } from "@/src/components/trace/Trace";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import {
+  TraceDetailBody,
+  traceDetailTitle,
+} from "@/src/components/trace/TraceDetailBody";
 import { TablePeekView } from "@/src/components/table/peek";
-
-const PeekViewTraceDetail = ({
-  trace,
-}: {
-  trace: ReturnType<typeof usePeekData>;
-}) => {
-  return !trace.data ? (
-    <Skeleton className="h-full w-full rounded-none" />
-  ) : (
-    <Trace
-      key={trace.data.id}
-      trace={trace.data}
-      scores={trace.data.scores}
-      corrections={trace.data.corrections}
-      projectId={trace.data.projectId}
-      observations={trace.data.observations}
-      context="peek"
-    />
-  );
-};
+import { TraceDetailActions } from "@/src/components/trace/TraceDetailActions";
 
 export const TablePeekViewTraceDetail = (
   props: Omit<
@@ -50,18 +33,32 @@ export const TablePeekViewTraceDetail = (
     timestamp,
   });
 
+  const actionProps = trace.data
+    ? {
+        traceId: trace.data.id,
+        projectId: trace.data.projectId,
+        bookmarked: trace.data.bookmarked,
+        isPublic: trace.data.public,
+        name: trace.data.name,
+        timestamp,
+        onAfterDelete: props.closePeek,
+      }
+    : null;
+
   return (
     <TablePeekView
       {...props}
-      title={
-        trace.data
-          ? trace.data.name
-            ? `${trace.data.name}: ${trace.data.id}`
-            : trace.data.id
-          : peekId
+      title={traceDetailTitle(trace.data, peekId)}
+      actions={
+        actionProps ? <TraceDetailActions {...actionProps} /> : undefined
+      }
+      actionsMenu={
+        actionProps ? (
+          <TraceDetailActions {...actionProps} layout="menu" />
+        ) : undefined
       }
     >
-      <PeekViewTraceDetail trace={trace} />
+      <TraceDetailBody trace={trace.data} context="peek" />
     </TablePeekView>
   );
 };
