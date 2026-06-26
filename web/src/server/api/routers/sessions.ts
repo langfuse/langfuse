@@ -47,6 +47,7 @@ import {
   getEventsGroupedByUserId,
   getEventsGroupedByTraceTags,
   hasAnySessionFromEventsTable,
+  parseClickhouseUTCDateTimeFormat,
 } from "@langfuse/shared/src/server";
 import chunk from "lodash/chunk";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
@@ -722,6 +723,12 @@ export const sessionRouter = createTRPCRouter({
         totalCost: sessionMetrics
           ? Number(sessionMetrics.session_total_cost)
           : 0,
+        minTimestamp: parseClickhouseUTCDateTimeFormat(
+          sessionMetrics.min_timestamp,
+        ),
+        maxTimestamp: parseClickhouseUTCDateTimeFormat(
+          sessionMetrics.max_timestamp,
+        ),
         environment: sessionMetrics?.environment,
         scores: toDomainArrayWithStringifiedMetadata(validatedScores),
       };

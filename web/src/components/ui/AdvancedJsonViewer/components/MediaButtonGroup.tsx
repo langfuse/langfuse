@@ -108,12 +108,9 @@ function MediaPreview({ mediaItem }: { mediaItem: MediaReturnType }) {
     return <AudioPlayer src={mediaUrl} />;
   } else if (contentType.startsWith("video")) {
     return <VideoPlayer src={mediaUrl} />;
-  } else {
-    // Documents: use file icon view
-    return (
-      <LangfuseMediaView mediaAPIReturnValue={mediaItem} asFileIcon={true} />
-    );
   }
+  // Documents: use file icon view
+  return <LangfuseMediaView mediaAPIReturnValue={mediaItem} variant="icon" />;
 }
 
 /**

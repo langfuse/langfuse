@@ -10,6 +10,7 @@ import {
   paginationZod,
   timeFilter,
 } from "@langfuse/shared";
+import { MonitorWindowSchema } from "@langfuse/shared/monitors";
 import {
   toDomainArrayWithStringifiedMetadata,
   toDomainWithStringifiedMetadata,
@@ -21,6 +22,7 @@ import {
   getEventCount,
   getEventFilterOptions,
   getEventBatchIO,
+  EVENT_FILTER_OPTIONS_COLUMNS,
 } from "./eventsService";
 import {
   instrumentAsync,
@@ -55,6 +57,12 @@ export type GetAllEventsInput = z.infer<typeof GetAllEventsInput>;
 const GetEventFilterOptionsInput = zodSchema.object({
   projectId: zodSchema.string(),
   startTimeFilter: zodSchema.array(timeFilter).optional(),
+  monitorWindow: MonitorWindowSchema.optional(),
+  isRootObservation: zodSchema.boolean().optional(),
+  hasParentObservation: zodSchema.boolean().optional(),
+  columns: zodSchema
+    .array(zodSchema.enum(EVENT_FILTER_OPTIONS_COLUMNS))
+    .optional(),
 });
 
 export type GetEventFilterOptionsInput = z.infer<
@@ -88,7 +96,7 @@ export const eventsRouter = createTRPCRouter({
       });
 
       if (hasNoMatches) {
-        return { observations: [] };
+        return { observations: [], hasMore: false };
       }
 
       return instrumentAsync(
@@ -149,14 +157,7 @@ export const eventsRouter = createTRPCRouter({
       );
     }),
   filterOptions: protectedProjectProcedure
-    .input(
-      zodSchema.object({
-        projectId: zodSchema.string(),
-        startTimeFilter: zodSchema.array(timeFilter).optional(),
-        isRootObservation: zodSchema.boolean().optional(),
-        hasParentObservation: zodSchema.boolean().optional(),
-      }),
-    )
+    .input(GetEventFilterOptionsInput)
     .query(async ({ input }) => {
       return instrumentAsync(
         {
@@ -168,11 +169,13 @@ export const eventsRouter = createTRPCRouter({
           return getEventFilterOptions({
             projectId: input.projectId,
             startTimeFilter: input.startTimeFilter,
+            monitorWindow: input.monitorWindow,
             isRootObservation:
               input.isRootObservation ??
               (input.hasParentObservation !== undefined
                 ? !input.hasParentObservation
                 : undefined), // backward compat for legacy hasParentObservation filterOption
+            columns: input.columns,
           });
         },
       );

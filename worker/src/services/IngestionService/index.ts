@@ -49,7 +49,7 @@ import {
   getDatasetItemById,
   normalizeToolsForObservation,
   hasNoEvalConfigsCache,
-  tagsWithTraceId,
+  buildClickHouseLogComment,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -713,26 +713,26 @@ export class IngestionService {
         `Skipping TraceUpsert queue for project ${projectId} - no job configs cached`,
       );
       return;
-    } else {
-      // Job configs present, so we add to the TraceUpsert queue.
-      const shardingKey = `${projectId}-${entityId}`;
-      const traceUpsertQueue = TraceUpsertQueue.getInstance({ shardingKey });
-      if (!traceUpsertQueue) {
-        logger.error("TraceUpsertQueue is not initialized");
-        return;
-      }
-      await traceUpsertQueue.add(QueueJobs.TraceUpsert, {
-        payload: {
-          projectId,
-          traceId: entityId,
-          exactTimestamp: new Date(finalTraceRecord.timestamp),
-          traceEnvironment: finalTraceRecord.environment,
-        },
-        id: randomUUID(),
-        timestamp: new Date(),
-        name: QueueJobs.TraceUpsert as const,
-      });
     }
+
+    // Job configs present, so we add to the TraceUpsert queue.
+    const shardingKey = `${projectId}-${entityId}`;
+    const traceUpsertQueue = TraceUpsertQueue.getInstance({ shardingKey });
+    if (!traceUpsertQueue) {
+      logger.error("TraceUpsertQueue is not initialized");
+      return;
+    }
+    await traceUpsertQueue.add(QueueJobs.TraceUpsert, {
+      payload: {
+        projectId,
+        traceId: entityId,
+        exactTimestamp: new Date(finalTraceRecord.timestamp),
+        traceEnvironment: finalTraceRecord.environment,
+      },
+      id: randomUUID(),
+      timestamp: new Date(),
+      name: QueueJobs.TraceUpsert as const,
+    });
   }
 
   private async processObservationEventList(params: {
@@ -1436,12 +1436,9 @@ export class IngestionService {
           format: "JSONEachRow",
           query_params: { projectId, entityId, ...additionalFilters.params },
           clickhouse_settings: {
-            log_comment: JSON.stringify(
-              tagsWithTraceId({
-                feature: "ingestion",
-                projectId,
-              }),
-            ),
+            log_comment: buildClickHouseLogComment({
+              projectId,
+            }),
           },
         });
 

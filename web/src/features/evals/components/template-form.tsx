@@ -215,7 +215,7 @@ export const InnerEvalTemplateForm = (props: {
   // If existing template has no provider, it was using default model
   const shouldUseDefaultModel =
     props.preFilledFormValues?.shouldUseDefaultModel ??
-    (props.preFilledFormValues?.selectedModel ? false : true);
+    !props.preFilledFormValues?.selectedModel;
 
   const { data: defaultModel } = api.defaultLlmModel.fetchDefaultModel.useQuery(
     { projectId: props.projectId },
@@ -423,10 +423,9 @@ export const InnerEvalTemplateForm = (props: {
         if ("message" in error && typeof error.message === "string") {
           setFormError(error.message as string);
           return;
-        } else {
-          setFormError(JSON.stringify(error));
-          console.error(error);
         }
+        setFormError(JSON.stringify(error));
+        console.error(error);
       });
   }
 
@@ -946,7 +945,7 @@ export const InnerEvalTemplateForm = (props: {
         </Button>
       )}
       {formError ? (
-        <p className="text-red w-full text-center">
+        <p className="w-full text-center">
           <span className="font-bold">Error:</span> {formError}
         </p>
       ) : null}

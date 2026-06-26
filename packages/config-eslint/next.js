@@ -83,6 +83,8 @@ export default [
     },
     rules: {
       "no-void": "warn",
+      "no-else-return": "warn",
+      "no-unneeded-ternary": "warn",
       "no-unused-vars": "off", // Use @typescript-eslint/no-unused-vars instead
       "@repo/no-tailwind-overflow-scroll": "warn",
       // Custom rules from old config
@@ -104,6 +106,7 @@ export default [
         },
       ],
       "@typescript-eslint/no-deprecated": "warn",
+      "@typescript-eslint/no-inferrable-types": "warn",
       "react/jsx-key": ["error", { warnOnDuplicates: true }],
       "react/no-unused-prop-types": "warn",
     },
