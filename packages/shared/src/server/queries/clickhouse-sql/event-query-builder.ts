@@ -708,7 +708,11 @@ abstract class AbstractCTEQueryBuilder extends AbstractQueryBuilder {
   /**
    * Add a JOIN of the specified kind
    */
-  private join(kind: "LEFT" | "INNER", table: string, onClause: string): this {
+  private join(
+    kind: "LEFT" | "LEFT ANY" | "INNER",
+    table: string,
+    onClause: string,
+  ): this {
     this.joins.push(`${kind} JOIN ${table} ${onClause}`);
     return this;
   }
@@ -718,6 +722,14 @@ abstract class AbstractCTEQueryBuilder extends AbstractQueryBuilder {
    */
   leftJoin(table: string, onClause: string): this {
     this.join("LEFT", table, onClause);
+    return this;
+  }
+
+  /**
+   * Add a LEFT ANY JOIN.
+   */
+  leftAnyJoin(table: string, onClause: string): this {
+    this.join("LEFT ANY", table, onClause);
     return this;
   }
 
@@ -1770,11 +1782,21 @@ const EXPERIMENTS_AGGREGATION_FIELDS = {
   // Base aggregated fields
   experimentId: "e.experiment_id AS experiment_id",
   experimentName: "any(e.experiment_name) AS experiment_name",
+  publicApiExperimentName:
+    "any(coalesce(e.experiment_name, '')) AS experiment_name",
   experimentDescription:
     "any(e.experiment_description) AS experiment_description",
   experimentDatasetId: "any(e.experiment_dataset_id) AS experiment_dataset_id",
   startTime: "min(e.start_time) AS start_time",
+  publicApiCursorTraceHash:
+    "argMin(xxHash32(e.trace_id), (e.start_time, xxHash32(e.trace_id), e.span_id, e.experiment_id)) AS cursor_trace_hash",
+  publicApiCursorTraceId:
+    "argMin(e.trace_id, (e.start_time, xxHash32(e.trace_id), e.span_id, e.experiment_id)) AS cursor_trace_id",
+  publicApiCursorSpanId:
+    "argMin(e.span_id, (e.start_time, xxHash32(e.trace_id), e.span_id, e.experiment_id)) AS cursor_span_id",
   itemCount: "uniq(e.experiment_item_id) AS item_count",
+  publicApiItemCount:
+    "countIf(e.span_id = e.experiment_item_root_span_id) AS item_count",
   errorCount: "countIf(e.level = 'ERROR') AS error_count",
   prompts:
     "groupUniqArrayIf(tuple(e.prompt_name, e.prompt_version), e.prompt_name != '') AS prompts",
@@ -1803,6 +1825,18 @@ const EXPERIMENTS_AGGREGATION_FIELD_SETS = {
     "prompts",
     "experimentMetadata",
   ] as const,
+  publicApiCore: [
+    "experimentId",
+    "publicApiExperimentName",
+    "experimentDescription",
+    "experimentDatasetId",
+    "startTime",
+    "publicApiCursorTraceHash",
+    "publicApiCursorTraceId",
+    "publicApiCursorSpanId",
+    "publicApiItemCount",
+  ] as const,
+  publicApiMetadata: ["experimentMetadata"] as const,
   metrics: ["experimentId", "totalCost", "latencyAvg"] as const,
 } as const;
 
@@ -1839,7 +1873,7 @@ export class ExperimentsAggregationQueryBuilder extends BaseEventsQueryBuilder<
   }
 
   /**
-   * Add start time filter with OBSERVATIONS_TO_TRACE_INTERVAL
+   * Add start time filter with OBSERVATIONS_TO_TRACE_INTERVAL.
    */
   withStartTimeFrom(startTimeFrom?: string | null): this {
     return this.when(Boolean(startTimeFrom), (b) =>
@@ -1848,6 +1882,56 @@ export class ExperimentsAggregationQueryBuilder extends BaseEventsQueryBuilder<
         { startTimeFrom },
       ),
     );
+  }
+
+  /**
+   * Add exact event-level start time lower bound.
+   */
+  withExactStartTimeFrom(startTimeFrom?: string | null): this {
+    return this.when(Boolean(startTimeFrom), (b) =>
+      b.whereRaw("e.start_time >= {startTimeFrom: DateTime64(3)}", {
+        startTimeFrom,
+      }),
+    );
+  }
+
+  /**
+   * Add exact event-level start time upper bound.
+   */
+  withExactStartTimeTo(startTimeTo?: string | null): this {
+    return this.when(Boolean(startTimeTo), (b) =>
+      b.whereRaw("e.start_time < {startTimeTo: DateTime64(3)}", {
+        startTimeTo,
+      }),
+    );
+  }
+
+  /**
+   * Add cursor support for experiment summaries.
+   *
+   * When a cursor is provided, it is applied to raw events before aggregation.
+   * This can split an experiment across pages, but keeps the cursor predicate on
+   * the event-level ordering key.
+   */
+  withCursor(cursor?: {
+    lastStartTime: string;
+    lastTraceId: string;
+    lastId: string;
+    lastExperimentId: string;
+  }): this {
+    return this.when(Boolean(cursor), (b) => {
+      if (!cursor) return b;
+
+      return b.whereRaw(
+        "e.start_time <= {lastStartTime: DateTime64(6)} AND (e.start_time, xxHash32(e.trace_id), e.span_id, e.experiment_id) < ({lastStartTime: DateTime64(6)}, xxHash32({lastTraceId: String}), {lastId: String}, {lastExperimentId: String})",
+        {
+          lastStartTime: cursor.lastStartTime,
+          lastTraceId: cursor.lastTraceId,
+          lastId: cursor.lastId,
+          lastExperimentId: cursor.lastExperimentId,
+        },
+      );
+    });
   }
 
   /**

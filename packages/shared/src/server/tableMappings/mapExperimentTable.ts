@@ -1,4 +1,8 @@
-import { UiColumnMappings } from "../../tableDefinitions";
+import type {
+  ColumnDefinition,
+  UiColumnMappings,
+} from "../../tableDefinitions";
+import type { ApiColumnMapping } from "../queries/public-api-filter-builder";
 
 /**
  * Pre-aggregation column mappings for experiments.
@@ -97,3 +101,58 @@ export const experimentCols: UiColumnMappings = [
   ...experimentPreAggCols,
   ...experimentScoreAggCols,
 ];
+
+const publicApiExperimentFilterColumns = [
+  { id: "id", preAggId: "id", nullable: false },
+  { id: "name", preAggId: "name", nullable: true },
+  { id: "datasetId", preAggId: "experimentDatasetId", nullable: true },
+] as const;
+
+const getPublicApiExperimentFilterColumn = (
+  preAggId: (typeof publicApiExperimentFilterColumns)[number]["preAggId"],
+) => {
+  const column = experimentPreAggCols.find((col) => col.uiTableId === preAggId);
+  if (!column) {
+    throw new Error(`Unknown experiment pre-aggregation column: ${preAggId}`);
+  }
+  return column;
+};
+
+export const publicApiExperimentSimpleFilterMappings: ApiColumnMapping[] =
+  publicApiExperimentFilterColumns.map(({ id, preAggId }) => {
+    const column = getPublicApiExperimentFilterColumn(preAggId);
+
+    return {
+      id,
+      clickhouseSelect: column.clickhouseSelect.replace(/^e\./, ""),
+      clickhouseTable: column.clickhouseTableName,
+      filterType: "StringOptionsFilter",
+      clickhousePrefix: "e",
+    };
+  });
+
+export const publicApiExperimentColumnMappings: UiColumnMappings =
+  publicApiExperimentFilterColumns.map(({ id, preAggId }) => {
+    const column = getPublicApiExperimentFilterColumn(preAggId);
+
+    return {
+      uiTableName: column.uiTableName,
+      uiTableId: id,
+      clickhouseTableName: column.clickhouseTableName,
+      clickhouseSelect: column.clickhouseSelect,
+    };
+  });
+
+export const publicApiExperimentColumnDefinitions: ColumnDefinition[] =
+  publicApiExperimentFilterColumns.map(({ id, preAggId, nullable }) => {
+    const column = getPublicApiExperimentFilterColumn(preAggId);
+
+    return {
+      name: column.uiTableName,
+      id,
+      type: "stringOptions",
+      internal: column.clickhouseSelect,
+      options: [],
+      ...(nullable ? { nullable: true } : {}),
+    };
+  });

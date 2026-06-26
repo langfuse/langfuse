@@ -4,6 +4,7 @@ import {
   CTEQueryBuilder,
   EventsAggregationQueryBuilder,
   EventsQueryBuilder,
+  ExperimentsAggregationQueryBuilder,
 } from "@langfuse/shared/src/server";
 
 describe("buildEventsFilterOptionsForColumnsQuery", () => {
@@ -419,5 +420,111 @@ describe("EventsQueryBuilder", () => {
     expect(query).toContain(
       "mapFromArrays(e.experiment_item_metadata_names, e.experiment_item_metadata_values) as experiment_item_metadata",
     );
+  });
+});
+
+describe("ExperimentsAggregationQueryBuilder", () => {
+  it("keeps the existing lookback start time bound", () => {
+    const { query, params } = new ExperimentsAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("base")
+      .withStartTimeFrom("2026-01-01 00:00:00.000")
+      .whereRaw("e.experiment_id != ''")
+      .buildWithParams();
+
+    expect(query).toContain(
+      "e.start_time >= {startTimeFrom: DateTime64(3)} - INTERVAL 2 DAY",
+    );
+    expect(query).toContain("e.experiment_id != ''");
+    expect(params).toMatchObject({
+      projectId: "test-project",
+      startTimeFrom: "2026-01-01 00:00:00.000",
+    });
+  });
+
+  it("builds exact event-level experiment bounds", () => {
+    const { query, params } = new ExperimentsAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("base")
+      .withExperimentIds(["exp-1", "exp-2"])
+      .withExactStartTimeFrom("2026-01-01 00:00:00.000")
+      .withExactStartTimeTo("2026-01-02 00:00:00.000")
+      .whereRaw("e.experiment_id != ''")
+      .buildWithParams();
+
+    expect(query).toContain("e.project_id = {projectId: String}");
+    expect(query).toContain("e.experiment_id != ''");
+    expect(query).toContain(
+      "e.experiment_id IN ({experimentIds: Array(String)})",
+    );
+    expect(query).toContain("e.start_time >= {startTimeFrom: DateTime64(3)}");
+    expect(query).toContain("e.start_time < {startTimeTo: DateTime64(3)}");
+    expect(query).not.toContain("INTERVAL 2 DAY");
+    expect(params).toMatchObject({
+      projectId: "test-project",
+      experimentIds: ["exp-1", "exp-2"],
+      startTimeFrom: "2026-01-01 00:00:00.000",
+      startTimeTo: "2026-01-02 00:00:00.000",
+    });
+  });
+
+  it("builds public API experiment summary fields", () => {
+    const { query } = new ExperimentsAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("publicApiCore", "publicApiMetadata")
+      .buildWithParams();
+
+    expect(query).toContain("e.experiment_id AS experiment_id");
+    expect(query).toContain(
+      "any(coalesce(e.experiment_name, '')) AS experiment_name",
+    );
+    expect(query).toContain(
+      "countIf(e.span_id = e.experiment_item_root_span_id) AS item_count",
+    );
+    expect(query).toContain(
+      "any(mapFromArrays(e.experiment_metadata_names, e.experiment_metadata_values)) AS experiment_metadata",
+    );
+    expect(query).not.toContain("uniq(e.experiment_item_id) AS item_count");
+  });
+
+  it("does not add experiment cursor predicates without a cursor", () => {
+    const { query } = new ExperimentsAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("publicApiCore")
+      .withCursor()
+      .buildWithParams();
+
+    expect(query).not.toContain("HAVING");
+  });
+
+  it("builds experiment cursor predicates", () => {
+    const { query, params } = new ExperimentsAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("publicApiCore")
+      .withCursor({
+        lastStartTime: "2026-01-01 00:00:00.000000",
+        lastTraceId: "trace-1",
+        lastId: "span-1",
+        lastExperimentId: "experiment-1",
+      })
+      .buildWithParams();
+
+    expect(query).toContain("e.start_time <= {lastStartTime: DateTime64(6)}");
+    expect(query).toContain("xxHash32({lastTraceId: String})");
+    expect(query).toContain(
+      "(e.start_time, xxHash32(e.trace_id), e.span_id, e.experiment_id) < ({lastStartTime: DateTime64(6)}, xxHash32({lastTraceId: String}), {lastId: String}, {lastExperimentId: String})",
+    );
+    expect(query).not.toContain("HAVING");
+    expect(params).toMatchObject({
+      lastStartTime: "2026-01-01 00:00:00.000000",
+      lastTraceId: "trace-1",
+      lastId: "span-1",
+      lastExperimentId: "experiment-1",
+    });
   });
 });

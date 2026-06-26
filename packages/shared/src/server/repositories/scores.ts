@@ -2793,7 +2793,7 @@ function deriveSubjectForV3(
   return { kind: "trace", id: score.traceId };
 }
 
-function domainToV3Shared(
+export function scoreDomainToV3(
   score: ScoreDomain,
   fields: ScoreFieldGroupV3[],
 ): APIScoreV3 {
@@ -2891,10 +2891,7 @@ export async function listScoresV3ForPublicApi(
       for (const row of pageRecords) {
         try {
           items.push(
-            domainToV3Shared(
-              convertClickhouseScoreToDomain(row),
-              params.fields,
-            ),
+            scoreDomainToV3(convertClickhouseScoreToDomain(row), params.fields),
           );
         } catch (error) {
           logger.error("v3 score row dropped from response: conversion error", {
