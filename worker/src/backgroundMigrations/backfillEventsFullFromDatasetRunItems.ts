@@ -1,5 +1,6 @@
 import { IBackgroundMigration } from "./IBackgroundMigration";
 import {
+  buildClickHouseLogComment,
   clickhouseClient,
   convertDateToClickhouseDateTime,
   logger,
@@ -207,8 +208,8 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
         request_timeout: 120_000,
       },
       tags: {
-        feature: "background-migration",
-        operation: "loadDriBatch",
+        surface: "worker",
+        route: "background-migration.loadDriBatch",
       },
     });
   }
@@ -308,8 +309,8 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
         request_timeout: 120_000,
       },
       tags: {
-        feature: "background-migration",
-        operation: "fetchObservationsForBatch",
+        surface: "worker",
+        route: "background-migration.fetchObservationsForBatch",
       },
     });
   }
@@ -386,8 +387,8 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
         request_timeout: 120_000,
       },
       tags: {
-        feature: "background-migration",
-        operation: "fetchTracesForBatch",
+        surface: "worker",
+        route: "background-migration.fetchTracesForBatch",
       },
     });
   }
@@ -417,9 +418,9 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
         plainEventTsFromSource: true,
       }),
       clickhouse_settings: {
-        log_comment: JSON.stringify({
-          feature: "background-migration",
-          operation: "backfillEventsFullFromDatasetRunItems",
+        log_comment: buildClickHouseLogComment({
+          surface: "worker",
+          route: "background-migration.backfillEventsFullFromDatasetRunItems",
         }),
       },
     });

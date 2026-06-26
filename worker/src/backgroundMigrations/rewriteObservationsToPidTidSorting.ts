@@ -113,8 +113,8 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
     await commandClickhouse({
       query: ddl,
       tags: {
-        feature: "background-migration",
-        operation: "ensureScratchTable",
+        surface: "worker",
+        route: "background-migration.ensureScratchTable",
       },
     });
   }
@@ -139,8 +139,8 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
       await commandClickhouse({
         query: `ALTER TABLE observations_pid_tid_sorting MODIFY SETTING shared_merge_tree_disable_merges_and_mutations_assignment = 1`,
         tags: {
-          feature: "background-migration",
-          operation: "stopMerges",
+          surface: "worker",
+          route: "background-migration.stopMerges",
         },
       });
     } else {
@@ -151,8 +151,8 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
       await commandClickhouse({
         query: `SYSTEM STOP MERGES ${onClusterClause()} observations_pid_tid_sorting`,
         tags: {
-          feature: "background-migration",
-          operation: "stopMerges",
+          surface: "worker",
+          route: "background-migration.stopMerges",
         },
       });
 
@@ -166,8 +166,8 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
         await commandClickhouse({
           query: `ALTER TABLE observations_pid_tid_sorting ${onClusterClause()} MODIFY SETTING max_replicated_merges_in_queue = 0, always_fetch_merged_part = 1`,
           tags: {
-            feature: "background-migration",
-            operation: "stopMerges",
+            surface: "worker",
+            route: "background-migration.stopMerges",
           },
         });
       }
@@ -205,8 +205,8 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
     await commandClickhouse({
       query: `SYSTEM SYNC REPLICA ${onClusterClause()} observations_pid_tid_sorting STRICT`,
       tags: {
-        feature: "background-migration",
-        operation: "syncReplica",
+        surface: "worker",
+        route: "background-migration.syncReplica",
       },
     });
   }

@@ -108,8 +108,8 @@ export async function detectTableEngine(table: string): Promise<string> {
     `,
     params: { table },
     tags: {
-      feature: "background-migration",
-      operation: "detectTableEngine",
+      surface: "worker",
+      route: "background-migration.detectTableEngine",
     },
   });
   return rows[0]?.engine ?? "";
@@ -195,8 +195,8 @@ export async function loadPartitionsFromClickhouse(
     `,
     params: { table },
     tags: {
-      feature: "background-migration",
-      operation: "loadPartitionsFromClickhouse",
+      surface: "worker",
+      route: "background-migration.loadPartitionsFromClickhouse",
     },
   });
 
@@ -291,10 +291,14 @@ export async function fireQuery({
   const queryPromise = commandClickhouse({
     query,
     params,
+    // Set the server-side query_id so pollQueryStatus can track this query in
+    // system.processes / system.query_log after we abort the HTTP connection.
+    // (Post-#14493 commandClickhouse only honors the top-level `queryId`; a
+    // `queryId` inside `tags` is dropped by tag normalization.)
+    queryId,
     tags: {
-      feature: "background-migration",
-      operation: "fireQuery",
-      queryId,
+      surface: "worker",
+      route: "background-migration.fireQuery",
     },
     clickhouseSettings: { ...retrySetting },
     abortSignal: abortController.signal,

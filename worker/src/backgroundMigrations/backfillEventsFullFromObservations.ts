@@ -148,8 +148,8 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
         skip_unavailable_shards: 1,
       },
       tags: {
-        feature: "background-migration",
-        operation: "assertReplicasConverged",
+        surface: "worker",
+        route: "background-migration.assertReplicasConverged",
       },
     });
 
@@ -218,8 +218,8 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
         ORDER BY partition_id DESC, name
       `,
       tags: {
-        feature: "background-migration",
-        operation: "loadPartsFromClickhouse",
+        surface: "worker",
+        route: "background-migration.loadPartsFromClickhouse",
       },
     });
 
@@ -245,8 +245,8 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
           AND active = 1
       `,
       tags: {
-        feature: "background-migration",
-        operation: "getActivePartIds",
+        surface: "worker",
+        route: "background-migration.getActivePartIds",
       },
     });
     return new Set(parts.map((p) => p.name));
@@ -395,8 +395,8 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
       `,
       params: { partId: todo.partId },
       tags: {
-        feature: "background-migration",
-        operation: "verifyPartStillActive",
+        surface: "worker",
+        route: "background-migration.verifyPartStillActive",
       },
     });
     const partStillActive =

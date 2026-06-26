@@ -69,9 +69,8 @@ export default class DropPidTidSortingTables implements IBackgroundMigration {
         await commandClickhouse({
           query: sql,
           tags: {
-            feature: "background-migration",
-            operation: "dropPidTidSortingTables",
-            table,
+            surface: "worker",
+            route: `background-migration.dropPidTidSortingTables:${table}`,
           },
         });
         logger.info(`${LOG_PREFIX} Dropped ${table}`);
