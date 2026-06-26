@@ -98,26 +98,29 @@ export function useDatasetItemMediaUpload({
         const buffer = await file.arrayBuffer();
         const sha256Hash = await sha256Base64(buffer);
 
-        const { mediaId, uploadUrl } = await getUploadUrl.mutateAsync({
-          projectId,
-          datasetId,
-          datasetItemId,
-          field,
-          contentType: file.type as MediaContentType,
-          contentLength: file.size,
-          sha256Hash,
-        });
+        const { mediaId, uploadUrl, uploadHeaders } =
+          await getUploadUrl.mutateAsync({
+            projectId,
+            datasetId,
+            datasetItemId,
+            field,
+            contentType: file.type as MediaContentType,
+            contentLength: file.size,
+            sha256Hash,
+          });
 
         // uploadUrl is null when the content already exists (dedupe by hash)
         if (uploadUrl) {
           const uploadStart = Date.now();
+          const headers = new Headers({ "Content-Type": file.type });
+          Object.entries(uploadHeaders).forEach(([key, value]) => {
+            if (value) headers.set(key, value);
+          });
+
           const response = await fetch(uploadUrl, {
             method: "PUT",
             body: file,
-            headers: {
-              "Content-Type": file.type,
-              "x-amz-checksum-sha256": sha256Hash,
-            },
+            headers,
           });
 
           await markUploadComplete.mutateAsync({
