@@ -12,7 +12,7 @@ export type PreparedQuery = {
   compiledQuery: string;
   parameters: Record<string, unknown>;
   preferredClickhouseService: PreferredClickhouseService | undefined;
-  tags: Record<string, string>;
+  tags: { projectId: string };
   clickhouseSettings: Record<string, string>;
   usesTraceTable: boolean;
   fromTimestamp: string;
@@ -53,12 +53,7 @@ export async function prepareExecuteQuery(opts: {
     ? ("EventsReadOnly" as const)
     : undefined;
 
-  const tags = {
-    feature: "custom-queries",
-    type: query.view,
-    kind: "analytic",
-    projectId,
-  };
+  const tags = { projectId };
 
   const clickhouseSettings: Record<string, string> = {
     date_time_output_format: "iso",
@@ -97,7 +92,7 @@ export async function executeQuery(
   projectId: string,
   query: QueryType,
   version: ViewVersion = "v1",
-  enableSingleLevelOptimization: boolean = false,
+  enableSingleLevelOptimization = false,
 ): Promise<Array<Record<string, unknown>>> {
   const prepared = await prepareExecuteQuery({
     projectId,
@@ -119,10 +114,7 @@ export async function executeQuery(
       query: prepared.compiledQuery,
       params: prepared.parameters,
       fromTimestamp: prepared.fromTimestamp,
-      tags: {
-        ...prepared.tags,
-        operation_name: "executeQuery",
-      },
+      tags: prepared.tags,
     },
     fn: async (input) => {
       return queryClickhouse<Record<string, unknown>>({

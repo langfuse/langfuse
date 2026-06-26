@@ -10,7 +10,12 @@ import { useSelection } from "../../contexts/SelectionContext";
 import { useViewPreferences } from "../../contexts/ViewPreferencesContext";
 import { useHandlePrefetchObservation } from "../../hooks/useHandlePrefetchObservation";
 import { flattenTreeWithTimelineMetrics } from "./timeline-flattening";
-import { calculateStepSize, SCALE_WIDTH } from "./timeline-calculations";
+import {
+  calculateStepSize,
+  calculateTraceDuration,
+  findEarliestStartTime,
+  SCALE_WIDTH,
+} from "./timeline-calculations";
 import { TimelineScale } from "./TimelineScale";
 import { TimelineRow } from "./TimelineRow";
 
@@ -30,18 +35,25 @@ export function TraceTimeline() {
   const timeIndexRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
-  // TODO: Extract aggregation logic to shared utility - duplicated in tree-building.ts and TraceTree.tsx
-  // Calculate trace duration from roots (max latency across all roots)
-  const traceDuration = useMemo(() => {
-    if (roots.length === 0) return 0;
-    return Math.max(...roots.map((r) => r.latency ?? 0));
+  // Timeline origin (the 0s mark): the earliest start time across the WHOLE
+  // tree, not just the roots. A child can start before its root (the TRACE
+  // wrapper's start is the trace timestamp, which may be later than the first
+  // observation), so anchoring to roots alone misplaces the origin past early
+  // children. See findEarliestStartTime.
+  const traceStartTime = useMemo(() => {
+    return findEarliestStartTime(roots) ?? new Date();
   }, [roots]);
 
-  const traceStartTime = useMemo(() => {
-    if (roots.length === 0) return new Date();
-    // Use earliest start time among roots
-    return new Date(Math.min(...roots.map((r) => r.startTime.getTime())));
-  }, [roots]);
+  // TODO: Extract aggregation logic to shared utility - duplicated in tree-building.ts and TraceTree.tsx
+  // Total span of the scale, in seconds, measured from the timeline origin
+  // (earliest start) to the latest end across the tree, so every bar fits
+  // within the scale even when the origin sits before a root's start. The
+  // latency fallback (for traces without end times) is anchored to the origin,
+  // so a root that starts after an earlier child still fits. See
+  // calculateTraceDuration.
+  const traceDuration = useMemo(() => {
+    return calculateTraceDuration(roots, traceStartTime);
+  }, [roots, traceStartTime]);
 
   // Calculate step size for time axis
   const stepSize = useMemo(() => {
@@ -177,9 +189,8 @@ export function TraceTimeline() {
               // Match based on observation ID or trace ID
               if (item.node.type === "TRACE") {
                 return score.traceId === item.node.id;
-              } else {
-                return score.observationId === item.node.id;
               }
+              return score.observationId === item.node.id;
             });
 
             // Get comment count for this node

@@ -72,13 +72,61 @@ export default [
     },
   },
 
-  // Design-system component APIs must use explicit variants instead of styling escape hatches.
   {
-    name: "langfuse/web/design-system-no-style-props",
+    name: "langfuse/web/design-system-rules",
     files: ["src/components/design-system/**/*.{ts,tsx}"],
     ignores: ["src/components/design-system/**/*.stories.tsx"],
     rules: {
+      // Design-system component APIs must use explicit variants instead of styling escape hatches.
       "@repo/no-style-props": "error",
+
+      // Margin makes components harder to compose and should therefore be applied by the parent.
+      // See: https://mxstbr.com/thoughts/margin for a discussion of this pattern.
+      // TODO: Consider expanding this rule beyond design-system components
+      "@repo/no-margin-on-root-elements": [
+        "warn",
+        { classNameFunctions: ["cn", "clsx"] },
+      ],
+    },
+  },
+
+  // App-wide guard ("overlay-content" mode): a consumer must not re-introduce a
+  // z-index escape on an overlay it imports (e.g. nav-user's old `z-60` on
+  // DropdownMenuContent, or `z-50` on a HoverCardContent). This mode flags a
+  // high z-index ONLY when it sits on an overlay *content* element (a component
+  // whose name ends in `Content`), which always routes through a layer — so
+  // plain page chrome (sticky headers, fixed banners/toolbars at `z-50`) inside
+  // the isolated `#__next` stacking context is left alone, no false positives.
+  // Declared BEFORE the wrapper block so the stricter "wrapper" mode is the
+  // final word on the nine `ui/*` primitive files (flat-config last-match wins).
+  {
+    name: "langfuse/web/overlay-content-no-zindex-escape",
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      "@repo/no-overlay-zindex": ["error", { mode: "overlay-content" }],
+    },
+  },
+
+  // Overlay primitive wrappers must stack via the app layer system (route the
+  // portal into a layer container, see components/ui/layer.tsx), never by
+  // escalating z-index to escape to the top. On these wrapper files, ban a
+  // high/arbitrary z-index ANYWHERE (mode "wrapper") — every high z-index here
+  // is an escape. z-index stays a local, within-layer tool elsewhere.
+  {
+    name: "langfuse/web/overlays-no-zindex-escape",
+    files: [
+      "src/components/ui/dialog.tsx",
+      "src/components/ui/alert-dialog.tsx",
+      "src/components/ui/sheet.tsx",
+      "src/components/ui/drawer.tsx",
+      "src/components/ui/popover.tsx",
+      "src/components/ui/dropdown-menu.tsx",
+      "src/components/ui/select.tsx",
+      "src/components/ui/hover-card.tsx",
+      "src/components/ui/tooltip.tsx",
+    ],
+    rules: {
+      "@repo/no-overlay-zindex": ["error", { mode: "wrapper" }],
     },
   },
 

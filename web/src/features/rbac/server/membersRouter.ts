@@ -269,12 +269,11 @@ export const membersRouter = createTRPCRouter({
               after: newProjectMembership,
             });
             return;
-          } else {
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message: "User is already a member of this organization",
-            });
           }
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "User is already a member of this organization",
+          });
         }
 
         // Check member limit before creating new membership

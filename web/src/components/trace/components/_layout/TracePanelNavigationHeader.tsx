@@ -157,7 +157,7 @@ function TracePanelNavigationHeaderExpanded({
             onKeyDown={handleSearchKeyDown}
           />
         </div>
-        <div className="flex flex-row items-center gap-0.5">
+        <div className="flex shrink-0 flex-row items-center gap-0.5">
           {/* Expand/Collapse All Button */}
           <Button
             onClick={handleToggleTreeNodes}
@@ -198,7 +198,7 @@ function TracePanelNavigationHeaderExpanded({
             size="sm"
             onClick={() => setViewMode(isTimelineView ? null : "timeline")}
             className={cn(
-              "h-7 px-2 text-xs",
+              "h-7 shrink-0 px-2 text-xs",
               isTimelineView && "bg-primary text-primary-foreground",
             )}
           >

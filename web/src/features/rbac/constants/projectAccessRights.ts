@@ -65,6 +65,8 @@ export const projectScopes = [
   "llmTools:CUD",
   "llmTools:read",
 
+  "playground:execute",
+
   "comments:CUD",
   "comments:read",
 
@@ -124,6 +126,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "llmSchemas:read",
     "llmTools:CUD",
     "llmTools:read",
+    "playground:execute",
     "batchExports:create",
     "batchExports:read",
     "comments:CUD",
@@ -180,6 +183,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "llmSchemas:read",
     "llmTools:CUD",
     "llmTools:read",
+    "playground:execute",
     "batchExports:create",
     "batchExports:read",
     "comments:CUD",
@@ -226,6 +230,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "llmSchemas:CUD",
     "llmTools:CUD",
     "llmTools:read",
+    "playground:execute",
     "batchExports:create",
     "batchExports:read",
     "comments:CUD",
