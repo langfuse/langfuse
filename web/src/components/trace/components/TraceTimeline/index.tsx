@@ -73,9 +73,13 @@ export function TraceTimeline() {
       const onUp = () => {
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
       };
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
+      // pointercancel (OS gesture, contextmenu, touch interruption) must also
+      // tear down the move listener, else the gutter ghost-resizes afterwards.
+      window.addEventListener("pointercancel", onUp);
     },
     [gutterWidth],
   );
