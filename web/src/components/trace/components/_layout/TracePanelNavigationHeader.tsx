@@ -45,6 +45,7 @@ import {
   downloadServerTraceAsJson,
 } from "../../lib/download-trace";
 import { TracePanelNavigationButton } from "./TracePanelNavigationButton";
+import { useDesktopLayoutContextOptional } from "./TraceLayoutDesktop";
 import { toast } from "sonner";
 import { TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD } from "@/src/features/traces/shared/traceDownloadConfig";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
@@ -92,6 +93,13 @@ function TracePanelNavigationHeaderExpanded({
   const { isGraphViewAvailable } = useTraceGraphData();
   const { isBetaEnabled } = useV4Beta();
   const [viewMode, setViewMode] = useQueryParam("view", StringParam);
+
+  // When the detail (info) panel is closed, the tree/timeline owns the whole
+  // surface — so the left "collapse panel" toggle would only shrink the one
+  // thing on screen. Hide it. Re-opening the detail panel is handled by its own
+  // collapsed rail (see TraceLayoutDesktop), so the header needs no button.
+  const layout = useDesktopLayoutContextOptional();
+  const isDetailPanelCollapsed = layout?.isDetailPanelCollapsed ?? false;
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -157,16 +165,22 @@ function TracePanelNavigationHeaderExpanded({
   return (
     <Command className="flex h-auto shrink-0 flex-col gap-1 overflow-hidden rounded-none border-b">
       <div className="@container/navheader flex flex-row items-center justify-between pr-2 pl-1">
-        {/* Panel Toggle Button; special p-0.5 offset to pixel align with closed version */}
-        <div className="flex flex-row items-center p-0.5">
-          <TracePanelNavigationButton
-            isPanelCollapsed={isPanelCollapsed}
-            onTogglePanel={onTogglePanel}
-            shouldPulseToggle={shouldPulseToggle}
-          />
-        </div>
+        {/* Panel Toggle Button; special p-0.5 offset to pixel align with closed
+            version. Hidden while the detail panel is closed (nothing useful to
+            collapse the full-width tree/timeline into). */}
+        {!isDetailPanelCollapsed && (
+          <div className="flex flex-row items-center p-0.5">
+            <TracePanelNavigationButton
+              isPanelCollapsed={isPanelCollapsed}
+              onTogglePanel={onTogglePanel}
+              shouldPulseToggle={shouldPulseToggle}
+            />
+          </div>
+        )}
         {/* Search Input */}
-        <div className="relative flex-1">
+        <div
+          className={cn("relative flex-1", isDetailPanelCollapsed && "pl-1")}
+        >
           <CommandInput
             showBorder={false}
             placeholder="Search"
@@ -255,6 +269,9 @@ function TracePanelNavigationHeaderExpanded({
             isTimelineView={isTimelineView}
             onSelect={(timeline) => setViewMode(timeline ? "timeline" : null)}
           />
+          {/* When the detail panel is closed it shows its own collapsed rail +
+              expand button on the right edge (mirrors the navigation panel), so
+              the header needs no re-open button — see TraceLayoutDesktop. */}
         </div>
       </div>
     </Command>

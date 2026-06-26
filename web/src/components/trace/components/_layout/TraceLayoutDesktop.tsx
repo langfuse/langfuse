@@ -16,10 +16,13 @@ import {
 } from "react";
 import { PanelRightOpen } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
+import { cn } from "@/src/utils/tailwind";
 import { useViewPreferences } from "@/src/components/trace/contexts/ViewPreferencesContext";
 import { useSelection } from "@/src/components/trace/contexts/SelectionContext";
 
-const RESIZABLE_PANEL_GROUP_ID = "trace-layout";
+// v2: the default split now gives the trace (tree/timeline) the central space
+// with a slimmer detail panel. Bumped so a stale saved layout doesn't mask it.
+const RESIZABLE_PANEL_GROUP_ID = "trace-layout-v2";
 const RESIZABLE_PANEL_HANDLE_ID = "trace-layout-handle";
 const RESIZABLE_PANEL_NAVIGATION_ID = "trace-layout-panel-navigation";
 const RESIZABLE_PANEL_PREVIEW_ID = "trace-layout-panel-preview";
@@ -164,21 +167,9 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
         >
           {children}
         </Group>
-
-        {/* When the detail panel is fully collapsed, a tab on the right edge
-            brings it back (the drag handle alone isn't discoverable). */}
-        {isDetailPanelCollapsed && (
-          <Button
-            variant="outline"
-            size="icon"
-            title="Show detail panel"
-            aria-label="Show detail panel"
-            onClick={expandDetailPanel}
-            className="bg-background absolute top-1/2 right-0 z-30 h-9 w-6 -translate-y-1/2 rounded-l-md rounded-r-none border-r-0 shadow-sm"
-          >
-            <PanelRightOpen className="h-4 w-4" />
-          </Button>
-        )}
+        {/* When the detail panel is collapsed, the navigation header surfaces a
+            "show detail panel" button at its right edge (TracePanelNavigationHeader)
+            — no floating edge tab. */}
       </div>
     </LayoutContext.Provider>
   );
@@ -199,7 +190,7 @@ TraceLayoutDesktop.NavigationPanel = function Navigation({
       collapsible={true}
       collapsedSize="40px"
       minSize="260px"
-      defaultSize="450px"
+      defaultSize="60%"
       onResize={() => {
         setIsNavigationPanelCollapsed(panelRef.current?.isCollapsed() ?? false);
       }}
@@ -228,19 +219,25 @@ TraceLayoutDesktop.DetailPanel = function Detail({
 }: {
   children: ReactNode;
 }) {
-  const { detailPanelRef, setIsDetailPanelCollapsed } = useLayoutContext();
+  const {
+    detailPanelRef,
+    setIsDetailPanelCollapsed,
+    isDetailPanelCollapsed,
+    expandDetailPanel,
+  } = useLayoutContext();
 
   return (
     // Collapsible like the navigation panel: dragging it below the 360px floor
-    // snaps it shut (collapsedSize 0) so the timeline/tree can take the full
-    // width. A tab on the right edge (rendered by TraceLayoutDesktop) brings it
-    // back. 360px is the readable minimum the narrow peek already renders at.
+    // snaps it to a 40px rail (collapsedSize) so the timeline/tree takes the
+    // rest of the width while a "show detail panel" button on the rail brings it
+    // back — mirroring the navigation panel's collapsed strip. 360px is the
+    // readable minimum the narrow peek already renders at.
     <Panel
       id={RESIZABLE_PANEL_PREVIEW_ID}
       panelRef={detailPanelRef}
-      defaultSize="70%"
+      defaultSize="40%"
       collapsible={true}
-      collapsedSize="0px"
+      collapsedSize="40px"
       minSize="360px"
       onResize={() => {
         setIsDetailPanelCollapsed(
@@ -248,7 +245,26 @@ TraceLayoutDesktop.DetailPanel = function Detail({
         );
       }}
     >
-      {children}
+      {/* Keep the detail content MOUNTED while collapsed (just hidden), so its
+          scroll position, local state, and in-progress comment/annotation
+          drafts survive a collapse → expand round-trip. */}
+      <div className={cn("h-full w-full", isDetailPanelCollapsed && "hidden")}>
+        {children}
+      </div>
+      {isDetailPanelCollapsed && (
+        <div className="flex h-full w-full flex-col items-center p-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            title="Show detail panel"
+            aria-label="Show detail panel"
+            onClick={expandDetailPanel}
+            className="h-7 w-7 shrink-0"
+          >
+            <PanelRightOpen className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      )}
     </Panel>
   );
 };
