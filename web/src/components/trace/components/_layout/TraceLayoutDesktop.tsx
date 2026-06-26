@@ -14,8 +14,6 @@ import {
   useContext,
   type ReactNode,
 } from "react";
-import { PanelRightOpen } from "lucide-react";
-import { Button } from "@/src/components/ui/button";
 import { useViewPreferences } from "@/src/components/trace/contexts/ViewPreferencesContext";
 import { useSelection } from "@/src/components/trace/contexts/SelectionContext";
 
@@ -164,21 +162,9 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
         >
           {children}
         </Group>
-
-        {/* When the detail panel is fully collapsed, a tab on the right edge
-            brings it back (the drag handle alone isn't discoverable). */}
-        {isDetailPanelCollapsed && (
-          <Button
-            variant="outline"
-            size="icon"
-            title="Show detail panel"
-            aria-label="Show detail panel"
-            onClick={expandDetailPanel}
-            className="bg-background absolute top-1/2 right-0 z-30 h-9 w-6 -translate-y-1/2 rounded-l-md rounded-r-none border-r-0 shadow-sm"
-          >
-            <PanelRightOpen className="h-4 w-4" />
-          </Button>
-        )}
+        {/* When the detail panel is collapsed, the navigation header surfaces a
+            "show detail panel" button at its right edge (TracePanelNavigationHeader)
+            — no floating edge tab. */}
       </div>
     </LayoutContext.Provider>
   );

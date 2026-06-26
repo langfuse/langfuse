@@ -24,6 +24,7 @@ import {
   ListTree,
   GanttChartSquare,
   MoreHorizontal,
+  PanelRightOpen,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -45,6 +46,7 @@ import {
   downloadServerTraceAsJson,
 } from "../../lib/download-trace";
 import { TracePanelNavigationButton } from "./TracePanelNavigationButton";
+import { useDesktopLayoutContextOptional } from "./TraceLayoutDesktop";
 import { toast } from "sonner";
 import { TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD } from "@/src/features/traces/shared/traceDownloadConfig";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
@@ -92,6 +94,13 @@ function TracePanelNavigationHeaderExpanded({
   const { isGraphViewAvailable } = useTraceGraphData();
   const { isBetaEnabled } = useV4Beta();
   const [viewMode, setViewMode] = useQueryParam("view", StringParam);
+
+  // When the detail (info) panel is closed, the tree/timeline owns the whole
+  // surface — so the left "collapse panel" toggle would only shrink the one
+  // thing on screen. Hide it, and offer a single "show detail" button at the
+  // right edge of the header instead (replacing the floating edge tab).
+  const layout = useDesktopLayoutContextOptional();
+  const isDetailPanelCollapsed = layout?.isDetailPanelCollapsed ?? false;
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -157,16 +166,22 @@ function TracePanelNavigationHeaderExpanded({
   return (
     <Command className="flex h-auto shrink-0 flex-col gap-1 overflow-hidden rounded-none border-b">
       <div className="@container/navheader flex flex-row items-center justify-between pr-2 pl-1">
-        {/* Panel Toggle Button; special p-0.5 offset to pixel align with closed version */}
-        <div className="flex flex-row items-center p-0.5">
-          <TracePanelNavigationButton
-            isPanelCollapsed={isPanelCollapsed}
-            onTogglePanel={onTogglePanel}
-            shouldPulseToggle={shouldPulseToggle}
-          />
-        </div>
+        {/* Panel Toggle Button; special p-0.5 offset to pixel align with closed
+            version. Hidden while the detail panel is closed (nothing useful to
+            collapse the full-width tree/timeline into). */}
+        {!isDetailPanelCollapsed && (
+          <div className="flex flex-row items-center p-0.5">
+            <TracePanelNavigationButton
+              isPanelCollapsed={isPanelCollapsed}
+              onTogglePanel={onTogglePanel}
+              shouldPulseToggle={shouldPulseToggle}
+            />
+          </div>
+        )}
         {/* Search Input */}
-        <div className="relative flex-1">
+        <div
+          className={cn("relative flex-1", isDetailPanelCollapsed && "pl-1")}
+        >
           <CommandInput
             showBorder={false}
             placeholder="Search"
@@ -255,6 +270,21 @@ function TracePanelNavigationHeaderExpanded({
             isTimelineView={isTimelineView}
             onSelect={(timeline) => setViewMode(timeline ? "timeline" : null)}
           />
+
+          {/* Re-open the detail panel — shown at the header's right edge only
+              while the panel is closed (replaces the floating edge tab). */}
+          {isDetailPanelCollapsed && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => layout?.expandDetailPanel()}
+              title="Show detail panel"
+              aria-label="Show detail panel"
+              className="ml-1 h-7 w-7 shrink-0"
+            >
+              <PanelRightOpen className="h-3.5 w-3.5" />
+            </Button>
+          )}
         </div>
       </div>
     </Command>
