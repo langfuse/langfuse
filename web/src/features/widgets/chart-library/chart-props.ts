@@ -10,18 +10,20 @@ export interface DataPoint {
 export type LegendPosition = "above" | "none";
 
 /**
- * How a chart legend summarizes each series across its time buckets:
- * - `"sum"`: additive total (event counts, token totals, cost) — reconciles
+ * Whether a chart legend shows a per-series summary across its time buckets:
+ * - `"sum"`: the additive total (event counts, token totals, cost) — reconciles
  *   with the card's headline number.
- * - `"average"`: a representative central value for non-additive metrics
- *   (latency percentiles, average scores) where a cross-bucket sum would be
- *   meaningless.
  * - `"none"`: no per-series summary (default).
  *
- * The mode is chosen by each call-site because additivity is a property of the
- * metric's aggregation, which is decided upstream of the chart. (LFE-10498)
+ * Only additive metrics get a summary. A summary is deliberately *not* offered
+ * for non-additive metrics (latency percentiles, average scores): a cross-bucket
+ * sum is meaningless for them, and a correct average can't be computed here
+ * because the upstream pipeline pads missing buckets with real `0`s (it would
+ * deflate the mean). Such charts opt out via the `"none"` default. The mode is
+ * chosen per call-site because additivity is a property of the metric's
+ * aggregation, decided upstream of the chart. (LFE-10498)
  */
-export type LegendSummaryMode = "sum" | "average" | "none";
+export type LegendSummaryMode = "sum" | "none";
 
 export interface FormattedMetric {
   negative?: boolean;

@@ -119,9 +119,6 @@ export function NumericScoreTimeSeriesChart(props: {
           subtle_fill: true,
         }}
         legendPosition="above"
-        // Average scores are not additive across buckets; summarize with the
-        // mean rather than an inflated sum. (LFE-10498)
-        legendSummary="average"
       />
     </div>
   ) : (

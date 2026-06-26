@@ -104,9 +104,6 @@ export function ChartScores(props: {
               subtle_fill: true,
             }}
             legendPosition="above"
-            // Average scores are not additive across buckets; summarize each
-            // score with its mean rather than an inflated sum. (LFE-10498)
-            legendSummary="average"
           />
         </div>
       ) : (

@@ -39,10 +39,7 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
   const dimensionSummaries = useMemo(
-    () =>
-      legendSummary === "none"
-        ? null
-        : getDimensionSummaries(data, legendSummary),
+    () => (legendSummary === "none" ? null : getDimensionSummaries(data)),
     [data, legendSummary],
   );
 
