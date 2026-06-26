@@ -1,57 +1,68 @@
 import { describe, expect, it } from "vitest";
 
-import { planToolbarOverflow } from "@/src/components/table/peek/peekHeaderOverflow";
+import { planPeekHeaderLayout } from "@/src/components/table/peek/peekHeaderOverflow";
 
-// actions is the first to fold, then openInTab; nav/expand/close are pinned.
-const DROP_ORDER = ["actions", "openInTab"] as const;
-const WIDTHS = { actions: 90, openInTab: 32 };
+// Representative measured widths (px).
 const base = {
-  unitWidths: WIDTHS,
-  dropOrder: DROP_ORDER,
-  pinnedWidth: 120, // nav + expand + close
+  minTitle: 240,
+  badgeLabelWidth: 64,
+  badgeIconWidth: 32,
+  navFullWidth: 92, // ↑K ↓J with chips
+  navCompactWidth: 52, // icon-only arrows
+  otherPinnedWidth: 68, // expand + close + divider
   moreWidth: 32,
-  safety: 24,
+  actionsWidth: 90,
+  openInTabWidth: 28,
+  safety: 16,
 };
 
-describe("planToolbarOverflow", () => {
-  it("keeps everything inline when there is room", () => {
-    // 120 + (90+32) + 24 = 266 ≤ 400
-    expect(planToolbarOverflow({ ...base, clusterWidth: 400 }).size).toBe(0);
+const FULL = {
+  foldActions: false,
+  foldOpenInTab: false,
+  badgeShowLabel: true,
+  navCompact: false,
+};
+
+describe("planPeekHeaderLayout", () => {
+  it("keeps everything when the title has room", () => {
+    expect(planPeekHeaderLayout({ ...base, headerWidth: 760 })).toEqual(FULL);
   });
 
-  it("folds the lowest-priority unit (actions) first when tight", () => {
-    // inline needs 266 > 300? no — pick a width between the two thresholds.
-    // with "…": 120 + 32 + openInTab(32) + 24 = 208; keep openInTab, drop actions.
-    const overflow = planToolbarOverflow({ ...base, clusterWidth: 240 });
-    expect([...overflow]).toEqual(["actions"]);
+  it("reduces in order as the peek narrows: actions, then badge, then nav", () => {
+    // Wide-ish: only the actions fold.
+    const a = planPeekHeaderLayout({ ...base, headerWidth: 560 });
+    expect(a.foldActions).toBe(true);
+    expect(a.badgeShowLabel).toBe(true);
+    expect(a.navCompact).toBe(false);
+
+    // Narrower: actions folded + badge icon-only.
+    const b = planPeekHeaderLayout({ ...base, headerWidth: 500 });
+    expect(b.foldActions).toBe(true);
+    expect(b.badgeShowLabel).toBe(false);
+
+    // Narrower still: nav goes compact too.
+    const c = planPeekHeaderLayout({ ...base, headerWidth: 430 });
+    expect(c.navCompact).toBe(true);
   });
 
-  it("folds both units when very tight", () => {
-    const overflow = planToolbarOverflow({ ...base, clusterWidth: 180 });
-    expect(overflow.has("actions")).toBe(true);
-    expect(overflow.has("openInTab")).toBe(true);
+  it("folds open-in-tab last, when very tight", () => {
+    const plan = planPeekHeaderLayout({ ...base, headerWidth: 320 });
+    expect(plan.foldActions).toBe(true);
+    expect(plan.badgeShowLabel).toBe(false);
+    expect(plan.navCompact).toBe(true);
+    expect(plan.foldOpenInTab).toBe(true);
   });
 
-  it("respects drop order: openInTab stays inline while actions collapse", () => {
-    // 240: drop actions → 120+32+32+24=208 ≤ 240 → openInTab kept inline.
-    const overflow = planToolbarOverflow({ ...base, clusterWidth: 240 });
-    expect(overflow.has("openInTab")).toBe(false);
-  });
-
-  it("ignores units that are not present (no measured width)", () => {
-    // Only actions present; openInTab absent → never in the overflow set.
-    const overflow = planToolbarOverflow({
+  it("never folds units that aren't present, but still adapts badge/nav", () => {
+    const plan = planPeekHeaderLayout({
       ...base,
-      unitWidths: { actions: 90 },
-      clusterWidth: 150,
+      actionsWidth: undefined,
+      openInTabWidth: undefined,
+      headerWidth: 300,
     });
-    expect(overflow.has("openInTab")).toBe(false);
-    expect(overflow.has("actions")).toBe(true);
-  });
-
-  it("treats a zero/unmeasured cluster as fully collapsed", () => {
-    expect(planToolbarOverflow({ ...base, clusterWidth: 0 }).size).toBe(
-      DROP_ORDER.length,
-    );
+    expect(plan.foldActions).toBe(false);
+    expect(plan.foldOpenInTab).toBe(false);
+    expect(plan.badgeShowLabel).toBe(false);
+    expect(plan.navCompact).toBe(true);
   });
 });

@@ -10,6 +10,7 @@ import {
 import { useStore } from "zustand";
 import {
   createPeekPanelStore,
+  PEEK_EXPAND_ENTER_FRACTION,
   PEEK_MIN_WIDTH_FRACTION,
   selectDraftExpanded,
   selectIsResizing,
@@ -123,8 +124,13 @@ export function usePeekPanelState({
     };
   }, []);
 
+  // Both expanded and widget widths are capped at the sidebar edge
+  // (`viewport − sidebar`). Capping the widget too means dragging to the max
+  // lands on the exact same width as expanded — no snap-back jump — and the
+  // panel never paints over the sidebar even if a stored fraction is large.
+  const maxWidth = `calc(100vw - ${sidebarOffset}px)`;
   const panelStyle: CSSProperties = {
-    width: effectiveExpanded ? `calc(100vw - ${sidebarOffset}px)` : widgetWidth,
+    width: effectiveExpanded ? maxWidth : `min(${widgetWidth}, ${maxWidth})`,
   };
 
   // End an in-flight drag (drop listeners, restore body styles, clear drag
@@ -143,9 +149,25 @@ export function usePeekPanelState({
 
   const onPointerDown = useCallback(
     (event: ReactPointerEvent) => {
-      dragTeardownRef.current = beginPeekResize(store, event, commitExpanded);
+      // The drag flips to expanded at the sidebar edge (viewport − sidebar),
+      // clamped to the widget bounds, so it can't overshoot onto the sidebar.
+      const vw = typeof window === "undefined" ? 0 : window.innerWidth;
+      const expandAtFraction =
+        vw > 0
+          ? Math.min(
+              PEEK_EXPAND_ENTER_FRACTION,
+              Math.max(PEEK_MIN_WIDTH_FRACTION, (vw - sidebarOffset) / vw),
+            )
+          : PEEK_EXPAND_ENTER_FRACTION;
+      dragTeardownRef.current = beginPeekResize(
+        store,
+        event,
+        commitExpanded,
+        expandAtFraction,
+        effectiveExpanded,
+      );
     },
-    [store, commitExpanded],
+    [store, commitExpanded, sidebarOffset, effectiveExpanded],
   );
 
   const onKeyDown = useCallback(

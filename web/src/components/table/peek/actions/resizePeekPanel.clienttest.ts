@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { beginPeekResize } from "@/src/components/table/peek/actions/resizePeekPanel";
-import { createPeekPanelStore } from "@/src/components/table/peek/store/peekPanelStore";
+import {
+  createPeekPanelStore,
+  selectDraftExpanded,
+} from "@/src/components/table/peek/store/peekPanelStore";
 
 const STORAGE_KEY = "peekViewWidthFraction";
 
@@ -54,6 +57,17 @@ describe("beginPeekResize", () => {
     expect(commitExpanded).not.toHaveBeenCalled();
     expect(store.getState().draftFraction).toBeNull();
     expect(store.getState().isResizing).toBe(false);
+  });
+
+  it("flips to expanded at the sidebar-aligned threshold (not the static 0.95)", () => {
+    const store = createPeekPanelStore();
+    const commitExpanded = vi.fn();
+    // Sidebar edge at fraction 0.8 → dragging to 0.85 expands, no overshoot.
+    beginPeekResize(store, pointerDown(), commitExpanded, 0.8);
+    move(clientXForFraction(0.85));
+    expect(selectDraftExpanded(store.getState())).toBe(true);
+    window.dispatchEvent(new Event("pointerup"));
+    expect(commitExpanded).toHaveBeenLastCalledWith(true);
   });
 
   it("removes its window listeners after a cancelled drag", () => {

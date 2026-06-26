@@ -26,6 +26,16 @@ export function beginPeekResize(
   store: PeekPanelStore,
   event: ReactPointerEvent,
   commitExpanded: (expanded: boolean) => void,
+  // Fraction at which the drag flips to "expanded" — the sidebar edge
+  // (`viewport − sidebar`), passed live by the hook so the panel stops exactly
+  // at the sidebar instead of overshooting onto it and snapping back. Defaults
+  // to the static threshold when no sidebar offset is known.
+  expandAtFraction: number = PEEK_EXPAND_ENTER_FRACTION,
+  // Whether the panel is currently expanded. The drag seeds its draft from
+  // this so merely PRESSING the handle doesn't change the width — only moving
+  // does (otherwise starting a drag while expanded snaps to the widget width
+  // on pointer-down, a visible jump).
+  startExpanded = false,
 ): () => void {
   // Only primary-button drags; the keyboard path handles the rest.
   if (event.button !== 0) return () => {};
@@ -34,7 +44,9 @@ export function beginPeekResize(
   const onPointerMove = (move: PointerEvent) => {
     const fraction = widthFractionFromClientX(move.clientX);
     const { actions } = store.getState();
-    if (fraction >= PEEK_EXPAND_ENTER_FRACTION) {
+    // At/past the sidebar edge (incl. the pointer leaving the window) →
+    // expanded; never let the widget width overshoot onto the sidebar.
+    if (fraction >= expandAtFraction) {
       actions.setDraftExpanded();
     } else {
       actions.setDraftFraction(fraction);
@@ -80,6 +92,9 @@ export function beginPeekResize(
   document.body.style.userSelect = "none";
   document.body.style.cursor = "ew-resize";
   store.getState().actions.setResizing(true);
+  // Seed the draft to the current width so pressing the handle is a no-op until
+  // the pointer actually moves.
+  if (startExpanded) store.getState().actions.setDraftExpanded();
 
   return teardown;
 }

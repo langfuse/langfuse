@@ -19,8 +19,8 @@ import {
 import { cn } from "@/src/utils/tailwind";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import {
-  planToolbarOverflow,
-  type PlanToolbarOverflowArgs,
+  planPeekHeaderLayout,
+  type PeekHeaderPlan,
 } from "@/src/components/table/peek/peekHeaderOverflow";
 
 type PeekHeaderProps = {
@@ -38,33 +38,40 @@ type PeekHeaderProps = {
   onClose: () => void;
 };
 
-// Units (right→left clutter) that fold into the "…" popover when the header is
-// cramped, in collapse order: trace actions go first, then open-in-tab. Nav,
-// expand and close are pinned — nav especially, so its K/J shortcuts keep
-// working even when its buttons would be hidden.
-type OverflowUnit = "actions" | "openInTab";
-const DROP_ORDER: readonly OverflowUnit[] = ["actions", "openInTab"];
-
-// Space (px) the title + badge keep before controls start folding away, and the
-// width budgeted for the "…" trigger (an icon-xs button). Tuned by eye; the
-// planner's `safety` slack covers inter-control gaps.
-const RESERVED_TITLE_PX = 144;
+// The title keeps at least this much width before anything else collapses; the
+// type badge falls back to this width when icon-only; the "…" trigger is an
+// icon-xs button. Tuned by eye — planner `safety` covers inter-control gaps.
+const MIN_TITLE_PX = 240;
+const BADGE_ICON_PX = 32;
 const MORE_BUTTON_PX = 32;
+const BADGE_LABEL_FALLBACK_PX = 72;
+const NAV_FULL_FALLBACK_PX = 92;
+const NAV_COMPACT_FALLBACK_PX = 52;
 
-const sameSet = (a: Set<OverflowUnit>, b: Set<OverflowUnit>) =>
-  a.size === b.size && [...a].every((u) => b.has(u));
+const samePlan = (a: PeekHeaderPlan, b: PeekHeaderPlan) =>
+  a.foldActions === b.foldActions &&
+  a.foldOpenInTab === b.foldOpenInTab &&
+  a.badgeShowLabel === b.badgeShowLabel &&
+  a.navCompact === b.navCompact;
+
+const FULL: PeekHeaderPlan = {
+  foldActions: false,
+  foldOpenInTab: false,
+  badgeShowLabel: true,
+  navCompact: false,
+};
 
 /**
  * Visible peek chrome shared by the desktop sheet and the mobile drawer. The
  * accessible dialog title is provided (visually hidden) by each shell, so this
  * stays a plain view component that works inside either primitive.
  *
- * The right control cluster is a priority-plus toolbar: it measures the header
- * and folds its lowest-priority controls into a "…" popover when space runs
- * out, so a narrow peek stays uncluttered and a wide one shows everything.
- * `actions` is rendered once and portaled into either the inline slot or the
- * popover, so folding moves its DOM without remounting it — an in-progress
- * delete confirmation (or any action state) survives a width change.
+ * The header adapts to the PEEK's own width (measured, not screen breakpoints):
+ * it keeps the title readable and, as the peek narrows, folds the trace actions
+ * into a "…" popover, shrinks the type badge to icon-only, then folds
+ * open-in-tab — see {@link planPeekHeaderLayout}. `actions` are rendered once
+ * and portaled into the inline slot or the popover, so folding moves their DOM
+ * without remounting (an in-progress delete confirmation survives a resize).
  */
 export function PeekHeader({
   itemType,
@@ -78,65 +85,86 @@ export function PeekHeader({
   onClose,
 }: PeekHeaderProps) {
   const [headerRef, headerSize] = useElementSize<HTMLDivElement>();
-  // Host elements are tracked as state (ref callbacks) so the actions portal
-  // re-targets when a host mounts/unmounts (e.g. the popover opening).
+  const badgeRef = useRef<HTMLDivElement>(null);
+  // Host elements as state (ref callbacks) so the actions portal re-targets
+  // when a host mounts/unmounts (e.g. the popover opening).
   const [inlineActionsHost, setInlineActionsHost] =
     useState<HTMLDivElement | null>(null);
   const [popoverActionsHost, setPopoverActionsHost] =
     useState<HTMLDivElement | null>(null);
   const openInTabRef = useRef<HTMLDivElement>(null);
+  const navRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef<HTMLDivElement>(null);
-  // Cached widths survive a unit being folded away (it can't be re-measured
-  // while hidden / in the closed popover).
-  const widthsRef = useRef<Partial<Record<OverflowUnit, number>>>({});
-  const pinnedWidthRef = useRef(0);
-  const [overflow, setOverflow] = useState<Set<OverflowUnit>>(new Set());
+  // Cached widths survive a part being folded / collapsed (it can't be
+  // re-measured while hidden, in the closed popover, or in the other nav mode).
+  const widthsRef = useRef<{
+    actions?: number;
+    openInTab?: number;
+    badgeLabel?: number;
+    navFull?: number;
+    navCompact?: number;
+    otherPinned?: number;
+  }>({});
+  const [plan, setPlan] = useState<PeekHeaderPlan>(FULL);
 
   const hasActions = Boolean(actions);
   const hasOpenInTab = Boolean(openInNewTab);
   const hasNav = Boolean(detailNavigationKey && resolveDetailNavigationPath);
-  const actionsFolded = hasActions && overflow.has("actions");
-  const openInTabFolded = hasOpenInTab && overflow.has("openInTab");
 
-  // Measure + plan in a layout effect (before paint), reading the width from
-  // the ref directly — useElementSize's state lands post-paint, which would
-  // otherwise flash everything inline for a frame before folding.
+  // Measure + plan in a layout effect (before paint), reading width from the
+  // ref directly — useElementSize's state lands post-paint, which would flash
+  // the un-adapted header for a frame.
   useLayoutEffect(() => {
     const width =
       headerRef.current?.getBoundingClientRect().width ?? headerSize?.width;
     if (!width) return;
 
-    if (hasActions && !actionsFolded && inlineActionsHost) {
+    if (plan.badgeShowLabel && badgeRef.current) {
+      widthsRef.current.badgeLabel = badgeRef.current.offsetWidth;
+    }
+    if (hasActions && !plan.foldActions && inlineActionsHost) {
       widthsRef.current.actions = inlineActionsHost.offsetWidth;
     }
-    if (hasOpenInTab && !openInTabFolded && openInTabRef.current) {
+    if (hasOpenInTab && !plan.foldOpenInTab && openInTabRef.current) {
       widthsRef.current.openInTab = openInTabRef.current.offsetWidth;
     }
-    if (pinnedRef.current)
-      pinnedWidthRef.current = pinnedRef.current.offsetWidth;
+    // Nav width depends on its mode (cache per mode); otherPinned (expand +
+    // close + divider) is mode-independent = the pinned block minus the nav.
+    if (pinnedRef.current) {
+      const navW = hasNav && navRef.current ? navRef.current.offsetWidth : 0;
+      if (hasNav) {
+        if (plan.navCompact) widthsRef.current.navCompact = navW;
+        else widthsRef.current.navFull = navW;
+      }
+      widthsRef.current.otherPinned = pinnedRef.current.offsetWidth - navW;
+    }
 
-    const unitWidths: PlanToolbarOverflowArgs<OverflowUnit>["unitWidths"] = {};
-    if (hasActions && widthsRef.current.actions != null)
-      unitWidths.actions = widthsRef.current.actions;
-    if (hasOpenInTab && widthsRef.current.openInTab != null)
-      unitWidths.openInTab = widthsRef.current.openInTab;
-
-    const next = planToolbarOverflow<OverflowUnit>({
-      clusterWidth: width - RESERVED_TITLE_PX,
-      unitWidths,
-      dropOrder: DROP_ORDER,
-      pinnedWidth: pinnedWidthRef.current,
+    const next = planPeekHeaderLayout({
+      headerWidth: width,
+      minTitle: MIN_TITLE_PX,
+      badgeLabelWidth: widthsRef.current.badgeLabel ?? BADGE_LABEL_FALLBACK_PX,
+      badgeIconWidth: BADGE_ICON_PX,
+      navFullWidth: hasNav
+        ? (widthsRef.current.navFull ?? NAV_FULL_FALLBACK_PX)
+        : 0,
+      navCompactWidth: hasNav
+        ? (widthsRef.current.navCompact ?? NAV_COMPACT_FALLBACK_PX)
+        : 0,
+      otherPinnedWidth: widthsRef.current.otherPinned ?? 0,
       moreWidth: MORE_BUTTON_PX,
+      actionsWidth: hasActions ? (widthsRef.current.actions ?? 0) : undefined,
+      openInTabWidth: hasOpenInTab
+        ? (widthsRef.current.openInTab ?? 0)
+        : undefined,
     });
-    setOverflow((prev) => (sameSet(prev, next) ? prev : next));
+    setPlan((prev) => (samePlan(prev, next) ? prev : next));
   }, [
     headerRef,
     headerSize?.width,
     hasActions,
     hasOpenInTab,
     hasNav,
-    actionsFolded,
-    openInTabFolded,
+    plan,
     inlineActionsHost,
   ]);
 
@@ -152,11 +180,12 @@ export function PeekHeader({
     </Button>
   ) : null;
 
-  // Where the single actions instance lives: the popover when folded-and-open,
-  // otherwise the inline slot (which stays mounted — hidden — when folded, so
-  // the actions keep their state until the popover takes over).
+  const anyFolded = plan.foldActions || plan.foldOpenInTab;
+  // The single actions instance lives in the popover when folded-and-open,
+  // otherwise the inline slot (kept mounted — hidden — when folded, so action
+  // state is preserved until the popover takes over).
   const actionsHost =
-    actionsFolded && popoverActionsHost
+    plan.foldActions && popoverActionsHost
       ? popoverActionsHost
       : inlineActionsHost;
 
@@ -166,7 +195,10 @@ export function PeekHeader({
       className="bg-header flex min-h-11 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden px-2 py-1"
     >
       <div className="flex min-w-0 flex-row items-center gap-2">
-        <ItemBadge type={itemType} showLabel />
+        {/* Badge never truncates: it shows the full label or just the icon. */}
+        <div ref={badgeRef} className="shrink-0">
+          <ItemBadge type={itemType} showLabel={plan.badgeShowLabel} />
+        </div>
         <span
           className="truncate text-sm font-medium focus:outline-hidden"
           tabIndex={0}
@@ -177,7 +209,7 @@ export function PeekHeader({
       </div>
       <div className="flex shrink-0 flex-row items-center gap-1">
         {/* Overflow popover collects whatever folded away, in display order. */}
-        {overflow.size > 0 && (
+        {anyFolded && (
           <Popover>
             <PopoverTrigger asChild>
               <Button
@@ -193,13 +225,13 @@ export function PeekHeader({
               align="end"
               className="flex w-auto min-w-0 flex-row items-center gap-1 p-1"
             >
-              {actionsFolded && (
+              {plan.foldActions && (
                 <div
                   ref={setPopoverActionsHost}
                   className="flex flex-row items-center gap-1"
                 />
               )}
-              {openInTabFolded ? openInTabButton : null}
+              {plan.foldOpenInTab ? openInTabButton : null}
             </PopoverContent>
           </Popover>
         )}
@@ -211,17 +243,15 @@ export function PeekHeader({
             ref={setInlineActionsHost}
             className={cn(
               "flex flex-row items-center gap-1",
-              actionsFolded && "hidden",
+              plan.foldActions && "hidden",
             )}
           />
         )}
-        {/* The single actions instance, projected into the active host. Keyed so
-            React keeps the same subtree across host changes (no remount). */}
         {hasActions &&
           actionsHost &&
           createPortal(actions, actionsHost, "peek-actions")}
 
-        {hasOpenInTab && !openInTabFolded ? (
+        {hasOpenInTab && !plan.foldOpenInTab ? (
           <div ref={openInTabRef}>{openInTabButton}</div>
         ) : null}
 
@@ -231,12 +261,14 @@ export function PeekHeader({
           className="flex h-full flex-row items-center gap-1 border-l pl-1"
         >
           {hasNav && (
-            <DetailPageNav
-              currentId={itemId}
-              path={resolveDetailNavigationPath!}
-              listKey={detailNavigationKey!}
-              size="sm"
-            />
+            <div ref={navRef} className="flex flex-row items-center">
+              <DetailPageNav
+                currentId={itemId}
+                path={resolveDetailNavigationPath!}
+                listKey={detailNavigationKey!}
+                compact={plan.navCompact}
+              />
+            </div>
           )}
           {expand && (
             <Button

@@ -5,8 +5,12 @@ import { usePeekPanelState } from "@/src/components/table/peek/usePeekPanelState
 import { PEEK_DEFAULT_WIDTH_FRACTION } from "@/src/components/table/peek/store/peekPanelStore";
 
 const STORAGE_KEY = "peekViewWidthFraction";
-const widthFraction = (style: React.CSSProperties) =>
-  parseFloat(String(style.width)) / 100;
+// Widget width is `min(<n>vw, calc(100vw - <sidebar>px))` — pull the leading
+// vw fraction (the widget's own width) out of the min() wrapper.
+const widthFraction = (style: React.CSSProperties) => {
+  const match = String(style.width).match(/([\d.]+)vw/);
+  return match ? parseFloat(match[1]) / 100 : NaN;
+};
 
 function setup(isExpanded = false) {
   const onExpandedChange = vi.fn();
