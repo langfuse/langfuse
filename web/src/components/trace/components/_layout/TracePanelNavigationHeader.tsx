@@ -23,12 +23,23 @@ import {
   Loader2,
   ListTree,
   GanttChartSquare,
+  MoreHorizontal,
   type LucideIcon,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
 import { StringParam, useQueryParam } from "use-query-params";
 import { cn } from "@/src/utils/tailwind";
 import { useCallback } from "react";
-import { TraceSettingsDropdown } from "../TraceSettingsDropdown";
+import {
+  TraceSettingsDropdown,
+  TraceViewOptionsMenuItems,
+} from "../TraceSettingsDropdown";
 import {
   downloadLegacyTraceAsJson,
   downloadServerTraceAsJson,
@@ -144,8 +155,8 @@ function TracePanelNavigationHeaderExpanded({
   const isTimelineView = viewMode === "timeline";
 
   return (
-    <Command className="mt-1 flex h-auto shrink-0 flex-col gap-1 overflow-hidden rounded-none border-b">
-      <div className="@container/navheader flex flex-row justify-between pr-2 pl-1">
+    <Command className="flex h-auto shrink-0 flex-col gap-1 overflow-hidden rounded-none border-b">
+      <div className="@container/navheader flex flex-row items-center justify-between pr-2 pl-1">
         {/* Panel Toggle Button; special p-0.5 offset to pixel align with closed version */}
         <div className="flex flex-row items-center p-0.5">
           <TracePanelNavigationButton
@@ -166,39 +177,77 @@ function TracePanelNavigationHeaderExpanded({
           />
         </div>
         <div className="flex shrink-0 flex-row items-center gap-0.5">
-          {/* Expand/Collapse All Button */}
-          <Button
-            onClick={handleToggleTreeNodes}
-            variant="ghost"
-            size="icon"
-            title={isEverythingCollapsed ? "Expand all" : "Collapse all"}
-            className="h-7 w-7"
-          >
-            {isEverythingCollapsed ? (
-              <UnfoldVertical className="h-3.5 w-3.5" />
-            ) : (
-              <FoldVertical className="h-3.5 w-3.5" />
-            )}
-          </Button>
+          {/* Minor tools — inline when the panel is wide enough. */}
+          <div className="hidden flex-row items-center gap-0.5 @min-[380px]/navheader:flex">
+            <Button
+              onClick={handleToggleTreeNodes}
+              variant="ghost"
+              size="icon"
+              title={isEverythingCollapsed ? "Expand all" : "Collapse all"}
+              className="h-7 w-7"
+            >
+              {isEverythingCollapsed ? (
+                <UnfoldVertical className="h-3.5 w-3.5" />
+              ) : (
+                <FoldVertical className="h-3.5 w-3.5" />
+              )}
+            </Button>
 
-          {/* Settings Dropdown */}
-          <TraceSettingsDropdown isGraphViewAvailable={isGraphViewAvailable} />
+            <TraceSettingsDropdown
+              isGraphViewAvailable={isGraphViewAvailable}
+            />
 
-          {/* Download Button */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleDownload}
-            disabled={isDownloading}
-            title="Download trace as JSON"
-            className="h-7 w-7"
-          >
-            {isDownloading ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Download className="h-3.5 w-3.5" />
-            )}
-          </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleDownload}
+              disabled={isDownloading}
+              title="Download trace as JSON"
+              className="h-7 w-7"
+            >
+              {isDownloading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Download className="h-3.5 w-3.5" />
+              )}
+            </Button>
+          </div>
+
+          {/* …and folded into an overflow menu when it's narrow. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                title="More"
+                aria-label="More options"
+                className="h-7 w-7 @min-[380px]/navheader:hidden"
+              >
+                <MoreHorizontal className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="center" className="w-64">
+              <DropdownMenuItem onSelect={handleToggleTreeNodes}>
+                {isEverythingCollapsed ? (
+                  <UnfoldVertical className="mr-2 h-3.5 w-3.5" />
+                ) : (
+                  <FoldVertical className="mr-2 h-3.5 w-3.5" />
+                )}
+                {isEverythingCollapsed ? "Expand all" : "Collapse all"}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => handleDownload()}
+                disabled={isDownloading}
+              >
+                <Download className="mr-2 h-3.5 w-3.5" />
+                Download trace as JSON
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <TraceViewOptionsMenuItems
+                isGraphViewAvailable={isGraphViewAvailable}
+              />
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Tree / Timeline segmented switch (labels collapse to icons when
               the panel is narrow — see @container/navheader). */}
