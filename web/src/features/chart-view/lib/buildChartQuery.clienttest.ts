@@ -164,18 +164,27 @@ describe("rowsToDataPoints", () => {
     expect(point.metric).toBe(8);
   });
 
-  it("maps a categorical row and stringifies null dimensions", () => {
-    const rows = [{ providedModelName: null, sum_totalCost: 1.5 }];
-    const [point] = rowsToDataPoints(rows, {
+  it("maps a categorical row and maps null/empty dimensions to n/a", () => {
+    const config: ChartViewConfig = {
       ...DEFAULT_CONFIG,
       metric: "totalCost",
       aggregation: "sum",
       breakdown: "model",
       chartType: "HORIZONTAL_BAR",
-    });
-    expect(point.dimension).toBe("n/a");
-    expect(point.metric).toBe(1.5);
-    expect(point.time_dimension).toBeUndefined();
+    };
+    const [nullPoint] = rowsToDataPoints(
+      [{ providedModelName: null, sum_totalCost: 1.5 }],
+      config,
+    );
+    expect(nullPoint.dimension).toBe("n/a");
+    expect(nullPoint.metric).toBe(1.5);
+    expect(nullPoint.time_dimension).toBeUndefined();
+
+    const [emptyPoint] = rowsToDataPoints(
+      [{ providedModelName: "", sum_totalCost: 2 }],
+      config,
+    );
+    expect(emptyPoint.dimension).toBe("n/a");
   });
 
   it("produces a single dimensionless point for a big number", () => {
