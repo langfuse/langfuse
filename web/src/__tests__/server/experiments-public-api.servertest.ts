@@ -12,10 +12,16 @@ import {
   makeZodVerifiedAPICall,
 } from "@/src/__tests__/test-utils";
 import { env } from "@/src/env.mjs";
-import { GetExperimentsV1Response } from "@/src/features/public-api/types/experiments";
+import {
+  GetExperimentV1Response,
+  GetExperimentsV1Response,
+} from "@/src/features/public-api/types/experiments";
 
 const getExperiments = (url: string, auth: string) =>
   makeZodVerifiedAPICall(GetExperimentsV1Response, "GET", url, undefined, auth);
+
+const getExperiment = (url: string, auth: string) =>
+  makeZodVerifiedAPICall(GetExperimentV1Response, "GET", url, undefined, auth);
 
 const maybeEventTables =
   env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
@@ -252,6 +258,71 @@ describe("GET /api/public/experiments", () => {
     );
     expect(unknownVersionRes.status).toBe(400);
   });
+});
+
+describe("GET /api/public/experiments/{experimentId}", () => {
+  maybeEventTables(
+    "returns an unpaginated experiment summary with metadata",
+    async () => {
+      const { auth, projectId } = await createOrgProjectAndApiKey();
+      const startTimeMs = Date.now();
+      const experimentId = `exp-${randomUUID()}`;
+
+      await createEventsCh([
+        createExperimentRootEvent({
+          projectId,
+          experimentId,
+          experimentName: "single experiment",
+          datasetId: "dataset-single",
+          startTimeMs,
+          metadata: { owner: "evals" },
+        }),
+      ]);
+      await createScoresCh([
+        createDatasetRunScore({
+          id: scoreId,
+          project_id: projectId,
+          dataset_run_id: experimentId,
+          name: "experiment quality",
+          value: 0.75,
+          timestamp: startTimeMs + 1_000,
+          created_at: startTimeMs + 1_000,
+          updated_at: startTimeMs + 1_000,
+          event_ts: startTimeMs + 1_000,
+        }),
+      ]);
+
+      const res = await getExperiment(
+        `/api/public/experiments/${encodeURIComponent(experimentId)}`,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        id: experimentId,
+        name: "single experiment",
+        description: "single experiment description",
+        itemCount: 1,
+        datasetId: "dataset-single",
+        metadata: { owner: "evals" },
+      });
+      expect(res.body.scores).toEqual([
+        expect.objectContaining({
+          id: scoreId,
+          projectId,
+          name: "experiment quality",
+          dataType: "NUMERIC",
+          value: 0.75,
+          subject: {
+            kind: "experiment",
+            id: experimentId,
+          },
+        }),
+      ]);
+      expect(res.body).not.toHaveProperty("data");
+      expect(res.body).not.toHaveProperty("meta");
+    },
+  );
 });
 
 describe("GET /api/public/experiment-items", () => {

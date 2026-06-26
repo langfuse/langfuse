@@ -5,18 +5,21 @@ import {
   scoreDomainToV3,
   type ScoreRecordReadType,
 } from "@langfuse/shared/src/server";
-import type { APIScoreV3 } from "@langfuse/shared";
+import { LangfuseNotFoundError, type APIScoreV3 } from "@langfuse/shared";
 
 import {
   encodeExperimentsCursor,
+  type GetExperimentV1QueryType,
   type GetExperimentItemsV1QueryType,
   type GetExperimentsV1QueryType,
 } from "@/src/features/public-api/types/experiments";
 import {
   queryExperimentItemsForPublicApi,
+  queryExperimentSummaryForPublicApi,
   queryExperimentSummariesForPublicApi,
 } from "@/src/features/experiments/server/public/repository";
 
+export type GetExperimentPublicQuery = GetExperimentV1QueryType;
 export type ListExperimentsPublicQuery = GetExperimentsV1QueryType;
 export type ListExperimentItemsPublicQuery = GetExperimentItemsV1QueryType;
 type ExperimentSummaryRow = Awaited<
@@ -48,6 +51,17 @@ const transformExperimentSummaryRow = (
 
   return withOptionalFields;
 };
+
+const transformExperimentDetailRow = (row: ExperimentSummaryRow) => ({
+  id: row.experiment_id,
+  name: row.experiment_name,
+  description: row.experiment_description ?? null,
+  startTime: parseClickhouseUTCDateTimeFormat(row.start_time),
+  itemCount: Number(row.item_count),
+  datasetId: row.experiment_dataset_id,
+  metadata: row.experiment_metadata ?? null,
+  scores: scoreRecordsToV3(row.scores ?? []),
+});
 
 const toExperimentScoreV3 = (row: ScoreRecordReadType): APIScoreV3 => {
   const score = convertClickhouseScoreToDomain(row);
@@ -182,6 +196,27 @@ export async function listExperimentsForPublicApi({
     data,
     meta,
   };
+}
+
+export async function getExperimentForPublicApi({
+  projectId,
+  query,
+}: {
+  projectId: string;
+  query: GetExperimentPublicQuery;
+}) {
+  const row = await queryExperimentSummaryForPublicApi({
+    projectId,
+    experimentId: query.experimentId,
+  });
+
+  if (!row) {
+    throw new LangfuseNotFoundError(
+      `Experiment ${query.experimentId} not found within authorized project`,
+    );
+  }
+
+  return transformExperimentDetailRow(row);
 }
 
 export async function listExperimentItemsForPublicApi({

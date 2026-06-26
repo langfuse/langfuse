@@ -84,6 +84,11 @@ type QueryExperimentSummariesParams = {
   scoreLimit?: number;
 };
 
+type QueryExperimentSummaryParams = {
+  projectId: string;
+  experimentId: string;
+};
+
 type QueryExperimentItemsParams = {
   projectId: string;
   fromStartTime?: Date;
@@ -137,6 +142,25 @@ const startTimeBounds = (rows: { start_time: string }[]) => ({
   max: parseClickhouseUTCDateTimeFormat(rows[0]!.start_time),
 });
 
+const experimentSummaryQueryBuilder = ({
+  projectId,
+  includeMetadata,
+}: {
+  projectId: string;
+  includeMetadata: boolean;
+}) =>
+  new ExperimentsAggregationQueryBuilder({
+    projectId,
+  })
+    .selectFieldSet(
+      "publicApiCore",
+      ...(includeMetadata ? (["publicApiMetadata"] as const) : []),
+    )
+    .whereRaw("e.experiment_id != ''")
+    .whereRaw(
+      "e.experiment_dataset_id IS NOT NULL AND length(e.experiment_dataset_id) > 0",
+    );
+
 async function queryExperimentSummaryRowsForPublicApi(
   params: QueryExperimentSummariesParams,
 ) {
@@ -161,20 +185,13 @@ async function queryExperimentSummaryRowsForPublicApi(
     publicApiExperimentColumnDefinitions,
   );
 
-  const queryBuilder = new ExperimentsAggregationQueryBuilder({
+  const queryBuilder = experimentSummaryQueryBuilder({
     projectId: params.projectId,
+    includeMetadata: params.includeMetadata,
   })
-    .selectFieldSet(
-      "publicApiCore",
-      ...(params.includeMetadata ? (["publicApiMetadata"] as const) : []),
-    )
     .withExperimentIds(params.id)
     .withExactStartTimeFrom(fromStartTime)
     .withExactStartTimeTo(toStartTime)
-    .whereRaw("e.experiment_id != ''")
-    .whereRaw(
-      "e.experiment_dataset_id IS NOT NULL AND length(e.experiment_dataset_id) > 0",
-    )
     .applyFilters(filterList)
     .withCursor(
       params.cursor
@@ -218,6 +235,58 @@ async function queryExperimentSummaryRowsForPublicApi(
   });
 
   return rows;
+}
+
+export async function queryExperimentSummaryForPublicApi(
+  params: QueryExperimentSummaryParams,
+) {
+  const queryBuilder = experimentSummaryQueryBuilder({
+    projectId: params.projectId,
+    includeMetadata: true,
+  })
+    .withExperimentIds([params.experimentId])
+    .limit(1);
+
+  const { query, params: queryParams } = queryBuilder.buildWithParams();
+
+  const rows = await measureAndReturn({
+    operationName: "queryExperimentSummaryForPublicApi",
+    projectId: params.projectId,
+    input: {
+      params: queryParams,
+      tags: {
+        feature: "experiments",
+        type: "events",
+        kind: "publicApi",
+        projectId: params.projectId,
+        operation_name: "queryExperimentSummaryForPublicApi",
+      },
+    },
+    fn: async (input) =>
+      await queryClickhouse<ExperimentSummaryRow>({
+        query,
+        params: input.params,
+        tags: input.tags,
+        preferredClickhouseService: "EventsReadOnly",
+      }),
+  });
+
+  const row = rows[0];
+  if (!row) return null;
+
+  const scoresByExperimentId = groupExperimentScores(
+    await queryScoreRecordsForExperiments({
+      projectId: params.projectId,
+      experimentIds: [row.experiment_id],
+      fromTimestamp: parseClickhouseUTCDateTimeFormat(row.start_time),
+      scoreLimit: DEFAULT_SCORE_LIMIT,
+    }),
+  );
+
+  return {
+    ...row,
+    scores: scoresByExperimentId[row.experiment_id] ?? [],
+  };
 }
 
 export async function queryExperimentSummariesForPublicApi(

@@ -17,6 +17,7 @@ import {
 } from "@/src/features/experiments/server/public";
 import {
   queryExperimentItemsForPublicApi,
+  queryExperimentSummaryForPublicApi,
   queryExperimentSummariesForPublicApi,
 } from "@/src/features/experiments/server/public/repository";
 
@@ -90,6 +91,62 @@ describe("Public API experiments repository", () => {
   });
 
   maybe("queryExperimentSummariesForPublicApi", () => {
+    it("returns a single unwindowed experiment summary by id", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const startTimeMs = Date.now() - 30 * 24 * 60 * 60 * 1_000;
+      const experimentId = `exp-${randomUUID()}`;
+      const scoreId = `score-${randomUUID()}`;
+
+      await createEventsCh([
+        createExperimentRootEvent({
+          projectId,
+          experimentId,
+          experimentName: "single repository experiment",
+          datasetId: "dataset-public-api",
+          startTimeMs,
+          metadata: { region: "eu" },
+          experimentItemId: "item-1",
+        }),
+        createExperimentRootEvent({
+          projectId,
+          experimentId,
+          experimentName: "single repository experiment",
+          datasetId: "dataset-public-api",
+          startTimeMs: startTimeMs + 1_000,
+          metadata: { region: "eu" },
+          experimentItemId: "item-2",
+        }),
+      ]);
+      await createScoresCh([
+        createDatasetRunScore({
+          id: scoreId,
+          project_id: projectId,
+          dataset_run_id: experimentId,
+          name: "experiment quality",
+          value: 0.75,
+          timestamp: startTimeMs + 2_000,
+          created_at: startTimeMs + 2_000,
+          updated_at: startTimeMs + 2_000,
+          event_ts: startTimeMs + 2_000,
+        }),
+      ]);
+
+      const row = await queryExperimentSummaryForPublicApi({
+        projectId,
+        experimentId,
+      });
+
+      expect(row).toMatchObject({
+        experiment_id: experimentId,
+        experiment_name: "single repository experiment",
+        experiment_description: "single repository experiment description",
+        experiment_dataset_id: "dataset-public-api",
+        item_count: 2,
+        experiment_metadata: { region: "eu" },
+      });
+      expect(row?.scores?.map((score) => score.id)).toEqual([scoreId]);
+    });
+
     it("returns public API summary fields with cursor anchors", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const startTimeMs = Date.now();

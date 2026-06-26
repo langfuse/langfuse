@@ -129,6 +129,12 @@ export const GetExperimentsV1Query = z.object({
 
 export type GetExperimentsV1QueryType = z.infer<typeof GetExperimentsV1Query>;
 
+export const GetExperimentV1Query = z.object({
+  experimentId: z.string(),
+});
+
+export type GetExperimentV1QueryType = z.infer<typeof GetExperimentV1Query>;
+
 export const GetExperimentItemsV1Query = z
   .object({
     fields: commaSeparatedEnumArray(EXPERIMENT_ITEM_FIELD_GROUPS, [
@@ -196,6 +202,15 @@ export const GetExperimentsV1Response = z
 
 export type GetExperimentsV1ResponseType = z.infer<
   typeof GetExperimentsV1Response
+>;
+
+export const GetExperimentV1Response = ExperimentV1.extend({
+  metadata: z.record(z.string(), z.unknown()).nullable(),
+  scores: z.array(APIScoreSchemaV3),
+}).strict();
+
+export type GetExperimentV1ResponseType = z.infer<
+  typeof GetExperimentV1Response
 >;
 
 export const ExperimentItemV1 = z

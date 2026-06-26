@@ -54,6 +54,19 @@ service:
               JSON string containing an array of structured filter conditions.
               Supported columns are `id`, `name`, and `datasetId`.
       response: ExperimentsResponse
+    get:
+      method: GET
+      path: /experiments/{experimentId}
+      docs: |
+        Get an experiment summary from the events table.
+
+        This endpoint returns the full experiment summary for the given
+        experiment ID. It is not windowed and does not paginate.
+      path-parameters:
+        experimentId:
+          type: string
+          docs: The unique experiment ID.
+      response: ExperimentDetails
     listItems:
       method: GET
       path: /experiment-items
@@ -129,11 +142,22 @@ types:
       itemCount: integer
       datasetId: string
       metadata:
-        type: optional<unknown>
+        type: optional<nullable<map<string, unknown>>>
         docs: Included only when `fields=metadata` is requested.
       scores:
         type: optional<list<scoresV3.ScoreV3>>
         docs: Included only when `fields=scores` is requested. Contains scores directly attached to the experiment.
+
+  ExperimentDetails:
+    properties:
+      id: string
+      name: string
+      description: nullable<string>
+      startTime: datetime
+      itemCount: integer
+      datasetId: string
+      metadata: nullable<map<string, unknown>>
+      scores: list<scoresV3.ScoreV3>
 
   ExperimentItemsResponse:
     properties:
@@ -167,13 +191,13 @@ types:
         type: optional<unknown>
         docs: Included when `fields=io` is requested.
       metadata:
-        type: optional<unknown>
+        type: optional<nullable<map<string, unknown>>>
         docs: Included when `fields=metadata` is requested.
       experimentItemMetadata:
-        type: optional<unknown>
+        type: optional<nullable<map<string, unknown>>>
         docs: Included when `fields=itemMetadata` is requested.
       experimentMetadata:
-        type: optional<unknown>
+        type: optional<nullable<map<string, unknown>>>
         docs: Included when `fields=experimentMetadata` is requested.
       experimentDescription:
         type: optional<nullable<string>>
