@@ -65,6 +65,7 @@ import {
   createSecureVertexAIApiClient,
 } from "./googleSecureApiClient";
 import { createSecureLlmFetch } from "./secureLlmFetch";
+import { validateLlmConnectionBaseURL } from "./baseUrlValidation";
 
 export type CompletionWithReasoning = { text: string; reasoning?: string };
 type SplitAIMessageContent = {
@@ -551,11 +552,32 @@ export async function fetchLLMCompletion(
       allowDefaultCredentials: isSelfHosted || shouldUseLangfuseAPIKey,
     });
 
+    // Optional gateway: route Converse calls through a custom endpoint (e.g. a
+    // corporate APIM gateway). The AWS SDK builds its own HTTP client and never
+    // passes through secureLlmFetch, so validate the host here to keep the same
+    // SSRF/whitelist posture the other adapters get from secureLlmFetch.
+    let bedrockEndpointHost: string | undefined;
+    if (baseURL) {
+      await validateLlmConnectionBaseURL(baseURL);
+      const parsedBaseUrl = new URL(baseURL);
+      const basePath =
+        parsedBaseUrl.pathname === "/"
+          ? ""
+          : parsedBaseUrl.pathname.replace(/\/$/, "");
+      // ChatBedrockConverse prefixes the value with https://, so pass the host
+      // plus any path prefix the gateway expects.
+      bedrockEndpointHost = `${parsedBaseUrl.host}${basePath}`;
+    }
+
     chatModel = new ChatBedrockConverse({
       model: modelParams.model,
       region,
       credentials,
       clientOptions,
+      // Gateway endpoint + auth headers (e.g. APIM subscription key). When unset,
+      // these are no-ops and the default AWS Bedrock endpoint is used.
+      endpointHost: bedrockEndpointHost,
+      defaultHeaders: extraHeaders,
       temperature: modelParams.temperature,
       maxTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
@@ -600,6 +622,14 @@ export async function fetchLLMCompletion(
     // Requests time out after 60 seconds for both public and private endpoints by default
     // Reference: https://cloud.google.com/vertex-ai/docs/predictions/get-online-predictions#send-request
     if (isClaudeModel(modelParams.model)) {
+      if (baseURL) {
+        // Claude-on-Vertex runs through AnthropicVertex (region-derived host),
+        // not the ChatGoogle apiClient that handles gateway rewriting. Fail
+        // loudly instead of silently ignoring the configured gateway.
+        throw new Error(
+          "A gateway base URL is not supported for Claude models on Vertex AI. Remove the base URL or use a Gemini model.",
+        );
+      }
       assertValidAnthropicVertexModelName(modelParams.model);
       const anthropicVertexGoogleAuth = new GoogleAuth({
         ...authOptions,
@@ -673,6 +703,10 @@ export async function fetchLLMCompletion(
         vertexai: true,
         apiClient: createSecureVertexAIApiClient({
           authOptions,
+          // When set, route through the gateway and authenticate via
+          // extraHeaders instead of a Google OAuth bearer token.
+          baseURL,
+          extraHeaders,
           dispatcher: proxyDispatcher,
         }),
         ...(modelParams.maxReasoningTokens !== undefined && {
