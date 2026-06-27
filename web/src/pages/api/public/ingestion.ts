@@ -11,6 +11,7 @@ import {
   markProjectIngestFailure,
 } from "@langfuse/shared/src/server";
 import { telemetry } from "@/src/features/telemetry";
+import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 import { jsonSchema } from "@langfuse/shared";
 import { isPrismaException } from "@/src/utils/exceptions";
 import {
@@ -104,6 +105,10 @@ export default async function handler(
       headers: req.headers,
       projectId,
       apiKeyId: authCheck.scope.apiKeyId,
+      clickhouse: {
+        surface: "publicapi",
+        route: clickHouseRouteForRequest(req),
+      },
     });
     // Execute the rest of the handler within the context
     return opentelemetry.context.with(ctx, async () => {

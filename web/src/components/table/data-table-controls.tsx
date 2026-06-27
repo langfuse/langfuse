@@ -650,10 +650,67 @@ export function CategoricalFacet({
       })
     : visibleOptionValues;
 
-  const hasMoreFilteredOptions = filteredOptions.length > MAX_VISIBLE_OPTIONS;
+  // Order a genuine selection to the top of the list so an applied filter is
+  // immediately visible — without scrolling or expanding "Show more" — even
+  // when the selected value sits far down a long list (LFE-10494).
+  //
+  // Two guards keep this honest:
+  //   1. Only reorder long lists (more options than the cap) that carry a real,
+  //      strict-subset selection. `value` mirrors the hook's
+  //      `computeSelectedValues`, which reports EVERY option as "selected" when
+  //      no filter is applied (and the inverted set for `none of`). Requiring a
+  //      strict subset skips that all-selected default — otherwise the whole
+  //      list would be treated as pinned — and leaves short lists untouched.
+  //   2. The visible-count cap is applied to the COMBINED ordered list, so even
+  //      a large selection (many values, or a `none of` include-set) can never
+  //      render the entire list; "Show more" still gates the overflow.
+  const selectedSet = new Set(value);
+  const pinSelected =
+    hasMoreOptions &&
+    value.length > 0 &&
+    value.length < visibleOptionValues.length;
+  const orderedOptions = pinSelected
+    ? [
+        ...filteredOptions.filter((option) => selectedSet.has(option)),
+        ...filteredOptions.filter((option) => !selectedSet.has(option)),
+      ]
+    : filteredOptions;
+
+  const hasMoreFilteredOptions = orderedOptions.length > MAX_VISIBLE_OPTIONS;
   const visibleOptions = showAll
-    ? filteredOptions
-    : filteredOptions.slice(0, MAX_VISIBLE_OPTIONS);
+    ? orderedOptions
+    : orderedOptions.slice(0, MAX_VISIBLE_OPTIONS);
+
+  // Split the visible slice so a separator can mark where the pinned selection
+  // ends. When not pinning, everything renders in natural order (no divider).
+  const visibleSelectedOptions = pinSelected
+    ? visibleOptions.filter((option) => selectedSet.has(option))
+    : [];
+  const visibleRemainingOptions = pinSelected
+    ? visibleOptions.filter((option) => !selectedSet.has(option))
+    : visibleOptions;
+
+  const renderOption = (option: string) => {
+    const displayLabel = displayByValue?.get(option) ?? option;
+    return (
+      <FilterValueCheckbox
+        key={option}
+        id={`${filterKey}-${option}`}
+        label={displayLabel}
+        icon={renderIcon?.(option)}
+        count={counts.get(option) || 0}
+        checked={value.includes(option)}
+        onCheckedChange={(checked) => {
+          const newValues = checked
+            ? [...value, option]
+            : value.filter((v: string) => v !== option);
+          onChange(newValues);
+        }}
+        onLabelClick={onOnlyChange ? () => onOnlyChange(option) : undefined}
+        totalSelected={value.length}
+      />
+    );
+  };
 
   return (
     <FilterAccordionItem
@@ -818,39 +875,27 @@ export function CategoricalFacet({
                   </div>
                 ) : (
                   <>
-                    {visibleOptions.map((option: string) => {
-                      const displayLabel =
-                        displayByValue?.get(option) ?? option;
-                      return (
-                        <FilterValueCheckbox
-                          key={option}
-                          id={`${filterKey}-${option}`}
-                          label={displayLabel}
-                          icon={renderIcon?.(option)}
-                          count={counts.get(option) || 0}
-                          checked={value.includes(option)}
-                          onCheckedChange={(checked) => {
-                            const newValues = checked
-                              ? [...value, option]
-                              : value.filter((v: string) => v !== option);
-                            onChange(newValues);
-                          }}
-                          onLabelClick={
-                            onOnlyChange
-                              ? () => onOnlyChange(option)
-                              : undefined
-                          }
-                          totalSelected={value.length}
+                    {/* Selected options, pinned to the top (long lists only) */}
+                    {visibleSelectedOptions.map(renderOption)}
+
+                    {/* Separator between the pinned selection and the rest */}
+                    {visibleSelectedOptions.length > 0 &&
+                      visibleRemainingOptions.length > 0 && (
+                        <div
+                          className="border-border/60 mx-3 my-1 border-t"
+                          aria-hidden
                         />
-                      );
-                    })}
+                      )}
+
+                    {/* Remaining (unselected) options, capped */}
+                    {visibleRemainingOptions.map(renderOption)}
                     {hasMoreFilteredOptions && !showAll && (
                       <div className="px-2">
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => setShowAll(true)}
-                          className="text-normal mt-1 h-auto w-full justify-start py-1 pl-7 text-xs"
+                          className="mt-1 h-auto w-full justify-start py-1 pl-7 text-xs"
                         >
                           Show more values
                         </Button>

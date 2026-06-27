@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-PROMPT_FILE="${REPO_ROOT}/web/src/features/in-app-agent/prompts/in-app-agent-system-prompt.txt"
+PROMPT_FILE="${REPO_ROOT}/web/src/ee/features/in-app-agent/prompts/in-app-agent-system-prompt.txt"
 PROMPT_NAME="in-app-agent-system-prompt"
 REGIONS=(STAGING EU US JP HIPAA)
 BASE_URLS=(

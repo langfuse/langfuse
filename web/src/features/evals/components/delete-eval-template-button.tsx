@@ -88,7 +88,7 @@ export function DeleteEvalTemplateButton(props: DeleteEvalTemplateButtonProps) {
   const deleteBlocker =
     usageCount > 0 ? (
       <>
-        <h2 className="text-md mb-3 font-semibold">Cannot delete</h2>
+        <h2 className="mb-3 font-semibold">Cannot delete</h2>
         <p className="mb-3 max-w-72 text-sm">
           This evaluator is used by {usageCount} running evaluator
           {usageCount === 1 ? "" : "s"}. Delete those running evaluators first.
