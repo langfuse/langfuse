@@ -128,6 +128,17 @@ export const shouldKeepPeekOpenOnOutsideInteraction = (
   );
 };
 
+/**
+ * After an in-flight delete resolves, only close the peek if it STILL shows the
+ * trace that was deleted. Deleting trace A then K/J-navigating to trace B before
+ * the mutation settles must leave B's peek open — A's stale `closePeek` callback
+ * would otherwise clear the (now-B) peek param and dismiss it (LFE-10535).
+ */
+export const shouldClosePeekAfterDelete = (
+  currentPeekTraceId: string | undefined,
+  deletedTraceId: string,
+): boolean => currentPeekTraceId === deletedTraceId;
+
 function TablePeekViewComponent(props: TablePeekViewProps) {
   const { title, children } = props;
   const router = useRouter();
