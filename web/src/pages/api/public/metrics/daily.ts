@@ -15,6 +15,9 @@ export default withMiddlewares({
     querySchema: GetMetricsDailyV1Query,
     responseSchema: GetMetricsDailyV1Response,
     rateLimitResource: "public-api-daily-metrics-legacy",
+    // Aggregates over the legacy traces and observations tables without an
+    // events_full fallback.
+    rejectInEventsOnlyMode: true,
     fn: async ({ query, auth }) => {
       const filterProps = {
         projectId: auth.scope.projectId,

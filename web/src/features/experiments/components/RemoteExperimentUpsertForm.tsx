@@ -26,10 +26,10 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
-import { Loader2 } from "lucide-react";
 import { type Prisma } from "@langfuse/shared";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { getFormattedPayload } from "@/src/features/experiments/utils/format";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 const RemoteExperimentSetupSchema = z.object({
   url: z.url(),
@@ -44,6 +44,7 @@ export const RemoteExperimentUpsertForm = ({
   datasetId,
   existingRemoteExperiment,
   setShowRemoteExperimentUpsertForm,
+  onBack,
 }: {
   projectId: string;
   datasetId: string;
@@ -53,6 +54,7 @@ export const RemoteExperimentUpsertForm = ({
     enabled?: boolean;
   } | null;
   setShowRemoteExperimentUpsertForm: (show: boolean) => void;
+  onBack?: () => void;
 }) => {
   const hasDatasetAccess = useHasProjectAccess({
     projectId,
@@ -164,26 +166,32 @@ export const RemoteExperimentUpsertForm = ({
       <DialogHeader>
         <Button
           variant="ghost"
-          onClick={() => setShowRemoteExperimentUpsertForm(false)}
+          onClick={() => {
+            if (onBack) {
+              onBack();
+            } else {
+              setShowRemoteExperimentUpsertForm(false);
+            }
+          }}
           className="inline-block self-start"
         >
           ← Back
         </Button>
         <DialogTitle>
           {existingRemoteExperiment
-            ? "Edit remote dataset run trigger"
-            : "Set up remote dataset run trigger in UI"}
+            ? "Edit remote experiment trigger"
+            : "Set up remote experiment trigger in UI"}
         </DialogTitle>
         <DialogDescription>
-          Enable your team to run custom dataset runs on dataset{" "}
+          Enable your team to run custom experiments on dataset{" "}
           <strong>
             {dataset.isSuccess ? (
               <>&quot;{dataset.data?.name}&quot;</>
             ) : (
-              <Loader2 className="inline h-4 w-4 animate-spin" />
+              <Spinner size="sm" display="inline" />
             )}
           </strong>
-          . Configure a webhook URL to trigger remote custom dataset runs from
+          . Configure a webhook URL to trigger remote custom experiments from
           UI. We will send dataset info (name, id) and config to your service,
           which can run against the dataset and post results to Langfuse.
         </DialogDescription>
@@ -199,7 +207,7 @@ export const RemoteExperimentUpsertForm = ({
                 <FormItem>
                   <FormLabel>URL</FormLabel>
                   <FormDescription>
-                    The URL that will be called when the remote dataset run is
+                    The URL that will be called when the remote experiment is
                     triggered.
                   </FormDescription>
                   <FormControl>
@@ -220,9 +228,9 @@ export const RemoteExperimentUpsertForm = ({
                 <FormItem>
                   <FormLabel>Default config</FormLabel>
                   <FormDescription>
-                    Set a default config that will be sent to the remote dataset
-                    run URL. This can be modified before starting a new run.
-                    View docs for more details.
+                    Set a default config that will be sent to the remote
+                    experiment run URL. This can be modified before starting a
+                    new run. View docs for more details.
                   </FormDescription>
                   <CodeMirrorEditor
                     value={field.value}
@@ -271,17 +279,22 @@ export const RemoteExperimentUpsertForm = ({
                   disabled={deleteRemoteExperimentMutation.isPending}
                 >
                   {deleteRemoteExperimentMutation.isPending && (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <div className="mr-2">
+                      <Spinner size="sm" />
+                    </div>
                   )}
                   Delete
                 </Button>
               )}
               <Button
                 type="submit"
+                className="ml-auto"
                 disabled={upsertRemoteExperimentMutation.isPending}
               >
                 {upsertRemoteExperimentMutation.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <div className="mr-2">
+                    <Spinner size="sm" />
+                  </div>
                 ) : null}
                 {existingRemoteExperiment ? "Update" : "Set up"}
               </Button>

@@ -29,8 +29,8 @@ import { ActionButton } from "@/src/components/ActionButton";
 import { useOptionalEntitlement } from "@/src/features/entitlements/hooks";
 import { type BatchExportTableName } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
-import { Loader2 } from "lucide-react";
 import { targetOptionsQueryMap } from "@/src/features/table/components/targetOptionsQueryMap";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 type TableActionDialogProps = {
   isOpen: boolean;
@@ -106,11 +106,8 @@ export function TableActionDialog({
       }}
     >
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+        <DialogHeader variant="action">
           <DialogTitle>{action.label}</DialogTitle>
-          <DialogDescription className="mt-2">
-            {action.description}
-          </DialogDescription>
         </DialogHeader>
 
         {action.type === "create" && (
@@ -120,6 +117,7 @@ export function TableActionDialog({
               onSubmit={form.handleSubmit(handleConfirm)}
             >
               <DialogBody>
+                <DialogDescription>{action.description}</DialogDescription>
                 <FormField
                   control={form.control}
                   name="targetId"
@@ -146,10 +144,10 @@ export function TableActionDialog({
                   )}
                 />
               </DialogBody>
-              <DialogFooter>
+              <DialogFooter variant="action">
                 {isInProgress.data && (
                   <div className="flex items-center gap-1">
-                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <Spinner size="xxs" />
                     <p className="text-muted-foreground text-sm">
                       Batch action is in progress, please wait.
                     </p>
@@ -170,26 +168,31 @@ export function TableActionDialog({
         )}
 
         {action.type === "delete" && (
-          <DialogFooter>
-            {isInProgress.data && (
-              <div className="flex items-center gap-1">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                <p className="text-muted-foreground text-sm">
-                  Batch action is in progress, please wait.
-                </p>
-              </div>
-            )}
-            <ActionButton
-              variant="destructive"
-              hasAccess={hasAccess}
-              hasEntitlement={hasEntitlement}
-              loading={isInProgress.isLoading}
-              disabled={isInProgress.data}
-              onClick={handleConfirm}
-            >
-              Confirm
-            </ActionButton>
-          </DialogFooter>
+          <>
+            <DialogBody>
+              <DialogDescription>{action.description}</DialogDescription>
+            </DialogBody>
+            <DialogFooter variant="action">
+              {isInProgress.data && (
+                <div className="flex items-center gap-1">
+                  <Spinner size="xxs" />
+                  <p className="text-muted-foreground text-sm">
+                    Batch action is in progress, please wait.
+                  </p>
+                </div>
+              )}
+              <ActionButton
+                variant="destructive"
+                hasAccess={hasAccess}
+                hasEntitlement={hasEntitlement}
+                loading={isInProgress.isLoading}
+                disabled={isInProgress.data}
+                onClick={handleConfirm}
+              >
+                Confirm
+              </ActionButton>
+            </DialogFooter>
+          </>
         )}
       </DialogContent>
     </Dialog>

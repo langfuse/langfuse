@@ -6,13 +6,10 @@ import { DashboardTable } from "@/src/features/dashboard/components/cards/Dashbo
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { TotalMetric } from "./TotalMetric";
-import { totalCostDashboardFormatted } from "@/src/features/dashboard/lib/dashboard-utils";
+import { costFormatter } from "@/src/utils/numbers";
 import { truncate } from "@/src/utils/string";
-import {
-  type QueryType,
-  type ViewVersion,
-  mapLegacyUiTableFilterToView,
-} from "@/src/features/query";
+import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 
 export const ModelCostTable = ({
@@ -97,7 +94,7 @@ export const ModelCostTable = ({
           </RightAlignedCell>,
           <RightAlignedCell key={`${i}-cost`}>
             {item.sum_totalCost
-              ? totalCostDashboardFormatted(item.sum_totalCost as number)
+              ? costFormatter(item.sum_totalCost as number)
               : "$0"}
           </RightAlignedCell>,
         ])
@@ -120,7 +117,7 @@ export const ModelCostTable = ({
         collapse={{ collapsed: 5, expanded: 20 }}
       >
         <TotalMetric
-          metric={totalCostDashboardFormatted(totalTokenCost)}
+          metric={costFormatter(totalTokenCost)}
           description="Total cost"
         >
           <DocPopup

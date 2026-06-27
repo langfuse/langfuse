@@ -25,6 +25,7 @@ export async function handleGetApiKeys(
     where: {
       orgId: organizationId,
       scope: "ORGANIZATION",
+      isInAppAgentKey: false,
     },
     select: {
       id: true,

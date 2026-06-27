@@ -9,6 +9,10 @@ import { Command as CommandPrimitive } from "cmdk";
 import { Search } from "lucide-react";
 
 import { Dialog, DialogBody, DialogContent } from "@/src/components/ui/dialog";
+import {
+  KeyboardShortcut,
+  type KeyboardShortcutProps,
+} from "@/src/components/ui/keyboard-shortcut";
 import { cn } from "@/src/utils/tailwind";
 
 const InputCommand = React.forwardRef<
@@ -146,16 +150,8 @@ InputCommandItem.displayName = CommandPrimitive.Item.displayName;
 const InputCommandShortcut = ({
   className,
   ...props
-}: React.HTMLAttributes<HTMLSpanElement>) => {
-  return (
-    <span
-      className={cn(
-        "ml-auto text-xs tracking-widest text-slate-500 dark:text-slate-400",
-        className,
-      )}
-      {...props}
-    />
-  );
+}: KeyboardShortcutProps) => {
+  return <KeyboardShortcut className={cn("ml-auto", className)} {...props} />;
 };
 InputCommandShortcut.displayName = "CommandShortcut";
 

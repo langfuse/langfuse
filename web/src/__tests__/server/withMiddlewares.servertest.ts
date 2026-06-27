@@ -1,5 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
+import {
+  LEGACY_PUBLIC_API_METRICS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
+  withMiddlewares,
+} from "@/src/features/public-api/server/withMiddlewares";
+import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 import {
   BaseError,
   LangfuseNotFoundError,
@@ -26,6 +30,36 @@ vi.mock("@langfuse/shared/src/server", async () => ({
   },
   traceException: vi.fn(),
 }));
+
+describe("clickHouseRouteForRequest", () => {
+  const request = (method: string | undefined, url: string | undefined) =>
+    ({ method, url }) as NextApiRequest;
+
+  it("uses only the request pathname", () => {
+    expect(
+      clickHouseRouteForRequest(
+        request(
+          "GET",
+          "/api/public/v2/traces?projectId=project-1&secret=do-not-log",
+        ),
+      ),
+    ).toBe("GET /api/public/v2/traces");
+  });
+
+  it("removes search params from malformed urls in the fallback path", () => {
+    expect(
+      clickHouseRouteForRequest(
+        request("POST", "http://[::1?secret=do-not-log#fragment"),
+      ),
+    ).toBe("POST http://[::1");
+  });
+
+  it("falls back to UNKNOWN method for missing methods", () => {
+    expect(
+      clickHouseRouteForRequest(request(undefined, "/api/public/health")),
+    ).toBe("UNKNOWN /api/public/health");
+  });
+});
 
 describe("withMiddlewares error handling", () => {
   beforeEach(() => {
@@ -57,6 +91,9 @@ describe("withMiddlewares error handling", () => {
         message: "Bad Request",
         error: "BadRequest",
       });
+      expect(logger.warn).toHaveBeenCalledWith(error);
+      expect(logger.error).not.toHaveBeenCalled();
+      expect(traceException).not.toHaveBeenCalled();
     });
 
     it("should handle BaseError with 5xx status code and trace exception", async () => {
@@ -209,7 +246,87 @@ describe("withMiddlewares error handling", () => {
       expect(jsonData["message"]).toContain(
         ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
       );
-      expect(jsonData["error"]).toBe("Unprocessable Content");
+      expect(jsonData["error"]).toBe("Request timed out");
+    });
+
+    it("should include tags from the error in the warn log", async () => {
+      const originalError = new Error("Memory limit exceeded");
+      const resourceError = new ClickHouseResourceError(
+        "MEMORY_LIMIT",
+        originalError,
+        {
+          tag_schema_version: "1",
+          surface: "publicapi",
+          route: "GET /api/public/test",
+        },
+      );
+
+      const handler = withMiddlewares({
+        GET: async () => {
+          throw resourceError;
+        },
+      });
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "GET",
+        headers: {
+          "x-langfuse-public-key": "test-key",
+        },
+      });
+
+      await handler(req, res);
+
+      expect(res._getStatusCode()).toBe(422);
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        "ClickHouse resource limit exceeded",
+        expect.objectContaining({
+          errorType: "MEMORY_LIMIT",
+          tags: {
+            tag_schema_version: "1",
+            surface: "publicapi",
+            route: "GET /api/public/test",
+          },
+        }),
+      );
+    });
+
+    it("should handle ClickHouseResourceError with custom advice", async () => {
+      const originalError = new Error("Timeout exceeded");
+      const resourceError = new ClickHouseResourceError(
+        "TIMEOUT",
+        originalError,
+      );
+
+      const handler = withMiddlewares(
+        {
+          GET: async () => {
+            throw resourceError;
+          },
+        },
+        {
+          clickHouseResourceErrorMessage:
+            LEGACY_PUBLIC_API_METRICS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
+        },
+      );
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "GET",
+        headers: {
+          "x-langfuse-public-key": "test-key",
+        },
+      });
+
+      await handler(req, res);
+
+      expect(res._getStatusCode()).toBe(422);
+      const jsonData = JSON.parse(res._getData());
+      expect(jsonData["message"]).toBe(
+        LEGACY_PUBLIC_API_METRICS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
+      );
+      expect(jsonData["message"]).toContain(
+        "https://langfuse.com/docs/metrics/features/metrics-api",
+      );
     });
   });
 
@@ -281,6 +398,9 @@ describe("withMiddlewares error handling", () => {
           }),
         ]),
       });
+      expect(logger.warn).toHaveBeenCalledWith(expect.any(z.ZodError));
+      expect(logger.error).not.toHaveBeenCalled();
+      expect(traceException).not.toHaveBeenCalled();
     });
   });
 
@@ -318,6 +438,34 @@ describe("withMiddlewares error handling", () => {
   });
 
   describe("Generic error handling", () => {
+    it("should keep handler RangeError instances on the generic 500 path", async () => {
+      const error = new RangeError("Invalid string length");
+
+      const handler = withMiddlewares({
+        GET: async () => {
+          throw error;
+        },
+      });
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "GET",
+        headers: {
+          "x-langfuse-public-key": "test-key",
+        },
+      });
+
+      await handler(req, res);
+
+      expect(res._getStatusCode()).toBe(500);
+      const jsonData = JSON.parse(res._getData());
+      expect(jsonData).toMatchObject({
+        message: "Internal Server Error",
+        error: "Invalid string length",
+      });
+      expect(logger.error).toHaveBeenCalledWith(error);
+      expect(traceException).toHaveBeenCalledWith(error);
+    });
+
     it("should handle generic Error instances with 500 status", async () => {
       const error = new Error("Something went wrong");
 

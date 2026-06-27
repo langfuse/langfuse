@@ -66,6 +66,15 @@ function buildStepGroups(
     }
   });
 
+  // Inverted or otherwise invalid time ranges can cause cleanup to remove every
+  // observation, which would recurse with identical input until the stack overflows.
+  // To prevent this, if the cleaned group is empty, we will use the original group as a fallback
+  // and mark all of its observations as processed to avoid infinite recursion.
+  if (cleanedGroup.length === 0) {
+    cleanedGroup.push(...currentGroup);
+    currentGroup.forEach((o) => processedIds.add(o.id));
+  }
+
   stepGroups.push(cleanedGroup);
 
   // Optimization: use incrementally built processedIds set

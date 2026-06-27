@@ -5,7 +5,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { Loader2 } from "lucide-react";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { MetricCard } from "../charts/MetricCard";
 import { SamplingDetailsHoverCard } from "../SamplingDetailsHoverCard";
@@ -21,6 +20,7 @@ import {
   interpretMAE,
   interpretRMSE,
 } from "@/src/features/score-analytics/lib/statistics-utils";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 /**
  * StatisticsCard - Smart card component for displaying score statistics
@@ -48,7 +48,7 @@ export function StatisticsCard() {
           <CardDescription>Loading statistics...</CardDescription>
         </CardHeader>
         <CardContent className="flex items-center justify-center py-12">
-          <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+          <Spinner size="xl" variant="muted" />
         </CardContent>
       </Card>
     );

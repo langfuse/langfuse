@@ -401,7 +401,11 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
           throw new Error(`Unknown select type: ${select}`);
       }
 
-      const search = clickhouseSearchCondition(searchQuery, searchType, "t");
+      const search = clickhouseSearchCondition({
+        query: searchQuery,
+        searchType,
+        tablePrefix: "t",
+      });
 
       const defaultOrder = orderBy?.order && orderBy?.column === "timestamp";
       const orderByCols = [
@@ -475,13 +479,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
           ...scoresFilterRes.params,
           ...search.params,
         },
-        tags: {
-          ...(props.tags ?? {}),
-          feature: "tracing",
-          type: "traces-table",
-          projectId,
-          operation_name: "getTracesTableGeneric",
-        },
+        tags: { ...(props.tags ?? {}), projectId },
         clickhouseConfigs,
       });
 
@@ -501,7 +499,6 @@ export const getTracesTableCount = async (props: {
 }) => {
   const countRows = await getTracesTableGeneric({
     select: "count",
-    tags: { kind: "count" },
     ...props,
   });
 
@@ -523,7 +520,6 @@ export const getTracesTableMetrics = async (props: {
 }): Promise<Array<Omit<TracesMetricsUiReturnType, "scores">>> => {
   const countRows = await getTracesTableGeneric({
     select: "metrics",
-    tags: { kind: "analytic" },
     ...props,
   });
 
@@ -552,7 +548,6 @@ export const getTracesTable = async (p: {
   } = p;
   const rows = await getTracesTableGeneric({
     select: "rows",
-    tags: { kind: "list" },
     projectId,
     filter,
     searchQuery,
@@ -588,7 +583,6 @@ export const getTraceIdentifiers = async (props: {
   } = props;
   const identifiers = await getTracesTableGeneric({
     select: "identifiers",
-    tags: { kind: "list" },
     projectId,
     filter,
     searchQuery,

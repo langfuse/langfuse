@@ -1,4 +1,10 @@
 import { logger } from "@langfuse/shared/src/server";
+import {
+  isHighTierSupportPlan,
+  canRaiseSeverity2,
+  SEVERITY_1,
+  SEVERITY_2,
+} from "../formConstants";
 
 const PYLON_API_BASE = "https://api.usepylon.com";
 
@@ -168,17 +174,20 @@ export async function updatePylonAccountCustomFields(
   }
 }
 
-export function mapSeverityToPylonPriority(
-  severity: string,
-): "urgent" | "high" | "medium" | "low" {
-  switch (severity) {
-    case "Outage, data loss, or data breach":
+/**
+ * Maps the effective Pylon `case_severity` to the Pylon issue `priority`.
+ * Derived from the (already plan-gated) case severity so the two fields stay
+ * consistent.
+ */
+export function mapCaseSeverityToPylonPriority(
+  caseSeverity: "Sev-1" | "Sev-2" | "Sev-3",
+): "urgent" | "high" | "low" {
+  switch (caseSeverity) {
+    case "Sev-1":
       return "urgent";
-    case "Feature is not working at all":
+    case "Sev-2":
       return "high";
-    case "Feature not working as expected":
-      return "medium";
-    case "Question or feature request":
+    case "Sev-3":
     default:
       return "low";
   }
@@ -253,27 +262,31 @@ export function mapMessageTypeToPylonQuestionType(messageType: string): string {
   }
 }
 
+/**
+ * Maps the user-selected severity level to the Pylon `case_severity` value,
+ * capped by what the plan is eligible for.
+ *
+ * Severity 1 requires a high-tier plan (Team/Enterprise); Severity 2 requires
+ * Pro tier or above. These options are disabled in the UI for ineligible plans,
+ * but we also enforce it here as a server-side safeguard: a selection above the
+ * plan's eligibility is downgraded to the highest level it can raise (a
+ * Hobby/Core request therefore never exceeds Sev-3).
+ */
 export function mapToPylonCaseSeverity(params: {
   severity: string;
   plan?: string;
 }): "Sev-1" | "Sev-2" | "Sev-3" {
   const { severity, plan } = params;
-  const isHighTierPlan =
-    plan === "cloud:team" ||
-    plan === "cloud:enterprise" ||
-    plan === "self-hosted:enterprise";
 
-  if (severity === "Outage, data loss, or data breach" && isHighTierPlan) {
+  if (severity === SEVERITY_1 && isHighTierSupportPlan(plan)) {
     return "Sev-1";
   }
-
   if (
-    severity === "Outage, data loss, or data breach" ||
-    severity === "Feature is not working at all"
+    (severity === SEVERITY_1 || severity === SEVERITY_2) &&
+    canRaiseSeverity2(plan)
   ) {
     return "Sev-2";
   }
-
   return "Sev-3";
 }
 

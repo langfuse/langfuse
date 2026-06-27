@@ -1,10 +1,6 @@
 import { Queue } from "bullmq";
 import { QueueName, QueueJobs } from "../queues";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
 
 export class BlobStorageIntegrationQueue {
@@ -15,15 +11,12 @@ export class BlobStorageIntegrationQueue {
       return BlobStorageIntegrationQueue.instance;
     }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
-    BlobStorageIntegrationQueue.instance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
+      QueueName.BlobStorageIntegrationQueue,
+    );
+    BlobStorageIntegrationQueue.instance = queueOptionsWithRedis
       ? new Queue(QueueName.BlobStorageIntegrationQueue, {
-          connection: newRedis,
-          prefix: getQueuePrefix(QueueName.BlobStorageIntegrationQueue),
+          ...queueOptionsWithRedis,
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100,

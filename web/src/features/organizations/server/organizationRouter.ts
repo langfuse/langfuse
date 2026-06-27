@@ -16,6 +16,7 @@ import { redis } from "@langfuse/shared/src/server";
 import { createBillingServiceFromContext } from "@/src/ee/features/billing/server/stripeBillingService";
 import { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 
 import { env } from "@/src/env.mjs";
 
@@ -114,6 +115,20 @@ export const organizationsRouter = createTRPCRouter({
         after: organization,
       });
 
+      await getSfdcService()?.upsertOrg({
+        orgId: organization.id,
+        orgName: organization.name,
+        userId: ctx.session.user.id,
+        email: ctx.session.user.email,
+        role: "OWNER",
+      });
+      await getSfdcService()?.setUserRole({
+        orgId: organization.id,
+        userId: ctx.session.user.id,
+        email: ctx.session.user.email,
+        role: "OWNER",
+      });
+
       return {
         id: organization.id,
         name: organization.name,
@@ -126,10 +141,18 @@ export const organizationsRouter = createTRPCRouter({
         .extend({
           orgId: z.string(),
           aiFeaturesEnabled: z.boolean().optional(),
+          aiTelemetryEnabled: z.boolean().optional(),
         })
-        .refine((data) => data.name || data.aiFeaturesEnabled !== undefined, {
-          message: "At least one of name or aiFeaturesEnabled is required",
-        }),
+        .refine(
+          (data) =>
+            data.name ||
+            data.aiFeaturesEnabled !== undefined ||
+            data.aiTelemetryEnabled !== undefined,
+          {
+            message:
+              "At least one of name, aiFeaturesEnabled or aiTelemetryEnabled is required",
+          },
+        ),
     )
     .mutation(async ({ input, ctx }) => {
       throwIfNoOrganizationAccess({
@@ -139,13 +162,13 @@ export const organizationsRouter = createTRPCRouter({
       });
 
       if (
-        input.aiFeaturesEnabled !== undefined &&
+        (input.aiFeaturesEnabled !== undefined ||
+          input.aiTelemetryEnabled !== undefined) &&
         !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
       ) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message:
-            "Natural language filtering is not available in self-hosted deployments.",
+          message: "AI features are not available in self-hosted deployments.",
         });
       }
 
@@ -161,6 +184,7 @@ export const organizationsRouter = createTRPCRouter({
         data: {
           name: input.name,
           aiFeaturesEnabled: input.aiFeaturesEnabled,
+          aiTelemetryEnabled: input.aiTelemetryEnabled,
         },
       });
 

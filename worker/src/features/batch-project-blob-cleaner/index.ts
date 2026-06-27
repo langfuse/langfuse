@@ -156,10 +156,6 @@ export class BatchProjectBlobCleaner extends PeriodicExclusiveRunner {
         GROUP BY project_id
       `,
       params: { projectIds },
-      tags: {
-        feature: "batch-project-blob-cleaner",
-        operation: "count",
-      },
     });
 
     const counts = new Map<string, number>();

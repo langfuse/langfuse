@@ -6,10 +6,12 @@ import {
   IngestionQueue,
   SecondaryIngestionQueue,
   OtelIngestionQueue,
+  SecondaryOtelIngestionQueue,
   TraceUpsertQueue,
   EvalExecutionQueue,
   SecondaryEvalExecutionQueue,
   LLMAsJudgeExecutionQueue,
+  CodeEvalExecutionQueue,
 } from "@langfuse/shared/src/server";
 
 export type ShardedQueueDef = {
@@ -37,6 +39,12 @@ export const SHARDED_QUEUES: ShardedQueueDef[] = [
       OtelIngestionQueue.getInstance({ shardName: shard }),
   },
   {
+    baseQueueName: QueueName.OtelIngestionSecondaryQueue,
+    getShardNames: () => SecondaryOtelIngestionQueue.getShardNames(),
+    getInstance: (shard) =>
+      SecondaryOtelIngestionQueue.getInstance({ shardName: shard }),
+  },
+  {
     baseQueueName: QueueName.TraceUpsert,
     getShardNames: () => TraceUpsertQueue.getShardNames(),
     getInstance: (shard) => TraceUpsertQueue.getInstance({ shardName: shard }),
@@ -58,6 +66,12 @@ export const SHARDED_QUEUES: ShardedQueueDef[] = [
     getShardNames: () => LLMAsJudgeExecutionQueue.getShardNames(),
     getInstance: (shard) =>
       LLMAsJudgeExecutionQueue.getInstance({ shardName: shard }),
+  },
+  {
+    baseQueueName: QueueName.CodeEvalExecution,
+    getShardNames: () => CodeEvalExecutionQueue.getShardNames(),
+    getInstance: (shard) =>
+      CodeEvalExecutionQueue.getInstance({ shardName: shard }),
   },
 ];
 
@@ -85,8 +99,10 @@ export function resolveQueueInstance(queueName: string): Queue | null {
       | QueueName.EvaluationExecution
       | QueueName.EvaluationExecutionSecondaryQueue
       | QueueName.LLMAsJudgeExecution
+      | QueueName.CodeEvalExecution
       | QueueName.TraceUpsert
       | QueueName.OtelIngestionQueue
+      | QueueName.OtelIngestionSecondaryQueue
     >,
   );
 }

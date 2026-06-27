@@ -397,7 +397,7 @@ Test coverage:
 
 Run tests:
 ```bash
-pnpm --filter=web test -- --testPathPattern="score-comparison-analytics"
+pnpm --filter=web test "score-comparison-analytics"
 ```
 
 ## Troubleshooting

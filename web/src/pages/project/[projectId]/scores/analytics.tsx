@@ -12,7 +12,7 @@ import {
   toAbsoluteTimeRange,
   getOptimalInterval,
 } from "@/src/utils/date-range-utils";
-import { BarChart3, Loader2 } from "lucide-react";
+import { BarChart3 } from "lucide-react";
 import { api } from "@/src/utils/api";
 import {
   ScoreAnalyticsProvider,
@@ -20,6 +20,7 @@ import {
 } from "@/src/features/score-analytics/components/ScoreAnalyticsProvider";
 import { ScoreAnalyticsHeader } from "@/src/features/score-analytics/components/ScoreAnalyticsHeader";
 import { ScoreAnalyticsDashboard } from "@/src/features/score-analytics/components/ScoreAnalyticsDashboard";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 /**
  * Score Analytics V2 - Refactored Architecture
@@ -270,7 +271,7 @@ export default function ScoresAnalyticsV2Page() {
             </ScoreAnalyticsProvider>
           ) : (
             <div className="flex flex-col items-center justify-center gap-4 rounded-lg border p-12">
-              <Loader2 className="text-muted-foreground h-12 w-12 animate-spin" />
+              <Spinner size="xxl" variant="muted" />
               <p className="text-muted-foreground text-sm">
                 Loading analytics data...
               </p>

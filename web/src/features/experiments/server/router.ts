@@ -25,6 +25,8 @@ import {
   getScoresForTraces,
   traceException,
   getExperimentNamesFromEvents,
+  getExperimentItemsFilterOptions,
+  getExperimentScoreOptions,
 } from "@langfuse/shared/src/server";
 import {
   createTRPCRouter,
@@ -670,6 +672,46 @@ export const experimentsRouter = createTRPCRouter({
       return {
         count,
       };
+    }),
+
+  itemsFilterOptions: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        experimentIds: z.array(z.string()).min(1),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "promptExperiments:read",
+      });
+
+      return getExperimentItemsFilterOptions({
+        projectId: input.projectId,
+        experimentIds: input.experimentIds,
+      });
+    }),
+
+  scoreOptions: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        experimentIds: z.array(z.string()).min(1),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "promptExperiments:read",
+      });
+
+      return getExperimentScoreOptions({
+        projectId: input.projectId,
+        experimentIds: input.experimentIds,
+      });
     }),
 
   batchIO: protectedProjectProcedure

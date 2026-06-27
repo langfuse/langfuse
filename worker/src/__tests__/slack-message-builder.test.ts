@@ -266,11 +266,13 @@ describe("SlackMessageBuilder", () => {
 
   describe("buildMessage", () => {
     it("should route prompt-version events to prompt message builder", () => {
-      const blocks = SlackMessageBuilder.buildMessage(mockPromptPayload);
+      const { blocks, attachments } =
+        SlackMessageBuilder.buildMessage(mockPromptPayload);
 
       // Should be a full prompt message (5 blocks with commit message)
       expect(blocks).toHaveLength(5);
       expect(blocks[0].text.text).toContain("Prompt created");
+      expect(attachments).toBeUndefined();
     });
 
     it("should route unknown events to fallback message builder", () => {
@@ -279,7 +281,9 @@ describe("SlackMessageBuilder", () => {
         type: "trace-evaluation" as any,
       };
 
-      const blocks = SlackMessageBuilder.buildMessage(unknownPayload as any);
+      const { blocks } = SlackMessageBuilder.buildMessage(
+        unknownPayload as any,
+      );
 
       // Should be a fallback message (1 block)
       expect(blocks).toHaveLength(1);
@@ -294,7 +298,7 @@ describe("SlackMessageBuilder", () => {
         prompt: null, // This should cause an error
       } as any;
 
-      const blocks = SlackMessageBuilder.buildMessage(malformedPayload);
+      const { blocks } = SlackMessageBuilder.buildMessage(malformedPayload);
 
       // Should fallback to simple message
       expect(blocks).toHaveLength(1);

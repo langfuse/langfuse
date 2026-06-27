@@ -5,9 +5,9 @@ import {
   createObservation,
   createObservationsCh,
 } from "@langfuse/shared/src/server";
-import { type QueryType } from "@/src/features/query/types";
-import { executeQuery } from "@/src/features/query/server/queryExecutor";
-import { mapLegacyUiTableFilterToView } from "@/src/features/query";
+import { executeQuery } from "@langfuse/shared/query/server";
+import { type QueryType } from "@langfuse/shared/query";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 
 describe("selfServeDashboards", () => {
   // Single project ID for all tests

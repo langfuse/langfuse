@@ -32,6 +32,47 @@ describe("buildStepData", () => {
     ...overrides,
   });
 
+  describe("inverted time ranges", () => {
+    it("makes progress when a group contains inverted time ranges", () => {
+      const observations = [
+        createMockObservation({
+          id: "generation-1",
+          name: "generation-1",
+          startTime: "2026-05-27T09:17:52.469Z",
+          endTime: "2026-05-27T09:17:56.536Z",
+        }),
+        createMockObservation({
+          id: "generation-2",
+          name: "generation-2",
+          startTime: "2026-05-27T09:17:52.556Z",
+          endTime: "2026-05-27T09:17:57.301Z",
+        }),
+        createMockObservation({
+          id: "inverted-tool-1",
+          name: "inverted-tool-1",
+          startTime: "2026-05-27T09:17:55.846Z",
+          endTime: "2026-05-27T09:17:52.468Z",
+        }),
+        createMockObservation({
+          id: "inverted-tool-2",
+          name: "inverted-tool-2",
+          startTime: "2026-05-27T09:17:56.536Z",
+          endTime: "2026-05-27T09:17:52.556Z",
+        }),
+      ];
+      const result = buildStepData(observations);
+      const userObservations = result.filter((obs) => !obs.name.includes("__"));
+
+      expect(userObservations.map((obs) => obs.id)).toEqual([
+        "generation-1",
+        "generation-2",
+        "inverted-tool-1",
+        "inverted-tool-2",
+      ]);
+      expect(userObservations.every((obs) => obs.step !== null)).toBe(true);
+    });
+  });
+
   describe("basic sequential timing", () => {
     it("should put sequential observations in different steps", () => {
       const observations: AgentGraphDataResponse[] = [

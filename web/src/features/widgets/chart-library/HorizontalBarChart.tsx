@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useCallback, useMemo } from "react";
 import {
   ChartContainer,
   ChartTooltip,
@@ -13,8 +13,11 @@ import {
   YAxis,
 } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
-import { formatAxisLabel } from "@/src/features/widgets/chart-library/utils";
-import { compactNumberFormatter } from "@/src/utils/numbers";
+import {
+  formatAxisLabel,
+  formatMetric,
+  toFullMetricString,
+} from "@/src/features/widgets/chart-library/utils";
 
 const CHAR_WIDTH_PX = 7;
 const LABEL_PADDING_PX = 16;
@@ -37,23 +40,29 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
   },
   accessibilityLayer = true,
   showValueLabels = false,
-  valueFormatter = compactNumberFormatter,
+  metricFormatter = (value, options) => formatMetric(value, options),
   subtleFill = false,
 }) => {
+  const formatValue = useCallback(
+    (value: number) =>
+      toFullMetricString(metricFormatter(value, { style: "compact" })),
+    [metricFormatter],
+  );
+
   const rightMargin = useMemo(() => {
     if (!showValueLabels || !data?.length) return 8;
     const maxLabelLength = Math.max(
       ...data.map((d) => {
         const value =
           typeof d.metric === "number" ? d.metric : Number(d.metric ?? 0);
-        return valueFormatter(value).length;
+        return formatValue(value).length;
       }),
     );
     return Math.min(
       120,
       Math.max(20, maxLabelLength * CHAR_WIDTH_PX + LABEL_PADDING_PX),
     );
-  }, [showValueLabels, data, valueFormatter]);
+  }, [showValueLabels, data, formatValue]);
 
   return (
     <ChartContainer
@@ -80,7 +89,7 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
           tickLine={false}
           axisLine={false}
           niceTicks="auto"
-          tickFormatter={(value) => valueFormatter(Number(value))}
+          tickFormatter={(value) => formatValue(Number(value))}
         />
         <YAxis
           type="category"
@@ -124,7 +133,7 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
               dataKey="metric"
               position="right"
               formatter={(value: RenderableText) =>
-                valueFormatter(Number(value ?? 0))
+                formatValue(Number(value ?? 0))
               }
               className="fill-muted-foreground"
               style={{ fontSize: 12 }}
@@ -139,7 +148,7 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
               active={active}
               payload={payload}
               label={label}
-              valueFormatter={(v) => valueFormatter(Number(v))}
+              valueFormatter={(v) => formatValue(Number(v))}
             />
           )}
         />

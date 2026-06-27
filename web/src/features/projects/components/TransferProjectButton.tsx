@@ -76,7 +76,7 @@ export function TransferProjectButton() {
           "The project is successfully transferred to the new organization. Redirecting...",
       });
       await new Promise((resolve) => setTimeout(resolve, 5000));
-      void session.update();
+      session.update();
       window.location.href = "/";
     },
   });

@@ -4,6 +4,7 @@ import {
   stringifyToolResultContent,
   parseMetadata,
   isRichToolResult,
+  getNestedProperty,
 } from "../helpers";
 import { z } from "zod";
 
@@ -257,10 +258,10 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
       // Rich object: spread for table rendering
       const { content, ...rest } = normalized;
       return { ...rest, ...content };
-    } else {
-      // Simple object: stringify for text rendering
-      normalized.content = stringifyToolResultContent(normalized.content);
     }
+
+    // Simple object: stringify for text rendering
+    normalized.content = stringifyToolResultContent(normalized.content);
   }
 
   return normalized;
@@ -383,7 +384,11 @@ export const openAIAdapter: ProviderAdapter = {
       }
 
       // Semantic Kernel (scope.name starts with Microsoft.SemanticKernel)
-      if ("scope" in meta && typeof meta.scope === "object") {
+      if (
+        "scope" in meta &&
+        meta.scope !== null &&
+        typeof meta.scope === "object"
+      ) {
         const scope = meta.scope as Record<string, unknown>;
         if (
           typeof scope.name === "string" &&
@@ -391,10 +396,29 @@ export const openAIAdapter: ProviderAdapter = {
         ) {
           return false;
         }
+
+        if (
+          scope.name === "agent_framework" ||
+          (typeof scope.name === "string" &&
+            scope.name.includes("Microsoft.Extensions.AI"))
+        ) {
+          return false;
+        }
       }
 
+      const providerName = getNestedProperty(
+        meta,
+        "attributes",
+        "gen_ai.provider.name",
+      );
+      if (providerName === "microsoft.agent_framework") return false;
+
       // Pydantic ai
-      if ("scope" in meta && typeof meta.scope === "object") {
+      if (
+        "scope" in meta &&
+        meta.scope !== null &&
+        typeof meta.scope === "object"
+      ) {
         const scope = meta.scope as Record<string, unknown>;
         if (scope.name === "pydantic-ai") {
           return false;

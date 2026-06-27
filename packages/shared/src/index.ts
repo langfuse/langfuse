@@ -36,6 +36,7 @@ export * from "./features/evals/outputDefinition";
 export * from "./features/evals/utilities";
 export * from "./features/evals/observationForEval";
 export * from "./features/evals/evalConfigBlocking";
+export * from "./features/evals/validateEvaluatorFilters";
 // table actions
 export * from "./features/batchExport/types";
 export * from "./features/batchAction/types";
@@ -95,6 +96,17 @@ export * from "./domain";
 
 // io representation
 export * from "./utils/IORepresentation";
+export * from "./utils/mediaReferences";
 
 // analytics integrations (client-safe)
 export * from "./features/analytics-integrations";
+export {
+  ChartConfigSchema,
+  DimensionSchema,
+  MetricSchema,
+} from "./server/services/DashboardService/types";
+
+// query (dashboard / monitor data model)
+export * from "./features/query/types";
+export * from "./features/query/dataModel";
+export * from "./features/query/validateQuery";

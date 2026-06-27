@@ -62,7 +62,7 @@ types:
         docs: Keys of extra headers sent with requests (values excluded for security)
       config:
         type: optional<map<string, unknown>>
-        docs: Adapter-specific configuration. Required for Bedrock (`{"region":"us-east-1"}`), optional for VertexAI (`{"location":"us-central1"}`), not used by other adapters.
+        docs: Adapter-specific configuration. Required for Bedrock (`{"region":"us-east-1"}`), optional for OpenAI (`{"useResponsesApi":true}`), optional for VertexAI (`{"location":"us-central1"}`), not used by other adapters.
       createdAt: datetime
       updatedAt: datetime
 
@@ -100,6 +100,7 @@ types:
         docs: >
           Adapter-specific configuration. Validation rules:
           - **Bedrock**: Required. Must be `{"region": "<aws-region>"}` (e.g., `{"region":"us-east-1"}`)
+          - **OpenAI**: Optional. If provided, must be `{"useResponsesApi": <boolean>}` to control whether Langfuse routes calls through OpenAI's Responses API.
           - **VertexAI**: Optional. If provided, must be `{"location": "<gcp-location>"}` (e.g., `{"location":"us-central1"}`)
           - **Other adapters**: Not supported. Omit this field or set to null.
 

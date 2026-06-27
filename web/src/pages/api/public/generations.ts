@@ -19,6 +19,9 @@ export default withMiddlewares({
     bodySchema: PostGenerationsV1Body,
     responseSchema: PostGenerationsV1Response,
     rateLimitResource: "legacy-ingestion",
+    // Writes an observation-create event that lands in the legacy observations
+    // ClickHouse table; events_only deployments expect OTel ingestion.
+    rejectInEventsOnlyMode: true,
     fn: async ({ body, auth, res }) => {
       const { prompt, completion, ...rest } = body;
       const event = {
@@ -55,6 +58,7 @@ export default withMiddlewares({
     bodySchema: PatchGenerationsV1Body,
     responseSchema: PatchGenerationsV1Response,
     rateLimitResource: "legacy-ingestion",
+    rejectInEventsOnlyMode: true,
     fn: async ({ body, auth, res }) => {
       const { generationId, prompt, completion, ...rest } = body;
       const event = {

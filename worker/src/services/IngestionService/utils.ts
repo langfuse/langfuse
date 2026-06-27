@@ -75,9 +75,9 @@ export function overwriteObject(
         Object.keys(srcValue).length === 0) // empty object check for cost / usage details
     ) {
       return objValue;
-    } else {
-      return srcValue;
     }
+
+    return srcValue;
   });
 
   result.metadata =

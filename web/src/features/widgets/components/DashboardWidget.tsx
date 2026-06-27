@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/src/utils/api";
 import {
-  type views,
-  type metricAggregations,
+  buildWidgetOrderBy,
+  getResultUnit,
+  isV2BreakdownChart,
+  requiresV2,
+  toQueryChartConfig,
+  validateQuery,
   type QueryType,
-  mapLegacyUiTableFilterToView,
-} from "@/src/features/query";
+  type ViewVersion,
+  type metricAggregations,
+  type views,
+} from "@langfuse/shared/query";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
@@ -24,6 +31,7 @@ import {
   formatMetricName,
   shouldUseWidgetSSE,
   sanitizePivotTableDefaultSort,
+  getWidgetMetricPresentation,
 } from "@/src/features/widgets/utils";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
 import {
@@ -31,15 +39,7 @@ import {
   getChartLoadingStateProps,
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { type ViewVersion } from "@/src/features/query";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
-import {
-  validateQuery,
-  toQueryChartConfig,
-  isV2BreakdownChart,
-  buildWidgetOrderBy,
-} from "@/src/features/query/validateQuery";
-import { requiresV2 } from "@/src/features/query/dataModel";
 
 export interface WidgetPlacement {
   id: string;
@@ -92,9 +92,11 @@ export function DashboardWidget({
   // If widget requires v2 features (minVersion >= 2), must use v2.
   // Otherwise follow the beta toggle.
   const metricsVersion: ViewVersion =
-    widgetRequiresV2 || (widget.data?.minVersion ?? 1) >= 2 || isBetaEnabled
+    widgetRequiresV2 || (widget.data?.minVersion ?? 1) >= 2
       ? "v2"
-      : "v1";
+      : isBetaEnabled && (widget.data?.view ?? "traces") !== "traces"
+        ? "v2"
+        : "v1";
   const hasCUDAccess =
     useHasProjectAccess({ projectId, scope: "dashboards:CUD" }) &&
     dashboardOwner !== "LANGFUSE";
@@ -296,6 +298,27 @@ export function DashboardWidget({
     });
   }, [queryResult.data, widget.data]);
 
+  const chartPresentation = useMemo(() => {
+    if (!widget.data) {
+      return undefined;
+    }
+
+    if (widget.data.chartType === "PIVOT_TABLE") {
+      return undefined;
+    }
+
+    const metric = widget.data.metrics[0];
+    if (!metric) {
+      return undefined;
+    }
+
+    return getWidgetMetricPresentation({
+      metric,
+      view: widget.data.view,
+      version: metricsVersion,
+    });
+  }, [metricsVersion, widget.data]);
+
   const handleEdit = () => {
     router.push(
       `/project/${projectId}/widgets/${placement.widgetId}?dashboardId=${dashboardId}`,
@@ -426,6 +449,15 @@ export function DashboardWidget({
             <Chart
               chartType={widget.data.chartType}
               data={transformedData}
+              config={
+                chartPresentation
+                  ? {
+                      metric: {
+                        label: chartPresentation.label,
+                      },
+                    }
+                  : undefined
+              }
               rowLimit={
                 widget.data.chartConfig.type === "LINE_TIME_SERIES" ||
                 widget.data.chartConfig.type === "BAR_TIME_SERIES" ||
@@ -441,7 +473,23 @@ export function DashboardWidget({
                   metrics: widget.data.metrics.map(
                     (metric) => `${metric.agg}_${metric.measure}`,
                   ),
+                  units: widget.data.metrics.map((metric) =>
+                    getResultUnit(
+                      widget.data.view,
+                      metric.measure,
+                      metric.agg,
+                      metricsVersion,
+                    ),
+                  ),
                   defaultSort,
+                }),
+                ...(widget.data.chartType !== "PIVOT_TABLE" && {
+                  unit: getResultUnit(
+                    widget.data.view,
+                    widget.data.metrics[0]?.measure ?? "",
+                    widget.data.metrics[0]?.agg,
+                    metricsVersion,
+                  ),
                 }),
               }}
               sortState={
@@ -451,6 +499,7 @@ export function DashboardWidget({
                 widget.data.chartType === "PIVOT_TABLE" ? updateSort : undefined
               }
               isLoading={queryResult.isPending}
+              metricFormatter={chartPresentation?.metricFormatter}
             />
             <ChartLoadingState
               isLoading={chartLoadingState.isLoading}

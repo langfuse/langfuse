@@ -32,6 +32,7 @@ export async function handleDeleteApiKey(
       id: apiKeyId,
       projectId,
       scope: "PROJECT",
+      isInAppAgentKey: false,
     },
   });
 

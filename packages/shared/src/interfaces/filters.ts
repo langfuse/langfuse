@@ -21,6 +21,9 @@ export const filterOperators = {
   positionInTrace: ["="],
 } as const;
 
+export const FTS_MATCH_OPERATOR = "matches" as const;
+export type FtsMatchOperator = typeof FTS_MATCH_OPERATOR;
+
 export const timeFilter = z.object({
   column: z.string(),
   operator: z.enum(filterOperators.datetime),
@@ -127,3 +130,37 @@ export const singleFilter = z.discriminatedUnion("type", [
   nullFilter,
   positionInTraceFilter,
 ]);
+
+const eventsTableStringOperator = z.union([
+  z.enum(filterOperators.string),
+  z.literal(FTS_MATCH_OPERATOR),
+]);
+
+const eventsTableStringObjectOperator = z.union([
+  z.enum(filterOperators.stringObject),
+  z.literal(FTS_MATCH_OPERATOR),
+]);
+
+export const eventsTableStringFilter = stringFilter.extend({
+  operator: eventsTableStringOperator,
+});
+
+export const eventsTableStringObjectFilter = stringObjectFilter.extend({
+  operator: eventsTableStringObjectOperator,
+});
+
+export const eventsTableSingleFilter = z.discriminatedUnion("type", [
+  timeFilter,
+  eventsTableStringFilter,
+  numberFilter,
+  stringOptionsFilter,
+  categoryOptionsFilter,
+  arrayOptionsFilter,
+  eventsTableStringObjectFilter,
+  numberObjectFilter,
+  booleanFilter,
+  nullFilter,
+  positionInTraceFilter,
+]);
+
+export const eventsTableFilterState = z.array(eventsTableSingleFilter);

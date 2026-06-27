@@ -3,6 +3,12 @@ import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
 import { type AppRouter } from "@/src/server/api/root";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 
+// unreachable code check
+
+export function assertUnreachable(_x: never): never {
+  throw new Error("Didn't expect to get here");
+}
+
 // primitive type checks
 
 export function isString(value: unknown): value is string {

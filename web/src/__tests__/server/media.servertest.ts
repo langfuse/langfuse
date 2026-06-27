@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import fs from "fs";
+import type { Session } from "next-auth";
 import path from "path";
 import { z } from "zod";
 
@@ -11,6 +12,8 @@ import {
   type GetMediaUploadUrlResponse,
   GetMediaUploadUrlResponseSchema,
 } from "@/src/features/media/validation";
+import { appRouter } from "@/src/server/api/root";
+import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {
   type Media,
   type ObservationMedia,
@@ -29,6 +32,40 @@ describe("Media Upload API", () => {
   const describeIfNotAzureBlobStorage = isAzureBlobMode
     ? describe.skip
     : describe;
+  const session: Session = {
+    expires: "1",
+    user: {
+      id: "user-1",
+      canCreateOrganizations: true,
+      name: "Demo User",
+      organizations: [
+        {
+          id: "seed-org-id",
+          name: "Test Organization",
+          role: "OWNER",
+          plan: "cloud:hobby",
+          cloudConfig: undefined,
+          projects: [
+            {
+              id: projectId,
+              role: "ADMIN",
+              retentionDays: 30,
+              deletedAt: null,
+              name: "Test Project",
+            },
+          ],
+        },
+      ],
+      featureFlags: {
+        excludeClickhouseRead: false,
+        templateFlag: true,
+      },
+      admin: true,
+    },
+    environment: {} as any,
+  };
+  const ctx = createInnerTRPCContext({ session });
+  const caller = appRouter.createCaller({ ...ctx, prisma });
 
   // Read the image file once and reuse it for all tests
   const imagePathPNG = path.join(staticFixtureDir, "langfuse-logo.png");
@@ -230,7 +267,9 @@ describe("Media Upload API", () => {
       throw new Error("You cannot prune database unless running on localhost.");
     }
 
-    await prisma.media.deleteMany();
+    await prisma.traceMedia.deleteMany({ where: { projectId } });
+    await prisma.observationMedia.deleteMany({ where: { projectId } });
+    await prisma.media.deleteMany({ where: { projectId } });
   });
 
   afterAll(async () => {
@@ -756,7 +795,79 @@ describe("Media Upload API", () => {
     }, 10_000);
   });
 
+  describe("tRPC media reader", () => {
+    it("ignores media link rows without a media parent", async () => {
+      const traceId = `trace-${crypto.randomUUID()}`;
+      const observationTraceId = `trace-${crypto.randomUUID()}`;
+      const observationId = `observation-${crypto.randomUUID()}`;
+
+      await prisma.traceMedia.create({
+        data: {
+          id: crypto.randomUUID(),
+          projectId,
+          traceId,
+          mediaId: crypto.randomUUID(),
+          field: "input",
+        },
+      });
+      await prisma.observationMedia.create({
+        data: {
+          id: crypto.randomUUID(),
+          projectId,
+          traceId: observationTraceId,
+          observationId,
+          mediaId: crypto.randomUUID(),
+          field: "output",
+        },
+      });
+
+      await expect(
+        caller.media.getByTraceOrObservationId({ projectId, traceId }),
+      ).resolves.toEqual([]);
+      await expect(
+        caller.media.getByTraceOrObservationId({
+          projectId,
+          traceId: observationTraceId,
+          observationId,
+        }),
+      ).resolves.toEqual([]);
+    });
+  });
+
   describe("Request Validation", () => {
+    it("should reject observationId without traceId", async () => {
+      const response = await makeZodVerifiedAPICallSilent(
+        z.any(),
+        "POST",
+        "api/public/media",
+        {
+          observationId: "test-observation",
+          contentType: validPNG.contentType,
+          contentLength: validPNG.contentLength,
+          sha256Hash: validPNG.sha256Hash,
+          field: "input",
+        },
+      );
+
+      expect(response.status).toBe(400);
+    }, 10_000);
+
+    it("should reject traceId without field", async () => {
+      const response = await makeZodVerifiedAPICallSilent(
+        z.any(),
+        "POST",
+        "api/public/media",
+        {
+          traceId: "test",
+          contentType: validPNG.contentType,
+          contentLength: validPNG.contentLength,
+          sha256Hash: validPNG.sha256Hash,
+        },
+      );
+
+      expect(response.status).toBe(400);
+    }, 10_000);
+
     it("should reject invalid content types", async () => {
       const traceId = "test";
       const field = "input";

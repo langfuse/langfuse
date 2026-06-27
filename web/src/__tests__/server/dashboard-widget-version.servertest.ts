@@ -6,11 +6,11 @@ import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import type { Session } from "next-auth";
-import { requiresV2 } from "@/src/features/query/dataModel";
+import { requiresV2 } from "@langfuse/shared/query";
 import {
   mapLegacyUiTableFilterToView,
   mapWidgetUiTableFilterToView,
-} from "@/src/features/query";
+} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 
 describe("dashboard widget minVersion", () => {
   let projectId: string;
@@ -56,6 +56,7 @@ describe("dashboard widget minVersion", () => {
             cloudConfig: undefined,
             metadata: {},
             aiFeaturesEnabled: false,
+            aiTelemetryEnabled: true,
             projects: [
               {
                 id: projectId,
@@ -111,6 +112,28 @@ describe("dashboard widget minVersion", () => {
         [],
         [{ measure: "count" }],
         [{ column: "release" }],
+        true,
+      ],
+      // v2-only experiment filters
+      [
+        "observations",
+        [],
+        [{ measure: "count" }],
+        [{ column: "experimentId" }],
+        true,
+      ],
+      [
+        "observations",
+        [],
+        [{ measure: "count" }],
+        [{ column: "experimentName" }],
+        true,
+      ],
+      [
+        "observations",
+        [],
+        [{ measure: "count" }],
+        [{ column: "experimentDatasetId" }],
         true,
       ],
       // v1-compatible fields
@@ -314,6 +337,29 @@ describe("dashboard widget minVersion", () => {
   // validateMetricAggregations guard that lives in the tRPC router.
 
   describe("tRPC measure-aggregation validation", () => {
+    it("should return stored metrics from get without additional client-side parsing", async () => {
+      const caller = makeCaller();
+      const created = await caller.dashboardWidgets.create({
+        projectId,
+        name: "Get Widget",
+        description: "fetch metrics unchanged",
+        view: "observations",
+        dimensions: [],
+        metrics: [{ measure: "count", agg: "count" }],
+        filters: [],
+        chartType: "NUMBER",
+        chartConfig: { type: "NUMBER" },
+        minVersion: 2,
+      });
+
+      const fetched = await caller.dashboardWidgets.get({
+        projectId,
+        widgetId: created.widget.id,
+      });
+
+      expect(fetched.metrics).toEqual([{ measure: "count", agg: "count" }]);
+    });
+
     it("should reject invalid aggregation on a string measure", async () => {
       const caller = makeCaller();
       await expect(

@@ -117,7 +117,7 @@ describe("message search controller", () => {
   });
 
   // Regression test for https://github.com/langfuse/langfuse/issues/13002
-  it("returns original document offsets for compatibility character matches", () => {
+  it("returns original document offsets for full compatibility character matches", () => {
     const controller = createMessageSearchController(["page-1"]);
 
     controller.registerPageMessages("page-1", [
@@ -131,6 +131,43 @@ describe("message search controller", () => {
 
     expect(commitQuery(controller, "センチ")).toEqual([
       expect.objectContaining({ from: 5, to: 6 }),
+    ]);
+  });
+
+  it("returns original document offsets for partial compatibility character matches", () => {
+    const controller = createMessageSearchController(["page-1"]);
+
+    controller.registerPageMessages("page-1", [
+      {
+        id: "message-1",
+        type: ChatMessageType.System,
+        role: ChatMessageRole.System,
+        content: "高さ180㌢の棚",
+      },
+    ]);
+
+    expect(commitQuery(controller, "セン")).toEqual([
+      expect.objectContaining({ from: 5, to: 6 }),
+    ]);
+    expect(commitQuery(controller, "ンチ")).toEqual([
+      expect.objectContaining({ from: 5, to: 6 }),
+    ]);
+  });
+
+  it("matches normalized compatibility substrings across source character boundaries", () => {
+    const controller = createMessageSearchController(["page-1"]);
+
+    controller.registerPageMessages("page-1", [
+      {
+        id: "message-1",
+        type: ChatMessageType.System,
+        role: ChatMessageRole.System,
+        content: "高さ180㌢㍍の棚",
+      },
+    ]);
+
+    expect(commitQuery(controller, "チメ")).toEqual([
+      expect.objectContaining({ from: 5, to: 7 }),
     ]);
   });
 

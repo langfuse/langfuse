@@ -56,7 +56,6 @@ export const getSessionsTableCount = async (props: {
     orderBy: props.orderBy,
     limit: props.limit,
     page: props.page,
-    tags: { kind: "count" },
   });
 
   return rows.length > 0 ? Number(rows[0].count) : 0;
@@ -76,7 +75,6 @@ export const getSessionsTable = async (props: {
     orderBy: props.orderBy,
     limit: props.limit,
     page: props.page,
-    tags: { kind: "list" },
   });
 
   return rows.map((row) => ({
@@ -101,7 +99,6 @@ export const getSessionsWithMetrics = async (props: {
     limit: props.limit,
     page: props.page,
     clickhouseConfigs: props.clickhouseConfigs,
-    tags: { kind: "analytic" },
   });
 
   return rows.map((row) => ({
@@ -395,13 +392,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
             }
           : {}),
       },
-      tags: {
-        ...(props.tags ?? {}),
-        feature: "tracing",
-        type: "sessions-table",
-        projectId,
-        operation_name: `getSessionsTableGeneric-${select}`,
-      },
+      tags: { ...(props.tags ?? {}), projectId },
     },
     fn: async (input) => {
       return queryClickhouse<T>({

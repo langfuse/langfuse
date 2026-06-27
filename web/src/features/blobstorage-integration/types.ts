@@ -4,8 +4,14 @@ import {
   BlobStorageIntegrationFileType,
   BlobStorageExportMode,
   AnalyticsIntegrationExportSource,
+  OBSERVATION_FIELD_GROUPS_FULL,
 } from "@langfuse/shared";
-import { validateAzureContainerName } from "@/src/features/blobstorage-integration/validation";
+import {
+  validateAzureContainerName,
+  validateExportFieldGroups,
+  exportStartDateNotInFuture,
+  EXPORT_START_DATE_FUTURE_ERROR,
+} from "@/src/features/blobstorage-integration/validation";
 
 export const blobStorageIntegrationFormSchemaBase = z.object({
   type: z.enum(BlobStorageIntegrationType),
@@ -30,15 +36,37 @@ export const blobStorageIntegrationFormSchemaBase = z.object({
   exportMode: z
     .enum(BlobStorageExportMode)
     .default(BlobStorageExportMode.FULL_HISTORY),
-  exportStartDate: z.coerce.date().optional().nullable(),
+  exportStartDate: z.coerce
+    .date()
+    .refine(exportStartDateNotInFuture, {
+      message: EXPORT_START_DATE_FUTURE_ERROR,
+    })
+    .optional()
+    .nullable(),
   exportSource: z
     .enum(AnalyticsIntegrationExportSource)
     .default(AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+  exportFieldGroups: z
+    .array(z.enum(OBSERVATION_FIELD_GROUPS_FULL))
+    .default([...OBSERVATION_FIELD_GROUPS_FULL]),
   compressed: z.boolean().default(true),
 });
 
+// True when the internal, DB-set `exportTuning.parquet` override is on (no UI
+// write path). Mirrors the worker resolver: only `{ parquet: true }` counts.
+export function parquetEnabledFromTuning(exportTuning: unknown): boolean {
+  return (
+    typeof exportTuning === "object" &&
+    exportTuning !== null &&
+    !Array.isArray(exportTuning) &&
+    (exportTuning as Record<string, unknown>).parquet === true
+  );
+}
+
 export const blobStorageIntegrationFormSchema =
-  blobStorageIntegrationFormSchemaBase.superRefine(validateAzureContainerName);
+  blobStorageIntegrationFormSchemaBase
+    .superRefine(validateAzureContainerName)
+    .superRefine(validateExportFieldGroups);
 
 export type BlobStorageIntegrationFormSchema = z.infer<
   typeof blobStorageIntegrationFormSchema
@@ -46,6 +74,7 @@ export type BlobStorageIntegrationFormSchema = z.infer<
 
 export type BlobStorageSyncStatus =
   | "idle"
+  | "running"
   | "queued"
   | "up_to_date"
   | "disabled"

@@ -119,7 +119,7 @@ export function CreateEvaluatorDialog(props: CreateEvaluatorDialogProps) {
                 defaultTarget={targetObject}
                 onFormSuccess={() => {
                   handleClose(false);
-                  void utils.evals.jobConfigsByTarget.invalidate({
+                  utils.evals.jobConfigsByTarget.invalidate({
                     projectId,
                     targetObject,
                   });

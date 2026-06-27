@@ -1,4 +1,4 @@
-import { TracePage } from "@/src/components/trace2/TracePage";
+import { TracePage } from "@/src/components/trace/TracePage";
 import { useRouter } from "next/router";
 
 export default function Trace() {

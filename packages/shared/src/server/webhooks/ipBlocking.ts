@@ -26,8 +26,12 @@ const BLOCKED_CIDRS = [
   "fe80::/10", // link-local
   "ff00::/8", // multicast
   "100::/64", // discard-only
+  "64:ff9b::/96", // NAT64 IPv4 embedded in IPv6
+  "64:ff9b:1::/48", // NAT64 IPv4 embedded in IPv6 (local-use)
+  "::/96", // IPv4-compatible IPv6
   "2001::/32", // Teredo tunneling
   "2001:db8::/32", // doc
+  "2002::/16", // IPv6 prefix for transmitting IPv6 to IPv4 via 6to4 tunneling
 ];
 
 // Pre-parse blocked networks once for performance

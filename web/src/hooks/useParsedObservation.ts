@@ -13,8 +13,9 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useEffect } from "react";
-import { api } from "@/src/utils/api";
+import { api, sendAsPostOption } from "@/src/utils/api";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { type EventBatchIOOutput } from "@/src/features/events/server/eventsRouter";
 import {
   type ObservationReturnTypeWithMetadata,
   type ObservationReturnType,
@@ -24,6 +25,16 @@ import type {
   ParseRequest,
   ParseResponse,
 } from "@/src/workers/json-parser.worker";
+
+type ObservationWithStringifiedIO = ObservationReturnTypeWithMetadata & {
+  input: string | null;
+  output: string | null;
+};
+
+type ParsedObservationResult =
+  | ObservationWithStringifiedIO
+  | EventBatchIOOutput
+  | undefined;
 
 /**
  * Threshold for using Web Worker vs sync parsing (in characters).
@@ -220,24 +231,25 @@ export function useParsedObservation({
       truncated: false,
     },
     {
+      ...sendAsPostOption,
       enabled: isBetaEnabled,
       staleTime: 5 * 60 * 1000, // 5 minutes
       select: (data) => data[0], // Extract single result from batch
     },
   );
 
-  const mergedObservation = useMemo(() => {
+  const mergedObservation = useMemo<ParsedObservationResult>(() => {
     if (isBetaEnabled) {
       if (baseObservation && eventsQuery.data) {
         return {
           ...baseObservation,
-          input: eventsQuery.data.input as string,
-          output: eventsQuery.data.output as string,
+          input: eventsQuery.data.input,
+          output: eventsQuery.data.output,
           // Stringify metadata to match ObservationReturnTypeWithMetadata format
           metadata: stringifyMetadata(eventsQuery.data.metadata),
-        };
+        } satisfies ObservationWithStringifiedIO;
       }
-      // No base observation provided: return events data as-is (incomplete type)
+      // No base observation provided: return partial events data with safe stringified I/O.
       return eventsQuery.data;
     }
     // Beta OFF: return full observation from observations table

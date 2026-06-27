@@ -529,10 +529,7 @@ const ProviderOptionsInput = ({
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <div
-      className="space-y-3"
-      title="Additional options to pass to the invocation. Please check your provider's API reference for supported values."
-    >
+    <div className="space-y-3">
       <div className="flex flex-row">
         <div className="flex-1 flex-row space-x-1">
           <span

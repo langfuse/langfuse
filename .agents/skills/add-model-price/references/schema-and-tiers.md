@@ -94,3 +94,45 @@ Use extra tiers for context-window or usage-based pricing:
 ```
 
 Supported operators: `gt`, `gte`, `lt`, `lte`, `eq`, `neq`
+
+## Multi-Tier Example
+
+Use multiple tiers when a provider changes pricing by context window or usage
+class. Keep exactly one default tier and assign higher priorities to conditional
+tiers:
+
+```json
+{
+  "pricingTiers": [
+    {
+      "id": "{model-id}_tier_default",
+      "name": "Standard",
+      "isDefault": true,
+      "priority": 0,
+      "conditions": [],
+      "prices": {
+        "input": 0.000001,
+        "output": 0.000002
+      }
+    },
+    {
+      "id": "uuid-for-large-context-tier",
+      "name": "Large Context (>200K)",
+      "isDefault": false,
+      "priority": 1,
+      "conditions": [
+        {
+          "usageDetailPattern": "(input|prompt|cached)",
+          "operator": "gt",
+          "value": 200000,
+          "caseSensitive": false
+        }
+      ],
+      "prices": {
+        "input": 0.000002,
+        "output": 0.000004
+      }
+    }
+  ]
+}
+```

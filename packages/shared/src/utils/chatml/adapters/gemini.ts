@@ -329,10 +329,10 @@ function normalizeGeminiMessage(msg: unknown): Record<string, unknown> {
       // Rich object: spread for table rendering
       const { content, ...rest } = normalized;
       return { ...rest, ...content };
-    } else {
-      // Simple object: stringify for text rendering
-      normalized.content = stringifyToolResultContent(normalized.content);
     }
+
+    // Simple object: stringify for text rendering
+    normalized.content = stringifyToolResultContent(normalized.content);
   }
 
   return normalized;
@@ -404,7 +404,9 @@ function preprocessData(data: unknown): unknown {
 
       messages.push(...contents);
 
-      // Extract and attach tools if present
+      // Extract and attach Gemini ADK config tools if present. Top-level
+      // normalized input.tools are extracted separately, without changing
+      // normalized ChatML for existing traces.
       if ("tools" in config && Array.isArray(config.tools)) {
         const extractedTools = extractToolDeclarations(config.tools);
 

@@ -17,6 +17,7 @@ const ApiKeyBaseSchema = z.object({
   plan: z.enum(plans as unknown as [string, ...string[]]),
   rateLimitOverrides: CloudConfigRateLimit.nullish(),
   isIngestionSuspended: z.boolean().nullish(),
+  isInAppAgentKey: z.boolean().default(false),
 });
 
 export const OrgEnrichedApiKey = z.discriminatedUnion("scope", [
@@ -68,6 +69,7 @@ type ApiAccessScopeMetadata = {
   apiKeyId: string;
   publicKey: string;
   isIngestionSuspended: boolean | null | undefined;
+  isInAppAgentKey?: boolean;
 };
 
 export type ApiAccessScopeIngestion = BaseApiAccessScope &

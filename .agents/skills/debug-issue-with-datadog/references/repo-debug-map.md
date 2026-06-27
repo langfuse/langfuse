@@ -33,16 +33,27 @@ name constants live in
 
 For queues using BullMQ default spans (no `instrumentAsync` wrapper), search
 APM with `service:worker operation_name:bullmq.process` filtered by
-`bullmq.queue:<queue-name>`.
+`bullmq.queue:<queue-name>`. For queue inventory, sharded queue naming, and
+queue metric recipes, use
+[`../../datadog-query-recipes/references/queue-consumers.md`](../../datadog-query-recipes/references/queue-consumers.md).
 
 ## Web (Next.js / tRPC / public API)
 
 | Subsystem | Code | Span / log filter |
 | --- | --- | --- |
-| Public REST API | `web/src/pages/api/public/**` | `service:web resource_name:"GET /api/public/<path>"` |
+| Public REST API | `web/src/pages/api/public/**` | Request span: `service:web resource_name:"GET /api/public/<path>"`; tenant span: `resource_name:api-auth-verify` with `@langfuse.project.id` / `@langfuse.org.id` |
 | tRPC procedures | `web/src/server/api/routers/**` | `service:web resource_name:"POST /api/trpc/<router>.<proc>"` |
 | Auth / API key verification | `web/src/features/public-api/server/apiAuth.ts` | look for `verifyAuthHeaderAndReturnScope` spans |
 | Stripe billing | `web/src/ee/features/billing/server/stripeBillingService.ts` | wrapped in `instrumentAsync`; spans named after the method |
+
+For tenant-specific public API usage questions, first query
+`resource_name:api-auth-verify` by `@langfuse.project.id` or
+`@langfuse.org.id`, then open representative trace IDs and inspect the request
+root span for `http.path_group`, `http.route`, and `http.target`. The tenant
+tags and endpoint path are usually on different spans, so a single-span query
+combining both may return no results even when the trace proves usage.
+For the full reusable recipe, use
+[`../../datadog-query-recipes/references/public-api-tenant-usage.md`](../../datadog-query-recipes/references/public-api-tenant-usage.md).
 
 ## Shared Layers
 
