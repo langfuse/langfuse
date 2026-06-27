@@ -32,6 +32,13 @@
   --color-accent-light-blue: hsl(var(--accent-light-blue));
   --color-accent-dark-blue: hsl(var(--accent-dark-blue));
 
+  /* Search-bar query syntax highlighting (key:value token parts). Operators
+     (`:` `-` `(` `)`) reuse muted-foreground, so no token for them here. */
+  --color-qlang-field: hsl(var(--qlang-field));
+  --color-qlang-value: hsl(var(--qlang-value));
+  --color-qlang-number: hsl(var(--qlang-number));
+  --color-qlang-keyword: hsl(var(--qlang-keyword));
+
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
@@ -210,6 +217,18 @@
 
     --accent-light-blue: 251 95.2% 91.8%;
     --accent-dark-blue: 224 76.3% 38%;
+
+    /* Search-bar query syntax highlighting — a DELIBERATE editor-style syntax
+       theme (like a code editor's theme), intentionally its own thing rather
+       than the app palette: field=violet, value=green, number=orange,
+       keyword=blue. Scoped to the filter grammar (key:value pills); retune
+       freely, a designer can own these later. Operators reuse muted-foreground.
+       Values from the langfuse-search-bar prototype. */
+    --qlang-field: 262 60% 47%;
+    --qlang-value: 152 60% 30%;
+    --qlang-number: 24 75% 42%;
+    --qlang-keyword: 221 83% 53%;
+
     --radius: 0.5rem;
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -309,6 +328,13 @@
     --accent-light-blue: 263 60% 50.4%;
     --accent-dark-blue: 224 50% 90%;
 
+    /* Search-bar query syntax highlighting (dark). Brighter than light so the
+       key/value read against the dark surface. See :root for the contract. */
+    --qlang-field: 255 92% 76%;
+    --qlang-value: 158 64% 52%;
+    --qlang-number: 27 96% 61%;
+    --qlang-keyword: 213 94% 68%;
+
     --radius: 0.5rem;
 
     --sidebar-background: 222.2 84% 4.9%;
@@ -369,6 +395,49 @@
   div#__next,
   div#__next > div {
     height: 100%;
+  }
+
+  /* The whole app renders inside #__next. Isolating it into its own stacking
+     context caps every z-index in the app (page header, modals, popovers, …)
+     so none can escape it. The overlay layer containers (declared in
+     _document.tsx) are <body> siblings AFTER #__next and paint on top purely by
+     DOM order — see components/ui/layer.tsx. This is what lets layers carry no
+     z-index of their own; z-index stays a LOCAL tool for ordering within a
+     single layer. */
+  div#__next {
+    isolation: isolate;
+  }
+
+  /* Overlay layer roots (see _document.tsx + components/ui/layer.tsx). The
+     stack is click-through; each layer is its own isolated stacking context and
+     they order by DOM order (later = on top). The layer containers are
+     `pointer-events: none` so the EMPTY regions around an overlay pass clicks
+     through to the app behind (e.g. the non-modal table peek leaves the rest of
+     the page clickable). Each portaled overlay is appended as a DIRECT CHILD of
+     its layer container (Radix/Vaul `*.Portal` `container`, or `<Layer>`'s
+     `createPortal`), so we opt those overlay roots — and thus their subtrees —
+     back into pointer events here. This makes interactivity correct-by-
+     construction for EVERY overlay routed through a layer, including non-modal
+     ones (peek, Popover, HoverCard, Tooltip) where Radix does NOT manage
+     pointer-events itself (it only sets `auto` when it disables outside pointer
+     events, i.e. modal Dialog/Sheet/AlertDialog/Drawer and DropdownMenu/Select).
+     Without this, a non-modal overlay inherits the container's `none` and is
+     fully click-through — clicks fall to the app underneath. A specific child
+     can still opt back out with its own `pointer-events: none` (e.g. a
+     decorative arrow) — that wins by specificity/cascade. */
+  [data-overlay-root] {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+  }
+  [data-overlay-root] > [data-layer] {
+    position: absolute;
+    inset: 0;
+    isolation: isolate;
+    pointer-events: none;
+  }
+  [data-overlay-root] > [data-layer] > * {
+    pointer-events: auto;
   }
 }
 

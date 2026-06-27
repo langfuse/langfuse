@@ -6,6 +6,8 @@ import {
 import {
   validateAzureContainerName,
   validateExportFieldGroups,
+  exportStartDateNotInFuture,
+  EXPORT_START_DATE_FUTURE_ERROR,
 } from "@/src/features/blobstorage-integration/validation";
 
 /**
@@ -96,12 +98,18 @@ export const CreateBlobStorageIntegrationRequest = z
         (value) => value === "" || value.endsWith("/"),
         "Prefix must be empty or end with a forward slash",
       ),
-    exportFrequency: z.string(),
+    exportFrequency: z.enum(["every_20_minutes", "hourly", "daily", "weekly"]),
     enabled: z.boolean(),
     forcePathStyle: z.boolean(),
     fileType: BlobStorageIntegrationFileType,
     exportMode: BlobStorageExportMode,
-    exportStartDate: z.coerce.date().nullable().optional(),
+    exportStartDate: z.coerce
+      .date()
+      .refine(exportStartDateNotInFuture, {
+        message: EXPORT_START_DATE_FUTURE_ERROR,
+      })
+      .nullable()
+      .optional(),
     compressed: z.boolean().optional().default(true),
     exportSource: BlobStorageExportSource.nullable().optional(),
     exportFieldGroups: z
@@ -132,10 +140,7 @@ export const CreateBlobStorageIntegrationRequest = z
     }
     if (data.exportFieldGroups != null && data.exportSource != null) {
       validateExportFieldGroups(
-        {
-          exportSource: toInternalExportSource(data.exportSource),
-          exportFieldGroups: data.exportFieldGroups,
-        },
+        { exportFieldGroups: data.exportFieldGroups },
         ctx,
       );
     }
@@ -175,6 +180,7 @@ export type BlobStorageIntegrationResponseType = z.infer<
 
 export const BlobStorageSyncStatus = z.enum([
   "idle",
+  "running",
   "queued",
   "up_to_date",
   "disabled",

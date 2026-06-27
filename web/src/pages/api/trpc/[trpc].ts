@@ -3,6 +3,7 @@ import { createTRPCContext } from "@/src/server/api/trpc";
 import { appRouter } from "@/src/server/api/root";
 import { env } from "@/src/env.mjs";
 import { logger, traceException } from "@langfuse/shared/src/server";
+import { getTRPCErrorReporting } from "@/src/server/utils/trpc-utils";
 
 export const config = {
   maxDuration: 240,
@@ -17,30 +18,30 @@ export const config = {
 export default createNextApiHandler({
   router: appRouter,
   createContext: createTRPCContext,
+  // Allow queries to be sent as POST. The client only does this for the
+  // `*.batchIO` I/O queries, whose per-row payload would otherwise inflate the
+  // GET URL and trip HTTP 431 (queries opt in via the `sendAsPost` context flag;
+  // see `sendAsPostOption` in src/utils/api.ts). This flag is handler-wide (tRPC
+  // has no per-procedure option), but it only widens the accepted method for
+  // queries (read-only); mutations remain POST-only, so the GET-mutation
+  // protection is unchanged.
+  allowMethodOverride: true,
   onError: ({ path, error }) => {
-    // User errors that should not be reported to Sentry
-    const userErrorCodes = [
-      "NOT_FOUND",
-      "UNAUTHORIZED",
-      "FORBIDDEN",
-      "BAD_REQUEST",
-      "PRECONDITION_FAILED",
-      "UNPROCESSABLE_CONTENT",
-    ];
+    const { logLevel, shouldTrace } = getTRPCErrorReporting(error);
+    const message = `tRPC route failed on ${path ?? "<no-path>"}: ${error.message}`;
 
-    if (userErrorCodes.includes(error.code)) {
-      logger.info(
-        `tRPC route failed on ${path ?? "<no-path>"}: ${error.message}`,
-        error,
-      );
+    if (logLevel === "error") {
+      logger.error(message, error);
+    } else if (logLevel === "warn") {
+      logger.warn(message, error);
     } else {
-      logger.error(
-        `tRPC route failed on ${path ?? "<no-path>"}: ${error.message}`,
-        error,
-      );
-      // Only report system errors to Sentry, not user errors
+      logger.info(message, error);
+    }
+
+    if (shouldTrace) {
       traceException(error);
     }
+
     return error;
   },
   responseMeta() {

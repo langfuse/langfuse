@@ -1,6 +1,7 @@
 import { createAnnotationQueueItemForApi } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
 import { CreateAnnotationQueueItemResponse } from "@/src/features/public-api/types/annotation-queues";
 import { defineTool } from "../../../core/define-tool";
+import { buildAnnotationQueueItemUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { CreateAnnotationQueueItemToolSchema } from "../schema";
 
@@ -24,7 +25,16 @@ export const [createAnnotationQueueItemTool, handleCreateAnnotationQueueItem] =
             auditScope: context,
           });
 
-          return CreateAnnotationQueueItemResponse.parse(result);
+          const item = CreateAnnotationQueueItemResponse.parse(result);
+
+          return {
+            ...item,
+            url: buildAnnotationQueueItemUrl({
+              projectId: context.projectId,
+              queueId: input.queueId,
+              itemId: item.id,
+            }),
+          };
         },
       }),
   });

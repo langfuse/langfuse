@@ -13,6 +13,7 @@ import {
   invalidateCachedApiKeys as invalidateCachedApiKeysShared,
   invalidateCachedOrgApiKeys as invalidateCachedOrgApiKeysShared,
   invalidateCachedProjectApiKeys as invalidateCachedProjectApiKeysShared,
+  createApiKeyCacheKey,
 } from "@langfuse/shared/src/server";
 import {
   type PrismaClient,
@@ -356,7 +357,7 @@ export class ApiAuthService {
 
     try {
       await this.redis.set(
-        this.createRedisKey(hash),
+        createApiKeyCacheKey(hash),
         JSON.stringify(newApiKey),
         "EX",
         env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS, // redis API is in seconds
@@ -373,7 +374,7 @@ export class ApiAuthService {
 
     try {
       const redisApiKey = await this.redis.getex(
-        this.createRedisKey(hash),
+        createApiKeyCacheKey(hash),
         "EX",
         env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS, // redis API is in seconds
       );
@@ -393,17 +394,13 @@ export class ApiAuthService {
           "Failed to parse API key from Redis, deleting existing key from cache",
           parsedApiKey.error,
         );
-        await this.redis.del(this.createRedisKey(hash));
+        await this.redis.del(createApiKeyCacheKey(hash));
       }
       return null;
     } catch (error: unknown) {
       logger.error("Error fetching key from redis", error);
       return null;
     }
-  }
-
-  private createRedisKey(hash: string) {
-    return `api-key:${hash}`;
   }
 
   private extractOrgIdAndCloudConfig(

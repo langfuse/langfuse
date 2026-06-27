@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   MessageCircleMore,
@@ -67,6 +67,11 @@ import { useScoreMutations } from "@/src/features/scores/hooks/useScoreMutations
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { useScoreConfigSelection } from "@/src/features/scores/hooks/useScoreConfigSelection";
+import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import {
+  hasBlockingOverlay,
+  hasModifier,
+} from "@/src/features/scores/lib/keyboardShortcuts";
 import { useRouter } from "next/router";
 import { useAnnotationScoreConfigs } from "@/src/features/scores/hooks/useScoreConfigs";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -272,6 +277,42 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
   });
 
   const [showSaving, setShowSaving] = useState(false);
+
+  // LFE-7628 — root of this form, used to scope the global keydown listener so
+  // it doesn't double-fire across multiple mounted forms (DualAnnotationContent
+  // mounts an observation form and a trace form side-by-side).
+  const formRootRef = useRef<HTMLDivElement | null>(null);
+
+  // LFE-7628 — keyboard-first scoring. Real DOM focus is the single source of
+  // truth: `↑`/`↓` (and `Tab`) move focus between fields, `1`-`9` pick an option
+  // on the *focused* row, and the focused row is highlighted via `:focus-within`.
+  // There is deliberately no parallel "active row" state — it previously fought
+  // the browser's own focus (a focused True/False toggle showed two outlines and
+  // arrows moved both the field and the toggle at once).
+  const isKeyboardSelectable = (
+    field: (typeof controlledFields)[number] | undefined,
+  ) => {
+    if (!field) return false;
+    if (isTextDataType(field.dataType) || isNumericDataType(field.dataType))
+      return false;
+    const config = configs.find((c) => c.id === field.configId);
+    return (
+      !!config && !config.isArchived && (config.categories?.length ?? 0) > 0
+    );
+  };
+
+  // Counts for the keyboard legend.
+  const optionRowCount = controlledFields.filter((field) =>
+    isKeyboardSelectable(field),
+  ).length;
+  const rowCount = controlledFields.filter((field) =>
+    configs.some((c) => c.id === field.configId),
+  ).length;
+  const hasEditableRow = controlledFields.some(
+    (field) =>
+      configs.some((c) => c.id === field.configId) &&
+      (isTextDataType(field.dataType) || isNumericDataType(field.dataType)),
+  );
 
   useEffect(() => {
     const isPending =
@@ -489,7 +530,10 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     if (!config || !field) return;
 
     if (field.value === null || field.value === undefined) {
-      return; // Don't create/update score with empty value
+      // Cleared to empty: remove an existing score (mirrors the text field),
+      // otherwise nothing to do.
+      if (field.id) handleDeleteScore(index);
+      return;
     }
 
     // Client-side validation - don't fire mutation if invalid
@@ -582,8 +626,208 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     );
   };
 
+  // LFE-7628 — keyboard-first scoring, driven by real DOM focus with a
+  // spreadsheet-style navigate-vs-edit split (single source of truth, one
+  // outline, never trapped):
+  //  - `↑` / `↓` move focus between *rows* (the row container, never into a text
+  //    field) so navigation keeps working even when the active row is text.
+  //  - `Enter`  drills into the focused row's control (a text/number field to
+  //    type, the combobox to open, a toggle to use ←/→).
+  //  - `Esc`    pops back out of an editing text field to its row.
+  //  - `1`-`9`  pick the Nth option of the focused row (option rows only).
+  // A focused text field owns its keys; an open popover/drawer suspends these.
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (hasModifier(event)) return;
+
+      const root = formRootRef.current;
+      if (!root) return;
+      // Suspend for an overlapping popover/drawer (e.g. the comment editor), but
+      // NOT for a drawer this form is mounted inside (the Annotate drawer) — that
+      // is an ancestor of the form, so the scheme stays alive there.
+      if (hasBlockingOverlay(root)) return;
+      const target = event.target;
+      const editing =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLElement && target.isContentEditable);
+
+      // (`Esc` to leave a field is handled by a separate capture-phase listener
+      // below, so it can stop a wrapping drawer from also dismissing.)
+
+      // `Enter` in a single-line field (e.g. a numeric score) commits the value
+      // and returns to row navigation — there is no newline to insert, so this is
+      // the spreadsheet "confirm cell" gesture. Multi-line text (textarea) keeps
+      // Enter for newlines and is excluded here.
+      if (
+        event.key === "Enter" &&
+        target instanceof HTMLInputElement &&
+        root.contains(target)
+      ) {
+        // Out-of-range numeric: surface the constraint and stay so the value
+        // isn't committed-and-dropped (mirrors the ⌘/Ctrl+Enter complete gate).
+        if (
+          target.type === "number" &&
+          (target.validity.rangeOverflow || target.validity.rangeUnderflow)
+        ) {
+          event.preventDefault();
+          target.reportValidity();
+          return;
+        }
+        event.preventDefault();
+        const row = target.closest<HTMLElement>("[data-score-row]");
+        // Focusing the row blurs the input (its onBlur saves) and resumes ↑/↓.
+        if (row) row.focus();
+        else target.blur();
+        return;
+      }
+
+      // While editing a text field, leave its keys (typing, caret, number step)
+      // alone — `Esc` / `Tab` move out.
+      if (editing) return;
+      if (rowCount === 0) return;
+
+      // Scope to a single form (DualAnnotationContent mounts two): the form that
+      // contains focus acts; if focus is on the body (nothing focused) the first
+      // form acts. A control focused *outside* any form (e.g. the Mark Completed
+      // / Skip / Back / "?" page buttons) must NOT drive the form — otherwise
+      // ↑/↓ would hijack focus off that button into the score rows.
+      const active = document.activeElement;
+      const focusedForm =
+        active instanceof HTMLElement
+          ? active.closest("[data-annotation-form]")
+          : null;
+      if (focusedForm) {
+        if (focusedForm !== root) return;
+      } else {
+        if (active && active !== document.body) return;
+        if (document.querySelector("[data-annotation-form]") !== root) return;
+      }
+
+      const rowEls = Array.from(
+        root.querySelectorAll<HTMLElement>("[data-score-row]"),
+      );
+      if (rowEls.length === 0) return;
+      const currentRow =
+        active instanceof HTMLElement
+          ? (active.closest("[data-score-row]") as HTMLElement | null)
+          : null;
+      const currentPos = currentRow ? rowEls.indexOf(currentRow) : -1;
+
+      // `↑` / `↓` move focus between rows (to the row container itself, never
+      // into a text field — so navigation is never trapped).
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        if (rowEls.length < 2) return;
+        // Navigate from a focused row, or enter from the body — but NOT from an
+        // in-form non-row control (e.g. the config-picker trigger), which would
+        // otherwise teleport focus to a row.
+        if (currentPos < 0 && active !== document.body) return;
+        event.preventDefault();
+        const delta = event.key === "ArrowDown" ? 1 : -1;
+        const nextPos =
+          currentPos < 0
+            ? delta > 0
+              ? 0
+              : rowEls.length - 1
+            : (currentPos + delta + rowEls.length) % rowEls.length;
+        rowEls[nextPos].focus();
+        return;
+      }
+
+      // `Enter` drills into the focused row's control (only from the row
+      // container itself — once a control is focused, Enter is left to it).
+      if (event.key === "Enter") {
+        if (currentRow && active === currentRow) {
+          // First *enabled* control — skip the disabled stale-category chip that
+          // enrichCategoryOptionsWithStaleScoreValue prepends (focusing a disabled
+          // control is a no-op, so Enter would otherwise appear to do nothing).
+          const control = Array.from(
+            currentRow.querySelectorAll<HTMLElement>(
+              "[data-score-control] :is(textarea, input, button)",
+            ),
+          ).find((el) => !el.matches(":disabled"));
+          if (control) {
+            event.preventDefault();
+            // A dropdown trigger (combobox, `aria-haspopup`) opens directly so a
+            // single Enter is enough (not focus-then-Enter). Radix's Popover
+            // trigger opens on click. Other controls (number/text input, toggle)
+            // just take focus.
+            if (
+              control.tagName === "BUTTON" &&
+              control.getAttribute("aria-haspopup")
+            ) {
+              control.click();
+            } else {
+              control.focus();
+            }
+          }
+        }
+        return;
+      }
+
+      // `1`-`9` pick an option on the focused row (option rows only).
+      if (/^[1-9]$/.test(event.key)) {
+        if (currentPos < 0 || !currentRow) return;
+        // Only from the row container itself or its value control — never the
+        // in-row Comment / Delete buttons (else a stray digit writes a phantom
+        // score). Mirrors the Enter branch's `active === currentRow` gate.
+        if (
+          active !== currentRow &&
+          !(
+            active instanceof HTMLElement &&
+            active.closest("[data-score-control]")
+          )
+        )
+          return;
+        const rowIndex = Number(currentRow.getAttribute("data-score-row"));
+        const field = controlledFields[rowIndex];
+        if (!isKeyboardSelectable(field)) return;
+        const config = configs.find((c) => c.id === field?.configId);
+        const category = (config?.categories ?? [])[Number(event.key) - 1];
+        if (!category) return;
+        event.preventDefault();
+        handleCategoricalUpsert(rowIndex, category.label);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [controlledFields, configs, rowCount]);
+
+  // LFE-7628 — `Esc` leaves a focused score field (back to its row) WITHOUT
+  // dismissing a wrapping drawer. Vaul/Radix DismissableLayer listens for Esc on
+  // `document` with `{capture:true}`; a window capture-phase listener runs first
+  // (window is the ancestor), so stopping propagation here prevents the drawer
+  // from closing. Scoped to fields inside this form (a portaled comment popover
+  // is not inside the form root, so its own Esc-to-close still works).
+  useEffect(() => {
+    const onEscapeCapture = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      const root = formRootRef.current;
+      if (!root) return;
+      const target = event.target;
+      const inField =
+        (target instanceof HTMLInputElement ||
+          target instanceof HTMLTextAreaElement) &&
+        root.contains(target);
+      if (!inField) return;
+      event.stopPropagation();
+      const row = (target as HTMLElement).closest<HTMLElement>(
+        "[data-score-row]",
+      );
+      if (row) row.focus();
+      else (target as HTMLElement).blur();
+    };
+    window.addEventListener("keydown", onEscapeCapture, true);
+    return () => window.removeEventListener("keydown", onEscapeCapture, true);
+  }, []);
+
   return (
-    <div className="mx-auto w-full space-y-2 overflow-y-auto md:max-h-full">
+    <div
+      ref={formRootRef}
+      data-annotation-form
+      className="mx-auto w-full space-y-2 overflow-y-auto md:max-h-full"
+    >
       <div className="bg-background sticky top-0 z-10 rounded-sm">
         <AnnotateHeader
           showSaving={showSaving}
@@ -628,8 +872,14 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
         ) : null}
       </div>
       <Form {...form}>
-        <form className="flex flex-col gap-4">
-          <div className="grid grid-flow-row gap-2">
+        {/* No real submit: scores save per-field. Prevent the browser's implicit
+            form submission (Enter in a single-line input would otherwise reload
+            the page). */}
+        <form
+          className="flex flex-col gap-4"
+          onSubmit={(e) => e.preventDefault()}
+        >
+          <div className="grid grid-flow-row gap-2.5">
             <FormField
               control={form.control}
               name="scoreData"
@@ -648,9 +898,22 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                     return (
                       <div
                         key={fields[index]?.id}
-                        className="grid w-full grid-cols-[1fr_2fr] items-center gap-8 text-left"
+                        data-score-row={index}
+                        // `tabIndex={-1}` makes the row programmatically focusable
+                        // so ↑/↓ can land on the row itself (navigate) without
+                        // entering its text field. The focused row highlights via
+                        // `:focus-within` (single source of truth = real focus;
+                        // `ring-inset` so the scroll container's overflow can't
+                        // clip it), and `group` shows the option badges only on it.
+                        tabIndex={-1}
+                        role="group"
+                        aria-label={score.name}
+                        className={cn(
+                          "group grid w-full grid-cols-[1fr_2fr] items-center gap-3 rounded-md px-3 py-1 text-left transition-colors outline-none",
+                          "focus-within:ring-primary/30 focus-within:bg-accent/40 focus-within:ring-1 focus-within:ring-inset",
+                        )}
                       >
-                        <div className="grid h-full grid-cols-[1fr_auto] items-center">
+                        <div className="flex h-full min-w-0 items-center">
                           {config.description ||
                           isPresent(config.maxValue) ||
                           isPresent(config.minValue) ? (
@@ -658,7 +921,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                               <HoverCardTrigger asChild>
                                 <span
                                   className={cn(
-                                    "decoration-muted-gray line-clamp-2 text-xs font-medium wrap-break-word underline decoration-dashed underline-offset-2",
+                                    "decoration-muted-gray line-clamp-2 min-w-0 text-xs font-medium wrap-break-word underline decoration-dashed underline-offset-2",
                                     config.isArchived
                                       ? "text-foreground/40"
                                       : "",
@@ -674,7 +937,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                           ) : (
                             <span
                               className={cn(
-                                "line-clamp-2 text-xs font-medium wrap-break-word",
+                                "line-clamp-2 min-w-0 text-xs font-medium wrap-break-word",
                                 config.isArchived ? "text-foreground/40" : "",
                               )}
                               title={score.name}
@@ -689,7 +952,12 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                 type="button"
                                 size="xs"
                                 title="Add or view score comment"
-                                className="disabled:text-primary/50 h-full px-0 pl-1 disabled:opacity-100"
+                                // LFE-7628: center the comment icon vertically
+                                // against the score label instead of stretching
+                                // to the full (possibly multi-line) row height,
+                                // and keep it hugging the label (shrink-0) rather
+                                // than floating in the middle of the row.
+                                className="disabled:text-primary/50 flex h-auto shrink-0 items-center self-center px-0 pl-1 disabled:opacity-100"
                                 disabled={
                                   isScoreUnsaved(score.id) ||
                                   (config.isArchived && !score.comment)
@@ -730,139 +998,183 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                           </Popover>
                         </div>
                         <div className="grid grid-cols-[11fr_1fr] items-center py-1">
-                          {isTextDataType(score.dataType) ? (
-                            <FormField
-                              control={form.control}
-                              name={`scoreData.${index}.stringValue`}
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <Textarea
-                                      {...field}
-                                      value={field.value ?? ""}
-                                      maxLength={TEXT_SCORE_MAX_LENGTH}
-                                      className="text-xs"
-                                      disabled={isInputDisabled(config)}
-                                      placeholder="Enter free form text..."
-                                      onBlur={() => handleTextUpsert(index)}
-                                    />
-                                  </FormControl>
-                                  <FormMessage className="text-xs" />
-                                </FormItem>
-                              )}
-                            />
-                          ) : isNumericDataType(score.dataType) ? (
-                            <FormField
-                              control={form.control}
-                              name={`scoreData.${index}.value`}
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <Input
-                                      {...field}
-                                      value={field.value ?? ""}
-                                      onChange={(e) => {
-                                        const value = e.target.value;
-                                        if (value === "") {
-                                          return;
+                          {/* data-score-control wraps only the value control so
+                              keyboard 1-9 scoring targets it, not the in-row
+                              Comment / Delete buttons. */}
+                          <div data-score-control>
+                            {isTextDataType(score.dataType) ? (
+                              <FormField
+                                control={form.control}
+                                name={`scoreData.${index}.stringValue`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormControl>
+                                      <Textarea
+                                        {...field}
+                                        value={field.value ?? ""}
+                                        maxLength={TEXT_SCORE_MAX_LENGTH}
+                                        className="text-xs"
+                                        disabled={isInputDisabled(config)}
+                                        placeholder="Enter free form text..."
+                                        onBlur={() => handleTextUpsert(index)}
+                                      />
+                                    </FormControl>
+                                    <FormMessage className="text-xs" />
+                                  </FormItem>
+                                )}
+                              />
+                            ) : isNumericDataType(score.dataType) ? (
+                              <FormField
+                                control={form.control}
+                                name={`scoreData.${index}.value`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormControl>
+                                      <Input
+                                        {...field}
+                                        value={field.value ?? ""}
+                                        onChange={(e) => {
+                                          const value = e.target.value;
+                                          // Empty → null so the field can be
+                                          // cleared back to blank (returning here
+                                          // instead trapped the last digit — the
+                                          // form kept the old value and re-rendered
+                                          // it). onBlur deletes the score when null.
+                                          field.onChange(
+                                            value === "" ? null : Number(value),
+                                          );
+                                        }}
+                                        type="number"
+                                        // Mirror the config range as native
+                                        // constraints so out-of-range values are
+                                        // catchable via the ⌘/Ctrl+Enter complete
+                                        // gate's rangeOverflow/Underflow check, on
+                                        // top of the existing onBlur JS validation.
+                                        // `step="any"` keeps decimals valid (config
+                                        // validation is range-only, not integer).
+                                        min={config.minValue ?? undefined}
+                                        max={config.maxValue ?? undefined}
+                                        step="any"
+                                        className="text-xs"
+                                        disabled={isInputDisabled(config)}
+                                        onBlur={() =>
+                                          handleNumericUpsert(index)
                                         }
-                                        field.onChange(Number(value));
-                                      }}
-                                      type="number"
-                                      className="text-xs"
-                                      disabled={isInputDisabled(config)}
-                                      onBlur={() => handleNumericUpsert(index)}
-                                    />
-                                  </FormControl>
-                                  <FormMessage className="text-xs" />
-                                </FormItem>
-                              )}
-                            />
-                          ) : config.categories && renderSelect(categories) ? (
-                            <FormField
-                              control={form.control}
-                              name={`scoreData.${index}.stringValue`}
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <Combobox
-                                      name={field.name}
-                                      value={field.value ?? ""}
-                                      disabled={isInputDisabled(config)}
-                                      onValueChange={(value) => {
-                                        field.onChange(value);
-                                        handleCategoricalUpsert(index, value);
-                                      }}
-                                      options={categories.map((category) => ({
-                                        value: category.label,
-                                        disabled: category.isOutdated,
-                                      }))}
-                                      placeholder="Select category"
-                                      searchPlaceholder="Search categories..."
-                                      emptyText="No category found."
-                                    />
-                                  </FormControl>
-                                  <FormMessage className="text-xs" />
-                                </FormItem>
-                              )}
-                            />
-                          ) : (
-                            <FormField
-                              control={form.control}
-                              name={`scoreData.${index}.stringValue`}
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <ToggleGroup
-                                      type="single"
-                                      value={field.value ?? ""}
-                                      disabled={isInputDisabled(config)}
-                                      className={`grid grid-cols-${categories.length}`}
-                                      onValueChange={(value) => {
-                                        field.onChange(value);
-                                        handleCategoricalUpsert(index, value);
-                                      }}
-                                    >
-                                      {categories.map((category) =>
-                                        category.isOutdated ? (
-                                          <ToggleGroupItem
-                                            key={category.value}
-                                            value={category.label}
-                                            disabled
-                                            variant="outline"
-                                            className="grid grid-flow-col gap-1 px-1 text-xs font-normal text-nowrap opacity-50"
-                                          >
-                                            <span
-                                              className="truncate"
-                                              title={category.label}
+                                      />
+                                    </FormControl>
+                                    <FormMessage className="text-xs" />
+                                  </FormItem>
+                                )}
+                              />
+                            ) : config.categories &&
+                              renderSelect(categories) ? (
+                              <FormField
+                                control={form.control}
+                                name={`scoreData.${index}.stringValue`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormControl>
+                                      <Combobox
+                                        name={field.name}
+                                        value={field.value ?? ""}
+                                        disabled={isInputDisabled(config)}
+                                        onValueChange={(value) => {
+                                          field.onChange(value);
+                                          handleCategoricalUpsert(index, value);
+                                        }}
+                                        options={categories.map((category) => ({
+                                          value: category.label,
+                                          disabled: category.isOutdated,
+                                        }))}
+                                        placeholder="Select category"
+                                        searchPlaceholder="Search categories..."
+                                        emptyText="No category found."
+                                      />
+                                    </FormControl>
+                                    <FormMessage className="text-xs" />
+                                  </FormItem>
+                                )}
+                              />
+                            ) : (
+                              <FormField
+                                control={form.control}
+                                name={`scoreData.${index}.stringValue`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormControl>
+                                      <ToggleGroup
+                                        type="single"
+                                        // Horizontal roving so Radix only uses
+                                        // ←/→ between True/False, leaving ↑/↓ for
+                                        // our field navigation (no double-handling).
+                                        orientation="horizontal"
+                                        value={field.value ?? ""}
+                                        disabled={isInputDisabled(config)}
+                                        className={`grid grid-cols-${categories.length}`}
+                                        onValueChange={(value) => {
+                                          field.onChange(value);
+                                          handleCategoricalUpsert(index, value);
+                                        }}
+                                      >
+                                        {categories.map((category) =>
+                                          category.isOutdated ? (
+                                            <ToggleGroupItem
+                                              key={category.value}
+                                              value={category.label}
+                                              disabled
+                                              variant="outline"
+                                              className="grid grid-flow-col gap-1 px-1 text-xs font-normal text-nowrap opacity-50"
                                             >
-                                              {category.label}
-                                            </span>
-                                            <span>{`(${category.value})`}</span>
-                                          </ToggleGroupItem>
-                                        ) : (
-                                          <ToggleGroupItem
-                                            key={category.value}
-                                            value={category.label}
-                                            variant="outline"
-                                            className="grid grid-flow-col gap-1 px-1 text-xs font-normal text-nowrap"
-                                          >
-                                            <span
-                                              className="truncate"
-                                              title={category.label}
+                                              <span
+                                                className="truncate"
+                                                title={category.label}
+                                              >
+                                                {category.label}
+                                              </span>
+                                              <span>{`(${category.value})`}</span>
+                                            </ToggleGroupItem>
+                                          ) : (
+                                            <ToggleGroupItem
+                                              key={category.value}
+                                              value={category.label}
+                                              variant="outline"
+                                              className="grid grid-flow-col gap-1 px-1 text-xs font-normal text-nowrap"
                                             >
-                                              {category.label}
-                                            </span>
-                                          </ToggleGroupItem>
-                                        ),
-                                      )}
-                                    </ToggleGroup>
-                                  </FormControl>
-                                  <FormMessage className="text-xs" />
-                                </FormItem>
-                              )}
-                            />
-                          )}
+                                              <span
+                                                className="truncate"
+                                                title={category.label}
+                                              >
+                                                {category.label}
+                                              </span>
+                                              {(() => {
+                                                // LFE-7628: number-key hint for this
+                                                // option, shown only while the row is
+                                                // focused (CSS `group-focus-within`,
+                                                // so it tracks real focus directly).
+                                                const digit =
+                                                  (config.categories?.findIndex(
+                                                    (c) =>
+                                                      c.label ===
+                                                      category.label,
+                                                  ) ?? -1) + 1;
+                                                return digit >= 1 &&
+                                                  digit <= 9 ? (
+                                                  <KeyboardShortcut className="ml-0.5 hidden h-3.5 min-w-3.5 px-1 text-[9px] group-focus-within:inline-flex">
+                                                    {digit}
+                                                  </KeyboardShortcut>
+                                                ) : null;
+                                              })()}
+                                            </ToggleGroupItem>
+                                          ),
+                                        )}
+                                      </ToggleGroup>
+                                    </FormControl>
+                                    <FormMessage className="text-xs" />
+                                  </FormItem>
+                                )}
+                              />
+                            )}
+                          </div>
                           {config.isArchived ? (
                             <Popover>
                               <PopoverTrigger asChild>
@@ -877,7 +1189,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                 </Button>
                               </PopoverTrigger>
                               <PopoverContent>
-                                <h2 className="text-md mb-3 font-semibold">
+                                <h2 className="mb-3 font-semibold">
                                   Your score is archived
                                 </h2>
                                 <p className="mb-3 text-sm">
@@ -923,6 +1235,41 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
               )}
             />
           </div>
+          {rowCount > 0 && (
+            <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 px-0.5 text-[11px]">
+              {rowCount > 1 && (
+                <span className="flex items-center gap-1">
+                  <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
+                    ↑
+                  </KeyboardShortcut>
+                  <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
+                    ↓
+                  </KeyboardShortcut>
+                  move between fields
+                </span>
+              )}
+              {optionRowCount > 0 && (
+                <span className="flex items-center gap-1">
+                  <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
+                    1
+                  </KeyboardShortcut>
+                  <span className="text-muted-foreground">…</span>
+                  <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
+                    9
+                  </KeyboardShortcut>
+                  select option
+                </span>
+              )}
+              {hasEditableRow && (
+                <span className="flex items-center gap-1">
+                  <KeyboardShortcut className="h-4 px-1 text-[9px]">
+                    ↵
+                  </KeyboardShortcut>
+                  edit field
+                </span>
+              )}
+            </div>
+          )}
         </form>
       </Form>
     </div>
@@ -952,15 +1299,14 @@ export function AnnotationForm<Target extends ScoreTarget>({
     if (Array.isArray(serverScores)) {
       // Flat scores from trace/session detail
       return transformToAnnotationScores(serverScores, availableConfigs);
-    } else {
-      // Aggregates from compare view
-      return transformToAnnotationScores(
-        serverScores,
-        availableConfigs,
-        scoreTarget.type === "trace" ? scoreTarget.traceId : "",
-        scoreTarget.type === "trace" ? scoreTarget.observationId : undefined,
-      );
     }
+    // Aggregates from compare view
+    return transformToAnnotationScores(
+      serverScores,
+      availableConfigs,
+      scoreTarget.type === "trace" ? scoreTarget.traceId : "",
+      scoreTarget.type === "trace" ? scoreTarget.observationId : undefined,
+    );
   }, [serverScores, availableConfigs, scoreTarget]);
 
   // Step 2: Merge with cache

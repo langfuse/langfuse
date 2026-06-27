@@ -11,6 +11,7 @@ pnpm run seed -- list          # scenarios and flags (--json for machines)
 pnpm run seed -- trace-tree --observations 5000 --breadth 500 --v4
 pnpm run seed -- long-session --traces 300 --observations-per-trace 8
 pnpm run seed -- many-traces --count 100000 --days 14
+pnpm run seed -- scored-traces --traces 24 --v4   # scores w/ spaces in the name
 ```
 
 The last stdout line of a run is a JSON summary with `traceIds`,

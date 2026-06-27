@@ -9,13 +9,7 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
-import { ClipboardPen, Lock, MoreVertical } from "lucide-react";
+import { ClipboardPen, Lock } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import TableLink from "@/src/components/table/table-link";
@@ -179,28 +173,19 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only">Open menu</span>
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <div className="flex flex-col space-y-0.5">
-                <CreateOrEditAnnotationQueueButton
-                  projectId={projectId}
-                  queueId={key.id}
-                  variant="ghost"
-                />
-                <DeleteAnnotationQueueButton
-                  projectId={projectId}
-                  queueId={key.id}
-                />
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center gap-1">
+            <CreateOrEditAnnotationQueueButton
+              projectId={projectId}
+              queueId={key.id}
+              variant="ghost"
+              size="icon-xs"
+              isTableAction
+            />
+            <DeleteAnnotationQueueButton
+              projectId={projectId}
+              queueId={key.id}
+            />
+          </div>
         );
       },
     },

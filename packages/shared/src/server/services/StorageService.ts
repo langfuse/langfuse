@@ -23,8 +23,16 @@ import { logger } from "../logger";
 import { env } from "../../env";
 import { backOff } from "exponential-backoff";
 import { ServiceUnavailableError } from "../../errors";
-import { BufferedStreamUploader } from "./BufferedStreamUploader";
+import {
+  BufferedStreamUploader,
+  type UploadPartStats,
+} from "./BufferedStreamUploader";
 import { S3ChunkedUploadStrategy } from "./S3ChunkedUploadStrategy";
+import {
+  buildS3RequestDiagnostics,
+  isS3DiagnosableError,
+  type S3DiagnosticsContext,
+} from "./s3SigningDiagnostics";
 import * as objectstorage from "oci-objectstorage";
 import * as common from "oci-common";
 import { UploadManager as OciUploadManager } from "oci-objectstorage";
@@ -65,6 +73,13 @@ type UploadFileBuffered = {
   fileType: string;
   data: Readable;
   partSizeBytes: number;
+  // Optional per-call overrides. Default to env vars when absent (S3 only; Azure
+  // maps maxConcurrentParts to its upload concurrency and ignores maxPartAttempts).
+  maxConcurrentParts?: number;
+  maxPartAttempts?: number;
+  // Optional mutable sink populated with upload counters; readable by the caller
+  // even when the upload throws. Only the S3 buffered path populates it.
+  stats?: UploadPartStats;
 };
 
 type UploadWithSignedUrl = UploadFile & {
@@ -89,7 +104,20 @@ function handleStorageError(err: unknown, operation: string): never {
     );
   }
   // For other errors, throw with the original cause preserved
-  throw new Error(`Failed to ${operation}`, { cause: err });
+  const wrapped = new Error(`Failed to ${operation}`, { cause: err });
+  // Preserve provider-specific details (e.g. GCS <Details> XML element)
+  // so they surface when Winston spreads the error's enumerable properties.
+  if (
+    err &&
+    typeof err === "object" &&
+    "Details" in err &&
+    typeof (err as { Details?: unknown }).Details === "string"
+  ) {
+    (wrapped as unknown as { Details: string }).Details = (
+      err as { Details: string }
+    ).Details;
+  }
+  throw wrapped;
 }
 
 function createS3RequestHandler(
@@ -112,6 +140,60 @@ function createS3RequestHandler(
     httpAgent,
     httpsAgent,
   });
+}
+
+/**
+ * Register a diagnostics middleware on an {@link S3Client} that logs the
+ * structured error and request context when a request fails with a
+ * signing/authorization or backend-configuration error (see
+ * {@link isS3DiagnosableError}).
+ *
+ * Runs at the `deserialize` step so the SDK has already turned the response
+ * into a typed exception with request IDs and status code. Logging is gated to
+ * actionable, non-retryable errors so unrelated or transient failures
+ * (`NoSuchKey`, throttling/`SlowDown`, timeouts) don't emit noise or one line
+ * per SDK retry. Best-effort: never alters or masks the original failure.
+ */
+function addS3DiagnosticsMiddleware(
+  client: S3Client,
+  context: S3DiagnosticsContext,
+): void {
+  type S3MiddlewareArgs = { request?: unknown };
+  type S3MiddlewareNext = (args: S3MiddlewareArgs) => Promise<unknown>;
+
+  const diagnosticsMiddleware =
+    (next: S3MiddlewareNext) => async (args: S3MiddlewareArgs) => {
+      try {
+        return await next(args);
+      } catch (err) {
+        try {
+          const diagnostics = buildS3RequestDiagnostics(
+            args.request,
+            err,
+            context,
+          );
+          if (isS3DiagnosableError(diagnostics.error)) {
+            logger.warn("S3 request failed; emitting diagnostics", diagnostics);
+          }
+        } catch {
+          // Never let diagnostics logging mask the original failure.
+        }
+        throw err;
+      }
+    };
+
+  client.middlewareStack.add(
+    diagnosticsMiddleware as unknown as Parameters<
+      typeof client.middlewareStack.add
+    >[0],
+    {
+      step: "deserialize",
+      priority: "high",
+      name: "langfuseS3Diagnostics",
+      tags: ["LANGFUSE", "DIAGNOSTICS"],
+      override: true,
+    },
+  );
 }
 
 function createAzureBlobPipeline(
@@ -153,7 +235,11 @@ function createSecureAzureBlobRequestPolicyFactory(
 export interface StorageService {
   uploadFile(params: UploadFile): Promise<void>;
 
-  uploadFileBuffered(params: UploadFileBuffered): Promise<void>;
+  // Returns upload counters when the implementation produces them (S3 buffered
+  // path); undefined otherwise. Backward-compatible — existing callers ignore it.
+  uploadFileBuffered(
+    params: UploadFileBuffered,
+  ): Promise<UploadPartStats | undefined>;
 
   uploadWithSignedUrl(
     params: UploadWithSignedUrl,
@@ -318,7 +404,7 @@ class AzureBlobStorageService implements StorageService {
   }
 
   public async uploadFile(params: UploadFile): Promise<void> {
-    const { fileName, fileType, data, partSize } = params;
+    const { fileName, fileType, data, partSize, queueSize } = params;
     try {
       await this.createContainerIfNotExists();
 
@@ -331,7 +417,7 @@ class AzureBlobStorageService implements StorageService {
       } else if (data instanceof Readable) {
         // bufferSize controls the block size (default 8MB supports ~800GB files)
         const bufferSize = partSize ?? 8 * 1024 * 1024; // Default 8MB per block
-        const maxConcurrency = 5; // Default value
+        const maxConcurrency = queueSize ?? 5; // Default value
 
         await blockBlobClient.uploadStream(data, bufferSize, maxConcurrency, {
           blobHTTPHeaders: { blobContentType: fileType },
@@ -350,13 +436,36 @@ class AzureBlobStorageService implements StorageService {
     }
   }
 
-  public async uploadFileBuffered(params: UploadFileBuffered): Promise<void> {
+  public async uploadFileBuffered(
+    params: UploadFileBuffered,
+  ): Promise<UploadPartStats | undefined> {
+    // Azure has no per-part retry knob — its SDK pipeline owns retries — so
+    // maxPartAttempts has no effect here. Warn so an operator isn't surprised.
+    if (params.maxPartAttempts !== undefined) {
+      logger.warn(
+        `Azure blob upload for ${params.fileName}: maxPartAttempts is set but has no effect on the Azure path (SDK manages retries)`,
+      );
+    }
+    // partSizeBytes -> block size, maxConcurrentParts -> upload concurrency.
+    // Azure rejects a stageBlock larger than BLOCK_BLOB_MAX_STAGE_BLOCK_BYTES
+    // (4000 MiB). The shared tuning bound allows up to 5 GiB (S3's per-part max),
+    // so clamp here to keep the Azure path within its own limit and warn.
+    const AZURE_MAX_BLOCK_BYTES = 4000 * 1024 * 1024;
+    let partSize = params.partSizeBytes;
+    if (partSize > AZURE_MAX_BLOCK_BYTES) {
+      logger.warn(
+        `Azure blob upload for ${params.fileName}: partSizeBytes ${partSize} exceeds Azure's per-block max ${AZURE_MAX_BLOCK_BYTES}; clamping to the max`,
+      );
+      partSize = AZURE_MAX_BLOCK_BYTES;
+    }
     await this.uploadFile({
       fileName: params.fileName,
       fileType: params.fileType,
       data: params.data,
-      partSize: params.partSizeBytes,
+      partSize,
+      queueSize: params.maxConcurrentParts,
     });
+    return undefined; // Azure does not produce part-level stats.
   }
 
   public async uploadWithSignedUrl(
@@ -595,6 +704,13 @@ class S3StorageService implements StorageService {
       requestHandler,
     });
 
+    addS3DiagnosticsMiddleware(this.client, {
+      bucketName: params.bucketName,
+      endpoint: params.endpoint,
+      region: params.region,
+      forcePathStyle: params.forcePathStyle,
+    });
+
     // Create a separate client for generating presigned URLs
     // If an external endpoint is provided, use it for the URL client
     // Otherwise, use the same client for both operations
@@ -660,9 +776,16 @@ class S3StorageService implements StorageService {
     fileType,
     data,
     partSizeBytes,
-  }: UploadFileBuffered): Promise<void> {
+    maxConcurrentParts,
+    maxPartAttempts,
+    stats,
+  }: UploadFileBuffered): Promise<UploadPartStats | undefined> {
     if (env.LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED !== "true") {
-      return this.uploadFile({ fileName, fileType, data });
+      // Tuning applies only on the buffered path. Forward no overrides so the
+      // fallback keeps lib-storage's defaults — forwarding the resolved 100 MiB
+      // partSize would ~20x per-upload memory (buffered is off by default).
+      await this.uploadFile({ fileName, fileType, data });
+      return undefined;
     }
 
     const strategy = new S3ChunkedUploadStrategy({
@@ -679,13 +802,16 @@ class S3StorageService implements StorageService {
     const uploader = new BufferedStreamUploader({
       strategy,
       partSizeBytes,
-      maxPartAttempts: env.LANGFUSE_S3_UPLOAD_MAX_PART_ATTEMPTS,
-      maxConcurrentParts: env.LANGFUSE_S3_UPLOAD_MAX_CONCURRENT_PARTS,
+      maxPartAttempts:
+        maxPartAttempts ?? env.LANGFUSE_S3_UPLOAD_MAX_PART_ATTEMPTS,
+      maxConcurrentParts:
+        maxConcurrentParts ?? env.LANGFUSE_S3_UPLOAD_MAX_CONCURRENT_PARTS,
       key: fileName,
+      stats,
     });
 
     try {
-      await uploader.upload(data);
+      return await uploader.upload(data);
     } catch (err) {
       logger.error(`Failed to upload file (buffered) to ${fileName}`, err);
       handleStorageError(err, "upload file to S3 (buffered)");
@@ -772,7 +898,7 @@ class S3StorageService implements StorageService {
   public async getSignedUrl(
     fileName: string,
     ttlSeconds: number,
-    asAttachment: boolean = true,
+    asAttachment = true,
   ): Promise<string> {
     try {
       return getSignedUrl(
@@ -926,10 +1052,11 @@ class GoogleCloudStorageService implements StorageService {
             .on("finish", () => {
               resolve();
             });
+          return;
         });
-      } else {
-        throw new Error("Unsupported data type. Must be Readable or string.");
       }
+
+      throw new Error("Unsupported data type. Must be Readable or string.");
     } catch (err) {
       logger.error(
         `Failed to upload file to Google Cloud Storage ${fileName}`,
@@ -939,12 +1066,15 @@ class GoogleCloudStorageService implements StorageService {
     }
   }
 
-  public async uploadFileBuffered(params: UploadFileBuffered): Promise<void> {
+  public async uploadFileBuffered(
+    params: UploadFileBuffered,
+  ): Promise<UploadPartStats | undefined> {
     await this.uploadFile({
       fileName: params.fileName,
       fileType: params.fileType,
       data: params.data,
     });
+    return undefined; // GCS does not produce part-level stats.
   }
 
   public async uploadWithSignedUrl({
@@ -1027,7 +1157,7 @@ class GoogleCloudStorageService implements StorageService {
   public async getSignedUrl(
     fileName: string,
     ttlSeconds: number,
-    asAttachment: boolean = false,
+    asAttachment = false,
   ): Promise<string> {
     try {
       const file = this.bucket.file(fileName);
@@ -1109,7 +1239,7 @@ class OCIObjectStorageService implements StorageService {
   private clientInit: Promise<void>;
   private bucketName: string;
   private externalEndpoint?: string;
-  private namespaceName: string = "";
+  private namespaceName = "";
 
   constructor(params: {
     bucketName: string;
@@ -1368,13 +1498,18 @@ class OCIObjectStorageService implements StorageService {
     fileType,
     data,
     partSizeBytes,
-  }: UploadFileBuffered): Promise<void> {
+    maxConcurrentParts,
+    // maxPartAttempts omitted: OCI's UploadManager owns retries, no per-part knob.
+  }: UploadFileBuffered): Promise<UploadPartStats | undefined> {
+    // queueSize maps to UploadManager.maxConcurrentUploads (undefined => OCI's 5).
     await this.uploadFile({
       fileName,
       fileType,
       data,
       partSize: partSizeBytes,
+      queueSize: maxConcurrentParts,
     });
+    return undefined; // OCI does not produce part-level stats.
   }
 
   public async uploadWithSignedUrl({
@@ -1485,7 +1620,7 @@ class OCIObjectStorageService implements StorageService {
   public async getSignedUrl(
     fileName: string,
     ttlSeconds: number,
-    asAttachment: boolean = true,
+    asAttachment = true,
   ): Promise<string> {
     try {
       const { client, namespaceName } = await this.getClientAndNamespace();

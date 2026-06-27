@@ -25,6 +25,7 @@ export async function findAllMediaByProjectId(params: {
 
 /**
  * Find expired media files for a project (for retention-based cleanup).
+ * Dataset item associations are checked per batch in deleteMediaFiles.
  */
 export async function findExpiredMediaByProjectId(params: {
   projectId: string;
@@ -62,6 +63,11 @@ export async function deleteMediaLinkRowsByProjectId(params: {
         projectId: params.projectId,
       },
     }),
+    prisma.datasetItemMedia.deleteMany({
+      where: {
+        projectId: params.projectId,
+      },
+    }),
   ]);
 }
 
@@ -86,11 +92,39 @@ export async function deleteMediaFiles(params: {
   // All callers target expired or soft-deleted media with retry semantics,
   // so partial failure self-heals on retry (S3 deletes are idempotent).
   const chunks = chunk(mediaFiles, BATCH_SIZE);
+  let deletedCount = 0;
+
   for (const batch of chunks) {
     const mediaIds = batch.map((f) => f.id);
+    // Only a claimed association (validFrom set) protects media; pending rows
+    // (null validFrom) don't, so abandoned uploads are reclaimed by retention.
+    const datasetAssociatedMedia = await prisma.datasetItemMedia.findMany({
+      select: { mediaId: true },
+      where: {
+        projectId,
+        mediaId: { in: mediaIds },
+        datasetItemValidFrom: { not: null },
+      },
+      distinct: ["mediaId"],
+    });
+    const datasetAssociatedMediaIds = new Set(
+      datasetAssociatedMedia.map((media) => media.mediaId),
+    );
+    const deletableBatch = batch.filter(
+      (f) => !datasetAssociatedMediaIds.has(f.id),
+    );
+    const deletableMediaIds = deletableBatch.map((f) => f.id);
 
-    await storageClient.deleteFiles(batch.map((f) => f.bucketPath));
+    // Trace/observation links are cleaned up even for an all-protected batch, so
+    // only the S3 delete is skipped when nothing is deletable.
+    if (deletableBatch.length > 0) {
+      await storageClient.deleteFiles(deletableBatch.map((f) => f.bucketPath));
+    }
     await prisma.$transaction([
+      // Trace/observation links are removed for every media in the batch, not
+      // just the deletable ones: their traces/observations are deleted by the
+      // same retention job, so the links go even when the media itself is kept
+      // for a dataset item.
       prisma.traceMedia.deleteMany({
         where: {
           projectId,
@@ -103,16 +137,43 @@ export async function deleteMediaFiles(params: {
           mediaId: { in: mediaIds },
         },
       }),
+      // Sweep leftover pending rows for the deleted media (claimed rows can't
+      // exist for deletable media).
+      prisma.datasetItemMedia.deleteMany({
+        where: {
+          projectId,
+          mediaId: { in: deletableMediaIds },
+          datasetItemValidFrom: null,
+        },
+      }),
       prisma.media.deleteMany({
         where: {
-          id: { in: mediaIds },
+          id: { in: deletableMediaIds },
           projectId,
         },
       }),
     ]);
+
+    deletedCount += deletableBatch.length;
   }
 
-  return mediaFiles.length;
+  return deletedCount;
+}
+
+/**
+ * The link-row delete always runs: dataset_item_media has no FK to cascade on
+ * dataset deletion, so this is the only path that drops these rows for a
+ * dataset.
+ */
+export async function deleteDatasetMediaLinksByDatasetId(params: {
+  projectId: string;
+  datasetId: string;
+}): Promise<void> {
+  const { projectId, datasetId } = params;
+
+  await prisma.datasetItemMedia.deleteMany({
+    where: { projectId, datasetId },
+  });
 }
 
 /**

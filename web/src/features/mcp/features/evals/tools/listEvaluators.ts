@@ -4,6 +4,7 @@ import {
 } from "@/src/features/public-api/types/unstable-evaluators";
 import { listPublicEvaluators } from "@/src/features/evals/server/unstable-public-api";
 import { defineTool } from "../../../core/define-tool";
+import { buildEvaluatorUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
 export const [listEvaluatorsTool, handleListEvaluators] = defineTool({
@@ -27,7 +28,18 @@ export const [listEvaluatorsTool, handleListEvaluators] = defineTool({
           limit: input.limit,
         });
 
-        return GetUnstableEvaluatorsResponse.parse(result);
+        const parsed = GetUnstableEvaluatorsResponse.parse(result);
+
+        return {
+          ...parsed,
+          data: parsed.data.map((evaluator) => ({
+            ...evaluator,
+            url: buildEvaluatorUrl({
+              projectId: context.projectId,
+              evaluatorId: evaluator.id,
+            }),
+          })),
+        };
       },
     }),
   readOnlyHint: true,

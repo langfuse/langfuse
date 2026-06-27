@@ -11,6 +11,7 @@ import {
   type SetStateAction,
 } from "react";
 import { HttpAgent } from "@ag-ui/client";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 
 import useSessionStorage from "@/src/components/useSessionStorage";
@@ -29,7 +30,11 @@ import {
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api } from "@/src/utils/api";
-import { createInAppAgentScreenContext } from "@/src/ee/features/in-app-agent/context";
+import {
+  createInAppAgentScreenContext,
+  createInAppAgentUserContext,
+} from "@/src/ee/features/in-app-agent/context";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
@@ -140,7 +145,9 @@ function InAppAiAgentProjectProvider({
   children,
   projectId,
   defaultOpen,
-}: InAppAiAgentProviderProps & { projectId: string }) {
+}: InAppAiAgentProviderProps & {
+  projectId: string;
+}) {
   const [open, setOpen] = useSessionStorage<boolean>(
     `${OPEN_STORAGE_KEY_PREFIX}:${projectId}`,
     defaultOpen ?? false,
@@ -170,6 +177,8 @@ function InAppAiAgentProviderInner({
   setOpen,
 }: InAppAiAgentProviderInnerProps) {
   const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
+  const session = useSession();
   const [selectedConversationId, setSelectedConversationId] = useSessionStorage<
     string | null
   >(`${SELECTED_CONVERSATION_STORAGE_KEY_PREFIX}:${projectId}`, null);
@@ -391,7 +400,7 @@ function InAppAiAgentProviderInner({
       resetAgent();
 
       const agent = new HttpAgent({
-        url: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/in-app-agent`,
+        url: getInAppAgentUrl(),
         threadId: conversationId,
         initialMessages,
         initialState: getConversationAgentState(
@@ -418,9 +427,19 @@ function InAppAiAgentProviderInner({
       setIsRunning(true);
       agent
         .runAgent({
-          context: createInAppAgentScreenContext({
-            currentUrl: window.location.href,
-          }),
+          context: [
+            ...createInAppAgentScreenContext({
+              currentUrl: window.location.href,
+            }),
+            ...createInAppAgentUserContext({
+              userName: session.data?.user?.name,
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+              languages:
+                navigator.languages.length > 0
+                  ? Array.from(navigator.languages)
+                  : [navigator.language],
+            }),
+          ],
         })
         .catch((error) => {
           if (intentionalAbortRef.current) {
@@ -453,6 +472,7 @@ function InAppAiAgentProviderInner({
     [
       projectId,
       releaseSubmitLock,
+      session.data?.user?.name,
       utils.inAppAgent.getConversation,
       utils.inAppAgent.listConversations,
     ],
@@ -526,6 +546,10 @@ function InAppAiAgentProviderInner({
 
         agent.addMessage(userMessage);
         setMessages(agent.messages.filter(isAgentConversationMessage));
+        if (isNewConversation) {
+          capture("in_app_agent:new_chat_started");
+        }
+        capture("in_app_agent:new_chat_turn");
         startedRun = true;
         runAgent(agent, conversationId);
         return true;
@@ -542,6 +566,7 @@ function InAppAiAgentProviderInner({
     },
     [
       conversationQuery.data,
+      capture,
       ensureSubscription,
       getOrCreateAgent,
       isSelectedConversationHydrating,
@@ -720,6 +745,10 @@ function attachActiveRunIdToAssistantMessages(
 
     return { ...message, runId };
   });
+}
+
+function getInAppAgentUrl() {
+  return `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/in-app-agent`;
 }
 
 function getAgentErrorMessage(error: unknown): string {

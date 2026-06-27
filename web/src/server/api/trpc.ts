@@ -93,7 +93,7 @@ import {
 
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 import { env } from "@/src/env.mjs";
-import { BaseError, parseIO } from "@langfuse/shared";
+import { isBaseError, parseIO } from "@langfuse/shared";
 import { type Flag } from "@/src/features/feature-flags/types";
 
 setUpSuperjson();
@@ -138,7 +138,7 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
 export const createTRPCRouter = t.router;
 
 const resolveError = (error: TRPCError) => {
-  if (error.cause instanceof BaseError) {
+  if (isBaseError(error.cause)) {
     return {
       code: getTRPCErrorCodeFromHTTPStatusCode(error.cause.httpCode),
       httpStatus: error.cause.httpCode,
@@ -223,6 +223,10 @@ const withOtelInstrumentation = t.middleware(async (opts) => {
     headers: opts.ctx.headers,
     userId: opts.ctx.session?.user?.id,
     projectId: (actualInput as Record<string, string>)?.projectId,
+    clickhouse: {
+      surface: "trpc",
+      route: opts.path,
+    },
   });
 
   // Execute the next middleware/procedure with our context
@@ -505,7 +509,6 @@ const enforceTraceAccess = t.middleware(async (opts) => {
       truncated: verbosity === "truncated",
       shouldJsonParse: false, // we do not want to parse the input/output for tRPC
     },
-    clickhouseFeatureTag: "tracing-trpc",
   });
 
   if (!clickhouseTrace) {

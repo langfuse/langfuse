@@ -6,7 +6,7 @@ import { useInAppAiAgent } from "./InAppAiAgentProvider";
 import { getDrawerMessages } from "./utils/utils";
 
 type ControlledInAppAgentWindowBaseProps = {
-  zIndex?: number;
+  isHeaderDragHandleEnabled?: boolean;
   isExpanded: boolean;
   onExpandedChange: (isExpanded: boolean) => void;
 };
@@ -57,12 +57,12 @@ export function ControlledInAppAgentWindow(
   return (
     <InAppAgentWindow
       error={error}
+      isHeaderDragHandleEnabled={props.isHeaderDragHandleEnabled}
       isExpanded={props.isExpanded}
       isInputDisabled={isInputDisabled}
       messages={drawerMessages}
       conversations={conversations}
       hasMoreConversations={hasMoreConversations}
-      zIndex={props.zIndex}
       isLoadingMoreConversations={isLoadingMoreConversations}
       selectedConversationId={selectedConversationId}
       onLoadMoreConversations={loadMoreConversations}

@@ -6,7 +6,6 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { ActionButton } from "@/src/components/ActionButton";
-import Header from "@/src/components/layouts/header";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
@@ -144,7 +143,6 @@ export function WebCalloutSettingsPage(props: { projectId: string }) {
   if (!hasAccess) {
     return (
       <div>
-        <Header title="Web Callouts" />
         <Alert>
           <AlertTitle>Access Denied</AlertTitle>
           <AlertDescription>
@@ -157,6 +155,11 @@ export function WebCalloutSettingsPage(props: { projectId: string }) {
 
   const configuredEndpoint = endpoints.data?.[0];
   const canCreateEndpoint = !configuredEndpoint;
+  const addEndpointDisabledReason = endpoints.isLoading
+    ? "Loading callout endpoint configuration."
+    : !canCreateEndpoint
+      ? "Currently you can only create one callout per project."
+      : undefined;
 
   const openCreateDialog = () => {
     setEditingEndpoint(null);
@@ -170,8 +173,22 @@ export function WebCalloutSettingsPage(props: { projectId: string }) {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <Header title="Web Callouts" />
+      <p className="text-primary mb-4 text-sm">
+        Configure a project-level callout. Your users can trigger a POST to an
+        endpoint on trace, observation, and session detail screens. This can be
+        used to integrate with your services to trigger workflows. See the docs{" "}
+        <a
+          href="https://langfuse.com/docs/observability/features/web-callouts"
+          target="_blank"
+          rel="noreferrer"
+          className="underline underline-offset-2"
+        >
+          here
+        </a>{" "}
+        for more info.
+      </p>
+
+      <div className="mb-4 flex justify-end">
         <WebCalloutEndpointDialog
           projectId={props.projectId}
           endpoint={editingEndpoint}
@@ -183,28 +200,21 @@ export function WebCalloutSettingsPage(props: { projectId: string }) {
             }
           }}
           trigger={
-            <Button
-              disabled={!canCreateEndpoint || endpoints.isLoading}
+            <AddEndpointButton
+              disabledReason={addEndpointDisabledReason}
               onClick={openCreateDialog}
-            >
-              <Plus className="mr-1 h-4 w-4" />
-              Add endpoint
-            </Button>
+            />
           }
         />
       </div>
-
-      <p className="text-primary mb-4 text-sm">
-        Configure a project-level callout endpoint for trace, observation, and
-        session detail actions. Langfuse sends a backend POST with ids only.
-      </p>
 
       <Card className="overflow-auto">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="text-primary">Name</TableHead>
               <TableHead className="text-primary">Endpoint</TableHead>
-              <TableHead className="text-primary">Behavior</TableHead>
+              <TableHead className="text-primary">Toast Message</TableHead>
               <TableHead className="text-primary">Headers</TableHead>
               <TableHead className="text-primary">Status</TableHead>
               <TableHead />
@@ -215,7 +225,7 @@ export function WebCalloutSettingsPage(props: { projectId: string }) {
               <TableRow>
                 <TableCell
                   density="comfortable"
-                  colSpan={5}
+                  colSpan={6}
                   className="text-muted-foreground text-center"
                 >
                   No callout endpoint configured.
@@ -224,6 +234,9 @@ export function WebCalloutSettingsPage(props: { projectId: string }) {
             ) : (
               endpoints.data?.map((endpoint) => (
                 <TableRow key={endpoint.id}>
+                  <TableCell density="comfortable" className="font-medium">
+                    {endpoint.name}
+                  </TableCell>
                   <TableCell
                     density="comfortable"
                     className="max-w-xl font-mono break-all"
@@ -231,7 +244,7 @@ export function WebCalloutSettingsPage(props: { projectId: string }) {
                     {endpoint.url}
                   </TableCell>
                   <TableCell density="comfortable">
-                    <BehaviorSummary endpoint={endpoint} />
+                    <ToastMessageCell endpoint={endpoint} />
                   </TableCell>
                   <TableCell density="comfortable">
                     <HeaderList endpoint={endpoint} />
@@ -277,6 +290,35 @@ export function WebCalloutSettingsPage(props: { projectId: string }) {
   );
 }
 
+function AddEndpointButton(props: {
+  disabledReason?: string;
+  onClick: () => void;
+}) {
+  const button = (
+    <Button
+      disabled={Boolean(props.disabledReason)}
+      className={props.disabledReason ? "pointer-events-none" : undefined}
+      onClick={props.onClick}
+    >
+      <Plus className="mr-1 h-4 w-4" />
+      Add endpoint
+    </Button>
+  );
+
+  if (!props.disabledReason) {
+    return <DialogTrigger asChild>{button}</DialogTrigger>;
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex cursor-not-allowed">{button}</span>
+      </TooltipTrigger>
+      <TooltipContent>{props.disabledReason}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 function HeaderList(props: { endpoint: WebCalloutEndpoint }) {
   const headers = props.endpoint.requestHeaderKeys;
 
@@ -285,21 +327,17 @@ function HeaderList(props: { endpoint: WebCalloutEndpoint }) {
   }
 
   return (
-    <div className="flex flex-wrap gap-1">
-      {headers.map((name) => (
-        <code key={name}>{name}</code>
-      ))}
-    </div>
+    <span className="font-mono text-sm break-words">{headers.join(", ")}</span>
   );
 }
 
-function BehaviorSummary(props: { endpoint: WebCalloutEndpoint }) {
+function ToastMessageCell(props: { endpoint: WebCalloutEndpoint }) {
   return (
-    <div className="space-y-1 text-sm">
-      <div className="max-w-xs truncate" title={props.endpoint.toastMessage}>
-        {props.endpoint.toastMessage}
-      </div>
-      <div className="text-muted-foreground">5s backend timeout</div>
+    <div
+      className="max-w-xs truncate text-sm"
+      title={props.endpoint.toastMessage}
+    >
+      {props.endpoint.toastMessage}
     </div>
   );
 }
@@ -358,7 +396,7 @@ function WebCalloutEndpointDialog(props: {
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogTrigger asChild>{props.trigger}</DialogTrigger>
+      {props.trigger}
       <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>
@@ -366,34 +404,25 @@ function WebCalloutEndpointDialog(props: {
           </DialogTitle>
           <DialogDescription>
             Langfuse sends a backend JSON POST when a user clicks a web callout
-            action.
+            action.{" "}
+            <a
+              href="https://langfuse.com/docs/observability/features/web-callouts"
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2"
+            >
+              View docs
+            </a>
+            .
           </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
-            <DialogBody>
-              <Alert>
-                <AlertTitle>Backend request requirements</AlertTitle>
-                <AlertDescription className="space-y-3">
-                  <p>
-                    Langfuse sends this request from its backend. Your endpoint
-                    must accept <code>POST</code> requests with{" "}
-                    <code>Content-Type: application/json</code> and return HTTP
-                    2xx within 5 seconds.
-                  </p>
-                  <p>
-                    Header values are encrypted at rest and sent only from the
-                    backend. They are not exposed to the user&apos;s browser.
-                  </p>
-                  <p>
-                    Every configured header is sent with each callout request.
-                    If the URL uses <code>http://</code>, those headers are sent
-                    without transport encryption; use HTTPS for production.
-                  </p>
-                </AlertDescription>
-              </Alert>
-
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+          >
+            <DialogBody className="min-h-0">
               <FormField
                 control={form.control}
                 name="name"
@@ -665,15 +694,6 @@ export function WebCalloutIntegrationCard(props: {
   projectId: string;
   hasAccess: boolean;
 }) {
-  const availability = api.webCallouts.availability.useQuery(
-    { projectId: props.projectId },
-    { staleTime: 60_000 },
-  );
-
-  if (availability.data?.enabled !== true) {
-    return null;
-  }
-
   return (
     <Card className="p-3">
       <div className="mb-4 flex items-center gap-2">

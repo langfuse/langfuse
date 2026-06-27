@@ -183,6 +183,7 @@ export const ROUTES: Route[] = [
     pathname: `/project/[projectId]/datasets`,
     icon: Database,
     productModule: "datasets",
+    projectRbacScopes: ["datasets:read"],
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
   },
@@ -247,7 +248,6 @@ export const ROUTES: Route[] = [
     title: "Assistant",
     section: RouteSection.Secondary,
     pathname: "",
-    featureFlag: "inAppAgent",
     show: ({ organization, projectId, isLangfuseCloud }) =>
       isLangfuseCloud && organization !== undefined && projectId !== undefined,
     menuNode: <InAppAiAgentButton />,

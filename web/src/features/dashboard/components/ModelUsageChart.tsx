@@ -388,6 +388,8 @@ export const ModelUsageChart = ({
                         show_data_point_dots: false,
                       }}
                       legendPosition="above"
+                      // Token/cost totals are additive sums. (LFE-10498)
+                      legendSummary="sum"
                     />
                   </div>
                 )}

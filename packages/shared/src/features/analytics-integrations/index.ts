@@ -9,6 +9,7 @@ import {
 } from "../../domain/observation-field-groups";
 
 export * from "./blob-export-gate";
+export * from "./blob-export-tuning";
 
 export const EXPORT_SOURCE_OPTIONS: Array<{
   value: AnalyticsIntegrationExportSource;
@@ -98,28 +99,50 @@ const EXPORT_FIELD_GROUP_LABELS = {
 // whenever the model group is selected — for both export paths.
 const MODEL_ENRICHMENT_FIELDS = ["input_price", "output_price", "total_price"];
 
-// The `description` of EXPORT_FIELD_GROUP_LABELS lists the enriched
-// observations fields of each group; the legacy observations table contains
-// fewer columns. Derive the legacy description from the export contract so it
-// stays in sync when the contract changes.
+const legacyFieldsForGroup = (group: ObservationFieldGroupFull): string[] =>
+  LEGACY_OBSERVATION_EXPORT_FIELDS.filter((f) => f.group === group).map(
+    (f) => f.field,
+  );
+
+const joinFields = (fields: string[]): string =>
+  fields.length > 0
+    ? fields.join(", ")
+    : "Not included in the legacy observations export";
+
+const withoutPrices = (csv: string): string =>
+  csv
+    .split(", ")
+    .filter((field) => !MODEL_ENRICHMENT_FIELDS.includes(field))
+    .join(", ");
+
+// EXPORT_FIELD_GROUP_LABELS describes the enriched schema; the legacy
+// observations table is narrower. Derive legacy from the export contract so it
+// stays in sync. The legacy standard export still enriches model prices, so
+// they're listed here.
 const legacyDescriptionForGroup = (
   group: ObservationFieldGroupFull,
 ): string => {
-  const fields = LEGACY_OBSERVATION_EXPORT_FIELDS.filter(
-    (f) => f.group === group,
-  ).map((f) => f.field);
-  if (group === "model") {
-    fields.push(...MODEL_ENRICHMENT_FIELDS);
-  }
-  return fields.length > 0
-    ? fields.join(", ")
-    : "Not included in the legacy observations export";
+  const fields = legacyFieldsForGroup(group);
+  if (group === "model") fields.push(...MODEL_ENRICHMENT_FIELDS);
+  return joinFields(fields);
 };
+
+// Parquet runs no JS enrichment, so model price columns are absent. The two
+// variants differ by source: enriched parquet uses the enriched schema, legacy
+// parquet the (already narrower) legacy schema.
+const parquetDescriptionForGroup = (group: ObservationFieldGroupFull): string =>
+  withoutPrices(EXPORT_FIELD_GROUP_LABELS[group].description);
+
+const legacyParquetDescriptionForGroup = (
+  group: ObservationFieldGroupFull,
+): string => joinFields(legacyFieldsForGroup(group));
 
 export const EXPORT_FIELD_GROUP_OPTIONS = OBSERVATION_FIELD_GROUPS_FULL.map(
   (value) => ({
     value,
     ...EXPORT_FIELD_GROUP_LABELS[value],
     legacyDescription: legacyDescriptionForGroup(value),
+    parquetDescription: parquetDescriptionForGroup(value),
+    legacyParquetDescription: legacyParquetDescriptionForGroup(value),
   }),
 );

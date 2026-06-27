@@ -7,7 +7,7 @@ import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
-describe("userAccountRouter.setInAppAgentPreviewEnabled", () => {
+describe("userAccountRouter.setFeaturePreviewEnabled", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
 
   beforeEach(() => {
@@ -18,39 +18,39 @@ describe("userAccountRouter.setInAppAgentPreviewEnabled", () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   });
 
-  it("enables the in-app agent preview for the current user without requiring a project", async () => {
+  it("enables the search bar preview, leaving other flags intact", async () => {
     const { caller, userId } = await createCaller({
-      includeProjectInSession: false,
+      featureFlags: ["templateFlag"],
     });
 
-    const result = await caller.userAccount.setInAppAgentPreviewEnabled({
+    const result = await caller.userAccount.setFeaturePreviewEnabled({
+      flag: "searchBar",
       enabled: true,
     });
 
-    expect(result).toEqual({
-      success: true,
-      inAppAgentPreviewEnabled: true,
-    });
+    expect(result).toEqual({ success: true, flag: "searchBar", enabled: true });
 
     const user = await prisma.user.findUniqueOrThrow({
       where: { id: userId },
       select: { featureFlags: true },
     });
-    expect(user.featureFlags).toEqual(["templateFlag", "inAppAgent"]);
+    expect(user.featureFlags).toEqual(["templateFlag", "searchBar"]);
   });
 
-  it("disables the in-app agent preview without requiring a project", async () => {
+  it("disables a preview flag without touching the others", async () => {
     const { caller, userId } = await createCaller({
-      featureFlags: ["templateFlag", "inAppAgent"],
+      featureFlags: ["templateFlag", "searchBar"],
     });
 
-    const result = await caller.userAccount.setInAppAgentPreviewEnabled({
+    const result = await caller.userAccount.setFeaturePreviewEnabled({
+      flag: "searchBar",
       enabled: false,
     });
 
     expect(result).toEqual({
       success: true,
-      inAppAgentPreviewEnabled: false,
+      flag: "searchBar",
+      enabled: false,
     });
 
     const user = await prisma.user.findUniqueOrThrow({
@@ -65,7 +65,8 @@ describe("userAccountRouter.setInAppAgentPreviewEnabled", () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
 
     await expect(
-      caller.userAccount.setInAppAgentPreviewEnabled({
+      caller.userAccount.setFeaturePreviewEnabled({
+        flag: "searchBar",
         enabled: true,
       }),
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
@@ -136,14 +137,16 @@ async function createCaller({
                   role: "ADMIN",
                   deletedAt: null,
                   retentionDays: null,
+                  hasTraces: false,
                   metadata: {},
+                  createdAt: project.createdAt.toISOString(),
                 },
               ]
             : [],
         },
       ],
       featureFlags: {
-        inAppAgent: featureFlags.includes("inAppAgent"),
+        searchBar: featureFlags.includes("searchBar"),
         templateFlag: featureFlags.includes("templateFlag"),
         excludeClickhouseRead: false,
         observationEvals: false,
