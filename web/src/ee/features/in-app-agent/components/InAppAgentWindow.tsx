@@ -105,7 +105,6 @@ export type InAppAgentWindowProps = {
     comment?: string | null;
   }) => Promise<void>;
   selectedConversationId: string | undefined;
-  zIndex?: number;
 } & InAppAgentWindowCloseButtonProps;
 
 export function InAppAgentWindow(props: InAppAgentWindowProps) {
@@ -125,7 +124,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onSubmit,
     onSubmitFeedback,
     selectedConversationId,
-    zIndex,
   } = props;
   const viewportRef = useRef<HTMLDivElement>(null);
   const isAutoScrollAttachedRef = useRef(true);
@@ -245,9 +243,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             <DropdownMenuContent
               align="end"
               className="max-h-80 w-64 overflow-y-auto"
-              style={
-                typeof zIndex === "number" ? { zIndex: zIndex + 1 } : undefined
-              }
             >
               <DropdownMenuLabel>Recent conversations</DropdownMenuLabel>
               <DropdownMenuSeparator />
@@ -427,7 +422,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       content={message.content}
                       isCompact={!isExpanded}
                       isFeedbackDisabled={isInputDisabled}
-                      windowZIndex={zIndex}
                       onSubmitFeedback={
                         feedbackRunId
                           ? (params) =>

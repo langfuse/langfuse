@@ -2,10 +2,10 @@ import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
+  HoverCardPortal,
 } from "@/src/components/ui/hover-card";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
-import { Portal } from "@radix-ui/react-hover-card";
 import { Info } from "lucide-react";
 
 export type DocPopupProps = {
@@ -53,7 +53,7 @@ export default function DocPopup({
           <Info className={"h-3 w-3"} />
         </div>
       </HoverCardTrigger>
-      <Portal>
+      <HoverCardPortal>
         <HoverCardContent>
           <div
             className={cn(
@@ -64,7 +64,7 @@ export default function DocPopup({
             {description}
           </div>
         </HoverCardContent>
-      </Portal>
+      </HoverCardPortal>
     </HoverCard>
   );
 }

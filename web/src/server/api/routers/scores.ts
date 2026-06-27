@@ -339,20 +339,17 @@ export const scoresRouter = createTRPCRouter({
         );
       }
 
-      const scoredTracesScope =
-        "e.trace_id IN (SELECT DISTINCT trace_id FROM scores WHERE project_id = {projectId: String})";
-
       const [names, tags, traceNames, userIds, stringValues] =
         await Promise.all([
           getScoreNames(input.projectId, timestampFilter ?? []),
           getEventsGroupedByTraceTags(input.projectId, eventsFilter, {
-            extraWhereRaw: scoredTracesScope,
+            scope: "scoredTraces",
           }),
           getEventsGroupedByTraceName(input.projectId, eventsFilter, {
-            extraWhereRaw: scoredTracesScope,
+            scope: "scoredTraces",
           }),
           getEventsGroupedByUserId(input.projectId, eventsFilter, {
-            extraWhereRaw: scoredTracesScope,
+            scope: "scoredTraces",
           }),
           getScoreStringValues(input.projectId, timestampFilter ?? []),
         ]);
@@ -511,7 +508,6 @@ export const scoresRouter = createTRPCRouter({
         const clickhouseTrace = await getTraceById({
           traceId: inflatedParams.traceId,
           projectId: input.projectId,
-          clickhouseFeatureTag: "annotations-trpc",
         });
 
         if (!clickhouseTrace) {
@@ -681,7 +677,6 @@ export const scoresRouter = createTRPCRouter({
           const clickhouseTrace = await getTraceById({
             traceId: inflatedParams.traceId,
             projectId: input.projectId,
-            clickhouseFeatureTag: "annotations-trpc",
           });
 
           if (!clickhouseTrace) {
@@ -940,7 +935,6 @@ export const scoresRouter = createTRPCRouter({
       const clickhouseTrace = await getTraceById({
         traceId: input.traceId,
         projectId: input.projectId,
-        clickhouseFeatureTag: "annotations-trpc",
       });
 
       if (!clickhouseTrace) {

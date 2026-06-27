@@ -51,8 +51,8 @@ import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTabl
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BreakdownTooltip } from "@/src/components/trace/components/_shared/BreakdownToolTip";
-import { InfoIcon, LightbulbIcon, PlusCircle } from "lucide-react";
-import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog";
+import { InfoIcon, LightbulbIcon } from "lucide-react";
+import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Badge } from "@/src/components/ui/badge";
 import { type RowSelectionState } from "@tanstack/react-table";
@@ -104,6 +104,7 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { useSearchBarEnabled } from "@/src/features/search-bar/hooks/useSearchBarEnabled";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
+import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 
 export type EventsTableRow = {
@@ -444,19 +445,21 @@ export default function ObservationsEventsTable({
     [filterOptions, isFilterOptionsPending],
   );
 
-  const { store: searchBarStore, commit: searchBarCommit } = useEventsSearchBar(
-    {
-      projectId,
-      enabled: searchBarMode,
-      filterState: queryFilter.explicitFilterState,
-      searchQuery,
-      searchType,
-      observed: observedOptions,
-      setFilterState: setFiltersWrapper,
-      setSearchQuery,
-      setSearchType,
-    },
-  );
+  const {
+    store: searchBarStore,
+    commit: searchBarCommit,
+    applyFilters: searchBarApplyFilters,
+  } = useEventsSearchBar({
+    projectId,
+    enabled: searchBarMode,
+    filterState: queryFilter.explicitFilterState,
+    searchQuery,
+    searchType,
+    observed: observedOptions,
+    setFilterState: setFiltersWrapper,
+    setSearchQuery,
+    setSearchType,
+  });
 
   // Disabled for now because perhaps confusing
   // const viewModeFilter: FilterState =
@@ -548,6 +551,27 @@ export default function ObservationsEventsTable({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [observations.status, observations.rows]);
+
+  // Project data context for the AI filter prompt: observed values (from
+  // filterOptions) + metadata keys sampled from the visible rows + the current
+  // result count, so the model maps NL onto real columns/values rather than
+  // guessing (e.g. `type:chat`). Reuses already-loaded data; only when the bar
+  // is active.
+  const aiDataContext = useMemo(() => {
+    if (!searchBarMode) return undefined;
+    // totalCount is only computed on "select all"; use the loaded/visible row
+    // count for the empty-vs-nonempty signal instead.
+    return buildAiContext({
+      observed: observedOptions,
+      sampleMetadata: (observations.rows ?? [])
+        .slice(0, 30)
+        .map((o) => o.metadata),
+      resultCount:
+        observations.status === "success"
+          ? (observations.rows?.length ?? 0)
+          : null,
+    });
+  }, [searchBarMode, observedOptions, observations.rows, observations.status]);
 
   const { scoreColumns, isLoading: isColumnLoading } =
     useScoreColumns<EventsTableRow>({
@@ -800,7 +824,7 @@ export default function ObservationsEventsTable({
           <MemoizedIOTableCell
             isLoading={false}
             data={value}
-            className={cn("bg-accent-light-green")}
+            className="bg-accent-light-green"
             singleLine={rowHeight === "s"}
           />
         ) : null;
@@ -1137,36 +1161,13 @@ export default function ObservationsEventsTable({
         const model = row.getValue("providedModelName") as string;
         const modelId = row.getValue("modelId") as string | undefined;
 
-        if (!model) return null;
-
-        return modelId ? (
-          <TableIdOrName value={model} />
-        ) : (
-          <UpsertModelFormDialog
-            action="create"
+        return (
+          <ProvidedModelNameCell
+            modelName={model}
+            modelId={modelId}
             projectId={projectId}
-            prefilledModelData={{
-              modelName: model,
-              prices:
-                Object.keys(row.original.usageDetails).length > 0
-                  ? Object.keys(row.original.usageDetails)
-                      .filter((key) => key != "total")
-                      .reduce(
-                        (acc, key) => {
-                          acc[key] = 0.000001;
-                          return acc;
-                        },
-                        {} as Record<string, number>,
-                      )
-                  : undefined,
-            }}
-            className="cursor-pointer"
-          >
-            <span className="flex items-center gap-1">
-              <span>{model}</span>
-              <PlusCircle className="h-3 w-3" />
-            </span>
-          </UpsertModelFormDialog>
+            usageDetails={row.original.usageDetails}
+          />
         );
       },
     },
@@ -1496,6 +1497,8 @@ export default function ObservationsEventsTable({
                 store={searchBarStore}
                 commit={searchBarCommit}
                 observed={observedOptions}
+                onApplyFilters={searchBarApplyFilters}
+                aiDataContext={aiDataContext}
               />
             )}
             {/* Toolbar spanning full width */}
@@ -1605,7 +1608,9 @@ export default function ObservationsEventsTable({
                 pageSize: paginationState.limit,
                 pageIndex: paginationState.page - 1,
               }}
-              filterWithAI
+              // In bar mode AI filtering lives in the search bar ("Ask AI"),
+              // so the legacy wand is only offered when the bar is absent.
+              filterWithAI={!searchBarMode}
             />
           </div>
         )}
@@ -1618,7 +1623,9 @@ export default function ObservationsEventsTable({
               // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
               key={viewControllers.selectedViewId ?? "no-view"}
               queryFilter={queryFilter}
-              filterWithAI
+              // In bar mode AI filtering lives in the search bar; only offer the
+              // sidebar wand on non-bar surfaces (embedded scoped tables).
+              filterWithAI={!searchBarMode}
             />
           )}
 

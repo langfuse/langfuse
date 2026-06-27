@@ -119,7 +119,7 @@ export async function upsertBlobStorageIntegration(params: {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.blobStorageIntegration.findUnique({
       where: { projectId },
-      select: { exportMode: true },
+      select: { exportMode: true, lastError: true, runStartedAt: true },
     });
 
     // Require secret key for new integrations (unless using host credentials)
@@ -164,10 +164,16 @@ export async function upsertBlobStorageIntegration(params: {
         // Only overwrite secretAccessKey when a new value is provided,
         // so partial updates don't wipe the existing encrypted secret.
         ...(encryptedSecret ? { secretAccessKey: encryptedSecret } : {}),
+        // Schedule an immediate retry when saving an errored integration
+        // so the scheduler picks it up via the nextSyncAt clause.
+        ...(existing?.lastError && data.enabled && !modeChanged
+          ? { nextSyncAt: new Date() }
+          : {}),
         // Reset sync state when export mode changes so the new mode's
         // start-date logic takes effect instead of continuing from the
         // previous mode's lastSyncAt.
-        ...(modeChanged ? { lastSyncAt: null, nextSyncAt: null } : {}),
+        ...(modeChanged ? { lastSyncAt: null, nextSyncAt: new Date() } : {}),
+        runStartedAt: null,
       },
     });
 

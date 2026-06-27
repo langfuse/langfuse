@@ -1,21 +1,11 @@
 import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
-import eslintConfigPrettier from "eslint-config-prettier";
-import turboConfig from "eslint-config-turbo/flat";
-import "eslint-plugin-only-warn";
-import langfusePlugin from "@repo/eslint-plugin";
+import sharedConfig from "./shared.js";
 
 export default [
   // Global ignores - include config files
   {
     name: "langfuse/ignores",
-    ignores: [
-      "**/node_modules/",
-      "**/dist/",
-      "**/.next/",
-      "**/.next-check/",
-      "**/coverage/",
-      "eslint.config.mjs",
-    ],
+    ignores: ["**/.next/", "**/.next-check/"],
   },
 
   // Next 16 ships native flat configs, so loading it through FlatCompat breaks.
@@ -43,8 +33,7 @@ export default [
     },
   },
 
-  // Turbo rules
-  ...turboConfig,
+  ...sharedConfig,
 
   // Disable noisy turbo env var rule - project has many env vars not in turbo.json
   {
@@ -53,9 +42,6 @@ export default [
       "turbo/no-undeclared-env-vars": "off",
     },
   },
-
-  // Disable ESLint rules that conflict with Prettier formatting.
-  eslintConfigPrettier,
 
   // Layer repo-specific TS rules on top of Next's built-in flat TS config.
   // Next already provides the parser and @typescript-eslint plugin here.
@@ -78,12 +64,7 @@ export default [
         },
       },
     },
-    plugins: {
-      "@repo": langfusePlugin,
-    },
     rules: {
-      "no-void": "warn",
-      "no-unused-vars": "off", // Use @typescript-eslint/no-unused-vars instead
       "@repo/no-tailwind-overflow-scroll": "warn",
       // Custom rules from old config
       "@typescript-eslint/consistent-type-imports": [
@@ -93,30 +74,9 @@ export default [
           fixStyle: "inline-type-imports",
         },
       ],
-      "@typescript-eslint/no-unused-vars": [
-        "warn",
-        {
-          argsIgnorePattern: "^_",
-          varsIgnorePattern: "^_",
-          caughtErrorsIgnorePattern: "^_",
-          destructuredArrayIgnorePattern: "^_",
-          ignoreRestSiblings: true,
-        },
-      ],
       "@typescript-eslint/no-deprecated": "warn",
       "react/jsx-key": ["error", { warnOnDuplicates: true }],
       "react/no-unused-prop-types": "warn",
-    },
-  },
-
-  // Vitest in-source testing should only be used while developing, not in committed code.
-  {
-    name: "langfuse/no-in-source-vitest",
-    plugins: {
-      "@repo": langfusePlugin,
-    },
-    rules: {
-      "@repo/no-in-source-vitest": "warn",
     },
   },
 ];
