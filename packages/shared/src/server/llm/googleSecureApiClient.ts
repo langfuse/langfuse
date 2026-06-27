@@ -80,9 +80,19 @@ export function createSecureVertexAIApiClient({
   // bearer token. The Vertex request path (which encodes the GCP project and
   // location) is preserved so the gateway can proxy to Vertex unchanged.
   if (baseURL) {
+    // Resolve the GCP project id the same way the direct Vertex client does:
+    // an explicit projectId (from a service-account key) is returned as-is, and
+    // ADC deployments (GKE Workload Identity, Cloud Run, GCE metadata) fall back
+    // to detection. This only reads the project identifier so the Vertex request
+    // path stays correct; no Google OAuth bearer is attached to gateway requests.
+    const gatewayProjectAuth = new GoogleAuth({
+      ...authOptions,
+      scopes: authOptions?.scopes ?? VERTEX_AI_AUTH_SCOPES,
+    });
+
     return {
       hasApiKey: () => false,
-      getProjectId: async () => authOptions?.projectId ?? "unknown-project-id",
+      getProjectId: () => gatewayProjectAuth.getProjectId(),
       fetch: async (request: Request) => {
         const url = rewriteVertexAIUrl(request.url, baseURL);
 

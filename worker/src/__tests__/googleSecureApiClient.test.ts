@@ -14,6 +14,21 @@ vi.mock("../../../packages/shared/src/server/llm/secureLlmFetch", () => ({
   fetchSecureLlmUrl: fetchSecureLlmUrlMock,
 }));
 
+// Stub GoogleAuth so project-id resolution is deterministic: an explicit
+// projectId is returned as-is (service-account key path), otherwise we emulate
+// ADC detection (GKE/Cloud Run/metadata) returning a detected project.
+vi.mock("google-auth-library", () => ({
+  GoogleAuth: class {
+    private readonly projectId?: string;
+    constructor(options?: { projectId?: string }) {
+      this.projectId = options?.projectId;
+    }
+    async getProjectId() {
+      return this.projectId ?? "adc-detected-project-id";
+    }
+  },
+}));
+
 // Real Google Vertex AI and AI Studio request paths are exercised end-to-end
 // in llmConnections.test.ts against live APIs. This file keeps the pure
 // URL-rewrite unit cases that the live tests can't easily express.
@@ -136,10 +151,12 @@ describe("createSecureVertexAIApiClient gateway mode", () => {
     await expect(client.getProjectId()).resolves.toBe("my-project");
   });
 
-  test("falls back to a placeholder project id when none is configured", async () => {
+  test("resolves the project id via ADC when none is configured", async () => {
     const client = createSecureVertexAIApiClient({ baseURL });
 
-    await expect(client.getProjectId()).resolves.toBe("unknown-project-id");
+    await expect(client.getProjectId()).resolves.toBe(
+      "adc-detected-project-id",
+    );
   });
 
   test("routes through the gateway, strips the GCP bearer, and injects extra headers", async () => {
