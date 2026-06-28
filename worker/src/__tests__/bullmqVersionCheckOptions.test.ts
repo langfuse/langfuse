@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
 const requiredSharedEnv = {
@@ -87,7 +88,7 @@ const importRedisModule = async (
   return { redisInstances, redisModule };
 };
 
-describe("BullMQ Redis version check options", () => {
+describe("BullMQ Redis options", () => {
   afterEach(() => {
     process.env = { ...originalEnv };
     delete (globalThis as Record<string, unknown>).redis;
@@ -103,7 +104,12 @@ describe("BullMQ Redis version check options", () => {
     const options = redisModule.createBullMQQueueOptionsWithRedis("test-queue");
 
     expect(options?.connection).toBe(redisInstances[0]);
-    expect(options).toMatchObject({ prefix: "test-prefix" });
+    expect(options).toMatchObject({
+      prefix: "test-prefix",
+      settings: {
+        repeatKeyHashAlgorithm: "sha256",
+      },
+    });
     expect(options).not.toHaveProperty("skipVersionCheck");
     expect(redisInstances[0]?.options).toMatchObject({
       enableOfflineQueue: false,
@@ -119,6 +125,9 @@ describe("BullMQ Redis version check options", () => {
 
     expect(options).toMatchObject({
       prefix: "test-prefix",
+      settings: {
+        repeatKeyHashAlgorithm: "sha256",
+      },
       skipVersionCheck: true,
     });
   });
@@ -129,6 +138,7 @@ describe("BullMQ Redis version check options", () => {
       redisModule.createBullMQWorkerOptionsWithRedis("test-queue");
 
     expect(options?.connection).toBe(redisInstances[0]);
+    expect(options).not.toHaveProperty("settings");
     expect(redisInstances[0]?.options).toMatchObject({
       retryStrategy: expect.any(Function),
     });
@@ -148,9 +158,44 @@ describe("BullMQ Redis version check options", () => {
     expect(options?.connection).toBe(redisInstances[0]);
     expect(options).toMatchObject({
       prefix: "{test-prefix:test-queue}",
+      settings: {
+        repeatKeyHashAlgorithm: "sha256",
+      },
       skipVersionCheck: true,
     });
     expect(redisInstances[0]?.isCluster).toBe(true);
+  });
+
+  test("keeps explicit repeat keys aligned with BullMQ's legacy md5 keys", async () => {
+    const { BullMQLegacyRepeatableJobOptions, BullMQRepeatableJobOptions } =
+      await import("../../../packages/shared/src/server/redis/repeatableJobs");
+
+    for (const [jobName, repeat] of Object.entries(
+      BullMQRepeatableJobOptions,
+    )) {
+      expect(repeat.key).toBe(
+        createHash("md5")
+          .update(`${jobName}::::${repeat.pattern}`)
+          .digest("hex"),
+      );
+    }
+
+    const legacyRepeatJobs = {
+      BlobStorageIntegrationHourlyJob: "blobstorage-integration-job",
+    };
+
+    for (const [legacyJobName, jobName] of Object.entries(legacyRepeatJobs)) {
+      const repeat =
+        BullMQLegacyRepeatableJobOptions[
+          legacyJobName as keyof typeof BullMQLegacyRepeatableJobOptions
+        ];
+
+      expect(repeat.key).toBe(
+        createHash("md5")
+          .update(`${jobName}::::${repeat.pattern}`)
+          .digest("hex"),
+      );
+    }
   });
 
   test("passes centralized options to BullMQ workers", async () => {

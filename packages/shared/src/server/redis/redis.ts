@@ -1,5 +1,5 @@
 import Redis, { RedisOptions, Cluster, ClusterOptions } from "ioredis";
-import type { QueueBaseOptions } from "bullmq";
+import type { QueueBaseOptions, QueueOptions } from "bullmq";
 import fs from "fs";
 import { env } from "../../env";
 import { logger } from "../logger";
@@ -36,10 +36,13 @@ export const redisQueueRetryOptions: Partial<RedisOptions> = {
   },
 };
 
-type BullMQOptionsWithRedis = Pick<
+type BullMQBaseOptionsWithRedis = Pick<
   QueueBaseOptions,
   "connection" | "prefix" | "skipVersionCheck"
 >;
+type BullMQQueueOptionsWithRedis = BullMQBaseOptionsWithRedis &
+  Pick<QueueOptions, "settings">;
+type BullMQWorkerOptionsWithRedis = BullMQBaseOptionsWithRedis;
 
 /**
  * Parse Redis node definitions from environment variable
@@ -255,10 +258,10 @@ export const getQueuePrefix = (queueName: string): string | undefined => {
   return redisKeyPrefix ?? undefined;
 };
 
-const getBullMQOptionsForRedisConnection = (
+const getBullMQBaseOptionsForRedisConnection = (
   queueName: string,
-  connection: BullMQOptionsWithRedis["connection"],
-): BullMQOptionsWithRedis => ({
+  connection: BullMQBaseOptionsWithRedis["connection"],
+): BullMQBaseOptionsWithRedis => ({
   connection,
   prefix: getQueuePrefix(queueName),
   ...(env.LANGFUSE_BULLMQ_SKIP_REDIS_VERSION_CHECK === "true"
@@ -272,14 +275,19 @@ const getBullMQOptionsForRedisConnection = (
  */
 export const createBullMQQueueOptionsWithRedis = (
   queueName: string,
-): BullMQOptionsWithRedis | null => {
+): BullMQQueueOptionsWithRedis | null => {
   const connection = createNewRedisInstance({
     enableOfflineQueue: false,
     ...redisQueueRetryOptions,
   });
 
   return connection
-    ? getBullMQOptionsForRedisConnection(queueName, connection)
+    ? {
+        ...getBullMQBaseOptionsForRedisConnection(queueName, connection),
+        settings: {
+          repeatKeyHashAlgorithm: "sha256",
+        },
+      }
     : null;
 };
 
@@ -289,11 +297,11 @@ export const createBullMQQueueOptionsWithRedis = (
  */
 export const createBullMQWorkerOptionsWithRedis = (
   queueName: string,
-): BullMQOptionsWithRedis | null => {
+): BullMQWorkerOptionsWithRedis | null => {
   const connection = createNewRedisInstance(redisQueueRetryOptions);
 
   return connection
-    ? getBullMQOptionsForRedisConnection(queueName, connection)
+    ? getBullMQBaseOptionsForRedisConnection(queueName, connection)
     : null;
 };
 
