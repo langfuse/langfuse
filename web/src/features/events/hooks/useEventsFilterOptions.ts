@@ -220,16 +220,23 @@ export function useEventsFilterOptions({
   // for never-enumerated facets like metadata). Empty once everything requested
   // so far has loaded — including after a background refetch, where placeholder
   // data keeps all columns present (no flicker).
+  //
+  // Gated on an in-flight fetch: a skeleton means "loading", not "no data". On a
+  // terminal error `data` is undefined for every column, but we are NOT fetching
+  // and will not auto-retry (staleTime: Infinity, refetchOnMount: false), so the
+  // facets must render their empty state instead of skeletoning forever.
+  const isFetching = filterOptions.isFetching;
   const loadingColumns = useMemo<ReadonlySet<string> | undefined>(() => {
     if (!lazy) return undefined;
     const pending = new Set<string>();
+    if (!isFetching) return pending;
     for (const column of requestedColumns) {
       if ((newFilterOptions as Record<string, unknown>)[column] === undefined) {
         pending.add(column);
       }
     }
     return pending;
-  }, [lazy, requestedColumns, newFilterOptions]);
+  }, [lazy, requestedColumns, newFilterOptions, isFetching]);
 
   return {
     filterOptions: newFilterOptions,
