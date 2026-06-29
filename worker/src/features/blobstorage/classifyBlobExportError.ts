@@ -71,6 +71,15 @@ function* errorCauseChain(error: unknown): Generator<object> {
 // AWS SDK v3 exposes the HTTP status on `$metadata.httpStatusCode`; Azure's
 // RestError and node-style errors use `statusCode`; GCS JSON errors use a
 // numeric `code`. Returns the first numeric status found.
+//
+// `.code` is intentionally overloaded across providers and read in two places,
+// discriminated purely by runtime type: a *string* `.code` is an Azure error
+// code (handled by extractErrorCodes), a *number* `.code` is a GCS HTTP status
+// (handled here). The only status we trip on without a recognized code is 401
+// (credentials rejected) — so a numeric `code: 401` is treated as a customer
+// fault by design. If a future provider ever reports a numeric `code: 401` that
+// is NOT a credential rejection (e.g. an intermediate proxy hop), split the two
+// reads onto distinct fields rather than relying on the type discrimination.
 function extractHttpStatus(err: object): number | undefined {
   const metaStatus = (err as { $metadata?: { httpStatusCode?: unknown } })
     .$metadata?.httpStatusCode;
