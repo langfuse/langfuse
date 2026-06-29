@@ -981,13 +981,17 @@ export const handleBlobStorageIntegrationProjectJob = async (
       logger.info(
         `[BLOB INTEGRATION] Skipping export for project ${projectId}: time window is empty (min: ${minTimestamp.toISOString()}, max: ${maxTimestamp.toISOString()})`,
       );
-      await prisma.blobStorageIntegration.update({
-        where: { projectId },
+      // An empty window is a successful no-op run, so clear the breaker too and
+      // gate on enabled: true — symmetric to the success commit below, so a
+      // concurrent disable claim isn't clobbered (LFE-10279).
+      await prisma.blobStorageIntegration.updateMany({
+        where: { projectId, enabled: true },
         data: {
           runStartedAt: null,
           nextSyncAt: new Date(now.getTime() + frequencyIntervalMs),
           lastError: null,
           lastErrorAt: null,
+          consecutiveFailures: 0,
         },
       });
       return;

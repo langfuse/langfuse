@@ -117,6 +117,15 @@ export async function upsertBlobStorageIntegration(params: {
   };
 
   return prisma.$transaction(async (tx) => {
+    // Lock the row for the duration of the transaction so a concurrent worker
+    // circuit-breaker disable can't commit between this read and the upsert.
+    // Without it, `reactivated` is computed from a stale enabled=true and the
+    // breaker reset is skipped while the upsert re-enables the row, leaving a
+    // tripped counter that re-disables on the next failure and sends a second
+    // pause email (LFE-10279). No-op for a brand-new integration (no row to
+    // lock; the upsert INSERTs and ON CONFLICT handles concurrent creates).
+    await tx.$queryRaw`SELECT 1 FROM blob_storage_integrations WHERE project_id = ${projectId} FOR UPDATE`;
+
     const existing = await tx.blobStorageIntegration.findUnique({
       where: { projectId },
       select: {
