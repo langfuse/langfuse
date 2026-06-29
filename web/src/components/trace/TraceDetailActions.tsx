@@ -2,11 +2,6 @@ import { api } from "@/src/utils/api";
 import { StarTraceDetailsToggle } from "@/src/components/star-toggle";
 import { PublishTraceSwitch } from "@/src/components/publish-object-switch";
 import { DeleteTraceButton } from "@/src/components/deleteButton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
 
 /**
  * Trace-level header actions (star / publish / delete) shared by the peek and
@@ -22,10 +17,12 @@ import {
  * from an observation/event row — the surface shows that trace). Behavior
  * differs only by surface:
  * - **page**: pass `deleteRedirectUrl` → navigates to the list after delete.
- * - **peek**: pass `onAfterDelete` (e.g. `closePeek`) → closes in place. We
- *   invalidate broadly because the peek is hosted over many different lists
- *   (traces, observations, events, sessions, experiments, datasets), each
- *   backed by a different query — so the deleted row disappears everywhere.
+ * - **peek**: pass `onAfterDelete` (e.g. `closePeek`) → closes in place. It
+ *   receives the deleted trace id so the peek can stay open if K/J-navigation
+ *   already moved on to another trace (LFE-10535). We invalidate broadly
+ *   because the peek is hosted over many different lists (traces, observations,
+ *   events, sessions, experiments, datasets), each backed by a different query
+ *   — so the deleted row disappears everywhere.
  */
 export function TraceDetailActions({
   traceId,
@@ -46,7 +43,7 @@ export function TraceDetailActions({
   name?: string | null;
   timestamp?: Date;
   deleteRedirectUrl?: string;
-  onAfterDelete?: () => void;
+  onAfterDelete?: (deletedTraceId: string) => void;
   size?: "icon" | "icon-xs";
   layout?: "toolbar" | "menu";
 }) {
@@ -55,10 +52,12 @@ export function TraceDetailActions({
 
   // The page path navigates away (redirectUrl) and never calls this. The peek
   // path is hosted over many different lists, so invalidate all queries to
-  // refresh whichever list is behind the peek, then close it.
+  // refresh whichever list is behind the peek, then close it. We hand the
+  // deleted trace id to onAfterDelete so the peek can skip closing when it has
+  // already navigated to a different trace (LFE-10535).
   const onDeleteInvalidate = () => {
     utils.invalidate();
-    onAfterDelete?.();
+    onAfterDelete?.(traceId);
   };
 
   if (isMenu) {
@@ -68,7 +67,7 @@ export function TraceDetailActions({
           projectId={projectId}
           traceId={traceId}
           value={bookmarked}
-          label={bookmarked ? "Remove bookmark" : "Bookmark"}
+          showLabel
         />
         <PublishTraceSwitch
           projectId={projectId}
@@ -93,24 +92,16 @@ export function TraceDetailActions({
 
   return (
     <div className="flex flex-row items-center gap-1">
-      {/* Star/Share are plain icon buttons without their own tooltip, so wrap
-          them (delete's IconOnlyButton already has one). The span is the
-          tooltip trigger; the control inside keeps its own click behavior. */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span className="flex">
-            <StarTraceDetailsToggle
-              projectId={projectId}
-              traceId={traceId}
-              value={bookmarked}
-              size={size}
-            />
-          </span>
-        </TooltipTrigger>
-        <TooltipContent>
-          {bookmarked ? "Remove bookmark" : "Bookmark"}
-        </TooltipContent>
-      </Tooltip>
+      {/* The star owns its tooltip (composed onto the real button, so the
+          aria-describedby lands on the focusable control) and drives its label
+          from the optimistic state — see StarToggle. */}
+      <StarTraceDetailsToggle
+        projectId={projectId}
+        traceId={traceId}
+        value={bookmarked}
+        size={size}
+        tooltip
+      />
       <PublishTraceSwitch
         projectId={projectId}
         traceId={traceId}

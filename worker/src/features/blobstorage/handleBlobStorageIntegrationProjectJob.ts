@@ -41,6 +41,7 @@ import {
   type BlobTableExportOutcome,
 } from "./inFlightExports";
 import { TimedGzip, ZLIB_DEFAULT_LEVEL, type GzipStats } from "./gzipStream";
+import { ByteCounter, TimedByteCounter } from "./byteCounters";
 import { WORKER_HOST_ID } from "../../utils/hostId";
 import {
   BlobStorageIntegrationType,
@@ -269,44 +270,6 @@ const getFileTypeProperties = (fileType: BlobStorageIntegrationFileType) => {
   }
 };
 
-class ByteCounter extends Transform {
-  bytes = 0;
-  _transform(
-    chunk: Buffer,
-    _encoding: string,
-    callback: (error: Error | null, data?: Buffer) => void,
-  ) {
-    this.bytes += chunk.length;
-    callback(null, chunk);
-  }
-}
-
-// ByteCounter that also tallies inter-chunk gaps into `stats.sourceWaitMs`, so
-// the Parquet path (piped binary stream, no per-row generator) reuses the
-// standard chReadMs/uploadWaitMs derivation. Coarse: source wait conflates CH
-// delivery with S3 backpressure (same as countedStream).
-class TimedByteCounter extends ByteCounter {
-  private readonly stats: { sourceWaitMs: number };
-  // Clock starts at construction (like countedStream, before its loop) so the
-  // first gap captures time-to-first-byte — the dominant CH wait, since Parquet
-  // composes a row group before any bytes. Guarding it would drop TTFB from chReadMs.
-  private lastChunkDoneAt: number = performance.now();
-  constructor(stats: { sourceWaitMs: number }) {
-    super();
-    this.stats = stats;
-  }
-  _transform(
-    chunk: Buffer,
-    _encoding: string,
-    callback: (error: Error | null, data?: Buffer) => void,
-  ) {
-    this.stats.sourceWaitMs += performance.now() - this.lastChunkDoneAt;
-    this.bytes += chunk.length;
-    this.lastChunkDoneAt = performance.now();
-    callback(null, chunk);
-  }
-}
-
 async function* countedStream<T>(
   source: AsyncGenerator<T>,
   stats: { rows: number; sourceWaitMs: number },
@@ -518,10 +481,9 @@ const processBlobStorageExport = async (config: {
           }
         };
 
-        // Tracks ClickHouse read wait. Declared before the counters so the
-        // parquet TimedByteCounter can write into it (the parquet path has no
-        // per-row generator, so countedStream does not run).
-        const sourceStats = { rows: 0, sourceWaitMs: 0 };
+        // Source read wait; backpressureMs is set only by the parquet
+        // TimedByteCounter and stays 0 on every other path.
+        const sourceStats = { rows: 0, sourceWaitMs: 0, backpressureMs: 0 };
         // When enrichment is active, chStats isolates ClickHouse read wait from
         // enrichment CPU. enrichMs = sourceStats.sourceWaitMs - chStats.sourceWaitMs.
         let chStats: { rows: number; sourceWaitMs: number } | null = null;
@@ -805,8 +767,15 @@ const processBlobStorageExport = async (config: {
           });
 
           const uploadDurationMs = uploadDurationMsFinal;
+          // Parquet's source counter sits at the upload boundary, so strip its
+          // backpressure to recover pure CH read (no-op elsewhere: gzip isolates
+          // CH read in chStats, and backpressureMs is 0 on every other path).
           const chReadMs = Math.round(
-            chStats ? chStats.sourceWaitMs : sourceStats.sourceWaitMs,
+            Math.max(
+              0,
+              (chStats ? chStats.sourceWaitMs : sourceStats.sourceWaitMs) -
+                (chStats ? 0 : sourceStats.backpressureMs),
+            ),
           );
           const enrichMs = chStats
             ? Math.max(
@@ -820,9 +789,12 @@ const processBlobStorageExport = async (config: {
                 Math.round(gzipStats.activeMs - gzipStats.backpressureMs),
               )
             : 0;
+          // Measured backpressure (gzip / parquet boundary), else duration residual.
           const uploadWaitMs = gzipStats
             ? Math.round(gzipStats.backpressureMs)
-            : Math.max(0, uploadDurationMs - chReadMs - enrichMs);
+            : parquetEligible
+              ? Math.round(sourceStats.backpressureMs)
+              : Math.max(0, uploadDurationMs - chReadMs - enrichMs);
 
           logger.info(
             `[BLOB INTEGRATION] Successfully exported ${config.table} for project ${config.projectId}: ` +
@@ -844,8 +816,13 @@ const processBlobStorageExport = async (config: {
           );
         } finally {
           span.setAttribute("blob.rows", sourceStats.rows);
+          // Same chReadMs / uploadWaitMs derivation as the success path above.
           const finalChReadMs = Math.round(
-            chStats ? chStats.sourceWaitMs : sourceStats.sourceWaitMs,
+            Math.max(
+              0,
+              (chStats ? chStats.sourceWaitMs : sourceStats.sourceWaitMs) -
+                (chStats ? 0 : sourceStats.backpressureMs),
+            ),
           );
           const finalEnrichMs = chStats
             ? Math.max(
@@ -870,7 +847,9 @@ const processBlobStorageExport = async (config: {
                 : 0;
               const finalUploadWaitMs = gzipStats
                 ? Math.round(gzipStats.backpressureMs)
-                : Math.max(0, totalUploadMs - finalChReadMs - finalEnrichMs);
+                : parquetEligible
+                  ? Math.round(sourceStats.backpressureMs)
+                  : Math.max(0, totalUploadMs - finalChReadMs - finalEnrichMs);
               span.setAttribute("blob.gzipCpuMs", finalGzipCpuMs);
               span.setAttribute("blob.uploadWaitMs", finalUploadWaitMs);
               const finalExportFormat = parquetEligible
