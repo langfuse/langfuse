@@ -1280,6 +1280,7 @@ const buildTracesForBlobStorageExportQuery = (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  chSendTimeout?: number,
 ) => {
   const traceTable = "traces";
 
@@ -1320,6 +1321,9 @@ const buildTracesForBlobStorageExportQuery = (
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
     },
+    // Per-project ClickHouse send_timeout (seconds); undefined => CH default.
+    clickhouseSettings:
+      chSendTimeout !== undefined ? { send_timeout: chSendTimeout } : undefined,
   };
 };
 
@@ -1327,9 +1331,15 @@ export const getTracesForBlobStorageExport = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  chSendTimeout?: number,
 ) {
   return queryClickhouseStream<Record<string, unknown>>(
-    buildTracesForBlobStorageExportQuery(projectId, minTimestamp, maxTimestamp),
+    buildTracesForBlobStorageExportQuery(
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+      chSendTimeout,
+    ),
   );
 };
 
@@ -1339,15 +1349,22 @@ export const getTracesForBlobStorageExportParquet = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  chSendTimeout?: number,
 ) {
+  const base = buildTracesForBlobStorageExportQuery(
+    projectId,
+    minTimestamp,
+    maxTimestamp,
+    chSendTimeout,
+  );
   return queryClickhouseExecRaw({
-    ...buildTracesForBlobStorageExportQuery(
-      projectId,
-      minTimestamp,
-      maxTimestamp,
-    ),
+    ...base,
     format: "Parquet",
-    clickhouseSettings: BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
+    // Merge so the per-project send_timeout survives alongside Parquet tuning.
+    clickhouseSettings: {
+      ...base.clickhouseSettings,
+      ...BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
+    },
   });
 };
 
