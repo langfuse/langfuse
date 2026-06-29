@@ -1277,6 +1277,7 @@ enum BlobStorageIntegrationFileType {
   JSON
   CSV
   JSONL
+  PARQUET
 
   @@map("BlobStorageIntegrationFileType")
 }

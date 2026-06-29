@@ -46,6 +46,7 @@ import { WORKER_HOST_ID } from "../../utils/hostId";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
+  BatchExportFileFormat,
   BlobStorageExportMode,
   OBSERVATION_FIELD_GROUPS_FULL,
   type ObservationFieldGroupFull,
@@ -76,9 +77,15 @@ export const BlobExportFormat = {
 export type BlobExportFormat =
   (typeof BlobExportFormat)[keyof typeof BlobExportFormat];
 
-const FORMAT_LOOKUP: Record<
-  BlobStorageIntegrationFileType,
-  { raw: BlobExportFormat; gzip: BlobExportFormat }
+// Text-format lookup only. PARQUET has no raw/gzip split (compression is
+// internal) and resolves to BlobExportFormat.PARQUET on the parquet path, so it
+// is intentionally absent here — `resolveBlobExportFormat` is never called for
+// PARQUET (callers branch on `parquetEligible` first).
+const FORMAT_LOOKUP: Partial<
+  Record<
+    BlobStorageIntegrationFileType,
+    { raw: BlobExportFormat; gzip: BlobExportFormat }
+  >
 > = {
   [BlobStorageIntegrationFileType.JSON]: {
     raw: BlobExportFormat.JSON_RAW,
@@ -99,6 +106,12 @@ function resolveBlobExportFormat(
   compressed: boolean,
 ): BlobExportFormat {
   const entry = FORMAT_LOOKUP[fileType];
+  if (!entry) {
+    // PARQUET (the only non-text fileType) must be handled by the parquet path
+    // before reaching here; a miss means a caller skipped the parquetEligible
+    // branch.
+    throw new Error(`No text export format for file type: ${fileType}`);
+  }
   return compressed ? entry.gzip : entry.raw;
 }
 
@@ -263,6 +276,14 @@ const getFileTypeProperties = (fileType: BlobStorageIntegrationFileType) => {
         contentType: "application/x-ndjson; charset=utf-8",
         extension: "jsonl",
       };
+    case BlobStorageIntegrationFileType.PARQUET:
+      // ClickHouse-native columnar export; compression is internal to Parquet
+      // (no `.gz`). The parquet export path sets these inline, but the case is
+      // required for switch exhaustiveness now that PARQUET is a fileType member.
+      return {
+        contentType: "application/vnd.apache.parquet",
+        extension: "parquet",
+      };
     default:
       // eslint-disable-next-line no-case-declarations
       const _exhaustiveCheck: never = fileType;
@@ -424,12 +445,15 @@ const processBlobStorageExport = async (config: {
       try {
         const blobStorageProps = getFileTypeProperties(config.fileType);
 
-        // LFE-10463: per-project opt-in spanning all tables/file types. Overrides
-        // fileType and compressed (Parquet compresses internally) and outranks
-        // rawPassthrough (enforced in resolveBlobExportTuning). It isn't a
-        // BlobStorageIntegrationFileType member, so extension/content-type are set
-        // inline below rather than via getFileTypeProperties.
-        const parquetEligible = config.parquet;
+        // Parquet export path. Driven by either the first-class
+        // `fileType = PARQUET` (UI-selectable for whitelisted projects) or the
+        // legacy internal `exportTuning.parquet` override (kept for a seamless
+        // transition). Both converge here: ClickHouse-native `FORMAT Parquet`,
+        // compression internal, and precedence over rawPassthrough (enforced in
+        // resolveBlobExportTuning). Extension/content-type are set inline below.
+        const parquetEligible =
+          config.parquet ||
+          config.fileType === BlobStorageIntegrationFileType.PARQUET;
 
         // Raw passthrough (LFE-10402) is opt-in per project and only valid for
         // JSONL output of the enriched-observation tables — the only formats
@@ -703,7 +727,10 @@ const processBlobStorageExport = async (config: {
           }
 
           const dataStream = countedStream(rawStream, sourceStats);
-          const formatTransform = streamTransformations[config.fileType]();
+          // PARQUET is handled by the parquetEligible branch above; this path
+          // only ever sees the text formats (JSON/CSV/JSONL).
+          const formatTransform =
+            streamTransformations[config.fileType as BatchExportFileFormat]();
 
           fileStream =
             compressedCounter && gzipStats

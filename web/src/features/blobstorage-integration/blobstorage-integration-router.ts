@@ -29,9 +29,11 @@ import { decrypt } from "@langfuse/shared/encryption";
 import {
   AnalyticsIntegrationExportSource,
   BlobStorageIntegrationType,
+  BlobStorageIntegrationFileType,
   InvalidRequestError,
   isEnrichedBlobExportAvailable,
 } from "@langfuse/shared";
+import { isParquetFileTypeAllowed } from "@/src/features/blobstorage-integration/parquetFileType";
 
 const getAuditLogErrorType = (error: unknown) =>
   error instanceof TRPCError
@@ -117,6 +119,20 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           projectId: input.projectId,
           scope: "integrations:CRUD",
         });
+
+        // Parquet is whitelist-gated while it stabilises as a first-class
+        // fileType. The UI only offers it to whitelisted projects; reject it
+        // here too so the gate can't be bypassed via a crafted request. The
+        // legacy `exportTuning.parquet` override is a separate, DB-only path and
+        // is unaffected by this check.
+        if (
+          input.fileType === BlobStorageIntegrationFileType.PARQUET &&
+          !isParquetFileTypeAllowed(input.projectId)
+        ) {
+          throw new InvalidRequestError(
+            "Parquet export is not available for this project.",
+          );
+        }
 
         const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
         const isV4PreviewEnabled =
