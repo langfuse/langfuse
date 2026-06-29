@@ -246,7 +246,7 @@ describe("Public API experiments repository", () => {
       });
 
       const row = rows.find((item) => item.experiment_id === experimentId);
-      expect(row?.item_count).toBe("1");
+      expect(row?.item_count).toBe(1);
     });
 
     it("excludes experiment events without a dataset id", async () => {

@@ -29,7 +29,7 @@ type ExperimentSummaryClickhouseRow = {
   cursor_trace_hash: number;
   cursor_trace_id: string;
   cursor_span_id: string;
-  item_count: string;
+  item_count: number;
   experiment_metadata?: Record<string, unknown> | null;
 };
 
