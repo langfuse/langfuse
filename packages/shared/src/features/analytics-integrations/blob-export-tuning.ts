@@ -45,8 +45,10 @@ export const BLOB_EXPORT_TUNING_BOUNDS = {
   maxConcurrentParts: { min: 1, max: 32 },
   maxPartAttempts: { min: 1, max: 10 },
   // ClickHouse `send_timeout` (seconds) applied to the export query. CH's default
-  // is 300s; allow 1s..1h for per-project tuning of long-running exports.
-  chSendTimeout: { min: 1, max: 3600 },
+  // is 300s. Capped at 600s to match the HTTP `request_timeout` default
+  // (LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS, 600_000ms): a larger
+  // send_timeout would be silently defeated by the HTTP-layer timeout first.
+  chSendTimeout: { min: 1, max: 600 },
 } as const;
 
 // Default part size when the column does not specify one. Matches the value
