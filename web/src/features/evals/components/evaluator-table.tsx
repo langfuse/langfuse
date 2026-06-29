@@ -159,8 +159,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     enabled: true,
     registry: searchBarRegistry,
     filterState: queryFilter.explicitFilterState,
+    searchQuery,
     observed: searchBarObserved,
     setFilterState: queryFilter.setFilterState,
+    setSearchQuery,
   });
 
   const { evaluators, rows, totalCount, hasLegacyEvals } =
@@ -501,14 +503,6 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
           filterState={queryFilter.filterState}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibility}
-          searchConfig={{
-            metadataSearchFields: ["Name"],
-            updateQuery: setSearchQuery,
-            currentQuery: searchQuery ?? undefined,
-            tableAllowsFullTextSearch: false,
-            setSearchType: undefined,
-            searchType: undefined,
-          }}
         />
 
         {/* Content area with sidebar and table */}

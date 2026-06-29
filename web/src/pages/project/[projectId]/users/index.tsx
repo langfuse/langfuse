@@ -33,6 +33,10 @@ import {
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/useEnvironmentFilter";
 import { Badge } from "@/src/components/ui/badge";
+import { SearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
+import { useTableSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { createUsersSearchBarRegistry } from "@/src/features/search-bar/lib/registries";
 
 type RowData = {
   userId: string;
@@ -193,6 +197,25 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
     "search",
     withDefault(StringParam, null),
   );
+
+  const searchBarRegistry = useMemo(
+    () => createUsersSearchBarRegistry(usersTableCols),
+    [],
+  );
+  const searchBarObserved = useMemo(
+    () => toObservedOptions({ userId: [] }, false),
+    [],
+  );
+  const { store: searchBarStore, commit: searchBarCommit } = useTableSearchBar({
+    projectId,
+    enabled: true,
+    registry: searchBarRegistry,
+    filterState: userFilterState,
+    searchQuery,
+    observed: searchBarObserved,
+    setFilterState: setUserFilterState,
+    setSearchQuery,
+  });
 
   const usersV3 = api.users.all.useQuery(
     {
@@ -414,6 +437,13 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
 
   return (
     <>
+      <SearchBarRow
+        projectId={projectId}
+        store={searchBarStore}
+        commit={searchBarCommit}
+        observed={searchBarObserved}
+        registry={searchBarRegistry}
+      />
       <DataTableToolbar
         filterColumnDefinition={usersTableCols}
         filterState={userFilterState}
@@ -421,14 +451,6 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
         columns={columns}
         timeRange={timeRange}
         setTimeRange={setTimeRange}
-        searchConfig={{
-          metadataSearchFields: ["User ID"],
-          updateQuery: setSearchQuery,
-          currentQuery: searchQuery ?? undefined,
-          tableAllowsFullTextSearch: false,
-          setSearchType: undefined,
-          searchType: undefined,
-        }}
         environmentFilter={{
           values: selectedEnvironments,
           onValueChange: setSelectedEnvironments,

@@ -7,10 +7,11 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { api } from "@/src/utils/api";
 import { withDefault, useQueryParam, StringParam } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
+  type FilterState,
   TableViewPresetTableName,
   type Prisma,
   type TableViewPresetState,
@@ -42,6 +43,9 @@ import {
 } from "@langfuse/shared";
 import { type TableAction } from "@/src/features/table/types";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { SearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
+import { useTableSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { createDatasetsSearchBarRegistry } from "@/src/features/search-bar/lib/registries";
 
 type DatasetTableRow = {
   id: string;
@@ -177,7 +181,6 @@ function DatasetsTableToolbar({
   setColumnOrder,
   setColumnVisibility,
   setRowHeight,
-  setSearchQuery,
   store,
   totalCount,
   viewControllers,
@@ -195,7 +198,6 @@ function DatasetsTableToolbar({
     typeof useColumnVisibility<DatasetTableRow>
   >[1];
   setRowHeight: ReturnType<typeof useRowHeightLocalStorage>[1];
-  setSearchQuery: (value: string | null | undefined) => void;
   store: DatasetsTableStore;
   totalCount: number | null;
   viewControllers: DatasetTableViewControllers;
@@ -216,14 +218,6 @@ function DatasetsTableToolbar({
       setColumnOrder={setColumnOrder}
       rowHeight={rowHeight}
       setRowHeight={setRowHeight}
-      searchConfig={{
-        metadataSearchFields: ["Name"],
-        updateQuery: setSearchQuery,
-        currentQuery: searchQuery ?? undefined,
-        tableAllowsFullTextSearch: false,
-        setSearchType: undefined,
-        searchType: undefined,
-      }}
       viewConfig={{
         tableName: TableViewPresetTableName.Datasets,
         projectId,
@@ -270,6 +264,24 @@ export function DatasetsTable(props: { projectId: string }) {
     "search",
     withDefault(StringParam, null),
   );
+  const searchBarRegistry = useMemo(
+    () => createDatasetsSearchBarRegistry(),
+    [],
+  );
+  const searchBarFilterState = useMemo<FilterState>(() => [], []);
+  const setSearchBarFilterState = useCallback((_filters: FilterState) => {
+    return;
+  }, []);
+  const { store: searchBarStore, commit: searchBarCommit } = useTableSearchBar({
+    projectId: props.projectId,
+    enabled: true,
+    registry: searchBarRegistry,
+    filterState: searchBarFilterState,
+    searchQuery,
+    observed: undefined,
+    setFilterState: setSearchBarFilterState,
+    setSearchQuery,
+  });
 
   // Reset pagination when search query changes
   useEffect(() => {
@@ -579,6 +591,13 @@ export function DatasetsTable(props: { projectId: string }) {
           navigateToFolder={navigateToFolder}
         />
       )}
+      <SearchBarRow
+        projectId={props.projectId}
+        store={searchBarStore}
+        commit={searchBarCommit}
+        observed={undefined}
+        registry={searchBarRegistry}
+      />
       <DatasetsTableToolbar
         columns={columns}
         columnVisibility={columnVisibility}
@@ -591,7 +610,6 @@ export function DatasetsTable(props: { projectId: string }) {
         paginationState={paginationState}
         projectId={props.projectId}
         searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
         store={datasetsTableStore}
         totalCount={datasets.data?.totalDatasets ?? null}
         viewControllers={viewControllers}

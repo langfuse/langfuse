@@ -1,12 +1,18 @@
 import type { ColumnDefinition } from "@langfuse/shared";
 
 import {
+  createFieldRegistry,
   createFieldRegistryFromColumns,
   type FieldRegistry,
   type ScorePathDef,
 } from "./fields";
 
 const FILTER_ONLY = { enabled: false } as const;
+const NON_EVENTS_FREE_TEXT = {
+  enabled: true,
+  defaultSearchType: [],
+  scopeFields: [],
+} as const;
 
 const sessionScorePaths: ScorePathDef[] = [
   {
@@ -113,7 +119,7 @@ export function createEvaluatorsSearchBarRegistry(
       createdAt: ["created", "created_at"],
     },
     suggestionFieldIds: ["status", "target"],
-    freeText: FILTER_ONLY,
+    freeText: NON_EVENTS_FREE_TEXT,
   });
 }
 
@@ -139,5 +145,31 @@ export function createMonitorsSearchBarRegistry(
     },
     suggestionFieldIds: ["severity", "status", "tags"],
     freeText: FILTER_ONLY,
+  });
+}
+
+export function createUsersSearchBarRegistry(
+  columns: readonly ColumnDefinition[],
+): FieldRegistry {
+  return createFieldRegistryFromColumns("users", columns, {
+    aliases: {
+      timestamp: ["time"],
+      userId: ["user", "userid", "user_id"],
+    },
+    suggestionFieldIds: ["userId"],
+    freeText: NON_EVENTS_FREE_TEXT,
+  });
+}
+
+export function createDatasetsSearchBarRegistry(): FieldRegistry {
+  return createFieldRegistry({
+    id: "datasets",
+    fields: [],
+    columns: [],
+    metadataPrefixes: [],
+    scorePaths: [],
+    suggestionFieldIds: [],
+    hasPseudoField: false,
+    freeText: NON_EVENTS_FREE_TEXT,
   });
 }

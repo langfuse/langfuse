@@ -9,6 +9,10 @@ import {
   resolveField,
 } from "./fields";
 import { filterStateToQueryText } from "./filter-state-to-query";
+import {
+  createDatasetsSearchBarRegistry,
+  createUsersSearchBarRegistry,
+} from "./registries";
 
 const TEST_COLUMNS: ColumnDefinition[] = [
   {
@@ -56,6 +60,22 @@ const TEST_COLUMNS: ColumnDefinition[] = [
     name: "Metadata",
     type: "stringObject",
     internal: "metadata",
+  },
+];
+
+const USER_COLUMNS: ColumnDefinition[] = [
+  {
+    id: "timestamp",
+    name: "Timestamp",
+    type: "datetime",
+    internal: "timestamp",
+  },
+  {
+    id: "userId",
+    name: "User ID",
+    type: "stringOptions",
+    internal: "userId",
+    options: [],
   },
 ];
 
@@ -150,5 +170,34 @@ describe("createFieldRegistryFromColumns", () => {
         searchType: ["id", "content"],
       }).text,
     ).toBe("");
+  });
+});
+
+describe("non-events search bar registries", () => {
+  it("routes users free text into the table search query", () => {
+    const registry = createUsersSearchBarRegistry(USER_COLUMNS);
+    const result = planCommit("alice", { registry });
+
+    expect(result.status).toBe("committed");
+    if (result.status !== "committed") return;
+    expect(result.filters).toEqual([]);
+    expect(result.searchQuery).toBe("alice");
+    expect(result.searchType).toEqual([]);
+  });
+
+  it("keeps datasets free-text only", () => {
+    const registry = createDatasetsSearchBarRegistry();
+    const result = planCommit("dataset name", { registry });
+
+    expect(result.status).toBe("committed");
+    if (result.status !== "committed") return;
+    expect(result.filters).toEqual([]);
+    expect(result.searchQuery).toBe("dataset name");
+    expect(result.searchType).toEqual([]);
+
+    expect(planCommit("name:dataset", { registry }).status).toBe("invalid");
+    expect(
+      filterStateToQueryText([], { registry, searchQuery: "dataset" }).text,
+    ).toBe("dataset");
   });
 });

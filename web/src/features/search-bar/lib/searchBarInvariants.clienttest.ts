@@ -4,12 +4,14 @@ import type { ColumnDefinition } from "@langfuse/shared";
 
 import { eventsSearchBarRegistry } from "./fields";
 import {
+  createDatasetsSearchBarRegistry,
   createEvalLogsSearchBarRegistry,
   createEvaluatorsSearchBarRegistry,
   createExperimentsSearchBarRegistry,
   createMonitorsSearchBarRegistry,
   createScoresSearchBarRegistry,
   createSessionsSearchBarRegistry,
+  createUsersSearchBarRegistry,
 } from "./registries";
 import {
   generateQueryCases,
@@ -85,6 +87,17 @@ const filterOnlyFieldValues = [
   "2026-06-01",
   "true",
   "a b",
+];
+
+const nonEventsFreeTextValues = [
+  "hello",
+  "user search",
+  "or",
+  "not",
+  "!important",
+  "-foo",
+  "key:value",
+  'has "quote"',
 ];
 
 const SESSION_COLUMNS: ColumnDefinition[] = [
@@ -414,6 +427,22 @@ const MONITOR_COLUMNS: ColumnDefinition[] = [
   },
 ];
 
+const USER_COLUMNS: ColumnDefinition[] = [
+  {
+    name: "Timestamp",
+    id: "timestamp",
+    type: "datetime",
+    internal: "timestamp",
+  },
+  {
+    name: "User ID",
+    id: "userId",
+    type: "stringOptions",
+    internal: "userId",
+    options: [],
+  },
+];
+
 const sessionsView: RegistryUnderTest = {
   name: "sessions v4",
   registry: createSessionsSearchBarRegistry(SESSION_COLUMNS),
@@ -478,7 +507,7 @@ const evaluatorsView: RegistryUnderTest = {
   extraKeys: ["has:updatedAt"],
   scoreContexts: [],
   fieldValues: filterOnlyFieldValues,
-  freeTextValues: [],
+  freeTextValues: nonEventsFreeTextValues,
 };
 
 const evalLogsView: RegistryUnderTest = {
@@ -497,6 +526,24 @@ const monitorsView: RegistryUnderTest = {
   scoreContexts: [],
   fieldValues: filterOnlyFieldValues,
   freeTextValues: [],
+};
+
+const usersView: RegistryUnderTest = {
+  name: "users",
+  registry: createUsersSearchBarRegistry(USER_COLUMNS),
+  extraKeys: [],
+  scoreContexts: [],
+  fieldValues: filterOnlyFieldValues,
+  freeTextValues: nonEventsFreeTextValues,
+};
+
+const datasetsView: RegistryUnderTest = {
+  name: "datasets",
+  registry: createDatasetsSearchBarRegistry(),
+  extraKeys: [],
+  scoreContexts: [],
+  fieldValues: [],
+  freeTextValues: nonEventsFreeTextValues,
 };
 
 function expectNoInvariantFailures(view: RegistryUnderTest) {
@@ -534,6 +581,7 @@ describe.each([
   evaluatorsView,
   evalLogsView,
   monitorsView,
+  usersView,
 ])("search bar invariants - $name registry", (view) => {
   it("generates a non-empty field × operator × value matrix", () => {
     expect(generateQueryCases(view).length).toBeGreaterThan(0);
@@ -541,5 +589,15 @@ describe.each([
 
   it("holds registry invariants", () => {
     expectNoInvariantFailures(view);
+  });
+});
+
+describe("search bar invariants - datasets registry", () => {
+  it("has no field filter matrix because datasets is free-text only", () => {
+    expect(generateQueryCases(datasetsView)).toEqual([]);
+  });
+
+  it("holds free-text registry invariants", () => {
+    expectNoInvariantFailures(datasetsView);
   });
 });
