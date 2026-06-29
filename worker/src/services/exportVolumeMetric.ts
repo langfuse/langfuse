@@ -2,11 +2,16 @@ import { recordIncrement } from "@langfuse/shared/src/server";
 
 export const EXPORT_VOLUME_METRIC = "langfuse.export.serialized_bytes";
 
-export type ExportIntegration = "blob_storage" | "posthog" | "mixpanel";
+export type ExportIntegration =
+  | "blob_storage"
+  | "posthog"
+  | "mixpanel"
+  | "llmaj";
 
 type ExportVolume = {
   integration: ExportIntegration;
-  // Gzipped on-wire bytes the integration shipped this run.
+  // On-wire egress bytes shipped this run: gzipped for blob/posthog/mixpanel,
+  // uncompressed for llmaj (LLM requests aren't gzipped).
   bytes: number;
   projectId: string;
   // Egress-cost classification; blob only (S3 / S3_COMPATIBLE / AZURE_*).
