@@ -5,13 +5,16 @@ import { env } from "@/src/env.mjs";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { PlusIcon } from "lucide-react";
 
-export const LangfuseIcon = ({
-  size = 32,
-  className,
-}: {
+type LangfuseIconProps = {
   size?: number;
-  className?: string;
-}) => (
+  className?:
+    | "h-8 w-8"
+    | "hidden scale-120 group-data-[collapsible=icon]:block"
+    | "mx-auto motion-safe:animate-spin"
+    | "mx-auto";
+};
+
+export const LangfuseIcon = ({ size = 32, className }: LangfuseIconProps) => (
   // eslint-disable-next-line @next/next/no-img-element
   <img
     src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/icon.svg`}
