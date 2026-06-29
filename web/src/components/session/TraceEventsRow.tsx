@@ -13,6 +13,37 @@ import { type FilterState } from "@langfuse/shared";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { IOPreview } from "@/src/components/trace/components/IOPreview/IOPreview";
 import { api } from "@/src/utils/api";
+import { Button } from "@/src/components/ui/button";
+import { FilterX } from "lucide-react";
+
+// PROTOTYPE (LFE-10520): per-card "show all" escape hatch re-queries this
+// trace with no per-item filter so the real observations render. Module-level
+// so the empty-filter array keeps a stable identity across renders.
+const SHOW_ALL_FILTER: FilterState = [];
+
+/**
+ * PROTOTYPE (LFE-10520) — replaces the silent
+ * "No observations match the current filter." empty state. When the session
+ * view's per-item filter (by default "first generation in trace") matches
+ * nothing in a trace, this makes the reason explicit and offers a one-click
+ * fallback to render the trace's real observations instead of an empty card.
+ */
+const FilteredOutNotice = ({ onShowAll }: { onShowAll: () => void }) => (
+  <div className="border-destructive/40 bg-destructive/5 flex flex-col items-start gap-2 rounded-md border border-dashed p-3">
+    <div className="text-destructive flex items-center gap-2 text-xs font-medium">
+      <FilterX className="h-3.5 w-3.5 shrink-0" />
+      No observation here matches the current view filter
+    </div>
+    <p className="text-muted-foreground text-xs">
+      This view shows a filtered slice of each trace (by default, the first
+      generation). This trace has no matching observation, so its content is
+      hidden — not missing.
+    </p>
+    <Button variant="secondary" size="sm" onClick={onShowAll}>
+      Show all observations
+    </Button>
+  </div>
+);
 
 export const TraceEventsSkeleton = () => {
   return (
@@ -70,13 +101,15 @@ export const TraceEventsRow = React.memo(
     filterState: FilterState;
     hideTracePanel?: boolean;
   }) => {
+    // PROTOTYPE (LFE-10520): per-card escape hatch from the view filter.
+    const [showAll, setShowAll] = React.useState(false);
     const observationsQuery =
       api.sessions.observationsForTraceFromEvents.useQuery(
         {
           projectId,
           sessionId,
           traceId: trace.id,
-          filter: filterState,
+          filter: showAll ? SHOW_ALL_FILTER : filterState,
         },
         {
           enabled: typeof trace.id === "string",
@@ -84,6 +117,7 @@ export const TraceEventsRow = React.memo(
           staleTime: 60 * 1000,
         },
       );
+    const hasActiveFilter = filterState.length > 0;
 
     return (
       <Card className="border-border shadow-none">
@@ -103,6 +137,20 @@ export const TraceEventsRow = React.memo(
               </div>
             ) : observationsQuery.data && observationsQuery.data.length > 0 ? (
               <div className="flex flex-col gap-4">
+                {showAll && hasActiveFilter && (
+                  <div className="text-muted-foreground flex items-center justify-between gap-2 text-xs">
+                    <span>
+                      Showing all observations (ignoring the view filter).
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => setShowAll(false)}
+                    >
+                      Back to filtered view
+                    </Button>
+                  </div>
+                )}
                 {observationsQuery.data.map((observation) => (
                   <div key={observation.id} className="flex flex-col gap-2">
                     <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
@@ -142,9 +190,11 @@ export const TraceEventsRow = React.memo(
                   </div>
                 ))}
               </div>
+            ) : hasActiveFilter && !showAll ? (
+              <FilteredOutNotice onShowAll={() => setShowAll(true)} />
             ) : (
               <div className="text-muted-foreground p-2 text-xs">
-                No observations match the current filter.
+                This trace has no observations.
               </div>
             )}
           </div>
