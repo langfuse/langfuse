@@ -6,7 +6,7 @@ import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCust
 import { PlusIcon } from "lucide-react";
 
 type LangfuseIconProps = {
-  size?: number;
+  size?: 14 | 16 | 28 | 32 | 42;
   className?:
     | "h-8 w-8"
     | "hidden scale-120 group-data-[collapsible=icon]:block"
