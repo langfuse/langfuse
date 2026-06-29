@@ -24,14 +24,16 @@ export interface TimelineMetrics {
 
 /**
  * Props for TimelineBar component
- * Renders individual Gantt bar with metrics and badges
+ * Renders the gantt bar (duration) plus a trailing metric label, positioned on
+ * the time axis. Hierarchy/identity (badge, name, connectors) lives in the
+ * gutter (TimelineGutterRow), not here.
  */
 export interface TimelineBarProps {
   node: TreeNode;
   metrics: TimelineMetrics;
   isSelected: boolean;
-  onSelect: () => void;
-  onHover?: () => void;
+  /** Row is hovered (driven by shared state so the whole row highlights). */
+  isHovered?: boolean;
   // View preferences
   showDuration: boolean;
   showCostTokens: boolean;
@@ -61,29 +63,20 @@ export interface FlatTimelineItem {
 }
 
 /**
- * Props for TimelineRow component
- * Renders tree structure + timeline bar
+ * Props for TimelineGutterRow component
+ * Renders the left gutter: tree connectors + icon + name (the depth coordinate).
+ * Identity only — time/metrics live on the bar (TimelineBar) in the chart pane.
  */
-export interface TimelineRowProps {
+export interface TimelineGutterRowProps {
   item: FlatTimelineItem;
   isSelected: boolean;
+  /** Row is hovered (shared state so the gutter + chart highlight together). */
+  isHovered?: boolean;
   onSelect: () => void;
   onHover?: () => void;
   onToggleCollapse: () => void;
   hasChildren: boolean;
   isCollapsed: boolean;
-  // View preferences
-  showDuration: boolean;
-  showCostTokens: boolean;
-  showScores: boolean;
-  showComments: boolean;
-  colorCodeMetrics: boolean;
-  // Heatmap context
-  parentTotalCost?: Decimal;
-  parentTotalDuration?: number;
-  // Optional data
-  commentCount?: number;
-  scores?: WithStringifiedMetadata<ScoreDomain>[];
 }
 
 /**
