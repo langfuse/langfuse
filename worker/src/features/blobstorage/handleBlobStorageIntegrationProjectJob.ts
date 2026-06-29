@@ -1350,9 +1350,11 @@ export const handleBlobStorageIntegrationProjectJob = async (
     const disableForCustomerFault =
       isFinalAttempt && isCustomerFaultError(error);
 
-    // Set only after the disable actually persists, so the "disabled" email
-    // (which bypasses the cooldown) never claims a state we failed to write —
-    // e.g. if the update throws on a concurrent row delete.
+    // True only for the worker that actually flips enabled true→false, so the
+    // "disabled" email (which bypasses the cooldown) is sent exactly once and
+    // never claims a state we failed to write. The atomic claim also dedups
+    // concurrent terminal failures — e.g. a scheduled run racing a manual Run
+    // Now across pods, which have distinct jobIds and so aren't queue-deduped.
     let persistedDisable = false;
     try {
       await prisma.blobStorageIntegration.update({
@@ -1361,14 +1363,19 @@ export const handleBlobStorageIntegrationProjectJob = async (
           lastError: errorMessage,
           lastErrorAt: new Date(),
           runStartedAt: null,
-          ...(disableForCustomerFault ? { enabled: false } : {}),
         },
       });
-      persistedDisable = disableForCustomerFault;
-      if (persistedDisable) {
-        logger.warn(
-          `[BLOB INTEGRATION] Disabled blob storage integration for project ${projectId} after a customer-config/credential failure: ${errorMessage}`,
-        );
+      if (disableForCustomerFault) {
+        const { count } = await prisma.blobStorageIntegration.updateMany({
+          where: { projectId, enabled: true },
+          data: { enabled: false },
+        });
+        persistedDisable = count === 1;
+        if (persistedDisable) {
+          logger.warn(
+            `[BLOB INTEGRATION] Disabled blob storage integration for project ${projectId} after a customer-config/credential failure: ${errorMessage}`,
+          );
+        }
       }
     } catch (persistError) {
       logger.error(
