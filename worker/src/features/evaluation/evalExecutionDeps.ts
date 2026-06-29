@@ -203,10 +203,9 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         typeof fetchLLMCompletion
       >[0]["modelParams"]["adapter"];
 
-      // Record llmaj egress: the request body sent to the model provider is the
+      // llmaj egress: the request body sent to the model provider is the
       // serialized messages (the bulk) plus the structured-output schema. LLM
       // requests are not gzipped, so this uncompressed size ≈ on-wire bytes.
-      // Measured once per send; retries (maxRetries below) are not counted.
       const bytes =
         Buffer.byteLength(JSON.stringify(params.messages), "utf8") +
         (params.structuredOutputSchema
@@ -215,13 +214,8 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
               "utf8",
             )
           : 0);
-      recordExportVolume({
-        integration: "llmaj",
-        bytes,
-        projectId: params.traceSinkParams.targetProjectId,
-      });
 
-      return fetchLLMCompletion({
+      const result = await fetchLLMCompletion({
         streaming: false,
         llmConnection,
         messages: params.messages,
@@ -242,6 +236,17 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
           eventsWriter: createInternalEventsWriter(),
         },
       });
+
+      // Record only after a successful send, matching the "bytes shipped this
+      // run" contract and the other integrations (which report post-upload).
+      // Retries (maxRetries above) are not separately counted.
+      recordExportVolume({
+        integration: "llmaj",
+        bytes,
+        projectId: params.traceSinkParams.targetProjectId,
+      });
+
+      return result;
     },
 
     fetchModelConfig: async ({ projectId, provider, model, modelParams }) => {
