@@ -2,6 +2,7 @@ import {
   type DataPoint,
   type FormatMetricOptions,
   type FormattedMetric,
+  type LegendSummaryMode,
 } from "./chart-props";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { compactNumberFormatter, numberFormatter } from "@/src/utils/numbers";
@@ -47,42 +48,79 @@ export const getUniqueDimensions = (data: DataPoint[]) => {
   return Array.from(uniqueDimensions);
 };
 
+/** Reduces a series' finite metric values (in time order) to a single summary number. */
+const summarizeSeries = (
+  values: number[],
+  mode: Exclude<LegendSummaryMode, "none">,
+): number | null => {
+  if (values.length === 0) return null;
+
+  switch (mode) {
+    case "sum":
+      return values.reduce((acc, value) => acc + value, 0);
+    case "avg":
+      return values.reduce((acc, value) => acc + value, 0) / values.length;
+    case "last":
+      return values[values.length - 1];
+    case "median": {
+      const sorted = [...values].sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      return sorted.length % 2 === 0
+        ? (sorted[mid - 1] + sorted[mid]) / 2
+        : sorted[mid];
+    }
+  }
+};
+
 /**
- * Computes a per-dimension summary value (the sum of a series' numeric metric
- * values) for use in chart legends. Intended for additive metrics only (event
- * counts, token totals, cost); callers gate this behind `legendSummary="sum"`.
+ * Computes a per-dimension summary value for use in chart legends, under the
+ * given {@link LegendSummaryMode}:
+ * - `"sum"`: additive total — for event counts, token totals, cost. Reconciles
+ *   with the card's headline number.
+ * - `"avg"` / `"median"`: central tendency — for non-additive metrics where a
+ *   sum is meaningless (scores, latencies). NOTE: computed over the buckets the
+ *   series actually carries; if the upstream pipeline pads missing buckets with
+ *   real `0`s, the mean/median is pulled toward `0` (the LFE-10498 caveat). Pick
+ *   the mode per metric with that in mind.
+ * - `"last"`: the most recent bucket's value (array order is time-ascending) —
+ *   a good fit for "current" gauges like a latency percentile.
  *
- * The null/0 handling is deliberate and is the crux of LFE-10498: a `0` is a
- * REAL value, so a series whose data points sum to `0` keeps its `0` summary.
- * A series with no real data point (no finite numeric metric anywhere) is
- * reported as `null` so the legend can omit a misleading number rather than
- * inventing a `0`. Non-finite values (NaN/Infinity) and the histogram tuple
- * shape are ignored.
+ * The null/0 handling is the crux of LFE-10498: a `0` is a REAL value, so a
+ * series whose finite values reduce to `0` keeps its `0` summary. A series with
+ * no real data point (no finite numeric metric anywhere) is reported as `null`
+ * so the legend omits a misleading number rather than inventing one. Non-finite
+ * values (NaN/Infinity) and the histogram tuple shape are ignored; rows without
+ * a dimension are skipped.
  *
  * @returns a Map keyed by dimension; value is the numeric summary or `null`
  *   when the series has no data.
  */
 export const getDimensionSummaries = (
   data: DataPoint[],
+  mode: Exclude<LegendSummaryMode, "none"> = "sum",
 ): Map<string, number | null> => {
-  const summaries = new Map<string, number | null>();
+  // Collect finite metric values per dimension, preserving array (time) order
+  // so `"last"` resolves to the most recent bucket.
+  const valuesByDimension = new Map<string, number[]>();
 
   for (const item of data) {
     if (!item.dimension) continue;
 
-    const existing = summaries.has(item.dimension)
-      ? summaries.get(item.dimension)!
-      : null;
+    // Touch the key so a dimension that only ever carries non-finite values
+    // (or the histogram tuple shape) still appears, summarized as `null`.
+    if (!valuesByDimension.has(item.dimension)) {
+      valuesByDimension.set(item.dimension, []);
+    }
 
     const metric = item.metric;
-    const hasValue = typeof metric === "number" && Number.isFinite(metric);
-
-    if (hasValue) {
-      summaries.set(item.dimension, (existing ?? 0) + metric);
-    } else if (!summaries.has(item.dimension)) {
-      // Track the dimension so it still appears, but without a value yet.
-      summaries.set(item.dimension, null);
+    if (typeof metric === "number" && Number.isFinite(metric)) {
+      valuesByDimension.get(item.dimension)!.push(metric);
     }
+  }
+
+  const summaries = new Map<string, number | null>();
+  for (const [dimension, values] of valuesByDimension) {
+    summaries.set(dimension, summarizeSeries(values, mode));
   }
 
   return summaries;

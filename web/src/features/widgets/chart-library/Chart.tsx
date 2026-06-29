@@ -5,6 +5,7 @@ import {
   type DataPoint,
   type ChartThreshold,
   type LegendSummaryMode,
+  type LegendInteraction,
 } from "@/src/features/widgets/chart-library/chart-props";
 import { formatMetric } from "@/src/features/widgets/chart-library/utils";
 import { CardContent } from "@/src/components/ui/card";
@@ -39,6 +40,8 @@ export const Chart = ({
   isLoading = false,
   legendPosition,
   legendSummary,
+  legendInteraction,
+  maxVisibleSeries,
   overrideWarning = false,
   metricFormatter: metricFormatterOverride,
   thresholds,
@@ -65,6 +68,8 @@ export const Chart = ({
   isLoading?: boolean;
   legendPosition?: "above" | "none";
   legendSummary?: LegendSummaryMode;
+  legendInteraction?: LegendInteraction;
+  maxVisibleSeries?: number;
   overrideWarning?: boolean;
   metricFormatter?: MetricFormatterFunction;
   thresholds?: ChartThreshold[];
@@ -143,6 +148,8 @@ export const Chart = ({
             metricFormatter={metricFormatter}
             legendPosition={legendPosition}
             legendSummary={legendSummary}
+            legendInteraction={legendInteraction}
+            maxVisibleSeries={maxVisibleSeries}
             showDataPointDots={chartConfig?.show_data_point_dots ?? true}
             thresholds={thresholds}
           />
@@ -155,6 +162,8 @@ export const Chart = ({
             metricFormatter={metricFormatter}
             legendPosition={legendPosition}
             legendSummary={legendSummary}
+            legendInteraction={legendInteraction}
+            maxVisibleSeries={maxVisibleSeries}
             subtleFill={chartConfig?.subtle_fill}
           />
         );
@@ -164,6 +173,10 @@ export const Chart = ({
             data={renderedData}
             config={resolvedConfig}
             metricFormatter={metricFormatter}
+            legendPosition={legendPosition}
+            legendSummary={legendSummary}
+            legendInteraction={legendInteraction}
+            maxVisibleSeries={maxVisibleSeries}
             subtleFill={chartConfig?.subtle_fill}
           />
         );

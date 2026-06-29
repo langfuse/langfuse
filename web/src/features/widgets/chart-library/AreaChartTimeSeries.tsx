@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import {
   ChartActiveReferenceLine,
   ChartContainer,
@@ -9,12 +9,15 @@ import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
   formatMetric,
-  getDimensionSummaries,
   getUniqueDimensions,
   groupDataByTimeDimension,
   toFullMetricString,
 } from "@/src/features/widgets/chart-library/utils";
-import { cn } from "@/src/utils/tailwind";
+import {
+  seriesColor,
+  TimeSeriesLegend,
+  useSeriesLegend,
+} from "@/src/features/widgets/chart-library/TimeSeriesLegend";
 
 export const AreaChartTimeSeries: React.FC<ChartProps> = ({
   data,
@@ -30,71 +33,33 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
   metricFormatter = (value, options) => formatMetric(value, options),
   legendPosition = "none",
   legendSummary = "none",
+  legendInteraction = "highlight",
+  maxVisibleSeries,
   subtleFill = false,
 }) => {
-  const [highlightedDimension, setHighlightedDimension] = useState<
-    string | null
-  >(null);
-
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
-  const dimensionSummaries = useMemo(
-    () => (legendSummary === "none" ? null : getDimensionSummaries(data)),
-    [data, legendSummary],
-  );
+
+  const { legendItems, onLegendClick, isRendered, isDimmed } = useSeriesLegend({
+    data,
+    dimensions,
+    legendSummary,
+    legendInteraction,
+    maxVisibleSeries,
+  });
 
   const tooltipFormatter = (value: number) =>
     toFullMetricString(metricFormatter(value, { style: "compact" }));
 
-  const handleLegendClick = (dimension: string) => {
-    setHighlightedDimension((prev) => (prev === dimension ? null : dimension));
-  };
-
   return (
     <div className="flex h-full w-full min-w-0 flex-col">
-      {legendPosition === "above" && dimensions.length > 0 && (
-        <div className="min-w-0 shrink-0 overflow-x-auto overflow-y-hidden pb-3">
-          <div className="flex w-max min-w-full flex-nowrap justify-end gap-4">
-            {dimensions.map((dimension, index) => {
-              const isHighlighted =
-                highlightedDimension === null ||
-                highlightedDimension === dimension;
-              const isMuted = highlightedDimension !== null && !isHighlighted;
-              // A `0` summary is a real value and must be shown; only a `null`
-              // summary (series with no data) is omitted. (LFE-10498)
-              const summary = dimensionSummaries?.get(dimension) ?? null;
-              return (
-                <button
-                  key={dimension}
-                  type="button"
-                  onClick={() => handleLegendClick(dimension)}
-                  className={cn(
-                    "flex shrink-0 items-center gap-1.5 text-xs whitespace-nowrap transition-opacity",
-                    "cursor-pointer hover:opacity-80",
-                    isMuted && "opacity-40",
-                  )}
-                  aria-pressed={isHighlighted}
-                  aria-label={
-                    isHighlighted ? `Show only ${dimension}` : "Show all series"
-                  }
-                >
-                  <div
-                    className="h-2 w-2 shrink-0 rounded-[2px]"
-                    style={{
-                      backgroundColor: `hsl(var(--chart-${(index % 8) + 1}))`,
-                    }}
-                  />
-                  <span className="text-muted-foreground">{dimension}</span>
-                  {summary !== null && (
-                    <span className="text-foreground font-medium">
-                      {tooltipFormatter(summary)}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+      {legendPosition === "above" && (
+        <TimeSeriesLegend
+          items={legendItems}
+          interaction={legendInteraction}
+          onItemClick={onLegendClick}
+          formatSummary={tooltipFormatter}
+        />
       )}
       <ChartContainer config={config} className="min-h-0 flex-1">
         <AreaChart accessibilityLayer={accessibilityLayer} data={groupedData}>
@@ -118,20 +83,20 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
             tickFormatter={(value) => tooltipFormatter(Number(value))}
           />
           {dimensions.map((dimension, index) => {
-            const isMuted =
-              highlightedDimension !== null &&
-              highlightedDimension !== dimension;
+            if (!isRendered(dimension)) return null;
+            const muted = isDimmed(dimension);
             return (
               <Area
                 key={dimension}
                 type="monotone"
                 dataKey={dimension}
-                stroke={`hsl(var(--chart-${(index % 8) + 1}))`}
-                fill={`hsl(var(--chart-${(index % 8) + 1}))`}
-                fillOpacity={isMuted ? 0.15 : subtleFill ? 0.3 : 0.75}
+                stroke={seriesColor(index)}
+                fill={seriesColor(index)}
+                fillOpacity={muted ? 0.15 : subtleFill ? 0.3 : 0.75}
                 strokeWidth={2.5}
-                strokeOpacity={isMuted ? 0.2 : 1}
+                strokeOpacity={muted ? 0.2 : 1}
                 connectNulls
+                isAnimationActive={false}
               />
             );
           })}

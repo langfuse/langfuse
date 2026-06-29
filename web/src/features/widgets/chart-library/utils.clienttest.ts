@@ -258,4 +258,46 @@ describe("getDimensionSummaries", () => {
     expect(summaries.has("")).toBe(false);
     expect(summaries.get("histo")).toBeNull();
   });
+
+  const series = [
+    point("t1", "svc", 10),
+    point("t2", "svc", 20),
+    point("t3", "svc", 60),
+  ];
+
+  it("averages finite values per series under avg mode", () => {
+    const summaries = getDimensionSummaries(series, "avg");
+    expect(summaries.get("svc")).toBe(30);
+  });
+
+  it("returns the median value under median mode (odd and even counts)", () => {
+    expect(getDimensionSummaries(series, "median").get("svc")).toBe(20);
+
+    const evenSeries = [
+      point("t1", "svc", 10),
+      point("t2", "svc", 20),
+      point("t3", "svc", 30),
+      point("t4", "svc", 40),
+    ];
+    expect(getDimensionSummaries(evenSeries, "median").get("svc")).toBe(25);
+  });
+
+  it("returns the most recent (array-order) finite value under last mode", () => {
+    expect(getDimensionSummaries(series, "last").get("svc")).toBe(60);
+
+    // A trailing non-finite bucket must not become the "last" value.
+    const withTrailingGap = [
+      point("t1", "svc", 5),
+      point("t2", "svc", 7),
+      point("t3", "svc", NaN),
+    ];
+    expect(getDimensionSummaries(withTrailingGap, "last").get("svc")).toBe(7);
+  });
+
+  it("reports null for a no-data series under every non-additive mode", () => {
+    const empty = [point("t1", "svc", NaN), point("t2", "svc", Infinity)];
+    expect(getDimensionSummaries(empty, "avg").get("svc")).toBeNull();
+    expect(getDimensionSummaries(empty, "median").get("svc")).toBeNull();
+    expect(getDimensionSummaries(empty, "last").get("svc")).toBeNull();
+  });
 });
