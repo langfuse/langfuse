@@ -22,11 +22,11 @@ import {
 } from "@/src/features/widgets/chart-library/chart-props";
 import {
   formatMetric,
-  getEvenTickInterval,
   getUniqueDimensions,
   groupDataByTimeDimension,
   toFullMetricString,
 } from "@/src/features/widgets/chart-library/utils";
+import { useResponsiveTickInterval } from "@/src/features/widgets/chart-library/useResponsiveTickInterval";
 import {
   seriesColor,
   TimeSeriesLegend,
@@ -195,7 +195,8 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
 
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
-  const xTickInterval = getEvenTickInterval(groupedData.length);
+  const { ref: containerRef, interval: xTickInterval } =
+    useResponsiveTickInterval(groupedData.length);
 
   const {
     legendItems,
@@ -228,6 +229,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
 
   return (
     <div
+      ref={containerRef}
       className="flex size-full min-w-0 flex-col"
       onMouseEnter={() => setSelfHovered(true)}
       onMouseLeave={() => setSelfHovered(false)}
@@ -298,17 +300,21 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
           <ChartTooltip
             allowEscapeViewBox={{ x: true, y: true }}
             contentStyle={{ backgroundColor: "hsl(var(--background))" }}
-            content={({ active, payload, label }) => (
-              <ChartTooltipContent
-                active={active}
-                payload={payload}
-                label={label}
-                indicator="line"
-                valueFormatter={tooltipFormatter}
-                sortPayloadByValue="desc"
-                highlightedKeys={proximityActive ? nearestSet : undefined}
-              />
-            )}
+            content={({ active, payload, label }) =>
+              // Synced sibling charts share the crosshair (above) but the
+              // tooltip belongs only to the chart under the cursor. (LFE-10549)
+              selfHovered ? (
+                <ChartTooltipContent
+                  active={active}
+                  payload={payload}
+                  label={label}
+                  indicator="line"
+                  valueFormatter={tooltipFormatter}
+                  sortPayloadByValue="desc"
+                  highlightedKeys={proximityActive ? nearestSet : undefined}
+                />
+              ) : null
+            }
           />
           <NearestSeriesProbe
             dimensions={dimensions}

@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ChartActiveReferenceLine,
   ChartContainer,
@@ -9,11 +9,11 @@ import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
   formatMetric,
-  getEvenTickInterval,
   getUniqueDimensions,
   groupDataByTimeDimension,
   toFullMetricString,
 } from "@/src/features/widgets/chart-library/utils";
+import { useResponsiveTickInterval } from "@/src/features/widgets/chart-library/useResponsiveTickInterval";
 import {
   seriesColor,
   TimeSeriesLegend,
@@ -39,9 +39,11 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
   syncId,
   subtleFill = false,
 }) => {
+  const [selfHovered, setSelfHovered] = useState(false);
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
-  const xTickInterval = getEvenTickInterval(groupedData.length);
+  const { ref: containerRef, interval: xTickInterval } =
+    useResponsiveTickInterval(groupedData.length);
 
   const { legendItems, onLegendClick, isRendered, isDimmed } = useSeriesLegend({
     data,
@@ -55,7 +57,12 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
     toFullMetricString(metricFormatter(value, { style: "compact" }));
 
   return (
-    <div className="flex h-full w-full min-w-0 flex-col">
+    <div
+      ref={containerRef}
+      className="flex h-full w-full min-w-0 flex-col"
+      onMouseEnter={() => setSelfHovered(true)}
+      onMouseLeave={() => setSelfHovered(false)}
+    >
       {legendPosition === "above" && (
         <TimeSeriesLegend
           items={legendItems}
@@ -111,16 +118,20 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
           <ChartTooltip
             allowEscapeViewBox={{ x: true, y: true }}
             contentStyle={{ backgroundColor: "hsl(var(--background))" }}
-            content={({ active, payload, label }) => (
-              <ChartTooltipContent
-                active={active}
-                payload={payload}
-                label={label}
-                indicator="line"
-                valueFormatter={tooltipFormatter}
-                sortPayloadByValue="desc"
-              />
-            )}
+            content={({ active, payload, label }) =>
+              // Synced siblings show only the crosshair; the tooltip is the
+              // hovered chart's. (LFE-10549)
+              selfHovered ? (
+                <ChartTooltipContent
+                  active={active}
+                  payload={payload}
+                  label={label}
+                  indicator="line"
+                  valueFormatter={tooltipFormatter}
+                  sortPayloadByValue="desc"
+                />
+              ) : null
+            }
           />
         </AreaChart>
       </ChartContainer>
