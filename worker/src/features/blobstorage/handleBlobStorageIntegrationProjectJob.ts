@@ -43,6 +43,7 @@ import {
 import {
   BlobExportAbortTracker,
   classifyBlobExportError,
+  errorChainText,
 } from "./abortClassification";
 import { isSigtermReceived } from "../health";
 import { TimedGzip, ZLIB_DEFAULT_LEVEL, type GzipStats } from "./gzipStream";
@@ -974,7 +975,8 @@ const processBlobStorageExport = async (config: {
           }
         }
       } catch (error) {
-        // A graceful SIGTERM in flight reclassifies the teardown as shutdown.
+        // On SIGTERM, add a concrete shutdown record. It wins origin() only when
+        // no earlier concrete fault (e.g. a real CH exception) was recorded.
         if (isSigtermReceived()) {
           abortTracker.record("shutdown", error);
         }
@@ -1389,7 +1391,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
     notifyBlobStorageExportFailedInBackground(projectId);
 
-    const chain = formatErrorChain(error);
+    const chain = errorChainText(error);
     logger.error(
       `[BLOB INTEGRATION] Error processing blob storage integration for project ${projectId}: ${chain}`,
       error instanceof Error ? { stack: error.stack } : {},
@@ -1506,15 +1508,4 @@ function extractStorageErrorMessage(error: unknown): string {
 
   const full = details ? `${message} Details: ${details}` : message;
   return full.slice(0, 1000);
-}
-
-function formatErrorChain(error: unknown): string {
-  if (!(error instanceof Error)) return String(error);
-  const parts: string[] = [];
-  let current: unknown = error;
-  while (current instanceof Error) {
-    parts.push(current.message);
-    current = current.cause;
-  }
-  return parts.join(" caused by ");
 }
