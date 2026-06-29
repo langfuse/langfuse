@@ -29,7 +29,7 @@ const DEFAULT_METRIC_THEME = {
   dark: "hsl(var(--chart-1))",
 } as const;
 
-export const Chart = ({
+const ChartComponent = ({
   chartType,
   data,
   rowLimit,
@@ -287,3 +287,11 @@ export const Chart = ({
     </CardContent>
   );
 };
+
+/**
+ * Memoized so a parent re-render (e.g. the dashboard query scheduler bumping its
+ * version during load) doesn't reconcile the recharts subtree when the chart's
+ * inputs are unchanged. Effective only when callers pass stable `data`/`config`
+ * references — the dashboard time-series consumers memoize those. (LFE-10549)
+ */
+export const Chart = React.memo(ChartComponent);
