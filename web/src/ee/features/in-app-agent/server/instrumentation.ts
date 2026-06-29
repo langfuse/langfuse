@@ -428,6 +428,7 @@ export class InAppAgentInstrumentation {
       name: string;
       startTime: Date;
       args: string;
+      argsComplete: boolean;
       output?: unknown;
       parentMessageId?: string;
     },
@@ -457,6 +458,7 @@ export class InAppAgentInstrumentation {
       metadata: {
         ...(options?.metadata ?? {}),
         toolCallId,
+        ...(tool.argsComplete ? {} : { argsComplete: false }),
         ...(tool.parentMessageId
           ? { parentMessageId: tool.parentMessageId }
           : {}),

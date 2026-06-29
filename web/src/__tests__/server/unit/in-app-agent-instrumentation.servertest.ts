@@ -205,7 +205,7 @@ describe("InAppAgentInstrumentation", () => {
     const toolCall = {
       id: "tool-1",
       name: "getTrace",
-      arguments: '{"traceId":"trace-1"}',
+      arguments: '{"traceId":',
       type: "function",
     };
 
@@ -218,7 +218,7 @@ describe("InAppAgentInstrumentation", () => {
       {
         type: EventType.TOOL_CALL_ARGS,
         toolCallId: "tool-1",
-        delta: '{"traceId":"trace-1"}',
+        delta: '{"traceId":',
       },
     ]);
     instrumentation.endWithError(new Error("agent failed"));
@@ -226,10 +226,13 @@ describe("InAppAgentInstrumentation", () => {
     expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
       "tool-create",
       expect.objectContaining({
-        input: { traceId: "trace-1" },
+        input: '{"traceId":',
         level: "ERROR",
         statusMessage: "agent failed",
-        metadata: expect.objectContaining({ error: "agent failed" }),
+        metadata: expect.objectContaining({
+          argsComplete: false,
+          error: "agent failed",
+        }),
       }),
     );
     expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
