@@ -48,4 +48,4 @@ export const setSigtermReceived = () => {
   sigtermReceived = true;
 };
 
-const isSigtermReceived = () => sigtermReceived;
+export const isSigtermReceived = () => sigtermReceived;
