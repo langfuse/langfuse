@@ -537,6 +537,7 @@ jobs:
       - name: Start Langfuse
         run: (pnpm run start&)
         env:
+          NODE_ENV: test
           LANGFUSE_INIT_ORG_ID: "seed-org-id"
           LANGFUSE_INIT_ORG_NAME: "Seed Org"
           LANGFUSE_INIT_ORG_CLOUD_PLAN: "Team"
@@ -854,6 +855,8 @@ jobs:
           exit "$(cat /tmp/playwright-install.exit)"
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e
+        env:
+          NODE_ENV: test
 
   e2e-server-tests:
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -935,6 +938,8 @@ jobs:
           pnpm --filter=shared run db:seed:examples
       - name: Run server
         run: (pnpm run start&)
+        env:
+          NODE_ENV: test
       - name: Check worker health
         run: |
           timeout 10 bash -c 'until curl -f http://localhost:3030/api/health; do sleep 2; done'
