@@ -464,6 +464,7 @@ export async function upsertDatasetItem(
         }
         addTagsToCurrentSpan({
           "langfuse.dataset_item.upsert.updated_count": current ? 1 : 0,
+          "langfuse.dataset_item.upsert.created_count": current ? 0 : 1,
         });
 
         // 2. Create new version
