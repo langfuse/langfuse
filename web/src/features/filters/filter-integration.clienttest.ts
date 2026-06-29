@@ -798,16 +798,25 @@ describe("Saved view validation", () => {
         internal: "positionInTrace",
       },
     ];
+    // LFE-10520: no preset is auto-applied by default — the view shows all
+    // observations that carry I/O. Selecting a system preset still applies it.
     const defaultPreset = getSessionDetailPresetToApply({
       selectedViewId: null,
+      hasFilters: false,
+    });
+    expect(defaultPreset).toBeNull();
+
+    const firstGenerationPreset = SESSION_DETAIL_SYSTEM_PRESETS[0];
+    const appliedFirstGeneration = getSessionDetailPresetToApply({
+      selectedViewId: firstGenerationPreset.id,
       hasFilters: false,
     });
     const lastPreset = SESSION_DETAIL_SYSTEM_PRESETS.find(
       (preset) => preset.name === "Last Generation in Trace",
     );
 
-    expect(defaultPreset).toEqual(SESSION_DETAIL_SYSTEM_PRESETS[0]);
-    expect(defaultPreset?.filters).toEqual([
+    expect(appliedFirstGeneration).toEqual(firstGenerationPreset);
+    expect(firstGenerationPreset.filters).toEqual([
       {
         column: "type",
         type: "stringOptions",
@@ -822,8 +831,8 @@ describe("Saved view validation", () => {
       },
     ]);
     expect(
-      validateFilters(defaultPreset?.filters ?? [], sessionEventColumns),
-    ).toEqual(defaultPreset?.filters ?? []);
+      validateFilters(firstGenerationPreset.filters, sessionEventColumns),
+    ).toEqual(firstGenerationPreset.filters);
     expect(lastPreset?.filters).toEqual([
       {
         column: "type",

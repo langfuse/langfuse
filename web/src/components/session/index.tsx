@@ -921,8 +921,9 @@ const LoadedSessionEventsPage: React.FC<{
     if (!presetToApply) return;
 
     defaultPresetAppliedRef.current = true;
-    // Sessions intentionally default to the first generation in each trace
-    // when opened without explicit filters or a saved view.
+    // Only re-applies a system preset that's explicitly selected (deep link /
+    // saved view). With no selection the view defaults to all observations that
+    // carry I/O — see getSessionDetailPresetToApply / TraceEventsRow.
     applySystemPreset(presetToApply);
   }, [
     applySystemPreset,

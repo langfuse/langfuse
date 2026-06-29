@@ -50,9 +50,14 @@ export const SESSION_DETAIL_SYSTEM_PRESETS: SessionDetailSystemPreset[] = [
   },
 ];
 
-export const getSessionDetailDefaultPreset = () =>
-  SESSION_DETAIL_SYSTEM_PRESETS[0];
-
+/**
+ * Which system preset to auto-apply on load. A system preset is re-applied when
+ * its id is in the URL (a deep link / saved view). Otherwise NOTHING is applied:
+ * the session view defaults to showing every observation that carries
+ * input/output (see TraceEventsRow), so agentic sessions with no GENERATION are
+ * no longer hidden behind the old "first generation" default (LFE-10520). The
+ * generation presets remain available as opt-in saved views.
+ */
 export const getSessionDetailPresetToApply = ({
   selectedViewId,
   hasFilters,
@@ -72,5 +77,5 @@ export const getSessionDetailPresetToApply = ({
     return null;
   }
 
-  return selectedSystemPreset ?? getSessionDetailDefaultPreset();
+  return selectedSystemPreset ?? null;
 };

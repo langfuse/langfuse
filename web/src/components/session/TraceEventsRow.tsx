@@ -16,28 +16,40 @@ import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { FilterX } from "lucide-react";
 
-// PROTOTYPE (LFE-10520): per-card "show all" escape hatch re-queries this
-// trace with no per-item filter so the real observations render. Module-level
-// so the empty-filter array keeps a stable identity across renders.
+// LFE-10520: the "show all" escape hatch re-queries this trace with no per-item
+// filter so every observation renders. Module-level so the empty-filter array
+// keeps a stable identity across renders.
 const SHOW_ALL_FILTER: FilterState = [];
 
+// An observation "carries I/O" when its input or output is a non-empty value.
+// The events mirror stores '' for absent payloads, so blank strings count as
+// no-I/O. Used for the default view (LFE-10520), which surfaces only the
+// observations a user actually wants to read.
+const hasContent = (value: unknown): boolean =>
+  value !== null &&
+  value !== undefined &&
+  !(typeof value === "string" && value.trim() === "");
+
+const observationHasIO = (observation: {
+  input?: unknown;
+  output?: unknown;
+}): boolean => hasContent(observation.input) || hasContent(observation.output);
+
 /**
- * PROTOTYPE (LFE-10520) — replaces the silent
- * "No observations match the current filter." empty state. When the session
- * view's per-item filter (by default "first generation in trace") matches
- * nothing in a trace, this makes the reason explicit and offers a one-click
- * fallback to render the trace's real observations instead of an empty card.
+ * LFE-10520 — replaces the silent "No observations match the current filter."
+ * empty state. When an explicit per-item filter matches nothing in a trace,
+ * this makes the reason explicit and offers a one-click fallback to render the
+ * trace's real observations instead of an empty card.
  */
 const FilteredOutNotice = ({ onShowAll }: { onShowAll: () => void }) => (
   <div className="border-destructive/40 bg-destructive/5 flex flex-col items-start gap-2 rounded-md border border-dashed p-3">
     <div className="text-destructive flex items-center gap-2 text-xs font-medium">
       <FilterX className="h-3.5 w-3.5 shrink-0" />
-      No observation here matches the current view filter
+      No observation in this trace matches the current filter
     </div>
     <p className="text-muted-foreground text-xs">
-      This view shows a filtered slice of each trace (by default, the first
-      generation). This trace has no matching observation, so its content is
-      hidden — not missing.
+      The filter applies within each trace. This trace has no matching
+      observation, so its content is hidden — not missing.
     </p>
     <Button variant="secondary" size="sm" onClick={onShowAll}>
       Show all observations
@@ -101,7 +113,7 @@ export const TraceEventsRow = React.memo(
     filterState: FilterState;
     hideTracePanel?: boolean;
   }) => {
-    // PROTOTYPE (LFE-10520): per-card escape hatch from the view filter.
+    // LFE-10520: per-card escape hatch from the view filter.
     const [showAll, setShowAll] = React.useState(false);
     const observationsQuery =
       api.sessions.observationsForTraceFromEvents.useQuery(
@@ -119,6 +131,28 @@ export const TraceEventsRow = React.memo(
       );
     const hasActiveFilter = filterState.length > 0;
 
+    // Default view (no explicit filter): show the observations that actually
+    // carry input/output, so chat shows the chat and an agent run shows the
+    // agent + its tool calls instead of empty cards (LFE-10520). If none carry
+    // I/O, fall back to all of them rather than render nothing. An explicit
+    // filter (or "show all") is honored verbatim.
+    const observations = observationsQuery.data;
+    const applyDefaultIOFilter = !hasActiveFilter && !showAll;
+    const visibleObservations = React.useMemo(() => {
+      if (!observations) return undefined;
+      // The synthetic trace-level row (no parent observation) just mirrors the
+      // trace's own I/O, already shown by the trace panel — drop it unless it
+      // is all the trace has, so the card is never needlessly empty.
+      const realObservations = observations.filter((observation) =>
+        Boolean(observation.parentObservationId),
+      );
+      const pool =
+        realObservations.length > 0 ? realObservations : observations;
+      if (!applyDefaultIOFilter) return pool;
+      const withIO = pool.filter(observationHasIO);
+      return withIO.length > 0 ? withIO : pool;
+    }, [observations, applyDefaultIOFilter]);
+
     return (
       <Card className="border-border shadow-none">
         <div
@@ -135,7 +169,7 @@ export const TraceEventsRow = React.memo(
               <div className="text-destructive p-2 text-xs">
                 Failed to load observations.
               </div>
-            ) : observationsQuery.data && observationsQuery.data.length > 0 ? (
+            ) : visibleObservations && visibleObservations.length > 0 ? (
               <div className="flex flex-col gap-4">
                 {showAll && hasActiveFilter && (
                   <div className="text-muted-foreground flex items-center justify-between gap-2 text-xs">
@@ -151,7 +185,7 @@ export const TraceEventsRow = React.memo(
                     </Button>
                   </div>
                 )}
-                {observationsQuery.data.map((observation) => (
+                {visibleObservations.map((observation) => (
                   <div key={observation.id} className="flex flex-col gap-2">
                     <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
                       <span>{observation.name ?? "Observation"}</span>
