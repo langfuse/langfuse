@@ -1,8 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { createProductionEvalExecutionDeps } from "../evalExecutionDeps";
+import { EXPORT_VOLUME_METRIC } from "../../../services/exportVolumeMetric";
 
-const { mockFetchLLMCompletion } = vi.hoisted(() => ({
+const { mockFetchLLMCompletion, mockRecordIncrement } = vi.hoisted(() => ({
   mockFetchLLMCompletion: vi.fn(),
+  mockRecordIncrement: vi.fn(),
 }));
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
@@ -11,6 +13,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   return {
     ...original,
     fetchLLMCompletion: mockFetchLLMCompletion,
+    recordIncrement: mockRecordIncrement,
   };
 });
 
@@ -74,6 +77,45 @@ describe("createProductionEvalExecutionDeps", () => {
           }),
         }),
       }),
+    );
+  });
+
+  it("records llmaj export volume with a positive byte count", async () => {
+    const deps = createProductionEvalExecutionDeps();
+
+    const messages = [
+      { role: "user", type: "user", content: "Judge this answer" },
+    ];
+    const structuredOutputSchema = { type: "object" };
+
+    await deps.callLLM({
+      messages: messages as any,
+      modelConfig: {
+        provider: "openai",
+        model: "gpt-4.1",
+        apiKey: { adapter: "openai", secretKey: "secret" },
+        adapter: "openai" as any,
+        modelParams: {},
+      },
+      structuredOutputSchema: structuredOutputSchema as any,
+      traceSinkParams: {
+        targetProjectId: "project-123",
+        traceId: "trace-123",
+        traceName: "Judge trace",
+        environment: "langfuse-llm-as-a-judge",
+        metadata: {},
+      },
+    });
+
+    const expectedBytes =
+      Buffer.byteLength(JSON.stringify(messages), "utf8") +
+      Buffer.byteLength(JSON.stringify(structuredOutputSchema), "utf8");
+
+    expect(expectedBytes).toBeGreaterThan(0);
+    expect(mockRecordIncrement).toHaveBeenCalledWith(
+      EXPORT_VOLUME_METRIC,
+      expectedBytes,
+      { integration: "llmaj", projectId: "project-123" },
     );
   });
 });

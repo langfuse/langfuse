@@ -13,6 +13,7 @@ import {
 import { buildEvalMessages } from "./evalRuntime";
 import { getEvalS3StorageClient } from "./s3StorageClient";
 import { createInternalEventsWriter } from "../internal-tracing/createInternalEventsWriter";
+import { recordExportVolume } from "../../services/exportVolumeMetric";
 
 type StructuredOutputSchema = NonNullable<
   Parameters<typeof fetchLLMCompletion>[0]["structuredOutputSchema"]
@@ -201,6 +202,24 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         .adapter as unknown as Parameters<
         typeof fetchLLMCompletion
       >[0]["modelParams"]["adapter"];
+
+      // Record llmaj egress: the request body sent to the model provider is the
+      // serialized messages (the bulk) plus the structured-output schema. LLM
+      // requests are not gzipped, so this uncompressed size ≈ on-wire bytes.
+      // Measured once per send; retries (maxRetries below) are not counted.
+      const bytes =
+        Buffer.byteLength(JSON.stringify(params.messages), "utf8") +
+        (params.structuredOutputSchema
+          ? Buffer.byteLength(
+              JSON.stringify(params.structuredOutputSchema),
+              "utf8",
+            )
+          : 0);
+      recordExportVolume({
+        integration: "llmaj",
+        bytes,
+        projectId: params.traceSinkParams.targetProjectId,
+      });
 
       return fetchLLMCompletion({
         streaming: false,
