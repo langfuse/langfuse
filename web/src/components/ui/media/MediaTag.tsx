@@ -180,7 +180,10 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
             className="hover:bg-accent focus-visible:ring-ring bg-background inline-flex h-3.5 max-w-full items-center gap-1 rounded-sm border px-1 py-0 align-middle text-xs leading-none transition-colors focus-visible:ring-2 focus-visible:outline-hidden"
             onClick={openPeek}
             onPointerDown={(event) => {
-              if (event.pointerType !== "mouse") openPeek();
+              if (event.pointerType !== "mouse") {
+                event.preventDefault();
+                openPeek();
+              }
             }}
           >
             <KindIcon kind={kind} className="h-2.5 w-2.5 shrink-0" />

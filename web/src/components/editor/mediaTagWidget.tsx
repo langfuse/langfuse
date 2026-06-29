@@ -149,7 +149,7 @@ function createMediaTagWidgetExtension(store: MediaTagWidgetStore): Extension {
     // stands in for `"<tag>"` as a whole — otherwise the quotes render around
     // it. The tag itself (capture group) is what we classify. Fresh RegExp so
     // the shared pattern's lastIndex isn't mutated across uses.
-    regexp: new RegExp(`"?(${MEDIA_REFERENCE_PATTERN.source})"?`, "g"),
+    regexp: new RegExp(`"(${MEDIA_REFERENCE_PATTERN.source})"`, "g"),
     decoration: (match) => {
       const descriptor = classifyMediaLeaf(match[1]);
       if (descriptor?.kind !== "langfuseRef") return null;

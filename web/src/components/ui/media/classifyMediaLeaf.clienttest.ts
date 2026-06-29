@@ -39,6 +39,7 @@ describe("classifyMediaLeaf", () => {
   it("ignores non-media and malformed inputs", () => {
     expect(classifyMediaLeaf("https://example.com/page")).toBeNull();
     expect(classifyMediaLeaf("just a string")).toBeNull();
+    expect(classifyMediaLeaf(`Compare ${ref} against this.`)).toBeNull();
     expect(classifyMediaLeaf("@@@langfuseMedia:garbage@@@")).toBeNull();
     expect(classifyMediaLeaf(42)).toBeNull();
     expect(classifyMediaLeaf(null)).toBeNull();

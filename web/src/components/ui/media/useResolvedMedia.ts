@@ -37,7 +37,7 @@ export function useResolvedMedia(
     },
   );
 
-  if (!enabled) return { status: "idle" };
+  if (!enabled || !projectId) return { status: "idle" };
   if (query.isError) return { status: "error" };
   if (query.data?.url) return { status: "ready", url: query.data.url };
   return { status: "loading" };

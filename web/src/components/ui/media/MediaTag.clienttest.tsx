@@ -34,11 +34,16 @@ describe("MediaTag", () => {
       />,
     );
 
-    fireEvent.pointerDown(screen.getByRole("button", { name: "PNG media" }), {
-      pointerType: "touch",
+    const event = new Event("pointerdown", {
+      bubbles: true,
+      cancelable: true,
     });
+    Object.defineProperty(event, "pointerType", { value: "touch" });
+    fireEvent(screen.getByRole("button", { name: "PNG media" }), event);
 
     expect(await screen.findByText("image/png")).toBeInTheDocument();
+    expect(event.defaultPrevented).toBe(true);
     expect(onOpenChange).toHaveBeenCalledWith(true);
+    expect(onOpenChange).toHaveBeenCalledTimes(1);
   });
 });
