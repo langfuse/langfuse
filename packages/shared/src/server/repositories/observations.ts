@@ -1704,6 +1704,7 @@ const buildObservationsForBlobStorageExportQuery = (
   minTimestamp: Date,
   maxTimestamp: Date,
   fieldGroups: ObservationFieldGroupFull[],
+  chSendTimeout?: number,
 ) => {
   // core is always required (provides id, trace_id, start/end_time used for deduplication)
   const effectiveGroups = new Set<ObservationFieldGroupFull>([
@@ -1736,10 +1737,14 @@ const buildObservationsForBlobStorageExportQuery = (
       minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
     },
-    tags: { projectId },
+    // Tagged explicitly: worker baggage isn't active during the deferred stream send.
+    tags: { projectId, surface: "worker", route: "blob_export" },
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
     },
+    // Per-project ClickHouse send_timeout (seconds); undefined => CH default.
+    clickhouseSettings:
+      chSendTimeout !== undefined ? { send_timeout: chSendTimeout } : undefined,
     preferredClickhouseService: "ReadOnly" as const,
   };
 };
@@ -1749,6 +1754,7 @@ export const getObservationsForBlobStorageExport = function (
   minTimestamp: Date,
   maxTimestamp: Date,
   fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
+  chSendTimeout?: number,
 ) {
   return queryClickhouseStream<Record<string, unknown>>(
     buildObservationsForBlobStorageExportQuery(
@@ -1756,6 +1762,7 @@ export const getObservationsForBlobStorageExport = function (
       minTimestamp,
       maxTimestamp,
       fieldGroups,
+      chSendTimeout,
     ),
   );
 };
@@ -1768,6 +1775,7 @@ export const getObservationsForBlobStorageExportRaw = function (
   minTimestamp: Date,
   maxTimestamp: Date,
   fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
+  chSendTimeout?: number,
 ) {
   return queryClickhouseStreamRawText(
     buildObservationsForBlobStorageExportQuery(
@@ -1775,6 +1783,7 @@ export const getObservationsForBlobStorageExportRaw = function (
       minTimestamp,
       maxTimestamp,
       fieldGroups,
+      chSendTimeout,
     ),
   );
 };
@@ -1787,16 +1796,23 @@ export const getObservationsForBlobStorageExportParquet = function (
   minTimestamp: Date,
   maxTimestamp: Date,
   fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
+  chSendTimeout?: number,
 ) {
+  const base = buildObservationsForBlobStorageExportQuery(
+    projectId,
+    minTimestamp,
+    maxTimestamp,
+    fieldGroups,
+    chSendTimeout,
+  );
   return queryClickhouseExecRaw({
-    ...buildObservationsForBlobStorageExportQuery(
-      projectId,
-      minTimestamp,
-      maxTimestamp,
-      fieldGroups,
-    ),
+    ...base,
     format: "Parquet",
-    clickhouseSettings: BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
+    // Merge so the per-project send_timeout survives alongside Parquet tuning.
+    clickhouseSettings: {
+      ...base.clickhouseSettings,
+      ...BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
+    },
   });
 };
 

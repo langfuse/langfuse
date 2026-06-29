@@ -323,6 +323,8 @@ const processBlobStorageExport = async (config: {
   maxConcurrentParts: number | undefined;
   maxPartAttempts: number | undefined;
   skipEnrichment: boolean;
+  // ClickHouse send_timeout (seconds) for the export query; undefined => CH default.
+  chSendTimeout: number | undefined;
   bullmqJobId: string | undefined;
   bullmqAttemptsMade: number;
 }) => {
@@ -386,6 +388,9 @@ const processBlobStorageExport = async (config: {
           "blob.config.maxPartAttempts",
           config.maxPartAttempts,
         );
+      }
+      if (config.chSendTimeout !== undefined) {
+        span.setAttribute("blob.config.chSendTimeout", config.chSendTimeout);
       }
       span.setAttribute("blob.config.skipEnrichment", config.skipEnrichment);
       span.setAttribute("blob.config.rawPassthrough", config.rawPassthrough);
@@ -543,6 +548,7 @@ const processBlobStorageExport = async (config: {
                   config.projectId,
                   config.minTimestamp,
                   config.maxTimestamp,
+                  config.chSendTimeout,
                 )
               ).stream;
               break;
@@ -552,6 +558,7 @@ const processBlobStorageExport = async (config: {
                   config.projectId,
                   config.minTimestamp,
                   config.maxTimestamp,
+                  config.chSendTimeout,
                 )
               ).stream;
               break;
@@ -562,6 +569,7 @@ const processBlobStorageExport = async (config: {
                   config.minTimestamp,
                   config.maxTimestamp,
                   exportFieldGroups,
+                  config.chSendTimeout,
                 )
               ).stream;
               break;
@@ -573,6 +581,7 @@ const processBlobStorageExport = async (config: {
                   config.maxTimestamp,
                   exportFieldGroups,
                   config.convertV4LatencyToSeconds,
+                  config.chSendTimeout,
                 )
               ).stream;
               break;
@@ -599,6 +608,7 @@ const processBlobStorageExport = async (config: {
                   config.minTimestamp,
                   config.maxTimestamp,
                   exportFieldGroups,
+                  config.chSendTimeout,
                 )
               : getEventsForBlobStorageExportRaw(
                   config.projectId,
@@ -606,6 +616,7 @@ const processBlobStorageExport = async (config: {
                   config.maxTimestamp,
                   exportFieldGroups,
                   config.convertV4LatencyToSeconds,
+                  config.chSendTimeout,
                 );
 
           const dataStream = countedStream(rawRows, sourceStats);
@@ -636,6 +647,7 @@ const processBlobStorageExport = async (config: {
                 config.projectId,
                 config.minTimestamp,
                 config.maxTimestamp,
+                config.chSendTimeout,
               );
               break;
             case "observations":
@@ -647,6 +659,7 @@ const processBlobStorageExport = async (config: {
                     config.minTimestamp,
                     config.maxTimestamp,
                     exportFieldGroups,
+                    config.chSendTimeout,
                   ),
                   chStats,
                 ),
@@ -662,6 +675,7 @@ const processBlobStorageExport = async (config: {
                 config.projectId,
                 config.minTimestamp,
                 config.maxTimestamp,
+                config.chSendTimeout,
               );
               break;
             case "observations_v2": // observations_v2 is the events table
@@ -673,6 +687,7 @@ const processBlobStorageExport = async (config: {
                     config.minTimestamp,
                     config.maxTimestamp,
                     exportFieldGroups,
+                    config.chSendTimeout,
                   ),
                   chStats,
                 ),
@@ -838,49 +853,54 @@ const processBlobStorageExport = async (config: {
               uploadDurationMsFinal ??
               Math.round(performance.now() - uploadStartMs);
             span.setAttribute("blob.uploadDurationMs", totalUploadMs);
-            if (uploadSucceeded) {
-              const finalGzipCpuMs = gzipStats
-                ? Math.max(
-                    0,
-                    Math.round(gzipStats.activeMs - gzipStats.backpressureMs),
-                  )
-                : 0;
-              const finalUploadWaitMs = gzipStats
-                ? Math.round(gzipStats.backpressureMs)
-                : parquetEligible
-                  ? Math.round(sourceStats.backpressureMs)
-                  : Math.max(0, totalUploadMs - finalChReadMs - finalEnrichMs);
-              span.setAttribute("blob.gzipCpuMs", finalGzipCpuMs);
-              span.setAttribute("blob.uploadWaitMs", finalUploadWaitMs);
-              const finalExportFormat = parquetEligible
-                ? BlobExportFormat.PARQUET
-                : resolveBlobExportFormat(config.fileType, config.compressed);
-              const stageTags = {
-                table: config.table,
-                path: exportPath,
-                source: finalExportFormat,
-              };
-              recordHistogram(
-                "langfuse.blob_export.ch_read_ms",
-                finalChReadMs,
-                stageTags,
-              );
-              recordHistogram(
-                "langfuse.blob_export.enrich_ms",
-                finalEnrichMs,
-                stageTags,
-              );
-              recordHistogram(
-                "langfuse.blob_export.gzip_cpu_ms",
-                finalGzipCpuMs,
-                stageTags,
-              );
-              recordHistogram(
-                "langfuse.blob_export.upload_wait_ms",
-                finalUploadWaitMs,
-                stageTags,
-              );
-            }
+            // Emit stage timings on both success and failure. On failure the
+            // values are partial (the upload aborted mid-stream), so an
+            // `outcome` tag keeps them out of the happy-path percentiles while
+            // still capturing where a failed export spent its time.
+            const finalGzipCpuMs = gzipStats
+              ? Math.max(
+                  0,
+                  Math.round(gzipStats.activeMs - gzipStats.backpressureMs),
+                )
+              : 0;
+            const finalUploadWaitMs = gzipStats
+              ? Math.round(gzipStats.backpressureMs)
+              : parquetEligible
+                ? Math.round(sourceStats.backpressureMs)
+                : Math.max(0, totalUploadMs - finalChReadMs - finalEnrichMs);
+            span.setAttribute("blob.gzipCpuMs", finalGzipCpuMs);
+            span.setAttribute("blob.uploadWaitMs", finalUploadWaitMs);
+            const finalExportFormat = parquetEligible
+              ? BlobExportFormat.PARQUET
+              : resolveBlobExportFormat(config.fileType, config.compressed);
+            const stageTags = {
+              table: config.table,
+              path: exportPath,
+              source: finalExportFormat,
+              outcome: (uploadSucceeded
+                ? "success"
+                : "failure") satisfies BlobTableExportOutcome,
+            };
+            recordHistogram(
+              "langfuse.blob_export.ch_read_ms",
+              finalChReadMs,
+              stageTags,
+            );
+            recordHistogram(
+              "langfuse.blob_export.enrich_ms",
+              finalEnrichMs,
+              stageTags,
+            );
+            recordHistogram(
+              "langfuse.blob_export.gzip_cpu_ms",
+              finalGzipCpuMs,
+              stageTags,
+            );
+            recordHistogram(
+              "langfuse.blob_export.upload_wait_ms",
+              finalUploadWaitMs,
+              stageTags,
+            );
           }
           if (producesUploadStats) {
             span.setAttribute("blob.upload.parts", uploadStats.partsUploaded);
@@ -1152,6 +1172,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       maxConcurrentParts: exportTuning.maxConcurrentParts,
       maxPartAttempts: exportTuning.maxPartAttempts,
       skipEnrichment: exportTuning.skipEnrichment,
+      chSendTimeout: exportTuning.chSendTimeout,
       bullmqJobId: job.id,
       bullmqAttemptsMade: job.attemptsMade,
     };

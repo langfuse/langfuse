@@ -1912,6 +1912,7 @@ const buildScoresForBlobStorageExportQuery = (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  chSendTimeout?: number,
 ) => {
   const query = `
     SELECT
@@ -1946,10 +1947,14 @@ const buildScoresForBlobStorageExportQuery = (
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
       dataTypes: LISTABLE_SCORE_TYPES,
     },
-    tags: { projectId },
+    // Tagged explicitly: worker baggage isn't active during the deferred stream send.
+    tags: { projectId, surface: "worker", route: "blob_export" },
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
     },
+    // Per-project ClickHouse send_timeout (seconds); undefined => CH default.
+    clickhouseSettings:
+      chSendTimeout !== undefined ? { send_timeout: chSendTimeout } : undefined,
   };
 };
 
@@ -1957,9 +1962,15 @@ export const getScoresForBlobStorageExport = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  chSendTimeout?: number,
 ) {
   return queryClickhouseStream<Record<string, unknown>>(
-    buildScoresForBlobStorageExportQuery(projectId, minTimestamp, maxTimestamp),
+    buildScoresForBlobStorageExportQuery(
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+      chSendTimeout,
+    ),
   );
 };
 
@@ -1969,15 +1980,22 @@ export const getScoresForBlobStorageExportParquet = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  chSendTimeout?: number,
 ) {
+  const base = buildScoresForBlobStorageExportQuery(
+    projectId,
+    minTimestamp,
+    maxTimestamp,
+    chSendTimeout,
+  );
   return queryClickhouseExecRaw({
-    ...buildScoresForBlobStorageExportQuery(
-      projectId,
-      minTimestamp,
-      maxTimestamp,
-    ),
+    ...base,
     format: "Parquet",
-    clickhouseSettings: BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
+    // Merge so the per-project send_timeout survives alongside Parquet tuning.
+    clickhouseSettings: {
+      ...base.clickhouseSettings,
+      ...BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
+    },
   });
 };
 
