@@ -27,7 +27,6 @@ function resolved(
     maxConcurrentParts: undefined,
     maxPartAttempts: undefined,
     skipEnrichment: false,
-    chSendTimeout: undefined,
     ...overrides,
   };
 }
@@ -233,56 +232,6 @@ describe("resolveBlobExportTuning", () => {
     });
   });
 
-  describe("chSendTimeout (ClickHouse send_timeout)", () => {
-    it("is undefined (CH default) when absent", () => {
-      expect(
-        resolveBlobExportTuning({}, DEFAULTS).resolved.chSendTimeout,
-      ).toBeUndefined();
-    });
-
-    it("honors an in-range value silently", () => {
-      const { resolved: res, warnings } = resolveBlobExportTuning(
-        { chSendTimeout: 600 },
-        DEFAULTS,
-      );
-      expect(res).toEqual(resolved({ chSendTimeout: 600 }));
-      expect(warnings).toEqual([]);
-    });
-
-    it("clamps above the ceiling and warns", () => {
-      const { resolved: res, warnings } = resolveBlobExportTuning(
-        { chSendTimeout: 99999 },
-        DEFAULTS,
-      );
-      expect(res.chSendTimeout).toBe(
-        BLOB_EXPORT_TUNING_BOUNDS.chSendTimeout.max,
-      );
-      expect(warnings.some((w) => w.includes("clamped"))).toBe(true);
-    });
-
-    it("clamps below the floor and warns", () => {
-      const { resolved: res, warnings } = resolveBlobExportTuning(
-        { chSendTimeout: 0 },
-        DEFAULTS,
-      );
-      expect(res.chSendTimeout).toBe(
-        BLOB_EXPORT_TUNING_BOUNDS.chSendTimeout.min,
-      );
-      expect(warnings.some((w) => w.includes("clamped"))).toBe(true);
-    });
-
-    it("falls back to undefined (CH default) when wrong-typed", () => {
-      const { resolved: res, warnings } = resolveBlobExportTuning(
-        { chSendTimeout: "300" },
-        DEFAULTS,
-      );
-      expect(res.chSendTimeout).toBeUndefined();
-      expect(warnings.some((w) => w.includes("expected a finite number"))).toBe(
-        true,
-      );
-    });
-  });
-
   describe("valid in-range upload knobs are honoured silently", () => {
     it("passes through values within bounds", () => {
       const { resolved: res, warnings } = resolveBlobExportTuning(
@@ -451,12 +400,6 @@ describe("BlobExportTuningSchema (write schema)", () => {
     );
   });
 
-  it("accepts an in-range chSendTimeout", () => {
-    expect(
-      BlobExportTuningSchema.safeParse({ chSendTimeout: 600 }).success,
-    ).toBe(true);
-  });
-
   it("rejects out-of-range values (writes reject; reads clamp)", () => {
     expect(
       BlobExportTuningSchema.safeParse({ maxConcurrentParts: 50 }).success,
@@ -464,9 +407,6 @@ describe("BlobExportTuningSchema (write schema)", () => {
     expect(BlobExportTuningSchema.safeParse({ gzipLevel: 12 }).success).toBe(
       false,
     );
-    expect(
-      BlobExportTuningSchema.safeParse({ chSendTimeout: 99999 }).success,
-    ).toBe(false);
   });
 
   it("strips unknown keys (forward-compat, not strict)", () => {

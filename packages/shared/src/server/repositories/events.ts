@@ -2668,7 +2668,6 @@ const buildEventsForBlobStorageExportQuery = (
   maxTimestamp: Date,
   fieldGroups: ObservationFieldGroupFull[],
   convertLatencyToSecondsInSql: boolean,
-  chSendTimeout?: number,
 ) => {
   const queryBuilder = new EventsQueryBuilder({ projectId });
 
@@ -2710,9 +2709,6 @@ const buildEventsForBlobStorageExportQuery = (
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
     },
-    // Per-project ClickHouse send_timeout (seconds); undefined => CH default.
-    clickhouseSettings:
-      chSendTimeout !== undefined ? { send_timeout: chSendTimeout } : undefined,
     preferredClickhouseService: "EventsReadOnly" as const,
   };
 };
@@ -2722,7 +2718,6 @@ export const getEventsForBlobStorageExport = function (
   minTimestamp: Date,
   maxTimestamp: Date,
   fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
-  chSendTimeout?: number,
 ) {
   return queryClickhouseStream<Record<string, unknown>>(
     buildEventsForBlobStorageExportQuery(
@@ -2731,7 +2726,6 @@ export const getEventsForBlobStorageExport = function (
       maxTimestamp,
       fieldGroups,
       false, // standard path converts latency ms→s in JS
-      chSendTimeout,
     ),
   );
 };
@@ -2747,7 +2741,6 @@ export const getEventsForBlobStorageExportRaw = function (
   maxTimestamp: Date,
   fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
   convertLatencyToSeconds = false,
-  chSendTimeout?: number,
 ) {
   return queryClickhouseStreamRawText(
     buildEventsForBlobStorageExportQuery(
@@ -2756,7 +2749,6 @@ export const getEventsForBlobStorageExportRaw = function (
       maxTimestamp,
       fieldGroups,
       convertLatencyToSeconds,
-      chSendTimeout,
     ),
   );
 };
@@ -2770,24 +2762,17 @@ export const getEventsForBlobStorageExportParquet = function (
   maxTimestamp: Date,
   fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
   convertLatencyToSeconds = false,
-  chSendTimeout?: number,
 ) {
-  const base = buildEventsForBlobStorageExportQuery(
-    projectId,
-    minTimestamp,
-    maxTimestamp,
-    fieldGroups,
-    convertLatencyToSeconds,
-    chSendTimeout,
-  );
   return queryClickhouseExecRaw({
-    ...base,
+    ...buildEventsForBlobStorageExportQuery(
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+      fieldGroups,
+      convertLatencyToSeconds,
+    ),
     format: "Parquet",
-    // Merge so the per-project send_timeout survives alongside Parquet tuning.
-    clickhouseSettings: {
-      ...base.clickhouseSettings,
-      ...BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
-    },
+    clickhouseSettings: BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
   });
 };
 
