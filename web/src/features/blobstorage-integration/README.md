@@ -8,7 +8,7 @@ computed at read time by `deriveSyncStatus.ts`.
 
 | Field | Type | Written by |
 |---|---|---|
-| `enabled` | boolean | Web (save) |
+| `enabled` | boolean | Web (save), Worker (catch — disables on a final-attempt customer-fault) |
 | `lastError` | string \| null | Worker (catch / success) |
 | `lastSyncAt` | Date \| null | Worker (success) |
 | `nextSyncAt` | Date \| null | Worker (success / empty-window), Web (save) |
@@ -17,7 +17,8 @@ computed at read time by `deriveSyncStatus.ts`.
 ## Derived states (precedence top-to-bottom)
 
 ```
-disabled    ← enabled = false
+disabled    ← enabled = false (set by user save, or by the worker after a
+              final-attempt customer-config/credential failure)
 error       ← lastError != null
 running     ← runStartedAt != null AND age < 2h
 queued      ← nextSyncAt <= now
@@ -62,6 +63,11 @@ up_to_date  ← fallthrough
 ┌───────────┐  ┌───────┐
 │ up_to_date│  │ error │
 └───────────┘  └───────┘
+                   │ final-attempt customer-fault → enabled = false
+                   ▼
+              ┌──────────┐
+              │ disabled │
+              └──────────┘
 ```
 
 ## Transition detail
@@ -79,6 +85,7 @@ up_to_date  ← fallthrough
 | **running** | Worker: export succeeds, caught up | `lastSyncAt=max`, `nextSyncAt=max+freq`, `lastError=null`, `runStartedAt=null` | **up_to_date** |
 | **running** | Worker: export succeeds, not caught up | `lastSyncAt=max`, `nextSyncAt=now`, `lastError=null`, `runStartedAt=null` + re-enqueues job | **queued** (immediately) |
 | **running** | Worker: export fails | `lastError=msg`, `lastErrorAt=now`, `runStartedAt=null` | **error** |
+| **running** | Worker: final-attempt customer-config/credential failure | `lastError=msg`, `lastErrorAt=now`, `runStartedAt=null`, `enabled=false` (+ one-time "disabled" email) | **disabled** |
 | **error** | User saves (enabled, same mode) | `runStartedAt=null`, `nextSyncAt=now` | stays **error** (`lastError` preserved; scheduler re-enqueues via `nextSyncAt`) |
 | **error** | User clicks Run Now | Enqueues manual job (no DB write) | stays **error** until worker clears `lastError` (success or empty-window) |
 | **running** | Stale `runStartedAt` > 2h | (no write — derived only) | falls through to **queued**, **idle**, or **up_to_date** |

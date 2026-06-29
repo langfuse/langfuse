@@ -1372,7 +1372,10 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
-    notifyBlobStorageExportFailedInBackground(projectId);
+    notifyBlobStorageExportFailedInBackground(
+      projectId,
+      disableForCustomerFault,
+    );
 
     const chain = formatErrorChain(error);
     logger.error(
@@ -1389,38 +1392,48 @@ export const handleBlobStorageIntegrationProjectJob = async (
   }
 };
 
-function notifyBlobStorageExportFailedInBackground(projectId: string): void {
+function notifyBlobStorageExportFailedInBackground(
+  projectId: string,
+  disabled = false,
+): void {
   (async () => {
     try {
-      const cooldownMs =
-        env.LANGFUSE_BLOB_STORAGE_FAILURE_NOTIFICATION_COOLDOWN_HOURS *
-        60 *
-        60 *
-        1000;
+      // The disable notification bypasses the cooldown: it is a one-time,
+      // terminal event (the integration won't run again until the customer
+      // re-enables it), and the per-run retries all land inside the cooldown
+      // window — so a cooldown claim here would silently drop the one email
+      // that tells the customer their export was turned off.
+      if (!disabled) {
+        const cooldownMs =
+          env.LANGFUSE_BLOB_STORAGE_FAILURE_NOTIFICATION_COOLDOWN_HOURS *
+          60 *
+          60 *
+          1000;
 
-      // Atomic claim: set timestamp before sending to prevent duplicate emails on concurrent retries.
-      // If the email send subsequently fails, the cooldown still applies — the next failure
-      // after cooldown expiry will retry the notification.
-      const claimed = await prisma.blobStorageIntegration.updateMany({
-        where: {
-          projectId,
-          OR: [
-            { lastFailureNotificationSentAt: null },
-            {
-              lastFailureNotificationSentAt: {
-                lt: new Date(Date.now() - cooldownMs),
+        // Atomic claim: set timestamp before sending to prevent duplicate emails on concurrent retries.
+        // If the email send subsequently fails, the cooldown still applies — the next failure
+        // after cooldown expiry will retry the notification.
+        const claimed = await prisma.blobStorageIntegration.updateMany({
+          where: {
+            projectId,
+            OR: [
+              { lastFailureNotificationSentAt: null },
+              {
+                lastFailureNotificationSentAt: {
+                  lt: new Date(Date.now() - cooldownMs),
+                },
               },
-            },
-          ],
-        },
-        data: { lastFailureNotificationSentAt: new Date() },
-      });
+            ],
+          },
+          data: { lastFailureNotificationSentAt: new Date() },
+        });
 
-      if (claimed.count === 0) {
-        logger.info(
-          `[BLOB INTEGRATION] Skipping failure notification for project ${projectId}, cooldown still active`,
-        );
-        return;
+        if (claimed.count === 0) {
+          logger.info(
+            `[BLOB INTEGRATION] Skipping failure notification for project ${projectId}, cooldown still active`,
+          );
+          return;
+        }
       }
 
       const emailEnv = {
@@ -1458,6 +1471,7 @@ function notifyBlobStorageExportFailedInBackground(projectId: string): void {
         projectName,
         settingsUrl,
         receiverEmails: adminEmails,
+        disabled,
       });
     } catch (error) {
       logger.error(
