@@ -2427,9 +2427,9 @@
   {
     "id": "cm7wqrs1327124dhjtb95w8f81",
     "modelName": "o4-mini",
-    "matchPattern": "(?i)^(o4-mini)$",
+    "matchPattern": "(?i)^(openai\/)?(o4-mini)$",
     "createdAt": "2025-04-16T23:26:54.132Z",
-    "updatedAt": "2025-04-16T23:26:54.132Z",
+    "updatedAt": "2026-06-27T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cm7wqrs1327124dhjtb95w8f81_tier_default",
@@ -2451,9 +2451,9 @@
   {
     "id": "cm7zqrs1327124dhjtb95w8f82",
     "modelName": "o4-mini-2025-04-16",
-    "matchPattern": "(?i)^(o4-mini-2025-04-16)$",
+    "matchPattern": "(?i)^(openai\/)?(o4-mini-2025-04-16)$",
     "createdAt": "2025-04-16T23:26:54.132Z",
-    "updatedAt": "2025-04-16T23:26:54.132Z",
+    "updatedAt": "2026-06-27T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cm7zqrs1327124dhjtb95w8f82_tier_default",
