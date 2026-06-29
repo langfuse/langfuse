@@ -150,6 +150,8 @@ const ChartTooltipContent = React.forwardRef<
       valueFormatter?: (value: number) => string;
       nameFormatter?: (name: string) => string;
       sortPayloadByValue?: "asc" | "desc";
+      /** dataKeys to emphasize (e.g. the hover-proximity series); their rows are bolded. */
+      highlightedKeys?: ReadonlySet<string>;
     }
 >(
   (
@@ -170,6 +172,7 @@ const ChartTooltipContent = React.forwardRef<
       valueFormatter,
       nameFormatter,
       sortPayloadByValue,
+      highlightedKeys,
     },
     ref,
   ) => {
@@ -244,6 +247,9 @@ const ChartTooltipContent = React.forwardRef<
               getFillColor(item.payload) ||
               item.color ||
               "currentColor";
+            const highlighted =
+              highlightedKeys?.has(String(item.dataKey ?? item.name ?? "")) ??
+              false;
 
             return (
               <div
@@ -251,6 +257,7 @@ const ChartTooltipContent = React.forwardRef<
                 className={cn(
                   "[&>svg]:text-muted-foreground flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5",
                   indicator === "dot" && "items-center",
+                  highlighted && "bg-muted -mx-1 rounded-sm px-1",
                 )}
               >
                 {formatter && item?.value !== undefined && item.name != null ? (
@@ -289,7 +296,12 @@ const ChartTooltipContent = React.forwardRef<
                     >
                       <div className="grid gap-1.5">
                         {nestLabel ? tooltipLabel : null}
-                        <span className="text-muted-foreground">
+                        <span
+                          className={cn(
+                            "text-muted-foreground",
+                            highlighted && "text-foreground font-medium",
+                          )}
+                        >
                           {nameFormatter
                             ? nameFormatter(
                                 String(item.name ?? item.dataKey ?? ""),

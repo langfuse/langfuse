@@ -305,6 +305,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
                 indicator="line"
                 valueFormatter={tooltipFormatter}
                 sortPayloadByValue="desc"
+                highlightedKeys={proximityActive ? nearestSet : undefined}
               />
             )}
           />
