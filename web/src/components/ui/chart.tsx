@@ -255,9 +255,8 @@ const ChartTooltipContent = React.forwardRef<
               <div
                 key={String(item.dataKey ?? item.name ?? index)}
                 className={cn(
-                  "[&>svg]:text-muted-foreground flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5",
-                  indicator === "dot" && "items-center",
-                  highlighted && "bg-muted -mx-1 rounded-sm px-1",
+                  "[&>svg]:text-muted-foreground flex w-full items-center gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5",
+                  highlighted && "bg-muted -mx-1.5 rounded px-1.5",
                 )}
               >
                 {formatter && item?.value !== undefined && item.name != null ? (
@@ -290,15 +289,15 @@ const ChartTooltipContent = React.forwardRef<
                     )}
                     <div
                       className={cn(
-                        "flex flex-1 justify-between gap-x-2 leading-none",
+                        "flex min-w-0 flex-1 justify-between gap-x-3 leading-none",
                         nestLabel ? "items-end" : "items-center",
                       )}
                     >
-                      <div className="grid gap-1.5">
+                      <div className="grid min-w-0 gap-1.5">
                         {nestLabel ? tooltipLabel : null}
                         <span
                           className={cn(
-                            "text-muted-foreground",
+                            "text-muted-foreground truncate",
                             highlighted && "text-foreground font-medium",
                           )}
                         >
@@ -310,7 +309,7 @@ const ChartTooltipContent = React.forwardRef<
                         </span>
                       </div>
                       {item.value !== undefined && item.value !== null && (
-                        <span className="text-foreground font-mono font-medium tabular-nums">
+                        <span className="text-foreground shrink-0 font-mono font-medium whitespace-nowrap tabular-nums">
                           {valueFormatter
                             ? valueFormatter(Number(item.value))
                             : item.value.toLocaleString()}

@@ -149,9 +149,10 @@ export function TimeSeriesLegend({
   if (items.length === 0) return null;
 
   return (
-    // Wrap onto multiple rows so every series stays visible — never clip the
-    // legend to a single scrolled line. (LFE-10549)
-    <div className="min-w-0 shrink-0 pb-3">
+    // Wrap onto multiple rows so every series stays visible, but cap the
+    // legend's height and scroll inside it — a chart with hundreds of series
+    // must never let the legend crowd the plot out entirely. (LFE-10549)
+    <div className="[max-height:8rem] min-w-0 shrink-0 overflow-y-auto pb-3">
       <div className="flex flex-wrap justify-end gap-x-4 gap-y-1">
         {items.map((item) => {
           // Labels must describe the NEXT action, not the current state.

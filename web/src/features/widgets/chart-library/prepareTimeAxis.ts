@@ -1,21 +1,30 @@
 /**
  * PREPARER LAYER — time axis.
  *
- * One source of truth for turning raw time-bucket values into presentable axis
- * + tooltip labels. The visualiser (chart components) renders whatever this
- * returns and makes no formatting decisions of its own. Data → preparer →
- * visualiser, one way. (LFE-10549)
+ * One source of truth for the time x-axis: from the raw bucket values it decides
+ * the *scale-appropriate* label format AND the tick placement, and hands the
+ * visualiser ready-to-use formatters + a tick interval. The visualiser renders
+ * them and decides nothing. Data → preparer → visualiser, one way. (LFE-10549)
  *
- * It is deliberately data-adaptive: the bucket granularity is *inferred from the
- * data itself* (median spacing between buckets), so the same code handles any
- * time range or scale — minute buckets over an hour, hourly over a day, daily
- * over a quarter — without being told the granularity up front.
+ * Scale rule (one unit per scale — never "date, time" on every tick):
+ * - intraday span  → show TIME only            ("2 PM", "2:30 PM")
+ * - multi-day span → show DATES, day-aligned    ("Jun 28", "Jul 2", …) at an
+ *                    even number-of-days step so the gaps are identical
+ * - very long span → show MONTHS                ("Jun 2026")
+ * The exact date+time always lives in the tooltip, so nothing is lost.
  */
+
+import { getEvenTickInterval } from "@/src/features/widgets/chart-library/utils";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
-const MONTH = 28 * DAY;
+/** Below this total span we're "zoomed into a day" → time-only ticks. */
+const TIME_SCALE_MAX = 2 * DAY;
+/** Above this total span we switch from day labels to month labels. */
+const MONTH_SCALE_MIN = 180 * DAY;
+
+type AxisMode = "time" | "date" | "month";
 
 /**
  * Parse a raw bucket value (epoch ms, epoch string, ISO, or a "YYYY-MM-DD
@@ -65,76 +74,94 @@ function inferBucketMs(timestamps: number[]): number {
   return diffs[Math.floor(diffs.length / 2)];
 }
 
-export type TimeAxisFormatters = {
-  /** Compact label for an x-axis tick (granularity-aware). */
+export type TimeAxis = {
+  /** recharts numeric x-axis `interval` (ticks skipped between shown ticks). */
+  interval: number;
+  /** Scale-appropriate label for a shown tick. */
   formatTick: (raw: unknown) => string;
-  /** Fuller label for the hover tooltip (always carries the date + year). */
+  /** Fuller label for the tooltip (always date + year, time when intraday). */
   formatTooltip: (raw: unknown) => string;
-  /** Inferred bucket size in ms (0 when it can't be inferred). */
-  bucketMs: number;
+  mode: AxisMode;
 };
 
 /**
- * Build the axis + tooltip time formatters for a set of raw bucket values.
- * Call once per chart with all its bucket values; the chart applies the
- * returned formatters and decides nothing about time formatting itself.
+ * Decide the time-axis format + tick spacing for a set of raw bucket values.
+ * `maxTicks` is how many labels fit the chart's measured width.
  */
-export function prepareTimeAxis(rawValues: unknown[]): TimeAxisFormatters {
+export function prepareTimeAxis(rawValues: unknown[], maxTicks = 6): TimeAxis {
   const timestamps: number[] = [];
   for (const value of rawValues) {
     const date = parseChartTimestamp(value);
     if (date) timestamps.push(date.getTime());
   }
+  const count = timestamps.length;
   const bucketMs = inferBucketMs(timestamps);
+  const span =
+    count >= 2 ? Math.max(...timestamps) - Math.min(...timestamps) : 0;
 
-  const dateOnly = bucketMs >= DAY;
-  const monthly = bucketMs >= MONTH;
+  const mode: AxisMode =
+    span > 0 && span <= TIME_SCALE_MAX
+      ? "time"
+      : span >= MONTH_SCALE_MIN
+        ? "month"
+        : "date";
+
+  const target = Math.max(2, maxTicks);
+  let interval: number;
+  if (mode === "time" || mode === "month") {
+    // Evenly spaced by bucket index.
+    interval = getEvenTickInterval(count, target);
+  } else {
+    // Date mode: align ticks to a whole number of days so each shown tick is a
+    // distinct day at the same time-of-day — identical gaps, no repeated dates.
+    const bucketsPerDay =
+      bucketMs > 0 ? Math.max(1, Math.round(DAY / bucketMs)) : 1;
+    const dayCount = Math.max(1, Math.round(count / bucketsPerDay));
+    const dayStep = Math.max(1, Math.ceil(dayCount / target));
+    interval = bucketsPerDay * dayStep - 1;
+  }
+
   const subHour = bucketMs > 0 && bucketMs < HOUR;
 
   const formatTick = (raw: unknown): string => {
     const date = parseChartTimestamp(raw);
     if (!date) return typeof raw === "string" ? raw : "";
-    if (monthly) {
+    if (mode === "time") {
+      return date.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        ...(subHour ? { minute: "2-digit" } : {}),
+      });
+    }
+    if (mode === "month") {
       return date.toLocaleDateString("en-US", {
         month: "short",
         year: "numeric",
       });
     }
-    if (dateOnly) {
-      return date.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      });
-    }
-    const datePart = date.toLocaleDateString("en-US", {
+    return date.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
     });
-    const timePart = date.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      ...(subHour ? { minute: "2-digit" } : {}),
-    });
-    return `${datePart}, ${timePart}`;
   };
 
   const formatTooltip = (raw: unknown): string => {
     const date = parseChartTimestamp(raw);
     if (!date) return typeof raw === "string" ? raw : "";
-    if (dateOnly) {
-      return date.toLocaleDateString("en-US", {
+    if (mode === "time") {
+      return date.toLocaleString("en-US", {
         month: "short",
         day: "numeric",
         year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
       });
     }
-    return date.toLocaleString("en-US", {
+    return date.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
       year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
     });
   };
 
-  return { formatTick, formatTooltip, bucketMs };
+  return { interval, formatTick, formatTooltip, mode };
 }

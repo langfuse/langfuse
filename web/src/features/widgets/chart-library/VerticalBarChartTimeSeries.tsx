@@ -13,7 +13,7 @@ import {
   groupDataByTimeDimension,
   toFullMetricString,
 } from "@/src/features/widgets/chart-library/utils";
-import { useResponsiveTickInterval } from "@/src/features/widgets/chart-library/useResponsiveTickInterval";
+import { useChartTickBudget } from "@/src/features/widgets/chart-library/useChartTickBudget";
 import { prepareTimeAxis } from "@/src/features/widgets/chart-library/prepareTimeAxis";
 import {
   seriesColor,
@@ -49,11 +49,14 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
   const [selfHovered, setSelfHovered] = useState(false);
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
-  const { ref: containerRef, interval: xTickInterval } =
-    useResponsiveTickInterval(groupedData.length);
+  const { ref: containerRef, maxTicks } = useChartTickBudget();
   const timeAxis = useMemo(
-    () => prepareTimeAxis(groupedData.map((d) => d.time_dimension)),
-    [groupedData],
+    () =>
+      prepareTimeAxis(
+        groupedData.map((d) => d.time_dimension),
+        maxTicks,
+      ),
+    [groupedData, maxTicks],
   );
 
   const { legendItems, onLegendClick, isRendered, isDimmed } = useSeriesLegend({
@@ -103,7 +106,7 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
             fontSize={12}
             tickLine={false}
             axisLine={false}
-            interval={xTickInterval}
+            interval={timeAxis.interval}
             tickFormatter={timeAxis.formatTick}
           />
           <YAxis
