@@ -1854,7 +1854,7 @@ const EXPERIMENTS_AGGREGATION_FIELDS = {
     "argMin(e.span_id, (e.start_time, xxHash32(e.trace_id), e.span_id, e.experiment_id)) AS cursor_span_id",
   itemCount: "uniq(e.experiment_item_id) AS item_count",
   publicApiItemCount:
-    "countIf(e.span_id = e.experiment_item_root_span_id) AS item_count",
+    "uniqIf(e.span_id, e.span_id = e.experiment_item_root_span_id) AS item_count",
   errorCount: "countIf(e.level = 'ERROR') AS error_count",
   prompts:
     "groupUniqArrayIf(tuple(e.prompt_name, e.prompt_version), e.prompt_name != '') AS prompts",

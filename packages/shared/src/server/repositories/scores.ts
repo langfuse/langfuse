@@ -832,6 +832,7 @@ export async function queryScoreRecordsForExperiments({
         experimentIds: uniqueExperimentIds,
         startTimeFrom: convertDateToClickhouseDateTime(fromTimestamp),
         scoreLimit,
+        dataTypes: LISTABLE_SCORE_TYPES.map((type) => type.toString()),
       },
       tags: {
         projectId,
@@ -850,6 +851,7 @@ export async function queryScoreRecordsForExperiments({
             WHERE s.project_id = {projectId: String}
               AND s.timestamp >= {startTimeFrom: DateTime64(3)}
               AND s.dataset_run_id IN ({experimentIds: Array(String)})
+              AND s.data_type IN ({dataTypes: Array(String)})
               AND s.trace_id IS NULL
               AND s.observation_id IS NULL
               AND s.session_id IS NULL

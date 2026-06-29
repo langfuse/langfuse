@@ -182,9 +182,7 @@ export async function listExperimentsForPublicApi({
       ? {
           cursor: encodeExperimentsCursor({
             v: 1,
-            lastStartTimeTo: parseClickhouseUTCDateTimeFormat(
-              lastRow.start_time,
-            ),
+            lastStartTimeTo: lastRow.start_time,
             lastTraceId: lastRow.cursor_trace_id,
             lastId: lastRow.cursor_span_id,
             lastExperimentId: lastRow.experiment_id,
@@ -291,9 +289,7 @@ export async function listExperimentItemsForPublicApi({
       ? {
           cursor: encodeExperimentsCursor({
             v: 1,
-            lastStartTimeTo: parseClickhouseUTCDateTimeFormat(
-              lastRow.start_time,
-            ),
+            lastStartTimeTo: lastRow.start_time,
             lastTraceId: lastRow.trace_id,
             lastId: lastRow.id,
             lastExperimentId: lastRow.experiment_id,

@@ -65,7 +65,7 @@ type ExperimentItemRow = ExperimentItemClickhouseRow & {
 const DEFAULT_SCORE_LIMIT = 50;
 
 type ExperimentCursor = {
-  lastStartTime: Date;
+  lastStartTime: string;
   lastTraceId: string;
   lastId: string;
   lastExperimentId: string;
@@ -198,9 +198,7 @@ async function queryExperimentSummaryRowsForPublicApi(
     .withCursor(
       params.cursor
         ? {
-            lastStartTime: convertDateToClickhouseDateTime(
-              params.cursor.lastStartTime,
-            ),
+            lastStartTime: params.cursor.lastStartTime,
             lastTraceId: params.cursor.lastTraceId,
             lastId: params.cursor.lastId,
             lastExperimentId: params.cursor.lastExperimentId,
@@ -353,7 +351,6 @@ async function queryExperimentItemRowsForPublicApi(
     publicApiExperimentItemColumnDefinitions,
   );
 
-  const metadataFromFullTable = params.includeIo && params.includeMetadata;
   const queryBuilder = filterForItems(
     new EventsQueryBuilder({ projectId: params.projectId }).selectFieldSet(
       "publicApiExperimentItemCore",
@@ -365,9 +362,6 @@ async function queryExperimentItemRowsForPublicApi(
         : []),
       ...(params.includeExperimentMetadata
         ? (["publicApiExperimentItemExperimentMetadata"] as const)
-        : []),
-      ...(params.includeMetadata && !metadataFromFullTable
-        ? (["publicApiExperimentItemMetadata"] as const)
         : []),
     ),
   )
@@ -388,9 +382,7 @@ async function queryExperimentItemRowsForPublicApi(
     .withCursor(
       params.cursor
         ? {
-            lastStartTime: convertDateToClickhouseDateTime(
-              params.cursor.lastStartTime,
-            ),
+            lastStartTime: params.cursor.lastStartTime,
             lastTraceId: params.cursor.lastTraceId,
             lastId: params.cursor.lastId,
             lastExperimentId: params.cursor.lastExperimentId,
@@ -398,16 +390,18 @@ async function queryExperimentItemRowsForPublicApi(
         : undefined,
     )
     .orderBy(experimentItemOrderBy("e"))
+    .limitBy("e.span_id", "e.project_id")
     .limit(params.limit);
 
-  const builder: QueryWithParams = params.includeIo
-    ? buildEventsFullTableSplitQuery({
-        projectId: params.projectId,
-        baseBuilder: queryBuilder,
-        includeIO: true,
-        includeMetadata: metadataFromFullTable,
-      }).orderBy(experimentItemOrderBy("b"))
-    : queryBuilder;
+  const builder: QueryWithParams =
+    params.includeIo || params.includeMetadata
+      ? buildEventsFullTableSplitQuery({
+          projectId: params.projectId,
+          baseBuilder: queryBuilder,
+          includeIO: params.includeIo,
+          includeMetadata: params.includeMetadata,
+        }).orderBy(experimentItemOrderBy("b"))
+      : queryBuilder;
 
   const { query, params: queryParams } = builder.buildWithParams();
 

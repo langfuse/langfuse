@@ -56,7 +56,7 @@ const experimentItemFilterState = z
 export const ExperimentsCursorV1 = z.discriminatedUnion("v", [
   z.object({
     v: z.literal(1),
-    lastStartTimeTo: z.coerce.date(),
+    lastStartTimeTo: z.string(),
     lastTraceId: z.string(),
     lastId: z.string(),
     lastExperimentId: z.string(),
@@ -92,10 +92,7 @@ export const encodeExperimentsCursor = (
   Buffer.from(
     JSON.stringify({
       v: cursor.v,
-      lastStartTimeTo:
-        cursor.lastStartTimeTo instanceof Date
-          ? cursor.lastStartTimeTo.toISOString()
-          : cursor.lastStartTimeTo,
+      lastStartTimeTo: cursor.lastStartTimeTo,
       lastTraceId: cursor.lastTraceId,
       lastId: cursor.lastId,
       lastExperimentId: cursor.lastExperimentId,

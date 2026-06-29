@@ -957,6 +957,17 @@ describe("Clickhouse Scores Repository Test", () => {
           updated_at: startTimeMs + 2,
           event_ts: startTimeMs + 2,
         }),
+        createDatasetRunScore({
+          id: v4(),
+          project_id: isolatedProjectId,
+          dataset_run_id: experimentId,
+          name: "correction experiment score",
+          data_type: "CORRECTION",
+          timestamp: startTimeMs + 3,
+          created_at: startTimeMs + 3,
+          updated_at: startTimeMs + 3,
+          event_ts: startTimeMs + 3,
+        }),
         {
           ...createDatasetRunScore({
             id: traceScopedScoreId,
@@ -981,6 +992,9 @@ describe("Clickhouse Scores Repository Test", () => {
 
       const scoreIds = result.map((score) => score.id);
       expect(scoreIds).toEqual([latestScoreId]);
+      expect(result.every((score) => score.data_type !== "CORRECTION")).toBe(
+        true,
+      );
       expect(scoreIds).not.toContain(traceScopedScoreId);
       expect(scoreIds).not.toContain(otherExperimentScoreId);
     });
