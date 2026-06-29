@@ -120,32 +120,35 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           scope: "integrations:CRUD",
         });
 
-        // Parquet is whitelist-gated while it stabilises as a first-class
-        // fileType. The UI only offers it to whitelisted projects; reject it
-        // here too so the gate can't be bypassed via a crafted request. The
-        // legacy `exportTuning.parquet` override is a separate, DB-only path and
-        // is unaffected by this check.
-        if (
-          input.fileType === BlobStorageIntegrationFileType.PARQUET &&
-          !isParquetFileTypeAllowed(input.projectId)
-        ) {
-          throw new InvalidRequestError(
-            "Parquet export is not available for this project.",
-          );
-        }
-
         const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
         const isV4PreviewEnabled =
           env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
 
         // Feeds both gates: the legacy gate needs createdAt for an explicit
         // source; the enriched gate needs the persisted source to reject a
-        // stale enriched value on an omitted update.
+        // stale enriched value on an omitted update. fileType feeds the parquet
+        // whitelist gate below.
         const existingIntegration =
           await ctx.prisma.blobStorageIntegration.findUnique({
             where: { projectId: input.projectId },
-            select: { createdAt: true, exportSource: true },
+            select: { createdAt: true, exportSource: true, fileType: true },
           });
+
+        // Parquet is whitelist-gated while it stabilises as a first-class
+        // fileType. Only gate a *change to* PARQUET — a project already
+        // persisting it (e.g. later removed from the whitelist) must still be
+        // able to save unrelated edits without being locked out. The legacy
+        // `exportTuning.parquet` override is a separate, DB-only path unaffected
+        // by this check.
+        const isChangingToParquet =
+          input.fileType === BlobStorageIntegrationFileType.PARQUET &&
+          existingIntegration?.fileType !==
+            BlobStorageIntegrationFileType.PARQUET;
+        if (isChangingToParquet && !isParquetFileTypeAllowed(input.projectId)) {
+          throw new InvalidRequestError(
+            "Parquet export is not available for this project.",
+          );
+        }
 
         // Legacy gate checks explicit values only; omitted preserves the row,
         // CREATE is covered by forceEventsOnCreate below.

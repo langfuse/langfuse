@@ -7302,6 +7302,18 @@ components:
         - JSON
         - CSV
         - JSONL
+    BlobStorageIntegrationFileTypeResponse:
+      title: BlobStorageIntegrationFileTypeResponse
+      type: string
+      enum:
+        - JSON
+        - CSV
+        - JSONL
+        - PARQUET
+      description: >-
+        File type reported for an existing integration. Includes `PARQUET`,
+        which a project may enable through the Langfuse UI but cannot yet be set
+        via this API (the request `fileType` omits it).
     BlobStorageExportMode:
       title: BlobStorageExportMode
       type: string
@@ -7507,7 +7519,7 @@ components:
         forcePathStyle:
           type: boolean
         fileType:
-          $ref: '#/components/schemas/BlobStorageIntegrationFileType'
+          $ref: '#/components/schemas/BlobStorageIntegrationFileTypeResponse'
         exportMode:
           $ref: '#/components/schemas/BlobStorageExportMode'
         exportStartDate:

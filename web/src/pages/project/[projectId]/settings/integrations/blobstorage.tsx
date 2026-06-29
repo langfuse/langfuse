@@ -732,7 +732,16 @@ const BlobStorageIntegrationSettingsForm = ({
                     <SelectItem value="JSONL">JSONL</SelectItem>
                     <SelectItem value="CSV">CSV</SelectItem>
                     <SelectItem value="JSON">JSON</SelectItem>
-                    {(isParquetWhitelisted || isParquetOverride) && (
+                    {/*
+                      Also render when the current value is already PARQUET so a
+                      project that was de-whitelisted (or rolled back) keeps the
+                      option visible and can deliberately switch away, instead of
+                      showing a blank trigger.
+                    */}
+                    {(isParquetWhitelisted ||
+                      isParquetOverride ||
+                      watchedFileType ===
+                        BlobStorageIntegrationFileType.PARQUET) && (
                       <SelectItem value="PARQUET">Parquet</SelectItem>
                     )}
                   </SelectContent>

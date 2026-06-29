@@ -728,7 +728,15 @@ const processBlobStorageExport = async (config: {
 
           const dataStream = countedStream(rawStream, sourceStats);
           // PARQUET is handled by the parquetEligible branch above; this path
-          // only ever sees the text formats (JSON/CSV/JSONL).
+          // only ever sees the text formats (JSON/CSV/JSONL). Assert the
+          // invariant explicitly so a future regression surfaces as a clear
+          // error rather than a cryptic `undefined is not a function` from the
+          // missing streamTransformations entry.
+          if (config.fileType === BlobStorageIntegrationFileType.PARQUET) {
+            throw new Error(
+              `Reached the text-format export path with fileType=PARQUET for project ${config.projectId}; the parquetEligible branch should have handled it`,
+            );
+          }
           const formatTransform =
             streamTransformations[config.fileType as BatchExportFileFormat]();
 
