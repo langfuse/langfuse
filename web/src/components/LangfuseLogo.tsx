@@ -4,20 +4,7 @@ import { VersionLabel } from "./VersionLabel";
 import { env } from "@/src/env.mjs";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { PlusIcon } from "lucide-react";
-
-type LangfuseIconProps = {
-  size?: 14 | 16 | 28 | 32 | 42;
-};
-
-export const LangfuseIcon = ({ size = 32 }: LangfuseIconProps) => (
-  // eslint-disable-next-line @next/next/no-img-element
-  <img
-    src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/icon.svg`}
-    width={size}
-    height={size}
-    alt="Langfuse Icon"
-  />
-);
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 
 const LangfuseLogotypeOrCustomized = () => {
   const uiCustomization = useUiCustomization();

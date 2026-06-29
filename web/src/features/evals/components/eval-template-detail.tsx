@@ -24,7 +24,7 @@ import {
   SidePanelHeader,
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
-import { LangfuseIcon } from "@/src/components/LangfuseLogo";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { DeleteEvalTemplateButton } from "@/src/features/evals/components/delete-eval-template-button";
 
 export const EvalTemplateDetail = () => {

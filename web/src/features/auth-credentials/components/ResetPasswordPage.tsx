@@ -14,7 +14,7 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { PasswordInput } from "@/src/components/ui/password-input";
-import { LangfuseIcon } from "@/src/components/LangfuseLogo";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { useSession } from "next-auth/react";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { api } from "@/src/utils/api";
