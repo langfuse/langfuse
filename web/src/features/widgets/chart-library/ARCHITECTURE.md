@@ -76,13 +76,16 @@ different — and sometimes wrong — dates. One source of truth per decision.)
 ## Where we are / where we're going
 
 - **Now:** the visualiser is a set of recharts components behind one `Chart`
-  dispatcher. The first preparer seam — the **time axis** — is in place
-  (`prepareTimeAxis`): raw timestamps in, granularity-adaptive labels out, one
-  formatter for every chart.
+  dispatcher. Two preparer seams are in place: the **time axis**
+  (`prepareTimeAxis` — raw timestamps in, granularity-adaptive labels out, one
+  formatter for every chart) and the **series cap** (`prepareVisibleSeries` —
+  ranks a breakdown by magnitude and keeps the top‑N so a high-cardinality
+  group-by of hundreds of series stays both legible and fast, with an honest
+  "top N of M" note rather than a silent truncation; see principle 5).
 - **Next:** move the remaining decisions — series colors, legend summaries,
-  top‑N/overload, units, axis type & scale — out of the components and into the
-  preparer, until the visualiser is purely presentational and the preparer is
-  the single, tested place where "what should this look like" is answered.
+  units, axis type & scale — out of the components and into the preparer, until
+  the visualiser is purely presentational and the preparer is the single, tested
+  place where "what should this look like" is answered.
 
 The target: adding a new chart should mean teaching the **preparer** a new shape,
 not teaching every component a new special case.

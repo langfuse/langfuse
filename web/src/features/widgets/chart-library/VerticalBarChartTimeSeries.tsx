@@ -16,8 +16,10 @@ import {
 } from "@/src/features/widgets/chart-library/utils";
 import { useChartTickBudget } from "@/src/features/widgets/chart-library/useChartTickBudget";
 import { prepareTimeAxis } from "@/src/features/widgets/chart-library/prepareTimeAxis";
+import { prepareVisibleSeries } from "@/src/features/widgets/chart-library/prepareVisibleSeries";
 import {
   seriesColor,
+  SeriesOverflowNote,
   TimeSeriesLegend,
   useSeriesLegend,
 } from "@/src/features/widgets/chart-library/TimeSeriesLegend";
@@ -49,7 +51,14 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
 }) => {
   const [selfHovered, setSelfHovered] = useState(false);
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
-  const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
+  const allDimensions = useMemo(() => getUniqueDimensions(data), [data]);
+  // Cap how many series we draw (data -> preparer seam): a high-cardinality
+  // breakdown of hundreds of series is both unreadable and slow to hover. (LFE-10549)
+  const series = useMemo(
+    () => prepareVisibleSeries(data, allDimensions),
+    [data, allDimensions],
+  );
+  const dimensions = series.visible;
   const { ref: containerRef, maxTicks } = useChartTickBudget();
   const chartBoxRef = useRef<HTMLDivElement>(null);
   const timeAxis = useMemo(
@@ -92,6 +101,10 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
           formatSummary={formatValue}
         />
       )}
+      <SeriesOverflowNote
+        visibleCount={dimensions.length}
+        totalCount={series.total}
+      />
       <ChartContainer
         ref={chartBoxRef}
         config={config}
