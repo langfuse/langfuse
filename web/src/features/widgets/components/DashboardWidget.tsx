@@ -449,6 +449,9 @@ export function DashboardWidget({
             <Chart
               chartType={widget.data.chartType}
               data={transformedData}
+              // Sync the hover crosshair across all time-series widgets on this
+              // dashboard (non-time-series chart types ignore it). (LFE-10549)
+              syncId={dashboardId}
               config={
                 chartPresentation
                   ? {
