@@ -287,12 +287,19 @@ export function SearchComposer({
   projectId,
   observed,
   onActivateAi,
+  onRequestColumns,
 }: {
   projectId: string;
   /** Observed facet values for value suggestions; undefined = loading. */
   observed: ObservedOptions | undefined;
   /** When set, a clickable "Ask AI" button is shown to build / refine filters. */
   onActivateAi?: () => void;
+  /**
+   * Lazy filter-options: request a field's observed values on demand when the
+   * caret enters its value stage (e.g. typing `userId:`). No-op unless lazy
+   * loading is wired by the host table.
+   */
+  onRequestColumns?: (columns: readonly string[]) => void;
 }) {
   const storeApi = useSearchBarStoreApi();
   const commitToFilterState = useSearchBarCommit();
@@ -357,6 +364,15 @@ export function SearchComposer({
           currentQueryText: draft,
         })
       : null;
+  // Lazy filter-options: when the current completion stage needs option columns
+  // that have not loaded yet, ask the host table to fetch them. Keyed on the
+  // joined column list so it fires once per distinct need, not every keystroke.
+  const requestColumnsKey = plan?.requestColumns?.join(",") ?? "";
+  React.useEffect(() => {
+    if (!onRequestColumns || requestColumnsKey.length === 0) return;
+    onRequestColumns(requestColumnsKey.split(","));
+  }, [requestColumnsKey, onRequestColumns]);
+
   const options = flattenOptions(plan);
   // Highlight policy: Enter only picks what typing narrowed. Explicit user
   // highlights (arrows/hover) always win; otherwise only plans that completed

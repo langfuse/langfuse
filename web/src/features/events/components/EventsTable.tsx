@@ -370,15 +370,24 @@ export default function ObservationsEventsTable({
 
   const oldFilterState = inputFilterState.concat(dateRangeFilter);
 
-  // Fetch filter options
-  const { filterOptions, isFilterOptionsPending } = useEventsFilterOptions({
+  // Fetch filter options. Lazy: start with the eagerly-visible facets and load
+  // the rest (high-cardinality userId/sessionId, model/prompt/score facets) only
+  // when a sidebar section is opened or a field is typed into the search bar.
+  const {
+    filterOptions,
+    isFilterOptionsPending,
+    loadingColumns,
+    requestColumns,
+  } = useEventsFilterOptions({
     projectId,
     oldFilterState,
+    lazy: true,
   });
 
   const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(() => {
     const baseOptions = {
       loading: isFilterOptionsPending,
+      loadingColumns,
       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
     };
 
@@ -402,13 +411,26 @@ export default function ObservationsEventsTable({
       stateLocation: "urlAndSessionStorage",
       sessionFilterContextId: projectId,
     };
-  }, [hideControls, isFilterOptionsPending, peekContext, projectId]);
+  }, [
+    hideControls,
+    isFilterOptionsPending,
+    loadingColumns,
+    peekContext,
+    projectId,
+  ]);
 
   const queryFilter = useSidebarFilterState(
     eventsFilterConfig,
     filterOptions,
     queryFilterOptions,
   );
+
+  // Lazy filter-options: load a facet's values when its sidebar section is
+  // expanded (also covers active filters, which auto-expand on mount). The
+  // request set only grows, so re-collapsing never re-fetches.
+  useEffect(() => {
+    requestColumns(queryFilter.expanded);
+  }, [queryFilter.expanded, requestColumns]);
 
   // Grammar search bar: an ADDITIONAL editor that coexists with the facet
   // sidebar, and the two stay in sync. Generally available on the v4 events
@@ -1498,6 +1520,7 @@ export default function ObservationsEventsTable({
                 commit={searchBarCommit}
                 observed={observedOptions}
                 onApplyFilters={searchBarApplyFilters}
+                onRequestColumns={requestColumns}
                 aiDataContext={aiDataContext}
               />
             )}

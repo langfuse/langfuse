@@ -19,6 +19,7 @@ import { type FilterState } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import type { ObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { AI_GROUNDING_COLUMNS } from "@/src/features/search-bar/lib/ai-context";
 import { SearchComposer } from "@/src/features/search-bar/components/SearchComposer";
 import { SearchBarAiPrompt } from "@/src/features/search-bar/components/SearchBarAiPrompt";
 import { SearchBarStoreProvider } from "@/src/features/search-bar/store/SearchBarStoreProvider";
@@ -30,6 +31,7 @@ export function EventsSearchBarRow({
   commit,
   observed,
   onApplyFilters,
+  onRequestColumns,
   aiDataContext,
 }: {
   projectId: string;
@@ -42,6 +44,12 @@ export function EventsSearchBarRow({
    * comes from `useEventsSearchBar.applyFilters`, not a raw `setFilterState`.
    */
   onApplyFilters: (filters: FilterState) => void;
+  /**
+   * Lazy filter-options: widen the requested column set on demand. Threaded to
+   * the composer (request a field's values when typed) and fired on Ask AI open
+   * (request the grounding columns so the prompt sees real values).
+   */
+  onRequestColumns?: (columns: readonly string[]) => void;
   /** Project data context (observed values + metadata keys + result count) for
    *  the AI prompt — built by EventsTable from filterOptions + visible rows. */
   aiDataContext?: string;
@@ -54,7 +62,12 @@ export function EventsSearchBarRow({
   const aiAvailable =
     isLangfuseCloud && Boolean(organization?.aiFeaturesEnabled);
 
-  const activateAi = React.useCallback(() => setAiOpen(true), []);
+  const activateAi = React.useCallback(() => {
+    // Ground the model on real project values: lazily request the AI columns so
+    // they are loaded by the time the user submits a prompt.
+    onRequestColumns?.(AI_GROUNDING_COLUMNS);
+    setAiOpen(true);
+  }, [onRequestColumns]);
 
   return (
     <div className="min-w-0 px-2 pt-2 pb-1">
@@ -72,6 +85,7 @@ export function EventsSearchBarRow({
             projectId={projectId}
             observed={observed}
             onActivateAi={aiAvailable ? activateAi : undefined}
+            onRequestColumns={onRequestColumns}
           />
         </SearchBarStoreProvider>
       )}
