@@ -44,6 +44,9 @@ export const BLOB_EXPORT_TUNING_BOUNDS = {
   partSizeBytes: { min: 5 * 1024 * 1024, max: 5 * 1024 * 1024 * 1024 },
   maxConcurrentParts: { min: 1, max: 32 },
   maxPartAttempts: { min: 1, max: 10 },
+  // ClickHouse `send_timeout` (seconds) applied to the export query. CH's default
+  // is 300s; allow 1s..1h for per-project tuning of long-running exports.
+  chSendTimeout: { min: 1, max: 3600 },
 } as const;
 
 // Default part size when the column does not specify one. Matches the value
@@ -94,6 +97,16 @@ export const BlobExportTuningSchema = z.object({
     .max(BLOB_EXPORT_TUNING_BOUNDS.maxPartAttempts.max)
     .optional(),
   skipEnrichment: z.boolean().optional(),
+  // ClickHouse `send_timeout` (seconds) for the export query, passed through as a
+  // per-query clickhouse_setting. Absent => CH keeps its own default (300s).
+  // Out-of-range values are REJECTED here (write path) but CLAMPED by the
+  // read-side resolver.
+  chSendTimeout: z
+    .number()
+    .int()
+    .min(BLOB_EXPORT_TUNING_BOUNDS.chSendTimeout.min)
+    .max(BLOB_EXPORT_TUNING_BOUNDS.chSendTimeout.max)
+    .optional(),
 });
 
 export type BlobExportTuning = z.infer<typeof BlobExportTuningSchema>;
@@ -119,6 +132,9 @@ export type ResolvedBlobExportTuning = {
   maxConcurrentParts: number | undefined;
   maxPartAttempts: number | undefined;
   skipEnrichment: boolean;
+  // undefined => not set by the operator; ClickHouse keeps its own send_timeout
+  // default (300s). A concrete value (seconds) is applied per-query.
+  chSendTimeout: number | undefined;
 };
 
 export interface ResolveBlobExportTuningResult {
@@ -257,6 +273,7 @@ export function resolveBlobExportTuning(
     maxConcurrentParts: undefined,
     maxPartAttempts: undefined,
     skipEnrichment: false,
+    chSendTimeout: undefined,
   };
 
   if (raw === null || raw === undefined) {
@@ -318,6 +335,12 @@ export function resolveBlobExportTuning(
       skipEnrichment: resolveBoolean(
         "skipEnrichment",
         obj.skipEnrichment,
+        warnings,
+      ),
+      chSendTimeout: resolveOptionalNumber(
+        "chSendTimeout",
+        obj.chSendTimeout,
+        BLOB_EXPORT_TUNING_BOUNDS.chSendTimeout,
         warnings,
       ),
     },
