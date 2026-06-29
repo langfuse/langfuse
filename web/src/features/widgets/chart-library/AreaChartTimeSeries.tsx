@@ -9,6 +9,7 @@ import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
   formatMetric,
+  getEvenTickInterval,
   getUniqueDimensions,
   groupDataByTimeDimension,
   toFullMetricString,
@@ -39,6 +40,7 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
 }) => {
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
+  const xTickInterval = getEvenTickInterval(groupedData.length);
 
   const { legendItems, onLegendClick, isRendered, isDimmed } = useSeriesLegend({
     data,
@@ -70,8 +72,7 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
             fontSize={12}
             tickLine={false}
             axisLine={false}
-            interval="preserveStartEnd"
-            minTickGap={24}
+            interval={xTickInterval}
           />
           <YAxis
             type="number"

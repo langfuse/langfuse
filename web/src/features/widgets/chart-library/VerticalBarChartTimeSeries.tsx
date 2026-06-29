@@ -9,6 +9,7 @@ import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
   formatMetric,
+  getEvenTickInterval,
   getUniqueDimensions,
   groupDataByTimeDimension,
   toFullMetricString,
@@ -45,6 +46,7 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
 }) => {
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
+  const xTickInterval = getEvenTickInterval(groupedData.length);
 
   const { legendItems, onLegendClick, isRendered, isDimmed } = useSeriesLegend({
     data,
@@ -80,8 +82,7 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
             fontSize={12}
             tickLine={false}
             axisLine={false}
-            interval="preserveStartEnd"
-            minTickGap={24}
+            interval={xTickInterval}
           />
           <YAxis
             type="number"
@@ -100,6 +101,7 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
                 key={dimension}
                 dataKey={dimension}
                 stroke={seriesColor(index)}
+                strokeOpacity={muted ? 0.2 : 1}
                 fill={seriesColor(index)}
                 fillOpacity={muted ? 0.2 : subtleFill ? 0.3 : 1}
                 stackId={renderedDimensions.length > 1 ? "stack" : undefined}

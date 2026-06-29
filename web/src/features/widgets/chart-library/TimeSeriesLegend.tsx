@@ -20,6 +20,8 @@ export type LegendItem = {
   summary: number | null;
   /** Greyed in the legend: muted (highlight mode) or hidden (toggle mode). */
   dimmed: boolean;
+  /** Highlight mode only: this is the actively-focused series (clicking it clears focus). */
+  focused: boolean;
 };
 
 /**
@@ -115,6 +117,7 @@ export function useSeriesLegend({
     color: seriesColor(index),
     summary: summaries?.get(dimension) ?? null,
     dimmed: isDimmed(dimension),
+    focused: legendInteraction !== "toggle" && highlighted === dimension,
   }));
 
   return { legendItems, onLegendClick, isRendered, isDimmed };
@@ -141,16 +144,22 @@ export function TimeSeriesLegend({
     <div className="min-w-0 shrink-0 overflow-x-auto overflow-y-hidden pb-3">
       <div className="flex w-max min-w-full flex-nowrap justify-end gap-4">
         {items.map((item) => {
-          // A `0` summary is a real value and must be shown; only a `null`
-          // summary (series with no data) is omitted. (LFE-10498)
+          // Labels must describe the NEXT action, not the current state.
+          // - toggle: click flips visibility → "Show"/"Hide".
+          // - highlight: clicking the focused series clears focus ("Show all
+          //   series"); clicking any other focuses it ("Show only X"). (Getting
+          //   this from `dimmed` alone inverts it once a series is focused.)
           const ariaLabel =
             interaction === "toggle"
               ? item.dimmed
                 ? `Show ${item.dimension}`
                 : `Hide ${item.dimension}`
-              : item.dimmed
+              : item.focused
                 ? "Show all series"
                 : `Show only ${item.dimension}`;
+          // aria-pressed reflects state: visible (toggle) / focused (highlight).
+          const ariaPressed =
+            interaction === "toggle" ? !item.dimmed : item.focused;
           return (
             <button
               key={item.dimension}
@@ -161,7 +170,7 @@ export function TimeSeriesLegend({
                 "cursor-pointer hover:opacity-80",
                 item.dimmed && "opacity-40",
               )}
-              aria-pressed={!item.dimmed}
+              aria-pressed={ariaPressed}
               aria-label={ariaLabel}
             >
               <div
