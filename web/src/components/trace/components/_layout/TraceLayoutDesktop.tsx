@@ -47,11 +47,37 @@ const RESIZABLE_PANEL_PREVIEW_ID = "trace-layout-panel-preview";
 const NAVIGATION_PANEL_MIN_PX = 260;
 const DETAIL_PANEL_MIN_PX = 360;
 const RESIZE_HANDLE_PX = 1;
+const COLLAPSED_PANEL_PX = 40;
 // Width below which the two mins can't both fit; at-or-above this the group
 // fills the container normally, below it the group keeps this width and the
 // wrapper scrolls horizontally.
 const BOTH_PANELS_MIN_WIDTH_PX =
   NAVIGATION_PANEL_MIN_PX + DETAIL_PANEL_MIN_PX + RESIZE_HANDLE_PX;
+
+// Detect whether a panel is sitting on its collapsed rail in a RESTORED layout.
+// `useDefaultLayout` returns a `{ [panelId]: number }` map of flexGrow shares
+// that sum to ~100 (percentages of the group). A collapsed panel is exactly its
+// `collapsedSize` (40px) wide, while an open panel is always at least its
+// `minSize` (260/360px). For any peek width those two ranges never overlap: at
+// the narrowest both-panels-open width (~621px) the 40px rail is ~6% while the
+// smaller open min (nav 260px) is ~42%, and the gap only widens as the group
+// grows. We therefore treat a panel as collapsed-in-layout when its restored
+// share is at most the share its rail would occupy at the narrowest open width,
+// with a margin — comfortably below any open-min share. Used only to seed the
+// collapse flags on mount so `bothPanelsOpen` (and thus the min-width pin)
+// matches the layout the library is about to restore, avoiding a one-frame
+// scrollbar flash (see the useState initializers below).
+const COLLAPSED_LAYOUT_SHARE_MAX_PCT =
+  ((COLLAPSED_PANEL_PX / BOTH_PANELS_MIN_WIDTH_PX) * 100 +
+    (NAVIGATION_PANEL_MIN_PX / BOTH_PANELS_MIN_WIDTH_PX) * 100) /
+  2;
+function isPanelCollapsedInLayout(
+  layout: Record<string, number> | undefined,
+  panelId: string,
+): boolean {
+  const share = layout?.[panelId];
+  return typeof share === "number" && share <= COLLAPSED_LAYOUT_SHARE_MAX_PCT;
+}
 
 // Context for sharing panel state with compound components
 interface TraceLayoutDesktopContext {
@@ -98,15 +124,33 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
   // Get annotation mode from context to determine initial collapse state
   const { isAnnotationMode } = useViewPreferences();
 
-  const [isNavigationPanelCollapsed, setIsNavigationPanelCollapsed] =
-    useState(isAnnotationMode);
+  // Restored (sessionStorage) layout for this group. Read before the collapse
+  // flags so we can seed them from what the library is about to restore on
+  // mount — otherwise the first render derives `bothPanelsOpen` purely from the
+  // useState defaults (open), pins the group to 621px even when a persisted
+  // layout has a panel on its 40px rail, and a narrow peek flashes a useless
+  // horizontal scrollbar until the Panel's onResize corrects the flag a frame
+  // later.
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: RESIZABLE_PANEL_GROUP_ID,
+    panelIds: [RESIZABLE_PANEL_NAVIGATION_ID, RESIZABLE_PANEL_PREVIEW_ID],
+    storage: sessionStorage,
+  });
+
+  const [isNavigationPanelCollapsed, setIsNavigationPanelCollapsed] = useState(
+    () =>
+      isAnnotationMode ||
+      isPanelCollapsedInLayout(defaultLayout, RESIZABLE_PANEL_NAVIGATION_ID),
+  );
 
   // Ref to programmatically control the panel
   const panelRef = usePanelRef();
 
   // Detail (info/preview) panel collapse state + control.
   const detailPanelRef = usePanelRef();
-  const [isDetailPanelCollapsed, setIsDetailPanelCollapsed] = useState(false);
+  const [isDetailPanelCollapsed, setIsDetailPanelCollapsed] = useState(() =>
+    isPanelCollapsedInLayout(defaultLayout, RESIZABLE_PANEL_PREVIEW_ID),
+  );
 
   // Group ref — drives the whole layout atomically (setLayout) when reopening a
   // collapsed panel, which is more robust than chaining the per-panel
@@ -163,9 +207,16 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
         const group = groupRef.current;
         const panel =
           target === "navigation" ? panelRef.current : detailPanelRef.current;
+        const siblingPanel =
+          target === "navigation" ? detailPanelRef.current : panelRef.current;
         const groupWidthPx =
           document.getElementById(RESIZABLE_PANEL_GROUP_ID)?.offsetWidth ?? 0;
         if (group && panel && groupWidthPx > 0) {
+          // Whether the sibling was deliberately collapsed (header toggle, rail
+          // button, or dragged onto its 40px rail). If so we keep it there:
+          // collapsing stays a manual action, so reopening one panel must not
+          // silently uncollapse the other (LFE-10550). Captured before expand().
+          const siblingCollapsed = siblingPanel?.isCollapsed() ?? false;
           panel.expand();
           const ownMinPx =
             target === "navigation"
@@ -175,24 +226,43 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
             target === "navigation"
               ? DETAIL_PANEL_MIN_PX
               : NAVIGATION_PANEL_MIN_PX;
-          const ownPx = Math.max(
-            ownMinPx,
-            Math.min(groupWidthPx / 2, groupWidthPx - siblingMinPx),
-          );
-          const ownPercent = (ownPx / groupWidthPx) * 100;
-          group.setLayout({
-            [RESIZABLE_PANEL_NAVIGATION_ID]:
-              target === "navigation" ? ownPercent : 100 - ownPercent,
-            [RESIZABLE_PANEL_PREVIEW_ID]:
-              target === "detail" ? ownPercent : 100 - ownPercent,
-          });
+          if (siblingCollapsed) {
+            // Sibling stays on its rail: give the target everything except the
+            // sibling's 40px rail. resize() (not the two-panel setLayout) leaves
+            // the collapsed sibling untouched so its onResize never fires.
+            const ownPx = Math.max(ownMinPx, groupWidthPx - COLLAPSED_PANEL_PX);
+            panel.resize(`${(ownPx / groupWidthPx) * 100}%`);
+          } else {
+            // Both open: balanced split that still leaves the sibling its min —
+            // groupWidth/2 clamped to [own min, groupWidth − sibling min]. On a
+            // too-narrow peek the upper clamp wins: target lands on its own min,
+            // sibling keeps its min (both at mins + horizontal scroll); on a wide
+            // peek it's a true 50/50.
+            const ownPx = Math.max(
+              ownMinPx,
+              Math.min(groupWidthPx / 2, groupWidthPx - siblingMinPx),
+            );
+            const ownPercent = (ownPx / groupWidthPx) * 100;
+            group.setLayout({
+              [RESIZABLE_PANEL_NAVIGATION_ID]:
+                target === "navigation" ? ownPercent : 100 - ownPercent,
+              [RESIZABLE_PANEL_PREVIEW_ID]:
+                target === "detail" ? ownPercent : 100 - ownPercent,
+            });
+          }
+          // Only update state when the expand actually applied (inside the
+          // guard) — otherwise the flags would flip to "open" while the library
+          // still has the panel collapsed, desyncing the min-width pin until the
+          // next onResize. Flip the target's flag before clearing pendingExpand
+          // so the group stays pinned across the render that clears the intent
+          // (otherwise it would briefly unpin and the solver could re-collapse
+          // the panel we just opened). The sibling's flag is left to its own
+          // onResize: when it stays collapsed nothing fires and the flag holds.
+          if (target === "navigation") setIsNavigationPanelCollapsed(false);
+          else setIsDetailPanelCollapsed(false);
         }
-        // Hand the pin to bothPanelsOpen via the collapse flags, then drop the
-        // transient intent. Order matters: flip the flags first so the group stays
-        // pinned across the render that clears pendingExpand (otherwise it would
-        // briefly unpin and the solver could re-collapse the panel we just opened).
-        if (target === "navigation") setIsNavigationPanelCollapsed(false);
-        else setIsDetailPanelCollapsed(false);
+        // Always clear the transient intent — even on a failed expand — so a
+        // later resize/onResize isn't blocked by a stale pendingExpand.
         setPendingExpand(null);
       });
     });
@@ -264,12 +334,6 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
     // Reset pulse when leaving timeline view
     setShouldPulseToggle(false);
   }, [isTimelineView]);
-
-  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
-    id: RESIZABLE_PANEL_GROUP_ID,
-    panelIds: [RESIZABLE_PANEL_NAVIGATION_ID, RESIZABLE_PANEL_PREVIEW_ID],
-    storage: sessionStorage,
-  });
 
   const contextValue: TraceLayoutDesktopContext = {
     isNavigationPanelCollapsed,
