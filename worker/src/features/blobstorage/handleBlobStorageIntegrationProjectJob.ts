@@ -1350,6 +1350,10 @@ export const handleBlobStorageIntegrationProjectJob = async (
     const disableForCustomerFault =
       isFinalAttempt && isCustomerFaultError(error);
 
+    // Set only after the disable actually persists, so the "disabled" email
+    // (which bypasses the cooldown) never claims a state we failed to write —
+    // e.g. if the update throws on a concurrent row delete.
+    let persistedDisable = false;
     try {
       await prisma.blobStorageIntegration.update({
         where: { projectId },
@@ -1360,7 +1364,8 @@ export const handleBlobStorageIntegrationProjectJob = async (
           ...(disableForCustomerFault ? { enabled: false } : {}),
         },
       });
-      if (disableForCustomerFault) {
+      persistedDisable = disableForCustomerFault;
+      if (persistedDisable) {
         logger.warn(
           `[BLOB INTEGRATION] Disabled blob storage integration for project ${projectId} after a customer-config/credential failure: ${errorMessage}`,
         );
@@ -1372,10 +1377,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
-    notifyBlobStorageExportFailedInBackground(
-      projectId,
-      disableForCustomerFault,
-    );
+    notifyBlobStorageExportFailedInBackground(projectId, persistedDisable);
 
     const chain = formatErrorChain(error);
     logger.error(
