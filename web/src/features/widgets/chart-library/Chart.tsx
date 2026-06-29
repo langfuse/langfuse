@@ -87,38 +87,11 @@ const ChartComponent = ({
     [metricFormatterOverride, chartConfig?.unit],
   );
 
-  const renderedData = useMemo(() => {
-    return data.map((item) => {
-      if (!item.time_dimension) return { ...item, time_dimension: undefined };
-      const value = item.time_dimension;
-      const looksLikeIso =
-        value.includes("T") || /^\d{4}-\d{2}-\d{2}$/.test(value);
-      if (!looksLikeIso) {
-        return { ...item, time_dimension: value };
-      }
-      const parsed = new Date(value);
-      if (Number.isNaN(parsed.getTime())) return { ...item };
-      const isMidnight =
-        parsed.getUTCHours() === 0 &&
-        parsed.getUTCMinutes() === 0 &&
-        parsed.getUTCSeconds() === 0 &&
-        parsed.getUTCMilliseconds() === 0;
-      const time_dimension = isMidnight
-        ? parsed.toLocaleDateString("en-US", {
-            year: "2-digit",
-            month: "numeric",
-            day: "numeric",
-          })
-        : parsed.toLocaleTimeString("en-US", {
-            year: "2-digit",
-            month: "numeric",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          });
-      return { ...item, time_dimension };
-    });
-  }, [data]);
+  // Time-axis formatting is NOT decided here. Raw time_dimension values flow
+  // straight to the visualiser, which formats them via the prepareTimeAxis
+  // preparer — one source of truth, so every chart formats time the same way.
+  // (LFE-10549)
+  const renderedData = data;
 
   const resolvedConfig = useMemo(() => {
     if (!config) return undefined;

@@ -27,6 +27,7 @@ import {
   toFullMetricString,
 } from "@/src/features/widgets/chart-library/utils";
 import { useResponsiveTickInterval } from "@/src/features/widgets/chart-library/useResponsiveTickInterval";
+import { prepareTimeAxis } from "@/src/features/widgets/chart-library/prepareTimeAxis";
 import {
   seriesColor,
   TimeSeriesLegend,
@@ -197,6 +198,10 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
   const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
   const { ref: containerRef, interval: xTickInterval } =
     useResponsiveTickInterval(groupedData.length);
+  const timeAxis = useMemo(
+    () => prepareTimeAxis(groupedData.map((d) => d.time_dimension)),
+    [groupedData],
+  );
 
   const {
     legendItems,
@@ -260,6 +265,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
             tickLine={false}
             axisLine={false}
             interval={xTickInterval}
+            tickFormatter={timeAxis.formatTick}
           />
           <YAxis
             type="number"
@@ -312,6 +318,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
                   payload={payload}
                   label={label}
                   indicator="line"
+                  labelFormatter={(value) => timeAxis.formatTooltip(value)}
                   valueFormatter={tooltipFormatter}
                   sortPayloadByValue="desc"
                   highlightedKeys={proximityActive ? nearestSet : undefined}

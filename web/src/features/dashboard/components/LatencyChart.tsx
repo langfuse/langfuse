@@ -190,7 +190,7 @@ export const GenerationLatencyChart = ({
                   <div className="h-80 w-full shrink-0">
                     <Chart
                       chartType="LINE_TIME_SERIES"
-                      data={timeSeriesToDataPoints(item.data, agg)}
+                      data={timeSeriesToDataPoints(item.data)}
                       config={{
                         metric: {
                           label: "Latency",

@@ -106,8 +106,8 @@ export function ChartScores(props: {
   );
 
   const chartData = useMemo(
-    () => timeSeriesToDataPoints(extractedScores, props.agg),
-    [extractedScores, props.agg],
+    () => timeSeriesToDataPoints(extractedScores),
+    [extractedScores],
   );
 
   return (

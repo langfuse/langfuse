@@ -111,7 +111,7 @@ export function NumericScoreTimeSeriesChart(props: {
     <div className="h-80 w-full shrink-0">
       <Chart
         chartType="LINE_TIME_SERIES"
-        data={timeSeriesToDataPoints(extractedScores, props.agg)}
+        data={timeSeriesToDataPoints(extractedScores)}
         rowLimit={100}
         chartConfig={{
           type: "LINE_TIME_SERIES",
