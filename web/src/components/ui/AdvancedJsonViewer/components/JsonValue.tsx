@@ -84,13 +84,6 @@ export function JsonValue({
   if (type === "string") {
     const str = value as string;
 
-    // Render previewable media (Langfuse refs, data URIs, media URLs) as a
-    // hover-to-peek chip instead of the raw string.
-    const mediaDescriptor = classifyMediaLeaf(str);
-    if (mediaDescriptor) {
-      return <JsonMediaTag descriptor={mediaDescriptor} />;
-    }
-
     // Mode 1: "truncate" - use TruncatedString component
     if (stringWrapMode === "truncate") {
       const shouldTruncate =
@@ -117,6 +110,13 @@ export function JsonValue({
       highlightEnd,
       adjustedCommentRanges,
     );
+
+    // Render previewable media as a hover-to-peek chip only when the existing
+    // text highlighter found no search/comment overlays to preserve.
+    const mediaDescriptor = classifyMediaLeaf(str);
+    if (mediaDescriptor && segments.every((segment) => segment.type === null)) {
+      return <JsonMediaTag descriptor={mediaDescriptor} />;
+    }
 
     return (
       <span
