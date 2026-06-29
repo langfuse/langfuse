@@ -3,12 +3,7 @@ import {
   EvalTemplateType,
   type EvalTemplate,
 } from "@langfuse/shared";
-import {
-  AlertCircle,
-  CheckIcon,
-  ExternalLink,
-  ExternalLinkIcon,
-} from "lucide-react";
+import { AlertCircle, CheckIcon } from "lucide-react";
 import {
   InputCommand,
   InputCommandEmpty,
@@ -101,6 +96,7 @@ interface EvaluatorSelectorProps {
   projectId: string;
   evalTemplates: EvalTemplate[];
   selectedTemplateId?: string;
+  showMissingProviderWarning?: boolean;
   onTemplateSelect: (
     templateId: string,
     name: string,
@@ -112,6 +108,7 @@ export function EvaluatorSelector({
   projectId,
   evalTemplates,
   selectedTemplateId,
+  showMissingProviderWarning = true,
   onTemplateSelect,
 }: EvaluatorSelectorProps) {
   const [search, setSearch] = useState("");
@@ -167,9 +164,9 @@ export function EvaluatorSelector({
   const hasResults =
     filteredTemplates.langfuse.length > 0 ||
     filteredTemplates.custom.length > 0;
-
   const { isTemplateInvalid } = useSingleTemplateValidation({
     projectId,
+    enabled: showMissingProviderWarning,
   });
 
   return (
@@ -205,7 +202,6 @@ export function EvaluatorSelector({
                       );
                     }}
                     className={cn(
-                      "group",
                       templateData.some((t) => t.id === selectedTemplateId) &&
                         "bg-secondary",
                     )}
@@ -225,7 +221,7 @@ export function EvaluatorSelector({
                       </TooltipTrigger>
                       <TooltipContent
                         side="right"
-                        className="max-h-[300px] max-w-[400px] overflow-y-auto"
+                        className="max-h-[70dvh] w-[720px] max-w-[calc(100vw-3rem)] overflow-y-auto"
                       >
                         <TemplatePreviewTooltipContent
                           template={latestVersion}
@@ -241,41 +237,17 @@ export function EvaluatorSelector({
                           <p>Requires project-level evaluation model</p>
                           <Link
                             href={`/project/${projectId}/evals/default-model`}
-                            className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
+                            className="mt-2 block text-blue-600 hover:underline"
                             target="_blank"
                             rel="noopener noreferrer"
                           >
-                            <ExternalLinkIcon className="h-3 w-3" />
                             Configure default model
                           </Link>
                         </TooltipContent>
                       </Tooltip>
                     )}
-                    {templateData.some((t) => t.id === selectedTemplateId) ? (
-                      <>
-                        <Link
-                          href={`/project/${projectId}/evals/templates/${latestVersion.id}`}
-                          target="_blank"
-                          className="ml-auto opacity-0 group-hover:opacity-100 hover:opacity-100"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                          }}
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </Link>
-                        <CheckIcon className={cn("ml-2 h-4 w-4")} />
-                      </>
-                    ) : (
-                      <Link
-                        href={`/project/${projectId}/evals/templates/${latestVersion.id}`}
-                        target="_blank"
-                        className="ml-auto opacity-0 group-hover:opacity-100 hover:opacity-100"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                        }}
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </Link>
+                    {templateData.some((t) => t.id === selectedTemplateId) && (
+                      <CheckIcon className="ml-auto h-4 w-4" />
                     )}
                   </InputCommandItem>
                 );
@@ -304,7 +276,6 @@ export function EvaluatorSelector({
                       );
                     }}
                     className={cn(
-                      "group",
                       templateData.some((t) => t.id === selectedTemplateId) &&
                         "bg-secondary",
                     )}
@@ -324,7 +295,7 @@ export function EvaluatorSelector({
                       </TooltipTrigger>
                       <TooltipContent
                         side="right"
-                        className="max-h-[300px] max-w-[400px] overflow-y-auto"
+                        className="max-h-[70dvh] w-[720px] max-w-[calc(100vw-3rem)] overflow-y-auto"
                       >
                         <TemplatePreviewTooltipContent
                           template={latestVersion}
@@ -343,41 +314,17 @@ export function EvaluatorSelector({
                           <p>Requires project-level evaluation model</p>
                           <Link
                             href={`/project/${projectId}/evals/default-model`}
-                            className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
+                            className="mt-2 block text-blue-600 hover:underline"
                             target="_blank"
                             rel="noopener noreferrer"
                           >
-                            <ExternalLinkIcon className="h-3 w-3" />
                             Configure default model
                           </Link>
                         </TooltipContent>
                       </Tooltip>
                     )}
-                    {templateData.some((t) => t.id === selectedTemplateId) ? (
-                      <>
-                        <Link
-                          href={`/project/${projectId}/evals/templates/${latestVersion.id}`}
-                          target="_blank"
-                          className="ml-auto opacity-0 group-hover:opacity-100 hover:opacity-100"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                          }}
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </Link>
-                        <CheckIcon className={cn("ml-2 h-4 w-4")} />
-                      </>
-                    ) : (
-                      <Link
-                        href={`/project/${projectId}/evals/templates/${latestVersion.id}`}
-                        target="_blank"
-                        className="ml-auto opacity-0 group-hover:opacity-100 hover:opacity-100"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                        }}
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </Link>
+                    {templateData.some((t) => t.id === selectedTemplateId) && (
+                      <CheckIcon className="ml-auto h-4 w-4" />
                     )}
                   </InputCommandItem>
                 );

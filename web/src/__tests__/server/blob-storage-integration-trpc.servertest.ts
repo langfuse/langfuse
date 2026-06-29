@@ -97,9 +97,14 @@ const prepare = async () => {
 const createIntegration = async ({
   projectId,
   enabled = true,
+  exportSource,
 }: {
   projectId: string;
   enabled?: boolean;
+  exportSource?:
+    | "TRACES_OBSERVATIONS"
+    | "TRACES_OBSERVATIONS_EVENTS"
+    | "EVENTS";
 }) =>
   prisma.blobStorageIntegration.create({
     data: {
@@ -115,6 +120,7 @@ const createIntegration = async ({
       forcePathStyle: false,
       fileType: "JSONL",
       exportMode: "FULL_HISTORY",
+      ...(exportSource ? { exportSource } : {}),
     },
   });
 
@@ -368,24 +374,32 @@ describe("Blob Storage Integration tRPC Router", () => {
       sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalSharedCloudRegion;
     });
 
-    it.each(["S3_COMPATIBLE", "AZURE_BLOB_STORAGE"] as const)(
-      "rejects %s endpoints that target blocked IP ranges when validation is enabled",
-      async (type) => {
-        sharedEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS = [
+    it("rejects endpoints that target blocked IP ranges when validation is enabled", async () => {
+      const { env: validationEnv } =
+        await import("../../../../packages/shared/src/env");
+      const { validateBlobStorageEndpoint } =
+        await import("../../../../packages/shared/src/server/services/blobStorageEndpointValidation");
+      const originalValidationCloudRegion =
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      const originalValidationAllowedIps =
+        validationEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS;
+
+      try {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+        validationEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS = [
           "203.0.113.10",
         ];
-        const { caller, project } = await prepare();
 
         await expect(
-          caller.blobStorageIntegration.update({
-            projectId: project.id,
-            ...baseConfig,
-            type,
-            endpoint: "http://127.0.0.1:9000",
-          }),
-        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
-      },
-    );
+          validateBlobStorageEndpoint("http://127.0.0.1:9000"),
+        ).rejects.toThrow();
+      } finally {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
+          originalValidationCloudRegion;
+        validationEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS =
+          originalValidationAllowedIps;
+      }
+    });
 
     it("allows endpoints when their IP is whitelisted", async () => {
       const { env: validationEnv } =
@@ -411,6 +425,48 @@ describe("Blob Storage Integration tRPC Router", () => {
           originalValidationCloudRegion;
         validationEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS =
           originalValidationAllowedIps;
+      }
+    });
+
+    it("allows HTTP endpoints when Cloud region is DEV", async () => {
+      const { env: validationEnv } =
+        await import("../../../../packages/shared/src/env");
+      const { validateBlobStorageEndpoint } =
+        await import("../../../../packages/shared/src/server/services/blobStorageEndpointValidation");
+      const originalValidationCloudRegion =
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+      try {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+
+        await expect(
+          validateBlobStorageEndpoint("http://127.0.0.1:9000"),
+        ).resolves.not.toThrow();
+      } finally {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
+          originalValidationCloudRegion;
+      }
+    });
+
+    it("rejects HTTP endpoints on Langfuse Cloud outside local development", async () => {
+      const { env: validationEnv } =
+        await import("../../../../packages/shared/src/env");
+      const { validateBlobStorageEndpoint } =
+        await import("../../../../packages/shared/src/server/services/blobStorageEndpointValidation");
+      const originalValidationCloudRegion =
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+      try {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "eu";
+
+        await expect(
+          validateBlobStorageEndpoint("http://127.0.0.1:9000"),
+        ).rejects.toThrow(
+          "Only HTTPS blob storage endpoints are allowed on Langfuse Cloud",
+        );
+      } finally {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
+          originalValidationCloudRegion;
       }
     });
   });
@@ -866,6 +922,130 @@ describe("Blob Storage Integration tRPC Router", () => {
       } finally {
         (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
       }
+    });
+  });
+
+  // LFE-10296: an update that omits exportSource must preserve the persisted
+  // value (parity with the public REST handler) — never rewrite it to the
+  // legacy default — and must be rejected when preserving would keep a stale
+  // enriched source alive on a deployment without the enriched export path.
+  describe("update: omitted exportSource", () => {
+    const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    const originalV4Preview = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+
+    afterEach(() => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
+        originalV4Preview;
+    });
+
+    const { exportSource: _ignored, ...configWithoutExportSource } = baseConfig;
+
+    it("preserves a persisted enriched source when enriched export is available", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
+      const { caller, project } = await prepare();
+      await createIntegration({
+        projectId: project.id,
+        exportSource: "EVENTS",
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutExportSource,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.exportSource).toBe("EVENTS");
+    });
+
+    it("rejects an omitted exportSource over a stale enriched row on rolled-back self-hosted", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      const { caller, project } = await prepare();
+      await createIntegration({
+        projectId: project.id,
+        exportSource: "EVENTS",
+      });
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...configWithoutExportSource,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.exportSource).toBe("EVENTS");
+    });
+
+    it("preserves a persisted legacy source on rolled-back self-hosted", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      const { caller, project } = await prepare();
+      await createIntegration({
+        projectId: project.id,
+        exportSource: "TRACES_OBSERVATIONS",
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutExportSource,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.exportSource).toBe("TRACES_OBSERVATIONS");
+    });
+
+    it("creates with EVENTS when exportSource is omitted for a post-cutoff Cloud project", async () => {
+      // The legacy gate only checks explicit values, so an omitted
+      // exportSource on CREATE must not fall through to the Prisma column
+      // default (TRACES_OBSERVATIONS) — mirror of the REST handler's
+      // forceEventsOnCreate behavior.
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      const { caller, project } = await prepare();
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: POST_CUTOFF },
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutExportSource,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.exportSource).toBe("EVENTS");
+    });
+
+    it("still allows an explicit downgrade to a legacy source on rolled-back self-hosted", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      const { caller, project } = await prepare();
+      await createIntegration({
+        projectId: project.id,
+        exportSource: "EVENTS",
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutExportSource,
+        exportSource: "TRACES_OBSERVATIONS" as const,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.exportSource).toBe("TRACES_OBSERVATIONS");
     });
   });
 });

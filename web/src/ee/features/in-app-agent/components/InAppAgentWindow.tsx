@@ -9,6 +9,7 @@ import {
   Minus,
   Plus,
   SendHorizontal,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -88,11 +89,13 @@ export type InAppAgentWindowProps = {
   conversations: InAppAgentWindowConversation[];
   error: string | null;
   hasMoreConversations: boolean;
+  isHeaderDragHandleEnabled?: boolean;
   isExpanded: boolean;
   isInputDisabled: boolean;
   isLoadingMoreConversations: boolean;
   messages: InAppAgentWindowMessage[];
   onExpandedChange: (isExpanded: boolean) => void;
+  onDeleteConversation: (conversation: InAppAgentWindowConversation) => void;
   onLoadMoreConversations: () => void;
   onNewConversation: () => void;
   onSelectConversation: (conversationId: string) => void;
@@ -104,7 +107,6 @@ export type InAppAgentWindowProps = {
     comment?: string | null;
   }) => Promise<void>;
   selectedConversationId: string | undefined;
-  zIndex?: number;
 } & InAppAgentWindowCloseButtonProps;
 
 export function InAppAgentWindow(props: InAppAgentWindowProps) {
@@ -112,10 +114,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     conversations,
     error,
     hasMoreConversations,
+    isHeaderDragHandleEnabled = false,
     isExpanded,
     isInputDisabled,
     isLoadingMoreConversations,
     messages,
+    onDeleteConversation,
     onExpandedChange,
     onLoadMoreConversations,
     onNewConversation,
@@ -123,13 +127,14 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onSubmit,
     onSubmitFeedback,
     selectedConversationId,
-    zIndex,
   } = props;
   const viewportRef = useRef<HTMLDivElement>(null);
   const isAutoScrollAttachedRef = useRef(true);
   const previousScrollTopRef = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [input, setInput] = useState("");
+  const [isConversationHistoryOpen, setIsConversationHistoryOpen] =
+    useState(false);
   const hasUserMessage = messages.some((message) => message.role === "user");
 
   const submitInput = (content: string) => {
@@ -185,21 +190,27 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   return (
     <section
       aria-label="Assistant"
-      className={cn(
-        "bg-background flex min-w-0 flex-col overflow-hidden rounded-xl border shadow/5",
-        isExpanded
-          ? "h-full min-h-0 w-full"
-          : "h-[min(42rem,calc(100vh-var(--banner-offset)-2rem))] min-h-96 w-[min(28rem,calc(100vw-1rem))]",
-      )}
+      className="bg-background flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-xl border shadow/5"
     >
-      <header className="bg-header flex min-h-11.25 shrink-0 items-center justify-between gap-2 border-b px-3 py-1">
+      <header
+        data-in-app-agent-window-drag-handle={
+          isHeaderDragHandleEnabled ? "true" : undefined
+        }
+        className={cn(
+          "bg-header flex min-h-11.25 shrink-0 items-center justify-between gap-2 border-b px-3 py-1",
+          isHeaderDragHandleEnabled && "cursor-move touch-none select-none",
+        )}
+      >
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <p className="shrink-0 truncate text-sm font-semibold">Assistant</p>
           <span className="text-muted-foreground rounded border px-1.5 py-1 text-xs leading-none font-medium">
             Beta
           </span>
         </div>
-        <div className="flex shrink-0 items-center gap-0.5">
+        <div
+          className="flex shrink-0 items-center gap-0.5"
+          data-movable-resizable-panel-ignore-drag="true"
+        >
           <Tooltip delayDuration={100} disableHoverableContent>
             <TooltipTrigger asChild>
               <Button
@@ -216,7 +227,10 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             </TooltipTrigger>
             <TooltipContent>Start new conversation</TooltipContent>
           </Tooltip>
-          <DropdownMenu>
+          <DropdownMenu
+            open={isConversationHistoryOpen}
+            onOpenChange={setIsConversationHistoryOpen}
+          >
             <Tooltip delayDuration={100} disableHoverableContent>
               <TooltipTrigger asChild>
                 <DropdownMenuTrigger asChild>
@@ -237,9 +251,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             <DropdownMenuContent
               align="end"
               className="max-h-80 w-64 overflow-y-auto"
-              style={
-                typeof zIndex === "number" ? { zIndex: zIndex + 1 } : undefined
-              }
             >
               <DropdownMenuLabel>Recent conversations</DropdownMenuLabel>
               <DropdownMenuSeparator />
@@ -252,13 +263,31 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   <DropdownMenuItem
                     key={conversation.id}
                     className={cn(
-                      "truncate",
+                      "flex items-center gap-1",
                       conversation.id === selectedConversationId &&
                         "bg-accent text-accent-foreground",
                     )}
                     onSelect={() => onSelectConversation(conversation.id)}
                   >
-                    {conversation.title?.trim() || "Untitled conversation"}
+                    <span className="min-w-0 flex-1 truncate">
+                      {conversation.title?.trim() || "Untitled conversation"}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      className="text-muted-foreground hover:text-destructive -mr-1.5 shrink-0"
+                      disabled={isInputDisabled}
+                      aria-label="Delete conversation"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setIsConversationHistoryOpen(false);
+                        onDeleteConversation(conversation);
+                      }}
+                    >
+                      <Trash2 className="size-3" />
+                    </Button>
                   </DropdownMenuItem>
                 ))
               )}
@@ -341,7 +370,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         >
           <div
             className={cn(
-              "flex h-full w-full flex-col gap-4 py-4",
+              "flex h-full w-full flex-col py-4",
               isExpanded && "mx-auto max-w-3xl",
               isExpanded ? "px-0" : "px-3",
             )}
@@ -382,11 +411,26 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             ) : null}
 
             <ol className="flex w-full flex-col gap-3 pb-4">
-              {messages.map((message) => {
-                const hasToolContent = message.content.type === "toolGroup";
+              {messages.map((message, index) => {
+                const hasFullWidthContent =
+                  message.content.type === "toolGroup" ||
+                  message.content.type === "redirectAction";
+
+                const nextUserMessageIndex = messages.findIndex(
+                  (nextMessage, nextIndex) =>
+                    nextIndex > index && nextMessage.role === "user",
+                );
+                const nextTurnStartIndex =
+                  nextUserMessageIndex === -1
+                    ? messages.length
+                    : nextUserMessageIndex;
+                const isLastMessageOfTurn = messages
+                  .slice(index + 1, nextTurnStartIndex)
+                  .every((nextMessage) => nextMessage.role !== "assistant");
                 const feedbackRunId =
                   message.role === "assistant" &&
-                  message.content.type === "text"
+                  message.content.type === "text" &&
+                  isLastMessageOfTurn
                     ? message.runId
                     : undefined;
 
@@ -395,7 +439,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     key={message.id}
                     className={cn(
                       "max-w-[92%]",
-                      hasToolContent ? "w-full" : "w-fit",
+                      hasFullWidthContent ? "w-full" : "w-fit",
                       message.role === "user" && "ml-auto",
                     )}
                   >
@@ -404,7 +448,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       content={message.content}
                       isCompact={!isExpanded}
                       isFeedbackDisabled={isInputDisabled}
-                      windowZIndex={zIndex}
                       onSubmitFeedback={
                         feedbackRunId
                           ? (params) =>

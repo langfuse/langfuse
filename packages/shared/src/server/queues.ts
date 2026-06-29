@@ -13,10 +13,11 @@ import { EvalTargetObjectSchema } from "../features/evals/types";
 import { JobConfigExecutionMode } from "../features/evals/evalConfigBlocking";
 import {
   type MonitorQueueEvent,
+  type MonitorQueueEventInput,
   MonitorWebhookQueueEventSchema,
 } from "../features/monitors/scheduler/types";
 
-export type { MonitorQueueEvent };
+export type { MonitorQueueEvent, MonitorQueueEventInput };
 
 export const IngestionEvent = z.object({
   data: z.object({
@@ -25,6 +26,12 @@ export const IngestionEvent = z.object({
     fileKey: z.string().optional(),
     skipS3List: z.boolean().optional(),
     forwardToEventsTable: z.boolean().optional(),
+    // Absolute S3 key prefix the producer used (ends with "/"). Set so the
+    // consumer never reconstructs the path and therefore can't drift from
+    // the producer when env values differ across containers. Optional for
+    // backward compatibility with in-flight jobs enqueued before this field
+    // existed — the consumer falls back to local reconstruction when absent.
+    bucketPrefix: z.string().optional(),
   }),
   authCheck: z.object({
     validKey: z.literal(true),
@@ -137,6 +144,15 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
   [
     z.object({
       actionId: z.literal("score-delete"),
+      projectId: z.string(),
+      query: BatchActionQuerySchema,
+      tableName: z.enum(BatchTableNames),
+      cutoffCreatedAt: z.date(),
+      targetId: z.string().optional(),
+      type: z.enum(BatchActionType),
+    }),
+    z.object({
+      actionId: z.literal("dataset-delete"),
       projectId: z.string(),
       query: BatchActionQuerySchema,
       tableName: z.enum(BatchTableNames),
@@ -592,7 +608,7 @@ export type TQueueJobTypes = {
   [QueueName.MonitorQueue]: {
     timestamp: Date;
     id: string;
-    payload: MonitorQueueEvent;
+    payload: MonitorQueueEventInput;
     name: QueueJobs.MonitorJob;
   };
 };

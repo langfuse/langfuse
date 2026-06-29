@@ -107,6 +107,11 @@ model Organization {
   aiTelemetryEnabled               Boolean                  @default(true) @map("ai_telemetry_enabled")
   crossProjectTraceTrackingEnabled Boolean                  @default(false) @map("cross_project_trace_tracking_enabled")
   crossProjectTraceCorrelationKey  String                   @default("crossProjectCorrelationId") @map("cross_project_trace_correlation_key")
+  // SFDC Account / Organization ID returned by the Mulesoft org endpoint on
+  // Langfuse Cloud. NULL for self-hosted or pre-integration orgs. A mismatch
+  // between the stored value and a subsequently returned ID indicates an SFDC
+  // side merge — logged as an error but does not throw (no retry loop).
+  sfdcOrgId                        String?                  @map("sfdc_org_id")
   organizationMemberships          OrganizationMembership[]
   projects                         Project[]
   MembershipInvitation             MembershipInvitation[]
@@ -1009,7 +1014,6 @@ model EvalTemplate {
   sourceCode         String?                         @map("source_code") @db.VarChar(262144)
   sourceCodeLanguage EvalTemplateSourceCodeLanguage? @map("source_code_language")
   JobConfiguration   JobConfiguration[]
-  JobExecution       JobExecution[]
 
   @@unique([projectId, name, version])
   @@index([projectId, id])
@@ -1095,7 +1099,6 @@ model JobExecution {
   jobConfiguration   JobConfiguration @relation(fields: [jobConfigurationId], references: [id], onDelete: Cascade)
 
   jobTemplateId String?       @map("job_template_id")
-  jobTemplate   EvalTemplate? @relation(fields: [jobTemplateId], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   status    JobExecutionStatus
   startTime DateTime?          @map("start_time")
@@ -1230,6 +1233,14 @@ model BlobStorageIntegration {
   exportSource      AnalyticsIntegrationExportSource @default(TRACES_OBSERVATIONS) @map("export_source")
   exportFieldGroups String[]                         @default(["core", "basic", "time", "io", "metadata", "model", "usage", "prompt", "metrics", "tools", "trace_context"]) @map("export_field_groups")
   compressed        Boolean                          @default(true) @map("compressed")
+
+  // Per-project blob-export tuning (set via DB directly for now; no UI/tRPC
+  // write path). Validated/clamped at job time; null/malformed → defaults.
+  // Shared with LFE-10394; extend the zod schema, do not duplicate the column.
+  exportTuning Json? @map("export_tuning")
+
+  // Run tracking
+  runStartedAt DateTime? @map("run_started_at")
 
   // Error tracking
   lastError   String?   @map("last_error")
@@ -1397,6 +1408,34 @@ model ObservationMedia {
   @@unique([projectId, traceId, observationId, mediaId, field])
   @@index([projectId, mediaId])
   @@map("observation_media")
+}
+
+model DatasetItemMedia {
+  id                   String   @id @default(cuid())
+  projectId            String   @map("project_id")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at")
+  mediaId              String   @map("media_id")
+  // dataset items cascade on dataset deletion, but these rows have no FK;
+  // datasetId lets the dataset-delete worker clean them up directly
+  datasetId            String   @map("dataset_id")
+  datasetItemId        String   @map("dataset_item_id")
+  // null while pending: the row is declared at media upload and stamped with
+  // the item version's validFrom when the item is written.
+  datasetItemValidFrom DateTime? @map("dataset_item_valid_from")
+  // dataset item field containing the reference: input | expectedOutput | metadata
+  field                String   @map("field")
+  // null while pending; the dataset service fills it from the item JSON on claim.
+  // JSONPath of the string holding the media reference within the field, e.g. $['images'][0]
+  jsonPath             String?  @map("json_path")
+  // null while pending; the original @@@langfuseMedia:...@@@ string, filled on
+  // claim so reads need no JSON parsing
+  referenceString      String?  @map("reference_string")
+
+  @@unique([projectId, datasetItemId, datasetItemValidFrom, field, jsonPath], map: "dataset_item_media_item_version_field_path_key")
+  @@index([projectId, mediaId])
+  @@index([projectId, datasetId])
+  @@map("dataset_item_media")
 }
 
 model BillingMeterBackup {

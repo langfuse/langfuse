@@ -70,6 +70,13 @@ export const LogViewJsonMode = memo(function LogViewJsonMode({
       )}
 
       {/* JSON view */}
+      {/*
+        The `flex-1 overflow-y-auto` wrapper is the single owner of the bounded
+        vertical scroll. JSONView must therefore render at its natural content
+        height — passing `h-full`/`min-h-full` would clamp it to the wrapper's
+        visible height (JSONView's root carries `max-h-full min-h-0`), leaving
+        no overflow and making tall JSON unscrollable (LFE-10513).
+      */}
       {data && !isLoading && (
         <div className="flex-1 overflow-y-auto">
           <JSONView
@@ -77,8 +84,7 @@ export const LogViewJsonMode = memo(function LogViewJsonMode({
             scrollable={false}
             externalJsonCollapsed={isCollapsed}
             onToggleCollapse={onToggleCollapse}
-            className="h-full [&_.io-message-content]:border-none"
-            codeClassName="min-h-full"
+            className="[&_.io-message-content]:border-none"
           />
         </div>
       )}

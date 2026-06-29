@@ -509,9 +509,9 @@ export type NoProjectIdType = typeof NoProjectId;
 abstract class AbstractQueryBuilder {
   protected whereClauses: string[] = [];
   protected havingClauses: string[] = [];
-  protected orderByClause: string = "";
-  protected limitByClause: string = "";
-  protected limitClause: string = "";
+  protected orderByClause = "";
+  protected limitByClause = "";
+  protected limitClause = "";
   protected params: Record<string, any> = {};
 
   /**
@@ -1005,7 +1005,7 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
   /**
    * Add IO fields with optional truncation
    */
-  selectIO(truncated: boolean = false, charLimit?: number): this {
+  selectIO(truncated = false, charLimit?: number): this {
     this.ioFields = { truncated, charLimit };
     return this;
   }
@@ -1174,7 +1174,7 @@ type AliasedColumns<
 export class EventsAggregationQueryBuilder extends BaseEventsQueryBuilder<
   typeof EVENTS_AGGREGATION_FIELDS
 > {
-  private truncated: boolean = true;
+  private truncated = true;
 
   constructor(options: { projectId: string }) {
     super(EVENTS_AGGREGATION_FIELDS, options);
@@ -1446,9 +1446,9 @@ export class CTEQueryBuilder<
   private cteSchemas: Map<string, CTESchema> = new Map();
   private joins: string[] = [];
   private selectExpressions: string[] = [];
-  private fromClause: string = "";
-  private fromAlias: string = "";
-  private groupByClause: string = "";
+  private fromClause = "";
+  private fromAlias = "";
+  private groupByClause = "";
 
   /**
    * Register a CTE with its schema
@@ -1506,7 +1506,7 @@ export class CTEQueryBuilder<
     Name extends keyof RegisteredCTEs & string,
     Alias extends string,
   >(
-    kind: "LEFT" | "INNER",
+    kind: "LEFT" | "LEFT ANY" | "INNER",
     cteName: Name,
     alias: Alias,
     onClause: string,
@@ -1531,6 +1531,21 @@ export class CTEQueryBuilder<
     onClause: string,
   ): CTEQueryBuilder<RegisteredCTEs, Aliases & Record<Alias, Name>> {
     this.join("LEFT", cteName, alias, onClause);
+    return this as any;
+  }
+
+  /**
+   * LEFT ANY join another CTE. `ANY` takes exactly one matching row from the
+   * right side, avoiding the row fan-out a plain LEFT JOIN produces when the
+   * right side has un-merged ReplacingMergeTree duplicates.
+   * Only accepts CTE names that have been registered via withCTE().
+   */
+  leftAnyJoin<Name extends keyof RegisteredCTEs & string, Alias extends string>(
+    cteName: Name,
+    alias: Alias,
+    onClause: string,
+  ): CTEQueryBuilder<RegisteredCTEs, Aliases & Record<Alias, Name>> {
+    this.join("LEFT ANY", cteName, alias, onClause);
     return this as any;
   }
 
@@ -1961,7 +1976,10 @@ export function buildEventsFullTableSplitQuery(opts: {
       schema: [] as string[],
     })
     .from("base", "b")
-    .leftJoin(
+    // LEFT ANY JOIN (not LEFT JOIN): the io CTE reads events_full, which can
+    // hold un-merged ReplacingMergeTree duplicates. A plain LEFT JOIN would
+    // fan out to N_base × N_io rows; ANY takes one matching io row per base row.
+    .leftAnyJoin(
       "io",
       "i",
       'ON b."start_time" = i."_io_start_time" AND b."trace_id" = i."_io_trace_id" AND b.id = i._io_id',

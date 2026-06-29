@@ -47,6 +47,7 @@ export interface SlackChannel {
 export interface GetChannelsResult {
   channels: SlackChannel[];
   hasPrivateChannelAccess: boolean;
+  nextCursor?: string;
 }
 
 /** SlackMessage is the Block Kit payload sent to Slack. */
@@ -135,6 +136,7 @@ export class SlackService {
       clientId: env.SLACK_CLIENT_ID!,
       clientSecret: env.SLACK_CLIENT_SECRET!,
       stateSecret: env.SLACK_STATE_SECRET!,
+      directInstall: false,
       installUrlOptions: {
         scopes: SLACK_BOT_SCOPES as unknown as string[],
       },
@@ -338,15 +340,14 @@ export class SlackService {
   }
 
   /**
-   * Recursively fetch all channels accessible to the bot
-   * Uses cursor-based pagination defined by Slack API https://api.slack.com/apis/pagination
+   * Fetch one page of channels accessible to the bot.
+   * Uses cursor-based pagination defined by Slack API https://api.slack.com/apis/pagination.
    */
-  private async getChannelsRecursive(
+  private async getChannelsPage(
     client: WebClient,
-    channelTypes: string = "public_channel,private_channel",
+    channelTypes = "public_channel,private_channel",
     cursor?: string,
-    fetchedRecords: number = 0,
-  ): Promise<SlackChannel[]> {
+  ): Promise<Omit<GetChannelsResult, "hasPrivateChannelAccess">> {
     try {
       const result = await client.conversations.list({
         exclude_archived: true,
@@ -369,28 +370,12 @@ export class SlackService {
       );
 
       const nextCursor = result.response_metadata?.next_cursor;
-      if (
-        nextCursor &&
-        fetchedRecords + channels.length < env.SLACK_FETCH_LIMIT
-      ) {
-        try {
-          const nextPageChannels = await this.getChannelsRecursive(
-            client,
-            channelTypes,
-            nextCursor,
-            fetchedRecords + channels.length,
-          );
-          return channels.concat(nextPageChannels);
-        } catch (error) {
-          logger.error(
-            `Failed to retrieve next page of channels, returning only already fetched`,
-            error,
-          );
-        }
-      }
-      return channels;
+      return {
+        channels,
+        nextCursor: nextCursor || undefined,
+      };
     } catch (error) {
-      logger.error("Failed to fetch channels recursively", { error, cursor });
+      logger.error("Failed to fetch Slack channels page", { error, cursor });
       throw error;
     }
   }
@@ -398,18 +383,23 @@ export class SlackService {
   /**
    * Get channels accessible to the bot.
    */
-  async getChannels(client: WebClient): Promise<GetChannelsResult> {
+  async getChannels(
+    client: WebClient,
+    cursor?: string,
+  ): Promise<GetChannelsResult> {
     try {
-      const channels = await this.getChannelsRecursive(
+      const { channels, nextCursor } = await this.getChannelsPage(
         client,
         "public_channel,private_channel",
+        cursor,
       );
 
       logger.debug("Retrieved channels from Slack", {
         channelCount: channels.length,
+        hasNextPage: Boolean(nextCursor),
       });
 
-      return { channels, hasPrivateChannelAccess: true };
+      return { channels, hasPrivateChannelAccess: true, nextCursor };
     } catch (error: any) {
       // we added `groups:read` scope after initial release, so older installations may not have it.
       // Detect this case and fall back to fetching only public channels instead of failing completely.
@@ -423,12 +413,13 @@ export class SlackService {
         );
 
         try {
-          const channels = await this.getChannelsRecursive(
+          const { channels, nextCursor } = await this.getChannelsPage(
             client,
             "public_channel",
+            cursor,
           );
 
-          return { channels, hasPrivateChannelAccess: false };
+          return { channels, hasPrivateChannelAccess: false, nextCursor };
         } catch (fallbackError) {
           logger.error("Failed to fetch public channels fallback", {
             error: fallbackError,

@@ -1,17 +1,22 @@
-import { api } from "@/src/utils/api";
+import { api, type RouterInputs } from "@/src/utils/api";
 import { useMemo } from "react";
 import { type FilterState, type TimeFilter } from "@langfuse/shared";
+
+type EventFilterOptionColumnsInput =
+  RouterInputs["events"]["filterOptions"]["columns"];
 
 type UseEventsFilterOptionsParams = {
   projectId: string;
   oldFilterState: FilterState;
   isRootObservation?: boolean;
+  columns?: EventFilterOptionColumnsInput;
 };
 
 export function useEventsFilterOptions({
   projectId,
   oldFilterState,
   isRootObservation,
+  columns,
 }: UseEventsFilterOptionsParams) {
   // Extract start time filters for filter options query
   const startTimeFilters = useMemo(() => {
@@ -29,6 +34,7 @@ export function useEventsFilterOptions({
       startTimeFilter:
         startTimeFilters.length > 0 ? startTimeFilters : undefined,
       isRootObservation,
+      columns,
     },
     {
       trpc: {

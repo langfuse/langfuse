@@ -4,6 +4,7 @@ import {
   QueueName,
   convertQueueNameToMetricName,
   recordGauge,
+  updateActiveIngestFailureProjectsMetric,
   logger,
 } from "@langfuse/shared/src/server";
 
@@ -65,6 +66,17 @@ export class QueueMetricsRunner extends PeriodicRunner {
     // (e.g. CloudUsageMeteringQueue.getInstance() enqueues cron jobs).
     const registeredNames = new Set(WorkerManager.getRegisteredQueueNames());
     const promises: Promise<void>[] = [];
+
+    promises.push(
+      updateActiveIngestFailureProjectsMetric()
+        .then(() => undefined)
+        .catch((err) => {
+          logger.error(
+            "Queue metrics: failed to record active ingestion failure projects",
+            err,
+          );
+        }),
+    );
 
     // Non-sharded queues: only poll queues with registered workers
     for (const queueName of Object.values(QueueName)) {

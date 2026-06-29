@@ -20,6 +20,7 @@ import {
   CROSS_PROJECT_TRACE_CORRELATION_KEY_MAX_LENGTH,
   CROSS_PROJECT_TRACE_CORRELATION_KEY_PATTERN,
 } from "@/src/features/trace-correlation/constants";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 
 import { env } from "@/src/env.mjs";
 
@@ -123,6 +124,20 @@ export const organizationsRouter = createTRPCRouter({
         orgRole: "OWNER",
         userId: ctx.session.user.id,
         after: organization,
+      });
+
+      await getSfdcService()?.upsertOrg({
+        orgId: organization.id,
+        orgName: organization.name,
+        userId: ctx.session.user.id,
+        email: ctx.session.user.email,
+        role: "OWNER",
+      });
+      await getSfdcService()?.setUserRole({
+        orgId: organization.id,
+        userId: ctx.session.user.id,
+        email: ctx.session.user.email,
+        role: "OWNER",
       });
 
       return {
