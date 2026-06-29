@@ -187,6 +187,7 @@ export const handleBatchActionJob = async (
     // streams to avoid fetching input/output/metadata/scores into memory.
     // When the events table is selected for annotation-queue actions, route
     // through the conditional events stream introduced for the events backend.
+    const dbReadStream =
       actionId === "dataset-delete"
         ? await findDatasetIdsForBatchDeletion({
             projectId,
