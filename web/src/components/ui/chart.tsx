@@ -361,6 +361,9 @@ function ChartActiveReferenceLine({
       strokeOpacity={strokeOpacity}
       ifOverflow="extendDomain"
       zIndex={zIndex}
+      // The crosshair must never intercept pointer events, otherwise it creates
+      // a dead "no-hover" strip down the middle of the hovered bar/point. (LFE-10549)
+      style={{ pointerEvents: "none" }}
     />
   );
 }

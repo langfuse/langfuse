@@ -60,7 +60,10 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
     <div
       ref={containerRef}
       className="flex h-full w-full min-w-0 flex-col"
+      // onMouseMove (not just onMouseEnter) so the tooltip un-gates even when the
+      // cursor is already over the chart at mount/refresh (enter never fires). (LFE-10549)
       onMouseEnter={() => setSelfHovered(true)}
+      onMouseMove={() => setSelfHovered(true)}
       onMouseLeave={() => setSelfHovered(false)}
     >
       {legendPosition === "above" && (
