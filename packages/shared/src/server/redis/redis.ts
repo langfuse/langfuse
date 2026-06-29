@@ -174,6 +174,8 @@ const createRedisSentinelInstance = (
     password: env.REDIS_AUTH || undefined,
     sentinelUsername: env.REDIS_SENTINEL_USERNAME || undefined,
     sentinelPassword: env.REDIS_SENTINEL_PASSWORD || undefined,
+    // Retry sentinel discovery indefinitely so the worker self-heals after failover without a pod restart.
+    sentinelRetryStrategy: (retries: number) => Math.min(retries * 200, 10_000),
     ...defaultRedisOptions,
     ...additionalOptions,
     ...tlsOptions,
