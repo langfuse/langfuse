@@ -10,22 +10,21 @@ export interface DataPoint {
 export type LegendPosition = "above" | "none";
 
 /**
- * Which per-series summary (if any) a chart legend shows across its time buckets:
+ * Whether a chart legend shows a per-series summary across its time buckets:
  * - `"sum"`: the additive total (event counts, token totals, cost) — reconciles
  *   with the card's headline number.
- * - `"avg"` / `"median"`: central tendency, for non-additive metrics where a sum
- *   is meaningless (scores, latencies). Computed over the buckets the series
- *   carries; mind the LFE-10498 caveat that upstream zero-padding pulls the
- *   mean/median toward `0`.
- * - `"last"`: the most recent bucket's value — a good "current value" gauge for
- *   latency percentiles.
  * - `"none"`: no per-series summary (default).
  *
- * The mode is chosen per call-site because additivity (and what reads as a
- * meaningful summary) is a property of the metric's aggregation, decided
- * upstream of the chart. (LFE-10498, LFE-10549)
+ * Only additive metrics get a legend value. A summary is deliberately *not*
+ * offered for non-additive metrics (latency percentiles, scores): a cross-bucket
+ * sum is meaningless for them, a correct average can't be computed here because
+ * the upstream pipeline pads missing buckets with real `0`s (it would deflate the
+ * mean), and an unlabeled non-sum number reads ambiguously. Such charts show the
+ * bare series name (the `"none"` default). The mode is chosen per call-site
+ * because additivity is a property of the metric's aggregation, decided upstream
+ * of the chart. (LFE-10498, LFE-10549)
  */
-export type LegendSummaryMode = "sum" | "avg" | "median" | "last" | "none";
+export type LegendSummaryMode = "sum" | "none";
 
 /**
  * How clicking a legend entry behaves on a multi-series time chart:

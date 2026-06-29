@@ -51,10 +51,7 @@ export function useSeriesLegend({
   isDimmed: (dimension: string) => boolean;
 } {
   const summaries = useMemo(
-    () =>
-      legendSummary === "none"
-        ? null
-        : getDimensionSummaries(data, legendSummary),
+    () => (legendSummary === "none" ? null : getDimensionSummaries(data)),
     [data, legendSummary],
   );
 
@@ -64,7 +61,7 @@ export function useSeriesLegend({
     if (legendInteraction !== "toggle" || maxVisibleSeries === undefined) {
       return new Set<string>();
     }
-    const magnitude = getDimensionSummaries(data, "sum");
+    const magnitude = getDimensionSummaries(data);
     const keep = new Set(
       [...dimensions]
         .sort(

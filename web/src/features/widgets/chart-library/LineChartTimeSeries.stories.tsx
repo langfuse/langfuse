@@ -83,28 +83,12 @@ const meta = preview.meta({
   ],
 });
 
-// ── Legend summary modes (decide the non-additive default here) ──────────────
-// Same latency (ms) series, each summary mode in turn. `sum` is clearly the
-// wrong choice for latency; `avg` / `median` / `last` each read sensibly.
-// `LegendSumOnAdditive` shows the correct use of `sum` (token counts).
+// ── Legend summary ───────────────────────────────────────────────────────────
+// Additive metrics (token counts) carry a `sum` value in the legend; non-additive
+// metrics (latency, scores) show the bare series name — a sum is meaningless and
+// an unlabeled non-sum number reads ambiguously. (LFE-10549)
 
-export const LegendSum = meta.story({
-  args: { data: latencyData, legendSummary: "sum" },
-});
-
-export const LegendAvg = meta.story({
-  args: { data: latencyData, legendSummary: "avg" },
-});
-
-export const LegendMedian = meta.story({
-  args: { data: latencyData, legendSummary: "median" },
-});
-
-export const LegendLast = meta.story({
-  args: { data: latencyData, legendSummary: "last" },
-});
-
-export const LegendNone = meta.story({
+export const LegendNoneOnLatency = meta.story({
   args: { data: latencyData, legendSummary: "none" },
 });
 
@@ -118,7 +102,7 @@ export const LegendSumOnAdditive = meta.story({
 export const OverloadAllSeriesHighlight = meta.story({
   args: {
     data: manySeriesData,
-    legendSummary: "last",
+    legendSummary: "none",
     legendInteraction: "highlight",
   },
 });
@@ -126,7 +110,7 @@ export const OverloadAllSeriesHighlight = meta.story({
 export const OverloadToggleVisibility = meta.story({
   args: {
     data: manySeriesData,
-    legendSummary: "last",
+    legendSummary: "none",
     legendInteraction: "toggle",
   },
 });
@@ -134,7 +118,7 @@ export const OverloadToggleVisibility = meta.story({
 export const OverloadTopFive = meta.story({
   args: {
     data: manySeriesData,
-    legendSummary: "last",
+    legendSummary: "none",
     legendInteraction: "toggle",
     maxVisibleSeries: 5,
   },
