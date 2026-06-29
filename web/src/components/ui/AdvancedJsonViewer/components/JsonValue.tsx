@@ -17,6 +17,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { classifyMediaLeaf } from "@/src/components/ui/media/classifyMediaLeaf";
+import { JsonMediaTag } from "@/src/components/ui/media/JsonMediaTag";
 
 export function JsonValue({
   value,
@@ -81,6 +83,13 @@ export function JsonValue({
   // Handle string values with wrap mode logic
   if (type === "string") {
     const str = value as string;
+
+    // Render previewable media (Langfuse refs, data URIs, media URLs) as a
+    // hover-to-peek chip instead of the raw string.
+    const mediaDescriptor = classifyMediaLeaf(str);
+    if (mediaDescriptor) {
+      return <JsonMediaTag descriptor={mediaDescriptor} />;
+    }
 
     // Mode 1: "truncate" - use TruncatedString component
     if (stringWrapMode === "truncate") {
