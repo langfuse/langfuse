@@ -36,6 +36,7 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
   legendSummary = "none",
   legendInteraction = "highlight",
   maxVisibleSeries,
+  syncId,
   subtleFill = false,
 }) => {
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
@@ -64,7 +65,11 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
         />
       )}
       <ChartContainer config={config} className="min-h-0 flex-1">
-        <AreaChart accessibilityLayer={accessibilityLayer} data={groupedData}>
+        <AreaChart
+          accessibilityLayer={accessibilityLayer}
+          data={groupedData}
+          syncId={syncId}
+        >
           <CartesianGrid stroke="hsl(var(--chart-grid))" vertical={false} />
           <XAxis
             dataKey="time_dimension"
@@ -103,6 +108,7 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
           })}
           <ChartActiveReferenceLine />
           <ChartTooltip
+            allowEscapeViewBox={{ x: true, y: true }}
             contentStyle={{ backgroundColor: "hsl(var(--background))" }}
             content={({ active, payload, label }) => (
               <ChartTooltipContent

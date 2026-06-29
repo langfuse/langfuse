@@ -42,6 +42,7 @@ export const Chart = ({
   legendSummary,
   legendInteraction,
   maxVisibleSeries,
+  syncId,
   overrideWarning = false,
   metricFormatter: metricFormatterOverride,
   thresholds,
@@ -70,6 +71,7 @@ export const Chart = ({
   legendSummary?: LegendSummaryMode;
   legendInteraction?: LegendInteraction;
   maxVisibleSeries?: number;
+  syncId?: string;
   overrideWarning?: boolean;
   metricFormatter?: MetricFormatterFunction;
   thresholds?: ChartThreshold[];
@@ -150,6 +152,7 @@ export const Chart = ({
             legendSummary={legendSummary}
             legendInteraction={legendInteraction}
             maxVisibleSeries={maxVisibleSeries}
+            syncId={syncId}
             showDataPointDots={chartConfig?.show_data_point_dots ?? true}
             thresholds={thresholds}
           />
@@ -164,6 +167,7 @@ export const Chart = ({
             legendSummary={legendSummary}
             legendInteraction={legendInteraction}
             maxVisibleSeries={maxVisibleSeries}
+            syncId={syncId}
             subtleFill={chartConfig?.subtle_fill}
           />
         );
@@ -177,6 +181,7 @@ export const Chart = ({
             legendSummary={legendSummary}
             legendInteraction={legendInteraction}
             maxVisibleSeries={maxVisibleSeries}
+            syncId={syncId}
             subtleFill={chartConfig?.subtle_fill}
           />
         );

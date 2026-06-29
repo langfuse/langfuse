@@ -186,6 +186,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
   legendSummary = "none",
   legendInteraction = "highlight",
   maxVisibleSeries,
+  syncId,
   showDataPointDots = true,
   thresholds,
 }) => {
@@ -217,7 +218,11 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
         />
       )}
       <ChartContainer config={config} className="min-h-0 flex-1">
-        <LineChart accessibilityLayer={accessibilityLayer} data={groupedData}>
+        <LineChart
+          accessibilityLayer={accessibilityLayer}
+          data={groupedData}
+          syncId={syncId}
+        >
           <CartesianGrid stroke="hsl(var(--chart-grid))" vertical={false} />
           <XAxis
             dataKey="time_dimension"
@@ -266,6 +271,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
           ))}
           <ChartActiveReferenceLine />
           <ChartTooltip
+            allowEscapeViewBox={{ x: true, y: true }}
             contentStyle={{ backgroundColor: "hsl(var(--background))" }}
             content={({ active, payload, label }) => (
               <ChartTooltipContent

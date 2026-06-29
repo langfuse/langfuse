@@ -138,8 +138,10 @@ export function TimeSeriesLegend({
   if (items.length === 0) return null;
 
   return (
-    <div className="min-w-0 shrink-0 overflow-x-auto overflow-y-hidden pb-3">
-      <div className="flex w-max min-w-full flex-nowrap justify-end gap-4">
+    // Wrap onto multiple rows so every series stays visible — never clip the
+    // legend to a single scrolled line. (LFE-10549)
+    <div className="min-w-0 shrink-0 pb-3">
+      <div className="flex flex-wrap justify-end gap-x-4 gap-y-1">
         {items.map((item) => {
           // Labels must describe the NEXT action, not the current state.
           // - toggle: click flips visibility → "Show"/"Hide".

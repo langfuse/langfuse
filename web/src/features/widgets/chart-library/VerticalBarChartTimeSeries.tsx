@@ -42,6 +42,7 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
   legendSummary = "none",
   legendInteraction = "highlight",
   maxVisibleSeries,
+  syncId,
   subtleFill = false,
 }) => {
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
@@ -75,7 +76,11 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
         config={config}
         className="min-h-0 flex-1 [&_.recharts-bar-rectangle:hover]:opacity-30 dark:[&_.recharts-bar-rectangle:hover]:opacity-100 dark:[&_.recharts-bar-rectangle:hover]:brightness-[3]"
       >
-        <BarChart accessibilityLayer={accessibilityLayer} data={groupedData}>
+        <BarChart
+          accessibilityLayer={accessibilityLayer}
+          data={groupedData}
+          syncId={syncId}
+        >
           <XAxis
             dataKey="time_dimension"
             stroke="hsl(var(--chart-grid))"
@@ -111,6 +116,7 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
           })}
           <ChartActiveReferenceLine />
           <ChartTooltip
+            allowEscapeViewBox={{ x: true, y: true }}
             cursor={false}
             contentStyle={{ backgroundColor: "hsl(var(--background))" }}
             content={({ active, payload, label }) => (

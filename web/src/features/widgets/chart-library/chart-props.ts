@@ -91,6 +91,12 @@ export interface ChartProps {
    * `legendInteraction="toggle"`. Undefined = draw every series. (LFE-10549)
    */
   maxVisibleSeries?: number;
+  /**
+   * Shared sync group: charts on the same dashboard timeline that pass the same
+   * `syncId` show a synced hover crosshair + tooltip — hovering one moves the
+   * vertical time marker on all of them. (LFE-10549)
+   */
+  syncId?: string;
   showValueLabels?: boolean;
   showDataPointDots?: boolean;
   subtleFill?: boolean;
