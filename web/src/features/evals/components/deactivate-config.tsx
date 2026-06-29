@@ -10,6 +10,7 @@ import {
 } from "@/src/components/ui/popover";
 import { Button } from "@/src/components/ui/button";
 import { Switch } from "@/src/components/ui/switch";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
 export function DeactivateEvalConfig({
   projectId,
@@ -28,6 +29,9 @@ export function DeactivateEvalConfig({
     onSuccess: () => {
       utils.evals.invalidate();
     },
+    onError: (error) => {
+      showErrorToast("Evaluator update failed", error.message);
+    },
   });
 
   const onClick = () => {
@@ -38,7 +42,7 @@ export function DeactivateEvalConfig({
 
     const prevStatus = evalConfig?.status;
 
-    mutEvaluator.mutateAsync({
+    mutEvaluator.mutate({
       projectId,
       evalConfigId: evalConfig?.id ?? "",
       config: {
