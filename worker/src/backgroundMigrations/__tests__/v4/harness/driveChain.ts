@@ -11,8 +11,6 @@
  * The hard-coded UUIDs MUST match the Prisma rows; `findUniqueOrThrow` fails
  * loudly if a row is missing (e.g. db:migrate drift), which is far easier to
  * debug than a downstream "table does not exist".
- *
- * See specs/v4-historic-backfill-migration-testing.md (§3, §5).
  */
 import { prisma } from "@langfuse/shared/src/db";
 import { IBackgroundMigration } from "../../../IBackgroundMigration";

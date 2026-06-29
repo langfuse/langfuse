@@ -7,11 +7,9 @@
  * robust to ClickHouse JSON type coercion. The oracles are topology-agnostic;
  * the manual Cloud/replicated runner calls the identical functions.
  *
- * IMPORTANT: oracles assume they run immediately after their migration, before
+ * Oracles assume they run immediately after their migration, before
  * any later step mutates events_full (the chain skips/owns disjoint sets, so
  * e.g. the DRI trace only appears after M4).
- *
- * See specs/v4-historic-backfill-migration-testing.md (§6).
  */
 import { expect } from "vitest";
 import waitForExpect from "wait-for-expect";

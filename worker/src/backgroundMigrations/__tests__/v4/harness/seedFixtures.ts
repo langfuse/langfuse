@@ -3,8 +3,7 @@
  *
  * Built from the low-level test-utils factories (not the seeder CLI) so the
  * exact source shape — v3 traces/observations WITHOUT the events_full rows the
- * migrations are supposed to create — is fully controlled. The reusable seeder
- * `dataset-experiment` scenario is the documented follow-up (spec §9).
+ * migrations are supposed to create — is fully controlled.
  *
  * Shape (one fresh project A + a second project B that shares a trace id):
  *   A: T_plain  (non-DRI, bookmarked, ingestion-api source) root+child obs

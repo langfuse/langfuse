@@ -1,5 +1,5 @@
 /**
- * End-to-end coverage for the V4 historic backfill chain (PR #14206), run on
+ * End-to-end coverage for the V4 historic backfill chain, run on
  * the single-node ClickHouse the worker test job already provisions.
  *
  * One ordered test drives M1 → M5 one at a time and asserts the per-migration
@@ -10,8 +10,6 @@
  * `ch:dev-tables` is gated to the default mode), so the chain's ~50s
  * missing-table validate() hang never triggers. retry is forced to 0 so a flaky
  * backfill oracle fails loudly instead of passing on the worker's CI retry:3.
- *
- * See specs/v4-historic-backfill-migration-testing.md.
  */
 import { describe, it, beforeAll, expect } from "vitest";
 import {

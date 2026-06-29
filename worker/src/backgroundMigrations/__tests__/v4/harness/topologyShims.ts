@@ -7,8 +7,6 @@
  *   - ""/MergeTree-family  → single-node OSS
  *   - "Replicated*"        → replicated OSS (Keeper-backed)
  *   - "Shared*"            → ClickHouse Cloud
- *
- * See specs/v4-historic-backfill-migration-testing.md (§5, §9).
  */
 import {
   clickhouseClient,
