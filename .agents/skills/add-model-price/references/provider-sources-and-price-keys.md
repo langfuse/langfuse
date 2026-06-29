@@ -4,14 +4,14 @@
 
 Always fetch pricing from the provider's official docs before editing.
 
-| Provider | Source |
-| --- | --- |
-| Anthropic Claude | `https://platform.claude.com/docs/en/about-claude/pricing` |
-| OpenAI | `https://openai.com/api/pricing/` |
-| Google Gemini (AI Studio) | `https://ai.google.dev/pricing` |
-| Google Gemini (Vertex AI) | `https://cloud.google.com/vertex-ai/generative-ai/pricing#gemini-models` |
-| AWS Bedrock | `https://aws.amazon.com/bedrock/pricing/` |
-| Azure OpenAI | `https://azure.microsoft.com/pricing/details/cognitive-services/openai-service/` |
+| Provider                  | Source                                                                           |
+| ------------------------- | -------------------------------------------------------------------------------- |
+| Anthropic Claude          | `https://platform.claude.com/docs/en/about-claude/pricing`                       |
+| OpenAI                    | `https://developers.openai.com/api/docs/pricing`                                 |
+| Google Gemini (AI Studio) | `https://ai.google.dev/pricing`                                                  |
+| Google Gemini (Vertex AI) | `https://cloud.google.com/vertex-ai/generative-ai/pricing#gemini-models`         |
+| AWS Bedrock               | `https://aws.amazon.com/bedrock/pricing/`                                        |
+| Azure OpenAI              | `https://azure.microsoft.com/pricing/details/cognitive-services/openai-service/` |
 
 ### Known source quirks (as of 2026-06)
 
@@ -66,11 +66,11 @@ Capture:
 Values in `default-model-prices.json` are per token, not per million tokens.
 
 | Provider Price | JSON Value |
-| --- | --- |
-| `$5 / MTok` | `5e-6` |
-| `$25 / MTok` | `25e-6` |
-| `$0.50 / MTok` | `0.5e-6` |
-| `$6.25 / MTok` | `6.25e-6` |
+| -------------- | ---------- |
+| `$5 / MTok`    | `5e-6`     |
+| `$25 / MTok`   | `25e-6`    |
+| `$0.50 / MTok` | `0.5e-6`   |
+| `$6.25 / MTok` | `6.25e-6`  |
 
 Formula:
 
