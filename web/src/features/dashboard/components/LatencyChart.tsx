@@ -32,6 +32,7 @@ export const GenerationLatencyChart = ({
   isLoading = false,
   metricsVersion,
   schedulerId,
+  syncId,
 }: {
   className?: string;
   projectId: string;
@@ -42,6 +43,7 @@ export const GenerationLatencyChart = ({
   isLoading?: boolean;
   metricsVersion?: ViewVersion;
   schedulerId?: string;
+  syncId?: string;
 }) => {
   const {
     allModels,
@@ -201,6 +203,7 @@ export const GenerationLatencyChart = ({
                         show_data_point_dots: false,
                       }}
                       legendPosition="above"
+                      syncId={syncId}
                     />
                   </div>
                 ) : (

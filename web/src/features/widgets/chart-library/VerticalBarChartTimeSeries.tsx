@@ -80,6 +80,7 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
           accessibilityLayer={accessibilityLayer}
           data={groupedData}
           syncId={syncId}
+          syncMethod="value"
         >
           <XAxis
             dataKey="time_dimension"

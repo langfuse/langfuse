@@ -245,6 +245,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
           accessibilityLayer={accessibilityLayer}
           data={groupedData}
           syncId={syncId}
+          syncMethod="value"
         >
           <CartesianGrid stroke="hsl(var(--chart-grid))" vertical={false} />
           <XAxis

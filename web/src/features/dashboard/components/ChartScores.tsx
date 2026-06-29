@@ -28,6 +28,7 @@ export function ChartScores(props: {
   isLoading?: boolean;
   metricsVersion?: ViewVersion;
   schedulerId?: string;
+  syncId?: string;
 }) {
   const scoresQuery: QueryType = {
     view: "scores-numeric",
@@ -104,6 +105,7 @@ export function ChartScores(props: {
               subtle_fill: true,
             }}
             legendPosition="above"
+            syncId={props.syncId}
           />
         </div>
       ) : (
