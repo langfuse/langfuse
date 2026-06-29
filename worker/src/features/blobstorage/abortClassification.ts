@@ -1,31 +1,23 @@
 /**
  * Blob-export abort classification (LFE-10063 / LFE-10388).
  *
- * A table export runs two concurrent stages joined by a Node `stream.pipeline`:
- * the ClickHouse read pipeline and the S3/object-storage upload. When either
- * stage fails, the shared pipeline tears down and *every other* stage then
- * surfaces a generic teardown error ("aborted", "Premature close") — so the
- * worker logs a bare `aborted` and the originating cause is lost.
- *
- * This module records the error each stage observed (with a monotonic
- * timestamp) and picks the originating cause: a concrete fault (a ClickHouse
- * server exception, a named S3 error, a shutdown) outranks a generic teardown
- * signature, and ties are broken by recency. The result is a single
- * `abortReason` that is filterable in Datadog plus the full cause chain for the
- * log line, so one log answers "why did this abort?" without spelunking
- * traces / ClickHouse / host logs.
+ * A table export joins two concurrent stages with a Node `stream.pipeline`: the
+ * ClickHouse read and the S3/object-storage upload. When either fails the
+ * pipeline tears down and *both* stages surface a generic "aborted" — so the
+ * worker logged a bare `aborted` and lost the originating cause. This module
+ * records each stage's error and picks the cause (a concrete fault outranks a
+ * generic teardown; ties broken by recency), yielding a filterable
+ * `abortReason` plus the full cause chain for the log line.
  */
 
-// The stage that observed an error. "ch-read" is the ClickHouse read pipeline
-// (its `stream.pipeline` callback), "upload" is the object-storage upload,
-// "shutdown" is a graceful SIGTERM teardown, "unknown" is anything else.
+// "ch-read" = the ClickHouse read pipeline (its `stream.pipeline` callback),
+// "upload" = the object-storage upload, "shutdown" = graceful SIGTERM.
 export type BlobExportAbortStage =
   | "ch-read"
   | "upload"
   | "shutdown"
   | "unknown";
 
-// Coarse failure class, tagged on logs/metrics/spans for filtering.
 export type BlobExportAbortReason =
   | "ch-error"
   | "upload-error"
@@ -36,11 +28,9 @@ export type BlobExportAbortReason =
 export interface BlobExportAbortOrigin {
   reason: BlobExportAbortReason;
   stage: BlobExportAbortStage;
-  // Whether the originating error was a concrete fault (vs. a generic teardown
-  // signature we could only attribute by stage). Surfaced so the log can flag
-  // a best-effort attribution.
+  // False when the cause was only a generic teardown attributed by stage; the
+  // log flags this as best-effort.
   concrete: boolean;
-  // Full cause chain of the originating error, for the human-readable log line.
   chain: string;
 }
 
@@ -50,8 +40,7 @@ interface RecordedStageError {
   at: number;
 }
 
-// Generic teardown signatures: a stream/socket being aborted tells us *that* the
-// pipeline collapsed, not *why*. These never count as a concrete fault.
+// A teardown signature tells us the pipeline collapsed, not why — never concrete.
 const GENERIC_TEARDOWN_PATTERNS = [
   "aborted",
   "premature close",
@@ -63,23 +52,22 @@ const GENERIC_TEARDOWN_PATTERNS = [
   "broken pipe",
 ];
 
-// ClickHouse server-side exceptions: a real CH fault (timeout, memory, etc.).
+// `db::\w*exception` covers DB::Exception, DB::NetException, etc. A bare
+// `code:\s*\d+` is excluded: it also matches S3/Azure "status code: 503" and
+// would misclassify upload errors as ch-error.
 const CH_EXCEPTION_PATTERN =
-  /db::exception|code:\s*\d+|memory_limit_exceeded|timeout_exceeded|too_many_simultaneous_queries|socket_timeout|cannot_schedule_task/;
+  /db::\w*exception|memory_limit_exceeded|timeout_exceeded|too_many_simultaneous_queries|socket_timeout|cannot_schedule_task/;
 
-// Concrete S3 / object-storage faults (named SDK errors / HTTP conditions).
 const UPLOAD_FAULT_PATTERN =
   /slowdown|access denied|accessdenied|nosuchupload|nosuchbucket|entitytoolarge|requesttimeout|invalidpart|signaturedoesnotmatch|notimplemented|preconditionfailed/;
 
-// Stall / lock-lapse markers (LFE-10063). Rarely surfaced into this code path
-// (a BullMQ stall re-enqueues rather than throwing here), but classified when
-// it does.
+// Rarely reaches this path (a BullMQ stall re-enqueues rather than throwing).
 const STALL_PATTERN = /stalled|missing lock|lock.*(lapse|renew)/;
 
 /**
- * Flatten an error's `cause` chain into a single string of messages, codes, and
- * names. Cycle-safe. A `query_id` appended by the ClickHouse repository survives
- * here, so the log retains the pointer into `system.query_log`.
+ * Flatten an error's `cause` chain into one string. Cycle-safe. A `query_id`
+ * appended by the ClickHouse repository survives here, keeping the pointer into
+ * `system.query_log`.
  */
 export function errorChainText(error: unknown): string {
   const parts: string[] = [];
@@ -107,48 +95,40 @@ function classifyOne(rec: RecordedStageError): {
 } {
   const text = errorChainText(rec.error).toLowerCase();
 
-  // Shutdown is known from the caller's stage, not the message.
   if (rec.stage === "shutdown" || text.includes("sigterm")) {
     return { reason: "shutdown", concrete: true };
   }
   if (STALL_PATTERN.test(text)) {
     return { reason: "stall", concrete: true };
   }
-  // A real ClickHouse exception wins regardless of which stage observed it —
-  // the wrapped upload error carries the CH cause in its chain.
+  // CH/upload faults win regardless of stage — the wrapped upload error carries
+  // the CH cause in its chain.
   if (CH_EXCEPTION_PATTERN.test(text)) {
     return { reason: "ch-error", concrete: true };
   }
-  // A concrete object-storage fault.
   if (UPLOAD_FAULT_PATTERN.test(text)) {
     return { reason: "upload-error", concrete: true };
   }
 
-  // Only generic teardown signatures left: attribute by the observing stage but
-  // mark non-concrete (we saw the collapse, not the trigger).
-  const generic = GENERIC_TEARDOWN_PATTERNS.some((p) => text.includes(p));
-  if (generic) {
+  // Only a generic teardown left: attribute by the observing stage, non-concrete.
+  if (GENERIC_TEARDOWN_PATTERNS.some((p) => text.includes(p))) {
     if (rec.stage === "ch-read") return { reason: "ch-error", concrete: false };
     if (rec.stage === "upload")
       return { reason: "upload-error", concrete: false };
     return { reason: "unknown", concrete: false };
   }
 
-  // Some other message with real content — attribute by stage, treat as
-  // concrete (it is not a bare teardown).
+  // Other real message (not a bare teardown): attribute by stage, concrete.
   if (rec.stage === "ch-read") return { reason: "ch-error", concrete: true };
   if (rec.stage === "upload") return { reason: "upload-error", concrete: true };
   return { reason: "unknown", concrete: false };
 }
 
-/**
- * Accumulates the errors observed across an export's concurrent stages and
- * resolves the originating cause. One instance per table export.
- */
+/** Collects per-stage errors for one table export and resolves the cause. */
 export class BlobExportAbortTracker {
   private readonly records: RecordedStageError[] = [];
 
-  // `now` is injectable for deterministic tests; defaults to performance.now().
+  // `now` is injectable for deterministic tests.
   record(
     stage: BlobExportAbortStage,
     error: unknown,
@@ -163,10 +143,8 @@ export class BlobExportAbortTracker {
   }
 
   /**
-   * Pick the originating cause. Concrete faults outrank generic teardown
-   * signatures; among equally-concrete candidates the earliest wins (the stage
-   * that failed first tore down the rest). Returns undefined if nothing was
-   * recorded.
+   * Concrete faults outrank generic teardowns; ties go to the earliest (the
+   * stage that failed first tore down the rest). Undefined if nothing recorded.
    */
   origin(): BlobExportAbortOrigin | undefined {
     if (this.records.length === 0) return undefined;
@@ -191,11 +169,7 @@ export class BlobExportAbortTracker {
   }
 }
 
-/**
- * Classify a single already-caught error with no per-stage context — used by
- * the outer catch when the tracker recorded nothing (e.g. a failure before the
- * pipeline started). `stage` defaults to "unknown".
- */
+/** Classify a single error with no per-stage context (tracker recorded nothing). */
 export function classifyBlobExportError(
   error: unknown,
   stage: BlobExportAbortStage = "unknown",

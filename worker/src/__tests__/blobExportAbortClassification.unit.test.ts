@@ -87,6 +87,37 @@ describe("BlobExportAbortTracker.origin", () => {
     expect(origin?.chain).toContain("[query_id: qid-123]");
   });
 
+  it("does not misclassify an S3 HTTP 'status code: 503' as ch-error", () => {
+    // Regression: a bare `code:\s*\d+` matched "status code: 503" and flipped
+    // upload errors to ch-error. The S3 message has no upload-fault keyword, so
+    // it must fall through to stage attribution (upload), not CH detection.
+    const t = new BlobExportAbortTracker();
+    t.record(
+      "upload",
+      uploadWrapped(
+        new Error(
+          "InternalError: We encountered an internal error. status code: 503",
+        ),
+      ),
+      1,
+    );
+    expect(t.origin()?.reason).toBe("upload-error");
+  });
+
+  it("classifies a DB::NetException socket timeout as ch-error", () => {
+    const t = new BlobExportAbortTracker();
+    t.record(
+      "upload",
+      uploadWrapped(
+        withQueryId(
+          "Code: 209. DB::NetException: Timeout exceeded while reading from socket",
+        ),
+      ),
+      1,
+    );
+    expect(t.origin()?.reason).toBe("ch-error");
+  });
+
   it("classifies a shutdown-stage record as shutdown", () => {
     const t = new BlobExportAbortTracker();
     t.record("ch-read", new Error("aborted"), 1);

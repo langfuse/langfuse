@@ -426,9 +426,8 @@ const processBlobStorageExport = async (config: {
       let uploadSucceeded = false;
       let heartbeat: ReturnType<typeof setInterval> | undefined;
 
-      // Records the error each concurrent stage (CH read pipeline, S3 upload)
-      // observed, so the catch can name the originating cause instead of the
-      // bare "aborted" the shared pipeline teardown propagates to every stage.
+      // Per-stage errors so the catch can name the originating cause instead of
+      // the bare "aborted" the pipeline teardown propagates to every stage.
       const abortTracker = new BlobExportAbortTracker();
 
       try {
@@ -489,8 +488,7 @@ const processBlobStorageExport = async (config: {
 
         const pipelineCallback = (err: NodeJS.ErrnoException | null) => {
           if (err) {
-            // The pipeline source is the ClickHouse read; record it so the
-            // catch can tell a CH-origin failure from an upload-side teardown.
+            // The pipeline source is the ClickHouse read.
             abortTracker.record("ch-read", err);
             logger.error(
               "[BLOB INTEGRATION] Getting data from DB for blob storage integration failed: ",
@@ -767,10 +765,8 @@ const processBlobStorageExport = async (config: {
               stats: uploadStats,
             });
           } catch (uploadError) {
-            // Record before rethrowing so the catch can attribute the failure to
-            // the upload stage. The cause chain is preserved (handleStorageError
-            // wraps via { cause }), so a CH-origin error surfacing here is still
-            // classified as ch-error by its chain.
+            // Attribute to the upload stage; a CH-origin error surfacing here is
+            // still classified as ch-error by its preserved cause chain.
             abortTracker.record("upload", uploadError);
             throw uploadError;
           }
@@ -978,13 +974,11 @@ const processBlobStorageExport = async (config: {
           }
         }
       } catch (error) {
-        // A graceful SIGTERM in flight reclassifies any teardown as a shutdown
-        // abort regardless of which stage observed it first.
+        // A graceful SIGTERM in flight reclassifies the teardown as shutdown.
         if (isSigtermReceived()) {
           abortTracker.record("shutdown", error);
         }
-        // Prefer the originating cause captured per-stage; fall back to the
-        // propagated error when nothing was recorded (e.g. a pre-pipeline throw).
+        // Fall back to the propagated error if no stage recorded one.
         const origin = abortTracker.origin() ?? classifyBlobExportError(error);
 
         span.setAttribute("blob.abortReason", origin.reason);
