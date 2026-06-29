@@ -19,13 +19,24 @@ const originalCloudRegion = vi.hoisted(() => {
 // per-stage timing metrics are assertable.
 const mockRecordIncrement = vi.hoisted(() => vi.fn());
 const mockRecordHistogram = vi.hoisted(() => vi.fn());
+// Stubbable endpoint preflight: the customer-fault tests reject it with an
+// SDK-shaped error to drive a deterministic in-try failure without touching
+// ClickHouse/MinIO. Defaults to the real implementation so other tests are
+// unaffected.
+const mockValidateBlobStorageEndpoint = vi.hoisted(() => vi.fn());
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@langfuse/shared/src/server")>();
+  if (mockValidateBlobStorageEndpoint.getMockImplementation() === undefined) {
+    mockValidateBlobStorageEndpoint.mockImplementation(
+      actual.validateBlobStorageEndpoint,
+    );
+  }
   return {
     ...actual,
     recordIncrement: mockRecordIncrement,
     recordHistogram: mockRecordHistogram,
+    validateBlobStorageEndpoint: mockValidateBlobStorageEndpoint,
   };
 });
 
@@ -173,6 +184,132 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       // Nothing was exported.
       const files = await storageService.listFiles(s3Prefix);
       expect(files.filter((f) => f.file.includes(projectId))).toHaveLength(0);
+    });
+  });
+
+  // A deterministic customer-config/credential fault can never succeed, so once
+  // BullMQ exhausts its retries the integration is disabled to stop it being
+  // re-scheduled (and spamming) every cycle. Only customer faults disable;
+  // everything else keeps retrying as before.
+  describe("customer-fault disable", () => {
+    const originalV4Preview = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+
+    afterEach(() => {
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
+        originalV4Preview;
+    });
+
+    // Minimal AWS SDK v3 S3 AccessDenied shape (a high-confidence customer
+    // fault). Injected via the in-try endpoint preflight so the failure is
+    // deterministic and needs no live storage credentials or ClickHouse data.
+    const accessDeniedError = (): Error => {
+      const err = new Error("Access Denied");
+      err.name = "AccessDenied";
+      Object.assign(err, {
+        Code: "AccessDenied",
+        $metadata: { httpStatusCode: 403 },
+      });
+      return err;
+    };
+
+    // endpoint must be non-null so the handler runs the preflight we stub.
+    const createIntegration = async (projectId: string) => {
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: projectId,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: "https://customer-bucket.s3.example.com",
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "daily",
+          exportSource: "TRACES_OBSERVATIONS",
+          lastSyncAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        },
+      });
+    };
+
+    const runAttempt = (projectId: string, attemptsMade: number) =>
+      handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+        attemptsMade,
+        opts: { attempts: 5 },
+      } as Job);
+
+    it("keeps the integration enabled on a non-final customer-fault attempt", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      await createIntegration(projectId);
+      mockValidateBlobStorageEndpoint.mockRejectedValueOnce(
+        accessDeniedError(),
+      );
+
+      await expect(runAttempt(projectId, 0)).rejects.toThrow(/access denied/i);
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      // BullMQ still has retries left, so we let it retry — no disable yet.
+      expect(row.enabled).toBe(true);
+      expect(row.lastError).toMatch(/access denied/i);
+    });
+
+    it("disables the integration on the final exhausted customer-fault attempt", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      await createIntegration(projectId);
+      mockValidateBlobStorageEndpoint.mockRejectedValueOnce(
+        accessDeniedError(),
+      );
+
+      await expect(runAttempt(projectId, 4)).rejects.toThrow(/access denied/i);
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.enabled).toBe(false);
+      expect(row.lastError).toMatch(/access denied/i);
+      expect(row.lastErrorAt).not.toBeNull();
+    });
+
+    it("does not disable on the final attempt of a non-customer-fault ('other') error", async () => {
+      // Enriched source + V4 preview off => the guard throws a plain Error,
+      // which the classifier treats as "other".
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: endpoint ? endpoint : null,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "daily",
+          exportSource: "EVENTS",
+          lastSyncAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        },
+      });
+
+      await expect(runAttempt(projectId, 4)).rejects.toThrow(/enriched/i);
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      // "other" errors must keep today's behavior: stay enabled, keep retrying.
+      expect(row.enabled).toBe(true);
     });
   });
 

@@ -41,6 +41,7 @@ import {
   type BlobTableExportOutcome,
 } from "./inFlightExports";
 import { TimedGzip, ZLIB_DEFAULT_LEVEL, type GzipStats } from "./gzipStream";
+import { classifyBlobExportError } from "./classifyBlobExportError";
 import { ByteCounter, TimedByteCounter } from "./byteCounters";
 import { WORKER_HOST_ID } from "../../utils/hostId";
 import {
@@ -1340,6 +1341,20 @@ export const handleBlobStorageIntegrationProjectJob = async (
   } catch (error) {
     const errorMessage = extractStorageErrorMessage(error);
 
+    // A deterministic customer-config/credential fault (bad credentials, missing
+    // bucket, access denied, …) can never succeed until the customer changes
+    // something. Once BullMQ has exhausted its retries for this run, disable the
+    // integration so it stops being re-scheduled — otherwise it fails on every
+    // cycle forever, spamming logs/metrics/alerts. The classifier is a
+    // conservative allowlist biased toward "other", so a misclassification here
+    // only disables a config that is genuinely broken. attemptsMade is 0-based
+    // during processing, so the final allowed attempt has
+    // attemptsMade === attempts - 1.
+    const isFinalAttempt =
+      (job.attemptsMade ?? 0) >= (job.opts?.attempts ?? 1) - 1;
+    const disableForCustomerFault =
+      isFinalAttempt && classifyBlobExportError(error) === "customer_fault";
+
     try {
       await prisma.blobStorageIntegration.update({
         where: { projectId },
@@ -1347,8 +1362,14 @@ export const handleBlobStorageIntegrationProjectJob = async (
           lastError: errorMessage,
           lastErrorAt: new Date(),
           runStartedAt: null,
+          ...(disableForCustomerFault ? { enabled: false } : {}),
         },
       });
+      if (disableForCustomerFault) {
+        logger.warn(
+          `[BLOB INTEGRATION] Disabled blob storage integration for project ${projectId} after a customer-config/credential failure: ${errorMessage}`,
+        );
+      }
     } catch (persistError) {
       logger.error(
         `[BLOB INTEGRATION] Failed to persist blob storage error for project ${projectId}`,
