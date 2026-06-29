@@ -88,8 +88,9 @@ export function NearestSeriesProbe({
   ]);
 
   // Report only when the set actually changes (the cursor moving within a line's
-  // band shouldn't churn parent state).
-  const key = nearest.join(" ");
+  // band shouldn't churn parent state). JSON.stringify (not join) so two distinct
+  // dimension lists can't collide on a shared separator.
+  const key = JSON.stringify(nearest);
   const lastKey = useRef<string | null>(null);
   useEffect(() => {
     if (lastKey.current === key) return;

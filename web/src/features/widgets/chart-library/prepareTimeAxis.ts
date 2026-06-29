@@ -24,13 +24,21 @@ const TIME_SCALE_MAX = 2 * DAY;
 /** Above this total span we switch from day labels to month labels. */
 const MONTH_SCALE_MIN = 180 * DAY;
 
-type AxisMode = "time" | "date" | "month";
+type AxisMode = "time" | "date" | "month" | "category";
 
 /**
- * Parse a raw bucket value (epoch ms, epoch string, ISO, or a "YYYY-MM-DD
- * HH:MM:SS" ClickHouse datetime) into a Date. Values without an explicit
- * timezone are treated as UTC, because the buckets come back UTC-aligned —
- * parsing them as local is what produced wrong dates.
+ * Parse a raw bucket value into a Date, but ONLY when it actually looks like a
+ * timestamp: an epoch-ms number, an ISO string, or a "YYYY-MM-DD[ T]HH:MM:SS"
+ * ClickHouse datetime (optionally a bare "YYYY-MM-DD"). Values without an
+ * explicit timezone are treated as UTC, because the buckets come back
+ * UTC-aligned — parsing them as local is what produced wrong dates.
+ *
+ * Deliberately conservative for strings: a categorical x-axis (e.g. the
+ * dataset-compare view) feeds arbitrary labels through `time_dimension` —
+ * including bare integers like "1", "47", or "20241230" (run names). Those must
+ * render as-is, so we never coerce a bare number into an epoch date, and never
+ * fall back to `new Date(<arbitrary string>)`. Mirrors the historical
+ * `looksLikeIso` guard. (LFE-10549)
  */
 export function parseChartTimestamp(raw: unknown): Date | null {
   if (raw == null) return null;
@@ -41,7 +49,6 @@ export function parseChartTimestamp(raw: unknown): Date | null {
   if (typeof raw !== "string") return null;
   const s = raw.trim();
   if (s === "") return null;
-  if (/^\d+$/.test(s)) return new Date(Number(s));
 
   const match = s.match(
     /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/,
@@ -56,8 +63,16 @@ export function parseChartTimestamp(raw: unknown): Date | null {
     return new Date(Date.UTC(+y, +mo - 1, +d, +h, +mi, se ? +se : 0));
   }
 
-  const fallback = new Date(s);
-  return Number.isNaN(fallback.getTime()) ? null : fallback;
+  // Bare calendar date (no time component) → UTC midnight.
+  const dateOnly = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnly) {
+    const [, y, mo, d] = dateOnly;
+    return new Date(Date.UTC(+y, +mo - 1, +d));
+  }
+
+  // Anything else is not a timestamp (a categorical label) — leave it to the
+  // caller to render verbatim.
+  return null;
 }
 
 /** Median spacing between sorted buckets — the inferred bucket size in ms. */
@@ -94,6 +109,25 @@ export function prepareTimeAxis(rawValues: unknown[], maxTicks = 6): TimeAxis {
     const date = parseChartTimestamp(value);
     if (date) timestamps.push(date.getTime());
   }
+
+  const target = Math.max(2, maxTicks);
+
+  // Non-temporal x-axis (e.g. dataset-compare run names): the labels aren't
+  // timestamps, so we don't invent dates — render them verbatim and only thin
+  // by index. We treat the axis as time only when most values actually parse.
+  const temporal =
+    timestamps.length > 0 && timestamps.length >= rawValues.length / 2;
+  if (!temporal) {
+    const passthrough = (raw: unknown): string =>
+      raw == null ? "" : typeof raw === "string" ? raw : String(raw);
+    return {
+      interval: getEvenTickInterval(rawValues.length, target),
+      formatTick: passthrough,
+      formatTooltip: passthrough,
+      mode: "category",
+    };
+  }
+
   const count = timestamps.length;
   const bucketMs = inferBucketMs(timestamps);
   const span =
@@ -106,7 +140,6 @@ export function prepareTimeAxis(rawValues: unknown[], maxTicks = 6): TimeAxis {
         ? "month"
         : "date";
 
-  const target = Math.max(2, maxTicks);
   let interval: number;
   if (mode === "time" || mode === "month") {
     // Evenly spaced by bucket index.
@@ -122,6 +155,7 @@ export function prepareTimeAxis(rawValues: unknown[], maxTicks = 6): TimeAxis {
   }
 
   const subHour = bucketMs > 0 && bucketMs < HOUR;
+  const subDay = bucketMs > 0 && bucketMs < DAY;
 
   const formatTick = (raw: unknown): string => {
     const date = parseChartTimestamp(raw);
@@ -144,22 +178,18 @@ export function prepareTimeAxis(rawValues: unknown[], maxTicks = 6): TimeAxis {
     });
   };
 
+  // The tooltip identifies one exact bucket, so it always carries the date +
+  // year and adds the time whenever buckets are sub-day — otherwise every
+  // hourly bucket within a day (e.g. a 7-day range trunc'd to the hour) would
+  // show an identical "Jun 28, 2026" and you couldn't tell 1 AM from 11 PM.
   const formatTooltip = (raw: unknown): string => {
     const date = parseChartTimestamp(raw);
     if (!date) return typeof raw === "string" ? raw : "";
-    if (mode === "time") {
-      return date.toLocaleString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      });
-    }
-    return date.toLocaleDateString("en-US", {
+    return date.toLocaleString("en-US", {
       month: "short",
       day: "numeric",
       year: "numeric",
+      ...(subDay ? { hour: "numeric", minute: "2-digit" } : {}),
     });
   };
 

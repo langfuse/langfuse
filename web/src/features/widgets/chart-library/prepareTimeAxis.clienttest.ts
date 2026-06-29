@@ -61,6 +61,45 @@ describe("prepareTimeAxis", () => {
     expect(/2026/.test(axis.formatTooltip(values[0]))).toBe(true);
   });
 
+  it("tooltip keeps the time for sub-day buckets in date mode (distinguishes hours)", () => {
+    // hourly buckets across 7 days → date mode, but each bucket is an hour
+    const start = Date.UTC(2026, 5, 1, 0);
+    const values = Array.from({ length: 24 * 7 }, (_, i) =>
+      iso(start + i * HOUR),
+    );
+    const axis = prepareTimeAxis(values, 6);
+    expect(axis.mode).toBe("date");
+    const oneAm = axis.formatTooltip(iso(Date.UTC(2026, 5, 2, 1)));
+    const elevenPm = axis.formatTooltip(iso(Date.UTC(2026, 5, 2, 23)));
+    expect(oneAm).not.toBe(elevenPm); // 1 AM vs 11 PM must differ
+    expect(/\b(AM|PM)\b/.test(oneAm)).toBe(true);
+  });
+
+  it("daily buckets get a time-free tooltip (no spurious 12:00 AM)", () => {
+    const start = Date.UTC(2026, 5, 1, 0);
+    const values = Array.from({ length: 14 }, (_, d) => iso(start + d * DAY));
+    const axis = prepareTimeAxis(values, 6);
+    expect(/\b(AM|PM)\b/.test(axis.formatTooltip(values[0]))).toBe(false);
+  });
+
+  it("non-temporal labels (compare-view run names) pass through verbatim", () => {
+    // Bare integers and arbitrary strings are run names, not timestamps.
+    const values = ["1", "47", "20241230", "baseline-run"];
+    const axis = prepareTimeAxis(values, 6);
+    expect(axis.mode).toBe("category");
+    expect(axis.formatTick("20241230")).toBe("20241230");
+    expect(axis.formatTick("baseline-run")).toBe("baseline-run");
+    expect(axis.formatTooltip("1")).toBe("1");
+  });
+
+  it("does not coerce bare numeric strings into epoch dates", () => {
+    expect(parseChartTimestamp("1")).toBeNull();
+    expect(parseChartTimestamp("20241230")).toBeNull();
+    expect(parseChartTimestamp("2026-06-28")?.getTime()).toBe(
+      Date.UTC(2026, 5, 28),
+    );
+  });
+
   it("parses a no-timezone ClickHouse datetime as UTC (not local)", () => {
     expect(parseChartTimestamp("2026-06-28 23:00:00")?.getTime()).toBe(
       Date.UTC(2026, 5, 28, 23, 0, 0),

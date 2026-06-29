@@ -231,6 +231,8 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
     maxVisibleSeries,
   });
 
+  const renderedDimensions = dimensions.filter(isRendered);
+
   // Hover proximity: the line the cursor is vertically nearest to is emphasized
   // and the rest dimmed; cleared when the cursor isn't on a line (then everything
   // renders normally). Disabled while a series is click-focused, and gated on
@@ -354,7 +356,10 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
             }
           />
           <NearestSeriesProbe
-            dimensions={dimensions}
+            // Only the lines actually drawn are candidates — otherwise a hidden
+            // (toggled-off) series whose data still sits in groupedData could be
+            // picked as "nearest" and mute every visible line. (LFE-10549)
+            dimensions={renderedDimensions}
             enabled={selfHovered && !isHighlightActive}
             onNearestChange={setNearestDimensions}
           />

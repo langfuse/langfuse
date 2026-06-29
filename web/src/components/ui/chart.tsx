@@ -362,7 +362,16 @@ function ChartTooltipPortal({
   const rect = anchor.getBoundingClientRect();
   const x = rect.left + coordinate.x;
   const y = rect.top + coordinate.y;
+  // Flip past the cursor near the right edge; anchor the tooltip's bottom/top to
+  // the point near the viewport's bottom/top so a tall multi-series tooltip can't
+  // spill its rows out of view (the overlay layer no longer clips it). (LFE-10549)
   const flipLeft = x > window.innerWidth * 0.6;
+  const translateY =
+    y > window.innerHeight * 0.65
+      ? "-100%"
+      : y < window.innerHeight * 0.2
+        ? "0%"
+        : "-50%";
 
   return (
     <Layer name="tooltip">
@@ -371,7 +380,7 @@ function ChartTooltipPortal({
           position: "fixed",
           left: x,
           top: y,
-          transform: `translate(${flipLeft ? "calc(-100% - 14px)" : "14px"}, -50%)`,
+          transform: `translate(${flipLeft ? "calc(-100% - 14px)" : "14px"}, ${translateY})`,
           pointerEvents: "none",
         }}
       >
