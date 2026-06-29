@@ -1224,8 +1224,16 @@ export const handleBlobStorageIntegrationProjectJob = async (
     // so the only integration-level ineligibility is a non-JSONL file type or a
     // trace-only project. The per-table fallback for scores/traces is expected
     // dispatch and is intentionally not warned about (avoids ~hourly log noise).
+    //
+    // Suppress on the Parquet path: when parquet wins (via the tuning override
+    // or fileType=PARQUET) the export does NOT take the standard path, so the
+    // "exporting via the standard path" message would be wrong — and
+    // rawPassthrough is mooted by parquet regardless (see parquetEligible).
     if (
       exportTuning.rawPassthrough &&
+      !exportTuning.parquet &&
+      blobStorageIntegration.fileType !==
+        BlobStorageIntegrationFileType.PARQUET &&
       (blobStorageIntegration.fileType !==
         BlobStorageIntegrationFileType.JSONL ||
         isTraceOnlyProject)
