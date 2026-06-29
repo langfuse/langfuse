@@ -115,7 +115,7 @@ export function OnboardingSurvey() {
     return (
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-start sm:px-6 sm:py-12 lg:px-8">
         <div className="flex items-center justify-center gap-2 sm:mx-auto sm:w-full sm:max-w-md">
-          <LangfuseIcon className="h-8 w-8" />
+          <LangfuseIcon size={32} />
         </div>
 
         <div className="bg-background mt-6 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:mt-16 sm:w-full sm:max-w-[480px] sm:px-12 sm:py-12">
@@ -137,7 +137,7 @@ export function OnboardingSurvey() {
     return (
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-start sm:px-6 sm:py-12 lg:px-8">
         <div className="flex items-center justify-center gap-2 sm:mx-auto sm:w-full sm:max-w-md">
-          <LangfuseIcon className="h-8 w-8" />
+          <LangfuseIcon size={32} />
         </div>
 
         <div className="bg-background mt-6 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:mt-16 sm:w-full sm:max-w-[480px] sm:px-12 sm:py-12">
@@ -155,7 +155,7 @@ export function OnboardingSurvey() {
   return (
     <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-start sm:px-6 sm:py-12 lg:px-8">
       <div className="flex items-center justify-center gap-2 sm:mx-auto sm:w-full sm:max-w-md">
-        <LangfuseIcon className="h-8 w-8" />
+        <LangfuseIcon size={32} />
       </div>
 
       <div className="bg-background mt-6 rounded-lg px-6 py-6 shadow-sm sm:mx-auto sm:mt-16 sm:w-full sm:max-w-[480px] sm:px-12 sm:py-10">
