@@ -4566,6 +4566,130 @@ describe("OTel Resource Span Mapping", () => {
       );
     });
 
+    it("should map official GenAI I/O attributes on AI SDK scope spans", async () => {
+      const traceId = "abcdef1234567890abcdef1234567894";
+      const generationSpanId = "1234567890abcded";
+      const toolSpanId = "1234567890abcdee";
+
+      const resourceSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "otel-test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "ai",
+              version: "7.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(generationSpanId, "hex"),
+                name: "chat test-model",
+                kind: 1,
+                startTimeUnixNano: { low: 0, high: 406528574, unsigned: true },
+                endTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.operation.name",
+                    value: { stringValue: "chat" },
+                  },
+                  {
+                    key: "gen_ai.request.model",
+                    value: { stringValue: "test-model" },
+                  },
+                  {
+                    key: "gen_ai.input.messages",
+                    value: {
+                      stringValue: '[{"role":"user","content":"hello"}]',
+                    },
+                  },
+                  {
+                    key: "gen_ai.output.messages",
+                    value: {
+                      stringValue: '[{"role":"assistant","content":"hi"}]',
+                    },
+                  },
+                ],
+                status: {},
+              },
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(toolSpanId, "hex"),
+                parentSpanId: Buffer.from(generationSpanId, "hex"),
+                name: "execute_tool get_weather",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.operation.name",
+                    value: { stringValue: "execute_tool" },
+                  },
+                  {
+                    key: "gen_ai.tool.name",
+                    value: { stringValue: "get_weather" },
+                  },
+                  {
+                    key: "gen_ai.tool.call.arguments",
+                    value: { stringValue: '{"location":"Berlin"}' },
+                  },
+                  {
+                    key: "gen_ai.tool.call.result",
+                    value: { stringValue: '{"temperature":21}' },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set([traceId]),
+      );
+
+      const generation = events.find((e) => e.type === "generation-create");
+      const tool = events.find((e) => e.type === "tool-create");
+
+      expect(generation?.body.input).toBe(
+        '[{"role":"user","content":"hello"}]',
+      );
+      expect(generation?.body.output).toBe(
+        '[{"role":"assistant","content":"hi"}]',
+      );
+      expect(tool?.body.input).toBe('{"location":"Berlin"}');
+      expect(tool?.body.output).toBe('{"temperature":21}');
+      expect(
+        generation?.body.metadata?.attributes?.["gen_ai.output.messages"],
+      ).toBeUndefined();
+      expect(
+        tool?.body.metadata?.attributes?.["gen_ai.tool.call.arguments"],
+      ).toBeUndefined();
+      expect(
+        tool?.body.metadata?.attributes?.["gen_ai.tool.call.result"],
+      ).toBeUndefined();
+    });
+
     it("should extract AI SDK available tools after metadata normalization in processToEvent", () => {
       const tools = aiSdkWeatherTools;
       const resourceSpan = buildAiSdkToolResourceSpan({
