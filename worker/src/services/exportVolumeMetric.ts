@@ -10,10 +10,8 @@ export type ExportIntegration =
 
 type ExportVolume = {
   integration: ExportIntegration;
-  // On-wire egress bytes the integration shipped this run. blob_storage /
-  // posthog / mixpanel report gzipped bytes (TimedGzip). For llmaj the value is
-  // the uncompressed serialized request body, which ≈ on-wire bytes since LLM
-  // provider requests are not gzipped.
+  // On-wire egress bytes shipped this run: gzipped for blob/posthog/mixpanel,
+  // uncompressed for llmaj (LLM requests aren't gzipped).
   bytes: number;
   projectId: string;
   // Egress-cost classification; blob only (S3 / S3_COMPATIBLE / AZURE_*).

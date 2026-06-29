@@ -87,8 +87,7 @@ describe("createProductionEvalExecutionDeps", () => {
     const messages = [
       { role: "user", type: "user", content: "Judge this answer" },
     ];
-    // Production passes a Zod schema (eval output definition), not a plain
-    // object — the byte count must reflect its JSON Schema form, not Zod _def.
+    // Production passes a Zod schema, not a plain object.
     const structuredOutputSchema = z.object({
       reasoning: z.string().describe("why this score was given"),
       score: z.number().describe("score between 0 and 1"),
@@ -126,7 +125,7 @@ describe("createProductionEvalExecutionDeps", () => {
       expectedBytes,
       { integration: "llmaj", projectId: "project-123" },
     );
-    // Guard against regressing to Zod's internal _def serialization.
+    // Not the Zod _def form.
     const zodDefBytes = Buffer.byteLength(
       JSON.stringify(structuredOutputSchema),
       "utf8",

@@ -132,14 +132,7 @@ export interface EvalExecutionDeps {
   ) => Promise<ModelConfigResult>;
 }
 
-/**
- * Serialize a structured-output schema the way it leaves the worker for egress
- * accounting. Production passes a Zod schema, which LangChain converts to JSON
- * Schema before sending; `JSON.stringify` on the Zod object would instead dump
- * its internal `_def` and drop `.describe()` text, diverging from the on-wire
- * payload. Convert Zod schemas to JSON Schema; fall back to the raw value for
- * plain `LLMJSONSchema` inputs (or any unconvertible schema).
- */
+// Measure the schema as the JSON Schema LangChain ships, not Zod's _def.
 function serializeSchemaForEgress(schema: unknown): string {
   try {
     return JSON.stringify(z.toJSONSchema(schema as z.ZodType));
@@ -220,11 +213,7 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         typeof fetchLLMCompletion
       >[0]["modelParams"]["adapter"];
 
-      // llmaj egress: the request body sent to the model provider is the
-      // serialized messages (the bulk) plus the structured-output schema. LLM
-      // requests are not gzipped, so this uncompressed size ≈ on-wire bytes.
-      // The schema is measured as its JSON Schema form (what LangChain ships),
-      // not Zod's internal _def. See serializeSchemaForEgress.
+      // llmaj egress: serialized request body (messages + schema), uncompressed.
       const bytes =
         Buffer.byteLength(JSON.stringify(params.messages), "utf8") +
         (params.structuredOutputSchema
@@ -256,9 +245,7 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         },
       });
 
-      // Record only after a successful send, matching the "bytes shipped this
-      // run" contract and the other integrations (which report post-upload).
-      // Retries (maxRetries above) are not separately counted.
+      // Record only after a successful send, like the other integrations.
       recordExportVolume({
         integration: "llmaj",
         bytes,
