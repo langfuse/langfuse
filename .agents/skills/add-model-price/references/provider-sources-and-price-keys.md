@@ -4,20 +4,20 @@
 
 Always fetch pricing from the provider's official docs before editing.
 
-| Provider | Source |
-| --- | --- |
-| Anthropic Claude | `https://platform.claude.com/docs/en/about-claude/pricing` |
-| OpenAI | `https://openai.com/api/pricing/` |
-| Google Gemini (AI Studio) | `https://ai.google.dev/pricing` |
-| Google Gemini (Vertex AI) | `https://cloud.google.com/vertex-ai/generative-ai/pricing#gemini-models` |
-| AWS Bedrock | `https://aws.amazon.com/bedrock/pricing/` |
-| Azure OpenAI | `https://azure.microsoft.com/pricing/details/cognitive-services/openai-service/` |
+| Provider                  | Source                                                                           |
+| ------------------------- | -------------------------------------------------------------------------------- |
+| Anthropic Claude          | `https://platform.claude.com/docs/en/about-claude/pricing`                       |
+| OpenAI                    | `https://developers.openai.com/api/docs/pricing`                                 |
+| Google Gemini (AI Studio) | `https://ai.google.dev/pricing`                                                  |
+| Google Gemini (Vertex AI) | `https://cloud.google.com/vertex-ai/generative-ai/pricing#gemini-models`         |
+| AWS Bedrock               | `https://aws.amazon.com/bedrock/pricing/`                                        |
+| Azure OpenAI              | `https://azure.microsoft.com/pricing/details/cognitive-services/openai-service/` |
 
 ### Known source quirks (as of 2026-06)
 
-- **OpenAI** — `openai.com/api/pricing/` returns HTTP 403 to automated fetchers. No
-  accessible alternative has been confirmed. If this page fails, leave OpenAI prices
-  unchanged and report the 403 as an unresolved finding.
+- **OpenAI** — `openai.com/api/pricing/` returns HTTP 403 to automated fetchers.
+  Try https://developers.openai.com/api/docs/pricing instead as this is often permitted.
+  If this page fails, leave OpenAI prices unchanged and report the 403 as an unresolved finding.
 - **Google Gemini** — The AI Studio page (`ai.google.dev/pricing`) and the Vertex AI
   page (`cloud.google.com/vertex-ai/generative-ai/pricing`) can show different prices
   for the same model (e.g. Gemini 2.0 Flash: AI Studio $0.10/MTok vs Vertex $0.15/MTok
@@ -61,11 +61,11 @@ Capture:
 Values in `default-model-prices.json` are per token, not per million tokens.
 
 | Provider Price | JSON Value |
-| --- | --- |
-| `$5 / MTok` | `5e-6` |
-| `$25 / MTok` | `25e-6` |
-| `$0.50 / MTok` | `0.5e-6` |
-| `$6.25 / MTok` | `6.25e-6` |
+| -------------- | ---------- |
+| `$5 / MTok`    | `5e-6`     |
+| `$25 / MTok`   | `25e-6`    |
+| `$0.50 / MTok` | `0.5e-6`   |
+| `$6.25 / MTok` | `6.25e-6`  |
 
 Formula:
 
