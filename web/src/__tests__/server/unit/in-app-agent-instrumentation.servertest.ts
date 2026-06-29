@@ -60,6 +60,9 @@ const input: AgUiRunAgentInput = {
   context: [],
   forwardedProps: {},
 };
+const expectedAgentRunInput = {
+  messages: [{ role: "user", content: "hello" }],
+};
 
 describe("InAppAgentInstrumentation", () => {
   beforeEach(() => {
@@ -68,6 +71,13 @@ describe("InAppAgentInstrumentation", () => {
 
   it("records agent output and tool calls as tool observations", () => {
     const instrumentation = createInstrumentation();
+    const toolCall = {
+      id: "tool-1",
+      name: "listObservations",
+      arguments: '{"limit":10}',
+      type: "function",
+    };
+    const toolOutput = { traces: [{ id: "trace-1" }] };
 
     instrumentation.recordEvents([
       {
@@ -82,6 +92,7 @@ describe("InAppAgentInstrumentation", () => {
         type: EventType.TOOL_CALL_START,
         toolCallId: "tool-1",
         toolCallName: "listObservations",
+        parentMessageId: "assistant-message-1",
       },
       {
         type: EventType.TOOL_CALL_ARGS,
@@ -100,7 +111,14 @@ describe("InAppAgentInstrumentation", () => {
       {
         type: EventType.TOOL_CALL_RESULT,
         toolCallId: "tool-1",
-        content: "tool result",
+        content: JSON.stringify({
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(toolOutput),
+            },
+          ],
+        }),
       },
       {
         type: EventType.RUN_FINISHED,
@@ -130,7 +148,7 @@ describe("InAppAgentInstrumentation", () => {
       expect.objectContaining({
         id: agentRunObservationId,
         name: "agent-run",
-        input: "hello",
+        input: expectedAgentRunInput,
       }),
     );
     expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
@@ -141,18 +159,38 @@ describe("InAppAgentInstrumentation", () => {
         parentObservationId: agentRunObservationId,
         name: "listObservations",
         input: { limit: 10 },
-        output: "tool result",
+        output: toolOutput,
         startTime: expect.any(Date),
         endTime: expect.any(Date),
         completionStartTime: expect.any(Date),
-        metadata: expect.objectContaining({ toolCallId: "tool-1" }),
+        metadata: expect.objectContaining({
+          toolCallId: "tool-1",
+          parentMessageId: "assistant-message-1",
+        }),
       }),
     );
     expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
       expect.objectContaining({
         name: "agent-run",
-        input: "hello",
-        output: "hi there",
+        input: expectedAgentRunInput,
+        output: {
+          messages: [
+            { role: "assistant", content: "hi there" },
+            {
+              role: "assistant",
+              content: "",
+              tool_calls: [toolCall],
+            },
+            {
+              role: "tool",
+              tool_call_id: "tool-1",
+              content: toolOutput,
+            },
+          ],
+          text: "hi there",
+          tool_calls: [toolCall],
+        },
+        completionStartTime: expect.any(Date),
       }),
     );
     expect(mocks.handler.langfuse.enqueue).not.toHaveBeenCalledWith(
@@ -164,6 +202,12 @@ describe("InAppAgentInstrumentation", () => {
 
   it("records run failures on the agent generation", () => {
     const instrumentation = createInstrumentation();
+    const toolCall = {
+      id: "tool-1",
+      name: "getTrace",
+      arguments: '{"traceId":"trace-1"}',
+      type: "function",
+    };
 
     instrumentation.recordEvents([
       {
@@ -191,12 +235,127 @@ describe("InAppAgentInstrumentation", () => {
     expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
       expect.objectContaining({
         name: "agent-run",
-        input: "hello",
+        input: expectedAgentRunInput,
+        output: {
+          messages: [
+            {
+              role: "assistant",
+              content: "",
+              tool_calls: [toolCall],
+            },
+          ],
+          tool_calls: [toolCall],
+        },
+        completionStartTime: expect.any(Date),
         level: "ERROR",
         statusMessage: "agent failed",
         metadata: expect.objectContaining({ error: "agent failed" }),
       }),
     );
+  });
+
+  it("records available tools on the agent generation input", () => {
+    const instrumentation = createInstrumentation();
+
+    instrumentation.recordAvailableTools({
+      langfuse_listObservations: {
+        description: "List observations in a project.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            limit: { type: "number" },
+          },
+        },
+      },
+      langfuse_redirect: {
+        description: "Redirect the user to a Langfuse page.",
+        inputSchema: {
+          parse: vi.fn(),
+        },
+      },
+    });
+    instrumentation.end();
+
+    expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "agent-run",
+        input: {
+          messages: [{ role: "user", content: "hello" }],
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "langfuse_listObservations",
+                description: "List observations in a project.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    limit: { type: "number" },
+                  },
+                },
+              },
+            },
+            {
+              type: "function",
+              function: {
+                name: "langfuse_redirect",
+                description: "Redirect the user to a Langfuse page.",
+              },
+            },
+          ],
+        },
+      }),
+    );
+  });
+
+  it("marks tool observations with error outputs as error level", () => {
+    const instrumentation = createInstrumentation();
+
+    instrumentation.recordEvents([
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "tool-1",
+        toolCallName: "listObservations",
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: "tool-1",
+        delta: '{"type":"TRACE"}',
+      },
+      {
+        type: EventType.TOOL_CALL_END,
+        toolCallId: "tool-1",
+      },
+      {
+        type: EventType.TOOL_CALL_RESULT,
+        toolCallId: "tool-1",
+        content: JSON.stringify({
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                error: true,
+                message: "Tool input validation failed",
+              }),
+            },
+          ],
+        }),
+      },
+    ]);
+
+    const toolCreateBody = mocks.handler.langfuse.enqueue.mock.calls[0]?.[1];
+
+    expect(toolCreateBody).toEqual(
+      expect.objectContaining({
+        input: { type: "TRACE" },
+        output: {
+          error: true,
+          message: "Tool input validation failed",
+        },
+        level: "ERROR",
+      }),
+    );
+    expect(toolCreateBody).not.toHaveProperty("statusMessage");
   });
 
   it("sets static prompt metadata on the trace and agent generation", () => {
@@ -232,7 +391,7 @@ describe("InAppAgentInstrumentation", () => {
     expect(mocks.trace.generation).toHaveBeenCalledWith({
       id: agentRunObservationId,
       name: "agent-run",
-      input: "hello",
+      input: expectedAgentRunInput,
       metadata: {
         langfuse_project_id: "project-1",
         langfuse_user_email: "user@example.com",
@@ -248,7 +407,7 @@ describe("InAppAgentInstrumentation", () => {
     expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
       expect.objectContaining({
         name: "agent-run",
-        input: "hello",
+        input: expectedAgentRunInput,
         promptName: "in-app-agent-system-prompt",
         promptVersion: 3,
       }),
@@ -274,8 +433,12 @@ describe("InAppAgentInstrumentation", () => {
     expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
       expect.objectContaining({
         name: "agent-run",
-        input: "hello",
-        output: "second turn output",
+        input: expectedAgentRunInput,
+        output: {
+          messages: [{ role: "assistant", content: "second turn output" }],
+          text: "second turn output",
+        },
+        completionStartTime: expect.any(Date),
       }),
     );
     expect(mocks.trace.update.mock.calls[0][0]).not.toHaveProperty("output");
@@ -289,6 +452,14 @@ describe("InAppAgentInstrumentation", () => {
           value:
             "https://cloud.langfuse.com/project/project-1/traces?filter=value",
         },
+        {
+          description: "browser_languages",
+          value: "en-US, en, de",
+        },
+        {
+          description: "current_trace",
+          value: JSON.stringify({ id: "trace-1" }),
+        },
       ],
     });
 
@@ -296,19 +467,91 @@ describe("InAppAgentInstrumentation", () => {
       expect.objectContaining({
         name: "agent-run",
         input: {
-          message: "hello",
-          context: [
-            {
-              description: "current_url",
-              value:
-                "https://cloud.langfuse.com/project/project-1/traces?filter=value",
-            },
-          ],
+          messages: [{ role: "user", content: "hello" }],
+          context: {
+            current_url:
+              "https://cloud.langfuse.com/project/project-1/traces?filter=value",
+            browser_languages: ["en-US", "en", "de"],
+            current_trace: { id: "trace-1" },
+          },
         },
       }),
     );
     expect(mocks.handler.langfuse.trace.mock.calls[0][0]).not.toHaveProperty(
       "input",
+    );
+  });
+
+  it("records replayed conversation messages in the agent generation input", () => {
+    createInstrumentation({
+      messages: [
+        {
+          id: "message-previous-user",
+          role: "user",
+          content: "previous question",
+        },
+        {
+          id: "message-previous-assistant",
+          role: "assistant",
+          content: "previous answer",
+          toolCalls: [
+            {
+              id: "tool-previous",
+              type: "function",
+              function: {
+                name: "getTrace",
+                arguments: '{"traceId":"trace-1"}',
+              },
+            },
+          ],
+        },
+        {
+          id: "message-previous-tool",
+          role: "tool",
+          toolCallId: "tool-previous",
+          content: '{"found":true}',
+        },
+        {
+          id: "message-activity",
+          role: "activity",
+          activityType: "loading",
+          content: { label: "Loading" },
+        },
+        {
+          id: "message-1",
+          role: "user",
+          content: "hello",
+        },
+      ],
+    });
+
+    expect(mocks.trace.generation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "agent-run",
+        input: {
+          messages: [
+            { role: "user", content: "previous question" },
+            {
+              role: "assistant",
+              content: "previous answer",
+              tool_calls: [
+                {
+                  id: "tool-previous",
+                  name: "getTrace",
+                  arguments: '{"traceId":"trace-1"}',
+                  type: "function",
+                },
+              ],
+            },
+            {
+              role: "tool",
+              tool_call_id: "tool-previous",
+              content: { found: true },
+            },
+            { role: "user", content: "hello" },
+          ],
+        },
+      }),
     );
   });
 
@@ -335,8 +578,12 @@ describe("InAppAgentInstrumentation", () => {
     expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
       expect.objectContaining({
         name: "agent-run",
-        input: "hello",
-        output: "chunk output",
+        input: expectedAgentRunInput,
+        output: {
+          messages: [{ role: "assistant", content: "chunk output" }],
+          text: "chunk output",
+        },
+        completionStartTime: expect.any(Date),
       }),
     );
   });
@@ -367,8 +614,12 @@ describe("InAppAgentInstrumentation", () => {
     expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
       expect.objectContaining({
         name: "agent-run",
-        input: "hello",
-        output: "Done",
+        input: expectedAgentRunInput,
+        output: {
+          messages: [{ role: "assistant", content: "Done" }],
+          text: "Done",
+        },
+        completionStartTime: expect.any(Date),
         metadata: expect.objectContaining({ reasoning: "Checking filters" }),
       }),
     );
