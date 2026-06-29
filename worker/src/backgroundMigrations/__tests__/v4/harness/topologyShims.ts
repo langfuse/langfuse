@@ -149,45 +149,55 @@ function onCluster(): string {
 }
 
 /**
- * Asserts the scratch table's merge-freeze state for the current topology.
- * Returns a human-readable status. Single-node `SYSTEM STOP MERGES` is an
- * in-memory lock with no durable signal to assert, so we only confirm the table
- * is present there; the replicated/Cloud branches check the persisted settings
- * M2 sets. Used by the manual runner; the CI single-node path treats it as a
- * smoke check.
+ * Reports the scratch table's merge-freeze state for the current topology.
+ *
+ * M2 freezes `observations_pid_tid_sorting` with PER-TABLE overrides via
+ * `ALTER TABLE … MODIFY SETTING`, so this reads those settings from the table's
+ * own metadata (`system.tables.create_table_query`). It deliberately does NOT
+ * read `system.merge_tree_settings` / `system.replicated_merge_tree_settings`:
+ * those expose server-wide defaults with no per-table dimension, so they would
+ * report the default regardless of whether M2 froze the table (a silent false
+ * negative).
+ *
+ * Single-node `SYSTEM STOP MERGES` is an in-memory lock with no durable signal
+ * to assert, so we only confirm the engine there. Used by the manual runner;
+ * the CI single-node path treats it as a smoke check.
+ *
+ * NOTE: confirm on real Cloud that `shared_merge_tree_disable_merges_and_
+ * mutations_assignment` surfaces in `create_table_query` after `MODIFY SETTING`
+ * before relying on this as a hard PASS/FAIL signal.
  */
 export async function describeMergeFreeze(table: string): Promise<string> {
   const engine = await getEngine(table);
   const kind = topologyKindFromEngine(engine);
 
+  if (kind === "single-node") {
+    return `single-node: in-memory STOP MERGES (not durably assertable), engine=${engine || "unknown"}`;
+  }
+
+  // Per-table MODIFY SETTING overrides live in the table's DDL, not in the
+  // server-level system.*_settings views. Read straight from table metadata so
+  // the answer reflects what M2 actually applied. Metadata is Keeper-consistent
+  // across replicas, so the local node's DDL is representative on a cluster.
+  const rows = await queryClickhouse<{ create_table_query: string }>({
+    query: `
+      SELECT create_table_query
+      FROM system.tables
+      WHERE database = currentDatabase() AND name = {table: String}
+    `,
+    params: { table },
+    tags: tags("describeMergeFreeze"),
+  });
+  const ddl = rows[0]?.create_table_query ?? "";
+
   if (kind === "cloud") {
-    const rows = await queryClickhouse<{ value: string }>({
-      query: `
-        SELECT value
-        FROM system.merge_tree_settings
-        WHERE name = 'shared_merge_tree_disable_merges_and_mutations_assignment'
-      `,
-      tags: tags("describeMergeFreeze"),
-    });
-    return `cloud: shared_merge_tree_disable_merges_and_mutations_assignment=${rows[0]?.value ?? "?"}`;
+    const value = ddl.match(
+      /shared_merge_tree_disable_merges_and_mutations_assignment\s*=\s*(\d+)/,
+    )?.[1];
+    return `cloud: shared_merge_tree_disable_merges_and_mutations_assignment=${value ?? "0 (no per-table override)"}`;
   }
 
-  if (kind === "replicated") {
-    const rows = await queryClickhouse<{
-      max_replicated_merges_in_queue: string;
-      always_fetch_merged_part: string;
-    }>({
-      query: `
-        SELECT
-          anyIf(value, name = 'max_replicated_merges_in_queue') AS max_replicated_merges_in_queue,
-          anyIf(value, name = 'always_fetch_merged_part') AS always_fetch_merged_part
-        FROM clusterAllReplicas('${env.CLICKHOUSE_CLUSTER_NAME}', 'system.replicated_merge_tree_settings')
-      `,
-      clickhouseSettings: { skip_unavailable_shards: 1 },
-      tags: tags("describeMergeFreeze"),
-    });
-    return `replicated: max_replicated_merges_in_queue=${rows[0]?.max_replicated_merges_in_queue ?? "?"}, always_fetch_merged_part=${rows[0]?.always_fetch_merged_part ?? "?"}`;
-  }
-
-  return `single-node: in-memory STOP MERGES (not durably assertable), engine=${engine || "unknown"}`;
+  const queue = ddl.match(/max_replicated_merges_in_queue\s*=\s*(\d+)/)?.[1];
+  const alwaysFetch = ddl.match(/always_fetch_merged_part\s*=\s*(\d+)/)?.[1];
+  return `replicated: max_replicated_merges_in_queue=${queue ?? "default"}, always_fetch_merged_part=${alwaysFetch ?? "default"}`;
 }
