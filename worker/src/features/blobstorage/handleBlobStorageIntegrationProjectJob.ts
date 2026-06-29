@@ -40,6 +40,12 @@ import {
   BLOB_TABLE_EXPORT_METRIC,
   type BlobTableExportOutcome,
 } from "./inFlightExports";
+import {
+  BlobExportAbortTracker,
+  classifyBlobExportError,
+  errorChainText,
+} from "./abortClassification";
+import { isSigtermReceived } from "../health";
 import { TimedGzip, ZLIB_DEFAULT_LEVEL, type GzipStats } from "./gzipStream";
 import { ByteCounter, TimedByteCounter } from "./byteCounters";
 import { WORKER_HOST_ID } from "../../utils/hostId";
@@ -416,6 +422,10 @@ const processBlobStorageExport = async (config: {
       let uploadSucceeded = false;
       let heartbeat: ReturnType<typeof setInterval> | undefined;
 
+      // Per-stage errors so the catch can name the originating cause instead of
+      // the bare "aborted" the pipeline teardown propagates to every stage.
+      const abortTracker = new BlobExportAbortTracker();
+
       try {
         const blobStorageProps = getFileTypeProperties(config.fileType);
 
@@ -474,6 +484,8 @@ const processBlobStorageExport = async (config: {
 
         const pipelineCallback = (err: NodeJS.ErrnoException | null) => {
           if (err) {
+            // The pipeline source is the ClickHouse read.
+            abortTracker.record("ch-read", err);
             logger.error(
               "[BLOB INTEGRATION] Getting data from DB for blob storage integration failed: ",
               err,
@@ -728,15 +740,22 @@ const processBlobStorageExport = async (config: {
         try {
           uploadStartMs = performance.now();
 
-          await storageService.uploadFileBuffered({
-            fileName: filePath,
-            fileType: uploadContentType,
-            data: fileStream,
-            partSizeBytes: config.partSizeBytes,
-            maxConcurrentParts: config.maxConcurrentParts,
-            maxPartAttempts: config.maxPartAttempts,
-            stats: uploadStats,
-          });
+          try {
+            await storageService.uploadFileBuffered({
+              fileName: filePath,
+              fileType: uploadContentType,
+              data: fileStream,
+              partSizeBytes: config.partSizeBytes,
+              maxConcurrentParts: config.maxConcurrentParts,
+              maxPartAttempts: config.maxPartAttempts,
+              stats: uploadStats,
+            });
+          } catch (uploadError) {
+            // Attribute to the upload stage; a CH-origin error surfacing here is
+            // still classified as ch-error by its preserved cause chain.
+            abortTracker.record("upload", uploadError);
+            throw uploadError;
+          }
           // Record at the upload boundary so a throw in the `finally` below
           // can't miscount a real success as a failure.
           uploadSucceeded = true;
@@ -941,17 +960,31 @@ const processBlobStorageExport = async (config: {
           }
         }
       } catch (error) {
+        // On SIGTERM, add a concrete shutdown record. It wins origin() only when
+        // no earlier concrete fault (e.g. a real CH exception) was recorded.
+        if (isSigtermReceived()) {
+          abortTracker.record("shutdown", error);
+        }
+        // Fall back to the propagated error if no stage recorded one.
+        const origin = abortTracker.origin() ?? classifyBlobExportError(error);
+
+        span.setAttribute("blob.abortReason", origin.reason);
+        span.setAttribute("blob.abortStage", origin.stage);
+
         // Skip if `success` already fired (a later step threw post-upload).
         if (!uploadSucceeded) {
           recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
             outcome: "failure" satisfies BlobTableExportOutcome,
+            abortReason: origin.reason,
             table: config.table,
             projectId: config.projectId,
           });
         }
         logger.error(
           `[BLOB INTEGRATION] Error exporting ${config.table} for project ${config.projectId} ` +
-            `(jobId=${config.bullmqJobId} attemptsMade=${config.bullmqAttemptsMade} host=${WORKER_HOST_ID})`,
+            `(jobId=${config.bullmqJobId} attemptsMade=${config.bullmqAttemptsMade} host=${WORKER_HOST_ID} ` +
+            `abortReason=${origin.reason} abortStage=${origin.stage}` +
+            `${origin.concrete ? "" : " attribution=best-effort"}): ${origin.chain}`,
           error,
         );
         throw error;
@@ -1342,7 +1375,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
     notifyBlobStorageExportFailedInBackground(projectId);
 
-    const chain = formatErrorChain(error);
+    const chain = errorChainText(error);
     logger.error(
       `[BLOB INTEGRATION] Error processing blob storage integration for project ${projectId}: ${chain}`,
       error instanceof Error ? { stack: error.stack } : {},
@@ -1459,15 +1492,4 @@ function extractStorageErrorMessage(error: unknown): string {
 
   const full = details ? `${message} Details: ${details}` : message;
   return full.slice(0, 1000);
-}
-
-function formatErrorChain(error: unknown): string {
-  if (!(error instanceof Error)) return String(error);
-  const parts: string[] = [];
-  let current: unknown = error;
-  while (current instanceof Error) {
-    parts.push(current.message);
-    current = current.cause;
-  }
-  return parts.join(" caused by ");
 }
