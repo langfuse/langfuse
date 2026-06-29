@@ -17,6 +17,7 @@ Always fetch pricing from the provider's official docs before editing.
 
 - **OpenAI** — `openai.com/api/pricing/` often returns HTTP 403 to automated fetchers.
   Use `https://developers.openai.com/api/docs/pricing` instead as that is often permitted.
+  Use `https://developers.openai.com/api/docs/models/all` to discover model-by-model info and pricing.
   If this page fails, leave OpenAI prices unchanged and report the 403 as an unresolved finding.
 - **OpenAI matchPattern prefix** — All OpenAI model entries must include `(openai\/)?`
   as an optional prefix in their matchPattern (e.g., `(?i)^(openai\/)?(gpt-4o)$`).
