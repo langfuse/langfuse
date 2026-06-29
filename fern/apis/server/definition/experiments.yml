@@ -1,5 +1,6 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
 imports:
+  commons: ./commons.yml
   scoresV3: ./scores-v3.yml
 
 service:
@@ -10,12 +11,11 @@ service:
       method: GET
       path: /experiments
       docs: |
-        List experiments from the events table with cursor-based pagination.
+        List experiments with cursor-based pagination.
 
         `fromStartTime` is required. Time filters and cursor bounds are applied
-        at the event level before experiment aggregation, so experiments may be
-        represented partially when the requested event window cuts through an
-        experiment.
+        before experiments are grouped, so experiments may be represented
+        partially when the requested time range cuts through an experiment.
       request:
         name: ListExperimentsRequest
         query-parameters:
@@ -35,10 +35,10 @@ service:
             docs: Versioned base64url cursor from the previous response page.
           fromStartTime:
             type: datetime
-            docs: Retrieve only experiment events with a start time on or after this datetime.
+            docs: Retrieve only experiments with activity starting on or after this datetime.
           toStartTime:
             type: optional<datetime>
-            docs: Retrieve only experiment events with a start time before this datetime.
+            docs: Retrieve only experiments with activity starting before this datetime.
           id:
             type: optional<string>
             docs: Comma-separated list of experiment IDs.
@@ -58,10 +58,10 @@ service:
       method: GET
       path: /experiments/{experimentId}
       docs: |
-        Get an experiment summary from the events table.
+        Get an experiment summary.
 
         This endpoint returns the full experiment summary for the given
-        experiment ID. It is not windowed and does not paginate.
+        experiment ID.
       path-parameters:
         experimentId:
           type: string
@@ -71,9 +71,9 @@ service:
       method: GET
       path: /experiment-items
       docs: |
-        List root experiment-item spans from the events table with cursor-based
-        pagination. Use this endpoint to export experiment item inputs, outputs,
-        expected outputs, metadata, and optionally item/trace scores.
+        List experiment items with cursor-based pagination. Use this endpoint
+        to export experiment item inputs, outputs, expected outputs, metadata,
+        and optionally item/trace scores.
 
         `fromStartTime` is required unless `experimentId` is provided.
       request:
@@ -97,10 +97,10 @@ service:
             docs: Versioned base64url cursor from the previous response page.
           fromStartTime:
             type: optional<datetime>
-            docs: Retrieve only experiment item root spans with a start time on or after this datetime. Required unless `experimentId` is provided.
+            docs: Retrieve only experiment items that started on or after this datetime. Required unless `experimentId` is provided.
           toStartTime:
             type: optional<datetime>
-            docs: Retrieve only experiment item root spans with a start time before this datetime.
+            docs: Retrieve only experiment items that started before this datetime.
           experimentId:
             type: optional<string>
             docs: Comma-separated list of experiment IDs.
@@ -170,7 +170,7 @@ types:
       traceId: string
       startTime: datetime
       endTime: nullable<datetime>
-      level: string
+      level: commons.ObservationLevel
       environment: string
       experimentId: string
       experimentName: string
