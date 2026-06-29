@@ -1,13 +1,11 @@
-// Classifies a caught blob-export error as a deterministic customer-config /
-// credential fault vs. anything else. The handler uses a `customer_fault`
-// verdict (after BullMQ exhausts retries) to disable the integration.
+// True when a caught blob-export error is a deterministic customer-config /
+// credential fault. The handler uses this (after BullMQ exhausts retries) to
+// disable the integration.
 //
-// Conservative allowlist of stable provider error codes, biased toward `other`:
-// a false `customer_fault` disables a working integration, a false `other` only
-// keeps retrying. Errors arrive wrapped via `new Error(..., { cause })`
+// Conservative allowlist of stable provider error codes, biased toward false:
+// a false positive disables a working integration, a false negative only keeps
+// retrying. Errors arrive wrapped via `new Error(..., { cause })`
 // (StorageService.handleStorageError), so we walk the cause chain.
-
-export type BlobExportFaultClass = "customer_fault" | "other";
 
 // AWS SDK v3 sets `.name`/`.Code`; Azure RestError sets `.code`. S3-compatible
 // providers (incl. GCS S3-interop) surface the S3 codes.
@@ -102,9 +100,9 @@ function isCustomerFaultLink(err: object): boolean {
   return false;
 }
 
-export function classifyBlobExportError(error: unknown): BlobExportFaultClass {
+export function isCustomerFaultError(error: unknown): boolean {
   for (const link of errorCauseChain(error)) {
-    if (isCustomerFaultLink(link)) return "customer_fault";
+    if (isCustomerFaultLink(link)) return true;
   }
-  return "other";
+  return false;
 }

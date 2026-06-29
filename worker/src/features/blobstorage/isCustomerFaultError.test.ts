@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyBlobExportError } from "./classifyBlobExportError";
+import { isCustomerFaultError } from "./isCustomerFaultError";
 
 // Builds the wrapper the handler actually sees: StorageService.handleStorageError
 // rethrows SDK errors as `new Error("Failed to ...", { cause: sdkError })`.
@@ -36,7 +36,7 @@ const gcsError = (
   return err;
 };
 
-describe("classifyBlobExportError", () => {
+describe("isCustomerFaultError", () => {
   describe("customer_fault — S3 / S3-compatible", () => {
     it.each([
       ["InvalidAccessKeyId", 403],
@@ -48,15 +48,11 @@ describe("classifyBlobExportError", () => {
       ["NoSuchBucket", 404],
       ["InvalidBucketName", 400],
     ])("classifies %s as customer_fault", (code, status) => {
-      expect(classifyBlobExportError(wrapped(s3Error(code, status)))).toBe(
-        "customer_fault",
-      );
+      expect(isCustomerFaultError(wrapped(s3Error(code, status)))).toBe(true);
     });
 
     it("classifies a raw (unwrapped) S3 error too", () => {
-      expect(classifyBlobExportError(s3Error("AccessDenied", 403))).toBe(
-        "customer_fault",
-      );
+      expect(isCustomerFaultError(s3Error("AccessDenied", 403))).toBe(true);
     });
   });
 
@@ -71,16 +67,16 @@ describe("classifyBlobExportError", () => {
       ["ContainerNotFound", 404],
       ["InvalidResourceName", 400],
     ])("classifies %s as customer_fault", (code, status) => {
-      expect(classifyBlobExportError(wrapped(azureError(code, status)))).toBe(
-        "customer_fault",
+      expect(isCustomerFaultError(wrapped(azureError(code, status)))).toBe(
+        true,
       );
     });
   });
 
   describe("customer_fault — GCS JSON API", () => {
     it("classifies 403 forbidden as customer_fault", () => {
-      expect(classifyBlobExportError(wrapped(gcsError(403, "forbidden")))).toBe(
-        "customer_fault",
+      expect(isCustomerFaultError(wrapped(gcsError(403, "forbidden")))).toBe(
+        true,
       );
     });
   });
@@ -89,7 +85,7 @@ describe("classifyBlobExportError", () => {
     it("classifies a 401 with no recognized code as customer_fault", () => {
       const err = new Error("Unauthorized");
       Object.assign(err, { $metadata: { httpStatusCode: 401 } });
-      expect(classifyBlobExportError(wrapped(err))).toBe("customer_fault");
+      expect(isCustomerFaultError(wrapped(err))).toBe(true);
     });
   });
 
@@ -99,59 +95,59 @@ describe("classifyBlobExportError", () => {
       (code) => {
         const err = new Error(`network ${code}`);
         Object.assign(err, { code });
-        expect(classifyBlobExportError(wrapped(err))).toBe("other");
+        expect(isCustomerFaultError(wrapped(err))).toBe(false);
       },
     );
 
     it("classifies a 503 ServiceUnavailable as other", () => {
       expect(
-        classifyBlobExportError(wrapped(s3Error("ServiceUnavailable", 503))),
-      ).toBe("other");
+        isCustomerFaultError(wrapped(s3Error("ServiceUnavailable", 503))),
+      ).toBe(false);
     });
 
     it("classifies a 500 InternalError as other", () => {
-      expect(
-        classifyBlobExportError(wrapped(s3Error("InternalError", 500))),
-      ).toBe("other");
+      expect(isCustomerFaultError(wrapped(s3Error("InternalError", 500)))).toBe(
+        false,
+      );
     });
 
     it("classifies S3 SlowDown / throttling as other", () => {
-      expect(classifyBlobExportError(wrapped(s3Error("SlowDown", 503)))).toBe(
-        "other",
+      expect(isCustomerFaultError(wrapped(s3Error("SlowDown", 503)))).toBe(
+        false,
       );
     });
 
     it("classifies a bare 403 with no recognized code as other (e.g. clock skew)", () => {
       expect(
-        classifyBlobExportError(wrapped(s3Error("RequestTimeTooSkewed", 403))),
-      ).toBe("other");
+        isCustomerFaultError(wrapped(s3Error("RequestTimeTooSkewed", 403))),
+      ).toBe(false);
     });
 
     it("classifies a RequestTimeout as other", () => {
       expect(
-        classifyBlobExportError(wrapped(s3Error("RequestTimeout", 400))),
-      ).toBe("other");
+        isCustomerFaultError(wrapped(s3Error("RequestTimeout", 400))),
+      ).toBe(false);
     });
 
     it("classifies a plain application error as other", () => {
       expect(
-        classifyBlobExportError(
+        isCustomerFaultError(
           new Error("The configured export source includes enriched ..."),
         ),
-      ).toBe("other");
+      ).toBe(false);
     });
 
     it("classifies a GCS object-level notFound as other", () => {
-      expect(classifyBlobExportError(wrapped(gcsError(404, "notFound")))).toBe(
-        "other",
+      expect(isCustomerFaultError(wrapped(gcsError(404, "notFound")))).toBe(
+        false,
       );
     });
 
     it("classifies null/undefined/non-error inputs as other", () => {
-      expect(classifyBlobExportError(null)).toBe("other");
-      expect(classifyBlobExportError(undefined)).toBe("other");
-      expect(classifyBlobExportError("AccessDenied")).toBe("other");
-      expect(classifyBlobExportError(403)).toBe("other");
+      expect(isCustomerFaultError(null)).toBe(false);
+      expect(isCustomerFaultError(undefined)).toBe(false);
+      expect(isCustomerFaultError("AccessDenied")).toBe(false);
+      expect(isCustomerFaultError(403)).toBe(false);
     });
   });
 
@@ -160,14 +156,14 @@ describe("classifyBlobExportError", () => {
       const root = s3Error("InvalidAccessKeyId", 403);
       const mid = new Error("mid", { cause: root });
       const top = new Error("top", { cause: mid });
-      expect(classifyBlobExportError(top)).toBe("customer_fault");
+      expect(isCustomerFaultError(top)).toBe(true);
     });
 
     it("does not infinite-loop on a cyclic cause chain", () => {
       const a = new Error("a");
       const b = new Error("b", { cause: a });
       Object.assign(a, { cause: b });
-      expect(classifyBlobExportError(a)).toBe("other");
+      expect(isCustomerFaultError(a)).toBe(false);
     });
   });
 });

@@ -41,7 +41,7 @@ import {
   type BlobTableExportOutcome,
 } from "./inFlightExports";
 import { TimedGzip, ZLIB_DEFAULT_LEVEL, type GzipStats } from "./gzipStream";
-import { classifyBlobExportError } from "./classifyBlobExportError";
+import { isCustomerFaultError } from "./isCustomerFaultError";
 import { ByteCounter, TimedByteCounter } from "./byteCounters";
 import { WORKER_HOST_ID } from "../../utils/hostId";
 import {
@@ -1348,7 +1348,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
     const isFinalAttempt =
       (job.attemptsMade ?? 0) >= (job.opts?.attempts ?? 1) - 1;
     const disableForCustomerFault =
-      isFinalAttempt && classifyBlobExportError(error) === "customer_fault";
+      isFinalAttempt && isCustomerFaultError(error);
 
     try {
       await prisma.blobStorageIntegration.update({
