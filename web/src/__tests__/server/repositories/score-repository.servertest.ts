@@ -913,7 +913,6 @@ describe("Clickhouse Scores Repository Test", () => {
         traceIds: [traceId],
         observationIds: [observationId],
         min: new Date(startTimeMs),
-        max: new Date(startTimeMs + 10),
         scoreLimit: 1,
       });
 

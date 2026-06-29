@@ -736,14 +736,12 @@ export async function queryScoreRecordsForExperimentItems({
   traceIds,
   observationIds,
   min,
-  max,
   scoreLimit,
 }: {
   projectId: string;
   traceIds: string[];
   observationIds: string[];
   min: Date;
-  max: Date;
   scoreLimit: number;
 }) {
   const uniqueTraceIds = uniqueNonEmptyStrings(traceIds);
@@ -762,7 +760,6 @@ export async function queryScoreRecordsForExperimentItems({
         traceIds: uniqueTraceIds,
         observationIds: uniqueObservationIds,
         minStartTime: convertDateToClickhouseDateTime(min),
-        maxStartTime: convertDateToClickhouseDateTime(max),
         scoreLimit,
         dataTypes: LISTABLE_SCORE_TYPES.map((type) => type.toString()),
       },
@@ -782,7 +779,6 @@ export async function queryScoreRecordsForExperimentItems({
             FROM scores s
             WHERE s.project_id = {projectId: String}
               AND s.timestamp >= {minStartTime: DateTime64(3)}
-              AND s.timestamp <= {maxStartTime: DateTime64(3)} + ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}
               AND s.data_type IN ({dataTypes: Array(String)})
               AND (
                 s.observation_id IN ({observationIds: Array(String)})

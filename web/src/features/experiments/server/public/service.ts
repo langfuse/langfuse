@@ -1,6 +1,7 @@
 import {
   convertClickhouseScoreToDomain,
   getCurrentSpan,
+  logger,
   parseClickhouseUTCDateTimeFormat,
   scoreDomainToV3,
   type ScoreRecordReadType,
@@ -52,7 +53,10 @@ const transformExperimentSummaryRow = (
   return withOptionalFields;
 };
 
-const transformExperimentDetailRow = (row: ExperimentSummaryRow) => ({
+const transformExperimentDetailRow = (
+  row: ExperimentSummaryRow,
+  projectId: string,
+) => ({
   id: row.experiment_id,
   name: row.experiment_name,
   description: row.experiment_description ?? null,
@@ -60,7 +64,7 @@ const transformExperimentDetailRow = (row: ExperimentSummaryRow) => ({
   itemCount: Number(row.item_count),
   datasetId: row.experiment_dataset_id,
   metadata: row.experiment_metadata ?? null,
-  scores: scoreRecordsToV3(row.scores ?? []),
+  scores: scoreRecordsToV3(row.scores ?? [], projectId),
 });
 
 const toExperimentScoreV3 = (row: ScoreRecordReadType): APIScoreV3 => {
@@ -69,8 +73,26 @@ const toExperimentScoreV3 = (row: ScoreRecordReadType): APIScoreV3 => {
   return scoreDomainToV3(score, ["core", "subject"]);
 };
 
-const scoreRecordsToV3 = (scores: ScoreRecordReadType[]) =>
-  scores.map(toExperimentScoreV3);
+const scoreRecordsToV3 = (scores: ScoreRecordReadType[], projectId: string) => {
+  const items: APIScoreV3[] = [];
+
+  for (const row of scores) {
+    try {
+      items.push(toExperimentScoreV3(row));
+    } catch (error) {
+      logger.error(
+        "experiments score row dropped from response: conversion error",
+        {
+          error,
+          scoreId: row.id,
+          projectId,
+        },
+      );
+    }
+  }
+
+  return items;
+};
 
 const transformExperimentItemRow = (
   row: ExperimentItemRow,
@@ -172,7 +194,7 @@ export async function listExperimentsForPublicApi({
     transformExperimentSummaryRow(
       row,
       includeMetadata,
-      includeScores ? scoreRecordsToV3(row.scores ?? []) : undefined,
+      includeScores ? scoreRecordsToV3(row.scores ?? [], projectId) : undefined,
     ),
   );
 
@@ -214,7 +236,7 @@ export async function getExperimentForPublicApi({
     );
   }
 
-  return transformExperimentDetailRow(row);
+  return transformExperimentDetailRow(row, projectId);
 }
 
 export async function listExperimentItemsForPublicApi({
@@ -279,7 +301,9 @@ export async function listExperimentItemsForPublicApi({
       includeMetadata,
       includeItemMetadata,
       includeExperimentMetadata,
-      scores: includeScores ? scoreRecordsToV3(row.scores ?? []) : undefined,
+      scores: includeScores
+        ? scoreRecordsToV3(row.scores ?? [], projectId)
+        : undefined,
     });
   });
 

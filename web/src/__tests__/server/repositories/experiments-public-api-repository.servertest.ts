@@ -329,6 +329,49 @@ describe("Public API experiments repository", () => {
       );
     });
 
+    it("lets structured filters take precedence over simple filters on the same experiment field", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const startTimeMs = Date.now();
+      const simpleOnlyId = `exp-${randomUUID()}`;
+      const structuredId = `exp-${randomUUID()}`;
+
+      await createEventsCh([
+        createExperimentRootEvent({
+          projectId,
+          experimentId: simpleOnlyId,
+          experimentName: "simple experiment",
+          datasetId: "dataset-a",
+          startTimeMs,
+        }),
+        createExperimentRootEvent({
+          projectId,
+          experimentId: structuredId,
+          experimentName: "structured experiment",
+          datasetId: "dataset-b",
+          startTimeMs: startTimeMs + 1_000,
+        }),
+      ]);
+
+      const rows = await queryExperimentSummariesForPublicApi({
+        projectId,
+        name: ["simple experiment"],
+        fromStartTime: new Date(startTimeMs - 1_000),
+        includeMetadata: false,
+        advancedFilters: [
+          {
+            type: "stringOptions",
+            column: "name",
+            operator: "any of",
+            value: ["structured experiment"],
+          },
+        ],
+        limit: 10,
+      });
+
+      expect(rows.map((row) => row.experiment_id)).toContain(structuredId);
+      expect(rows.map((row) => row.experiment_id)).not.toContain(simpleOnlyId);
+    });
+
     it("attaches experiment scores without multiplying event aggregates", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const startTimeMs = Date.now();
@@ -503,6 +546,87 @@ describe("Public API experiments repository", () => {
         experiment_metadata: { owner: "evals" },
         experiment_description: "items experiment description",
       });
+    });
+
+    it("excludes experiment items without a dataset id", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const startTimeMs = Date.now();
+      const spanId = `span-${randomUUID()}`;
+
+      await createEventsCh([
+        createExperimentRootEvent({
+          projectId,
+          experimentId: `exp-${randomUUID()}`,
+          datasetId: null,
+          startTimeMs,
+          spanId,
+          experimentItemId: "item-without-dataset",
+        }),
+      ]);
+
+      const rows = await queryExperimentItemsForPublicApi({
+        projectId,
+        fromStartTime: new Date(startTimeMs - 1_000),
+        includeDataset: true,
+        includeIo: false,
+        includeMetadata: false,
+        includeItemMetadata: false,
+        includeExperimentMetadata: false,
+        limit: 10,
+      });
+
+      expect(rows.map((row) => row.id)).not.toContain(spanId);
+    });
+
+    it("lets structured filters take precedence over simple filters on the same experiment item field", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const startTimeMs = Date.now();
+      const simpleOnlySpanId = `span-${randomUUID()}`;
+      const structuredSpanId = `span-${randomUUID()}`;
+
+      await createEventsCh([
+        createExperimentRootEvent({
+          projectId,
+          experimentId: `exp-${randomUUID()}`,
+          experimentName: "simple item experiment",
+          datasetId: "dataset-a",
+          startTimeMs,
+          spanId: simpleOnlySpanId,
+          experimentItemId: "item-simple",
+        }),
+        createExperimentRootEvent({
+          projectId,
+          experimentId: `exp-${randomUUID()}`,
+          experimentName: "structured item experiment",
+          datasetId: "dataset-b",
+          startTimeMs: startTimeMs + 1_000,
+          spanId: structuredSpanId,
+          experimentItemId: "item-structured",
+        }),
+      ]);
+
+      const rows = await queryExperimentItemsForPublicApi({
+        projectId,
+        fromStartTime: new Date(startTimeMs - 1_000),
+        experimentName: ["simple item experiment"],
+        includeDataset: true,
+        includeIo: false,
+        includeMetadata: false,
+        includeItemMetadata: false,
+        includeExperimentMetadata: false,
+        advancedFilters: [
+          {
+            type: "stringOptions",
+            column: "experimentName",
+            operator: "any of",
+            value: ["structured item experiment"],
+          },
+        ],
+        limit: 10,
+      });
+
+      expect(rows.map((row) => row.id)).toContain(structuredSpanId);
+      expect(rows.map((row) => row.id)).not.toContain(simpleOnlySpanId);
     });
 
     it("paginates tied experiment item rows by the experiment cursor tuple", async () => {

@@ -258,13 +258,7 @@ const FIELD_SETS = {
     "experimentDatasetId",
     "experimentItemVersion",
   ],
-  publicApiExperimentItemIo: [
-    "input",
-    "output",
-    "experimentItemExpectedOutput",
-  ],
   publicApiExperimentItemExpectedOutput: ["experimentItemExpectedOutput"],
-  publicApiExperimentItemMetadata: ["metadata"],
   publicApiExperimentItemMetadataFields: ["experimentItemMetadata"],
   publicApiExperimentItemExperimentMetadata: [
     "experimentMetadata",

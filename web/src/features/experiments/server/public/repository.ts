@@ -323,7 +323,10 @@ const filterForItems = (builder: EventsQueryBuilder) =>
   builder
     .whereRaw("e.experiment_id != ''")
     .whereRaw("e.experiment_item_id != ''")
-    .whereRaw("e.experiment_item_root_span_id = e.span_id");
+    .whereRaw("e.experiment_item_root_span_id = e.span_id")
+    .whereRaw(
+      "e.experiment_dataset_id IS NOT NULL AND length(e.experiment_dataset_id) > 0",
+    );
 
 async function queryExperimentItemRowsForPublicApi(
   params: QueryExperimentItemsParams,
@@ -437,12 +440,13 @@ export async function queryExperimentItemsForPublicApi(
 
   if (!params.includeScores || rows.length === 0) return rows;
 
+  const { min } = startTimeBounds(rows);
   const groupedScores = groupExperimentItemScores(
     await queryScoreRecordsForExperimentItems({
       projectId: params.projectId,
       traceIds: rows.map((row) => row.trace_id),
       observationIds: rows.map((row) => row.id),
-      ...startTimeBounds(rows),
+      min,
       scoreLimit: params.scoreLimit ?? DEFAULT_SCORE_LIMIT,
     }),
   );
