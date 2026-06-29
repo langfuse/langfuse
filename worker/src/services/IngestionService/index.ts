@@ -83,6 +83,31 @@ type InsertRecord =
   | ObservationRecordInsertType
   | DatasetRunItemRecordInsertType;
 export type EventInput = InternalTraceEventInput;
+type IngestionAttributionRecordFields = {
+  ingestion_api_key?: string;
+  ingestion_sdk_name?: string;
+  ingestion_sdk_version?: string;
+};
+
+const getNonEmptyIngestionAttributionRecordFields = (
+  attribution?: Partial<IngestionAttribution>,
+): IngestionAttributionRecordFields => {
+  const fields: IngestionAttributionRecordFields = {};
+
+  if (attribution?.ingestionApiKey) {
+    fields.ingestion_api_key = attribution.ingestionApiKey;
+  }
+
+  if (attribution?.ingestionSdkName) {
+    fields.ingestion_sdk_name = attribution.ingestionSdkName;
+  }
+
+  if (attribution?.ingestionSdkVersion) {
+    fields.ingestion_sdk_version = attribution.ingestionSdkVersion;
+  }
+
+  return fields;
+};
 
 const immutableEntityKeys: {
   [TableName.Traces]: (keyof TraceRecordInsertType)[];
@@ -567,14 +592,7 @@ export class IngestionService {
               long_string_value: validatedScore.longStringValue,
               execution_trace_id: validatedScore.executionTraceId,
               queue_id: validatedScore.queueId ?? null,
-              ...(attribution
-                ? {
-                    ingestion_api_key: attribution.ingestionApiKey ?? "",
-                    ingestion_sdk_name: attribution.ingestionSdkName ?? "",
-                    ingestion_sdk_version:
-                      attribution.ingestionSdkVersion ?? "",
-                  }
-                : {}),
+              ...getNonEmptyIngestionAttributionRecordFields(attribution),
               created_at: Date.now(),
               updated_at: Date.now(),
               event_ts: new Date(scoreEvent.timestamp).getTime(),
@@ -722,14 +740,10 @@ export class IngestionService {
         finalTraceRecord,
         this.getPartitionAwareTimestamp(createdAtTimestamp),
       );
-      if (attribution) {
-        traceAsStagingObservation.ingestion_api_key =
-          attribution.ingestionApiKey ?? "";
-        traceAsStagingObservation.ingestion_sdk_name =
-          attribution.ingestionSdkName ?? "";
-        traceAsStagingObservation.ingestion_sdk_version =
-          attribution.ingestionSdkVersion ?? "";
-      }
+      Object.assign(
+        traceAsStagingObservation,
+        getNonEmptyIngestionAttributionRecordFields(attribution),
+      );
       this.clickHouseWriter.addToQueue(
         TableName.ObservationsBatchStaging,
         traceAsStagingObservation,
@@ -884,13 +898,7 @@ export class IngestionService {
     const finalObservationRecord = {
       ...mergedObservationRecord,
       ...generationUsage,
-      ...(attribution
-        ? {
-            ingestion_api_key: attribution.ingestionApiKey ?? "",
-            ingestion_sdk_name: attribution.ingestionSdkName ?? "",
-            ingestion_sdk_version: attribution.ingestionSdkVersion ?? "",
-          }
-        : {}),
+      ...getNonEmptyIngestionAttributionRecordFields(attribution),
     };
 
     // Backward compat: create wrapper trace for SDK < 2.0.0 events that do not have a traceId

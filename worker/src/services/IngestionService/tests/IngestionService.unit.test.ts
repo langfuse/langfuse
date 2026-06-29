@@ -1,9 +1,15 @@
 import { expect, describe, it, vi } from "vitest";
 import { IngestionService } from "../../IngestionService";
+import { ScoreSourceEnum } from "@langfuse/shared";
 import {
   convertDateToClickhouseDateTime,
+  createObservation,
+  createTrace,
+  createTraceScore,
   type InternalTraceEventInput,
   type ObservationEvent,
+  type ScoreEventType,
+  type TraceEventType,
 } from "@langfuse/shared/src/server";
 import { TableName } from "../../ClickhouseWriter";
 
@@ -144,6 +150,190 @@ describe("IngestionService unit tests", () => {
       ingestion_sdk_name: "python",
       ingestion_sdk_version: "3.4.0",
     });
+  });
+
+  it("preserves existing observation SDK attribution when incoming attribution lacks SDK headers", async () => {
+    const addToQueue = vi.fn();
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue } as any,
+      {} as any,
+    );
+    const timestamp = "2024-10-12T12:13:14.123Z";
+    const existingObservation = createObservation({
+      id: "observation-id",
+      trace_id: "trace-id",
+      project_id: "project-id",
+      start_time: new Date(timestamp).getTime(),
+      ingestion_api_key: "pk-lf-original",
+      ingestion_sdk_name: "python",
+      ingestion_sdk_version: "3.4.0",
+    });
+    const observationEventList: ObservationEvent[] = [
+      {
+        id: "event-id",
+        timestamp,
+        type: "generation-update",
+        body: {
+          id: "observation-id",
+          traceId: "trace-id",
+          startTime: timestamp,
+          name: "updated-generation",
+          environment: "default",
+        },
+      },
+    ];
+
+    vi.spyOn(ingestionService as any, "getClickhouseRecord").mockResolvedValue(
+      existingObservation,
+    );
+    vi.spyOn(ingestionService as any, "getPrompt").mockResolvedValue(null);
+    vi.spyOn(ingestionService as any, "getGenerationUsage").mockResolvedValue(
+      {},
+    );
+
+    await (ingestionService as any).processObservationEventList({
+      projectId: "project-id",
+      entityId: "observation-id",
+      createdAtTimestamp: new Date(timestamp),
+      observationEventList,
+      writeToStagingTables: false,
+      attribution: {
+        ingestionApiKey: "pk-lf-update",
+        ingestionSdkName: "",
+        ingestionSdkVersion: "",
+      },
+    });
+
+    const observationRecord = addToQueue.mock.calls.find(
+      ([table]) => table === TableName.Observations,
+    )?.[1];
+
+    expect(observationRecord).toMatchObject({
+      ingestion_api_key: "pk-lf-update",
+      ingestion_sdk_name: "python",
+      ingestion_sdk_version: "3.4.0",
+    });
+  });
+
+  it("preserves existing score SDK attribution when incoming attribution lacks SDK headers", async () => {
+    const addToQueue = vi.fn();
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue } as any,
+      {} as any,
+    );
+    const timestamp = "2024-10-12T12:13:14.123Z";
+    const existingScore = createTraceScore({
+      id: "score-id",
+      project_id: "project-id",
+      trace_id: "trace-id",
+      timestamp: new Date(timestamp).getTime(),
+      ingestion_api_key: "pk-lf-original",
+      ingestion_sdk_name: "python",
+      ingestion_sdk_version: "3.4.0",
+    });
+    const scoreEventList: ScoreEventType[] = [
+      {
+        id: "event-id",
+        timestamp,
+        type: "score-create",
+        body: {
+          id: "score-id",
+          traceId: "trace-id",
+          name: "quality",
+          value: 1,
+          dataType: "NUMERIC",
+          source: ScoreSourceEnum.API,
+          environment: "default",
+        },
+      },
+    ];
+
+    vi.spyOn(ingestionService as any, "getClickhouseRecord").mockResolvedValue(
+      existingScore,
+    );
+
+    await (ingestionService as any).processScoreEventList({
+      projectId: "project-id",
+      entityId: "score-id",
+      createdAtTimestamp: new Date(timestamp),
+      scoreEventList,
+      attribution: {
+        ingestionApiKey: "pk-lf-update",
+        ingestionSdkName: "",
+        ingestionSdkVersion: "",
+      },
+    });
+
+    const scoreRecord = addToQueue.mock.calls.find(
+      ([table]) => table === TableName.Scores,
+    )?.[1];
+
+    expect(scoreRecord).toMatchObject({
+      ingestion_api_key: "pk-lf-update",
+      ingestion_sdk_name: "python",
+      ingestion_sdk_version: "3.4.0",
+    });
+  });
+
+  it("does not assign empty SDK attribution to trace staging records", async () => {
+    const addToQueue = vi.fn();
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue } as any,
+      {} as any,
+    );
+    const timestamp = "2024-10-12T12:13:14.123Z";
+    const existingTrace = createTrace({
+      id: "trace-id",
+      project_id: "project-id",
+      timestamp: new Date(timestamp).getTime(),
+      session_id: null,
+    });
+    const traceEventList: TraceEventType[] = [
+      {
+        id: "event-id",
+        timestamp,
+        type: "trace-update",
+        body: {
+          id: "trace-id",
+          timestamp,
+          name: "updated-trace",
+          environment: "default",
+        },
+      },
+    ];
+
+    vi.spyOn(ingestionService as any, "getClickhouseRecord").mockResolvedValue(
+      existingTrace,
+    );
+
+    await (ingestionService as any).processTraceEventList({
+      projectId: "project-id",
+      entityId: "trace-id",
+      createdAtTimestamp: new Date(timestamp),
+      traceEventList,
+      createEventTraceRecord: true,
+      attribution: {
+        ingestionApiKey: "pk-lf-update",
+        ingestionSdkName: "",
+        ingestionSdkVersion: "",
+      },
+    });
+
+    const stagingRecord = addToQueue.mock.calls.find(
+      ([table]) => table === TableName.ObservationsBatchStaging,
+    )?.[1];
+
+    expect(stagingRecord).toMatchObject({
+      ingestion_api_key: "pk-lf-update",
+    });
+    expect(stagingRecord).not.toHaveProperty("ingestion_sdk_name");
+    expect(stagingRecord).not.toHaveProperty("ingestion_sdk_version");
   });
 
   it("adds ingestion attribution to events records", async () => {
