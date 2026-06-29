@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   ChartActiveReferenceLine,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
+  ChartTooltipPortal,
 } from "@/src/components/ui/chart";
 import { NearestSeriesProbe } from "@/src/features/widgets/chart-library/NearestSeriesProbe";
 import {
@@ -197,6 +198,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
   const { ref: containerRef, maxTicks } = useChartTickBudget();
+  const chartBoxRef = useRef<HTMLDivElement>(null);
   const timeAxis = useMemo(
     () =>
       prepareTimeAxis(
@@ -253,7 +255,11 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
           formatSummary={tooltipFormatter}
         />
       )}
-      <ChartContainer config={config} className="min-h-0 flex-1">
+      <ChartContainer
+        ref={chartBoxRef}
+        config={config}
+        className="min-h-0 flex-1"
+      >
         <LineChart
           accessibilityLayer={accessibilityLayer}
           data={groupedData}
@@ -310,22 +316,27 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
           ))}
           <ChartActiveReferenceLine />
           <ChartTooltip
-            allowEscapeViewBox={{ x: true, y: true }}
-            contentStyle={{ backgroundColor: "hsl(var(--background))" }}
-            content={({ active, payload, label }) =>
+            content={({ active, payload, label, coordinate }) =>
               // Synced sibling charts share the crosshair (above) but the
-              // tooltip belongs only to the chart under the cursor. (LFE-10549)
+              // tooltip belongs only to the chart under the cursor; it portals
+              // into the overlay layer so the chart frame never clips it. (LFE-10549)
               selfHovered ? (
-                <ChartTooltipContent
+                <ChartTooltipPortal
                   active={active}
-                  payload={payload}
-                  label={label}
-                  indicator="line"
-                  labelFormatter={(value) => timeAxis.formatTooltip(value)}
-                  valueFormatter={tooltipFormatter}
-                  sortPayloadByValue="desc"
-                  highlightedKeys={proximityActive ? nearestSet : undefined}
-                />
+                  coordinate={coordinate}
+                  anchorRef={chartBoxRef}
+                >
+                  <ChartTooltipContent
+                    active={active}
+                    payload={payload}
+                    label={label}
+                    indicator="line"
+                    labelFormatter={(value) => timeAxis.formatTooltip(value)}
+                    valueFormatter={tooltipFormatter}
+                    sortPayloadByValue="desc"
+                    highlightedKeys={proximityActive ? nearestSet : undefined}
+                  />
+                </ChartTooltipPortal>
               ) : null
             }
           />

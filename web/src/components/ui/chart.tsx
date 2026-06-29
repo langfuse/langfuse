@@ -9,6 +9,7 @@ import type {
 } from "recharts";
 
 import { cn } from "@/src/utils/tailwind";
+import { Layer } from "@/src/components/ui/layer";
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const;
@@ -328,6 +329,58 @@ const ChartTooltipContent = React.forwardRef<
 );
 ChartTooltipContent.displayName = "ChartTooltip";
 
+/**
+ * Renders a chart tooltip into the app's `tooltip` overlay layer (see
+ * `ui/layer.tsx`) so it escapes the chart card's `overflow` clipping and always
+ * paints on top — never cut off at the chart frame. Positioned at the hovered
+ * point (recharts' `coordinate`, relative to the chart box) translated to screen
+ * coordinates, and flipped to the left near the right edge of the viewport.
+ * (LFE-10549)
+ */
+function ChartTooltipPortal({
+  active,
+  coordinate,
+  anchorRef,
+  children,
+}: {
+  active?: boolean;
+  coordinate?: { x?: number; y?: number };
+  anchorRef: React.RefObject<HTMLElement | null>;
+  children: React.ReactNode;
+}) {
+  if (
+    !active ||
+    !coordinate ||
+    coordinate.x == null ||
+    coordinate.y == null ||
+    typeof window === "undefined"
+  ) {
+    return null;
+  }
+  const anchor = anchorRef.current;
+  if (!anchor) return null;
+  const rect = anchor.getBoundingClientRect();
+  const x = rect.left + coordinate.x;
+  const y = rect.top + coordinate.y;
+  const flipLeft = x > window.innerWidth * 0.6;
+
+  return (
+    <Layer name="tooltip">
+      <div
+        style={{
+          position: "fixed",
+          left: x,
+          top: y,
+          transform: `translate(${flipLeft ? "calc(-100% - 14px)" : "14px"}, -50%)`,
+          pointerEvents: "none",
+        }}
+      >
+        {children}
+      </div>
+    </Layer>
+  );
+}
+
 type ChartLegendProps = React.ComponentProps<typeof RechartsPrimitive.Legend>;
 
 function ChartLegend({ itemSorter = null, ...props }: ChartLegendProps) {
@@ -425,6 +478,7 @@ export {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
+  ChartTooltipPortal,
   ChartLegend,
   ChartActiveReferenceLine,
   useChart,

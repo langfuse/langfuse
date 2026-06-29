@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   ChartActiveReferenceLine,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
+  ChartTooltipPortal,
 } from "@/src/components/ui/chart";
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
@@ -50,6 +51,7 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
   const { ref: containerRef, maxTicks } = useChartTickBudget();
+  const chartBoxRef = useRef<HTMLDivElement>(null);
   const timeAxis = useMemo(
     () =>
       prepareTimeAxis(
@@ -91,6 +93,7 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
         />
       )}
       <ChartContainer
+        ref={chartBoxRef}
         config={config}
         className="min-h-0 flex-1 [&_.recharts-bar-rectangle:hover]:opacity-30 dark:[&_.recharts-bar-rectangle:hover]:opacity-100 dark:[&_.recharts-bar-rectangle:hover]:brightness-[3]"
       >
@@ -136,21 +139,25 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
           })}
           <ChartActiveReferenceLine />
           <ChartTooltip
-            allowEscapeViewBox={{ x: true, y: true }}
             cursor={false}
-            contentStyle={{ backgroundColor: "hsl(var(--background))" }}
-            content={({ active, payload, label }) =>
+            content={({ active, payload, label, coordinate }) =>
               // Synced siblings show only the crosshair; the tooltip is the
-              // hovered chart's. (LFE-10549)
+              // hovered chart's, portaled out of the chart frame. (LFE-10549)
               selfHovered ? (
-                <ChartTooltipContent
+                <ChartTooltipPortal
                   active={active}
-                  payload={payload}
-                  label={label}
-                  labelFormatter={(value) => timeAxis.formatTooltip(value)}
-                  valueFormatter={formatValue}
-                  sortPayloadByValue="desc"
-                />
+                  coordinate={coordinate}
+                  anchorRef={chartBoxRef}
+                >
+                  <ChartTooltipContent
+                    active={active}
+                    payload={payload}
+                    label={label}
+                    labelFormatter={(value) => timeAxis.formatTooltip(value)}
+                    valueFormatter={formatValue}
+                    sortPayloadByValue="desc"
+                  />
+                </ChartTooltipPortal>
               ) : null
             }
           />
