@@ -1,10 +1,11 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ChartActiveReferenceLine,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
 } from "@/src/components/ui/chart";
+import { NearestSeriesProbe } from "@/src/features/widgets/chart-library/NearestSeriesProbe";
 import {
   CartesianGrid,
   Label,
@@ -196,13 +197,29 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
   const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
   const xTickInterval = getEvenTickInterval(groupedData.length);
 
-  const { legendItems, onLegendClick, isRendered, isDimmed } = useSeriesLegend({
+  const {
+    legendItems,
+    onLegendClick,
+    isRendered,
+    isDimmed,
+    isHighlightActive,
+  } = useSeriesLegend({
     data,
     dimensions,
     legendSummary,
     legendInteraction,
     maxVisibleSeries,
   });
+
+  // Hover proximity: the line(s) the cursor is vertically nearest to are
+  // emphasized and the rest dimmed; cleared when the cursor isn't near any line
+  // (then everything renders normally). Disabled while a series is click-focused.
+  const [nearestDimensions, setNearestDimensions] = useState<string[]>([]);
+  const nearestSet = useMemo(
+    () => new Set(nearestDimensions),
+    [nearestDimensions],
+  );
+  const proximityActive = !isHighlightActive && nearestSet.size > 0;
 
   const tooltipFormatter = (value: number) =>
     toFullMetricString(metricFormatter(value, { style: "compact" }));
@@ -244,16 +261,21 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
           />
           {dimensions.map((dimension, index) => {
             if (!isRendered(dimension)) return null;
-            const muted = isDimmed(dimension);
+            const nearest = proximityActive && nearestSet.has(dimension);
+            const muted = isDimmed(dimension) || (proximityActive && !nearest);
             return (
               <Line
                 key={dimension}
                 type="monotone"
                 dataKey={dimension}
-                strokeWidth={2.5}
-                dot={showDataPointDots && !muted ? { r: 4 } : false}
+                strokeWidth={nearest ? 3.5 : 2.5}
+                dot={
+                  (showDataPointDots && !muted) || nearest ? { r: 4 } : false
+                }
                 activeDot={
-                  showDataPointDots && !muted ? { r: 5, strokeWidth: 0 } : false
+                  (showDataPointDots && !muted) || nearest
+                    ? { r: 5, strokeWidth: 0 }
+                    : false
                 }
                 stroke={seriesColor(index)}
                 strokeOpacity={muted ? 0.2 : 1}
@@ -283,6 +305,11 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
                 sortPayloadByValue="desc"
               />
             )}
+          />
+          <NearestSeriesProbe
+            dimensions={dimensions}
+            enabled={!isHighlightActive}
+            onNearestChange={setNearestDimensions}
           />
         </LineChart>
       </ChartContainer>

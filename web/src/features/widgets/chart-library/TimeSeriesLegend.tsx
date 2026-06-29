@@ -49,6 +49,8 @@ export function useSeriesLegend({
   onLegendClick: (dimension: string) => void;
   isRendered: (dimension: string) => boolean;
   isDimmed: (dimension: string) => boolean;
+  /** True when a series is click-focused (highlight mode) — gates hover effects. */
+  isHighlightActive: boolean;
 } {
   const summaries = useMemo(
     () => (legendSummary === "none" ? null : getDimensionSummaries(data)),
@@ -117,7 +119,16 @@ export function useSeriesLegend({
     focused: legendInteraction !== "toggle" && highlighted === dimension,
   }));
 
-  return { legendItems, onLegendClick, isRendered, isDimmed };
+  const isHighlightActive =
+    legendInteraction !== "toggle" && highlighted !== null;
+
+  return {
+    legendItems,
+    onLegendClick,
+    isRendered,
+    isDimmed,
+    isHighlightActive,
+  };
 }
 
 /**

@@ -42,6 +42,16 @@ const latencyData = buildPanel([
 ]);
 const errorsData = buildPanel([{ name: "5xx", base: 1, amp: 3, spike: 8 }]);
 
+// The common "spaghetti" case — many series at once. Magnitudes are spread so
+// the lines occupy different vertical bands (good for the proximity highlight).
+const spaghettiData = buildPanel(
+  Array.from({ length: 14 }, (_, i) => ({
+    name: `model-${String.fromCharCode(97 + i)}`,
+    base: 150 + i * 120,
+    amp: 80 + (i % 4) * 70,
+  })),
+);
+
 const msFormatter: MetricFormatterFunction = (value, options) =>
   formatMetric(value, { ...options, unit: "millisecond" });
 
@@ -101,3 +111,25 @@ const meta = preview.meta({
 });
 
 export const SyncedTimeline = meta.story({});
+
+/**
+ * The common overloaded case. Move the cursor vertically near a line: the
+ * nearest line(s) emphasize and the rest dim; two lines within the pixel
+ * threshold both light up; away from any line it renders normally.
+ */
+export const Spaghetti = meta.story({
+  render: () => (
+    <div className="bg-background h-[380px] w-full rounded-md border p-3">
+      <div className="mb-1 text-sm font-medium">p95 Latency — 14 models</div>
+      <div className="h-[330px] w-full">
+        <LineChartTimeSeries
+          data={spaghettiData}
+          legendPosition="above"
+          legendSummary="none"
+          showDataPointDots={false}
+          metricFormatter={msFormatter}
+        />
+      </div>
+    </div>
+  ),
+});
