@@ -74,7 +74,6 @@ export function TraceSearchList() {
       onSelectItem={handleSelectItem}
       getItemId={(item) => item.node.id}
       estimatedItemSize={48}
-      overscan={500}
       renderItem={({ item, isSelected, onSelect }) => (
         <TraceSearchListItem
           item={item}

@@ -1,4 +1,7 @@
-import { TablePeekView } from "@/src/components/table/peek";
+import {
+  TablePeekView,
+  shouldClosePeekAfterDelete,
+} from "@/src/components/table/peek";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import {
   TraceDetailBody,
@@ -6,6 +9,7 @@ import {
 } from "@/src/components/trace/TraceDetailBody";
 import { TraceDetailActions } from "@/src/components/trace/TraceDetailActions";
 import { useRouter } from "next/router";
+import { useRef } from "react";
 
 export const TablePeekViewObservationDetail = (
   props: Omit<
@@ -29,6 +33,12 @@ export const TablePeekViewObservationDetail = (
 
   const traceId = router.query.traceId as string | undefined;
 
+  // Live handle on the peeked observation's trace id: an in-flight delete that
+  // resolves after K/J-navigation reads the CURRENT trace here, so it only
+  // closes the peek when it still shows the trace that was deleted (LFE-10535).
+  const traceIdRef = useRef(traceId);
+  traceIdRef.current = traceId;
+
   const trace = usePeekData({
     projectId,
     traceId,
@@ -43,7 +53,11 @@ export const TablePeekViewObservationDetail = (
         isPublic: trace.data.public,
         name: trace.data.name,
         timestamp,
-        onAfterDelete: props.closePeek,
+        onAfterDelete: (deletedTraceId: string) => {
+          if (shouldClosePeekAfterDelete(traceIdRef.current, deletedTraceId)) {
+            props.closePeek();
+          }
+        },
       }
     : null;
 

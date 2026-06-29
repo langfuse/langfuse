@@ -5,7 +5,7 @@ import { flattenTreeWithTimelineMetrics } from "./timeline-flattening";
 import { makeItem, makeTreeNode } from "./timeline.fixtures";
 
 const ROW_BOX =
-  "bg-background relative h-[42px] w-[320px] overflow-hidden rounded border";
+  "bg-background relative h-[26px] w-[320px] overflow-hidden rounded border";
 const PANEL_BOX = "bg-background w-[320px] overflow-hidden rounded border";
 
 // fn() gives Storybook actions; cast to the prop type so meta args and the
@@ -209,7 +209,7 @@ export const TreeShowcase = meta.story({
     return (
       <>
         {items.map((item) => (
-          <div key={item.node.id} className="h-[42px]">
+          <div key={item.node.id} className="h-[26px]">
             <TimelineGutterRow
               item={item}
               isSelected={false}
