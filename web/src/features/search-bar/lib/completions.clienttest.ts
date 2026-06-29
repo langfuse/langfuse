@@ -560,6 +560,25 @@ describe("planInputCompletions", () => {
         "trace_score_categories",
       ]);
     });
+
+    // On a terminal fetch error the value stage must settle to the empty state
+    // (no loading row, no further request) — matching the sidebar — since there
+    // is no auto-retry. Mirrors `optionsErrored` threaded from the hook's isError.
+    it("settles to empty (no loading, no request) when the options fetch errored", () => {
+      const field = plan("userId:", 7, {
+        observed: OBSERVED,
+        optionsErrored: true,
+      });
+      expect(field?.loading).not.toBe(true);
+      expect(field?.requestColumns).toBeUndefined();
+
+      const score = plan("scores.", 7, {
+        observed: { level: [{ value: "ERROR" }] },
+        optionsErrored: true,
+      });
+      expect(score?.loading).not.toBe(true);
+      expect(score?.requestColumns).toBeUndefined();
+    });
   });
 
   it("never suggests the OR keyword between filters", () => {

@@ -241,6 +241,9 @@ export function useEventsFilterOptions({
   return {
     filterOptions: newFilterOptions,
     isFilterOptionsPending: filterOptions.isPending,
+    /** Terminal fetch error: consumers settle to the empty state (no skeleton /
+     *  no perpetual loading row), since there is no auto-retry. */
+    isFilterOptionsError: filterOptions.isError,
     /** Lazy mode only: columns requested but not yet loaded (per-facet skeletons). */
     loadingColumns,
     /** Lazy mode only: widen the requested column set (no-op otherwise). */

@@ -376,6 +376,7 @@ export default function ObservationsEventsTable({
   const {
     filterOptions,
     isFilterOptionsPending,
+    isFilterOptionsError,
     loadingColumns,
     requestColumns,
   } = useEventsFilterOptions({
@@ -1519,6 +1520,7 @@ export default function ObservationsEventsTable({
                 store={searchBarStore}
                 commit={searchBarCommit}
                 observed={observedOptions}
+                optionsErrored={isFilterOptionsError}
                 onApplyFilters={searchBarApplyFilters}
                 onRequestColumns={requestColumns}
                 aiDataContext={aiDataContext}

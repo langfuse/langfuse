@@ -286,12 +286,16 @@ function useLatest<T>(value: T) {
 export function SearchComposer({
   projectId,
   observed,
+  optionsErrored,
   onActivateAi,
   onRequestColumns,
 }: {
   projectId: string;
   /** Observed facet values for value suggestions; undefined = loading. */
   observed: ObservedOptions | undefined;
+  /** Lazy filter-options fetch terminally errored — settle the value-stage
+   *  loading row to empty instead of pinning it (matches the sidebar). */
+  optionsErrored?: boolean;
   /** When set, a clickable "Ask AI" button is shown to build / refine filters. */
   onActivateAi?: () => void;
   /**
@@ -360,6 +364,7 @@ export function SearchComposer({
           input: draft,
           caret: Math.min(caret, draft.length),
           observed,
+          optionsErrored,
           recents,
           currentQueryText: draft,
         })

@@ -512,6 +512,8 @@ type ValueStageInput = {
   typed: string;
   valuePrefix: string;
   observed: ObservedOptions | undefined;
+  /** Lazy fetch terminally errored — settle pending columns to empty, not loading. */
+  optionsErrored?: boolean;
   /** Whole-token span, for rewrites that replace the entire `key:value`. */
   tokenSpan: { from: number; to: number };
   /** The token carries a leading `-` (a negated filter). Scope rewrites must be
@@ -526,14 +528,24 @@ function valueStageSections(input: ValueStageInput): {
   loading: boolean;
   requestColumns?: readonly string[];
 } | null {
-  const { ref, typed, valuePrefix, observed, tokenSpan, negated } = input;
+  const {
+    ref,
+    typed,
+    valuePrefix,
+    observed,
+    optionsErrored,
+    tokenSpan,
+    negated,
+  } = input;
 
   // A loadable option column is "pending" when its key is absent from the
   // observed map (lazy mode: requested but not yet streamed in). An empty list
   // ([]) means loaded-but-no-values, which is NOT loading. `observed` itself
   // being undefined is the initial bulk-load — everything is pending.
+  // A terminally-errored fetch is never pending: it settles to the empty state
+  // (no loading row, no further request) exactly like the sidebar facets.
   const columnPending = (column: string): boolean =>
-    observed === undefined || !(column in observed);
+    !optionsErrored && (observed === undefined || !(column in observed));
 
   // An operator prefix was already typed: the rest is free-form entry.
   if (valuePrefix.length > 0) return null;
@@ -798,6 +810,14 @@ export type InputCompletionContext = {
   caret: number;
   /** Observed facet values; undefined = still loading. */
   observed: ObservedOptions | undefined;
+  /**
+   * The lazy filter-options fetch has terminally errored. Suppresses the
+   * per-field "Loading values…" row and on-demand requests for not-yet-loaded
+   * columns, so a failed fetch settles to the empty state (matching the
+   * sidebar's `isFetching`-gated skeleton) instead of pinning loading forever
+   * with no auto-retry.
+   */
+  optionsErrored?: boolean;
   recents: string[];
   /** Full committed/draft query text (recents identical to it are hidden). */
   currentQueryText: string;
@@ -976,7 +996,8 @@ export function planInputCompletions(
             ? "trace_score_categories"
             : "score_categories";
         const scorePending = (column: string): boolean =>
-          ctx.observed === undefined || !(column in ctx.observed);
+          !ctx.optionsErrored &&
+          (ctx.observed === undefined || !(column in ctx.observed));
         if (scorePending(numericColumn) || scorePending(categoricalColumn)) {
           return {
             stage: "field",
@@ -1150,6 +1171,7 @@ export function planInputCompletions(
     typed,
     valuePrefix,
     observed: ctx.observed,
+    optionsErrored: ctx.optionsErrored,
     tokenSpan: { from: start, to: term?.to ?? caret },
     negated,
   });
