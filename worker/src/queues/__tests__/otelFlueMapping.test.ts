@@ -90,7 +90,7 @@ describe("Flue OTel span mapping", () => {
         "flue.operation.kind": "prompt",
       },
       config: {
-        ingestionApiKey: "pk-lf-public",
+        publicKey: "pk-lf-public",
         sdkName: "python",
         sdkVersion: "3.4.0",
       },
