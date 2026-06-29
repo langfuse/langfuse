@@ -19,10 +19,8 @@ const originalCloudRegion = vi.hoisted(() => {
 // per-stage timing metrics are assertable.
 const mockRecordIncrement = vi.hoisted(() => vi.fn());
 const mockRecordHistogram = vi.hoisted(() => vi.fn());
-// Stubbable endpoint preflight: the customer-fault tests reject it with an
-// SDK-shaped error to drive a deterministic in-try failure without touching
-// ClickHouse/MinIO. Defaults to the real implementation so other tests are
-// unaffected.
+// Stubbable endpoint preflight — the customer-fault tests reject it to drive an
+// in-try failure without infra. Defaults to the real impl for other tests.
 const mockValidateBlobStorageEndpoint = vi.hoisted(() => vi.fn());
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const actual =
@@ -187,10 +185,8 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     });
   });
 
-  // A deterministic customer-config/credential fault can never succeed, so once
-  // BullMQ exhausts its retries the integration is disabled to stop it being
-  // re-scheduled (and spamming) every cycle. Only customer faults disable;
-  // everything else keeps retrying as before.
+  // After BullMQ exhausts its retries, a customer-fault error disables the
+  // integration; everything else keeps retrying as before.
   describe("customer-fault disable", () => {
     const originalV4Preview = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
 
@@ -199,9 +195,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         originalV4Preview;
     });
 
-    // Minimal AWS SDK v3 S3 AccessDenied shape (a high-confidence customer
-    // fault). Injected via the in-try endpoint preflight so the failure is
-    // deterministic and needs no live storage credentials or ClickHouse data.
+    // Minimal AWS SDK v3 S3 AccessDenied shape (high-confidence customer fault).
     const accessDeniedError = (): Error => {
       const err = new Error("Access Denied");
       err.name = "AccessDenied";

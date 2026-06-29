@@ -1,63 +1,44 @@
-/**
- * Classifies a caught blob-export error as a deterministic customer-config /
- * credential fault or as anything else.
- *
- * Motivation: when the export fails because the customer's stored credentials,
- * bucket, or access config are wrong, retrying cannot succeed until the customer
- * changes something. The handler uses a `customer_fault` verdict — once BullMQ
- * has exhausted its retries — to disable the integration, so it stops being
- * re-scheduled and spamming logs/metrics/alerts every cycle.
- *
- * Design (carried from the design discussion):
- * - Allowlist, not blocklist. Only a small set of high-confidence signatures
- *   classify as `customer_fault`; everything else — including unknown/unmatched
- *   errors — falls through to `other`.
- * - Fail safe toward investigation. A false `customer_fault` disables a working
- *   integration; a false `other` just lets it keep retrying. So we match on
- *   stable provider error codes (not message substrings) and bias hard toward
- *   `other` when uncertain.
- *
- * Errors reach the handler wrapped via `new Error(..., { cause: sdkError })`
- * (see StorageService.handleStorageError), so we walk the `cause` chain and
- * inspect each link for the underlying SDK error shape.
- */
+// Classifies a caught blob-export error as a deterministic customer-config /
+// credential fault vs. anything else. The handler uses a `customer_fault`
+// verdict (after BullMQ exhausts retries) to disable the integration.
+//
+// Conservative allowlist of stable provider error codes, biased toward `other`:
+// a false `customer_fault` disables a working integration, a false `other` only
+// keeps retrying. Errors arrive wrapped via `new Error(..., { cause })`
+// (StorageService.handleStorageError), so we walk the cause chain.
 
 export type BlobExportFaultClass = "customer_fault" | "other";
 
-// Stable provider error codes that deterministically point at the customer's
-// stored configuration or credentials. AWS SDK v3 sets `.name` (and `.Code`) to
-// the S3 error code; Azure's RestError sets `.code`. S3-compatible providers
-// (incl. GCS via its S3 interop endpoint) surface the S3 codes below.
+// AWS SDK v3 sets `.name`/`.Code`; Azure RestError sets `.code`. S3-compatible
+// providers (incl. GCS S3-interop) surface the S3 codes.
 const CUSTOMER_FAULT_ERROR_CODES = new Set<string>([
-  // AWS S3 / S3-compatible — auth & credentials
+  // S3 — auth & credentials
   "InvalidAccessKeyId",
   "SignatureDoesNotMatch",
   "AccessDenied",
   "AllAccessDisabled",
   "AccountProblem",
   "AuthorizationHeaderMalformed",
-  // AWS S3 / S3-compatible — bucket & path
+  // S3 — bucket & path
   "NoSuchBucket",
   "InvalidBucketName",
-  // Azure Blob Storage — auth & credentials
+  // Azure — auth & credentials
   "AuthenticationFailed",
   "AuthorizationFailure",
   "AuthorizationPermissionMismatch",
   "InvalidAuthenticationInfo",
   "AccountIsDisabled",
   "InsufficientAccountPermissions",
-  // Azure Blob Storage — container & path
+  // Azure — container & path
   "ContainerNotFound",
   "InvalidResourceName",
 ]);
 
-// GCS JSON-API error reasons. Only reachable if a GCS-native client is ever
-// wired into the integration; the S3-interop path surfaces the S3 codes above.
-// Kept narrow ("forbidden" only) to avoid tripping on object-level notFound.
+// GCS JSON-API reasons (only reachable via a GCS-native client; S3-interop uses
+// the S3 codes above). Narrow on purpose: object-level notFound stays `other`.
 const CUSTOMER_FAULT_GCS_REASONS = new Set<string>(["forbidden"]);
 
-// Cap the cause-chain walk to guard against cyclic `cause` references.
-const MAX_CAUSE_DEPTH = 10;
+const MAX_CAUSE_DEPTH = 10; // guard against cyclic `cause`
 
 function* errorCauseChain(error: unknown): Generator<object> {
   let current: unknown = error;
@@ -68,18 +49,9 @@ function* errorCauseChain(error: unknown): Generator<object> {
   }
 }
 
-// AWS SDK v3 exposes the HTTP status on `$metadata.httpStatusCode`; Azure's
-// RestError and node-style errors use `statusCode`; GCS JSON errors use a
-// numeric `code`. Returns the first numeric status found.
-//
-// `.code` is intentionally overloaded across providers and read in two places,
-// discriminated purely by runtime type: a *string* `.code` is an Azure error
-// code (handled by extractErrorCodes), a *number* `.code` is a GCS HTTP status
-// (handled here). The only status we trip on without a recognized code is 401
-// (credentials rejected) — so a numeric `code: 401` is treated as a customer
-// fault by design. If a future provider ever reports a numeric `code: 401` that
-// is NOT a credential rejection (e.g. an intermediate proxy hop), split the two
-// reads onto distinct fields rather than relying on the type discrimination.
+// `.code` is overloaded by type: a number is a GCS HTTP status (here), a string
+// is an Azure error code (extractErrorCodes). Split the reads if a future
+// provider ever reports a numeric `code: 401` that isn't a credential failure.
 function extractHttpStatus(err: object): number | undefined {
   const metaStatus = (err as { $metadata?: { httpStatusCode?: unknown } })
     .$metadata?.httpStatusCode;
@@ -98,7 +70,7 @@ function extractErrorCodes(err: object): string[] {
   const candidates = [
     (err as { name?: unknown }).name,
     (err as { Code?: unknown }).Code,
-    (err as { code?: unknown }).code, // Azure RestError.code (string)
+    (err as { code?: unknown }).code,
   ];
   return candidates.filter((c): c is string => typeof c === "string");
 }
@@ -121,18 +93,12 @@ function isCustomerFaultLink(err: object): boolean {
   if (extractErrorCodes(err).some((c) => CUSTOMER_FAULT_ERROR_CODES.has(c))) {
     return true;
   }
-
-  // 401 Unauthorized means the credentials were rejected outright. It is
-  // unambiguous and not a transient-infra status, so it trips even without a
-  // recognized code. We deliberately do NOT trip on a bare 403/404, because
-  // those also cover transient/ambiguous cases (e.g. clock-skew
-  // RequestTimeTooSkewed is a 403) — those require a recognized code above.
+  // 401 = credentials rejected: unambiguous, so it trips without a code. A bare
+  // 403/404 does not (e.g. clock-skew RequestTimeTooSkewed is a 403).
   if (extractHttpStatus(err) === 401) return true;
-
   if (extractGcsReasons(err).some((r) => CUSTOMER_FAULT_GCS_REASONS.has(r))) {
     return true;
   }
-
   return false;
 }
 

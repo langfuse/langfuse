@@ -1341,15 +1341,10 @@ export const handleBlobStorageIntegrationProjectJob = async (
   } catch (error) {
     const errorMessage = extractStorageErrorMessage(error);
 
-    // A deterministic customer-config/credential fault (bad credentials, missing
-    // bucket, access denied, …) can never succeed until the customer changes
-    // something. Once BullMQ has exhausted its retries for this run, disable the
-    // integration so it stops being re-scheduled — otherwise it fails on every
-    // cycle forever, spamming logs/metrics/alerts. The classifier is a
-    // conservative allowlist biased toward "other", so a misclassification here
-    // only disables a config that is genuinely broken. attemptsMade is 0-based
-    // during processing, so the final allowed attempt has
-    // attemptsMade === attempts - 1.
+    // A deterministic customer-config/credential fault can't succeed until the
+    // customer fixes it. Once BullMQ exhausts its retries, disable the
+    // integration so it stops re-scheduling and spamming. attemptsMade is
+    // 0-based, so the final attempt is attempts - 1.
     const isFinalAttempt =
       (job.attemptsMade ?? 0) >= (job.opts?.attempts ?? 1) - 1;
     const disableForCustomerFault =
