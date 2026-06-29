@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { z } from "zod";
 import { JobExecutionStatus } from "@prisma/client";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -132,6 +133,22 @@ export interface EvalExecutionDeps {
 }
 
 /**
+ * Serialize a structured-output schema the way it leaves the worker for egress
+ * accounting. Production passes a Zod schema, which LangChain converts to JSON
+ * Schema before sending; `JSON.stringify` on the Zod object would instead dump
+ * its internal `_def` and drop `.describe()` text, diverging from the on-wire
+ * payload. Convert Zod schemas to JSON Schema; fall back to the raw value for
+ * plain `LLMJSONSchema` inputs (or any unconvertible schema).
+ */
+function serializeSchemaForEgress(schema: unknown): string {
+  try {
+    return JSON.stringify(z.toJSONSchema(schema as z.ZodType));
+  } catch {
+    return JSON.stringify(schema);
+  }
+}
+
+/**
  * Creates the production implementation of eval execution dependencies.
  * This is the default implementation used in production code.
  */
@@ -206,11 +223,13 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
       // llmaj egress: the request body sent to the model provider is the
       // serialized messages (the bulk) plus the structured-output schema. LLM
       // requests are not gzipped, so this uncompressed size ≈ on-wire bytes.
+      // The schema is measured as its JSON Schema form (what LangChain ships),
+      // not Zod's internal _def. See serializeSchemaForEgress.
       const bytes =
         Buffer.byteLength(JSON.stringify(params.messages), "utf8") +
         (params.structuredOutputSchema
           ? Buffer.byteLength(
-              JSON.stringify(params.structuredOutputSchema),
+              serializeSchemaForEgress(params.structuredOutputSchema),
               "utf8",
             )
           : 0);

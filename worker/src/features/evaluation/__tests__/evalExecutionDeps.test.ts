@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { z } from "zod";
 import { createProductionEvalExecutionDeps } from "../evalExecutionDeps";
 import { EXPORT_VOLUME_METRIC } from "../../../services/exportVolumeMetric";
 
@@ -80,13 +81,18 @@ describe("createProductionEvalExecutionDeps", () => {
     );
   });
 
-  it("records llmaj export volume with a positive byte count", async () => {
+  it("records llmaj export volume using the schema's JSON Schema form", async () => {
     const deps = createProductionEvalExecutionDeps();
 
     const messages = [
       { role: "user", type: "user", content: "Judge this answer" },
     ];
-    const structuredOutputSchema = { type: "object" };
+    // Production passes a Zod schema (eval output definition), not a plain
+    // object — the byte count must reflect its JSON Schema form, not Zod _def.
+    const structuredOutputSchema = z.object({
+      reasoning: z.string().describe("why this score was given"),
+      score: z.number().describe("score between 0 and 1"),
+    });
 
     await deps.callLLM({
       messages: messages as any,
@@ -109,13 +115,24 @@ describe("createProductionEvalExecutionDeps", () => {
 
     const expectedBytes =
       Buffer.byteLength(JSON.stringify(messages), "utf8") +
-      Buffer.byteLength(JSON.stringify(structuredOutputSchema), "utf8");
+      Buffer.byteLength(
+        JSON.stringify(z.toJSONSchema(structuredOutputSchema)),
+        "utf8",
+      );
 
     expect(expectedBytes).toBeGreaterThan(0);
     expect(mockRecordIncrement).toHaveBeenCalledWith(
       EXPORT_VOLUME_METRIC,
       expectedBytes,
       { integration: "llmaj", projectId: "project-123" },
+    );
+    // Guard against regressing to Zod's internal _def serialization.
+    const zodDefBytes = Buffer.byteLength(
+      JSON.stringify(structuredOutputSchema),
+      "utf8",
+    );
+    expect(expectedBytes).not.toBe(
+      Buffer.byteLength(JSON.stringify(messages), "utf8") + zodDefBytes,
     );
   });
 });
