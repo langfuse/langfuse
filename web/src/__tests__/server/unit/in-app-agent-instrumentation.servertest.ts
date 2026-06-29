@@ -262,8 +262,10 @@ describe("InAppAgentInstrumentation", () => {
         description: "List observations in a project.",
         inputSchema: {
           type: "object",
+          additionalProperties: false,
           properties: {
-            limit: { type: "number" },
+            includeErrors: { type: "boolean", nullable: true },
+            limit: { type: "number", required: false },
           },
         },
       },
@@ -289,8 +291,10 @@ describe("InAppAgentInstrumentation", () => {
                 description: "List observations in a project.",
                 parameters: {
                   type: "object",
+                  additionalProperties: false,
                   properties: {
-                    limit: { type: "number" },
+                    includeErrors: { type: "boolean", nullable: true },
+                    limit: { type: "number", required: false },
                   },
                 },
               },

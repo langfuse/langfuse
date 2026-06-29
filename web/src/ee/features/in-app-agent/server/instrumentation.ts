@@ -738,7 +738,11 @@ function toSerializableJson(
     return value;
   }
 
-  if (typeof value === "number" || typeof value === "boolean") {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "number") {
     return Number.isFinite(value) ? value : undefined;
   }
 
