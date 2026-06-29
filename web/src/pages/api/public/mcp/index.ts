@@ -24,8 +24,6 @@
  * Tools: Added in LF-1929
  */
 
-import crypto from "crypto";
-
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { createMcpServer } from "@/src/features/mcp/server/mcpServer";
 import { handleMcpRequest } from "@/src/features/mcp/server/transport";
@@ -43,7 +41,7 @@ import { BaseError, UnauthorizedError, ForbiddenError } from "@langfuse/shared";
 import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
 import { IN_APP_AGENT_MCP_RUN_SECRET_HEADER } from "@/src/ee/features/in-app-agent/constants";
-import { getInAppAgentMcpRunSecretRedisKey } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
+import { hasValidInAppAgentMcpRunAuthToken } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
 
 // Bootstrap MCP features - registers all tools at module load time
 import "@/src/features/mcp/server/bootstrap";
@@ -131,8 +129,9 @@ export default async function handler(
       accessLevel: "project",
       publicKey: authCheck.scope.publicKey,
       isInAppAgentKey: authCheck.scope.isInAppAgentKey === true,
-      hasInAppAgentMcpRunSecret: await hasValidInAppAgentMcpRunSecret({
+      hasInAppAgentMcpRunSecret: await hasValidInAppAgentMcpRunAuthToken({
         apiKeyId: authCheck.scope.apiKeyId,
+        projectId: authCheck.scope.projectId,
         isInAppAgentKey: authCheck.scope.isInAppAgentKey === true,
         headerValue: req.headers[IN_APP_AGENT_MCP_RUN_SECRET_HEADER],
       }),
@@ -178,36 +177,6 @@ export default async function handler(
         code: mcpError.code,
       });
     }
-  }
-}
-
-async function hasValidInAppAgentMcpRunSecret(params: {
-  apiKeyId: string;
-  isInAppAgentKey: boolean;
-  headerValue: string | string[] | undefined;
-}) {
-  // Only the server-side in-app agent receives the per-run secret. This keeps
-  // temporary in-app-agent API keys from being sufficient for mutating MCP
-  // calls if they are replayed or used outside the active run path.
-  if (!params.isInAppAgentKey || typeof params.headerValue !== "string") {
-    return false;
-  }
-
-  const expectedSecret = await redis?.get(
-    getInAppAgentMcpRunSecretRedisKey(params.apiKeyId),
-  );
-
-  if (!expectedSecret) {
-    return false;
-  }
-
-  try {
-    return crypto.timingSafeEqual(
-      Buffer.from(expectedSecret),
-      Buffer.from(params.headerValue),
-    );
-  } catch {
-    return false;
   }
 }
 

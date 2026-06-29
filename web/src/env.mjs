@@ -50,6 +50,7 @@ export const env = createEnv({
       process.env.NODE_ENV === "production"
         ? z.string().min(1)
         : z.string().min(1).optional(),
+    LANGFUSE_IN_APP_AGENT_MCP_RUN_TOKEN_SECRET: z.string().min(1).optional(),
     SEED_SECRET_KEY: z.string().min(1).optional(),
     NEXTAUTH_URL: z.preprocess(
       // This makes Vercel deployments not fail if you don't set NEXTAUTH_URL
@@ -526,6 +527,8 @@ export const env = createEnv({
     BUILD_ID: process.env.BUILD_ID,
     NEXT_PUBLIC_BUILD_ID: process.env.NEXT_PUBLIC_BUILD_ID,
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
+    LANGFUSE_IN_APP_AGENT_MCP_RUN_TOKEN_SECRET:
+      process.env.LANGFUSE_IN_APP_AGENT_MCP_RUN_TOKEN_SECRET,
     NEXTAUTH_COOKIE_DOMAIN: process.env.NEXTAUTH_COOKIE_DOMAIN,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
     LANGFUSE_MCP_ALLOWED_HOSTS: process.env.LANGFUSE_MCP_ALLOWED_HOSTS,

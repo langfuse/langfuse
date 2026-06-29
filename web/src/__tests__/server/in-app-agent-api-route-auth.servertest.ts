@@ -1,8 +1,5 @@
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import {
-  getInAppAgentPendingToolApprovalRedisKey,
-  storePendingToolApproval,
-} from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
+import { storePendingToolApproval } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
 import type { InAppAgentToolApprovalRequest } from "@/src/ee/features/in-app-agent/schema";
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
@@ -10,7 +7,6 @@ import {
   createAndAddApiKeysToDb,
   createBasicAuthHeader,
   createOrgProjectAndApiKey,
-  redis,
 } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -195,9 +191,10 @@ describe("in-app agent public API route auth", () => {
           userId,
         }),
       );
-      const pendingApprovalKey = await seedPendingToolApproval({
+      await seedPendingToolApproval({
         projectId: project.id,
         conversationId,
+        userId,
         approvalRequest: forwardedProps.command.resume.approvalRequest,
       });
 
@@ -224,7 +221,13 @@ describe("in-app agent public API route auth", () => {
       );
 
       expect(response.status).toBe(200);
-      await expect(redis?.get(pendingApprovalKey)).resolves.toBeNull();
+      await expect(
+        pendingToolApprovalExists({
+          projectId: project.id,
+          conversationId,
+          toolCallId: forwardedProps.command.resume.approvalRequest.toolCallId,
+        }),
+      ).resolves.toBe(false);
       expect(agentMocks.createAgUiStream).toHaveBeenCalledWith(
         expect.objectContaining({
           input: expect.objectContaining({
@@ -233,7 +236,7 @@ describe("in-app agent public API route auth", () => {
           }),
           options: expect.objectContaining({
             langfuseMcp: expect.objectContaining({
-              runSecret: expect.any(String),
+              runAuthToken: expect.any(String),
             }),
           }),
         }),
@@ -270,12 +273,13 @@ describe("in-app agent public API route auth", () => {
 
   it("rejects mutated resume forwarded props without consuming the pending approval", async () => {
     await withInAppAgentCloudEnv(async () => {
-      const { project } = await setupInAppAgentProjectSession();
+      const { project, userId } = await setupInAppAgentProjectSession();
       const conversationId = `conversation-${randomUUID()}`;
       const forwardedProps = createResumeForwardedProps();
-      const pendingApprovalKey = await seedPendingToolApproval({
+      await seedPendingToolApproval({
         projectId: project.id,
         conversationId,
+        userId,
         approvalRequest: forwardedProps.command.resume.approvalRequest,
       });
 
@@ -296,21 +300,26 @@ describe("in-app agent public API route auth", () => {
       });
 
       expect(response.status).toBe(400);
-      await expect(redis?.get(pendingApprovalKey)).resolves.not.toBeNull();
+      await expect(
+        pendingToolApprovalExists({
+          projectId: project.id,
+          conversationId,
+          toolCallId: forwardedProps.command.resume.approvalRequest.toolCallId,
+        }),
+      ).resolves.toBe(true);
       expect(agentMocks.createAgUiStream).not.toHaveBeenCalled();
-
-      await redis?.del(pendingApprovalKey);
     });
   });
 
   it("rejects replayed resume forwarded props after approval consumption", async () => {
     await withInAppAgentCloudEnv(async () => {
-      const { project } = await setupInAppAgentProjectSession();
+      const { project, userId } = await setupInAppAgentProjectSession();
       const conversationId = `conversation-${randomUUID()}`;
       const forwardedProps = createResumeForwardedProps();
       await seedPendingToolApproval({
         projectId: project.id,
         conversationId,
+        userId,
         approvalRequest: forwardedProps.command.resume.approvalRequest,
       });
 
@@ -347,6 +356,7 @@ describe("in-app agent public API route auth", () => {
       await seedPendingToolApproval({
         projectId: project.id,
         conversationId,
+        userId,
         approvalRequest: forwardedProps.command.resume.approvalRequest,
       });
 
@@ -377,26 +387,24 @@ describe("in-app agent public API route auth", () => {
       ]);
       expect(agentMocks.createAgUiStream).toHaveBeenCalledTimes(1);
       await expect(
-        redis?.get(
-          getInAppAgentPendingToolApprovalRedisKey({
-            projectId: project.id,
-            conversationId,
-            toolCallId:
-              forwardedProps.command.resume.approvalRequest.toolCallId,
-          }),
-        ),
-      ).resolves.toBeNull();
+        pendingToolApprovalExists({
+          projectId: project.id,
+          conversationId,
+          toolCallId: forwardedProps.command.resume.approvalRequest.toolCallId,
+        }),
+      ).resolves.toBe(false);
     });
   });
 
   it("keeps pending approval retryable when resumed stream initialization fails", async () => {
     await withInAppAgentCloudEnv(async () => {
-      const { project } = await setupInAppAgentProjectSession();
+      const { project, userId } = await setupInAppAgentProjectSession();
       const conversationId = `conversation-${randomUUID()}`;
       const forwardedProps = createResumeForwardedProps();
-      const pendingApprovalKey = await seedPendingToolApproval({
+      await seedPendingToolApproval({
         projectId: project.id,
         conversationId,
+        userId,
         approvalRequest: forwardedProps.command.resume.approvalRequest,
       });
 
@@ -412,7 +420,13 @@ describe("in-app agent public API route auth", () => {
           forwardedProps,
         }),
       ).rejects.toThrow("stream init failed");
-      await expect(redis?.get(pendingApprovalKey)).resolves.not.toBeNull();
+      await expect(
+        pendingToolApprovalExists({
+          projectId: project.id,
+          conversationId,
+          toolCallId: forwardedProps.command.resume.approvalRequest.toolCallId,
+        }),
+      ).resolves.toBe(true);
 
       const retry = await callInAppAgentRoute({
         projectId: project.id,
@@ -422,19 +436,26 @@ describe("in-app agent public API route auth", () => {
       });
 
       expect(retry.response.status).toBe(200);
-      await expect(redis?.get(pendingApprovalKey)).resolves.toBeNull();
+      await expect(
+        pendingToolApprovalExists({
+          projectId: project.id,
+          conversationId,
+          toolCallId: forwardedProps.command.resume.approvalRequest.toolCallId,
+        }),
+      ).resolves.toBe(false);
       expect(agentMocks.createAgUiStream).toHaveBeenCalledTimes(2);
     });
   });
 
   it("keeps pending approval retryable when a resumed stream errors after creation", async () => {
     await withInAppAgentCloudEnv(async () => {
-      const { project } = await setupInAppAgentProjectSession();
+      const { project, userId } = await setupInAppAgentProjectSession();
       const conversationId = `conversation-${randomUUID()}`;
       const forwardedProps = createResumeForwardedProps();
-      const pendingApprovalKey = await seedPendingToolApproval({
+      await seedPendingToolApproval({
         projectId: project.id,
         conversationId,
+        userId,
         approvalRequest: forwardedProps.command.resume.approvalRequest,
       });
       let streamErrorHandled: Promise<void> | undefined;
@@ -462,7 +483,13 @@ describe("in-app agent public API route auth", () => {
 
       expect(response.status).toBe(200);
       await streamErrorHandled;
-      await expect(redis?.get(pendingApprovalKey)).resolves.not.toBeNull();
+      await expect(
+        pendingToolApprovalExists({
+          projectId: project.id,
+          conversationId,
+          toolCallId: forwardedProps.command.resume.approvalRequest.toolCallId,
+        }),
+      ).resolves.toBe(true);
 
       const retry = await callInAppAgentRoute({
         projectId: project.id,
@@ -472,7 +499,13 @@ describe("in-app agent public API route auth", () => {
       });
 
       expect(retry.response.status).toBe(200);
-      await expect(redis?.get(pendingApprovalKey)).resolves.toBeNull();
+      await expect(
+        pendingToolApprovalExists({
+          projectId: project.id,
+          conversationId,
+          toolCallId: forwardedProps.command.resume.approvalRequest.toolCallId,
+        }),
+      ).resolves.toBe(false);
       expect(agentMocks.createAgUiStream).toHaveBeenCalledTimes(2);
     });
   });
@@ -983,19 +1016,41 @@ async function callInAppAgentRoute(params: {
 async function seedPendingToolApproval(params: {
   projectId: string;
   conversationId: string;
+  userId: string;
   approvalRequest: InAppAgentToolApprovalRequest;
 }) {
-  if (!redis) {
-    throw new Error("Redis is required for pending approval tests");
-  }
-
-  const key = getInAppAgentPendingToolApprovalRedisKey({
-    projectId: params.projectId,
-    conversationId: params.conversationId,
-    toolCallId: params.approvalRequest.toolCallId,
+  await prisma.inAppAgentConversation.upsert({
+    where: {
+      id_projectId: {
+        id: params.conversationId,
+        projectId: params.projectId,
+      },
+    },
+    create: {
+      id: params.conversationId,
+      projectId: params.projectId,
+      createdByUserId: params.userId,
+      title: "Pending approval test",
+    },
+    update: {},
   });
 
   await storePendingToolApproval(params);
+}
 
-  return key;
+async function pendingToolApprovalExists(params: {
+  projectId: string;
+  conversationId: string;
+  toolCallId: string;
+}) {
+  const pendingApproval = await prisma.inAppAgentPendingToolApproval.findUnique(
+    {
+      where: {
+        projectId_conversationId_toolCallId: params,
+      },
+      select: { toolCallId: true },
+    },
+  );
+
+  return Boolean(pendingApproval);
 }

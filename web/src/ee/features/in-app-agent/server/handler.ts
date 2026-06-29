@@ -1,5 +1,4 @@
 import { EventType } from "@ag-ui/core";
-import { randomUUID } from "crypto";
 import { type Session } from "next-auth";
 import { getServerSession } from "next-auth";
 
@@ -21,8 +20,7 @@ import {
 import { createAgUiStream } from "@/src/ee/features/in-app-agent/server/agent";
 import {
   consumeAndValidatePendingToolApproval,
-  getInAppAgentMcpRunSecretRedisKey,
-  IN_APP_AGENT_MCP_RUN_SECRET_TTL_SECONDS,
+  createInAppAgentMcpRunAuthToken,
   parseInAppAgentInterruptEvent,
   storePendingToolApproval,
   validatePendingToolApproval,
@@ -257,8 +255,8 @@ export default async function handler(request: Request) {
     );
 
     return await withInAppAgentMcpApiKeyCleanup(
-      projectId,
-      async (mcpApiKey, runSecret, cleanupMcpApiKey) => {
+      { projectId, runId: sanitizedInput.runId },
+      async (mcpApiKey, runAuthToken, cleanupMcpApiKey) => {
         let runCreated = false;
         let pendingToolApprovalConsumed = false;
         let streamCreated = false;
@@ -415,7 +413,7 @@ export default async function handler(request: Request) {
                 url: getLangfuseMcpUrl(),
                 publicKey: mcpApiKey.publicKey,
                 secretKey: mcpApiKey.secretKey,
-                runSecret,
+                runAuthToken,
               },
               redirectAction: {
                 projectId,
@@ -592,25 +590,24 @@ async function createInAppAgentMcpApiKey(projectId: string) {
 }
 
 async function withInAppAgentMcpApiKeyCleanup<T>(
-  projectId: string,
+  params: { projectId: string; runId: string },
   createResponse: (
     mcpApiKey: Awaited<ReturnType<typeof createInAppAgentMcpApiKey>>,
-    runSecret: string,
+    runAuthToken: string,
     cleanupMcpApiKey: () => Promise<void>,
   ) => T | Promise<T>,
 ): Promise<T> {
-  // Each run gets a temporary in-app-agent API key plus a second per-run secret.
-  // The API key authenticates to MCP; the secret authorizes mutating MCP tools
-  // only through this server-created run path.
-  const mcpApiKey = await createInAppAgentMcpApiKey(projectId);
-  const runSecret = randomUUID();
+  // Each run gets a temporary in-app-agent API key plus a signed per-run token.
+  // The API key authenticates to MCP; the token authorizes mutating MCP tools
+  // only through this server-created run path without storing another secret.
+  const mcpApiKey = await createInAppAgentMcpApiKey(params.projectId);
   let cleanupPromise: Promise<void> | undefined;
 
   const cleanupMcpApiKey = () => {
     if (!cleanupPromise) {
       cleanupPromise = cleanupInAppAgentMcpApiKey({
         apiKeyId: mcpApiKey.id,
-        projectId,
+        projectId: params.projectId,
       }).catch((cleanupErr) => {
         cleanupPromise = undefined;
         throw cleanupErr;
@@ -621,13 +618,13 @@ async function withInAppAgentMcpApiKeyCleanup<T>(
   };
 
   try {
-    await redis?.setex(
-      getInAppAgentMcpRunSecretRedisKey(mcpApiKey.id),
-      IN_APP_AGENT_MCP_RUN_SECRET_TTL_SECONDS,
-      runSecret,
-    );
+    const runAuthToken = await createInAppAgentMcpRunAuthToken({
+      apiKeyId: mcpApiKey.id,
+      projectId: params.projectId,
+      runId: params.runId,
+    });
 
-    return await createResponse(mcpApiKey, runSecret, cleanupMcpApiKey);
+    return await createResponse(mcpApiKey, runAuthToken, cleanupMcpApiKey);
   } catch (err) {
     await cleanupMcpApiKey().catch((cleanupErr) => {
       logger.error("Failed to clean up in-app agent MCP API key", cleanupErr);
@@ -647,7 +644,6 @@ async function cleanupInAppAgentMcpApiKey(params: {
     scope: "PROJECT",
     redis,
   });
-  await redis?.del(getInAppAgentMcpRunSecretRedisKey(params.apiKeyId));
 }
 
 type SanitizedAgentInput = AgUiRunAgentInput &

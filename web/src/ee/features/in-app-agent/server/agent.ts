@@ -124,7 +124,7 @@ type CreateAgUiStreamOptions = {
     url: string;
     publicKey: string;
     secretKey: string;
-    runSecret: string;
+    runAuthToken: string;
   };
   redirectAction: {
     projectId: string;
@@ -617,7 +617,7 @@ async function createMastraAdapter(params: {
           headers: {
             Authorization: params.langfuseMcpAuthHeader,
             [IN_APP_AGENT_MCP_RUN_SECRET_HEADER]:
-              params.options.langfuseMcp.runSecret,
+              params.options.langfuseMcp.runAuthToken,
           },
         },
       },

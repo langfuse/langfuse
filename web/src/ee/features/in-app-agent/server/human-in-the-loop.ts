@@ -1,8 +1,11 @@
 import { EventType } from "@ag-ui/core";
+import { randomUUID } from "crypto";
+import { SignJWT, jwtVerify } from "jose";
 import { z } from "zod";
 
 import { InvalidRequestError } from "@langfuse/shared";
-import { redis } from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
+import { env } from "@/src/env.mjs";
 import { safeJsonParse, stableJsonStringify } from "@/src/utils/json";
 import {
   type AgUiEvent,
@@ -15,25 +18,20 @@ import {
 export const IN_APP_AGENT_MCP_RUN_SECRET_TTL_SECONDS = 60 * 60;
 const MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE =
   "Tool call was not approved by the user.";
-
-// Stores the per-run secret that proves a mutating MCP call belongs to an
-// active server-created in-app agent run, not just to any in-app-agent key.
-export const getInAppAgentMcpRunSecretRedisKey = (apiKeyId: string) =>
-  `in-app-agent:mcp-run-secret:${apiKeyId}`;
-
-// Stores the exact Mastra interrupt that the browser is allowed to resume once.
-export const getInAppAgentPendingToolApprovalRedisKey = (params: {
-  projectId: string;
-  conversationId: string;
-  toolCallId: string;
-}) =>
-  `in-app-agent:pending-tool-approval:${params.projectId}:${params.conversationId}:${params.toolCallId}`;
+const IN_APP_AGENT_MCP_RUN_TOKEN_TYPE = "in_app_agent_mcp_run";
 
 const PendingToolApprovalSchema = z.object({
   toolCallId: z.string().min(1),
   toolName: z.string().min(1),
   runId: z.string().min(1),
   argsFingerprint: z.string(),
+});
+
+const InAppAgentMcpRunTokenClaimsSchema = z.object({
+  tokenUse: z.literal(IN_APP_AGENT_MCP_RUN_TOKEN_TYPE),
+  apiKeyId: z.string().min(1),
+  projectId: z.string().min(1),
+  runId: z.string().min(1),
 });
 
 const MastraSuspendEventSchema = z.object({
@@ -49,19 +47,33 @@ export async function storePendingToolApproval(params: {
   conversationId: string;
   approvalRequest: InAppAgentToolApprovalRequest;
 }) {
-  if (!redis) {
-    return;
-  }
+  const approvalFingerprint = createPendingToolApprovalFingerprint(
+    params.approvalRequest,
+  );
+  const expiresAt = new Date(
+    Date.now() + IN_APP_AGENT_MCP_RUN_SECRET_TTL_SECONDS * 1000,
+  );
 
-  await redis.setex(
-    getInAppAgentPendingToolApprovalRedisKey({
+  await prisma.inAppAgentPendingToolApproval.upsert({
+    where: {
+      projectId_conversationId_toolCallId: {
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+        toolCallId: params.approvalRequest.toolCallId,
+      },
+    },
+    create: {
       projectId: params.projectId,
       conversationId: params.conversationId,
       toolCallId: params.approvalRequest.toolCallId,
-    }),
-    IN_APP_AGENT_MCP_RUN_SECRET_TTL_SECONDS,
-    createPendingToolApprovalJson(params.approvalRequest),
-  );
+      approvalFingerprint,
+      expiresAt,
+    },
+    update: {
+      approvalFingerprint,
+      expiresAt,
+    },
+  });
 }
 
 // Check early, before stream setup, so malformed or forged resume payloads fail
@@ -71,20 +83,20 @@ export async function validatePendingToolApproval(params: {
   conversationId: string;
   forwardedProps: ResumeForwardedProps;
 }) {
-  if (!redis) {
-    throw new InvalidRequestError("Invalid forwarded props");
-  }
-
   const approvalRequest = params.forwardedProps.command.resume.approvalRequest;
-  const value = await redis.get(
-    getInAppAgentPendingToolApprovalRedisKey({
+  const pendingApproval = await prisma.inAppAgentPendingToolApproval.findFirst({
+    where: {
       projectId: params.projectId,
       conversationId: params.conversationId,
       toolCallId: approvalRequest.toolCallId,
-    }),
-  );
+      approvalFingerprint:
+        createPendingToolApprovalFingerprint(approvalRequest),
+      expiresAt: { gt: new Date() },
+    },
+    select: { toolCallId: true },
+  });
 
-  if (value !== createPendingToolApprovalJson(approvalRequest)) {
+  if (!pendingApproval) {
     throw new InvalidRequestError("Invalid forwarded props");
   }
 }
@@ -96,32 +108,60 @@ export async function consumeAndValidatePendingToolApproval(params: {
   conversationId: string;
   forwardedProps: ResumeForwardedProps;
 }) {
-  if (!redis) {
-    throw new InvalidRequestError("Invalid forwarded props");
-  }
-
   const approvalRequest = params.forwardedProps.command.resume.approvalRequest;
-  const consumeResult = await redis.eval(
-    `
-local value = redis.call("GET", KEYS[1])
-if value == ARGV[1] then
-  redis.call("DEL", KEYS[1])
-  return 1
-end
-return 0
-`,
-    1,
-    getInAppAgentPendingToolApprovalRedisKey({
+  const consumeResult = await prisma.inAppAgentPendingToolApproval.deleteMany({
+    where: {
       projectId: params.projectId,
       conversationId: params.conversationId,
       toolCallId: approvalRequest.toolCallId,
-    }),
-    createPendingToolApprovalJson(approvalRequest),
-  );
+      approvalFingerprint:
+        createPendingToolApprovalFingerprint(approvalRequest),
+      expiresAt: { gt: new Date() },
+    },
+  });
 
-  if (consumeResult !== 1) {
+  if (consumeResult.count !== 1) {
     throw new InvalidRequestError("Invalid forwarded props");
   }
+}
+
+export async function createInAppAgentMcpRunAuthToken(params: {
+  apiKeyId: string;
+  projectId: string;
+  runId: string;
+}) {
+  return new SignJWT({
+    tokenUse: IN_APP_AGENT_MCP_RUN_TOKEN_TYPE,
+    apiKeyId: params.apiKeyId,
+    projectId: params.projectId,
+    runId: params.runId,
+  })
+    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+    .setIssuedAt()
+    .setJti(randomUUID())
+    .setExpirationTime(`${IN_APP_AGENT_MCP_RUN_SECRET_TTL_SECONDS}s`)
+    .sign(getInAppAgentMcpRunTokenSigningSecret());
+}
+
+export async function hasValidInAppAgentMcpRunAuthToken(params: {
+  apiKeyId: string;
+  projectId: string;
+  isInAppAgentKey: boolean;
+  headerValue: string | string[] | undefined;
+}) {
+  // Only the server-side in-app agent receives this signed per-run token. This
+  // keeps temporary in-app-agent API keys from being sufficient for mutating MCP
+  // calls if they are replayed or used outside the active run path.
+  if (!params.isInAppAgentKey || typeof params.headerValue !== "string") {
+    return false;
+  }
+
+  const claims = await verifyInAppAgentMcpRunToken(params.headerValue);
+
+  return (
+    claims?.apiKeyId === params.apiKeyId &&
+    claims.projectId === params.projectId
+  );
 }
 
 export function parseInAppAgentInterruptEvent(
@@ -363,7 +403,7 @@ function serializeToolResultContent(value: unknown) {
   }
 }
 
-function createPendingToolApprovalJson(
+function createPendingToolApprovalFingerprint(
   approvalRequest: InAppAgentToolApprovalRequest,
 ): string {
   // Persist only the stable approval identity, including a sorted-JSON argument
@@ -375,5 +415,41 @@ function createPendingToolApprovalJson(
       runId: approvalRequest.runId,
       argsFingerprint: stableJsonStringify(approvalRequest.args),
     }),
+  );
+}
+
+async function verifyInAppAgentMcpRunToken(token: string) {
+  try {
+    const { payload, protectedHeader } = await jwtVerify(
+      token,
+      getInAppAgentMcpRunTokenSigningSecret(),
+      { algorithms: ["HS256"] },
+    );
+
+    if (protectedHeader.typ !== "JWT") {
+      return undefined;
+    }
+
+    const parsedClaims = InAppAgentMcpRunTokenClaimsSchema.safeParse(payload);
+
+    return parsedClaims.success ? parsedClaims.data : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function getInAppAgentMcpRunTokenSigningSecret() {
+  if (env.LANGFUSE_IN_APP_AGENT_MCP_RUN_TOKEN_SECRET) {
+    return new TextEncoder().encode(
+      env.LANGFUSE_IN_APP_AGENT_MCP_RUN_TOKEN_SECRET,
+    );
+  }
+
+  if (env.NODE_ENV !== "production") {
+    return new TextEncoder().encode(env.SALT);
+  }
+
+  throw new Error(
+    "LANGFUSE_IN_APP_AGENT_MCP_RUN_TOKEN_SECRET is required to sign in-app agent run tokens",
   );
 }
