@@ -423,7 +423,7 @@ export const getSessionIdentifiers = async (props: {
     orderBy: props.orderBy,
     limit: props.limit,
     page: props.page,
-    tags: { kind: "identifiers" },
+    tags: { projectId: props.projectId },
     clickhouseConfigs: props.clickhouseConfigs,
   });
 

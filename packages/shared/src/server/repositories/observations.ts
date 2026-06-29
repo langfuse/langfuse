@@ -656,11 +656,11 @@ export const getObservationIdentifiers = async (opts: {
   );
 
   const appliedFilter = observationsFilter.apply();
-  const search = clickhouseSearchCondition(
-    opts.searchQuery,
-    opts.searchType,
-    "o",
-  );
+  const search = clickhouseSearchCondition({
+    query: opts.searchQuery,
+    searchType: opts.searchType,
+    tablePrefix: "o",
+  });
 
   const query = `
     SELECT o.id, o.project_id, o.start_time
@@ -682,12 +682,7 @@ export const getObservationIdentifiers = async (opts: {
       ...search.params,
     },
     clickhouseConfigs,
-    tags: {
-      feature: "batch-action",
-      type: "observation",
-      kind: "identifiers",
-      projectId,
-    },
+    tags: { projectId },
   });
 
   return rows.map((r) => ({
