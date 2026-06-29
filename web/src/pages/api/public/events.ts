@@ -16,6 +16,9 @@ export default withMiddlewares({
     name: "Create Event",
     bodySchema: PostEventsV1Body,
     responseSchema: PostEventsV1Response,
+    // Writes an observation-create event that lands in the legacy observations
+    // ClickHouse table; events_only deployments expect OTel ingestion.
+    rejectInEventsOnlyMode: true,
     fn: async ({ body, auth, res }) => {
       const event = {
         id: v4(),

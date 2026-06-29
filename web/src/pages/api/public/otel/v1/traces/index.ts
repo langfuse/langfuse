@@ -2,6 +2,7 @@ import { withMiddlewares } from "@/src/features/public-api/server/withMiddleware
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   logger,
+  markProjectIngestFailure,
   OtelIngestionProcessor,
   markProjectAsOtelUser,
 } from "@langfuse/shared/src/server";
@@ -184,7 +185,15 @@ export default withMiddlewares({
 
       // At this point, we have the raw OpenTelemetry Span body. We upload the full batch to S3
       // and the OtelIngestionProcessor logic will handle processing in the worker container.
-      return processor.publishToOtelIngestionQueue(resourceSpans);
+      try {
+        return await processor.publishToOtelIngestionQueue(resourceSpans);
+      } catch (error) {
+        markProjectIngestFailure(auth.scope.projectId, {
+          source: "public_otel_api",
+          reason: "publish_failed",
+        });
+        throw error;
+      }
     },
   }),
 });

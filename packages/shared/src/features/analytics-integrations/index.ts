@@ -2,6 +2,14 @@
 // This is a client-safe file that can be imported from @langfuse/shared
 
 import { AnalyticsIntegrationExportSource } from "@prisma/client";
+import {
+  LEGACY_OBSERVATION_EXPORT_FIELDS,
+  OBSERVATION_FIELD_GROUPS_FULL,
+  type ObservationFieldGroupFull,
+} from "../../domain/observation-field-groups";
+
+export * from "./blob-export-gate";
+export * from "./blob-export-tuning";
 
 export const EXPORT_SOURCE_OPTIONS: Array<{
   value: AnalyticsIntegrationExportSource;
@@ -31,24 +39,8 @@ export const EXPORT_SOURCE_OPTIONS: Array<{
 export type ExportSourceOption = (typeof EXPORT_SOURCE_OPTIONS)[number];
 export type ExportSourceValue = ExportSourceOption["value"];
 
-export const BLOB_EXPORT_FIELD_GROUPS = [
-  "core",
-  "basic",
-  "time",
-  "io",
-  "metadata",
-  "model",
-  "usage",
-  "prompt",
-  "metrics",
-  "tools",
-  "trace_context",
-] as const;
-
-export type BlobExportFieldGroup = (typeof BLOB_EXPORT_FIELD_GROUPS)[number];
-
-// Keyed by BlobExportFieldGroup so TypeScript errors if a group is added to
-// BLOB_EXPORT_FIELD_GROUPS without a corresponding label/description here.
+// Keyed by ObservationFieldGroupFull so TypeScript errors if a group is added
+// to OBSERVATION_FIELD_GROUPS_FULL without a corresponding label/description here.
 const EXPORT_FIELD_GROUP_LABELS = {
   core: {
     label: "Core",
@@ -74,12 +66,13 @@ const EXPORT_FIELD_GROUP_LABELS = {
   },
   model: {
     label: "Model",
-    description: "provided_model_name, model_id, model_parameters",
+    description:
+      "provided_model_name, model_id, model_parameters, input_price, output_price, total_price",
   },
   usage: {
     label: "Usage",
     description:
-      "usage_details, cost_details, total_cost, input_price, output_price, total_price",
+      "usage_details, cost_details, total_cost, usage_pricing_tier_id, usage_pricing_tier_name",
   },
   prompt: {
     label: "Prompt",
@@ -95,13 +88,61 @@ const EXPORT_FIELD_GROUP_LABELS = {
   },
   trace_context: {
     label: "Trace Context",
-    description: "tags, release, trace_name, usage_pricing_tier_name",
+    description: "tags, release, trace_name",
   },
 } satisfies Record<
-  BlobExportFieldGroup,
+  ObservationFieldGroupFull,
   { label: string; description: string }
 >;
 
-export const EXPORT_FIELD_GROUP_OPTIONS = BLOB_EXPORT_FIELD_GROUPS.map(
-  (value) => ({ value, ...EXPORT_FIELD_GROUP_LABELS[value] }),
+// Pricing fields added by the export enrichment (not part of the SQL contract)
+// whenever the model group is selected — for both export paths.
+const MODEL_ENRICHMENT_FIELDS = ["input_price", "output_price", "total_price"];
+
+const legacyFieldsForGroup = (group: ObservationFieldGroupFull): string[] =>
+  LEGACY_OBSERVATION_EXPORT_FIELDS.filter((f) => f.group === group).map(
+    (f) => f.field,
+  );
+
+const joinFields = (fields: string[]): string =>
+  fields.length > 0
+    ? fields.join(", ")
+    : "Not included in the legacy observations export";
+
+const withoutPrices = (csv: string): string =>
+  csv
+    .split(", ")
+    .filter((field) => !MODEL_ENRICHMENT_FIELDS.includes(field))
+    .join(", ");
+
+// EXPORT_FIELD_GROUP_LABELS describes the enriched schema; the legacy
+// observations table is narrower. Derive legacy from the export contract so it
+// stays in sync. The legacy standard export still enriches model prices, so
+// they're listed here.
+const legacyDescriptionForGroup = (
+  group: ObservationFieldGroupFull,
+): string => {
+  const fields = legacyFieldsForGroup(group);
+  if (group === "model") fields.push(...MODEL_ENRICHMENT_FIELDS);
+  return joinFields(fields);
+};
+
+// Parquet runs no JS enrichment, so model price columns are absent. The two
+// variants differ by source: enriched parquet uses the enriched schema, legacy
+// parquet the (already narrower) legacy schema.
+const parquetDescriptionForGroup = (group: ObservationFieldGroupFull): string =>
+  withoutPrices(EXPORT_FIELD_GROUP_LABELS[group].description);
+
+const legacyParquetDescriptionForGroup = (
+  group: ObservationFieldGroupFull,
+): string => joinFields(legacyFieldsForGroup(group));
+
+export const EXPORT_FIELD_GROUP_OPTIONS = OBSERVATION_FIELD_GROUPS_FULL.map(
+  (value) => ({
+    value,
+    ...EXPORT_FIELD_GROUP_LABELS[value],
+    legacyDescription: legacyDescriptionForGroup(value),
+    parquetDescription: parquetDescriptionForGroup(value),
+    legacyParquetDescription: legacyParquetDescriptionForGroup(value),
+  }),
 );

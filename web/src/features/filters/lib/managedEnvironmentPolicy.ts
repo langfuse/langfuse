@@ -1,5 +1,4 @@
 import type { FilterState } from "@langfuse/shared";
-import { computeSelectedValues } from "./filter-query-encoding";
 import { areStringSetsEqual } from "./stringSetUtils";
 
 type EnvironmentFilter = Extract<
@@ -26,41 +25,33 @@ export function buildManagedEnvironmentPolicyConfig(
   };
 }
 
+// Only the SYSTEM-shaped implicit default — the `none of [hidden]` filter the
+// sidebar auto-derives, and that the facet re-creates when the user clears back
+// to the default selection — counts as "no real filter" and is stripped before
+// persistence. A user-authored POSITIVE selection (`any of [...]`, e.g. typed in
+// the search bar or stored in a saved view) is NEVER stripped, even when it
+// happens to select exactly the current default set: if the user committed to a
+// value we keep it explicit and visible. Returning to the default is the user's
+// action (remove the filter / uncheck back to default), not something we infer.
 function isEquivalentToImplicitEnvironmentDefault(params: {
   envFilter: EnvironmentFilter;
   hiddenEnvironments: string[];
-  availableEnvironmentValues: string[];
 }): boolean {
-  const { envFilter, hiddenEnvironments, availableEnvironmentValues } = params;
+  const { envFilter, hiddenEnvironments } = params;
 
   if (hiddenEnvironments.length === 0) return false;
 
-  const exactDefaultMatch =
+  return (
     envFilter.operator === "none of" &&
-    areStringSetsEqual(envFilter.value, hiddenEnvironments);
-
-  if (exactDefaultMatch) return true;
-
-  if (availableEnvironmentValues.length === 0) return false;
-
-  const selectedFromFilter = computeSelectedValues(
-    availableEnvironmentValues,
-    envFilter,
+    areStringSetsEqual(envFilter.value, hiddenEnvironments)
   );
-  const hiddenSet = new Set(hiddenEnvironments);
-  const selectedFromDefault = availableEnvironmentValues.filter(
-    (value) => !hiddenSet.has(value),
-  );
-
-  return areStringSetsEqual(selectedFromFilter, selectedFromDefault);
 }
 
 export function stripImplicitEnvironmentFilterFromExplicitState(params: {
   explicitFilters: FilterState;
-  availableEnvironmentValues: string[];
   config: ManagedEnvironmentPolicyConfig;
 }): FilterState {
-  const { explicitFilters, availableEnvironmentValues, config } = params;
+  const { explicitFilters, config } = params;
   const { managedEnvironmentColumn, hiddenEnvironments } = config;
 
   if (hiddenEnvironments.length === 0) return explicitFilters;
@@ -84,7 +75,6 @@ export function stripImplicitEnvironmentFilterFromExplicitState(params: {
     isEquivalentToImplicitEnvironmentDefault({
       envFilter,
       hiddenEnvironments,
-      availableEnvironmentValues,
     })
   ) {
     return otherFilters;

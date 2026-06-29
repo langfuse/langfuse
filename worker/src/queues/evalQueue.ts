@@ -1,5 +1,5 @@
 import { Job, Processor } from "bullmq";
-import { JobExecutionStatus } from "@langfuse/shared";
+import { EvalTemplateType, JobExecutionStatus } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   QueueName,
@@ -15,7 +15,6 @@ import {
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
 import { processObservationEval } from "../features/evaluation/observationEval";
-import { delayInMs } from "./utils/delays";
 import { createW3CTraceId, retryLLMRateLimitError } from "../features/utils";
 import { isUnrecoverableError } from "../errors/UnrecoverableError";
 import { retryObservationNotFound } from "../features/evaluation/retryObservationNotFound";
@@ -70,19 +69,19 @@ export const evalJobDatasetCreatorQueueProcessor = async (
       if (shouldRetry) {
         // Retry was scheduled, complete this job successfully
         return true;
-      } else {
-        // Max attempts reached, log warning and complete successfully
-        logger.warn(
-          `Observation not found after max retries. Completing job without creating eval.`,
-          {
-            projectId: job.data.payload.projectId,
-            datasetItemId: job.data.payload.datasetItemId,
-            observationId: job.data.payload.observationId,
-            traceId: job.data.payload.traceId,
-          },
-        );
-        return true;
       }
+
+      // Max attempts reached, log warning and complete successfully
+      logger.warn(
+        `Observation not found after max retries. Completing job without creating eval.`,
+        {
+          projectId: job.data.payload.projectId,
+          datasetItemId: job.data.payload.datasetItemId,
+          observationId: job.data.payload.observationId,
+          traceId: job.data.payload.traceId,
+        },
+      );
+      return true;
     }
 
     // All other errors should be logged and propagated for BullMQ retry
@@ -188,15 +187,16 @@ export const evalJobExecutorQueueProcessorBuilder = (
       //       │ Yes                          │ No
       //       ▼                              ▼
       // ┌──────────────────┐       ┌───────────────────────┐
-      // │ Is job < 24h old?│       │ Is it retryable?      │
-      // └─────┬──────┬─────┘       │ (shouldRetryJob)      │
-      //   Yes │      │ No          └─────┬─────────────┬───┘
+      // │ Is job inside its│       │ Is it retryable?      │
+      // │ retry budget?    │       │ (shouldRetryJob)      │
+      // └─────┬──────┬─────┘       └─────┬─────────────┬───┘
+      //   Yes │      │ No             Yes│             │No
       //       ▼      ▼                Yes│             │No
       // ┌─────────┐ ┌────────┐          ▼             ▼
       // │Set:     │ │Set:    │    ┌─────────┐  ┌──────────┐
       // │DELAYED  │ │ERROR   │    │BullMQ   │  │Set:      │
-      // │Retry in │ │Stop    │    │retry    │  │ERROR     │
-      // │1-25 min │ │        │    │w/ exp.  │  │Done      │
+      // │Retry by │ │Stop    │    │retry    │  │ERROR     │
+      // │120 min  │ │        │    │w/ exp.  │  │Done      │
       // └─────────┘ └────────┘    │backoff  │  └──────────┘
       //                           └─────────┘
 
@@ -217,7 +217,6 @@ export const evalJobExecutorQueueProcessorBuilder = (
           queue,
           queueName,
           jobName: QueueJobs.EvaluationExecution,
-          delayFn: delayInMs,
         });
 
         if (retryResult.outcome === "scheduled") {
@@ -296,7 +295,10 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
         );
       }
 
-      await processObservationEval({ event: job.data.payload });
+      await processObservationEval({
+        event: job.data.payload,
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
+      });
       return true;
     } catch (e) {
       const executionTraceId = createW3CTraceId(
@@ -313,7 +315,6 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
           queue,
           queueName,
           jobName: QueueJobs.LLMAsJudgeExecution,
-          delayFn: delayInMs,
         });
 
         if (retryResult.outcome === "scheduled") {

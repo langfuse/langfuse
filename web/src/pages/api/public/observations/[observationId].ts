@@ -15,28 +15,27 @@ import {
   getObservationById,
   getObservationByIdFromEventsTable,
 } from "@langfuse/shared/src/server";
-import { env } from "@/src/env.mjs";
+import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 
 export default withMiddlewares(
   {
     GET: createAuthedProjectAPIRoute({
       name: "Get Observation",
+      allowInAppAgentKey: true,
+      rateLimitResource: "public-api-legacy",
       querySchema: GetObservationV1Query,
       responseSchema: GetObservationV1Response,
+      rateLimitUpgradePath: legacyPublicApiRateLimitUpgradePaths.observationGet,
+      rejectInEventsOnlyMode: true,
       fn: async ({ query, auth }) => {
-        // Use events table if query parameter is explicitly set, otherwise use environment variable
-        const useEventsTable =
-          query.useEventsTable !== undefined && query.useEventsTable !== null
-            ? query.useEventsTable === true
-            : env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS;
-
-        const clickhouseObservation = useEventsTable
+        const clickhouseObservation = query.useEventsTable
           ? await getObservationByIdFromEventsTable({
               id: query.observationId,
               projectId: auth.scope.projectId,
               fetchWithInputOutput: true,
             })
-          : await getObservationById({
+          : // eslint-disable-next-line @typescript-eslint/no-deprecated
+            await getObservationById({
               id: query.observationId,
               projectId: auth.scope.projectId,
               fetchWithInputOutput: true,

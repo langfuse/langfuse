@@ -32,7 +32,7 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
   const [exampleObject, setExampleObject] = useState("");
   useEffect(() => {
     let cancelled = false;
-    void generateSchemaExample(schema).then((result) => {
+    generateSchemaExample(schema).then((result) => {
       if (!cancelled) setExampleObject(result);
     });
     return () => {

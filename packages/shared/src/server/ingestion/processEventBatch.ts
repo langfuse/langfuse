@@ -8,13 +8,15 @@ import {
   UnauthorizedError,
 } from "../../errors";
 import { AuthHeaderValidVerificationResultIngestion } from "../auth/types";
-import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
+import {
+  getClickhouseEntityType,
+  type IngestionEntityTypes,
+} from "../clickhouse/schemaUtils";
 import {
   getCurrentSpan,
   instrumentAsync,
   recordDistribution,
   recordIncrement,
-  traceException,
 } from "../instrumentation";
 import { logger } from "../logger";
 import { QueueJobs } from "../queues";
@@ -29,11 +31,18 @@ import {
   StorageService,
   StorageServiceFactory,
 } from "../services/StorageService";
+import {
+  HASH_HEX_LENGTH,
+  safeBlobFilenameStem,
+  safeBlobKeySegment,
+} from "../services/safeBlobKeySegment";
+import { buildEventBucketPrefix } from "./eventBucketPath";
 import { isTraceIdInSample } from "./sampling";
 import {
   isS3SlowDownError,
   markProjectS3Slowdown,
 } from "../redis/s3SlowdownTracking";
+import { markProjectIngestFailure } from "../redis/ingestionFailureTracking";
 
 let s3StorageServiceClient: StorageService;
 
@@ -189,6 +198,18 @@ export const processEventBatch = async (
 
   // We group events by eventBodyId which allows us to store and process them
   // as one which reduces infra interactions per event. Only used in the S3 case.
+  //
+  // The dedup struct also caches `entityType` and `bucketPrefix` so the two
+  // downstream loops (S3 upload + IngestionQueue enqueue) read a single
+  // source-of-truth per id instead of recomputing — that makes the
+  // producer/consumer-must-agree invariant structural. The sanitization warn
+  // log fires once at the time we resolve the prefix.
+  //
+  // `String(...)` preserves the prior null → "null" coercion of
+  // `authCheck.scope.projectId`. The surrounding function legitimately treats
+  // projectId as nullable elsewhere (metric labels, span attributes); we
+  // don't narrow it in the type system, and a `null` projectId would land
+  // events under an isolated `null/...` path rather than throw.
   const sortedBatchByEventBodyId = sortedBatch.reduce(
     (
       acc: Record<
@@ -198,6 +219,8 @@ export const processEventBatch = async (
           key: string;
           eventBodyId: string;
           type: (typeof eventTypes)[keyof typeof eventTypes];
+          entityType: IngestionEntityTypes;
+          bucketPrefix: string;
         }
       >,
       event,
@@ -205,16 +228,41 @@ export const processEventBatch = async (
       if (!event.body?.id) {
         return acc;
       }
-      const key = `${getClickhouseEntityType(event.type)}-${event.body.id}`;
-      if (!acc[key]) {
-        acc[key] = {
+      const entityType = getClickhouseEntityType(event.type);
+      const dedupKey = `${entityType}-${event.body.id}`;
+      if (!acc[dedupKey]) {
+        const eventBodyId = event.body.id;
+        const safeEventBodyId = safeBlobKeySegment(eventBodyId);
+        if (safeEventBodyId !== eventBodyId) {
+          // Do not log the raw or sanitized ID itself: the prefix can carry
+          // PII (litellm encodes provider/model/request metadata in the ID).
+          // The 16-hex hash is enough to correlate with the stored object
+          // during debugging.
+          logger.warn("Sanitized oversized/invalid entity ID for S3 key", {
+            projectId: authCheck.scope.projectId,
+            entityType,
+            originalIdByteLength: Buffer.byteLength(eventBodyId, "utf8"),
+            originalIdHash16: safeEventBodyId.slice(-HASH_HEX_LENGTH),
+          });
+        }
+        acc[dedupKey] = {
           data: [],
-          key: event.id,
+          // `event.id` becomes a single-segment filename (`<id>.json`) at S3
+          // write time and rides the queue payload as `fileKey`. Sanitize
+          // here so `/`, `\`, control bytes, and over-budget lengths can't
+          // reroute the write or overflow NAME_MAX.
+          key: safeBlobFilenameStem(event.id, ".json"),
           type: event.type,
-          eventBodyId: event.body.id,
+          eventBodyId,
+          entityType,
+          bucketPrefix: buildEventBucketPrefix({
+            projectId: String(authCheck.scope.projectId),
+            entityType,
+            entityId: eventBodyId,
+          }),
         };
       }
-      acc[key].data.push(event);
+      acc[dedupKey].data.push(event);
       return acc;
     },
     {},
@@ -233,8 +281,8 @@ export const processEventBatch = async (
         // We upload the event in an array to the S3 bucket grouped by the eventBodyId.
         // That way we batch updates from the same invocation into a single file and reduce
         // write operations on S3.
-        const { data, key, type, eventBodyId } = sortedBatchByEventBodyId[id];
-        const bucketPath = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${getClickhouseEntityType(type)}/${eventBodyId}/${key}.json`;
+        const { data, key, bucketPrefix } = sortedBatchByEventBodyId[id];
+        const bucketPath = `${bucketPrefix}${key}.json`;
         return getS3StorageServiceClient(
           env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
         ).uploadJson(bucketPath, data);
@@ -253,8 +301,16 @@ export const processEventBatch = async (
               error: result.reason,
             },
           );
-          // Fire and forget - don't await, don't block the error flow
           markProjectS3Slowdown(authCheck.scope.projectId!).catch(() => {});
+          markProjectIngestFailure(authCheck.scope.projectId!, {
+            source: "process_event_batch",
+            reason: "s3_slowdown",
+          });
+        } else {
+          markProjectIngestFailure(authCheck.scope.projectId!, {
+            source: "process_event_batch",
+            reason: "s3_upload_error",
+          });
         }
 
         logger.error("Failed to upload event to S3", {
@@ -284,10 +340,8 @@ export const processEventBatch = async (
       const shardingKey = `${authCheck.scope.projectId}-${eventData.eventBodyId}`;
       const queue = IngestionQueue.getInstance({ shardingKey });
 
-      const isDatasetRunItemEvent =
-        getClickhouseEntityType(eventData.type) === "dataset_run_item";
-      const isObservationEvent =
-        getClickhouseEntityType(eventData.type) === "observation";
+      const isDatasetRunItemEvent = eventData.entityType === "dataset_run_item";
+      const isObservationEvent = eventData.entityType === "observation";
 
       const isOtelOrSkipS3Project =
         authCheck.scope.projectId !== null &&
@@ -332,6 +386,7 @@ export const processEventBatch = async (
                   fileKey: eventData.key,
                   skipS3List: shouldSkipS3List,
                   forwardToEventsTable,
+                  bucketPrefix: eventData.bucketPrefix,
                 },
                 authCheck: authCheck as {
                   validKey: true;
@@ -446,8 +501,7 @@ export const aggregateBatchResult = (
   });
 
   if (returnedErrors.length > 0) {
-    traceException(errors);
-    logger.error("Error processing events", {
+    logger.warn("Error processing events", {
       errors: returnedErrors,
       "langfuse.project.id": projectId,
     });

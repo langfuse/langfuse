@@ -13,17 +13,25 @@ import {
   type PersistedEvalOutputDefinition,
 } from "@langfuse/shared";
 import { InternalServerError } from "@langfuse/shared";
+import { EvalTemplateType } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import {
   ExperimentEvaluationRuleFilter,
   ObservationEvaluationRuleFilter,
+  PUBLIC_EVALUATOR_TYPE_CODE,
+  PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
   type PublicEvaluationRuleFilterType,
   type PublicEvaluationRuleMappingType,
   type PublicEvaluationRuleTargetType,
   type PublicEvaluatorModelConfigType,
   type PublicEvaluatorOutputDefinitionType,
+  type PublicEvaluatorTypeType,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
+import {
+  CODE_EVAL_TEMPLATE_VARIABLES,
+  getCodeEvalVariableMapping,
+} from "@/src/features/evals/utils/code-eval-template-utils";
 import type {
   ApiEvaluationRuleRecord,
   ApiEvaluatorRecord,
@@ -34,6 +42,20 @@ import {
   validateEvaluationRuleFilters,
   validateEvaluatorVariableMappings,
 } from "./validation";
+
+export function toPublicEvaluatorType(type: EvalTemplateType) {
+  return type === EvalTemplateType.CODE
+    ? PUBLIC_EVALUATOR_TYPE_CODE
+    : PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE;
+}
+
+export function toStoredEvaluatorType(
+  type: PublicEvaluatorTypeType,
+): EvalTemplateType {
+  return type === PUBLIC_EVALUATOR_TYPE_CODE
+    ? EvalTemplateType.CODE
+    : EvalTemplateType.LLM_AS_JUDGE;
+}
 
 const PUBLIC_TARGET_TO_INTERNAL_TARGET_OBJECT: Record<
   PublicEvaluationRuleTargetType,
@@ -59,6 +81,7 @@ const PUBLIC_MAPPING_SOURCE_TO_INTERNAL_COLUMN: Record<
   output: "output",
   metadata: "metadata",
   expected_output: "experimentItemExpectedOutput",
+  experiment_item_metadata: "experimentItemMetadata",
 };
 
 const INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE: Record<
@@ -72,6 +95,8 @@ const INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE: Record<
   expectedOutput: "expected_output",
   experiment_item_expected_output: "expected_output",
   experimentItemExpectedOutput: "expected_output",
+  experimentItemMetadata: "experiment_item_metadata",
+  experiment_item_metadata: "experiment_item_metadata",
 };
 
 function getPublicFilterArraySchema(target: PublicEvaluationRuleTargetType) {
@@ -82,34 +107,37 @@ function getPublicFilterArraySchema(target: PublicEvaluationRuleTargetType) {
   );
 }
 
-export function toStoredModelConfig(
-  modelConfig?: PublicEvaluatorModelConfigType | null,
-) {
-  if (!modelConfig) {
-    return {
-      provider: null,
-      model: null,
-      modelParams: undefined,
-    };
-  }
-
-  return {
-    provider: modelConfig.provider,
-    model: modelConfig.model,
-    modelParams: undefined,
-  };
-}
-
 export function deriveEvaluatorVariables(
   template: Pick<StoredPublicEvaluatorTemplate, "vars" | "prompt">,
 ) {
   return template.vars.length > 0
     ? template.vars
-    : extractVariables(template.prompt);
+    : extractVariables(template.prompt ?? "");
+}
+
+function toStoredVariableMappings(params: {
+  mappings: PublicEvaluationRuleMappingType[];
+  variables: string[];
+  target: PublicEvaluationRuleTargetType;
+}) {
+  validateEvaluatorVariableMappings({
+    mappings: params.mappings,
+    variables: params.variables,
+    target: params.target,
+  });
+
+  return observationVariableMappingList.parse(
+    params.mappings.map((mapping) => ({
+      templateVariable: mapping.variable,
+      selectedColumnId:
+        PUBLIC_MAPPING_SOURCE_TO_INTERNAL_COLUMN[mapping.source],
+      jsonSelector: mapping.jsonPath ?? null,
+    })),
+  );
 }
 
 export function parseStoredOutputDefinition(
-  template: Pick<StoredPublicEvaluatorTemplate, "outputDefinition">,
+  template: Pick<StoredPublicEvaluatorTemplate, "id" | "outputDefinition">,
 ): PublicEvaluatorOutputDefinitionType {
   const parsed = PersistedEvalOutputDefinitionSchema.safeParse(
     template.outputDefinition,
@@ -311,20 +339,41 @@ export function toApiEvaluator(params: {
   evaluationRuleCount: number;
 }): ApiEvaluatorRecord {
   const template = params.template;
-
-  return {
+  const base = {
     id: template.id,
     name: template.name,
     version: template.version,
     scope: template.projectId === null ? "managed" : "project",
-    type: "llm_as_judge",
-    prompt: template.prompt,
     variables: deriveEvaluatorVariables(template),
-    outputDefinition: parseStoredOutputDefinition(template),
-    modelConfig: toApiModelConfig(template),
     evaluationRuleCount: params.evaluationRuleCount,
     createdAt: template.createdAt,
     updatedAt: template.updatedAt,
+  } as const;
+
+  if (template.type === EvalTemplateType.CODE) {
+    if (!template.sourceCode || !template.sourceCodeLanguage) {
+      throw new InternalServerError("Code evaluator definition is corrupted");
+    }
+
+    return {
+      ...base,
+      type: PUBLIC_EVALUATOR_TYPE_CODE,
+      variables: [...CODE_EVAL_TEMPLATE_VARIABLES],
+      sourceCode: template.sourceCode,
+      sourceCodeLanguage: template.sourceCodeLanguage,
+    };
+  }
+
+  if (!template.prompt) {
+    throw new InternalServerError("Evaluator prompt is corrupted");
+  }
+
+  return {
+    ...base,
+    type: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
+    prompt: template.prompt,
+    outputDefinition: parseStoredOutputDefinition(template),
+    modelConfig: toApiModelConfig(template),
   };
 }
 
@@ -344,6 +393,7 @@ export function toApiEvaluationRule(
       id: config.evalTemplate.id,
       name: config.evalTemplate.name,
       scope: config.evalTemplate.projectId === null ? "managed" : "project",
+      type: toPublicEvaluatorType(config.evalTemplate.type),
     },
     target,
     enabled: config.status === JobConfigState.ACTIVE,
@@ -352,7 +402,11 @@ export function toApiEvaluationRule(
     pausedMessage: config.blockMessage ?? null,
     sampling: Number(config.sampling),
     filter: toApiFilters(config.filter, target),
-    mapping: toApiMappings(config.variableMapping),
+    mapping: toApiMappings(
+      config.evalTemplate.type === EvalTemplateType.CODE
+        ? getCodeEvalVariableMapping()
+        : config.variableMapping,
+    ),
     createdAt: config.createdAt,
     updatedAt: config.updatedAt,
   };
@@ -365,19 +419,23 @@ export function toJobConfigurationInput(params: {
     enabled: boolean;
     sampling: number;
     filter: PublicEvaluationRuleFilterType[];
-    mapping: PublicEvaluationRuleMappingType[];
+    mapping?: PublicEvaluationRuleMappingType[];
   };
   evaluatorVariables: string[];
+  evaluatorType: PublicEvaluatorTypeType;
 }) {
   validateEvaluationRuleFilters({
     target: params.input.target,
     filters: params.input.filter,
   });
-  validateEvaluatorVariableMappings({
-    mappings: params.input.mapping,
-    variables: params.evaluatorVariables,
-    target: params.input.target,
-  });
+  const variableMapping =
+    params.evaluatorType === PUBLIC_EVALUATOR_TYPE_CODE
+      ? getCodeEvalVariableMapping()
+      : toStoredVariableMappings({
+          mappings: params.input.mapping ?? [],
+          variables: params.evaluatorVariables,
+          target: params.input.target,
+        });
 
   return {
     scoreName: params.input.name,
@@ -385,14 +443,7 @@ export function toJobConfigurationInput(params: {
     filter: params.input.filter.map((filter) =>
       toStoredFilter(filter, params.input.target),
     ),
-    variableMapping: observationVariableMappingList.parse(
-      params.input.mapping.map((mapping) => ({
-        templateVariable: mapping.variable,
-        selectedColumnId:
-          PUBLIC_MAPPING_SOURCE_TO_INTERNAL_COLUMN[mapping.source],
-        jsonSelector: mapping.jsonPath ?? null,
-      })),
-    ),
+    variableMapping,
     sampling: params.input.sampling,
     status: params.input.enabled
       ? JobConfigState.ACTIVE

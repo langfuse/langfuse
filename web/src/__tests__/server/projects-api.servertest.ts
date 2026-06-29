@@ -175,6 +175,7 @@ describe("Projects API", () => {
       // Delete any test projects created during tests
       await prisma.project.deleteMany({
         where: {
+          orgId: "seed-org-id",
           name: {
             startsWith: "Test Project",
           },

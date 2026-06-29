@@ -1,0 +1,157 @@
+name: Storybook Preview
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, reopened, synchronize, labeled]
+
+permissions: {}
+
+concurrency:
+  group: storybook-preview-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: ${{ github.event.action != 'labeled' || github.event.label.name == 'storybook' }}
+
+jobs:
+  deploy:
+    name: Deploy Storybook preview
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    if: >-
+      (github.event_name == 'push' && github.ref_name == 'main') ||
+      github.event_name == 'workflow_dispatch' ||
+      (contains(github.event.pull_request.labels.*.name, 'storybook') &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.event.action != 'labeled' || github.event.label.name == 'storybook'))
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Resolve pull request number
+        id: resolve-pr-number
+        if: github.event_name == 'workflow_dispatch' && github.ref_name != 'main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          pr_number=$(gh api -X GET "repos/${GITHUB_REPOSITORY}/pulls" -f "head=${GITHUB_REPOSITORY%%/*}:${GITHUB_REF_NAME}" -f state=open --jq '.[0].number')
+
+          if [ -z "${pr_number}" ] || [ "${pr_number}" = "null" ]; then
+            echo "No open pull request found for branch ${GITHUB_REF_NAME}."
+            exit 1
+          fi
+
+          echo "pr_number=${pr_number}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout pull request
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
+        with:
+          version: 11.4.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Load default env
+        run: cp .env.dev.example .env
+
+      - name: Build Storybook
+        run: pnpm --filter web run build-storybook
+
+      - name: Deploy preview to Vercel
+        id: publish
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number || steps.resolve-pr-number.outputs.pr_number }}
+          STABLE_DEPLOYMENT: ${{ github.ref_name == 'main' && github.event_name != 'pull_request' }}
+          VERCEL_ORG_ID: ${{ secrets.STORYBOOK_VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.STORYBOOK_VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.STORYBOOK_VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          pnpm install -g vercel@54.7.0
+
+          set +e
+          deploy_output=$(vercel deploy web/storybook-static --yes --scope langfuse 2>&1)
+          deploy_status=$?
+          set -e
+
+          if [ "${deploy_status}" -ne 0 ]; then
+            printf '%s\n' "${deploy_output}"
+            echo "Vercel deploy failed."
+            exit "${deploy_status}"
+          fi
+
+          preview_url=$(printf '%s\n' "${deploy_output}" | grep -Eo 'https://[^[:space:]]+\.vercel\.app[^[:space:]]*' | tail -n 1 || true)
+
+          if [ -z "${preview_url}" ]; then
+            printf '%s\n' "${deploy_output}"
+            echo "Failed to determine Vercel preview URL."
+            exit 1
+          fi
+
+          if [ "${STABLE_DEPLOYMENT}" = "true" ]; then
+            preview_alias="storybook.langfuse.vercel.app"
+          else
+            preview_alias="pr-${PR_NUMBER}-storybook.langfuse.vercel.app"
+          fi
+
+          vercel alias set "${preview_url}" "${preview_alias}" --scope langfuse
+          preview_url="https://${preview_alias}"
+
+          echo "url=${preview_url}" >> "$GITHUB_OUTPUT"
+
+      - name: Comment preview link
+        if: github.event_name == 'pull_request' || steps.resolve-pr-number.outputs.pr_number != ''
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PREVIEW_URL: ${{ steps.publish.outputs.url }}
+          PR_NUMBER: ${{ github.event.pull_request.number || steps.resolve-pr-number.outputs.pr_number }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        with:
+          script: |
+            const marker = "<!-- storybook-preview -->";
+            const body = `${marker}\nStorybook preview: ${process.env.PREVIEW_URL}\n\nUpdated at: ${new Date().toISOString()}\nCommit: ${process.env.COMMIT_SHA}`;
+            const { owner, repo } = context.repo;
+            const issue_number = Number(process.env.PR_NUMBER);
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+            const previousComment = comments.find(
+              (comment) =>
+                comment.user?.login === "github-actions[bot]" &&
+                comment.body?.includes(marker),
+            );
+
+            if (previousComment) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: previousComment.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body,
+              });
+            }

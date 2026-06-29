@@ -30,6 +30,7 @@ import {
   getTracesCountForPublicApi,
 } from "@/src/features/public-api/server/traces";
 import { env } from "@/src/env.mjs";
+import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 
 export default withMiddlewares(
   {
@@ -38,6 +39,9 @@ export default withMiddlewares(
       bodySchema: PostTracesV1Body,
       responseSchema: PostTracesV1Response, // Adjust this if you have a specific response schema
       rateLimitResource: "legacy-ingestion",
+      // Legacy POST writes a trace-create event that lands in the legacy traces
+      // ClickHouse table; events_only deployments expect OTel ingestion.
+      rejectInEventsOnlyMode: true,
       fn: async ({ body, auth, res }) => {
         await telemetry();
         const event = {
@@ -67,8 +71,11 @@ export default withMiddlewares(
 
     GET: createAuthedProjectAPIRoute({
       name: "Get Traces",
+      rateLimitResource: "public-api-legacy",
       querySchema: GetTracesV1Query,
       responseSchema: GetTracesV1Response,
+      rateLimitUpgradePath: legacyPublicApiRateLimitUpgradePaths.tracesList,
+      rejectInEventsOnlyMode: true,
       fn: async ({ query, auth }) => {
         // Api-performance controls.
         // 1. Reject if no date range and rejection is enabled
@@ -123,13 +130,7 @@ export default withMiddlewares(
           toTimestamp: query.toTimestamp ?? undefined,
         };
 
-        // Use events table if query parameter is explicitly set, otherwise use environment variable
-        const useEventsTable =
-          query.useEventsTable !== undefined && query.useEventsTable !== null
-            ? query.useEventsTable === true
-            : env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true";
-
-        if (useEventsTable) {
+        if (query.useEventsTable) {
           const [items, count] = await Promise.all([
             getTracesFromEventsTableForPublicApi({
               ...filterProps,

@@ -36,8 +36,9 @@ export type FullEventsObservation = AdditionalObservationFields &
 export type FullEventsObservations = Array<FullEventsObservation>;
 
 // Public API version of EventsObservation, some fields are omitted because
-// V2 allows clients to specify fields
+// V2 allows clients to specify fields.
+// modelId is always added by enrichObservationsWithModelData (null when model group not requested).
 export type EventsObservationPublic = Partial<
   EventsObservation & ObservationPriceFields
 > &
-  ObservationCoreFields;
+  ObservationCoreFields & { modelId: string | null };

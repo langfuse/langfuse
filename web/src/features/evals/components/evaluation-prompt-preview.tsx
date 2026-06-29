@@ -100,7 +100,7 @@ const ColoredPromptView = ({
                 fragment.content
               ) : (
                 <ColoredVariable
-                  value={fragment.value || ""}
+                  value={fragment.value ?? ""}
                   index={fragment.colorIndex || 0}
                 />
               )}
@@ -173,7 +173,7 @@ export const EvaluationPromptPreview = ({
       // Add variable
       const variableName = match[1];
       const variableValue =
-        extractedVariables.find((v) => v.variable === variableName)?.value ||
+        extractedVariables.find((v) => v.variable === variableName)?.value ??
         "";
 
       fragments.push({

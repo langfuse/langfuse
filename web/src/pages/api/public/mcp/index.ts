@@ -80,7 +80,9 @@ export default async function handler(
     const authCheck = await new ApiAuthService(
       prisma,
       redis,
-    ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
+    ).verifyAuthHeaderAndReturnScope(req.headers.authorization, {
+      allowInAppAgentKey: true,
+    });
 
     if (!authCheck.validKey) {
       throw new UnauthorizedError(authCheck.error);
@@ -122,9 +124,10 @@ export default async function handler(
       apiKeyId: authCheck.scope.apiKeyId,
       accessLevel: "project",
       publicKey: authCheck.scope.publicKey,
+      isInAppAgentKey: authCheck.scope.isInAppAgentKey === true,
     };
 
-    logger.info("MCP request authenticated", {
+    logger.debug("MCP request authenticated", {
       method: req.method,
       projectId: context.projectId,
       orgId: context.orgId,
@@ -174,7 +177,7 @@ export default async function handler(
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: "1mb",
+      sizeLimit: "4.5mb",
     },
   },
 };

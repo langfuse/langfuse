@@ -16,6 +16,7 @@ import {
   EvaluatorBlockSource,
   finalizeBlockedEvaluatorConfigBlocks,
 } from "@langfuse/shared/src/server";
+import { findDefaultModelEvalTemplateIds } from "@/src/features/evals/server/evaluatorRepository";
 
 export default withMiddlewares({
   DELETE: createAuthedProjectAPIRoute({
@@ -75,13 +76,9 @@ export default withMiddlewares({
         }
 
         if (defaultModel && defaultModel.llmApiKeyId === llmApiKey.id) {
-          const evalTemplates = await tx.evalTemplate.findMany({
-            where: {
-              OR: [{ projectId }, { projectId: null }],
-              provider: null,
-              model: null,
-            },
-            select: { id: true },
+          const evalTemplateIds = await findDefaultModelEvalTemplateIds({
+            tx,
+            projectId,
           });
 
           const defaultModelBlockResult = await blockEvaluatorConfigsInTx({
@@ -89,7 +86,7 @@ export default withMiddlewares({
             projectId,
             where: {
               evalTemplateId: {
-                in: evalTemplates.map((template) => template.id),
+                in: evalTemplateIds,
               },
             },
             blockReason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,

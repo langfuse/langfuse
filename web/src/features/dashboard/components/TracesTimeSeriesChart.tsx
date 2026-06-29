@@ -9,11 +9,8 @@ import {
 } from "@/src/utils/date-range-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
-import {
-  type QueryType,
-  type ViewVersion,
-  mapLegacyUiTableFilterToView,
-} from "@/src/features/query";
+import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
@@ -219,6 +216,9 @@ export const TracesAndObservationsTimeSeriesChart = ({
                         show_data_point_dots: false,
                       }}
                       legendPosition="above"
+                      // Counts are additive: the legend total reconciles with
+                      // the card headline. (LFE-10498)
+                      legendSummary="sum"
                     />
                   </div>
                 ) : (

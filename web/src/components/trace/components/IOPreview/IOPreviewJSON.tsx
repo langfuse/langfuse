@@ -224,7 +224,7 @@ function IOPreviewJSONInner({
     if (showOutput) dataObj.output = effectiveOutput;
     if (showMetadata) dataObj.metadata = effectiveMetadata;
     const jsonString = JSON.stringify(dataObj, null, 2);
-    void navigator.clipboard.writeText(jsonString);
+    navigator.clipboard.writeText(jsonString);
   }, [
     showInput,
     showOutput,

@@ -176,7 +176,7 @@ const getBlockedEvaluatorConfigNotifications = (
 const notifyBlockedEvaluatorConfigsInBackground = (
   params: NotifyBlockedEvaluatorConfigsParams,
 ): void => {
-  void notifyBlockedEvaluatorConfigs(params).catch((error) =>
+  notifyBlockedEvaluatorConfigs(params).catch((error) =>
     logger.error(
       "[EVALUATOR BLOCK] Failed to send blocked evaluator notifications",
       error,

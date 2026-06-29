@@ -26,7 +26,51 @@ type SidebarNotification = {
   ttlMs?: number;
 };
 
-const notifications: SidebarNotification[] = [
+export const notifications: SidebarNotification[] = [
+  {
+    id: "lw5-1",
+    title: "Launch Week: Day 1",
+    description:
+      "Run experiments inside GitHub Actions to test every PR against a Langfuse dataset.",
+    link: "https://langfuse.com/changelog/2026-05-25-experiment-ci-cd-gates",
+    linkTitle: "Learn more",
+    createdAt: "2026-05-25",
+  },
+  {
+    id: "lw5-2",
+    title: "Launch Week: Day 2",
+    description:
+      "Langfuse agent skill turns Langfuse into a headless platform to evaluate, query and instrument your application.",
+    link: "https://langfuse.com/changelog/2026-05-26-langfuse-agent-skill",
+    linkTitle: "Learn more",
+    createdAt: "2026-05-26",
+  },
+  {
+    id: "lw5-3",
+    title: "Launch Week: Day 3",
+    description: "Fast full-text search on observation I/O via the UI and API",
+    link: "https://langfuse.com/changelog/2026-05-27-clickhouse-full-text-search-fast-mode",
+    linkTitle: "Learn more",
+    createdAt: "2026-05-27",
+  },
+  {
+    id: "lw5-4",
+    title: "Launch Week: Day 4",
+    description:
+      "Code evaluators let you score observations and experiments with Python/TypeScript checks.",
+    link: "https://langfuse.com/changelog/2026-05-28-code-evaluators",
+    linkTitle: "Learn more",
+    createdAt: "2026-05-28",
+  },
+  {
+    id: "lw5-5",
+    title: "Launch Week: Day 5",
+    description:
+      "Langfuse MCP now covers observations, metrics, scores, datasets, comments, and more.",
+    link: "https://langfuse.com/changelog/2026-05-29-mcp-update",
+    linkTitle: "Learn more",
+    createdAt: "2026-05-29",
+  },
   {
     id: "github-star",
     title: "Star Langfuse",
@@ -71,12 +115,41 @@ export function SidebarNotifications() {
     return null;
   }
 
+  const MAX_STACK = 3;
+  const visibleNotifications = activeNotifications.slice(0, MAX_STACK);
+  const frontNotification = visibleNotifications[0];
+  const backCount = visibleNotifications.length - 1;
+  const peekOffset = 8;
+  const peekScaleStep = 0.05;
+  const extraBottomPadding = backCount * peekOffset + 2;
+
   return (
-    <div className="flex flex-col gap-2 group-data-[collapsible=icon]:hidden">
-      {activeNotifications.map((notification) => (
+    <div
+      className="group-data-[collapsible=icon]:hidden"
+      style={{ paddingBottom: extraBottomPadding }}
+    >
+      <div className="relative">
+        {Array.from({ length: backCount }).map((_, i) => {
+          const index = i + 1;
+          return (
+            <Card
+              key={`stack-${index}`}
+              aria-hidden
+              className="bg-card pointer-events-none absolute inset-0 rounded-md shadow-none"
+              style={{
+                transform: `translateY(${index * peekOffset}px) scaleX(${
+                  1 - index * peekScaleStep
+                })`,
+                transformOrigin: "top center",
+                zIndex: visibleNotifications.length - index,
+              }}
+            />
+          );
+        })}
         <Card
-          key={notification.id}
-          className="bg-opacity-50 relative max-h-60 overflow-hidden rounded-md shadow-none"
+          key={frontNotification.id}
+          className="bg-card relative max-h-60 overflow-hidden rounded-md shadow-none"
+          style={{ zIndex: visibleNotifications.length }}
         >
           <Button
             variant="ghost"
@@ -84,33 +157,33 @@ export function SidebarNotifications() {
             className="absolute top-2.5 right-1.5 h-5 w-5 p-0"
             onClick={() => {
               capture("notification:dismiss_notification", {
-                notification_id: notification.id,
+                notification_id: frontNotification.id,
               });
-              dismissNotification(notification.id);
+              dismissNotification(frontNotification.id);
             }}
             title="Dismiss"
           >
             <X className="h-3.5 w-3.5" />
           </Button>
           <CardHeader className="px-3 pt-2.5 pr-6 pb-0">
-            <CardTitle className="text-sm">{notification.title}</CardTitle>
+            <CardTitle className="text-sm">{frontNotification.title}</CardTitle>
             <CardDescription className="mt-1">
-              {notification.description}
+              {frontNotification.description}
             </CardDescription>
           </CardHeader>
           <CardContent className="px-3 pt-1.5 pb-2.5">
-            {notification.link &&
-              (notification.linkContent ? (
+            {frontNotification.link &&
+              (frontNotification.linkContent ? (
                 <Link
-                  href={notification.link}
+                  href={frontNotification.link}
                   target="_blank"
                   onClick={() => {
                     capture("notification:click_link", {
-                      notification_id: notification.id,
+                      notification_id: frontNotification.id,
                     });
                   }}
                 >
-                  {notification.linkContent}
+                  {frontNotification.linkContent}
                 </Link>
               ) : (
                 <Button
@@ -120,21 +193,21 @@ export function SidebarNotifications() {
                   asChild
                 >
                   <Link
-                    href={notification.link}
+                    href={frontNotification.link}
                     target="_blank"
                     onClick={() => {
                       capture("notification:click_link", {
-                        notification_id: notification.id,
+                        notification_id: frontNotification.id,
                       });
                     }}
                   >
-                    {notification.linkTitle ?? "Learn more"} &rarr;
+                    {frontNotification.linkTitle ?? "Learn more"} &rarr;
                   </Link>
                 </Button>
               ))}
           </CardContent>
         </Card>
-      ))}
+      </div>
     </div>
   );
 }

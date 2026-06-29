@@ -186,8 +186,8 @@ function DomainRow({ orgId, row }: { orgId: string; row: DomainRowData }) {
 
   const verifyMutation = api.verifiedDomain.verify.useMutation({
     onSuccess: () => {
-      void utils.verifiedDomain.list.invalidate({ orgId });
-      void utils.ssoConfig.get.invalidate({ orgId });
+      utils.verifiedDomain.list.invalidate({ orgId });
+      utils.ssoConfig.get.invalidate({ orgId });
       showSuccessToast({
         title: "Domain verified",
         description: `${row.domain} is now verified.`,
@@ -323,7 +323,7 @@ function AddDomainButton({ orgId }: { orgId: string }) {
 
   const createMutation = api.verifiedDomain.create.useMutation({
     onSuccess: () => {
-      void utils.verifiedDomain.list.invalidate({ orgId });
+      utils.verifiedDomain.list.invalidate({ orgId });
       showSuccessToast({
         title: "Domain added",
         description:
@@ -401,7 +401,7 @@ function DeleteDomainButton({
 
   const deleteMutation = api.verifiedDomain.delete.useMutation({
     onSuccess: () => {
-      void utils.verifiedDomain.list.invalidate({ orgId });
+      utils.verifiedDomain.list.invalidate({ orgId });
       showSuccessToast({
         title: "Domain removed",
         description: `${domain} has been removed.`,

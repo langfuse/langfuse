@@ -96,6 +96,17 @@ export * from "./domain";
 
 // io representation
 export * from "./utils/IORepresentation";
+export * from "./utils/mediaReferences";
 
 // analytics integrations (client-safe)
 export * from "./features/analytics-integrations";
+export {
+  ChartConfigSchema,
+  DimensionSchema,
+  MetricSchema,
+} from "./server/services/DashboardService/types";
+
+// query (dashboard / monitor data model)
+export * from "./features/query/types";
+export * from "./features/query/dataModel";
+export * from "./features/query/validateQuery";

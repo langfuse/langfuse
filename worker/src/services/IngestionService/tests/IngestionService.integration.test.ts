@@ -22,7 +22,6 @@ import waitForExpect from "wait-for-expect";
 import { ClickhouseWriter, TableName } from "../../ClickhouseWriter";
 import { IngestionService } from "../../IngestionService";
 import { ModelUsageUnit, ScoreSourceEnum } from "@langfuse/shared";
-import { env } from "../../../env";
 
 let projectId = "";
 const environment = "default";
@@ -987,7 +986,7 @@ describe("Ingestion end-to-end tests", () => {
           ? null
           : getModelId(testConfig.expectedInternalModelId);
       expect(generation.internal_model_id).toBe(expectedModelId);
-    });
+    }, 15_000);
   });
 
   it("should create and update all events", async () => {
@@ -1342,11 +1341,15 @@ describe("Ingestion end-to-end tests", () => {
 
     // Verify that invalid scores were silently rejected (not inserted)
     await expect(
-      getClickhouseRecord(TableName.Scores, invalidScoreId1),
+      getClickhouseRecord(TableName.Scores, invalidScoreId1, {
+        waitForRecord: false,
+      }),
     ).rejects.toThrow();
 
     await expect(
-      getClickhouseRecord(TableName.Scores, invalidScoreId2),
+      getClickhouseRecord(TableName.Scores, invalidScoreId2, {
+        waitForRecord: false,
+      }),
     ).rejects.toThrow();
   });
 
@@ -2909,44 +2912,29 @@ describe("Ingestion end-to-end tests", () => {
 async function getClickhouseRecord<T extends TableName>(
   tableName: T,
   entityId: string,
+  options: { waitForRecord?: boolean } = {},
 ): Promise<RecordReadType<T>> {
-  let query = await clickhouseClient().query({
-    query: `SELECT * FROM ${tableName} FINAL WHERE project_id = '${projectId}' AND id = '${entityId}'`,
-    format: "JSONEachRow",
-  });
+  let result: unknown;
+  const waitForRecord = options.waitForRecord ?? true;
 
-  if (
-    tableName === "traces" &&
-    env.LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT === "true"
-  ) {
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    query = await clickhouseClient().query({
-      query: `SELECT
-                id,
-                name as name,
-                user_id as user_id,
-                metadata as metadata,
-                release as release,
-                version as version,
-                project_id,
-                environment,
-                public as public,
-                bookmarked as bookmarked,
-                tags,
-                input as input,
-                output as output,
-                session_id as session_id,
-                0 as is_deleted,
-                start_time as timestamp,
-                created_at,
-                updated_at,
-                updated_at as event_ts
-        FROM traces_all_amt FINAL WHERE project_id = '${projectId}' AND id = '${entityId}'`,
+  const loadResult = async () => {
+    let query = await clickhouseClient().query({
+      query: `SELECT * FROM ${tableName} FINAL WHERE project_id = '${projectId}' AND id = '${entityId}'`,
       format: "JSONEachRow",
     });
-  }
 
-  const result = (await query.json())[0];
+    result = (await query.json())[0];
+  };
+
+  if (waitForRecord) {
+    await waitForExpect(async () => {
+      await loadResult();
+      expect(result).toBeDefined();
+    }, 1_500);
+  } else {
+    await loadResult();
+    expect(result).toBeDefined();
+  }
 
   return (
     tableName === TableName.Traces

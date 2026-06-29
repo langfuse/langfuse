@@ -40,7 +40,7 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
 
   const mutDeleteFolder = api.prompts.delete.useMutation({
     onSuccess: () => {
-      void utils.prompts.invalidate();
+      utils.prompts.invalidate();
       setError(null);
       setIsOpen(false);
       setConfirmName("");

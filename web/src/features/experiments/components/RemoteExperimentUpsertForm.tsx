@@ -44,6 +44,7 @@ export const RemoteExperimentUpsertForm = ({
   datasetId,
   existingRemoteExperiment,
   setShowRemoteExperimentUpsertForm,
+  onBack,
 }: {
   projectId: string;
   datasetId: string;
@@ -53,6 +54,7 @@ export const RemoteExperimentUpsertForm = ({
     enabled?: boolean;
   } | null;
   setShowRemoteExperimentUpsertForm: (show: boolean) => void;
+  onBack?: () => void;
 }) => {
   const hasDatasetAccess = useHasProjectAccess({
     projectId,
@@ -164,18 +166,24 @@ export const RemoteExperimentUpsertForm = ({
       <DialogHeader>
         <Button
           variant="ghost"
-          onClick={() => setShowRemoteExperimentUpsertForm(false)}
+          onClick={() => {
+            if (onBack) {
+              onBack();
+            } else {
+              setShowRemoteExperimentUpsertForm(false);
+            }
+          }}
           className="inline-block self-start"
         >
           ← Back
         </Button>
         <DialogTitle>
           {existingRemoteExperiment
-            ? "Edit remote dataset run trigger"
-            : "Set up remote dataset run trigger in UI"}
+            ? "Edit remote experiment trigger"
+            : "Set up remote experiment trigger in UI"}
         </DialogTitle>
         <DialogDescription>
-          Enable your team to run custom dataset runs on dataset{" "}
+          Enable your team to run custom experiments on dataset{" "}
           <strong>
             {dataset.isSuccess ? (
               <>&quot;{dataset.data?.name}&quot;</>
@@ -183,7 +191,7 @@ export const RemoteExperimentUpsertForm = ({
               <Spinner size="sm" display="inline" />
             )}
           </strong>
-          . Configure a webhook URL to trigger remote custom dataset runs from
+          . Configure a webhook URL to trigger remote custom experiments from
           UI. We will send dataset info (name, id) and config to your service,
           which can run against the dataset and post results to Langfuse.
         </DialogDescription>
@@ -199,7 +207,7 @@ export const RemoteExperimentUpsertForm = ({
                 <FormItem>
                   <FormLabel>URL</FormLabel>
                   <FormDescription>
-                    The URL that will be called when the remote dataset run is
+                    The URL that will be called when the remote experiment is
                     triggered.
                   </FormDescription>
                   <FormControl>
@@ -220,9 +228,9 @@ export const RemoteExperimentUpsertForm = ({
                 <FormItem>
                   <FormLabel>Default config</FormLabel>
                   <FormDescription>
-                    Set a default config that will be sent to the remote dataset
-                    run URL. This can be modified before starting a new run.
-                    View docs for more details.
+                    Set a default config that will be sent to the remote
+                    experiment run URL. This can be modified before starting a
+                    new run. View docs for more details.
                   </FormDescription>
                   <CodeMirrorEditor
                     value={field.value}
@@ -280,6 +288,7 @@ export const RemoteExperimentUpsertForm = ({
               )}
               <Button
                 type="submit"
+                className="ml-auto"
                 disabled={upsertRemoteExperimentMutation.isPending}
               >
                 {upsertRemoteExperimentMutation.isPending ? (

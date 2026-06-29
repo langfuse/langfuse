@@ -117,6 +117,9 @@ export const PutScoreConfigQuery = z.object({
   configId: z.string(),
 });
 
+const nonEmptyScoreConfigUpdateMessage =
+  "Request body cannot be empty. At least one field must be provided for update.";
+
 export const PutScoreConfigBody = z
   .object({
     isArchived: z.boolean().optional(),
@@ -127,8 +130,19 @@ export const PutScoreConfigBody = z
     description: z.string().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
-    message:
-      "Request body cannot be empty. At least one field must be provided for update.",
+    message: nonEmptyScoreConfigUpdateMessage,
+  });
+
+export const PutScoreConfigBodyWithoutArchived = z
+  .object({
+    name: ScoreConfigNameSchema.optional(),
+    minValue: z.number().optional(),
+    maxValue: z.number().optional(),
+    categories: CategoriesWithCustomError.optional(),
+    description: z.string().optional(),
+  })
+  .refine((data) => Object.keys(data).length > 0, {
+    message: nonEmptyScoreConfigUpdateMessage,
   });
 
 export const PutScoreConfigResponse = APIScoreConfig;

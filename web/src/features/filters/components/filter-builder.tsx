@@ -65,6 +65,7 @@ import {
 } from "@/src/components/ui/input-command";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { openAIFeaturesSettings } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
 
 /**
  * Extended ColumnDefinition with optional alert for UI display.
@@ -202,11 +203,7 @@ export function PopoverFilterBuilder({
             >
               <FilterIcon className="h-4 w-4" />
               {filterState.length > 0 && (
-                <span
-                  className={cn(
-                    "bg-input absolute top-0 -right-1 flex h-4 min-w-4 items-center justify-center rounded-sm px-1 text-xs shadow-xs",
-                  )}
-                >
+                <span className="bg-input absolute top-0 -right-1 flex h-4 min-w-4 items-center justify-center rounded-sm px-1 text-xs shadow-xs">
                   {filterState.length}
                 </span>
               )}
@@ -502,10 +499,7 @@ function FilterBuilderForm({
           <Button
             onClick={() => {
               if (!organization?.aiFeaturesEnabled && organization?.id) {
-                window.open(
-                  `/organization/${organization.id}/settings`,
-                  "_blank",
-                );
+                openAIFeaturesSettings(organization.id);
               } else {
                 setShowAiFilter(!showAiFilter);
               }
@@ -513,7 +507,6 @@ function FilterBuilderForm({
             type="button"
             variant="outline"
             size="default"
-            disabled={false}
             title={
               !organization?.aiFeaturesEnabled
                 ? "AI features are disabled for your organization. Click to enable them in organization settings."

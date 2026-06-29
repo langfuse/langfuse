@@ -1,7 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import { Switch } from "@/src/components/ui/switch";
 import { api } from "@/src/utils/api";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogBody,
@@ -20,21 +20,19 @@ import {
 import { Card } from "@/src/components/ui/card";
 import { LockIcon, ExternalLink } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-
-const aiFeaturesSchema = z.object({
-  aiFeaturesEnabled: z.boolean(),
-});
 
 export default function AIFeatureSwitch() {
   const { update: updateSession } = useSession();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const capture = usePostHogClientCapture();
   const organization = useQueryOrganization();
+  const aiFeaturesEnabled = organization?.aiFeaturesEnabled;
+  const aiTelemetryEnabled = organization?.aiTelemetryEnabled;
   const [isAIFeatureSwitchEnabled, setIsAIFeatureSwitchEnabled] = useState(
-    organization?.aiFeaturesEnabled ?? false,
+    aiFeaturesEnabled ?? false,
+  );
+  const [isAITelemetrySwitchEnabled, setIsAITelemetrySwitchEnabled] = useState(
+    aiTelemetryEnabled ?? true,
   );
   const [confirmOpen, setConfirmOpen] = useState(false);
   const hasAccess = useHasOrganizationAccess({
@@ -42,16 +40,9 @@ export default function AIFeatureSwitch() {
     scope: "organization:update",
   });
 
-  const confirmForm = useForm<z.infer<typeof aiFeaturesSchema>>({
-    resolver: zodResolver(aiFeaturesSchema),
-    defaultValues: {
-      aiFeaturesEnabled: isAIFeatureSwitchEnabled,
-    },
-  });
-
   const updateAIFeatures = api.organizations.update.useMutation({
-    onSuccess: () => {
-      void updateSession();
+    onSuccess: async () => {
+      await updateSession();
       setConfirmOpen(false);
     },
     onError: () => {
@@ -59,11 +50,49 @@ export default function AIFeatureSwitch() {
     },
   });
 
+  const updateAITelemetry = api.organizations.update.useMutation({
+    onSuccess: async () => {
+      await updateSession();
+    },
+    onError: () => {
+      setIsAITelemetrySwitchEnabled(aiTelemetryEnabled ?? true);
+    },
+  });
+
+  useEffect(() => {
+    if (aiFeaturesEnabled === undefined || aiTelemetryEnabled === undefined) {
+      return;
+    }
+
+    if (!confirmOpen && !updateAIFeatures.isPending) {
+      setIsAIFeatureSwitchEnabled(aiFeaturesEnabled);
+    }
+
+    if (!updateAITelemetry.isPending) {
+      setIsAITelemetrySwitchEnabled(aiTelemetryEnabled);
+    }
+  }, [
+    aiFeaturesEnabled,
+    aiTelemetryEnabled,
+    confirmOpen,
+    updateAIFeatures.isPending,
+    updateAITelemetry.isPending,
+  ]);
+
   function handleSwitchChange(newValue: boolean) {
     if (!hasAccess) return;
     setIsAIFeatureSwitchEnabled(newValue);
-    confirmForm.setValue("aiFeaturesEnabled", newValue);
     setConfirmOpen(true);
+  }
+
+  function handleTelemetrySwitchChange(newValue: boolean) {
+    if (!organization || !hasAccess) return;
+    setIsAITelemetrySwitchEnabled(newValue);
+    capture("organization_settings:ai_telemetry_toggle");
+    updateAITelemetry.mutate({
+      orgId: organization.id,
+      aiTelemetryEnabled: newValue,
+    });
   }
 
   function handleCancel() {
@@ -121,6 +150,31 @@ export default function AIFeatureSwitch() {
             )}
           </div>
         </div>
+        {isAIFeatureSwitchEnabled && (
+          <div className="mt-4 flex flex-row items-center justify-between border-t pt-4">
+            <div className="flex flex-col gap-1">
+              <h4 className="font-semibold">
+                AI Data Use for Product/Service Improvement
+              </h4>
+              <p className="text-sm">
+                Share data about your use of AI with Langfuse for product and
+                service improvement.
+              </p>
+            </div>
+            <div className="relative">
+              <Switch
+                checked={isAITelemetrySwitchEnabled}
+                onCheckedChange={handleTelemetrySwitchChange}
+                disabled={!hasAccess || updateAITelemetry.isPending}
+              />
+              {!hasAccess && (
+                <span title="No access">
+                  <LockIcon className="text-muted absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform" />
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </Card>
 
       <Dialog

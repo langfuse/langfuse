@@ -5,10 +5,7 @@ import { type WidgetChartConfig, WidgetForm } from "@/src/features/widgets";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
-import {
-  type views,
-  type metricAggregations,
-} from "@/src/features/query/types";
+import { type metricAggregations, type views } from "@langfuse/shared/query";
 import { type z } from "zod";
 import { SelectDashboardDialog } from "@/src/features/dashboard/components/SelectDashboardDialog";
 import { useState } from "react";
@@ -31,7 +28,7 @@ export default function NewWidget() {
       });
 
       if (dashboardId) {
-        void router.push(
+        router.push(
           `/project/${projectId}/dashboards/${dashboardId}?addWidgetId=${data.widget.id}`,
         );
       } else {

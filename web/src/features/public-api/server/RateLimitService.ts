@@ -20,11 +20,28 @@ import { type NextApiResponse } from "next";
 import {
   createUnstablePublicApiRateLimitError,
   sendUnstablePublicApiErrorResponse,
-  unstablePublicEvalsErrorContract,
   type PublicApiErrorContract,
 } from "@/src/features/public-api/server/unstable-public-api-error-contract";
+import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 
 export const RATE_LIMIT_REDIS_KEY_PREFIX = "rate-limit";
+
+export type RateLimitResponseOptions = {
+  errorContract?: PublicApiErrorContract | undefined;
+  upgradePath?: RateLimitUpgradePath | undefined;
+};
+
+export type RateLimitResponseOptionsInput =
+  | PublicApiErrorContract
+  | RateLimitResponseOptions;
+
+const normalizeRateLimitResponseOptions = (
+  options?: RateLimitResponseOptionsInput,
+): RateLimitResponseOptions => {
+  return typeof options === "string"
+    ? { errorContract: options }
+    : (options ?? {});
+};
 
 // Business Logic
 // - rate limit strategy is based on org-id, org plan, and resources. Rate limits are applied in buckets of minutes.
@@ -176,7 +193,7 @@ export class RateLimitHelper {
 
   sendRestResponseIfLimited(
     nextResponse: NextApiResponse,
-    errorContract?: PublicApiErrorContract,
+    options?: RateLimitResponseOptionsInput,
   ) {
     if (!this.res || !this.isRateLimited()) {
       logger.error("Trying to send rate limit response without being limited.");
@@ -184,29 +201,26 @@ export class RateLimitHelper {
         "Trying to send rate limit response without being limited.",
       );
     }
-    return sendRateLimitResponse(nextResponse, this.res, errorContract);
+    return sendRateLimitResponse(nextResponse, this.res, options);
   }
 }
 
 export const sendRateLimitResponse = (
   res: NextApiResponse,
   rateLimitRes: RateLimitResult,
-  errorContract?: PublicApiErrorContract,
+  options?: RateLimitResponseOptionsInput,
 ) => {
+  const responseOptions = normalizeRateLimitResponseOptions(options);
   const httpHeader = createHttpHeaderFromRateLimit(rateLimitRes);
 
   for (const [header, value] of Object.entries(httpHeader)) {
     res.setHeader(header, value);
   }
 
-  if (errorContract === unstablePublicEvalsErrorContract) {
-    return sendUnstablePublicApiErrorResponse(
-      res,
-      createUnstablePublicApiRateLimitError(rateLimitRes),
-    );
-  }
-
-  res.status(429).end("429 - rate limit exceeded");
+  return sendUnstablePublicApiErrorResponse(
+    res,
+    createUnstablePublicApiRateLimitError(rateLimitRes, responseOptions),
+  );
 };
 
 export const createHttpHeaderFromRateLimit = (res: RateLimitResult) => {
@@ -251,6 +265,12 @@ const getPlanBasedRateLimitConfig = (
             points: 1000,
             durationInSec: 60,
           };
+        case "media-upload":
+          return {
+            resource: "media-upload",
+            points: 1000,
+            durationInSec: 60,
+          };
         case "legacy-ingestion":
           return {
             resource: "legacy-ingestion",
@@ -267,6 +287,12 @@ const getPlanBasedRateLimitConfig = (
           return {
             resource: "public-api",
             points: 30,
+            durationInSec: 60,
+          };
+        case "public-api-legacy":
+          return {
+            resource: "public-api-legacy",
+            points: 15,
             durationInSec: 60,
           };
         case "datasets":
@@ -299,12 +325,18 @@ const getPlanBasedRateLimitConfig = (
             points: 50,
             durationInSec: 86400, // 50 requests per day
           };
+        case "in-app-agent-run":
+          return {
+            resource: "in-app-agent-run",
+            points: 100,
+            durationInSec: 86400,
+          };
         default:
           const exhaustiveCheck: never = resource;
           throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);
       }
     case "cloud:core":
-      // TEMPORARY: Expanded core plan rate limits to pro limits to enable legacy pro -> core migration
+      // TEMPORARY: Expanded selected core plan rate limits to pro limits to enable legacy pro -> core migration
       // Original core limits (commented out):
       // ingestion: 4000, public-api: 100, datasets: 200, public-api-metrics: 200, public-api-daily-metrics-legacy: 20
       switch (resource) {
@@ -313,6 +345,12 @@ const getPlanBasedRateLimitConfig = (
             resource: "ingestion",
             // points: 4000, // original core limit
             points: 20_000, // temporary: using pro limit
+            durationInSec: 60,
+          };
+        case "media-upload":
+          return {
+            resource: "media-upload",
+            points: 4_000,
             durationInSec: 60,
           };
         case "legacy-ingestion":
@@ -332,6 +370,12 @@ const getPlanBasedRateLimitConfig = (
             resource: "public-api",
             // points: 100, // original core limit
             points: 1000, // temporary: using pro limit
+            durationInSec: 60,
+          };
+        case "public-api-legacy":
+          return {
+            resource: "public-api-legacy",
+            points: 30,
             durationInSec: 60,
           };
         case "datasets":
@@ -367,6 +411,12 @@ const getPlanBasedRateLimitConfig = (
             points: 200,
             durationInSec: 86400, // 200 requests per day
           };
+        case "in-app-agent-run":
+          return {
+            resource: "in-app-agent-run",
+            points: 1000,
+            durationInSec: 86400,
+          };
         default:
           const exhaustiveCheck: never = resource;
           throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);
@@ -378,6 +428,12 @@ const getPlanBasedRateLimitConfig = (
         case "ingestion":
           return {
             resource: "ingestion",
+            points: 20_000,
+            durationInSec: 60,
+          };
+        case "media-upload":
+          return {
+            resource: "media-upload",
             points: 20_000,
             durationInSec: 60,
           };
@@ -397,6 +453,12 @@ const getPlanBasedRateLimitConfig = (
           return {
             resource: "public-api",
             points: 1000,
+            durationInSec: 60,
+          };
+        case "public-api-legacy":
+          return {
+            resource: "public-api-legacy",
+            points: 100,
             durationInSec: 60,
           };
         case "datasets":
@@ -428,6 +490,12 @@ const getPlanBasedRateLimitConfig = (
             resource: "score-delete",
             points: 1000,
             durationInSec: 86400, // 1000 requests per day
+          };
+        case "in-app-agent-run":
+          return {
+            resource: "in-app-agent-run",
+            points: 1000,
+            durationInSec: 86400,
           };
         default:
           const exhaustiveCheck: never = resource;

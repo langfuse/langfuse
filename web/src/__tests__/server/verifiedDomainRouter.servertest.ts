@@ -59,6 +59,7 @@ function createSession(
           cloudConfig: undefined,
           metadata: {},
           aiFeaturesEnabled: false,
+          aiTelemetryEnabled: true,
           projects: [],
         },
       ],

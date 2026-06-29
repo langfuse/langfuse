@@ -46,7 +46,7 @@ import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
-import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
+import { joinSessionCoreAndMetrics } from "@/src/components/table/use-cases/session-row-data";
 import TagList from "@/src/features/tag/components/TagList";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { cn } from "@/src/utils/tailwind";
@@ -294,8 +294,6 @@ export default function SessionsTable({
     projectId,
     filter: backendFilterState,
     orderBy: null,
-    page: 0,
-    limit: 1,
   };
 
   const payloadGetAll = {
@@ -381,7 +379,7 @@ export default function SessionsTable({
 
   const sessionRowData = useMemo(
     () =>
-      joinTableCoreAndMetrics<SessionCoreOutput, SessionMetricOutput>(
+      joinSessionCoreAndMetrics<SessionCoreOutput, SessionMetricOutput>(
         sessions.data?.sessions,
         sessionMetrics.data,
       ),

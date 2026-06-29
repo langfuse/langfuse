@@ -64,7 +64,7 @@ const iconMap = {
   EXPERIMENT: FlaskConical,
 } as const;
 
-const iconVariants = cva(cn("h-4 w-4"), {
+const iconVariants = cva("h-4 w-4", {
   variants: {
     type: {
       TRACE: "text-dark-green",
@@ -116,6 +116,7 @@ export function ItemBadge({
 
   // Modify this line to ensure the icon is properly sized
   const iconClass = cn(
+    "shrink-0",
     iconVariants({ type }),
     isSmall ? "h-3 w-3" : "h-4 w-4",
     className,

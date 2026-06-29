@@ -1,5 +1,5 @@
+import type { EvalTemplate } from "@langfuse/shared/src/db";
 import type {
-  EvalTemplate,
   JobConfiguration,
   Prisma as PrismaNamespace,
   prisma,
@@ -14,26 +14,44 @@ import type {
   PublicEvaluatorModelConfigType,
   PublicEvaluatorOutputDefinitionType,
   PublicEvaluatorScopeType,
+  PublicCodeEvaluatorSourceCodeLanguageType,
+  PUBLIC_EVALUATOR_TYPE_CODE,
+  PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
+import type { CODE_EVAL_TEMPLATE_VARIABLES } from "@/src/features/evals/utils/code-eval-template-utils";
 
 export type PrismaClientLike =
   | typeof prisma
   | PrismaNamespace.TransactionClient;
 
-export type ApiEvaluatorRecord = {
+type ApiEvaluatorRecordBase = {
   id: string;
   name: string;
   version: number;
   scope: PublicEvaluatorScopeType;
-  type: "llm_as_judge";
-  prompt: string;
   variables: string[];
-  outputDefinition: PublicEvaluatorOutputDefinitionType;
-  modelConfig: PublicEvaluatorModelConfigType | null;
   evaluationRuleCount: number;
   createdAt: Date;
   updatedAt: Date;
 };
+
+export type ApiLlmAsJudgeEvaluatorRecord = ApiEvaluatorRecordBase & {
+  type: typeof PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE;
+  prompt: string;
+  outputDefinition: PublicEvaluatorOutputDefinitionType;
+  modelConfig: PublicEvaluatorModelConfigType | null;
+};
+
+export type ApiCodeEvaluatorRecord = ApiEvaluatorRecordBase & {
+  type: typeof PUBLIC_EVALUATOR_TYPE_CODE;
+  variables: Array<(typeof CODE_EVAL_TEMPLATE_VARIABLES)[number]>;
+  sourceCode: string;
+  sourceCodeLanguage: PublicCodeEvaluatorSourceCodeLanguageType;
+};
+
+export type ApiEvaluatorRecord =
+  | ApiLlmAsJudgeEvaluatorRecord
+  | ApiCodeEvaluatorRecord;
 
 export type ApiEvaluationRuleRecord = {
   id: string;
@@ -61,12 +79,15 @@ export type StoredPublicEvaluatorTemplate = Pick<
   | "name"
   | "version"
   | "prompt"
+  | "type"
   | "partner"
   | "provider"
   | "model"
   | "modelParams"
   | "vars"
   | "outputDefinition"
+  | "sourceCode"
+  | "sourceCodeLanguage"
   | "createdAt"
   | "updatedAt"
 >;
@@ -88,8 +109,5 @@ export type StoredPublicEvaluationRuleConfig = Pick<
   | "createdAt"
   | "updatedAt"
 > & {
-  evalTemplate: Pick<
-    EvalTemplate,
-    "id" | "projectId" | "name" | "vars" | "prompt"
-  > | null;
+  evalTemplate: Pick<EvalTemplate, "id" | "projectId" | "name" | "type"> | null;
 };

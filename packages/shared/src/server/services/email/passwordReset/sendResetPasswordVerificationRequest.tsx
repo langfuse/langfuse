@@ -15,9 +15,9 @@ import {
   Tailwind,
   Text,
 } from "@react-email/components";
-import { createTransport } from "nodemailer";
 import { render } from "@react-email/render";
 import { type SendVerificationRequestParams } from "next-auth/providers/email";
+import { createMailTransport } from "../transport";
 
 interface ResetPasswordTemplateProps {
   token: string;
@@ -84,7 +84,7 @@ export async function sendResetPasswordVerificationRequest(
 ) {
   const { identifier, token, provider, url } =
     params as SendVerificationRequestParams & { token: string };
-  const transport = createTransport(provider.server);
+  const transport = createMailTransport(provider.server as string);
 
   // Detect if this is a setup-password flow (signup email verification)
   const isSetupMode = url?.includes("/auth/setup-password") ?? false;
@@ -108,7 +108,11 @@ export async function sendResetPasswordVerificationRequest(
     text: textBody,
     html: htmlTemplate,
   });
-  const failed = result.rejected.concat(result.pending).filter(Boolean);
+  // nodemailer's SES transport omits `rejected`/`pending` from SentMessageInfo,
+  // so guard against undefined before reading them.
+  const failed = [...(result.rejected ?? []), ...(result.pending ?? [])].filter(
+    Boolean,
+  );
   if (failed.length) {
     throw new Error(`Email(s) (${failed.join(", ")}) could not be sent`);
   }

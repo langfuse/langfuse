@@ -1,3 +1,5 @@
+import { TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD } from "@/src/features/traces/shared/traceDownloadConfig";
+
 /**
  * Configuration constants for trace views.
  *
@@ -20,7 +22,7 @@ export const TRACE_VIEW_CONFIG = {
      * Number of observations above which download uses cached I/O only.
      * Above this threshold, only expanded observations include full I/O data.
      */
-    downloadThreshold: 350,
+    downloadThreshold: TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD,
 
     /**
      * Row heights for virtualization calculations

@@ -50,7 +50,7 @@ function CloneDashboardButton({
 
   const mutCloneDashboard = api.dashboard.cloneDashboard.useMutation({
     onSuccess: () => {
-      void utils.dashboard.invalidate();
+      utils.dashboard.invalidate();
       capture("dashboard:clone_dashboard");
       showSuccessToast({
         title: "Dashboard cloned",
@@ -68,7 +68,7 @@ function CloneDashboardButton({
       return;
     }
 
-    void mutCloneDashboard.mutateAsync({
+    mutCloneDashboard.mutateAsync({
       projectId,
       dashboardId,
     });

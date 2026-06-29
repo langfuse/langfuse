@@ -26,6 +26,9 @@ export interface RegisteredTool {
   /** Tool handler function - accepts any input type */
 
   handler: ToolHandler<any>;
+
+  /** Whether in-app agent API keys may discover and call this tool. */
+  allowInAppAgentKey?: boolean;
 }
 
 /**
@@ -125,6 +128,10 @@ class ToolRegistry {
 
       // Add all tools from enabled feature
       for (const tool of feature.tools) {
+        if (!this.canUseTool(tool, context)) {
+          continue;
+        }
+
         definitions.push(tool.definition);
       }
     }
@@ -143,18 +150,56 @@ class ToolRegistry {
   }
 
   /**
+   * Get tool handler by name after applying the owning feature's enablement
+   * check. Direct calls must behave the same as discovery for gated features.
+   */
+  async getEnabledTool(
+    name: string,
+    context: ServerContext,
+  ): Promise<RegisteredTool | undefined> {
+    const tool = this.tools.get(name);
+    if (!tool) return undefined;
+
+    const feature = this.getFeatureForTool(name);
+    if (!feature) return undefined;
+
+    if (!this.canUseTool(tool, context)) {
+      return undefined;
+    }
+
+    if (feature.isEnabled && !(await feature.isEnabled(context))) {
+      return undefined;
+    }
+
+    return tool;
+  }
+
+  private canUseTool(tool: RegisteredTool, context: ServerContext): boolean {
+    if (context.isInAppAgentKey === true && tool.allowInAppAgentKey !== true) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
    * Get feature name for a tool (for error messages)
    *
    * @param toolName - Tool name to lookup
    * @returns Feature name or "unknown"
    */
   private getToolFeature(toolName: string): string {
-    for (const [featureName, feature] of this.features.entries()) {
+    const feature = this.getFeatureForTool(toolName);
+    return feature?.name ?? "unknown";
+  }
+
+  private getFeatureForTool(toolName: string): McpFeatureModule | undefined {
+    for (const feature of this.features.values()) {
       if (feature.tools.some((t) => t.definition.name === toolName)) {
-        return featureName;
+        return feature;
       }
     }
-    return "unknown";
+    return undefined;
   }
 
   /**

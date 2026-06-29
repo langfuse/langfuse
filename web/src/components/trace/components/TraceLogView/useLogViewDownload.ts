@@ -16,7 +16,7 @@ export interface UseLogViewDownloadParams {
   /** Trace ID for filename */
   traceId: string;
   /** Whether to use cached I/O only (vs loading all data) */
-  isDownloadCacheOnly: boolean;
+  isCacheOnly: boolean;
   /** Already loaded observation data (null if not loaded) */
   allObservationsData: ObservationIOData[] | null;
   /** Whether data is being loaded by useLogViewAllObservationsIO */
@@ -29,29 +29,19 @@ export interface UseLogViewDownloadParams {
   buildDataFromCache: () => ObservationIOData[];
 }
 
-export interface UseLogViewDownloadReturn {
-  /** Copy JSON to clipboard handler */
-  handleCopyJson: () => Promise<void>;
-  /** Download JSON file handler */
-  handleDownloadJson: () => Promise<void>;
-  /** Whether download/copy operation is in progress */
-  isDownloadOrCopyLoading: boolean;
-}
-
 /**
  * Hook for managing download and copy JSON functionality.
  */
 export function useLogViewDownload({
   traceId,
-  isDownloadCacheOnly,
+  isCacheOnly,
   allObservationsData,
   isLoadingAllData,
   failedObservationIds,
   loadAllData,
   buildDataFromCache,
-}: UseLogViewDownloadParams): UseLogViewDownloadReturn {
-  // Track if we're actively loading for download
-  const [isDownloadLoading, setIsDownloadLoading] = useState(false);
+}: UseLogViewDownloadParams) {
+  const [isActionLoading, setIsActionLoading] = useState(false);
 
   // Helper to download JSON data
   const downloadJsonData = useCallback(
@@ -71,19 +61,22 @@ export function useLogViewDownload({
 
   // Copy JSON handler - uses cache only or loads all based on threshold
   const handleCopyJson = useCallback(async () => {
-    if (isDownloadCacheOnly) {
+    if (isCacheOnly) {
       // Cache-only mode: build from tree + cache (no fetching)
-      setIsDownloadLoading(true);
+      setIsActionLoading(true);
       setTimeout(() => {
-        const data = buildDataFromCache();
-        void copyTextToClipboard(JSON.stringify(data, null, 2));
-        toast.success("Copied to clipboard (cache only)");
-        setIsDownloadLoading(false);
+        try {
+          const data = buildDataFromCache();
+          copyTextToClipboard(JSON.stringify(data, null, 2));
+          toast.success("Copied to clipboard (cache only)");
+        } finally {
+          setIsActionLoading(false);
+        }
       }, 0);
     } else {
       // Load all mode: fetch all data if needed
       if (allObservationsData) {
-        void copyTextToClipboard(JSON.stringify(allObservationsData, null, 2));
+        copyTextToClipboard(JSON.stringify(allObservationsData, null, 2));
         // Show warning if some observations failed to load
         if (failedObservationIds.length > 0) {
           toast.warning(
@@ -93,10 +86,10 @@ export function useLogViewDownload({
           toast.success("Copied to clipboard");
         }
       } else {
-        setIsDownloadLoading(true);
+        setIsActionLoading(true);
         try {
           const data = await loadAllData();
-          void copyTextToClipboard(JSON.stringify(data, null, 2));
+          copyTextToClipboard(JSON.stringify(data, null, 2));
           // Check for failures after loading
           if (failedObservationIds.length > 0) {
             toast.warning(
@@ -106,12 +99,12 @@ export function useLogViewDownload({
             toast.success("Copied to clipboard");
           }
         } finally {
-          setIsDownloadLoading(false);
+          setIsActionLoading(false);
         }
       }
     }
   }, [
-    isDownloadCacheOnly,
+    isCacheOnly,
     allObservationsData,
     loadAllData,
     buildDataFromCache,
@@ -120,15 +113,18 @@ export function useLogViewDownload({
 
   // Download JSON handler - uses cache only or loads all based on threshold
   const handleDownloadJson = useCallback(async () => {
-    if (isDownloadCacheOnly) {
+    if (isCacheOnly) {
       // Cache-only mode: build from tree + cache (no fetching)
-      setIsDownloadLoading(true);
+      setIsActionLoading(true);
       // Use setTimeout to allow spinner to render before potentially heavy operation
       setTimeout(() => {
-        const data = buildDataFromCache();
-        downloadJsonData(data);
-        toast.success("Downloaded trace data (cache only)");
-        setIsDownloadLoading(false);
+        try {
+          const data = buildDataFromCache();
+          downloadJsonData(data);
+          toast.success("Downloaded trace data (cache only)");
+        } finally {
+          setIsActionLoading(false);
+        }
       }, 0);
     } else {
       // Load all mode: fetch all data if needed
@@ -143,7 +139,7 @@ export function useLogViewDownload({
           toast.success("Downloaded trace data");
         }
       } else {
-        setIsDownloadLoading(true);
+        setIsActionLoading(true);
         try {
           const data = await loadAllData();
           downloadJsonData(data);
@@ -156,12 +152,12 @@ export function useLogViewDownload({
             toast.success("Downloaded trace data");
           }
         } finally {
-          setIsDownloadLoading(false);
+          setIsActionLoading(false);
         }
       }
     }
   }, [
-    isDownloadCacheOnly,
+    isCacheOnly,
     allObservationsData,
     loadAllData,
     buildDataFromCache,
@@ -169,12 +165,9 @@ export function useLogViewDownload({
     failedObservationIds,
   ]);
 
-  // Loading state for download button
-  const isDownloadOrCopyLoading = isDownloadLoading || isLoadingAllData;
-
   return {
     handleCopyJson,
     handleDownloadJson,
-    isDownloadOrCopyLoading,
+    isActionLoading: isActionLoading || isLoadingAllData,
   };
 }

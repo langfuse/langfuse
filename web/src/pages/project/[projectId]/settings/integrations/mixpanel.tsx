@@ -35,8 +35,11 @@ import {
 import {
   AnalyticsIntegrationExportSource,
   EXPORT_SOURCE_OPTIONS,
+  isLegacyBlobExportAllowed,
 } from "@langfuse/shared";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useQueryProject } from "@/src/features/projects/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
@@ -144,6 +147,17 @@ const MixpanelIntegrationSettingsForm = ({
 }) => {
   const capture = usePostHogClientCapture();
   const { isBetaEnabled } = useV4Beta();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const { project } = useQueryProject();
+
+  // Post-cutoff Cloud projects may only use OBSERVATIONS_V2 (EVENTS). The
+  // Export Source field is hidden in that case; the form value is pinned to
+  // EVENTS via the default below. Mirrors blob-storage settings (LFE-9688 / 9830).
+  const isPostCutoffCloud =
+    project?.createdAt != null &&
+    !isLegacyBlobExportAllowed(new Date(project.createdAt), isLangfuseCloud);
+  const showExportSourceField = isBetaEnabled && !isPostCutoffCloud;
+
   const mixpanelForm = useForm({
     resolver: zodResolver(mixpanelIntegrationFormSchema),
     defaultValues: {
@@ -152,11 +166,12 @@ const MixpanelIntegrationSettingsForm = ({
         MIXPANEL_REGIONS[0].subdomain,
       mixpanelProjectToken: state?.mixpanelProjectToken ?? "",
       enabled: state?.enabled ?? false,
-      exportSource:
-        state?.exportSource ??
-        (isBetaEnabled
-          ? AnalyticsIntegrationExportSource.EVENTS
-          : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+      exportSource: isPostCutoffCloud
+        ? AnalyticsIntegrationExportSource.EVENTS
+        : (state?.exportSource ??
+          (isBetaEnabled
+            ? AnalyticsIntegrationExportSource.EVENTS
+            : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS)),
     },
     disabled: isLoading,
   });
@@ -168,11 +183,12 @@ const MixpanelIntegrationSettingsForm = ({
         MIXPANEL_REGIONS[0].subdomain,
       mixpanelProjectToken: state?.mixpanelProjectToken ?? "",
       enabled: state?.enabled ?? false,
-      exportSource:
-        state?.exportSource ??
-        (isBetaEnabled
-          ? AnalyticsIntegrationExportSource.EVENTS
-          : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+      exportSource: isPostCutoffCloud
+        ? AnalyticsIntegrationExportSource.EVENTS
+        : (state?.exportSource ??
+          (isBetaEnabled
+            ? AnalyticsIntegrationExportSource.EVENTS
+            : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS)),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
@@ -249,7 +265,7 @@ const MixpanelIntegrationSettingsForm = ({
             </FormItem>
           )}
         />
-        {isBetaEnabled && (
+        {showExportSourceField && (
           <FormField
             control={mixpanelForm.control}
             name="exportSource"

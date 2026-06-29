@@ -1,7 +1,12 @@
+import type * as PrismaClientModule from "@prisma/client";
 import type { Mock } from "vitest";
 
-vi.mock("@langfuse/shared/src/db", () => {
+vi.mock("@langfuse/shared/src/db", async () => {
+  const { EvalTemplateType } =
+    await vi.importActual<typeof PrismaClientModule>("@prisma/client");
+
   return {
+    EvalTemplateType,
     Prisma: {
       sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({
         strings,
@@ -22,7 +27,7 @@ vi.mock("@langfuse/shared/src/db", () => {
   };
 });
 
-import { prisma } from "@langfuse/shared/src/db";
+import { EvalTemplateType, prisma } from "@langfuse/shared/src/db";
 import {
   countActiveEvaluationRules,
   countEvaluationRulesForEvaluatorIds,
@@ -148,6 +153,11 @@ describe("unstable public eval queries", () => {
         },
         status: "ACTIVE",
         blockedAt: null,
+        evalTemplate: {
+          is: {
+            OR: [{ projectId: "project_123" }, { projectId: null }],
+          },
+        },
       },
     });
     expect(result).toBe(17);
@@ -166,12 +176,14 @@ describe("unstable public eval queries", () => {
       evaluator: {
         name: "Answer correctness",
         scope: "project",
+        type: "llm_as_judge",
       },
     });
     expect(mockEvalTemplateFindFirst).toHaveBeenCalledWith({
       where: {
         projectId: "project_123",
         name: "Answer correctness",
+        type: EvalTemplateType.LLM_AS_JUDGE,
       },
       orderBy: {
         version: "desc",
@@ -193,6 +205,7 @@ describe("unstable public eval queries", () => {
       evaluator: {
         name: "Answer correctness",
         scope: "managed",
+        type: "llm_as_judge",
       },
     });
 
@@ -200,6 +213,7 @@ describe("unstable public eval queries", () => {
       where: {
         projectId: null,
         name: "Answer correctness",
+        type: EvalTemplateType.LLM_AS_JUDGE,
       },
       orderBy: {
         version: "desc",

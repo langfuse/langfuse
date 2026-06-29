@@ -67,9 +67,7 @@ export const scoreConfigsRouter = createTRPCRouter({
           ...(input.limit !== undefined && input.page !== undefined
             ? { take: input.limit, skip: input.page * input.limit }
             : undefined),
-          orderBy: {
-            createdAt: "desc",
-          },
+          orderBy: [{ createdAt: "desc" }, { id: "asc" }],
         }),
         ctx.prisma.scoreConfig.count({
           where: {

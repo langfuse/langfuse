@@ -1,11 +1,13 @@
 import {
   BatchActionProcessingEventType,
   CreateEvalQueue,
+  getEventsStreamForEval,
   getCurrentSpan,
   logger,
   QueueJobs,
   QueueName,
   TQueueJobTypes,
+  findDatasetIdsForBatchDeletion,
   traceDeletionProcessor,
 } from "@langfuse/shared/src/server";
 import {
@@ -14,6 +16,7 @@ import {
   BatchTableNames,
   FilterCondition,
   EvalTargetObject,
+  EvalTemplateType,
 } from "@langfuse/shared";
 import Decimal from "decimal.js";
 import {
@@ -34,13 +37,13 @@ import { randomUUID } from "node:crypto";
 import { processClickhouseScoreDelete } from "../scores/processClickhouseScoreDelete";
 import { getObservationStream } from "../database-read-stream/observation-stream";
 import {
-  getEventsStreamForEval,
   getEventsStreamForDataset,
   getEventsStreamForAnnotationQueue,
 } from "../database-read-stream/event-stream";
 import { processAddObservationsToDataset } from "./processAddObservationsToDataset";
 import { ObservationAddToDatasetConfigSchema } from "@langfuse/shared";
 import { processBatchedObservationEval } from "./processBatchedObservationEval";
+import { processDeleteDatasets } from "./processDeleteDatasets";
 
 const convertDatesInFiltersFromStrings = (filters: FilterCondition[]) => {
   return filters.map((f: FilterCondition) =>
@@ -90,6 +93,10 @@ async function processActionChunk(
 
       case "score-delete":
         await processClickhouseScoreDelete(projectId, chunkIds);
+        break;
+
+      case "dataset-delete":
+        await processDeleteDatasets(projectId, chunkIds);
         break;
 
       default:
@@ -166,7 +173,8 @@ export const handleBatchActionJob = async (
     actionId === "trace-add-to-annotation-queue" ||
     actionId === "session-add-to-annotation-queue" ||
     actionId === "observation-add-to-annotation-queue" ||
-    actionId === "score-delete"
+    actionId === "score-delete" ||
+    actionId === "dataset-delete"
   ) {
     const { projectId, tableName, query, cutoffCreatedAt, targetId, type } =
       batchActionEvent;
@@ -179,30 +187,26 @@ export const handleBatchActionJob = async (
     // streams to avoid fetching input/output/metadata/scores into memory.
     // When the events table is selected for annotation-queue actions, route
     // through the conditional events stream introduced for the events backend.
-    const dbReadStream =
-      tableName === BatchTableNames.Events &&
-      (actionId === "trace-add-to-annotation-queue" ||
-        actionId === "session-add-to-annotation-queue" ||
-        actionId === "observation-add-to-annotation-queue")
-        ? await getEventsStreamForAnnotationQueue({
-            projectId: projectId,
+      actionId === "dataset-delete"
+        ? await findDatasetIdsForBatchDeletion({
+            projectId,
             cutoffCreatedAt: new Date(cutoffCreatedAt),
-            filter: convertDatesInFiltersFromStrings(query.filter ?? []),
-            searchQuery: query.searchQuery ?? undefined,
-            searchType: query.searchType ?? ["id" as const],
+            query,
           })
-        : actionId === "trace-delete" ||
-            actionId === "trace-add-to-annotation-queue"
-          ? await getTraceIdentifierStream({
+        : tableName === BatchTableNames.Events &&
+            (actionId === "trace-add-to-annotation-queue" ||
+              actionId === "session-add-to-annotation-queue" ||
+              actionId === "observation-add-to-annotation-queue")
+          ? await getEventsStreamForAnnotationQueue({
               projectId: projectId,
               cutoffCreatedAt: new Date(cutoffCreatedAt),
               filter: convertDatesInFiltersFromStrings(query.filter ?? []),
-              orderBy: query.orderBy,
               searchQuery: query.searchQuery ?? undefined,
               searchType: query.searchType ?? ["id" as const],
             })
-          : actionId === "session-add-to-annotation-queue"
-            ? await getSessionIdentifierStream({
+          : actionId === "trace-delete" ||
+              actionId === "trace-add-to-annotation-queue"
+            ? await getTraceIdentifierStream({
                 projectId: projectId,
                 cutoffCreatedAt: new Date(cutoffCreatedAt),
                 filter: convertDatesInFiltersFromStrings(query.filter ?? []),
@@ -210,31 +214,41 @@ export const handleBatchActionJob = async (
                 searchQuery: query.searchQuery ?? undefined,
                 searchType: query.searchType ?? ["id" as const],
               })
-            : actionId === "observation-add-to-annotation-queue"
-              ? await getObservationIdentifierStream({
+            : actionId === "session-add-to-annotation-queue"
+              ? await getSessionIdentifierStream({
                   projectId: projectId,
                   cutoffCreatedAt: new Date(cutoffCreatedAt),
                   filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+                  orderBy: query.orderBy,
                   searchQuery: query.searchQuery ?? undefined,
                   searchType: query.searchType ?? ["id" as const],
                 })
-              : tableName === BatchTableNames.Observations
-                ? await getObservationStream({
+              : actionId === "observation-add-to-annotation-queue"
+                ? await getObservationIdentifierStream({
                     projectId: projectId,
                     cutoffCreatedAt: new Date(cutoffCreatedAt),
                     filter: convertDatesInFiltersFromStrings(query.filter ?? []),
                     searchQuery: query.searchQuery ?? undefined,
                     searchType: query.searchType ?? ["id" as const],
                   })
-                : await getDatabaseReadStreamPaginated({
-                    projectId: projectId,
-                    cutoffCreatedAt: new Date(cutoffCreatedAt),
-                    filter: convertDatesInFiltersFromStrings(query.filter ?? []),
-                    orderBy: query.orderBy,
-                    tableName: tableName as BatchTableNames,
-                    searchQuery: query.searchQuery ?? undefined,
-                    searchType: query.searchType ?? ["id" as const],
-                  });
+                : tableName === BatchTableNames.Observations
+                  ? await getObservationStream({
+                      projectId: projectId,
+                      cutoffCreatedAt: new Date(cutoffCreatedAt),
+                      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+                      searchQuery: query.searchQuery ?? undefined,
+                      searchType: query.searchType ?? ["id" as const],
+                    })
+                  : await getDatabaseReadStreamPaginated({
+                      projectId: projectId,
+                      cutoffCreatedAt: new Date(cutoffCreatedAt),
+                      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+                      orderBy: query.orderBy,
+                      tableName: tableName as BatchTableNames,
+                      searchQuery: query.searchQuery ?? undefined,
+                      searchType: query.searchType ?? ["id" as const],
+                      useEventsTable: query.useEventsTable,
+                    });
 
     // Stream records in CHUNK_SIZE batches without accumulating the full result
     // set in memory. Previously all records were collected into an array first,
@@ -266,12 +280,29 @@ export const handleBatchActionJob = async (
         id: configId,
         projectId: projectId,
       },
+      select: {
+        delay: true,
+        evalTemplate: {
+          select: {
+            type: true,
+          },
+        },
+      },
     });
 
     if (!config) {
       logger.error(
         `Eval config ${configId} not found for project ${projectId}`,
       );
+      return;
+    }
+
+    if (config.evalTemplate?.type !== EvalTemplateType.LLM_AS_JUDGE) {
+      logger.info(`Skipping legacy eval-create for non-LLM eval template`, {
+        projectId,
+        configId,
+        evalTemplateType: config.evalTemplate?.type ?? null,
+      });
       return;
     }
 
@@ -410,6 +441,7 @@ export const handleBatchActionJob = async (
         where: {
           id: { in: selectedEvaluatorIds },
           projectId,
+          evalTemplateId: { not: null },
           // Preserve the selected evaluators as-is. Executability is checked
           // later when each scheduling attempt runs.
         },
@@ -417,6 +449,11 @@ export const handleBatchActionJob = async (
           id: true,
           projectId: true,
           evalTemplateId: true,
+          evalTemplate: {
+            select: {
+              type: true,
+            },
+          },
           scoreName: true,
           targetObject: true,
           variableMapping: true,
@@ -430,6 +467,7 @@ export const handleBatchActionJob = async (
       // sampling=1 to ensure every streamed observation is evaluated.
       evaluators = rawEvaluators.map((e) => ({
         ...e,
+        evalTemplate: e.evalTemplate!,
         filter: [] as [],
         sampling: new Decimal(1),
       }));

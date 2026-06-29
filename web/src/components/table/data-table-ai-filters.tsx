@@ -7,10 +7,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { Info, ExternalLink } from "lucide-react";
+import { Info } from "lucide-react";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { AIFeaturesDisabledNotice } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
 import { api } from "@/src/utils/api";
 import { type FilterState } from "@langfuse/shared";
 
@@ -25,11 +25,6 @@ export function DataTableAIFilters({
   const [aiError, setAiError] = useState<string | null>(null);
   const projectId = useProjectIdFromURL();
   const { organization } = useQueryProject();
-
-  const hasAdminAccess = useHasOrganizationAccess({
-    organizationId: organization?.id ?? undefined,
-    scope: "organization:update",
-  });
 
   const createFilterMutation =
     api.naturalLanguageFilters.createCompletion.useMutation();
@@ -68,30 +63,10 @@ export function DataTableAIFilters({
   // When AI features are not enabled
   if (!organization?.aiFeaturesEnabled) {
     return (
-      <div className="flex flex-col gap-3">
-        <p className="text-muted-foreground text-sm">
-          AI-powered filters use natural language to generate deterministic
-          filters.
-          {!hasAdminAccess &&
-            " Ask your organization administrator to enable AI features in organization settings."}
-        </p>
-        {hasAdminAccess && organization?.id && (
-          <Button
-            onClick={() => {
-              window.open(
-                `/organization/${organization.id}/settings`,
-                "_blank",
-              );
-            }}
-            variant="outline"
-            size="sm"
-            className="w-fit"
-          >
-            Enable in Organization Settings
-            <ExternalLink className="ml-2 h-4 w-4" />
-          </Button>
-        )}
-      </div>
+      <AIFeaturesDisabledNotice organizationId={organization?.id}>
+        AI-powered filters use natural language to generate deterministic
+        filters.
+      </AIFeaturesDisabledNotice>
     );
   }
 

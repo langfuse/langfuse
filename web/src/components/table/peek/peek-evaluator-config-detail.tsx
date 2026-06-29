@@ -23,8 +23,9 @@ import { LegacyEvalCallout } from "@/src/features/evals/components/legacy-eval-c
 import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
 import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
 import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
+import { TablePeekView } from "@/src/components/table/peek";
 
-export const PeekViewEvaluatorConfigDetail = ({
+const PeekViewEvaluatorConfigDetail = ({
   projectId,
 }: {
   projectId: string;
@@ -158,5 +159,22 @@ export const PeekViewEvaluatorConfigDetail = ({
         />
       </div>
     </div>
+  );
+};
+
+export const TablePeekViewEvaluatorConfigDetail = (
+  props: Omit<
+    React.ComponentProps<typeof TablePeekView>,
+    "children" | "title"
+  > & {
+    projectId: string;
+  },
+) => {
+  const { projectId } = props;
+
+  return (
+    <TablePeekView {...props}>
+      <PeekViewEvaluatorConfigDetail projectId={projectId} />
+    </TablePeekView>
   );
 };

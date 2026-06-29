@@ -155,10 +155,6 @@ export async function getDatasetRunItemsSinceLastRun(
     clickhouseConfigs: {
       request_timeout: 120000, // 2 minutes timeout
     },
-    tags: {
-      feature: "experiment-backfill",
-      operation_name: "getDatasetRunItemsSinceLastRun",
-    },
   });
 
   logger.info(
@@ -247,10 +243,6 @@ export async function getRelevantObservations(
     clickhouseConfigs: {
       request_timeout: 60_000,
     },
-    tags: {
-      feature: "experiment-backfill",
-      operation_name: "getRelevantObservations",
-    },
   });
 }
 
@@ -327,10 +319,6 @@ export async function getRelevantTraces(
     },
     clickhouseConfigs: {
       request_timeout: 60_000,
-    },
-    tags: {
-      feature: "experiment-backfill",
-      operation_name: "getRelevantTraces",
     },
   });
 }
@@ -527,6 +515,7 @@ export function writeEnrichedSpans(spans: EnrichedSpan[]): void {
       tags: span.tags || [],
       bookmarked: span.bookmarked || false,
       public: span.public || false,
+      is_app_root: false,
 
       trace_name: span.trace_name || undefined,
       user_id: span.user_id || undefined,

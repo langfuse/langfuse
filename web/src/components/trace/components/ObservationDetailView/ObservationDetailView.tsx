@@ -139,11 +139,11 @@ export function ObservationDetailView({
   }, [globalSelectedTab, showLogViewTab]);
 
   const refreshTraceScores = useCallback(() => {
-    void utils.traces.byIdWithObservationsAndScores.invalidate({
+    utils.traces.byIdWithObservationsAndScores.invalidate({
       projectId,
       traceId,
     });
-    void utils.events.scoresForTrace.invalidate({
+    utils.events.scoresForTrace.invalidate({
       projectId,
       traceId,
     });

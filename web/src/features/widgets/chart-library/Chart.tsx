@@ -3,6 +3,8 @@ import {
   type FormatMetricOptions,
   type MetricFormatterFunction,
   type DataPoint,
+  type ChartThreshold,
+  type LegendSummaryMode,
 } from "@/src/features/widgets/chart-library/chart-props";
 import { formatMetric } from "@/src/features/widgets/chart-library/utils";
 import { CardContent } from "@/src/components/ui/card";
@@ -36,8 +38,10 @@ export const Chart = ({
   onSortChange,
   isLoading = false,
   legendPosition,
+  legendSummary,
   overrideWarning = false,
   metricFormatter: metricFormatterOverride,
+  thresholds,
 }: {
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
@@ -60,8 +64,10 @@ export const Chart = ({
   onSortChange?: (sortState: OrderByState | null) => void;
   isLoading?: boolean;
   legendPosition?: "above" | "none";
+  legendSummary?: LegendSummaryMode;
   overrideWarning?: boolean;
   metricFormatter?: MetricFormatterFunction;
+  thresholds?: ChartThreshold[];
 }) => {
   const [forceRender, setForceRender] = useState(overrideWarning);
   const shouldWarn = data.length > 2000 && !forceRender;
@@ -136,7 +142,9 @@ export const Chart = ({
             config={resolvedConfig}
             metricFormatter={metricFormatter}
             legendPosition={legendPosition}
+            legendSummary={legendSummary}
             showDataPointDots={chartConfig?.show_data_point_dots ?? true}
+            thresholds={thresholds}
           />
         );
       case "AREA_TIME_SERIES":
@@ -146,6 +154,7 @@ export const Chart = ({
             config={resolvedConfig}
             metricFormatter={metricFormatter}
             legendPosition={legendPosition}
+            legendSummary={legendSummary}
             subtleFill={chartConfig?.subtle_fill}
           />
         );
