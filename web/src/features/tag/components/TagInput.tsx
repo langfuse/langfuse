@@ -14,7 +14,7 @@ type TagInputProps = React.ComponentPropsWithoutRef<
 };
 
 export const TagInput = React.forwardRef<
-  React.ElementRef<typeof CommandPrimitive.Input>,
+  React.ComponentRef<typeof CommandPrimitive.Input>,
   TagInputProps
 >(
   (

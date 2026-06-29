@@ -23,7 +23,7 @@ import {
   getObservationIdentifierStream,
 } from "../database-read-stream/getDatabaseReadStream";
 import { env } from "../../env";
-import { Job } from "bullmq";
+import { Job, Queue } from "bullmq";
 import {
   processAddObservationsToQueue,
   processAddSessionsToQueue,
@@ -36,6 +36,7 @@ import { getObservationStream } from "../database-read-stream/observation-stream
 import {
   getEventsStreamForEval,
   getEventsStreamForDataset,
+  getEventsStreamForAnnotationQueue,
 } from "../database-read-stream/event-stream";
 import { processAddObservationsToDataset } from "./processAddObservationsToDataset";
 import { ObservationAddToDatasetConfigSchema } from "@langfuse/shared";
@@ -45,6 +46,10 @@ const convertDatesInFiltersFromStrings = (filters: FilterCondition[]) => {
   return filters.map((f: FilterCondition) =>
     f.type === "datetime" ? { ...f, value: new Date(f.value) } : f,
   );
+};
+
+type HandleBatchActionJobDeps = {
+  evalCreatorQueue?: Queue<TQueueJobTypes[QueueName.CreateEvalQueue]>;
 };
 
 /**
@@ -137,6 +142,7 @@ const assertIsDatasetRunItemTableRecord = (
 
 export const handleBatchActionJob = async (
   batchActionJob: Job<TQueueJobTypes[QueueName.BatchActionQueue]>["data"],
+  deps: HandleBatchActionJobDeps = {},
 ) => {
   const batchActionEvent: BatchActionProcessingEventType =
     batchActionJob.payload;
@@ -171,19 +177,23 @@ export const handleBatchActionJob = async (
 
     // Annotation-queue actions only need record IDs — use lightweight identifier
     // streams to avoid fetching input/output/metadata/scores into memory.
+    // When the events table is selected for annotation-queue actions, route
+    // through the conditional events stream introduced for the events backend.
     const dbReadStream =
-      actionId === "trace-delete" ||
-      actionId === "trace-add-to-annotation-queue"
-        ? await getTraceIdentifierStream({
+      tableName === BatchTableNames.Events &&
+      (actionId === "trace-add-to-annotation-queue" ||
+        actionId === "session-add-to-annotation-queue" ||
+        actionId === "observation-add-to-annotation-queue")
+        ? await getEventsStreamForAnnotationQueue({
             projectId: projectId,
             cutoffCreatedAt: new Date(cutoffCreatedAt),
             filter: convertDatesInFiltersFromStrings(query.filter ?? []),
-            orderBy: query.orderBy,
             searchQuery: query.searchQuery ?? undefined,
             searchType: query.searchType ?? ["id" as const],
           })
-        : actionId === "session-add-to-annotation-queue"
-          ? await getSessionIdentifierStream({
+        : actionId === "trace-delete" ||
+            actionId === "trace-add-to-annotation-queue"
+          ? await getTraceIdentifierStream({
               projectId: projectId,
               cutoffCreatedAt: new Date(cutoffCreatedAt),
               filter: convertDatesInFiltersFromStrings(query.filter ?? []),
@@ -191,31 +201,40 @@ export const handleBatchActionJob = async (
               searchQuery: query.searchQuery ?? undefined,
               searchType: query.searchType ?? ["id" as const],
             })
-          : actionId === "observation-add-to-annotation-queue"
-            ? await getObservationIdentifierStream({
+          : actionId === "session-add-to-annotation-queue"
+            ? await getSessionIdentifierStream({
                 projectId: projectId,
                 cutoffCreatedAt: new Date(cutoffCreatedAt),
                 filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+                orderBy: query.orderBy,
                 searchQuery: query.searchQuery ?? undefined,
                 searchType: query.searchType ?? ["id" as const],
               })
-            : tableName === BatchTableNames.Observations
-              ? await getObservationStream({
+            : actionId === "observation-add-to-annotation-queue"
+              ? await getObservationIdentifierStream({
                   projectId: projectId,
                   cutoffCreatedAt: new Date(cutoffCreatedAt),
                   filter: convertDatesInFiltersFromStrings(query.filter ?? []),
                   searchQuery: query.searchQuery ?? undefined,
                   searchType: query.searchType ?? ["id" as const],
                 })
-              : await getDatabaseReadStreamPaginated({
-                  projectId: projectId,
-                  cutoffCreatedAt: new Date(cutoffCreatedAt),
-                  filter: convertDatesInFiltersFromStrings(query.filter ?? []),
-                  orderBy: query.orderBy,
-                  tableName: tableName as BatchTableNames,
-                  searchQuery: query.searchQuery ?? undefined,
-                  searchType: query.searchType ?? ["id" as const],
-                });
+              : tableName === BatchTableNames.Observations
+                ? await getObservationStream({
+                    projectId: projectId,
+                    cutoffCreatedAt: new Date(cutoffCreatedAt),
+                    filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+                    searchQuery: query.searchQuery ?? undefined,
+                    searchType: query.searchType ?? ["id" as const],
+                  })
+                : await getDatabaseReadStreamPaginated({
+                    projectId: projectId,
+                    cutoffCreatedAt: new Date(cutoffCreatedAt),
+                    filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+                    orderBy: query.orderBy,
+                    tableName: tableName as BatchTableNames,
+                    searchQuery: query.searchQuery ?? undefined,
+                    searchType: query.searchType ?? ["id" as const],
+                  });
 
     // Stream records in CHUNK_SIZE batches without accumulating the full result
     // set in memory. Previously all records were collected into an array first,
@@ -276,7 +295,8 @@ export const handleBatchActionJob = async (
             rowLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
           });
 
-    const evalCreatorQueue = CreateEvalQueue.getInstance();
+    const evalCreatorQueue =
+      deps.evalCreatorQueue ?? CreateEvalQueue.getInstance();
     if (!evalCreatorQueue) {
       logger.error("CreateEvalQueue is not initialized");
       return;

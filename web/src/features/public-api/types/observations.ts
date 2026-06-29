@@ -50,6 +50,7 @@ export const APIObservation = z
     startTime: z.coerce.date(),
     endTime: z.coerce.date().nullable(),
     version: z.string().nullable(),
+    release: z.string().nullable().optional(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
     input: z.any(),
@@ -374,7 +375,7 @@ export const GetObservationsV2Query = z.object({
 /**
  * Typed observation schema for v2 API responses.
  * Core fields are always present; other fields are optional depending on requested field groups.
- * Uses .passthrough() to allow server enrichment fields not explicitly listed.
+ * Uses .loose() to allow server enrichment fields not explicitly listed.
  */
 const APIObservationV2 = z
   .object({
@@ -432,7 +433,7 @@ const APIObservationV2 = z
     // Enrichment fields
     modelId: z.string().nullable().optional(),
   })
-  .passthrough();
+  .loose();
 
 export const GetObservationsV2Response = z
   .object({

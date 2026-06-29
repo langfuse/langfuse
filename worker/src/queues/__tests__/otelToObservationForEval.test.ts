@@ -656,6 +656,91 @@ describe("OTEL to ObservationForEval Schema Validation", () => {
       expect(obs.input).toBe('[{"role":"user","content":"Say hello"}]');
       expect(obs.output).toBe("Hello! How can I help you today?");
     });
+
+    it("should extract AI SDK tool calls from stringified OTel toolCalls attributes", async () => {
+      const vercelAIToolCallSpan = {
+        resource: { attributes: [] },
+        scopeSpans: [
+          {
+            scope: { name: "ai" },
+            spans: [
+              {
+                traceId: createBufferId("a1e2d3c4b5a69788a1e2d3c4b5a69788"),
+                spanId: createBufferId("1122334455667799"),
+                name: "ai.generateText.doGenerate",
+                kind: 1,
+                startTimeUnixNano: createNanoTimestamp(
+                  BigInt(1738241387865000000),
+                ),
+                endTimeUnixNano: createNanoTimestamp(
+                  BigInt(1738241389310000000),
+                ),
+                attributes: [
+                  {
+                    key: "ai.model.id",
+                    value: { stringValue: "claude-opus-4-6" },
+                  },
+                  {
+                    key: "ai.operationId",
+                    value: { stringValue: "ai.generateText.doGenerate" },
+                  },
+                  {
+                    key: "ai.prompt.messages",
+                    value: {
+                      stringValue: JSON.stringify([
+                        {
+                          role: "user",
+                          content: "Check the weather in Berlin",
+                        },
+                      ]),
+                    },
+                  },
+                  {
+                    key: "ai.response.text",
+                    value: { stringValue: "I'll check the weather." },
+                  },
+                  {
+                    key: "ai.response.toolCalls",
+                    value: {
+                      stringValue: JSON.stringify([
+                        {
+                          toolCallId: "tooluse_weather",
+                          toolName: "getWeather",
+                          input: {
+                            location: "Berlin",
+                            unit: "celsius",
+                          },
+                        },
+                      ]),
+                    },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const observations =
+        await processOtelSpanToObservationForEval(vercelAIToolCallSpan);
+
+      expect(observations).toHaveLength(1);
+      const obs = observations[0];
+
+      const result = observationForEvalSchema.safeParse(obs);
+      expect(result.success).toBe(true);
+
+      expect(obs.tool_call_names).toEqual(["getWeather"]);
+      expect(obs.tool_calls).toHaveLength(1);
+      expect(JSON.parse(obs.tool_calls[0])).toMatchObject({
+        id: "tooluse_weather",
+        arguments: JSON.stringify({
+          location: "Berlin",
+          unit: "celsius",
+        }),
+      });
+    });
   });
 
   describe("Schema field coverage", () => {

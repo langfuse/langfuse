@@ -8,7 +8,7 @@ import { darkTheme } from "@/src/components/editor/dark-theme";
 import { cn } from "@/src/utils/tailwind";
 import { evaluateJsonPath } from "@langfuse/shared";
 
-// JSON path language mode for syntax highlighting
+// JSONPath language mode for syntax highlighting
 const jsonPathLanguage = StreamLanguage.define({
   name: "jsonpath",
   startState: () => ({ inBracket: false }),
@@ -101,14 +101,14 @@ export function JsonPathInput({
     (newValue: string) => {
       onChange(newValue);
 
-      // Try to resolve the JSON path
+      // Try to resolve the JSONPath
       if (newValue && newValue.startsWith("$") && parsedSourceData) {
         try {
           const result = evaluateJsonPath(parsedSourceData, newValue);
           setResolveError(null);
           setNoMatchWarning(result === undefined);
         } catch (e) {
-          setResolveError(e instanceof Error ? e.message : "Invalid JSON path");
+          setResolveError(e instanceof Error ? e.message : "Invalid JSONPath");
           setNoMatchWarning(false);
         }
       } else {

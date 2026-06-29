@@ -37,7 +37,10 @@ import {
 import { DataTableSelectAllBanner } from "@/src/components/table/data-table-multi-select-actions/data-table-select-all-banner";
 import { cn } from "@/src/utils/tailwind";
 import DocPopup from "@/src/components/layouts/doc-popup";
-import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
+import {
+  TableViewPresetsDrawer,
+  type SystemFilterPreset,
+} from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -99,6 +102,7 @@ interface TableViewConfig {
   tableName: TableViewPresetTableName;
   projectId: string;
   controllers: TableViewControllers;
+  systemFilterPresets?: SystemFilterPreset[];
 }
 
 interface RefreshConfig {
@@ -246,6 +250,7 @@ export function DataTableToolbar<TData, TValue>({
               columnVisibility,
               searchQuery: searchString,
             }}
+            systemFilterPresets={viewConfig.systemFilterPresets}
           />
         )}
         {searchConfig && (

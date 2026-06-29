@@ -16,19 +16,16 @@ import { useAnnotationObjectData } from "./shared/hooks/useAnnotationObjectData"
 import { TraceAnnotationProcessor } from "./processors/TraceAnnotationProcessor";
 import { SessionAnnotationProcessor } from "./processors/SessionAnnotationProcessor";
 import { ObjectNotFoundCard } from "@/src/components/ui/object-not-found-card";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useSession } from "next-auth/react";
 
 export const AnnotationQueueItemPage: React.FC<{
   annotationQueueId: string;
   projectId: string;
-  view: "showTree" | "hideTree";
   queryItemId?: string;
-}> = ({ annotationQueueId, projectId, view, queryItemId }) => {
+}> = ({ annotationQueueId, projectId, queryItemId }) => {
   const router = useRouter();
   const { status: sessionStatus } = useSession();
   const sessionLoaded = sessionStatus !== "loading";
-  const { isBetaEnabled } = useV4Beta();
   const isSingleItem = router.query.singleItem === "true";
   const [nextItemData, setNextItemData] = useState<
     RouterOutput["annotationQueues"]["fetchAndLockNext"] | null
@@ -44,7 +41,7 @@ export const AnnotationQueueItemPage: React.FC<{
   const itemId = isSingleItem ? queryItemId : seenItemIds[progressIndex];
 
   const seenItemData = api.annotationQueueItems.byId.useQuery(
-    { projectId, itemId: itemId as string, isBetaEnabled },
+    { projectId, itemId: itemId as string },
     { enabled: !!itemId && sessionLoaded, refetchOnMount: false },
   );
 
@@ -59,7 +56,6 @@ export const AnnotationQueueItemPage: React.FC<{
           queueId: annotationQueueId,
           projectId,
           seenItemIds,
-          isBetaEnabled,
         });
         setNextItemData(nextItem);
       }
@@ -92,7 +88,6 @@ export const AnnotationQueueItemPage: React.FC<{
           queueId: annotationQueueId,
           projectId,
           seenItemIds,
-          isBetaEnabled,
         });
         setNextItemData(nextItem);
       }
@@ -124,10 +119,15 @@ export const AnnotationQueueItemPage: React.FC<{
   const objectData = useAnnotationObjectData(relevantItem ?? null, projectId);
 
   useEffect(() => {
-    if (relevantItem && router.query.itemId !== relevantItem.id) {
+    if (relevantItem?.id && router.query.itemId !== relevantItem.id) {
+      const observation =
+        relevantItem.objectType === AnnotationQueueObjectType.OBSERVATION
+          ? relevantItem.objectId
+          : undefined;
       router.push(
         {
           pathname: `/project/${projectId}/annotation-queues/${annotationQueueId}/items/${relevantItem.id}`,
+          query: observation ? { observation } : undefined,
         },
         undefined,
       );
@@ -171,7 +171,6 @@ export const AnnotationQueueItemPage: React.FC<{
         queueId: annotationQueueId,
         projectId,
         seenItemIds,
-        isBetaEnabled,
       });
       setNextItemData(nextItem);
     }
@@ -199,7 +198,7 @@ export const AnnotationQueueItemPage: React.FC<{
     // Handle deleted queue item
     if (!relevantItem) {
       return (
-        <Card className="flex h-full w-full flex-col items-center justify-center overflow-hidden">
+        <Card className="flex h-full w-full flex-col items-center justify-center overflow-hidden border-none">
           <SearchXIcon className="text-muted-foreground mb-2 h-8 w-8" />
           <span className="text-muted-foreground max-w-96 text-sm text-wrap">
             Item has been <strong>deleted from annotation queue</strong>.
@@ -217,7 +216,6 @@ export const AnnotationQueueItemPage: React.FC<{
           <TraceAnnotationProcessor
             item={relevantItem}
             data={objectData.data}
-            view={view}
             configs={configs}
             projectId={projectId}
           />
@@ -237,9 +235,11 @@ export const AnnotationQueueItemPage: React.FC<{
   };
 
   return (
-    <div className="grid h-full grid-rows-[1fr_auto] gap-4 overflow-hidden">
-      {renderContent()}
-      <div className="grid h-full w-full grid-cols-1 justify-end gap-2 sm:grid-cols-[auto_min-content]">
+    <div className="flex h-full flex-col overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        {renderContent()}
+      </div>
+      <div className="grid w-full shrink-0 grid-cols-1 justify-end gap-2 py-2 sm:grid-cols-[auto_min-content]">
         {!isSingleItem && (
           <div className="flex max-h-10 flex-row gap-2">
             <span className="bg-muted grid h-9 min-w-16 items-center rounded-md p-1 text-center text-sm">
@@ -273,7 +273,7 @@ export const AnnotationQueueItemPage: React.FC<{
               <Button
                 onClick={handleComplete}
                 size="lg"
-                className="w-full"
+                className="mr-2 w-full"
                 disabled={
                   completeMutation.isPending || !hasAccess || objectData.isError
                 }

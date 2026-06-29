@@ -32,7 +32,6 @@ export type JobExecutionRow = {
   startTime?: string;
   endTime?: string;
   traceId?: string;
-  sessionId?: string;
   executionTraceId?: string;
   templateId: string;
   evaluatorId: string;
@@ -161,20 +160,6 @@ export default function EvalLogTable({
         ) : undefined;
       },
     }),
-    columnHelper.accessor("sessionId", {
-      id: "sessionId",
-      header: "Session",
-      enableHiding: true,
-      cell: (row) => {
-        const sessionId = row.getValue();
-        return sessionId ? (
-          <TableLink
-            path={`/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`}
-            value={sessionId}
-          />
-        ) : undefined;
-      },
-    }),
     columnHelper.accessor("executionTraceId", {
       id: "executionTraceId",
       header: "Execution Trace",
@@ -243,7 +228,6 @@ export default function EvalLogTable({
       startTime: jobConfig.startTime?.toLocaleString() ?? undefined,
       endTime: jobConfig.endTime?.toLocaleString() ?? undefined,
       traceId: jobConfig.jobInputTraceId ?? undefined,
-      sessionId: jobConfig.sessionId ?? undefined,
       executionTraceId: jobConfig.executionTraceId ?? undefined,
       templateId: jobConfig.jobTemplateId ?? "",
       evaluatorId: jobConfig.jobConfigurationId,

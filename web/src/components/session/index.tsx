@@ -2,7 +2,7 @@ import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { ErrorPage } from "@/src/components/error-page";
 import { PublishSessionSwitch } from "@/src/components/publish-object-switch";
 import { StarSessionToggle } from "@/src/components/star-toggle";
-import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
+import { IOPreview } from "@/src/components/trace/components/IOPreview/IOPreview";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { Badge } from "@/src/components/ui/badge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
@@ -39,8 +39,7 @@ import {
   TableViewPresetTableName,
 } from "@langfuse/shared";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
-import { TablePeekView } from "@/src/components/table/peek";
-import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { LazyTraceRow } from "@/src/components/session/TraceRow";
@@ -503,16 +502,13 @@ export const SessionPage: React.FC<{
           </div>
         </div>
       </div>
-      <TablePeekView
-        peekView={{
-          itemType: "TRACE",
-          detailNavigationKey: "traces",
-          openPeek,
-          closePeek,
-          expandPeek,
-          resolveDetailNavigationPath,
-          children: <PeekViewTraceDetail projectId={projectId} />,
-        }}
+      <TablePeekViewTraceDetail
+        itemType="TRACE"
+        detailNavigationKey="traces"
+        closePeek={closePeek}
+        expandPeek={expandPeek}
+        resolveDetailNavigationPath={resolveDetailNavigationPath}
+        projectId={projectId}
       />
     </Page>
   );
@@ -785,12 +781,17 @@ export const SessionEventsPage: React.FC<{
       setColumnOrder,
       setColumnVisibility,
       setFilters: setFiltersWrapper,
+      setExpandedFilters: queryFilter.onExpandedChange,
     },
     validationContext: {
       columns: [],
       filterColumnDefinition: sessionEventsFilterConfig.columnDefinitions,
+      expandableFilterColumns: sessionEventsFilterConfig.facets.map(
+        (facet) => facet.column,
+      ),
     },
-    currentFilterState: queryFilter.filterState,
+    currentFilterState: queryFilter.explicitFilterState,
+    currentExpandedFilters: queryFilter.expanded,
   });
 
   const applySystemPreset = useCallback(
@@ -1029,16 +1030,13 @@ export const SessionEventsPage: React.FC<{
           </div>
         </div>
       </div>
-      <TablePeekView
-        peekView={{
-          itemType: "TRACE",
-          detailNavigationKey: "traces",
-          openPeek,
-          closePeek,
-          expandPeek,
-          resolveDetailNavigationPath,
-          children: <PeekViewTraceDetail projectId={projectId} />,
-        }}
+      <TablePeekViewTraceDetail
+        itemType="TRACE"
+        detailNavigationKey="traces"
+        closePeek={closePeek}
+        expandPeek={expandPeek}
+        resolveDetailNavigationPath={resolveDetailNavigationPath}
+        projectId={projectId}
       />
     </Page>
   );

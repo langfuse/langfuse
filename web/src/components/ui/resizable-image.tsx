@@ -62,7 +62,7 @@ export const ResizableImage = ({
       session.status === "authenticated" &&
       isImageVisible &&
       shouldValidateImageSource,
-    initialData: { isValid: true },
+    initialData: shouldValidateImageSource ? undefined : { isValid: true },
   });
 
   if (session.status !== "authenticated") {

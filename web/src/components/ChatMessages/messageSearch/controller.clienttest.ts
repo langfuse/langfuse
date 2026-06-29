@@ -6,20 +6,20 @@ import {
 
 import { createMessageSearchController } from "./controller";
 
-jest.mock("../../editor", () => ({
-  applyCodeMirrorSearchQuery: jest.fn(),
-  setActiveSearchMarkCodeMirrorRange: jest.fn(),
-  unsetActiveSearchMarkCodeMirrorRange: jest.fn(),
+vi.mock("../../editor", () => ({
+  applyCodeMirrorSearchQuery: vi.fn(),
+  setActiveSearchMarkCodeMirrorRange: vi.fn(),
+  unsetActiveSearchMarkCodeMirrorRange: vi.fn(),
 }));
 
 describe("message search controller", () => {
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
   });
 
   const commitQuery = (
@@ -27,7 +27,7 @@ describe("message search controller", () => {
     query: string,
   ) => {
     controller.setQueryInput(query);
-    jest.runAllTimers();
+    vi.runAllTimers();
     return controller.getSnapshot().matches;
   };
 
@@ -117,7 +117,7 @@ describe("message search controller", () => {
   });
 
   // Regression test for https://github.com/langfuse/langfuse/issues/13002
-  it("returns original document offsets for compatibility character matches", () => {
+  it("returns original document offsets for full compatibility character matches", () => {
     const controller = createMessageSearchController(["page-1"]);
 
     controller.registerPageMessages("page-1", [
@@ -131,6 +131,43 @@ describe("message search controller", () => {
 
     expect(commitQuery(controller, "センチ")).toEqual([
       expect.objectContaining({ from: 5, to: 6 }),
+    ]);
+  });
+
+  it("returns original document offsets for partial compatibility character matches", () => {
+    const controller = createMessageSearchController(["page-1"]);
+
+    controller.registerPageMessages("page-1", [
+      {
+        id: "message-1",
+        type: ChatMessageType.System,
+        role: ChatMessageRole.System,
+        content: "高さ180㌢の棚",
+      },
+    ]);
+
+    expect(commitQuery(controller, "セン")).toEqual([
+      expect.objectContaining({ from: 5, to: 6 }),
+    ]);
+    expect(commitQuery(controller, "ンチ")).toEqual([
+      expect.objectContaining({ from: 5, to: 6 }),
+    ]);
+  });
+
+  it("matches normalized compatibility substrings across source character boundaries", () => {
+    const controller = createMessageSearchController(["page-1"]);
+
+    controller.registerPageMessages("page-1", [
+      {
+        id: "message-1",
+        type: ChatMessageType.System,
+        role: ChatMessageRole.System,
+        content: "高さ180㌢㍍の棚",
+      },
+    ]);
+
+    expect(commitQuery(controller, "チメ")).toEqual([
+      expect.objectContaining({ from: 5, to: 7 }),
     ]);
   });
 
@@ -175,7 +212,7 @@ describe("message search controller", () => {
     ]);
 
     controller.setQueryInput("   ");
-    jest.runAllTimers();
+    vi.runAllTimers();
 
     expect(controller.getSnapshot().queryInput).toBe("   ");
     expect(controller.getSnapshot().query).toBe("   ");
@@ -211,8 +248,8 @@ describe("message search controller", () => {
     expect(commitQuery(controller, "foo")).toHaveLength(1);
     const activeMatchBefore = controller.getSnapshot().activeMatch;
 
-    jest.mocked(applyCodeMirrorSearchQuery).mockClear();
-    jest.mocked(setActiveSearchMarkCodeMirrorRange).mockClear();
+    vi.mocked(applyCodeMirrorSearchQuery).mockClear();
+    vi.mocked(setActiveSearchMarkCodeMirrorRange).mockClear();
 
     controller.registerPageMessages("page-1", [
       {
@@ -244,8 +281,8 @@ describe("message search controller", () => {
   it("does not scroll the active match during streaming updates", () => {
     const controller = createMessageSearchController(["page-1"]);
     const editorRef = { current: null };
-    const pageScrollIntoView = jest.fn();
-    const rowScrollIntoView = jest.fn();
+    const pageScrollIntoView = vi.fn();
+    const rowScrollIntoView = vi.fn();
 
     controller.registerPageTarget("page-1", {
       pageRef: {
@@ -283,8 +320,8 @@ describe("message search controller", () => {
 
     pageScrollIntoView.mockClear();
     rowScrollIntoView.mockClear();
-    jest.mocked(applyCodeMirrorSearchQuery).mockClear();
-    jest.mocked(setActiveSearchMarkCodeMirrorRange).mockClear();
+    vi.mocked(applyCodeMirrorSearchQuery).mockClear();
+    vi.mocked(setActiveSearchMarkCodeMirrorRange).mockClear();
 
     controller.registerPageMessages("page-1", [
       {

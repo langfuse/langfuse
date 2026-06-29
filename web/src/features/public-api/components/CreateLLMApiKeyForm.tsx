@@ -96,7 +96,7 @@ const createFormSchema = (params: {
           /^[^:]+$/,
           "Provider name cannot contain colons. Use a format like 'OpenRouter_Mistral' instead.",
         ),
-      adapter: z.nativeEnum(LLMAdapter),
+      adapter: z.enum(LLMAdapter),
       baseURL: z.union([z.literal(""), z.url()]),
       withDefaultModels: z.boolean(),
       customModels: z.array(z.object({ value: z.string().min(1) })),

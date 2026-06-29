@@ -40,7 +40,7 @@ const MixedUsage = z.object({
   totalCost: z.number().nullish(),
 });
 
-export const stringDateTime = z.string().datetime({ offset: true }).nullish();
+export const stringDateTime = z.iso.datetime({ offset: true }).nullish();
 
 export const usage = MixedUsage.nullish()
   // transform mixed usage model input to new one
@@ -596,7 +596,7 @@ const createAllIngestionSchemas = ({
   // Event schemas
   const base = z.object({
     id: idSchema,
-    timestamp: z.string().datetime({ offset: true }),
+    timestamp: z.iso.datetime({ offset: true }),
     metadata: jsonSchema.nullish(),
   });
 
@@ -806,6 +806,7 @@ export const ingestionEvent = publicSchemas.ingestionEvent;
  * since the factory patterns only differ in environment validation rules, not in the actual TypeScript types.
  * The environment field remains `string` in all cases - only the validation logic differs.
  */
+// eslint-disable-next-line @typescript-eslint/no-deprecated -- Internal backwards-compatible ingestion schema alias.
 export type IngestionEventType = z.infer<typeof ingestionEvent>;
 export type TraceEventType = z.infer<typeof traceEvent>;
 export type ScoreEventType = z.infer<typeof scoreEvent>;

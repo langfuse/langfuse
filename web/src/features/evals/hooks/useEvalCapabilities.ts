@@ -1,18 +1,16 @@
 import { useSession } from "next-auth/react";
 import { api } from "@/src/utils/api";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+
 export interface EvalCapabilities {
   isNewCompatible: boolean;
+  compatibilityCheckWasPerformed: boolean;
   allowLegacy: boolean;
   allowPropagationFilters: boolean;
   isLoading: boolean;
   hasLegacyEvals: boolean;
 }
-
-const mockOtelStatus = {
-  isOtel: false,
-  isPropagating: false,
-};
 
 /**
  * Hook to determine which eval configuration features are available
@@ -22,9 +20,18 @@ const mockOtelStatus = {
 export function useEvalCapabilities(projectId: string): EvalCapabilities {
   const { data: session, status: sessionStatus } = useSession();
   const isSessionLoading = sessionStatus === "loading";
+  const { isBetaEnabled } = useV4Beta();
 
-  // Query OTEL SDK status
-  const { isOtel, isPropagating } = mockOtelStatus;
+  // Query SDK version info from events table (only when v4 beta is enabled)
+  const sdkVersionInfo = api.events.getSdkVersionInfo.useQuery(
+    { projectId },
+    { enabled: isBetaEnabled },
+  );
+
+  // Determine OTEL status from SDK version info
+  const isOtel = sdkVersionInfo.data?.isOtel ?? false;
+  // TODO: Implement propagation check
+  const isPropagating = false;
 
   // Get eval counts including legacy eval count
   const evalCounts = api.evals.counts.useQuery({ projectId });
@@ -39,11 +46,14 @@ export function useEvalCapabilities(projectId: string): EvalCapabilities {
 
   return {
     isNewCompatible: isOtel,
+    // True when v4 beta is enabled (SDK check query was run)
+    compatibilityCheckWasPerformed: isBetaEnabled,
     // Allow legacy if: not cloud OR user has legacy evals OR user can toggle v4 (existing user)
     allowLegacy: !isLangfuseCloud || hasLegacyEvals || canToggleV4,
     // Allow propagation filters only when using OTEL and spans are propagating
     allowPropagationFilters: isOtel && isPropagating,
-    isLoading: evalCounts.isLoading || isSessionLoading,
+    isLoading:
+      evalCounts.isLoading || isSessionLoading || sdkVersionInfo.isLoading,
     hasLegacyEvals,
   };
 }

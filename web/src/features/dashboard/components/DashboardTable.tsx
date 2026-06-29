@@ -243,7 +243,7 @@ export function DashboardTable() {
           <div onClick={(e) => e.stopPropagation()}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost">
+                <Button size="xs" variant="ghost">
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -312,6 +312,7 @@ export function DashboardTable() {
           `/project/${projectId}/dashboards/${encodeURIComponent(row.id)}`,
         );
       }}
+      cellPadding="comfortable"
     />
   );
 }

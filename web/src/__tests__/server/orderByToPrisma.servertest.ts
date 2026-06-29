@@ -1,4 +1,5 @@
 import {
+  dashboardColumnDefinitions,
   orderByToClickhouseSql,
   orderByToPrismaSql,
   tracesTableUiColumnDefinitions,
@@ -58,5 +59,14 @@ describe("orderByToPrisma (Convert orderBy to Prisma.sql)", () => {
         tracesTableUiColumnDefinitions,
       ),
     ).toThrow(InvalidRequestError);
+  });
+
+  test("orderByToClickhouseSql matches UiColumnMapping aliases", () => {
+    expect(
+      orderByToClickhouseSql(
+        { column: "Tool Names", order: "ASC" },
+        dashboardColumnDefinitions,
+      ),
+    ).toBe("ORDER BY mapKeys(tool_definitions) ASC");
   });
 });

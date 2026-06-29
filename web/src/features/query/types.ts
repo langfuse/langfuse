@@ -80,7 +80,7 @@ export const viewDeclaration = z.object({
     .optional(),
 });
 
-export const stringDateTime = z.string().datetime({ offset: true });
+export const stringDateTime = z.iso.datetime({ offset: true });
 
 export const views = z.enum([
   "traces",

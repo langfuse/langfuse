@@ -13,6 +13,7 @@ import {
 import {
   encodeFiltersGeneric,
   decodeFiltersGeneric,
+  computeSelectedValues,
 } from "./lib/filter-query-encoding";
 import { validateFilters } from "@/src/components/table/table-view-presets/validation";
 import { traceFilterConfig } from "./config/traces-config";
@@ -618,6 +619,19 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
     expect(result[0]?.column).toBe("traceTags");
   });
 
+  it("should preserve empty arrayOptions none-of filters through complete URL flow", () => {
+    const filters: FilterState = [
+      {
+        column: "tags",
+        type: "arrayOptions",
+        operator: "none of",
+        value: [],
+      },
+    ];
+
+    expect(simulateUrlFlow(filters)).toEqual(filters);
+  });
+
   it("should discard stale positionInTrace URL filters on the general events table", () => {
     const urlFilter = "positionInTrace;positionInTrace;last;=;";
 
@@ -722,7 +736,7 @@ describe("resolveCheckboxOperator (arrayOptions vs stringOptions)", () => {
       });
     });
 
-    it('should switch from "none of" to "any of" for arrayOptions', () => {
+    it('should preserve "none of" for arrayOptions', () => {
       const result = resolveCheckboxOperator({
         colType: "arrayOptions",
         existingFilter: {
@@ -735,9 +749,8 @@ describe("resolveCheckboxOperator (arrayOptions vs stringOptions)", () => {
         availableValues,
       });
 
-      // Must NOT keep "none of" — it gives wrong results for multi-valued arrays
       expect(result).toEqual({
-        finalOperator: "any of",
+        finalOperator: "none of",
         finalValues: ["tag-1", "tag-2"],
       });
     });
@@ -834,6 +847,28 @@ describe("resolveCheckboxOperator (arrayOptions vs stringOptions)", () => {
         finalValues: ["tag-1", "tag-2"],
       });
     });
+  });
+});
+
+describe("computeSelectedValues", () => {
+  it('should keep excluded values checked for arrayOptions "none of" filters', () => {
+    const result = computeSelectedValues(["tag-1", "tag-2", "tag-3"], {
+      type: "arrayOptions",
+      operator: "none of",
+      value: ["tag-2"],
+    });
+
+    expect(result).toEqual(["tag-2"]);
+  });
+
+  it('should continue to invert "none of" for stringOptions filters', () => {
+    const result = computeSelectedValues(["prod", "staging", "dev"], {
+      type: "stringOptions",
+      operator: "none of",
+      value: ["dev"],
+    });
+
+    expect(result).toEqual(["prod", "staging"]);
   });
 });
 

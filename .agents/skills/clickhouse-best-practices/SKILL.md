@@ -25,9 +25,20 @@ Comprehensive guidance for ClickHouse covering schema design, query optimization
 
 **Why rules take priority:** ClickHouse has specific behaviors (columnar storage, sparse indexes, merge tree mechanics) where general database intuition can be misleading. The rules encode validated, ClickHouse-specific guidance.
 
-### For Formal Reviews
+## Langfuse-Specific Rules
 
-When performing a formal review of schemas, queries, or data ingestion:
+- Use `packages/shared/src/server/queries/clickhouse-sql/event-query-builder.ts`
+  for queries against the `events` table. Do not hand-roll `events` SQL unless
+  you first confirm the query builder cannot express the query.
+- Never use `FINAL` on the `events` table; it is designed so `FINAL` is not
+  required and the keyword hurts performance.
+- Any migration in `packages/shared/clickhouse/migrations/clustered/**` with
+  more than one `ALTER` on the same table must end every metadata `ALTER`
+  (`ADD/DROP/MODIFY COLUMN`, `ADD/DROP INDEX`) with `SETTINGS alter_sync = 2`,
+  and every mutation-creating `ALTER` (`MATERIALIZE …`, `UPDATE`, `DELETE`)
+  with `SETTINGS mutations_sync = 2`. The matching `unclustered/` file runs
+  against plain `MergeTree` and does not need (and should not duplicate)
+  these settings.
 
 ---
 
@@ -53,6 +64,7 @@ When performing a formal review of schemas, queries, or data ingestion:
 - [ ] LowCardinality applied to appropriate string columns
 - [ ] Partition key cardinality bounded (100-1,000 values)
 - [ ] ReplacingMergeTree has version column if used
+- [ ] Clustered migration files with multiple ALTERs on the same table use `SETTINGS alter_sync = 2` (metadata) and `SETTINGS mutations_sync = 2` (`MATERIALIZE …`, `UPDATE`, `DELETE`); unclustered mirror has none
 
 ### For Query Reviews (SELECT, JOIN, aggregations)
 
@@ -227,8 +239,8 @@ Each rule file in `rules/` contains:
 
 ---
 
-## Full Compiled Document
+## Compatibility Entrypoint
 
-For the complete guide with all rules expanded inline: `AGENTS.md`
-
-Use `AGENTS.md` when you need to check multiple rules quickly without reading individual files.
+`AGENTS.md` is a short compatibility index for agents that open that file
+directly. The authoritative workflow lives in this `SKILL.md`, and detailed rule
+bodies live in `rules/`.

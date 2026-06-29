@@ -15,11 +15,19 @@ import { RateLimitService } from "@/src/features/public-api/server/RateLimitServ
 import { contextWithLangfuseProps } from "@langfuse/shared/src/server";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
+import { isZodError } from "@/src/features/public-api/server/withMiddlewares";
+import {
+  createUnstablePublicApiAuthError,
+  createUnstablePublicApiRequestValidationError,
+  sendUnstablePublicApiErrorResponse,
+  unstablePublicEvalsErrorContract,
+  type PublicApiErrorContract,
+} from "@/src/features/public-api/server/unstable-public-api-error-contract";
 
 /** Access levels that can be accepted by project-scoped API routes. */
 type RouteAccessLevel = Exclude<ApiAccessLevel, "organization">;
 
-type RouteConfig<
+export type AuthedProjectAPIRouteConfig<
   TQuery extends ZodType<any>,
   TBody extends ZodType<any>,
   TResponse extends ZodType<any>,
@@ -44,6 +52,7 @@ type RouteConfig<
    * @default false
    */
   isAdminApiKeyAuthAllowed?: boolean;
+  errorContract?: PublicApiErrorContract;
   /**
    * Access levels accepted for this route. Defaults to ["project"] (Basic auth only).
    * Set to ["project", "scores"] to also allow Bearer auth with a public key
@@ -96,14 +105,14 @@ async function verifyApiKeyAuth(
     )
   ) {
     throw {
-      status: 401,
+      status: 403,
       message: "Access denied - insufficient permissions for this endpoint",
     };
   }
 
   if (!regularAuth.scope.projectId) {
     throw {
-      status: 401,
+      status: 403,
       message:
         "Project ID not found for API token. Are you using an organization key?",
     };
@@ -263,7 +272,7 @@ export const createAuthedProjectAPIRoute = <
   TBody extends ZodType<any>,
   TResponse extends ZodType<any>,
 >(
-  routeConfig: RouteConfig<TQuery, TBody, TResponse>,
+  routeConfig: AuthedProjectAPIRouteConfig<TQuery, TBody, TResponse>,
 ): ((req: NextApiRequest, res: NextApiResponse) => Promise<void>) => {
   return async (req: NextApiRequest, res: NextApiResponse) => {
     let auth: AuthHeaderValidVerificationResult & {
@@ -281,6 +290,13 @@ export const createAuthedProjectAPIRoute = <
       const statusCode = error.status || 401;
       const message = error.message || "Authentication failed";
 
+      if (routeConfig.errorContract === unstablePublicEvalsErrorContract) {
+        return sendUnstablePublicApiErrorResponse(
+          res,
+          createUnstablePublicApiAuthError({ statusCode, message }),
+        );
+      }
+
       res.status(statusCode).json({ message });
 
       return;
@@ -293,7 +309,10 @@ export const createAuthedProjectAPIRoute = <
       );
 
     if (rateLimitResponse?.isRateLimited()) {
-      return rateLimitResponse.sendRestResponseIfLimited(res);
+      return rateLimitResponse.sendRestResponseIfLimited(
+        res,
+        routeConfig.errorContract,
+      );
     }
 
     logger.debug(
@@ -304,12 +323,49 @@ export const createAuthedProjectAPIRoute = <
       },
     );
 
-    const query = routeConfig.querySchema
-      ? routeConfig.querySchema.parse(req.query)
-      : ({} as z.infer<TQuery>);
-    const body = routeConfig.bodySchema
-      ? routeConfig.bodySchema.parse(req.body)
-      : ({} as z.infer<TBody>);
+    let query: z.infer<TQuery>;
+    try {
+      query = routeConfig.querySchema
+        ? routeConfig.querySchema.parse(req.query)
+        : ({} as z.infer<TQuery>);
+    } catch (error) {
+      if (
+        routeConfig.errorContract === unstablePublicEvalsErrorContract &&
+        isZodError(error)
+      ) {
+        return sendUnstablePublicApiErrorResponse(
+          res,
+          createUnstablePublicApiRequestValidationError({
+            error,
+            requestPart: "query",
+          }),
+        );
+      }
+
+      throw error;
+    }
+
+    let body: z.infer<TBody>;
+    try {
+      body = routeConfig.bodySchema
+        ? routeConfig.bodySchema.parse(req.body)
+        : ({} as z.infer<TBody>);
+    } catch (error) {
+      if (
+        routeConfig.errorContract === unstablePublicEvalsErrorContract &&
+        isZodError(error)
+      ) {
+        return sendUnstablePublicApiErrorResponse(
+          res,
+          createUnstablePublicApiRequestValidationError({
+            error,
+            requestPart: "body",
+          }),
+        );
+      }
+
+      throw error;
+    }
 
     const ctx = contextWithLangfuseProps({
       headers: req.headers,

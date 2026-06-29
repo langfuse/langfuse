@@ -1,19 +1,20 @@
+import type { Mock } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { api } from "../../../utils/api";
 import { useScoreAnalyticsQuery } from "./useScoreAnalyticsQuery";
 
-jest.mock("../../../utils/api", () => ({
+vi.mock("../../../utils/api", () => ({
   api: {
     scoreAnalytics: {
       getScoreComparisonAnalytics: {
-        useQuery: jest.fn(),
+        useQuery: vi.fn(),
       },
     },
   },
 }));
 
 const mockedUseQuery = api.scoreAnalytics.getScoreComparisonAnalytics
-  .useQuery as jest.Mock;
+  .useQuery as Mock;
 
 function ScoreAnalyticsProbe({
   includeScore2 = false,

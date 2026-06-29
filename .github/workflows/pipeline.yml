@@ -34,17 +34,22 @@ jobs:
       # was already tested in a prior successful run of this workflow.
       - id: skip_check
         env:
+          EVENT_NAME: ${{ github.event_name }}
           GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          COMMIT_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             echo "should_skip=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          CURRENT_TREE=$(gh api "repos/${{ github.repository }}/git/commits/${{ github.sha }}" --jq '.tree.sha')
+          CURRENT_TREE=$(gh api "repos/$REPOSITORY/git/commits/$COMMIT_SHA" --jq '.tree.sha')
 
-          MATCH=$(gh api "repos/${{ github.repository }}/actions/workflows/pipeline.yml/runs?status=success&per_page=20" \
-            --jq "[.workflow_runs[] | select(.id != ${{ github.run_id }} and .head_commit.tree_id == \"$CURRENT_TREE\")] | first | .head_sha // empty")
+          MATCH=$(gh api "repos/$REPOSITORY/actions/workflows/pipeline.yml/runs?status=success&per_page=20" \
+            | jq -r --argjson run_id "$RUN_ID" --arg current_tree "$CURRENT_TREE" \
+              '[.workflow_runs[] | select(.id != $run_id and .head_commit.tree_id == $current_tree)] | first | .head_sha // empty')
 
           if [[ -n "$MATCH" ]]; then
             echo "::notice::Tree $CURRENT_TREE already tested in a prior successful run (commit $MATCH) — skipping"
@@ -100,6 +105,8 @@ jobs:
           cp .env.dev.example .env
       - name: lint web
         run: pnpm run lint
+      - name: typecheck
+        run: pnpm run typecheck
 
   prettier-check:
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -126,24 +133,47 @@ jobs:
         run: |
           cp .env.dev.example .env
       - name: Check formatting on changed files
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE_SHA=${{ github.event.pull_request.base.sha }}
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            BASE_SHA="$PR_BASE_SHA"
           else
             BASE_SHA=$(git merge-base origin/main HEAD)
           fi
 
           echo "Checking files changed from $BASE_SHA to HEAD"
 
-          # Get changed files
-          CHANGED_FILES=$(git diff --name-only $BASE_SHA HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css' | tr '\n' ' ')
-
-          if [ -n "$CHANGED_FILES" ] && [ "$CHANGED_FILES" != " " ]; then
-            echo "Files to check: $CHANGED_FILES"
-            pnpm prettier --check --experimental-cli $CHANGED_FILES
-          else
+          if git diff --quiet --exit-code --diff-filter=d "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css'; then
             echo "No JS/TS/CSS files changed - skipping prettier check"
+          else
+            git diff --name-only -z --diff-filter=d "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css' \
+              | xargs -0 --no-run-if-empty pnpm prettier --check --experimental-cli --
           fi
+
+  tests-eslint-plugin:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    needs:
+      - pre-job
+    if: needs.pre-job.outputs.should_skip != 'true'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0 # zizmor: ignore[cache-poisoning] eslint-plugin test dependency cache only; no published artifacts are built from this cached state
+        with:
+          node-version: 24
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+      - name: install dependencies
+        run: |
+          pnpm install
+      - name: run eslint-plugin tests
+        run: pnpm --filter @repo/eslint-plugin run test
 
   test-docker-build:
     timeout-minutes: 20
@@ -217,20 +247,22 @@ jobs:
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
-    name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }}, shard${{ matrix.shard }}/3)
+    name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     strategy:
       matrix:
         node-version: [24]
         postgres-version: [12, 15]
         deploy-mode: ["", "-azure", "-redis-cluster"]
-        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          tar xzf migrate.linux-amd64.tar.gz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -258,9 +290,11 @@ jobs:
           echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1" >> .env
           echo "LANGFUSE_CACHE_PROMPT_ENABLED=false" >> .env
           echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1" >> .env
+          echo "LANGFUSE_TRACE_DELETE_DELAY_MS=1" >> .env
           echo "LANGFUSE_TRACE_DELETE_CONCURRENCY=100" >> .env
           echo "ADMIN_API_KEY=admin-api-key" >> .env
           echo "LANGFUSE_EE_LICENSE_KEY=langfuse_ee_test" >> .env
+          echo "LANGFUSE_SKIP_EVALUATOR_MODEL_CALL_VALIDATION=true" >> .env
       - name: Setup Turbo cache
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4 # zizmor: ignore[cache-poisoning] test job cache only; publish jobs rebuild artifacts and do not restore this cache
         with:
@@ -306,6 +340,9 @@ jobs:
         run: pnpm run build
         env:
           NODE_OPTIONS: --max_old_space_size=8192
+          # TypeScript is checked explicitly in the lint job; skip duplicate
+          # Next.js type checks in test builds to reduce CI runtime.
+          NEXT_IGNORE_BUILD_ERRORS: "true"
       - name: Start Langfuse
         run: (pnpm run start&)
         env:
@@ -321,11 +358,11 @@ jobs:
           LANGFUSE_INIT_USER_PASSWORD: "password"
       - name: run tests
         working-directory: web
-        run: npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --detectOpenHandles --selectProjects server --shard=${{ matrix.shard }}/3
+        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server
       - name: run test-client
-        if: matrix.deploy-mode == '' && matrix.shard == 1
+        if: matrix.deploy-mode == ''
         working-directory: web
-        run: npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --detectOpenHandles --selectProjects client
+        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project client
 
   tests-worker:
     timeout-minutes: 20
@@ -363,7 +400,10 @@ jobs:
           pnpm install
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          tar xzf migrate.linux-amd64.tar.gz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Load default env
@@ -436,7 +476,10 @@ jobs:
           pnpm install
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          tar xzf migrate.linux-amd64.tar.gz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Load default env
@@ -530,7 +573,10 @@ jobs:
           cp .env.dev.example web/.env
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          tar xzf migrate.linux-amd64.tar.gz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Run + migrate
@@ -554,8 +600,11 @@ jobs:
         run: pnpm run build
         env:
           NODE_OPTIONS: --max_old_space_size=8192
+          # TypeScript is checked explicitly in the lint job; skip duplicate
+          # Next.js type checks in test builds to reduce CI runtime.
+          NEXT_IGNORE_BUILD_ERRORS: "true"
       - name: Install playwright
-        run: pnpm --filter=web exec playwright install --with-deps
+        run: pnpm --filter=web exec playwright install --with-deps --only-shell chromium
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e
 
@@ -587,7 +636,10 @@ jobs:
           pnpm install
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          tar xzf migrate.linux-amd64.tar.gz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Load default env
@@ -614,6 +666,9 @@ jobs:
         run: pnpm run build
         env:
           NODE_OPTIONS: --max_old_space_size=8192
+          # TypeScript is checked explicitly in the lint job; skip duplicate
+          # Next.js type checks in test builds to reduce CI runtime.
+          NEXT_IGNORE_BUILD_ERRORS: "true"
       - name: Run server
         run: (pnpm run start&)
       - name: Check worker health
@@ -632,6 +687,7 @@ jobs:
       [
         lint,
         prettier-check,
+        tests-eslint-plugin,
         tests-web,
         tests-worker,
         test-worker-llm-connections,
@@ -790,7 +846,7 @@ jobs:
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') && !contains(github.ref, '-rc') }}
       - name: Build and push image by digest to GitHub Container Registry (${{ matrix.component }}, ${{ matrix.platform_tag }})
         id: build-ghcr
-        uses: useblacksmith/build-push-action@cbd1f60d194a98cb3be5523b15134501eaf0fbf3 # v2
+        uses: useblacksmith/build-push-action@cbd1f60d194a98cb3be5523b15134501eaf0fbf3 # v2.1.0
         with:
           context: .
           file: ${{ matrix.dockerfile }}
@@ -801,7 +857,7 @@ jobs:
           sbom: false
       - name: Build and push image by digest to Docker Hub (${{ matrix.component }}, ${{ matrix.platform_tag }})
         id: build-dockerhub
-        uses: useblacksmith/build-push-action@cbd1f60d194a98cb3be5523b15134501eaf0fbf3 # v2
+        uses: useblacksmith/build-push-action@cbd1f60d194a98cb3be5523b15134501eaf0fbf3 # v2.1.0
         with:
           context: .
           file: ${{ matrix.dockerfile }}

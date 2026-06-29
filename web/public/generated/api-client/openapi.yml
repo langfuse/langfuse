@@ -98,9 +98,28 @@ components:
             and data type. For categorical scores, the value must map to a
             config category. Numeric scores might be constrained by the score
             config's max and min values
+        source:
+          $ref: '#/components/schemas/CreateScoreSource'
+          nullable: true
+          description: >-
+            The source of the score. Defaults to API. Set to ANNOTATION to
+            prefill scores (e.g. from an LLM) for a human reviewer to verify in
+            an annotation queue. When source is ANNOTATION, a configId is
+            required unless dataType is CORRECTION. EVAL is reserved for
+            internal evaluator outputs and is not accepted on this endpoint.
       required:
         - name
         - value
+    CreateScoreSource:
+      title: CreateScoreSource
+      type: string
+      enum:
+        - API
+        - ANNOTATION
+      description: |-
+        Source values accepted when creating a score via the public API.
+        EVAL is reserved for internal evaluator outputs and is intentionally not
+        exposed here.
     ScoreDataType:
       title: ScoreDataType
       type: string

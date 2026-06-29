@@ -168,7 +168,7 @@ export function CustomMappingEditor({
             </div>
           </div>
           <div>
-            <Label className="text-sm font-medium">JSON Path</Label>
+            <Label className="text-sm font-medium">JSONPath</Label>
             <div className="mt-1">
               <JsonPathInput
                 value={config.rootConfig?.jsonPath ?? "$."}
@@ -180,7 +180,7 @@ export function CustomMappingEditor({
               />
             </div>
             <p className="text-muted-foreground p-1 text-xs">
-              Start with $. to use a JSON path (e.g., $.field)
+              Start with $. to use a JSONPath (e.g., $.field)
             </p>
           </div>
         </div>
@@ -191,7 +191,7 @@ export function CustomMappingEditor({
           <Label className="text-sm font-medium">Key-value mappings</Label>
           <p className="text-muted-foreground text-xs">
             Build an object with custom keys. Values starting with $ are treated
-            as JSON paths.
+            as JSONPaths.
           </p>
 
           <div className="space-y-3">
@@ -343,7 +343,7 @@ function KeyValueEntryRow({
             )}
 
             <p className="text-muted-foreground pt-1 text-xs">
-              Start with $. to use a JSON path (e.g., $.field)
+              Start with $. to use a JSONPath (e.g., $.field)
             </p>
           </div>
         </div>

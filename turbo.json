@@ -44,17 +44,20 @@
       "persistent": true,
       "dependsOn": ["db:generate"]
     },
+    // Prisma generate writes client types into node_modules. Turbo cache hits
+    // only replay logs and do not restore those side effects on fresh CI runners.
     "db:generate": {
       "inputs": ["packages/shared/prisma/schema.prisma"],
-      "cache": true,
+      "cache": false,
       "dependsOn": ["^db:generate"]
     },
     "lint": {
+      "dependsOn": ["@repo/eslint-plugin#build"],
       "cache": true,
       "outputs": []
     },
     "typecheck": {
-      "dependsOn": ["db:generate"],
+      "dependsOn": ["db:generate", "^build"],
       "cache": true,
       "outputs": []
     },
@@ -65,6 +68,11 @@
     },
     "test": {
       "dependsOn": ["^test", "db:generate"],
+      "cache": true
+    },
+    "@repo/eslint-plugin#build": {
+      "dependsOn": [],
+      "outputs": ["dist/**"],
       "cache": true
     },
     "worker#dev": {

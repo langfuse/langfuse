@@ -333,7 +333,7 @@ export const DatasetForm = forwardRef<DatasetFormRef, DatasetFormProps>(
       }
     }
 
-    const handleDelete = (e: React.FormEvent) => {
+    const handleDelete = (e: React.SyntheticEvent) => {
       e.preventDefault();
 
       // helps with type safety

@@ -175,12 +175,19 @@ export const CreateExperimentsForm = ({
                   <div className="flex items-start">
                     <Button
                       className="rounded-r-none"
+                      disabled={existingRemoteExperiment.data.enabled === false}
+                      title={
+                        existingRemoteExperiment.data.enabled === false
+                          ? "Enable in settings to run"
+                          : undefined
+                      }
                       onClick={() => setShowRemoteExperimentTriggerModal(true)}
                     >
                       Run
                     </Button>
                     <Button
                       className="rounded-l-none rounded-r-md border-l-2 px-2"
+                      title="Edit remote trigger settings"
                       onClick={() => setShowRemoteExperimentUpsertForm(true)}
                     >
                       <span className="relative mr-1 text-xs">

@@ -64,13 +64,13 @@ export default function SlackIntegrationSettings() {
     }
   }, [router.query]);
 
-  const { data: integrationStatus, isInitialLoading } =
+  const { data: integrationStatus, isLoading } =
     api.slack.getIntegrationStatus.useQuery(
       { projectId },
       { enabled: !!projectId },
     );
 
-  const status = isInitialLoading
+  const status = isLoading
     ? undefined
     : integrationStatus?.isConnected
       ? "active"

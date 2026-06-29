@@ -26,6 +26,10 @@ import {
   scoreFilters,
   addPrefixToScoreKeys,
 } from "@/src/features/scores/lib/scoreColumns";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
+import { useMemo } from "react";
 
 export type PromptVersionTableRow = {
   version: number;
@@ -83,11 +87,12 @@ export default function PromptVersionTable({
   promptName: promptNameProp,
 }: { promptName?: string } = {}) {
   const router = useRouter();
-  const projectId = router.query.projectId as string;
+  const projectId = useProjectIdFromURL() ?? "";
+  const promptNameFromQuery = router.query.promptName;
   const promptName =
     promptNameProp ||
-    (router.query.promptName
-      ? decodeURIComponent(router.query.promptName as string)
+    (typeof promptNameFromQuery === "string"
+      ? decodeURIComponent(promptNameFromQuery)
       : "");
 
   const [paginationState, setPaginationState] = useQueryParams({
@@ -102,10 +107,17 @@ export default function PromptVersionTable({
     "promptVersion",
     "s",
   );
+  const { timeRange, setTimeRange } = useTableDateRange(projectId, {
+    defaultRelativeAggregation: "last30Days",
+  });
+  const dateRange = useMemo(
+    () => ("range" in timeRange ? toAbsoluteTimeRange(timeRange) : timeRange),
+    [timeRange],
+  );
 
   const promptVersions = api.prompts.allVersions.useQuery(
     {
-      projectId: projectId as string, // Typecast as query is enabled only when projectId is present
+      projectId,
       name: promptName,
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
@@ -119,8 +131,10 @@ export default function PromptVersionTable({
 
   const promptMetrics = api.prompts.versionMetrics.useQuery(
     {
-      projectId: projectId as string, // Typecast as query is enabled only when projectId is present
+      projectId,
       promptIds,
+      fromTimestamp: dateRange?.from,
+      toTimestamp: dateRange?.to,
     },
     {
       enabled: Boolean(projectId) && promptVersions.isSuccess,
@@ -302,8 +316,7 @@ export default function PromptVersionTable({
       size: 150,
       headerTooltip: {
         description:
-          "The last time this prompt version was used in a generation. See docs for details on how to link generations/traces to prompt versions.",
-        href: "https://langfuse.com/docs/prompt-management/get-started",
+          "This is calculated based on the selected date range, not the full usage history.",
       },
       cell: ({ row }) => {
         const value: number | undefined | null = row.getValue("lastUsed");
@@ -321,8 +334,7 @@ export default function PromptVersionTable({
       enableHiding: true,
       headerTooltip: {
         description:
-          "The first time this prompt version was used in a generation. See docs for details on how to link generations/traces to prompt versions.",
-        href: "https://langfuse.com/docs/prompt-management/get-started",
+          "This is calculated based on the selected date range, not the full usage history.",
       },
       cell: ({ row }) => {
         const value: number | undefined | null = row.getValue("firstUsed");
@@ -417,6 +429,8 @@ export default function PromptVersionTable({
       <div className="gap-3">
         <DataTableToolbar
           columns={columns}
+          timeRange={timeRange}
+          setTimeRange={setTimeRange}
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
           columnVisibility={columnVisibility}

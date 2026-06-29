@@ -68,7 +68,7 @@ export const sendUsageThresholdWarningEmail = async ({
     // Add BCC if configured (optional, for CRM integration)
     if (env.CLOUD_CRM_EMAIL) {
       // Validate email format to prevent email header injection
-      const emailSchema = z.string().email();
+      const emailSchema = z.email();
       const validationResult = emailSchema.safeParse(env.CLOUD_CRM_EMAIL);
 
       if (validationResult.success) {

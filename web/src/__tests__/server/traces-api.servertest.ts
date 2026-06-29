@@ -6,6 +6,7 @@ import {
   createTrace,
   getTraceById,
   createEvent,
+  createOrgProjectAndApiKey,
   type EventRecordInsertType,
 } from "@langfuse/shared/src/server";
 import {
@@ -27,8 +28,6 @@ import { randomUUID } from "crypto";
 import snakeCase from "lodash/snakeCase";
 import { env } from "@/src/env.mjs";
 import waitForExpect from "wait-for-expect";
-
-const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 // Helper type for creating observation/event data
 // Times are always in milliseconds, conversion handled internally
@@ -100,6 +99,46 @@ const createObservationOrEvent = (
   }
 };
 
+const waitForEventsTable = async (useEventsTable: boolean) => {
+  if (useEventsTable) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+};
+
+const createFieldsFilteringFixture = (projectId: string) => {
+  const traceId = randomUUID();
+  const createdTrace = createTrace({
+    id: traceId,
+    name: "trace-with-all-fields",
+    user_id: "user-1",
+    project_id: projectId,
+    metadata: { key: "value" },
+    input: JSON.stringify({ prompt: "test" }),
+    output: JSON.stringify({ response: "test response" }),
+    release: "1.0.0",
+    version: "2.0.0",
+  });
+
+  const observation = createObservation({
+    trace_id: traceId,
+    project_id: projectId,
+    name: "test-observation",
+    end_time: new Date().getTime(),
+    start_time: new Date().getTime() - 1000,
+    input: "observation input",
+    output: "observation output",
+  });
+
+  const score = createTraceScore({
+    trace_id: traceId,
+    project_id: projectId,
+    name: "test-score",
+    value: 0.8,
+  });
+
+  return { createdTrace, observation, score, traceId };
+};
+
 // Helper to create trace with observations/events
 const createTraceWithObservations = async (
   useEventsTable: boolean,
@@ -156,6 +195,20 @@ const createTraceWithObservations = async (
 };
 
 describe("/api/public/traces API Endpoint", () => {
+  let projectId: string;
+  let auth: string;
+
+  beforeEach(async () => {
+    const currentTestName = expect.getState().currentTestName ?? "";
+    if (currentTestName.includes("Advanced Filtering - Dual Path Tests")) {
+      return;
+    }
+
+    const fixture = await createOrgProjectAndApiKey();
+    projectId = fixture.projectId;
+    auth = fixture.auth;
+  });
+
   it("should create and get a trace via /traces", async () => {
     const createdTrace = createTrace({
       name: "trace-name",
@@ -187,13 +240,17 @@ describe("/api/public/traces API Endpoint", () => {
       }),
     ];
 
-    await createTracesCh([createdTrace]);
-    await createObservationsCh(observations);
+    await Promise.all([
+      createTracesCh([createdTrace]),
+      createObservationsCh(observations),
+    ]);
 
     const trace = await makeZodVerifiedAPICall(
       GetTraceV1Response,
       "GET",
       "/api/public/traces/" + createdTrace.id,
+      undefined,
+      auth,
     );
 
     expect(trace.body.name).toBe("trace-name");
@@ -248,14 +305,18 @@ describe("/api/public/traces API Endpoint", () => {
       value: 0.8,
     });
 
-    await createTracesCh([createdTrace]);
-    await createObservationsCh([observation]);
-    await createScoresCh([score]);
+    await Promise.all([
+      createTracesCh([createdTrace]),
+      createObservationsCh([observation]),
+      createScoresCh([score]),
+    ]);
 
     const trace = await makeZodVerifiedAPICall(
       GetTraceV1Response,
       "GET",
       `/api/public/traces/${traceId}?fields=core`,
+      undefined,
+      auth,
     );
 
     expect(trace.body.id).toBe(traceId);
@@ -296,14 +357,18 @@ describe("/api/public/traces API Endpoint", () => {
       value: 0.8,
     });
 
-    await createTracesCh([createdTrace]);
-    await createObservationsCh([observation]);
-    await createScoresCh([score]);
+    await Promise.all([
+      createTracesCh([createdTrace]),
+      createObservationsCh([observation]),
+      createScoresCh([score]),
+    ]);
 
     const trace = await makeZodVerifiedAPICall(
       GetTraceV1Response,
       "GET",
       `/api/public/traces/${traceId}?fields=core,scores,metrics`,
+      undefined,
+      auth,
     );
 
     expect(trace.body.id).toBe(traceId);
@@ -335,13 +400,17 @@ describe("/api/public/traces API Endpoint", () => {
       cost_details: { input: 0.01, output: 0.02, total: 0.03 },
     });
 
-    await createTracesCh([createdTrace]);
-    await createObservationsCh([observation]);
+    await Promise.all([
+      createTracesCh([createdTrace]),
+      createObservationsCh([observation]),
+    ]);
 
     const trace = await makeZodVerifiedAPICall(
       GetTraceV1Response,
       "GET",
       `/api/public/traces/${traceId}?fields=invalid_group,also_invalid`,
+      undefined,
+      auth,
     );
 
     // All invalid fields should fall back to returning all field groups
@@ -386,13 +455,17 @@ describe("/api/public/traces API Endpoint", () => {
       }),
     ];
 
-    await createTracesCh([createdTrace]);
-    await createObservationsCh(observations);
+    await Promise.all([
+      createTracesCh([createdTrace]),
+      createObservationsCh(observations),
+    ]);
 
     const traces = await makeZodVerifiedAPICall(
       GetTracesV1Response,
       "GET",
       "/api/public/traces",
+      undefined,
+      auth,
     );
 
     expect(traces.body.meta.totalItems).toBeGreaterThanOrEqual(1);
@@ -443,6 +516,8 @@ describe("/api/public/traces API Endpoint", () => {
         GetTracesV1Response,
         "GET",
         `/api/public/traces?${prop}=${value}`,
+        undefined,
+        auth,
       );
 
       expect(traces.body.meta.totalItems).toBe(1);
@@ -498,6 +573,8 @@ describe("/api/public/traces API Endpoint", () => {
       GetTracesV1Response,
       "GET",
       `/api/public/traces?environment=${environment}`,
+      undefined,
+      auth,
     );
 
     expect(traces.body.meta.totalItems).toBe(1);
@@ -558,6 +635,8 @@ describe("/api/public/traces API Endpoint", () => {
       GetTracesV1Response,
       "GET",
       `/api/public/traces?environment=${environment}`,
+      undefined,
+      auth,
     );
 
     expect(traces.body.meta.totalItems).toBe(1);
@@ -584,6 +663,8 @@ describe("/api/public/traces API Endpoint", () => {
       GetTracesV1Response,
       "GET",
       `/api/public/traces?tags=${[tag]}`,
+      undefined,
+      auth,
     );
 
     expect(traces.body.meta.totalItems).toBe(1);
@@ -619,6 +700,8 @@ describe("/api/public/traces API Endpoint", () => {
       GetTracesV1Response,
       "GET",
       `/api/public/traces?tags=${[tag]}&limit=1&offset=1`,
+      undefined,
+      auth,
     );
 
     expect(traces.body.meta.totalItems).toBe(3);
@@ -649,6 +732,8 @@ describe("/api/public/traces API Endpoint", () => {
       GetTracesV1Response,
       "GET",
       `/api/public/traces?tags=${[tag]}&orderBy=name.desc`,
+      undefined,
+      auth,
     );
 
     expect(traces.body.meta.totalItems).toBe(2);
@@ -664,16 +749,8 @@ describe("/api/public/traces API Endpoint", () => {
       GetTracesV1Response,
       "GET",
       "/api/public/traces?page=0&limit=10",
-    );
-
-    expect(response.status).toBe(400);
-  });
-
-  it("should return 400 error when page=0", async () => {
-    const response = await makeZodVerifiedAPICallSilent(
-      GetTracesV1Response,
-      "GET",
-      "/api/public/traces?page=0&limit=10",
+      undefined,
+      auth,
     );
 
     expect(response.status).toBe(400);
@@ -681,9 +758,10 @@ describe("/api/public/traces API Endpoint", () => {
 
   it("LFE-3699: should fetch a single trace with unescaped metadata via traces list", async () => {
     const traceId = randomUUID();
+    const traceName = `trace-name-${traceId}`;
     const trace = createTrace({
       id: traceId,
-      name: "trace-name1",
+      name: traceName,
       project_id: projectId,
       metadata: { key: JSON.stringify({ foo: "bar" }) },
       input: JSON.stringify({
@@ -700,12 +778,14 @@ describe("/api/public/traces API Endpoint", () => {
     const traces = await makeZodVerifiedAPICall(
       GetTracesV1Response,
       "GET",
-      `/api/public/traces`,
+      `/api/public/traces?name=${encodeURIComponent(traceName)}&limit=1`,
+      undefined,
+      auth,
     );
 
     const traceResponse = traces.body.data.find((t) => t.id === traceId);
     expect(traceResponse).toBeDefined();
-    expect(traceResponse!.name).toBe("trace-name1");
+    expect(traceResponse!.name).toBe(traceName);
     expect(traceResponse!.metadata).toEqual({ key: { foo: "bar" } });
     expect(traceResponse!.input).toEqual({
       args: [
@@ -738,6 +818,8 @@ describe("/api/public/traces API Endpoint", () => {
       GetTraceV1Response,
       "GET",
       `/api/public/traces/${traceId}`,
+      undefined,
+      auth,
     );
 
     expect(traceResponse.body.name).toBe("trace-name1");
@@ -773,21 +855,10 @@ describe("/api/public/traces API Endpoint", () => {
       createObservation({
         trace_id: traceId,
         project_id: projectId,
-        input: "a".repeat(30e6),
-        output: "b".repeat(30e6),
+        input: "a".repeat(28e6),
+        output: "b".repeat(28e6),
         metadata: {
-          foo: "c".repeat(30e6),
-        },
-      }),
-    ]);
-    await createObservationsCh([
-      createObservation({
-        trace_id: traceId,
-        project_id: projectId,
-        input: "a".repeat(30e6),
-        output: "b".repeat(30e6),
-        metadata: {
-          foo: "c".repeat(30e6),
+          foo: "c".repeat(28e6),
         },
       }),
     ]);
@@ -797,9 +868,11 @@ describe("/api/public/traces API Endpoint", () => {
         GetTraceV1Response,
         "GET",
         `/api/public/traces/${traceId}`,
+        undefined,
+        auth,
       ),
     ).rejects.toThrow(
-      "Observations in trace are too large: 90.00MB exceeds limit of 80.00MB",
+      /Observations in trace are too large: .* exceeds limit of 80\.00MB/,
     );
   });
 
@@ -816,6 +889,8 @@ describe("/api/public/traces API Endpoint", () => {
       DeleteTraceV1Response,
       "DELETE",
       `/api/public/traces/${createdTrace.id}`,
+      undefined,
+      auth,
     );
 
     // Then
@@ -846,64 +921,44 @@ describe("/api/public/traces API Endpoint", () => {
       {
         traceIds: [createdTrace1.id, createdTrace2.id],
       },
+      auth,
     );
 
     // Then
     expect(deleteResponse.status).toBe(200);
     await waitForExpect(async () => {
-      const trace1 = await getTraceById({
-        traceId: createdTrace1.id,
-        projectId,
-      });
+      const [trace1, trace2] = await Promise.all([
+        getTraceById({
+          traceId: createdTrace1.id,
+          projectId,
+        }),
+        getTraceById({
+          traceId: createdTrace2.id,
+          projectId,
+        }),
+      ]);
       expect(trace1).toBeUndefined();
-      const trace2 = await getTraceById({
-        traceId: createdTrace2.id,
-        projectId,
-      });
       expect(trace2).toBeUndefined();
     }, 40_000);
   }, 60_000);
 
   describe("Fields Filtering", () => {
     it("should fetch traces with all fields by default", async () => {
-      const traceId = randomUUID();
-      const createdTrace = createTrace({
-        id: traceId,
-        name: "trace-with-all-fields",
-        user_id: "user-1",
-        project_id: projectId,
-        metadata: { key: "value" },
-        input: JSON.stringify({ prompt: "test" }),
-        output: JSON.stringify({ response: "test response" }),
-        release: "1.0.0",
-        version: "2.0.0",
-      });
+      const { createdTrace, observation, score, traceId } =
+        createFieldsFilteringFixture(projectId);
 
-      const observation = createObservation({
-        trace_id: traceId,
-        project_id: projectId,
-        name: "test-observation",
-        end_time: new Date().getTime(),
-        start_time: new Date().getTime() - 1000,
-        input: "observation input",
-        output: "observation output",
-      });
-
-      const score = createTraceScore({
-        trace_id: traceId,
-        project_id: projectId,
-        name: "test-score",
-        value: 0.8,
-      });
-
-      await createTracesCh([createdTrace]);
-      await createObservationsCh([observation]);
-      await createScoresCh([score]);
+      await Promise.all([
+        createTracesCh([createdTrace]),
+        createObservationsCh([observation]),
+        createScoresCh([score]),
+      ]);
 
       const traces = await makeZodVerifiedAPICall(
         GetTracesV1Response,
         "GET",
         "/api/public/traces",
+        undefined,
+        auth,
       );
 
       const trace = traces.body.data.find((t) => t.id === traceId);
@@ -949,14 +1004,18 @@ describe("/api/public/traces API Endpoint", () => {
         value: 0.8,
       });
 
-      await createTracesCh([createdTrace]);
-      await createObservationsCh([observation]);
-      await createScoresCh([score]);
+      await Promise.all([
+        createTracesCh([createdTrace]),
+        createObservationsCh([observation]),
+        createScoresCh([score]),
+      ]);
 
       const traces = await makeZodVerifiedAPICall(
         GetTracesV1Response,
         "GET",
         "/api/public/traces?fields=core",
+        undefined,
+        auth,
       );
 
       const trace = traces.body.data.find((t) => t.id === traceId);
@@ -999,6 +1058,8 @@ describe("/api/public/traces API Endpoint", () => {
         GetTracesV1Response,
         "GET",
         "/api/public/traces?fields=core,io",
+        undefined,
+        auth,
       );
 
       const trace = traces.body.data.find((t) => t.id === traceId);
@@ -1034,13 +1095,17 @@ describe("/api/public/traces API Endpoint", () => {
         value: 0.8,
       });
 
-      await createTracesCh([createdTrace]);
-      await createScoresCh([score]);
+      await Promise.all([
+        createTracesCh([createdTrace]),
+        createScoresCh([score]),
+      ]);
 
       const traces = await makeZodVerifiedAPICall(
         GetTracesV1Response,
         "GET",
         "/api/public/traces?fields=core,scores",
+        undefined,
+        auth,
       );
 
       const trace = traces.body.data.find((t) => t.id === traceId);
@@ -1076,13 +1141,17 @@ describe("/api/public/traces API Endpoint", () => {
         start_time: new Date().getTime() - 1000,
       });
 
-      await createTracesCh([createdTrace]);
-      await createObservationsCh([observation]);
+      await Promise.all([
+        createTracesCh([createdTrace]),
+        createObservationsCh([observation]),
+      ]);
 
       const traces = await makeZodVerifiedAPICall(
         GetTracesV1Response,
         "GET",
         "/api/public/traces?fields=core,observations",
+        undefined,
+        auth,
       );
 
       const trace = traces.body.data.find((t) => t.id === traceId);
@@ -1119,13 +1188,17 @@ describe("/api/public/traces API Endpoint", () => {
         total_cost: 0.05,
       });
 
-      await createTracesCh([createdTrace]);
-      await createObservationsCh([observation]);
+      await Promise.all([
+        createTracesCh([createdTrace]),
+        createObservationsCh([observation]),
+      ]);
 
       const traces = await makeZodVerifiedAPICall(
         GetTracesV1Response,
         "GET",
         "/api/public/traces?fields=core,metrics",
+        undefined,
+        auth,
       );
 
       const trace = traces.body.data.find((t) => t.id === traceId);
@@ -1150,6 +1223,8 @@ describe("/api/public/traces API Endpoint", () => {
         GetTracesV1Response,
         "GET",
         "/api/public/traces?fields=core,invalid,scores",
+        undefined,
+        auth,
       );
 
       // Should still work, just ignoring invalid field names
@@ -1158,44 +1233,21 @@ describe("/api/public/traces API Endpoint", () => {
     });
 
     it("should handle empty fields parameter", async () => {
-      const traceId = randomUUID();
-      const createdTrace = createTrace({
-        id: traceId,
-        name: "trace-with-all-fields",
-        user_id: "user-1",
-        project_id: projectId,
-        metadata: { key: "value" },
-        input: JSON.stringify({ prompt: "test" }),
-        output: JSON.stringify({ response: "test response" }),
-        release: "1.0.0",
-        version: "2.0.0",
-      });
+      const { createdTrace, observation, score, traceId } =
+        createFieldsFilteringFixture(projectId);
 
-      const observation = createObservation({
-        trace_id: traceId,
-        project_id: projectId,
-        name: "test-observation",
-        end_time: new Date().getTime(),
-        start_time: new Date().getTime() - 1000,
-        input: "observation input",
-        output: "observation output",
-      });
-
-      const score = createTraceScore({
-        trace_id: traceId,
-        project_id: projectId,
-        name: "test-score",
-        value: 0.8,
-      });
-
-      await createTracesCh([createdTrace]);
-      await createObservationsCh([observation]);
-      await createScoresCh([score]);
+      await Promise.all([
+        createTracesCh([createdTrace]),
+        createObservationsCh([observation]),
+        createScoresCh([score]),
+      ]);
 
       const traces = await makeZodVerifiedAPICall(
         GetTracesV1Response,
         "GET",
         "/api/public/traces?fields=",
+        undefined,
+        auth,
       );
 
       // Should default to all fields when empty
@@ -1232,10 +1284,16 @@ describe("/api/public/traces API Endpoint", () => {
       };
 
       describe(`${suiteName}`, () => {
+        let projectId: string;
+        let auth: string;
         const testTraceId = randomUUID();
         const testTraceId2 = randomUUID();
 
         beforeAll(async () => {
+          const fixture = await createOrgProjectAndApiKey();
+          projectId = fixture.projectId;
+          auth = fixture.auth;
+
           // Create test traces with different metadata for filtering
           const trace1 = createTrace({
             id: testTraceId,
@@ -1271,11 +1329,12 @@ describe("/api/public/traces API Endpoint", () => {
             timestamp: new Date("2024-01-02T00:00:00Z").getTime(),
           });
 
-          await createTraceWithObservations(useEventsTable, trace1, []);
-          await createTraceWithObservations(useEventsTable, trace2, []);
+          await Promise.all([
+            createTraceWithObservations(useEventsTable, trace1, []),
+            createTraceWithObservations(useEventsTable, trace2, []),
+          ]);
 
-          // Simple wait to ensure data is available
-          await new Promise((resolve) => setTimeout(resolve, 100));
+          await waitForEventsTable(useEventsTable);
         }, 10000);
 
         it("should support basic metadata filtering", async () => {
@@ -1293,6 +1352,8 @@ describe("/api/public/traces API Endpoint", () => {
             GetTracesV1Response,
             "GET",
             buildUrl(`filter=${encodeURIComponent(filterParam)}`),
+            undefined,
+            auth,
           );
 
           expect(traces.status).toBe(200);
@@ -1329,6 +1390,8 @@ describe("/api/public/traces API Endpoint", () => {
             GetTracesV1Response,
             "GET",
             buildUrl(`filter=${encodeURIComponent(filterParam)}`),
+            undefined,
+            auth,
           );
 
           expect(traces.status).toBe(200);
@@ -1362,6 +1425,8 @@ describe("/api/public/traces API Endpoint", () => {
             GetTracesV1Response,
             "GET",
             buildUrl(`filter=${encodeURIComponent(filterParam)}`),
+            undefined,
+            auth,
           );
 
           expect(traces.status).toBe(200);
@@ -1381,6 +1446,8 @@ describe("/api/public/traces API Endpoint", () => {
             GetTracesV1Response,
             "GET",
             buildUrl(`userId=filter-user-1&environment=production`),
+            undefined,
+            auth,
           );
 
           expect(traces.status).toBe(200);
@@ -1412,6 +1479,8 @@ describe("/api/public/traces API Endpoint", () => {
             buildUrl(
               `userId=filter-user-2&filter=${encodeURIComponent(filterParam)}`,
             ),
+            undefined,
+            auth,
           );
 
           expect(traces.status).toBe(200);
@@ -1445,6 +1514,8 @@ describe("/api/public/traces API Endpoint", () => {
             buildUrl(
               `userId=filter-user-1&filter=${encodeURIComponent(filterParam)}`,
             ),
+            undefined,
+            auth,
           );
 
           expect(traces.status).toBe(200);
@@ -1466,6 +1537,8 @@ describe("/api/public/traces API Endpoint", () => {
             GetTracesV1Response,
             "GET",
             buildUrl(`filter=${encodeURIComponent(malformedFilter)}`),
+            undefined,
+            auth,
           );
 
           expect(traces.status).toBe(400);
@@ -1485,6 +1558,8 @@ describe("/api/public/traces API Endpoint", () => {
             GetTracesV1Response,
             "GET",
             buildUrl(`filter=${encodeURIComponent(invalidFilterParam)}`),
+            undefined,
+            auth,
           );
 
           expect(traces.status).toBe(400);
@@ -1495,6 +1570,8 @@ describe("/api/public/traces API Endpoint", () => {
             GetTracesV1Response,
             "GET",
             buildUrl(`filter=`),
+            undefined,
+            auth,
           );
 
           expect(traces.status).toBe(200); // Empty string should be treated as undefined
@@ -1514,6 +1591,8 @@ describe("/api/public/traces API Endpoint", () => {
             GetTracesV1Response,
             "GET",
             buildUrl(`filter=${encodeURIComponent(invalidStructure)}`),
+            undefined,
+            auth,
           );
 
           expect(traces.status).toBe(400);
@@ -1533,6 +1612,8 @@ describe("/api/public/traces API Endpoint", () => {
             GetTracesV1Response,
             "GET",
             buildUrl(`filter=${encodeURIComponent(invalidOperator)}`),
+            undefined,
+            auth,
           );
 
           expect(traces.status).toBe(400);
@@ -1559,6 +1640,8 @@ describe("/api/public/traces API Endpoint", () => {
             GetTracesV1Response,
             "GET",
             buildUrl(`filter=${encodeURIComponent(filterRange)}`),
+            undefined,
+            auth,
           );
 
           expect(tracesRange.status).toBe(200);
@@ -1590,6 +1673,8 @@ describe("/api/public/traces API Endpoint", () => {
             buildUrl(
               `orderBy=timestamp.asc&fromTimestamp=2023-01-01T00:00:00Z&toTimestamp=2023-01-02T00:00:00Z&filter=${encodeURIComponent(filterParam)}`,
             ),
+            undefined,
+            auth,
           );
 
           expect(traces.status).toBe(200);
@@ -1650,9 +1735,7 @@ describe("/api/public/traces API Endpoint", () => {
           ];
 
           await createTraceWithObservations(useEventsTable, trace, events);
-
-          // Simple wait to ensure data is available
-          await new Promise((resolve) => setTimeout(resolve, 100));
+          await waitForEventsTable(useEventsTable);
 
           // The trace should NOT be returned because after aggregation,
           // it has version=2.0 (from the latest event)
@@ -1675,6 +1758,8 @@ describe("/api/public/traces API Endpoint", () => {
             GetTracesV1Response,
             "GET",
             buildUrl(`filter=${encodeURIComponent(filterParam)}`),
+            undefined,
+            auth,
           );
 
           expect(traces.status).toBe(200);
@@ -1705,6 +1790,8 @@ describe("/api/public/traces API Endpoint", () => {
             GetTracesV1Response,
             "GET",
             buildUrl(`filter=${encodeURIComponent(filterParam2)}`),
+            undefined,
+            auth,
           );
 
           expect(traces2.status).toBe(200);
@@ -1781,24 +1868,13 @@ describe("/api/public/traces API Endpoint", () => {
             },
           ];
 
-          await createTraceWithObservations(
-            useEventsTable,
-            trace1,
-            observations1,
-          );
-          await createTraceWithObservations(
-            useEventsTable,
-            trace2,
-            observations2,
-          );
-          await createTraceWithObservations(
-            useEventsTable,
-            trace3,
-            observations3,
-          );
+          await Promise.all([
+            createTraceWithObservations(useEventsTable, trace1, observations1),
+            createTraceWithObservations(useEventsTable, trace2, observations2),
+            createTraceWithObservations(useEventsTable, trace3, observations3),
+          ]);
 
-          // Simple wait to ensure data is available
-          await new Promise((resolve) => setTimeout(resolve, 100));
+          await waitForEventsTable(useEventsTable);
 
           // Test filtering by latency range (>= 0 and <= 1.9 seconds)
           // This should return trace1 and trace2, but not trace3
@@ -1828,6 +1904,8 @@ describe("/api/public/traces API Endpoint", () => {
             GetTracesV1Response,
             "GET",
             buildUrl(`fields=core&filter=${encodeURIComponent(filterParam)}`),
+            undefined,
+            auth,
           );
 
           expect(traces.status).toBe(200);
@@ -1893,9 +1971,11 @@ describe("/api/public/traces API Endpoint", () => {
             observation_id: null, // Must be null for trace-level scores
           });
 
-          await createTraceWithObservations(useEventsTable, trace1, []);
-          await createTraceWithObservations(useEventsTable, trace2, []);
-          await createScoresCh([score1, score2]);
+          await Promise.all([
+            createTraceWithObservations(useEventsTable, trace1, []),
+            createTraceWithObservations(useEventsTable, trace2, []),
+            createScoresCh([score1, score2]),
+          ]);
 
           // Test filtering by score_categories (check for "good" score)
           // This should return trace1 only
@@ -1919,6 +1999,8 @@ describe("/api/public/traces API Endpoint", () => {
             GetTracesV1Response,
             "GET",
             buildUrl(`fields=core&filter=${encodeURIComponent(filterParam)}`),
+            undefined,
+            auth,
           );
 
           expect(traces.status).toBe(200);
@@ -2003,6 +2085,8 @@ describe("/api/public/traces API Endpoint", () => {
             GetTracesV1Response,
             "GET",
             buildUrl(`fields=core,io,observations,metrics`),
+            undefined,
+            auth,
           );
 
           const trace = traces.body.data.find((t) => t.id === traceId);
@@ -2045,13 +2129,17 @@ describe("/api/public/traces API Endpoint", () => {
             project_id: projectId,
           });
 
-          await createTraceWithObservations(useEventsTable, createdTrace, []);
-          await createTraceWithObservations(useEventsTable, dummyTrace, []);
+          await Promise.all([
+            createTraceWithObservations(useEventsTable, createdTrace, []),
+            createTraceWithObservations(useEventsTable, dummyTrace, []),
+          ]);
 
           const traces = await makeZodVerifiedAPICall(
             GetTracesV1Response,
             "GET",
             buildUrl(`userId=${userId}`),
+            undefined,
+            auth,
           );
 
           expect(traces.body.meta.totalItems).toBeGreaterThanOrEqual(1);
@@ -2080,6 +2168,8 @@ describe("/api/public/traces API Endpoint", () => {
             GetTracesV1Response,
             "GET",
             buildUrl(`name=${traceName}`),
+            undefined,
+            auth,
           );
 
           const matchingTrace = traces.body.data.find((t) => t.id === traceId);
@@ -2103,6 +2193,8 @@ describe("/api/public/traces API Endpoint", () => {
             GetTracesV1Response,
             "GET",
             buildUrl(`environment=${environment}`),
+            undefined,
+            auth,
           );
 
           const matchingTrace = traces.body.data.find((t) => t.id === traceId);
@@ -2121,23 +2213,28 @@ describe("/api/public/traces API Endpoint", () => {
             }),
           );
 
-          for (const trace of traces) {
-            await createTraceWithObservations(useEventsTable, trace, []);
-          }
-
-          // Get page 1
-          const page1 = await makeZodVerifiedAPICall(
-            GetTracesV1Response,
-            "GET",
-            buildUrl(`page=1&limit=2`),
+          await Promise.all(
+            traces.map((trace) =>
+              createTraceWithObservations(useEventsTable, trace, []),
+            ),
           );
 
-          // Get page 2
-          const page2 = await makeZodVerifiedAPICall(
-            GetTracesV1Response,
-            "GET",
-            buildUrl(`page=2&limit=2`),
-          );
+          const [page1, page2] = await Promise.all([
+            makeZodVerifiedAPICall(
+              GetTracesV1Response,
+              "GET",
+              buildUrl(`page=1&limit=2`),
+              undefined,
+              auth,
+            ),
+            makeZodVerifiedAPICall(
+              GetTracesV1Response,
+              "GET",
+              buildUrl(`page=2&limit=2`),
+              undefined,
+              auth,
+            ),
+          ]);
 
           expect(page1.body.data.length).toBeLessThanOrEqual(2);
           expect(page2.body.data.length).toBeLessThanOrEqual(2);
@@ -2168,12 +2265,10 @@ describe("/api/public/traces API Endpoint", () => {
             timestamp: yesterday.getTime() - 24 * 60 * 60 * 1000,
           });
 
-          await createTraceWithObservations(useEventsTable, traceInRange, []);
-          await createTraceWithObservations(
-            useEventsTable,
-            traceOutOfRange,
-            [],
-          );
+          await Promise.all([
+            createTraceWithObservations(useEventsTable, traceInRange, []),
+            createTraceWithObservations(useEventsTable, traceOutOfRange, []),
+          ]);
 
           const traces = await makeZodVerifiedAPICall(
             GetTracesV1Response,
@@ -2181,6 +2276,8 @@ describe("/api/public/traces API Endpoint", () => {
             buildUrl(
               `fromTimestamp=${yesterday.toISOString()}&toTimestamp=${tomorrow.toISOString()}`,
             ),
+            undefined,
+            auth,
           );
 
           const inRangeFound = traces.body.data.find(
@@ -2218,6 +2315,8 @@ describe("/api/public/traces API Endpoint", () => {
             GetTracesV1Response,
             "GET",
             buildUrl(`fields=core,scores`),
+            undefined,
+            auth,
           );
 
           const trace = traces.body.data.find((t) => t.id === traceId);
@@ -2236,14 +2335,18 @@ describe("/api/public/traces API Endpoint", () => {
             }),
           );
 
-          for (const trace of traces) {
-            await createTraceWithObservations(useEventsTable, trace, []);
-          }
+          await Promise.all(
+            traces.map((trace) =>
+              createTraceWithObservations(useEventsTable, trace, []),
+            ),
+          );
 
           const result = await makeZodVerifiedAPICall(
             GetTracesV1Response,
             "GET",
             buildUrl(`name=count-test-${prefix}`),
+            undefined,
+            auth,
           );
 
           expect(result.body.meta.totalItems).toBeGreaterThanOrEqual(3);
@@ -2284,6 +2387,8 @@ describe("/api/public/traces API Endpoint", () => {
         GetTracesV1Response,
         "GET",
         "/api/public/traces",
+        undefined,
+        auth,
       );
 
       expect(response.status).toBe(400);
@@ -2299,6 +2404,8 @@ describe("/api/public/traces API Endpoint", () => {
         GetTracesV1Response,
         "GET",
         `/api/public/traces?fromTimestamp=${fromTimestamp}`,
+        undefined,
+        auth,
       );
 
       expect(response.status).toBe(200);
@@ -2312,6 +2419,8 @@ describe("/api/public/traces API Endpoint", () => {
         GetTracesV1Response,
         "GET",
         "/api/public/traces",
+        undefined,
+        auth,
       );
 
       expect(response.status).toBe(400);
@@ -2344,14 +2453,18 @@ describe("/api/public/traces API Endpoint", () => {
         value: 0.8,
       });
 
-      await createTracesCh([createdTrace]);
-      await createObservationsCh([observation]);
-      await createScoresCh([score]);
+      await Promise.all([
+        createTracesCh([createdTrace]),
+        createObservationsCh([observation]),
+        createScoresCh([score]),
+      ]);
 
       const response = await makeZodVerifiedAPICall(
         GetTracesV1Response,
         "GET",
         "/api/public/traces",
+        undefined,
+        auth,
       );
 
       const trace = response.body.data.find((t) => t.id === traceId);
@@ -2385,6 +2498,8 @@ describe("/api/public/traces API Endpoint", () => {
         GetTracesV1Response,
         "GET",
         "/api/public/traces?fields=core,io",
+        undefined,
+        auth,
       );
 
       const trace = response.body.data.find((t) => t.id === traceId);
@@ -2399,94 +2514,61 @@ describe("/api/public/traces API Endpoint", () => {
 
   // Comprehensive filter column tests - verify all documented filter columns don't crash
   describe("Filter Columns - Doesn't Fail Tests", () => {
+    const filters = [
+      // Aggregated Metrics (from observations)
+      { column: "latency", type: "number", operator: ">=", value: 0 },
+      { column: "inputTokens", type: "number", operator: ">=", value: 0 },
+      { column: "outputTokens", type: "number", operator: ">=", value: 0 },
+      { column: "totalTokens", type: "number", operator: ">=", value: 0 },
+      { column: "inputCost", type: "number", operator: ">=", value: 0 },
+      { column: "outputCost", type: "number", operator: ">=", value: 0 },
+      { column: "totalCost", type: "number", operator: ">=", value: 0 },
+      // Observation Level Aggregations
+      { column: "level", type: "string", operator: "=", value: "ERROR" },
+      { column: "warningCount", type: "number", operator: ">=", value: 0 },
+      { column: "errorCount", type: "number", operator: ">=", value: 0 },
+      { column: "defaultCount", type: "number", operator: ">=", value: 0 },
+      { column: "debugCount", type: "number", operator: ">=", value: 0 },
+      // Scores (should not crash, filters are ignored per our fix)
+      {
+        column: "scores_avg",
+        type: "numberObject",
+        key: "quality",
+        operator: ">=",
+        value: 0.5,
+      },
+      {
+        column: "score_categories",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["good", "bad"],
+      },
+    ];
+
     const runFilterTests = (useEventsTable: boolean) => {
       const suiteName = useEventsTable
         ? "with events table"
         : "with traces table";
       const queryParam = useEventsTable ? "?useEventsTable=true&" : "?";
 
-      describe(suiteName, () => {
-        // Aggregated Metrics (from observations)
-        const metricsFilters = [
-          { column: "latency", type: "number", operator: ">=", value: 0 },
-          { column: "inputTokens", type: "number", operator: ">=", value: 0 },
-          { column: "outputTokens", type: "number", operator: ">=", value: 0 },
-          { column: "totalTokens", type: "number", operator: ">=", value: 0 },
-          { column: "inputCost", type: "number", operator: ">=", value: 0 },
-          { column: "outputCost", type: "number", operator: ">=", value: 0 },
-          { column: "totalCost", type: "number", operator: ">=", value: 0 },
-        ];
-
-        metricsFilters.forEach(({ column, type, operator, value }) => {
-          it(`should not fail when filtering by ${column}`, async () => {
-            const filterParam = JSON.stringify([
-              { type, column, operator, value },
-            ]);
-            const response = await makeZodVerifiedAPICall(
-              GetTracesV1Response,
-              "GET",
-              `/api/public/traces${queryParam}filter=${encodeURIComponent(filterParam)}`,
-            );
-            expect(response.status).toBe(200);
-            expect(response.body.data).toBeDefined();
-            expect(response.body.meta).toBeDefined();
-          });
-        });
-
-        // Observation Level Aggregations
-        const observationAggFilters = [
-          { column: "level", type: "string", operator: "=", value: "ERROR" },
-          { column: "warningCount", type: "number", operator: ">=", value: 0 },
-          { column: "errorCount", type: "number", operator: ">=", value: 0 },
-          { column: "defaultCount", type: "number", operator: ">=", value: 0 },
-          { column: "debugCount", type: "number", operator: ">=", value: 0 },
-        ];
-
-        observationAggFilters.forEach(({ column, type, operator, value }) => {
-          it(`should not fail when filtering by ${column}`, async () => {
-            const filterParam = JSON.stringify([
-              { type, column, operator, value },
-            ]);
-            const response = await makeZodVerifiedAPICall(
-              GetTracesV1Response,
-              "GET",
-              `/api/public/traces${queryParam}filter=${encodeURIComponent(filterParam)}`,
-            );
-            expect(response.status).toBe(200);
-            expect(response.body.data).toBeDefined();
-            expect(response.body.meta).toBeDefined();
-          });
-        });
-
-        // Scores (should not crash, filters are ignored per our fix)
-        const scoreFilters = [
-          {
-            column: "scores_avg",
-            type: "numberObject",
-            key: "quality",
-            operator: ">=",
-            value: 0.5,
-          },
-          {
-            column: "score_categories",
-            type: "stringOptions",
-            operator: "any of",
-            value: ["good", "bad"],
-          },
-        ];
-
-        scoreFilters.forEach((filterDef) => {
-          it(`should not fail when filtering by ${filterDef.column}`, async () => {
+      it(`${suiteName}: should not fail for documented filter columns`, async () => {
+        const responses = await Promise.all(
+          filters.map((filterDef) => {
             const filterParam = JSON.stringify([filterDef]);
-            const response = await makeZodVerifiedAPICall(
+            return makeZodVerifiedAPICall(
               GetTracesV1Response,
               "GET",
               `/api/public/traces${queryParam}filter=${encodeURIComponent(filterParam)}`,
+              undefined,
+              auth,
             );
-            expect(response.status).toBe(200);
-            expect(response.body.data).toBeDefined();
-            expect(response.body.meta).toBeDefined();
-          });
+          }),
+        );
+
+        responses.forEach((response) => {
+          expect(response.status).toBe(200);
+          expect(response.body.data).toBeDefined();
+          expect(response.body.meta).toBeDefined();
         });
       });
     };

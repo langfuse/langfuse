@@ -1,1 +1,1 @@
-export default ["worker"];
+export default ["web", "worker"];

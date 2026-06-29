@@ -138,6 +138,19 @@ async function processAndCreateEvent(
   return { eventRecord, nameToValue };
 }
 
+function arraysToRecord(
+  names: string[],
+  values: Array<string | null | undefined>,
+) {
+  return names.reduce<Record<string, string | null | undefined>>(
+    (acc, name, index) => {
+      acc[name] = values[index];
+      return acc;
+    },
+    {},
+  );
+}
+
 describe("OTel metadata processing", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -182,6 +195,139 @@ describe("OTel metadata processing", () => {
       expect(nameToValue["topic"]).toBe("test");
       expect(nameToValue["resourceAttributes"]).toBeUndefined();
       expect(nameToValue["scope.attributes"]).toBeUndefined();
+    });
+  });
+
+  describe("experiment metadata", () => {
+    it("extracts serialized and flattened experiment metadata attributes", async () => {
+      const otelSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "telemetry.sdk.language",
+              value: { stringValue: "python" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "langfuse-sdk",
+              version: "4.5.0",
+              attributes: [
+                { key: "public_key", value: { stringValue: "pk-test" } },
+              ],
+            },
+            spans: [
+              {
+                traceId: createBufferId("bb9cee80f1800c7d51ef67439c379032"),
+                spanId: createBufferId("c874c627f90e96a6"),
+                name: "experiment-child-span",
+                kind: 1,
+                startTimeUnixNano: createNanoTimestamp(
+                  BigInt(1777044156622912000),
+                ),
+                endTimeUnixNano: createNanoTimestamp(
+                  BigInt(1777044156622993000),
+                ),
+                attributes: [
+                  {
+                    key: "langfuse.observation.type",
+                    value: { stringValue: "generation" },
+                  },
+                  {
+                    key: "langfuse.experiment.id",
+                    value: { stringValue: "972b5387f1607558" },
+                  },
+                  {
+                    key: "langfuse.experiment.name",
+                    value: {
+                      stringValue: "myexp - 2026-04-24T15:22:36.622383Z",
+                    },
+                  },
+                  {
+                    key: "langfuse.experiment.metadata",
+                    value: {
+                      stringValue: JSON.stringify({
+                        source: "serialized",
+                        override: "serialized-value",
+                        nested: { key: "nested-value" },
+                      }),
+                    },
+                  },
+                  {
+                    key: "langfuse.experiment.metadata.override",
+                    value: { stringValue: "flattened-value" },
+                  },
+                  {
+                    key: "langfuse.experiment.metadata.region",
+                    value: { stringValue: "emea" },
+                  },
+                  {
+                    key: "langfuse.experiment.item.id",
+                    value: { stringValue: "80db4ccdca106d37" },
+                  },
+                  {
+                    key: "langfuse.experiment.item.root_observation_id",
+                    value: { stringValue: "842d3593cd7c818e" },
+                  },
+                  {
+                    key: "langfuse.experiment.item.metadata",
+                    value: {
+                      stringValue: JSON.stringify({
+                        legacy: true,
+                        continent: "serialized-continent",
+                      }),
+                    },
+                  },
+                  {
+                    key: "langfuse.experiment.item.metadata.continent",
+                    value: { stringValue: "Europe" },
+                  },
+                  {
+                    key: "langfuse.experiment.item.metadata.position",
+                    value: { intValue: 3 },
+                  },
+                  {
+                    key: "langfuse.observation.metadata.continent",
+                    value: { stringValue: "observation-continent" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const { eventRecord, nameToValue } =
+        await processAndCreateEvent(otelSpan);
+
+      expect(eventRecord.experiment_id).toBe("972b5387f1607558");
+      expect(eventRecord.experiment_item_id).toBe("80db4ccdca106d37");
+      expect(nameToValue["continent"]).toBe("observation-continent");
+
+      expect(
+        arraysToRecord(
+          eventRecord.experiment_metadata_names,
+          eventRecord.experiment_metadata_values,
+        ),
+      ).toEqual({
+        source: "serialized",
+        override: "flattened-value",
+        "nested.key": "nested-value",
+        region: "emea",
+      });
+      expect(
+        arraysToRecord(
+          eventRecord.experiment_item_metadata_names,
+          eventRecord.experiment_item_metadata_values,
+        ),
+      ).toEqual({
+        legacy: "true",
+        continent: "Europe",
+        position: "3",
+      });
     });
   });
 });

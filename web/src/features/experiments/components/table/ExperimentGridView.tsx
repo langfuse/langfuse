@@ -52,6 +52,7 @@ type ExperimentGridViewProps = {
   selectActionColumn?: LangfuseColumnDef<ExperimentItemsTableRow>;
   rowSelection: RowSelectionState;
   setRowSelection: OnChangeFn<RowSelectionState>;
+  highlightAllRows?: boolean;
 };
 
 /**
@@ -75,6 +76,7 @@ export const ExperimentGridView = ({
   selectActionColumn,
   rowSelection,
   setRowSelection,
+  highlightAllRows,
 }: ExperimentGridViewProps) => {
   // Build all experiment IDs (baseline first)
   const allExperimentIds = useMemo(
@@ -230,6 +232,7 @@ export const ExperimentGridView = ({
       columnVisibility={columnVisibility}
       rowSelection={rowSelection}
       setRowSelection={setRowSelection}
+      highlightAllRows={highlightAllRows}
     />
   );
 };

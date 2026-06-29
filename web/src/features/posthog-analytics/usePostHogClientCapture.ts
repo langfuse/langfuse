@@ -111,7 +111,11 @@ export const events = {
   ],
   sign_in: ["cloud_region_switch", "button_click"],
   sign_up: ["button_click"],
-  auth: ["reset_password_email_requested", "update_password_form_submit"],
+  auth: [
+    "reset_password_email_requested",
+    "update_password_form_submit",
+    "set_password_form_submit",
+  ],
   playground: [
     "execute_button_click",
     "save_to_new_prompt_button_click",
@@ -166,6 +170,7 @@ export const events = {
     "compare_run_removed",
   ],
   notification: ["click_link", "dismiss_notification"],
+  toast: ["report_issue", "dismiss"],
   tag: [
     "add_existing_tag",
     "remove_tag",

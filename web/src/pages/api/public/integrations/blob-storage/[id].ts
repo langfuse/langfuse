@@ -4,6 +4,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   InvalidRequestError,
   LangfuseNotFoundError,
@@ -75,6 +76,15 @@ async function handleDeleteBlobStorageIntegration(
   // Delete the integration
   await prisma.blobStorageIntegration.delete({
     where: { projectId: id },
+  });
+
+  await auditLog({
+    action: "delete",
+    resourceType: "blobStorageIntegration",
+    resourceId: integration.projectId,
+    projectId: integration.projectId,
+    orgId: authCheck.scope.orgId,
+    apiKeyId: authCheck.scope.apiKeyId,
   });
 
   return res.status(200).json({

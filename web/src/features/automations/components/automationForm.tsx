@@ -55,7 +55,7 @@ const slackSchema = z.object({
 
 // Define GitHub Dispatch action schema
 const githubDispatchSchema = z.object({
-  url: z.string().url("Invalid URL"),
+  url: z.url("Invalid URL"),
   eventType: z.string().min(1, "Event type is required").max(100),
   githubToken: z.string(),
   displayGitHubToken: z.string().optional(),

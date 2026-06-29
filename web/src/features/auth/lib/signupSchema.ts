@@ -32,7 +32,7 @@ export const nameSchema = StringNoHTMLNonEmpty.max(
 
 export const signupSchema = z.object({
   name: nameSchema,
-  email: z.string().email(),
+  email: z.email(),
   password: passwordSchema,
   referralSource: z.string().optional(),
 });

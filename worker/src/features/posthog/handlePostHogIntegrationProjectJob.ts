@@ -27,6 +27,10 @@ type PostHogExecutionConfig = {
   maxTimestamp: Date;
   decryptedPostHogApiKey: string;
   postHogHost: string;
+  // First attempt uses ClickHouse `auto` join algorithm. We only fall back to
+  // `grace_hash` (slower, but spills to disk) on retries so an OOM on the first
+  // attempt recovers without manual intervention while healthy syncs stay fast.
+  useGraceHash: boolean;
 };
 
 const postHogSettings = {
@@ -39,6 +43,7 @@ const processPostHogTraces = async (config: PostHogExecutionConfig) => {
     config.projectName,
     config.minTimestamp,
     config.maxTimestamp,
+    { useGraceHash: config.useGraceHash },
   );
 
   logger.info(
@@ -86,6 +91,7 @@ const processPostHogGenerations = async (config: PostHogExecutionConfig) => {
     config.projectName,
     config.minTimestamp,
     config.maxTimestamp,
+    { useGraceHash: config.useGraceHash },
   );
 
   logger.info(
@@ -133,6 +139,7 @@ const processPostHogScores = async (config: PostHogExecutionConfig) => {
     config.projectName,
     config.minTimestamp,
     config.maxTimestamp,
+    { useGraceHash: config.useGraceHash },
   );
 
   logger.info(
@@ -243,7 +250,7 @@ export const handlePostHogIntegrationProjectJob = async (
     },
     include: {
       project: {
-        select: { name: true },
+        select: { name: true, createdAt: true },
       },
     },
   });
@@ -274,15 +281,49 @@ export const handlePostHogIntegrationProjectJob = async (
     );
   }
 
+  // Resume from lastSyncAt. On first run, fall back to the project's
+  // createdAt since no trace data can precede it.
+  const minTimestamp =
+    postHogIntegration.lastSyncAt || postHogIntegration.project.createdAt;
+  const uncappedMaxTimestamp = new Date(Date.now() - 30 * 60 * 1000); // 30 minutes ago
+
+  // Cap maxTimestamp at the next UTC day boundary after minTimestamp. Bounds
+  // per-run work so a stuck integration (or a backfill on an older project)
+  // does not re-scan an ever-growing window on each hourly retry, and aligns
+  // with the toDate(...) ClickHouse partition/ordering keys for better
+  // pruning. Healthy integrations are unaffected because uncappedMaxTimestamp
+  // wins whenever the sync is within one day of present.
+  const nextDayBoundary = new Date(
+    Date.UTC(
+      minTimestamp.getUTCFullYear(),
+      minTimestamp.getUTCMonth(),
+      minTimestamp.getUTCDate() + 1,
+    ),
+  );
+  const maxTimestamp = new Date(
+    Math.min(nextDayBoundary.getTime(), uncappedMaxTimestamp.getTime()),
+  );
+
+  if (maxTimestamp <= minTimestamp) {
+    logger.info(
+      `[POSTHOG] Skipping PostHog integration for project ${projectId}: empty sync window (min: ${minTimestamp.toISOString()}, max: ${maxTimestamp.toISOString()})`,
+    );
+    return;
+  }
+
+  logger.info(
+    `[POSTHOG] Syncing project ${projectId} from ${minTimestamp.toISOString()} to ${maxTimestamp.toISOString()}`,
+  );
+
   // Fetch relevant data and send it to PostHog
   const executionConfig: PostHogExecutionConfig = {
     projectId,
     projectName: postHogIntegration.project.name,
-    // Start from 2000-01-01 if no lastSyncAt. Workaround because 1970-01-01 leads to subtle bugs in ClickHouse
-    minTimestamp: postHogIntegration.lastSyncAt || new Date("2000-01-01"),
-    maxTimestamp: new Date(new Date().getTime() - 30 * 60 * 1000), // 30 minutes ago
+    minTimestamp,
+    maxTimestamp,
     decryptedPostHogApiKey: decrypt(postHogIntegration.encryptedPosthogApiKey),
     postHogHost: postHogIntegration.posthogHostName,
+    useGraceHash: job.attemptsMade > 0,
   };
 
   try {

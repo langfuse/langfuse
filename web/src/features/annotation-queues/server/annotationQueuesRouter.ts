@@ -1,3 +1,4 @@
+import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
@@ -520,15 +521,16 @@ export const queueRouter = createTRPCRouter({
       };
 
       if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {
-        const clickhouseObservation = input.isBetaEnabled
-          ? await getObservationByIdFromEventsTable({
-              id: item.objectId,
-              projectId: input.projectId,
-            })
-          : await getObservationById({
-              id: item.objectId,
-              projectId: input.projectId,
-            });
+        const clickhouseObservation =
+          env.LANGFUSE_ENABLE_EVENTS_TABLE_UI === "true"
+            ? await getObservationByIdFromEventsTable({
+                id: item.objectId,
+                projectId: input.projectId,
+              })
+            : await getObservationById({
+                id: item.objectId,
+                projectId: input.projectId,
+              });
         return {
           ...inflatedUpdatedItem,
           parentTraceId: clickhouseObservation?.traceId,

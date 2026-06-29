@@ -14,7 +14,7 @@ ensure_env_file() {
 }
 
 if ! command -v corepack >/dev/null 2>&1; then
-  echo "corepack is required. Use a Codex base environment with Node.js 24 support."
+  echo "corepack is required. Use an environment with Node.js 24 support."
   exit 1
 fi
 
@@ -34,5 +34,5 @@ pnpm run playwright:install
 # the workspace-wide db:generate task, which may be satisfied by Turbo cache.
 pnpm --filter=shared run db:generate
 
-# Prisma client generation is needed for typecheck/build tasks in Codex.
+# Prisma client generation is needed for typecheck/build tasks.
 pnpm run db:generate

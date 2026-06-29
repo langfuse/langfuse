@@ -1,0 +1,564 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+types:
+  EvaluatorType:
+    docs: |
+      The evaluator engine type.
+
+      The unstable public API currently supports only LLM-as-a-judge evaluators.
+    enum:
+      - llm_as_judge
+
+  EvaluatorScope:
+    docs: |
+      Where an evaluator comes from.
+
+      - `project`: created in your project
+      - `managed`: provided by Langfuse
+    enum:
+      - project
+      - managed
+
+  EvaluationRuleTarget:
+    docs: |
+      The ingestion object type that should trigger evaluation runs.
+
+      Choose the target first, because it changes both the valid filter columns and the valid variable-mapping sources:
+      - `observation` evaluates live-ingested observations such as generations, spans, and events.
+        It supports mapping from `input`, `output`, and `metadata`.
+      - `experiment` evaluates live experiment executions and can additionally map `expected_output`.
+        It currently supports filtering by `datasetId`.
+        Discover valid dataset IDs with `GET /api/public/v2/datasets`, then use the returned dataset `id` values in your filter.
+    enum:
+      - observation
+      - experiment
+
+  EvaluationRuleStatus:
+    docs: |
+      Effective runtime status of the evaluation rule.
+
+      - `active`: enabled and currently runnable.
+      - `inactive`: disabled by configuration.
+      - `paused`: enabled, but Langfuse has blocked execution until the underlying issue is resolved.
+    enum:
+      - active
+      - inactive
+      - paused
+
+  EvaluationRuleMappingSource:
+    docs: |
+      Source field used to populate a prompt variable.
+
+      Use these values when mapping evaluator prompt variables to live data.
+
+      Target-specific rules:
+      - `target=observation` supports `input`, `output`, and `metadata`
+      - `target=experiment` supports `input`, `output`, `metadata`, and `expected_output`
+
+      Source semantics:
+      - `input`: the observation or experiment input payload
+      - `output`: the observation or experiment output payload
+      - `metadata`: the metadata object for the target. Combine with `jsonPath` when you need one nested field instead of the whole object.
+      - `expected_output`: the experiment item's expected output. Only valid for `target=experiment`.
+    enum:
+      - input
+      - output
+      - metadata
+      - expected_output
+
+  EvaluatorModelConfig:
+    docs: |
+      Optional explicit model configuration for an evaluator.
+
+      If omitted, Langfuse uses the project's default evaluation model.
+      If provided, the model must be available to the project when the evaluator or evaluation rule is enabled.
+
+      To discover valid configured `provider` values for a project, call `GET /api/public/llm-connections` and read the `provider` field from the returned connections.
+      Use a `provider` value that matches one of the connections already configured in the same project.
+
+      Recovery guidance:
+      - If evaluator creation returns `422` with `code=evaluator_preflight_failed`, either provide a valid explicit `modelConfig` here or configure the project's default evaluation model, then retry the same request.
+    properties:
+      provider:
+        type: string
+        docs: |
+          Provider identifier to use for this evaluator, for example `openai` or `anthropic`.
+
+          To discover valid values for the current project, call `GET /api/public/llm-connections` and use one of the returned `provider` values.
+      model:
+        type: string
+        docs: Model identifier exposed by the provider, for example `gpt-4.1-mini`.
+    examples:
+      - value:
+          provider: openai
+          model: gpt-4.1-mini
+
+  EvaluatorOutputDataType:
+    docs: |
+      Structured score type returned by an evaluator.
+
+      This controls the type of score value Langfuse stores for evaluation results:
+      - `NUMERIC`: a numeric score such as `0.82`
+      - `BOOLEAN`: a boolean score such as `true`
+      - `CATEGORICAL`: one or more category labels from a fixed list
+    enum:
+      - NUMERIC
+      - BOOLEAN
+      - CATEGORICAL
+
+  EvaluatorOutputFieldDefinition:
+    properties:
+      description:
+        type: string
+        docs: Human-readable instructions for what the evaluator should return in this field.
+
+  EvaluatorOutputDefinition:
+    docs: |
+      Structured output definition to send when creating an evaluator.
+
+      Agent guidance:
+      - `dataType` is required.
+      - Do not send `version`; that is an internal storage detail and is not part of the public request contract.
+      - For `NUMERIC` and `BOOLEAN`, provide `reasoning.description` and `score.description`.
+      - For `CATEGORICAL`, also provide `score.categories` and `score.shouldAllowMultipleMatches`.
+    discriminant: dataType
+    union:
+      NUMERIC:
+        type: PublicNumericEvaluatorOutputDefinition
+      BOOLEAN:
+        type: PublicBooleanEvaluatorOutputDefinition
+      CATEGORICAL:
+        type: PublicCategoricalEvaluatorOutputDefinition
+    examples:
+      - name: Numeric
+        value:
+          dataType: NUMERIC
+          reasoning:
+            description: Explain why the answer is correct or incorrect.
+          score:
+            description: Return a score between 0 and 1.
+      - name: Boolean
+        value:
+          dataType: BOOLEAN
+          reasoning:
+            description: Explain why the output satisfies the requirement.
+          score:
+            description: Return true if the output satisfies the requirement, otherwise false.
+      - name: Categorical
+        value:
+          dataType: CATEGORICAL
+          reasoning:
+            description: Explain which category best fits the output.
+          score:
+            description: Choose the best category.
+            categories:
+              - correct
+              - partially_correct
+              - incorrect
+            shouldAllowMultipleMatches: false
+
+  PublicNumericEvaluatorOutputDefinition:
+    properties:
+      dataType:
+        type: EvaluatorOutputDataType
+        docs: Always `NUMERIC`.
+      reasoning:
+        type: EvaluatorOutputFieldDefinition
+      score:
+        type: EvaluatorOutputFieldDefinition
+
+  PublicBooleanEvaluatorOutputDefinition:
+    properties:
+      dataType:
+        type: EvaluatorOutputDataType
+        docs: Always `BOOLEAN`.
+      reasoning:
+        type: EvaluatorOutputFieldDefinition
+      score:
+        type: EvaluatorOutputFieldDefinition
+
+  PublicCategoricalEvaluatorOutputScoreDefinition:
+    properties:
+      description:
+        type: string
+      categories:
+        type: list<string>
+      shouldAllowMultipleMatches:
+        type: boolean
+
+  PublicCategoricalEvaluatorOutputDefinition:
+    properties:
+      dataType:
+        type: EvaluatorOutputDataType
+        docs: Always `CATEGORICAL`.
+      reasoning:
+        type: EvaluatorOutputFieldDefinition
+      score:
+        type: PublicCategoricalEvaluatorOutputScoreDefinition
+
+  PublicEvaluatorOutputDefinition:
+    docs: |
+      Evaluator output definition returned by the public API.
+
+      This response always includes `dataType` and never includes an internal output-definition `version`.
+      Legacy stored evaluator definitions are normalized into this shape before they are returned.
+
+      Use this response shape when deciding how to interpret future evaluation scores:
+      - `NUMERIC`: expect numeric score values
+      - `BOOLEAN`: expect `true` / `false`
+      - `CATEGORICAL`: expect one or more values from `score.categories`
+    discriminant: dataType
+    union:
+      NUMERIC:
+        type: PublicNumericEvaluatorOutputDefinition
+      BOOLEAN:
+        type: PublicBooleanEvaluatorOutputDefinition
+      CATEGORICAL:
+        type: PublicCategoricalEvaluatorOutputDefinition
+    examples:
+      - name: PublicNumeric
+        value:
+          dataType: NUMERIC
+          reasoning:
+            description: Explain why the answer is correct or incorrect.
+          score:
+            description: Return a score between 0 and 1.
+      - name: PublicCategorical
+        value:
+          dataType: CATEGORICAL
+          reasoning:
+            description: Explain which label best fits the output.
+          score:
+            description: Choose the best label.
+            categories:
+              - correct
+              - partially_correct
+              - incorrect
+            shouldAllowMultipleMatches: false
+
+  EvaluationRuleStringFilterOperator:
+    enum:
+      - name: Equals
+        value: "="
+      - name: Contains
+        value: contains
+      - name: DoesNotContain
+        value: does not contain
+      - name: StartsWith
+        value: starts with
+      - name: EndsWith
+        value: ends with
+
+  EvaluationRuleNumberFilterOperator:
+    enum:
+      - name: Equals
+        value: "="
+      - name: GreaterThan
+        value: ">"
+      - name: LessThan
+        value: "<"
+      - name: GreaterThanOrEqual
+        value: ">="
+      - name: LessThanOrEqual
+        value: "<="
+
+  EvaluationRuleOptionsFilterOperator:
+    enum:
+      - name: AnyOf
+        value: any of
+      - name: NoneOf
+        value: none of
+
+  EvaluationRuleArrayOptionsFilterOperator:
+    enum:
+      - name: AnyOf
+        value: any of
+      - name: NoneOf
+        value: none of
+      - name: AllOf
+        value: all of
+
+  EvaluationRuleBooleanFilterOperator:
+    enum:
+      - name: Equals
+        value: "="
+      - name: NotEquals
+        value: "<>"
+
+  EvaluationRuleNullFilterOperator:
+    enum:
+      - name: IsNull
+        value: is null
+      - name: IsNotNull
+        value: is not null
+
+  DateTimeEvaluationRuleFilter:
+    properties:
+      column:
+        type: string
+        docs: Column to filter on.
+      operator:
+        type: EvaluationRuleNumberFilterOperator
+        docs: Comparison operator for datetime values.
+      value:
+        type: datetime
+        docs: Datetime value to compare against.
+
+  StringEvaluationRuleFilter:
+    properties:
+      column:
+        type: string
+        docs: Column to filter on.
+      operator:
+        type: EvaluationRuleStringFilterOperator
+      value:
+        type: string
+
+  NumberEvaluationRuleFilter:
+    properties:
+      column:
+        type: string
+        docs: Column to filter on.
+      operator:
+        type: EvaluationRuleNumberFilterOperator
+      value:
+        type: double
+
+  StringOptionsEvaluationRuleFilter:
+    properties:
+      column:
+        type: string
+        docs: Column to filter on.
+      operator:
+        type: EvaluationRuleOptionsFilterOperator
+      value:
+        type: list<string>
+        docs: One or more allowed string values.
+
+  ArrayOptionsEvaluationRuleFilter:
+    properties:
+      column:
+        type: string
+        docs: Column to filter on.
+      operator:
+        type: EvaluationRuleArrayOptionsFilterOperator
+      value:
+        type: list<string>
+        docs: One or more array elements to match.
+
+  StringObjectEvaluationRuleFilter:
+    properties:
+      column:
+        type: string
+        docs: Object-valued column to filter on. In the unstable public API this is currently `metadata`.
+      key:
+        type: string
+        docs: Top-level key inside the object-valued column to filter on.
+      operator:
+        type: EvaluationRuleStringFilterOperator
+      value:
+        type: string
+
+  NumberObjectEvaluationRuleFilter:
+    properties:
+      column:
+        type: string
+        docs: Object-valued column to filter on.
+      key:
+        type: string
+        docs: Key inside the object-valued column to filter on.
+      operator:
+        type: EvaluationRuleNumberFilterOperator
+      value:
+        type: double
+
+  CategoryOptionsEvaluationRuleFilter:
+    properties:
+      column:
+        type: string
+        docs: Object-valued column to filter on.
+      key:
+        type: string
+        docs: Key inside the object-valued column to filter on.
+      operator:
+        type: EvaluationRuleOptionsFilterOperator
+      value:
+        type: list<string>
+
+  BooleanEvaluationRuleFilter:
+    properties:
+      column:
+        type: string
+        docs: Column to filter on.
+      operator:
+        type: EvaluationRuleBooleanFilterOperator
+      value:
+        type: boolean
+
+  NullEvaluationRuleFilter:
+    properties:
+      column:
+        type: string
+        docs: Column to filter on. In the unstable public API this is currently `parentObservationId`.
+      operator:
+        type: EvaluationRuleNullFilterOperator
+      value:
+        type: optional<string>
+        docs: Ignored placeholder value. Clients may omit it or send an empty string.
+
+  EvaluationRuleMapping:
+    docs: |
+      Maps one evaluator prompt variable to one source field from the target object.
+
+      How to build a valid mapping list:
+      1. Create the evaluator or fetch it with `GET /evaluators/{id}`.
+      2. Read the evaluator `variables` array.
+      3. Add exactly one mapping object for each variable in that array.
+      4. Use the variable name exactly as returned, without braces such as `{{` or `}}`.
+      5. Choose a `source` that is valid for the selected `target`.
+
+      `jsonPath` is optional. Use it only when the selected source is a JSON object and you want to extract one nested field before inserting it into the evaluator prompt.
+
+      Recovery guidance:
+      - `invalid_variable_mapping`: the variable name is unknown for this evaluator, or the selected `source` is not valid for the chosen `target`
+      - `missing_variable_mapping`: one or more evaluator variables are not mapped yet
+      - `duplicate_variable_mapping`: the same evaluator variable appears more than once
+      - `invalid_json_path`: the JSONPath expression is malformed. Remove it or correct it.
+    properties:
+      variable:
+        type: string
+        docs: |
+          Prompt variable name without braces.
+
+          Example: for the prompt `Judge {{input}} against {{output}}`, use `input` and `output`.
+      source:
+        type: EvaluationRuleMappingSource
+        docs: |
+          Source field that should populate the prompt variable.
+
+          Quick reference:
+          - `target=observation`: `input`, `output`, `metadata`
+          - `target=experiment`: `input`, `output`, `metadata`, `expected_output`
+      jsonPath:
+        type: optional<string>
+        docs: |
+          Optional JSONPath selector applied to the selected source before it is passed to the evaluator prompt.
+
+          Requirements:
+          - Must start with `$`
+          - Must be a syntactically valid JSONPath expression
+          - Most useful with `source=metadata`
+    examples:
+      - name: BasicObservationMapping
+        value:
+          variable: input
+          source: input
+      - name: MetadataProjectionMapping
+        value:
+          variable: customer_tier
+          source: metadata
+          jsonPath: "$.customer.tier"
+      - name: ExperimentExpectedOutputMapping
+        value:
+          variable: expected_output
+          source: expected_output
+
+  EvaluationRuleFilter:
+    docs: |
+      One filter condition used to decide whether a live-ingested target should be evaluated.
+
+      An evaluation rule can include zero or more filter objects. All filters must be satisfied for the target to run.
+
+      How to build a valid filter object:
+      - Pick the `target` first, because it changes the supported columns.
+      - Pick the filter `type`. That determines which fields are required.
+      - Use `key` only for object filters such as `metadata`.
+      - Use the correct `value` shape for the chosen filter `type`.
+
+      Operator quick reference by filter `type`:
+      - `string`: `"="`, `contains`, `does not contain`, `starts with`, `ends with`
+      - `number`: `"="`, `">"`, `"<"`, `">="`, `"<="`
+      - `datetime`: `"="`, `">"`, `"<"`, `">="`, `"<="`
+      - `stringOptions`: `any of`, `none of`
+      - `arrayOptions`: `any of`, `none of`, `all of`
+      - `stringObject`: same operators as `string`
+      - `null`: `is null`, `is not null`
+
+      Supported columns by target:
+      - `target=observation`
+        - `type`: `stringOptions`, operators `any of` / `none of`, values `GENERATION`, `SPAN`, `EVENT`
+        - `name`: `stringOptions`, operators `any of` / `none of`
+        - `environment`: `stringOptions`, operators `any of` / `none of`
+        - `level`: `stringOptions`, operators `any of` / `none of`, values `DEBUG`, `DEFAULT`, `WARNING`, `ERROR`
+        - `version`: `string`
+        - `traceName`: `stringOptions`, operators `any of` / `none of`
+        - `userId`: `string`
+        - `sessionId`: `string`
+        - `tags`: `arrayOptions`, operators `any of` / `none of` / `all of`
+        - `metadata`: `stringObject` with `key`
+        - `parentObservationId`: `null`, operators `is null` / `is not null`
+        - `calledToolNames`: `arrayOptions`, operators `any of` / `none of` / `all of`
+        - `toolCalls`: `number`
+      - `target=experiment`
+        - `datasetId`: `stringOptions`, operators `any of` / `none of`
+          Use dataset `id` values from `GET /api/public/v2/datasets`, not dataset names.
+
+      Recovery guidance:
+      - `invalid_filter_value` with `details.column` but no `invalidValues`: the selected `column` is not supported for the chosen `target`
+      - `invalid_filter_value` with `details.invalidValues`: the selected values are not allowed for that column. Replace them with one of `details.allowedValues` when provided.
+      - `invalid_filter_value` for `column=datasetId`: call `GET /api/public/v2/datasets`, then retry with dataset `id` values from that response.
+    discriminant: type
+    union:
+      "datetime":
+        type: DateTimeEvaluationRuleFilter
+      "string":
+        type: StringEvaluationRuleFilter
+      "number":
+        type: NumberEvaluationRuleFilter
+      "stringOptions":
+        type: StringOptionsEvaluationRuleFilter
+      "categoryOptions":
+        type: CategoryOptionsEvaluationRuleFilter
+      "arrayOptions":
+        type: ArrayOptionsEvaluationRuleFilter
+      "stringObject":
+        type: StringObjectEvaluationRuleFilter
+      "numberObject":
+        type: NumberObjectEvaluationRuleFilter
+      "boolean":
+        type: BooleanEvaluationRuleFilter
+      "null":
+        type: NullEvaluationRuleFilter
+    examples:
+      - name: ObservationTypeFilter
+        value:
+          type: stringOptions
+          column: type
+          operator: any of
+          value:
+            - GENERATION
+      - name: ObservationMetadataFilter
+        value:
+          type: stringObject
+          column: metadata
+          key: customerTier
+          operator: "="
+          value: enterprise
+      - name: ObservationRootOnlyFilter
+        value:
+          type: "null"
+          column: parentObservationId
+          operator: is null
+      - name: ObservationTagsFilter
+        value:
+          type: arrayOptions
+          column: tags
+          operator: any of
+          value:
+            - production
+      - name: ExperimentDatasetFilter
+        value:
+          type: stringOptions
+          column: datasetId
+          operator: any of
+          value:
+            - "550e8400-e29b-41d4-a716-446655440000"

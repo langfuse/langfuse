@@ -37,8 +37,7 @@ export const addToDatasetRouter = createTRPCRouter({
 
         const { projectId, query, config } = input;
 
-        const useEventsTable =
-          env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true";
+        const useEventsTable = env.LANGFUSE_ENABLE_EVENTS_TABLE_UI === "true";
         const tableName = useEventsTable
           ? BatchTableNames.Events
           : BatchTableNames.Observations;
@@ -47,6 +46,8 @@ export const addToDatasetRouter = createTRPCRouter({
         const queryOpts = {
           projectId,
           filter: query.filter ?? [],
+          searchQuery: query.searchQuery,
+          searchType: query.searchType,
           limit: 1,
           offset: 0,
         };

@@ -4,8 +4,12 @@ import { stringDateTime } from "../../../../utils/typeChecks";
 import { applyScoreValidation } from "../../../../utils/scores";
 import { PostScoreBodyFoundationSchema } from "../shared";
 import {
+  ANNOTATION_SCORE_REQUIRES_CONFIG_ID_MESSAGE,
+  isAnnotationScoreMissingConfigId,
+  PublicApiCreateScoreSourceDomain,
   ScoreDataTypeDomain,
   ScoreSourceDomain,
+  ScoreSourceEnum,
   TEXT_SCORE_MAX_LENGTH,
 } from "../../../../domain/scores";
 import { singleFilter } from "../../../../interfaces/filters";
@@ -75,11 +79,12 @@ export const GetScoresQuery = z.object({
 });
 
 // POST /scores
-/**
- * PostScoresBody is copied for the ingestion API as `ScoreBody`. Please copy any changes here in `packages/shared/src/features/ingestion/types.ts`
- */
+// Roughly mirrors ScoreBody in `packages/shared/src/server/ingestion/types.ts`;
+// keep them in sync for fields that cross both surfaces.
 export const PostScoresBody = applyScoreValidation(
-  PostScoreBodyFoundationSchema.and(
+  PostScoreBodyFoundationSchema.extend({
+    source: PublicApiCreateScoreSourceDomain.default(ScoreSourceEnum.API),
+  }).and(
     z.discriminatedUnion("dataType", [
       z.object({
         value: z.number(),
@@ -116,7 +121,10 @@ export const PostScoresBody = applyScoreValidation(
       }),
     ]),
   ),
-);
+).refine((data) => !isAnnotationScoreMissingConfigId(data), {
+  message: ANNOTATION_SCORE_REQUIRES_CONFIG_ID_MESSAGE,
+  path: ["configId"],
+});
 
 export const PostScoresResponse = z.object({ id: z.string() });
 

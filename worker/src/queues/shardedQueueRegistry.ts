@@ -6,6 +6,7 @@ import {
   IngestionQueue,
   SecondaryIngestionQueue,
   OtelIngestionQueue,
+  SecondaryOtelIngestionQueue,
   TraceUpsertQueue,
   EvalExecutionQueue,
   SecondaryEvalExecutionQueue,
@@ -35,6 +36,12 @@ export const SHARDED_QUEUES: ShardedQueueDef[] = [
     getShardNames: () => OtelIngestionQueue.getShardNames(),
     getInstance: (shard) =>
       OtelIngestionQueue.getInstance({ shardName: shard }),
+  },
+  {
+    baseQueueName: QueueName.OtelIngestionSecondaryQueue,
+    getShardNames: () => SecondaryOtelIngestionQueue.getShardNames(),
+    getInstance: (shard) =>
+      SecondaryOtelIngestionQueue.getInstance({ shardName: shard }),
   },
   {
     baseQueueName: QueueName.TraceUpsert,
@@ -87,6 +94,7 @@ export function resolveQueueInstance(queueName: string): Queue | null {
       | QueueName.LLMAsJudgeExecution
       | QueueName.TraceUpsert
       | QueueName.OtelIngestionQueue
+      | QueueName.OtelIngestionSecondaryQueue
     >,
   );
 }

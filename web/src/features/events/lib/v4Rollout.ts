@@ -38,5 +38,9 @@ export function shouldAutoEnableV4({
 }
 
 export function canToggleV4(context: V4RolloutContext): boolean {
+  if (process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV") {
+    return true;
+  }
+
   return !shouldAutoEnableV4(context);
 }

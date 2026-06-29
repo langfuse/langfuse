@@ -62,7 +62,7 @@ export default function PosthogIntegrationSettings() {
   );
 
   const status =
-    state.isInitialLoading || !hasAccess
+    state.isLoading || !hasAccess
       ? undefined
       : state.data?.enabled
         ? "active"

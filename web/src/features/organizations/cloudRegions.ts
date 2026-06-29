@@ -46,8 +46,7 @@ const cloudRegions = [
 const availableRegionsByCurrentRegion = {
   STAGING: ["STAGING"],
   DEV: ["DEV"],
-  JP: ["JP", "US", "EU", "HIPAA"],
-  default: ["US", "EU", "HIPAA"],
+  default: ["US", "EU", "JP", "HIPAA"],
 } as const;
 
 const getCloudRegion = (name: (typeof cloudRegions)[number]["name"]) => {
@@ -68,11 +67,20 @@ export const getAvailableCloudRegionOptions = (currentRegion?: string) => {
     return availableRegionsByCurrentRegion.DEV.map(getCloudRegion);
   }
 
-  if (currentRegion === "JP") {
-    return availableRegionsByCurrentRegion.JP.map(getCloudRegion);
+  return availableRegionsByCurrentRegion.default.map(getCloudRegion);
+};
+
+export const getCloudRegionAuthUrl = (
+  rootUrl: string,
+  email?: string | null,
+): string => {
+  const authUrl = new URL("/auth/sign-in", rootUrl);
+
+  if (email) {
+    authUrl.searchParams.set("email", email);
   }
 
-  return availableRegionsByCurrentRegion.default.map(getCloudRegion);
+  return authUrl.toString();
 };
 
 export const isRegionProduction = (regionName: string): boolean => {

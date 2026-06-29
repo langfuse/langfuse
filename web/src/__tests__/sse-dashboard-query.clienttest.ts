@@ -149,7 +149,7 @@ describe("useSSEDashboardQuery", () => {
     let index = 0;
 
     return {
-      read: jest.fn().mockImplementation(async () => {
+      read: vi.fn().mockImplementation(async () => {
         if (index < chunks.length) {
           return {
             done: false,
@@ -184,13 +184,13 @@ describe("useSSEDashboardQuery", () => {
   afterEach(() => {
     global.fetch = originalFetch;
     global.TextDecoder = originalTextDecoder;
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   it("preserves successful state when disabled after the stream completes", async () => {
     const encoder = new TextEncoder();
 
-    global.fetch = jest.fn().mockImplementation(async () => ({
+    global.fetch = vi.fn().mockImplementation(async () => ({
       ok: true,
       body: {
         getReader: () =>
@@ -236,7 +236,7 @@ describe("useSSEDashboardQuery", () => {
     const encoder = new TextEncoder();
     let releaseSecondResponse: (() => void) | null = null;
 
-    global.fetch = jest
+    global.fetch = vi
       .fn()
       .mockImplementationOnce(async () => ({
         ok: true,
@@ -263,7 +263,7 @@ describe("useSSEDashboardQuery", () => {
             });
 
             return {
-              read: jest.fn().mockImplementation(async () => {
+              read: vi.fn().mockImplementation(async () => {
                 if (!released) {
                   await waitForRelease;
                 }

@@ -24,6 +24,7 @@ const _unsafeNonSecureCopyToClipboard = (text: string) => {
     document.body.appendChild(textArea);
     textArea.focus();
     textArea.select();
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Fallback for non-secure contexts where the Clipboard API is unavailable.
     document.execCommand("copy");
     document.body.removeChild(textArea);
   } catch (error) {

@@ -61,6 +61,7 @@ function parseJsonDefault(selectedColumn: unknown, jsonSelector: string) {
   const result = JSONPath({
     path: jsonSelector,
     json: selectedColumn as any, // JSONPath accepts unknown but types are strict
+    eval: false,
   });
 
   if (!Array.isArray(result) || result.length === 0) {

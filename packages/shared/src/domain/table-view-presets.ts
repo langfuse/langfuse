@@ -5,6 +5,7 @@ import z from "zod";
 export enum TableViewPresetTableName {
   Traces = "traces",
   Observations = "observations",
+  ObservationsEvents = "observations-events",
   Scores = "scores",
   Sessions = "sessions",
   SessionDetail = "session-detail",
@@ -13,8 +14,7 @@ export enum TableViewPresetTableName {
   ExperimentItems = "experiment-items",
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const TableViewPresetDomainSchema = z.object({
+export const TableViewPresetDomainSchema = z.object({
   id: z.string(),
   projectId: z.string().nullable(),
   createdAt: z.date(),
@@ -25,7 +25,7 @@ const TableViewPresetDomainSchema = z.object({
   filters: z.array(singleFilter),
   columnOrder: z.array(z.string()),
   columnVisibility: z.record(z.string(), z.boolean()),
-  searchQuery: z.string().optional(),
+  searchQuery: z.string().nullable(),
   orderBy: orderBy,
 });
 

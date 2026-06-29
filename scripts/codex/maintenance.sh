@@ -3,7 +3,7 @@
 set -euo pipefail
 
 if ! command -v corepack >/dev/null 2>&1; then
-  echo "corepack is required. Use a Codex base environment with Node.js 24 support."
+  echo "corepack is required. Use an environment with Node.js 24 support."
   exit 1
 fi
 

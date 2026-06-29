@@ -42,7 +42,7 @@ interface SwitchProps
     VariantProps<typeof switchVariants> {}
 
 const Switch = React.forwardRef<
-  React.ElementRef<typeof SwitchPrimitives.Root>,
+  React.ComponentRef<typeof SwitchPrimitives.Root>,
   SwitchProps
 >(({ className, size, ...props }, ref) => (
   <SwitchPrimitives.Root

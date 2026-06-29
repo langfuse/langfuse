@@ -58,7 +58,7 @@ export async function handleCreateApiKey(
   if (!validationResult.success) {
     return res.status(400).json({
       error: "Invalid request body",
-      details: validationResult.error.format(),
+      details: z.formatError(validationResult.error),
     });
   }
 

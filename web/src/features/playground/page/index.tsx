@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { Play, Loader2 } from "lucide-react";
+import { Play } from "lucide-react";
 import { ResetPlaygroundButton } from "@/src/features/playground/page/components/ResetPlaygroundButton";
 import { useWindowCoordination } from "@/src/features/playground/page/hooks/useWindowCoordination";
 import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
@@ -14,6 +14,7 @@ import {
   MessageSearchToolbar,
 } from "@/src/components/ChatMessages/MessageSearch";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 /**
  * PlaygroundPage Component
@@ -114,7 +115,7 @@ export default function PlaygroundPage() {
         }}
       >
         <div className="flex h-full items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin" />
+          <Spinner size="xl" />
         </div>
       </Page>
     );
@@ -161,7 +162,7 @@ export default function PlaygroundPage() {
                   <>
                     <span className="hidden sm:inline">•</span>
                     <div className="flex items-center gap-1">
-                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <Spinner size="xxs" />
                       <span className="hidden whitespace-nowrap sm:inline">
                         {executionStatus}
                       </span>
@@ -183,7 +184,7 @@ export default function PlaygroundPage() {
                 }
               >
                 {globalIsExecutingAll ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <Spinner size="xxs" />
                 ) : (
                   <Play className="h-3 w-3" />
                 )}

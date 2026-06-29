@@ -21,10 +21,10 @@ describe("QueryBuilder SQL Injection Tests", () => {
 
   // Create a mock ClickHouse client for testing
   const mockClickhouseClient = {
-    query: jest.fn().mockImplementation(({ query, query_params }) => {
+    query: vi.fn().mockImplementation(({ query, query_params }) => {
       // Return the query and params for inspection in tests
       return Promise.resolve({
-        json: jest.fn().mockReturnValue({
+        json: vi.fn().mockReturnValue({
           data: [],
           query,
           params: query_params,
@@ -40,7 +40,7 @@ describe("QueryBuilder SQL Injection Tests", () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe("SQL Injection via View Parameter", () => {
@@ -579,7 +579,7 @@ describe("QueryBuilder SQL Injection Tests", () => {
     it("should safely handle malicious query parameters through executeQuery", async () => {
       // Comment: This tests the integration with the dashboard router's executeQuery function
       // to ensure SQL injection protection works end-to-end
-      jest.spyOn(console, "error").mockImplementation(() => {});
+      vi.spyOn(console, "error").mockImplementation(() => {});
 
       const maliciousQuery: QueryType = {
         view: "traces",

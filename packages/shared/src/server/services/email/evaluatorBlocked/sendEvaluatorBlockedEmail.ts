@@ -69,7 +69,7 @@ export const sendEvaluatorBlockedEmail = async ({
     };
 
     if (env.CLOUD_CRM_EMAIL) {
-      const emailSchema = z.string().email();
+      const emailSchema = z.email();
       const validationResult = emailSchema.safeParse(env.CLOUD_CRM_EMAIL);
 
       if (validationResult.success) {

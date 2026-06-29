@@ -42,7 +42,7 @@ import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
 import { ActionButton } from "@/src/components/ActionButton";
 
 const formSchema = z.object({
-  email: z.string().trim().email(),
+  email: z.string().trim().pipe(z.email()),
   orgRole: z.enum(Role),
   projectRole: z.enum(Role),
 });

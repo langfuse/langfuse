@@ -26,6 +26,8 @@ import { llmSchemaRouter } from "@/src/features/llm-schemas/server/router";
 import { llmToolRouter } from "@/src/features/llm-tools/server/router";
 import { organizationsRouter } from "@/src/features/organizations/server/organizationRouter";
 import { organizationApiKeysRouter } from "@/src/features/public-api/server/organizationApiKeyRouter";
+import { verifiedDomainRouter } from "@/src/ee/features/verified-domains/server/verifiedDomainRouter";
+import { ssoConfigRouter } from "@/src/ee/features/multi-tenant-sso/server/ssoConfigRouter";
 import { scoreConfigsRouter } from "@/src/server/api/routers/scoreConfigs";
 import { publicRouter } from "@/src/server/api/routers/public";
 import { credentialsRouter } from "@/src/features/auth-credentials/server/credentialsRouter";
@@ -74,6 +76,8 @@ export const appRouter = createTRPCRouter({
   dashboard: dashboardRouter,
   organizations: organizationsRouter,
   organizationApiKeys: organizationApiKeysRouter,
+  verifiedDomain: verifiedDomainRouter,
+  ssoConfig: ssoConfigRouter,
   projects: projectsRouter,
   users: userRouter,
   userAccount: userAccountRouter,

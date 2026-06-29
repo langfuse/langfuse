@@ -1,6 +1,6 @@
 # Architecture Overview - Langfuse Backend
 
-Complete guide to the layered architecture pattern used in Langfuse's Next.js 14/tRPC/Express monorepo.
+Complete guide to the layered architecture pattern used in Langfuse's Next.js/tRPC/Express monorepo. Check package manifests such as `web/package.json` for current framework versions before version-sensitive work.
 
 ## Table of Contents
 
@@ -20,7 +20,7 @@ Langfuse uses a **three-layer architecture** with two primary entry points (tRPC
 ### The Three Layers
 
 ```
-# Web Package (Next.js 14)
+# Web Package (Next.js)
 
 ┌─ tRPC API ──────────────────┐   ┌── Public REST API ──────────┐
 │                             │   │                             │
@@ -163,7 +163,7 @@ Two types of entry points:
 ```typescript
 1. HTTP POST /api/public/datasets
    ↓
-2. Next.js API route handler (pages/api/public/datasets.ts)
+2. Next.js API route handler (pages/api/public/datasets/index.ts)
    ↓
 3. withMiddlewares wrapper executes:
    - Basic auth verification
@@ -571,7 +571,7 @@ export async function createDataset(data: {
 **Public API (Alternative Entry Point):**
 
 ```typescript
-// web/src/pages/api/public/datasets.ts
+// web/src/pages/api/public/datasets/index.ts
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { createDataset } from "@/src/features/datasets/server/service";

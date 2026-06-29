@@ -51,7 +51,7 @@ const CreateSupportThreadInput = z.object({
   severity: SeveritySchema,
   topic: TopicSchema,
   message: z.string().trim().min(1),
-  url: z.string().url().optional(),
+  url: z.url().optional(),
   organizationId: z.string().optional(),
   projectId: z.string().optional(),
   browserMetadata: z.record(z.string(), z.any()).optional(),
@@ -59,7 +59,7 @@ const CreateSupportThreadInput = z.object({
   /** IDs of attachments already uploaded via prepareAttachmentUploads (Plain) */
   attachmentIds: z.array(z.string()).optional(),
   /** URLs of attachments already uploaded to Pylon */
-  pylonAttachmentUrls: z.array(z.string().url()).optional(),
+  pylonAttachmentUrls: z.array(z.url()).optional(),
 });
 
 const PrepareAttachmentUploadsInput = z.object({

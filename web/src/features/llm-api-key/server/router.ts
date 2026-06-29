@@ -711,7 +711,10 @@ export const llmApiKeyRouter = createTRPCRouter({
         }
 
         const key = await ctx.prisma.llmApiKeys.update({
-          where: { id: input.id },
+          where: {
+            id: input.id,
+            projectId: input.projectId,
+          },
           data: {
             ...(input.secretKey ? { secretKey: encrypt(input.secretKey) } : {}),
             extraHeaders: extraHeaders

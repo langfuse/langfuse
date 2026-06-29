@@ -8,10 +8,11 @@ import {
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
+  formatMetric,
   getUniqueDimensions,
   groupDataByTimeDimension,
+  toFullMetricString,
 } from "@/src/features/widgets/chart-library/utils";
-import { compactNumberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 
 export const AreaChartTimeSeries: React.FC<ChartProps> = ({
@@ -25,7 +26,7 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
     },
   },
   accessibilityLayer = true,
-  valueFormatter,
+  metricFormatter = (value, options) => formatMetric(value, options),
   legendPosition = "none",
   subtleFill = false,
 }) => {
@@ -36,7 +37,8 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
 
-  const tooltipFormatter = valueFormatter ?? compactNumberFormatter;
+  const tooltipFormatter = (value: number) =>
+    toFullMetricString(metricFormatter(value, { style: "compact" }));
 
   const handleLegendClick = (dimension: string) => {
     setHighlightedDimension((prev) => (prev === dimension ? null : dimension));

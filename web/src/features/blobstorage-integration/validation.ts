@@ -1,4 +1,25 @@
-import { z } from "zod";
+import type { z } from "zod";
+import { AnalyticsIntegrationExportSource } from "@langfuse/shared";
+
+export function validateExportFieldGroups(
+  data: { exportSource: string; exportFieldGroups: unknown[] },
+  ctx: z.RefinementCtx,
+) {
+  const requiresFieldGroups =
+    data.exportSource === AnalyticsIntegrationExportSource.EVENTS ||
+    data.exportSource ===
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS;
+
+  if (!requiresFieldGroups) return;
+
+  if (!data.exportFieldGroups.includes("core")) {
+    ctx.addIssue({
+      code: "custom",
+      message: "The Core field group is required",
+      path: ["exportFieldGroups"],
+    });
+  }
+}
 
 /**
  * Azure container names must be 3-63 characters, lowercase letters, numbers,
@@ -23,7 +44,7 @@ export function validateAzureContainerName(
     !AZURE_CONTAINER_NAME_REGEX.test(data.bucketName)
   ) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       message: AZURE_CONTAINER_NAME_ERROR,
       path: ["bucketName"],
     });

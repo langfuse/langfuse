@@ -160,6 +160,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
           data: transformedObservations,
           totalMetric: totalObservations,
           metricDescription: `Observations tracked`,
+          chartMetricLabel: "Observations",
         },
       ]
     : [
@@ -168,12 +169,14 @@ export const TracesAndObservationsTimeSeriesChart = ({
           data: transformedTraces,
           totalMetric: total,
           metricDescription: `Traces tracked`,
+          chartMetricLabel: "Traces",
         },
         {
           tabTitle: "Observations by Level",
           data: transformedObservations,
           totalMetric: totalObservations,
           metricDescription: `Observations tracked`,
+          chartMetricLabel: "Observations",
         },
       ];
 
@@ -205,6 +208,11 @@ export const TracesAndObservationsTimeSeriesChart = ({
                     <Chart
                       chartType="LINE_TIME_SERIES"
                       data={timeSeriesToDataPoints(item.data, agg)}
+                      config={{
+                        metric: {
+                          label: item.chartMetricLabel,
+                        },
+                      }}
                       rowLimit={100}
                       chartConfig={{
                         type: "LINE_TIME_SERIES",

@@ -51,10 +51,15 @@ export type GenericFilterOptions = Record<
 // Pure helper: compute UI-selected values from a filter entry and available values
 export function computeSelectedValues(
   availableValues: string[],
-  filterEntry: { operator?: string; value?: unknown } | undefined,
+  filterEntry:
+    | { operator?: string; value?: unknown; type?: string }
+    | undefined,
 ): string[] {
   if (!filterEntry) return availableValues;
   const values = (filterEntry.value as string[]) ?? [];
+  if (filterEntry.type === "arrayOptions") {
+    return values;
+  }
   if (filterEntry.operator === "none of") {
     const excluded = new Set(values);
     return availableValues.filter((v) => !excluded.has(v));

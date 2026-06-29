@@ -52,7 +52,7 @@ export const MediaReferenceStringSchema = z
     const match = str.match(magicStringPattern);
     if (!match) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: "Invalid langfuseMedia magic string format",
       });
       return z.NEVER;
@@ -71,7 +71,7 @@ export const MediaReferenceStringSchema = z
         metadata[key.trim()] = value.trim();
       } else {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           message: `Invalid key-value pair: ${part}`,
         });
         return z.NEVER;
@@ -240,7 +240,7 @@ export const BaseChatMlMessageSchema = z
     thinking: z.array(ThinkingContentPartSchema).optional(),
     redacted_thinking: z.array(RedactedThinkingContentPartSchema).optional(),
   })
-  .passthrough();
+  .loose();
 
 /**
  * Minimal ChatML message schema for backend content extraction.

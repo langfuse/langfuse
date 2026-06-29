@@ -36,6 +36,7 @@ export * from "./features/evals/outputDefinition";
 export * from "./features/evals/utilities";
 export * from "./features/evals/observationForEval";
 export * from "./features/evals/evalConfigBlocking";
+export * from "./features/evals/validateEvaluatorFilters";
 // table actions
 export * from "./features/batchExport/types";
 export * from "./features/batchAction/types";

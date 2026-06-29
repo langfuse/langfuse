@@ -26,6 +26,7 @@ type UpdateDatasetInput = {
   metadata?: DatasetJson;
   remoteExperimentUrl?: string | null;
   remoteExperimentPayload?: DatasetJson;
+  remoteExperimentEnabled?: boolean;
   inputSchema?: DatasetJson;
   expectedOutputSchema?: DatasetJson;
 };
@@ -168,6 +169,7 @@ export const updateDataset = async ({
       metadata: input.metadata ?? undefined,
       remoteExperimentUrl: input.remoteExperimentUrl,
       remoteExperimentPayload: input.remoteExperimentPayload ?? undefined,
+      remoteExperimentEnabled: input.remoteExperimentEnabled ?? undefined,
       inputSchema:
         input.inputSchema === undefined
           ? undefined

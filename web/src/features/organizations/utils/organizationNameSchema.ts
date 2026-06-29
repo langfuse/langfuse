@@ -43,7 +43,7 @@ export const organizationFormSchema = organizationNameSchema
     const { type, size } = ctx.value;
     if ((type === "Company" || type === "Agency") && !size) {
       ctx.issues.push({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["size"],
         input: ctx.value.size,
         message: "Please specify the size of your organization",

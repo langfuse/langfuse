@@ -1,5 +1,3 @@
-/** @jest-environment node */
-
 import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
 import {

@@ -7,7 +7,10 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { blobStorageIntegrationFormSchemaBase } from "@/src/features/blobstorage-integration/types";
-import { validateAzureContainerName } from "@/src/features/blobstorage-integration/validation";
+import {
+  validateAzureContainerName,
+  validateExportFieldGroups,
+} from "@/src/features/blobstorage-integration/validation";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
 import { TRPCError } from "@trpc/server";
 import {
@@ -22,6 +25,16 @@ import {
   BlobStorageIntegrationType,
   InvalidRequestError,
 } from "@langfuse/shared";
+
+const getAuditLogErrorType = (error: unknown) =>
+  error instanceof TRPCError
+    ? error.code
+    : error instanceof Error
+      ? error.name
+      : "UnknownError";
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error ? error.message : fallback;
 
 export const blobStorageIntegrationRouter = createTRPCRouter({
   get: protectedProjectProcedure
@@ -60,7 +73,8 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
     .input(
       blobStorageIntegrationFormSchemaBase
         .extend({ projectId: z.string() })
-        .superRefine(validateAzureContainerName),
+        .superRefine(validateAzureContainerName)
+        .superRefine(validateExportFieldGroups),
     )
     .mutation(async ({ input, ctx }) => {
       try {
@@ -96,6 +110,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
             exportMode: rest.exportMode,
             exportStartDate: rest.exportStartDate ?? null,
             exportSource: rest.exportSource,
+            exportFieldGroups: rest.exportFieldGroups,
             compressed: rest.compressed,
           },
         });
@@ -210,9 +225,40 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           `Manual blob storage integration job queued for project ${input.projectId}`,
         );
 
+        await auditLog({
+          session: ctx.session,
+          action: "runNow",
+          resourceType: "blobStorageIntegration",
+          resourceId: input.projectId,
+          after: {
+            outcome: "success",
+            jobId,
+          },
+        }).catch((auditLogError) => {
+          logger.error(
+            `Failed to create audit log for blob storage integration run`,
+            auditLogError,
+          );
+        });
+
         return { success: true, jobId };
       } catch (e) {
         logger.error(`Failed to trigger blob storage integration run`, e);
+        await auditLog({
+          session: ctx.session,
+          action: "runNow",
+          resourceType: "blobStorageIntegration",
+          resourceId: input.projectId,
+          after: {
+            outcome: "failure",
+            error: getAuditLogErrorType(e),
+          },
+        }).catch((auditLogError) => {
+          logger.error(
+            `Failed to create audit log for blob storage integration run`,
+            auditLogError,
+          );
+        });
         if (e instanceof TRPCError) {
           throw e;
         }
@@ -302,6 +348,22 @@ This file can be safely deleted.`;
           `Blob storage validation successful for project ${input.projectId}`,
         );
 
+        await auditLog({
+          session: ctx.session,
+          action: "validate",
+          resourceType: "blobStorageIntegration",
+          resourceId: input.projectId,
+          after: {
+            outcome: "success",
+            testFileName,
+          },
+        }).catch((auditLogError) => {
+          logger.error(
+            `Failed to create audit log for blob storage integration validation`,
+            auditLogError,
+          );
+        });
+
         return {
           success: true,
           message: "Validation successful! Test file uploaded.",
@@ -315,10 +377,26 @@ This file can be safely deleted.`;
         );
 
         // Extract meaningful error message
-        let errorMessage = "Unknown error occurred during validation";
-        if (e instanceof Error) {
-          errorMessage = e.message;
-        }
+        const errorMessage = getErrorMessage(
+          e,
+          "Unknown error occurred during validation",
+        );
+
+        await auditLog({
+          session: ctx.session,
+          action: "validate",
+          resourceType: "blobStorageIntegration",
+          resourceId: input.projectId,
+          after: {
+            outcome: "failure",
+            error: getAuditLogErrorType(e),
+          },
+        }).catch((auditLogError) => {
+          logger.error(
+            `Failed to create audit log for blob storage integration validation`,
+            auditLogError,
+          );
+        });
 
         if (e instanceof TRPCError) {
           throw e;

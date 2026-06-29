@@ -9,7 +9,7 @@ const isUniqueConstraintError = (error: any): boolean => {
   return (
     error.code === "P2002" || // Prisma unique constraint
     error.message?.includes("duplicate key") ||
-    error.message?.includes("UNIQUE constraint") ||
+    error.message?.toLowerCase().includes("unique constraint") ||
     error.message?.includes("violates unique constraint")
   );
 };

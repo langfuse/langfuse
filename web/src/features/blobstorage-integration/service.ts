@@ -5,6 +5,7 @@ import {
   InvalidRequestError,
   type BlobStorageIntegrationFileType,
   type AnalyticsIntegrationExportSource,
+  type BlobExportFieldGroup,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { env } from "@/src/env.mjs";
@@ -24,6 +25,7 @@ type UpsertBlobStorageIntegrationInput = {
   exportMode: BlobStorageExportMode;
   exportStartDate: Date | null;
   exportSource?: AnalyticsIntegrationExportSource;
+  exportFieldGroups?: BlobExportFieldGroup[];
   compressed?: boolean;
 };
 
@@ -82,6 +84,7 @@ export async function upsertBlobStorageIntegration(params: {
     exportMode: data.exportMode,
     exportStartDate: resolvedExportStartDate,
     exportSource: data.exportSource,
+    exportFieldGroups: data.exportFieldGroups,
     compressed: data.compressed ?? true,
   };
 
