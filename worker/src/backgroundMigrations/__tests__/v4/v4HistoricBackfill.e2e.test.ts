@@ -25,6 +25,9 @@ import {
   assertM2ScratchParity,
   assertM3ChildSpans,
   assertM4DriEnrichment,
+  assertM4ObsLevelDri,
+  assertM4MultiDriSameTrace,
+  assertM4ProjectIsolation,
   assertM5Dropped,
 } from "./harness";
 
@@ -84,11 +87,18 @@ describe("V4 historic backfill chain (M1→M5) E2E", () => {
       await runMigrationOnce("M3");
       await assertM3ChildSpans(fx);
 
-      // M4 — DRI trace owned end-to-end with experiment enrichment. Reads
-      // observations from the scratch table, so other projects' DRIs find no
-      // root span and are skipped.
+      // M4 — DRI-referenced traces owned end-to-end with experiment enrichment.
+      // One M4 run covers four shapes (all in the fixture partition's scratch):
+      //   - trace-level DRI            → whole trace enriched
+      //   - obs-level DRI on a child   → only the child subtree enriched; the
+      //                                  virtual root + parent obs stay plain
+      //   - two obs-level DRIs, 1 trace→ per-subtree attribution (incl. grandchild)
+      //   - same trace id in 2 projects→ enrichment stays project-isolated
       await runMigrationOnce("M4");
       await assertM4DriEnrichment(fx);
+      await assertM4ObsLevelDri(fx);
+      await assertM4MultiDriSameTrace(fx);
+      await assertM4ProjectIsolation(fx);
 
       // M5 — drop the scratch table; second run proves idempotency.
       await runMigrationOnce("M5", {});

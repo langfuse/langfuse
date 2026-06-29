@@ -139,7 +139,7 @@ export async function assertM3ChildSpans(fx: SeededFixture): Promise<void> {
   }, WAIT);
 }
 
-/** M4 — DRI trace owned end-to-end, subtree enriched, isolation preserved. */
+/** M4 (scenario 1) — trace-level DRI: the whole trace is enriched. */
 export async function assertM4DriEnrichment(fx: SeededFixture): Promise<void> {
   await ensureConverged(EVENTS);
   await waitForExpect(async () => {
@@ -156,31 +156,200 @@ export async function assertM4DriEnrichment(fx: SeededFixture): Promise<void> {
       await countFinal(
         EVENTS,
         fx.projectIdA,
-        `trace_id = '${fx.driTraceId}' AND experiment_id = '${fx.datasetRunId}'`,
+        `trace_id = '${fx.driTraceId}' AND experiment_id = '${fx.runs.driRunId}'`,
       ),
     ).toBe(fx.expected.m4DriSpans);
-    // Non-DRI traces are never enriched.
+    // The genuinely non-DRI traces are never enriched (other DRI traces ARE,
+    // so this is scoped to the known non-DRI trace ids rather than "everything
+    // except T_dri").
     expect(
       await countFinal(
         EVENTS,
         fx.projectIdA,
-        `experiment_id != '' AND trace_id != '${fx.driTraceId}'`,
+        `(trace_id = '${fx.sharedTraceId}' OR trace_id = '${fx.otelTraceId}') AND experiment_id != ''`,
       ),
     ).toBe(0);
-    // Cross-project isolation: project B (no DRI) has zero enrichment.
-    expect(await countFinal(EVENTS, fx.projectIdB, `experiment_id != ''`)).toBe(
-      0,
+  }, WAIT);
+}
+
+/**
+ * M4 (scenario 2) — observation-level DRI on a CHILD observation. Only the
+ * child subtree is enriched; the virtual trace root and the parent observation
+ * are materialized by M4's leftover pass WITHOUT experiment fields.
+ */
+export async function assertM4ObsLevelDri(fx: SeededFixture): Promise<void> {
+  await ensureConverged(EVENTS);
+  const t = fx.obsLevelTraceId;
+  await waitForExpect(async () => {
+    // M4 owns the trace end-to-end: virtual root + both observations present.
+    expect(await countFinal(EVENTS, fx.projectIdA, `trace_id = '${t}'`)).toBe(
+      fx.expected.m4ObsLevelSpansA,
     );
+    // Exactly one span — the targeted child — is enriched.
+    expect(
+      await countFinal(
+        EVENTS,
+        fx.projectIdA,
+        `trace_id = '${t}' AND experiment_id != ''`,
+      ),
+    ).toBe(fx.expected.m4ObsLevelEnrichedA);
+    // The child carries this DRI's run + item.
+    expect(
+      await countFinal(
+        EVENTS,
+        fx.projectIdA,
+        `span_id = '${fx.ids.oObsChild}' AND experiment_id = '${fx.runs.obsLevelRunId}' AND experiment_item_id = '${fx.runs.obsLevelItemId}'`,
+      ),
+    ).toBe(1);
+    // The parent observation is a PLAIN leftover (no experiment fields).
+    expect(
+      await countFinal(
+        EVENTS,
+        fx.projectIdA,
+        `span_id = '${fx.ids.oObsRoot}' AND experiment_id = '' AND experiment_item_id = ''`,
+      ),
+    ).toBe(1);
+    // The virtual trace root is a PLAIN leftover too.
+    expect(
+      await countFinal(
+        EVENTS,
+        fx.projectIdA,
+        `span_id = 't-${t}' AND experiment_id = ''`,
+      ),
+    ).toBe(1);
+  }, WAIT);
+}
+
+/**
+ * M4 (scenario 3) — two observation-level DRIs on disjoint subtrees of ONE
+ * trace, each with its own dataset_item_id. Every span in a subtree (including
+ * grandchildren) carries its OWN experiment_item_id; the virtual root is plain.
+ */
+export async function assertM4MultiDriSameTrace(
+  fx: SeededFixture,
+): Promise<void> {
+  await ensureConverged(EVENTS);
+  const t = fx.multiDriTraceId;
+  await waitForExpect(async () => {
+    // Subtree A (root + 2 children + grandchild) all carry item A.
+    expect(
+      await countFinal(
+        EVENTS,
+        fx.projectIdA,
+        `trace_id = '${t}' AND experiment_item_id = '${fx.runs.multiItemIdA}'`,
+      ),
+    ).toBe(fx.expected.m4MultiSubASpans);
+    // Subtree B (root + 2 children) all carry item B.
+    expect(
+      await countFinal(
+        EVENTS,
+        fx.projectIdA,
+        `trace_id = '${t}' AND experiment_item_id = '${fx.runs.multiItemIdB}'`,
+      ),
+    ).toBe(fx.expected.m4MultiSubBSpans);
+    // Recursion: the grandchild of subtree A inherits subtree A's attribution.
+    expect(
+      await countFinal(
+        EVENTS,
+        fx.projectIdA,
+        `span_id = '${fx.ids.oSubAGrandchild}' AND experiment_item_id = '${fx.runs.multiItemIdA}'`,
+      ),
+    ).toBe(1);
+    // No cross-attribution: subtree B's spans never carry item A.
+    expect(
+      await countFinal(
+        EVENTS,
+        fx.projectIdA,
+        `experiment_item_id = '${fx.runs.multiItemIdA}' AND span_id IN ('${fx.ids.oSubBRoot}', '${fx.ids.oSubBChild1}', '${fx.ids.oSubBChild2}')`,
+      ),
+    ).toBe(0);
+    // The virtual trace root is a plain leftover (belongs to neither subtree).
+    expect(
+      await countFinal(
+        EVENTS,
+        fx.projectIdA,
+        `span_id = 't-${t}' AND experiment_id = ''`,
+      ),
+    ).toBe(1);
+    // Whole trace materialized (both subtrees + plain virtual root).
+    expect(await countFinal(EVENTS, fx.projectIdA, `trace_id = '${t}'`)).toBe(
+      fx.expected.m4MultiTotalA,
+    );
+  }, WAIT);
+}
+
+/**
+ * M4 (isolation) — the same trace id is DRI'd in two projects. M4's
+ * (project_id, trace_id)-scoped skip/ownership must keep each project's
+ * enrichment fully separate: neither project's spans may carry the other's
+ * experiment id / item id.
+ */
+export async function assertM4ProjectIsolation(
+  fx: SeededFixture,
+): Promise<void> {
+  await ensureConverged(EVENTS);
+  const t = fx.crossProjectTraceId;
+  await waitForExpect(async () => {
+    // Project A's copy is fully enriched with A's item (trace-level DRI).
+    expect(
+      await countFinal(
+        EVENTS,
+        fx.projectIdA,
+        `trace_id = '${t}' AND experiment_item_id = '${fx.runs.crossItemIdA}'`,
+      ),
+    ).toBe(fx.expected.m4CrossProjSpansA);
+    // Project B's copy is fully enriched with B's item.
+    expect(
+      await countFinal(
+        EVENTS,
+        fx.projectIdB,
+        `trace_id = '${t}' AND experiment_item_id = '${fx.runs.crossItemIdB}'`,
+      ),
+    ).toBe(fx.expected.m4CrossProjSpansB);
+    // A never sees B's experiment id/item, and vice versa.
+    expect(
+      await countFinal(
+        EVENTS,
+        fx.projectIdA,
+        `experiment_id = '${fx.runs.crossRunIdB}' OR experiment_item_id = '${fx.runs.crossItemIdB}'`,
+      ),
+    ).toBe(0);
+    expect(
+      await countFinal(
+        EVENTS,
+        fx.projectIdB,
+        `experiment_id = '${fx.runs.crossRunIdA}' OR experiment_item_id = '${fx.runs.crossItemIdA}'`,
+      ),
+    ).toBe(0);
+    // Project B's ONLY enriched trace is the cross-project one (its shared
+    // non-DRI trace stays plain).
+    expect(
+      await countFinal(
+        EVENTS,
+        fx.projectIdB,
+        `experiment_id != '' AND trace_id != '${t}'`,
+      ),
+    ).toBe(0);
   }, WAIT);
 }
 
 /** M5 — scratch table dropped, events_full untouched, idempotent. */
 export async function assertM5Dropped(fx: SeededFixture): Promise<void> {
+  const e = fx.expected;
+  // Full per-project span totals across the whole chain (M1 roots + M3 child
+  // spans + every M4-owned DRI trace).
   const expectedTotalA =
-    fx.expected.m1RootsA + fx.expected.m3ChildSpansA + fx.expected.m4DriSpans;
+    e.m1RootsA +
+    e.m3ChildSpansA +
+    e.m4DriSpans +
+    e.m4ObsLevelSpansA +
+    e.m4MultiTotalA +
+    e.m4CrossProjSpansA;
+  const expectedTotalB = e.m1RootsB + e.m3ChildSpansB + e.m4CrossProjSpansB;
   await waitForExpect(async () => {
     expect(await tableExistsAllReplicas(SCRATCH)).toBe(false);
     // events_full is untouched by the drop.
     expect(await countFinal(EVENTS, fx.projectIdA)).toBe(expectedTotalA);
+    expect(await countFinal(EVENTS, fx.projectIdB)).toBe(expectedTotalB);
   }, WAIT);
 }
