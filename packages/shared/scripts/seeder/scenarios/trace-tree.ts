@@ -122,6 +122,7 @@ const run = async (
   const payloadBytes = params["payload-bytes"] as number;
   const payloadStyle = params["payload-style"] as PayloadStyle;
   const withV4 = params["v4"] as boolean;
+  const asyncParents = params["async-parents"] as boolean;
 
   if (!PAYLOAD_STYLES.includes(payloadStyle)) {
     throw new SeedError(
@@ -259,10 +260,27 @@ const run = async (
     }
   }
 
+  // LFE-10475 demo (opt-in via --async-parents): the root dispatcher and the
+  // hub node behave like fire-and-forget async work — their OWN span ends almost
+  // immediately while their subtree keeps running. We only shorten the written
+  // end_time of these nodes (subtree offsets and ancestors are untouched), so
+  // their own-span duration badly understates the subtree's wall-clock duration.
+  // This is exactly the shape that surfaces the subtree-duration badge.
+  const ASYNC_OWN_DURATION_MS = 40;
+  const hubIndex = Math.min(2, depth - 1);
+  const asyncParentIndexes = asyncParents
+    ? new Set<number>([0, hubIndex])
+    : new Set<number>();
+
   let retryNodeUsed = false;
   const observations: ObservationRecordInsertType[] = shape.map((node) => {
     const isGeneration = node.kind === "GENERATION";
     const startTime = traceTimestamp + startOffsets[node.index];
+    // Async parents (opt-in): own span ends right after start, while the
+    // subtree keeps running off the (untouched) child offsets.
+    const endOffset = asyncParentIndexes.has(node.index)
+      ? startOffsets[node.index] + ASYNC_OWN_DURATION_MS
+      : endOffsets[node.index];
     const missingEndTime = node.index > 0 && node.index % 19 === 0;
     const isError = node.index % 29 === 7;
     const isFailedToolRetryPair =
@@ -313,7 +331,7 @@ const run = async (
           : `${ctx.idPrefix}-obs-${node.parentIndex}`,
       name,
       start_time: startTime,
-      end_time: missingEndTime ? null : traceTimestamp + endOffsets[node.index],
+      end_time: missingEndTime ? null : traceTimestamp + endOffset,
       completion_start_time: isGeneration ? startTime + rng.int(80, 400) : null,
       level:
         isError || isFailedToolRetryPair
@@ -339,6 +357,18 @@ const run = async (
         scenario: "trace-tree",
         "node.depth": String(node.depth),
         ...(isFailedToolRetryPair ? { "retry.count": "2" } : {}),
+        // Nested branches are JSON-encoded strings, mirroring how OTel metadata
+        // round-trips through the Map(String, String) column (each value is
+        // parsed back into a tree for display). This is what lets the metadata
+        // view's nested-branch "contains" filter shortcut land on real data.
+        scope: JSON.stringify({
+          name: "@flue/opentelemetry",
+          version: "1.0.0-beta.1",
+        }),
+        attributes: JSON.stringify({
+          "flue.tool.name": isGeneration ? "lookup_weather" : "noop",
+          "flue.tool.call_id": `call_${node.index}`,
+        }),
       },
       provided_model_name: isGeneration ? "gpt-4o" : null,
       internal_model_id: null,
@@ -588,13 +618,20 @@ export const traceTreeScenario: ScenarioDefinition = {
       flag: "payload-style",
       type: "string",
       default: "json",
-      description: "json | text | malformed | unicode",
+      description: "json | text | malformed | unicode | bignum",
     },
     {
       flag: "v4",
       type: "boolean",
       default: false,
       description: "also mirror the tree into v4 events_full/events_core",
+    },
+    {
+      flag: "async-parents",
+      type: "boolean",
+      default: false,
+      description:
+        "root + hub nodes end immediately while their subtree keeps running (async/fire-and-forget shape; surfaces the subtree wall-clock duration badge)",
     },
   ],
   run,

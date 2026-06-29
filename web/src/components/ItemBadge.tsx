@@ -64,7 +64,7 @@ const iconMap = {
   EXPERIMENT: FlaskConical,
 } as const;
 
-const iconVariants = cva(cn("h-4 w-4"), {
+const iconVariants = cva("h-4 w-4", {
   variants: {
     type: {
       TRACE: "text-dark-green",

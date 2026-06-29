@@ -93,6 +93,8 @@ jobs:
             llm_connections:
               - 'packages/shared/package.json'
               - 'packages/shared/src/server/llm/fetchLLMCompletion.ts'
+              - 'packages/shared/src/server/llm/secureLlmFetch.ts'
+              - 'packages/shared/src/server/llm/utils.ts'
 
   lint:
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -268,9 +270,19 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
-      - name: Load default env
+      - name: Load default env (for prisma generate)
         run: |
           cp .env.dev.example .env
+      - name: generate prisma client
+        # The Storybook Vitest browser project imports the real production cell
+        # components, which transitively pull in `@langfuse/shared` modules that
+        # build Zod schemas from Prisma enums at import time (e.g.
+        # packages/shared/src/features/monitors/types.ts: `z.enum(MonitorSeverity)`).
+        # Without a generated `@prisma/client`, those enums are `undefined` and
+        # the story file fails to import ("Cannot convert undefined or null to
+        # object"). Mirror `tests-shared`, which generates the client for the
+        # same reason. `prisma generate` only reads the schema; it needs no DB.
+        run: pnpm --filter=shared run db:generate
       - name: Install playwright
         run: pnpm --filter=web exec playwright install --with-deps --only-shell chromium
       - name: run Storybook tests
@@ -525,6 +537,7 @@ jobs:
       - name: Start Langfuse
         run: (pnpm run start&)
         env:
+          NODE_ENV: test
           LANGFUSE_INIT_ORG_ID: "seed-org-id"
           LANGFUSE_INIT_ORG_NAME: "Seed Org"
           LANGFUSE_INIT_ORG_CLOUD_PLAN: "Team"
@@ -842,6 +855,8 @@ jobs:
           exit "$(cat /tmp/playwright-install.exit)"
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e
+        env:
+          NODE_ENV: test
 
   e2e-server-tests:
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -923,6 +938,8 @@ jobs:
           pnpm --filter=shared run db:seed:examples
       - name: Run server
         run: (pnpm run start&)
+        env:
+          NODE_ENV: test
       - name: Check worker health
         run: |
           timeout 10 bash -c 'until curl -f http://localhost:3030/api/health; do sleep 2; done'
