@@ -19,6 +19,7 @@ const adapterEvents = vi.hoisted(() => ({
 const instrumentationMocks = vi.hoisted(() => {
   const instrumentation = {
     recordEvents: vi.fn(),
+    recordAvailableTools: vi.fn(),
     end: vi.fn(),
     endWithError: vi.fn(),
     flush: vi.fn(),

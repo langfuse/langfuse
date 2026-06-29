@@ -372,6 +372,8 @@ export async function createAgUiStream(params: {
         options: params.options,
         awsProfile,
         instructions,
+        onToolsAvailable: (tools) =>
+          instrumentation?.recordAvailableTools(tools),
       })
         .then(({ adapter, cleanup, interrupt }) => {
           if (ending || closed || params.signal.aborted) {
@@ -544,6 +546,7 @@ async function createMastraAdapter(params: {
   options: CreateAgUiStreamOptions;
   awsProfile?: string;
   instructions: string;
+  onToolsAvailable?: (tools: Record<string, unknown>) => void;
 }) {
   const bedrock = createAmazonBedrock({
     ...(params.options.awsBedrock.region
@@ -586,6 +589,10 @@ async function createMastraAdapter(params: {
       });
     }
 
+    // @ag-ui/mastra drives execution via adapter.run(input), not a direct
+    // agent.stream(..., { toolsets }) call. Keep Mastra's per-request MCP
+    // discovery, then prefix tool names for constructor-based tools so the
+    // model sees the same names that later appear in AG-UI tool-call events.
     const tools = {
       ...prefixToolsetTools("langfuse", toolsets.langfuse),
       ...prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
@@ -594,6 +601,7 @@ async function createMastraAdapter(params: {
         isV4Enabled: params.options.redirectAction.isV4Enabled,
       }),
     };
+    params.onToolsAvailable?.(tools);
 
     const agent = new Agent({
       id: "langfuse-in-app-assistant",
