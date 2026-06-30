@@ -10,22 +10,27 @@ import {
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { DataTable } from "@/src/components/table/data-table";
 import {
+  DataTableControls,
+  DataTableControlsProvider,
+} from "@/src/components/table/data-table-controls";
+import {
   TableBadgeLoadingCell,
   TableTextLoadingCell,
 } from "@/src/components/table/loading-cells";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { usersFilterConfig } from "@/src/features/filters/config/users-config";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterOutput } from "@/src/utils/types";
-import { type FilterState, usersTableCols } from "@langfuse/shared";
+import { type TimeFilter, usersTableCols } from "@langfuse/shared";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
-import { useDebounce } from "@/src/hooks/useDebounce";
 import Page from "@/src/components/layouts/page";
 import { UsersOnboarding } from "@/src/components/onboarding/UsersOnboarding";
 import {
@@ -125,12 +130,6 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
-  const [userFilterState, setUserFilterState] = useQueryFilterState(
-    [],
-    "users",
-    projectId,
-  );
-
   const { setDetailPageList } = useDetailPageLists();
 
   const [paginationState, setPaginationState] = useQueryParams({
@@ -145,7 +144,7 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
     return toAbsoluteTimeRange(timeRange) ?? undefined;
   }, [timeRange]);
 
-  const dateRangeFilter: FilterState = dateRange
+  const dateRangeFilter: TimeFilter[] = dateRange
     ? [
         {
           column: "Timestamp",
@@ -188,14 +187,56 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
     selectedEnvironments,
   );
 
-  const filterState = userFilterState.concat(
-    dateRangeFilter,
-    environmentFilter,
-  );
-
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
     withDefault(StringParam, null),
+  );
+
+  const filterOptionsV3 = api.users.filterOptions.useQuery(
+    {
+      projectId,
+      timestampFilter: dateRangeFilter,
+    },
+    {
+      enabled: !isBetaEnabled,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+
+  const filterOptionsV4 = api.users.filterOptionsFromEvents.useQuery(
+    {
+      projectId,
+      timestampFilter: dateRangeFilter,
+    },
+    {
+      enabled: isBetaEnabled,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+
+  const filterOptions = isBetaEnabled ? filterOptionsV4 : filterOptionsV3;
+  const newFilterOptions = useMemo(
+    () => ({
+      userId: filterOptions.data?.userId ?? [],
+    }),
+    [filterOptions.data?.userId],
+  );
+  const queryFilter = useSidebarFilterState(
+    usersFilterConfig,
+    newFilterOptions,
+    {
+      loading: filterOptions.isPending,
+      stateLocation: "urlAndSessionStorage",
+      sessionFilterContextId: projectId,
+    },
   );
 
   const searchBarRegistry = useMemo(
@@ -203,19 +244,24 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
     [],
   );
   const searchBarObserved = useMemo(
-    () => toObservedOptions({ userId: [] }, false),
-    [],
+    () => toObservedOptions(newFilterOptions, filterOptions.isPending),
+    [filterOptions.isPending, newFilterOptions],
   );
   const { store: searchBarStore, commit: searchBarCommit } = useTableSearchBar({
     projectId,
     enabled: true,
     registry: searchBarRegistry,
-    filterState: userFilterState,
+    filterState: queryFilter.explicitFilterState,
     searchQuery,
     observed: searchBarObserved,
-    setFilterState: setUserFilterState,
+    setFilterState: queryFilter.setFilterState,
     setSearchQuery,
   });
+
+  const filterState = queryFilter.filterState.concat(
+    dateRangeFilter,
+    environmentFilter,
+  );
 
   const usersV3 = api.users.all.useQuery(
     {
@@ -436,73 +482,83 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
   ];
 
   return (
-    <>
-      <SearchBarRow
-        projectId={projectId}
-        store={searchBarStore}
-        commit={searchBarCommit}
-        observed={searchBarObserved}
-        registry={searchBarRegistry}
-      />
-      <DataTableToolbar
-        filterColumnDefinition={usersTableCols}
-        filterState={userFilterState}
-        setFilterState={useDebounce(setUserFilterState)}
-        columns={columns}
-        timeRange={timeRange}
-        setTimeRange={setTimeRange}
-        environmentFilter={{
-          values: selectedEnvironments,
-          onValueChange: setSelectedEnvironments,
-          options: environmentOptions.map((env) => ({ value: env })),
-        }}
-      />
-      <DataTable
-        tableName={"users"}
-        columns={columns}
-        data={
-          users.isLoading
-            ? { isLoading: true, isError: false }
-            : users.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: users.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: userRowData.rows?.map((t) => {
-                    return {
-                      userId: t.id,
-                      environment: t.environment ?? undefined,
-                      firstEvent:
-                        t.firstTrace?.toLocaleString() ?? "No event yet",
-                      lastEvent:
-                        t.lastTrace?.toLocaleString() ?? "No event yet",
-                      totalEvents: compactNumberFormatter(
-                        isBetaEnabled
-                          ? Number(t.totalObservations ?? 0)
-                          : Number(t.totalTraces ?? 0) +
-                              Number(t.totalObservations ?? 0),
-                      ),
-                      totalTokens: compactNumberFormatter(t.totalTokens ?? 0),
-                      totalCost: usdFormatter(
-                        t.sumCalculatedTotalCost ?? 0,
-                        2,
-                        2,
-                      ),
-                    };
-                  }),
-                }
-        }
-        pagination={{
-          totalCount,
-          onChange: setPaginationState,
-          state: paginationState,
-        }}
-        cellPadding="comfortable"
-      />
-    </>
+    <DataTableControlsProvider
+      tableName={usersFilterConfig.tableName}
+      defaultSidebarCollapsed={usersFilterConfig.defaultSidebarCollapsed}
+    >
+      <div className="flex h-full w-full flex-col">
+        <SearchBarRow
+          projectId={projectId}
+          store={searchBarStore}
+          commit={searchBarCommit}
+          observed={searchBarObserved}
+          registry={searchBarRegistry}
+        />
+        <DataTableToolbar
+          filterState={queryFilter.explicitFilterState}
+          columns={columns}
+          timeRange={timeRange}
+          setTimeRange={setTimeRange}
+          environmentFilter={{
+            values: selectedEnvironments,
+            onValueChange: setSelectedEnvironments,
+            options: environmentOptions.map((env) => ({ value: env })),
+          }}
+        />
+        <ResizableFilterLayout>
+          <DataTableControls queryFilter={queryFilter} />
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <DataTable
+              tableName={"users"}
+              columns={columns}
+              data={
+                users.isLoading
+                  ? { isLoading: true, isError: false }
+                  : users.isError
+                    ? {
+                        isLoading: false,
+                        isError: true,
+                        error: users.error.message,
+                      }
+                    : {
+                        isLoading: false,
+                        isError: false,
+                        data: userRowData.rows?.map((t) => {
+                          return {
+                            userId: t.id,
+                            environment: t.environment ?? undefined,
+                            firstEvent:
+                              t.firstTrace?.toLocaleString() ?? "No event yet",
+                            lastEvent:
+                              t.lastTrace?.toLocaleString() ?? "No event yet",
+                            totalEvents: compactNumberFormatter(
+                              isBetaEnabled
+                                ? Number(t.totalObservations ?? 0)
+                                : Number(t.totalTraces ?? 0) +
+                                    Number(t.totalObservations ?? 0),
+                            ),
+                            totalTokens: compactNumberFormatter(
+                              t.totalTokens ?? 0,
+                            ),
+                            totalCost: usdFormatter(
+                              t.sumCalculatedTotalCost ?? 0,
+                              2,
+                              2,
+                            ),
+                          };
+                        }),
+                      }
+              }
+              pagination={{
+                totalCount,
+                onChange: setPaginationState,
+                state: paginationState,
+              }}
+              cellPadding="comfortable"
+            />
+          </div>
+        </ResizableFilterLayout>
+      </div>
+    </DataTableControlsProvider>
   );
 };
