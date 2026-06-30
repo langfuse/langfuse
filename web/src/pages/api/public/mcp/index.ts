@@ -41,7 +41,7 @@ import { BaseError, UnauthorizedError, ForbiddenError } from "@langfuse/shared";
 import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
 import { IN_APP_AGENT_MCP_RUN_SECRET_HEADER } from "@/src/ee/features/in-app-agent/constants";
-import { hasValidInAppAgentMcpRunAuthToken } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
+import { hasValidInAppAgentMcpRunOverride } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
 
 // Bootstrap MCP features - registers all tools at module load time
 import "@/src/features/mcp/server/bootstrap";
@@ -119,7 +119,7 @@ export default async function handler(
     }
 
     // Build ServerContext from authenticated scope. In-app-agent keys need a
-    // separate run secret for mutating tools; read-only tools remain available
+    // run override for mutating tools; read-only tools remain available
     // without it via their MCP readOnlyHint annotation.
     const context: ServerContext = {
       projectId: authCheck.scope.projectId,
@@ -129,7 +129,7 @@ export default async function handler(
       accessLevel: "project",
       publicKey: authCheck.scope.publicKey,
       isInAppAgentKey: authCheck.scope.isInAppAgentKey === true,
-      hasInAppAgentMcpRunSecret: await hasValidInAppAgentMcpRunAuthToken({
+      hasInAppAgentMcpRunOverride: await hasValidInAppAgentMcpRunOverride({
         apiKeyId: authCheck.scope.apiKeyId,
         projectId: authCheck.scope.projectId,
         isInAppAgentKey: authCheck.scope.isInAppAgentKey === true,

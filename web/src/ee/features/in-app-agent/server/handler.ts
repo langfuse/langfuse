@@ -20,7 +20,7 @@ import {
 import { createAgUiStream } from "@/src/ee/features/in-app-agent/server/agent";
 import {
   consumeAndValidatePendingToolApproval,
-  createInAppAgentMcpRunAuthToken,
+  createInAppAgentMcpRunOverride,
   parseInAppAgentInterruptEvent,
   storePendingToolApproval,
   validatePendingToolApproval,
@@ -256,7 +256,7 @@ export default async function handler(request: Request) {
 
     return await withInAppAgentMcpApiKeyCleanup(
       { projectId, runId: sanitizedInput.runId },
-      async (mcpApiKey, runAuthToken, cleanupMcpApiKey) => {
+      async (mcpApiKey, runOverride, cleanupMcpApiKey) => {
         let runCreated = false;
         let pendingToolApprovalConsumed = false;
         let streamCreated = false;
@@ -413,7 +413,7 @@ export default async function handler(request: Request) {
                 url: getLangfuseMcpUrl(),
                 publicKey: mcpApiKey.publicKey,
                 secretKey: mcpApiKey.secretKey,
-                runAuthToken,
+                runOverride,
               },
               redirectAction: {
                 projectId,
@@ -593,13 +593,13 @@ async function withInAppAgentMcpApiKeyCleanup<T>(
   params: { projectId: string; runId: string },
   createResponse: (
     mcpApiKey: Awaited<ReturnType<typeof createInAppAgentMcpApiKey>>,
-    runAuthToken: string,
+    runOverride: string,
     cleanupMcpApiKey: () => Promise<void>,
   ) => T | Promise<T>,
 ): Promise<T> {
-  // Each run gets a temporary in-app-agent API key plus a signed per-run token.
-  // The API key authenticates to MCP; the token authorizes mutating MCP tools
-  // only through this server-created run path without storing another secret.
+  // Each run gets a temporary in-app-agent API key plus a run override. The
+  // API key authenticates to MCP; the override authorizes mutating MCP tools
+  // only through this server-created run path.
   const mcpApiKey = await createInAppAgentMcpApiKey(params.projectId);
   let cleanupPromise: Promise<void> | undefined;
 
@@ -618,13 +618,13 @@ async function withInAppAgentMcpApiKeyCleanup<T>(
   };
 
   try {
-    const runAuthToken = await createInAppAgentMcpRunAuthToken({
+    const runOverride = await createInAppAgentMcpRunOverride({
       apiKeyId: mcpApiKey.id,
       projectId: params.projectId,
       runId: params.runId,
     });
 
-    return await createResponse(mcpApiKey, runAuthToken, cleanupMcpApiKey);
+    return await createResponse(mcpApiKey, runOverride, cleanupMcpApiKey);
   } catch (err) {
     await cleanupMcpApiKey().catch((cleanupErr) => {
       logger.error("Failed to clean up in-app agent MCP API key", cleanupErr);

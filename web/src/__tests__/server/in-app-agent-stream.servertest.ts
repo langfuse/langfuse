@@ -609,7 +609,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
-          runAuthToken: "run-secret",
+          runOverride: "run-override",
         },
         redirectAction: {
           projectId: "project-1",
@@ -817,7 +817,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
-          runAuthToken: "run-secret",
+          runOverride: "run-override",
         },
         redirectAction: {
           projectId: "project-1",
@@ -965,7 +965,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
-          runAuthToken: "run-secret",
+          runOverride: "run-override",
         },
         redirectAction: {
           projectId: "project-1",
@@ -1105,7 +1105,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
-          runAuthToken: "run-secret",
+          runOverride: "run-override",
         },
         redirectAction: {
           projectId: "project-1",
@@ -1163,7 +1163,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
-          runAuthToken: "run-secret",
+          runOverride: "run-override",
         },
         redirectAction: {
           projectId: "project-1",
@@ -1258,7 +1258,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
-          runAuthToken: "run-secret",
+          runOverride: "run-override",
         },
         redirectAction: {
           projectId: "project-1",
@@ -1355,7 +1355,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
-          runAuthToken: "run-secret",
+          runOverride: "run-override",
         },
         redirectAction: {
           projectId: "project-1",

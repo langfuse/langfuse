@@ -173,7 +173,7 @@ describe("MCP public API tools", () => {
     expect(inAppToolNames.sort()).toEqual(toolNames.sort());
   });
 
-  it("does not resolve mutating tools for in-app agent keys without a run secret", async () => {
+  it("does not resolve mutating tools for in-app agent keys without a run override", async () => {
     const context = mockServerContext({ isInAppAgentKey: true });
     const inAppToolNames = await getToolNames(context);
 
@@ -189,10 +189,10 @@ describe("MCP public API tools", () => {
     ).resolves.toBeUndefined();
   });
 
-  it("resolves mutating tools for in-app agent keys with a run secret", async () => {
+  it("resolves mutating tools for in-app agent keys with a run override", async () => {
     const context = mockServerContext({
       isInAppAgentKey: true,
-      hasInAppAgentMcpRunSecret: true,
+      hasInAppAgentMcpRunOverride: true,
     });
 
     await expect(

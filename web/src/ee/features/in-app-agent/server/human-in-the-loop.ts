@@ -1,11 +1,8 @@
 import { EventType } from "@ag-ui/core";
-import { randomUUID } from "crypto";
-import { SignJWT, jwtVerify } from "jose";
 import { z } from "zod";
 
 import { InvalidRequestError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { env } from "@/src/env.mjs";
 import { safeJsonParse, stableJsonStringify } from "@/src/utils/json";
 import {
   type AgUiEvent,
@@ -18,7 +15,6 @@ import {
 export const IN_APP_AGENT_MCP_RUN_SECRET_TTL_SECONDS = 60 * 60;
 const MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE =
   "Tool call was not approved by the user.";
-const IN_APP_AGENT_MCP_RUN_TOKEN_TYPE = "in_app_agent_mcp_run";
 
 const PendingToolApprovalSchema = z.object({
   toolCallId: z.string().min(1),
@@ -27,8 +23,7 @@ const PendingToolApprovalSchema = z.object({
   argsFingerprint: z.string(),
 });
 
-const InAppAgentMcpRunTokenClaimsSchema = z.object({
-  tokenUse: z.literal(IN_APP_AGENT_MCP_RUN_TOKEN_TYPE),
+const InAppAgentMcpRunOverrideSchema = z.object({
   apiKeyId: z.string().min(1),
   projectId: z.string().min(1),
   runId: z.string().min(1),
@@ -125,38 +120,32 @@ export async function consumeAndValidatePendingToolApproval(params: {
   }
 }
 
-export async function createInAppAgentMcpRunAuthToken(params: {
+export async function createInAppAgentMcpRunOverride(params: {
   apiKeyId: string;
   projectId: string;
   runId: string;
 }) {
-  return new SignJWT({
-    tokenUse: IN_APP_AGENT_MCP_RUN_TOKEN_TYPE,
+  return JSON.stringify({
     apiKeyId: params.apiKeyId,
     projectId: params.projectId,
     runId: params.runId,
-  })
-    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
-    .setIssuedAt()
-    .setJti(randomUUID())
-    .setExpirationTime(`${IN_APP_AGENT_MCP_RUN_SECRET_TTL_SECONDS}s`)
-    .sign(getInAppAgentMcpRunTokenSigningSecret());
+  });
 }
 
-export async function hasValidInAppAgentMcpRunAuthToken(params: {
+export async function hasValidInAppAgentMcpRunOverride(params: {
   apiKeyId: string;
   projectId: string;
   isInAppAgentKey: boolean;
   headerValue: string | string[] | undefined;
 }) {
-  // Only the server-side in-app agent receives this signed per-run token. This
+  // Only the server-side in-app agent receives this run override. This
   // keeps temporary in-app-agent API keys from being sufficient for mutating MCP
-  // calls if they are replayed or used outside the active run path.
+  // calls unless the request also came through the active run path.
   if (!params.isInAppAgentKey || typeof params.headerValue !== "string") {
     return false;
   }
 
-  const claims = await verifyInAppAgentMcpRunToken(params.headerValue);
+  const claims = await parseInAppAgentMcpRunOverride(params.headerValue);
 
   return (
     claims?.apiKeyId === params.apiKeyId &&
@@ -418,38 +407,9 @@ function createPendingToolApprovalFingerprint(
   );
 }
 
-async function verifyInAppAgentMcpRunToken(token: string) {
-  try {
-    const { payload, protectedHeader } = await jwtVerify(
-      token,
-      getInAppAgentMcpRunTokenSigningSecret(),
-      { algorithms: ["HS256"] },
-    );
+async function parseInAppAgentMcpRunOverride(token: string) {
+  const payload = safeJsonParse(token);
+  const parsedClaims = InAppAgentMcpRunOverrideSchema.safeParse(payload);
 
-    if (protectedHeader.typ !== "JWT") {
-      return undefined;
-    }
-
-    const parsedClaims = InAppAgentMcpRunTokenClaimsSchema.safeParse(payload);
-
-    return parsedClaims.success ? parsedClaims.data : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function getInAppAgentMcpRunTokenSigningSecret() {
-  if (env.LANGFUSE_IN_APP_AGENT_MCP_RUN_TOKEN_SECRET) {
-    return new TextEncoder().encode(
-      env.LANGFUSE_IN_APP_AGENT_MCP_RUN_TOKEN_SECRET,
-    );
-  }
-
-  if (env.NODE_ENV !== "production") {
-    return new TextEncoder().encode(env.SALT);
-  }
-
-  throw new Error(
-    "LANGFUSE_IN_APP_AGENT_MCP_RUN_TOKEN_SECRET is required to sign in-app agent run tokens",
-  );
+  return parsedClaims.success ? parsedClaims.data : undefined;
 }

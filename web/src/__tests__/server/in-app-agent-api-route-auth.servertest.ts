@@ -236,11 +236,20 @@ describe("in-app agent public API route auth", () => {
           }),
           options: expect.objectContaining({
             langfuseMcp: expect.objectContaining({
-              runAuthToken: expect.any(String),
+              runOverride: expect.any(String),
             }),
           }),
         }),
       );
+      const createStreamCall = agentMocks.createAgUiStream.mock.calls[0]?.[0];
+      expect(createStreamCall).toBeDefined();
+      expect(
+        JSON.parse(createStreamCall.options.langfuseMcp.runOverride),
+      ).toEqual({
+        apiKeyId: expect.any(String),
+        projectId: project.id,
+        runId: "client-run-1",
+      });
     } finally {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
       (env as any).LANGFUSE_AWS_BEDROCK_MODEL = originalBedrockModel;

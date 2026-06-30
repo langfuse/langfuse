@@ -173,13 +173,13 @@ class ToolRegistry {
     }
 
     // In-app-agent keys may always call read-only tools. Mutating tools require
-    // the server-minted run secret, while human approval is enforced in the
+    // the run override, while human approval is enforced in the
     // in-app agent runtime before the tool call reaches this registry.
     if (tool.definition.annotations?.readOnlyHint === true) {
       return true;
     }
 
-    return context.hasInAppAgentMcpRunSecret === true;
+    return context.hasInAppAgentMcpRunOverride === true;
   }
 
   /**
