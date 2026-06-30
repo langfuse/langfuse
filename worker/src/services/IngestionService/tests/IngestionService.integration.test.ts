@@ -1476,6 +1476,106 @@ describe("Ingestion end-to-end tests", () => {
     expect(trace.project_id).toBe(projectId);
   }, 10_000);
 
+  it("should use root span environment when child span is ingested first", async () => {
+    const traceId = randomUUID();
+    const rootTimestamp = "2024-01-01T00:00:00.000Z";
+    const childTimestamp = "2024-01-01T00:00:01.000Z";
+
+    await ingestionService.processTraceEventList({
+      projectId,
+      entityId: traceId,
+      createdAtTimestamp: new Date(),
+      traceEventList: [
+        {
+          id: randomUUID(),
+          type: "trace-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: traceId,
+            timestamp: childTimestamp,
+            environment: "staging",
+          },
+        },
+      ],
+    });
+
+    await clickhouseWriter.flushAll(true);
+
+    await ingestionService.processTraceEventList({
+      projectId,
+      entityId: traceId,
+      createdAtTimestamp: new Date(),
+      traceEventList: [
+        {
+          id: randomUUID(),
+          type: "trace-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: traceId,
+            timestamp: rootTimestamp,
+            name: "root-operation",
+            environment: "production",
+          },
+        },
+      ],
+    });
+
+    await clickhouseWriter.flushAll(true);
+
+    const trace = await getClickhouseRecord(TableName.Traces, traceId);
+    expect(trace.environment).toBe("production");
+  }, 10_000);
+
+  it("should preserve root span environment when child span is ingested second", async () => {
+    const traceId = randomUUID();
+    const rootTimestamp = "2024-01-01T00:00:00.000Z";
+    const childTimestamp = "2024-01-01T00:00:01.000Z";
+
+    await ingestionService.processTraceEventList({
+      projectId,
+      entityId: traceId,
+      createdAtTimestamp: new Date(),
+      traceEventList: [
+        {
+          id: randomUUID(),
+          type: "trace-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: traceId,
+            timestamp: rootTimestamp,
+            name: "root-operation",
+            environment: "production",
+          },
+        },
+      ],
+    });
+
+    await clickhouseWriter.flushAll(true);
+
+    await ingestionService.processTraceEventList({
+      projectId,
+      entityId: traceId,
+      createdAtTimestamp: new Date(),
+      traceEventList: [
+        {
+          id: randomUUID(),
+          type: "trace-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: traceId,
+            timestamp: childTimestamp,
+            environment: "staging",
+          },
+        },
+      ],
+    });
+
+    await clickhouseWriter.flushAll(true);
+
+    const trace = await getClickhouseRecord(TableName.Traces, traceId);
+    expect(trace.environment).toBe("production");
+  }, 10_000);
+
   it("should merge observations and set negative tokens and cost to null", async () => {
     const modelId = randomUUID();
     const pricingTierId = randomUUID();

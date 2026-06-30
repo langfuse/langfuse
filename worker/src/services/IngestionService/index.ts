@@ -936,6 +936,14 @@ export class IngestionService {
       immutableEntityKeys[TableName.Traces],
     );
 
+    // Resolve environment from the record with the earliest timestamp.
+    // In OTel, the root span always starts earliest, so its environment
+    // takes precedence regardless of ingestion order.
+    const earliestRecord = recordsToMerge.reduce((a, b) =>
+      a.timestamp <= b.timestamp ? a : b,
+    );
+    mergedRecord.environment = earliestRecord.environment;
+
     // If metadata exists, it is an object due to previous parsing
     mergedRecord.metadata = convertRecordValuesToString(
       (mergedRecord.metadata as Record<string, unknown>) ?? {},
