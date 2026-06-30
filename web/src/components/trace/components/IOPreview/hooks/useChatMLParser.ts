@@ -52,7 +52,8 @@ function parseToolCallsFromMessage(
  * Handles:
  * - ChatML message normalization from various input formats
  * - Tool definition extraction from messages
- * - Tool call counting and numbering (output messages only)
+ * - Tool call counting across displayed messages
+ * - Tool call numbering for output messages only
  * - Additional non-message input extraction
  *
  * Performance optimization:
@@ -114,8 +115,10 @@ export function useChatMLParser(
       }
     }
 
-    // Count tool call invocations
-    // Only number tool calls from OUTPUT messages (current invocation), not input (history)
+    // Count tool call invocations across all displayed messages so the tool
+    // definition badge reflects calls from both current output and history.
+    // Only number output-side tool calls so invocation labels stay scoped to
+    // the current LLM response rather than historical input messages.
     const inputMessageCount = inResult.success ? inResult.data.length : 0;
     let toolCallCounter = 0;
     const messageToToolCallNumbers = new Map<number, number[]>();
@@ -140,12 +143,13 @@ export function useChatMLParser(
                 : undefined;
 
           if (calledToolName) {
+            toolCallCounts.set(
+              calledToolName,
+              (toolCallCounts.get(calledToolName) || 0) + 1,
+            );
+
             // Count tool calls from OUTPUT messages only
             if (isOutputMessage) {
-              toolCallCounts.set(
-                calledToolName,
-                (toolCallCounts.get(calledToolName) || 0) + 1,
-              );
               toolCallCounter++;
               messageToolNumbers.push(toolCallCounter);
             }
