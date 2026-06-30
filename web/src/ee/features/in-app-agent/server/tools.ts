@@ -95,6 +95,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_APPROVALS: Record<
   deleteScoreConfig: "approval",
 };
 
+export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES = new Set<McpToolName>(
+  Object.keys(IN_APP_AGENT_LANGFUSE_MCP_TOOL_APPROVALS) as McpToolName[],
+);
+
 export const IN_APP_AGENT_AUTO_APPROVED_EXTERNAL_TOOL_NAMES = new Set([
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
 ]);

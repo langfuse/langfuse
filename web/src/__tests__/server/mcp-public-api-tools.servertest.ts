@@ -167,14 +167,16 @@ describe("MCP public API tools", () => {
   it("exposes the same feature-enabled tools for in-app agent keys", async () => {
     const toolNames = await getToolNames();
     const inAppToolNames = await getToolNames(
-      mockServerContext({ isInAppAgentKey: true }),
+      mockServerContext({ inAppAgent: { permissions: "read" } }),
     );
 
     expect(inAppToolNames.sort()).toEqual(toolNames.sort());
   });
 
   it("does not resolve mutating tools for in-app agent keys without a run override", async () => {
-    const context = mockServerContext({ isInAppAgentKey: true });
+    const context = mockServerContext({
+      inAppAgent: { permissions: "read" },
+    });
     const inAppToolNames = await getToolNames(context);
 
     expect(inAppToolNames).toEqual(
@@ -189,10 +191,12 @@ describe("MCP public API tools", () => {
     ).resolves.toBeUndefined();
   });
 
-  it("resolves mutating tools for in-app agent keys with a run override", async () => {
+  it("resolves only the overridden mutating tool for in-app agent keys", async () => {
     const context = mockServerContext({
-      isInAppAgentKey: true,
-      hasInAppAgentMcpRunOverride: true,
+      inAppAgent: {
+        permissions: "single-tool-override",
+        allowedToolName: "upsertDataset",
+      },
     });
 
     await expect(
@@ -200,7 +204,10 @@ describe("MCP public API tools", () => {
     ).resolves.toBeTruthy();
     await expect(
       toolRegistry.getEnabledTool("createModel", context),
-    ).resolves.toBeTruthy();
+    ).resolves.toBeUndefined();
+    await expect(
+      toolRegistry.getEnabledTool("listDatasets", context),
+    ).resolves.toBeUndefined();
   });
 
   it("marks destructive public API tools", async () => {

@@ -249,6 +249,7 @@ describe("in-app agent public API route auth", () => {
         apiKeyId: expect.any(String),
         projectId: project.id,
         runId: "client-run-1",
+        toolName: "upsertDataset",
       });
     } finally {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;

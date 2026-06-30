@@ -336,7 +336,9 @@ describe("MCP Read Tools", () => {
     });
 
     it("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({ isInAppAgentKey: true });
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
 
       await expect(
         toolRegistry.getEnabledTool(listEvaluatorsTool.name, context),
@@ -371,7 +373,9 @@ describe("MCP Read Tools", () => {
     });
 
     it("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({ isInAppAgentKey: true });
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
 
       await expect(
         toolRegistry.getEnabledTool(getEvaluatorTool.name, context),
@@ -403,7 +407,9 @@ describe("MCP Read Tools", () => {
     });
 
     it("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({ isInAppAgentKey: true });
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
 
       await expect(
         toolRegistry.getEnabledTool(listEvaluationRulesTool.name, context),
@@ -433,7 +439,9 @@ describe("MCP Read Tools", () => {
     });
 
     it("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({ isInAppAgentKey: true });
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
 
       await expect(
         toolRegistry.getEnabledTool(getEvaluationRuleTool.name, context),
@@ -506,7 +514,9 @@ describe("MCP Read Tools", () => {
     });
 
     maybeEventsTableIt("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({ isInAppAgentKey: true });
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
 
       await expect(
         toolRegistry.getEnabledTool(
@@ -575,7 +585,9 @@ describe("MCP Read Tools", () => {
     });
 
     maybeEventsTableIt("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({ isInAppAgentKey: true });
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
 
       await expect(
         toolRegistry.getEnabledTool(
@@ -649,7 +661,9 @@ describe("MCP Read Tools", () => {
     });
 
     it("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({ isInAppAgentKey: true });
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
 
       await expect(
         toolRegistry.getEnabledTool(listObservationsTool.name, context),
@@ -767,7 +781,7 @@ describe("MCP Read Tools", () => {
 
       const result = (await handleListObservations(
         { traceId, fields: ["id"], limit: 100 },
-        { ...context, isInAppAgentKey: true },
+        { ...context, inAppAgent: { permissions: "read" } },
       )) as { data: Array<{ id: string; url: string }> };
 
       expect(result.data.map((item) => item.id)).toContain(observation.id);
@@ -1641,7 +1655,7 @@ describe("MCP Read Tools", () => {
 
       const result = (await handleGetObservation(
         { observationId: observation.id, fields: ["id"] },
-        { ...context, isInAppAgentKey: true },
+        { ...context, inAppAgent: { permissions: "read" } },
       )) as Record<string, unknown>;
 
       expect(result).toEqual({

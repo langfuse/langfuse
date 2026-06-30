@@ -3,6 +3,8 @@ import { z } from "zod";
 
 import { InvalidRequestError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import type { McpToolName } from "@/src/features/mcp/server/bootstrap";
+import { IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES } from "@/src/ee/features/in-app-agent/server/tools";
 import { safeJsonParse, stableJsonStringify } from "@/src/utils/json";
 import {
   type AgUiEvent,
@@ -23,10 +25,15 @@ const PendingToolApprovalSchema = z.object({
   argsFingerprint: z.string(),
 });
 
-const InAppAgentMcpRunOverrideSchema = z.object({
-  apiKeyId: z.string().min(1),
-  projectId: z.string().min(1),
-  runId: z.string().min(1),
+const McpToolNameSchema = z.custom<McpToolName>(
+  (value) =>
+    typeof value === "string" &&
+    IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES.has(value as McpToolName),
+  { message: "Invalid MCP tool name" },
+);
+
+export const InAppAgentMcpRunOverrideSchema = z.object({
+  toolName: McpToolNameSchema,
 });
 
 const MastraSuspendEventSchema = z.object({
@@ -121,36 +128,11 @@ export async function consumeAndValidatePendingToolApproval(params: {
 }
 
 export async function createInAppAgentMcpRunOverride(params: {
-  apiKeyId: string;
-  projectId: string;
-  runId: string;
+  toolName: McpToolName;
 }) {
   return JSON.stringify({
-    apiKeyId: params.apiKeyId,
-    projectId: params.projectId,
-    runId: params.runId,
+    toolName: params.toolName,
   });
-}
-
-export async function hasValidInAppAgentMcpRunOverride(params: {
-  apiKeyId: string;
-  projectId: string;
-  isInAppAgentKey: boolean;
-  headerValue: string | string[] | undefined;
-}) {
-  // Only the server-side in-app agent receives this run override. This
-  // keeps temporary in-app-agent API keys from being sufficient for mutating MCP
-  // calls unless the request also came through the active run path.
-  if (!params.isInAppAgentKey || typeof params.headerValue !== "string") {
-    return false;
-  }
-
-  const claims = await parseInAppAgentMcpRunOverride(params.headerValue);
-
-  return (
-    claims?.apiKeyId === params.apiKeyId &&
-    claims.projectId === params.projectId
-  );
 }
 
 export function parseInAppAgentInterruptEvent(
@@ -405,11 +387,4 @@ function createPendingToolApprovalFingerprint(
       argsFingerprint: stableJsonStringify(approvalRequest.args),
     }),
   );
-}
-
-async function parseInAppAgentMcpRunOverride(token: string) {
-  const payload = safeJsonParse(token);
-  const parsedClaims = InAppAgentMcpRunOverrideSchema.safeParse(payload);
-
-  return parsedClaims.success ? parsedClaims.data : undefined;
 }

@@ -168,18 +168,19 @@ class ToolRegistry {
   }
 
   private canCallTool(tool: RegisteredTool, context: ServerContext): boolean {
-    if (context.isInAppAgentKey !== true) {
+    if (!context.inAppAgent) {
       return true;
     }
 
-    // In-app-agent keys may always call read-only tools. Mutating tools require
-    // the run override, while human approval is enforced in the
-    // in-app agent runtime before the tool call reaches this registry.
-    if (tool.definition.annotations?.readOnlyHint === true) {
-      return true;
+    if (context.inAppAgent.permissions === "read") {
+      return tool.definition.annotations?.readOnlyHint === true;
     }
 
-    return context.hasInAppAgentMcpRunOverride === true;
+    if (context.inAppAgent.permissions === "single-tool-override") {
+      return context.inAppAgent.allowedToolName === tool.definition.name;
+    }
+
+    return false;
   }
 
   /**

@@ -25,6 +25,8 @@ import {
   storePendingToolApproval,
   validatePendingToolApproval,
 } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
+import { IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES } from "@/src/ee/features/in-app-agent/server/tools";
+import type { McpToolName } from "@/src/features/mcp/server/bootstrap";
 import {
   createRun,
   ensureOwnedConversation,
@@ -253,17 +255,23 @@ export default async function handler(request: Request) {
       sanitizedInput,
       conversationMessages,
     );
+    const resumeApprovalRequest = isResumeAgentInput(sanitizedInput)
+      ? sanitizedInput.forwardedProps.command.resume.approvalRequest
+      : undefined;
 
     return await withInAppAgentMcpApiKeyCleanup(
-      { projectId, runId: sanitizedInput.runId },
+      {
+        projectId,
+        runId: sanitizedInput.runId,
+        toolName: getInAppAgentMcpRegistryToolName(
+          resumeApprovalRequest?.toolName,
+        ),
+      },
       async (mcpApiKey, runOverride, cleanupMcpApiKey) => {
         let runCreated = false;
         let pendingToolApprovalConsumed = false;
         let streamCreated = false;
         let approvedToolResultPersisted = false;
-        const resumeApprovalRequest = isResumeAgentInput(sanitizedInput)
-          ? sanitizedInput.forwardedProps.command.resume.approvalRequest
-          : undefined;
 
         const restorePendingToolApprovalIfRetryable = () => {
           if (
@@ -590,16 +598,15 @@ async function createInAppAgentMcpApiKey(projectId: string) {
 }
 
 async function withInAppAgentMcpApiKeyCleanup<T>(
-  params: { projectId: string; runId: string },
+  params: { projectId: string; runId: string; toolName?: McpToolName },
   createResponse: (
     mcpApiKey: Awaited<ReturnType<typeof createInAppAgentMcpApiKey>>,
-    runOverride: string,
+    runOverride: string | undefined,
     cleanupMcpApiKey: () => Promise<void>,
   ) => T | Promise<T>,
 ): Promise<T> {
-  // Each run gets a temporary in-app-agent API key plus a run override. The
-  // API key authenticates to MCP; the override authorizes mutating MCP tools
-  // only through this server-created run path.
+  // Each run gets a temporary in-app-agent API key. Approved MCP resumes also
+  // get a tool-scoped run override for the single mutating registry tool.
   const mcpApiKey = await createInAppAgentMcpApiKey(params.projectId);
   let cleanupPromise: Promise<void> | undefined;
 
@@ -618,11 +625,11 @@ async function withInAppAgentMcpApiKeyCleanup<T>(
   };
 
   try {
-    const runOverride = await createInAppAgentMcpRunOverride({
-      apiKeyId: mcpApiKey.id,
-      projectId: params.projectId,
-      runId: params.runId,
-    });
+    const runOverride = params.toolName
+      ? await createInAppAgentMcpRunOverride({
+          toolName: params.toolName,
+        })
+      : undefined;
 
     return await createResponse(mcpApiKey, runOverride, cleanupMcpApiKey);
   } catch (err) {
@@ -631,6 +638,20 @@ async function withInAppAgentMcpApiKeyCleanup<T>(
     });
     throw err;
   }
+}
+
+function getInAppAgentMcpRegistryToolName(toolName: string | undefined) {
+  if (!toolName?.startsWith("langfuse_")) {
+    return undefined;
+  }
+
+  const registryToolName = toolName.slice("langfuse_".length);
+
+  return isMcpToolName(registryToolName) ? registryToolName : undefined;
+}
+
+function isMcpToolName(toolName: string): toolName is McpToolName {
+  return IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES.has(toolName as McpToolName);
 }
 
 async function cleanupInAppAgentMcpApiKey(params: {
