@@ -3,15 +3,20 @@ import * as Principles from "./ChartingPrinciples.stories";
 
 <Meta title="Design System/Charts/Principles" />
 
-{/* Suprematist palette, but theme-aware: ink/paper come from the app's CSS vars
-    (toggled by the `.dark` class the story decorators set on <html>), so the
-    article follows the theme switch like the charts do. Red is the one fixed
-    accent — it reads on both light and dark. */}
+{/_ Suprematist palette, but theme-aware: ink/paper come from the app's CSS vars
+(toggled by the `.dark` class the story decorators set on <html>), so the
+article follows the theme switch like the charts do. Red is the one fixed
+accent — it reads on both light and dark. _/}
 export const RED = "#E4002B";
 export const FG = "hsl(var(--foreground))";
 export const BG = "hsl(var(--background))";
 export const MUTED = "hsl(var(--muted-foreground))";
 export const BORDER = "hsl(var(--border))";
+// The bold slabs (hero, principle numbers) stay a fixed ink/paper in BOTH
+// themes — a near-black block reads as the cover in light AND dark, where
+// flipping it to a light block (via the theme vars) looked wrong.
+export const INK = "#0B0B0B";
+export const PAPER = "#F3F1EA";
 
 export const Page = ({ children }) => (
   <div
@@ -23,11 +28,16 @@ export const Page = ({ children }) => (
         "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
     }}
   >
-    {/* Storybook frames every embedded example in a white card from its docs
-        theme, which can't follow our per-toggle theme. Neutralise it so the
-        themed page shows through and each chart's own card (bg-background +
-        border) stands alone — cohesive in both light and dark. */}
-    <style>{`.sbdocs-preview{background:transparent !important;border:0 !important;box-shadow:none !important;}`}</style>
+    {/* Storybook's docs theme paints the whole page (and every example card)
+        light, and can't follow our per-toggle theme. Pull the page background,
+        the side padding, and the example-card chrome onto the app's themed
+        vars so the article is fully dark in dark mode — no white frame, no
+        white padding. */}
+    <style>{`
+      .sbdocs-wrapper{background:hsl(var(--background)) !important;padding:0 !important;}
+      .sbdocs-content{max-width:none !important;padding:0 !important;}
+      .sbdocs.sbdocs-preview{background:transparent !important;border:0 !important;box-shadow:none !important;}
+    `}</style>
     <div style={{ maxWidth: 880, margin: "0 auto" }}>{children}</div>
   </div>
 );
@@ -37,8 +47,9 @@ export const Hero = () => (
     style={{
       position: "relative",
       overflow: "hidden",
-      background: FG,
-      color: BG,
+      background: INK,
+      color: PAPER,
+      border: `1px solid ${BORDER}`,
       padding: "72px 48px 64px",
       marginBottom: 64,
     }}
@@ -54,22 +65,13 @@ export const Hero = () => (
         transform: "rotate(18deg)",
       }}
     />
-    <div
-      style={{
-        position: "absolute",
-        right: 150,
-        bottom: -30,
-        width: 70,
-        height: 70,
-        background: BG,
-      }}
-    />
     <div style={{ position: "relative" }}>
       <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.4em" }}>
         LANGFUSE · CHART LIBRARY
       </div>
       <h1
         style={{
+          color: PAPER,
           fontSize: "clamp(56px, 11vw, 104px)",
           lineHeight: 0.88,
           fontWeight: 900,
@@ -83,6 +85,7 @@ export const Hero = () => (
       </h1>
       <p
         style={{
+          color: PAPER,
           fontSize: 22,
           fontWeight: 600,
           maxWidth: 540,
@@ -124,8 +127,9 @@ export const Slab = ({ n, t, lead, children }) => (
           flex: "0 0 auto",
           width: 60,
           height: 60,
-          background: FG,
-          color: BG,
+          background: INK,
+          color: PAPER,
+          border: `1px solid ${BORDER}`,
           fontSize: 28,
           fontWeight: 900,
           display: "flex",
@@ -202,7 +206,11 @@ preparer, never in the chart component.
   <Canvas of={Principles.Interpolation} sourceState="none" />
 </Plate>
 
-<Slab n="2" t="Missing is a gap, not a zero" lead="A hole in the data is the truth.">
+<Slab
+  n="2"
+  t="Missing is a gap, not a zero"
+  lead="A hole in the data is the truth."
+>
   A null breaks the line. Substituting <strong>0</strong> to "fill" the hole
   manufactures a measurement that never happened — the single most common way a
   chart lies. Bridge a gap only when the series genuinely continues across it;
@@ -214,10 +222,14 @@ preparer, never in the chart component.
   <Canvas of={Principles.NullHandling} sourceState="none" />
 </Plate>
 
-<Slab n="3" t="Show certainty in the ink" lead="One grammar for less-sure data.">
-  A still-aggregating final bucket and a previous-period comparison are real, but
-  they are <strong>less certain</strong> than confirmed history. Don't drop them
-  and don't draw them as solid fact — render them dotted and paled. One
+<Slab
+  n="3"
+  t="Show certainty in the ink"
+  lead="One grammar for less-sure data."
+>
+  A still-aggregating final bucket and a previous-period comparison are real,
+  but they are <strong>less certain</strong> than confirmed history. Don't drop
+  them and don't draw them as solid fact — render them dotted and paled. One
   treatment, used everywhere, so a reader learns the grammar once and trusts it.
 </Slab>
 
@@ -225,7 +237,11 @@ preparer, never in the chart component.
   <Canvas of={Principles.Certainty} sourceState="none" />
 </Plate>
 
-<Slab n="4" t="Hover is a timeline, not a panel" lead="Snap to real samples; share the crosshair.">
+<Slab
+  n="4"
+  t="Hover is a timeline, not a panel"
+  lead="Snap to real samples; share the crosshair."
+>
   The cursor between two points must never conjure a reading that isn't there —
   the crosshair tracks the cursor, the value snaps to the nearest real sample,
   and near a gap the snap tightens so a tooltip never floats over emptiness.
@@ -266,9 +282,11 @@ preparer, never in the chart component.
 
 <Slab n="8" t="Bound the frame, not the data" lead="Top-N, and say so.">
   Two hundred series is not a chart, it is a wall. Draw a legible top-N, rolled
-  by magnitude, and state the truth in the open — <em>“showing top 25 of 487.”</em>
-  Bound the legend, bound the density upstream (about one point per pixel). Never
-  buy legibility by silently throwing data away where no one can see you do it.
+  by magnitude, and state the truth in the open —{" "}
+  <em>“showing top 25 of 487.”</em>
+  Bound the legend, bound the density upstream (about one point per pixel).
+  Never buy legibility by silently throwing data away where no one can see you
+  do it.
 </Slab>
 
 <Plate>
@@ -294,8 +312,8 @@ preparer, never in the chart component.
 </div>
 
 <p style={{ fontSize: 14, color: MUTED, marginTop: 28 }}>
-  The full architecture and the one-way <strong>data → prepare → visualise</strong>{" "}
-  rule live in{" "}
+  The full architecture and the one-way{" "}
+  <strong>data → prepare → visualise</strong> rule live in{" "}
   <code>web/src/features/widgets/chart-library/ARCHITECTURE.md</code>. For how
   overlays escape the chart frame, see the layer system in{" "}
   <code>web/src/components/ui/layer.tsx</code> (Design System → Overlay Layers).

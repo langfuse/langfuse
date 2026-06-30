@@ -1,7 +1,14 @@
 import { definePreview } from "@storybook/nextjs-vite";
 import addonA11y from "@storybook/addon-a11y";
 import addonDocs from "@storybook/addon-docs";
-import { useEffect, type ReactNode } from "react";
+import { DocsContainer } from "@storybook/addon-docs/blocks";
+import { themes } from "storybook/theming";
+import {
+  useEffect,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from "react";
 import { TooltipProvider } from "../src/components/ui/tooltip";
 import { MarkdownContextProvider } from "../src/features/theming/useMarkdownContext";
 import { LAYER_ORDER } from "../src/components/ui/layer";
@@ -65,6 +72,43 @@ function StorybookThemeProvider({
   );
 }
 
+/**
+ * Docs/guide pages render outside the story decorator, so they don't get our
+ * theme — Storybook's own docs theme is light and makes prose unreadable in
+ * dark mode (and the page stays white). This container switches Storybook's
+ * docs theme to match the app's `.dark` class (which the story decorators
+ * toggle on <html>), so every guide's prose, chrome, and example cards follow
+ * the theme. It also bumps the base type — the default docs body is too small.
+ * (LFE-10549)
+ */
+function ThemedDocsContainer({
+  context,
+  children,
+}: {
+  context: ComponentProps<typeof DocsContainer>["context"];
+  children?: ReactNode;
+}) {
+  const [dark, setDark] = useState(false);
+  useEffect(() => {
+    const root = document.documentElement;
+    const sync = () => setDark(root.classList.contains("dark"));
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(root, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <DocsContainer context={context} theme={dark ? themes.dark : themes.light}>
+      <style>{`
+        .sbdocs-content { font-size: 16px; }
+        .sbdocs-content p, .sbdocs-content li { font-size: 1.0625rem; line-height: 1.7; }
+      `}</style>
+      {children}
+    </DocsContainer>
+  );
+}
+
 export default definePreview({
   // addonDocs() registers the docs preview renderer (parameters.docs.renderer)
   // that MDX pages and autodocs need; the CSF-factory preview must compose it
@@ -112,6 +156,9 @@ export default definePreview({
   parameters: {
     a11y: {
       test: "todo",
+    },
+    docs: {
+      container: ThemedDocsContainer,
     },
   },
 });
