@@ -207,7 +207,10 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
             }}
           >
             <KindIcon kind={kind} className="h-2.5 w-2.5 shrink-0" />
-            <span className="relative top-0.25 truncate align-baseline font-mono leading-none">
+            <span
+              className="relative top-0.25 truncate align-baseline font-mono leading-none"
+              title={chipLabel}
+            >
               {chipLabel}
             </span>
           </button>
@@ -219,7 +222,10 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
           <div className="flex items-center justify-between gap-4">
             <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
               <KindIcon kind={kind} className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate font-mono leading-none">
+              <span
+                className="truncate font-mono leading-none"
+                title={contentType}
+              >
                 {contentType}
               </span>
             </div>

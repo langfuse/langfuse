@@ -243,6 +243,13 @@ export function DataTableToolbar<TData, TValue>({
     searchConfig?.updateQuery(query);
   };
 
+  const searchButtonLabel = searchConfig?.tableAllowsFullTextSearch
+    ? getSearchButtonLabel(
+        searchConfig.searchType,
+        searchConfig.customDropdownLabels?.metadata,
+      )
+    : undefined;
+
   // Only show the toggle button when we're using the new sidebar
   const hasNewSidebar = !filterColumnDefinition && filterState !== undefined;
   return (
@@ -321,12 +328,11 @@ export function DataTableToolbar<TData, TValue>({
                     size="default"
                     className="flex w-30 items-center justify-between gap-1 rounded-l-none border-l-0"
                   >
-                    <span className="flex items-center gap-1 truncate">
-                      {searchConfig.tableAllowsFullTextSearch &&
-                        getSearchButtonLabel(
-                          searchConfig.searchType,
-                          searchConfig.customDropdownLabels?.metadata,
-                        )}
+                    <span
+                      className="flex items-center gap-1 truncate"
+                      title={searchButtonLabel}
+                    >
+                      {searchButtonLabel}
                       <DocPopup
                         description={getSearchDescription(
                           searchConfig.searchType,

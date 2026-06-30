@@ -398,7 +398,9 @@ const UsageStackedBarOverview = ({
               className="h-2.5 w-2.5 shrink-0 rounded-[2px]"
               style={{ backgroundColor: item.color }}
             />
-            <span className="truncate font-medium">{item.name}</span>
+            <span className="truncate font-medium" title={item.name}>
+              {item.name}
+            </span>
             <span className="text-muted-foreground shrink-0">
               {numberFormatter(item.total, 0, 2)} {valueLabel}
             </span>
@@ -424,10 +426,16 @@ const ActionRow = ({
 }) => (
   <div className="grid gap-3 rounded-md border px-3 py-2 md:grid-cols-[minmax(0,1fr)_8rem] md:items-center">
     <div className="min-w-0">
-      <div className={cn("truncate text-sm font-medium", titleClassName)}>
+      <div
+        className={cn("truncate text-sm font-medium", titleClassName)}
+        title={title}
+      >
         {title}
       </div>
-      <div className="text-muted-foreground mt-0.5 truncate text-xs">
+      <div
+        className="text-muted-foreground mt-0.5 truncate text-xs"
+        title={detail}
+      >
         {detail}
       </div>
     </div>

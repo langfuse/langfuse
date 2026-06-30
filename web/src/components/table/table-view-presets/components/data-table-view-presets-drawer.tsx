@@ -573,6 +573,7 @@ export function TableViewPresetsDrawer({
                                   ? "flex items-center gap-1.5"
                                   : "truncate",
                               )}
+                              title={view.name}
                             >
                               {isSystemView && <LangfuseIcon size={14} />}
                               {view.name}
