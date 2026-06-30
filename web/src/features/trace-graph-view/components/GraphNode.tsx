@@ -66,7 +66,7 @@ function GraphNodeComponent({
   onSelect,
   onHover,
 }: GraphNodeProps) {
-  const display = `${truncateLabel(label)}${counter ?? ""}`;
+  const display = truncateLabel(label);
   const style: React.CSSProperties = { left: x, top: y, width, height };
 
   const shared = cn(
@@ -119,7 +119,16 @@ function GraphNodeComponent({
       {...handlers}
     >
       {renderFilterIcon(type)}
-      {!compact && <span className="truncate">{display}</span>}
+      {!compact && (
+        <>
+          <span className="truncate">{display}</span>
+          {counter && (
+            <span className="text-muted-foreground shrink-0 tabular-nums">
+              {counter}
+            </span>
+          )}
+        </>
+      )}
     </div>
   );
 }

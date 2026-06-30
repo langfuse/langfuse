@@ -23,16 +23,21 @@ export function truncateLabel(label: string): string {
     : label;
 }
 
-export function measureNode(node: Pick<GraphNodeData, "label">): {
+export function measureNode(
+  node: Pick<GraphNodeData, "label">,
+  // Extra characters to reserve for the observation counter (e.g. " (2/3)"), so
+  // it isn't ellipsized at render time.
+  counterChars = 0,
+): {
   width: number;
   height: number;
 } {
   const label = truncateLabel(node.label);
   const width = Math.min(
-    MAX_WIDTH,
+    MAX_WIDTH + counterChars * APPROX_CHAR_WIDTH,
     Math.max(
       MIN_WIDTH,
-      label.length * APPROX_CHAR_WIDTH + ICON_SLOT + PADDING_X,
+      (label.length + counterChars) * APPROX_CHAR_WIDTH + ICON_SLOT + PADDING_X,
     ),
   );
   return { width: Math.round(width), height: NODE_HEIGHT };

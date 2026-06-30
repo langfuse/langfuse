@@ -71,6 +71,9 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   // The node id (or null for an empty click) of the last in-canvas selection, so
   // the focus effect re-frames only for selections from the tree/timeline.
   const lastCanvasClickRef = useRef<string | null | undefined>(undefined);
+  // The selection last reflected by the focus effect, so a resize (which also
+  // re-fires that effect) doesn't re-frame a still-selected node.
+  const prevSelectedRef = useRef<string | null>(null);
   const pointerDownPos = useRef<{ x: number; y: number } | null>(null);
 
   const [layout, setLayout] = useState<GraphLayout | null>(null);
@@ -112,7 +115,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     let cancelled = false;
     setLayout(null);
     userControlledRef.current = false;
-    computeGraphLayout(graph)
+    computeGraphLayout(graph, nodeToObservationsMap)
       .then((result) => {
         if (!cancelled) setLayout(result);
       })
@@ -120,7 +123,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [graph]);
+  }, [graph, nodeToObservationsMap]);
 
   // Track container size.
   useEffect(() => {
@@ -201,7 +204,17 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   useEffect(() => {
     const cameFromClick = lastCanvasClickRef.current === selectedNodeName;
     lastCanvasClickRef.current = undefined;
-    if (cameFromClick || !layout || size.width === 0) return;
+    // Only react to an actual selection change. This effect also depends on
+    // `size`/`computeFit`, so without this guard a resize / panel-drag would
+    // re-frame (and yank) a still-selected node.
+    if (prevSelectedRef.current === selectedNodeName) return;
+    // Wait for layout/size before acting — and don't mark the selection as
+    // reflected yet, so we retry once they're ready (e.g. a deep link with a
+    // pre-selected observation that arrives before the graph lays out).
+    if (!layout || size.width === 0) return;
+    prevSelectedRef.current = selectedNodeName;
+    // In-canvas clicks already selected the node; don't move the view.
+    if (cameFromClick) return;
 
     if (!selectedNodeName) {
       userControlledRef.current = false;
@@ -369,7 +382,10 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
         </div>
       )}
 
-      <div className="absolute top-2 right-2 z-10 flex flex-col gap-1">
+      <div
+        className="absolute top-2 right-2 z-10 flex flex-col gap-1"
+        onClick={(e) => e.stopPropagation()} // controls shouldn't deselect
+      >
         <Button
           onClick={() => zoomBy(ZOOM_STEP)}
           variant="outline"
