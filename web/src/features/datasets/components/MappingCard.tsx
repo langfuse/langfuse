@@ -195,7 +195,7 @@ export function MappingCard({
                   id="direct-mapping-input"
                   checked={useDirectMappingForInput}
                   onCheckedChange={onToggleDirectMappingForInput}
-                  className="scale-75"
+                  size="sm"
                 />
                 <Label
                   htmlFor="direct-mapping-input"
@@ -252,7 +252,7 @@ export function MappingCard({
                     id="direct-mapping-expected"
                     checked={useDirectMappingForExpectedOutput}
                     onCheckedChange={onToggleDirectMappingForExpectedOutput}
-                    className="scale-75"
+                    size="sm"
                   />
                   <Label
                     htmlFor="direct-mapping-expected"
