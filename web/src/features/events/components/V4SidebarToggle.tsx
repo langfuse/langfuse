@@ -1,4 +1,4 @@
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Label } from "@/src/components/ui/label";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import {

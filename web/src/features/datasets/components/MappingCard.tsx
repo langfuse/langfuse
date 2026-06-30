@@ -12,7 +12,7 @@ import {
   type FieldMapping,
 } from "@/src/features/datasets/lib/csv/types";
 import { isSchemaField } from "@/src/features/datasets/lib/csv/helpers";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Label } from "@/src/components/ui/label";
 import {
   Tooltip,

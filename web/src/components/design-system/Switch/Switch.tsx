@@ -50,9 +50,9 @@ type SwitchProps = Omit<
 const Switch = React.forwardRef<
   React.ComponentRef<typeof SwitchPrimitives.Root>,
   SwitchProps
->(({ size, ...props }, ref) => (
+>(({ size, color, ...props }, ref) => (
   <SwitchPrimitives.Root
-    className={cn(switchVariants({ size }))}
+    className={cn(switchVariants({ size, color }))}
     {...props}
     ref={ref}
   >
