@@ -101,7 +101,7 @@ function GraphNodeComponent({
         )}
         {...handlers}
       >
-        <span className="truncate">{display}</span>
+        {!compact && <span className="truncate">{display}</span>}
       </div>
     );
   }

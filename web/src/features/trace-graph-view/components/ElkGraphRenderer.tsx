@@ -80,6 +80,9 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, k: 1 });
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  // Keep the world hidden until the first fit is applied, so we never flash one
+  // frame of the unfitted (scale-1, top-left) graph after layout resolves.
+  const [fitted, setFitted] = useState(false);
 
   // Mirror transform in a ref so the focus effect can read the current zoom
   // without depending on it (which would re-focus on every pan).
@@ -114,6 +117,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   useEffect(() => {
     let cancelled = false;
     setLayout(null);
+    setFitted(false);
     userControlledRef.current = false;
     computeGraphLayout(graph, nodeToObservationsMap)
       .then((result) => {
@@ -147,6 +151,8 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
         if (event.sourceEvent) userControlledRef.current = true;
         const { x, y, k } = event.transform;
         setTransform({ x, y, k });
+        // First transform (auto-fit or focus) means the graph is framed — reveal it.
+        setFitted(true);
       });
     selection.call(zoomBehavior);
     selection.on("dblclick.zoom", null); // don't zoom on double-click
@@ -179,10 +185,15 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
       size.width === 0
     )
       return null;
-    const k = Math.min(
-      (size.width - FIT_PADDING * 2) / layout.width,
-      (size.height - FIT_PADDING * 2) / layout.height,
-      MAX_FIT_SCALE,
+    // Clamp within d3-zoom's scaleExtent — below SCALE_MIN, applyTransform
+    // would write a scale d3 then snaps back on the first gesture (a jump).
+    const k = Math.max(
+      SCALE_MIN,
+      Math.min(
+        (size.width - FIT_PADDING * 2) / layout.width,
+        (size.height - FIT_PADDING * 2) / layout.height,
+        MAX_FIT_SCALE,
+      ),
     );
     return {
       k,
@@ -305,6 +316,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
             width: layout.width,
             height: layout.height,
             transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.k})`,
+            opacity: fitted ? 1 : 0,
           }}
         >
           <svg

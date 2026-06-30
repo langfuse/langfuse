@@ -94,6 +94,11 @@ function getElk(): Promise<ELK> {
     elkInstance = import("elkjs/lib/elk.bundled.js").then(
       (mod) => new (mod.default as unknown as { new (): ELK })(),
     );
+    // Don't permanently cache a rejected import (transient fetch failure, stale
+    // chunk after a deploy) — clear it so the next call retries.
+    elkInstance.catch(() => {
+      elkInstance = null;
+    });
   }
   return elkInstance;
 }
