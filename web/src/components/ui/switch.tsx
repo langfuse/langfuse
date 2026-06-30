@@ -47,7 +47,6 @@ interface SwitchProps
     | ""
     | "cursor-not-allowed"
     | "data-[state=checked]:bg-dark-green"
-    | "mt-1 ml-4"
     | "scale-75";
 }
 

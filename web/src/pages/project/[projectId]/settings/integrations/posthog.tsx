@@ -309,14 +309,15 @@ const PostHogIntegrationSettings = ({
             <FormItem>
               <FormLabel>Enabled</FormLabel>
               <FormControl>
-                <Switch
-                  id="posthog-integration-enabled"
-                  checked={field.value}
-                  onCheckedChange={() => {
-                    field.onChange(!field.value);
-                  }}
-                  className="mt-1 ml-4"
-                />
+                <div className="mt-1 ml-4">
+                  <Switch
+                    id="posthog-integration-enabled"
+                    checked={field.value}
+                    onCheckedChange={() => {
+                      field.onChange(!field.value);
+                    }}
+                  />
+                </div>
               </FormControl>
               <FormMessage />
             </FormItem>
