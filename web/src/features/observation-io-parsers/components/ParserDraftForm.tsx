@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import {
   type ColumnDefinition,
@@ -6,7 +7,7 @@ import {
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   Select,
   SelectContent,
@@ -39,14 +40,18 @@ export function ParserDraftForm({
   parserFilterColumns: ColumnDefinition[];
   onChange: (draft: ParserDraft) => void;
 }) {
-  const columnsWithCustomSelect = parserFilterColumns
-    .filter(
-      (column) =>
-        column.type === "stringOptions" ||
-        column.type === "arrayOptions" ||
-        column.type === "categoryOptions",
-    )
-    .map((column) => column.id);
+  const columnsWithCustomSelect = useMemo(
+    () =>
+      parserFilterColumns
+        .filter(
+          (column) =>
+            column.type === "stringOptions" ||
+            column.type === "arrayOptions" ||
+            column.type === "categoryOptions",
+        )
+        .map((column) => column.id),
+    [parserFilterColumns],
+  );
 
   const updateField = (index: number, field: ParserFieldDraft) => {
     const fields = [...draft.fields];
