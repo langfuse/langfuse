@@ -212,7 +212,7 @@ export function TraceViewOptionsMenuItems({
               checked={colorCodeMetrics}
               onCheckedChange={setColorCodeMetrics}
               disabled={!isColorCodeEnabled}
-              className={cn(!isColorCodeEnabled && "cursor-not-allowed")}
+              className={!isColorCodeEnabled ? "cursor-not-allowed" : ""}
             />
           </div>
         </DropdownMenuItem>

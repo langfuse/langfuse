@@ -38,8 +38,19 @@ const switchThumbVariants = cva(
 
 interface SwitchProps
   extends
-    React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root>,
-    VariantProps<typeof switchVariants> {}
+    Omit<
+      React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root>,
+      "className"
+    >,
+    VariantProps<typeof switchVariants> {
+  className?:
+    | ""
+    | "cursor-not-allowed"
+    | "data-[state=checked]:bg-dark-green"
+    | "mt-1 ml-4"
+    | "scale-75"
+    | "shrink-0";
+}
 
 const Switch = React.forwardRef<
   React.ComponentRef<typeof SwitchPrimitives.Root>,
