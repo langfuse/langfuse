@@ -5,7 +5,10 @@ import { MCPClient } from "@mastra/mcp";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AgUiEvent } from "@/src/ee/features/in-app-agent/schema";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
+import {
+  IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+} from "@/src/ee/features/in-app-agent/constants";
 import { patchMastraToolCallInputStreaming } from "@/src/ee/features/in-app-agent/server/agent";
 import { IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES } from "@/src/ee/features/in-app-agent/server/tools";
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
@@ -871,6 +874,36 @@ describe("createAgUiStream", () => {
         ]),
       }),
     ]);
+
+    // Approved resumes intentionally create two MCP clients: the first spends
+    // the single-tool override on the approved mutation, the second continues
+    // the run without that header so follow-up reads are not blocked.
+    expect(vi.mocked(Agent)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(MCPClient)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(MCPClient).mock.calls[0]?.[0]).toMatchObject({
+      servers: {
+        langfuse: {
+          requestInit: {
+            headers: expect.objectContaining({
+              Authorization: expect.stringContaining("Basic "),
+              [IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER]: "run-override",
+            }),
+          },
+        },
+      },
+    });
+
+    expect(vi.mocked(MCPClient).mock.calls[1]?.[0]).toMatchObject({
+      servers: {
+        langfuse: {
+          requestInit: {
+            headers: expect.not.objectContaining({
+              [IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER]: expect.anything(),
+            }),
+          },
+        },
+      },
+    });
     expect(persistedEvents).toEqual([
       {
         type: EventType.RUN_STARTED,

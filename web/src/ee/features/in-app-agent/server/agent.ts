@@ -443,10 +443,10 @@ export async function createAgUiStream(params: {
         onToolsAvailable: (tools) =>
           instrumentation?.recordAvailableTools(tools),
       })
-        .then(async ({ adapter, cleanup, interrupt, executeToolCall }) => {
+        .then(async (initialAdapter) => {
           if (ending || closed || params.signal.aborted) {
-            interrupt();
-            cleanup().catch((error) => {
+            initialAdapter.interrupt();
+            initialAdapter.cleanup().catch((error) => {
               logger.error("Error in agent stream cleanup", {
                 error,
                 runId: params.input.runId,
@@ -457,12 +457,13 @@ export async function createAgUiStream(params: {
             return;
           }
 
-          cleanupAdapter = cleanup;
-          interruptAdapter = interrupt;
+          let currentAdapter = initialAdapter;
+          cleanupAdapter = currentAdapter.cleanup;
+          interruptAdapter = currentAdapter.interrupt;
 
           const runInput = await createManualToolApprovalRunInput({
             input: params.input,
-            executeToolCall,
+            executeToolCall: currentAdapter.executeToolCall,
             onApprovedToolCallExecuted:
               params.options.onApprovedToolCallExecuted,
           });
@@ -473,7 +474,50 @@ export async function createAgUiStream(params: {
             return;
           }
 
-          subscription = adapter.run(runInput.input).subscribe({
+          if (
+            forwardedProps?.command?.resume?.approved === true &&
+            params.options.langfuseMcp.runOverride
+          ) {
+            // The override is intentionally single-use: execute the approved
+            // mutating MCP tool with the first client, then rebuild the MCP
+            // client without the override so the continuation returns to the
+            // normal read-only in-app-agent policy.
+
+            await currentAdapter.cleanup();
+
+            currentAdapter = await createMastraAdapter({
+              input: params.input,
+              signal: params.signal,
+              langfuseMcpAuthHeader,
+              options: {
+                ...params.options,
+                langfuseMcp: {
+                  ...params.options.langfuseMcp,
+                  runOverride: undefined,
+                },
+              },
+              awsProfile,
+              instructions,
+            });
+
+            if (ending || closed || params.signal.aborted) {
+              currentAdapter.interrupt();
+              currentAdapter.cleanup().catch((error) => {
+                logger.error("Error in agent stream cleanup", {
+                  error,
+                  runId: params.input.runId,
+                  threadId: params.input.threadId,
+                });
+              });
+              abortStream();
+              return;
+            }
+
+            cleanupAdapter = currentAdapter.cleanup;
+            interruptAdapter = currentAdapter.interrupt;
+          }
+
+          subscription = currentAdapter.adapter.run(runInput.input).subscribe({
             next(event) {
               if (ending || closed) {
                 return;
