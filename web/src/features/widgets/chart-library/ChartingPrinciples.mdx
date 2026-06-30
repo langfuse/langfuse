@@ -1,23 +1,33 @@
 import { Meta, Canvas } from "@storybook/addon-docs/blocks";
 import * as Principles from "./ChartingPrinciples.stories";
 
-<Meta title="Charts/Principles" />
+<Meta title="Design System/Charts/Principles" />
 
+{/* Suprematist palette, but theme-aware: ink/paper come from the app's CSS vars
+    (toggled by the `.dark` class the story decorators set on <html>), so the
+    article follows the theme switch like the charts do. Red is the one fixed
+    accent — it reads on both light and dark. */}
 export const RED = "#E4002B";
-export const INK = "#0B0B0B";
-export const PAPER = "#F3F1EA";
-export const FADE = "#6B6B66";
+export const FG = "hsl(var(--foreground))";
+export const BG = "hsl(var(--background))";
+export const MUTED = "hsl(var(--muted-foreground))";
+export const BORDER = "hsl(var(--border))";
 
 export const Page = ({ children }) => (
   <div
     style={{
-      background: PAPER,
-      color: INK,
+      background: BG,
+      color: FG,
       padding: "56px clamp(24px, 6vw, 88px)",
       fontFamily:
         "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
     }}
   >
+    {/* Storybook frames every embedded example in a white card from its docs
+        theme, which can't follow our per-toggle theme. Neutralise it so the
+        themed page shows through and each chart's own card (bg-background +
+        border) stands alone — cohesive in both light and dark. */}
+    <style>{`.sbdocs-preview{background:transparent !important;border:0 !important;box-shadow:none !important;}`}</style>
     <div style={{ maxWidth: 880, margin: "0 auto" }}>{children}</div>
   </div>
 );
@@ -27,8 +37,8 @@ export const Hero = () => (
     style={{
       position: "relative",
       overflow: "hidden",
-      background: INK,
-      color: PAPER,
+      background: FG,
+      color: BG,
       padding: "72px 48px 64px",
       marginBottom: 64,
     }}
@@ -51,7 +61,7 @@ export const Hero = () => (
         bottom: -30,
         width: 70,
         height: 70,
-        background: PAPER,
+        background: BG,
       }}
     />
     <div style={{ position: "relative" }}>
@@ -77,7 +87,7 @@ export const Hero = () => (
           fontWeight: 600,
           maxWidth: 540,
           marginTop: 24,
-          color: "#EDEDE8",
+          opacity: 0.85,
         }}
       >
         Eight moves for rendering any data — clean or noisy, sparse or
@@ -114,8 +124,8 @@ export const Slab = ({ n, t, lead, children }) => (
           flex: "0 0 auto",
           width: 60,
           height: 60,
-          background: INK,
-          color: PAPER,
+          background: FG,
+          color: BG,
           fontSize: 28,
           fontWeight: 900,
           display: "flex",
@@ -163,7 +173,7 @@ export const Plate = ({ children }) => (
 );
 
 export const Rule = () => (
-  <div style={{ height: 6, background: INK, margin: "8px 0 40px" }} />
+  <div style={{ height: 6, background: FG, margin: "8px 0 40px" }} />
 );
 
 <Page>
@@ -189,7 +199,7 @@ preparer, never in the chart component.
 </Slab>
 
 <Plate>
-  <Canvas of={Principles.Interpolation} />
+  <Canvas of={Principles.Interpolation} sourceState="none" />
 </Plate>
 
 <Slab n="2" t="Missing is a gap, not a zero" lead="A hole in the data is the truth.">
@@ -201,7 +211,7 @@ preparer, never in the chart component.
 </Slab>
 
 <Plate>
-  <Canvas of={Principles.NullHandling} />
+  <Canvas of={Principles.NullHandling} sourceState="none" />
 </Plate>
 
 <Slab n="3" t="Show certainty in the ink" lead="One grammar for less-sure data.">
@@ -212,7 +222,7 @@ preparer, never in the chart component.
 </Slab>
 
 <Plate>
-  <Canvas of={Principles.Certainty} />
+  <Canvas of={Principles.Certainty} sourceState="none" />
 </Plate>
 
 <Slab n="4" t="Hover is a timeline, not a panel" lead="Snap to real samples; share the crosshair.">
@@ -225,7 +235,7 @@ preparer, never in the chart component.
 </Slab>
 
 <Plate>
-  <Canvas of={Principles.HoverTimeline} />
+  <Canvas of={Principles.HoverTimeline} sourceState="none" />
 </Plate>
 
 <Slab n="5" t="Color is identity" lead="Assign once. Read it back.">
@@ -244,7 +254,7 @@ preparer, never in the chart component.
 </Slab>
 
 <Plate>
-  <Canvas of={Principles.QuietChrome} />
+  <Canvas of={Principles.QuietChrome} sourceState="none" />
 </Plate>
 
 <Slab n="7" t="Spend ink on data" lead="Quiet the frame.">
@@ -262,7 +272,7 @@ preparer, never in the chart component.
 </Slab>
 
 <Plate>
-  <Canvas of={Principles.BoundTheFrame} />
+  <Canvas of={Principles.BoundTheFrame} sourceState="none" />
 </Plate>
 
 <Rule />
@@ -270,7 +280,7 @@ preparer, never in the chart component.
 <div
   style={{
     background: RED,
-    color: PAPER,
+    color: "#fff",
     padding: "40px 44px",
     fontSize: "clamp(22px, 4vw, 32px)",
     fontWeight: 900,
@@ -283,12 +293,12 @@ preparer, never in the chart component.
   Teach the preparer a new shape — never the component a new exception.
 </div>
 
-<p style={{ fontSize: 14, color: FADE, marginTop: 28 }}>
+<p style={{ fontSize: 14, color: MUTED, marginTop: 28 }}>
   The full architecture and the one-way <strong>data → prepare → visualise</strong>{" "}
   rule live in{" "}
   <code>web/src/features/widgets/chart-library/ARCHITECTURE.md</code>. For how
   overlays escape the chart frame, see the layer system in{" "}
-  <code>web/src/components/ui/layer.tsx</code>.
+  <code>web/src/components/ui/layer.tsx</code> (Design System → Overlay Layers).
 </p>
 
 </Page>

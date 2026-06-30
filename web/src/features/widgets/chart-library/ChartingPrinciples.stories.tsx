@@ -73,6 +73,7 @@ const axes = (
 );
 
 const meta = preview.meta({
+  title: "Design System/Charts/Illustrations",
   component: LineChartTimeSeries,
   decorators: [
     (Story) => (
