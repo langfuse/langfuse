@@ -425,11 +425,13 @@ export const SessionPage: React.FC<{
                 />
               </div>
               <div className="flex items-center">
-                <Switch
-                  checked={showCorrections}
-                  onCheckedChange={setShowCorrectionsForSession}
-                  size="sm"
-                />
+                <div className="mx-1">
+                  <Switch
+                    checked={showCorrections}
+                    onCheckedChange={setShowCorrectionsForSession}
+                    size="sm"
+                  />
+                </div>
                 <span className="text-muted-foreground text-xs">
                   Show corrections
                 </span>
@@ -1018,11 +1020,13 @@ const LoadedSessionEventsPage: React.FC<{
                 />
               </div>
               <div className="flex items-center">
-                <Switch
-                  checked={showCorrections}
-                  onCheckedChange={setShowCorrectionsForSession}
-                  size="sm"
-                />
+                <div className="mx-1">
+                  <Switch
+                    checked={showCorrections}
+                    onCheckedChange={setShowCorrectionsForSession}
+                    size="sm"
+                  />
+                </div>
                 <span className="text-muted-foreground text-xs">
                   Show corrections
                 </span>

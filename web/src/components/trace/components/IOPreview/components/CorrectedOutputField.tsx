@@ -252,12 +252,14 @@ export function CorrectedOutputField({
                 )}
               </div>
               <div className="flex items-center">
-                <Switch
-                  checked={strictJsonMode}
-                  onCheckedChange={handleStrictJsonModeChange}
-                  disabled={!isEditing}
-                  size="sm"
-                />
+                <div className="mx-1">
+                  <Switch
+                    checked={strictJsonMode}
+                    onCheckedChange={handleStrictJsonModeChange}
+                    disabled={!isEditing}
+                    size="sm"
+                  />
+                </div>
                 <span className="text-muted-foreground text-xs">JSON</span>
               </div>
             </div>
