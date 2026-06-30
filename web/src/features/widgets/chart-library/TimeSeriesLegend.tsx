@@ -78,9 +78,11 @@ export function useSeriesLegend({
   const [highlighted, setHighlighted] = useState<string | null>(null);
   const [hidden, setHidden] = useState<Set<string>>(initialHidden);
 
-  // Re-seed when the series set or overload config changes (e.g. data reloads).
-  // JSON.stringify the dimension list so names can't collide on a separator.
-  const seedKey = `${legendInteraction}|${maxVisibleSeries ?? ""}|${JSON.stringify(dimensions)}`;
+  // Re-seed when the series SET or overload config changes (e.g. data reloads).
+  // Sort before stringifying so the key is order-insensitive: when the top-N
+  // preparer reorders an unchanged set (two near-equal series swap rank on a
+  // refresh), we must NOT wipe the user's highlight/hide selections.
+  const seedKey = `${legendInteraction}|${maxVisibleSeries ?? ""}|${JSON.stringify([...dimensions].sort())}`;
   const prevSeedKey = useRef(seedKey);
   useEffect(() => {
     if (prevSeedKey.current === seedKey) return;

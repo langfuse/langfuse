@@ -139,8 +139,10 @@ export function prepareTimeAxis(rawValues: unknown[], maxTicks = 6): TimeAxis {
   const span = count >= 2 ? maxTs - minTs : 0;
   // Date ticks normally omit the year (one unit per scale), but show it when the
   // range straddles a year boundary so "Dec 29 → Jan 5" stays unambiguous.
+  // Use LOCAL year to match the tick formatter (toLocaleDateString renders in
+  // local time), so a range that crosses Jan 1 locally still shows the year.
   const crossesYear =
-    new Date(minTs).getUTCFullYear() !== new Date(maxTs).getUTCFullYear();
+    new Date(minTs).getFullYear() !== new Date(maxTs).getFullYear();
 
   const mode: AxisMode =
     span > 0 && span <= TIME_SCALE_MAX

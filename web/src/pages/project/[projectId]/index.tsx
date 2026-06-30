@@ -355,6 +355,7 @@ export default function Dashboard() {
               isLoading={environmentOptionsState.isPending}
               metricsVersion={metricsVersion}
               schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.scoreAnalytics}`}
+              syncId={HOME_DASHBOARD_SYNC_ID}
             />
           </div>
         )}

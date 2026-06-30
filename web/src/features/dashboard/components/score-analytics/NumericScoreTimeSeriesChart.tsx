@@ -33,6 +33,8 @@ export function NumericScoreTimeSeriesChart(props: {
   toTimestamp: Date;
   metricsVersion?: ViewVersion;
   schedulerId?: string;
+  /** Shared hover-sync group so this chart joins the dashboard crosshair. */
+  syncId?: string;
 }) {
   const scoresQuery: QueryType = {
     view: "scores-numeric",
@@ -119,6 +121,7 @@ export function NumericScoreTimeSeriesChart(props: {
           subtle_fill: true,
         }}
         legendPosition="above"
+        syncId={props.syncId}
       />
     </div>
   ) : (
