@@ -359,15 +359,15 @@ describe("Public API experiments repository", () => {
 
       const rows = await queryExperimentSummariesForPublicApi({
         projectId,
-        name: ["simple experiment"],
+        id: [simpleOnlyId],
         fromStartTime: new Date(startTimeMs - 1_000),
         includeMetadata: false,
         advancedFilters: [
           {
             type: "stringOptions",
-            column: "name",
+            column: "id",
             operator: "any of",
-            value: ["structured experiment"],
+            value: [structuredId],
           },
         ],
         limit: 10,

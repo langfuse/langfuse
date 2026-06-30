@@ -175,6 +175,7 @@ async function queryExperimentSummaryRowsForPublicApi(
       // pagination on the query builder below.
       page: 0,
       limit: params.limit,
+      id: params.id,
       name: params.name,
       datasetId: params.datasetId,
     },
@@ -188,7 +189,6 @@ async function queryExperimentSummaryRowsForPublicApi(
     projectId: params.projectId,
     includeMetadata: params.includeMetadata,
   })
-    .withExperimentIds(params.id)
     .withExactStartTimeFrom(fromStartTime)
     .withExactStartTimeTo(toStartTime)
     .applyFilters(filterList)
