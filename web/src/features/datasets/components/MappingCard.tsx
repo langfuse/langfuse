@@ -12,7 +12,7 @@ import {
   type FieldMapping,
 } from "@/src/features/datasets/lib/csv/types";
 import { isSchemaField } from "@/src/features/datasets/lib/csv/helpers";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Label } from "@/src/components/ui/label";
 import {
   Tooltip,
@@ -191,12 +191,14 @@ export function MappingCard({
             </h3>
             {inputSchemaKeys && inputSchemaKeys.length > 0 && (
               <div className="flex items-center gap-1.5">
-                <Switch
-                  id="direct-mapping-input"
-                  checked={useDirectMappingForInput}
-                  onCheckedChange={onToggleDirectMappingForInput}
-                  className="scale-75"
-                />
+                <div className="mx-1">
+                  <Switch
+                    id="direct-mapping-input"
+                    checked={useDirectMappingForInput}
+                    onCheckedChange={onToggleDirectMappingForInput}
+                    size="sm"
+                  />
+                </div>
                 <Label
                   htmlFor="direct-mapping-input"
                   className="text-muted-foreground cursor-pointer text-xs font-normal"
@@ -248,12 +250,14 @@ export function MappingCard({
             {expectedOutputSchemaKeys &&
               expectedOutputSchemaKeys.length > 0 && (
                 <div className="flex items-center gap-1.5">
-                  <Switch
-                    id="direct-mapping-expected"
-                    checked={useDirectMappingForExpectedOutput}
-                    onCheckedChange={onToggleDirectMappingForExpectedOutput}
-                    className="scale-75"
-                  />
+                  <div className="mx-1">
+                    <Switch
+                      id="direct-mapping-expected"
+                      checked={useDirectMappingForExpectedOutput}
+                      onCheckedChange={onToggleDirectMappingForExpectedOutput}
+                      size="sm"
+                    />
+                  </div>
                   <Label
                     htmlFor="direct-mapping-expected"
                     className="text-muted-foreground cursor-pointer text-xs font-normal"

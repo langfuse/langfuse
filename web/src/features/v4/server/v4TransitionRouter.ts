@@ -15,58 +15,18 @@ import {
   queryClickhouse,
   systemTableRef,
 } from "@langfuse/shared/src/server";
+import {
+  addTimelineBucket,
+  floorTimelineBucket,
+  formatTimelineBucket,
+  getPostgresTimelineBucketExpression,
+  getTimelineBucketSql,
+  MAX_TIMELINE_RANGE_MS,
+  resolveTimelineGranularity,
+  type ResolvedTimelineGranularity,
+} from "./timelineBuckets";
 
 const timelineGranularity = z.literal("auto");
-type ResolvedTimelineGranularity = "minute" | "2m" | "5m" | "hour" | "day";
-const MINUTE_MS = 60 * 1000;
-const MAX_TIMELINE_RANGE_MS = 30 * 24 * 60 * 60 * 1000;
-const TIMELINE_GRANULARITY_DURATION_TOLERANCE_MS = 1000;
-
-const isTimelineDuration = (actualMs: number, expectedMs: number): boolean =>
-  Math.abs(actualMs - expectedMs) <= TIMELINE_GRANULARITY_DURATION_TOLERANCE_MS;
-
-const resolveTimelineGranularity = (
-  fromTimestamp: Date,
-  toTimestamp: Date,
-): ResolvedTimelineGranularity => {
-  const diffMs = toTimestamp.getTime() - fromTimestamp.getTime();
-
-  if (isTimelineDuration(diffMs, 60 * MINUTE_MS)) return "2m";
-  if (isTimelineDuration(diffMs, 3 * 60 * MINUTE_MS)) return "5m";
-  if (isTimelineDuration(diffMs, 24 * 60 * MINUTE_MS)) return "hour";
-  if (isTimelineDuration(diffMs, MAX_TIMELINE_RANGE_MS)) return "day";
-
-  return "minute";
-};
-
-const getTimelineBucketSql = (
-  sql: string,
-  granularity: ResolvedTimelineGranularity,
-): string => {
-  const intervalByGranularity: Record<ResolvedTimelineGranularity, string> = {
-    minute: "1 MINUTE",
-    "2m": "2 MINUTE",
-    "5m": "5 MINUTE",
-    hour: "1 HOUR",
-    day: "1 DAY",
-  };
-
-  return `toStartOfInterval(${sql}, INTERVAL ${intervalByGranularity[granularity]}, 'UTC')`;
-};
-
-const getPostgresTimelineBucketExpression = (
-  granularity: ResolvedTimelineGranularity,
-): Prisma.Sql => {
-  const intervalByGranularity: Record<ResolvedTimelineGranularity, string> = {
-    minute: "1 minute",
-    "2m": "2 minutes",
-    "5m": "5 minutes",
-    hour: "1 hour",
-    day: "1 day",
-  };
-
-  return Prisma.sql`date_bin(${intervalByGranularity[granularity]}::interval, je.created_at, '1970-01-01T00:00:00Z'::timestamptz)`;
-};
 
 const legacyIntegrationExportSources =
   new Set<AnalyticsIntegrationExportSource>([
@@ -149,67 +109,6 @@ type LegacyApiUsageSummaryByProjectResultRow = {
   entrypoint: string;
   count: number;
 };
-
-const floorTimelineBucket = (
-  timestamp: Date,
-  granularity: ResolvedTimelineGranularity,
-): Date => {
-  const bucket = new Date(timestamp);
-
-  switch (granularity) {
-    case "minute":
-      bucket.setUTCSeconds(0, 0);
-      return bucket;
-    case "2m":
-      bucket.setUTCMinutes(Math.floor(bucket.getUTCMinutes() / 2) * 2, 0, 0);
-      return bucket;
-    case "5m":
-      bucket.setUTCMinutes(Math.floor(bucket.getUTCMinutes() / 5) * 5, 0, 0);
-      return bucket;
-    case "hour":
-      bucket.setUTCMinutes(0, 0, 0);
-      return bucket;
-    case "day":
-      bucket.setUTCHours(0, 0, 0, 0);
-      return bucket;
-    default: {
-      const exhaustiveCheck: never = granularity;
-      throw new Error(`Invalid timeline granularity: ${exhaustiveCheck}`);
-    }
-  }
-};
-
-const addTimelineBucket = (
-  timestamp: Date,
-  granularity: ResolvedTimelineGranularity,
-): Date => {
-  const next = new Date(timestamp);
-
-  switch (granularity) {
-    case "minute":
-      next.setUTCMinutes(next.getUTCMinutes() + 1);
-      return next;
-    case "2m":
-      next.setUTCMinutes(next.getUTCMinutes() + 2);
-      return next;
-    case "5m":
-      next.setUTCMinutes(next.getUTCMinutes() + 5);
-      return next;
-    case "hour":
-      next.setUTCHours(next.getUTCHours() + 1);
-      return next;
-    case "day":
-      next.setUTCDate(next.getUTCDate() + 1);
-      return next;
-    default: {
-      const exhaustiveCheck: never = granularity;
-      throw new Error(`Invalid timeline granularity: ${exhaustiveCheck}`);
-    }
-  }
-};
-
-const formatTimelineBucket = (timestamp: Date): string =>
-  timestamp.toISOString().replace(/\.\d{3}Z$/, "Z");
 
 const getEmptyTimelineBuckets = (
   fromTimestamp: Date,
@@ -518,7 +417,10 @@ export const v4TransitionRouter = createTRPCRouter({
         input.fromTimestamp,
         input.toTimestamp,
       );
-      const bucketExpression = getPostgresTimelineBucketExpression(granularity);
+      const bucketExpression = getPostgresTimelineBucketExpression(
+        Prisma.sql`je.created_at`,
+        granularity,
+      );
 
       const rows = await ctx.prisma.$queryRaw<
         TraceLevelEvalExecutionTimeSeriesRow[]
