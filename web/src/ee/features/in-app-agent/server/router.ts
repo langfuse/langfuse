@@ -127,6 +127,33 @@ export const inAppAgentRouter = createTRPCRouter({
       };
     }),
 
+  deleteConversation: protectedProjectProcedureWithoutTracing
+    .input(ConversationIdInput)
+    .mutation(async ({ ctx, input }) => {
+      await assertInAppAgentAvailable({ ctx, projectId: input.projectId });
+
+      await getOwnedConversationOrThrow({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        conversationId: input.conversationId,
+        userId: ctx.session.user.id,
+      });
+
+      await ctx.prisma.inAppAgentConversation.update({
+        where: {
+          id_projectId: {
+            id: input.conversationId,
+            projectId: input.projectId,
+          },
+        },
+        data: {
+          deletedAt: new Date(),
+        },
+      });
+
+      return { success: true };
+    }),
+
   submitFeedback: protectedProjectProcedureWithoutTracing
     .input(SubmitFeedbackInput)
     .mutation(async ({ ctx, input }) => {
