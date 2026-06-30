@@ -1,4 +1,9 @@
 import { DataTable } from "@/src/components/table/data-table";
+import {
+  DataTableControls,
+  DataTableControlsProvider,
+} from "@/src/components/table/data-table-controls";
+import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
@@ -7,7 +12,7 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { api } from "@/src/utils/api";
 import { withDefault, useQueryParam, StringParam } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
@@ -46,6 +51,9 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { SearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 import { useTableSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import { createDatasetsSearchBarRegistry } from "@/src/features/search-bar/lib/registries";
+import { datasetsFilterConfig } from "@/src/features/filters/config/datasets-config";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 
 type DatasetTableRow = {
   id: string;
@@ -98,11 +106,13 @@ function createRow(
 
 function DatasetsMultiSelectActionMenu({
   currentFolderPath,
+  filterState,
   projectId,
   searchQuery,
   store,
 }: {
   currentFolderPath: string | undefined;
+  filterState: FilterState;
   projectId: string;
   searchQuery: string | null;
   store: DatasetsTableStore;
@@ -152,7 +162,7 @@ function DatasetsMultiSelectActionMenu({
           projectId,
           deleteMany: deleteManyMutation.mutateAsync,
           capture,
-          scope: { folderPath: currentFolderPath, searchQuery },
+          scope: { folderPath: currentFolderPath, searchQuery, filterState },
         }),
     },
   ];
@@ -174,6 +184,7 @@ function DatasetsTableToolbar({
   columnVisibility,
   columns,
   currentFolderPath,
+  filterState,
   paginationState,
   projectId,
   rowHeight,
@@ -189,6 +200,7 @@ function DatasetsTableToolbar({
   columnVisibility: ReturnType<typeof useColumnVisibility<DatasetTableRow>>[0];
   columns: LangfuseColumnDef<DatasetTableRow>[];
   currentFolderPath: string | undefined;
+  filterState: FilterState;
   paginationState: { pageIndex: number; pageSize: number };
   projectId: string;
   rowHeight: ReturnType<typeof useRowHeightLocalStorage>[0];
@@ -212,6 +224,7 @@ function DatasetsTableToolbar({
   return (
     <DataTableToolbar
       columns={columns}
+      filterState={filterState}
       columnVisibility={columnVisibility}
       setColumnVisibility={setColumnVisibility}
       columnOrder={columnOrder}
@@ -227,6 +240,7 @@ function DatasetsTableToolbar({
         <DatasetsMultiSelectActionMenu
           key="datasets-multi-select-delete"
           currentFolderPath={currentFolderPath}
+          filterState={filterState}
           projectId={projectId}
           searchQuery={searchQuery}
           store={store}
@@ -268,18 +282,28 @@ export function DatasetsTable(props: { projectId: string }) {
     () => createDatasetsSearchBarRegistry(),
     [],
   );
-  const searchBarFilterState = useMemo<FilterState>(() => [], []);
-  const setSearchBarFilterState = useCallback((_filters: FilterState) => {
-    return;
-  }, []);
+  const filterOptions = useMemo(() => ({}), []);
+  const queryFilter = useSidebarFilterState(
+    datasetsFilterConfig,
+    filterOptions,
+    {
+      loading: false,
+      stateLocation: "urlAndSessionStorage",
+      sessionFilterContextId: props.projectId,
+    },
+  );
+  const searchBarObserved = useMemo(
+    () => toObservedOptions(filterOptions, false),
+    [filterOptions],
+  );
   const { store: searchBarStore, commit: searchBarCommit } = useTableSearchBar({
     projectId: props.projectId,
     enabled: true,
     registry: searchBarRegistry,
-    filterState: searchBarFilterState,
+    filterState: queryFilter.explicitFilterState,
     searchQuery,
-    observed: undefined,
-    setFilterState: setSearchBarFilterState,
+    observed: searchBarObserved,
+    setFilterState: queryFilter.setFilterState,
     setSearchQuery,
   });
 
@@ -292,6 +316,7 @@ export function DatasetsTable(props: { projectId: string }) {
   const datasets = api.datasets.allDatasets.useQuery({
     projectId: props.projectId,
     searchQuery,
+    filter: queryFilter.filterState,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     pathPrefix: currentFolderPath,
@@ -519,11 +544,14 @@ export function DatasetsTable(props: { projectId: string }) {
     stateUpdaters: {
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibility,
+      setFilters: queryFilter.setFilterState,
       setSearchQuery: setSearchQuery,
     },
     validationContext: {
       columns,
+      filterColumnDefinition: datasetsFilterConfig.columnDefinitions,
     },
+    currentFilterState: queryFilter.explicitFilterState,
   });
 
   // Backend returns folder representatives with row_type metadata
@@ -580,71 +608,83 @@ export function DatasetsTable(props: { projectId: string }) {
     pageRowIds,
     totalCount: datasets.data?.totalDatasets ?? null,
     currentFolderPath,
+    filterStateKey: JSON.stringify(queryFilter.filterState),
     searchQuery,
   });
 
   return (
-    <>
-      {currentFolderPath && (
-        <FolderBreadcrumb
-          currentFolderPath={currentFolderPath}
-          navigateToFolder={navigateToFolder}
+    <DataTableControlsProvider
+      tableName={datasetsFilterConfig.tableName}
+      defaultSidebarCollapsed={datasetsFilterConfig.defaultSidebarCollapsed}
+    >
+      <div className="flex h-full w-full flex-col">
+        {currentFolderPath && (
+          <FolderBreadcrumb
+            currentFolderPath={currentFolderPath}
+            navigateToFolder={navigateToFolder}
+          />
+        )}
+        <SearchBarRow
+          projectId={props.projectId}
+          store={searchBarStore}
+          commit={searchBarCommit}
+          observed={searchBarObserved}
+          registry={searchBarRegistry}
         />
-      )}
-      <SearchBarRow
-        projectId={props.projectId}
-        store={searchBarStore}
-        commit={searchBarCommit}
-        observed={undefined}
-        registry={searchBarRegistry}
-      />
-      <DatasetsTableToolbar
-        columns={columns}
-        columnVisibility={columnVisibility}
-        setColumnVisibility={setColumnVisibility}
-        columnOrder={columnOrder}
-        setColumnOrder={setColumnOrder}
-        rowHeight={rowHeight}
-        setRowHeight={setRowHeight}
-        currentFolderPath={currentFolderPath}
-        paginationState={paginationState}
-        projectId={props.projectId}
-        searchQuery={searchQuery}
-        store={datasetsTableStore}
-        totalCount={datasets.data?.totalDatasets ?? null}
-        viewControllers={viewControllers}
-      />
-      <DataTable
-        tableName={"datasets"}
-        columns={columns}
-        selectionStore={datasetsTableStore}
-        highlightAllRows={selectAll}
-        data={
-          datasets.isLoading || isViewLoading
-            ? { isLoading: true, isError: false }
-            : datasets.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: datasets.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: processedRowData.rows,
-                }
-        }
-        pagination={{
-          totalCount: datasets.data?.totalDatasets ?? null,
-          onChange: setPaginationAndFolderState,
-          state: paginationState,
-        }}
-        columnVisibility={columnVisibility}
-        onColumnVisibilityChange={setColumnVisibility}
-        columnOrder={columnOrder}
-        onColumnOrderChange={setColumnOrder}
-        rowHeight={rowHeight}
-      />
-    </>
+        <DatasetsTableToolbar
+          columns={columns}
+          filterState={queryFilter.explicitFilterState}
+          columnVisibility={columnVisibility}
+          setColumnVisibility={setColumnVisibility}
+          columnOrder={columnOrder}
+          setColumnOrder={setColumnOrder}
+          rowHeight={rowHeight}
+          setRowHeight={setRowHeight}
+          currentFolderPath={currentFolderPath}
+          paginationState={paginationState}
+          projectId={props.projectId}
+          searchQuery={searchQuery}
+          store={datasetsTableStore}
+          totalCount={datasets.data?.totalDatasets ?? null}
+          viewControllers={viewControllers}
+        />
+        <ResizableFilterLayout>
+          <DataTableControls queryFilter={queryFilter} />
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <DataTable
+              tableName={"datasets"}
+              columns={columns}
+              selectionStore={datasetsTableStore}
+              highlightAllRows={selectAll}
+              data={
+                datasets.isLoading || isViewLoading
+                  ? { isLoading: true, isError: false }
+                  : datasets.isError
+                    ? {
+                        isLoading: false,
+                        isError: true,
+                        error: datasets.error.message,
+                      }
+                    : {
+                        isLoading: false,
+                        isError: false,
+                        data: processedRowData.rows,
+                      }
+              }
+              pagination={{
+                totalCount: datasets.data?.totalDatasets ?? null,
+                onChange: setPaginationAndFolderState,
+                state: paginationState,
+              }}
+              columnVisibility={columnVisibility}
+              onColumnVisibilityChange={setColumnVisibility}
+              columnOrder={columnOrder}
+              onColumnOrderChange={setColumnOrder}
+              rowHeight={rowHeight}
+            />
+          </div>
+        </ResizableFilterLayout>
+      </div>
+    </DataTableControlsProvider>
   );
 }

@@ -20,10 +20,12 @@ async function createProject() {
 
 async function createDataset({
   createdAt,
+  description,
   name,
   projectId,
 }: {
   createdAt?: Date;
+  description?: string;
   name: string;
   projectId: string;
 }) {
@@ -31,6 +33,7 @@ async function createDataset({
     data: {
       id: v4(),
       createdAt,
+      description,
       name,
       projectId,
     },
@@ -175,6 +178,40 @@ describe("datasets repository", () => {
         orderBy: { column: "createdAt", order: "DESC" },
         searchQuery: "target",
         pathPrefix: "folder",
+      },
+    });
+
+    expect(datasets).toEqual([{ id: matchingDataset.id }]);
+  });
+
+  it("finds batch deletion dataset ids with sidebar filters", async () => {
+    const project = await createProject();
+    const matchingDataset = await createDataset({
+      createdAt: new Date("2024-01-01T00:00:00.000Z"),
+      description: "delete candidate",
+      name: `matching-${v4()}`,
+      projectId: project.id,
+    });
+    await createDataset({
+      createdAt: new Date("2024-01-01T00:00:00.000Z"),
+      description: "keep candidate",
+      name: `non-matching-${v4()}`,
+      projectId: project.id,
+    });
+
+    const datasets = await findDatasetIdsForBatchDeletion({
+      projectId: project.id,
+      cutoffCreatedAt: new Date("2024-01-02T00:00:00.000Z"),
+      query: {
+        filter: [
+          {
+            column: "description",
+            type: "string",
+            operator: "contains",
+            value: "delete",
+          },
+        ],
+        orderBy: { column: "createdAt", order: "DESC" },
       },
     });
 

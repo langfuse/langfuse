@@ -3,6 +3,7 @@ import { type RowSelectionState, type Updater } from "@tanstack/react-table";
 import { type TableSelectionStoreState } from "@/src/components/table/table-selection-store";
 import { type RouterInput } from "@/src/utils/types";
 import { type usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { type FilterState } from "@langfuse/shared";
 
 type RowSelectionUpdater = Updater<RowSelectionState>;
 type BooleanUpdater = Updater<boolean>;
@@ -34,6 +35,7 @@ function splitSelectedRowIds(rowIds: string[]) {
 // mirrored into the store).
 type DatasetsTableScope = {
   folderPath: string | undefined;
+  filterState: FilterState;
   searchQuery: string | null;
 };
 
@@ -168,7 +170,7 @@ export function createDatasetsTableStore(): DatasetsTableStore {
             folderPaths,
             isBatchAction: selectAll,
             query: {
-              filter: null,
+              filter: scope.filterState.length > 0 ? scope.filterState : null,
               orderBy: { column: "createdAt", order: "DESC" },
               searchQuery: scope.searchQuery ?? undefined,
               pathPrefix: scope.folderPath,

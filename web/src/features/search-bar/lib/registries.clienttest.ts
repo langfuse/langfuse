@@ -228,7 +228,7 @@ describe("non-events search bar registries", () => {
     expect(result.searchType).toEqual([]);
   });
 
-  it("keeps datasets free-text only", () => {
+  it("routes datasets free text into the table search query", () => {
     const registry = createDatasetsSearchBarRegistry();
     const result = planCommit("dataset name", { registry });
 
@@ -237,8 +237,24 @@ describe("non-events search bar registries", () => {
     expect(result.filters).toEqual([]);
     expect(result.searchQuery).toBe("dataset name");
     expect(result.searchType).toEqual([]);
+  });
 
-    expect(planCommit("name:dataset", { registry }).status).toBe("invalid");
+  it("routes datasets field queries into filters", () => {
+    const registry = createDatasetsSearchBarRegistry();
+    const result = planCommit("name:dataset", { registry });
+
+    expect(result.status).toBe("committed");
+    if (result.status !== "committed") return;
+    expect(result.filters).toEqual([
+      {
+        type: "string",
+        column: "name",
+        operator: "contains",
+        value: "dataset",
+      },
+    ]);
+    expect(result.searchQuery).toBeNull();
+    expect(result.searchType).toEqual([]);
     expect(
       filterStateToQueryText([], { registry, searchQuery: "dataset" }).text,
     ).toBe("dataset");

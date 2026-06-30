@@ -1,7 +1,6 @@
-import type { ColumnDefinition } from "@langfuse/shared";
+import { datasetsTableCols, type ColumnDefinition } from "@langfuse/shared";
 
 import {
-  createFieldRegistry,
   createFieldRegistryFromColumns,
   type FieldRegistry,
   type ScorePathDef,
@@ -167,14 +166,13 @@ export function createUsersSearchBarRegistry(
 }
 
 export function createDatasetsSearchBarRegistry(): FieldRegistry {
-  return createFieldRegistry({
-    id: "datasets",
-    fields: [],
-    columns: [],
-    metadataPrefixes: [],
-    scorePaths: [],
-    suggestionFieldIds: [],
-    hasPseudoField: false,
+  return createFieldRegistryFromColumns("datasets", datasetsTableCols, {
+    aliases: {
+      id: ["dataset", "datasetid", "dataset_id"],
+      createdAt: ["created", "created_at"],
+      updatedAt: ["updated", "updated_at"],
+    },
+    suggestionFieldIds: ["name", "description"],
     freeText: NON_EVENTS_FREE_TEXT,
   });
 }

@@ -12,12 +12,14 @@ export function useDatasetsTableSelectionSync({
   pageRowIds,
   totalCount,
   currentFolderPath,
+  filterStateKey,
   searchQuery,
 }: {
   store: DatasetsTableStore;
   pageRowIds: string[];
   totalCount: number | null;
   currentFolderPath: string | undefined;
+  filterStateKey: string;
   searchQuery: string | null;
 }) {
   // Mirror the visible page's rows into the store so selection stays page-scoped.
@@ -30,5 +32,5 @@ export function useDatasetsTableSelectionSync({
   // keeps the same scope.
   useEffect(() => {
     store.getState().actions.clearSelection();
-  }, [store, currentFolderPath, searchQuery]);
+  }, [store, currentFolderPath, filterStateKey, searchQuery]);
 }

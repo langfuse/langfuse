@@ -604,9 +604,9 @@ const promptsView: RegistryUnderTest = {
 const datasetsView: RegistryUnderTest = {
   name: "datasets",
   registry: createDatasetsSearchBarRegistry(),
-  extraKeys: [],
+  extraKeys: ["has:description"],
   scoreContexts: [],
-  fieldValues: [],
+  fieldValues: filterOnlyFieldValues,
   freeTextValues: nonEventsFreeTextValues,
 };
 
@@ -647,6 +647,7 @@ describe.each([
   monitorsView,
   usersView,
   promptsView,
+  datasetsView,
 ])("search bar invariants - $name registry", (view) => {
   it("generates a non-empty field × operator × value matrix", () => {
     expect(generateQueryCases(view).length).toBeGreaterThan(0);
@@ -654,15 +655,5 @@ describe.each([
 
   it("holds registry invariants", () => {
     expectNoInvariantFailures(view);
-  });
-});
-
-describe("search bar invariants - datasets registry", () => {
-  it("has no field filter matrix because datasets is free-text only", () => {
-    expect(generateQueryCases(datasetsView)).toEqual([]);
-  });
-
-  it("holds free-text registry invariants", () => {
-    expectNoInvariantFailures(datasetsView);
   });
 });
