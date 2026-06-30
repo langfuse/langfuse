@@ -76,7 +76,8 @@ const END_COLOR = {
 const BASE_FONT_SIZE = 14;
 // Below this zoom scale, labels are unreadable noise — hide them and show only
 // the node shapes/colors (structure). Zoom in past it to reveal labels again.
-const LABEL_HIDE_SCALE = 0.62;
+const LABEL_HIDE_SCALE = 0.45;
+const ZOOM_STEP = 1.5;
 const MAX_LABEL_LENGTH = 28;
 // When revealing a selection from a zoomed-out overview, settle at one
 // consistent readable scale, so navigating between nodes pans rather than
@@ -128,7 +129,7 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
     if (networkRef.current) {
       userControlledRef.current = true;
       const currentScale = networkRef.current.getScale();
-      networkRef.current.moveTo({ scale: currentScale * 1.2 });
+      networkRef.current.moveTo({ scale: currentScale * ZOOM_STEP });
     }
   };
 
@@ -136,7 +137,7 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
     if (networkRef.current) {
       userControlledRef.current = true;
       const currentScale = networkRef.current.getScale();
-      networkRef.current.moveTo({ scale: currentScale / 1.2 });
+      networkRef.current.moveTo({ scale: currentScale / ZOOM_STEP });
     }
   };
 
@@ -276,8 +277,11 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
       const hide = network.getScale() < LABEL_HIDE_SCALE;
       if (hide === labelsHiddenRef.current) return;
       labelsHiddenRef.current = hide;
-      network.setOptions({
-        nodes: { font: { color: hide ? "rgba(0,0,0,0)" : palette.nodeText } },
+      // Defer setOptions out of the draw cycle (this runs inside afterDrawing).
+      requestAnimationFrame(() => {
+        networkRef.current?.setOptions({
+          nodes: { font: { color: hide ? "rgba(0,0,0,0)" : palette.nodeText } },
+        });
       });
     };
 
@@ -357,13 +361,13 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
       }
     });
 
-    // Only toggle labels on zoom. Do NOT constrain the view here: clamping the
-    // position inside the zoom handler fights the zoom buttons (each moveTo
-    // re-fires zoom), which makes zooming "jump around". Bounds are enforced on
-    // drag end instead.
-    network.on("zoom", () => {
-      updateLabelVisibility();
-    });
+    // Drive label visibility off redraws, not the "zoom" event: a programmatic
+    // moveTo (zoom buttons) doesn't reliably emit "zoom", whereas afterDrawing
+    // fires for every view change (buttons, fit, focus animation, drag). The
+    // early-return in updateLabelVisibility keeps this from looping. Note we do
+    // NOT constrain the view on zoom — clamping there re-fires moveTo and makes
+    // zooming jump around; bounds are enforced on drag end instead.
+    network.on("afterDrawing", updateLabelVisibility);
 
     // Auto-fit on (re)size until the user takes control. This also fixes the
     // initial render, where the panel gets its real size a tick after mount
