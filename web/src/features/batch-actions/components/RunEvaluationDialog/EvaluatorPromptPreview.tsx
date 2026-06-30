@@ -16,7 +16,7 @@ export function EvaluatorPromptPreview(props: EvaluatorPromptPreviewProps) {
     <HoverCard openDelay={150} closeDelay={150}>
       <HoverCardTrigger asChild>{trigger}</HoverCardTrigger>
       <HoverCardContent
-        className="z-50 w-[520px] max-w-[85vw]"
+        className="w-[520px] max-w-[85vw]"
         align="end"
         onWheel={(event) => event.stopPropagation()}
       >

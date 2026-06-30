@@ -6,7 +6,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { createColumnHelper } from "@tanstack/react-table";
-import { Copy, Pen } from "lucide-react";
+import { Copy, MoreVertical, Pen } from "lucide-react";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 import { useEffect, useMemo, useState } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
@@ -24,6 +24,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import { DeleteEvalTemplateButton } from "@/src/features/evals/components/delete-eval-template-button";
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { EvalReferencedEvaluators } from "@/src/features/evals/types";
@@ -330,9 +338,10 @@ export default function EvalsTemplateTable({
         const isInvalid = isTemplateInvalid(row.original);
         const isCodeTemplate = row.original.type === EvalTemplateType.CODE;
         const isUserMaintained = row.original.maintainer.includes("User");
+        const hasMenuItems = isUserMaintained || !isCodeTemplate;
 
         return (
-          <div className="flex flex-row gap-2">
+          <div className="flex flex-row items-center gap-2">
             <ActionButton
               variant="outline"
               size="sm"
@@ -357,35 +366,60 @@ export default function EvalsTemplateTable({
             >
               Use Evaluator
             </ActionButton>
-            {!isUserMaintained && !isCodeTemplate ? (
-              <Button
-                aria-label="clone"
-                variant="outline"
-                size="icon-xs"
-                title="Clone"
-                disabled={!hasAccess}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (id) setCloneTemplateId(id);
-                }}
-              >
-                <Copy className="h-3 w-3" />
-              </Button>
-            ) : null}
-            {isUserMaintained ? (
-              <Button
-                aria-label="edit"
-                variant="outline"
-                size="icon-xs"
-                title="Edit"
-                disabled={!hasAccess}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (id) setEditTemplateId(id);
-                }}
-              >
-                <Pen className="h-3 w-3" />
-              </Button>
+            {hasMenuItems && id ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon-xs" aria-label="actions">
+                    <span className="sr-only relative">Open menu</span>
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                  {!isUserMaintained && !isCodeTemplate ? (
+                    <DropdownMenuItem
+                      aria-label="clone"
+                      disabled={!hasAccess}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCloneTemplateId(id);
+                      }}
+                    >
+                      <Copy className="mr-2 h-4 w-4" />
+                      Clone
+                    </DropdownMenuItem>
+                  ) : null}
+                  {isUserMaintained ? (
+                    <>
+                      <DropdownMenuItem
+                        aria-label="edit"
+                        disabled={!hasAccess}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditTemplateId(id);
+                        }}
+                      >
+                        <Pen className="mr-2 h-4 w-4" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <DeleteEvalTemplateButton
+                          aria-label="delete"
+                          itemId={id}
+                          projectId={projectId}
+                          isTableAction
+                          className="w-full justify-start"
+                          deleteConfirmation={row.original.name}
+                          initialUsageCount={row.original.usageCount}
+                          invalidateFunc={() => {
+                            utils.evals.templateNames.invalidate();
+                          }}
+                        />
+                      </DropdownMenuItem>
+                    </>
+                  ) : null}
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : null}
           </div>
         );
@@ -411,7 +445,7 @@ export default function EvalsTemplateTable({
       detailNavigationKey: "eval-templates",
       peekEventOptions: {
         ignoredSelectors: [
-          "[aria-label='apply'], [aria-label='actions'], [aria-label='edit'], [aria-label='clone']",
+          "[aria-label='apply'], [aria-label='actions'], [aria-label='edit'], [aria-label='clone'], [aria-label='delete']",
         ],
       },
       ...peekNavigationProps,
@@ -461,7 +495,9 @@ export default function EvalsTemplateTable({
             tableName={"evalTemplates"}
             columns={columns}
             peekView={peekConfig}
-            rowHeight="m"
+            // "s" vertically centers cell content; the custom heights keep the
+            // row at h-8 regardless
+            rowHeight="s"
             customRowHeights={templateTableRowHeights}
             data={
               templates.isLoading

@@ -41,11 +41,11 @@ export const checkContainerHealth = async (
   });
 };
 
-let sigtermReceived: boolean = false;
+let sigtermReceived = false;
 
 export const setSigtermReceived = () => {
   logger.info("Set sigterm received to true");
   sigtermReceived = true;
 };
 
-const isSigtermReceived = () => sigtermReceived;
+export const isSigtermReceived = () => sigtermReceived;

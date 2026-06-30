@@ -7,7 +7,6 @@ import {
   MESSAGE_TYPES,
   SEVERITIES,
   SEVERITY_1,
-  SEVERITY_2,
   SEVERITY_3,
   INTEGRATION_TYPES,
   TopicGroups,
@@ -30,6 +29,11 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { RadioGroup } from "@/src/components/ui/radio-group";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -179,8 +183,6 @@ export function SupportFormSection({
     highestSupportPlan(
       (session.data?.user?.organizations ?? []).map((o) => o.plan),
     );
-  const isSev1Allowed = isSeverityAllowedForPlan(SEVERITY_1, effectivePlan);
-  const isSev2Allowed = isSeverityAllowedForPlan(SEVERITY_2, effectivePlan);
 
   // Tracks whether we've already warned about a short message
   const [warnedShortOnce, setWarnedShortOnce] = useState(false);
@@ -403,28 +405,36 @@ export function SupportFormSection({
                       <SelectValue placeholder="Select a priority" />
                     </SelectTrigger>
                     <SelectContent>
-                      {SEVERITIES.map((s) => (
-                        <SelectItem
-                          key={s}
-                          value={s}
-                          disabled={!isSeverityAllowedForPlan(s, effectivePlan)}
-                        >
-                          {s}
-                        </SelectItem>
-                      ))}
+                      {SEVERITIES.map((s) =>
+                        isSeverityAllowedForPlan(s, effectivePlan) ? (
+                          <SelectItem key={s} value={s}>
+                            {s}
+                          </SelectItem>
+                        ) : (
+                          // disableHoverableContent: without it, the grace
+                          // area between item and tooltip swallows the hover
+                          // when moving between the two adjacent gated items.
+                          <Tooltip key={s} disableHoverableContent>
+                            {/* Disabled items are pointer-events-none, so the
+                                wrapper div must catch the hover instead. */}
+                            <TooltipTrigger asChild>
+                              <div>
+                                <SelectItem value={s} disabled>
+                                  {s}
+                                </SelectItem>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                              {s === SEVERITY_1
+                                ? "Severity 1 is available on the Team and Enterprise plans."
+                                : "Severity 2 is available on the Pro plan and above."}
+                            </TooltipContent>
+                          </Tooltip>
+                        ),
+                      )}
                     </SelectContent>
                   </Select>
                 </FormControl>
-                {/* Explain the gating for all input modalities (keyboard /
-                    screen-reader users can't reach a per-item tooltip, and a
-                    tooltip portal can stack behind the dropdown). */}
-                {!isSev1Allowed && (
-                  <FormDescription>
-                    {isSev2Allowed
-                      ? "Severity 1 is available on the Team and Enterprise plans."
-                      : "Severity 1 (Team and Enterprise) and Severity 2 (Pro and above) are not available on your current plan."}
-                  </FormDescription>
-                )}
                 <FormMessage />
               </FormItem>
             )}

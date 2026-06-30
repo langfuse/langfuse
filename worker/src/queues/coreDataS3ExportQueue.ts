@@ -126,6 +126,7 @@ export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {
     projectMemberships,
     billingMeterBackup,
     surveys,
+    blobStorageIntegrations,
   ] = await Promise.all([
     prisma.project.findMany({
       select: {
@@ -188,6 +189,32 @@ export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {
         createdAt: true,
       },
     }),
+    prisma.blobStorageIntegration.findMany({
+      select: {
+        projectId: true,
+        type: true,
+        bucketName: true,
+        prefix: true,
+        region: true,
+        endpoint: true,
+        forcePathStyle: true,
+        nextSyncAt: true,
+        lastSyncAt: true,
+        enabled: true,
+        exportFrequency: true,
+        fileType: true,
+        exportMode: true,
+        exportStartDate: true,
+        exportSource: true,
+        exportFieldGroups: true,
+        compressed: true,
+        lastError: true,
+        lastErrorAt: true,
+        lastFailureNotificationSentAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    }),
   ]);
 
   // Iterate through the tables and upload them to S3 as JSONLs
@@ -200,6 +227,7 @@ export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {
       projectMemberships,
       billingMeterBackup,
       surveys,
+      blobStorageIntegrations,
     }).map(async ([key, value]) =>
       s3Client.uploadFile({
         fileName: `${env.LANGFUSE_S3_CORE_DATA_UPLOAD_PREFIX}${key}.jsonl`,

@@ -1,4 +1,5 @@
 import { removeEmptyEnvVariables } from "@langfuse/shared";
+import { langfuseS3EventKeyMaxSegmentBytesSchema } from "@langfuse/shared/src/env";
 import { z } from "zod";
 
 const EnvSchema = z.object({
@@ -51,6 +52,12 @@ const EnvSchema = z.object({
     .default("false"),
   LANGFUSE_S3_EVENT_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
   LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
+  // Validation rules live in `@langfuse/shared/src/env` so producer and
+  // consumer agree on what values are accepted. Must match the web container's
+  // resolved value at deploy time; otherwise web and worker can write/read
+  // different S3 keys for the same id.
+  LANGFUSE_S3_EVENT_KEY_MAX_SEGMENT_BYTES:
+    langfuseS3EventKeyMaxSegmentBytesSchema,
 
   BATCH_EXPORT_PAGE_SIZE: z.coerce.number().positive().default(500),
   BATCH_EXPORT_ROW_LIMIT: z.coerce.number().positive().default(1_500_000),
@@ -135,6 +142,16 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(5),
+  LANGFUSE_LLM_AS_JUDGE_QUEUE_RETRY_MAX_ATTEMPTS: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .default(4),
+  LANGFUSE_LLM_AS_JUDGE_QUEUE_RETRY_MAX_AGE_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(120 * 60),
   LANGFUSE_CODE_EVAL_EXECUTION_WORKER_CONCURRENCY: z.coerce
     .number()
     .positive()

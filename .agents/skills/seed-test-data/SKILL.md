@@ -29,15 +29,19 @@ this.
 
 ## Need → command
 
-| I need... | Command |
-| --- | --- |
-| A very complex observation tree (v3) | `pnpm run seed -- trace-tree --observations 5000 --depth 12 --breadth 500` |
-| The same tree readable in the v4 events UI | add `--v4` (writes `events_full`; `events_core` fills via MV) |
-| A super tough session (v3 legacy session view) | `pnpm run seed -- long-session --traces 300 --observations-per-trace 8` |
-| Many traces for list/filter performance | `pnpm run seed -- many-traces --count 100000 --days 14` |
-| Huge/malformed/unicode payloads | `pnpm run seed -- trace-tree --payload-bytes 1000000 --payload-style malformed` (styles: json, text, malformed, unicode) |
-| See all scenarios and flags | `pnpm run seed -- list --json` |
-| Predict without writing | add `--dry-run` |
+| I need...                                                                               | Command                                                                                                                                                                                                                              |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A very complex observation tree (v3)                                                    | `pnpm run seed -- trace-tree --observations 5000 --depth 12 --breadth 500`                                                                                                                                                           |
+| The same tree readable in the v4 events UI                                              | add `--v4` (writes `events_full`; `events_core` fills via MV)                                                                                                                                                                        |
+| Async parents whose subtree outlives their own span (subtree wall-clock duration badge) | add `--async-parents` to `trace-tree` (root + hub end immediately while children keep running)                                                                                                                                       |
+| A super tough session (v3 legacy session view)                                          | `pnpm run seed -- long-session --traces 300 --observations-per-trace 8`                                                                                                                                                              |
+| Many traces for list/filter performance                                                 | `pnpm run seed -- many-traces --count 100000 --days 14`                                                                                                                                                                              |
+| Scores with spaces in the name (filter/grammar testing)                                 | `pnpm run seed -- scored-traces --traces 24 --v4`                                                                                                                                                                                    |
+| Varied human-annotation queues (annotate UI / keyboard testing)                         | `pnpm run seed -- annotation-queue --core-items 12` (creates a "core types" queue covering every score-field render path + an "edge cases" queue with archived/stale/partial scores and observation/session/deleted/completed items) |
+| Huge/malformed/unicode payloads                                                         | `pnpm run seed -- trace-tree --payload-bytes 1000000 --payload-style malformed` (styles: json, text, malformed, unicode, bignum)                                                                                                     |
+| Big integers beyond 2^53-1 (number-precision testing)                                   | `pnpm run seed -- trace-tree --observations 1 --payload-style bignum`                                                                                                                                                                |
+| See all scenarios and flags                                                             | `pnpm run seed -- list --json`                                                                                                                                                                                                       |
+| Predict without writing                                                                 | add `--dry-run`                                                                                                                                                                                                                      |
 
 ## Contract
 

@@ -51,6 +51,12 @@ import {
 import { env } from "@/src/env.mjs";
 import "@/src/features/mcp/server/bootstrap";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
+import {
+  buildEvaluatorUrl,
+  buildObservationUrl,
+  buildPromptUrl,
+  buildTraceUrl,
+} from "@/src/utils/product-url";
 
 // Import MCP tool handlers directly
 import {
@@ -347,9 +353,15 @@ describe("MCP Read Tools", () => {
       const result = (await handleListEvaluators(
         { page: 1, limit: 50 },
         context,
-      )) as { data: Array<{ id: string }> };
+      )) as { data: Array<{ id: string; url: string }> };
 
       expect(result.data.map((item) => item.id)).toContain(evaluator.id);
+      expect(result.data.find((item) => item.id === evaluator.id)?.url).toBe(
+        buildEvaluatorUrl({
+          projectId: setup.projectId,
+          evaluatorId: evaluator.id,
+        }),
+      );
     });
   });
 
@@ -374,7 +386,14 @@ describe("MCP Read Tools", () => {
 
       await expect(
         handleGetEvaluator({ evaluatorId: evaluator.id }, setup.context),
-      ).resolves.toMatchObject({ id: evaluator.id, name: evaluator.name });
+      ).resolves.toMatchObject({
+        id: evaluator.id,
+        name: evaluator.name,
+        url: buildEvaluatorUrl({
+          projectId: setup.projectId,
+          evaluatorId: evaluator.id,
+        }),
+      });
     });
   });
 
@@ -723,6 +742,11 @@ describe("MCP Read Tools", () => {
         type: "GENERATION",
         level: "DEFAULT",
         providedModelName: "gpt-4o-mini",
+        url: buildObservationUrl({
+          projectId,
+          traceId,
+          observationId: observation.id,
+        }),
       });
       expect(createdObservation?.input).toBeUndefined();
       expect(createdObservation?.output).toBeUndefined();
@@ -744,9 +768,16 @@ describe("MCP Read Tools", () => {
       const result = (await handleListObservations(
         { traceId, fields: ["id"], limit: 100 },
         { ...context, isInAppAgentKey: true },
-      )) as { data: Array<{ id: string }> };
+      )) as { data: Array<{ id: string; url: string }> };
 
       expect(result.data.map((item) => item.id)).toContain(observation.id);
+      expect(result.data.find((item) => item.id === observation.id)?.url).toBe(
+        buildObservationUrl({
+          projectId,
+          traceId,
+          observationId: observation.id,
+        }),
+      );
     });
 
     it("should project only requested fields", async () => {
@@ -773,6 +804,11 @@ describe("MCP Read Tools", () => {
         id: observation.id,
         name: observation.name,
         type: "GENERATION",
+        url: buildObservationUrl({
+          projectId,
+          traceId,
+          observationId: observation.id,
+        }),
       });
     });
 
@@ -838,11 +874,18 @@ describe("MCP Read Tools", () => {
           limit: 100,
         },
         context,
-      )) as { data: Array<{ id: string; userId: string | null }> };
+      )) as { data: Array<{ id: string; userId: string | null; url: string }> };
 
-      expect(result.data).toEqual([
-        { userId: matchingUserId, id: expect.any(String) },
-      ]);
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0]).toEqual({
+        userId: matchingUserId,
+        id: expect.any(String),
+        url: buildObservationUrl({
+          projectId,
+          traceId,
+          observationId: result.data[0]!.id,
+        }),
+      });
     });
 
     it("should match advanced input filters beyond the events_core truncation boundary", async () => {
@@ -879,9 +922,18 @@ describe("MCP Read Tools", () => {
           limit: 100,
         },
         context,
-      )) as { data: Array<{ id: string }> };
+      )) as { data: Array<{ id: string; url: string }> };
 
-      expect(result.data).toEqual([{ id: matchingObservation.id }]);
+      expect(result.data).toEqual([
+        {
+          id: matchingObservation.id,
+          url: buildObservationUrl({
+            projectId,
+            traceId,
+            observationId: matchingObservation.id,
+          }),
+        },
+      ]);
     });
 
     it("should require selective scope for full io and metadata access", async () => {
@@ -974,10 +1026,18 @@ describe("MCP Read Tools", () => {
           limit: 100,
         },
         context,
-      )) as { data: Array<{ id: string; name: string }> };
+      )) as { data: Array<{ id: string; name: string; url: string }> };
 
       expect(result.data).toEqual([
-        { id: matchingObservation.id, name: matchingObservation.name },
+        {
+          id: matchingObservation.id,
+          name: matchingObservation.name,
+          url: buildObservationUrl({
+            projectId,
+            traceId,
+            observationId: matchingObservation.id,
+          }),
+        },
       ]);
     });
 
@@ -1076,9 +1136,18 @@ describe("MCP Read Tools", () => {
           limit: 100,
         },
         context,
-      )) as { data: Array<{ id: string }> };
+      )) as { data: Array<{ id: string; url: string }> };
 
-      expect(result.data).toEqual([{ id: matchingObservation.id }]);
+      expect(result.data).toEqual([
+        {
+          id: matchingObservation.id,
+          url: buildObservationUrl({
+            projectId,
+            traceId,
+            observationId: matchingObservation.id,
+          }),
+        },
+      ]);
     });
 
     it("should return a cursor when more results are available", async () => {
@@ -1550,6 +1619,11 @@ describe("MCP Read Tools", () => {
         name: observation.name,
         type: "GENERATION",
         providedModelName: "gpt-4o-mini",
+        url: buildObservationUrl({
+          projectId,
+          traceId: observation.trace_id,
+          observationId: observation.id,
+        }),
       });
       expect(result.input).toBeUndefined();
       expect(result.output).toBeUndefined();
@@ -1570,7 +1644,14 @@ describe("MCP Read Tools", () => {
         { ...context, isInAppAgentKey: true },
       )) as Record<string, unknown>;
 
-      expect(result).toEqual({ id: observation.id });
+      expect(result).toEqual({
+        id: observation.id,
+        url: buildObservationUrl({
+          projectId,
+          traceId: observation.trace_id,
+          observationId: observation.id,
+        }),
+      });
     });
 
     it("should return requested fields for a single observation", async () => {
@@ -1591,6 +1672,11 @@ describe("MCP Read Tools", () => {
       expect(result).toEqual({
         id: observation.id,
         metadata: { customer: "acme" },
+        url: buildObservationUrl({
+          projectId,
+          traceId: observation.trace_id,
+          observationId: observation.id,
+        }),
       });
     });
 
@@ -1887,6 +1973,10 @@ describe("MCP Read Tools", () => {
         expect.objectContaining({
           id: matchingScore.id,
           dataType: "NUMERIC",
+          url: buildTraceUrl({
+            projectId,
+            traceId: matchingScore.trace_id,
+          }),
         }),
       ]);
       expect(data).toEqual([
@@ -1941,6 +2031,7 @@ describe("MCP Read Tools", () => {
         name: score.name,
         dataType: "NUMERIC",
         value: 0.8,
+        url: buildTraceUrl({ projectId, traceId: score.trace_id }),
       });
     });
 
@@ -1971,11 +2062,12 @@ describe("MCP Read Tools", () => {
     it("should create a score using v1 route semantics", async () => {
       const { context, projectId, apiKeyId } = await createMcpTestSetup();
       const scoreId = randomUUID();
+      const traceId = randomUUID();
 
       const result = await handleCreateScore(
         {
           id: scoreId,
-          traceId: randomUUID(),
+          traceId,
           name: `mcp-create-score-${nanoid(8)}`,
           value: 1,
           dataType: "NUMERIC",
@@ -1985,7 +2077,10 @@ describe("MCP Read Tools", () => {
         context,
       );
 
-      expect(result).toEqual({ id: scoreId });
+      expect(result).toEqual({
+        id: scoreId,
+        url: buildTraceUrl({ projectId, traceId }),
+      });
       await expect(
         verifyAuditLog({
           projectId,
@@ -2458,12 +2553,16 @@ describe("MCP Read Tools", () => {
         version: number;
         prompt: string;
         labels: string[];
+        url: string;
       };
 
       expect(result.name).toBe(promptName);
       expect(result.version).toBe(2);
       expect(result.prompt).toBe("Latest prompt");
       expect(result.labels).toContain("latest");
+      expect(result.url).toBe(
+        buildPromptUrl({ projectId, name: promptName, version: 2 }),
+      );
     });
 
     it("should fetch production prompt when production label is explicit", async () => {

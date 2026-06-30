@@ -22,6 +22,7 @@ import {
   encodeCursor,
 } from "@/src/features/public-api/types/observations";
 import { defineTool } from "../../../core/define-tool";
+import { buildObservationUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import {
   ExpandMetadataKeysSchema,
@@ -356,8 +357,8 @@ export const [listObservationsTool, handleListObservations] = defineTool({
         const hasMore = items.length > input.limit;
         const dataToReturn = hasMore ? items.slice(0, input.limit) : items;
 
-        const data = dataToReturn.map((item) =>
-          projectObservation(
+        const data = dataToReturn.map((item) => {
+          const projectedObservation = projectObservation(
             {
               ...item,
               parentObservationId:
@@ -366,8 +367,21 @@ export const [listObservationsTool, handleListObservations] = defineTool({
                   : item.parentObservationId,
             },
             projectionFields,
-          ),
-        );
+          );
+
+          return {
+            ...projectedObservation,
+            ...(item.traceId
+              ? {
+                  url: buildObservationUrl({
+                    projectId: context.projectId,
+                    traceId: item.traceId,
+                    observationId: item.id,
+                  }),
+                }
+              : {}),
+          };
+        });
 
         const lastItem = dataToReturn[dataToReturn.length - 1];
 

@@ -3,8 +3,21 @@ import {
   singleFilter,
   type SingleValueOption,
 } from "@langfuse/shared";
-import { encodeDelimitedArray, decodeDelimitedArray } from "use-query-params";
 import { normalizeLegacySessionPositionInTraceKey } from "@/src/components/session/session-position-in-trace";
+
+const encodeDelimitedArray = (values: string[], delimiter: string): string =>
+  values.join(delimiter);
+
+const decodeDelimitedArray = (
+  value: string,
+  delimiter: string,
+): string[] | undefined => {
+  if (value === "") {
+    return [];
+  }
+
+  return value.split(delimiter);
+};
 
 // Escape pipe characters in values to avoid conflicts with the delimiter
 // Uses backslash escaping: | → \|, and \ → \\
