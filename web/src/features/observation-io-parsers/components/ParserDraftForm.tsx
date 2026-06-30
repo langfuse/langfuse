@@ -23,24 +23,6 @@ import {
   type ParserFieldDraft,
 } from "@/src/features/observation-io-parsers/lib/parserDraft";
 
-const customSelectFilterColumns = [
-  "id",
-  "name",
-  "type",
-  "environment",
-  "level",
-  "providedModelName",
-  "modelId",
-  "promptName",
-  "traceTags",
-  "traceName",
-  "userId",
-  "sessionId",
-  "version",
-  "toolNames",
-  "calledToolNames",
-];
-
 const sourceLabels: Record<ParserFieldDraft["source"], string> = {
   conversation: "All messages",
   input: "Input",
@@ -57,6 +39,15 @@ export function ParserDraftForm({
   parserFilterColumns: ColumnDefinition[];
   onChange: (draft: ParserDraft) => void;
 }) {
+  const columnsWithCustomSelect = parserFilterColumns
+    .filter(
+      (column) =>
+        column.type === "stringOptions" ||
+        column.type === "arrayOptions" ||
+        column.type === "categoryOptions",
+    )
+    .map((column) => column.id);
+
   const updateField = (index: number, field: ParserFieldDraft) => {
     const fields = [...draft.fields];
     fields[index] = field;
@@ -101,7 +92,7 @@ export function ParserDraftForm({
           columns={parserFilterColumns}
           filterState={draft.filters}
           onChange={(filters: FilterState) => onChange({ ...draft, filters })}
-          columnsWithCustomSelect={customSelectFilterColumns}
+          columnsWithCustomSelect={columnsWithCustomSelect}
         />
       </div>
 
