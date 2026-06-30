@@ -27,12 +27,9 @@ evaluating, and debugging AI applications.
   filter interface for every filterable view, so new filtering work extends it
   through that contract rather than forking it.
 - When adding or modifying any chart, dashboard, or chart formatter, read
-  `web/src/features/widgets/chart-library/ARCHITECTURE.md` first. It is the
-  charts manifesto — the data → preparer → visualiser one-way contract and the
-  "show whatever data" principles. Presentation decisions (time/number
-  formatting, colors, legend summaries, axis scale, overload handling) belong in
-  the preparer layer; new charting work extends that pipeline rather than
-  re-deciding presentation inside chart components.
+  `web/src/features/widgets/chart-library/ARCHITECTURE.md` first — the charts
+  manifesto. It owns the data → preparer → visualiser contract: presentation
+  decisions live in the preparer, not the chart components.
 - Do not add or widen ESLint disable comments or config overrides
   without explicit user approval for the exact rule and scope.
 - Always quote file paths in shell commands, or use `noglob` for path-heavy
