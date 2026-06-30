@@ -174,6 +174,10 @@ const createRedisSentinelInstance = (
     password: env.REDIS_AUTH || undefined,
     sentinelUsername: env.REDIS_SENTINEL_USERNAME || undefined,
     sentinelPassword: env.REDIS_SENTINEL_PASSWORD || undefined,
+    // Retry sentinel connections indefinitely with exponential backoff (cap 10s).
+    // Without this, ioredis gives up after the default attempt count and leaves
+    // the connection permanently broken after a sentinel failover.
+    sentinelRetryStrategy: (retries: number) => Math.min(retries * 200, 10_000),
     ...defaultRedisOptions,
     ...additionalOptions,
     ...tlsOptions,
