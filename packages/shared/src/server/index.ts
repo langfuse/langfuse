@@ -36,6 +36,7 @@ export * from "./evals/extractObservationVariables";
 export * from "./utils/traceId";
 export * from "./auth/apiKeyCache";
 export * from "./auth/apiKeys";
+export * from "./auth/credentials";
 export * from "./auth/invalidateApiKeys";
 export * from "./auth/customSsoProvider";
 export * from "./auth/gitHubEnterpriseProvider";

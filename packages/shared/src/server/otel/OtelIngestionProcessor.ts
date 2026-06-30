@@ -1610,6 +1610,11 @@ export class OtelIngestionProcessor {
                         : undefined;
       }
 
+      const genAiInputOutput =
+        this.extractOpenTelemetryGenAiInputAndOutput(attributes);
+      input ??= genAiInputOutput?.input;
+      output ??= genAiInputOutput?.output;
+
       return { input, output, filteredAttributes };
     }
 
@@ -1900,27 +1905,42 @@ export class OtelIngestionProcessor {
       };
     }
 
+    const genAiInputOutput =
+      this.extractOpenTelemetryGenAiInputAndOutput(attributes);
+    if (genAiInputOutput) {
+      return { ...genAiInputOutput, filteredAttributes };
+    }
+
+    return { input: null, output: null, filteredAttributes };
+  }
+
+  private extractOpenTelemetryGenAiInputAndOutput(
+    attributes: Record<string, unknown>,
+  ): { input: unknown; output: unknown } | null {
     // OpenTelemetry messages (https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans)
-    input = attributes["gen_ai.input.messages"];
-    output = attributes["gen_ai.output.messages"];
+    let input = attributes["gen_ai.input.messages"];
+    let output = attributes["gen_ai.output.messages"];
+
     if (input && attributes["gen_ai.system_instructions"]) {
       input = this.prependSystemInstructions(
         input,
         attributes["gen_ai.system_instructions"],
       );
     }
+
     if (input || output) {
-      return { input, output, filteredAttributes };
+      return { input, output };
     }
 
     // OpenTelemetry tools (https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans)
     input = attributes["gen_ai.tool.call.arguments"];
     output = attributes["gen_ai.tool.call.result"];
+
     if (input || output) {
-      return { input, output, filteredAttributes };
+      return { input, output };
     }
 
-    return { input: null, output: null, filteredAttributes };
+    return null;
   }
 
   /**

@@ -299,10 +299,10 @@ describe("v4TransitionRouter", () => {
     );
   });
 
-  it("fills minute buckets for a non-special 45 minute timeline", async () => {
+  it("fills 2 minute buckets for a 45 minute timeline", async () => {
     mockedQueryClickhouse.mockResolvedValueOnce([
       {
-        time: "2026-06-24T00:15:00Z",
+        time: "2026-06-24T00:16:00Z",
         entrypoint: "publicapi: GET /api/public/traces",
         count: "8",
       },
@@ -317,24 +317,24 @@ describe("v4TransitionRouter", () => {
       granularity: "auto",
     });
 
-    expect(rows).toHaveLength(46);
-    expect(new Set(rows.map((row) => row.time)).size).toBe(45);
+    expect(rows).toHaveLength(24);
+    expect(new Set(rows.map((row) => row.time)).size).toBe(23);
     expect(rows[0]).toEqual({
       time: "2026-06-24T00:00:00Z",
       entrypoint: "",
       count: 0,
     });
-    expect(rows[15]).toEqual({
-      time: "2026-06-24T00:15:00Z",
+    expect(rows[8]).toEqual({
+      time: "2026-06-24T00:16:00Z",
       entrypoint: "",
       count: 0,
     });
-    expect(rows[16]).toEqual({
-      time: "2026-06-24T00:15:00Z",
+    expect(rows[9]).toEqual({
+      time: "2026-06-24T00:16:00Z",
       entrypoint: "publicapi: GET /api/public/traces",
       count: 8,
     });
-    expect(rows[45]).toEqual({
+    expect(rows[23]).toEqual({
       time: "2026-06-24T00:44:00Z",
       entrypoint: "",
       count: 0,
@@ -342,7 +342,7 @@ describe("v4TransitionRouter", () => {
 
     const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
     expect(clickhouseQuery?.query).toContain(
-      "toStartOfInterval(event_time_microseconds, INTERVAL 1 MINUTE, 'UTC') AS bucket_time",
+      "toStartOfInterval(event_time_microseconds, INTERVAL 2 MINUTE, 'UTC') AS bucket_time",
     );
   });
 
@@ -393,7 +393,7 @@ describe("v4TransitionRouter", () => {
     );
   });
 
-  it("uses minute buckets for a non-special 7 day timeline", async () => {
+  it("uses hour buckets for a 7 day timeline", async () => {
     mockedQueryClickhouse.mockResolvedValueOnce([]);
 
     const caller = createCaller();
@@ -409,7 +409,7 @@ describe("v4TransitionRouter", () => {
 
     const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
     expect(clickhouseQuery?.query).toContain(
-      "toStartOfInterval(event_time_microseconds, INTERVAL 1 MINUTE, 'UTC') AS bucket_time",
+      "toStartOfInterval(event_time_microseconds, INTERVAL 1 HOUR, 'UTC') AS bucket_time",
     );
   });
 
@@ -843,7 +843,7 @@ describe("v4TransitionRouter", () => {
     ]);
   });
 
-  it("uses minute buckets for non-special trace-level eval execution timelines", async () => {
+  it("uses hour buckets for 7 day trace-level eval execution timelines", async () => {
     const mockPrisma = {
       $queryRaw: vi.fn().mockResolvedValue([]),
     };
@@ -861,7 +861,7 @@ describe("v4TransitionRouter", () => {
     const query = mockPrisma.$queryRaw.mock.calls[0]?.[0] as
       | { sql?: string; text?: string; values?: unknown[] }
       | undefined;
-    expect(query?.values?.[0]).toBe("1 minute");
+    expect(query?.values?.[0]).toBe("1 hour");
   });
 
   it("summarizes legacy public API usage by organization project", async () => {
