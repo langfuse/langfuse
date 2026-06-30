@@ -9,22 +9,6 @@ const DATASET_IO_CELL_STALE_MS = 60 * 1000;
 
 const silentHttpCodes = [404];
 
-const datasetItemIOCellQueryOptions = {
-  trpc: {
-    context: {
-      skipBatch: true,
-    },
-  },
-  staleTime: DATASET_IO_CELL_STALE_MS,
-} as const;
-
-/** prevents refetching loops. */
-const traceObservationIOCellQueryOptions = {
-  refetchOnMount: false,
-  staleTime: DATASET_IO_CELL_STALE_MS,
-  meta: { silentHttpCodes },
-} as const;
-
 export const DatasetItemIOCell = ({
   projectId,
   datasetId,
@@ -47,7 +31,7 @@ export const DatasetItemIOCell = ({
       datasetItemId: datasetItemId,
       version: datasetItemVersion,
     },
-    datasetItemIOCellQueryOptions,
+    { staleTime: DATASET_IO_CELL_STALE_MS },
   );
 
   return (
@@ -88,7 +72,9 @@ export const TraceObservationIOCell = ({
     { traceId, projectId, fromTimestamp: fromTimestampModified },
     {
       enabled: observationId === undefined,
-      ...traceObservationIOCellQueryOptions,
+      refetchOnMount: false, // prevents refetching loops
+      staleTime: 60 * 1000, // 1 minute
+      meta: { silentHttpCodes },
     },
   );
   const observation = api.observations.byId.useQuery(
@@ -99,7 +85,9 @@ export const TraceObservationIOCell = ({
     },
     {
       enabled: observationId !== undefined,
-      ...traceObservationIOCellQueryOptions,
+      refetchOnMount: false, // prevents refetching loops
+      staleTime: 60 * 1000, // 1 minute
+      meta: { silentHttpCodes },
     },
   );
 
