@@ -5,6 +5,7 @@ import { ChevronRight, ExternalLink } from "lucide-react";
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import { Badge } from "@/src/components/ui/badge";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   ChartContainer,
   ChartTooltip,
@@ -26,8 +27,7 @@ export type V4LegacyIntegrations = {
   blobStorage: boolean;
 };
 
-export type V4MigrationSummary = {
-  traceLevelEvalCount: number;
+export type V4LegacyIntegrationSummary = {
   legacyIntegrationCount: number;
   legacyIntegrations: V4LegacyIntegrations;
 };
@@ -184,6 +184,21 @@ const Notice = ({ children }: { children: ReactNode }) => (
   </Alert>
 );
 
+const SectionLoading = () => (
+  <div className="rounded-md border p-3">
+    <div className="mb-3 flex items-center justify-between gap-3">
+      <Skeleton className="h-4 w-32" />
+      <Skeleton className="h-3 w-20" />
+    </div>
+    <Skeleton className="h-28 w-full" />
+    <div className="mt-3 flex gap-3 border-t pt-3">
+      <Skeleton className="h-3 w-24" />
+      <Skeleton className="h-3 w-32" />
+      <Skeleton className="h-3 w-20" />
+    </div>
+  </div>
+);
+
 const InlineLink = ({
   href,
   external,
@@ -217,11 +232,13 @@ const InlineLink = ({
 const Section = ({
   title,
   count,
+  isCountLoading,
   detailsHref,
   children,
 }: {
   title: string;
   count: number;
+  isCountLoading?: boolean;
   detailsHref: ProductHref;
   children: ReactNode;
 }) => (
@@ -229,9 +246,13 @@ const Section = ({
     <div className="flex items-center justify-between gap-3">
       <h3 className="text-sm font-medium">{title}</h3>
       <div className="flex items-center gap-2">
-        <Badge variant="outline-solid" size="sm">
-          {numberFormatter(count, 0)}
-        </Badge>
+        {isCountLoading ? (
+          <Skeleton className="h-5 w-8 rounded-full" />
+        ) : (
+          <Badge variant="outline-solid" size="sm">
+            {numberFormatter(count, 0)}
+          </Badge>
+        )}
         <InlineLink href={detailsHref}>Go to details</InlineLink>
       </div>
     </div>
@@ -430,25 +451,31 @@ const ActionRow = ({
 export const V4MigrationProjectCards = ({
   projectId,
   projectName,
-  summary,
+  legacyIntegrationSummary,
+  traceLevelEvalCount: configuredTraceLevelEvalCount,
   legacyApiUsage,
   traceLevelEvalExecutions,
-  isSummaryLoading,
+  isLegacyIntegrationSummaryLoading,
+  isTraceLevelEvalSummaryLoading,
   isLegacyApiUsageLoading,
   isTraceLevelEvalExecutionsLoading,
-  hasSummaryError,
+  hasLegacyIntegrationSummaryError,
+  hasTraceLevelEvalSummaryError,
   hasLegacyApiUsageError,
   hasTraceLevelEvalExecutionsError,
 }: {
   projectId: string;
   projectName?: string;
-  summary: V4MigrationSummary | undefined;
+  legacyIntegrationSummary: V4LegacyIntegrationSummary | undefined;
+  traceLevelEvalCount: number | undefined;
   legacyApiUsage: V4LegacyApiUsagePoint[] | undefined;
   traceLevelEvalExecutions: V4TraceLevelEvalExecutionPoint[] | undefined;
-  isSummaryLoading: boolean;
+  isLegacyIntegrationSummaryLoading: boolean;
+  isTraceLevelEvalSummaryLoading: boolean;
   isLegacyApiUsageLoading: boolean;
   isTraceLevelEvalExecutionsLoading: boolean;
-  hasSummaryError: boolean;
+  hasLegacyIntegrationSummaryError: boolean;
+  hasTraceLevelEvalSummaryError: boolean;
   hasLegacyApiUsageError: boolean;
   hasTraceLevelEvalExecutionsError: boolean;
 }) => {
@@ -486,130 +513,144 @@ export const V4MigrationProjectCards = ({
   const legacyIntegrationLinks = useMemo(
     () =>
       INTEGRATION_LINKS.filter(
-        (link) => summary?.legacyIntegrations[link.key] === true,
+        (link) =>
+          legacyIntegrationSummary?.legacyIntegrations[link.key] === true,
       ),
-    [summary?.legacyIntegrations],
+    [legacyIntegrationSummary?.legacyIntegrations],
   );
 
   const hasAnyError =
-    hasSummaryError ||
+    hasLegacyIntegrationSummaryError ||
+    hasTraceLevelEvalSummaryError ||
     hasLegacyApiUsageError ||
     hasTraceLevelEvalExecutionsError;
   const traceLevelEvalCount =
-    summary?.traceLevelEvalCount ?? evalExecutionSeries.length;
+    configuredTraceLevelEvalCount ?? evalExecutionSeries.length;
   const activeTaskCount =
     legacyApiSeries.length +
     traceLevelEvalCount +
     legacyIntegrationLinks.length;
   const migrationStatus = getV4MigrationStatus(activeTaskCount);
-  const isLoading =
-    isSummaryLoading ||
-    isLegacyApiUsageLoading ||
-    isTraceLevelEvalExecutionsLoading;
+  const isSummaryLoading =
+    isLegacyIntegrationSummaryLoading || isTraceLevelEvalSummaryLoading;
+  const isTimelineLoading =
+    isLegacyApiUsageLoading || isTraceLevelEvalExecutionsLoading;
 
   return (
     <DashboardCard
       title="Required changes"
       description={
-        isLoading
+        isSummaryLoading
           ? "Loading V4 migration data."
           : hasAnyError
             ? `${projectName ? `${projectName} - ` : ""}Some migration data could not be loaded.`
-            : `${projectName ? `${projectName} - ` : ""}${numberFormatter(
-                activeTaskCount,
-                0,
-              )} required ${
-                activeTaskCount === 1 ? "change" : "changes"
-              } in the selected time range`
+            : isTimelineLoading
+              ? `${projectName ? `${projectName} - ` : ""}Loading usage timelines.`
+              : `${projectName ? `${projectName} - ` : ""}${numberFormatter(
+                  activeTaskCount,
+                  0,
+                )} required ${
+                  activeTaskCount === 1 ? "change" : "changes"
+                } in the selected time range`
       }
-      isLoading={isLoading}
+      isLoading={isSummaryLoading}
       headerRight={
-        isLoading ? undefined : (
+        isSummaryLoading ? undefined : (
           <div className="flex items-center gap-2">
             <InlineLink href={V4_DOCS_LINK.href} external>
               {V4_DOCS_LINK.label}
             </InlineLink>
             <Badge
               variant={
-                hasAnyError ? "outline-solid" : migrationStatus.badgeVariant
+                hasAnyError || isTimelineLoading
+                  ? "outline-solid"
+                  : migrationStatus.badgeVariant
               }
               className="whitespace-nowrap"
             >
-              {hasAnyError ? "Unavailable" : migrationStatus.label}
+              {hasAnyError
+                ? "Unavailable"
+                : isTimelineLoading
+                  ? "Loading"
+                  : migrationStatus.label}
             </Badge>
           </div>
         )
       }
     >
-      {isLoading ? (
-        <div className="min-h-80" />
-      ) : (
-        <>
-          <Section
-            title="Legacy public APIs"
-            count={legacyApiSeries.length}
-            detailsHref={`/project/${projectId}/settings/api-keys`}
-          >
-            {hasLegacyApiUsageError ? (
-              <Notice>Failed to load public API usage.</Notice>
-            ) : legacyApiSeries.length ? (
-              <UsageStackedBarOverview
-                bucketTimes={legacyApiBucketTimes}
-                series={legacyApiSeries}
-                valueLabel="calls"
-              />
-            ) : (
-              <Notice>No legacy public API usage in this range.</Notice>
-            )}
-          </Section>
+      <Section
+        title="Legacy public APIs"
+        count={legacyApiSeries.length}
+        isCountLoading={isLegacyApiUsageLoading}
+        detailsHref={`/project/${projectId}/settings/api-keys`}
+      >
+        {isLegacyApiUsageLoading ? (
+          <SectionLoading />
+        ) : hasLegacyApiUsageError ? (
+          <Notice>Failed to load public API usage.</Notice>
+        ) : legacyApiSeries.length ? (
+          <UsageStackedBarOverview
+            bucketTimes={legacyApiBucketTimes}
+            series={legacyApiSeries}
+            valueLabel="calls"
+          />
+        ) : (
+          <Notice>No legacy public API usage in this range.</Notice>
+        )}
+      </Section>
 
-          <Section
-            title="Trace-level evals"
-            count={traceLevelEvalCount}
-            detailsHref={traceLevelEvalsHref}
-          >
-            {hasSummaryError || hasTraceLevelEvalExecutionsError ? (
-              <Notice>Failed to load trace-level eval data.</Notice>
-            ) : evalExecutionSeries.length ? (
-              <UsageStackedBarOverview
-                bucketTimes={evalExecutionBucketTimes}
-                series={evalExecutionSeries}
-                valueLabel="executions"
-              />
-            ) : traceLevelEvalCount > 0 ? (
-              <ActionRow
-                title={`${numberFormatter(
-                  traceLevelEvalCount,
-                  0,
-                )} configured trace-level evals`}
-                detail="No executions found in the selected range."
-              />
-            ) : (
-              <Notice>No trace-level evals detected.</Notice>
-            )}
-          </Section>
+      <Section
+        title="Trace-level evals"
+        count={traceLevelEvalCount}
+        isCountLoading={isTraceLevelEvalSummaryLoading}
+        detailsHref={traceLevelEvalsHref}
+      >
+        {isTraceLevelEvalSummaryLoading || isTraceLevelEvalExecutionsLoading ? (
+          <SectionLoading />
+        ) : hasTraceLevelEvalSummaryError ||
+          hasTraceLevelEvalExecutionsError ? (
+          <Notice>Failed to load trace-level eval data.</Notice>
+        ) : evalExecutionSeries.length ? (
+          <UsageStackedBarOverview
+            bucketTimes={evalExecutionBucketTimes}
+            series={evalExecutionSeries}
+            valueLabel="executions"
+          />
+        ) : traceLevelEvalCount > 0 ? (
+          <ActionRow
+            title={`${numberFormatter(
+              traceLevelEvalCount,
+              0,
+            )} configured trace-level evals`}
+            detail="No executions found in the selected range."
+          />
+        ) : (
+          <Notice>No trace-level evals detected.</Notice>
+        )}
+      </Section>
 
-          <Section
-            title="Integrations"
-            count={legacyIntegrationLinks.length}
-            detailsHref={`/project/${projectId}/settings/integrations`}
-          >
-            {hasSummaryError ? (
-              <Notice>Failed to load integration data.</Notice>
-            ) : legacyIntegrationLinks.length ? (
-              legacyIntegrationLinks.map((integration) => (
-                <ActionRow
-                  key={integration.key}
-                  title={integration.label}
-                  detail="Legacy traces and observations export is enabled."
-                />
-              ))
-            ) : (
-              <Notice>No legacy integration exports detected.</Notice>
-            )}
-          </Section>
-        </>
-      )}
+      <Section
+        title="Integrations"
+        count={legacyIntegrationLinks.length}
+        isCountLoading={isLegacyIntegrationSummaryLoading}
+        detailsHref={`/project/${projectId}/settings/integrations`}
+      >
+        {isLegacyIntegrationSummaryLoading ? (
+          <SectionLoading />
+        ) : hasLegacyIntegrationSummaryError ? (
+          <Notice>Failed to load integration data.</Notice>
+        ) : legacyIntegrationLinks.length ? (
+          legacyIntegrationLinks.map((integration) => (
+            <ActionRow
+              key={integration.key}
+              title={integration.label}
+              detail="Legacy traces and observations export is enabled."
+            />
+          ))
+        ) : (
+          <Notice>No legacy integration exports detected.</Notice>
+        )}
+      </Section>
     </DashboardCard>
   );
 };

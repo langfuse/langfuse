@@ -82,6 +82,7 @@ describe("inFlightExports", () => {
       1,
       {
         outcome: "aborted",
+        abortReason: "shutdown",
         table: "observations_v2",
         projectId: "p-1",
       },
@@ -91,6 +92,7 @@ describe("inFlightExports", () => {
       1,
       {
         outcome: "aborted",
+        abortReason: "shutdown",
         table: "scores",
         projectId: "p-1",
       },

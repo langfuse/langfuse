@@ -9,7 +9,7 @@ import {
   Lock,
 } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
-import { LangfuseIcon } from "@/src/components/LangfuseLogo";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import {
   DrawerTrigger,
   DrawerContent,

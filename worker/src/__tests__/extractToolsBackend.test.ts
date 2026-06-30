@@ -503,6 +503,27 @@ describe("extractToolsFromObservation", () => {
       });
     });
 
+    it("extracts standalone OpenAI Responses function_call output", () => {
+      const output = {
+        id: "fc_order_status",
+        type: "function_call",
+        status: "completed",
+        arguments: '{"orderIds":null}',
+        call_id: "call_order_status",
+        name: "getOrderStatus",
+      };
+
+      const { toolArguments } = extractToolsFromObservation(null, output);
+
+      expect(toolArguments).toHaveLength(1);
+      expect(toolArguments[0]).toEqual({
+        id: "call_order_status",
+        name: "getOrderStatus",
+        arguments: '{"orderIds":null}',
+        type: "function_call",
+      });
+    });
+
     it("extracts Anthropic tool_use from content array", () => {
       const output = {
         content: [
