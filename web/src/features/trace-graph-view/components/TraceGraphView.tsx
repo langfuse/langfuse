@@ -21,8 +21,6 @@ import {
   LANGGRAPH_END_NODE_NAME,
 } from "../types";
 
-const MAX_NODE_NUMBER_FOR_PHYSICS = 500;
-
 type TraceGraphViewProps = {
   agentGraphData: AgentGraphDataResponse[];
 };
@@ -64,9 +62,6 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   const { graph, nodeToObservationsMap } = useMemo(() => {
     return buildGraphFromStepData(normalizedData);
   }, [normalizedData]);
-
-  const shouldDisablePhysics =
-    agentGraphData.length >= MAX_NODE_NUMBER_FOR_PHYSICS;
 
   // Reset indices when graph data changes (new trace loaded)
   useEffect(() => {
@@ -179,7 +174,6 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
         graph={graph}
         selectedNodeName={selectedNodeName}
         onCanvasNodeNameChange={onCanvasNodeNameChange}
-        disablePhysics={shouldDisablePhysics}
         nodeToObservationsMap={nodeToObservationsMap}
         currentObservationIndices={currentObservationIndices}
       />

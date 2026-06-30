@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useMemo, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Network, DataSet } from "vis-network/standalone";
-import { ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
+import { ZoomIn, ZoomOut, Maximize } from "lucide-react";
+import { useTheme } from "next-themes";
 
 import type { GraphCanvasData } from "../types";
 import {
@@ -15,20 +16,76 @@ type TraceGraphCanvasProps = {
   graph: GraphCanvasData;
   selectedNodeName: string | null;
   onCanvasNodeNameChange: (nodeName: string | null) => void;
-  disablePhysics?: boolean;
   nodeToObservationsMap?: Record<string, string[]>;
   currentObservationIndices?: Record<string, number>;
 };
+
+/**
+ * Per-observation-type accent colors, kept in sync with the canonical
+ * trace-UI type colors in `ItemBadge.tsx` (the -600 family). vis-network is
+ * canvas-based and can't consume Tailwind classes, so the hex values are
+ * mirrored here.
+ */
+const TYPE_BORDER_COLOR: Record<string, string> = {
+  AGENT: "#9333ea", // purple-600
+  TOOL: "#ea580c", // orange-600
+  GENERATION: "#c026d3", // fuchsia-600
+  SPAN: "#2563eb", // blue-600
+  CHAIN: "#db2777", // pink-600
+  RETRIEVER: "#0d9488", // teal-600
+  EVENT: "#16a34a", // green-600
+  EMBEDDING: "#d97706", // amber-600
+  GUARDRAIL: "#dc2626", // red-600
+  LANGGRAPH_SYSTEM: "#94a3b8", // slate-400
+};
+const DEFAULT_BORDER_COLOR = "#2563eb"; // blue-600
+
+/**
+ * Light/dark surfaces, kept close to the app's slate palette so the canvas
+ * reads consistently with the rest of the trace UI in both themes.
+ */
+const PALETTE = {
+  light: {
+    nodeBg: "#f1f5f9", // slate-100
+    nodeBgSelected: "#e2e8f0", // slate-200
+    nodeText: "#0f172a", // slate-900
+    edge: "#94a3b8", // slate-400
+  },
+  dark: {
+    nodeBg: "#1e293b", // slate-800
+    nodeBgSelected: "#334155", // slate-700
+    nodeText: "#e2e8f0", // slate-200
+    edge: "#64748b", // slate-500
+  },
+} as const;
+
+// Saturated start/end markers that read on both themes (white label on fill).
+const START_COLOR = {
+  border: "#15803d", // green-700
+  background: "#16a34a", // green-600
+  highlight: { border: "#166534", background: "#22c55e" },
+};
+const END_COLOR = {
+  border: "#b91c1c", // red-700
+  background: "#dc2626", // red-600
+  highlight: { border: "#991b1b", background: "#ef4444" },
+};
+
+const isStartNode = (id: string) =>
+  id === LANGFUSE_START_NODE_NAME || id === LANGGRAPH_START_NODE_NAME;
+const isEndNode = (id: string) =>
+  id === LANGFUSE_END_NODE_NAME || id === LANGGRAPH_END_NODE_NAME;
 
 export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
   const {
     graph: graphData,
     selectedNodeName,
     onCanvasNodeNameChange,
-    disablePhysics = false,
     nodeToObservationsMap = {},
     currentObservationIndices = {},
   } = props;
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   const [isHovering, setIsHovering] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -40,194 +97,6 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
   useEffect(() => {
     onCanvasNodeNameChangeRef.current = onCanvasNodeNameChange;
   }, [onCanvasNodeNameChange]);
-
-  const getNodeStyle = (nodeType: string) => {
-    switch (nodeType) {
-      case "AGENT":
-        return {
-          border: "#c4b5fd", // purple-300 (former background)
-          background: "#f3f4f6", // gray-100
-          highlight: { border: "#a78bfa", background: "#e5e7eb" }, // gray-200
-        };
-      case "TOOL":
-        return {
-          border: "#fed7aa", // orange-300 (former background)
-          background: "#f3f4f6", // gray-100
-          highlight: { border: "#fdba74", background: "#e5e7eb" }, // gray-200
-        };
-      case "GENERATION":
-        return {
-          border: "#f0abfc", // fuchsia-300 (former background)
-          background: "#f3f4f6", // gray-100
-          highlight: { border: "#e879f9", background: "#e5e7eb" }, // gray-200
-        };
-      case "SPAN":
-        return {
-          border: "#93c5fd", // blue-300 (former background)
-          background: "#f3f4f6", // gray-100
-          highlight: { border: "#60a5fa", background: "#e5e7eb" }, // gray-200
-        };
-      case "CHAIN":
-        return {
-          border: "#f9a8d4", // pink-300 (former background)
-          background: "#f3f4f6", // gray-100
-          highlight: { border: "#f472b6", background: "#e5e7eb" }, // gray-200
-        };
-      case "RETRIEVER":
-        return {
-          border: "#5eead4", // teal-300 (former background)
-          background: "#f3f4f6", // gray-100
-          highlight: { border: "#2dd4bf", background: "#e5e7eb" }, // gray-200
-        };
-      case "EVENT":
-        return {
-          border: "#6ee7b7", // green-300 (former background)
-          background: "#f3f4f6", // gray-100
-          highlight: { border: "#34d399", background: "#e5e7eb" }, // gray-200
-        };
-      case "EMBEDDING":
-        return {
-          border: "#fbbf24", // amber-300 (former background)
-          background: "#f3f4f6", // gray-100
-          highlight: { border: "#f59e0b", background: "#e5e7eb" }, // gray-200
-        };
-      case "GUARDRAIL":
-        return {
-          border: "#fca5a5", // red-300 (former background)
-          background: "#f3f4f6", // gray-100
-          highlight: { border: "#f87171", background: "#e5e7eb" }, // gray-200
-        };
-      case "LANGGRAPH_SYSTEM":
-        return {
-          border: "#d1d5db", // gray (former background)
-          background: "#f3f4f6", // gray-100
-          highlight: { border: "#9ca3af", background: "#e5e7eb" }, // gray-200
-        };
-      default:
-        return {
-          border: "#93c5fd", // blue-300 (former background)
-          background: "#f3f4f6", // gray-100
-          highlight: { border: "#60a5fa", background: "#e5e7eb" }, // gray-200
-        };
-    }
-  };
-
-  const nodes = useMemo(
-    () =>
-      graphData.nodes.map((node) => {
-        const nodeData = {
-          id: node.id,
-          label: node.label,
-          color: getNodeStyle(node.type),
-        };
-
-        // Special positioning and colors for system nodes
-        if (
-          node.id === LANGFUSE_START_NODE_NAME ||
-          node.id === LANGGRAPH_START_NODE_NAME
-        ) {
-          return {
-            ...nodeData,
-            x: -200,
-            y: 0,
-            color: {
-              border: "#166534", // green
-              background: "#86efac",
-              highlight: {
-                border: "#15803d",
-                background: "#4ade80",
-              },
-            },
-          };
-        }
-        if (
-          node.id === LANGFUSE_END_NODE_NAME ||
-          node.id === LANGGRAPH_END_NODE_NAME
-        ) {
-          return {
-            ...nodeData,
-            x: 200,
-            y: 0,
-            color: {
-              border: "#7f1d1d", // red
-              background: "#fecaca",
-              highlight: {
-                border: "#991b1b",
-                background: "#fca5a5",
-              },
-            },
-          };
-        }
-        return nodeData;
-      }),
-    [graphData.nodes],
-  );
-
-  const options = useMemo(
-    () => ({
-      autoResize: true,
-      layout: {
-        hierarchical: {
-          enabled: true,
-          direction: "UD", // Up-Down (top to bottom)
-          levelSeparation: 60,
-          nodeSpacing: 175,
-          sortMethod: "hubsize",
-          shakeTowards: "roots",
-        },
-        randomSeed: 1,
-      },
-      physics: {
-        enabled: !disablePhysics,
-        stabilization: {
-          iterations: disablePhysics ? 0 : 500,
-        },
-      },
-      interaction: {
-        zoomView: false,
-      },
-      nodes: {
-        shape: "box",
-        margin: {
-          top: 10,
-          right: 10,
-          bottom: 10,
-          left: 10,
-        },
-        borderWidth: 2,
-        font: {
-          size: 14,
-          color: "#000000",
-        },
-        shadow: {
-          enabled: true,
-          color: "rgba(0,0,0,0.2)",
-          size: 3,
-          x: 3,
-          y: 3,
-        },
-        scaling: {
-          label: {
-            enabled: true,
-            min: 14,
-            max: 16,
-          },
-        },
-      },
-      edges: {
-        arrows: {
-          to: { enabled: true, scaleFactor: 0.5 },
-        },
-        width: 1.5,
-        color: {
-          color: "#64748b",
-        },
-        selectionWidth: 0,
-        chosen: false,
-      },
-    }),
-    [disablePhysics],
-  );
 
   const handleZoomIn = () => {
     if (networkRef.current) {
@@ -263,6 +132,92 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
       return;
     }
 
+    const palette = isDark ? PALETTE.dark : PALETTE.light;
+
+    const nodes = graphData.nodes.map((node) => {
+      const base = {
+        id: node.id,
+        label: node.label,
+      };
+
+      if (isStartNode(node.id)) {
+        return { ...base, color: START_COLOR, font: { color: "#ffffff" } };
+      }
+      if (isEndNode(node.id)) {
+        return { ...base, color: END_COLOR, font: { color: "#ffffff" } };
+      }
+
+      const border = TYPE_BORDER_COLOR[node.type] ?? DEFAULT_BORDER_COLOR;
+      return {
+        ...base,
+        color: {
+          border,
+          background: palette.nodeBg,
+          highlight: { border, background: palette.nodeBgSelected },
+        },
+      };
+    });
+
+    // Deterministic hierarchical layout with physics disabled: nodes appear
+    // laid out, not settling. No force simulation = no jiggle and no idle CPU.
+    const options = {
+      autoResize: true,
+      layout: {
+        hierarchical: {
+          enabled: true,
+          direction: "UD", // Up-Down (top to bottom)
+          levelSeparation: 60,
+          nodeSpacing: 175,
+          sortMethod: "hubsize",
+          shakeTowards: "roots",
+        },
+        randomSeed: 1,
+      },
+      physics: {
+        enabled: false,
+      },
+      interaction: {
+        zoomView: false,
+      },
+      nodes: {
+        shape: "box",
+        margin: {
+          top: 10,
+          right: 10,
+          bottom: 10,
+          left: 10,
+        },
+        borderWidth: 1.5,
+        shapeProperties: {
+          borderRadius: 6,
+        },
+        // Cap node width so long span names wrap instead of stretching the
+        // node (and distorting the whole layout) into one giant box.
+        widthConstraint: {
+          maximum: 220,
+        },
+        font: {
+          size: 14,
+          color: palette.nodeText,
+        },
+        shadow: {
+          enabled: false,
+        },
+      },
+      edges: {
+        arrows: {
+          to: { enabled: true, scaleFactor: 0.5 },
+        },
+        width: 1.5,
+        color: {
+          color: palette.edge,
+        },
+        smooth: false,
+        selectionWidth: 0,
+        chosen: false,
+      },
+    };
+
     const nodesDataSet = new DataSet(nodes);
     nodesDataSetRef.current = nodesDataSet;
 
@@ -273,6 +228,9 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
       options,
     );
     networkRef.current = network;
+
+    // Frame the (already laid-out) graph once, without animation.
+    network.once("afterDrawing", () => network.fit());
 
     // Use click event instead of selectNode/deselectNode to handle cycling properly
     network.on("click", (params) => {
@@ -366,7 +324,7 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
       nodesDataSetRef.current = null;
       network.destroy();
     };
-  }, [graphData, nodes, options]);
+  }, [graphData, isDark]);
 
   // Update node labels when observation indices change, without recreating network
   useEffect(() => {
@@ -452,30 +410,30 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
         <div className="absolute top-2 right-2 z-10 flex flex-col gap-1">
           <Button
             onClick={handleZoomIn}
-            variant="ghost"
+            variant="outline"
             size="icon"
-            className="dark:shadow-border p-1.5 shadow-md"
+            className="bg-background/80 h-7 w-7 backdrop-blur"
             title="Zoom in"
           >
             <ZoomIn className="h-4 w-4" />
           </Button>
           <Button
             onClick={handleZoomOut}
-            variant="ghost"
+            variant="outline"
             size="icon"
-            className="dark:shadow-border p-1.5 shadow-md"
+            className="bg-background/80 h-7 w-7 backdrop-blur"
             title="Zoom out"
           >
             <ZoomOut className="h-4 w-4" />
           </Button>
           <Button
             onClick={handleReset}
-            variant="ghost"
+            variant="outline"
             size="icon"
-            className="dark:shadow-border p-1.5 shadow-md"
-            title="Reset view"
+            className="bg-background/80 h-7 w-7 backdrop-blur"
+            title="Fit to view"
           >
-            <RotateCcw className="h-4 w-4" />
+            <Maximize className="h-4 w-4" />
           </Button>
         </div>
       )}
