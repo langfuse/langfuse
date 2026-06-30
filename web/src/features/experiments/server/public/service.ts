@@ -41,7 +41,7 @@ const transformExperimentSummaryRow = (
     description: row.experiment_description ?? null,
     startTime: parseClickhouseUTCDateTimeFormat(row.start_time),
     itemCount: Number(row.item_count),
-    datasetId: row.experiment_dataset_id,
+    datasetId: row.experiment_dataset_id || null,
   };
 
   const withOptionalFields = {
@@ -62,7 +62,7 @@ const transformExperimentDetailRow = (
   description: row.experiment_description ?? null,
   startTime: parseClickhouseUTCDateTimeFormat(row.start_time),
   itemCount: Number(row.item_count),
-  datasetId: row.experiment_dataset_id,
+  datasetId: row.experiment_dataset_id || null,
   metadata: row.experiment_metadata ?? null,
   scores: scoreRecordsToV3(row.scores ?? [], projectId),
 });
@@ -123,7 +123,7 @@ const transformExperimentItemRow = (
     ...base,
     ...(options.includeDataset
       ? {
-          experimentDatasetId: row.experiment_dataset_id ?? null,
+          experimentDatasetId: row.experiment_dataset_id || null,
           experimentItemVersion: row.experiment_item_version
             ? parseClickhouseUTCDateTimeFormat(row.experiment_item_version)
             : null,

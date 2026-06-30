@@ -1838,7 +1838,8 @@ const EXPERIMENTS_AGGREGATION_FIELDS = {
     "any(coalesce(e.experiment_name, '')) AS experiment_name",
   experimentDescription:
     "any(e.experiment_description) AS experiment_description",
-  experimentDatasetId: "any(e.experiment_dataset_id) AS experiment_dataset_id",
+  experimentDatasetId:
+    "nullIf(any(e.experiment_dataset_id), '') AS experiment_dataset_id",
   startTime: "min(e.start_time) AS start_time",
   publicApiCursorTraceHash:
     "argMin(xxHash32(e.trace_id), (e.start_time, xxHash32(e.trace_id), e.span_id, e.experiment_id)) AS cursor_trace_hash",

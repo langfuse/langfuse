@@ -24,7 +24,7 @@ type ExperimentSummaryClickhouseRow = {
   experiment_id: string;
   experiment_name: string;
   experiment_description: string | null;
-  experiment_dataset_id: string;
+  experiment_dataset_id: string | null;
   start_time: string;
   cursor_trace_hash: number;
   cursor_trace_id: string;
@@ -158,10 +158,7 @@ const experimentSummaryQueryBuilder = ({
       "publicApiCore",
       ...(includeMetadata ? (["publicApiMetadata"] as const) : []),
     )
-    .whereRaw("e.experiment_id != ''")
-    .whereRaw(
-      "e.experiment_dataset_id IS NOT NULL AND length(e.experiment_dataset_id) > 0",
-    );
+    .whereRaw("e.experiment_id != ''");
 
 async function queryExperimentSummaryRowsForPublicApi(
   params: QueryExperimentSummariesParams,
@@ -323,10 +320,7 @@ const filterForItems = (builder: EventsQueryBuilder) =>
   builder
     .whereRaw("e.experiment_id != ''")
     .whereRaw("e.experiment_item_id != ''")
-    .whereRaw("e.experiment_item_root_span_id = e.span_id")
-    .whereRaw(
-      "e.experiment_dataset_id IS NOT NULL AND length(e.experiment_dataset_id) > 0",
-    );
+    .whereRaw("e.experiment_item_root_span_id = e.span_id");
 
 async function queryExperimentItemRowsForPublicApi(
   params: QueryExperimentItemsParams,

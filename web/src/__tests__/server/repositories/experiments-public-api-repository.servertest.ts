@@ -249,7 +249,7 @@ describe("Public API experiments repository", () => {
       expect(row?.item_count).toBe(1);
     });
 
-    it("excludes experiment events without a dataset id", async () => {
+    it("includes experiment events without a dataset id", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const startTimeMs = Date.now();
       const experimentId = `exp-${randomUUID()}`;
@@ -270,7 +270,12 @@ describe("Public API experiments repository", () => {
         limit: 10,
       });
 
-      expect(rows.map((row) => row.experiment_id)).not.toContain(experimentId);
+      expect(rows).toEqual([
+        expect.objectContaining({
+          experiment_id: experimentId,
+          experiment_dataset_id: null,
+        }),
+      ]);
     });
 
     it("supports simple experiment id filters and structured filters", async () => {
@@ -548,7 +553,7 @@ describe("Public API experiments repository", () => {
       });
     });
 
-    it("excludes experiment items without a dataset id", async () => {
+    it("includes experiment items without a dataset id", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const startTimeMs = Date.now();
       const spanId = `span-${randomUUID()}`;
@@ -575,7 +580,8 @@ describe("Public API experiments repository", () => {
         limit: 10,
       });
 
-      expect(rows.map((row) => row.id)).not.toContain(spanId);
+      expect(rows.map((row) => row.id)).toEqual([spanId]);
+      expect([null, ""]).toContain(rows[0]?.experiment_dataset_id);
     });
 
     it("lets structured filters take precedence over simple filters on the same experiment item field", async () => {

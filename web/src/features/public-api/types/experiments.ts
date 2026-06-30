@@ -182,7 +182,7 @@ export const ExperimentV1 = z
     description: z.string().nullable(),
     startTime: z.coerce.date(),
     itemCount: z.number(),
-    datasetId: z.string(),
+    datasetId: z.string().nullable(),
     metadata: z.record(z.string(), z.unknown()).nullable().optional(),
     scores: z.array(APIScoreSchemaV3).optional(),
   })

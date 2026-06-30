@@ -38,7 +38,7 @@ const createExperimentRootEvent = ({
   projectId: string;
   experimentId: string;
   experimentName?: string;
-  datasetId?: string;
+  datasetId?: string | null;
   startTimeMs: number;
   metadata?: Record<string, string>;
   experimentItemId?: string;
@@ -128,6 +128,38 @@ describe("GET /api/public/experiments", () => {
       });
       expect(experiment).not.toHaveProperty("metadata");
       expect(experiment).not.toHaveProperty("scores");
+    },
+  );
+
+  maybeEventTables(
+    "lists experiment summaries without a dataset id",
+    async () => {
+      const { auth, projectId } = await createOrgProjectAndApiKey();
+      const startTimeMs = Date.now();
+      const experimentId = `exp-${randomUUID()}`;
+
+      await createEventsCh([
+        createExperimentRootEvent({
+          projectId,
+          experimentId,
+          experimentName: "datasetless experiment",
+          datasetId: null,
+          startTimeMs,
+        }),
+      ]);
+
+      const fromStartTime = new Date(startTimeMs - 1_000).toISOString();
+      const res = await getExperiments(
+        `/api/public/experiments?fromStartTime=${encodeURIComponent(fromStartTime)}`,
+        auth,
+      );
+
+      expect(res.status).toBe(200);
+      const experiment = res.body.data.find((item) => item.id === experimentId);
+      expect(experiment).toMatchObject({
+        id: experimentId,
+        datasetId: null,
+      });
     },
   );
 
