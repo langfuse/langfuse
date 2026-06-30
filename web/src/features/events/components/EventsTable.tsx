@@ -190,6 +190,31 @@ export type EventsTableProps = {
   sessionId?: string;
 };
 
+// Build the start-time `FilterState` for an absolute date range (lower bound
+// always, upper bound when present). Shared by the live table-rows range and the
+// tick-decoupled facet-options range.
+const toStartTimeFilterState = (range?: TableDateRange): FilterState =>
+  range
+    ? [
+        {
+          column: "startTime",
+          type: "datetime",
+          operator: ">=",
+          value: range.from,
+        },
+        ...(range.to
+          ? [
+              {
+                column: "startTime",
+                type: "datetime",
+                operator: "<=",
+                value: range.to,
+              } as const,
+            ]
+          : []),
+      ]
+    : [];
+
 export default function ObservationsEventsTable({
   projectId,
   userId,
@@ -318,6 +343,12 @@ export default function ObservationsEventsTable({
   );
 
   const [refreshTick, setRefreshTick] = useState(0);
+  // Facet options are not "live": the auto-refresh tick must keep updating the
+  // table rows without re-fetching facets (their values don't change tick to
+  // tick). They re-anchor only on a real scope change — a new time range or an
+  // explicit refresh — tracked by this separate tick, which the auto interval
+  // never bumps.
+  const [filterOptionsRefreshTick, setFilterOptionsRefreshTick] = useState(0);
 
   // Auto-increment refresh tick to force date range recalculation
   useEffect(() => {
@@ -330,6 +361,9 @@ export default function ObservationsEventsTable({
 
   const handleRefresh = useCallback(() => {
     setRefreshTick((t) => t + 1);
+    // An explicit refresh re-anchors the facets too (and invalidate refetches
+    // whatever is already open); the auto interval above does not.
+    setFilterOptionsRefreshTick((t) => t + 1);
     Promise.all([
       utils.events.all.invalidate(),
       utils.events.countAll.invalidate(),
@@ -345,30 +379,25 @@ export default function ObservationsEventsTable({
     return toAbsoluteTimeRange(timeRange) ?? undefined;
   }, [timeRange, refreshTick]);
 
+  // Same absolute range, but anchored to scope changes only (NOT the auto tick),
+  // so opening/keeping a facet open never re-fetches on a refresh interval.
+  const filterOptionsTableDateRange = useMemo(() => {
+    filterOptionsRefreshTick;
+    return toAbsoluteTimeRange(timeRange) ?? undefined;
+  }, [timeRange, filterOptionsRefreshTick]);
+
   const dateRange = externalDateRange ?? tableDateRange;
+  const filterOptionsDateRange =
+    externalDateRange ?? filterOptionsTableDateRange;
 
-  const dateRangeFilter: FilterState = dateRange
-    ? [
-        {
-          column: "startTime",
-          type: "datetime",
-          operator: ">=",
-          value: dateRange.from,
-        },
-        ...(dateRange.to
-          ? [
-              {
-                column: "startTime",
-                type: "datetime",
-                operator: "<=",
-                value: dateRange.to,
-              } as const,
-            ]
-          : []),
-      ]
-    : [];
+  const dateRangeFilter: FilterState = toStartTimeFilterState(dateRange);
 
-  const oldFilterState = inputFilterState.concat(dateRangeFilter);
+  // Facet options are scoped only by the time window (the facet hook reads just
+  // the start-time filters); use the tick-decoupled range so the auto refresh
+  // leaves them alone.
+  const oldFilterState = inputFilterState.concat(
+    toStartTimeFilterState(filterOptionsDateRange),
+  );
 
   // Fetch filter options. Lazy: start with the eagerly-visible facets and load
   // the rest (high-cardinality userId/sessionId, model/prompt/score facets) only
