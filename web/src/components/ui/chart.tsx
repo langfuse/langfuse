@@ -273,8 +273,11 @@ const ChartTooltipContent = React.forwardRef<
                             "border-border shrink-0 rounded-[2px] bg-(--color-bg)",
                             {
                               "h-2.5 w-2.5": indicator === "dot",
-                              "w-1": indicator === "line",
-                              "w-0 border-[1.5px] border-dashed bg-transparent":
+                              // line/dashed need an explicit height: the row is
+                              // items-center, so a height-less swatch collapses
+                              // to 0px and the series color is invisible.
+                              "h-2.5 w-1": indicator === "line",
+                              "h-2.5 w-0 border-[1.5px] border-dashed bg-transparent":
                                 indicator === "dashed",
                               "my-0.5": nestLabel && indicator === "dashed",
                             },

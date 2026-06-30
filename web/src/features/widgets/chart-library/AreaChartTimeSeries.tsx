@@ -84,6 +84,14 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
       onMouseEnter={() => setSelfHovered(true)}
       onMouseMove={() => setSelfHovered(true)}
       onMouseLeave={() => setSelfHovered(false)}
+      // Keyboard parity: recharts' accessibilityLayer lets Tab/arrow users move
+      // the crosshair, but that fires no mouse event — un-gate the tooltip on
+      // focus too, and re-gate only when focus leaves the chart. (LFE-10549)
+      onFocus={() => setSelfHovered(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null))
+          setSelfHovered(false);
+      }}
     >
       {legendPosition === "above" && (
         <TimeSeriesLegend
