@@ -45,6 +45,7 @@ export const BigNumber: React.FC<ChartProps> = ({
   data,
   className,
   metricFormatter,
+  onDrilldown,
 }: ChartProps & { className?: string }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLSpanElement>(null);
@@ -87,6 +88,23 @@ export const BigNumber: React.FC<ChartProps> = ({
           main: calculatedMetric.toString(),
         };
   }, [calculatedMetric, isLoading, maxCharacters, metricFormatter]);
+
+  const drilldown = useMemo(
+    () => data.find((point) => point.drilldown)?.drilldown,
+    [data],
+  );
+  const canDrilldown = Boolean(drilldown && onDrilldown);
+
+  const handleDrilldown = () => {
+    if (canDrilldown && drilldown) onDrilldown?.(drilldown.href);
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!canDrilldown || !drilldown) return;
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    onDrilldown?.(drilldown.href);
+  };
 
   useEffect(() => {
     const resizeObserver = new ResizeObserver(() => {
@@ -157,8 +175,13 @@ export const BigNumber: React.FC<ChartProps> = ({
   return (
     <div
       ref={containerRef}
+      role={canDrilldown ? "link" : undefined}
+      tabIndex={canDrilldown ? 0 : undefined}
+      onClick={handleDrilldown}
+      onKeyDown={handleKeyDown}
       className={cn(
         "flex h-full w-full flex-col items-center justify-center",
+        canDrilldown && "cursor-pointer",
         className,
       )}
     >

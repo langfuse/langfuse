@@ -5,6 +5,13 @@ export interface DataPoint {
   time_dimension: string | undefined;
   dimension: string | undefined;
   metric: number | Array<Array<number>>;
+  drilldown?: ChartDrilldown;
+  histogramBinDrilldowns?: Array<ChartDrilldown | undefined>;
+  pivotDrilldownByDimensions?: Record<string, ChartDrilldown | undefined>;
+}
+
+export interface ChartDrilldown {
+  href: string;
 }
 
 export type LegendPosition = "above" | "none";
@@ -101,4 +108,5 @@ export interface ChartProps {
   showDataPointDots?: boolean;
   subtleFill?: boolean;
   thresholds?: ChartThreshold[];
+  onDrilldown?: (href: string) => void;
 }

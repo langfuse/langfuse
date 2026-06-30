@@ -1,7 +1,10 @@
 import {
   formatMetric,
   getDimensionSummaries,
+  getDrilldownFromPayload,
   getEvenTickInterval,
+  getTimeSeriesDrilldown,
+  TIME_SERIES_DRILLDOWN_KEY,
 } from "@/src/features/widgets/chart-library/utils";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 
@@ -278,5 +281,40 @@ describe("getEvenTickInterval", () => {
   it("honors a custom max tick target", () => {
     expect(getEvenTickInterval(12, 6)).toBe(1);
     expect(getEvenTickInterval(6, 6)).toBe(0);
+  });
+});
+
+describe("chart drilldown payload helpers", () => {
+  it("reads direct Recharts bar or pie payload drilldowns", () => {
+    expect(
+      getDrilldownFromPayload({
+        payload: { drilldown: { href: "/project/p/traces?bar" } },
+      }),
+    ).toEqual({ href: "/project/p/traces?bar" });
+
+    expect(
+      getDrilldownFromPayload({
+        drilldown: { href: "/project/p/traces?slice" },
+      }),
+    ).toEqual({ href: "/project/p/traces?slice" });
+  });
+
+  it("reads chart-level activePayload drilldowns for line and area charts", () => {
+    expect(
+      getTimeSeriesDrilldown(
+        {
+          activePayload: [
+            {
+              payload: {
+                [TIME_SERIES_DRILLDOWN_KEY]: {
+                  checkout: { href: "/project/p/traces?series" },
+                },
+              },
+            },
+          ],
+        },
+        "checkout",
+      ),
+    ).toEqual({ href: "/project/p/traces?series" });
   });
 });

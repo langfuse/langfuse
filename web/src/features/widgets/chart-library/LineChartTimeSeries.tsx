@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   ChartActiveReferenceLine,
   ChartContainer,
@@ -23,6 +23,7 @@ import {
 } from "@/src/features/widgets/chart-library/chart-props";
 import {
   formatMetric,
+  getTimeSeriesDrilldown,
   getUniqueDimensions,
   groupDataByTimeDimension,
   toFullMetricString,
@@ -197,6 +198,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
   // so the value is readable on hover without littering the line. (LFE-10549, V7)
   showDataPointDots = false,
   thresholds,
+  onDrilldown,
 }) => {
   const metricExtent = useMemo(() => computeMetricExtent(data), [data]);
 
@@ -247,6 +249,18 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
     [nearestDimensions],
   );
   const proximityActive = !isHighlightActive && nearestSet.size > 0;
+  const hasDrilldowns = Boolean(
+    onDrilldown && data.some((point) => point.drilldown),
+  );
+
+  const handleChartClick = useCallback(
+    (payload: unknown) => {
+      const dimension = nearestDimensions[0];
+      const drilldown = getTimeSeriesDrilldown(payload, dimension);
+      if (drilldown) onDrilldown?.(drilldown.href);
+    },
+    [nearestDimensions, onDrilldown],
+  );
 
   const tooltipFormatter = (value: number) =>
     toFullMetricString(metricFormatter(value, { style: "compact" }));
@@ -291,6 +305,12 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
           data={groupedData}
           syncId={syncId}
           syncMethod="value"
+          onClick={hasDrilldowns ? handleChartClick : undefined}
+          className={
+            hasDrilldowns && nearestDimensions.length > 0
+              ? "cursor-pointer"
+              : undefined
+          }
         >
           <CartesianGrid stroke="hsl(var(--chart-grid))" vertical={false} />
           <XAxis

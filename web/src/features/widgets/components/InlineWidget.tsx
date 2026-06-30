@@ -6,6 +6,7 @@ import {
   type ViewVersion,
   getResultUnit,
 } from "@langfuse/shared/query";
+import { useRouter } from "next/router";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
@@ -14,13 +15,13 @@ import {
   getChartLoadingStateProps,
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 import {
-  formatMetricName,
   shouldUseWidgetSSE,
   getWidgetMetricPresentation,
   type WidgetChartConfig,
 } from "@/src/features/widgets/utils";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { cn } from "@/src/utils/tailwind";
+import { prepareWidgetChartData } from "@/src/features/widgets/utils/prepareChartData";
 
 // ============================================================================
 // Types
@@ -139,17 +140,6 @@ export function WidgetHeader({
   );
 }
 
-const getXAxisValue = (
-  item: Record<string, unknown>,
-  entityDimensionLabelMap?: Record<string, string>,
-) => {
-  const entityDimensionValue = String(item["entity_dimension"]);
-  const entityDimensionLabel = entityDimensionLabelMap?.[entityDimensionValue];
-  return entityDimensionLabel && entityDimensionLabel.length > 0
-    ? entityDimensionLabel
-    : entityDimensionValue;
-};
-
 /**
  * Core widget content: executes query, transforms data, renders chart with loading states.
  *
@@ -179,6 +169,7 @@ export function WidgetContent({
   className,
   entityDimensionLabelMap,
 }: WidgetContentProps) {
+  const router = useRouter();
   const { isBetaEnabled } = useV4Beta();
   const [retryCount, setRetryCount] = useState(0);
 
@@ -218,98 +209,26 @@ export function WidgetContent({
       return [];
     }
 
-    const mapped = queryResult.data.map((item: Record<string, unknown>) => {
-      if (chartType === "PIVOT_TABLE") {
-        // For pivot tables, preserve all raw data fields
-        const timeDimension = item["time_dimension"];
-        return {
-          dimension:
-            dimensions.length > 0
-              ? (dimensions[0]?.field ?? "dimension")
-              : "dimension",
-          metric: 0,
-          time_dimension:
-            typeof timeDimension === "string"
-              ? timeDimension
-              : String(timeDimension ?? "n/a"),
-          ...item,
-        };
-      }
-
-      // Regular chart processing
-      const metric = metrics.slice().shift() ?? {
-        measure: "count",
-        agg: "count",
-      };
-      const metricField = `${metric.agg}_${metric.measure}`;
-      const metricValue = item[metricField];
-
-      const dimensionField = dimensions.slice().shift()?.field ?? "none";
-
-      // Handle x-axis: prefer entity_dimension, then time_dimension
-      let xAxisValue: string | undefined;
-      if (item["entity_dimension"] !== undefined) {
-        xAxisValue = getXAxisValue(item, entityDimensionLabelMap);
-      } else if (item["time_dimension"] !== undefined) {
-        xAxisValue = String(item["time_dimension"]);
-      }
-
-      // Handle series dimension (for legend)
-      let seriesDimension: string;
-      if (item[dimensionField] !== undefined) {
-        const val = item[dimensionField];
-        if (typeof val === "string") {
-          seriesDimension = val;
-        } else if (val === null || val === undefined || val === "") {
-          seriesDimension = "n/a";
-        } else if (Array.isArray(val)) {
-          seriesDimension = val.join(", ");
-        } else {
-          seriesDimension = String(val);
-        }
-      } else {
-        seriesDimension = formatMetricName(metricField);
-      }
-
-      return {
-        // time_dimension is used as x-axis for charts (works for both time and entity dimensions)
-        time_dimension: xAxisValue,
-        dimension: seriesDimension,
-        metric: Array.isArray(metricValue)
-          ? metricValue
-          : Number(metricValue || 0),
-      };
+    return prepareWidgetChartData({
+      rows: queryResult.data as Array<Record<string, unknown>>,
+      projectId,
+      query,
+      version,
+      chartType,
+      metrics,
+      dimensions,
+      isV4Enabled: isBetaEnabled,
+      entityDimensionLabelMap,
     });
-
-    // Entity-dimension charts have no meaningful query-side order (the server
-    // falls back to first-metric DESC, which differs per chart). Order the
-    // x-axis to match the experiments table order provided via
-    // entityDimensionLabelMap so the same entity lines up across chart slots.
-    if (
-      chartType !== "PIVOT_TABLE" &&
-      entityDimensionLabelMap &&
-      Object.keys(entityDimensionLabelMap).length > 0
-    ) {
-      const order = new Map<string, number>();
-      Object.entries(entityDimensionLabelMap).forEach(([id, name], index) => {
-        order.set(id, index);
-        order.set(name, index);
-      });
-      return mapped
-        .slice()
-        .sort(
-          (a, b) =>
-            (order.get(b.time_dimension ?? "") ?? Number.MAX_SAFE_INTEGER) -
-            (order.get(a.time_dimension ?? "") ?? Number.MAX_SAFE_INTEGER),
-        );
-    }
-
-    return mapped;
   }, [
     queryResult.data,
+    projectId,
+    query,
+    version,
     chartType,
     metrics,
     dimensions,
+    isBetaEnabled,
     entityDimensionLabelMap,
   ]);
 
@@ -382,6 +301,13 @@ export function WidgetContent({
     return baseConfig;
   }, [chartConfig, chartType, dimensions, metrics, view, version]);
 
+  const handleDrilldown = useCallback(
+    (href: string) => {
+      router.push(href);
+    },
+    [router],
+  );
+
   if (isExternalLoading) {
     return (
       <div
@@ -408,6 +334,7 @@ export function WidgetContent({
         onSortChange={chartType === "PIVOT_TABLE" ? onSortChange : undefined}
         isLoading={queryResult.isPending || isExternalLoading}
         metricFormatter={chartPresentation?.metricFormatter}
+        onDrilldown={handleDrilldown}
       />
       <ChartLoadingState
         isLoading={chartLoadingState.isLoading}

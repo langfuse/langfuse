@@ -46,6 +46,7 @@ const ChartComponent = ({
   overrideWarning = false,
   metricFormatter: metricFormatterOverride,
   thresholds,
+  onDrilldown,
 }: {
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
@@ -75,6 +76,7 @@ const ChartComponent = ({
   overrideWarning?: boolean;
   metricFormatter?: MetricFormatterFunction;
   thresholds?: ChartThreshold[];
+  onDrilldown?: (href: string) => void;
 }) => {
   const [forceRender, setForceRender] = useState(overrideWarning);
   const shouldWarn = data.length > 2000 && !forceRender;
@@ -128,6 +130,7 @@ const ChartComponent = ({
             syncId={syncId}
             showDataPointDots={chartConfig?.show_data_point_dots ?? false}
             thresholds={thresholds}
+            onDrilldown={onDrilldown}
           />
         );
       case "AREA_TIME_SERIES":
@@ -142,6 +145,7 @@ const ChartComponent = ({
             maxVisibleSeries={maxVisibleSeries}
             syncId={syncId}
             subtleFill={chartConfig?.subtle_fill}
+            onDrilldown={onDrilldown}
           />
         );
       case "BAR_TIME_SERIES":
@@ -156,6 +160,7 @@ const ChartComponent = ({
             maxVisibleSeries={maxVisibleSeries}
             syncId={syncId}
             subtleFill={chartConfig?.subtle_fill}
+            onDrilldown={onDrilldown}
           />
         );
       case "HORIZONTAL_BAR":
@@ -166,6 +171,7 @@ const ChartComponent = ({
             showValueLabels={chartConfig?.show_value_labels}
             metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
+            onDrilldown={onDrilldown}
           />
         );
       case "VERTICAL_BAR":
@@ -175,6 +181,7 @@ const ChartComponent = ({
             config={resolvedConfig}
             metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
+            onDrilldown={onDrilldown}
           />
         );
       case "PIE":
@@ -184,6 +191,7 @@ const ChartComponent = ({
             config={resolvedConfig}
             metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
+            onDrilldown={onDrilldown}
           />
         );
       case "HISTOGRAM":
@@ -193,6 +201,7 @@ const ChartComponent = ({
             config={resolvedConfig}
             metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
+            onDrilldown={onDrilldown}
           />
         );
       case "NUMBER": {
@@ -201,6 +210,7 @@ const ChartComponent = ({
             data={renderedData}
             config={resolvedConfig}
             metricFormatter={metricFormatter}
+            onDrilldown={onDrilldown}
           />
         );
       }
@@ -220,6 +230,7 @@ const ChartComponent = ({
             sortState={sortState}
             onSortChange={onSortChange}
             isLoading={isLoading}
+            onDrilldown={onDrilldown}
           />
         );
       }
@@ -229,6 +240,7 @@ const ChartComponent = ({
             data={renderedData.slice(0, rowLimit)}
             showValueLabels={chartConfig?.show_value_labels}
             metricFormatter={metricFormatter}
+            onDrilldown={onDrilldown}
           />
         );
     }

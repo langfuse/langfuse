@@ -31,7 +31,6 @@ import {
 } from "@/src/components/ui/table";
 import {
   transformToPivotTable,
-  extractDimensionValues,
   extractMetricValues,
   sortPivotTableRows,
   getNextSortState,
@@ -40,10 +39,14 @@ import {
   type DatabaseRow,
   DEFAULT_ROW_LIMIT,
 } from "@/src/features/widgets/utils/pivot-table-utils";
-import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import {
+  type ChartDrilldown,
+  type ChartProps,
+} from "@/src/features/widgets/chart-library/chart-props";
 import { valueFormatter } from "@/src/features/widgets/chart-library/utils";
 import { formatMetricName } from "@/src/features/widgets/utils";
 import { type OrderByState } from "@langfuse/shared";
+import { serializePivotDrilldownDimensions } from "@/src/features/events/lib/chartDrilldownPaths";
 
 /**
  * Props interface for the PivotTable component
@@ -64,6 +67,9 @@ export interface PivotTableProps {
 
   /** Loading state for when data is being refreshed */
   isLoading?: boolean;
+
+  /** Callback for opening a row drilldown link */
+  onDrilldown?: (href: string) => void;
 }
 
 /**
@@ -146,11 +152,34 @@ const PivotTableRowComponent: React.FC<{
   row: PivotTableRow;
   metrics: string[];
   units?: (string | undefined)[];
-}> = ({ row, metrics, units }) => {
+  drilldown?: ChartDrilldown;
+  onDrilldown?: (href: string) => void;
+}> = ({ row, metrics, units, drilldown, onDrilldown }) => {
+  const canDrilldown = Boolean(drilldown && onDrilldown);
+
+  const handleClick = useCallback(() => {
+    if (canDrilldown && drilldown) onDrilldown?.(drilldown.href);
+  }, [canDrilldown, drilldown, onDrilldown]);
+
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLTableRowElement>) => {
+      if (!canDrilldown || !drilldown) return;
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      onDrilldown?.(drilldown.href);
+    },
+    [canDrilldown, drilldown, onDrilldown],
+  );
+
   return (
     <TableRow
+      role={canDrilldown ? "link" : undefined}
+      tabIndex={canDrilldown ? 0 : undefined}
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
       className={cn(
         "hover:bg-muted/30 border-b transition-colors",
+        canDrilldown && "cursor-pointer",
         row.isSubtotal && "bg-muted/30",
         row.isTotal && "bg-muted/50",
       )}
@@ -217,8 +246,12 @@ export const PivotTable: React.FC<PivotTableProps> = ({
   sortState,
   onSortChange,
   isLoading = false,
+  onDrilldown,
 }) => {
   const units = config?.units;
+  const pivotDrilldownByDimensions = data.find(
+    (point) => point.pivotDrilldownByDimensions,
+  )?.pivotDrilldownByDimensions;
   // Transform chart data into pivot table structure
   const pivotTableRows = useMemo(() => {
     if (!data || data.length === 0) {
@@ -242,9 +275,14 @@ export const PivotTable: React.FC<PivotTableProps> = ({
       const row: DatabaseRow = { ...rowData };
 
       // Use utility functions to ensure proper extraction and parsing
-      const dimensionValues = extractDimensionValues(
-        row,
-        pivotConfig.dimensions,
+      const dimensionValues = pivotConfig.dimensions.reduce(
+        (acc, dimension) => {
+          const value = row[dimension];
+          acc[dimension] =
+            typeof value === "number" ? value : (value?.toString() ?? null);
+          return acc;
+        },
+        {} as DatabaseRow,
       );
       const metricValues = extractMetricValues(row, pivotConfig.metrics);
 
@@ -403,6 +441,12 @@ export const PivotTable: React.FC<PivotTableProps> = ({
               row={row}
               metrics={metrics}
               units={units}
+              drilldown={
+                pivotDrilldownByDimensions?.[
+                  serializePivotDrilldownDimensions(row.dimensionValues ?? {})
+                ]
+              }
+              onDrilldown={onDrilldown}
             />
           ))}
         </TableBody>

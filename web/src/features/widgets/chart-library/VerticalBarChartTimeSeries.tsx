@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   ChartActiveReferenceLine,
   ChartContainer,
@@ -10,6 +10,7 @@ import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
   formatMetric,
+  getTimeSeriesDrilldown,
   getUniqueDimensions,
   groupDataByTimeDimension,
   toFullMetricString,
@@ -48,6 +49,7 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
   maxVisibleSeries,
   syncId,
   subtleFill = false,
+  onDrilldown,
 }) => {
   const [selfHovered, setSelfHovered] = useState(false);
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
@@ -82,6 +84,17 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
     toFullMetricString(metricFormatter(value, { style: "compact" }));
 
   const renderedDimensions = dimensions.filter(isRendered);
+  const hasDrilldowns = Boolean(
+    onDrilldown && data.some((point) => point.drilldown),
+  );
+
+  const handleBarClick = useCallback(
+    (dimension: string, payload: unknown) => {
+      const drilldown = getTimeSeriesDrilldown(payload, dimension);
+      if (drilldown) onDrilldown?.(drilldown.href);
+    },
+    [onDrilldown],
+  );
 
   return (
     <div
@@ -116,7 +129,7 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
       <ChartContainer
         ref={chartBoxRef}
         config={config}
-        className="min-h-0 flex-1 [&_.recharts-bar-rectangle:hover]:opacity-30 dark:[&_.recharts-bar-rectangle:hover]:opacity-100 dark:[&_.recharts-bar-rectangle:hover]:brightness-[3]"
+        className={`min-h-0 flex-1 [&_.recharts-bar-rectangle:hover]:opacity-30 dark:[&_.recharts-bar-rectangle:hover]:opacity-100 dark:[&_.recharts-bar-rectangle:hover]:brightness-[3] ${hasDrilldowns ? "[&_.recharts-bar-rectangle]:cursor-pointer" : ""}`}
       >
         <BarChart
           accessibilityLayer={accessibilityLayer}
@@ -155,6 +168,7 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
                 fillOpacity={muted ? 0.2 : subtleFill ? 0.3 : 1}
                 stackId={renderedDimensions.length > 1 ? "stack" : undefined}
                 isAnimationActive={false}
+                onClick={(payload) => handleBarClick(dimension, payload)}
               />
             );
           })}
