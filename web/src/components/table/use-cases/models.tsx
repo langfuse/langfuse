@@ -22,7 +22,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { LangfuseIcon } from "@/src/components/LangfuseLogo";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { useRouter } from "next/router";
 import { PriceUnitSelector } from "@/src/features/models/components/PriceUnitSelector";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
