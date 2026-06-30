@@ -1,6 +1,7 @@
 import React, {
   Fragment,
   useCallback,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -76,6 +77,8 @@ const EMPTY_CELL: DiffCell = { type: "empty", text: "" };
 // cell so the overview ruler can read each row's real pixel position.
 const GRID_COLUMNS = 4;
 const HEADER_CELLS = 4;
+
+const clamp01 = (value: number): number => Math.min(1, Math.max(0, value));
 
 type ChangeKind = "added" | "removed" | "modified";
 
@@ -297,6 +300,7 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
   const gridRef = useRef<HTMLDivElement>(null);
   const rulerRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
+  const scrollId = useId();
 
   const [scrollMetrics, setScrollMetrics] = useState({
     scrollTop: 0,
@@ -359,6 +363,12 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
       clientHeight: scrollEl.clientHeight,
     });
 
+    // Markers are stored as a fraction of the FULL content height. The ruler
+    // element's height spans the viewport and its track represents the whole
+    // document, so rendering each marker with a percentage `top`/`height`
+    // relative to the ruler scales the fraction onto the ruler's pixel height.
+    // This keeps markers spread across the entire ruler no matter how much taller
+    // the content is than the viewport — i.e. no compression for large diffs.
     const contentHeight = gridEl.scrollHeight || 1;
     const gridTop = gridEl.getBoundingClientRect().top;
     const cells = gridEl.children;
@@ -373,8 +383,8 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
       const bottom = endCell.getBoundingClientRect().bottom - gridTop;
 
       nextMarkers.push({
-        startFraction: top / contentHeight,
-        endFraction: bottom / contentHeight,
+        startFraction: clamp01(top / contentHeight),
+        endFraction: clamp01(bottom / contentHeight),
         kind: segment.kind,
       });
     }
@@ -407,6 +417,86 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
       Math.max(0, fraction * el.scrollHeight - el.clientHeight / 2),
     );
   }, []);
+
+  // Center a given content pixel position in the viewport.
+  const scrollToContentY = useCallback((contentY: number) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const maxScroll = el.scrollHeight - el.clientHeight;
+    el.scrollTop = Math.min(
+      maxScroll,
+      Math.max(0, contentY - el.clientHeight / 2),
+    );
+  }, []);
+
+  // Keyboard equivalent of clicking the ruler: jump to the next/previous change.
+  const jumpToAdjacentMarker = useCallback(
+    (direction: 1 | -1) => {
+      const el = scrollRef.current;
+      if (!el || markers.length === 0) return;
+      const positions = markers
+        .map((marker) => marker.startFraction * el.scrollHeight)
+        .sort((a, b) => a - b);
+      const reference = el.scrollTop + el.clientHeight / 2;
+
+      let target: number | undefined;
+      if (direction === 1) {
+        target =
+          positions.find((position) => position > reference + 1) ??
+          positions[positions.length - 1];
+      } else {
+        for (let i = positions.length - 1; i >= 0; i--) {
+          if (positions[i] < reference - 1) {
+            target = positions[i];
+            break;
+          }
+        }
+        target ??= positions[0];
+      }
+
+      scrollToContentY(target);
+    },
+    [markers, scrollToContentY],
+  );
+
+  const handleRulerKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      const el = scrollRef.current;
+      if (!el) return;
+
+      switch (event.key) {
+        case "ArrowDown":
+        case "ArrowRight":
+          event.preventDefault();
+          jumpToAdjacentMarker(1);
+          break;
+        case "ArrowUp":
+        case "ArrowLeft":
+          event.preventDefault();
+          jumpToAdjacentMarker(-1);
+          break;
+        case "PageDown":
+          event.preventDefault();
+          el.scrollTop += el.clientHeight * 0.9;
+          break;
+        case "PageUp":
+          event.preventDefault();
+          el.scrollTop -= el.clientHeight * 0.9;
+          break;
+        case "Home":
+          event.preventDefault();
+          el.scrollTop = 0;
+          break;
+        case "End":
+          event.preventDefault();
+          el.scrollTop = el.scrollHeight;
+          break;
+        default:
+          break;
+      }
+    },
+    [jumpToAdjacentMarker],
+  );
 
   const handleRulerPointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
@@ -466,6 +556,7 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
           <div className={cn("flex", fillContainerHeight && "h-full min-h-0")}>
             <div
               ref={scrollRef}
+              id={scrollId}
               onScroll={syncScrollMetrics}
               className={cn(
                 "no-native-scrollbar flex-1 overflow-auto",
@@ -548,14 +639,23 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
             {/* Change overview ruler */}
             <div
               ref={rulerRef}
+              role="scrollbar"
+              aria-label="Diff change overview"
+              aria-controls={scrollId}
+              aria-orientation="vertical"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(thumbTop)}
+              tabIndex={hasOverflow ? 0 : -1}
               onPointerDown={handleRulerPointerDown}
               onPointerMove={handleRulerPointerMove}
               onPointerUp={handleRulerPointerUp}
+              onKeyDown={handleRulerKeyDown}
               className={cn(
-                "bg-muted/40 relative w-6 shrink-0 border-l",
+                "bg-muted/40 focus-visible:ring-ring relative w-6 shrink-0 border-l outline-none focus-visible:ring-2 focus-visible:ring-inset",
                 hasOverflow ? "cursor-pointer" : "cursor-default",
               )}
-              title="Jump to changes"
+              title="Jump to changes (Arrow keys to step, PageUp/PageDown to scroll)"
             >
               {markers.map((marker, idx) => {
                 const markerStyle = {
