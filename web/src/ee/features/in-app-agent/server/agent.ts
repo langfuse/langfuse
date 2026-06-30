@@ -22,6 +22,8 @@ import type {
 import { createInAppAgentInstrumentation } from "@/src/ee/features/in-app-agent/server/instrumentation";
 import {
   createRedirectActionTool,
+  filterInAppAgentAvailableLangfuseMcpTools,
+  type InAppAgentUserAccess,
   withInAppAgentToolApproval,
 } from "@/src/ee/features/in-app-agent/server/tools";
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
@@ -124,6 +126,7 @@ type CreateAgUiStreamOptions = {
     url: string;
     publicKey: string;
     secretKey: string;
+    userAccess: InAppAgentUserAccess;
     runOverride?: string;
   };
   redirectAction: {
@@ -654,7 +657,13 @@ async function createMastraAdapter(params: {
     // discovery, then prefix tool names for constructor-based tools so the
     // model sees the same names that later appear in AG-UI tool-call events.
     const tools = withInAppAgentToolApproval({
-      ...prefixToolsetTools("langfuse", toolsets.langfuse),
+      ...prefixToolsetTools(
+        "langfuse",
+        filterInAppAgentAvailableLangfuseMcpTools({
+          tools: toolsets.langfuse,
+          userAccess: params.options.langfuseMcp.userAccess,
+        }),
+      ),
       ...prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
       [IN_APP_AGENT_REDIRECT_TOOL_NAME]: createRedirectActionTool({
         projectId: params.options.redirectAction.projectId,

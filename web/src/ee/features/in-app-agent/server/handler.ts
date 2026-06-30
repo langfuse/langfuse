@@ -25,7 +25,10 @@ import {
   storePendingToolApproval,
   validatePendingToolApproval,
 } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
-import { IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES } from "@/src/ee/features/in-app-agent/server/tools";
+import {
+  isMcpToolName,
+  type InAppAgentUserAccess,
+} from "@/src/ee/features/in-app-agent/server/tools";
 import type { McpToolName } from "@/src/features/mcp/server/bootstrap";
 import {
   createRun,
@@ -77,7 +80,8 @@ export default async function handler(request: Request) {
       throw new UnauthorizedError("Unauthenticated");
     }
 
-    const userId = session.user.id;
+    const user = session.user;
+    const userId = user.id;
 
     if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       throw new BaseError(
@@ -123,8 +127,6 @@ export default async function handler(request: Request) {
       throw new InvalidRequestError("Invalid agent state");
     }
 
-    const auth = { userId: session.user.id, user: session.user };
-
     const { projectId, conversationId } = (() => {
       if (parsedState.data.type === "newConversation") {
         return {
@@ -143,14 +145,14 @@ export default async function handler(request: Request) {
       };
     })();
 
-    if (!isProjectMemberOrAdmin(auth.user, projectId)) {
+    if (!isProjectMemberOrAdmin(user, projectId)) {
       throw new ForbiddenError("User is not a member of this project");
     }
 
     if (
       !hasEntitlement({
         entitlement: "in-app-agent",
-        sessionUser: auth.user,
+        sessionUser: user,
         projectId,
       })
     ) {
@@ -217,7 +219,7 @@ export default async function handler(request: Request) {
 
     // TODO: Add an additional user-level cap once the rate-limit service supports non-org keys.
     const rateLimitScope = getInAppAgentRateLimitScope(
-      auth.user,
+      user,
       projectId,
       project.organization,
     );
@@ -235,7 +237,7 @@ export default async function handler(request: Request) {
       prisma,
       projectId,
       conversationId,
-      userId: auth.userId,
+      userId: userId,
     });
 
     if (isResumeAgentInput(sanitizedInput)) {
@@ -421,11 +423,12 @@ export default async function handler(request: Request) {
                 url: getLangfuseMcpUrl(),
                 publicKey: mcpApiKey.publicKey,
                 secretKey: mcpApiKey.secretKey,
+                userAccess: getInAppAgentUserAccess(user, projectId),
                 runOverride,
               },
               redirectAction: {
                 projectId,
-                isV4Enabled: session.user?.v4BetaEnabled ?? false,
+                isV4Enabled: user?.v4BetaEnabled ?? false,
               },
               langfuseClient,
               useLocalPrompt,
@@ -435,13 +438,13 @@ export default async function handler(request: Request) {
                       targetProjectId,
                       environment: "langfuse-in-app-agent",
                       user: {
-                        id: auth.userId,
-                        email: auth.user.email,
+                        id: userId,
+                        email: user.email,
                       },
                       traceId: conversation.id,
                       metadata: {
                         langfuse_ai_feature: "in-app-agent",
-                        langfuse_user_id: auth.userId,
+                        langfuse_user_id: userId,
                         langfuse_project_id: projectId,
                         conversation_id: conversation.id,
                         thread_id: sanitizedInput.threadId,
@@ -499,6 +502,20 @@ export default async function handler(request: Request) {
 }
 
 type SessionUser = NonNullable<Session["user"]>;
+
+function getInAppAgentUserAccess(
+  user: SessionUser,
+  projectId: string,
+): InAppAgentUserAccess {
+  const projectRole = user.organizations
+    .flatMap((organization) => organization.projects)
+    .find((project) => project.id === projectId)?.role;
+
+  return {
+    projectRole,
+    isAdmin: user.admin === true,
+  };
+}
 
 function getInAppAgentRateLimitScope(
   user: SessionUser,
@@ -648,10 +665,6 @@ function getInAppAgentMcpRegistryToolName(toolName: string | undefined) {
   const registryToolName = toolName.slice("langfuse_".length);
 
   return isMcpToolName(registryToolName) ? registryToolName : undefined;
-}
-
-function isMcpToolName(toolName: string): toolName is McpToolName {
-  return IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES.has(toolName as McpToolName);
 }
 
 async function cleanupInAppAgentMcpApiKey(params: {

@@ -1,4 +1,5 @@
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { filterInAppAgentAvailableLangfuseMcpTools } from "@/src/ee/features/in-app-agent/server/tools";
 import { storePendingToolApproval } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
 import type { InAppAgentToolApprovalRequest } from "@/src/ee/features/in-app-agent/schema";
 import { env } from "@/src/env.mjs";
@@ -141,6 +142,37 @@ describe("in-app agent public API route auth", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res._getJSONData()).toEqual({ ok: true });
+  });
+
+  it("filters Langfuse MCP tools using the in-app agent user's access", () => {
+    const tools = {
+      createModel: { id: "createModel" },
+      listDatasets: { id: "listDatasets" },
+      getPrompt: { id: "getPrompt" },
+    };
+
+    expect(
+      filterInAppAgentAvailableLangfuseMcpTools({
+        tools,
+        userAccess: {
+          projectRole: "MEMBER",
+          isAdmin: false,
+        },
+      }),
+    ).toEqual({
+      listDatasets: { id: "listDatasets" },
+      getPrompt: { id: "getPrompt" },
+    });
+
+    expect(
+      filterInAppAgentAvailableLangfuseMcpTools({
+        tools,
+        userAccess: {
+          projectRole: "OWNER",
+          isAdmin: false,
+        },
+      }),
+    ).toEqual(tools);
   });
 
   it("passes validated resume forwarded props without requiring a user message", async () => {

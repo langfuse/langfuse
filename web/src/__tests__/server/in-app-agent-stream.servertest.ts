@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { AgUiEvent } from "@/src/ee/features/in-app-agent/schema";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
 import { patchMastraToolCallInputStreaming } from "@/src/ee/features/in-app-agent/server/agent";
-import { IN_APP_AGENT_LANGFUSE_MCP_TOOL_APPROVALS } from "@/src/ee/features/in-app-agent/server/tools";
+import { IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES } from "@/src/ee/features/in-app-agent/server/tools";
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
 import { decodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
 import "@/src/features/mcp/server/bootstrap";
@@ -45,6 +45,11 @@ const promptMocks = vi.hoisted(() => ({
   compile: vi.fn(() => "Prompt-managed assistant instructions"),
   getPrompt: vi.fn(),
 }));
+
+const defaultInAppAgentUserAccess = {
+  projectRole: "OWNER" as const,
+  isAdmin: false,
+};
 
 vi.mock("@ag-ui/mastra", () => ({
   MastraAgent: vi.fn().mockImplementation(function () {
@@ -495,7 +500,7 @@ describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_APPROVALS", () => {
     const tools = getRegisteredLangfuseMcpTools();
     const registeredToolNames = tools.map((tool) => tool.name).sort();
     const classifiedToolNames = Object.keys(
-      IN_APP_AGENT_LANGFUSE_MCP_TOOL_APPROVALS,
+      IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES,
     ).sort();
 
     expect(classifiedToolNames).toEqual(registeredToolNames);
@@ -609,6 +614,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
+          userAccess: defaultInAppAgentUserAccess,
           runOverride: "run-override",
         },
         redirectAction: {
@@ -639,10 +645,6 @@ describe("createAgUiStream", () => {
           langfuse_getHealth: expect.objectContaining({
             server: "langfuse",
           }),
-          langfuse_search: expect.objectContaining({
-            server: "langfuse",
-            requireApproval: true,
-          }),
           langfuse_upsertDataset: expect.objectContaining({
             server: "langfuse",
             requireApproval: true,
@@ -662,6 +664,7 @@ describe("createAgUiStream", () => {
       }),
     );
     const agentConfig = vi.mocked(Agent).mock.calls[0]?.[0];
+    expect(agentConfig?.tools).not.toHaveProperty("langfuse_search");
     expect(agentConfig?.tools?.langfuse_getHealth).not.toHaveProperty(
       "requireApproval",
     );
@@ -817,6 +820,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
+          userAccess: defaultInAppAgentUserAccess,
           runOverride: "run-override",
         },
         redirectAction: {
@@ -965,6 +969,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
+          userAccess: defaultInAppAgentUserAccess,
           runOverride: "run-override",
         },
         redirectAction: {
@@ -1105,6 +1110,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
+          userAccess: defaultInAppAgentUserAccess,
           runOverride: "run-override",
         },
         redirectAction: {
@@ -1163,6 +1169,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
+          userAccess: defaultInAppAgentUserAccess,
           runOverride: "run-override",
         },
         redirectAction: {
@@ -1258,6 +1265,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
+          userAccess: defaultInAppAgentUserAccess,
           runOverride: "run-override",
         },
         redirectAction: {
@@ -1355,6 +1363,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
+          userAccess: defaultInAppAgentUserAccess,
           runOverride: "run-override",
         },
         redirectAction: {
