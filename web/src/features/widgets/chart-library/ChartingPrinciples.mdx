@@ -3,18 +3,15 @@ import * as Principles from "./ChartingPrinciples.stories";
 
 <Meta title="Design System/Charts/Principles" />
 
-{/_ Suprematist palette, but theme-aware: ink/paper come from the app's CSS vars
-(toggled by the `.dark` class the story decorators set on <html>), so the
-article follows the theme switch like the charts do. Red is the one fixed
-accent — it reads on both light and dark. _/}
 export const RED = "#E4002B";
 export const FG = "hsl(var(--foreground))";
 export const BG = "hsl(var(--background))";
 export const MUTED = "hsl(var(--muted-foreground))";
 export const BORDER = "hsl(var(--border))";
-// The bold slabs (hero, principle numbers) stay a fixed ink/paper in BOTH
-// themes — a near-black block reads as the cover in light AND dark, where
-// flipping it to a light block (via the theme vars) looked wrong.
+// RED is the one fixed accent (reads on both themes); FG/BG/MUTED/BORDER track
+// the app theme. The bold slabs (hero, principle numbers) stay a fixed
+// ink/paper in BOTH themes — flipping them to a light block via the theme vars
+// looked washed-out and wrong in dark.
 export const INK = "#0B0B0B";
 export const PAPER = "#F3F1EA";
 
