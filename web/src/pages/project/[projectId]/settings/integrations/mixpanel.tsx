@@ -13,7 +13,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { PasswordInput } from "@/src/components/ui/password-input";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   Select,
   SelectContent,
@@ -333,14 +333,15 @@ const MixpanelIntegrationSettingsForm = ({
             <FormItem>
               <FormLabel>Enabled</FormLabel>
               <FormControl>
-                <Switch
-                  id="mixpanel-integration-enabled"
-                  checked={field.value}
-                  onCheckedChange={() => {
-                    field.onChange(!field.value);
-                  }}
-                  className="mt-1 ml-4"
-                />
+                <div className="mt-1 ml-4">
+                  <Switch
+                    id="mixpanel-integration-enabled"
+                    checked={field.value}
+                    onCheckedChange={() => {
+                      field.onChange(!field.value);
+                    }}
+                  />
+                </div>
               </FormControl>
               <FormMessage />
             </FormItem>
