@@ -40,7 +40,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { BaseError, UnauthorizedError, ForbiddenError } from "@langfuse/shared";
 import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
-import { IN_APP_AGENT_MCP_RUN_OVERRIDE_HEADER } from "@/src/ee/features/in-app-agent/constants";
+import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@/src/ee/features/in-app-agent/constants";
 import { InAppAgentMcpRunOverrideSchema } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
 import { safeJsonParse } from "@/src/utils/json";
 
@@ -175,7 +175,7 @@ export default async function handler(
   }
 }
 
-function getInAppAgentContext(
+export function getInAppAgentContext(
   req: NextApiRequest,
   isInAppAgentKey: boolean | undefined,
 ): ServerContext["inAppAgent"] {
@@ -183,7 +183,7 @@ function getInAppAgentContext(
     return undefined;
   }
 
-  const headerValue = req.headers[IN_APP_AGENT_MCP_RUN_OVERRIDE_HEADER];
+  const headerValue = req.headers[IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER];
 
   if (typeof headerValue !== "string") {
     return { permissions: "read" };

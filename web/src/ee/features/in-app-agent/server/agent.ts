@@ -33,7 +33,7 @@ import {
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
 import { logger } from "@langfuse/shared/src/server";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
-import { IN_APP_AGENT_MCP_RUN_OVERRIDE_HEADER } from "@/src/ee/features/in-app-agent/constants";
+import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@/src/ee/features/in-app-agent/constants";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
 const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
@@ -664,7 +664,7 @@ async function createMastraAdapter(params: {
             Authorization: params.langfuseMcpAuthHeader,
             ...(params.options.langfuseMcp.runOverride
               ? {
-                  [IN_APP_AGENT_MCP_RUN_OVERRIDE_HEADER]:
+                  [IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER]:
                     params.options.langfuseMcp.runOverride,
                 }
               : {}),

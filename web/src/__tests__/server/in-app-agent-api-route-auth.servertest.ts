@@ -278,9 +278,6 @@ describe("in-app agent public API route auth", () => {
       expect(
         JSON.parse(createStreamCall.options.langfuseMcp.runOverride),
       ).toEqual({
-        apiKeyId: expect.any(String),
-        projectId: project.id,
-        runId: "client-run-1",
         toolName: "upsertDataset",
       });
     } finally {

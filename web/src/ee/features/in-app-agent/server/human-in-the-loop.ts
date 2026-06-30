@@ -14,7 +14,7 @@ import {
   type ResumeForwardedProps,
 } from "@/src/ee/features/in-app-agent/schema";
 
-export const IN_APP_AGENT_MCP_RUN_SECRET_TTL_SECONDS = 60 * 60;
+export const IN_APP_AGENT_PENDING_TOOL_APPROVAL_TTL_SECONDS = 60 * 60;
 const MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE =
   "Tool call was not approved by the user.";
 
@@ -53,7 +53,7 @@ export async function storePendingToolApproval(params: {
     params.approvalRequest,
   );
   const expiresAt = new Date(
-    Date.now() + IN_APP_AGENT_MCP_RUN_SECRET_TTL_SECONDS * 1000,
+    Date.now() + IN_APP_AGENT_PENDING_TOOL_APPROVAL_TTL_SECONDS * 1000,
   );
 
   await prisma.inAppAgentPendingToolApproval.upsert({
