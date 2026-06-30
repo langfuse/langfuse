@@ -7,7 +7,7 @@ import React, {
 } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 
-import { TraceGraphCanvas } from "./TraceGraphCanvas";
+import { ElkGraphRenderer } from "./ElkGraphRenderer";
 import { type AgentGraphDataResponse } from "../types";
 import { buildStepData } from "../buildStepData";
 import {
@@ -170,7 +170,7 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
 
   return (
     <div className="h-full w-full">
-      <TraceGraphCanvas
+      <ElkGraphRenderer
         graph={graph}
         selectedNodeName={selectedNodeName}
         onCanvasNodeNameChange={onCanvasNodeNameChange}

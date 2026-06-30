@@ -1,0 +1,127 @@
+import React from "react";
+
+import { renderFilterIcon } from "@/src/components/ItemBadge";
+import { cn } from "@/src/utils/tailwind";
+import { truncateLabel } from "../layout/measureNode";
+import {
+  LANGFUSE_START_NODE_NAME,
+  LANGFUSE_END_NODE_NAME,
+  LANGGRAPH_START_NODE_NAME,
+  LANGGRAPH_END_NODE_NAME,
+} from "../types";
+
+/**
+ * Per-type border accent. HTML nodes can use Tailwind directly, so colors
+ * (and dark mode) come from the design system — aligned with `ItemBadge`'s
+ * type palette instead of a mirrored hex map.
+ */
+const TYPE_BORDER_CLASS: Record<string, string> = {
+  AGENT: "border-purple-500",
+  TOOL: "border-orange-500",
+  GENERATION: "border-fuchsia-500",
+  SPAN: "border-blue-500",
+  CHAIN: "border-pink-500",
+  RETRIEVER: "border-teal-500",
+  EVENT: "border-green-500",
+  EMBEDDING: "border-amber-500",
+  GUARDRAIL: "border-red-500",
+};
+const DEFAULT_BORDER_CLASS = "border-blue-500";
+
+const isStartNode = (id: string) =>
+  id === LANGFUSE_START_NODE_NAME || id === LANGGRAPH_START_NODE_NAME;
+const isEndNode = (id: string) =>
+  id === LANGFUSE_END_NODE_NAME || id === LANGGRAPH_END_NODE_NAME;
+
+export type GraphNodeProps = {
+  id: string;
+  label: string;
+  type: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Suffix appended after the label, e.g. " (2/3)" for observation cycling. */
+  counter?: string;
+  selected?: boolean;
+  dimmed?: boolean;
+  /** Hide the text label (when zoomed out) — keeps the box, shows only the icon. */
+  compact?: boolean;
+  onSelect?: (id: string) => void;
+  onHover?: (id: string | null) => void;
+};
+
+function GraphNodeComponent({
+  id,
+  label,
+  type,
+  x,
+  y,
+  width,
+  height,
+  counter,
+  selected,
+  dimmed,
+  compact,
+  onSelect,
+  onHover,
+}: GraphNodeProps) {
+  const display = `${truncateLabel(label)}${counter ?? ""}`;
+  const style: React.CSSProperties = { left: x, top: y, width, height };
+
+  const shared = cn(
+    "absolute flex select-none items-center justify-center gap-1.5 overflow-hidden rounded-md px-2 text-xs font-medium transition-[opacity,box-shadow]",
+    onSelect && "cursor-pointer hover:ring-2 hover:ring-ring/40",
+    dimmed && "opacity-35",
+  );
+
+  const handlers = {
+    onClick: onSelect
+      ? (event: React.MouseEvent) => {
+          event.stopPropagation(); // don't trigger the canvas background deselect
+          onSelect(id);
+        }
+      : undefined,
+    onMouseEnter: onHover ? () => onHover(id) : undefined,
+    onMouseLeave: onHover ? () => onHover(null) : undefined,
+  };
+
+  if (isStartNode(id) || isEndNode(id)) {
+    const isStart = isStartNode(id);
+    return (
+      <div
+        style={style}
+        className={cn(
+          shared,
+          "border-2 text-white",
+          isStart
+            ? "border-green-700 bg-green-600"
+            : "border-red-700 bg-red-600",
+          selected && "ring-ring ring-2 ring-offset-1",
+        )}
+        {...handlers}
+      >
+        <span className="truncate">{display}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={style}
+      title={truncateLabel(label) === label ? undefined : label}
+      className={cn(
+        shared,
+        "bg-background text-foreground border-2",
+        TYPE_BORDER_CLASS[type] ?? DEFAULT_BORDER_CLASS,
+        selected && "ring-ring ring-2 ring-offset-1",
+      )}
+      {...handlers}
+    >
+      {renderFilterIcon(type)}
+      {!compact && <span className="truncate">{display}</span>}
+    </div>
+  );
+}
+
+export const GraphNode = React.memo(GraphNodeComponent);
