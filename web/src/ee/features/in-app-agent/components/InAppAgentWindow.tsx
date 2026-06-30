@@ -9,6 +9,7 @@ import {
   Minus,
   Plus,
   SendHorizontal,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -95,6 +96,7 @@ export type InAppAgentWindowProps = {
   isLoadingMoreConversations: boolean;
   messages: InAppAgentWindowMessage[];
   onExpandedChange: (isExpanded: boolean) => void;
+  onDeleteConversation: (conversation: InAppAgentWindowConversation) => void;
   onLoadMoreConversations: () => void;
   onNewConversation: () => void;
   onApproveToolCall: (approvalId: string) => Promise<void>;
@@ -120,6 +122,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     isInputDisabled,
     isLoadingMoreConversations,
     messages,
+    onDeleteConversation,
     onExpandedChange,
     onLoadMoreConversations,
     onNewConversation,
@@ -135,6 +138,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const previousScrollTopRef = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [input, setInput] = useState("");
+  const [isConversationHistoryOpen, setIsConversationHistoryOpen] =
+    useState(false);
   const hasUserMessage = messages.some((message) => message.role === "user");
   const pendingToolCalls = messages.flatMap((message) =>
     message.content.type === "toolGroup"
@@ -255,7 +260,10 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             </TooltipTrigger>
             <TooltipContent>Start new conversation</TooltipContent>
           </Tooltip>
-          <DropdownMenu>
+          <DropdownMenu
+            open={isConversationHistoryOpen}
+            onOpenChange={setIsConversationHistoryOpen}
+          >
             <Tooltip delayDuration={100} disableHoverableContent>
               <TooltipTrigger asChild>
                 <DropdownMenuTrigger asChild>
@@ -288,13 +296,31 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   <DropdownMenuItem
                     key={conversation.id}
                     className={cn(
-                      "truncate",
+                      "flex items-center gap-1",
                       conversation.id === selectedConversationId &&
                         "bg-accent text-accent-foreground",
                     )}
                     onSelect={() => onSelectConversation(conversation.id)}
                   >
-                    {conversation.title?.trim() || "Untitled conversation"}
+                    <span className="min-w-0 flex-1 truncate">
+                      {conversation.title?.trim() || "Untitled conversation"}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      className="text-muted-foreground hover:text-destructive -mr-1.5 shrink-0"
+                      disabled={isInputDisabled}
+                      aria-label="Delete conversation"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setIsConversationHistoryOpen(false);
+                        onDeleteConversation(conversation);
+                      }}
+                    >
+                      <Trash2 className="size-3" />
+                    </Button>
                   </DropdownMenuItem>
                 ))
               )}

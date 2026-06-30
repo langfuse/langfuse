@@ -79,6 +79,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   selectedConversationId: undefined,
   loadMoreConversations: () => undefined,
   selectConversation: () => undefined,
+  deleteConversation: async () => undefined,
   submit: async () => false,
   approveToolCall: async () => undefined,
   rejectToolCall: async () => undefined,
@@ -122,6 +123,7 @@ type InAppAiAgentContextType = {
   selectedConversationId: string | undefined;
   loadMoreConversations: () => void;
   selectConversation: (conversationId: string | null) => void;
+  deleteConversation: (conversationId: string) => Promise<void>;
   submit: (content: string) => Promise<boolean>;
   approveToolCall: (approvalId: string) => Promise<void>;
   rejectToolCall: (approvalId: string) => Promise<void>;
@@ -244,6 +246,8 @@ function InAppAiAgentProviderInner({
       enabled: open && Boolean(selectedConversationId) && !isSubmitting,
     },
   );
+  const deleteConversationMutation =
+    api.inAppAgent.deleteConversation.useMutation();
   const feedbackMutation = api.inAppAgent.submitFeedback.useMutation();
 
   const conversations = useMemo(
@@ -582,6 +586,61 @@ function InAppAiAgentProviderInner({
     [isRunning, resetAgent, selectedConversationId, setSelectedConversationId],
   );
 
+  const deleteConversation = useCallback(
+    async (conversationId: string) => {
+      if (isRunning) {
+        return;
+      }
+
+      try {
+        await deleteConversationMutation.mutateAsync({
+          projectId,
+          conversationId,
+        });
+
+        if (conversationId === selectedConversationId) {
+          resetAgent();
+          setMessages([]);
+          setSelectedConversationId(null);
+        }
+
+        setFeedbackByConversationId((currentFeedback) => {
+          if (!currentFeedback[conversationId]) {
+            return currentFeedback;
+          }
+
+          const nextFeedback = { ...currentFeedback };
+          delete nextFeedback[conversationId];
+          return nextFeedback;
+        });
+
+        await Promise.all([
+          utils.inAppAgent.listConversations.invalidate({ projectId }),
+          utils.inAppAgent.getConversation.invalidate({
+            projectId,
+            conversationId,
+          }),
+        ]);
+      } catch (error) {
+        const errorMessage = getAgentErrorMessage(error);
+        showErrorToast("Failed to delete conversation", errorMessage);
+        console.error("Failed to delete in-app agent conversation", error);
+        throw error;
+      }
+    },
+    [
+      deleteConversationMutation,
+      isRunning,
+      projectId,
+      resetAgent,
+      selectedConversationId,
+      setFeedbackByConversationId,
+      setSelectedConversationId,
+      utils.inAppAgent.getConversation,
+      utils.inAppAgent.listConversations,
+    ],
+  );
+
   const submit = useCallback(
     async (content: string) => {
       if (
@@ -852,6 +911,7 @@ function InAppAiAgentProviderInner({
       selectedConversationId: selectedConversationId ?? undefined,
       loadMoreConversations,
       selectConversation,
+      deleteConversation,
       submit,
       approveToolCall,
       rejectToolCall,
@@ -867,6 +927,7 @@ function InAppAiAgentProviderInner({
       isRunning,
       isSelectedConversationHydrating,
       isSubmitting,
+      deleteConversation,
       loadMoreConversations,
       messagesWithFeedback,
       open,

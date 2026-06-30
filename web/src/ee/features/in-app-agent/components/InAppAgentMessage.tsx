@@ -1,5 +1,4 @@
 "use client";
-
 import {
   ArrowRight,
   Check,
@@ -40,6 +39,11 @@ import { useElementSize } from "@/src/hooks/useElementSize";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import {
+  expandMarkdownSelection,
+  getMarkdownSourceRangeFromRenderedOffsets,
+  projectMarkdownToRenderedText,
+} from "./utils/markdown";
 import styles from "./InAppAgentMessage.module.css";
 import { InAppAgentToolPayload } from "./InAppAgentToolPayload";
 import { type InAppAgentToolCallContent } from "@/src/ee/features/in-app-agent/components/utils/utils";
@@ -685,6 +689,24 @@ function MessageText({
   return (
     <div
       data-compact={isCompact}
+      onCopy={(event) => {
+        const browserSelection =
+          event.currentTarget.ownerDocument.getSelection();
+
+        const result = getSelectedMarkdownFromSource(
+          event.currentTarget,
+          browserSelection,
+          text,
+        );
+
+        if (!result) {
+          return;
+        }
+
+        event.preventDefault();
+        event.clipboardData.setData("text/plain", result.markdown);
+        event.clipboardData.setData("text/html", result.html);
+      }}
       className={cn(styles.Streamdown, isCompact && styles.compact)}
     >
       <Streamdown
@@ -729,6 +751,111 @@ function MessageText({
   );
 }
 
+function getSelectedMarkdownFromSource(
+  root: HTMLElement,
+  selection: Selection | null,
+  markdown: string,
+): { markdown: string; html: string } | null {
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+    return null;
+  }
+
+  const range = selection.getRangeAt(0);
+  if (
+    !(range.startContainer === root || root.contains(range.startContainer)) ||
+    !(range.endContainer === root || root.contains(range.endContainer))
+  ) {
+    return null;
+  }
+
+  const selectedText = selection.toString();
+  if (!selectedText.trim()) {
+    return null;
+  }
+
+  const projection = projectMarkdownToRenderedText(markdown);
+
+  const renderedStart = (() => {
+    const prefixRange = root.ownerDocument.createRange();
+    prefixRange.selectNodeContents(root);
+    prefixRange.setEnd(range.startContainer, range.startOffset);
+    return prefixRange.toString().length;
+  })();
+
+  const renderedEnd = (() => {
+    const prefixRange = root.ownerDocument.createRange();
+    prefixRange.selectNodeContents(root);
+    prefixRange.setEnd(range.endContainer, range.endOffset);
+    return prefixRange.toString().length;
+  })();
+
+  const fallbackStart = projection.plain.indexOf(selectedText, renderedStart);
+  const exactTextSelection =
+    fallbackStart === -1
+      ? null
+      : getMarkdownSourceRangeFromRenderedOffsets(
+          projection,
+          fallbackStart,
+          fallbackStart + selectedText.length,
+        );
+  const offsetSelection = getMarkdownSourceRangeFromRenderedOffsets(
+    projection,
+    renderedStart,
+    renderedEnd,
+  );
+
+  const sourceRange = exactTextSelection ?? offsetSelection;
+
+  if (!sourceRange) {
+    return null;
+  }
+
+  const { start, end } = expandMarkdownSelection(
+    markdown,
+    sourceRange.start,
+    sourceRange.end,
+  );
+  const selectedMarkdown = trimTrailingFenceNewline(markdown, start, end);
+
+  const htmlContainer = root.ownerDocument.createElement("div");
+  htmlContainer.append(range.cloneContents());
+  htmlContainer
+    .querySelectorAll("[data-in-app-agent-code-copy-button]")
+    .forEach((node) => node.remove());
+
+  return {
+    markdown: selectedMarkdown,
+    html: htmlContainer.innerHTML,
+  };
+}
+
+function trimTrailingFenceNewline(
+  markdown: string,
+  start: number,
+  end: number,
+) {
+  const selectedMarkdown = markdown.slice(start, end);
+
+  if (
+    !selectedMarkdown.endsWith("\n") ||
+    !markdown.slice(end).startsWith("```")
+  ) {
+    return selectedMarkdown;
+  }
+
+  const openingFenceIndex = markdown.lastIndexOf("```", start);
+  if (openingFenceIndex === -1) {
+    return selectedMarkdown;
+  }
+
+  const previousClosingFenceIndex = markdown.lastIndexOf("\n```", start);
+  if (previousClosingFenceIndex > openingFenceIndex) {
+    return selectedMarkdown;
+  }
+
+  return selectedMarkdown.slice(0, -1);
+}
+
 function CodeBlock({ children }: { children: ReactNode }) {
   const { copy, isCopied } = useCopyToClipboard({ successDuration: 1_500 });
 
@@ -751,13 +878,15 @@ function CodeBlock({ children }: { children: ReactNode }) {
     <pre className="group/code-block relative pr-10">
       <button
         type="button"
+        data-in-app-agent-code-copy-button="true"
         aria-label={isCopied ? "Copied code" : "Copy code"}
         title={isCopied ? "Copied" : "Copy code"}
+        contentEditable={false}
         disabled={!code}
         onClick={() => {
           copy(code).catch(() => undefined);
         }}
-        className="bg-background/90 text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute top-1.5 right-1.5 z-10 inline-flex size-6 items-center justify-center rounded-md border opacity-80 shadow-sm transition hover:opacity-100 focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+        className="bg-background/90 text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute top-1.5 right-1.5 z-10 inline-flex size-6 items-center justify-center rounded-md border opacity-80 shadow-sm transition select-none hover:opacity-100 focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
       >
         {isCopied ? (
           <Check className="size-3.5" />
