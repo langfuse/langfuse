@@ -18,8 +18,7 @@ import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { DashboardLineTimeSeriesChart } from "@/src/features/dashboard/components/DashboardLineTimeSeriesChart";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 
 export function NumericScoreTimeSeriesChart(props: {
@@ -111,16 +110,9 @@ export function NumericScoreTimeSeriesChart(props: {
     isNullValueAllowed: true,
   }) ? (
     <div className="h-80 w-full shrink-0">
-      <Chart
-        chartType="LINE_TIME_SERIES"
-        data={timeSeriesToDataPoints(extractedScores)}
-        rowLimit={100}
-        chartConfig={{
-          type: "LINE_TIME_SERIES",
-          show_data_point_dots: false,
-          subtle_fill: true,
-        }}
-        legendPosition="above"
+      <DashboardLineTimeSeriesChart
+        data={extractedScores}
+        subtleFill
         syncId={props.syncId}
       />
     </div>
