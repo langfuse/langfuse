@@ -11,6 +11,7 @@ import {
 import { filterStateToQueryText } from "./filter-state-to-query";
 import {
   createDatasetsSearchBarRegistry,
+  createPromptsSearchBarRegistry,
   createUsersSearchBarRegistry,
 } from "./registries";
 
@@ -75,6 +76,48 @@ const USER_COLUMNS: ColumnDefinition[] = [
     name: "User ID",
     type: "stringOptions",
     internal: "userId",
+    options: [],
+  },
+];
+
+const PROMPT_COLUMNS: ColumnDefinition[] = [
+  {
+    id: "id",
+    name: "ID",
+    type: "string",
+    internal: "id",
+  },
+  {
+    id: "name",
+    name: "Name",
+    type: "string",
+    internal: "name",
+  },
+  {
+    id: "version",
+    name: "Version",
+    type: "number",
+    internal: "version",
+  },
+  {
+    id: "type",
+    name: "Type",
+    type: "stringOptions",
+    internal: "type",
+    options: [],
+  },
+  {
+    id: "labels",
+    name: "Labels",
+    type: "arrayOptions",
+    internal: "labels",
+    options: [],
+  },
+  {
+    id: "tags",
+    name: "Tags",
+    type: "arrayOptions",
+    internal: "tags",
     options: [],
   },
 ];
@@ -199,5 +242,16 @@ describe("non-events search bar registries", () => {
     expect(
       filterStateToQueryText([], { registry, searchQuery: "dataset" }).text,
     ).toBe("dataset");
+  });
+
+  it("routes prompts free text into name/tag and content search", () => {
+    const registry = createPromptsSearchBarRegistry(PROMPT_COLUMNS);
+    const result = planCommit("refund policy", { registry });
+
+    expect(result.status).toBe("committed");
+    if (result.status !== "committed") return;
+    expect(result.filters).toEqual([]);
+    expect(result.searchQuery).toBe("refund policy");
+    expect(result.searchType).toEqual(["id", "content"]);
   });
 });

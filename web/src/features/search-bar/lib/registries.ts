@@ -13,6 +13,11 @@ const NON_EVENTS_FREE_TEXT = {
   defaultSearchType: [],
   scopeFields: [],
 } as const;
+const PROMPTS_FREE_TEXT = {
+  enabled: true,
+  defaultSearchType: ["id", "content"],
+  scopeFields: [],
+} as const;
 
 const sessionScorePaths: ScorePathDef[] = [
   {
@@ -171,5 +176,21 @@ export function createDatasetsSearchBarRegistry(): FieldRegistry {
     suggestionFieldIds: [],
     hasPseudoField: false,
     freeText: NON_EVENTS_FREE_TEXT,
+  });
+}
+
+export function createPromptsSearchBarRegistry(
+  columns: readonly ColumnDefinition[],
+): FieldRegistry {
+  return createFieldRegistryFromColumns("prompts", columns, {
+    aliases: {
+      id: ["prompt", "promptid", "prompt_id"],
+      createdAt: ["created", "created_at"],
+      updatedAt: ["updated", "updated_at"],
+      labels: ["label"],
+      tags: ["tag"],
+    },
+    suggestionFieldIds: ["type", "labels", "tags", "name"],
+    freeText: PROMPTS_FREE_TEXT,
   });
 }

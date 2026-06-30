@@ -9,6 +9,7 @@ import {
   createEvaluatorsSearchBarRegistry,
   createExperimentsSearchBarRegistry,
   createMonitorsSearchBarRegistry,
+  createPromptsSearchBarRegistry,
   createScoresSearchBarRegistry,
   createSessionsSearchBarRegistry,
   createUsersSearchBarRegistry,
@@ -443,6 +444,60 @@ const USER_COLUMNS: ColumnDefinition[] = [
   },
 ];
 
+const PROMPT_COLUMNS: ColumnDefinition[] = [
+  {
+    name: "ID",
+    id: "id",
+    type: "string",
+    internal: "id",
+  },
+  {
+    name: "Name",
+    id: "name",
+    type: "string",
+    internal: "name",
+  },
+  {
+    name: "Version",
+    id: "version",
+    type: "number",
+    internal: "version",
+  },
+  {
+    name: "Created At",
+    id: "createdAt",
+    type: "datetime",
+    internal: "createdAt",
+  },
+  {
+    name: "Updated At",
+    id: "updatedAt",
+    type: "datetime",
+    internal: "updatedAt",
+  },
+  {
+    name: "Type",
+    id: "type",
+    type: "stringOptions",
+    internal: "type",
+    options: [],
+  },
+  {
+    name: "Labels",
+    id: "labels",
+    type: "arrayOptions",
+    internal: "labels",
+    options: [],
+  },
+  {
+    name: "Tags",
+    id: "tags",
+    type: "arrayOptions",
+    internal: "tags",
+    options: [],
+  },
+];
+
 const sessionsView: RegistryUnderTest = {
   name: "sessions v4",
   registry: createSessionsSearchBarRegistry(SESSION_COLUMNS),
@@ -537,6 +592,15 @@ const usersView: RegistryUnderTest = {
   freeTextValues: nonEventsFreeTextValues,
 };
 
+const promptsView: RegistryUnderTest = {
+  name: "prompts",
+  registry: createPromptsSearchBarRegistry(PROMPT_COLUMNS),
+  extraKeys: ["has:createdAt"],
+  scoreContexts: [],
+  fieldValues: filterOnlyFieldValues,
+  freeTextValues: nonEventsFreeTextValues,
+};
+
 const datasetsView: RegistryUnderTest = {
   name: "datasets",
   registry: createDatasetsSearchBarRegistry(),
@@ -582,6 +646,7 @@ describe.each([
   evalLogsView,
   monitorsView,
   usersView,
+  promptsView,
 ])("search bar invariants - $name registry", (view) => {
   it("generates a non-empty field × operator × value matrix", () => {
     expect(generateQueryCases(view).length).toBeGreaterThan(0);
