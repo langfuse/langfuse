@@ -66,10 +66,12 @@ export function usePeekPanelState({
   isOpen,
   isExpanded,
   onExpandedChange,
+  resizeAriaLabel = "Resize peek view",
 }: {
   isOpen: boolean;
   isExpanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
+  resizeAriaLabel?: string;
 }): PeekPanelView {
   const [store] = useState(() => createPeekPanelStore());
 
@@ -206,7 +208,7 @@ export function usePeekPanelState({
     resizeHandleProps: {
       role: "separator",
       "aria-orientation": "vertical",
-      "aria-label": "Resize peek view",
+      "aria-label": resizeAriaLabel,
       "aria-valuemin": Math.round(PEEK_MIN_WIDTH_FRACTION * 100),
       "aria-valuemax": 100,
       "aria-valuenow": widthPercent,

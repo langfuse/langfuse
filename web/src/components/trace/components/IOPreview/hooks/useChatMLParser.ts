@@ -95,11 +95,14 @@ export function useChatMLParser(
     const outputClean = cleanLegacyOutput(parsedOutput, parsedOutput);
 
     // Combine messages
-    const messages = combineInputOutputMessages(
-      inResult,
-      outResult,
-      outputClean,
-    );
+    const messages = inResult.success
+      ? combineInputOutputMessages(inResult, outResult, outputClean)
+      : outResult.success
+        ? outResult.data.map((message) => ({
+            ...message,
+            role: message.role ?? "assistant",
+          }))
+        : [];
 
     // Extract all unique tools from messages (no numbering yet)
     const toolsMap = new Map<string, ToolDefinition>();

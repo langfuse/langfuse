@@ -52,6 +52,8 @@ const toObservationWithStringifiedIO = (
  * Above this: Web Worker (non-blocking, prevents UI freeze)
  */
 const PARSE_IN_WEBWORKER_THRESHOLD = 100_000; // 100KB
+const FALLBACK_MIN_START_TIME = new Date(0);
+const FALLBACK_MAX_START_TIME = new Date("2100-01-01T00:00:00.000Z");
 
 /**
  * Estimate the size of a value in characters (for threshold check)
@@ -218,6 +220,8 @@ export function useParsedObservation({
   forceFetchRaw = false,
 }: UseParsedObservationParams) {
   const { isBetaEnabled } = useV4Beta();
+  const minStartTime = startTime ?? FALLBACK_MIN_START_TIME;
+  const maxStartTime = startTime ?? FALLBACK_MAX_START_TIME;
 
   // Step 1a: Fetch raw observation data from observations table (beta OFF)
   const observationQuery = api.observations.byId.useQuery(
@@ -237,8 +241,8 @@ export function useParsedObservation({
     {
       projectId,
       observation: { id: observationId, traceId },
-      minStartTime: startTime ?? new Date(0),
-      maxStartTime: startTime ?? new Date(),
+      minStartTime,
+      maxStartTime,
     },
     {
       enabled: isBetaEnabled,
@@ -258,8 +262,8 @@ export function useParsedObservation({
     {
       projectId,
       observations: [{ id: observationId, traceId }],
-      minStartTime: startTime ?? new Date(0),
-      maxStartTime: startTime ?? new Date(),
+      minStartTime,
+      maxStartTime,
       truncated: false,
     },
     {

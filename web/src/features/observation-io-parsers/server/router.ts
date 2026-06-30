@@ -9,6 +9,8 @@ import {
   CreateObservationIoParserConfigInput,
   DeleteObservationIoParserConfigInput,
   ObservationIoParserConfigService,
+  ObservationIoParserResolutionService,
+  PreviewObservationIoParserDraftInput,
   SetObservationIoParserProjectPreferenceInput,
   SetObservationIoParserUserPreferenceInput,
   UpdateObservationIoParserConfigInput,
@@ -73,6 +75,18 @@ export const observationIoParsersRouter = createTRPCRouter({
       await ObservationIoParserConfigService.deleteConfig(input);
 
       return { success: true };
+    }),
+
+  previewDraft: protectedProjectProcedure
+    .input(PreviewObservationIoParserDraftInput)
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "observationIoParsers:CUD",
+      });
+
+      return ObservationIoParserResolutionService.previewDraft(input);
     }),
 
   getProjectPreference: protectedProjectProcedure

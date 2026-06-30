@@ -19,7 +19,6 @@
  */
 
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
-import { type Prisma } from "@langfuse/shared";
 import {
   TabsBar,
   TabsBarContent,
@@ -53,7 +52,7 @@ import { useViewPreferences } from "@/src/components/trace/contexts/ViewPreferen
 import { useTraceData } from "@/src/components/trace/contexts/TraceDataContext";
 import { useParsedObservation } from "@/src/hooks/useParsedObservation";
 import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
-import { api, type RouterOutputs } from "@/src/utils/api";
+import { api } from "@/src/utils/api";
 
 // Extracted components
 import { ObservationDetailViewHeader } from "./ObservationDetailViewHeader";
@@ -66,92 +65,7 @@ import {
 } from "@/src/components/trace/lib/trace-aggregation";
 import TagList from "@/src/features/tag/components/TagList";
 import { ObservationIoParserSelector } from "@/src/features/observation-io-parsers/components/ObservationIoParserSelector";
-
-type ParsedObservationIo = Extract<
-  RouterOutputs["events"]["parsedObservationIO"],
-  { mode: "parsed" }
->;
-
-type ParsedObservationIoPreview = {
-  input?: Prisma.JsonValue;
-  output?: Prisma.JsonValue;
-  metadata?: Prisma.JsonValue;
-};
-
-type ParsedObservationIoPreviewSection = keyof ParsedObservationIoPreview;
-
-const getParsedFieldPreviewValue = (
-  field: ParsedObservationIo["fields"][number],
-): Prisma.JsonValue => {
-  if (field.status === "ok") {
-    return field.value as Prisma.JsonValue;
-  }
-
-  if (field.status === "miss") {
-    return null;
-  }
-
-  return { error: field.error ?? "Parse error" };
-};
-
-const getUniquePreviewKey = (
-  field: ParsedObservationIo["fields"][number],
-  usedKeys: Set<string>,
-) => {
-  const baseKey = field.label.trim() || field.key;
-
-  if (!usedKeys.has(baseKey)) {
-    usedKeys.add(baseKey);
-    return baseKey;
-  }
-
-  let suffix = 2;
-  let key = `${baseKey} (${suffix})`;
-
-  while (usedKeys.has(key)) {
-    suffix += 1;
-    key = `${baseKey} (${suffix})`;
-  }
-
-  usedKeys.add(key);
-  return key;
-};
-
-const getParsedObservationIoPreview = (
-  parsedObservationIo: ParsedObservationIo,
-): ParsedObservationIoPreview => {
-  const sections = {
-    input: {} as Record<string, Prisma.JsonValue>,
-    output: {} as Record<string, Prisma.JsonValue>,
-    metadata: {} as Record<string, Prisma.JsonValue>,
-  };
-  const usedKeys = {
-    input: new Set<string>(),
-    output: new Set<string>(),
-    metadata: new Set<string>(),
-  };
-  const getPreviewSection = (
-    field: ParsedObservationIo["fields"][number],
-  ): ParsedObservationIoPreviewSection => {
-    if (field.source === "metadata") return "metadata";
-    if (field.source === "input") return "input";
-    return "output";
-  };
-
-  parsedObservationIo.fields.forEach((field) => {
-    const section = getPreviewSection(field);
-    sections[section][getUniquePreviewKey(field, usedKeys[section])] =
-      getParsedFieldPreviewValue(field);
-  });
-
-  return {
-    input: Object.keys(sections.input).length > 0 ? sections.input : undefined,
-    output:
-      Object.keys(sections.output).length > 0 ? sections.output : undefined,
-    metadata:
-      Object.keys(sections.metadata).length > 0 ? sections.metadata : undefined,
-  };
-};
+import { getParsedObservationIoPreview } from "@/src/features/observation-io-parsers/components/ParsedObservationIoView";
 
 export interface ObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -457,7 +371,12 @@ export function ObservationDetailView({
                 (selectedTab === "preview" && isPrettyViewAvailable)) && (
                 <div className="ml-auto flex items-center gap-1">
                   {selectedTab === "preview" && isV4Enabled && (
-                    <ObservationIoParserSelector projectId={projectId} />
+                    <ObservationIoParserSelector
+                      projectId={projectId}
+                      appliedConfig={
+                        parsedObservationIoData?.matchedConfig ?? null
+                      }
+                    />
                   )}
                   <Tabs
                     className="h-fit px-2 py-0.5"

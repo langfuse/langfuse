@@ -100,7 +100,12 @@ export function combineInputOutputMessages(
   cleanOutput: unknown,
 ): ChatMlMessage[] {
   if (!inputResult.success) {
-    return [];
+    return outputResult.success
+      ? outputResult.data.map((m) => ({
+          ...m,
+          role: m.role ?? "assistant",
+        }))
+      : [];
   }
 
   const combinedMessages = [

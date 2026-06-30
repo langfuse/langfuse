@@ -17,7 +17,10 @@ import {
 } from "../../repositories/events";
 import { InMemoryFilterService } from "../InMemoryFilterService";
 import { ObservationIoParserConfigService } from "./ObservationIoParserConfigService";
-import type { ParsedObservationIoInput } from "./types";
+import type {
+  ParsedObservationIoInput,
+  PreviewObservationIoParserDraftInput,
+} from "./types";
 
 const OBSERVATION_IO_PARSER_EVENT_BYTES_LIMIT = 1_000_000;
 
@@ -27,6 +30,11 @@ type ObservationIoParserMatchData = Record<string, unknown> & {
 
 type ObservationForParser = NonNullable<
   Awaited<ReturnType<typeof getObservationByIdFromEventsTable>>
+>;
+
+type ObservationIoParserCandidateConfig = Pick<
+  ObservationIoParserConfigDomain,
+  "id" | "name" | "priority" | "filters" | "instructions"
 >;
 
 const getTokensPerSecond = (observation: ObservationForParser) =>
@@ -88,24 +96,128 @@ const getObservationIoParserMatchFieldValue = (
 ): unknown => data[column];
 
 const getFirstMatchingConfig = (
-  configs: ObservationIoParserConfigDomain[],
+  configs: ObservationIoParserCandidateConfig[],
   matchData: ObservationIoParserMatchData,
 ) => {
-  let firstMatchingConfig: ObservationIoParserConfigDomain | null = null;
+  return (
+    configs.find((config) =>
+      InMemoryFilterService.evaluateFilter(
+        matchData,
+        config.filters,
+        getObservationIoParserMatchFieldValue,
+      ),
+    ) ?? null
+  );
+};
 
-  for (const config of configs) {
-    const matches = InMemoryFilterService.evaluateFilter(
-      matchData,
-      config.filters,
-      getObservationIoParserMatchFieldValue,
-    );
+const rawFallback = (
+  input: ParsedObservationIoInput,
+  reason: Extract<
+    ParsedObservationIoResponse,
+    { mode: "raw_fallback" }
+  >["reason"],
+  eventBytes?: number,
+): ParsedObservationIoResponse =>
+  ParsedObservationIoResponseSchema.parse({
+    mode: "raw_fallback",
+    observationId: input.observation.id,
+    reason,
+    ...(eventBytes !== undefined ? { eventBytes } : {}),
+  });
 
-    if (matches && firstMatchingConfig === null) {
-      firstMatchingConfig = config;
+const getObservationForParser = async (
+  input: ParsedObservationIoInput,
+): Promise<ObservationForParser | null> => {
+  try {
+    return await getObservationByIdFromEventsTable({
+      projectId: input.projectId,
+      id: input.observation.id,
+      traceId: input.observation.traceId,
+      startTime:
+        input.minStartTime.getTime() === input.maxStartTime.getTime()
+          ? input.minStartTime
+          : undefined,
+    });
+  } catch (error) {
+    if (error instanceof LangfuseNotFoundError) {
+      return null;
     }
+
+    throw error;
+  }
+};
+
+const executeMatchedParserConfig = async ({
+  input,
+  observation,
+  matchData,
+  matchingConfig,
+}: {
+  input: ParsedObservationIoInput;
+  observation: ObservationForParser;
+  matchData: ObservationIoParserMatchData;
+  matchingConfig: ObservationIoParserCandidateConfig;
+}): Promise<ParsedObservationIoResponse> => {
+  const [sourceData] = await getObservationsBatchIOFromEventsTable({
+    projectId: input.projectId,
+    observations: [input.observation],
+    minStartTime: input.minStartTime,
+    maxStartTime: input.maxStartTime,
+    truncated: false,
+  });
+
+  if (!sourceData) {
+    return rawFallback(input, "event_not_found", matchData.eventBytes);
   }
 
-  return firstMatchingConfig;
+  const parseStart = performance.now();
+
+  try {
+    const parserSourceData = buildObservationIoParserSourceData({
+      instructions: matchingConfig.instructions,
+      sourceData,
+      observationName: observation.name,
+    });
+
+    const parsed = executeObservationIoParserInstructions({
+      instructions: matchingConfig.instructions,
+      sourceData: parserSourceData,
+    });
+
+    if (
+      parsed.serializedSize > OBSERVATION_IO_PARSER_MAX_SERIALIZED_RESULT_SIZE
+    ) {
+      return rawFallback(
+        input,
+        "parsed_output_too_large",
+        matchData.eventBytes,
+      );
+    }
+
+    return ParsedObservationIoResponseSchema.parse({
+      mode: "parsed",
+      observationId: input.observation.id,
+      matchedConfig: {
+        id: matchingConfig.id,
+        name: matchingConfig.name,
+        priority: matchingConfig.priority,
+      },
+      fields: parsed.fields,
+      diagnostics: {
+        eventBytes: matchData.eventBytes,
+        parseDurationMs: performance.now() - parseStart,
+      },
+    });
+  } catch (error) {
+    logger.warn("Observation IO parser failed", {
+      projectId: input.projectId,
+      observationId: input.observation.id,
+      parserConfigId: matchingConfig.id,
+      error,
+    });
+
+    return rawFallback(input, "parser_error", matchData.eventBytes);
+  }
 };
 
 export class ObservationIoParserResolutionService {
@@ -116,11 +228,7 @@ export class ObservationIoParserResolutionService {
     },
   ): Promise<ParsedObservationIoResponse> {
     if (!input.v4BetaEnabled) {
-      return ParsedObservationIoResponseSchema.parse({
-        mode: "raw_fallback",
-        observationId: input.observation.id,
-        reason: "v4_beta_disabled",
-      });
+      return rawFallback(input, "v4_beta_disabled");
     }
 
     const preference =
@@ -130,30 +238,18 @@ export class ObservationIoParserResolutionService {
       );
 
     if (preference.disabledScope === "project") {
-      return ParsedObservationIoResponseSchema.parse({
-        mode: "raw_fallback",
-        observationId: input.observation.id,
-        reason: "project_disabled",
-      });
+      return rawFallback(input, "project_disabled");
     }
 
     if (preference.disabledScope === "user") {
-      return ParsedObservationIoResponseSchema.parse({
-        mode: "raw_fallback",
-        observationId: input.observation.id,
-        reason: "user_disabled",
-      });
+      return rawFallback(input, "user_disabled");
     }
 
     const activeConfigs =
       await ObservationIoParserConfigService.listActiveConfigs(input.projectId);
 
     if (activeConfigs.length === 0) {
-      return ParsedObservationIoResponseSchema.parse({
-        mode: "raw_fallback",
-        observationId: input.observation.id,
-        reason: "no_active_configs",
-      });
+      return rawFallback(input, "no_active_configs");
     }
 
     const candidateConfigs = preference.selectedConfigId
@@ -163,128 +259,74 @@ export class ObservationIoParserResolutionService {
       : activeConfigs;
 
     if (candidateConfigs.length === 0) {
-      return ParsedObservationIoResponseSchema.parse({
-        mode: "raw_fallback",
-        observationId: input.observation.id,
-        reason: "no_matching_config",
-      });
+      return rawFallback(input, "no_matching_config");
     }
 
-    let observation: ObservationForParser;
-    try {
-      observation = await getObservationByIdFromEventsTable({
-        projectId: input.projectId,
-        id: input.observation.id,
-        traceId: input.observation.traceId,
-        startTime:
-          input.minStartTime.getTime() === input.maxStartTime.getTime()
-            ? input.minStartTime
-            : undefined,
-      });
-    } catch (error) {
-      if (error instanceof LangfuseNotFoundError) {
-        return ParsedObservationIoResponseSchema.parse({
-          mode: "raw_fallback",
-          observationId: input.observation.id,
-          reason: "event_not_found",
-        });
-      }
-
-      throw error;
+    const observation = await getObservationForParser(input);
+    if (!observation) {
+      return rawFallback(input, "event_not_found");
     }
 
     const matchData = getObservationIoParserMatchData(observation);
 
     if (matchData.eventBytes > OBSERVATION_IO_PARSER_EVENT_BYTES_LIMIT) {
-      return ParsedObservationIoResponseSchema.parse({
-        mode: "raw_fallback",
-        observationId: input.observation.id,
-        reason: "event_too_large",
-        eventBytes: matchData.eventBytes,
-      });
+      return rawFallback(input, "event_too_large", matchData.eventBytes);
     }
 
     const matchingConfig = getFirstMatchingConfig(candidateConfigs, matchData);
 
     if (!matchingConfig) {
-      return ParsedObservationIoResponseSchema.parse({
-        mode: "raw_fallback",
-        observationId: input.observation.id,
-        reason: "no_matching_config",
-        eventBytes: matchData.eventBytes,
-      });
+      return rawFallback(input, "no_matching_config", matchData.eventBytes);
     }
 
-    const [sourceData] = await getObservationsBatchIOFromEventsTable({
-      projectId: input.projectId,
-      observations: [input.observation],
-      minStartTime: input.minStartTime,
-      maxStartTime: input.maxStartTime,
-      truncated: false,
+    return executeMatchedParserConfig({
+      input,
+      observation,
+      matchData,
+      matchingConfig,
     });
+  }
 
-    if (!sourceData) {
-      return ParsedObservationIoResponseSchema.parse({
-        mode: "raw_fallback",
-        observationId: input.observation.id,
-        reason: "event_not_found",
-        eventBytes: matchData.eventBytes,
-      });
+  public static async previewDraft(
+    input: PreviewObservationIoParserDraftInput,
+  ): Promise<ParsedObservationIoResponse> {
+    if (!input.draft.enabled) {
+      return rawFallback(input, "no_active_configs");
     }
 
-    const parseStart = performance.now();
-
-    try {
-      const parserSourceData = buildObservationIoParserSourceData({
-        instructions: matchingConfig.instructions,
-        sourceData,
-        observationName: observation.name,
-      });
-
-      const parsed = executeObservationIoParserInstructions({
-        instructions: matchingConfig.instructions,
-        sourceData: parserSourceData,
-      });
-
-      if (
-        parsed.serializedSize > OBSERVATION_IO_PARSER_MAX_SERIALIZED_RESULT_SIZE
-      ) {
-        return ParsedObservationIoResponseSchema.parse({
-          mode: "raw_fallback",
-          observationId: input.observation.id,
-          reason: "parsed_output_too_large",
-          eventBytes: matchData.eventBytes,
-        });
-      }
-
-      return ParsedObservationIoResponseSchema.parse({
-        mode: "parsed",
-        observationId: input.observation.id,
-        matchedConfig: {
-          id: matchingConfig.id,
-          name: matchingConfig.name,
-          priority: matchingConfig.priority,
-        },
-        fields: parsed.fields,
-        diagnostics: {
-          eventBytes: matchData.eventBytes,
-          parseDurationMs: performance.now() - parseStart,
-        },
-      });
-    } catch (error) {
-      logger.warn("Observation IO parser failed", {
-        projectId: input.projectId,
-        observationId: input.observation.id,
-        parserConfigId: matchingConfig.id,
-        error,
-      });
-
-      return ParsedObservationIoResponseSchema.parse({
-        mode: "raw_fallback",
-        observationId: input.observation.id,
-        reason: "parser_error",
-        eventBytes: matchData.eventBytes,
-      });
+    const observation = await getObservationForParser(input);
+    if (!observation) {
+      return rawFallback(input, "event_not_found");
     }
+
+    const matchData = getObservationIoParserMatchData(observation);
+
+    if (matchData.eventBytes > OBSERVATION_IO_PARSER_EVENT_BYTES_LIMIT) {
+      return rawFallback(input, "event_too_large", matchData.eventBytes);
+    }
+
+    const matchingConfig = getFirstMatchingConfig(
+      [
+        {
+          id: "draft",
+          name: "Draft preview",
+          priority: 0,
+          filters: input.draft.filters,
+          instructions: input.draft.instructions,
+        },
+      ],
+      matchData,
+    );
+
+    if (!matchingConfig) {
+      return rawFallback(input, "no_matching_config", matchData.eventBytes);
+    }
+
+    return executeMatchedParserConfig({
+      input,
+      observation,
+      matchData,
+      matchingConfig,
+    });
   }
 }

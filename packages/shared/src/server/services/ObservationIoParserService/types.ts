@@ -86,6 +86,15 @@ export const ParsedObservationIoInput = z.object({
   maxStartTime: z.date(),
 });
 
+export const PreviewObservationIoParserDraftInput =
+  ParsedObservationIoInput.extend({
+    draft: z.object({
+      enabled: z.boolean(),
+      filters: ObservationIoParserFiltersInput,
+      instructions: ObservationIoParserInstructionsInput,
+    }),
+  });
+
 export type CreateObservationIoParserConfigInput = z.infer<
   typeof CreateObservationIoParserConfigInput
 >;
@@ -102,3 +111,6 @@ export type SetObservationIoParserUserPreferenceInput = z.infer<
   typeof SetObservationIoParserUserPreferenceInput
 >;
 export type ParsedObservationIoInput = z.infer<typeof ParsedObservationIoInput>;
+export type PreviewObservationIoParserDraftInput = z.infer<
+  typeof PreviewObservationIoParserDraftInput
+>;
