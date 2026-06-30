@@ -5,6 +5,26 @@ import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import { useTrpcError } from "@/src/hooks/useTrpcError";
 import { NotFoundCard } from "@/src/features/datasets/components/NotFoundCard";
 
+const DATASET_IO_CELL_STALE_MS = 60 * 1000;
+
+const silentHttpCodes = [404];
+
+const datasetItemIOCellQueryOptions = {
+  trpc: {
+    context: {
+      skipBatch: true,
+    },
+  },
+  staleTime: DATASET_IO_CELL_STALE_MS,
+} as const;
+
+/** prevents refetching loops. */
+const traceObservationIOCellQueryOptions = {
+  refetchOnMount: false,
+  staleTime: DATASET_IO_CELL_STALE_MS,
+  meta: { silentHttpCodes },
+} as const;
+
 export const DatasetItemIOCell = ({
   projectId,
   datasetId,
@@ -27,14 +47,7 @@ export const DatasetItemIOCell = ({
       datasetItemId: datasetItemId,
       version: datasetItemVersion,
     },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false, // prevents refetching loops
-    },
+    datasetItemIOCellQueryOptions,
   );
 
   return (
@@ -49,8 +62,6 @@ export const DatasetItemIOCell = ({
     />
   );
 };
-
-const silentHttpCodes = [404];
 
 export const TraceObservationIOCell = ({
   traceId,
@@ -77,9 +88,7 @@ export const TraceObservationIOCell = ({
     { traceId, projectId, fromTimestamp: fromTimestampModified },
     {
       enabled: observationId === undefined,
-      refetchOnMount: false, // prevents refetching loops
-      staleTime: 60 * 1000, // 1 minute
-      meta: { silentHttpCodes },
+      ...traceObservationIOCellQueryOptions,
     },
   );
   const observation = api.observations.byId.useQuery(
@@ -90,9 +99,7 @@ export const TraceObservationIOCell = ({
     },
     {
       enabled: observationId !== undefined,
-      refetchOnMount: false, // prevents refetching loops
-      staleTime: 60 * 1000, // 1 minute
-      meta: { silentHttpCodes },
+      ...traceObservationIOCellQueryOptions,
     },
   );
 
