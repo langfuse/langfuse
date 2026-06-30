@@ -13,8 +13,12 @@ import {
   type AgUiEvent,
   type AgUiRunAgentInput,
   type InAppAgentToolApprovalRequest,
+  type ResumeForwardedProps,
 } from "@/src/ee/features/in-app-agent/schema";
-import { createManualToolApprovalRunInput } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
+import {
+  createManualToolApprovalRunInput,
+  type ManualToolApprovalRunInput,
+} from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
 import type {
   InAppAgentPromptMetadata,
   InAppAgentTracingConfig,
@@ -303,6 +307,26 @@ export async function createAgUiStream(params: {
         return params.options.onError?.(new Error(streamedRunError));
       };
 
+      const completeManualToolApprovalRun = (
+        runInput: ManualToolApprovalRunInput,
+      ) => {
+        const terminalEvents = [
+          createRunStartedEvent(params.input),
+          ...runInput.syntheticEvents,
+        ];
+
+        instrumentation?.recordEvents(terminalEvents);
+        for (const syntheticEvent of terminalEvents) {
+          enqueueEvent(syntheticEvent);
+        }
+
+        closeController(() => {
+          instrumentation?.end({});
+          instrumentation?.flush();
+          return params.options.onComplete?.();
+        });
+      };
+
       const closeController = (
         terminalCallback?: () => void | Promise<void>,
       ) => {
@@ -379,6 +403,36 @@ export async function createAgUiStream(params: {
 
       params.signal.addEventListener("abort", abortHandler, { once: true });
 
+      const forwardedProps = params.input.forwardedProps as
+        | ResumeForwardedProps
+        | undefined;
+
+      if (forwardedProps?.command?.resume?.approved === false) {
+        createManualToolApprovalRunInput({
+          input: params.input,
+          executeToolCall: async () => {
+            throw new Error("Rejected tool approvals must not execute tools.");
+          },
+        })
+          .then((runInput) => {
+            if (ending || closed || params.signal.aborted) {
+              abortStream();
+              return;
+            }
+
+            completeManualToolApprovalRun(runInput);
+          })
+          .catch((error) => {
+            if (ending || closed) {
+              return;
+            }
+
+            failStream(error);
+          });
+
+        return;
+      }
+
       createMastraAdapter({
         input: params.input,
         signal: params.signal,
@@ -415,21 +469,7 @@ export async function createAgUiStream(params: {
           const pendingSyntheticEvents = [...runInput.syntheticEvents];
 
           if (!runInput.shouldContinue) {
-            const terminalEvents = [
-              createRunStartedEvent(params.input),
-              ...pendingSyntheticEvents,
-            ];
-
-            instrumentation?.recordEvents(terminalEvents);
-            for (const syntheticEvent of terminalEvents) {
-              enqueueEvent(syntheticEvent);
-            }
-
-            closeController(() => {
-              instrumentation?.end({});
-              instrumentation?.flush();
-              return params.options.onComplete?.();
-            });
+            completeManualToolApprovalRun(runInput);
             return;
           }
 

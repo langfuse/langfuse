@@ -1,6 +1,7 @@
 import { EventType } from "@ag-ui/core";
 import { HttpAgent } from "@ag-ui/client";
 import { Agent } from "@mastra/core/agent";
+import { MCPClient } from "@mastra/mcp";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AgUiEvent } from "@/src/ee/features/in-app-agent/schema";
@@ -1185,6 +1186,8 @@ describe("createAgUiStream", () => {
     });
 
     expect(adapterEvents.inputs).toEqual([]);
+    expect(vi.mocked(MCPClient)).not.toHaveBeenCalled();
+    expect(vi.mocked(Agent)).not.toHaveBeenCalled();
     expect(persistedEvents).toEqual([
       {
         type: EventType.RUN_STARTED,
@@ -1222,15 +1225,6 @@ describe("createAgUiStream", () => {
     ]);
     expect(streamedEvents).toEqual(persistedEvents);
     expect(onComplete).toHaveBeenCalledOnce();
-
-    const agentConfig = vi.mocked(Agent).mock.calls[0]?.[0];
-    const createScoreConfigTool = agentConfig?.tools
-      ?.langfuse_createScoreConfig as
-      | {
-          execute?: ReturnType<typeof vi.fn>;
-        }
-      | undefined;
-    expect(createScoreConfigTool?.execute).not.toHaveBeenCalled();
   });
 
   it("uses V4-compatible filters for traces redirect actions", async () => {
