@@ -1,7 +1,7 @@
 {
-  "name": "in-app-agent-mcp-incorrect-call",
+  "name": "iaa-mcp-incorrect-call",
   "evaluator": {
-    "name": "in-app-agent-mcp-incorrect-call",
+    "name": "iaa-mcp-incorrect-call",
     "scope": "project",
     "type": "llm_as_judge"
   },

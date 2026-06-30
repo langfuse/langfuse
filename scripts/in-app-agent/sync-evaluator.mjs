@@ -19,7 +19,7 @@ const baseUrls = {
   HIPAA: "https://hipaa.cloud.langfuse.com",
 };
 const allowedArgs = new Set(["--dry-run", "--yes", "-y", "--help", "-h"]);
-const args = process.argv.slice(2);
+const args = process.argv.slice(2).filter((arg) => arg !== "--");
 
 if (args.includes("--help") || args.includes("-h")) {
   console.log(`Usage: pnpm assistant:sync-evals -- [--dry-run] [--yes]
