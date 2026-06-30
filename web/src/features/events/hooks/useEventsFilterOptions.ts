@@ -1,4 +1,4 @@
-import { api, type RouterInputs } from "@/src/utils/api";
+import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import { useCallback, useMemo, useState } from "react";
 import { type FilterState, type TimeFilter } from "@langfuse/shared";
 
@@ -9,6 +9,12 @@ type EventFilterOptionColumnsInput =
 // with the server enum (a typo is a compile error via `satisfies`).
 type EventFilterOptionColumn =
   NonNullable<EventFilterOptionColumnsInput>[number];
+
+// The filterOptions payload, keyed by column. Every key is optional: the server
+// returns only the columns that were requested (see eventsService.ts), which is
+// what lets lazy loading tell "loaded, no values" ([]) from "not requested yet"
+// (key absent).
+type FilterOptionsData = RouterOutputs["events"]["filterOptions"];
 
 // Every server-enumerable filter-options column. Used to (a) request all options
 // in non-lazy mode and (b) filter caller-supplied columns down to ones the
@@ -52,6 +58,9 @@ const EAGER_EVENT_FILTER_OPTION_COLUMNS = [
   "isRootObservation",
 ] as const satisfies readonly EventFilterOptionColumn[];
 
+const EAGER_COLUMN_SET: ReadonlySet<string> = new Set(
+  EAGER_EVENT_FILTER_OPTION_COLUMNS,
+);
 const VALID_FILTER_OPTION_COLUMNS: ReadonlySet<string> = new Set(
   ALL_EVENT_FILTER_OPTION_COLUMNS,
 );
@@ -59,6 +68,24 @@ const VALID_FILTER_OPTION_COLUMNS: ReadonlySet<string> = new Set(
 const isEventFilterOptionColumn = (
   column: string,
 ): column is EventFilterOptionColumn => VALID_FILTER_OPTION_COLUMNS.has(column);
+
+// Shared react-query options: filter options change slowly and are never live —
+// fetch once and keep (no refetch on mount/focus/reconnect, infinite stale time),
+// and keep prior values on screen while a key changes (time-range move) so the
+// sidebar/bar never flicker.
+const FILTER_OPTION_QUERY_OPTIONS = {
+  refetchOnMount: false,
+  refetchOnWindowFocus: false,
+  refetchOnReconnect: false,
+  staleTime: Infinity,
+  placeholderData: <T>(prev: T) => prev,
+} as const;
+
+type LazyFilterOptionResult = {
+  data: FilterOptionsData | undefined;
+  isFetching: boolean;
+  isError: boolean;
+};
 
 type UseEventsFilterOptionsParams = {
   projectId: string;
@@ -70,10 +97,12 @@ type UseEventsFilterOptionsParams = {
    */
   columns?: EventFilterOptionColumnsInput;
   /**
-   * Lazy mode (v4 events table): start by requesting only the eagerly-visible
-   * columns and grow the set on demand via the returned `requestColumns`. The
-   * sidebar/search bar widen it when a facet is opened or typed into, so
-   * high-cardinality facets never load until they are actually shown.
+   * Lazy mode (v4 events table): request only the eagerly-visible columns up
+   * front and load every other facet on demand via the returned `requestColumns`.
+   * Each on-demand facet is its OWN cached query, so opening a new facet fetches
+   * only that column — already-loaded facets are served from cache and never
+   * re-fetched. The sidebar/search bar widen the set when a facet is opened or
+   * typed into.
    */
   lazy?: boolean;
 };
@@ -94,71 +123,109 @@ export function useEventsFilterOptions({
     ) as TimeFilter[];
   }, [oldFilterState]);
 
-  // Lazy mode owns a monotonically-growing set of requested columns. It only
-  // ever grows (a collapsed facet is not re-narrowed) so toggling a section open
-  // and closed does not thrash the query, and previously-loaded options stay
-  // cached.
-  const [requestedColumns, setRequestedColumns] = useState<
+  const baseInput = useMemo(
+    () => ({
+      projectId,
+      startTimeFilter:
+        startTimeFilters.length > 0 ? startTimeFilters : undefined,
+      isRootObservation,
+    }),
+    [projectId, startTimeFilters, isRootObservation],
+  );
+
+  // Lazy mode owns a monotonically-growing set of on-demand columns (everything
+  // beyond the eager set). It only grows — re-collapsing a facet does not narrow
+  // it — and each column gets its own cached query, so toggling sections open and
+  // closed never re-fetches.
+  const [lazyColumnSet, setLazyColumnSet] = useState<
     ReadonlySet<EventFilterOptionColumn>
-  >(() => new Set(EAGER_EVENT_FILTER_OPTION_COLUMNS));
+  >(() => new Set());
 
   const requestColumns = useCallback(
     (cols: readonly string[]) => {
       if (!lazy) return;
-      setRequestedColumns((prev) => {
+      setLazyColumnSet((prev) => {
         let next: Set<EventFilterOptionColumn> | null = null;
         for (const col of cols) {
-          if (isEventFilterOptionColumn(col) && !prev.has(col)) {
+          if (
+            isEventFilterOptionColumn(col) &&
+            !EAGER_COLUMN_SET.has(col) &&
+            !prev.has(col)
+          ) {
             next ??= new Set(prev);
             next.add(col);
           }
         }
-        // Stable identity when nothing was added → no refetch.
+        // Stable identity when nothing was added → no new query.
         return next ?? prev;
       });
     },
     [lazy],
   );
 
-  // In lazy mode, request exactly the columns asked for so far (sorted for a
-  // stable query key). Otherwise honour an explicit `columns` subset, or request
-  // everything (undefined → server defaults to all columns).
-  const requestedColumnsArray = useMemo(
-    () => Array.from(requestedColumns).sort(),
-    [requestedColumns],
+  const lazyColumns = useMemo(
+    () => Array.from(lazyColumnSet).sort(),
+    [lazyColumnSet],
   );
-  const effectiveColumns = lazy ? requestedColumnsArray : columns;
 
-  // Fetch filter options
-  const filterOptions = api.events.filterOptions.useQuery(
+  // Eager bulk query: one ClickHouse scan for the always-visible columns (lazy
+  // mode) — or the explicit/all columns in non-lazy mode (unchanged behavior).
+  const eagerColumns = lazy ? [...EAGER_EVENT_FILTER_OPTION_COLUMNS] : columns;
+  const eagerQuery = api.events.filterOptions.useQuery(
+    { ...baseInput, columns: eagerColumns },
     {
-      projectId,
-      startTimeFilter:
-        startTimeFilters.length > 0 ? startTimeFilters : undefined,
-      isRootObservation,
-      columns: effectiveColumns,
+      trpc: { context: { skipBatch: true } },
+      ...FILTER_OPTION_QUERY_OPTIONS,
     },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-      // Keep showing previous options while fetching new ones to avoid sidebar
-      // flicker — and, in lazy mode, so already-loaded facets keep their values
-      // while a newly-requested column streams in.
-      placeholderData: (prev) => prev,
+  );
+
+  // One independently-cached query per on-demand column. `combine` merges them
+  // into a single payload + derives which columns are still loading / errored,
+  // and react-query memoizes the result so identity is stable between changes.
+  const combineLazy = useCallback(
+    (results: readonly LazyFilterOptionResult[]) => {
+      const data: FilterOptionsData = {};
+      const pendingColumns: string[] = [];
+      let errored = false;
+      results.forEach((r, i) => {
+        const column = lazyColumns[i];
+        if (column === undefined) return;
+        if (r.isError) {
+          errored = true;
+          return;
+        }
+        if (r.data) {
+          Object.assign(data, r.data);
+        } else if (r.isFetching) {
+          pendingColumns.push(column);
+        }
+      });
+      return { data, pendingColumns, errored };
     },
+    [lazyColumns],
+  );
+
+  const lazyResult = api.useQueries(
+    (t) =>
+      lazyColumns.map((column) =>
+        t.events.filterOptions(
+          { ...baseInput, columns: [column] },
+          FILTER_OPTION_QUERY_OPTIONS,
+        ),
+      ),
+    { combine: combineLazy },
+  );
+
+  // Merge the eager payload with every loaded on-demand column.
+  const rawData = useMemo<FilterOptionsData>(
+    () => ({ ...eagerQuery.data, ...lazyResult.data }),
+    [eagerQuery.data, lazyResult.data],
   );
 
   // Transform filter options for sidebar
   const newFilterOptions = useMemo(() => {
     const scoreCategories =
-      filterOptions.data?.score_categories?.reduce(
+      rawData.score_categories?.reduce(
         (acc, score) => {
           acc[score.label] = score.values;
           return acc;
@@ -166,37 +233,36 @@ export function useEventsFilterOptions({
         {} as Record<string, string[]>,
       ) ?? undefined;
 
-    const scoresNumeric = filterOptions.data?.scores_avg ?? undefined;
+    const scoresNumeric = rawData.scores_avg ?? undefined;
     const traceScoreCategories =
-      filterOptions.data?.trace_score_categories?.reduce(
+      rawData.trace_score_categories?.reduce(
         (acc, score) => {
           acc[score.label] = score.values;
           return acc;
         },
         {} as Record<string, string[]>,
       ) ?? undefined;
-    const traceScoresNumeric =
-      filterOptions.data?.trace_scores_avg ?? undefined;
+    const traceScoresNumeric = rawData.trace_scores_avg ?? undefined;
 
     return {
-      environment: filterOptions.data?.environment ?? undefined,
-      name: filterOptions.data?.name ?? undefined,
-      type: filterOptions.data?.type ?? undefined,
-      level: filterOptions.data?.level ?? undefined,
-      providedModelName: filterOptions.data?.providedModelName ?? undefined,
-      modelId: filterOptions.data?.modelId ?? undefined,
-      promptName: filterOptions.data?.promptName ?? undefined,
-      traceTags: filterOptions.data?.traceTags ?? undefined,
-      traceName: filterOptions.data?.traceName ?? undefined,
-      userId: filterOptions.data?.userId ?? undefined,
-      sessionId: filterOptions.data?.sessionId ?? undefined,
-      version: filterOptions.data?.version ?? undefined,
-      experimentDatasetId: filterOptions.data?.experimentDatasetId ?? undefined,
-      experimentId: filterOptions.data?.experimentId ?? undefined,
-      experimentName: filterOptions.data?.experimentName ?? undefined,
-      isRootObservation: filterOptions.data?.isRootObservation ?? undefined,
-      toolNames: filterOptions.data?.toolNames ?? undefined,
-      calledToolNames: filterOptions.data?.calledToolNames ?? undefined,
+      environment: rawData.environment ?? undefined,
+      name: rawData.name ?? undefined,
+      type: rawData.type ?? undefined,
+      level: rawData.level ?? undefined,
+      providedModelName: rawData.providedModelName ?? undefined,
+      modelId: rawData.modelId ?? undefined,
+      promptName: rawData.promptName ?? undefined,
+      traceTags: rawData.traceTags ?? undefined,
+      traceName: rawData.traceName ?? undefined,
+      userId: rawData.userId ?? undefined,
+      sessionId: rawData.sessionId ?? undefined,
+      version: rawData.version ?? undefined,
+      experimentDatasetId: rawData.experimentDatasetId ?? undefined,
+      experimentId: rawData.experimentId ?? undefined,
+      experimentName: rawData.experimentName ?? undefined,
+      isRootObservation: rawData.isRootObservation ?? undefined,
+      toolNames: rawData.toolNames ?? undefined,
+      calledToolNames: rawData.calledToolNames ?? undefined,
       toolDefinitions: [],
       toolCalls: [],
       latency: [],
@@ -213,37 +279,34 @@ export function useEventsFilterOptions({
       trace_score_categories: traceScoreCategories,
       trace_scores_avg: traceScoresNumeric,
     };
-  }, [filterOptions.data]);
+  }, [rawData]);
 
   // Lazy mode: the precise set of requested columns whose options have not yet
   // arrived (so the sidebar shows a skeleton for exactly those facets, and never
-  // for never-enumerated facets like metadata). Empty once everything requested
-  // so far has loaded — including after a background refetch, where placeholder
-  // data keeps all columns present (no flicker).
+  // for never-enumerated facets like metadata).
   //
-  // Gated on an in-flight fetch: a skeleton means "loading", not "no data". On a
-  // terminal error `data` is undefined for every column, but we are NOT fetching
-  // and will not auto-retry (staleTime: Infinity, refetchOnMount: false), so the
-  // facets must render their empty state instead of skeletoning forever.
-  const isFetching = filterOptions.isFetching;
+  // Each entry is gated on an in-flight fetch: a skeleton means "loading", not
+  // "no data". On a terminal error the column is dropped (no auto-retry, so the
+  // facet renders its empty state instead of skeletoning forever).
+  const isEagerFetching = eagerQuery.isFetching;
   const loadingColumns = useMemo<ReadonlySet<string> | undefined>(() => {
     if (!lazy) return undefined;
-    const pending = new Set<string>();
-    if (!isFetching) return pending;
-    for (const column of requestedColumns) {
-      if ((newFilterOptions as Record<string, unknown>)[column] === undefined) {
-        pending.add(column);
+    const pending = new Set<string>(lazyResult.pendingColumns);
+    if (isEagerFetching) {
+      const data = rawData as Record<string, unknown>;
+      for (const column of EAGER_EVENT_FILTER_OPTION_COLUMNS) {
+        if (data[column] === undefined) pending.add(column);
       }
     }
     return pending;
-  }, [lazy, requestedColumns, newFilterOptions, isFetching]);
+  }, [lazy, lazyResult.pendingColumns, isEagerFetching, rawData]);
 
   return {
     filterOptions: newFilterOptions,
-    isFilterOptionsPending: filterOptions.isPending,
+    isFilterOptionsPending: eagerQuery.isPending,
     /** Terminal fetch error: consumers settle to the empty state (no skeleton /
      *  no perpetual loading row), since there is no auto-retry. */
-    isFilterOptionsError: filterOptions.isError,
+    isFilterOptionsError: eagerQuery.isError || lazyResult.errored,
     /** Lazy mode only: columns requested but not yet loaded (per-facet skeletons). */
     loadingColumns,
     /** Lazy mode only: widen the requested column set (no-op otherwise). */
