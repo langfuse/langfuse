@@ -35,6 +35,7 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
   emptyMessage,
   aiSlot,
   granularitySlot,
+  chartActions,
 }: {
   config: ChartViewConfig;
   onConfigChange: (patch: Partial<ChartViewConfig>) => void;
@@ -44,6 +45,8 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
   emptyMessage?: string;
   aiSlot?: React.ReactNode;
   granularitySlot?: React.ReactNode;
+  /** Right-aligned actions next to the chart subtitle (e.g. "Add to dashboard"). */
+  chartActions?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(true);
 
@@ -68,8 +71,11 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
     <div className="flex min-h-0 flex-1">
       {/* Canvas */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1 p-3">
-        <div className="text-foreground text-sm font-medium">
-          {describeConfig(config)}
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-foreground text-sm font-medium">
+            {describeConfig(config)}
+          </div>
+          {chartActions}
         </div>
         <div className="min-h-0 flex-1">
           {error ? (

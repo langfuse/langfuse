@@ -14,6 +14,7 @@ import {
 import { ChartViewPanel } from "./components/ChartViewPanel";
 import { GranularitySelect } from "./components/ConfigControls";
 import { AskAiChartBar } from "./components/AskAiChartBar";
+import { AddToDashboardButton } from "./components/AddToDashboardButton";
 
 /**
  * Production chart view for the v4 events table. Builds the observations
@@ -96,6 +97,13 @@ export function EventsChartView({
       data={data}
       isLoading={validRange && queryResult.isPending && !queryResult.isError}
       error={error}
+      chartActions={
+        <AddToDashboardButton
+          projectId={projectId}
+          config={config}
+          filters={filters}
+        />
+      }
       aiSlot={
         aiAvailable ? (
           <AskAiChartBar projectId={projectId} onApply={applyAiConfig} />
