@@ -73,6 +73,59 @@ different — and sometimes wrong — dates. One source of truth per decision.)
     the structure changes; a new data tick should just swap arrays. Stable,
     memoized inputs; the heavy reconciliation happens rarely.
 
+## Visual & interaction direction
+
+> The architectural rules above say _where_ a decision lives. These say _what_ to
+> decide when you draw. One stance underlies all of them: **the data carries the
+> visual weight; the frame stays quiet.** Chrome — grid, axes, labels — is pushed
+> to low contrast so series shape and color are what the eye lands on. High
+> data-ink, always.
+
+- **V1 — Draw what was measured; don't invent shape between points.** Straight
+  segments by default. A smooth/spline curve _implies values that were never
+  sampled_ — treat it as an explicit opt-in, not a prettifier. Use stepped lines
+  only for hold-until-change (state/counter) data.
+
+- **V2 — Missing is a gap, not a zero.** A null breaks the line. Bridge a gap
+  only when the series semantically continues across it; never substitute `0` to
+  "fill" a hole — that invents a measurement. Break the line when a gap exceeds
+  the expected sampling cadence. Zero-fill is permitted only where stacking math
+  needs a number. (This is principle 6, made visual.)
+
+- **V3 — Encode certainty with one consistent grammar.** Less-trustworthy data —
+  a still-aggregating final bucket, a comparison/previous period — renders
+  _dotted and paled_, never dropped and never identical to confirmed data. One
+  treatment, so a reader learns it once.
+
+- **V4 — Hover reads a vertical slice, snapped to real samples.** The crosshair
+  tracks the cursor, but the readout snaps to the nearest actual point — never a
+  fabricated value at an arbitrary x. Near a gap the snap tolerance tightens so a
+  tooltip never floats over emptiness.
+
+- **V5 — Crosshair is shared across the timeline; the tooltip is the hovered
+  chart's alone.** Charts on one time range share a single vertical time-marker;
+  only the chart under the cursor opens a tooltip, listing every series at that
+  instant, sorted by value, the focused one emphasized. Emphasis lives in the
+  tooltip and the legend — the canvas stays calm. Dimming series _on the canvas_
+  is reserved for one deliberate gesture (vertical proximity to a line) and must
+  be flicker-free, never a side effect of ordinary hover.
+
+- **V6 — Color is identity, assigned once.** A series' color is derived from the
+  series and read back by the legend, so swatch and line can never diverge, and
+  the same entity keeps its color across every chart. The palette is bounded; a
+  colorblind-safe option exists.
+
+- **V7 — Formatting is type-driven and adaptive — trust the scale.** Numbers,
+  durations, bytes, percentages, currency, and dates each format by their kind
+  and by the magnitude/granularity the scale chose; one common unit per axis.
+  Tick precision follows the scale (don't truncate a narrow range); tooltip
+  precision is capped for reading; digits are tabular so they don't jitter.
+
+- **V8 — Bound the frame, not the data.** Cap drawn series at a legible top-N
+  with an honest "N of M" (and an "others" rollup where it sums); bound the
+  legend (scroll / "+N more"); bound density upstream (≈ one point per pixel).
+  Never reach legibility by silently dropping data in the renderer.
+
 ## Where we are / where we're going
 
 - **Now:** the visualiser is a set of recharts components behind one `Chart`
@@ -82,10 +135,18 @@ different — and sometimes wrong — dates. One source of truth per decision.)
   ranks a breakdown by magnitude and keeps the top‑N so a high-cardinality
   group-by of hundreds of series stays both legible and fast, with an honest
   "top N of M" note rather than a silent truncation; see principle 5).
-- **Next:** move the remaining decisions — series colors, legend summaries,
-  units, axis type & scale — out of the components and into the preparer, until
-  the visualiser is purely presentational and the preparer is the single, tested
-  place where "what should this look like" is answered.
+  The interaction direction (V4/V5) is largely in place: a synced vertical
+  crosshair, a tooltip that opens only on the hovered chart, and a vertical
+  proximity highlight.
+- **Known visual debts** (drawn but not yet matching the direction above): lines
+  currently smooth (`type="monotone"`) rather than draw straight (V1), and series
+  color is assigned by index and cycles every 8 rather than being a stable
+  identity (V6). Both are visualiser defaults to migrate into the preparer.
+- **Next:** move the remaining decisions — series colors (V6), curve/interpolation
+  (V1), legend summaries, units, axis type & scale — out of the components and
+  into the preparer, until the visualiser is purely presentational and the
+  preparer is the single, tested place where "what should this look like" is
+  answered.
 
 The target: adding a new chart should mean teaching the **preparer** a new shape,
 not teaching every component a new special case.

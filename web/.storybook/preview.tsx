@@ -1,5 +1,6 @@
 import { definePreview } from "@storybook/nextjs-vite";
 import addonA11y from "@storybook/addon-a11y";
+import addonDocs from "@storybook/addon-docs";
 import { useEffect, type ReactNode } from "react";
 import { TooltipProvider } from "../src/components/ui/tooltip";
 import { MarkdownContextProvider } from "../src/features/theming/useMarkdownContext";
@@ -13,9 +14,17 @@ import "streamdown/styles.css";
 function StorybookThemeProvider({
   children,
   theme,
+  fullHeight,
 }: {
   children?: ReactNode;
   theme: "light" | "dark";
+  /**
+   * Give `#__next` a real viewport height so the app's `height: 100%` chains
+   * resolve (canvas/story view). In docs view this must be OFF, or every inline
+   * story block stretches to 100vh and leaves a tall empty gap below its
+   * content. (LFE-10549)
+   */
+  fullHeight: boolean;
 }) {
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
@@ -37,7 +46,7 @@ function StorybookThemeProvider({
       <div
         id="__next"
         className="bg-background text-foreground"
-        style={{ height: "100vh" }}
+        style={{ height: fullHeight ? "100vh" : "auto" }}
       >
         <div>{children}</div>
       </div>
@@ -57,7 +66,10 @@ function StorybookThemeProvider({
 }
 
 export default definePreview({
-  addons: [addonA11y()],
+  // addonDocs() registers the docs preview renderer (parameters.docs.renderer)
+  // that MDX pages and autodocs need; the CSF-factory preview must compose it
+  // explicitly (the main.ts addons entry only wires the manager/preset side).
+  addons: [addonA11y(), addonDocs()],
   globalTypes: {
     theme: {
       description: "Global theme for components",
@@ -80,7 +92,10 @@ export default definePreview({
       const theme = context.globals.theme === "dark" ? "dark" : "light";
 
       return (
-        <StorybookThemeProvider theme={theme}>
+        <StorybookThemeProvider
+          theme={theme}
+          fullHeight={context.viewMode !== "docs"}
+        >
           {/* MarkdownContextProvider mirrors the app: pages render inside it so
               the JSON/IO viewers (CodeJsonViewer's JSONView calls
               useMarkdownContext) work identically to production. Without it,
