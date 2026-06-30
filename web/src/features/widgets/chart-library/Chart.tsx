@@ -126,7 +126,7 @@ const ChartComponent = ({
             legendInteraction={legendInteraction}
             maxVisibleSeries={maxVisibleSeries}
             syncId={syncId}
-            showDataPointDots={chartConfig?.show_data_point_dots ?? true}
+            showDataPointDots={chartConfig?.show_data_point_dots ?? false}
             thresholds={thresholds}
           />
         );

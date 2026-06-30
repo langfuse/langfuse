@@ -192,7 +192,10 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
   legendInteraction = "highlight",
   maxVisibleSeries,
   syncId,
-  showDataPointDots = true,
+  // Lines draw clean by default — a dot per sample is chart-junk on anything
+  // but a handful of points. The hovered point still gets a dot (activeDot),
+  // so the value is readable on hover without littering the line. (LFE-10549, V7)
+  showDataPointDots = false,
   thresholds,
 }) => {
   const metricExtent = useMemo(() => computeMetricExtent(data), [data]);
@@ -312,9 +315,9 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
                 dataKey={dimension}
                 strokeWidth={nearest ? 3.5 : 2.5}
                 dot={showDataPointDots && !muted ? { r: 4 } : false}
-                activeDot={
-                  showDataPointDots && !muted ? { r: 5, strokeWidth: 0 } : false
-                }
+                // The hover marker is independent of the static-dot setting: even
+                // a dotless line reveals the point under the cursor.
+                activeDot={muted ? false : { r: 5, strokeWidth: 0 }}
                 stroke={seriesColor(index)}
                 strokeOpacity={muted ? 0.2 : 1}
                 connectNulls
