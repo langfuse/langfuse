@@ -1159,6 +1159,17 @@ class GoogleCloudStorageService implements StorageService {
     ttlSeconds: number,
     asAttachment = false,
   ): Promise<string> {
+    return backOff(
+      () => this.getSignedUrlNonRetrying(fileName, ttlSeconds, asAttachment),
+      { numOfAttempts: 3 },
+    );
+  }
+
+  async getSignedUrlNonRetrying(
+    fileName: string,
+    ttlSeconds: number,
+    asAttachment = false,
+  ): Promise<string> {
     try {
       const file = this.bucket.file(fileName);
 
@@ -1184,6 +1195,18 @@ class GoogleCloudStorageService implements StorageService {
   }
 
   public async getSignedUploadUrl(params: {
+    path: string;
+    ttlSeconds: number;
+    sha256Hash: string;
+    contentType: string;
+    contentLength: number;
+  }): Promise<string> {
+    return backOff(() => this.getSignedUploadUrlNonRetrying(params), {
+      numOfAttempts: 3,
+    });
+  }
+
+  async getSignedUploadUrlNonRetrying(params: {
     path: string;
     ttlSeconds: number;
     sha256Hash: string;
