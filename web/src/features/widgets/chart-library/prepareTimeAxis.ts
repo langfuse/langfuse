@@ -19,8 +19,12 @@ import { getEvenTickInterval } from "@/src/features/widgets/chart-library/utils"
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
-/** Below this total span we're "zoomed into a day" → time-only ticks. */
-const TIME_SCALE_MAX = 2 * DAY;
+/**
+ * At/below this span we're "zoomed into a day" → time-only ticks. Capped at a
+ * single day so a wider span never shows hour-only labels that silently repeat
+ * across a midnight boundary (e.g. "12 AM" at both ends of a 36h range).
+ */
+const TIME_SCALE_MAX = DAY;
 /** Above this total span we switch from day labels to month labels. */
 const MONTH_SCALE_MIN = 180 * DAY;
 
@@ -130,8 +134,13 @@ export function prepareTimeAxis(rawValues: unknown[], maxTicks = 6): TimeAxis {
 
   const count = timestamps.length;
   const bucketMs = inferBucketMs(timestamps);
-  const span =
-    count >= 2 ? Math.max(...timestamps) - Math.min(...timestamps) : 0;
+  const minTs = Math.min(...timestamps);
+  const maxTs = Math.max(...timestamps);
+  const span = count >= 2 ? maxTs - minTs : 0;
+  // Date ticks normally omit the year (one unit per scale), but show it when the
+  // range straddles a year boundary so "Dec 29 → Jan 5" stays unambiguous.
+  const crossesYear =
+    new Date(minTs).getUTCFullYear() !== new Date(maxTs).getUTCFullYear();
 
   const mode: AxisMode =
     span > 0 && span <= TIME_SCALE_MAX
@@ -175,6 +184,7 @@ export function prepareTimeAxis(rawValues: unknown[], maxTicks = 6): TimeAxis {
     return date.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
+      ...(crossesYear ? { year: "numeric" } : {}),
     });
   };
 

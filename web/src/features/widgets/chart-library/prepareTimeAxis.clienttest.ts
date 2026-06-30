@@ -20,6 +20,37 @@ describe("prepareTimeAxis", () => {
     expect(MONTH_DAY.test(label)).toBe(false); // never a date on a time-scale tick
   });
 
+  it("span >24h uses date mode (no hour-only ticks repeating across midnight)", () => {
+    // 36 hourly buckets ≈ 35h span — must NOT be time mode (would duplicate hours).
+    const start = Date.UTC(2026, 5, 28, 0);
+    const values = Array.from({ length: 36 }, (_, h) => iso(start + h * HOUR));
+    const axis = prepareTimeAxis(values, 6);
+    expect(axis.mode).toBe("date");
+  });
+
+  it("a single day (≤24h) stays time mode", () => {
+    const start = Date.UTC(2026, 5, 28, 0);
+    const values = Array.from({ length: 24 }, (_, h) => iso(start + h * HOUR));
+    expect(prepareTimeAxis(values, 6).mode).toBe("time");
+  });
+
+  it("date ticks add the year only when the range crosses a year boundary", () => {
+    const sameYear = Array.from({ length: 14 }, (_, d) =>
+      iso(Date.UTC(2026, 5, 1) + d * DAY),
+    );
+    expect(
+      /\d{4}/.test(prepareTimeAxis(sameYear, 6).formatTick(sameYear[0])),
+    ).toBe(false);
+
+    // Dec 26 → Jan 8 across the 2025/2026 boundary.
+    const crossYear = Array.from({ length: 14 }, (_, d) =>
+      iso(Date.UTC(2025, 11, 26) + d * DAY),
+    );
+    const axis = prepareTimeAxis(crossYear, 6);
+    expect(axis.mode).toBe("date");
+    expect(/2025|2026/.test(axis.formatTick(crossYear[0]))).toBe(true);
+  });
+
   it("multi-day span → date ticks aligned to whole days (uniform gaps)", () => {
     // hourly buckets across 5 days → 120 points
     const start = Date.UTC(2026, 5, 1, 0);
