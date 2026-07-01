@@ -22,6 +22,7 @@ import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes"
 import { type TreeNode, type TraceSearchListItem } from "../lib/types";
 import {
   buildTraceUiData,
+  dedupeObservationsById,
   getObservationLevels,
   removeHiddenNodes,
 } from "../lib/tree-building";
@@ -74,13 +75,25 @@ interface TraceDataProviderProps {
  */
 export function TraceDataProvider({
   trace,
-  observations,
+  observations: rawObservations,
   serverScores,
   corrections,
   comments,
   children,
 }: TraceDataProviderProps) {
   const { minObservationLevel } = useViewPreferences();
+
+  // Collapse duplicate/colliding observation ids to one row per id up front, so
+  // the SAME de-duped set feeds the tree builder AND every consumer that resolves
+  // a row from `observations` (notably the detail panel's `observations.find`).
+  // Without this the tree picks the earliest-startTime row while the panel's
+  // `.find` returns the first row in the raw array — on corrupt traces those can
+  // differ, so the timeline and the opened detail panel could silently show
+  // different data. No-op (same reference) for well-formed traces.
+  const observations = useMemo(
+    () => dedupeObservationsById(rawObservations),
+    [rawObservations],
+  );
 
   // Build full tree (no level filtering) — only rebuilds when data changes
   const uiData = useMemo(() => {
