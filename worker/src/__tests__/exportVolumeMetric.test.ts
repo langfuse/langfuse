@@ -13,7 +13,7 @@ import {
 describe("recordExportVolume", () => {
   beforeEach(() => recordIncrement.mockClear());
 
-  it("emits the unified metric with the byte value", () => {
+  it("emits the unified metric with the byte value and omits projectId for API integrations", () => {
     recordExportVolume({
       integration: "mixpanel",
       bytes: 1234,
@@ -21,8 +21,8 @@ describe("recordExportVolume", () => {
     });
     expect(recordIncrement).toHaveBeenCalledWith(EXPORT_VOLUME_METRIC, 1234, {
       integration: "mixpanel",
-      projectId: "p1",
     });
+    expect(recordIncrement.mock.calls[0][2]).not.toHaveProperty("projectId");
   });
 
   it("includes blob dimensions and omits undefined tags", () => {
@@ -45,19 +45,20 @@ describe("recordExportVolume", () => {
     });
   });
 
-  it("omits API-integration tags that are not provided", () => {
+  it("omits projectId and unprovided tags for posthog", () => {
     recordExportVolume({
       integration: "posthog",
       bytes: 7,
       projectId: "p3",
     });
     const tags = recordIncrement.mock.calls[0][2];
+    expect(tags).not.toHaveProperty("projectId");
     expect(tags).not.toHaveProperty("destination_type");
     expect(tags).not.toHaveProperty("source");
     expect(tags).not.toHaveProperty("table");
   });
 
-  it("emits llmaj egress with only integration/projectId tags", () => {
+  it("emits llmaj egress with only the integration tag", () => {
     recordExportVolume({
       integration: "llmaj",
       bytes: 5120,
@@ -65,9 +66,9 @@ describe("recordExportVolume", () => {
     });
     expect(recordIncrement).toHaveBeenCalledWith(EXPORT_VOLUME_METRIC, 5120, {
       integration: "llmaj",
-      projectId: "p4",
     });
     const tags = recordIncrement.mock.calls[0][2];
+    expect(tags).not.toHaveProperty("projectId");
     expect(tags).not.toHaveProperty("destination_type");
     expect(tags).not.toHaveProperty("source");
     expect(tags).not.toHaveProperty("table");
