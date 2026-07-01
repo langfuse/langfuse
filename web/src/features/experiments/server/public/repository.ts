@@ -117,24 +117,6 @@ const groupExperimentScores = (scores: ScoreRecordReadType[]) => {
   );
 };
 
-const groupExperimentItemScores = (scores: ScoreRecordReadType[]) => {
-  const byObservationId: Record<string, ScoreRecordReadType[]> = {};
-  const byTraceId: Record<string, ScoreRecordReadType[]> = {};
-
-  for (const score of scores) {
-    if (score.observation_id) {
-      (byObservationId[score.observation_id] ??= []).push(score);
-      continue;
-    }
-
-    if (score.trace_id) {
-      (byTraceId[score.trace_id] ??= []).push(score);
-    }
-  }
-
-  return { byObservationId, byTraceId };
-};
-
 const startTimeFromLastRow = (rows: { start_time: string }[]) =>
   parseClickhouseUTCDateTimeFormat(rows[rows.length - 1]!.start_time);
 
@@ -369,7 +351,7 @@ export async function queryExperimentItemsForPublicApi(
 
   if (!params.includeScores || rows.length === 0) return rows;
 
-  const groupedScores = groupExperimentItemScores(
+  const scoresBySpanId = Object.groupBy(
     await queryScoreRecordsForExperimentItems({
       projectId: params.projectId,
       traceIds: rows.map((row) => row.trace_id),
@@ -377,15 +359,13 @@ export async function queryExperimentItemsForPublicApi(
       min: startTimeFromLastRow(rows),
       scoreLimit: params.scoreLimit ?? DEFAULT_SCORE_LIMIT,
     }),
+    (score) => score.observation_id ?? "",
   );
 
   return rows.map(
     (row): ExperimentItemRow => ({
       ...row,
-      scores: [
-        ...(groupedScores.byObservationId[row.id] ?? []),
-        ...(groupedScores.byTraceId[row.trace_id] ?? []),
-      ],
+      scores: scoresBySpanId[row.id] ?? [],
     }),
   );
 }

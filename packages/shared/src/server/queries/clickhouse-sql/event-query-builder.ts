@@ -834,11 +834,7 @@ abstract class AbstractCTEQueryBuilder extends AbstractQueryBuilder {
   /**
    * Add a JOIN of the specified kind
    */
-  private join(
-    kind: "LEFT" | "LEFT ANY" | "INNER",
-    table: string,
-    onClause: string,
-  ): this {
+  private join(kind: "LEFT" | "INNER", table: string, onClause: string): this {
     this.joins.push(`${kind} JOIN ${table} ${onClause}`);
     return this;
   }
@@ -848,14 +844,6 @@ abstract class AbstractCTEQueryBuilder extends AbstractQueryBuilder {
    */
   leftJoin(table: string, onClause: string): this {
     this.join("LEFT", table, onClause);
-    return this;
-  }
-
-  /**
-   * Add a LEFT ANY JOIN.
-   */
-  leftAnyJoin(table: string, onClause: string): this {
-    this.join("LEFT ANY", table, onClause);
     return this;
   }
 

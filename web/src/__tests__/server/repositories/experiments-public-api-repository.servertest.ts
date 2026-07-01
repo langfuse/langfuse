@@ -186,7 +186,7 @@ describe("Public API experiments repository", () => {
       expect(rows).toEqual([
         expect.objectContaining({
           experiment_id: experimentId,
-          experiment_dataset_id: null,
+          experiment_dataset_id: "",
         }),
       ]);
     });

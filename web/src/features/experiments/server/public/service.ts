@@ -1,6 +1,6 @@
 import {
+  addTagsToCurrentSpan,
   convertClickhouseScoreToDomain,
-  getCurrentSpan,
   logger,
   parseClickhouseUTCDateTimeFormat,
   scoreDomainToV3,
@@ -143,7 +143,7 @@ export async function listExperimentsForPublicApi({
   const includeMetadata = query.fields.includes("metadata");
   const includeScores = query.fields.includes("scores");
 
-  getCurrentSpan()?.setAttributes({
+  addTagsToCurrentSpan({
     "langfuse.query.include_metadata": includeMetadata,
     "langfuse.query.include_scores": includeScores,
   });
@@ -213,7 +213,7 @@ export async function listExperimentItemsForPublicApi({
   const includeExperimentMetadata = query.fields.includes("experimentMetadata");
   const includeScores = query.fields.includes("scores");
 
-  getCurrentSpan()?.setAttributes({
+  addTagsToCurrentSpan({
     "langfuse.query.include_dataset": includeDataset,
     "langfuse.query.include_io": includeIo,
     "langfuse.query.include_metadata": includeMetadata,
