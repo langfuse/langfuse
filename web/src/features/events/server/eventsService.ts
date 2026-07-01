@@ -639,7 +639,7 @@ export async function getEventFilterOptions(
         .filter(
           (score) =>
             score.dataType === "NUMERIC" || score.dataType === "BOOLEAN",
-      )
+        )
         .map((score) => score.name),
     ),
   );
