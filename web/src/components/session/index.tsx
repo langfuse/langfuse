@@ -42,7 +42,7 @@ import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes"
 import { LazyTraceRow } from "@/src/components/session/TraceRow";
 import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { LazySessionTraceEventsRow } from "@/src/components/session/LazySessionTraceEventsRow";
 import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
@@ -425,11 +425,13 @@ export const SessionPage: React.FC<{
                 />
               </div>
               <div className="flex items-center">
-                <Switch
-                  checked={showCorrections}
-                  onCheckedChange={setShowCorrectionsForSession}
-                  className="scale-75"
-                />
+                <div className="mx-1">
+                  <Switch
+                    checked={showCorrections}
+                    onCheckedChange={setShowCorrectionsForSession}
+                    size="sm"
+                  />
+                </div>
                 <span className="text-muted-foreground text-xs">
                   Show corrections
                 </span>
@@ -1018,11 +1020,13 @@ const LoadedSessionEventsPage: React.FC<{
                 />
               </div>
               <div className="flex items-center">
-                <Switch
-                  checked={showCorrections}
-                  onCheckedChange={setShowCorrectionsForSession}
-                  className="scale-75"
-                />
+                <div className="mx-1">
+                  <Switch
+                    checked={showCorrections}
+                    onCheckedChange={setShowCorrectionsForSession}
+                    size="sm"
+                  />
+                </div>
                 <span className="text-muted-foreground text-xs">
                   Show corrections
                 </span>
