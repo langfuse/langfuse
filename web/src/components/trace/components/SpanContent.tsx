@@ -109,6 +109,8 @@ export function SpanContent({
           )
         : mergedScores.filter((s) => s.observationId === node.id);
 
+  const nodeDisplayName = node.name || `Unnamed ${node.type.toLowerCase()}`;
+
   return (
     <button
       type="button"
@@ -126,8 +128,8 @@ export function SpanContent({
       <div className="flex min-w-0 flex-col">
         {/* Name and badges row */}
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-          <span className="shrink truncate text-xs">
-            {node.name || `Unnamed ${node.type.toLowerCase()}`}
+          <span className="shrink truncate text-xs" title={nodeDisplayName}>
+            {nodeDisplayName}
           </span>
 
           <div className="flex items-center gap-x-2">

@@ -18,6 +18,8 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
+import { classifyMediaLeaf } from "@/src/components/ui/media/classifyMediaLeaf";
+import { JsonMediaTag } from "@/src/components/ui/media/JsonMediaTag";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import {
   renderRichPromptContent,
@@ -140,6 +142,15 @@ export function JSONView(props: {
               }
               displaySize={isCollapsed ? "collapsed" : "expanded"}
               matchesURL={true}
+              // Render previewable media (Langfuse refs, data URIs, media URLs)
+              // as a hover-to-peek chip instead of the raw string; everything
+              // else falls through to the default value rendering.
+              customizeNode={({ node }) => {
+                const descriptor = classifyMediaLeaf(node);
+                return descriptor ? (
+                  <JsonMediaTag descriptor={descriptor} />
+                ) : undefined;
+              }}
               customizeCopy={(node) => stringifyJsonNode(node)}
               className="w-full max-w-full min-w-0"
             />
@@ -258,7 +269,10 @@ export function CodeView(props: {
       <div className="animate-appear relative h-3">
         <Check className="h-3 w-3" />
         {copiedToClipboardMessage && (
-          <div className="text-secondary-foreground absolute top-0 right-0 mr-6 h-full max-w-[60vw] transform truncate overflow-hidden text-right text-sm leading-none whitespace-nowrap">
+          <div
+            className="text-secondary-foreground absolute top-0 right-0 mr-6 h-full max-w-[60vw] transform truncate overflow-hidden text-right text-sm leading-none whitespace-nowrap"
+            title={copiedToClipboardMessage}
+          >
             {copiedToClipboardMessage}
           </div>
         )}

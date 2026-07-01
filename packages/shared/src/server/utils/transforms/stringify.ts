@@ -1,20 +1,21 @@
 import { decodeUnicodeEscapesOnly } from "../../../utils/unicode";
 
-export const stringify = (data: any, key?: string): string => {
-  // For comment fields, use pretty-print formatting for better readability
-  // Other fields use compact format to reduce file size
-  const indent = key === "comments" ? 2 : undefined;
+// Replacer that keeps bigints JSON-serializable and decodes \uXXXX escapes so
+// that non-ASCII content (e.g. Japanese ingested with Python ensure_ascii=True)
+// renders as real characters instead of escape sequences.
+const stringifyReplacer = (_key: string, value: unknown) => {
+  if (typeof value === "bigint") return Number.parseInt(value.toString());
+  if (typeof value === "string") return decodeUnicodeEscapesOnly(value, true);
+  return value;
+};
 
-  return JSON.stringify(
-    data,
-    (k, value) => {
-      if (typeof value === "bigint") return Number.parseInt(value.toString());
-      if (typeof value === "string")
-        return decodeUnicodeEscapesOnly(value, true);
-      return value;
-    },
-    indent,
-  );
+export const stringify = (data: any, key?: string, indent?: number): string => {
+  // For comment fields, use pretty-print formatting for better readability
+  // Other fields use compact format to reduce file size, unless an explicit
+  // indent is requested by the caller (e.g. human-readable trace downloads).
+  const resolvedIndent = indent ?? (key === "comments" ? 2 : undefined);
+
+  return JSON.stringify(data, stringifyReplacer, resolvedIndent);
 };
 
 /**

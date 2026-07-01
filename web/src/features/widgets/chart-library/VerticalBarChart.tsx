@@ -62,6 +62,7 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
           radius={[4, 4, 0, 0]}
           className="fill-(--color-metric)"
           fillOpacity={subtleFill ? 0.3 : 1}
+          isAnimationActive={false}
         />
         <ChartTooltip
           cursor={false}

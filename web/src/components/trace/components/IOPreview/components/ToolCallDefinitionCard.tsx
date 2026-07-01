@@ -5,6 +5,12 @@ import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { useState } from "react";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/src/components/ui/hover-card";
+import type { ToolCallInvocation } from "../hooks/useChatMLParser";
 
 // Tool definition extracted from messages
 export interface ToolDefinition {
@@ -17,8 +23,128 @@ export interface ToolDefinition {
 export interface ToolCallDefinitionCardProps {
   tools: ToolDefinition[];
   toolCallCounts: Map<string, number>;
+  toolCallsByName?: Map<string, ToolCallInvocation[]>;
   toolNameToDefinitionNumber?: Map<string, number>;
   className?: string;
+}
+
+function parseToolCallArguments(argumentsValue: unknown): unknown {
+  if (typeof argumentsValue !== "string") {
+    return argumentsValue;
+  }
+
+  try {
+    return JSON.parse(argumentsValue);
+  } catch {
+    return argumentsValue;
+  }
+}
+
+function hasToolCallArguments(argumentsValue: unknown): boolean {
+  return (
+    argumentsValue !== undefined &&
+    argumentsValue !== null &&
+    !(typeof argumentsValue === "string" && argumentsValue.trim() === "")
+  );
+}
+
+function ToolCallArgumentsList({
+  toolCalls,
+  className,
+}: {
+  toolCalls: ToolCallInvocation[];
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex flex-col gap-3", className)}>
+      {toolCalls.map((toolCall) => {
+        const hasArguments = hasToolCallArguments(toolCall.arguments);
+
+        return (
+          <div
+            key={`${toolCall.name}-${toolCall.invocationNumber}-${toolCall.id ?? ""}`}
+            className="min-w-0"
+          >
+            <div className="mb-1.5 flex min-w-0 items-center justify-between gap-2">
+              <div className="text-foreground font-mono text-xs font-medium">
+                Call {toolCall.invocationNumber}
+              </div>
+              {toolCall.id && (
+                <div
+                  className="text-muted-foreground truncate font-mono text-xs"
+                  title={toolCall.id}
+                >
+                  {toolCall.id}
+                </div>
+              )}
+            </div>
+            {hasArguments ? (
+              <PrettyJsonView
+                json={parseToolCallArguments(toolCall.arguments)}
+                currentView="pretty"
+                codeClassName="text-xs"
+              />
+            ) : (
+              <div className="text-muted-foreground rounded-sm border px-2 py-1.5 text-xs">
+                No arguments
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ToolCallStatusBadge({
+  isCalled,
+  statusText,
+  toolCalls,
+}: {
+  isCalled: boolean;
+  statusText: string;
+  toolCalls: ToolCallInvocation[];
+}) {
+  const badge = (
+    <Badge
+      variant={isCalled ? undefined : "secondary"}
+      className={cn(
+        "text-xs font-medium",
+        isCalled &&
+          "bg-light-green text-dark-green hover:bg-light-green border-transparent select-none",
+      )}
+    >
+      {statusText}
+    </Badge>
+  );
+
+  if (!isCalled || toolCalls.length === 0) {
+    return badge;
+  }
+
+  return (
+    <HoverCard openDelay={200} closeDelay={100}>
+      <HoverCardTrigger asChild>
+        <div className="inline-flex">{badge}</div>
+      </HoverCardTrigger>
+      <HoverCardContent
+        side="bottom"
+        align="end"
+        sideOffset={6}
+        className="max-h-96 w-96 max-w-[calc(100vw-2rem)] overflow-auto p-0"
+      >
+        <div className="border-border border-b px-3 py-2">
+          <div className="text-foreground text-xs font-semibold">
+            Tool call arguments
+          </div>
+          <div className="text-muted-foreground text-xs">
+            {toolCalls.length === 1 ? "1 call" : `${toolCalls.length} calls`}
+          </div>
+        </div>
+        <ToolCallArgumentsList toolCalls={toolCalls} className="p-3" />
+      </HoverCardContent>
+    </HoverCard>
+  );
 }
 
 /**
@@ -33,6 +159,7 @@ export interface ToolCallDefinitionCardProps {
 export function ToolCallDefinitionCard({
   tools,
   toolCallCounts,
+  toolCallsByName,
   toolNameToDefinitionNumber,
   className,
 }: ToolCallDefinitionCardProps) {
@@ -52,6 +179,7 @@ export function ToolCallDefinitionCard({
         const isExpanded = expandedIndex === index;
         const callCount = toolCallCounts.get(tool.name) || 0;
         const isCalled = callCount > 0;
+        const toolCalls = toolCallsByName?.get(tool.name) ?? [];
         const toolDefinitionNumber = toolNameToDefinitionNumber?.get(tool.name);
         const statusText =
           callCount === 0
@@ -85,16 +213,11 @@ export function ToolCallDefinitionCard({
 
               {/* Right: Status badge + chevron indicator */}
               <div className="flex items-center gap-1.5">
-                <Badge
-                  variant={isCalled ? undefined : "secondary"}
-                  className={cn(
-                    "text-xs font-medium",
-                    isCalled &&
-                      "bg-light-green text-dark-green hover:bg-light-green border-transparent select-none",
-                  )}
-                >
-                  {statusText}
-                </Badge>
+                <ToolCallStatusBadge
+                  isCalled={isCalled}
+                  statusText={statusText}
+                  toolCalls={toolCalls}
+                />
 
                 {/* Chevron indicator */}
                 {isExpanded ? (
@@ -160,12 +283,24 @@ export function ToolCallDefinitionCard({
                       </div>
                     )}
 
-                    {/* Show message if no additional details */}
-                    {!tool.description && !tool.parameters && (
-                      <div className="text-muted-foreground text-sm">
-                        No additional details available
+                    {/* Tool call arguments */}
+                    {toolCalls.length > 0 && (
+                      <div>
+                        <div className="text-muted-foreground mb-1.5 text-xs font-medium">
+                          Tool call arguments
+                        </div>
+                        <ToolCallArgumentsList toolCalls={toolCalls} />
                       </div>
                     )}
+
+                    {/* Show message if no additional details */}
+                    {!tool.description &&
+                      !tool.parameters &&
+                      toolCalls.length === 0 && (
+                        <div className="text-muted-foreground text-sm">
+                          No additional details available
+                        </div>
+                      )}
                   </div>
                 )}
 
