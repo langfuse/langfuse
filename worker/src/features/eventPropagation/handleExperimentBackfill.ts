@@ -10,6 +10,7 @@ import {
 import { env } from "../../env";
 import { ClickhouseWriter, TableName } from "../../services/ClickhouseWriter";
 import { chunk } from "lodash";
+import { updateLastRunStartedAt } from "./handleEventPropagationJob";
 
 const EXPERIMENT_BACKFILL_TIMESTAMP_KEY =
   "langfuse:event-propagation:experiment-backfill:last-run";
@@ -847,6 +848,12 @@ async function processExperimentBackfill(
     logger.info(
       `[EXPERIMENT BACKFILL] Processing chunk ${i + 1}/${chunks.length} with ${driChunk.length} items`,
     );
+
+    // Refresh the event-propagation heartbeat as each chunk begins. The backfill
+    // runs in the same global-concurrency-1 invocation as handleEventPropagationJob
+    // but can loop for minutes over a backlog; without this a long-but-live
+    // backfill would let the heartbeat go stale and trip the stuck health check.
+    await updateLastRunStartedAt();
 
     // Extract project and trace IDs for this chunk
     const projectIds = [...new Set(driChunk.map((dri) => dri.project_id))];

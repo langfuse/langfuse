@@ -20,9 +20,11 @@ const LAST_RUN_STARTED_AT_KEY =
 
 /**
  * Record (in Redis) that a propagation run just started. Written at the top of
- * every job invocation — including the no-op "nothing to process" path — so its
- * freshness reflects "the queue is still being drained", independent of whether
- * the cursor advanced. The health check uses staleness of this value to detect a
+ * every job invocation — including the no-op "nothing to process" path — and
+ * refreshed per-chunk as the experiment backfill progresses (both run under the
+ * same global-concurrency-1 slot), so its freshness reflects "the slot is still
+ * being worked / the queue is still being drained", independent of whether the
+ * cursor advanced. The health check uses staleness of this value to detect a
  * wedged global-concurrency slot. Stored as epoch millis.
  */
 export const updateLastRunStartedAt = async (): Promise<void> => {
