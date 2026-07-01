@@ -6,6 +6,7 @@
 
 import {
   buildTraceUiData,
+  dedupeObservationsById,
   removeHiddenNodes,
   getObservationLevels,
 } from "./tree-building";
@@ -2284,5 +2285,74 @@ describe("Duplicate / colliding observation IDs (LFE-10588)", () => {
     for (let i = 0; i <= N; i++) {
       expect(result.nodeMap.has(`n${i}`)).toBe(true);
     }
+  });
+
+  // The detail panel resolves the clicked observation via
+  // `observations.find(o => o.id === id)`. The tree node is built from the
+  // de-duped set (earliest-startTime row), so the array the panel searches must
+  // be de-duped the same way — otherwise, on a corrupt trace, the timeline row
+  // and the opened detail panel can silently show different data.
+
+  it("keeps the earliest-startTime row per id, independent of array order", () => {
+    // Array order lists the LATER row first, so a naive `.find` would pick it.
+    const later = createMockObservation({
+      id: "x",
+      name: "later",
+      parentObservationId: null,
+      startTime: new Date("2024-01-01T00:00:00.200Z"),
+    });
+    const earlier = createMockObservation({
+      id: "x",
+      name: "earlier",
+      parentObservationId: null,
+      startTime: new Date("2024-01-01T00:00:00.100Z"),
+    });
+
+    const deduped = dedupeObservationsById([later, earlier]);
+
+    expect(deduped).toHaveLength(1);
+    expect(deduped[0].name).toBe("earlier");
+  });
+
+  it("returns the same array reference when all ids are unique (no-op)", () => {
+    const list = [
+      createMockObservation({ id: "a" }),
+      createMockObservation({ id: "b" }),
+    ];
+    expect(dedupeObservationsById(list)).toBe(list);
+  });
+
+  it("resolves the same row for the tree node and a find() on the deduped list", () => {
+    const trace = createMockTrace({ id: "t" });
+    // Two colliding rows for id "x" differing on a user-visible field, with the
+    // later-startTime row first in array order.
+    const raw: ObservationReturnType[] = [
+      createMockObservation({
+        id: "x",
+        name: "later",
+        parentObservationId: null,
+        startTime: new Date("2024-01-01T00:00:00.200Z"),
+      }),
+      createMockObservation({
+        id: "x",
+        name: "earlier",
+        parentObservationId: null,
+        startTime: new Date("2024-01-01T00:00:00.100Z"),
+      }),
+    ];
+    // On the RAW array the panel's `.find` returns the first (wrong) row.
+    expect(raw.find((o) => o.id === "x")?.name).toBe("later");
+
+    // De-dup once (as TraceDataProvider now does), then feed both.
+    const deduped = dedupeObservationsById(raw);
+    const result = buildTraceUiData(trace, deduped);
+
+    const treeNodeName = result.nodeMap.get("x")?.name;
+    const panelRowName = deduped.find((o) => o.id === "x")?.name;
+
+    expect(treeNodeName).toBe("earlier");
+    expect(panelRowName).toBe("earlier");
+    // The invariant: timeline (tree node) and detail panel (find) agree.
+    expect(panelRowName).toBe(treeNodeName);
   });
 });
