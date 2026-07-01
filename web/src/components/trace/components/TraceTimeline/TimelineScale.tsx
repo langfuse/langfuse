@@ -11,8 +11,18 @@ export function TimelineScale({
   scaleWidth,
   stepSize,
 }: TimelineScaleProps) {
-  // Calculate how many markers to show
-  const numMarkers = Math.ceil(scaleWidth / STEP_SIZE) + 1;
+  // Calculate how many markers to show. scaleWidth is expected to be the finite
+  // SCALE_WIDTH constant, but guard against a non-finite / absurd value ever
+  // reaching here: Array.from({ length }) throws "RangeError: Invalid array
+  // length" for Infinity and OOMs for an enormous finite length, so clamp to a
+  // finite, sane upper bound.
+  const safeScaleWidth = Number.isFinite(scaleWidth)
+    ? Math.max(0, scaleWidth)
+    : 0;
+  const numMarkers = Math.min(
+    Math.ceil(safeScaleWidth / STEP_SIZE) + 1,
+    10_000,
+  );
 
   return (
     // No left margin: the 0s tick must sit exactly at the track origin so the
