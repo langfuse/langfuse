@@ -282,6 +282,34 @@ export function TraceTimeline() {
   const lastTsRef = useRef(0);
   const [showPlayhead, setShowPlayhead] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const playbackRateRef = useRef(1);
+  playbackRateRef.current = playbackRate;
+
+  // The observations "playing" at the playhead's time (start ≤ t ≤ end). Driven
+  // from positionPlayhead, but only setState when the SET changes (a boundary
+  // crossing — a handful of times/sec), not every animation frame.
+  const [activeNodeIds, setActiveNodeIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const activeIdsRef = useRef(activeNodeIds);
+  activeIdsRef.current = activeNodeIds;
+
+  // Per-row active window in seconds from the timeline origin.
+  const nodeWindows = useMemo(
+    () =>
+      flattenedItems.map((item) => {
+        const originMs = traceStartTime.getTime();
+        const startSec = (item.node.startTime.getTime() - originMs) / 1000;
+        const endSec =
+          ((item.node.endTime ?? item.node.startTime).getTime() - originMs) /
+          1000;
+        return { id: item.node.id, startSec, endSec };
+      }),
+    [flattenedItems, traceStartTime],
+  );
+  const nodeWindowsRef = useRef(nodeWindows);
+  nodeWindowsRef.current = nodeWindows;
 
   const secToX = useCallback(
     (sec: number) =>
@@ -301,6 +329,24 @@ export function TraceTimeline() {
       if (playheadLineRef.current) playheadLineRef.current.style.transform = t;
       if (playheadHandleRef.current)
         playheadHandleRef.current.style.transform = t;
+
+      // Recompute the active set; only commit to state when it actually changes,
+      // so playback re-renders rows on boundary crossings, not every frame.
+      const next = new Set<string>();
+      for (const w of nodeWindowsRef.current) {
+        if (clamped >= w.startSec && clamped <= w.endSec) next.add(w.id);
+      }
+      const cur = activeIdsRef.current;
+      let changed = cur.size !== next.size;
+      if (!changed) {
+        for (const id of next) {
+          if (!cur.has(id)) {
+            changed = true;
+            break;
+          }
+        }
+      }
+      if (changed) setActiveNodeIds(next);
     },
     [traceDuration, secToX],
   );
@@ -326,6 +372,7 @@ export function TraceTimeline() {
 
   const handleScalePointerDown = useCallback(
     (e: React.PointerEvent) => {
+      e.preventDefault(); // don't start a text selection on the scale labels
       pause();
       setShowPlayhead(true);
       seekFromClientX(e.clientX);
@@ -354,7 +401,7 @@ export function TraceTimeline() {
       if (!lastTsRef.current) lastTsRef.current = ts;
       const dt = (ts - lastTsRef.current) / 1000;
       lastTsRef.current = ts;
-      const next = playheadSecRef.current + dt; // 1x real time
+      const next = playheadSecRef.current + dt * playbackRateRef.current;
       if (next >= traceDuration) {
         positionPlayhead(traceDuration);
         pause();
@@ -368,9 +415,15 @@ export function TraceTimeline() {
 
   const stop = useCallback(() => {
     pause();
-    positionPlayhead(0);
-    setShowPlayhead(true);
-  }, [pause, positionPlayhead]);
+    playheadSecRef.current = 0;
+    setActiveNodeIds(new Set());
+    setShowPlayhead(false); // stop clears the playhead (and the dimming)
+  }, [pause]);
+
+  const cycleRate = useCallback(
+    () => setPlaybackRate((r) => (r >= 4 ? 1 : r * 2)),
+    [],
+  );
 
   // Cancel any in-flight animation on unmount.
   useEffect(() => () => pause(), [pause]);
@@ -414,6 +467,11 @@ export function TraceTimeline() {
     const hasChildren = item.node.children.length > 0;
     const isCollapsed = collapsedNodes.has(nodeId);
 
+    // Playhead: dim rows that aren't "playing" at the current time, so the
+    // active ones stand out as the playhead sweeps.
+    const isDimmed =
+      showPlayhead && activeNodeIds.size > 0 && !activeNodeIds.has(nodeId);
+
     const onEnter = () => {
       setHoveredNodeId(nodeId);
       handleHover(item.node);
@@ -435,7 +493,14 @@ export function TraceTimeline() {
 
     if (pane === "gutter") {
       return (
-        <div key={nodeId} style={{ ...baseStyle, width: "100%" }}>
+        <div
+          key={nodeId}
+          style={{ ...baseStyle, width: "100%" }}
+          className={cn(
+            "transition-opacity duration-150",
+            isDimmed && "opacity-30",
+          )}
+        >
           <TimelineGutterRow
             item={item}
             isSelected={isSelected}
@@ -462,10 +527,11 @@ export function TraceTimeline() {
         key={nodeId}
         style={{ ...baseStyle, width: `${chartContentWidth}px` }}
         className={cn(
-          "cursor-pointer",
+          "cursor-pointer transition-opacity duration-150",
           // Selected = accent tint so the neutral bar (bg-muted) stays visible
           // against the row; hover stays neutral.
           isSelected ? "bg-primary-accent/10" : isHovered ? "bg-muted" : "",
+          isDimmed && "opacity-30",
         )}
         onClick={onSelectNode}
         onMouseEnter={onEnter}
@@ -519,13 +585,22 @@ export function TraceTimeline() {
           >
             <Square className="h-3 w-3" />
           </button>
+          <button
+            type="button"
+            onClick={cycleRate}
+            title="Playback speed"
+            aria-label={`Playback speed ${playbackRate}x`}
+            className="hover:bg-muted hover:text-foreground flex h-5 min-w-5 items-center justify-center rounded px-1 text-[10px] tabular-nums"
+          >
+            {playbackRate}×
+          </button>
           <span className="ml-1 truncate">Name</span>
         </div>
         <div className="bg-border/60 w-px shrink-0" />
         <div
           ref={scaleOuterRef}
           onPointerDown={handleScalePointerDown}
-          className="flex-1 cursor-pointer overflow-hidden"
+          className="flex-1 cursor-pointer overflow-hidden select-none"
           style={{ marginRight: `${chartScrollbar.x}px` }}
         >
           <div
@@ -543,6 +618,7 @@ export function TraceTimeline() {
                 ref={playheadHandleRef}
                 onPointerDown={(e) => {
                   // Grab the handle to scrub without re-seeking to the click x.
+                  e.preventDefault();
                   e.stopPropagation();
                   pause();
                   const onMove = (ev: PointerEvent) =>
@@ -556,7 +632,7 @@ export function TraceTimeline() {
                   window.addEventListener("pointerup", onUp);
                   window.addEventListener("pointercancel", onUp);
                 }}
-                className="absolute top-0 bottom-0 z-30 -ml-1.5 w-3 cursor-ew-resize"
+                className="absolute top-0 bottom-0 z-30 -ml-1.5 w-3 cursor-ew-resize select-none"
                 style={{
                   transform: `translateX(${secToX(playheadSecRef.current)}px)`,
                 }}
