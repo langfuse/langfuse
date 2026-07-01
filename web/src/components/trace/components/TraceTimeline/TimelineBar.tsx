@@ -128,7 +128,7 @@ export function TimelineBar({
       >
         <div
           className={cn(
-            "border-border flex h-5 overflow-hidden rounded-sm border",
+            "border-border flex h-4 overflow-hidden rounded-sm border",
             // Dashed when in-flight (no width yet), matching the non-streaming bar.
             itemWidth ? "" : "border-dashed",
             ringClass,
@@ -156,7 +156,7 @@ export function TimelineBar({
     >
       <div
         className={cn(
-          "border-border bg-muted h-5 rounded-sm border",
+          "border-border bg-muted h-4 rounded-sm border",
           itemWidth ? "" : "border-dashed",
           ringClass,
         )}

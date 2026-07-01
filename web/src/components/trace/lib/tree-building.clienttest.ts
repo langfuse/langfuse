@@ -2182,3 +2182,107 @@ describe("getSubtreeDurationOverflowMs", () => {
     expect(getSubtreeDurationOverflowMs(64_000, 65_000)).toBe(65_000);
   });
 });
+
+describe("Duplicate / colliding observation IDs (LFE-10588)", () => {
+  // Regression guard for a prod trace crash. Real traces can contain multiple
+  // rows that share the same observation id (colliding / reused ids in ingested
+  // data), and those rows may each carry a DIFFERENT parentObservationId. The
+  // tree builder keys nodes by id, so duplicate rows wire one node under several
+  // parents — turning the parent→child graph into a dense multi-parent DAG whose
+  // root→node path count grows exponentially. The depth-propagation BFS then grew
+  // its queue without bound, so loading such a trace threw
+  // "RangeError: Invalid array length" / ran out of memory. The builder must
+  // collapse to one row per id so the structure stays a proper forest.
+
+  it("collapses duplicate rows for the same id to a single node", () => {
+    const trace = createMockTrace({ id: "t" });
+    const observations: ObservationReturnType[] = [
+      createMockObservation({
+        id: "a",
+        parentObservationId: null,
+        startTime: new Date("2024-01-01T00:00:00.100Z"),
+      }),
+      createMockObservation({
+        id: "b",
+        parentObservationId: "a",
+        startTime: new Date("2024-01-01T00:00:00.200Z"),
+      }),
+      // duplicate row for child "b" — must not be double-wired under "a"
+      createMockObservation({
+        id: "b",
+        parentObservationId: "a",
+        startTime: new Date("2024-01-01T00:00:00.250Z"),
+      }),
+    ];
+
+    const result = buildTraceUiData(trace, observations);
+
+    // one node per distinct id (+ TRACE wrapper); each appears exactly once.
+    expect(result.nodeMap.size).toBe(3); // trace + a + b
+    expect(result.searchItems).toHaveLength(3);
+    expect(result.searchItems.filter((i) => i.node.id === "b")).toHaveLength(1);
+    // "a" must survive: pre-fix a duplicated child inflated a's in-degree so it
+    // never hit zero in the topological sort and the whole subtree was dropped.
+    expect(result.roots[0].children.map((c) => c.id)).toEqual(["a"]);
+  });
+
+  it("does not explode on colliding ids that form a multi-parent DAG", () => {
+    // Shortcut ladder: node i is a child of BOTH i-1 and i-2, each via a separate
+    // row that reuses id `n{i}`. Without deduplication the root→node path count
+    // is Fibonacci-large and the depth BFS / flatten grow without bound (the prod
+    // crash). Sized so the pre-fix blowup stays finite (~Fib(24)) rather than
+    // OOM-ing the test worker, while still being orders of magnitude too big.
+    const trace = createMockTrace({ id: "t" });
+    const N = 22;
+    const observations: ObservationReturnType[] = [];
+    let clock = 0;
+    const nextStart = () =>
+      new Date(`2024-01-01T00:00:00.${String(clock++).padStart(3, "0")}Z`);
+
+    observations.push(
+      createMockObservation({
+        id: "n0",
+        parentObservationId: null,
+        startTime: nextStart(),
+      }),
+    );
+    observations.push(
+      createMockObservation({
+        id: "n1",
+        parentObservationId: "n0",
+        startTime: nextStart(),
+      }),
+    );
+    for (let i = 2; i <= N; i++) {
+      // primary edge (earlier startTime → survives dedup): parent = i-1
+      observations.push(
+        createMockObservation({
+          id: `n${i}`,
+          parentObservationId: `n${i - 1}`,
+          startTime: nextStart(),
+        }),
+      );
+      // shortcut edge (duplicate id, later startTime): parent = i-2
+      observations.push(
+        createMockObservation({
+          id: `n${i}`,
+          parentObservationId: `n${i - 2}`,
+          startTime: nextStart(),
+        }),
+      );
+    }
+    const distinctIds = N + 1; // n0..nN
+
+    const result = buildTraceUiData(trace, observations);
+
+    // Dedup keeps the earliest-startTime row per id → a clean chain
+    // n0→n1→…→nN. Every distinct id survives exactly once (+ TRACE wrapper), and
+    // the flattened list is bounded — pre-fix the duplicated edges either dropped
+    // nodes (in-degree never hit zero) or blew the traversal up Fibonacci-large.
+    expect(result.nodeMap.size).toBe(distinctIds + 1);
+    expect(result.searchItems).toHaveLength(distinctIds + 1);
+    for (let i = 0; i <= N; i++) {
+      expect(result.nodeMap.has(`n${i}`)).toBe(true);
+    }
+  });
+});

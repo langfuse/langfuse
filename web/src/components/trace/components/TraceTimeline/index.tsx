@@ -2,10 +2,12 @@
  * TraceTimeline - Gantt waterfall: a fixed name-gutter + a scrollable chart.
  *
  * Two panes, side by side, sharing the virtualized rows:
- *  - Gutter pane (fixed, resizable): the indented name tree. Never scrolls
- *    horizontally; its vertical scroll is mirrored from the chart.
- *  - Chart pane (flex-1): the gantt bars. Owns the only horizontal scrollbar
- *    (and the vertical one). It is the virtualizer's scroll element.
+ *  - Gutter pane (fixed, resizable): the indented name tree. It never scrolls
+ *    itself — its content is a one-way translateY projection of the chart's
+ *    vertical scroll, so the two panes can't drift; wheeling or touch-dragging
+ *    over it drives the chart.
+ *  - Chart pane (flex-1): the gantt bars. Owns the only scrollbars (horizontal
+ *    and vertical) and is the virtualizer's scroll element.
  *
  * The time scale sits in an overflow-hidden header strip whose inner is
  * transform-synced to the chart's horizontal scroll, so the scale stays aligned
@@ -31,11 +33,15 @@ import { TimelineBar } from "./TimelineBar";
 import { useDesktopLayoutContextOptional } from "../_layout/TraceLayoutDesktop";
 import { cn } from "@/src/utils/tailwind";
 
-// Width of the left name gutter. Resizable; these bound it.
-const GUTTER_WIDTH_DEFAULT = 240;
+// Width of the left name gutter. Resizable; these bound it. Kept slim so the
+// waterfall (the point of the timeline) gets the central space.
+const GUTTER_WIDTH_DEFAULT = 200;
 const GUTTER_WIDTH_MIN = 160;
 const GUTTER_WIDTH_MAX = 560;
-const ROW_HEIGHT = 42;
+// Dense waterfall rows (LFE-10539): the 16px bar / 16px name chip sit centered
+// with ~5px of breathing room. Drives both the virtualizer estimate and the
+// rendered row height, so the two never drift.
+const ROW_HEIGHT = 26;
 
 export function TraceTimeline() {
   const { roots, serverScores: scores, comments } = useTraceData();
@@ -52,7 +58,9 @@ export function TraceTimeline() {
   // Optional (null in the mobile layout): reopen the detail panel on select.
   const layout = useDesktopLayoutContextOptional();
 
-  const gutterRef = useRef<HTMLDivElement>(null);
+  // The chart is the single vertical scroller; the gutter content is a one-way
+  // transform projection of it (gutterInnerRef), so the two panes can't drift.
+  const gutterInnerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<HTMLDivElement>(null);
   const scaleInnerRef = useRef<HTMLDivElement>(null);
 
@@ -129,11 +137,15 @@ export function TraceTimeline() {
   }, [flattenedItems]);
 
   // Virtualizer drives off the chart pane; the gutter mirrors its vertical scroll.
+  // overscan is a ROW COUNT (not px): keep it small so a long trace re-renders
+  // only a few dozen rows per scroll step instead of ~1000 (the old "500" — a
+  // px-vs-items mix-up — made big traces stutter). ~16 rows ≈ half a viewport of
+  // headroom, enough to avoid blank rows on a normal scroll.
   const rowVirtualizer = useVirtualizer({
     count: flattenedItems.length,
     getScrollElement: () => chartRef.current,
     estimateSize: () => ROW_HEIGHT,
-    overscan: 500,
+    overscan: 16,
   });
 
   // Auto-scroll to selected node on initial load (URL-based navigation only).
@@ -160,24 +172,75 @@ export function TraceTimeline() {
     }
   }, [selectedNodeId, flattenedItems, rowVirtualizer]);
 
-  // Vertical scroll sync (chart ⇄ gutter) + horizontal sync (chart → scale).
-  // Guard with !== so mirroring doesn't loop (setting an equal value is a no-op).
+  // The chart owns the only vertical scroll. The gutter and the time scale are
+  // one-way projections of it (translateY / translateX) updated in the same
+  // scroll frame — no second scroll container to fight the chart's momentum,
+  // which is what made the two panes drift apart.
   const handleChartScroll = useCallback(() => {
     const chart = chartRef.current;
     if (!chart) return;
-    if (gutterRef.current && gutterRef.current.scrollTop !== chart.scrollTop) {
-      gutterRef.current.scrollTop = chart.scrollTop;
+    if (gutterInnerRef.current) {
+      gutterInnerRef.current.style.transform = `translateY(${-chart.scrollTop}px)`;
     }
     if (scaleInnerRef.current) {
       scaleInnerRef.current.style.transform = `translateX(${-chart.scrollLeft}px)`;
     }
   }, []);
 
-  const handleGutterScroll = useCallback(() => {
-    const gutter = gutterRef.current;
-    if (!gutter) return;
-    if (chartRef.current && chartRef.current.scrollTop !== gutter.scrollTop) {
-      chartRef.current.scrollTop = gutter.scrollTop;
+  // The gutter doesn't scroll itself; wheeling over it drives the chart, which
+  // then projects back onto the gutter via handleChartScroll. Normalize the
+  // delta to pixels first: Firefox (and classic mouse wheels) report deltaMode
+  // in lines (1) or pages (2), not pixels (0) — without this, a line-mode wheel
+  // moves ~1px per notch and the gutter feels stuck.
+  const handleGutterWheel = useCallback((e: React.WheelEvent) => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const unit =
+      e.deltaMode === 1
+        ? ROW_HEIGHT
+        : e.deltaMode === 2
+          ? chart.clientHeight
+          : 1;
+    chart.scrollTop += e.deltaY * unit;
+  }, []);
+
+  // Touch (and pen/mouse drag) over the gutter scrolls it too. WheelEvents are
+  // never synthesized on touch, so on touch-capable screens that render this
+  // desktop layout the wheel handler alone leaves the gutter stuck. Pointer
+  // events cover touch + pen + mouse uniformly: we drag-scroll the chart (move
+  // a finger up → content scrolls up, so scrollTop -= dy), and the chart
+  // projects straight back onto the gutter via handleChartScroll — same
+  // pixel-locked path as the wheel, so the two panes still can't drift.
+  const dragRef = useRef<{ pointerId: number; lastY: number } | null>(null);
+  const handleGutterPointerDown = useCallback((e: React.PointerEvent) => {
+    // Only drag-scroll for touch/pen. Leave the mouse to clicks (rows are
+    // clickable) and the wheel; a mouse drag here would otherwise hijack
+    // text selection / row clicks.
+    if (e.pointerType === "mouse") return;
+    const chart = chartRef.current;
+    if (!chart) return;
+    dragRef.current = { pointerId: e.pointerId, lastY: e.clientY };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }, []);
+  const handleGutterPointerMove = useCallback((e: React.PointerEvent) => {
+    const drag = dragRef.current;
+    const chart = chartRef.current;
+    if (!drag || drag.pointerId !== e.pointerId || !chart) return;
+    // Clamp-aware: only consume the scroll delta the browser actually applied.
+    // The browser clamps scrollTop to [0, maxScroll], so advancing lastY to
+    // e.clientY unconditionally would record finger motion past a boundary that
+    // scrollTop discarded; a later direction reversal would then resurface as
+    // phantom scroll with zero net finger travel. Advancing lastY by only the
+    // applied delta keeps over-the-boundary motion from leaking back in.
+    const prev = chart.scrollTop;
+    chart.scrollTop -= e.clientY - drag.lastY;
+    drag.lastY += prev - chart.scrollTop;
+  }, []);
+  const handleGutterPointerEnd = useCallback((e: React.PointerEvent) => {
+    if (dragRef.current?.pointerId !== e.pointerId) return;
+    dragRef.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
     }
   }, []);
 
@@ -207,11 +270,15 @@ export function TraceTimeline() {
   useLayoutEffect(() => {
     const el = chartRef.current;
     if (!el) return;
-    const measure = () =>
-      setChartScrollbar({
-        x: el.offsetWidth - el.clientWidth,
-        y: el.offsetHeight - el.clientHeight,
-      });
+    const measure = () => {
+      const x = el.offsetWidth - el.clientWidth;
+      const y = el.offsetHeight - el.clientHeight;
+      // Only re-render when the measurement actually changes — the observer
+      // fires on every content resize, but the scrollbar size rarely moves.
+      setChartScrollbar((prev) =>
+        prev.x === x && prev.y === y ? prev : { x, y },
+      );
+    };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
@@ -336,17 +403,30 @@ export function TraceTimeline() {
         className="flex min-h-0 flex-1"
         onMouseLeave={() => setHoveredNodeId(null)}
       >
-        {/* Gutter pane — vertical scroll mirrored from the chart; scrollbar hidden. */}
+        {/* Gutter pane — a one-way projection of the chart's vertical scroll
+            (translateY), never its own scroll container, so it stays locked to
+            the chart. Wheeling or touch-dragging over it drives the chart.
+            touchAction:none stops the browser claiming the vertical pan gesture
+            (there's nothing to pan here) so our pointer-drag handlers fire. */}
         <div
-          ref={gutterRef}
-          onScroll={handleGutterScroll}
-          className="shrink-0 overflow-x-hidden overflow-y-auto [&::-webkit-scrollbar]:hidden"
-          style={{ width: `${gutterWidth}px`, scrollbarWidth: "none" }}
+          onWheel={handleGutterWheel}
+          onPointerDown={handleGutterPointerDown}
+          onPointerMove={handleGutterPointerMove}
+          onPointerUp={handleGutterPointerEnd}
+          onPointerCancel={handleGutterPointerEnd}
+          className="shrink-0 touch-none overflow-hidden"
+          style={{ width: `${gutterWidth}px` }}
         >
           <div
+            ref={gutterInnerRef}
             style={{
+              // Match the chart's scrollable extent, including the height its
+              // horizontal scrollbar steals on classic (Windows/Linux) bars, so
+              // the projected rows line up to the very bottom (0 on macOS overlay
+              // bars).
               height: `${totalSize + chartScrollbar.y}px`,
               position: "relative",
+              willChange: "transform",
             }}
           >
             {virtualItems.map((vr) => renderRow(vr, "gutter"))}

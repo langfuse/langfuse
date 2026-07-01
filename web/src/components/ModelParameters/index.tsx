@@ -10,7 +10,6 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { Slider } from "@/src/components/ui/slider";
-import { Switch } from "@/src/components/ui/switch";
 import { CreateLLMApiKeyDialog } from "@/src/features/public-api/components/CreateLLMApiKeyDialog";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { cn } from "@/src/utils/tailwind";
@@ -36,6 +35,7 @@ import {
 import { LLMApiKeyComponent } from "./LLMApiKeyComponent";
 import { FormDescription } from "@/src/components/ui/form";
 import { CodeMirrorEditor } from "../editor";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 
 export type ModelParamsContext = {
   modelParams: UIModelParams;

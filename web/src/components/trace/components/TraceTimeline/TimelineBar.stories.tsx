@@ -18,7 +18,7 @@ const meta = preview.meta({
   // row-height relative track so its left offset renders in context.
   decorators: [
     (Story) => (
-      <div className="bg-background relative h-[42px] w-[640px] rounded border">
+      <div className="bg-background relative h-[26px] w-[640px] rounded border">
         <Story />
       </div>
     ),
