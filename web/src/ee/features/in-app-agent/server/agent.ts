@@ -315,6 +315,7 @@ export async function createAgUiStream(params: {
           ...runInput.syntheticEvents,
         ];
 
+        instrumentation?.recordToolCallApproval(runInput.toolCallApproval);
         instrumentation?.recordEvents(terminalEvents);
         for (const syntheticEvent of terminalEvents) {
           enqueueEvent(syntheticEvent);
@@ -554,6 +555,9 @@ export async function createAgUiStream(params: {
                   agUiEvent.type === EventType.RUN_STARTED &&
                   pendingSyntheticEvents.length > 0
                 ) {
+                  instrumentation?.recordToolCallApproval(
+                    runInput.toolCallApproval,
+                  );
                   instrumentation?.recordEvents(pendingSyntheticEvents);
                   for (const syntheticEvent of pendingSyntheticEvents) {
                     enqueueEvent(syntheticEvent);

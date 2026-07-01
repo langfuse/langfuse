@@ -77,6 +77,7 @@ type ToolObservationBody = {
   statusMessage?: string;
   metadata?: Record<string, unknown>;
 };
+type ToolCallApprovalStatus = "approved" | "rejected";
 
 export function createInAppAgentInstrumentation({
   input,
@@ -122,6 +123,10 @@ export class InAppAgentInstrumentation {
       output?: unknown;
       parentMessageId?: string;
     }
+  >();
+  private readonly toolCallApprovals = new Map<
+    string,
+    ToolCallApprovalStatus
   >();
   private readonly metadata: Record<string, unknown>;
   private readonly agentRunOutputMessages: AgentRunChatMessage[] = [];
@@ -223,6 +228,17 @@ export class InAppAgentInstrumentation {
       this.agentRunInput,
       availableTools,
     );
+  }
+
+  recordToolCallApproval(approval?: {
+    toolCallId: string;
+    status: ToolCallApprovalStatus;
+  }) {
+    if (this.ended || !approval) {
+      return;
+    }
+
+    this.toolCallApprovals.set(approval.toolCallId, approval.status);
   }
 
   endWithError(error: unknown) {
@@ -453,6 +469,7 @@ export class InAppAgentInstrumentation {
     const output =
       tool.output === undefined ? undefined : normalizeToolOutput(tool.output);
     const isError = options?.statusMessage !== undefined || isToolError(output);
+    const toolCallApproval = this.toolCallApprovals.get(toolCallId);
     const body: ToolObservationBody = {
       id: toolCallId,
       traceId: this.agentRun.traceId,
@@ -470,6 +487,7 @@ export class InAppAgentInstrumentation {
       metadata: {
         ...(options?.metadata ?? {}),
         toolCallId,
+        ...(toolCallApproval ? { toolCallApproval } : {}),
         ...(tool.argsComplete ? {} : { argsComplete: false }),
         ...(tool.parentMessageId
           ? { parentMessageId: tool.parentMessageId }
@@ -478,6 +496,7 @@ export class InAppAgentInstrumentation {
     };
 
     this.recordToolCall(toolCallId, tool, output);
+    this.toolCallApprovals.delete(toolCallId);
 
     (
       this.langfuse as unknown as {
