@@ -1,11 +1,22 @@
-import { createClient, type ClickHouseSettings } from "@clickhouse/client";
+import {
+  createClient,
+  type ClickHouseSettings,
+  type ClickHouseSpan,
+  type ClickHouseTracer,
+} from "@clickhouse/client";
 import { env } from "../../env";
 import { VERSION } from "../../constants/VERSION";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 import { getCurrentSpan } from "../instrumentation";
-import { propagation, context } from "@opentelemetry/api";
+import { propagation, context, trace } from "@opentelemetry/api";
 import { ClickHouseLogger, mapLogLevel } from "./clickhouse-logger";
 import { getClickHouseCompatibilitySettings } from "./compatibility";
+
+// Re-exported from the client's bundled common utils. As of @clickhouse/client
+// 1.23.x this constant is no longer surfaced on the package root (nor via a
+// separately installed @clickhouse/client-common), so we centralize the deep
+// import here and let consumers pull it from this module. See LFE-10463.
+export { EXCEPTION_TAG_HEADER_NAME } from "@clickhouse/client/dist/common";
 
 export type ClickhouseClientType = ReturnType<typeof createClient>;
 
@@ -28,6 +39,50 @@ const EVENTS_TABLE_READ_PATH_ENV_KEYS = [
   "LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS",
   "LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN",
 ] as const;
+
+const CLICKHOUSE_TRACER_NAME = "@clickhouse/client";
+
+/**
+ * No-op span handed to the ClickHouse client when we intentionally skip
+ * tracing an operation (see {@link getClickhouseTracer}).
+ */
+const noopClickhouseSpan: ClickHouseSpan = {
+  setAttributes: () => undefined,
+  setStatus: () => undefined,
+  recordException: () => undefined,
+  end: () => undefined,
+};
+
+/**
+ * Builds the tracer passed to the ClickHouse client so that each tracked
+ * operation (query/command/exec/insert/ping) is emitted as an OTEL span. This
+ * wires up the client's built-in, zero-dependency `tracer` hook documented at
+ * https://github.com/ClickHouse/clickhouse-js/blob/1.23.0/docs/howto/tracing.md
+ *
+ * A raw OTEL tracer is structurally assignable to `ClickHouseTracer`, but we
+ * wrap it with the upstream "requireParentSpan" recipe so operations running
+ * outside a traced request (background jobs with no active span, health-check
+ * pings) don't mint new root traces. This mirrors `requireParentforOutgoingSpans`
+ * in our HTTP instrumentation and keeps trace volume/cost bounded.
+ * https://github.com/ClickHouse/clickhouse-js/blob/1.22.0/examples/node/coding/otel_tracing.ts
+ *
+ * Returns undefined when disabled, in which case the client falls back to its
+ * internal no-op tracer and we keep the legacy static traceparent injection.
+ */
+const getClickhouseTracer = (): ClickHouseTracer | undefined => {
+  if (env.CLICKHOUSE_TRACING_ENABLED !== "true") {
+    return undefined;
+  }
+
+  const tracer = trace.getTracer(CLICKHOUSE_TRACER_NAME);
+  return {
+    startActiveSpan: (name, options, fn) =>
+      trace.getSpan(context.active()) === undefined
+        ? // No active parent span: skip tracing so we don't start a root trace.
+          fn(noopClickhouseSpan)
+        : tracer.startActiveSpan(name, options, fn),
+  };
+};
 
 /**
  * ClickHouseClientManager provides a singleton pattern for managing ClickHouse clients.
@@ -150,8 +205,13 @@ export class ClickHouseClientManager {
     );
     const key = this.generateClientSettingsKey(settings);
     if (!this.clientMap.has(key)) {
+      const tracer = getClickhouseTracer();
+
+      // Legacy static traceparent injection. Superseded by `tracer` +
+      // HTTP auto-instrumentation, which inject a fresh traceparent per
+      // request, so only apply it when the tracer is disabled.
       const activeSpan = getCurrentSpan();
-      if (activeSpan) {
+      if (activeSpan && !tracer) {
         propagation.inject(context.active(), settings.http_headers);
       }
 
@@ -167,6 +227,7 @@ export class ClickHouseClientManager {
       const client = createClient({
         ...opts,
         ...settings,
+        tracer,
         application: `langfuse/${VERSION.replace("v", "")}`,
         keep_alive: {
           idle_socket_ttl: env.CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL,

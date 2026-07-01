@@ -132,6 +132,14 @@ const EnvSchema = z.object({
   CLICKHOUSE_USE_QUERY_CONDITION_CACHE: z
     .enum(["true", "false"])
     .default("false"),
+  // Emit an OTEL span per ClickHouse client operation (query/command/exec/
+  // insert/ping) via the client's built-in `tracer` hook. Spans are only
+  // created when there is already an active parent span, so background queries
+  // and health-check pings don't mint orphan root traces. When enabled, the
+  // client + HTTP auto-instrumentation propagate a fresh W3C traceparent per
+  // request, superseding the legacy static header injection.
+  // https://github.com/ClickHouse/clickhouse-js/blob/1.23.0/docs/howto/tracing.md
+  CLICKHOUSE_TRACING_ENABLED: z.enum(["true", "false"]).default("false"),
   LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION: z
     .enum(["true", "false"])
     .default("false"),
