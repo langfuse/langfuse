@@ -12,6 +12,7 @@ import { cn } from "@/src/utils/tailwind";
 import { default as React18JsonView } from "react18-json-view";
 import "react18-json-view/src/dark.css";
 import { deepParseJson } from "@langfuse/shared";
+import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useTheme } from "next-themes";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -44,8 +45,14 @@ export function JSONView(props: {
   externalJsonCollapsed?: boolean;
   onToggleCollapse?: () => void;
 }) {
-  // some users ingest stringified json nested in json, parse it
-  const parsedJson = useMemo(() => deepParseJson(props.json), [props.json]);
+  // some users ingest stringified json nested in json, parse it. Also decode
+  // \uXXXX escapes (e.g. Japanese ingested with Python ensure_ascii=True) so
+  // non-ASCII content renders as real characters. Already-decoded strings are
+  // a no-op (decodeUnicodeEscapesOnly returns early when there is no backslash).
+  const parsedJson = useMemo(
+    () => decodeUnicodeInJson(deepParseJson(props.json)),
+    [props.json],
+  );
   const { resolvedTheme } = useTheme();
   const { setIsMarkdownEnabled } = useMarkdownContext();
   const capture = usePostHogClientCapture();
