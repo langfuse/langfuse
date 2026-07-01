@@ -30,6 +30,7 @@ type InAppAgentMcpToolApproval = "auto" | "approval";
 
 export type InAppAgentUserAccess = {
   projectRole?: Role;
+  // Global Langfuse admin flag. This bypasses project membership checks.
   isAdmin: boolean;
 };
 

@@ -346,6 +346,8 @@ export default async function handler(request: Request) {
               ...error,
             });
 
+          const userAccess = getInAppAgentUserAccess(user, projectId);
+
           const stream = await createAgUiStream({
             input: agentInput,
             signal: request.signal,
@@ -423,7 +425,7 @@ export default async function handler(request: Request) {
                 url: getLangfuseMcpUrl(),
                 publicKey: mcpApiKey.publicKey,
                 secretKey: mcpApiKey.secretKey,
-                userAccess: getInAppAgentUserAccess(user, projectId),
+                userAccess,
                 runOverride,
               },
               redirectAction: {
@@ -440,6 +442,8 @@ export default async function handler(request: Request) {
                       user: {
                         id: userId,
                         email: user.email,
+                        projectRole: userAccess.projectRole,
+                        isAdmin: userAccess.isAdmin,
                       },
                       traceId: conversation.id,
                       metadata: {
