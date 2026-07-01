@@ -10,6 +10,7 @@ import type {
 
 import { cn } from "@/src/utils/tailwind";
 import { Layer } from "@/src/components/ui/layer";
+import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const;
@@ -243,6 +244,10 @@ const ChartTooltipContent = React.forwardRef<
           {displayPayload.map((item, index) => {
             const key = `${nameKey || item.name || item.dataKey || "value"}`;
             const itemConfig = getPayloadConfigFromPayload(config, item, key);
+            const itemDisplayName = nameFormatter
+              ? nameFormatter(String(item.name ?? item.dataKey ?? ""))
+              : itemConfig?.label || item.name;
+            const itemDisplayTitle = getPlainTextFromReactNode(itemDisplayName);
             const indicatorColor =
               color ||
               getFillColor(item.payload) ||
@@ -304,12 +309,9 @@ const ChartTooltipContent = React.forwardRef<
                             "text-muted-foreground truncate",
                             highlighted && "text-foreground font-medium",
                           )}
+                          title={itemDisplayTitle}
                         >
-                          {nameFormatter
-                            ? nameFormatter(
-                                String(item.name ?? item.dataKey ?? ""),
-                              )
-                            : itemConfig?.label || item.name}
+                          {itemDisplayName}
                         </span>
                       </div>
                       {item.value !== undefined && item.value !== null && (

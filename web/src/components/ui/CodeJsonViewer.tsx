@@ -269,7 +269,10 @@ export function CodeView(props: {
       <div className="animate-appear relative h-3">
         <Check className="h-3 w-3" />
         {copiedToClipboardMessage && (
-          <div className="text-secondary-foreground absolute top-0 right-0 mr-6 h-full max-w-[60vw] transform truncate overflow-hidden text-right text-sm leading-none whitespace-nowrap">
+          <div
+            className="text-secondary-foreground absolute top-0 right-0 mr-6 h-full max-w-[60vw] transform truncate overflow-hidden text-right text-sm leading-none whitespace-nowrap"
+            title={copiedToClipboardMessage}
+          >
             {copiedToClipboardMessage}
           </div>
         )}

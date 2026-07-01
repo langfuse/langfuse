@@ -112,39 +112,52 @@ export const UserAssignmentSection = ({
             }, 100);
           }
         }}
-        renderSelectedItem={(user, onRemove) => (
-          <div className="bg-muted flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs">
-            <span className="max-w-32 truncate">{user.name || user.email}</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="hover:bg-muted-foreground/20 h-4 w-4 p-0"
-              onClick={onRemove}
-            >
-              <X className="h-3 w-3" />
-            </Button>
-          </div>
-        )}
-        renderItem={(user, isSelected, onToggle) => (
-          <div
-            className="hover:bg-muted/50 flex cursor-pointer items-center gap-3 px-3 py-2 transition-colors"
-            onClick={onToggle}
-          >
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-3">
-                <p className="truncate text-xs font-medium">
-                  {user.name || "Unnamed User"}
-                </p>
-                <p className="text-muted-foreground truncate text-xs">
-                  {user.email}
-                </p>
-              </div>
+        renderSelectedItem={(user, onRemove) => {
+          const userLabel = user.name || user.email;
+
+          return (
+            <div className="bg-muted flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs">
+              <span className="max-w-32 truncate" title={userLabel}>
+                {userLabel}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="hover:bg-muted-foreground/20 h-4 w-4 p-0"
+                onClick={onRemove}
+              >
+                <X className="h-3 w-3" />
+              </Button>
             </div>
-            {isSelected && (
-              <div className="text-muted-foreground text-xs">✓</div>
-            )}
-          </div>
-        )}
+          );
+        }}
+        renderItem={(user, isSelected, onToggle) => {
+          const userName = user.name || "Unnamed User";
+
+          return (
+            <div
+              className="hover:bg-muted/50 flex cursor-pointer items-center gap-3 px-3 py-2 transition-colors"
+              onClick={onToggle}
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-3">
+                  <p className="truncate text-xs font-medium" title={userName}>
+                    {userName}
+                  </p>
+                  <p
+                    className="text-muted-foreground truncate text-xs"
+                    title={user.email}
+                  >
+                    {user.email}
+                  </p>
+                </div>
+              </div>
+              {isSelected && (
+                <div className="text-muted-foreground text-xs">✓</div>
+              )}
+            </div>
+          );
+        }}
       />
 
       {/* Assigned Users Section */}
@@ -156,38 +169,48 @@ export const UserAssignmentSection = ({
             </h4>
             <div className="bg-background max-h-32 overflow-y-auto rounded-md border">
               {queueAssignmentsQuery.data?.assignments.map(
-                (user: any, index: number) => (
-                  <div key={user.id}>
-                    <div className="flex items-center justify-between gap-3 px-3 py-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-3">
-                          <p className="truncate text-xs font-medium">
-                            {user.name || "Unnamed User"}
-                          </p>
-                          <p className="text-muted-foreground truncate text-xs">
-                            {user.email}
-                          </p>
+                (user: any, index: number) => {
+                  const userName = user.name || "Unnamed User";
+
+                  return (
+                    <div key={user.id}>
+                      <div className="flex items-center justify-between gap-3 px-3 py-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-3">
+                            <p
+                              className="truncate text-xs font-medium"
+                              title={userName}
+                            >
+                              {userName}
+                            </p>
+                            <p
+                              className="text-muted-foreground truncate text-xs"
+                              title={user.email}
+                            >
+                              {user.email}
+                            </p>
+                          </div>
                         </div>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          disabled={
+                            !hasQueueAssignmentWriteAccess ||
+                            deleteQueueAssignmentMutation.isPending
+                          }
+                          onClick={() => handleUserRemove(user.id)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        disabled={
-                          !hasQueueAssignmentWriteAccess ||
-                          deleteQueueAssignmentMutation.isPending
-                        }
-                        onClick={() => handleUserRemove(user.id)}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
+                      {(index <
+                        queueAssignmentsQuery.data?.assignments.length - 1 ||
+                        hasMoreAssignedUsers) && (
+                        <div className="border-border/50 border-b" />
+                      )}
                     </div>
-                    {(index <
-                      queueAssignmentsQuery.data?.assignments.length - 1 ||
-                      hasMoreAssignedUsers) && (
-                      <div className="border-border/50 border-b" />
-                    )}
-                  </div>
-                ),
+                  );
+                },
               )}
               {hasMoreAssignedUsers && (
                 <div className="text-muted-foreground flex items-center gap-3 px-3 py-2">

@@ -46,4 +46,22 @@ describe("MediaTag", () => {
     expect(onOpenChange).toHaveBeenCalledWith(true);
     expect(onOpenChange).toHaveBeenCalledTimes(1);
   });
+
+  it("shows the fallback when resolved image media fails to render", async () => {
+    render(
+      <MediaTag
+        contentType="image/jpeg"
+        status="ready"
+        url="https://commons.wikimedia.org/wiki/File:Gull_portrait_ca_usa.jpg"
+        open
+      />,
+    );
+
+    const image = document.body.querySelector("img");
+    expect(image).toBeInTheDocument();
+
+    fireEvent.error(image!);
+
+    expect(await screen.findByText("Failed to load media")).toBeInTheDocument();
+  });
 });

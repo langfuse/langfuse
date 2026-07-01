@@ -131,6 +131,8 @@ describe("InAppAgentInstrumentation", () => {
         metadata: {
           langfuse_project_id: "project-1",
           langfuse_user_email: "user@example.com",
+          langfuse_user_project_role: "ADMIN",
+          langfuse_user_is_admin: true,
         },
         targetProjectId: "project-1",
         traceId,
@@ -380,6 +382,8 @@ describe("InAppAgentInstrumentation", () => {
         metadata: {
           langfuse_project_id: "project-1",
           langfuse_user_email: "user@example.com",
+          langfuse_user_project_role: "ADMIN",
+          langfuse_user_is_admin: true,
           prompt_name: "in-app-agent-system-prompt",
           prompt_version: 3,
         },
@@ -390,6 +394,8 @@ describe("InAppAgentInstrumentation", () => {
         metadata: {
           langfuse_project_id: "project-1",
           langfuse_user_email: "user@example.com",
+          langfuse_user_project_role: "ADMIN",
+          langfuse_user_is_admin: true,
           prompt_name: "in-app-agent-system-prompt",
           prompt_version: 3,
         },
@@ -402,6 +408,8 @@ describe("InAppAgentInstrumentation", () => {
       metadata: {
         langfuse_project_id: "project-1",
         langfuse_user_email: "user@example.com",
+        langfuse_user_project_role: "ADMIN",
+        langfuse_user_is_admin: true,
         prompt_name: "in-app-agent-system-prompt",
         prompt_version: 3,
       },
@@ -660,6 +668,8 @@ function createInstrumentation(
     metadata: { langfuse_project_id: "project-1" },
     userId: "user-1",
     userEmail: "user@example.com",
+    userProjectRole: "ADMIN",
+    userIsAdmin: true,
     traceId,
     targetProjectId: "project-1",
     environment: "prod",

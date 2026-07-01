@@ -164,52 +164,50 @@ describe("MCP public API tools", () => {
     );
   });
 
-  it("exposes read-only tools for in-app agent keys", async () => {
+  it("exposes the same feature-enabled tools for in-app agent keys", async () => {
     const toolNames = await getToolNames();
     const inAppToolNames = await getToolNames(
-      mockServerContext({ isInAppAgentKey: true }),
+      mockServerContext({ inAppAgent: { permissions: "read" } }),
     );
 
-    expect(inAppToolNames).toEqual(
-      expect.arrayContaining([
-        "listDatasets",
-        "getHealth",
-        "listScores",
-        "getScore",
-        "listScoreConfigs",
-        "listEvaluators",
-        "getEvaluator",
-        "listEvaluationRules",
-        "getEvaluationRule",
-        "listPrompts",
-        "getPrompt",
-        "getPromptUnresolved",
-      ]),
-    );
-
-    const readOnlyToolNames = toolNames.filter(
-      (toolName) =>
-        toolRegistry.getTool(toolName)?.definition.annotations?.readOnlyHint,
-    );
-    expect(inAppToolNames).toEqual(expect.arrayContaining(readOnlyToolNames));
+    expect(inAppToolNames.sort()).toEqual(toolNames.sort());
   });
 
-  it("hides mutating tools for in-app agent keys", async () => {
-    const toolNames = await getToolNames();
-    const inAppToolNames = await getToolNames(
-      mockServerContext({ isInAppAgentKey: true }),
+  it("does not resolve mutating tools for in-app agent keys without a run override", async () => {
+    const context = mockServerContext({
+      inAppAgent: { permissions: "read" },
+    });
+    const inAppToolNames = await getToolNames(context);
+
+    expect(inAppToolNames).toEqual(
+      expect.arrayContaining(["upsertDataset", "createModel"]),
     );
 
-    expect(inAppToolNames).not.toContain("upsertDataset");
-    expect(inAppToolNames).not.toContain("createModel");
+    await expect(
+      toolRegistry.getEnabledTool("upsertDataset", context),
+    ).resolves.toBeUndefined();
+    await expect(
+      toolRegistry.getEnabledTool("createModel", context),
+    ).resolves.toBeUndefined();
+  });
 
-    const writableToolNames = toolNames.filter(
-      (toolName) =>
-        !toolRegistry.getTool(toolName)?.definition.annotations?.readOnlyHint,
-    );
-    for (const toolName of writableToolNames) {
-      expect(inAppToolNames).not.toContain(toolName);
-    }
+  it("resolves only the overridden mutating tool for in-app agent keys", async () => {
+    const context = mockServerContext({
+      inAppAgent: {
+        permissions: "single-tool-override",
+        allowedToolName: "upsertDataset",
+      },
+    });
+
+    await expect(
+      toolRegistry.getEnabledTool("upsertDataset", context),
+    ).resolves.toBeTruthy();
+    await expect(
+      toolRegistry.getEnabledTool("createModel", context),
+    ).resolves.toBeUndefined();
+    await expect(
+      toolRegistry.getEnabledTool("listDatasets", context),
+    ).resolves.toBeUndefined();
   });
 
   it("marks destructive public API tools", async () => {
