@@ -86,6 +86,71 @@ describe("scores trpc", () => {
     caller = appRouter.createCaller({ ...ctx, prisma });
   });
 
+  describe("scores.all", () => {
+    it("does not match empty boolean representations when filtering boolean values", async () => {
+      const trueBooleanScore = createTraceScore({
+        project_id: projectId,
+        name: "boolean-score-true",
+        data_type: "BOOLEAN",
+        value: 1,
+        string_value: "True",
+      });
+      const falseBooleanScore = createTraceScore({
+        project_id: projectId,
+        name: "boolean-score-false",
+        data_type: "BOOLEAN",
+        value: 0,
+        string_value: "False",
+      });
+      const emptyBooleanScore = createTraceScore({
+        project_id: projectId,
+        name: "boolean-score-empty",
+        data_type: "BOOLEAN",
+        value: 1,
+        string_value: "",
+      });
+      const numericScore = createTraceScore({
+        project_id: projectId,
+        name: "numeric-score",
+        data_type: "NUMERIC",
+        value: 0.7,
+        string_value: null,
+      });
+
+      await createScoresCh([
+        trueBooleanScore,
+        falseBooleanScore,
+        emptyBooleanScore,
+        numericScore,
+      ]);
+
+      const payload = {
+        projectId,
+        filter: [
+          {
+            column: "booleanValue",
+            type: "stringOptions",
+            operator: "none of",
+            value: ["false"],
+          },
+        ],
+        orderBy: { column: "timestamp", order: "DESC" },
+        page: 0,
+        limit: 50,
+      } as const;
+
+      const result = await caller.scores.all(payload);
+      const resultFromEvents = await caller.scores.allFromEvents(payload);
+
+      expect(result.scores.map((score) => score.id)).toEqual([
+        trueBooleanScore.id,
+      ]);
+      expect(resultFromEvents.scores.map((score) => score.id)).toEqual([
+        trueBooleanScore.id,
+      ]);
+    });
+  });
+
   describe("scores.deleteMany", () => {
     it("should delete scores by ids", async () => {
       // Setup
@@ -256,6 +321,22 @@ describe("scores trpc", () => {
       expect(
         traceLevelColumns.scoreColumns.map((column) => column.name),
       ).toEqual(["trace_level_score"]);
+    });
+  });
+
+  describe("scores.filterOptions", () => {
+    it("returns static boolean value options for both scores views", async () => {
+      await expect(
+        caller.scores.filterOptions({ projectId }),
+      ).resolves.toMatchObject({
+        booleanValue: [{ value: "true" }, { value: "false" }],
+      });
+
+      await expect(
+        caller.scores.filterOptionsFromEvents({ projectId }),
+      ).resolves.toMatchObject({
+        booleanValue: [{ value: "true" }, { value: "false" }],
+      });
     });
   });
 

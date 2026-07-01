@@ -27,6 +27,7 @@ export type SessionDataReturnType = {
   trace_environment?: string;
   scores_avg?: Array<Array<[string, number]>>;
   score_categories?: Array<Array<string>>;
+  score_booleans?: Array<Array<string>>;
 };
 
 export type SessionWithMetricsReturnType = SessionDataReturnType & {
@@ -161,7 +162,8 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         session_output_usage,
         session_total_usage,
         scores_avg,
-        score_categories`;
+        score_categories,
+        score_booleans`;
       break;
     default: {
       const exhaustiveCheckDefault: never = select;
@@ -229,6 +231,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         "session_input_usage",
         "scores_avg",
         "score_categories",
+        "score_booleans",
       ].includes(f.field),
     ) ||
     (orderBy &&
@@ -258,7 +261,11 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
       groupArrayIf(
         concat(name, ':', string_value),
         data_type = 'CATEGORICAL' AND notEmpty(string_value)
-      ) AS score_categories
+      ) AS score_categories,
+      groupArrayIf(
+        concat(name, ':', lowerUTF8(string_value)),
+        data_type = 'BOOLEAN' AND notEmpty(string_value)
+      ) AS score_booleans
     FROM (
       SELECT
         project_id,
@@ -277,7 +284,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         name,
         data_type,
         string_value
-      ) tmp
+    ) tmp
     GROUP BY
       project_id, session_id
   )`;
@@ -342,7 +349,8 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
                       ${
                         select === "metrics" || requiresScoresJoin
                           ? `groupUniqArrayArray(s.scores_avg) as scores_avg,
-                      groupUniqArrayArray(s.score_categories) as score_categories,`
+                      groupUniqArrayArray(s.score_categories) as score_categories,
+                      groupUniqArrayArray(s.score_booleans) as score_booleans,`
                           : ""
                       }
                       arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sumMap(o.sum_cost_details)))) as session_input_cost,

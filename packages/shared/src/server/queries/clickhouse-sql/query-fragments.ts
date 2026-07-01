@@ -124,7 +124,9 @@ export const buildScoresAggregationCTE = (
         ${primaryKey},
         ${additionalOuterCols.length > 0 ? additionalOuterCols.join(",\n        ") + "," : ""}
         groupArrayIf(tuple(name, avg_value, data_type, string_value), data_type IN ('NUMERIC', 'BOOLEAN')) AS scores_avg,
-        groupArrayIf(concat(name, ':', string_value), data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)) AS score_categories${params.includeTupleEncoding ? `,\n        groupArrayIf(tuple(name, string_value, data_type), data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)) AS score_categories_tuples` : ""}
+        groupArrayIf(concat(name, ':', string_value), data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)) AS score_categories,
+        -- BOOLEAN scores also stay in scores_avg for legacy numeric filters; true/false filters need raw-value existence instead of avg(value).
+        groupArrayIf(concat(name, ':', lowerUTF8(string_value)), data_type = 'BOOLEAN' AND notEmpty(string_value)) AS score_booleans${params.includeTupleEncoding ? `,\n        groupArrayIf(tuple(name, string_value, data_type), data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)) AS score_categories_tuples` : ""}
       FROM (
         SELECT
           ${primaryKey},
@@ -324,7 +326,11 @@ export const eventsSessionScoresAggregation = (params: {
       groupArrayIf(
         concat(name, ':', string_value),
         data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)
-      ) AS score_categories
+      ) AS score_categories,
+      groupArrayIf(
+        concat(name, ':', lowerUTF8(string_value)),
+        data_type = 'BOOLEAN' AND notEmpty(string_value)
+      ) AS score_booleans
     FROM (
       SELECT
         project_id,
@@ -355,6 +361,7 @@ export const eventsSessionScoresAggregation = (params: {
       "score_session_id",
       "scores_avg",
       "score_categories",
+      "score_booleans",
     ],
   };
 };

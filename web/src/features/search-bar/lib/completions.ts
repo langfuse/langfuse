@@ -21,6 +21,7 @@ import {
 } from "./langQ";
 import {
   FIELDS,
+  SCORE_COLUMNS,
   nullableFields,
   resolveField,
   type FieldDef,
@@ -473,9 +474,17 @@ function keyPathOptions(
     };
   }
   const numericColumn =
-    kind.level === "trace" ? "trace_scores_avg" : "scores_avg";
+    kind.level === "trace"
+      ? SCORE_COLUMNS.trace.numeric
+      : SCORE_COLUMNS.observation.numeric;
   const categoricalColumn =
-    kind.level === "trace" ? "trace_score_categories" : "score_categories";
+    kind.level === "trace"
+      ? SCORE_COLUMNS.trace.categorical
+      : SCORE_COLUMNS.observation.categorical;
+  const booleanColumn =
+    kind.level === "trace"
+      ? SCORE_COLUMNS.trace.boolean
+      : SCORE_COLUMNS.observation.boolean;
   const seen = new Map<string, string>();
   for (const o of observedValues(observed, numericColumn))
     seen.set(o.value, "numeric score");
@@ -483,6 +492,14 @@ function keyPathOptions(
     seen.set(
       o.value,
       seen.has(o.value) ? "numeric + categorical score" : "categorical score",
+    );
+  }
+  for (const o of observedValues(observed, booleanColumn)) {
+    seen.set(
+      o.value,
+      seen.has(o.value)
+        ? `${seen.get(o.value)} + boolean score`
+        : "boolean score",
     );
   }
   const options = [...seen.entries()].map(([name, detail]) => ({
@@ -562,9 +579,17 @@ function valueStageSections(
     case "scores": {
       if (observed === undefined) return { sections: [], loading: true };
       const numericColumn =
-        ref.level === "trace" ? "trace_scores_avg" : "scores_avg";
+        ref.level === "trace"
+          ? SCORE_COLUMNS.trace.numeric
+          : SCORE_COLUMNS.observation.numeric;
       const categoricalColumn =
-        ref.level === "trace" ? "trace_score_categories" : "score_categories";
+        ref.level === "trace"
+          ? SCORE_COLUMNS.trace.categorical
+          : SCORE_COLUMNS.observation.categorical;
+      const booleanColumn =
+        ref.level === "trace"
+          ? SCORE_COLUMNS.trace.boolean
+          : SCORE_COLUMNS.observation.boolean;
       // Quoted for the example shown in the compare-op tooltip — a spaced score
       // name must read as `scores."Rouge Score":>0.8`, not the unparsable bare
       // form. (The data lookups above use the unquoted column names.)
@@ -575,11 +600,31 @@ function valueStageSections(
       const isNumeric = observedValues(observed, numericColumn).some(
         (o) => o.value === ref.key,
       );
+      const isBoolean = observedValues(observed, booleanColumn).some(
+        (o) => o.value === ref.key,
+      );
       const categories = observedValues(
         observed,
         `${categoricalColumn}.${ref.key}`,
       );
       const sections: CompletionSection[] = [];
+      if (isBoolean) {
+        const all = [
+          {
+            id: "value:true",
+            kind: "value" as const,
+            label: "true",
+            value: "true",
+          },
+          {
+            id: "value:false",
+            kind: "value" as const,
+            label: "false",
+            value: "false",
+          },
+        ];
+        sections.push(...section(SECTION_VALUES, valueOptions(all, typed)));
+      }
       if (categories.length > 0) {
         const all = categories.map((o) => ({
           id: `value:${o.value}`,
@@ -590,7 +635,11 @@ function valueStageSections(
         }));
         sections.push(...section(SECTION_VALUES, valueOptions(all, typed)));
       }
-      if ((isNumeric || categories.length === 0) && typed.length === 0) {
+      if (
+        !isBoolean &&
+        (isNumeric || categories.length === 0) &&
+        typed.length === 0
+      ) {
         sections.push(
           ...section(
             SECTION_COMPARE_OPS,

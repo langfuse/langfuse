@@ -65,6 +65,12 @@ export const experimentScoreAggCols: UiColumnMappings = [
     clickhouseTableName: "scores",
     clickhouseSelect: "obs_score_categories",
   },
+  {
+    uiTableName: "Scores (boolean)",
+    uiTableId: "obs_score_booleans",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "obs_score_booleans",
+  },
   // Trace-level scores
   {
     uiTableName: "Trace Scores (numeric)",
@@ -77,6 +83,12 @@ export const experimentScoreAggCols: UiColumnMappings = [
     uiTableId: "trace_score_categories",
     clickhouseTableName: "scores",
     clickhouseSelect: "trace_score_categories",
+  },
+  {
+    uiTableName: "Trace Scores (boolean)",
+    uiTableId: "trace_score_booleans",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "trace_score_booleans",
   },
 ];
 

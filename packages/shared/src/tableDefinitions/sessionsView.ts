@@ -111,6 +111,13 @@ export const sessionsViewCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
+    name: "Scores (boolean)",
+    id: "score_booleans",
+    type: "booleanObject",
+    internal: "score_booleans",
+    nullable: true,
+  },
+  {
     name: "Comment Count",
     id: "commentCount",
     type: "number",
@@ -130,6 +137,7 @@ export type SessionOptions = {
   tags: Array<SingleValueOption>;
   scores_avg?: Array<string>;
   score_categories?: Array<MultiValueOption>;
+  score_booleans?: Array<string>;
 };
 
 export function sessionsTableColsWithOptions(
@@ -150,6 +158,9 @@ export function sessionsTableColsWithOptions(
     }
     if (col.id === "score_categories") {
       return formatColumnOptions(col, options?.score_categories ?? []);
+    }
+    if (col.id === "score_booleans") {
+      return formatColumnOptions(col, options?.score_booleans ?? []);
     }
     return col;
   });

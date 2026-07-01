@@ -102,6 +102,13 @@ export class InMemoryFilterService {
           condition.value,
           operator,
         );
+      case "booleanObject":
+        return this.evaluateBooleanObjectFilter(
+          fieldValue,
+          condition.key,
+          condition.value,
+          operator,
+        );
       case "null":
         return this.evaluateNullFilter(fieldValue, operator);
       case "positionInTrace":
@@ -362,6 +369,33 @@ export class InMemoryFilterService {
           operator,
           filterValue,
           fieldValue: numValue,
+          key,
+        });
+        return false;
+    }
+  }
+
+  private static evaluateBooleanObjectFilter(
+    fieldValue: unknown,
+    key: string,
+    filterValue: boolean,
+    operator: string,
+  ): boolean {
+    const target = `${key}:${filterValue ? "true" : "false"}`;
+    const hasValue = Array.isArray(fieldValue)
+      ? fieldValue.map(String).includes(target)
+      : false;
+
+    switch (operator) {
+      case "=":
+        return hasValue;
+      case "<>":
+        return !hasValue;
+      default:
+        logger.error("Unsupported booleanObject filter operator", {
+          operator,
+          filterValue,
+          fieldValue,
           key,
         });
         return false;

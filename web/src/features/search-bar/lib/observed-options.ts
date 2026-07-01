@@ -9,6 +9,7 @@
 //   complete from free typing only)
 
 import type { ScoreTypeContext } from "./adapter";
+import { SCORE_COLUMNS } from "./fields";
 
 export type ObservedValue = { value: string; count?: number };
 export type ObservedOptions = Record<string, ObservedValue[]>;
@@ -34,6 +35,34 @@ function toObservedValues(options: RawOption[]): ObservedValue[] {
     }
   }
   return out;
+}
+
+function removeObservedValues(
+  options: ObservedValue[] | undefined,
+  excluded: ReadonlySet<string>,
+): ObservedValue[] | undefined {
+  if (!options || excluded.size === 0) return options;
+  return options.filter((option) => !excluded.has(option.value));
+}
+
+function normalizeScoreColumns(
+  out: ObservedOptions,
+  columns: (typeof SCORE_COLUMNS)["observation" | "trace"],
+): void {
+  const booleanNames = new Set(
+    (out[columns.boolean] ?? []).map((option) => option.value),
+  );
+
+  // Backend score option discovery keeps BOOLEAN names in numeric options for
+  // legacy consumers. Keep backend compatibility but make the search bar treat
+  // those names as boolean-only.
+  out[columns.numeric] =
+    removeObservedValues(out[columns.numeric], booleanNames) ?? [];
+}
+
+function normalizeScoreTypes(out: ObservedOptions): void {
+  normalizeScoreColumns(out, SCORE_COLUMNS.observation);
+  normalizeScoreColumns(out, SCORE_COLUMNS.trace);
 }
 
 /**
@@ -62,6 +91,7 @@ export function toObservedOptions(
         .map((v) => ({ value: v }));
     }
   }
+  normalizeScoreTypes(out);
   return out;
 }
 
@@ -79,8 +109,10 @@ export function scoreTypeContextFromObserved(
   return {
     numericScoreNames: names("scores_avg"),
     categoricalScoreNames: names("score_categories"),
+    booleanScoreNames: names("score_booleans"),
     traceNumericScoreNames: names("trace_scores_avg"),
     traceCategoricalScoreNames: names("trace_score_categories"),
+    traceBooleanScoreNames: names("trace_score_booleans"),
   };
 }
 
@@ -111,7 +143,12 @@ export function scoreTypeContextEqual(
   return (
     nameSetsEqual(a?.numericScoreNames, b?.numericScoreNames) &&
     nameSetsEqual(a?.categoricalScoreNames, b?.categoricalScoreNames) &&
+    nameSetsEqual(a?.booleanScoreNames, b?.booleanScoreNames) &&
     nameSetsEqual(a?.traceNumericScoreNames, b?.traceNumericScoreNames) &&
-    nameSetsEqual(a?.traceCategoricalScoreNames, b?.traceCategoricalScoreNames)
+    nameSetsEqual(
+      a?.traceCategoricalScoreNames,
+      b?.traceCategoricalScoreNames,
+    ) &&
+    nameSetsEqual(a?.traceBooleanScoreNames, b?.traceBooleanScoreNames)
   );
 }

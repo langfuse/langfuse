@@ -278,7 +278,9 @@ export function InlineFilterState({
         )}
       >
         {filter.column}
-        {filter.type === "stringObject" || filter.type === "numberObject"
+        {filter.type === "stringObject" ||
+        filter.type === "numberObject" ||
+        filter.type === "booleanObject"
           ? `.${filter.key}`
           : ""}{" "}
         {filter.operator}{" "}
@@ -292,7 +294,7 @@ export function InlineFilterState({
                 : filter.value.join(", ")
               : filter.type === "number" || filter.type === "numberObject"
                 ? filter.value
-                : filter.type === "boolean"
+                : filter.type === "boolean" || filter.type === "booleanObject"
                   ? `${filter.value}`
                   : filter.type === "null"
                     ? ""
@@ -596,7 +598,8 @@ function FilterBuilderForm({
                 );
                 const keyOptions =
                   column?.type === "numberObject" ||
-                  column?.type === "stringObject"
+                  column?.type === "stringObject" ||
+                  column?.type === "booleanObject"
                     ? column.keyOptions?.filter(
                         (o) => NonEmptyString.safeParse(o).success,
                       )
@@ -717,9 +720,11 @@ function FilterBuilderForm({
                       </Popover>
                       {filter.type &&
                       (filter.type === "numberObject" ||
-                        filter.type === "stringObject") &&
+                        filter.type === "stringObject" ||
+                        filter.type === "booleanObject") &&
                       (column?.type === "numberObject" ||
-                        column?.type === "stringObject") ? (
+                        column?.type === "stringObject" ||
+                        column?.type === "booleanObject") ? (
                         keyOptions?.length ? (
                           // Case 1: object with keyOptions - selector of the key of the object
                           <Select
@@ -950,7 +955,8 @@ function FilterBuilderForm({
                             columnsWithCustomSelect.includes(column.id)
                           }
                         />
-                      ) : filter.type === "boolean" ? (
+                      ) : filter.type === "boolean" ||
+                        filter.type === "booleanObject" ? (
                         <Select
                           disabled={disabled}
                           onValueChange={(value) => {

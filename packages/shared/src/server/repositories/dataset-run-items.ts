@@ -99,6 +99,7 @@ export type DatasetRunsMetrics = {
   avgLatency: number;
   aggScoresAvg: Array<[string, number]>;
   aggScoreCategories: string[];
+  aggScoreBooleans: string[];
 };
 
 type DatasetRunsRows = {
@@ -122,6 +123,7 @@ type DatasetRunsMetricsRecordType = {
   total_cost: number;
   agg_scores_avg: Array<[string, number]>;
   agg_score_categories: string[];
+  agg_score_booleans: string[];
 };
 
 type DatasetRunsRowsRecordType = {
@@ -174,6 +176,7 @@ const convertDatasetRunsMetricsRecord = (
     avgLatency: record.avg_latency_seconds ?? 0,
     aggScoresAvg: record.agg_scores_avg ?? [],
     aggScoreCategories: record.agg_score_categories ?? [],
+    aggScoreBooleans: record.agg_score_booleans ?? [],
   };
 };
 
@@ -272,7 +275,8 @@ const getDatasetRunsTableInternal = async <T>(
 
         -- Score aggregations
         sa.scores_avg as agg_scores_avg,
-        sa.score_categories as agg_score_categories`;
+        sa.score_categories as agg_score_categories,
+        sa.score_booleans as agg_score_booleans`;
       break;
     case "count":
       select = "count(DISTINCT drm.dataset_run_id) as count";
@@ -339,7 +343,11 @@ const getDatasetRunsTableInternal = async <T>(
         groupArrayIf(
           concat(s.name, ':', s.string_value),
           s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)
-        ) AS score_categories
+        ) AS score_categories,
+        groupArrayIf(
+          concat(s.name, ':', lowerUTF8(s.string_value)),
+          s.data_type = 'BOOLEAN' AND notEmpty(s.string_value)
+        ) AS score_booleans
       FROM dataset_run_items_rmt dri
       LEFT JOIN (
         SELECT
@@ -648,7 +656,11 @@ const getQualifyingDatasetItems = async <T>(opts: {
        groupArrayIf(
          concat(s.name, ':', s.string_value),
          s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)
-       ) AS score_categories
+       ) AS score_categories,
+        groupArrayIf(
+          concat(s.name, ':', lowerUTF8(s.string_value)),
+          s.data_type = 'BOOLEAN' AND notEmpty(s.string_value)
+        ) AS score_booleans
      FROM dataset_run_items_rmt dri
      LEFT JOIN (
        SELECT
@@ -829,7 +841,11 @@ const getDatasetRunItemsTableInternal = async <
        groupArrayIf(
          concat(s.name, ':', s.string_value),
          s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)
-       ) AS score_categories
+       ) AS score_categories,
+        groupArrayIf(
+          concat(s.name, ':', lowerUTF8(s.string_value)),
+          s.data_type = 'BOOLEAN' AND notEmpty(s.string_value)
+        ) AS score_booleans
      FROM dataset_run_items_rmt dri
      LEFT JOIN (
        SELECT

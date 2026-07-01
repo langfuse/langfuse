@@ -110,6 +110,7 @@ const experimentScoreCTE = (params: {
       "s.experiment_id AS experiment_id",
       `groupArrayIf(tuple(s.name, s.exp_avg, s.data_type, s.string_value), s.data_type IN ('NUMERIC', 'BOOLEAN')) AS ${prefix}_scores_avg`,
       `groupArrayIf(concat(s.name, ':', s.string_value), s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)) AS ${prefix}_score_categories`,
+      `groupArrayIf(concat(s.name, ':', lowerUTF8(s.string_value)), s.data_type = 'BOOLEAN' AND notEmpty(s.string_value)) AS ${prefix}_score_booleans`,
     )
     .groupBy("s.project_id", "s.experiment_id")
     .having(params.filters.apply())
@@ -251,10 +252,16 @@ const getExperimentsFromEventsGeneric = async <T>(
 
   // Detect score filter presence to conditionally include score CTEs
   const hasTraceScoreFilter = scoreAggFilters.some((f) =>
-    ["trace_scores_avg", "trace_score_categories"].includes(f.field),
+    [
+      "trace_scores_avg",
+      "trace_score_categories",
+      "trace_score_booleans",
+    ].includes(f.field),
   );
   const hasObsScoreFilter = scoreAggFilters.some((f) =>
-    ["obs_scores_avg", "obs_score_categories"].includes(f.field),
+    ["obs_scores_avg", "obs_score_categories", "obs_score_booleans"].includes(
+      f.field,
+    ),
   );
 
   const experimentIds = experimentIdFilter?.values;
@@ -284,7 +291,11 @@ const getExperimentsFromEventsGeneric = async <T>(
               schema: ["project_id", "experiment_id", "trace_id"],
             },
             filters: scoreAggFilters.filter((f) =>
-              ["obs_scores_avg", "obs_score_categories"].includes(f.field),
+              [
+                "obs_scores_avg",
+                "obs_score_categories",
+                "obs_score_booleans",
+              ].includes(f.field),
             ),
             level: "observation",
           }),
@@ -306,7 +317,11 @@ const getExperimentsFromEventsGeneric = async <T>(
               schema: ["project_id", "experiment_id", "trace_id"],
             },
             filters: scoreAggFilters.filter((f) =>
-              ["trace_scores_avg", "trace_score_categories"].includes(f.field),
+              [
+                "trace_scores_avg",
+                "trace_score_categories",
+                "trace_score_booleans",
+              ].includes(f.field),
             ),
             level: "trace",
           }),
@@ -578,6 +593,7 @@ export type ScoreColumnDefinition = {
 
 type ProcessedScoreFilterOptions = {
   numeric: string[];
+  boolean: string[];
   categorical: Array<{ label: string; values: string[] }>;
   scoreColumns: ScoreColumnDefinition[];
 };
@@ -586,6 +602,7 @@ const processScoreFilterOptionsResults = (
   rows: ScoreFilterOptionsRow[],
 ): ProcessedScoreFilterOptions => {
   const numeric = new Set<string>();
+  const boolean = new Set<string>();
   const categorical = new Map<string, Set<string>>();
   const scoreColumns: ScoreColumnDefinition[] = [];
 
@@ -599,6 +616,9 @@ const processScoreFilterOptionsResults = (
 
     if (row.data_type === "NUMERIC" || row.data_type === "BOOLEAN") {
       numeric.add(row.name);
+    }
+    if (row.data_type === "BOOLEAN") {
+      boolean.add(row.name);
     } else if (row.data_type === "CATEGORICAL") {
       const existingValues = categorical.get(row.name) ?? new Set<string>();
       row.values.forEach((value) => existingValues.add(value));
@@ -608,6 +628,7 @@ const processScoreFilterOptionsResults = (
 
   return {
     numeric: Array.from(numeric),
+    boolean: Array.from(boolean),
     categorical: Array.from(categorical.entries()).map(([label, values]) => ({
       label,
       values: Array.from(values),
@@ -618,6 +639,7 @@ const processScoreFilterOptionsResults = (
 
 const emptyScoreFilterOptions = (): ProcessedScoreFilterOptions => ({
   numeric: [],
+  boolean: [],
   categorical: [],
   scoreColumns: [],
 });
@@ -683,9 +705,11 @@ export const getExperimentItemsFilterOptions = async (
 ): Promise<{
   obs_scores_avg: string[];
   obs_score_categories: Array<{ label: string; values: string[] }>;
+  obs_score_booleans: string[];
   obs_score_columns: ScoreColumnDefinition[];
   trace_scores_avg: string[];
   trace_score_categories: Array<{ label: string; values: string[] }>;
+  trace_score_booleans: string[];
   trace_score_columns: ScoreColumnDefinition[];
 }> => {
   const { observation, trace } =
@@ -694,9 +718,11 @@ export const getExperimentItemsFilterOptions = async (
   return {
     obs_scores_avg: observation.numeric,
     obs_score_categories: observation.categorical,
+    obs_score_booleans: observation.boolean,
     obs_score_columns: observation.scoreColumns,
     trace_scores_avg: trace.numeric,
     trace_score_categories: trace.categorical,
+    trace_score_booleans: trace.boolean,
     trace_score_columns: trace.scoreColumns,
   };
 };
@@ -857,10 +883,16 @@ const buildQualificationPlan = (
 
   const filters = filterByExperiment.flatMap((f) => f.filters);
   const hasScoreFilters = filters.some((f) =>
-    ["obs_scores_avg", "obs_score_categories"].includes(f.column),
+    ["obs_scores_avg", "obs_score_categories", "obs_score_booleans"].includes(
+      f.column,
+    ),
   );
   const hasTraceScoreFilters = filters.some((f) =>
-    ["trace_scores_avg", "trace_score_categories"].includes(f.column),
+    [
+      "trace_scores_avg",
+      "trace_score_categories",
+      "trace_score_booleans",
+    ].includes(f.column),
   );
 
   const allExperimentIds = [
