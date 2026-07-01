@@ -249,7 +249,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
   onDrilldown,
 }) => {
   const units = config?.units;
-  const pivotDrilldownByDimensions = data.find(
+  const pivotDrilldownByDimensions = data?.find(
     (point) => point.pivotDrilldownByDimensions,
   )?.pivotDrilldownByDimensions;
   // Transform chart data into pivot table structure
