@@ -53,7 +53,7 @@
       alt="follow on LinkedIn"></a>
    <a href="https://github.com/langfuse/langfuse/graphs/commit-activity" target="_blank">
    <img alt="Commits last month" src="https://img.shields.io/github/commit-activity/m/langfuse/langfuse?labelColor=%20%2332b583&color=%20%2312b76a"></a>
-   <a href="https://github.com/langfuse/langfuse/" target="_blank">
+   <a href="https://github.com/langfuse/langfuse/issues?q=is%3Aissue%20state%3Aclosed" target="_blank">
    <img alt="Issues closed" src="https://img.shields.io/github/issues-search?query=repo%3Alangfuse%2Flangfuse%20is%3Aclosed&label=issues%20closed&labelColor=%20%237d89b0&color=%20%235d6b98"></a>
    <a href="https://github.com/langfuse/langfuse/discussions/" target="_blank">
    <img alt="Discussion posts" src="https://img.shields.io/github/discussions/langfuse/langfuse?labelColor=%20%239b8afb&color=%20%237a5af8"></a>
