@@ -1,19 +1,13 @@
 import { createSkill } from "@mastra/core/skills";
 import { parse } from "yaml";
 
-import cliMarkdown from "./skills/raw/cli.md";
-import errorAnalysisMarkdown from "./skills/raw/error-analysis.md";
+import { LANGFUSE_IN_APP_AGENT_SKILL_MARKDOWN } from "./skills/generated/skill-markdown";
 
 type LangfuseInAppAgentSkillDefinition = {
   name: string;
   description: string;
   instructions: string;
 };
-
-const LANGFUSE_IN_APP_AGENT_SKILL_MARKDOWN = [
-  { fileName: "error-analysis.md", markdown: errorAnalysisMarkdown },
-  { fileName: "cli.md", markdown: cliMarkdown },
-] as const;
 
 function parseSkillMarkdown(
   markdown: unknown,

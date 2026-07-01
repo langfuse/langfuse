@@ -26,6 +26,7 @@ IMPORTANT: You should NOT answer with unnecessary preamble or postamble (such as
 <tools>
 Use the docs tools to find relevant general information about Langfuse or best practices.
 For questions about best practices or specific workflows (e.g. setting up evals), use the available Langfuse skills when they apply.
+If the skill ever tells you to reference the docs, always use the langfuse-docs-mcp server to access those docs.
 </tools>
 
 <data_scope>

@@ -2,9 +2,13 @@
 
 ## Skill Sync
 
-The raw in-app agent skills live at:
+The generated in-app agent skills live at:
 
-`web/src/ee/features/in-app-agent/server/skills/raw`
+`web/src/ee/features/in-app-agent/server/skills/generated/raw`
+
+The generated TypeScript index lives at:
+
+`web/src/ee/features/in-app-agent/server/skills/generated/skill-markdown.ts`
 
 Use `sync-raw-skills.mjs` to download all markdown files from
 `https://github.com/langfuse/skills/tree/main/skills/langfuse/references` whose
@@ -15,7 +19,7 @@ frontmatter has only `LANGFUSE_PROJECT_INTERFACE` in
 node scripts/in-app-agent/sync-raw-skills.mjs
 ```
 
-To verify the checked-in raw skills match upstream without changing files:
+To verify the checked-in generated skills match upstream without changing files:
 
 ```sh
 node scripts/in-app-agent/sync-raw-skills.mjs --check
