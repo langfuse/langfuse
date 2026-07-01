@@ -221,7 +221,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     if (prevSelectedRef.current === selectedNodeName) return;
     // Wait for layout/size before acting — and don't mark the selection as
     // reflected yet, so we retry once they're ready (e.g. a deep link with a
-    // pre-selected observation that arrives before the graph lays out).
+    // preselected observation that arrives before the graph lays out).
     if (!layout || size.width === 0) return;
     prevSelectedRef.current = selectedNodeName;
     // In-canvas clicks already selected the node; don't move the view.
