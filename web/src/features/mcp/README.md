@@ -112,6 +112,56 @@ Clients like Claude Code can use these annotations to:
 
 All write operations should audit-log entries with before/after snapshots.
 
+### OIDC Bearer Authentication (self-hosted)
+
+Self-hosted deployments can additionally accept OIDC bearer JWTs from a
+configured identity provider, so MCP clients authenticate as a real Langfuse
+user rather than via a shared static API key.
+
+**Enabling:**
+
+```bash
+MCP_AUTH_OIDC_ENABLED=true
+MCP_AUTH_OIDC_ISSUER=https://idp.example.com
+MCP_AUTH_OIDC_AUDIENCE=langfuse-mcp        # optional; if set, `aud` must match
+MCP_AUTH_OIDC_JWKS_URI=                    # optional; defaults to <issuer>/.well-known/jwks.json
+MCP_AUTH_OIDC_USER_CLAIM=email             # `email` (default) or `sub`
+```
+
+**Request flow:**
+
+```
+1. Client sends:
+     Authorization: Bearer <JWT>
+     X-Langfuse-Project-Id: <projectId>
+   ↓
+2. JWT verified against MCP_AUTH_OIDC_ISSUER via its JWKS
+   (issuer + optional audience checked)
+   ↓
+3. Resolve Langfuse user by MCP_AUTH_OIDC_USER_CLAIM (email or sub)
+   ↓
+4. Require ProjectMembership for the requested projectId
+   ↓
+5. Build ServerContext with the real userId; apiKeyId is
+   synthesized as `oidc:<userId>` for audit-log compatibility
+```
+
+The user must already exist in Langfuse and be a member of the target
+project — this PR does not auto-provision users from JWT claims.
+
+**Both auth methods are served concurrently** by the same endpoint. The
+dispatch is per-request, based on the `Authorization` header scheme:
+
+| Authorization header  | OIDC enabled? | Path taken            | Typical caller          |
+| --------------------- | ------------- | --------------------- | ----------------------- |
+| `Bearer <JWT>`        | yes           | OIDC                  | Human user via IdP      |
+| `Bearer <JWT>`        | no            | rejected (Basic only) | —                       |
+| `Basic <base64>`      | either        | API key (existing)    | Service / agent / CI    |
+
+So a single deployment can authenticate human users via SSO **and**
+automated processes via project API keys at the same time — there is no
+migration off API keys required to turn OIDC on.
+
 ---
 
 # Connecting Clients
