@@ -289,7 +289,7 @@ const getStackedChartSeries = (
   }));
 };
 
-const UsageStackedBarOverview = ({
+export const UsageStackedBarOverview = ({
   bucketTimes,
   series,
   valueLabel,
@@ -345,7 +345,7 @@ const UsageStackedBarOverview = ({
         <BarChart
           accessibilityLayer
           data={chartData}
-          margin={{ top: 4, right: 8, bottom: 0, left: -18 }}
+          margin={{ top: 4, right: 8, bottom: 0, left: 12 }}
         >
           <XAxis
             dataKey="timeLabel"
