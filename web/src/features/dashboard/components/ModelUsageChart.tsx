@@ -22,9 +22,9 @@ import {
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { DashboardLineTimeSeriesChart } from "@/src/features/dashboard/components/DashboardLineTimeSeriesChart";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useMemo } from "react";
 
 export const ModelUsageChart = ({
   className,
@@ -37,6 +37,7 @@ export const ModelUsageChart = ({
   isLoading = false,
   metricsVersion,
   schedulerId,
+  syncId,
 }: {
   className?: string;
   projectId: string;
@@ -48,6 +49,7 @@ export const ModelUsageChart = ({
   isLoading?: boolean;
   metricsVersion?: ViewVersion;
   schedulerId?: string;
+  syncId?: string;
 }) => {
   const {
     allModels,
@@ -221,65 +223,80 @@ export const ModelUsageChart = ({
     },
   );
 
-  const costByType =
-    queryCostByType.data && allModels.length > 0
-      ? fillMissingValuesAndTransform(
-          extractTimeSeriesData(queryCostByType.data, "intervalStart", [
-            {
-              uniqueIdentifierColumns: [{ accessor: "key" }],
-              valueColumn: "sum",
-            },
-          ]),
-          [],
-        )
-      : [];
-
-  const unitsByType =
-    queryUsageByType.data && allModels.length > 0
-      ? fillMissingValuesAndTransform(
-          extractTimeSeriesData(queryUsageByType.data, "intervalStart", [
-            {
-              uniqueIdentifierColumns: [{ accessor: "key" }],
-              valueColumn: "sum",
-            },
-          ]),
-          [],
-        )
-      : [];
-
-  const unitsByModel =
-    queryResult.data && allModels.length > 0
-      ? fillMissingValuesAndTransform(
-          extractTimeSeriesData(
-            queryResult.data as DatabaseRow[],
-            "time_dimension",
-            [
+  // Each series is memoized on its raw query result (+ model selection) so the
+  // reference stays stable across the scheduler's page re-renders — that's what
+  // lets the chart's React.memo bail. (LFE-10549)
+  const costByType = useMemo(
+    () =>
+      queryCostByType.data && allModels.length > 0
+        ? fillMissingValuesAndTransform(
+            extractTimeSeriesData(queryCostByType.data, "intervalStart", [
               {
-                uniqueIdentifierColumns: [{ accessor: "providedModelName" }],
-                valueColumn: "sum_totalTokens",
+                uniqueIdentifierColumns: [{ accessor: "key" }],
+                valueColumn: "sum",
               },
-            ],
-          ),
-          selectedModels,
-        )
-      : [];
+            ]),
+            [],
+          )
+        : [],
+    [queryCostByType.data, allModels],
+  );
 
-  const costByModel =
-    queryResult.data && allModels.length > 0
-      ? fillMissingValuesAndTransform(
-          extractTimeSeriesData(
-            queryResult.data as DatabaseRow[],
-            "time_dimension",
-            [
+  const unitsByType = useMemo(
+    () =>
+      queryUsageByType.data && allModels.length > 0
+        ? fillMissingValuesAndTransform(
+            extractTimeSeriesData(queryUsageByType.data, "intervalStart", [
               {
-                uniqueIdentifierColumns: [{ accessor: "providedModelName" }],
-                valueColumn: "sum_totalCost",
+                uniqueIdentifierColumns: [{ accessor: "key" }],
+                valueColumn: "sum",
               },
-            ],
-          ),
-          selectedModels,
-        )
-      : [];
+            ]),
+            [],
+          )
+        : [],
+    [queryUsageByType.data, allModels],
+  );
+
+  const unitsByModel = useMemo(
+    () =>
+      queryResult.data && allModels.length > 0
+        ? fillMissingValuesAndTransform(
+            extractTimeSeriesData(
+              queryResult.data as DatabaseRow[],
+              "time_dimension",
+              [
+                {
+                  uniqueIdentifierColumns: [{ accessor: "providedModelName" }],
+                  valueColumn: "sum_totalTokens",
+                },
+              ],
+            ),
+            selectedModels,
+          )
+        : [],
+    [queryResult.data, allModels, selectedModels],
+  );
+
+  const costByModel = useMemo(
+    () =>
+      queryResult.data && allModels.length > 0
+        ? fillMissingValuesAndTransform(
+            extractTimeSeriesData(
+              queryResult.data as DatabaseRow[],
+              "time_dimension",
+              [
+                {
+                  uniqueIdentifierColumns: [{ accessor: "providedModelName" }],
+                  valueColumn: "sum_totalCost",
+                },
+              ],
+            ),
+            selectedModels,
+          )
+        : [],
+    [queryResult.data, allModels, selectedModels],
+  );
 
   const totalCost = queryResult.data?.reduce(
     (acc, curr) =>
@@ -373,21 +390,13 @@ export const ModelUsageChart = ({
                   />
                 ) : (
                   <div className="h-80 w-full shrink-0">
-                    <Chart
-                      chartType="LINE_TIME_SERIES"
-                      data={timeSeriesToDataPoints(item.data, agg)}
-                      config={{
-                        metric: {
-                          label: item.chartMetricLabel,
-                        },
-                      }}
-                      rowLimit={100}
-                      chartConfig={{
-                        type: "LINE_TIME_SERIES",
-                        unit: item.chartUnit,
-                        show_data_point_dots: false,
-                      }}
-                      legendPosition="above"
+                    <DashboardLineTimeSeriesChart
+                      data={item.data}
+                      label={item.chartMetricLabel}
+                      unit={item.chartUnit}
+                      // Token/cost totals are additive sums. (LFE-10498)
+                      legendSummary="sum"
+                      syncId={syncId}
                     />
                   </div>
                 )}

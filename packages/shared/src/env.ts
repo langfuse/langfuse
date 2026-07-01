@@ -67,6 +67,7 @@ const EnvSchema = z.object({
     .positive()
     .default(5000),
   REDIS_SENTINEL_ENABLED: z.enum(["true", "false"]).default("false"),
+  REDIS_SENTINEL_TLS_ENABLED: z.enum(["true", "false"]).default("false"),
   REDIS_SENTINEL_NODES: z.string().optional(),
   REDIS_SENTINEL_MASTER_NAME: z.string().optional(),
   REDIS_SENTINEL_USERNAME: z.string().optional(),
@@ -409,14 +410,6 @@ const EnvSchema = z.object({
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_STATE_SECRET: z.string().optional(),
-  SLACK_FETCH_LIMIT: z.coerce
-    .number()
-    .positive()
-    .optional()
-    .default(5_000)
-    .describe(
-      "How many records should be fetched from Slack, before we give up",
-    ),
   SLACK_PAGE_SIZE: z.coerce
     .number()
     .positive()
