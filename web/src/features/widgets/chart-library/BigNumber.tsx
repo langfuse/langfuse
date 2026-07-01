@@ -95,8 +95,8 @@ export const BigNumber: React.FC<ChartProps> = ({
   );
   const canDrilldown = Boolean(drilldown && onDrilldown);
 
-  const handleDrilldown = () => {
-    if (canDrilldown && drilldown) onDrilldown?.(drilldown.href);
+  const handleDrilldown = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (canDrilldown && drilldown) onDrilldown?.(drilldown.href, event);
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -175,7 +175,7 @@ export const BigNumber: React.FC<ChartProps> = ({
   return (
     <div
       ref={containerRef}
-      role={canDrilldown ? "link" : undefined}
+      role={canDrilldown ? "button" : undefined}
       tabIndex={canDrilldown ? 0 : undefined}
       onClick={handleDrilldown}
       onKeyDown={handleKeyDown}

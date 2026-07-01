@@ -41,6 +41,7 @@ import {
 } from "@/src/features/widgets/utils/pivot-table-utils";
 import {
   type ChartDrilldown,
+  type ChartDrilldownClickHandler,
   type ChartProps,
 } from "@/src/features/widgets/chart-library/chart-props";
 import { valueFormatter } from "@/src/features/widgets/chart-library/utils";
@@ -69,7 +70,7 @@ export interface PivotTableProps {
   isLoading?: boolean;
 
   /** Callback for opening a row drilldown link */
-  onDrilldown?: (href: string) => void;
+  onDrilldown?: ChartDrilldownClickHandler;
 }
 
 /**
@@ -153,13 +154,16 @@ const PivotTableRowComponent: React.FC<{
   metrics: string[];
   units?: (string | undefined)[];
   drilldown?: ChartDrilldown;
-  onDrilldown?: (href: string) => void;
+  onDrilldown?: ChartDrilldownClickHandler;
 }> = ({ row, metrics, units, drilldown, onDrilldown }) => {
   const canDrilldown = Boolean(drilldown && onDrilldown);
 
-  const handleClick = useCallback(() => {
-    if (canDrilldown && drilldown) onDrilldown?.(drilldown.href);
-  }, [canDrilldown, drilldown, onDrilldown]);
+  const handleClick = useCallback(
+    (event: React.MouseEvent<HTMLTableRowElement>) => {
+      if (canDrilldown && drilldown) onDrilldown?.(drilldown.href, event);
+    },
+    [canDrilldown, drilldown, onDrilldown],
+  );
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTableRowElement>) => {
@@ -173,7 +177,7 @@ const PivotTableRowComponent: React.FC<{
 
   return (
     <TableRow
-      role={canDrilldown ? "link" : undefined}
+      role={canDrilldown ? "button" : undefined}
       tabIndex={canDrilldown ? 0 : undefined}
       onClick={handleClick}
       onKeyDown={handleKeyDown}

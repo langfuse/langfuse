@@ -1,6 +1,8 @@
 import React, { useCallback } from "react";
 import {
   type ChartDrilldown,
+  type ChartDrilldownClickHandler,
+  type ChartDrilldownClickEvent,
   type DataPoint,
   type MetricFormatterFunction,
 } from "@/src/features/widgets/chart-library/chart-props";
@@ -42,7 +44,7 @@ const HistogramChart = ({
   config?: ChartConfig;
   subtleFill?: boolean;
   metricFormatter?: MetricFormatterFunction;
-  onDrilldown?: (href: string) => void;
+  onDrilldown?: ChartDrilldownClickHandler;
 }) => {
   const formatBinEdge = (value: number) =>
     toFullMetricString(metricFormatter(value, { style: "compact" }));
@@ -80,9 +82,9 @@ const HistogramChart = ({
   );
 
   const handleBarClick = useCallback(
-    (payload: unknown) => {
+    (payload: unknown, _index?: unknown, event?: ChartDrilldownClickEvent) => {
       const drilldown = getDrilldownFromPayload(payload);
-      if (drilldown) onDrilldown?.(drilldown.href);
+      if (drilldown) onDrilldown?.(drilldown.href, event);
     },
     [onDrilldown],
   );

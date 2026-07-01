@@ -11,7 +11,10 @@ import {
   Sector,
   type PieSectorShapeProps,
 } from "recharts";
-import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import {
+  type ChartDrilldownClickEvent,
+  type ChartProps,
+} from "@/src/features/widgets/chart-library/chart-props";
 import {
   formatMetric,
   getDrilldownFromPayload,
@@ -62,9 +65,9 @@ export const PieChart: React.FC<ChartProps> = ({
   );
 
   const handleSliceClick = useCallback(
-    (payload: unknown) => {
+    (payload: unknown, _index?: unknown, event?: ChartDrilldownClickEvent) => {
       const drilldown = getDrilldownFromPayload(payload);
-      if (drilldown) onDrilldown?.(drilldown.href);
+      if (drilldown) onDrilldown?.(drilldown.href, event);
     },
     [onDrilldown],
   );

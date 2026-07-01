@@ -20,6 +20,7 @@ import {
 import {
   type ChartProps,
   type ChartThreshold,
+  type ChartDrilldownClickEvent,
 } from "@/src/features/widgets/chart-library/chart-props";
 import {
   formatMetric,
@@ -254,10 +255,10 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
   );
 
   const handleChartClick = useCallback(
-    (payload: unknown) => {
+    (payload: unknown, event?: ChartDrilldownClickEvent) => {
       const dimension = nearestDimensions[0];
       const drilldown = getTimeSeriesDrilldown(payload, dimension);
-      if (drilldown) onDrilldown?.(drilldown.href);
+      if (drilldown) onDrilldown?.(drilldown.href, event);
     },
     [nearestDimensions, onDrilldown],
   );

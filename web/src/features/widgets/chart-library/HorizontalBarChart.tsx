@@ -12,7 +12,10 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import {
+  type ChartDrilldownClickEvent,
+  type ChartProps,
+} from "@/src/features/widgets/chart-library/chart-props";
 import {
   formatAxisLabel,
   formatMetric,
@@ -71,9 +74,9 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
   );
 
   const handleBarClick = useCallback(
-    (payload: unknown) => {
+    (payload: unknown, _index?: unknown, event?: ChartDrilldownClickEvent) => {
       const drilldown = getDrilldownFromPayload(payload);
-      if (drilldown) onDrilldown?.(drilldown.href);
+      if (drilldown) onDrilldown?.(drilldown.href, event);
     },
     [onDrilldown],
   );

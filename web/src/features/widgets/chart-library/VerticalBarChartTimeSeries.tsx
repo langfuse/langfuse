@@ -7,7 +7,10 @@ import {
   ChartTooltipPortal,
 } from "@/src/components/ui/chart";
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
-import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import {
+  type ChartDrilldownClickEvent,
+  type ChartProps,
+} from "@/src/features/widgets/chart-library/chart-props";
 import {
   formatMetric,
   getTimeSeriesDrilldown,
@@ -89,9 +92,9 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
   );
 
   const handleBarClick = useCallback(
-    (dimension: string, payload: unknown) => {
+    (dimension: string, payload: unknown, event?: ChartDrilldownClickEvent) => {
       const drilldown = getTimeSeriesDrilldown(payload, dimension);
-      if (drilldown) onDrilldown?.(drilldown.href);
+      if (drilldown) onDrilldown?.(drilldown.href, event);
     },
     [onDrilldown],
   );
@@ -168,7 +171,9 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
                 fillOpacity={muted ? 0.2 : subtleFill ? 0.3 : 1}
                 stackId={renderedDimensions.length > 1 ? "stack" : undefined}
                 isAnimationActive={false}
-                onClick={(payload) => handleBarClick(dimension, payload)}
+                onClick={(payload, _index, event) =>
+                  handleBarClick(dimension, payload, event)
+                }
               />
             );
           })}

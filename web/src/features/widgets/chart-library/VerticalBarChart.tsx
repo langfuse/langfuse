@@ -5,7 +5,10 @@ import {
   ChartTooltipContent,
 } from "@/src/components/ui/chart";
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
-import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import {
+  type ChartDrilldownClickEvent,
+  type ChartProps,
+} from "@/src/features/widgets/chart-library/chart-props";
 import {
   formatMetric,
   getDrilldownFromPayload,
@@ -41,9 +44,9 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
   );
 
   const handleBarClick = useCallback(
-    (payload: unknown) => {
+    (payload: unknown, _index?: unknown, event?: ChartDrilldownClickEvent) => {
       const drilldown = getDrilldownFromPayload(payload);
-      if (drilldown) onDrilldown?.(drilldown.href);
+      if (drilldown) onDrilldown?.(drilldown.href, event);
     },
     [onDrilldown],
   );

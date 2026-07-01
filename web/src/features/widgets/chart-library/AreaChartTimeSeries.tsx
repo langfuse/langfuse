@@ -8,7 +8,10 @@ import {
 } from "@/src/components/ui/chart";
 import { NearestSeriesProbe } from "@/src/features/widgets/chart-library/NearestSeriesProbe";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import {
+  type ChartDrilldownClickEvent,
+  type ChartProps,
+} from "@/src/features/widgets/chart-library/chart-props";
 import {
   formatMetric,
   getTimeSeriesDrilldown,
@@ -88,10 +91,10 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
   );
 
   const handleChartClick = useCallback(
-    (payload: unknown) => {
+    (payload: unknown, event?: ChartDrilldownClickEvent) => {
       const dimension = nearestDimensions[0];
       const drilldown = getTimeSeriesDrilldown(payload, dimension);
-      if (drilldown) onDrilldown?.(drilldown.href);
+      if (drilldown) onDrilldown?.(drilldown.href, event);
     },
     [nearestDimensions, onDrilldown],
   );
