@@ -23,10 +23,16 @@ import {
 
 type TraceGraphViewProps = {
   agentGraphData: AgentGraphDataResponse[];
+  /**
+   * Observation ids "playing" at the timeline playhead (from PlayheadContext).
+   * Mapped to their node names here so the graph glows in sync with the timeline.
+   */
+  activeObservationIds?: ReadonlySet<string>;
 };
 
 export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   agentGraphData,
+  activeObservationIds,
 }) => {
   const [selectedNodeName, setSelectedNodeName] = useState<string | null>(null);
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
@@ -62,6 +68,27 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   const { graph, nodeToObservationsMap } = useMemo(() => {
     return buildGraphFromStepData(normalizedData);
   }, [normalizedData]);
+
+  // observation id → its node name, so the playhead's active-observation set can
+  // be projected onto graph nodes (nodeToObservationsMap only holds the top-most
+  // of a same-name chain, so build the reverse map from the full data instead).
+  const observationToNodeName = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const o of normalizedData) {
+      if (o.id && o.node) map.set(o.id, o.node);
+    }
+    return map;
+  }, [normalizedData]);
+
+  const activeNodeNames = useMemo(() => {
+    if (!activeObservationIds || activeObservationIds.size === 0) return null;
+    const names = new Set<string>();
+    for (const id of activeObservationIds) {
+      const name = observationToNodeName.get(id);
+      if (name) names.add(name);
+    }
+    return names;
+  }, [activeObservationIds, observationToNodeName]);
 
   // Reset indices when graph data changes (new trace loaded)
   useEffect(() => {
@@ -188,6 +215,7 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
         onCanvasNodeNameChange={onCanvasNodeNameChange}
         nodeToObservationsMap={nodeToObservationsMap}
         currentObservationIndices={currentObservationIndices}
+        activeNodeNames={activeNodeNames}
       />
     </div>
   );

@@ -27,6 +27,10 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTraceData } from "../../contexts/TraceDataContext";
 import { useSelection } from "../../contexts/SelectionContext";
 import { useViewPreferences } from "../../contexts/ViewPreferencesContext";
+import {
+  useActiveObservationIds,
+  useSetActiveObservationIds,
+} from "../../contexts/PlayheadContext";
 import { useHandlePrefetchObservation } from "../../hooks/useHandlePrefetchObservation";
 import { flattenTreeWithTimelineMetrics } from "./timeline-flattening";
 import {
@@ -175,12 +179,47 @@ export function TraceTimeline() {
       (item) => item.node.id === selectedNodeId,
     );
     if (index === -1) return;
+    const chart = chartRef.current;
+    if (!chart) return;
 
-    rowVirtualizer.scrollToIndex(index, {
-      align: isInitial ? "center" : "auto",
+    // Scroll BOTH axes in a single scrollTo so the node comes fully into view —
+    // vertical alone leaves a node deep in the timeline off-screen to the right.
+    // One call, not two: a separate vertical scrollToIndex + horizontal scrollTo
+    // are two competing smooth animations on the same element, and the vertical
+    // one (which re-fires as it settles) clobbers the horizontal back to 0.
+    // Rows are fixed-height (ROW_HEIGHT, no dynamic measurement), so the row's
+    // vertical offset is exactly index * ROW_HEIGHT — compute it directly.
+    const rowTop = index * ROW_HEIGHT;
+    const viewTop = chart.scrollTop;
+    let top = viewTop;
+    if (isInitial) {
+      top = rowTop - (chart.clientHeight - ROW_HEIGHT) / 2; // center on load
+    } else if (rowTop < viewTop) {
+      top = rowTop; // above the fold → align to top
+    } else if (rowTop + ROW_HEIGHT > viewTop + chart.clientHeight) {
+      top = rowTop - chart.clientHeight + ROW_HEIGHT; // below → align to bottom
+    }
+
+    // Horizontal: bring the bar into view, but only when it isn't already
+    // comfortably visible (a no-op then, so selecting a visible bar never yanks
+    // the chart sideways).
+    let left = chart.scrollLeft;
+    const metrics = flattenedItems[index]?.metrics;
+    if (metrics) {
+      const barStart = metrics.startOffset;
+      const viewLeft = chart.scrollLeft;
+      const viewRight = viewLeft + chart.clientWidth;
+      if (barStart < viewLeft + 16 || barStart > viewRight - 16) {
+        left = Math.max(0, barStart - chart.clientWidth * 0.2);
+      }
+    }
+
+    chart.scrollTo({
+      top: Math.max(0, top),
+      left,
       behavior: isInitial ? "auto" : "smooth",
     });
-  }, [selectedNodeId, flattenedItems, rowVirtualizer]);
+  }, [selectedNodeId, flattenedItems]);
 
   // The chart owns the only vertical scroll. The gutter and the time scale are
   // one-way projections of it (translateY / translateX) updated in the same
@@ -286,12 +325,12 @@ export function TraceTimeline() {
   const playbackRateRef = useRef(1);
   playbackRateRef.current = playbackRate;
 
-  // The observations "playing" at the playhead's time (start ≤ t ≤ end). Driven
-  // from positionPlayhead, but only setState when the SET changes (a boundary
+  // The observations "playing" at the playhead's time (start ≤ t ≤ end). Lives
+  // in a shared store (PlayheadContext) so the graph view lights up the same
+  // set; written from positionPlayhead only when the SET changes (a boundary
   // crossing — a handful of times/sec), not every animation frame.
-  const [activeNodeIds, setActiveNodeIds] = useState<Set<string>>(
-    () => new Set(),
-  );
+  const activeNodeIds = useActiveObservationIds();
+  const setActiveNodeIds = useSetActiveObservationIds();
   const activeIdsRef = useRef(activeNodeIds);
   activeIdsRef.current = activeNodeIds;
 
@@ -348,7 +387,7 @@ export function TraceTimeline() {
       }
       if (changed) setActiveNodeIds(next);
     },
-    [traceDuration, secToX],
+    [traceDuration, secToX, setActiveNodeIds],
   );
 
   const pause = useCallback(() => {
@@ -417,8 +456,8 @@ export function TraceTimeline() {
     pause();
     playheadSecRef.current = 0;
     setActiveNodeIds(new Set());
-    setShowPlayhead(false); // stop clears the playhead (and the dimming)
-  }, [pause]);
+    setShowPlayhead(false); // stop clears the playhead (and the glow)
+  }, [pause, setActiveNodeIds]);
 
   const cycleRate = useCallback(
     () => setPlaybackRate((r) => (r >= 4 ? 1 : r * 2)),
@@ -467,10 +506,10 @@ export function TraceTimeline() {
     const hasChildren = item.node.children.length > 0;
     const isCollapsed = collapsedNodes.has(nodeId);
 
-    // Playhead: dim rows that aren't "playing" at the current time, so the
-    // active ones stand out as the playhead sweeps.
-    const isDimmed =
-      showPlayhead && activeNodeIds.size > 0 && !activeNodeIds.has(nodeId);
+    // Playhead: rows "playing" at the current time glow (light UP) so the active
+    // run stands out as the playhead sweeps — rather than dimming everything
+    // else, which left a hard-to-clear "toned down" state.
+    const isActive = activeNodeIds.has(nodeId);
 
     const onEnter = () => {
       setHoveredNodeId(nodeId);
@@ -497,8 +536,8 @@ export function TraceTimeline() {
           key={nodeId}
           style={{ ...baseStyle, width: "100%" }}
           className={cn(
-            "transition-opacity duration-150",
-            isDimmed && "opacity-30",
+            "transition-colors duration-150",
+            isActive && "bg-primary-accent/15",
           )}
         >
           <TimelineGutterRow
@@ -527,11 +566,17 @@ export function TraceTimeline() {
         key={nodeId}
         style={{ ...baseStyle, width: `${chartContentWidth}px` }}
         className={cn(
-          "cursor-pointer transition-opacity duration-150",
+          "cursor-pointer transition-colors duration-150",
           // Selected = accent tint so the neutral bar (bg-muted) stays visible
-          // against the row; hover stays neutral.
-          isSelected ? "bg-primary-accent/10" : isHovered ? "bg-muted" : "",
-          isDimmed && "opacity-30",
+          // against the row; a playhead-active row glows with the same accent;
+          // hover stays neutral.
+          isSelected
+            ? "bg-primary-accent/10"
+            : isActive
+              ? "bg-primary-accent/15"
+              : isHovered
+                ? "bg-muted"
+                : "",
         )}
         onClick={onSelectNode}
         onMouseEnter={onEnter}

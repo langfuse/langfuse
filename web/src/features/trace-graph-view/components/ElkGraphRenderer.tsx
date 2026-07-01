@@ -26,6 +26,12 @@ type ElkGraphRendererProps = {
   onCanvasNodeNameChange?: (nodeName: string | null) => void;
   nodeToObservationsMap?: Record<string, string[]>;
   currentObservationIndices?: Record<string, number>;
+  /**
+   * Node names "playing" at the timeline playhead. Nodes in the set glow so the
+   * active run stands out as the playhead sweeps. `null`/empty = nothing glows
+   * (resting state stays fully visible — no dimming).
+   */
+  activeNodeNames?: ReadonlySet<string> | null;
 };
 
 type Transform = { x: number; y: number; k: number };
@@ -58,6 +64,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   onCanvasNodeNameChange,
   nodeToObservationsMap = {},
   currentObservationIndices = {},
+  activeNodeNames = null,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const zoomRef = useRef<ZoomBehavior<HTMLDivElement, unknown> | null>(null);
@@ -392,6 +399,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
                 height={node.height}
                 counter={counters.get(node.id)}
                 selected={node.id === selectedNodeName}
+                active={activeNodeNames?.has(node.id) ?? false}
                 compact={compact}
                 onSelect={handleSelect}
                 onHover={setHoveredId}
