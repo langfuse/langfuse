@@ -1,5 +1,16 @@
-const mockAddScoreDelete = vi.fn();
-const mockAddBatchAction = vi.fn();
+const {
+  mockAddScoreDelete,
+  mockAddBatchAction,
+  mockGetEventsGroupedByTraceTags,
+  mockGetEventsGroupedByTraceName,
+  mockGetEventsGroupedByUserId,
+} = vi.hoisted(() => ({
+  mockAddScoreDelete: vi.fn(),
+  mockAddBatchAction: vi.fn(),
+  mockGetEventsGroupedByTraceTags: vi.fn(async () => []),
+  mockGetEventsGroupedByTraceName: vi.fn(async () => []),
+  mockGetEventsGroupedByUserId: vi.fn(async () => []),
+}));
 
 vi.mock("@langfuse/shared/src/server", async () => {
   const originalModule = await vi.importActual("@langfuse/shared/src/server");
@@ -15,6 +26,9 @@ vi.mock("@langfuse/shared/src/server", async () => {
         add: mockAddBatchAction,
       })),
     },
+    getEventsGroupedByTraceTags: mockGetEventsGroupedByTraceTags,
+    getEventsGroupedByTraceName: mockGetEventsGroupedByTraceName,
+    getEventsGroupedByUserId: mockGetEventsGroupedByUserId,
   };
 });
 
@@ -48,6 +62,9 @@ describe("scores trpc", () => {
     orgId = setup.orgId;
     mockAddScoreDelete.mockClear();
     mockAddBatchAction.mockClear();
+    mockGetEventsGroupedByTraceTags.mockClear();
+    mockGetEventsGroupedByTraceName.mockClear();
+    mockGetEventsGroupedByUserId.mockClear();
 
     const session: Session = {
       expires: "1",

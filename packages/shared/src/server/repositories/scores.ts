@@ -895,6 +895,8 @@ export const getBooleanScoresGroupedByName = async (
       from scores s
       WHERE s.project_id = {projectId: String}
       AND s.data_type = 'BOOLEAN'
+      AND s.string_value IS NOT NULL
+      AND s.string_value != ''
       ${filterRes?.query ? `AND ${filterRes.query}` : ""}
       GROUP BY name
       ORDER BY count() desc

@@ -21,6 +21,14 @@ export const scoresColumnsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: 's."dataset_run_id"',
   },
   {
+    uiTableName: "Boolean Value",
+    uiTableId: "booleanValue",
+    clickhouseTableName: "scores",
+    clickhouseSelect:
+      "if(s.data_type = 'BOOLEAN' AND notEmpty(s.string_value), lowerUTF8(s.string_value), '')",
+    emptyEqualsNull: true,
+  },
+  {
     uiTableName: "Observation ID",
     uiTableId: "observationId",
     clickhouseTableName: "scores",

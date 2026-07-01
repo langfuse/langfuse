@@ -590,6 +590,7 @@ describe("traces trpc", () => {
       await createObservationsCh([observation]);
 
       const observationScoreName = `observation_bool_${randomUUID()}`;
+      const emptyObservationScoreName = `observation_bool_empty_${randomUUID()}`;
       const sessionScoreName = `session_bool_${randomUUID()}`;
       const scoreTimestamp = Date.now();
 
@@ -603,6 +604,17 @@ describe("traces trpc", () => {
           data_type: "BOOLEAN",
           value: 1,
           string_value: "True",
+          timestamp: scoreTimestamp,
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: trace.id,
+          observation_id: observation.id,
+          name: emptyObservationScoreName,
+          source: "API",
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "",
           timestamp: scoreTimestamp,
         }),
         createSessionScore({
@@ -636,6 +648,9 @@ describe("traces trpc", () => {
 
       expect(filterOptions.score_booleans).toEqual(
         expect.arrayContaining([observationScoreName]),
+      );
+      expect(filterOptions.score_booleans).not.toContain(
+        emptyObservationScoreName,
       );
       expect(filterOptions.score_booleans).not.toContain(sessionScoreName);
     });
