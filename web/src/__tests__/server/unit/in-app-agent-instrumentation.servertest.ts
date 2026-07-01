@@ -307,7 +307,7 @@ describe("InAppAgentInstrumentation", () => {
     );
   });
 
-  it("records available tools on the agent generation input", () => {
+  it("records available tools & skills on the agent generation input", () => {
     const instrumentation = createInstrumentation();
 
     instrumentation.recordAvailableTools({
@@ -329,6 +329,15 @@ describe("InAppAgentInstrumentation", () => {
         },
       },
     });
+    instrumentation.recordAvailableSkills([
+      {
+        name: "error-analysis",
+        description: "Investigate errors in the current trace.",
+      },
+      {
+        description: "Missing skill name should be ignored.",
+      },
+    ]);
     instrumentation.end();
 
     expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
@@ -358,6 +367,12 @@ describe("InAppAgentInstrumentation", () => {
                 name: "langfuse_redirect",
                 description: "Redirect the user to a Langfuse page.",
               },
+            },
+          ],
+          skills: [
+            {
+              name: "error-analysis",
+              description: "Investigate errors in the current trace.",
             },
           ],
         },

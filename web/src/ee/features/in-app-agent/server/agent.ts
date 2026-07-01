@@ -174,6 +174,7 @@ export async function createAgUiStream(params: {
       ? { ...params.options.langfuseTracing, prompt }
       : undefined,
   });
+  instrumentation?.recordAvailableSkills?.(LANGFUSE_IN_APP_AGENT_SKILLS);
 
   let subscription: { unsubscribe: () => void } | undefined;
   let ending = false;
@@ -443,7 +444,7 @@ export async function createAgUiStream(params: {
         awsProfile,
         instructions,
         onToolsAvailable: (tools) =>
-          instrumentation?.recordAvailableTools(tools),
+          instrumentation?.recordAvailableTools?.(tools),
       })
         .then(async (initialAdapter) => {
           if (ending || closed || params.signal.aborted) {
