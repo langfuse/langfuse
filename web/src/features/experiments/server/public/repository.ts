@@ -74,8 +74,8 @@ type ExperimentItemCursor = ExperimentCursor & {
 
 type QueryExperimentSummariesParams = {
   projectId: string;
-  fromStartTime: Date;
-  toStartTime?: Date;
+  fromTime: Date;
+  toTime?: Date;
   limit: number;
   id?: string[];
   name?: string[];
@@ -89,8 +89,8 @@ type QueryExperimentSummariesParams = {
 
 type QueryExperimentItemsParams = {
   projectId: string;
-  fromStartTime?: Date;
-  toStartTime?: Date;
+  fromTime?: Date;
+  toTime?: Date;
   limit: number;
   experimentId?: string[];
   experimentName?: string[];
@@ -154,9 +154,9 @@ const scoreTimestampBoundsFromRows = <TRow>(
 async function queryExperimentSummaryRowsForPublicApi(
   params: QueryExperimentSummariesParams,
 ) {
-  const fromStartTime = convertDateToClickhouseDateTime(params.fromStartTime);
-  const toStartTime = params.toStartTime
-    ? convertDateToClickhouseDateTime(params.toStartTime)
+  const fromTime = convertDateToClickhouseDateTime(params.fromTime);
+  const toTime = params.toTime
+    ? convertDateToClickhouseDateTime(params.toTime)
     : undefined;
 
   const filterList = deriveFilters(
@@ -184,8 +184,8 @@ async function queryExperimentSummaryRowsForPublicApi(
         : []),
     )
     .whereRaw("e.experiment_id != ''")
-    .withExactTimeFrom(fromStartTime)
-    .withExactTimeTo(toStartTime)
+    .withExactTimeFrom(fromTime)
+    .withExactTimeTo(toTime)
     .applyFilters(filterList)
     .withExperimentSummaryCursor(
       params.cursor
@@ -274,17 +274,14 @@ const experimentItemOrderByColumns = (alias: "e" | "b") => {
   ] as const;
 };
 
-const filterForItems = (builder: EventsQueryBuilder) =>
-  builder.whereRaw("e.experiment_id != ''");
-
 async function queryExperimentItemRowsForPublicApi(
   params: QueryExperimentItemsParams,
 ) {
-  const fromStartTime = params.fromStartTime
-    ? convertDateToClickhouseDateTime(params.fromStartTime)
+  const fromTime = params.fromTime
+    ? convertDateToClickhouseDateTime(params.fromTime)
     : undefined;
-  const toStartTime = params.toStartTime
-    ? convertDateToClickhouseDateTime(params.toStartTime)
+  const toTime = params.toTime
+    ? convertDateToClickhouseDateTime(params.toTime)
     : undefined;
 
   const filterList = deriveFilters(
@@ -303,8 +300,8 @@ async function queryExperimentItemRowsForPublicApi(
     publicApiExperimentItemColumnDefinitions,
   );
 
-  const queryBuilder = filterForItems(
-    new EventsQueryBuilder({ projectId: params.projectId }).selectFieldSet(
+  const queryBuilder = new EventsQueryBuilder({ projectId: params.projectId })
+    .selectFieldSet(
       "publicApiExperimentItemCore",
       ...(params.includeDataset
         ? (["publicApiExperimentItemDataset"] as const)
@@ -315,19 +312,21 @@ async function queryExperimentItemRowsForPublicApi(
       ...(params.includeExperimentMetadata
         ? (["publicApiExperimentItemExperimentMetadata"] as const)
         : []),
-    ),
-  )
+    )
+    .whereRaw("e.experiment_id != ''")
+    .whereRaw("e.experiment_item_id != ''")
+    .whereRaw("e.experiment_item_root_span_id = e.span_id")
     .when(params.includeIo, (b) =>
       b.selectFieldSet("publicApiExperimentItemExpectedOutput"),
     )
-    .when(Boolean(fromStartTime), (b) =>
+    .when(Boolean(fromTime), (b) =>
       b.whereRaw("e.start_time >= {startTimeFrom: DateTime64(3)}", {
-        startTimeFrom: fromStartTime,
+        startTimeFrom: fromTime,
       }),
     )
-    .when(Boolean(toStartTime), (b) =>
+    .when(Boolean(toTime), (b) =>
       b.whereRaw("e.start_time < {startTimeTo: DateTime64(3)}", {
-        startTimeTo: toStartTime,
+        startTimeTo: toTime,
       }),
     )
     .applyFilters(filterList)

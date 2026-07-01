@@ -64,11 +64,11 @@ const createExperimentRootEvent = ({
 describe("GET /api/public/experiments", () => {
   maybeLegacyMode("is unavailable when v4 preview is disabled", async () => {
     const { auth } = await createOrgProjectAndApiKey();
-    const fromStartTime = encodeURIComponent(new Date().toISOString());
+    const fromTime = encodeURIComponent(new Date().toISOString());
 
     const res = await makeAPICall(
       "GET",
-      `/api/public/experiments?fromStartTime=${fromStartTime}`,
+      `/api/public/experiments?fromTime=${fromTime}`,
       undefined,
       auth,
     );
@@ -76,7 +76,7 @@ describe("GET /api/public/experiments", () => {
     expect(res.status).toBe(404);
   });
 
-  it("requires fromStartTime", async () => {
+  it("requires fromTime", async () => {
     const { auth } = await createOrgProjectAndApiKey();
 
     const res = await makeAPICall(
@@ -91,11 +91,11 @@ describe("GET /api/public/experiments", () => {
 
   it("rejects unknown field groups", async () => {
     const { auth } = await createOrgProjectAndApiKey();
-    const fromStartTime = encodeURIComponent(new Date().toISOString());
+    const fromTime = encodeURIComponent(new Date().toISOString());
 
     const res = await makeAPICall(
       "GET",
-      `/api/public/experiments?fromStartTime=${fromStartTime}&fields=id`,
+      `/api/public/experiments?fromTime=${fromTime}&fields=id`,
       undefined,
       auth,
     );
@@ -121,9 +121,9 @@ describe("GET /api/public/experiments", () => {
         }),
       ]);
 
-      const fromStartTime = new Date(startTimeMs - 1_000).toISOString();
+      const fromTime = new Date(startTimeMs - 1_000).toISOString();
       const res = await getExperiments(
-        `/api/public/experiments?fromStartTime=${encodeURIComponent(fromStartTime)}`,
+        `/api/public/experiments?fromTime=${encodeURIComponent(fromTime)}`,
         auth,
       );
 
@@ -159,9 +159,9 @@ describe("GET /api/public/experiments", () => {
         }),
       ]);
 
-      const fromStartTime = new Date(startTimeMs - 1_000).toISOString();
+      const fromTime = new Date(startTimeMs - 1_000).toISOString();
       const res = await getExperiments(
-        `/api/public/experiments?fromStartTime=${encodeURIComponent(fromStartTime)}`,
+        `/api/public/experiments?fromTime=${encodeURIComponent(fromTime)}`,
         auth,
       );
 
@@ -178,7 +178,7 @@ describe("GET /api/public/experiments", () => {
     "returns experiment-scoped scores when requested",
     async () => {
       const { auth, projectId } = await createOrgProjectAndApiKey();
-      const startTimeMs = Date.now();
+      const startTimeMs = Date.now() - 60_000;
       const experimentId = `exp-${randomUUID()}`;
       const scoreId = `score-${randomUUID()}`;
       const traceScopedScoreId = `score-${randomUUID()}`;
@@ -219,9 +219,9 @@ describe("GET /api/public/experiments", () => {
         }),
       ]);
 
-      const fromStartTime = new Date(startTimeMs - 1_000).toISOString();
+      const fromTime = new Date(startTimeMs - 1_000).toISOString();
       const res = await getExperiments(
-        `/api/public/experiments?fromStartTime=${encodeURIComponent(fromStartTime)}&fields=scores`,
+        `/api/public/experiments?fromTime=${encodeURIComponent(fromTime)}&fields=scores`,
         auth,
       );
 
@@ -251,7 +251,7 @@ describe("GET /api/public/experiments", () => {
 
   it("rejects structured filters outside the experiment filter allowlist", async () => {
     const { auth } = await createOrgProjectAndApiKey();
-    const fromStartTime = encodeURIComponent(new Date().toISOString());
+    const fromTime = encodeURIComponent(new Date().toISOString());
     const filter = encodeURIComponent(
       JSON.stringify([
         {
@@ -265,7 +265,7 @@ describe("GET /api/public/experiments", () => {
 
     const res = await makeAPICall(
       "GET",
-      `/api/public/experiments?fromStartTime=${fromStartTime}&filter=${filter}`,
+      `/api/public/experiments?fromTime=${fromTime}&filter=${filter}`,
       undefined,
       auth,
     );
@@ -275,11 +275,11 @@ describe("GET /api/public/experiments", () => {
 
   it("rejects invalid cursors and unknown cursor versions", async () => {
     const { auth } = await createOrgProjectAndApiKey();
-    const fromStartTime = encodeURIComponent(new Date().toISOString());
+    const fromTime = encodeURIComponent(new Date().toISOString());
 
     const invalidCursorRes = await makeAPICall(
       "GET",
-      `/api/public/experiments?fromStartTime=${fromStartTime}&cursor=not-json`,
+      `/api/public/experiments?fromTime=${fromTime}&cursor=not-json`,
       undefined,
       auth,
     );
@@ -295,7 +295,7 @@ describe("GET /api/public/experiments", () => {
 
     const unknownVersionRes = await makeAPICall(
       "GET",
-      `/api/public/experiments?fromStartTime=${fromStartTime}&cursor=${unknownVersionCursor}`,
+      `/api/public/experiments?fromTime=${fromTime}&cursor=${unknownVersionCursor}`,
       undefined,
       auth,
     );
@@ -306,11 +306,11 @@ describe("GET /api/public/experiments", () => {
 describe("GET /api/public/experiment-items", () => {
   maybeLegacyMode("is unavailable when v4 preview is disabled", async () => {
     const { auth } = await createOrgProjectAndApiKey();
-    const fromStartTime = encodeURIComponent(new Date().toISOString());
+    const fromTime = encodeURIComponent(new Date().toISOString());
 
     const res = await makeAPICall(
       "GET",
-      `/api/public/experiment-items?fromStartTime=${fromStartTime}`,
+      `/api/public/experiment-items?fromTime=${fromTime}`,
       undefined,
       auth,
     );
@@ -318,7 +318,7 @@ describe("GET /api/public/experiment-items", () => {
     expect(res.status).toBe(404);
   });
 
-  it("requires fromStartTime unless experimentId is provided", async () => {
+  it("requires fromTime unless experimentId is provided", async () => {
     const { auth } = await createOrgProjectAndApiKey();
 
     const res = await makeAPICall(
@@ -333,11 +333,11 @@ describe("GET /api/public/experiment-items", () => {
 
   it("rejects unknown field groups", async () => {
     const { auth } = await createOrgProjectAndApiKey();
-    const fromStartTime = encodeURIComponent(new Date().toISOString());
+    const fromTime = encodeURIComponent(new Date().toISOString());
 
     const res = await makeAPICall(
       "GET",
-      `/api/public/experiment-items?fromStartTime=${fromStartTime}&fields=experimentScores`,
+      `/api/public/experiment-items?fromTime=${fromTime}&fields=experimentScores`,
       undefined,
       auth,
     );

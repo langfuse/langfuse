@@ -153,8 +153,8 @@ export async function listExperimentsForPublicApi({
     id: query.id,
     name: query.name,
     datasetId: query.datasetId,
-    fromStartTime: new Date(query.fromStartTime),
-    toStartTime: query.toStartTime ? new Date(query.toStartTime) : undefined,
+    fromTime: new Date(query.fromTime),
+    toTime: query.toTime ? new Date(query.toTime) : undefined,
     advancedFilters: query.filter,
     cursor: query.cursor
       ? {
@@ -224,10 +224,8 @@ export async function listExperimentItemsForPublicApi({
 
   const rows = await queryExperimentItemsForPublicApi({
     projectId,
-    fromStartTime: query.fromStartTime
-      ? new Date(query.fromStartTime)
-      : undefined,
-    toStartTime: query.toStartTime ? new Date(query.toStartTime) : undefined,
+    fromTime: query.fromTime ? new Date(query.fromTime) : undefined,
+    toTime: query.toTime ? new Date(query.toTime) : undefined,
     experimentId: query.experimentId,
     experimentName: query.experimentName,
     experimentItemId: query.experimentItemId,

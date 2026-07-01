@@ -11,9 +11,10 @@ service:
       method: GET
       path: /experiments
       docs: |
-        List experiments with cursor-based pagination.
+        List experiments with cursor-based pagination. Results are ordered by
+        time descending.
 
-        `fromStartTime` is required. Time filters and cursor bounds are applied
+        `fromTime` is required. Time filters and cursor bounds are applied
         before experiments are grouped, so experiments may be represented
         partially when the requested time range cuts through an experiment.
       request:
@@ -33,12 +34,12 @@ service:
           cursor:
             type: optional<string>
             docs: Versioned base64url cursor from the previous response page.
-          fromStartTime:
+          fromTime:
             type: datetime
-            docs: Retrieve only experiments with activity starting on or after this datetime.
-          toStartTime:
+            docs: Retrieve only experiments on or after this datetime.
+          toTime:
             type: optional<datetime>
-            docs: Retrieve only experiments with activity starting before this datetime.
+            docs: Retrieve only experiments before this datetime.
           id:
             type: optional<string>
             docs: Comma-separated list of experiment IDs.
@@ -60,9 +61,10 @@ service:
       docs: |
         List experiment items with cursor-based pagination. Use this endpoint
         to export experiment item inputs, outputs, expected outputs, metadata,
-        and optionally item/trace scores.
+        and optionally item/trace scores. Results are ordered by time
+        descending.
 
-        `fromStartTime` is required unless `experimentId` is provided.
+        `fromTime` is required unless `experimentId` is provided.
       request:
         name: ListExperimentItemsRequest
         query-parameters:
@@ -82,12 +84,12 @@ service:
           cursor:
             type: optional<string>
             docs: Versioned base64url cursor from the previous response page.
-          fromStartTime:
+          fromTime:
             type: optional<datetime>
-            docs: Retrieve only experiment items that started on or after this datetime. Required unless `experimentId` is provided.
-          toStartTime:
+            docs: Retrieve only experiment items on or after this datetime. Required unless `experimentId` is provided.
+          toTime:
             type: optional<datetime>
-            docs: Retrieve only experiment items that started before this datetime.
+            docs: Retrieve only experiment items before this datetime.
           experimentId:
             type: optional<string>
             docs: Comma-separated list of experiment IDs.

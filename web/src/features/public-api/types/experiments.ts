@@ -138,8 +138,8 @@ export const GetExperimentsV1Query = z.object({
   limit: publicApiPaginationLimitZod,
   scoreLimit: experimentScoreLimitZod,
   cursor: EncodedExperimentsCursorV1.optional(),
-  fromStartTime: z.iso.datetime({ offset: true }),
-  toStartTime: z.iso.datetime({ offset: true }).optional(),
+  fromTime: z.iso.datetime({ offset: true }),
+  toTime: z.iso.datetime({ offset: true }).optional(),
   id: optionalCommaSeparatedStringArray,
   name: optionalCommaSeparatedStringArray,
   datasetId: optionalCommaSeparatedStringArray,
@@ -169,8 +169,8 @@ export const GetExperimentItemsV1Query = z
     limit: publicApiPaginationLimitZod,
     scoreLimit: experimentScoreLimitZod,
     cursor: EncodedExperimentItemsCursorV1.optional(),
-    fromStartTime: z.iso.datetime({ offset: true }).optional(),
-    toStartTime: z.iso.datetime({ offset: true }).optional(),
+    fromTime: z.iso.datetime({ offset: true }).optional(),
+    toTime: z.iso.datetime({ offset: true }).optional(),
     experimentId: optionalCommaSeparatedStringArray,
     experimentName: optionalCommaSeparatedStringArray,
     experimentItemId: optionalCommaSeparatedStringArray,
@@ -190,11 +190,11 @@ export const GetExperimentItemsV1Query = z
       .pipe(experimentItemFilterState.optional()),
   })
   .superRefine((query, ctx) => {
-    if (!query.fromStartTime && !query.experimentId?.length) {
+    if (!query.fromTime && !query.experimentId?.length) {
       ctx.addIssue({
         code: "custom",
-        path: ["fromStartTime"],
-        message: "fromStartTime is required unless experimentId is provided",
+        path: ["fromTime"],
+        message: "fromTime is required unless experimentId is provided",
       });
     }
   });

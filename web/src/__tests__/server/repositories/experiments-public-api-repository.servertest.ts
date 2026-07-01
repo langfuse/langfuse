@@ -118,7 +118,7 @@ describe("Public API experiments repository", () => {
 
       const rows = await queryExperimentSummariesForPublicApi({
         projectId,
-        fromStartTime: new Date(startTimeMs - 1_000),
+        fromTime: new Date(startTimeMs - 1_000),
         includeMetadata: true,
         limit: 10,
       });
@@ -152,7 +152,7 @@ describe("Public API experiments repository", () => {
 
       const rows = await queryExperimentSummariesForPublicApi({
         projectId,
-        fromStartTime: new Date(startTimeMs - 1_000),
+        fromTime: new Date(startTimeMs - 1_000),
         includeMetadata: false,
         limit: 10,
       });
@@ -178,7 +178,7 @@ describe("Public API experiments repository", () => {
 
       const rows = await queryExperimentSummariesForPublicApi({
         projectId,
-        fromStartTime: new Date(startTimeMs - 1_000),
+        fromTime: new Date(startTimeMs - 1_000),
         includeMetadata: false,
         limit: 10,
       });
@@ -214,11 +214,11 @@ describe("Public API experiments repository", () => {
         }),
       ]);
 
-      const fromStartTime = new Date(startTimeMs - 1_000);
+      const fromTime = new Date(startTimeMs - 1_000);
       const simpleRows = await queryExperimentSummariesForPublicApi({
         projectId,
         id: [matchingId, "missing"],
-        fromStartTime,
+        fromTime,
         includeMetadata: false,
         limit: 10,
       });
@@ -228,7 +228,7 @@ describe("Public API experiments repository", () => {
 
       const structuredRows = await queryExperimentSummariesForPublicApi({
         projectId,
-        fromStartTime,
+        fromTime,
         includeMetadata: false,
         advancedFilters: [
           {
@@ -273,7 +273,7 @@ describe("Public API experiments repository", () => {
       const rows = await queryExperimentSummariesForPublicApi({
         projectId,
         id: [simpleOnlyId],
-        fromStartTime: new Date(startTimeMs - 1_000),
+        fromTime: new Date(startTimeMs - 1_000),
         includeMetadata: false,
         advancedFilters: [
           {
@@ -292,7 +292,7 @@ describe("Public API experiments repository", () => {
 
     it("attaches experiment scores without multiplying event aggregates", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
-      const startTimeMs = Date.now();
+      const startTimeMs = Date.now() - 60_000;
       const experimentId = `exp-${randomUUID()}`;
       const scoreId = `score-${randomUUID()}`;
 
@@ -321,7 +321,7 @@ describe("Public API experiments repository", () => {
         projectId,
         query: {
           fields: ["core", "scores"],
-          fromStartTime: new Date(startTimeMs - 1_000).toISOString(),
+          fromTime: new Date(startTimeMs - 1_000).toISOString(),
           limit: 10,
           scoreLimit: 50,
         },
@@ -394,7 +394,7 @@ describe("Public API experiments repository", () => {
         projectId,
         query: {
           fields: ["core", "scores"],
-          fromStartTime: new Date(startTimeMs - 1_000).toISOString(),
+          fromTime: new Date(startTimeMs - 1_000).toISOString(),
           limit: 10,
           scoreLimit: 50,
         },
@@ -430,10 +430,10 @@ describe("Public API experiments repository", () => {
         }),
       ]);
 
-      const fromStartTime = new Date(startTimeMs - 1_000);
+      const fromTime = new Date(startTimeMs - 1_000);
       const firstPage = await queryExperimentSummariesForPublicApi({
         projectId,
-        fromStartTime,
+        fromTime,
         includeMetadata: false,
         limit: 1,
       });
@@ -449,7 +449,7 @@ describe("Public API experiments repository", () => {
 
       const secondPage = await queryExperimentSummariesForPublicApi({
         projectId,
-        fromStartTime,
+        fromTime,
         includeMetadata: false,
         cursor: {
           lastTime: firstRow.end_time,
@@ -494,10 +494,10 @@ describe("Public API experiments repository", () => {
         }),
       ]);
 
-      const fromStartTime = new Date(startTimeMs - 26 * 60 * 60 * 1_000);
+      const fromTime = new Date(startTimeMs - 26 * 60 * 60 * 1_000);
       const firstPage = await queryExperimentSummariesForPublicApi({
         projectId,
-        fromStartTime,
+        fromTime,
         includeMetadata: false,
         limit: 1,
       });
@@ -511,7 +511,7 @@ describe("Public API experiments repository", () => {
 
       const secondPage = await queryExperimentSummariesForPublicApi({
         projectId,
-        fromStartTime,
+        fromTime,
         includeMetadata: false,
         cursor: {
           lastTime: firstRow.end_time,
@@ -573,7 +573,7 @@ describe("Public API experiments repository", () => {
 
       const rows = await queryExperimentItemsForPublicApi({
         projectId,
-        fromStartTime: new Date(startTimeMs - 1_000),
+        fromTime: new Date(startTimeMs - 1_000),
         includeDataset: true,
         includeIo: true,
         includeMetadata: true,
@@ -617,7 +617,7 @@ describe("Public API experiments repository", () => {
 
       const rows = await queryExperimentItemsForPublicApi({
         projectId,
-        fromStartTime: new Date(startTimeMs - 1_000),
+        fromTime: new Date(startTimeMs - 1_000),
         includeDataset: true,
         includeIo: false,
         includeMetadata: false,
@@ -659,7 +659,7 @@ describe("Public API experiments repository", () => {
 
       const rows = await queryExperimentItemsForPublicApi({
         projectId,
-        fromStartTime: new Date(startTimeMs - 1_000),
+        fromTime: new Date(startTimeMs - 1_000),
         experimentName: ["simple item experiment"],
         includeDataset: true,
         includeIo: false,
@@ -705,7 +705,7 @@ describe("Public API experiments repository", () => {
 
       const firstPage = await queryExperimentItemsForPublicApi({
         projectId,
-        fromStartTime: new Date(startTimeMs - 1_000),
+        fromTime: new Date(startTimeMs - 1_000),
         includeDataset: true,
         includeIo: false,
         includeMetadata: false,
@@ -720,7 +720,7 @@ describe("Public API experiments repository", () => {
 
       const secondPage = await queryExperimentItemsForPublicApi({
         projectId,
-        fromStartTime: new Date(startTimeMs - 1_000),
+        fromTime: new Date(startTimeMs - 1_000),
         includeDataset: true,
         includeIo: false,
         includeMetadata: false,
@@ -759,7 +759,7 @@ describe("Public API experiments repository", () => {
 
       const rows = await queryExperimentItemsForPublicApi({
         projectId,
-        fromStartTime: new Date(startTimeMs - 1_000),
+        fromTime: new Date(startTimeMs - 1_000),
         includeDataset: true,
         includeIo: false,
         includeMetadata: false,
@@ -787,7 +787,7 @@ describe("Public API experiments repository", () => {
 
       const rows = await queryExperimentItemsForPublicApi({
         projectId,
-        fromStartTime: new Date(startTimeMs - 1_000),
+        fromTime: new Date(startTimeMs - 1_000),
         includeDataset: false,
         includeIo: false,
         includeMetadata: true,
@@ -835,7 +835,7 @@ describe("Public API experiments repository", () => {
           fields: ["core"],
           limit: 1,
           scoreLimit: 50,
-          fromStartTime: new Date(startTimeMs - 1_000).toISOString(),
+          fromTime: new Date(startTimeMs - 1_000).toISOString(),
         },
       });
 
@@ -922,7 +922,7 @@ describe("Public API experiments repository", () => {
           fields: ["core", "scores"],
           limit: 10,
           scoreLimit: 50,
-          fromStartTime: new Date(startTimeMs - 1_000).toISOString(),
+          fromTime: new Date(startTimeMs - 1_000).toISOString(),
         },
       });
 
