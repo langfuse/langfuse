@@ -660,9 +660,6 @@ SELECT
     experiment_item_metadata_values,
     experiment_item_root_span_id,
     source,
-    ingestion_api_key,
-    ingestion_sdk_name,
-    ingestion_sdk_version,
     service_name,
     service_version,
     scope_name,
@@ -675,7 +672,10 @@ SELECT
     created_at,
     updated_at,
     event_ts,
-    is_deleted
+    is_deleted,
+    ingestion_api_key,
+    ingestion_sdk_name,
+    ingestion_sdk_version
 FROM events_full
 SETTINGS enable_full_text_index = 1;
 
@@ -707,8 +707,9 @@ clickhouse client \
                       experiment_metadata_names, experiment_metadata_values,
                       experiment_item_metadata_names, experiment_item_metadata_values,
                       experiment_item_root_span_id,
-                      source, ingestion_api_key, ingestion_sdk_name, ingestion_sdk_version, blob_storage_file_path, event_bytes,
-                      created_at, updated_at, event_ts, is_deleted)
+                      source, blob_storage_file_path, event_bytes,
+                      created_at, updated_at, event_ts, is_deleted,
+                      ingestion_api_key, ingestion_sdk_name, ingestion_sdk_version)
   SELECT o.project_id,
          o.trace_id,
          o.id                                                                            AS span_id,
@@ -763,15 +764,15 @@ clickhouse client \
          if(dri.dataset_run_id != '', mapValues(dri.dataset_item_metadata), [])          AS experiment_item_metadata_values,
          if(dri.dataset_run_id != '', o.id, '')                                          AS experiment_item_root_span_id,
          multiIf(dri.dataset_run_id != '', 'ingestion-api-dual-write-experiments', mapContains(o.metadata, 'resourceAttributes'), 'otel-dual-write', 'ingestion-api-dual-write') AS source,
-         ''                                                                              AS ingestion_api_key,
-         ''                                                                              AS ingestion_sdk_name,
-         ''                                                                              AS ingestion_sdk_version,
          ''                                                                              AS blob_storage_file_path,
          byteSize(*)                                                                     AS event_bytes,
          o.created_at,
          o.updated_at,
          o.event_ts,
-         o.is_deleted
+         o.is_deleted,
+         ''                                                                              AS ingestion_api_key,
+         ''                                                                              AS ingestion_sdk_name,
+         ''                                                                              AS ingestion_sdk_version
   FROM observations o FINAL
   LEFT JOIN traces t ON o.project_id = t.project_id AND o.trace_id = t.id
   LEFT JOIN dataset_run_items_rmt dri ON o.project_id = dri.project_id AND o.trace_id = dri.trace_id
@@ -792,8 +793,9 @@ clickhouse client \
                       experiment_metadata_names, experiment_metadata_values,
                       experiment_item_metadata_names, experiment_item_metadata_values,
                       experiment_item_root_span_id,
-                      source, ingestion_api_key, ingestion_sdk_name, ingestion_sdk_version, blob_storage_file_path, event_bytes,
-                      created_at, updated_at, event_ts, is_deleted)
+                      source, blob_storage_file_path, event_bytes,
+                      created_at, updated_at, event_ts, is_deleted,
+                      ingestion_api_key, ingestion_sdk_name, ingestion_sdk_version)
   SELECT t.project_id,
          t.id,
          concat('t-', t.id)                                                              AS span_id,
@@ -837,15 +839,15 @@ clickhouse client \
          if(dri.dataset_run_id != '', mapValues(dri.dataset_item_metadata), [])          AS experiment_item_metadata_values,
          if(dri.dataset_run_id != '', concat('t-', t.id), '')                            AS experiment_item_root_span_id,
          multiIf(dri.dataset_run_id != '', 'ingestion-api-dual-write-experiments', mapContains(t.metadata, 'resourceAttributes'), 'otel-dual-write', 'ingestion-api-dual-write') AS source,
-         ''                                                                              AS ingestion_api_key,
-         ''                                                                              AS ingestion_sdk_name,
-         ''                                                                              AS ingestion_sdk_version,
          ''                                                                              AS blob_storage_file_path,
          byteSize(*)                                                                     AS event_bytes,
          t.created_at,
          t.updated_at,
          t.event_ts,
-         t.is_deleted
+         t.is_deleted,
+         ''                                                                              AS ingestion_api_key,
+         ''                                                                              AS ingestion_sdk_name,
+         ''                                                                              AS ingestion_sdk_version
   FROM traces t FINAL
   LEFT JOIN dataset_run_items_rmt dri ON t.project_id = dri.project_id AND t.id = dri.trace_id
   WHERE (t.is_deleted = 0);
