@@ -169,9 +169,9 @@ describe("prepareTimeAxis", () => {
   });
 
   it("short categorical labels are not truncated and time ticks stay flat + numeric (dashboards unchanged)", () => {
-    const shortCats = prepareTimeAxis(["run-a", "run-b", "run-c"], 6);
-    expect(shortCats.formatTick("run-a")).toBe("run-a");
-    expect(shortCats.tickProps.angle).toBeLessThan(0);
+    const shortCategories = prepareTimeAxis(["run-a", "run-b", "run-c"], 6);
+    expect(shortCategories.formatTick("run-a")).toBe("run-a");
+    expect(shortCategories.tickProps.angle).toBeLessThan(0);
 
     // Time-mode ticks are unchanged: flat tickProps AND a numeric index step, so
     // dashboards render pixel-identically (no width-aware equidistant thinning).
