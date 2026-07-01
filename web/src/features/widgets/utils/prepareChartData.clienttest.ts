@@ -198,4 +198,32 @@ describe("prepareWidgetChartData", () => {
       },
     ]);
   });
+
+  it("keys pivot drilldowns by displayed array dimension values while preserving raw array filters", () => {
+    const data = prepareWidgetChartData({
+      rows: [{ tags: ["prod", "customer"], count_count: 4 }],
+      projectId: PROJECT_ID,
+      query: query({
+        dimensions: [{ field: "tags" }],
+      }),
+      chartType: "PIVOT_TABLE",
+      metrics: [{ measure: "count", agg: "count" }],
+      dimensions: [{ field: "tags" }],
+      isV4Enabled: true,
+    });
+
+    const lookup = data[0]?.pivotDrilldownByDimensions;
+    const drilldown =
+      lookup![serializePivotDrilldownDimensions({ tags: "prod,customer" })];
+
+    expect(drilldown).toBeDefined();
+    expect(filtersOf(drilldown!.href)).toEqual([
+      {
+        column: "traceTags",
+        type: "arrayOptions",
+        operator: "any of",
+        value: ["prod", "customer"],
+      },
+    ]);
+  });
 });

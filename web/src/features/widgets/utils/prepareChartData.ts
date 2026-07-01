@@ -43,6 +43,9 @@ const formatDimensionValue = (value: unknown): string => {
   return String(value);
 };
 
+const toPivotLookupDimensionValue = (value: unknown): string | number | null =>
+  typeof value === "number" ? value : (value?.toString() ?? null);
+
 const getXAxisValue = (
   item: Record<string, unknown>,
   entityDimensionLabelMap?: Record<string, string>,
@@ -202,25 +205,39 @@ const buildPivotDrilldownLookup = (params: {
   const lookup: Record<string, ChartDrilldown | undefined> = {};
   lookup[serializePivotDrilldownDimensions({})] = buildBaseDrilldown(params);
 
-  for (const row of params.rows) {
-    const prefix: Record<string, unknown> = {};
-
-    for (const dimension of params.dimensions) {
-      if (!hasOwn(row, dimension.field)) break;
-
-      prefix[dimension.field] = row[dimension.field];
-      const dimensions = Object.entries(prefix).map(([field, value]) => ({
+  const addDrilldown = (
+    lookupDimensions: Record<string, unknown>,
+    filterDimensions: Record<string, unknown>,
+  ) => {
+    const dimensions = Object.entries(filterDimensions).map(
+      ([field, value]) => ({
         field,
         value,
-      }));
+      }),
+    );
 
-      lookup[serializePivotDrilldownDimensions(prefix)] = toChartDrilldown(
+    lookup[serializePivotDrilldownDimensions(lookupDimensions)] =
+      toChartDrilldown(
         buildV4TracesChartDrilldownPath({
           projectId: params.projectId,
           query: params.query,
           mark: { type: "pivot", dimensions },
         }),
       );
+  };
+
+  for (const row of params.rows) {
+    const lookupPrefix: Record<string, unknown> = {};
+    const filterPrefix: Record<string, unknown> = {};
+
+    for (const dimension of params.dimensions) {
+      if (!hasOwn(row, dimension.field)) break;
+
+      lookupPrefix[dimension.field] = toPivotLookupDimensionValue(
+        row[dimension.field],
+      );
+      filterPrefix[dimension.field] = row[dimension.field];
+      addDrilldown(lookupPrefix, filterPrefix);
     }
   }
 

@@ -38,7 +38,7 @@ export const DEFAULT_ROW_LIMIT = 20;
  */
 export const MAX_PIVOT_TABLE_METRICS = 10;
 
-type PivotDimensionValue = string | number | null;
+export type PivotDimensionValue = string | number | null;
 
 const AMBIGUOUS_DIMENSION_VALUE = "__langfuse_ambiguous_dimension_value__";
 
@@ -364,14 +364,15 @@ export function transformToPivotTable(
 export function extractDimensionValues(
   row: DatabaseRow,
   dimensions: string[],
-): Record<string, string> {
+): Record<string, PivotDimensionValue> {
   return dimensions.reduce(
     (acc, dimension) => {
       const value = row[dimension];
-      acc[dimension] = value?.toString() ?? "";
+      acc[dimension] =
+        typeof value === "number" ? value : (value?.toString() ?? null);
       return acc;
     },
-    {} as Record<string, string>,
+    {} as Record<string, PivotDimensionValue>,
   );
 }
 
