@@ -90,7 +90,7 @@ describe("evaluateEventPropagationStuck", () => {
     expect(result.stuck).toBe(false);
   });
 
-  it("leaves the propagation delay null for an unparseable cursor value", () => {
+  it("leaves the propagation delay null for an unparsable cursor value", () => {
     const result = evaluateEventPropagationStuck({
       enabled: true,
       nowMs,
