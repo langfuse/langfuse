@@ -134,19 +134,12 @@ changes.
   imperatively-positioned content renders via `<Layer name="…">`. z-index stays
   local to a layer or component (1–2 max), never to escape the app — the
   `@repo/no-overlay-zindex` lint rule enforces it.
-- **Overlay lifecycle — an overlay should avoid spawning another overlay while
-  it stays open.** Layers decide who paints on top _when two overlays should
-  coexist_ (e.g. a Select inside a Dialog); they do NOT decide whether both
-  _should_ be alive at once. A dropdown that opens a modal is the second case:
-  the still-open dropdown (`popover` layer) paints over the modal (`modal`
-  layer) and the two focus/dismiss scopes fight — a lifecycle bug, not a z-order
-  one, so don't try to fix it by re-ranking layers. Instead **close the owning
-  dropdown before opening the modal** (and reopen it on close if the user still
-  owes a pick). Because a Radix Select/DropdownMenu unmounts its content when it
-  closes, render the spawned Dialog OUTSIDE the dropdown content (a sibling that
-  survives the close), with just a trigger left inside — as
-  `src/components/ModelParameters/index.tsx` does via `useAddLlmConnectionSelect`
-  (LFE-10615). Full nesting is sometimes unavoidable; prefer closing the owner.
+- **Overlay lifecycle — a dropdown that opens a modal should close first**, not
+  linger under it (a lifecycle bug, not z-order — don't fix it by re-ranking
+  layers). Radix unmounts a Select/DropdownMenu's content on close, so render the
+  Dialog as a SIBLING (trigger inside, dialog outside), as
+  `useAddLlmConnectionSelect` in `src/components/ModelParameters/index.tsx` does
+  (LFE-10615).
 - Public API routes should use
   `src/features/public-api/server/withMiddlewares.ts`, define strict request and
   response types in `src/features/public-api/types/*`, add server tests, and
