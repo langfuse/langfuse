@@ -19,6 +19,8 @@ const getExperiments = (url: string, auth: string) =>
 
 const maybeEventTables =
   env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
+const maybeLegacyMode =
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true" ? it : it.skip;
 
 const createExperimentRootEvent = ({
   projectId,
@@ -60,6 +62,20 @@ const createExperimentRootEvent = ({
 };
 
 describe("GET /api/public/experiments", () => {
+  maybeLegacyMode("is unavailable when v4 preview is disabled", async () => {
+    const { auth } = await createOrgProjectAndApiKey();
+    const fromStartTime = encodeURIComponent(new Date().toISOString());
+
+    const res = await makeAPICall(
+      "GET",
+      `/api/public/experiments?fromStartTime=${fromStartTime}`,
+      undefined,
+      auth,
+    );
+
+    expect(res.status).toBe(404);
+  });
+
   it("requires fromStartTime", async () => {
     const { auth } = await createOrgProjectAndApiKey();
 
@@ -117,8 +133,10 @@ describe("GET /api/public/experiments", () => {
         id: experimentId,
         name: "core experiment",
         description: "core experiment description",
+        endTime: new Date(startTimeMs).toISOString(),
         datasetId: "dataset-core",
       });
+      expect(experiment).not.toHaveProperty("startTime");
       expect(experiment).not.toHaveProperty("metadata");
       expect(experiment).not.toHaveProperty("scores");
     },
@@ -270,7 +288,7 @@ describe("GET /api/public/experiments", () => {
     const unknownVersionCursor = Buffer.from(
       JSON.stringify({
         v: 3,
-        lastStartTimeTo: new Date().toISOString(),
+        lastTime: new Date().toISOString(),
         lastExperimentId: `exp-${randomUUID()}`,
       }),
     ).toString("base64url");
@@ -286,6 +304,20 @@ describe("GET /api/public/experiments", () => {
 });
 
 describe("GET /api/public/experiment-items", () => {
+  maybeLegacyMode("is unavailable when v4 preview is disabled", async () => {
+    const { auth } = await createOrgProjectAndApiKey();
+    const fromStartTime = encodeURIComponent(new Date().toISOString());
+
+    const res = await makeAPICall(
+      "GET",
+      `/api/public/experiment-items?fromStartTime=${fromStartTime}`,
+      undefined,
+      auth,
+    );
+
+    expect(res.status).toBe(404);
+  });
+
   it("requires fromStartTime unless experimentId is provided", async () => {
     const { auth } = await createOrgProjectAndApiKey();
 

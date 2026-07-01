@@ -334,6 +334,82 @@ describe("Public API experiments repository", () => {
       expect(row?.scores?.map((score) => score.id)).toEqual([scoreId]);
     });
 
+    it("bounds experiment summary score lookup to the returned row timestamp envelope", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const startTimeMs = Date.now() - 3 * 24 * 60 * 60 * 1_000;
+      const scoredExperimentId = `exp-z-${randomUUID()}`;
+      const lastRowExperimentId = `exp-a-${randomUUID()}`;
+      const scoreId = `score-${randomUUID()}`;
+      const tooOldScoreId = `score-${randomUUID()}`;
+      const outOfWindowScoreId = `score-${randomUUID()}`;
+      const oldestReturnedStartTimeMs = startTimeMs + 60 * 60 * 1_000;
+      const newestReturnedStartTimeMs = startTimeMs + 2 * 60 * 60 * 1_000;
+
+      await createEventsCh([
+        createExperimentRootEvent({
+          projectId,
+          experimentId: scoredExperimentId,
+          startTimeMs: newestReturnedStartTimeMs,
+        }),
+        createExperimentRootEvent({
+          projectId,
+          experimentId: lastRowExperimentId,
+          startTimeMs: oldestReturnedStartTimeMs,
+        }),
+      ]);
+      await createScoresCh([
+        createDatasetRunScore({
+          id: scoreId,
+          project_id: projectId,
+          dataset_run_id: scoredExperimentId,
+          name: "early experiment score",
+          timestamp: oldestReturnedStartTimeMs + 10 * 60 * 1_000,
+          created_at: oldestReturnedStartTimeMs + 10 * 60 * 1_000,
+          updated_at: oldestReturnedStartTimeMs + 10 * 60 * 1_000,
+          event_ts: oldestReturnedStartTimeMs + 10 * 60 * 1_000,
+        }),
+        createDatasetRunScore({
+          id: tooOldScoreId,
+          project_id: projectId,
+          dataset_run_id: scoredExperimentId,
+          name: "too old experiment score",
+          timestamp: oldestReturnedStartTimeMs - 25 * 60 * 60 * 1_000,
+          created_at: oldestReturnedStartTimeMs - 25 * 60 * 60 * 1_000,
+          updated_at: oldestReturnedStartTimeMs - 25 * 60 * 60 * 1_000,
+          event_ts: oldestReturnedStartTimeMs - 25 * 60 * 60 * 1_000,
+        }),
+        createDatasetRunScore({
+          id: outOfWindowScoreId,
+          project_id: projectId,
+          dataset_run_id: scoredExperimentId,
+          name: "late experiment score",
+          timestamp: newestReturnedStartTimeMs + 24 * 60 * 60 * 1_000,
+          created_at: newestReturnedStartTimeMs + 24 * 60 * 60 * 1_000,
+          updated_at: newestReturnedStartTimeMs + 24 * 60 * 60 * 1_000,
+          event_ts: newestReturnedStartTimeMs + 24 * 60 * 60 * 1_000,
+        }),
+      ]);
+
+      const response = await listExperimentsForPublicApi({
+        projectId,
+        query: {
+          fields: ["core", "scores"],
+          fromStartTime: new Date(startTimeMs - 1_000).toISOString(),
+          limit: 10,
+          scoreLimit: 50,
+        },
+      });
+
+      const row = response.data.find((item) => item.id === scoredExperimentId);
+      expect(row?.scores?.map((score) => score.id)).toEqual([scoreId]);
+      expect(row?.scores?.map((score) => score.id)).not.toContain(
+        tooOldScoreId,
+      );
+      expect(row?.scores?.map((score) => score.id)).not.toContain(
+        outOfWindowScoreId,
+      );
+    });
+
     it("paginates by experiment summary cursor tuple order", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const startTimeMs = Date.now();
@@ -376,7 +452,7 @@ describe("Public API experiments repository", () => {
         fromStartTime,
         includeMetadata: false,
         cursor: {
-          lastStartTime: firstRow.start_time,
+          lastTime: firstRow.end_time,
           lastId: firstRow.cursor_span_id,
           lastExperimentId: firstRow.experiment_id,
         },
@@ -438,7 +514,7 @@ describe("Public API experiments repository", () => {
         fromStartTime,
         includeMetadata: false,
         cursor: {
-          lastStartTime: firstRow.start_time,
+          lastTime: firstRow.end_time,
           lastId: firstRow.cursor_span_id,
           lastExperimentId: firstRow.experiment_id,
         },
@@ -651,7 +727,7 @@ describe("Public API experiments repository", () => {
         includeItemMetadata: false,
         includeExperimentMetadata: false,
         cursor: {
-          lastStartTime: firstRow.start_time,
+          lastTime: firstRow.start_time,
           lastTraceId: firstRow.trace_id,
           lastId: firstRow.id,
           lastExperimentId: firstRow.experiment_id,
@@ -768,19 +844,21 @@ describe("Public API experiments repository", () => {
 
       const decodedCursor = JSON.parse(
         Buffer.from(cursor!, "base64url").toString("utf-8"),
-      ) as { lastStartTimeTo: string };
+      ) as { lastTime: string };
 
-      expect(decodedCursor.lastStartTimeTo).toContain(".123456");
+      expect(decodedCursor.lastTime).toContain(".123456");
     });
 
     it("attaches flat item and trace scores", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
-      const startTimeMs = Date.now();
+      const startTimeMs = Date.now() - 3 * 24 * 60 * 60 * 1_000;
       const traceId = `trace-${randomUUID()}`;
       const spanId = `span-${randomUUID()}`;
       const experimentId = `exp-${randomUUID()}`;
       const itemScoreId = `score-${randomUUID()}`;
       const traceScoreId = `score-${randomUUID()}`;
+      const tooOldItemScoreId = `score-${randomUUID()}`;
+      const outOfWindowItemScoreId = `score-${randomUUID()}`;
 
       await createEventsCh([
         createExperimentRootEvent({
@@ -814,6 +892,28 @@ describe("Public API experiments repository", () => {
           updated_at: startTimeMs + 2,
           event_ts: startTimeMs + 2,
         }),
+        createTraceScore({
+          id: tooOldItemScoreId,
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: spanId,
+          name: "too old item score",
+          timestamp: startTimeMs - 25 * 60 * 60 * 1_000,
+          created_at: startTimeMs - 25 * 60 * 60 * 1_000,
+          updated_at: startTimeMs - 25 * 60 * 60 * 1_000,
+          event_ts: startTimeMs - 25 * 60 * 60 * 1_000,
+        }),
+        createTraceScore({
+          id: outOfWindowItemScoreId,
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: spanId,
+          name: "late item score",
+          timestamp: startTimeMs + 25 * 60 * 60 * 1_000,
+          created_at: startTimeMs + 25 * 60 * 60 * 1_000,
+          updated_at: startTimeMs + 25 * 60 * 60 * 1_000,
+          event_ts: startTimeMs + 25 * 60 * 60 * 1_000,
+        }),
       ]);
 
       const response = await listExperimentItemsForPublicApi({
@@ -829,6 +929,12 @@ describe("Public API experiments repository", () => {
       expect(response.data).toHaveLength(1);
       expect(response.data[0]?.scores?.map((score) => score.id).sort()).toEqual(
         [itemScoreId, traceScoreId].sort(),
+      );
+      expect(response.data[0]?.scores?.map((score) => score.id)).not.toContain(
+        tooOldItemScoreId,
+      );
+      expect(response.data[0]?.scores?.map((score) => score.id)).not.toContain(
+        outOfWindowItemScoreId,
       );
     });
   });

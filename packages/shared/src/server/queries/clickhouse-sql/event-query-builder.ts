@@ -41,7 +41,10 @@ export interface SplitQueryBuilder extends QueryWithParams {
   leftJoin(cteName: string, alias: string, onClause: string): SplitQueryBuilder;
   select(...expressions: string[]): SplitQueryBuilder;
   orderBy(clause: string): SplitQueryBuilder;
-  orderByColumns(entries: OrderByEntry[]): SplitQueryBuilder;
+  orderByColumns(
+    entries: OrderByEntry[],
+    options?: OrderByColumnsOptions,
+  ): SplitQueryBuilder;
 }
 
 /**
@@ -49,6 +52,36 @@ export interface SplitQueryBuilder extends QueryWithParams {
  */
 export type OrderByDirection = "ASC" | "DESC";
 export type OrderByEntry = { column: string; direction: OrderByDirection };
+export type OrderByColumnsOptions = { eventTableAlias?: string };
+
+const buildOrderByClause = (
+  entries: OrderByEntry[],
+  options: OrderByColumnsOptions = {},
+) => {
+  if (!entries.length) {
+    return undefined;
+  }
+
+  const columns: string[] = [];
+  const { eventTableAlias } = options;
+  const startTimeColumn = eventTableAlias
+    ? `${eventTableAlias}.start_time`
+    : undefined;
+  const startTimeEntry = startTimeColumn
+    ? entries.find((e) => e.column.replace(/"/g, "") === startTimeColumn)
+    : undefined;
+
+  if (startTimeEntry && eventTableAlias) {
+    columns.push(
+      `${eventTableAlias}.project_id ${startTimeEntry.direction}`,
+      `toStartOfMinute(${eventTableAlias}.start_time) ${startTimeEntry.direction}`,
+    );
+  }
+
+  columns.push(...entries.map((e) => `${e.column} ${e.direction}`));
+
+  return `ORDER BY ${columns.join(", ")}`;
+};
 
 /**
  * Field mapping: each field defined once with its full SELECT expression
@@ -78,6 +111,7 @@ const EVENTS_FIELDS = {
   // Time fields
   startTime: 'e.start_time as "start_time"',
   endTime: 'e.end_time as "end_time"',
+  publicApiExperimentSummaryEndTime: 'e.start_time as "end_time"',
   completionStartTime: 'e.completion_start_time as "completion_start_time"',
   createdAt: 'e.created_at as "created_at"',
   updatedAt: 'e.updated_at as "updated_at"',
@@ -249,6 +283,7 @@ const FIELD_SETS = {
   eventTs: ["eventTs"],
   publicApiExperimentItemCore: [
     "id",
+    "projectId",
     "traceId",
     "startTime",
     "endTime",
@@ -273,7 +308,7 @@ const FIELD_SETS = {
     "experimentName",
     "experimentDescription",
     "experimentDatasetId",
-    "startTime",
+    "publicApiExperimentSummaryEndTime",
     "publicApiExperimentCursorTraceHash",
     "publicApiExperimentCursorTraceId",
     "publicApiExperimentCursorSpanId",
@@ -594,7 +629,7 @@ abstract class AbstractQueryBuilder {
   /**
    * Add exact event-level start time lower bound.
    */
-  withExactStartTimeFrom(startTimeFrom?: string | null): this {
+  withExactTimeFrom(startTimeFrom?: string | null): this {
     return this.when(Boolean(startTimeFrom), (b) =>
       b.whereRaw("e.start_time >= {startTimeFrom: DateTime64(3)}", {
         startTimeFrom,
@@ -605,7 +640,7 @@ abstract class AbstractQueryBuilder {
   /**
    * Add exact event-level start time upper bound.
    */
-  withExactStartTimeTo(startTimeTo?: string | null): this {
+  withExactTimeTo(startTimeTo?: string | null): this {
     return this.when(Boolean(startTimeTo), (b) =>
       b.whereRaw("e.start_time < {startTimeTo: DateTime64(3)}", {
         startTimeTo,
@@ -621,7 +656,7 @@ abstract class AbstractQueryBuilder {
    * summaries and experiment items.
    */
   withCursor(cursor?: {
-    lastStartTime: string;
+    lastTime: string;
     lastTraceId: string;
     lastId: string;
     lastExperimentId: string;
@@ -630,9 +665,9 @@ abstract class AbstractQueryBuilder {
       if (!cursor) return b;
 
       return b.whereRaw(
-        "e.start_time <= {lastStartTime: DateTime64(6)} AND (e.start_time, xxHash32(e.trace_id), e.span_id, e.experiment_id) < ({lastStartTime: DateTime64(6)}, xxHash32({lastTraceId: String}), {lastId: String}, {lastExperimentId: String})",
+        "e.start_time <= {lastTime: DateTime64(6)} AND (e.start_time, xxHash32(e.trace_id), e.span_id, e.experiment_id) < ({lastTime: DateTime64(6)}, xxHash32({lastTraceId: String}), {lastId: String}, {lastExperimentId: String})",
         {
-          lastStartTime: cursor.lastStartTime,
+          lastTime: cursor.lastTime,
           lastTraceId: cursor.lastTraceId,
           lastId: cursor.lastId,
           lastExperimentId: cursor.lastExperimentId,
@@ -645,10 +680,10 @@ abstract class AbstractQueryBuilder {
    * Add cursor support for public experiment summary pagination.
    *
    * This follows the summary ordering key:
-   * toStartOfMinute(start_time), experiment_id, start_time, span_id.
+   * toStartOfMinute(start_time), start_time, experiment_id, span_id.
    */
   withExperimentSummaryCursor(cursor?: {
-    lastStartTime: string;
+    lastTime: string;
     lastId: string;
     lastExperimentId: string;
     lookbackInterval: string;
@@ -658,9 +693,9 @@ abstract class AbstractQueryBuilder {
 
       return b
         .whereRaw(
-          "(toStartOfMinute(e.start_time), e.experiment_id, e.start_time, e.span_id) < (toStartOfMinute({lastStartTime: DateTime64(6)}), {lastExperimentId: String}, {lastStartTime: DateTime64(6)}, {lastId: String})",
+          "(toStartOfMinute(e.start_time), e.start_time, e.experiment_id, e.span_id) < (toStartOfMinute({lastTime: DateTime64(6)}), {lastTime: DateTime64(6)}, {lastExperimentId: String}, {lastId: String})",
           {
-            lastStartTime: cursor.lastStartTime,
+            lastTime: cursor.lastTime,
             lastExperimentId: cursor.lastExperimentId,
             lastId: cursor.lastId,
           },
@@ -671,8 +706,12 @@ abstract class AbstractQueryBuilder {
   FROM events_core e2
   WHERE e2.project_id = {projectId: String}
     AND e2.experiment_id != ''
-    AND e2.start_time >= {lastStartTime: DateTime64(6)} - ${cursor.lookbackInterval}
-    AND e2.start_time < {lastStartTime: DateTime64(6)}
+    -- don't list experiments that were part of the previous page - that means
+    -- no newer item exists
+    AND e2.start_time >= {lastTime: DateTime64(6)}
+    -- experiments shouldn't take more than that so we checked back long
+    AND e2.start_time < {lastTime: DateTime64(6)} + ${cursor.lookbackInterval}
+    AND (toStartOfMinute(e2.start_time), e2.start_time, e2.experiment_id, e2.span_id) >= (toStartOfMinute({lastTime: DateTime64(6)}), {lastTime: DateTime64(6)}, {lastExperimentId: String}, {lastId: String})
 )`,
         );
     });
@@ -717,13 +756,14 @@ abstract class AbstractQueryBuilder {
   /**
    * Add ORDER BY using OrderByEntry array for structured API
    */
-  orderByColumns(entries: OrderByEntry[]): this {
-    if (!entries.length) {
-      return this;
+  orderByColumns(
+    entries: OrderByEntry[],
+    options?: OrderByColumnsOptions,
+  ): this {
+    const orderByClause = buildOrderByClause(entries, options);
+    if (orderByClause) {
+      this.orderByClause = orderByClause;
     }
-
-    const columns: string[] = entries.map((e) => `${e.column} ${e.direction}`);
-    this.orderByClause = `ORDER BY ${columns.join(", ")}`;
     return this;
   }
 
@@ -908,27 +948,12 @@ abstract class BaseEventsQueryBuilder<
    * // Produces: ORDER BY e.project_id DESC, e.start_time DESC, e.event_ts DESC
    */
   orderByColumns(entries: OrderByEntry[]): this {
-    if (!entries.length) {
-      return this;
+    const orderByClause = buildOrderByClause(entries, {
+      eventTableAlias: "e",
+    });
+    if (orderByClause) {
+      this.orderByClause = orderByClause;
     }
-
-    // When ordering by start_time, prepend project_id and toStartOfMinute(e.start_time)
-    // to match the table PRIMARY KEY: (project_id, toStartOfMinute(start_time), xxHash32(trace_id))
-    const startTimeEntry = entries.find((e) =>
-      e.column.replace(/"/g, "").endsWith("start_time"),
-    );
-
-    const columns: string[] = [];
-    if (startTimeEntry) {
-      columns.push(
-        `e.project_id ${startTimeEntry.direction}`,
-        `toStartOfMinute(e.start_time) ${startTimeEntry.direction}`,
-      );
-    }
-
-    columns.push(...entries.map((e) => `${e.column} ${e.direction}`));
-
-    this.orderByClause = `ORDER BY ${columns.join(", ")}`;
     return this;
   }
 
@@ -1896,19 +1921,11 @@ const EXPERIMENTS_AGGREGATION_FIELDS = {
   // Base aggregated fields
   experimentId: "e.experiment_id AS experiment_id",
   experimentName: "any(e.experiment_name) AS experiment_name",
-  publicApiExperimentName:
-    "any(coalesce(e.experiment_name, '')) AS experiment_name",
   experimentDescription:
     "any(e.experiment_description) AS experiment_description",
   experimentDatasetId:
     "nullIf(any(e.experiment_dataset_id), '') AS experiment_dataset_id",
   startTime: "min(e.start_time) AS start_time",
-  publicApiCursorTraceHash:
-    "argMin(xxHash32(e.trace_id), (e.start_time, xxHash32(e.trace_id), e.span_id, e.experiment_id)) AS cursor_trace_hash",
-  publicApiCursorTraceId:
-    "argMin(e.trace_id, (e.start_time, xxHash32(e.trace_id), e.span_id, e.experiment_id)) AS cursor_trace_id",
-  publicApiCursorSpanId:
-    "argMin(e.span_id, (e.start_time, xxHash32(e.trace_id), e.span_id, e.experiment_id)) AS cursor_span_id",
   itemCount: "uniq(e.experiment_item_id) AS item_count",
   errorCount: "countIf(e.level = 'ERROR') AS error_count",
   prompts:
@@ -1938,17 +1955,6 @@ const EXPERIMENTS_AGGREGATION_FIELD_SETS = {
     "prompts",
     "experimentMetadata",
   ] as const,
-  publicApiCore: [
-    "experimentId",
-    "publicApiExperimentName",
-    "experimentDescription",
-    "experimentDatasetId",
-    "startTime",
-    "publicApiCursorTraceHash",
-    "publicApiCursorTraceId",
-    "publicApiCursorSpanId",
-  ] as const,
-  publicApiMetadata: ["experimentMetadata"] as const,
   metrics: ["experimentId", "totalCost", "latencyAvg"] as const,
 } as const;
 
@@ -1993,28 +1999,6 @@ export class ExperimentsAggregationQueryBuilder extends BaseEventsQueryBuilder<
         `e.start_time >= {startTimeFrom: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}`,
         { startTimeFrom },
       ),
-    );
-  }
-
-  /**
-   * Add exact event-level start time lower bound.
-   */
-  withExactStartTimeFrom(startTimeFrom?: string | null): this {
-    return this.when(Boolean(startTimeFrom), (b) =>
-      b.whereRaw("e.start_time >= {startTimeFrom: DateTime64(3)}", {
-        startTimeFrom,
-      }),
-    );
-  }
-
-  /**
-   * Add exact event-level start time upper bound.
-   */
-  withExactStartTimeTo(startTimeTo?: string | null): this {
-    return this.when(Boolean(startTimeTo), (b) =>
-      b.whereRaw("e.start_time < {startTimeTo: DateTime64(3)}", {
-        startTimeTo,
-      }),
     );
   }
 

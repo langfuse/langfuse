@@ -24,7 +24,7 @@ type ExperimentSummaryClickhouseRow = {
   experiment_name: string;
   experiment_description: string | null;
   experiment_dataset_id: string | null;
-  start_time: string;
+  end_time: string;
   cursor_trace_hash: number;
   cursor_trace_id: string;
   cursor_span_id: string;
@@ -63,7 +63,7 @@ type ExperimentItemRow = ExperimentItemClickhouseRow & {
 const DEFAULT_SCORE_LIMIT = 50;
 
 type ExperimentCursor = {
-  lastStartTime: string;
+  lastTime: string;
   lastId: string;
   lastExperimentId: string;
 };
@@ -117,10 +117,39 @@ const groupExperimentScores = (scores: ScoreRecordReadType[]) => {
   );
 };
 
-const startTimeFromLastRow = (rows: { start_time: string }[]) =>
-  parseClickhouseUTCDateTimeFormat(rows[rows.length - 1]!.start_time);
-
 const EXPERIMENT_SUMMARY_CURSOR_LOOKBACK_INTERVAL = "INTERVAL 1 DAY";
+const EXPERIMENT_SCORE_TIMESTAMP_WINDOW_MS = 24 * 60 * 60 * 1000; // 1 day
+
+const scoreTimestampBoundsFromRows = <TRow>(
+  rows: TRow[],
+  getTimestamp: (row: TRow) => string,
+) => {
+  const newestRow = rows[0];
+  const oldestRow = rows.at(-1);
+
+  if (!newestRow || !oldestRow) {
+    throw new Error("Cannot derive score timestamp bounds from an empty page");
+  }
+
+  const newestRowTimestamp = parseClickhouseUTCDateTimeFormat(
+    getTimestamp(newestRow),
+  );
+  const oldestRowTimestamp = parseClickhouseUTCDateTimeFormat(
+    getTimestamp(oldestRow),
+  );
+
+  return {
+    fromTimestamp: new Date(
+      oldestRowTimestamp.getTime() - EXPERIMENT_SCORE_TIMESTAMP_WINDOW_MS,
+    ),
+    toTimestamp: new Date(
+      Math.min(
+        Date.now(),
+        newestRowTimestamp.getTime() + EXPERIMENT_SCORE_TIMESTAMP_WINDOW_MS,
+      ),
+    ),
+  };
+};
 
 async function queryExperimentSummaryRowsForPublicApi(
   params: QueryExperimentSummariesParams,
@@ -155,13 +184,13 @@ async function queryExperimentSummaryRowsForPublicApi(
         : []),
     )
     .whereRaw("e.experiment_id != ''")
-    .withExactStartTimeFrom(fromStartTime)
-    .withExactStartTimeTo(toStartTime)
+    .withExactTimeFrom(fromStartTime)
+    .withExactTimeTo(toStartTime)
     .applyFilters(filterList)
     .withExperimentSummaryCursor(
       params.cursor
         ? {
-            lastStartTime: params.cursor.lastStartTime,
+            lastTime: params.cursor.lastTime,
             lastId: params.cursor.lastId,
             lastExperimentId: params.cursor.lastExperimentId,
             lookbackInterval: EXPERIMENT_SUMMARY_CURSOR_LOOKBACK_INTERVAL,
@@ -169,8 +198,8 @@ async function queryExperimentSummaryRowsForPublicApi(
         : undefined,
     )
     .orderByColumns([
-      { column: "e.experiment_id", direction: "DESC" },
       { column: "e.start_time", direction: "DESC" },
+      { column: "e.experiment_id", direction: "DESC" },
       { column: "e.span_id", direction: "DESC" },
     ])
     .limitBy("e.project_id", "e.experiment_id")
@@ -210,11 +239,18 @@ export async function queryExperimentSummariesForPublicApi(
 
   if (!params.includeScores || rows.length === 0) return rows;
 
+  const scoreTimestampBounds = scoreTimestampBoundsFromRows(
+    rows,
+    (row) => row.end_time,
+  );
   const scoresByExperimentId = groupExperimentScores(
     await queryScoreRecordsForExperiments({
       projectId: params.projectId,
       experimentIds: rows.map((row) => row.experiment_id),
-      fromTimestamp: startTimeFromLastRow(rows),
+      // scores need to be newer than the oldest row - 1 day
+      fromTimestamp: scoreTimestampBounds.fromTimestamp,
+      // scores can't be newer than min(now(), newest row + 1 day)
+      toTimestamp: scoreTimestampBounds.toTimestamp,
       scoreLimit: params.scoreLimit ?? DEFAULT_SCORE_LIMIT,
     }),
   );
@@ -227,17 +263,19 @@ export async function queryExperimentSummariesForPublicApi(
   );
 }
 
-const experimentItemOrderBy = (alias: "e" | "b") => {
+const experimentItemOrderByColumns = (alias: "e" | "b") => {
   const idColumn = alias === "e" ? "span_id" : "id";
 
-  return `ORDER BY ${alias}.start_time DESC, xxHash32(${alias}.trace_id) DESC, ${alias}.${idColumn} DESC, ${alias}.experiment_id DESC`;
+  return [
+    { column: `${alias}.start_time`, direction: "DESC" },
+    { column: `xxHash32(${alias}.trace_id)`, direction: "DESC" },
+    { column: `${alias}.${idColumn}`, direction: "DESC" },
+    { column: `${alias}.experiment_id`, direction: "DESC" },
+  ] as const;
 };
 
 const filterForItems = (builder: EventsQueryBuilder) =>
-  builder
-    .whereRaw("e.experiment_id != ''")
-    .whereRaw("e.experiment_item_id != ''")
-    .whereRaw("e.experiment_item_root_span_id = e.span_id");
+  builder.whereRaw("e.experiment_id != ''");
 
 async function queryExperimentItemRowsForPublicApi(
   params: QueryExperimentItemsParams,
@@ -296,14 +334,14 @@ async function queryExperimentItemRowsForPublicApi(
     .withCursor(
       params.cursor
         ? {
-            lastStartTime: params.cursor.lastStartTime,
+            lastTime: params.cursor.lastTime,
             lastTraceId: params.cursor.lastTraceId,
             lastId: params.cursor.lastId,
             lastExperimentId: params.cursor.lastExperimentId,
           }
         : undefined,
     )
-    .orderBy(experimentItemOrderBy("e"))
+    .orderByColumns([...experimentItemOrderByColumns("e")])
     .limitBy("e.span_id", "e.project_id")
     .limit(params.limit);
 
@@ -314,7 +352,9 @@ async function queryExperimentItemRowsForPublicApi(
           baseBuilder: queryBuilder,
           includeIO: params.includeIo,
           includeMetadata: params.includeMetadata,
-        }).orderBy(experimentItemOrderBy("b"))
+        }).orderByColumns([...experimentItemOrderByColumns("b")], {
+          eventTableAlias: "b",
+        })
       : queryBuilder;
 
   const { query, params: queryParams } = builder.buildWithParams();
@@ -351,12 +391,19 @@ export async function queryExperimentItemsForPublicApi(
 
   if (!params.includeScores || rows.length === 0) return rows;
 
+  const scoreTimestampBounds = scoreTimestampBoundsFromRows(
+    rows,
+    (row) => row.start_time,
+  );
   const scoresBySpanId = Object.groupBy(
     await queryScoreRecordsForExperimentItems({
       projectId: params.projectId,
       traceIds: rows.map((row) => row.trace_id),
       observationIds: rows.map((row) => row.id),
-      min: startTimeFromLastRow(rows),
+      // scores need to be newer than the oldest item
+      min: scoreTimestampBounds.fromTimestamp,
+      // scores can't be newer than min(now, newest item + 1 day)
+      toTimestamp: scoreTimestampBounds.toTimestamp,
       scoreLimit: params.scoreLimit ?? DEFAULT_SCORE_LIMIT,
     }),
     (score) => score.observation_id ?? "",

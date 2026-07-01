@@ -37,7 +37,7 @@ const transformExperimentSummaryRow = (
     id: row.experiment_id,
     name: row.experiment_name,
     description: row.experiment_description ?? null,
-    startTime: parseClickhouseUTCDateTimeFormat(row.start_time),
+    endTime: parseClickhouseUTCDateTimeFormat(row.end_time),
     datasetId: row.experiment_dataset_id || null,
   };
 
@@ -158,7 +158,7 @@ export async function listExperimentsForPublicApi({
     advancedFilters: query.filter,
     cursor: query.cursor
       ? {
-          lastStartTime: query.cursor.lastStartTimeTo,
+          lastTime: query.cursor.lastTime,
           lastId: query.cursor.lastId,
           lastExperimentId: query.cursor.lastExperimentId,
         }
@@ -186,7 +186,7 @@ export async function listExperimentsForPublicApi({
       ? {
           cursor: encodeExperimentsCursor({
             v: 1,
-            lastStartTimeTo: lastRow.start_time,
+            lastTime: lastRow.end_time,
             lastId: lastRow.cursor_span_id,
             lastExperimentId: lastRow.experiment_id,
           }),
@@ -235,7 +235,7 @@ export async function listExperimentItemsForPublicApi({
     advancedFilters: query.filter,
     cursor: query.cursor
       ? {
-          lastStartTime: query.cursor.lastStartTimeTo,
+          lastTime: query.cursor.lastTime,
           lastTraceId: query.cursor.lastTraceId,
           lastId: query.cursor.lastId,
           lastExperimentId: query.cursor.lastExperimentId,
@@ -273,7 +273,7 @@ export async function listExperimentItemsForPublicApi({
       ? {
           cursor: encodeExperimentItemsCursor({
             v: 1,
-            lastStartTimeTo: lastRow.start_time,
+            lastTime: lastRow.start_time,
             lastTraceId: lastRow.trace_id,
             lastId: lastRow.id,
             lastExperimentId: lastRow.experiment_id,

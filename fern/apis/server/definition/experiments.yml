@@ -78,7 +78,7 @@ service:
             docs: Number of experiment items to return per page. Maximum 100, default 50.
           scoreLimit:
             type: optional<integer>
-            docs: Number of scores to return per experiment item or trace when `fields=scores` is requested. Maximum 50, default 50.
+            docs: Number of scores to return per experiment item when `fields=scores` is requested. Maximum 50, default 50.
           cursor:
             type: optional<string>
             docs: Versioned base64url cursor from the previous response page.
@@ -125,7 +125,7 @@ types:
       id: string
       name: string
       description: nullable<string>
-      startTime: datetime
+      endTime: datetime
       datasetId:
         type: nullable<string>
         docs: Null when the experiment is not associated with a dataset.

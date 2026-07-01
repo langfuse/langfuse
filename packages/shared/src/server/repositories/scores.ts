@@ -746,12 +746,14 @@ export async function queryScoreRecordsForExperimentItems({
   traceIds,
   observationIds,
   min,
+  toTimestamp,
   scoreLimit,
 }: {
   projectId: string;
   traceIds: string[];
   observationIds: string[];
   min: Date;
+  toTimestamp?: Date;
   scoreLimit: number;
 }) {
   const traceToObservationId = new Map<string, string>();
@@ -782,6 +784,9 @@ export async function queryScoreRecordsForExperimentItems({
         traceIdMapping,
         observationIdMapping,
         minStartTime: convertDateToClickhouseDateTime(min),
+        ...(toTimestamp
+          ? { maxStartTime: convertDateToClickhouseDateTime(toTimestamp) }
+          : {}),
         scoreLimit,
         dataTypes: LISTABLE_SCORE_TYPES.map((type) => type.toString()),
       },
@@ -801,6 +806,7 @@ export async function queryScoreRecordsForExperimentItems({
             FROM scores s
             WHERE s.project_id = {projectId: String}
               AND s.timestamp >= {minStartTime: DateTime64(3)}
+              ${toTimestamp ? "AND s.timestamp < {maxStartTime: DateTime64(3)}" : ""}
               AND s.data_type IN ({dataTypes: Array(String)})
               AND (
                 s.observation_id IN ({observationIds: Array(String)})
@@ -828,11 +834,13 @@ export async function queryScoreRecordsForExperiments({
   projectId,
   experimentIds,
   fromTimestamp,
+  toTimestamp,
   scoreLimit,
 }: {
   projectId: string;
   experimentIds: string[];
   fromTimestamp: Date;
+  toTimestamp?: Date;
   scoreLimit: number;
 }) {
   const uniqueExperimentIds = uniqueNonEmptyStrings(experimentIds);
@@ -849,6 +857,9 @@ export async function queryScoreRecordsForExperiments({
         projectId,
         experimentIds: uniqueExperimentIds,
         startTimeFrom: convertDateToClickhouseDateTime(fromTimestamp),
+        ...(toTimestamp
+          ? { startTimeTo: convertDateToClickhouseDateTime(toTimestamp) }
+          : {}),
         scoreLimit,
         dataTypes: LISTABLE_SCORE_TYPES.map((type) => type.toString()),
       },
@@ -868,6 +879,7 @@ export async function queryScoreRecordsForExperiments({
             FROM scores s
             WHERE s.project_id = {projectId: String}
               AND s.timestamp >= {startTimeFrom: DateTime64(3)}
+              ${toTimestamp ? "AND s.timestamp < {startTimeTo: DateTime64(3)}" : ""}
               AND s.dataset_run_id IN ({experimentIds: Array(String)})
               AND s.data_type IN ({dataTypes: Array(String)})
               AND s.trace_id IS NULL

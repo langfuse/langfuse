@@ -1705,8 +1705,8 @@ paths:
         - name: scoreLimit
           in: query
           description: >-
-            Number of scores to return per experiment item or trace when
-            `fields=scores` is requested. Maximum 50, default 50.
+            Number of scores to return per experiment item when `fields=scores`
+            is requested. Maximum 50, default 50.
           required: false
           schema:
             type: integer
@@ -10064,7 +10064,7 @@ components:
         description:
           type: string
           nullable: true
-        startTime:
+        endTime:
           type: string
           format: date-time
         datasetId:
@@ -10088,7 +10088,7 @@ components:
         - id
         - name
         - description
-        - startTime
+        - endTime
         - datasetId
     ExperimentItemsResponse:
       title: ExperimentItemsResponse
