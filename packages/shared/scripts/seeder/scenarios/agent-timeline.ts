@@ -71,7 +71,11 @@ const run = async (
   const startedAt = Date.now();
   const turns = params["turns"] as number;
   const withV4 = params["v4"] as boolean;
-  const withMetadata = params["langgraph-metadata"] as boolean;
+  // Default: attach langgraph metadata (the explicit-flow graph). --timing-only
+  // omits it to exercise the pure timing-based graph fallback. (A boolean that
+  // defaults true can't be unset via the CLI's presence-only flags, so this is
+  // phrased as an opt-in.)
+  const withMetadata = !(params["timing-only"] as boolean);
 
   if (turns < 1) {
     throw new SeedError(
@@ -387,11 +391,11 @@ export const agentTimelineScenario: ScenarioDefinition = {
         "refine-loop iterations (each is planner→retriever→generator→critic)",
     },
     {
-      flag: "langgraph-metadata",
+      flag: "timing-only",
       type: "boolean",
-      default: true,
+      default: false,
       description:
-        "attach langgraph_node/langgraph_step metadata (off = exercise the pure timing-based graph fallback)",
+        "omit langgraph_node/langgraph_step metadata, so the graph is built from the pure timing-based fallback (every observation becomes a node)",
     },
     {
       flag: "v4",
