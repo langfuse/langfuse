@@ -148,28 +148,30 @@ export function TraceTimeline() {
     overscan: 16,
   });
 
-  // Auto-scroll to selected node on initial load (URL-based navigation only).
-  const initialNodeIdRef = useRef(selectedNodeId);
-  const hasScrolledRef = useRef(false);
+  // Scroll the selected row into view whenever the selection changes — so
+  // selecting a node elsewhere (e.g. clicking it in the graph view) brings the
+  // matching timeline row into view. `align: "auto"` scrolls the minimum needed
+  // and is a no-op when the row is already visible, so clicking a visible row
+  // never jumps the timeline.
+  const prevSelectedIdRef = useRef<string | null | undefined>(undefined);
 
   useLayoutEffect(() => {
-    if (
-      selectedNodeId &&
-      !hasScrolledRef.current &&
-      selectedNodeId === initialNodeIdRef.current
-    ) {
-      const index = flattenedItems.findIndex(
-        (item) => item.node.id === selectedNodeId,
-      );
-
-      if (index !== -1) {
-        rowVirtualizer.scrollToIndex(index, {
-          align: "center",
-          behavior: "auto",
-        });
-        hasScrolledRef.current = true;
-      }
+    if (!selectedNodeId || selectedNodeId === prevSelectedIdRef.current) {
+      prevSelectedIdRef.current = selectedNodeId;
+      return;
     }
+    const isInitial = prevSelectedIdRef.current === undefined;
+    prevSelectedIdRef.current = selectedNodeId;
+
+    const index = flattenedItems.findIndex(
+      (item) => item.node.id === selectedNodeId,
+    );
+    if (index === -1) return;
+
+    rowVirtualizer.scrollToIndex(index, {
+      align: isInitial ? "center" : "auto",
+      behavior: isInitial ? "auto" : "smooth",
+    });
   }, [selectedNodeId, flattenedItems, rowVirtualizer]);
 
   // The chart owns the only vertical scroll. The gutter and the time scale are
