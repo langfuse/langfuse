@@ -254,7 +254,7 @@ describe("find user project roles", () => {
       },
     });
 
-    const users = await getUserProjectRoles({
+    const usersOrg1 = await getUserProjectRoles({
       projectId: project.id,
       orgId: org.id,
       filterCondition: [],
@@ -262,13 +262,151 @@ describe("find user project roles", () => {
       orderBy: Prisma.empty,
     });
 
-    expect(users).toEqual([
+    expect(usersOrg1).toEqual([
       expect.objectContaining({
         id: user.id,
         name: user.name,
         email: user.email,
       }),
     ]);
+
+    const usersOrg2 = await getUserProjectRoles({
+      projectId: project2.id,
+      orgId: org2.id,
+      filterCondition: [],
+      searchFilter: Prisma.empty,
+      orderBy: Prisma.empty,
+    });
+
+    expect(usersOrg2).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: user3.id,
+          name: user3.name,
+          email: user3.email,
+        }),
+        expect.objectContaining({
+          id: user2.id,
+          name: user2.name,
+          email: user2.email,
+        }),
+      ]),
+    );
+
+    expect(usersOrg2).toHaveLength(2);
+    expect(usersOrg2).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: user.id,
+        }),
+      ]),
+    );
+  });
+
+  it("should inherit the org role when a user only has a project-specific override on a different project", async () => {
+    const { org, project: projectX } = await createOrgAndProject();
+
+    const projectY = await prisma.project.create({
+      data: {
+        id: v4(),
+        name: v4(),
+        orgId: org.id,
+      },
+    });
+
+    const userWithOrgRoleOnly = await prisma.user.create({
+      data: {
+        id: v4(),
+        email: v4(),
+        name: "User A",
+      },
+    });
+
+    const userB = await prisma.user.create({
+      data: {
+        id: v4(),
+        email: v4(),
+        name: "User B",
+      },
+    });
+
+    const userC = await prisma.user.create({
+      data: {
+        id: v4(),
+        email: v4(),
+        name: "User C",
+      },
+    });
+
+    await prisma.organizationMembership.create({
+      data: {
+        userId: userWithOrgRoleOnly.id,
+        orgId: org.id,
+        role: "MEMBER",
+      },
+    });
+
+    const orgMembershipOfUserB = await prisma.organizationMembership.create({
+      data: {
+        userId: userB.id,
+        orgId: org.id,
+        role: "MEMBER",
+      },
+    });
+
+    const orgMembershipOfUserC = await prisma.organizationMembership.create({
+      data: {
+        userId: userC.id,
+        orgId: org.id,
+        role: "MEMBER",
+      },
+    });
+
+    await prisma.projectMembership.create({
+      data: {
+        userId: userB.id,
+        projectId: projectX.id,
+        role: "VIEWER",
+        orgMembershipId: orgMembershipOfUserB.id,
+      },
+    });
+
+    await prisma.projectMembership.create({
+      data: {
+        userId: userC.id,
+        projectId: projectY.id,
+        role: "ADMIN",
+        orgMembershipId: orgMembershipOfUserC.id,
+      },
+    });
+
+    const users = await getUserProjectRoles({
+      projectId: projectX.id,
+      orgId: org.id,
+      filterCondition: [],
+      searchFilter: Prisma.empty,
+      orderBy: Prisma.empty,
+    });
+
+    expect(users).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: userWithOrgRoleOnly.id,
+          role: "MEMBER",
+        }),
+        expect.objectContaining({
+          id: userB.id,
+          role: "VIEWER",
+        }),
+        // User C has a project-specific override on a different project (projectY)
+        // so they should inherit their org role (MEMBER) for projectX
+        expect.objectContaining({
+          id: userC.id,
+          role: "MEMBER",
+        }),
+      ]),
+    );
+    expect(users).toHaveLength(3);
   });
 
   it("should return empty array for empty organization", async () => {
