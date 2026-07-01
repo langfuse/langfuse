@@ -70,7 +70,10 @@ function ToolCallArgumentsList({
                 Call {toolCall.invocationNumber}
               </div>
               {toolCall.id && (
-                <div className="text-muted-foreground truncate font-mono text-xs">
+                <div
+                  className="text-muted-foreground truncate font-mono text-xs"
+                  title={toolCall.id}
+                >
                   {toolCall.id}
                 </div>
               )}

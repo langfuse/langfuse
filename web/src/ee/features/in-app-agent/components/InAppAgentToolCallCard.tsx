@@ -21,6 +21,8 @@ export function InAppAgentToolCallCard({
   const isApprovalPending = approval?.status === "pending";
   const isApprovalSubmitting = approval?.status === "submitting";
   const resultLabel = tool.error ? "Error" : "Result";
+  const approveLabel = `Approve ${tool.name}?`;
+  const usedLabel = `Used ${tool.name}`;
 
   return (
     <div
@@ -35,8 +37,11 @@ export function InAppAgentToolCallCard({
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs leading-none font-medium">
             <Wrench className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-            <span className="min-w-0 flex-1 truncate py-0.5">
-              Approve {tool.name}?
+            <span
+              className="min-w-0 flex-1 truncate py-0.5"
+              title={approveLabel}
+            >
+              {approveLabel}
             </span>
           </div>
           <div className="mt-2 space-y-2">
@@ -82,8 +87,8 @@ export function InAppAgentToolCallCard({
         <details className="group/tool min-w-0">
           <summary className="flex cursor-pointer list-none items-center gap-2 text-xs leading-none font-medium [&::-webkit-details-marker]:hidden">
             <Wrench className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-            <span className="min-w-0 flex-1 truncate py-0.5">
-              Used {tool.name}
+            <span className="min-w-0 flex-1 truncate py-0.5" title={usedLabel}>
+              {usedLabel}
             </span>
             <span className="text-muted-foreground text-xs group-open/tool:hidden">
               Show

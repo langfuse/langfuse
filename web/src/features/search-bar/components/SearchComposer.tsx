@@ -1318,6 +1318,7 @@ export function SearchComposer({
               "text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 truncate font-mono text-xs",
               onActivateAi !== undefined ? "pr-20" : "pr-8",
             )}
+            title={COMPOSER_PLACEHOLDER}
           >
             {COMPOSER_PLACEHOLDER}
           </div>
