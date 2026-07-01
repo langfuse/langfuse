@@ -158,7 +158,7 @@ describe("IngestionService unit tests", () => {
     });
   });
 
-  it("does not assign empty SDK attribution to observation staging records", async () => {
+  it("stores unknown SDK attribution on observation staging records", async () => {
     const addToQueue = vi.fn();
     const ingestionService = new IngestionService(
       {} as any,
@@ -221,9 +221,9 @@ describe("IngestionService unit tests", () => {
     expect(observationRecord).not.toHaveProperty("ingestion_sdk_version");
     expect(stagingRecord).toMatchObject({
       ingestion_api_key: "pk-lf-update",
+      ingestion_sdk_name: "",
+      ingestion_sdk_version: "",
     });
-    expect(stagingRecord).not.toHaveProperty("ingestion_sdk_name");
-    expect(stagingRecord).not.toHaveProperty("ingestion_sdk_version");
   });
 
   it("preserves existing score SDK attribution when incoming attribution lacks SDK headers", async () => {
@@ -288,7 +288,7 @@ describe("IngestionService unit tests", () => {
     });
   });
 
-  it("does not assign empty SDK attribution to trace staging records", async () => {
+  it("stores unknown SDK attribution on trace staging records", async () => {
     const addToQueue = vi.fn();
     const ingestionService = new IngestionService(
       {} as any,
@@ -340,9 +340,9 @@ describe("IngestionService unit tests", () => {
 
     expect(stagingRecord).toMatchObject({
       ingestion_api_key: "pk-lf-update",
+      ingestion_sdk_name: "",
+      ingestion_sdk_version: "",
     });
-    expect(stagingRecord).not.toHaveProperty("ingestion_sdk_name");
-    expect(stagingRecord).not.toHaveProperty("ingestion_sdk_version");
   });
 
   it("adds ingestion attribution to events records", async () => {

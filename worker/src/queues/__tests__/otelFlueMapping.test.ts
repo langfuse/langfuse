@@ -74,6 +74,9 @@ function processFlueSpan(params: {
 
   const processor = new OtelIngestionProcessor({
     projectId: "test-project",
+    publicKey: "",
+    sdkName: "",
+    sdkVersion: "",
     ...params.config,
   });
   const events = processor.processToEvent([resourceSpan]);

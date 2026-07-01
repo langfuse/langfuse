@@ -308,7 +308,6 @@ export const otelIngestionQueueProcessorBuilder = (
         publicKey: attribution.ingestionApiKey,
         sdkName: attribution.ingestionSdkName,
         sdkVersion: attribution.ingestionSdkVersion,
-        ingestionVersion: job.data.payload.ingestionVersion,
       });
       const events: IngestionEventType[] =
         await processor.processToIngestionEvents(parsedSpans);

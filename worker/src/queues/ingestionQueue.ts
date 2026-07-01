@@ -10,6 +10,7 @@ import {
   logger,
   markProjectIngestFailure,
   markProjectS3Slowdown,
+  normalizeIngestionAttribution,
   QueueName,
   rawEventBucketPrefix,
   recordDistribution,
@@ -270,17 +271,11 @@ export const ingestionQueueProcessorBuilder = (
       const forwardToEventsTable =
         job.data.payload.data.forwardToEventsTable ??
         v4WritesToEventsTable(env);
-      const attribution =
-        job.data.payload.data.ingestionApiKey !== undefined ||
-        job.data.payload.data.ingestionSdkName !== undefined ||
-        job.data.payload.data.ingestionSdkVersion !== undefined
-          ? {
-              ingestionApiKey: job.data.payload.data.ingestionApiKey ?? "",
-              ingestionSdkName: job.data.payload.data.ingestionSdkName ?? "",
-              ingestionSdkVersion:
-                job.data.payload.data.ingestionSdkVersion ?? "",
-            }
-          : undefined;
+      const attribution = normalizeIngestionAttribution({
+        ingestionApiKey: job.data.payload.data.ingestionApiKey,
+        ingestionSdkName: job.data.payload.data.ingestionSdkName,
+        ingestionSdkVersion: job.data.payload.data.ingestionSdkVersion,
+      });
 
       // Recover the canonical entity id from the downloaded event body, not
       // from the queue payload. On replay, `payload.data.eventBodyId` is the

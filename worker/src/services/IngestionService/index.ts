@@ -90,7 +90,7 @@ type IngestionAttributionRecordFields = {
 };
 type MergeAndWriteOptions = {
   forwardToEventsTable: boolean;
-  attribution?: Partial<IngestionAttribution>;
+  attribution: IngestionAttribution;
 };
 
 const getNonEmptyIngestionAttributionRecordFields = (
@@ -111,6 +111,35 @@ const getNonEmptyIngestionAttributionRecordFields = (
   }
 
   return fields;
+};
+
+const getIngestionAttributionRecordFields = (
+  attribution: IngestionAttribution,
+): Required<IngestionAttributionRecordFields> => ({
+  ingestion_api_key: attribution.ingestionApiKey,
+  ingestion_sdk_name: attribution.ingestionSdkName,
+  ingestion_sdk_version: attribution.ingestionSdkVersion,
+});
+
+const setIngestionAttributionRecordFieldDefaults = <
+  T extends Record<string, unknown>,
+>(
+  record: T,
+): T & Required<IngestionAttributionRecordFields> => {
+  return Object.assign(record, {
+    ingestion_api_key:
+      typeof record["ingestion_api_key"] === "string"
+        ? record["ingestion_api_key"]
+        : "",
+    ingestion_sdk_name:
+      typeof record["ingestion_sdk_name"] === "string"
+        ? record["ingestion_sdk_name"]
+        : "",
+    ingestion_sdk_version:
+      typeof record["ingestion_sdk_version"] === "string"
+        ? record["ingestion_sdk_version"]
+        : "",
+  }) as T & Required<IngestionAttributionRecordFields>;
 };
 
 const immutableEntityKeys: {
@@ -282,7 +311,6 @@ export class IngestionService {
               provided_model_name: eventData.modelName,
               provided_usage_details: eventData.providedUsageDetails ?? {},
               provided_cost_details: eventData.providedCostDetails ?? {},
-              level: undefined,
               input,
               output,
             },
@@ -530,7 +558,7 @@ export class IngestionService {
     entityId: string;
     createdAtTimestamp: Date;
     scoreEventList: ScoreEventType[];
-    attribution?: Partial<IngestionAttribution>;
+    attribution: IngestionAttribution;
   }) {
     const {
       projectId,
@@ -642,7 +670,7 @@ export class IngestionService {
     createdAtTimestamp: Date;
     traceEventList: TraceEventType[];
     createEventTraceRecord: boolean;
-    attribution?: Partial<IngestionAttribution>;
+    attribution: IngestionAttribution;
   }) {
     const {
       projectId,
@@ -746,7 +774,7 @@ export class IngestionService {
       );
       Object.assign(
         traceAsStagingObservation,
-        getNonEmptyIngestionAttributionRecordFields(attribution),
+        getIngestionAttributionRecordFields(attribution),
       );
       this.clickHouseWriter.addToQueue(
         TableName.ObservationsBatchStaging,
@@ -793,7 +821,7 @@ export class IngestionService {
     createdAtTimestamp: Date;
     observationEventList: ObservationEvent[];
     writeToStagingTables: boolean;
-    attribution?: Partial<IngestionAttribution>;
+    attribution: IngestionAttribution;
   }) {
     const {
       projectId,
@@ -946,7 +974,7 @@ export class IngestionService {
     if (writeToStagingTables) {
       const stagingRecord = {
         ...finalObservationRecord,
-        ...getNonEmptyIngestionAttributionRecordFields(attribution),
+        ...getIngestionAttributionRecordFields(attribution),
         s3_first_seen_timestamp:
           this.getPartitionAwareTimestamp(createdAtTimestamp),
       };
@@ -977,6 +1005,7 @@ export class IngestionService {
     mergedRecord.metadata = convertRecordValuesToString(
       (mergedRecord.metadata as Record<string, unknown>) ?? {},
     );
+    setIngestionAttributionRecordFieldDefaults(mergedRecord);
 
     return scoreRecordInsertSchema.parse(mergedRecord);
   }

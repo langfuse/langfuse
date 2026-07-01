@@ -96,9 +96,9 @@ export type ObservationRecordInsertType = z.infer<
 
 export const observationBatchStagingRecordInsertSchema =
   observationRecordInsertSchema.extend({
-    ingestion_api_key: z.string().optional(),
-    ingestion_sdk_name: z.string().optional(),
-    ingestion_sdk_version: z.string().optional(),
+    ingestion_api_key: z.string(),
+    ingestion_sdk_name: z.string(),
+    ingestion_sdk_version: z.string(),
     s3_first_seen_timestamp: z.number(),
   });
 export type ObservationBatchStagingRecordInsertType = z.infer<
@@ -230,9 +230,9 @@ export const scoreRecordBaseSchema = z.object({
   long_string_value: z.string(),
   queue_id: z.string().nullish(),
   execution_trace_id: z.string().nullish(),
-  ingestion_api_key: z.string().optional(),
-  ingestion_sdk_name: z.string().optional(),
-  ingestion_sdk_version: z.string().optional(),
+  ingestion_api_key: z.string(),
+  ingestion_sdk_name: z.string(),
+  ingestion_sdk_version: z.string(),
   is_deleted: z.number(),
 });
 
@@ -437,6 +437,11 @@ export const convertTraceToStagingObservation = (
     tool_calls: undefined,
     tool_call_names: undefined,
 
+    // Ingestion attribution
+    ingestion_api_key: "",
+    ingestion_sdk_name: "",
+    ingestion_sdk_version: "",
+
     // System fields
     created_at: traceRecord.created_at,
     updated_at: traceRecord.updated_at,
@@ -630,6 +635,9 @@ export const convertPostgresScoreToInsert = (
     long_string_value: "",
     queue_id: score.queue_id,
     execution_trace_id: null, // Postgres scores do not have eval execution traces
+    ingestion_api_key: "",
+    ingestion_sdk_name: "",
+    ingestion_sdk_version: "",
     created_at: score.created_at?.getTime(),
     updated_at: score.updated_at?.getTime(),
     event_ts: score.timestamp?.getTime(),
@@ -715,9 +723,9 @@ export const eventRecordBaseSchema = z.object({
 
   // Source metadata (Instrumentation)
   source: z.string(),
-  ingestion_api_key: z.string().optional(),
-  ingestion_sdk_name: z.string().optional(),
-  ingestion_sdk_version: z.string().optional(),
+  ingestion_api_key: z.string(),
+  ingestion_sdk_name: z.string(),
+  ingestion_sdk_version: z.string(),
   service_name: z.string().nullish(),
   service_version: z.string().nullish(),
   scope_name: z.string().nullish(),

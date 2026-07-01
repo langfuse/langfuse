@@ -36,11 +36,11 @@ interface TraceState {
 
 export interface OtelIngestionProcessorConfig {
   projectId: string;
-  publicKey?: string;
+  publicKey: string;
   orgId?: string;
   propagatedHeaders?: Record<string, string>;
-  sdkName?: string;
-  sdkVersion?: string;
+  sdkName: string;
+  sdkVersion: string;
   ingestionVersion?: string;
 }
 
@@ -150,11 +150,11 @@ export class OtelIngestionProcessor {
     traceUpdated: 0,
   };
   private readonly projectId: string;
-  private readonly publicKey?: string;
+  private readonly publicKey: string;
   private readonly orgId?: string;
   private readonly propagatedHeaders?: Record<string, string>;
-  private readonly sdkName?: string;
-  private readonly sdkVersion?: string;
+  private readonly sdkName: string;
+  private readonly sdkVersion: string;
   private readonly ingestionVersion?: string;
 
   constructor(config: OtelIngestionProcessorConfig) {
