@@ -7,6 +7,7 @@ import type {
   AgUiRunAgentInput,
 } from "@/src/ee/features/in-app-agent/schema";
 import { compactTextMessageChunks } from "@/src/ee/features/in-app-agent/server/eventCompaction";
+import type { InAppAgentUserAccess } from "@/src/ee/features/in-app-agent/server/tools";
 
 export type InAppAgentTracingConfig = {
   environment: string;
@@ -14,6 +15,9 @@ export type InAppAgentTracingConfig = {
   user: {
     id: string;
     email?: string | null;
+    projectRole?: InAppAgentUserAccess["projectRole"];
+    // Global Langfuse admin flag. This bypasses project membership checks.
+    isAdmin: boolean;
   };
   traceId: string;
   targetProjectId: string;
@@ -88,6 +92,8 @@ export function createInAppAgentInstrumentation({
       metadata: tracing.metadata,
       userId: tracing.user.id,
       userEmail: tracing.user.email,
+      userProjectRole: tracing.user.projectRole,
+      userIsAdmin: tracing.user.isAdmin,
       traceId: tracing.traceId,
       targetProjectId: tracing.targetProjectId,
       environment: tracing.environment,
@@ -130,6 +136,8 @@ export class InAppAgentInstrumentation {
     metadata: Record<string, unknown>;
     userId: string;
     userEmail?: string | null;
+    userProjectRole?: InAppAgentUserAccess["projectRole"];
+    userIsAdmin: boolean;
     traceId: string;
     targetProjectId: string;
     environment: string;
@@ -138,6 +146,10 @@ export class InAppAgentInstrumentation {
     this.metadata = {
       ...params.metadata,
       ...(params.userEmail ? { langfuse_user_email: params.userEmail } : {}),
+      ...(params.userProjectRole
+        ? { langfuse_user_project_role: params.userProjectRole }
+        : {}),
+      langfuse_user_is_admin: params.userIsAdmin,
       ...(params.prompt
         ? {
             prompt_name: params.prompt.name,
