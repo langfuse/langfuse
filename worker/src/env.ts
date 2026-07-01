@@ -483,6 +483,18 @@ const EnvSchema = z.object({
     .int()
     .default(10),
 
+  // Health-check threshold for the event-propagation ("dual write") job. When a
+  // client opts in via /api/health?failIfEventPropagationStuck=true, the check
+  // returns 503 if the job has not started a run within this many minutes,
+  // letting k8s liveness probes restart a container whose global-concurrency
+  // slot is wedged. Must exceed the longest legitimate single run (the CH INSERT
+  // request_timeout is 10 min), so 15 min leaves headroom.
+  LANGFUSE_EVENT_PROPAGATION_STUCK_THRESHOLD_MINUTES: z.coerce
+    .number()
+    .positive()
+    .int()
+    .default(15),
+
   LANGFUSE_WEBHOOK_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .positive()

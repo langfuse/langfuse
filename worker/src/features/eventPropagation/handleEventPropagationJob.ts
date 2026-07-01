@@ -15,6 +15,41 @@ import { env } from "../../env";
 const LAST_PROCESSED_PARTITION_KEY =
   "langfuse:event-propagation:last-processed-partition";
 
+const LAST_RUN_STARTED_AT_KEY =
+  "langfuse:event-propagation:last-run-started-at";
+
+/**
+ * Record (in Redis) that a propagation run just started. Written at the top of
+ * every job invocation — including the no-op "nothing to process" path — so its
+ * freshness reflects "the queue is still being drained", independent of whether
+ * the cursor advanced. The health check uses staleness of this value to detect a
+ * wedged global-concurrency slot. Stored as epoch millis.
+ */
+export const updateLastRunStartedAt = async (): Promise<void> => {
+  try {
+    await redis!.set(LAST_RUN_STARTED_AT_KEY, Date.now().toString());
+  } catch (error) {
+    // Don't throw - a failed heartbeat write must not fail the job itself.
+    logger.error("[DUAL WRITE] Failed to update last run started at", error);
+  }
+};
+
+/**
+ * Read the last-run-started-at heartbeat (epoch millis) from Redis.
+ * Returns null if the job has never run yet or if Redis is unavailable.
+ */
+export const getLastRunStartedAt = async (): Promise<number | null> => {
+  try {
+    const value = await redis!.get(LAST_RUN_STARTED_AT_KEY);
+    if (value === null) return null;
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? null : parsed;
+  } catch (error) {
+    logger.error("[DUAL WRITE] Failed to get last run started at", error);
+    return null;
+  }
+};
+
 /**
  * Get the last processed partition timestamp from Redis.
  * Returns null if no partition has been processed yet or if Redis is unavailable.
@@ -62,6 +97,10 @@ export const handleEventPropagationJob = async (
     "messaging.bullmq.job.input.jobId",
     job.data.id,
   );
+
+  // Heartbeat: record that a run started so the health check can detect a wedged
+  // (never-invoked) job even when the cursor legitimately has nothing to advance.
+  await updateLastRunStartedAt();
 
   try {
     // Step 1: Get the last processed partition from Redis and find the next one to process
