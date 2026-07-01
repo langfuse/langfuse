@@ -42,7 +42,7 @@ type TracesPathParams = {
   timeRange?: TracesPathTimeRange;
 };
 
-const getProductBaseUrl = () => {
+export const getProductBaseUrl = () => {
   const rawBaseUrl = env.NEXTAUTH_URL;
   const baseUrl = new URL(
     /^https?:\/\//i.test(rawBaseUrl)
