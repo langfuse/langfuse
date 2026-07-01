@@ -1,11 +1,6 @@
 import z from "zod";
 import { StringNoHTML, StringNoHTMLNonEmpty } from "../../utils/zod";
-import {
-  BooleanData,
-  CategoricalData,
-  TextData,
-  NumericData,
-} from "../../domain";
+import { CategoricalData, TextData, NumericData } from "../../domain";
 
 const ScoreTargetTrace = z.object({
   type: z.literal("trace"),
@@ -45,6 +40,11 @@ const UpdateAnnotationScoreBase = CreateAnnotationScoreBase.extend({
   id: z.string(),
 });
 
+const AnnotationBooleanData = z.object({
+  stringValue: z.enum(["True", "False"]),
+  dataType: z.literal("BOOLEAN"),
+});
+
 /**
  * CreateAnnotationScoreData is only used for annotation scores created via the UI.
  * For langfuse score types please refer to `web/src/features/public-api/types/scores.ts`
@@ -53,7 +53,7 @@ export const CreateAnnotationScoreData = CreateAnnotationScoreBase.and(
   z.discriminatedUnion("dataType", [
     NumericData,
     CategoricalData,
-    BooleanData,
+    AnnotationBooleanData,
     TextData,
   ]),
 );
@@ -70,7 +70,7 @@ export const UpdateAnnotationScoreData = UpdateAnnotationScoreBase.and(
   z.discriminatedUnion("dataType", [
     NumericData,
     CategoricalData,
-    BooleanData,
+    AnnotationBooleanData,
     TextData,
   ]),
 );

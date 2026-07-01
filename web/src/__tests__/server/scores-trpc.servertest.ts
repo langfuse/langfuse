@@ -151,6 +151,64 @@ describe("scores trpc", () => {
     });
   });
 
+  describe("scores.createAnnotationScore", () => {
+    it("rejects empty stringValue for boolean annotation scores", async () => {
+      const configId = randomUUID();
+      const scoreName = `boolean-annotation-score-${configId.slice(0, 8)}`;
+
+      await expect(
+        caller.scores.createAnnotationScore({
+          projectId,
+          name: scoreName,
+          value: 1,
+          stringValue: "",
+          dataType: "BOOLEAN",
+          scoreTarget: { type: "trace", traceId: randomUUID() },
+          configId,
+          environment: "default",
+        } as any),
+      ).rejects.toThrow();
+    });
+
+    it("accepts explicit boolean annotation stringValue labels", async () => {
+      const traceId = randomUUID();
+      const configId = randomUUID();
+      const scoreName = `boolean-annotation-score-${configId.slice(0, 8)}`;
+
+      await createTracesCh([
+        createTrace({
+          id: traceId,
+          project_id: projectId,
+        }),
+      ]);
+      await prisma.scoreConfig.create({
+        data: {
+          id: configId,
+          projectId,
+          name: scoreName,
+          dataType: ScoreConfigDataType.BOOLEAN,
+          categories: [
+            { label: "True", value: 1 },
+            { label: "False", value: 0 },
+          ],
+        },
+      });
+
+      const score = await caller.scores.createAnnotationScore({
+        projectId,
+        name: scoreName,
+        value: 1,
+        stringValue: "True",
+        dataType: "BOOLEAN",
+        scoreTarget: { type: "trace", traceId },
+        configId,
+        environment: "default",
+      });
+
+      expect(score.stringValue).toBe("True");
+    });
+  });
+
   describe("scores.deleteMany", () => {
     it("should delete scores by ids", async () => {
       // Setup
