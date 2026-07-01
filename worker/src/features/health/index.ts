@@ -2,7 +2,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { logger, redis } from "@langfuse/shared/src/server";
 import { Response } from "express";
 
-import { env, v4WritesToEventsTable } from "../../env";
+import { env } from "../../env";
 import {
   getLastProcessedPartition,
   getLastRunStartedAt,
@@ -27,12 +27,9 @@ export type EventPropagationHealth = {
 
 const isEventPropagationEnabled = (): boolean =>
   env.QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED === "true" &&
-  v4WritesToEventsTable(env);
+  env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "dual";
 
 /**
- * Pure evaluation of event-propagation health from already-fetched inputs.
- * Kept side-effect free so it can be unit tested without Redis.
- *
  * `stuck` is intentionally only true when we have a reading that exceeds the
  * threshold. A missing heartbeat (job never ran yet — e.g. fresh boot or during
  * a rollout) is treated as NOT stuck to avoid restart loops before the first
