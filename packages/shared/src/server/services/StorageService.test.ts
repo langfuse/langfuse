@@ -1,6 +1,6 @@
 import { Readable } from "stream";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { StorageServiceFactory } from "./StorageService";
 
@@ -98,5 +98,136 @@ describe("AzureBlobStorageService.streamToString", () => {
     const result = await streamToString([]);
 
     expect(result).toBe("");
+  });
+});
+
+/**
+ * Regression tests for Google Cloud Storage signed-URL generation.
+ *
+ * Generating a v4 signed URL calls Google's `iamcredentials:signBlob` endpoint
+ * through `@google-cloud/storage` -> `google-auth-library` -> `gaxios`. That
+ * call can fail transiently with "Premature close" (the socket to Google's IAM
+ * API is dropped mid-response), which previously surfaced as a hard failure for
+ * the whole export/media flow (issue #14460). `deleteFiles` already wraps its
+ * GCS call in `backOff`; these tests cover the same hardening now applied to
+ * `getSignedUrl` / `getSignedUploadUrl`: a single transient failure is retried,
+ * a persistent failure still propagates (never masked), and retries are bounded.
+ */
+describe("GoogleCloudStorageService signed-URL retry", () => {
+  // A "Premature close" from the underlying signBlob HTTP call, as seen in #14460.
+  const prematureClose = () =>
+    Object.assign(
+      new Error(
+        "Invalid response body while trying to fetch " +
+          "https://iamcredentials.googleapis.com/...:signBlob: Premature close",
+      ),
+      { name: "SigningError" },
+    );
+
+  // Build a real GoogleCloudStorageService (its constructor performs no network
+  // I/O without credentials) and replace its private `bucket` with a stub whose
+  // `file().getSignedUrl` we control, so we exercise the retry wrapper without a
+  // live GCS backend.
+  const makeService = (getSignedUrl: ReturnType<typeof vi.fn>) => {
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: undefined,
+      secretAccessKey: undefined,
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: undefined,
+      forcePathStyle: false,
+      useGoogleCloudStorage: true,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+
+    (
+      service as unknown as { bucket: { file: (name: string) => unknown } }
+    ).bucket = {
+      file: () => ({ getSignedUrl }),
+    };
+
+    return service as unknown as {
+      getSignedUrl(fileName: string, ttlSeconds: number): Promise<string>;
+      getSignedUrlNonRetrying(
+        fileName: string,
+        ttlSeconds: number,
+      ): Promise<string>;
+      getSignedUploadUrl(params: {
+        path: string;
+        ttlSeconds: number;
+        sha256Hash: string;
+        contentType: string;
+        contentLength: number;
+      }): Promise<string>;
+    };
+  };
+
+  const uploadParams = {
+    path: "media/p.png",
+    ttlSeconds: 3600,
+    sha256Hash: "hash",
+    contentType: "image/png",
+    contentLength: 1,
+  };
+
+  // Reproduction: the un-retried path (old behavior) fails on a single
+  // transient "Premature close" -- exactly what issue #14460 reports.
+  it("getSignedUrlNonRetrying rejects on a single transient failure (repro)", async () => {
+    const getSignedUrl = vi.fn().mockRejectedValueOnce(prematureClose());
+    const service = makeService(getSignedUrl);
+
+    await expect(
+      service.getSignedUrlNonRetrying("f.png", 3600),
+    ).rejects.toThrow();
+    expect(getSignedUrl).toHaveBeenCalledTimes(1);
+  });
+
+  // Fix: the public method retries the transient failure and succeeds.
+  it("getSignedUrl retries a transient failure and returns the URL", async () => {
+    const getSignedUrl = vi
+      .fn()
+      .mockRejectedValueOnce(prematureClose())
+      .mockResolvedValue(["https://signed-read-url"]);
+    const service = makeService(getSignedUrl);
+
+    await expect(service.getSignedUrl("f.png", 3600)).resolves.toBe(
+      "https://signed-read-url",
+    );
+    expect(getSignedUrl).toHaveBeenCalledTimes(2);
+  });
+
+  it("getSignedUploadUrl retries a transient failure and returns the URL", async () => {
+    const getSignedUrl = vi
+      .fn()
+      .mockRejectedValueOnce(prematureClose())
+      .mockResolvedValue(["https://signed-write-url"]);
+    const service = makeService(getSignedUrl);
+
+    await expect(service.getSignedUploadUrl(uploadParams)).resolves.toBe(
+      "https://signed-write-url",
+    );
+    expect(getSignedUrl).toHaveBeenCalledTimes(2);
+  });
+
+  // Guard: a persistent failure is not masked -- it still throws, after a
+  // bounded number of attempts (3), not indefinitely.
+  it("getSignedUrl gives up after 3 attempts and still throws", async () => {
+    const getSignedUrl = vi.fn().mockRejectedValue(prematureClose());
+    const service = makeService(getSignedUrl);
+
+    await expect(service.getSignedUrl("f.png", 3600)).rejects.toThrow();
+    expect(getSignedUrl).toHaveBeenCalledTimes(3);
+  });
+
+  // No retry overhead on the happy path.
+  it("getSignedUrl calls the backend once when it succeeds immediately", async () => {
+    const getSignedUrl = vi.fn().mockResolvedValue(["https://signed-read-url"]);
+    const service = makeService(getSignedUrl);
+
+    await expect(service.getSignedUrl("f.png", 3600)).resolves.toBe(
+      "https://signed-read-url",
+    );
+    expect(getSignedUrl).toHaveBeenCalledTimes(1);
   });
 });

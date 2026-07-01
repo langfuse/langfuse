@@ -66,6 +66,17 @@ export const PreviewLargeImage = meta.story({
   },
 });
 
+// Wikimedia file pages can look like direct images by URL extension, but they
+// serve HTML. The preview should fall back once the image element errors.
+export const WikimediaFilePageFallback = meta.story({
+  args: {
+    contentType: "image/jpeg",
+    open: true,
+    status: "ready",
+    url: "https://commons.wikimedia.org/wiki/File:Gull_portrait_ca_usa.jpg",
+  },
+});
+
 // Peek popover while the URL is still resolving (hover-triggered fetch).
 export const Loading = meta.story({
   args: {

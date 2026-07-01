@@ -83,20 +83,27 @@ function KindIcon({
   return <Icon className={className} />;
 }
 
+type PreviewRenderer = (params: {
+  url: string;
+  onError: () => void;
+}) => React.ReactNode;
+
 const MEDIA_KIND_PREVIEW = {
-  image: (url: string) => (
+  image: ({ url, onError }) => (
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={url}
       alt=""
+      onError={onError}
       // Bounded by the max-h cap and the card's max-w-sm; object-contain
       // keeps high-resolution images from blowing out the popover.
       className="max-h-64 max-w-full rounded object-contain"
     />
   ),
-  video: (url: string) => (
+  video: ({ url, onError }) => (
     <video
       src={url}
+      onError={onError}
       className="max-h-64 max-w-full rounded"
       controls
       muted
@@ -104,8 +111,14 @@ const MEDIA_KIND_PREVIEW = {
       preload="metadata"
     />
   ),
-  audio: (url: string) => (
-    <audio src={url} controls className="w-64" preload="metadata" />
+  audio: ({ url, onError }) => (
+    <audio
+      src={url}
+      onError={onError}
+      controls
+      className="w-64"
+      preload="metadata"
+    />
   ),
   file: () => (
     <div className="text-muted-foreground flex h-24 w-64 flex-col items-center justify-center gap-2">
@@ -113,7 +126,7 @@ const MEDIA_KIND_PREVIEW = {
       <span className="text-xs">No inline preview</span>
     </div>
   ),
-} satisfies Record<MediaKind, (url: string) => React.ReactNode>;
+} satisfies Record<MediaKind, PreviewRenderer>;
 
 /** The peek body — a glance, not a full player. Images/video show a thumbnail;
  *  audio gets an inline player; other types are open-in-new-tab only. */
@@ -121,10 +134,12 @@ function PeekBody({
   kind,
   status,
   url,
+  onPreviewError,
 }: {
   kind: MediaKind;
   status: MediaTagStatus;
   url?: string;
+  onPreviewError: () => void;
 }) {
   if (status === "error") {
     return (
@@ -139,7 +154,7 @@ function PeekBody({
     return <Skeleton className="h-32 w-64" />;
   }
 
-  return MEDIA_KIND_PREVIEW[kind](url);
+  return MEDIA_KIND_PREVIEW[kind]({ url, onError: onPreviewError });
 }
 
 /**
@@ -155,6 +170,11 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
     const kind = getMediaKind(contentType);
     const chipLabel = label ?? getDefaultLabel(contentType);
     const canOpen = status === "ready" && Boolean(url);
+    const [failedPreviewUrl, setFailedPreviewUrl] = React.useState<
+      string | null
+    >(null);
+    const previewStatus =
+      status === "ready" && url && failedPreviewUrl === url ? "error" : status;
     const isControlled = open !== undefined;
     const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false);
     const isOpen = isControlled ? open : uncontrolledOpen;
@@ -225,7 +245,12 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
               </Button>
             )}
           </div>
-          <PeekBody kind={kind} status={status} url={url} />
+          <PeekBody
+            kind={kind}
+            status={previewStatus}
+            url={url}
+            onPreviewError={() => setFailedPreviewUrl(url ?? null)}
+          />
         </HoverCardContent>
       </HoverCard>
     );
