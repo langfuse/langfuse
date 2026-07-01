@@ -41,7 +41,9 @@ describe("stringify", () => {
     // Mirrors the trace-download payload shape: input is a stringified JSON
     // blob whose Japanese characters were escaped by Python ensure_ascii=True.
     const data = {
-      observations: [{ input: '{"text": "\\u3053\\u3093\\u306b\\u3061\\u306f"}' }],
+      observations: [
+        { input: '{"text": "\\u3053\\u3093\\u306b\\u3061\\u306f"}' },
+      ],
     };
     const result = stringify(data, undefined, 2);
     expect(result).toContain("\n"); // pretty-printed

@@ -9,11 +9,7 @@ const stringifyReplacer = (_key: string, value: unknown) => {
   return value;
 };
 
-export const stringify = (
-  data: any,
-  key?: string,
-  indent?: number,
-): string => {
+export const stringify = (data: any, key?: string, indent?: number): string => {
   // For comment fields, use pretty-print formatting for better readability
   // Other fields use compact format to reduce file size, unless an explicit
   // indent is requested by the caller (e.g. human-readable trace downloads).
