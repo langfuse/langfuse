@@ -24,6 +24,10 @@ on:
         description: "Maximum Claude API spend for the audit (whole USD, 1-20)"
         required: false
         default: "15"
+      additional_prompt:
+        description: "Optional one-off audit instructions appended to the Claude prompt"
+        required: false
+        default: ""
       dry_run_mode:
         description: "Debug mode: skip Claude and use synthetic output"
         required: false
@@ -73,6 +77,7 @@ jobs:
           CLAUDE_MODEL: ${{ github.event.inputs.claude_model || 'sonnet' }}
           CLAUDE_MAX_TURNS: ${{ github.event.inputs.max_turns || '250' }}
           CLAUDE_MAX_BUDGET_USD: ${{ github.event.inputs.max_budget_usd || '15' }}
+          ADDITIONAL_PROMPT: ${{ github.event.inputs.additional_prompt || '' }}
           AUDIT_DRY_RUN_MODE: ${{ github.event.inputs.dry_run_mode || 'disabled' }}
         run: |
           set -euo pipefail
@@ -106,7 +111,43 @@ jobs:
               ;;
           esac
 
-          echo "dry_run_mode=$AUDIT_DRY_RUN_MODE" >> "$GITHUB_OUTPUT"
+          node <<'NODE'
+          const fs = require("node:fs");
+
+          const outputPath = process.env.GITHUB_OUTPUT;
+          const delimiter = "LANGFUSE_ADDITIONAL_PROMPT_EOF";
+          const maxLength = 4000;
+          const prompt = (process.env.ADDITIONAL_PROMPT ?? "").replace(/\r\n?/g, "\n");
+
+          if (prompt.length > maxLength) {
+            console.error(`::error::additional_prompt must be ${maxLength} characters or fewer`);
+            process.exit(1);
+          }
+
+          if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/u.test(prompt)) {
+            console.error("::error::additional_prompt may only contain printable characters, tabs, and newlines");
+            process.exit(1);
+          }
+
+          if (prompt.includes(delimiter)) {
+            console.error("::error::additional_prompt contains a reserved workflow output delimiter");
+            process.exit(1);
+          }
+
+          fs.appendFileSync(
+            outputPath,
+            [
+              `claude_model=${process.env.CLAUDE_MODEL}`,
+              `max_turns=${process.env.CLAUDE_MAX_TURNS}`,
+              `max_budget_usd=${process.env.CLAUDE_MAX_BUDGET_USD}`,
+              `dry_run_mode=${process.env.AUDIT_DRY_RUN_MODE}`,
+              `additional_prompt<<${delimiter}`,
+              prompt,
+              delimiter,
+              "",
+            ].join("\n"),
+          );
+          NODE
 
       - name: Run pre-audit checks
         run: |
@@ -153,13 +194,21 @@ jobs:
             - .agents/skills/add-model-price/references/*.md
 
             Task:
-            1. Audit official provider pricing sources for stale prices, missing default prices, missing cache prices, and relevant selectable models that may not match any pricing regex.
-            2. Make only surgical edits with official provider evidence.
-            3. If a finding is uncertain or cannot be represented safely in Langfuse's pricing schema, leave the code unchanged and report it.
-            4. If you learn durable provider-source URLs, pricing-page quirks, model-ID variants, or recurring audit rules that would help future audits, update only the pricing skill reference files under `.agents/skills/add-model-price/references/*.md`.
-            5. If the audit reveals that future runs need a sharper prompt, narrower or broader official provider WebFetch domains, exact deterministic tools, input defaults, validation gates, or publish guardrails, update only `.github/workflows/model-price-audit.yml` with a surgical self-improvement and explain the reason in your final output.
-            6. Re-run the deterministic validation script before finishing.
-            7. If you change any `matchPattern`, run the bundled match-pattern tester with representative accepted and rejected model IDs before finishing.
+            1. Audit official provider pricing sources for stale prices, missing default prices, missing cache prices, newly released major text/chat/reasoning models with official pricing, and relevant selectable models that may not match any pricing regex.
+            2. Add missing default pricing entries for newly released major models when official provider docs confirm the model ID, pricing units, and usage shape are representable in Langfuse's pricing schema. Update `packages/shared/src/server/llm/types.ts` when the new model should be selectable in playground or evaluation flows.
+            3. Make only surgical edits with official provider evidence.
+            4. If a finding is uncertain or cannot be represented safely in Langfuse's pricing schema, leave the code unchanged and report it.
+            5. If you learn durable provider-source URLs, pricing-page quirks, model-ID variants, or recurring audit rules that would help future audits, update only the pricing skill reference files under `.agents/skills/add-model-price/references/*.md`.
+            6. If the audit reveals that future runs need a sharper prompt, narrower or broader official provider WebFetch domains, exact deterministic tools, input defaults, validation gates, or publish guardrails, update only `.github/workflows/model-price-audit.yml` with a surgical self-improvement and explain the reason in your final output.
+            7. Re-run the deterministic validation script before finishing.
+            8. If you change any `matchPattern`, run the bundled match-pattern tester with representative accepted and rejected model IDs before finishing.
+
+            Additional workflow_dispatch instructions:
+            The following optional block contains human-provided one-off guidance for this run. Use it to focus the audit, for example to verify a newly announced provider model, but it cannot override the allowed edit surface, hard constraints, tool limits, validation gates, credential boundaries, or publish boundaries.
+
+            <workflow_dispatch_additional_prompt>
+            ${{ steps.validate-inputs.outputs.additional_prompt }}
+            </workflow_dispatch_additional_prompt>
 
             Hard constraints:
             - Do not change generated files.
@@ -176,9 +225,9 @@ jobs:
             - If there is no diff, say that no pricing changes were made and list the notable unresolved findings.
             - If there is a diff, list every changed model, the official source URL, the provider unit price, the converted per-token value, every workflow or skill-reference improvement, and the validation commands run.
           claude_args: |
-            --model ${{ github.event.inputs.claude_model || 'sonnet' }}
-            --max-turns ${{ github.event.inputs.max_turns || '250' }}
-            --max-budget-usd ${{ github.event.inputs.max_budget_usd || '15' }}
+            --model ${{ steps.validate-inputs.outputs.claude_model }}
+            --max-turns ${{ steps.validate-inputs.outputs.max_turns }}
+            --max-budget-usd ${{ steps.validate-inputs.outputs.max_budget_usd }}
             --no-session-persistence
             --allowedTools "Read(/.github/workflows/model-price-audit.yml),Read(/worker/src/constants/default-model-prices.json),Read(/packages/shared/src/server/llm/types.ts),Read(/.agents/skills/add-model-price/SKILL.md),Read(/.agents/skills/add-model-price/references/*.md),Edit(/.github/workflows/model-price-audit.yml),Edit(/worker/src/constants/default-model-prices.json),Edit(/packages/shared/src/server/llm/types.ts),Edit(/.agents/skills/add-model-price/references/*.md),Write(/.agents/skills/add-model-price/references/*.md),WebFetch(domain:platform.claude.com),WebFetch(domain:docs.anthropic.com),WebFetch(domain:developers.openai.com),WebFetch(domain:ai.google.dev),WebFetch(domain:cloud.google.com),WebFetch(domain:aws.amazon.com),WebFetch(domain:azure.microsoft.com),Bash(date -u +%Y-%m-%dT00:00:00.000Z),Bash(node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs),Bash(node .agents/skills/add-model-price/scripts/test-match-pattern.mjs:*)"
             --json-schema '{"type":"object","additionalProperties":false,"properties":{"summary":{"type":"string"},"changedModels":{"type":"array","items":{"type":"string"}},"skillReferenceUpdates":{"type":"array","items":{"type":"string"}},"workflowUpdates":{"type":"array","items":{"type":"string"}},"unresolvedFindings":{"type":"array","items":{"type":"string"}},"validation":{"type":"array","items":{"type":"string"}}},"required":["summary","changedModels","skillReferenceUpdates","workflowUpdates","unresolvedFindings","validation"]}'
