@@ -123,6 +123,24 @@ describe("prepareTimeAxis", () => {
     expect(axis.formatTooltip("1")).toBe("1");
   });
 
+  it("categorical axis thins width-aware (equidistant), not by a numeric index step (LFE-10583)", () => {
+    // The smear bug: a numeric recharts `interval` shows every Nth tick BY INDEX
+    // and skips the label-collision test, so long entity names overlap however
+    // few we target. The fix hands recharts "equidistantPreserveStart" so it
+    // picks the even step whose *rendered* labels don't collide — even spacing,
+    // width-aware, robust to hundreds of points.
+    const manyLongRuns = Array.from(
+      { length: 200 },
+      (_, i) => `demo-dataset-run-${i}-demo-english-transcription-dataset`,
+    );
+    const axis = prepareTimeAxis(manyLongRuns, 6);
+    expect(axis.mode).toBe("category");
+    // The crux: NOT a numeric index step (which smears) — the width-aware one.
+    expect(axis.interval).toBe("equidistantPreserveStart");
+    // A deliberate gap between the (thinned) ticks, so they read as a handful.
+    expect(axis.tickProps.minTickGap).toBeGreaterThan(0);
+  });
+
   it("long categorical labels are angled and end-truncated, full name in tooltip (LFE-10583)", () => {
     // The experiments / dataset-compare x-axis: long entity (run) names that
     // recharts would otherwise render flat and overlap into a smear.
@@ -150,17 +168,20 @@ describe("prepareTimeAxis", () => {
     expect(axis.formatTooltip(runs[1])).toBe(runs[1]);
   });
 
-  it("short categorical labels are not truncated and time ticks stay flat", () => {
+  it("short categorical labels are not truncated and time ticks stay flat + numeric (dashboards unchanged)", () => {
     const shortCats = prepareTimeAxis(["run-a", "run-b", "run-c"], 6);
     expect(shortCats.formatTick("run-a")).toBe("run-a");
     expect(shortCats.tickProps.angle).toBeLessThan(0);
 
-    // Time-mode ticks are unchanged (flat) so dashboards render identically.
+    // Time-mode ticks are unchanged: flat tickProps AND a numeric index step, so
+    // dashboards render pixel-identically (no width-aware equidistant thinning).
     const start = Date.UTC(2026, 5, 28, 0);
     const timeVals = Array.from({ length: 24 }, (_, h) =>
       iso(start + h * HOUR),
     );
-    expect(prepareTimeAxis(timeVals, 6).tickProps).toEqual({});
+    const timeAxis = prepareTimeAxis(timeVals, 6);
+    expect(timeAxis.tickProps).toEqual({});
+    expect(typeof timeAxis.interval).toBe("number");
   });
 
   it("does not coerce bare numeric strings into epoch dates", () => {

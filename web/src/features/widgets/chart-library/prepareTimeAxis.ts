@@ -40,6 +40,14 @@ type AxisMode = "time" | "date" | "month" | "category";
  */
 const MAX_CATEGORY_LABEL_CHARS = 24;
 
+/**
+ * Minimum whitespace (px) recharts must leave between two shown categorical
+ * ticks. `equidistantPreserveStart` (see `prepareTimeAxis`) already drops ticks
+ * until their *labels* don't overlap; this adds a deliberate gap on top so the
+ * kept ticks read as a handful of clearly-separated labels, not a dense strip.
+ */
+const CATEGORY_MIN_TICK_GAP_PX = 16;
+
 /** End-truncate a long categorical label ("foo-bar-…"). Entity names carry
  * their distinguishing token early (e.g. "…-run-2-…"), so keeping the head and
  * dropping the tail preserves what tells ticks apart; the tooltip has the full
@@ -113,25 +121,37 @@ function inferBucketMs(timestamps: number[]): number {
 }
 
 export type TimeAxis = {
-  /** recharts numeric x-axis `interval` (ticks skipped between shown ticks). */
-  interval: number;
+  /**
+   * recharts x-axis `interval`. Two shapes, by axis kind:
+   * - time / date / month → a NUMERIC index-step (evenly spaced, width-blind).
+   *   Labels are short single units ("2 PM" / "Jun 28"), so an index step gives
+   *   uniform gaps that don't depend on chart width — the dashboard behaviour.
+   * - categorical entity names → `"equidistantPreserveStart"`. These labels are
+   *   long and variable-width; a numeric step skips recharts' collision test and
+   *   overlaps them into a smear. This string interval instead picks the largest
+   *   even step whose *rendered* labels don't collide. (LFE-10583)
+   */
+  interval: number | "equidistantPreserveStart";
   /** Scale-appropriate label for a shown tick. */
   formatTick: (raw: unknown) => string;
   /** Fuller label for the tooltip (always date + year, time when intraday). */
   formatTooltip: (raw: unknown) => string;
   mode: AxisMode;
   /**
-   * Tick-label orientation the visualiser spreads onto the recharts `XAxis`.
+   * Tick-label props the visualiser spreads onto the recharts `XAxis`.
    * Time / date / month ticks are short single-units rendered flat (`{}` → the
    * spread is a no-op, so dashboards are unchanged). Categorical entity names
    * are long, so we render them angled + end-anchored — the standard way to fit
-   * long category labels without overlapping their neighbours. (LFE-10583)
+   * long category labels — and set a `minTickGap` so the (width-aware thinned)
+   * ticks keep a real gap between them. (LFE-10583)
    */
   tickProps: {
     angle?: number;
     textAnchor?: "start" | "middle" | "end";
     /** Extra x-axis height (px) an angled label needs so it isn't clipped. */
     height?: number;
+    /** Minimum px gap recharts leaves between two shown ticks. */
+    minTickGap?: number;
   };
 };
 
@@ -158,16 +178,31 @@ export function prepareTimeAxis(rawValues: unknown[], maxTicks = 6): TimeAxis {
     const full = (raw: unknown): string =>
       raw == null ? "" : typeof raw === "string" ? raw : String(raw);
     return {
-      interval: getEvenTickInterval(rawValues.length, target),
-      // Entity names can be long (run / experiment names) — recharts neither
-      // wraps nor truncates a tick, so rendering them flat overlaps adjacent
-      // ticks into an unreadable smear. Render them angled + end-anchored (see
-      // tickProps) and end-truncate the shown label so an outlier name can't
-      // run off-canvas; the full name always stays in the tooltip. (LFE-10583)
+      // THE fix for the smear (LFE-10583). A numeric interval makes recharts
+      // show every Nth tick BY INDEX and skip its label-collision test, so a
+      // handful of long entity names (~50 chars each) still overlap into an
+      // illegible black strip — no matter how few we target, index-thinning is
+      // blind to how wide each label actually is. `equidistantPreserveStart`
+      // instead picks the largest even step at which every Nth *rendered* label
+      // fits without colliding (recharts measures the formatted, angled label +
+      // minTickGap), so long names collapse to a few evenly-spaced ticks with a
+      // real gap, robust to hundreds of points. This is the "measure labels,
+      // don't guess" principle (ARCHITECTURE.md #4) — the numeric time/date
+      // budget guesses ~64px/label, which is 5× too small for entity names.
+      interval: "equidistantPreserveStart",
+      // Angle + end-anchor the (now few) long labels — the standard long-category
+      // treatment, and it lets recharts fit a couple more without overlap. Also
+      // end-truncate the shown label so a single outlier name can't run
+      // off-canvas; the full name always stays in the tooltip.
       formatTick: (raw: unknown) => truncateCategoryLabel(full(raw)),
       formatTooltip: full,
       mode: "category",
-      tickProps: { angle: -30, textAnchor: "end", height: 60 },
+      tickProps: {
+        angle: -30,
+        textAnchor: "end",
+        height: 60,
+        minTickGap: CATEGORY_MIN_TICK_GAP_PX,
+      },
     };
   }
 
