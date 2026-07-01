@@ -301,6 +301,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
             axisLine={false}
             interval={timeAxis.interval}
             tickFormatter={timeAxis.formatTick}
+            {...timeAxis.tickProps}
           />
           <YAxis
             type="number"
