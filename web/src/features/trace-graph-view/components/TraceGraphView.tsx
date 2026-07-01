@@ -92,6 +92,17 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
       }
     }
 
+    // Fallback: nested/repeated same-name observations aren't registered in the
+    // cycling map (only the top-most of a same-name chain is), but they still
+    // belong to their own node — map them there so selecting any of them keeps
+    // that node focused instead of clearing the selection.
+    if (!foundNodeName && currentObservationId) {
+      const obs = normalizedData.find((o) => o.id === currentObservationId);
+      if (obs?.node) {
+        foundNodeName = obs.node;
+      }
+    }
+
     if (
       foundNodeName &&
       graph.nodes.some((node) => node.id === foundNodeName)
@@ -111,6 +122,7 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
     agentGraphData,
     graph.nodes,
     nodeToObservationsMap,
+    normalizedData,
   ]);
 
   const onCanvasNodeNameChange = useCallback(
