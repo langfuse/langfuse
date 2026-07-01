@@ -11,22 +11,22 @@ import {
 } from "../types";
 
 /**
- * Per-type border accent. HTML nodes can use Tailwind directly, so colors
- * (and dark mode) come from the design system — aligned with `ItemBadge`'s
- * type palette instead of a mirrored hex map.
+ * Per-type border accent, matching `ItemBadge`'s icon palette exactly (same
+ * shade, same theme-aware muted-* vars) so a node's border, its icon, and the
+ * type's badge in the tree/timeline all read as one color across light/dark.
  */
 const TYPE_BORDER_CLASS: Record<string, string> = {
-  AGENT: "border-purple-500",
-  TOOL: "border-orange-500",
-  GENERATION: "border-fuchsia-500",
-  SPAN: "border-blue-500",
-  CHAIN: "border-pink-500",
-  RETRIEVER: "border-teal-500",
-  EVENT: "border-green-500",
-  EMBEDDING: "border-amber-500",
-  GUARDRAIL: "border-red-500",
+  AGENT: "border-purple-600",
+  TOOL: "border-orange-600",
+  GENERATION: "border-muted-magenta",
+  SPAN: "border-muted-blue",
+  CHAIN: "border-pink-600",
+  RETRIEVER: "border-teal-600",
+  EVENT: "border-muted-green",
+  EMBEDDING: "border-amber-600",
+  GUARDRAIL: "border-red-600",
 };
-const DEFAULT_BORDER_CLASS = "border-blue-500";
+const DEFAULT_BORDER_CLASS = "border-muted-blue";
 
 const isStartNode = (id: string) =>
   id === LANGFUSE_START_NODE_NAME || id === LANGGRAPH_START_NODE_NAME;

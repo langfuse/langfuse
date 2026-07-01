@@ -9,6 +9,7 @@ import { select, type Selection } from "d3-selection";
 import {
   zoom as createZoom,
   zoomIdentity,
+  zoomTransform,
   type D3ZoomEvent,
   type ZoomBehavior,
 } from "d3-zoom";
@@ -83,11 +84,6 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   // Keep the world hidden until the first fit is applied, so we never flash one
   // frame of the unfitted (scale-1, top-left) graph after layout resolves.
   const [fitted, setFitted] = useState(false);
-
-  // Mirror transform in a ref so the focus effect can read the current zoom
-  // without depending on it (which would re-focus on every pan).
-  const transformRef = useRef(transform);
-  transformRef.current = transform;
 
   const nodeMeta = useMemo(() => {
     const map = new Map<string, GraphNodeData>();
@@ -241,7 +237,11 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     const node = layout.nodes.find((n) => n.id === selectedNodeName);
     if (!node) return;
     userControlledRef.current = true;
-    const current = transformRef.current.k;
+    // Read d3-zoom's synchronously-updated scale (set by applyTransform before
+    // React re-renders), not a state mirror that's stale in the same commit.
+    const current = containerRef.current
+      ? zoomTransform(containerRef.current).k
+      : 1;
     const k = current >= LABEL_HIDE_SCALE ? current : SELECTION_REVEAL_SCALE;
     const cx = node.x + node.width / 2;
     const cy = node.y + node.height / 2;
@@ -331,26 +331,28 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
             <defs>
               <marker
                 id="graph-arrow"
-                markerWidth="6"
-                markerHeight="6"
-                refX="5"
-                refY="3"
+                markerUnits="userSpaceOnUse"
+                markerWidth="8"
+                markerHeight="8"
+                refX="7"
+                refY="4"
                 orient="auto"
               >
                 <path
-                  d="M0,0 L6,3 L0,6 Z"
+                  d="M0,0 L8,4 L0,8 Z"
                   className="fill-muted-foreground/50"
                 />
               </marker>
               <marker
                 id="graph-arrow-active"
-                markerWidth="6"
-                markerHeight="6"
-                refX="5"
-                refY="3"
+                markerUnits="userSpaceOnUse"
+                markerWidth="8"
+                markerHeight="8"
+                refX="7"
+                refY="4"
                 orient="auto"
               >
-                <path d="M0,0 L6,3 L0,6 Z" className="fill-primary" />
+                <path d="M0,0 L8,4 L0,8 Z" className="fill-primary" />
               </marker>
             </defs>
             {layout.edges.map((edge) => {
@@ -361,6 +363,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
                 <path
                   key={edge.id}
                   d={toPath(edge.points)}
+                  vectorEffect="non-scaling-stroke"
                   className={
                     active
                       ? "stroke-primary fill-none"
