@@ -4,8 +4,10 @@ import {
   LangfuseConflictError,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
-import { type ApiAccessScope } from "@langfuse/shared/src/server";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import {
+  auditLog,
+  type ApiKeyAuditLogScope,
+} from "@/src/features/audit-logs/auditLog";
 import { EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import {
   deleteEvalTemplatesByIds,
@@ -74,7 +76,7 @@ export async function deleteEvalTemplateFamily({
   evalTemplateId: string;
   // for API-key callers (public API, MCP); tRPC logs with the user session
   // at the router level instead, like its sibling mutations
-  auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
+  auditScope?: ApiKeyAuditLogScope;
   // job configs are "running evaluators" in the UI but "evaluation rules" in
   // the public API contract; the conflict message must match the surface
   referencingEntityName?: string;
@@ -148,6 +150,7 @@ export async function deleteEvalTemplateFamily({
           projectId,
           orgId: auditScope.orgId,
           apiKeyId: auditScope.apiKeyId,
+          actingOnBehalfOfUserId: auditScope.actingOnBehalfOfUserId,
           before: version,
         }),
       ),

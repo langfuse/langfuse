@@ -10,7 +10,7 @@ export const [deleteDatasetRunTool, handleDeleteDatasetRun] = defineTool({
     "Delete a dataset run by dataset ID and run ID, and enqueue deletion of its run items.",
   baseSchema: DeleteDatasetRunMcpInput,
   inputSchema: DeleteDatasetRunMcpInput,
-  handler: async (input, context) =>
+  handler: async (input, context, { auditScope }) =>
     runMcpTool({
       spanName: "mcp.dataset_runs.delete",
       context,
@@ -20,9 +20,10 @@ export const [deleteDatasetRunTool, handleDeleteDatasetRun] = defineTool({
       },
       fn: async () => {
         const result = await deleteDatasetRunByIdForApi({
-          projectId: context.projectId,
-          orgId: context.orgId,
-          apiKeyId: context.apiKeyId,
+          projectId: auditScope.projectId,
+          orgId: auditScope.orgId,
+          apiKeyId: auditScope.apiKeyId,
+          actingOnBehalfOfUserId: auditScope.actingOnBehalfOfUserId,
           datasetId: input.datasetId,
           datasetRunId: input.datasetRunId,
         });

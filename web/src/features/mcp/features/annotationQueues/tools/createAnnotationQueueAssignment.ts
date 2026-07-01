@@ -13,7 +13,7 @@ export const [
     "Assign a project user to an annotation queue so they can work through its review items.",
   baseSchema: CreateAnnotationQueueAssignmentToolSchema,
   inputSchema: CreateAnnotationQueueAssignmentToolSchema,
-  handler: async (input, context) =>
+  handler: async (input, context, { auditScope }) =>
     runMcpTool({
       spanName: "mcp.annotation_queue_assignments.create",
       context,
@@ -24,7 +24,7 @@ export const [
           orgId: context.orgId,
           queueId: input.queueId,
           input: { userId: input.userId },
-          auditScope: context,
+          auditScope,
         });
 
         return CreateAnnotationQueueAssignmentResponse.parse(assignment);

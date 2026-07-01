@@ -6,7 +6,10 @@ import {
   convertScoreToPublicApi,
   type ScoreQueryType,
 } from "@/src/features/public-api/server/scores";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import {
+  auditLog,
+  type ApiKeyAuditLogScope,
+} from "@/src/features/audit-logs/auditLog";
 import {
   InternalServerError,
   LISTABLE_SCORE_TYPES,
@@ -227,7 +230,7 @@ export class ScoresApiService {
   }: {
     body: z.infer<typeof PostScoresBodyV1>;
     auth: AuthHeaderValidVerificationResultIngestion;
-    auditScope?: { projectId: string; orgId: string; apiKeyId: string };
+    auditScope?: { projectId: string } & ApiKeyAuditLogScope;
     scoreId?: string;
   }) {
     const existingScore = auditScope
@@ -266,6 +269,7 @@ export class ScoresApiService {
         projectId: auditScope.projectId,
         orgId: auditScope.orgId,
         apiKeyId: auditScope.apiKeyId,
+        actingOnBehalfOfUserId: auditScope.actingOnBehalfOfUserId,
         before: existingScore
           ? convertScoreToPublicApi(existingScore)
           : undefined,
@@ -280,13 +284,14 @@ export class ScoresApiService {
     projectId,
     orgId,
     apiKeyId,
+    actingOnBehalfOfUserId,
     scoreId,
   }: {
     projectId: string;
-    orgId: string;
-    apiKeyId: string;
-    scoreId: string;
-  }) {
+    actingOnBehalfOfUserId?: string;
+  } & ApiKeyAuditLogScope & {
+      scoreId: string;
+    }) {
     const scoreDeleteQueue = ScoreDeleteQueue.getInstance();
     if (!scoreDeleteQueue) {
       throw new InternalServerError("ScoreDeleteQueue not initialized");
@@ -299,6 +304,7 @@ export class ScoresApiService {
       projectId,
       orgId,
       apiKeyId,
+      actingOnBehalfOfUserId,
     });
 
     await scoreDeleteQueue.add(QueueJobs.ScoreDelete, {

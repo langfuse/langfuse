@@ -1,4 +1,7 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import {
+  auditLog,
+  type ApiKeyAuditLogScope,
+} from "@/src/features/audit-logs/auditLog";
 import type {
   AnnotationQueue,
   AnnotationQueueItem,
@@ -52,10 +55,8 @@ type DeleteAnnotationQueueAssignmentInput = z.infer<
 
 type AnnotationQueueScope = {
   projectId: string;
-  orgId: string;
-  apiKeyId: string;
   plan?: string;
-};
+} & ApiKeyAuditLogScope;
 
 type OptionalAuditScope = {
   auditScope?: AnnotationQueueScope;
@@ -291,6 +292,7 @@ export const createAnnotationQueueForApi = async ({
       projectId: auditScope.projectId,
       orgId: auditScope.orgId,
       apiKeyId: auditScope.apiKeyId,
+      actingOnBehalfOfUserId: auditScope.actingOnBehalfOfUserId,
       after: queue,
     });
   }
@@ -427,6 +429,7 @@ export const createAnnotationQueueItemForApi = async ({
       projectId: auditScope.projectId,
       orgId: auditScope.orgId,
       apiKeyId: auditScope.apiKeyId,
+      actingOnBehalfOfUserId: auditScope.actingOnBehalfOfUserId,
       after: item,
     });
   }
@@ -476,6 +479,7 @@ export const updateAnnotationQueueItemForApi = async ({
       projectId: auditScope.projectId,
       orgId: auditScope.orgId,
       apiKeyId: auditScope.apiKeyId,
+      actingOnBehalfOfUserId: auditScope.actingOnBehalfOfUserId,
       before: existingItem,
       after: item,
     });
@@ -516,6 +520,7 @@ export const deleteAnnotationQueueItemForApi = async ({
       projectId: auditScope.projectId,
       orgId: auditScope.orgId,
       apiKeyId: auditScope.apiKeyId,
+      actingOnBehalfOfUserId: auditScope.actingOnBehalfOfUserId,
       before: existingItem,
     });
   }
@@ -601,6 +606,7 @@ export const createAnnotationQueueAssignmentForApi = async ({
       projectId: auditScope.projectId,
       orgId: auditScope.orgId,
       apiKeyId: auditScope.apiKeyId,
+      actingOnBehalfOfUserId: auditScope.actingOnBehalfOfUserId,
       after: assignment,
     });
   }
@@ -647,6 +653,7 @@ export const deleteAnnotationQueueAssignment = async ({
       projectId: auditScope.projectId,
       orgId: auditScope.orgId,
       apiKeyId: auditScope.apiKeyId,
+      actingOnBehalfOfUserId: auditScope.actingOnBehalfOfUserId,
       before: assignment,
     });
   }

@@ -5,10 +5,7 @@ import {
   observationVariableMappingList,
   variableMappingList,
 } from "@langfuse/shared";
-import {
-  invalidateProjectEvalConfigCaches,
-  type ApiAccessScope,
-} from "@langfuse/shared/src/server";
+import { invalidateProjectEvalConfigCaches } from "@langfuse/shared/src/server";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { type PostUnstableEvaluatorBodyParsedType } from "@/src/features/public-api/types/unstable-evaluators";
 import {
@@ -20,7 +17,10 @@ import {
   isCodeEvalSourceCodeLanguageSupported,
 } from "@/src/features/evals/server/isCodeEvalEnabled";
 import { CODE_EVAL_TEMPLATE_VARIABLES } from "@/src/features/evals/utils/code-eval-template-utils";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import {
+  auditLog,
+  type ApiKeyAuditLogScope,
+} from "@/src/features/audit-logs/auditLog";
 import { EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import { deleteEvalTemplateFamily } from "@/src/features/evals/server/evalTemplateDeletion";
 import {
@@ -151,7 +151,7 @@ export async function getPublicEvaluator(params: {
 export async function createPublicEvaluator(params: {
   projectId: string;
   input: PostUnstableEvaluatorBodyParsedType;
-  auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
+  auditScope?: ApiKeyAuditLogScope;
 }) {
   const { input } = params;
   const storedEvalTemplateType = toStoredEvaluatorType(input.type);
@@ -325,6 +325,7 @@ export async function createPublicEvaluator(params: {
         projectId: params.projectId,
         orgId: params.auditScope.orgId,
         apiKeyId: params.auditScope.apiKeyId,
+        actingOnBehalfOfUserId: params.auditScope.actingOnBehalfOfUserId,
         after: evaluator,
       });
     }
@@ -350,7 +351,7 @@ export async function createPublicEvaluator(params: {
 export async function deletePublicEvaluator(params: {
   projectId: string;
   evaluatorId: string;
-  auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
+  auditScope?: ApiKeyAuditLogScope;
 }) {
   // an evaluator in the public contract is the whole family; deleting it
   // removes all stored versions

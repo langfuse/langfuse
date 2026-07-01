@@ -27,7 +27,7 @@ export const [createCommentTool, handleCreateComment] = defineTool({
   description: "Create a comment on a trace, observation, session, or prompt.",
   baseSchema: CreateCommentToolBaseSchema,
   inputSchema: CreateCommentToolSchema,
-  handler: async (input, context) =>
+  handler: async (input, context, { auditScope }) =>
     runMcpTool({
       spanName: "mcp.comments.create",
       context,
@@ -43,7 +43,7 @@ export const [createCommentTool, handleCreateComment] = defineTool({
 
         const result = await createCommentForApi({
           input: body,
-          auditScope: context,
+          auditScope,
         });
 
         const comment = PostCommentsV1Response.parse(result);

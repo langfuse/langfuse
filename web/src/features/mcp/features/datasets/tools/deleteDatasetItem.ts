@@ -12,7 +12,7 @@ export const [deleteDatasetItemTool, handleDeleteDatasetItem] = defineTool({
     "Delete a dataset item, one example in a dataset, and all its run items.",
   baseSchema: DeleteDatasetItemV1Query,
   inputSchema: DeleteDatasetItemV1Query,
-  handler: async (input, context) =>
+  handler: async (input, context, { auditScope }) =>
     runMcpTool({
       spanName: "mcp.dataset_items.delete",
       context,
@@ -20,9 +20,10 @@ export const [deleteDatasetItemTool, handleDeleteDatasetItem] = defineTool({
       fn: async () => {
         const result = await deleteDatasetItemForApi({
           datasetItemId: input.datasetItemId,
-          projectId: context.projectId,
-          orgId: context.orgId,
-          apiKeyId: context.apiKeyId,
+          projectId: auditScope.projectId,
+          orgId: auditScope.orgId,
+          apiKeyId: auditScope.apiKeyId,
+          actingOnBehalfOfUserId: auditScope.actingOnBehalfOfUserId,
         });
 
         return DeleteDatasetItemV1Response.parse(result);

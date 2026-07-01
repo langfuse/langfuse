@@ -32,9 +32,17 @@ const McpToolNameSchema = z.custom<McpToolName>(
   { message: "Invalid MCP tool name" },
 );
 
-export const InAppAgentMcpRunOverrideSchema = z.object({
-  toolName: McpToolNameSchema,
-});
+export const InAppAgentMcpRequestMetadataSchema = z.union([
+  z.object({
+    permissions: z.literal("read"),
+    actingOnBehalfOfUserId: z.string().min(1),
+  }),
+  z.object({
+    permissions: z.literal("single-tool-override"),
+    actingOnBehalfOfUserId: z.string().min(1),
+    allowedToolName: McpToolNameSchema,
+  }),
+]);
 
 const MastraSuspendEventSchema = z.object({
   type: z.literal("mastra_suspend"),
@@ -127,11 +135,22 @@ export async function consumeAndValidatePendingToolApproval(params: {
   }
 }
 
-export async function createInAppAgentMcpRunOverride(params: {
-  toolName: McpToolName;
+export function createInAppAgentMcpRequestMetadata(params: {
+  permissions: "read" | "single-tool-override";
+  actingOnBehalfOfUserId: string;
+  allowedToolName?: McpToolName;
 }) {
+  if (params.permissions === "read") {
+    return JSON.stringify({
+      permissions: "read",
+      actingOnBehalfOfUserId: params.actingOnBehalfOfUserId,
+    });
+  }
+
   return JSON.stringify({
-    toolName: params.toolName,
+    permissions: "single-tool-override",
+    actingOnBehalfOfUserId: params.actingOnBehalfOfUserId,
+    allowedToolName: params.allowedToolName,
   });
 }
 

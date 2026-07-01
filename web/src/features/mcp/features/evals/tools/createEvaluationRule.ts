@@ -9,6 +9,7 @@ import { createPublicEvaluationRule } from "@/src/features/evals/server/unstable
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { RuleFilterBaseSchema, RuleMappingBaseSchema } from "../schema";
+import { getMcpAuditScope } from "../../publicApi";
 
 // Superset (flattened) schema for client discovery. name/evaluator/enabled/
 // sampling are reused from the contract's EvaluationRuleCreateBase; only the
@@ -53,7 +54,7 @@ export const [createEvaluationRuleTool, handleCreateEvaluationRule] =
             orgId: context.orgId,
             projectId: context.projectId,
             input,
-            auditScope: context,
+            auditScope: getMcpAuditScope(context),
           });
 
           span.setAttribute("mcp.evaluation_rule_id", evaluationRule.id);

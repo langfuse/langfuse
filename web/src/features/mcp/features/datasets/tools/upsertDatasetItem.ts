@@ -10,7 +10,7 @@ export const [upsertDatasetItemTool, handleUpsertDatasetItem] = defineTool({
   description: "Upsert a dataset item (one example in a dataset) by dataset ID",
   baseSchema: PostDatasetItemMcpInput,
   inputSchema: PostDatasetItemMcpInput,
-  handler: async (input, context) =>
+  handler: async (input, context, { auditScope }) =>
     runMcpTool({
       spanName: "mcp.dataset_items.upsert",
       context,
@@ -19,7 +19,7 @@ export const [upsertDatasetItemTool, handleUpsertDatasetItem] = defineTool({
         const result = await createDatasetItemForApi({
           input,
           projectId: context.projectId,
-          auditScope: context,
+          auditScope,
         });
 
         const datasetItem = PostDatasetItemsV1Response.parse(result);

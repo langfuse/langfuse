@@ -33,7 +33,11 @@ import {
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
 import { logger } from "@langfuse/shared/src/server";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
-import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@/src/ee/features/in-app-agent/constants";
+import { IN_APP_AGENT_MCP_REQUEST_METADATA_HEADER } from "@/src/ee/features/in-app-agent/constants";
+import {
+  createInAppAgentMcpRequestMetadata,
+  InAppAgentMcpRequestMetadataSchema,
+} from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
 const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
@@ -131,7 +135,7 @@ type CreateAgUiStreamOptions = {
     publicKey: string;
     secretKey: string;
     userAccess: InAppAgentUserAccess;
-    runOverride?: string;
+    requestMetadata: string;
   };
   redirectAction: {
     projectId: string;
@@ -474,10 +478,7 @@ export async function createAgUiStream(params: {
             return;
           }
 
-          if (
-            forwardedProps?.command?.resume?.approved === true &&
-            params.options.langfuseMcp.runOverride
-          ) {
+          if (forwardedProps?.command?.resume?.approved === true) {
             // The override is intentionally single-use: execute the approved
             // mutating MCP tool with the first client, then rebuild the MCP
             // client without the override so the continuation returns to the
@@ -493,7 +494,9 @@ export async function createAgUiStream(params: {
                 ...params.options,
                 langfuseMcp: {
                   ...params.options.langfuseMcp,
-                  runOverride: undefined,
+                  requestMetadata: getReadOnlyRequestMetadata(
+                    params.options.langfuseMcp.requestMetadata,
+                  ),
                 },
               },
               awsProfile,
@@ -706,12 +709,8 @@ async function createMastraAdapter(params: {
         requestInit: {
           headers: {
             Authorization: params.langfuseMcpAuthHeader,
-            ...(params.options.langfuseMcp.runOverride
-              ? {
-                  [IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER]:
-                    params.options.langfuseMcp.runOverride,
-                }
-              : {}),
+            [IN_APP_AGENT_MCP_REQUEST_METADATA_HEADER]:
+              params.options.langfuseMcp.requestMetadata,
           },
         },
       },
@@ -1126,4 +1125,14 @@ function getRunErrorMessage(event: AgUiEvent) {
   return typeof event.message === "string" && event.message.trim()
     ? event.message
     : "Unknown assistant error";
+}
+function getReadOnlyRequestMetadata(requestMetadata: string): string {
+  const parsedMetadata = InAppAgentMcpRequestMetadataSchema.parse(
+    JSON.parse(requestMetadata) as unknown,
+  );
+
+  return createInAppAgentMcpRequestMetadata({
+    permissions: "read",
+    actingOnBehalfOfUserId: parsedMetadata.actingOnBehalfOfUserId,
+  });
 }

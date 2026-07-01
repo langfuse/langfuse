@@ -3,6 +3,13 @@ import { prisma } from "@langfuse/shared/src/db";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import type { ServerContext } from "../types";
 
+export type McpAuditScope = {
+  projectId: string;
+  orgId: string;
+  apiKeyId: string;
+  actingOnBehalfOfUserId?: string;
+};
+
 export type McpPublicApiAuth = {
   validKey: true;
   scope: {
@@ -45,6 +52,13 @@ export const getMcpPublicApiAuth = async (
     },
   };
 };
+
+export const getMcpAuditScope = (context: ServerContext): McpAuditScope => ({
+  projectId: context.projectId,
+  orgId: context.orgId,
+  apiKeyId: context.apiKeyId,
+  actingOnBehalfOfUserId: context.inAppAgent?.actingOnBehalfOfUserId,
+});
 
 export const paginationMeta = ({
   page,

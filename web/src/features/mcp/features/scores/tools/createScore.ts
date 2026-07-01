@@ -12,6 +12,7 @@ import { buildScoreTargetUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { ApiServerError } from "../../../core/errors";
 import { z } from "zod";
+import { getMcpAuditScope } from "../../publicApi";
 
 type CreateScoreBatchError = {
   status: number;
@@ -102,7 +103,7 @@ export const [createScoreTool, handleCreateScore] = defineTool({
               isIngestionSuspended: false,
             },
           },
-          auditScope: context,
+          auditScope: getMcpAuditScope(context),
         });
         span.setAttribute("mcp.score_id", scoreId);
 

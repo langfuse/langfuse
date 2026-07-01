@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { AgUiEvent } from "@/src/ee/features/in-app-agent/schema";
 import {
-  IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
+  IN_APP_AGENT_MCP_REQUEST_METADATA_HEADER,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
 } from "@/src/ee/features/in-app-agent/constants";
 import { patchMastraToolCallInputStreaming } from "@/src/ee/features/in-app-agent/server/agent";
@@ -886,7 +886,7 @@ describe("createAgUiStream", () => {
           requestInit: {
             headers: expect.objectContaining({
               Authorization: expect.stringContaining("Basic "),
-              [IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER]: "run-override",
+              [IN_APP_AGENT_MCP_REQUEST_METADATA_HEADER]: "run-override",
             }),
           },
         },
@@ -898,7 +898,7 @@ describe("createAgUiStream", () => {
         langfuse: {
           requestInit: {
             headers: expect.not.objectContaining({
-              [IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER]: expect.anything(),
+              [IN_APP_AGENT_MCP_REQUEST_METADATA_HEADER]: expect.anything(),
             }),
           },
         },

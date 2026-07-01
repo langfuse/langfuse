@@ -12,7 +12,7 @@ export const [updateAnnotationQueueItemTool, handleUpdateAnnotationQueueItem] =
       "Update an annotation queue item's review status, such as pending or completed.",
     baseSchema: UpdateAnnotationQueueItemToolSchema,
     inputSchema: UpdateAnnotationQueueItemToolSchema,
-    handler: async (input, context) =>
+    handler: async (input, context, { auditScope }) =>
       runMcpTool({
         spanName: "mcp.annotation_queue_items.update",
         context,
@@ -26,7 +26,7 @@ export const [updateAnnotationQueueItemTool, handleUpdateAnnotationQueueItem] =
             queueId: input.queueId,
             itemId: input.itemId,
             input,
-            auditScope: context,
+            auditScope,
           });
 
           const item = UpdateAnnotationQueueItemResponse.parse(result);

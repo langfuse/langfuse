@@ -13,6 +13,7 @@ import { createPublicEvaluator } from "@/src/features/evals/server/unstable-publ
 import { defineTool } from "../../../core/define-tool";
 import { buildEvaluatorUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
+import { getMcpAuditScope } from "../../publicApi";
 import {
   EvaluatorModelConfigBaseSchema,
   EvaluatorOutputDefinitionBaseSchema,
@@ -60,7 +61,7 @@ export const [upsertEvaluatorTool, handleUpsertEvaluator] = defineTool({
         const evaluator = await createPublicEvaluator({
           projectId: context.projectId,
           input,
-          auditScope: context,
+          auditScope: getMcpAuditScope(context),
         });
 
         span.setAttribute("mcp.evaluator_id", evaluator.id);

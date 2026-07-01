@@ -1,4 +1,7 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import {
+  auditLog,
+  type ApiKeyAuditLogScope,
+} from "@/src/features/audit-logs/auditLog";
 import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
 import type {
   DeleteModelV1Query,
@@ -33,9 +36,7 @@ const modelPricingInclude = {
 
 type ModelAuditScope = {
   projectId: string;
-  orgId: string;
-  apiKeyId: string;
-};
+} & ApiKeyAuditLogScope;
 
 type ListModelsInput = z.infer<typeof GetModelsV1Query> & {
   projectId: string;
@@ -221,6 +222,7 @@ export const createModelForApi = async ({
       projectId: auditScope.projectId,
       orgId: auditScope.orgId,
       apiKeyId: auditScope.apiKeyId,
+      actingOnBehalfOfUserId: auditScope.actingOnBehalfOfUserId,
       after: createdModel,
     });
 
@@ -247,6 +249,7 @@ export const deleteModelForApi = async ({
   projectId,
   orgId,
   apiKeyId,
+  actingOnBehalfOfUserId,
   modelId,
 }: DeleteModelInput) => {
   const model = await prisma.model.findFirst({
@@ -276,6 +279,7 @@ export const deleteModelForApi = async ({
     projectId,
     orgId,
     apiKeyId,
+    actingOnBehalfOfUserId,
     before: model,
   });
 

@@ -5,6 +5,7 @@ import {
 import { deleteModelForApi } from "@/src/features/models/server/publicApiModelService";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
+import { getMcpAuditScope } from "../../publicApi";
 
 export const [deleteModelTool, handleDeleteModel] = defineTool({
   name: "deleteModel",
@@ -19,9 +20,7 @@ export const [deleteModelTool, handleDeleteModel] = defineTool({
       attributes: { "mcp.model_id": input.modelId },
       fn: async () => {
         const result = await deleteModelForApi({
-          projectId: context.projectId,
-          orgId: context.orgId,
-          apiKeyId: context.apiKeyId,
+          ...getMcpAuditScope(context),
           modelId: input.modelId,
         });
 

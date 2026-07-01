@@ -1,6 +1,9 @@
 import type { NextApiResponse } from "next";
 import { v4 } from "uuid";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import {
+  auditLog,
+  type ApiKeyAuditLogScope,
+} from "@/src/features/audit-logs/auditLog";
 import { addDatasetRunItemsToEvalQueue } from "@/src/features/evals/server/addDatasetRunItemsToEvalQueue";
 import { createOrFetchDatasetRun } from "@/src/features/public-api/server/dataset-runs";
 import {
@@ -60,9 +63,7 @@ import type { z } from "zod";
 
 type DatasetAuditScope = {
   projectId: string;
-  orgId: string;
-  apiKeyId: string;
-};
+} & ApiKeyAuditLogScope;
 
 type ListDatasetsInput = z.infer<typeof GetDatasetsV2Query> & {
   projectId: string;
@@ -287,6 +288,7 @@ export const createDatasetForApi = async ({
       projectId,
       orgId: auditScope.orgId,
       apiKeyId: auditScope.apiKeyId,
+      actingOnBehalfOfUserId: auditScope.actingOnBehalfOfUserId,
       before: existingDataset ?? undefined,
       after: dataset,
     });
@@ -650,6 +652,7 @@ export const createDatasetItemForApi = async ({
         projectId,
         orgId: auditScope.orgId,
         apiKeyId: auditScope.apiKeyId,
+        actingOnBehalfOfUserId: auditScope.actingOnBehalfOfUserId,
         before: existingDatasetItem ?? undefined,
         after: datasetItem,
       });
@@ -705,6 +708,7 @@ export const deleteDatasetItemForApi = async ({
   projectId,
   orgId,
   apiKeyId,
+  actingOnBehalfOfUserId,
   datasetItemId,
 }: DeleteDatasetItemInput) => {
   const result = await deleteDatasetItem({
@@ -719,6 +723,7 @@ export const deleteDatasetItemForApi = async ({
     projectId,
     orgId,
     apiKeyId,
+    actingOnBehalfOfUserId,
     before: result.deletedItem,
   });
 
@@ -850,6 +855,7 @@ export const createDatasetRunItemForApi = async ({
       projectId,
       orgId: auditScope.orgId,
       apiKeyId: auditScope.apiKeyId,
+      actingOnBehalfOfUserId: auditScope.actingOnBehalfOfUserId,
       after: datasetRunItem,
     });
   }
@@ -1136,6 +1142,7 @@ export const deleteDatasetRunForApi = async ({
   projectId,
   orgId,
   apiKeyId,
+  actingOnBehalfOfUserId,
   name,
   runName,
 }: DeleteDatasetRunInput) => {
@@ -1166,6 +1173,7 @@ export const deleteDatasetRunForApi = async ({
     projectId,
     orgId,
     apiKeyId,
+    actingOnBehalfOfUserId,
     before: datasetRun,
   });
 
@@ -1186,6 +1194,7 @@ export const deleteDatasetRunByIdForApi = async ({
   projectId,
   orgId,
   apiKeyId,
+  actingOnBehalfOfUserId,
   datasetId,
   datasetRunId,
 }: DeleteDatasetRunByIdInput) => {
@@ -1212,6 +1221,7 @@ export const deleteDatasetRunByIdForApi = async ({
     projectId,
     orgId,
     apiKeyId,
+    actingOnBehalfOfUserId,
     before: datasetRun,
   });
 

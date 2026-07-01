@@ -51,7 +51,7 @@ export const [upsertDatasetTool, handleUpsertDataset] = defineTool({
     "Upsert a dataset, a named collection of input and optional expected-output examples for experiments and evaluations.",
   baseSchema: UpsertDatasetBaseSchema,
   inputSchema: UpsertDatasetInputSchema,
-  handler: async (input, context) =>
+  handler: async (input, context, { auditScope }) =>
     runMcpTool({
       spanName: "mcp.datasets.upsert",
       context,
@@ -60,7 +60,7 @@ export const [upsertDatasetTool, handleUpsertDataset] = defineTool({
         const dataset = await createDatasetForApi({
           input,
           projectId: context.projectId,
-          auditScope: context,
+          auditScope,
         });
 
         const parsed = PostDatasetsV2Response.parse(dataset);

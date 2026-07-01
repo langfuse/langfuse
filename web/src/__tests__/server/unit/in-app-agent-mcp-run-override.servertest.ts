@@ -1,47 +1,70 @@
 import {
-  createInAppAgentMcpRunOverride,
-  InAppAgentMcpRunOverrideSchema,
+  createInAppAgentMcpRequestMetadata,
+  InAppAgentMcpRequestMetadataSchema,
 } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
 
-describe("in-app agent MCP run override", () => {
-  it("serializes the override as plain JSON", async () => {
-    const token = await createInAppAgentMcpRunOverride({
-      toolName: "upsertDataset",
+describe("in-app agent MCP request metadata", () => {
+  it("serializes tool override metadata as plain JSON", async () => {
+    const token = createInAppAgentMcpRequestMetadata({
+      permissions: "single-tool-override",
+      actingOnBehalfOfUserId: "user-1",
+      allowedToolName: "upsertDataset",
     });
 
     expect(JSON.parse(token)).toEqual({
-      toolName: "upsertDataset",
+      permissions: "single-tool-override",
+      actingOnBehalfOfUserId: "user-1",
+      allowedToolName: "upsertDataset",
     });
   });
 
-  it("accepts a matching plain JSON override", async () => {
-    const token = await createInAppAgentMcpRunOverride({
-      toolName: "upsertDataset",
+  it("accepts metadata with and without a tool override", async () => {
+    const token = createInAppAgentMcpRequestMetadata({
+      permissions: "single-tool-override",
+      actingOnBehalfOfUserId: "user-1",
+      allowedToolName: "upsertDataset",
     });
-
-    expect(InAppAgentMcpRunOverrideSchema.safeParse(JSON.parse(token))).toEqual(
-      {
-        success: true,
-        data: {
-          toolName: "upsertDataset",
-        },
-      },
-    );
-  });
-
-  it("rejects malformed or mismatched overrides", () => {
-    expect(InAppAgentMcpRunOverrideSchema.safeParse("not-json").success).toBe(
-      false,
-    );
+    const readOnlyToken = createInAppAgentMcpRequestMetadata({
+      permissions: "read",
+      actingOnBehalfOfUserId: "user-1",
+    });
 
     expect(
-      InAppAgentMcpRunOverrideSchema.safeParse({
-        toolName: "notAMcpTool",
+      InAppAgentMcpRequestMetadataSchema.safeParse(JSON.parse(token)),
+    ).toEqual({
+      success: true,
+      data: {
+        permissions: "single-tool-override",
+        actingOnBehalfOfUserId: "user-1",
+        allowedToolName: "upsertDataset",
+      },
+    });
+    expect(
+      InAppAgentMcpRequestMetadataSchema.safeParse(JSON.parse(readOnlyToken)),
+    ).toEqual({
+      success: true,
+      data: {
+        permissions: "read",
+        actingOnBehalfOfUserId: "user-1",
+      },
+    });
+  });
+
+  it("rejects malformed or mismatched metadata", () => {
+    expect(
+      InAppAgentMcpRequestMetadataSchema.safeParse("not-json").success,
+    ).toBe(false);
+
+    expect(
+      InAppAgentMcpRequestMetadataSchema.safeParse({
+        permissions: "single-tool-override",
+        actingOnBehalfOfUserId: "user-1",
+        allowedToolName: "notAMcpTool",
       }).success,
     ).toBe(false);
 
     expect(
-      InAppAgentMcpRunOverrideSchema.safeParse({
+      InAppAgentMcpRequestMetadataSchema.safeParse({
         other: "value",
       }).success,
     ).toBe(false);

@@ -5,6 +5,7 @@ import {
 import { deletePublicEvaluator } from "@/src/features/evals/server/unstable-public-api";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
+import { getMcpAuditScope } from "../../publicApi";
 
 export const [deleteEvaluatorTool, handleDeleteEvaluator] = defineTool({
   name: "deleteEvaluator",
@@ -21,7 +22,7 @@ export const [deleteEvaluatorTool, handleDeleteEvaluator] = defineTool({
         await deletePublicEvaluator({
           projectId: context.projectId,
           evaluatorId: input.evaluatorId,
-          auditScope: context,
+          auditScope: getMcpAuditScope(context),
         });
 
         return DeleteUnstableEvaluatorResponse.parse({

@@ -9,6 +9,7 @@ import { updatePublicEvaluationRule } from "@/src/features/evals/server/unstable
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { RuleFilterBaseSchema, RuleMappingBaseSchema } from "../schema";
+import { getMcpAuditScope } from "../../publicApi";
 
 // Superset (flattened) schema for client discovery. name/evaluator/enabled/
 // sampling are reused from the contract's EvaluationRulePatchBase (the create
@@ -53,7 +54,7 @@ export const [updateEvaluationRuleTool, handleUpdateEvaluationRule] =
             projectId: context.projectId,
             evaluationRuleId,
             input: patch,
-            auditScope: context,
+            auditScope: getMcpAuditScope(context),
           });
 
           return PatchUnstableEvaluationRuleResponse.parse(evaluationRule);

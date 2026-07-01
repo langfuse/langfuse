@@ -1,7 +1,4 @@
-import {
-  invalidateProjectEvalConfigCaches,
-  type ApiAccessScope,
-} from "@langfuse/shared/src/server";
+import { invalidateProjectEvalConfigCaches } from "@langfuse/shared/src/server";
 import { EvalTemplateType, prisma } from "@langfuse/shared/src/db";
 import {
   EvalTargetObject,
@@ -12,7 +9,10 @@ import {
   assertCodeEvalJobConfigCanRun,
   CodeEvalJobConfigError,
 } from "@/src/features/evals/server/codeEvalJobConfigValidation";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import {
+  auditLog,
+  type ApiKeyAuditLogScope,
+} from "@/src/features/audit-logs/auditLog";
 import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import {
   isCodeEvalEnabled,
@@ -188,7 +188,7 @@ export async function createPublicEvaluationRule(params: {
   orgId: string;
   projectId: string;
   input: PostUnstableEvaluationRuleBodyType;
-  auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
+  auditScope?: ApiKeyAuditLogScope;
 }) {
   const existing = await prisma.jobConfiguration.findFirst({
     where: {
@@ -300,6 +300,7 @@ export async function createPublicEvaluationRule(params: {
       projectId: params.projectId,
       orgId: params.auditScope.orgId,
       apiKeyId: params.auditScope.apiKeyId,
+      actingOnBehalfOfUserId: params.auditScope.actingOnBehalfOfUserId,
       after: evaluationRule,
     });
   }
@@ -312,7 +313,7 @@ export async function updatePublicEvaluationRule(params: {
   projectId: string;
   evaluationRuleId: string;
   input: PatchUnstableEvaluationRuleBodyType;
-  auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
+  auditScope?: ApiKeyAuditLogScope;
 }) {
   const existing = await findPublicEvaluationRuleOrThrow({
     projectId: params.projectId,
@@ -455,6 +456,7 @@ export async function updatePublicEvaluationRule(params: {
       projectId: params.projectId,
       orgId: params.auditScope.orgId,
       apiKeyId: params.auditScope.apiKeyId,
+      actingOnBehalfOfUserId: params.auditScope.actingOnBehalfOfUserId,
       before: existingPublic,
       after: evaluationRule,
     });
@@ -466,7 +468,7 @@ export async function updatePublicEvaluationRule(params: {
 export async function deletePublicEvaluationRule(params: {
   projectId: string;
   evaluationRuleId: string;
-  auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
+  auditScope?: ApiKeyAuditLogScope;
 }) {
   const existing = await findPublicEvaluationRuleOrThrow(params);
   const existingPublic = toApiEvaluationRule(existing);
@@ -488,6 +490,7 @@ export async function deletePublicEvaluationRule(params: {
       projectId: params.projectId,
       orgId: params.auditScope.orgId,
       apiKeyId: params.auditScope.apiKeyId,
+      actingOnBehalfOfUserId: params.auditScope.actingOnBehalfOfUserId,
       before: existingPublic,
     });
   }

@@ -24,7 +24,7 @@ export const [createAnnotationQueueTool, handleCreateAnnotationQueue] =
       "Create an annotation queue, a worklist that collects trace or observation items for human review and scoring.",
     baseSchema: CreateAnnotationQueueBaseSchema,
     inputSchema: CreateAnnotationQueueBody,
-    handler: async (input, context) =>
+    handler: async (input, context, { auditScope }) =>
       runMcpTool({
         spanName: "mcp.annotation_queues.create",
         context,
@@ -36,7 +36,7 @@ export const [createAnnotationQueueTool, handleCreateAnnotationQueue] =
             projectId: context.projectId,
             plan: auth.scope.plan,
             input,
-            auditScope: context,
+            auditScope,
           });
 
           const queue = CreateAnnotationQueueResponse.parse(result);

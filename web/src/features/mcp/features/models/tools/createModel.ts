@@ -7,6 +7,7 @@ import { defineTool } from "../../../core/define-tool";
 import { buildModelUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { z } from "zod";
+import { getMcpAuditScope } from "../../publicApi";
 
 const CreateModelBaseSchema = z.object({
   modelName: z.string(),
@@ -43,7 +44,7 @@ export const [createModelTool, handleCreateModel] = defineTool({
         const result = await createModelForApi({
           projectId: context.projectId,
           input,
-          auditScope: context,
+          auditScope: getMcpAuditScope(context),
         });
 
         const model = PostModelsV1Response.parse(result);

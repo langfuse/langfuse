@@ -20,7 +20,7 @@ import {
 import { createAgUiStream } from "@/src/ee/features/in-app-agent/server/agent";
 import {
   consumeAndValidatePendingToolApproval,
-  createInAppAgentMcpRunOverride,
+  createInAppAgentMcpRequestMetadata,
   parseInAppAgentInterruptEvent,
   storePendingToolApproval,
   validatePendingToolApproval,
@@ -265,11 +265,12 @@ export default async function handler(request: Request) {
       {
         projectId,
         runId: sanitizedInput.runId,
+        actingOnBehalfOfUserId: userId,
         toolName: getInAppAgentMcpRegistryToolName(
           resumeApprovalRequest?.toolName,
         ),
       },
-      async (mcpApiKey, runOverride, cleanupMcpApiKey) => {
+      async (mcpApiKey, requestMetadata, cleanupMcpApiKey) => {
         let runCreated = false;
         let pendingToolApprovalConsumed = false;
         let streamCreated = false;
@@ -424,7 +425,7 @@ export default async function handler(request: Request) {
                 publicKey: mcpApiKey.publicKey,
                 secretKey: mcpApiKey.secretKey,
                 userAccess: getInAppAgentUserAccess(user, projectId),
-                runOverride,
+                requestMetadata,
               },
               redirectAction: {
                 projectId,
@@ -615,10 +616,15 @@ async function createInAppAgentMcpApiKey(projectId: string) {
 }
 
 async function withInAppAgentMcpApiKeyCleanup<T>(
-  params: { projectId: string; runId: string; toolName?: McpToolName },
+  params: {
+    projectId: string;
+    runId: string;
+    actingOnBehalfOfUserId: string;
+    toolName?: McpToolName;
+  },
   createResponse: (
     mcpApiKey: Awaited<ReturnType<typeof createInAppAgentMcpApiKey>>,
-    runOverride: string | undefined,
+    requestMetadata: string,
     cleanupMcpApiKey: () => Promise<void>,
   ) => T | Promise<T>,
 ): Promise<T> {
@@ -642,13 +648,20 @@ async function withInAppAgentMcpApiKeyCleanup<T>(
   };
 
   try {
-    const runOverride = params.toolName
-      ? await createInAppAgentMcpRunOverride({
-          toolName: params.toolName,
-        })
-      : undefined;
+    const requestMetadata = createInAppAgentMcpRequestMetadata(
+      params.toolName
+        ? {
+            permissions: "single-tool-override",
+            actingOnBehalfOfUserId: params.actingOnBehalfOfUserId,
+            allowedToolName: params.toolName,
+          }
+        : {
+            permissions: "read",
+            actingOnBehalfOfUserId: params.actingOnBehalfOfUserId,
+          },
+    );
 
-    return await createResponse(mcpApiKey, runOverride, cleanupMcpApiKey);
+    return await createResponse(mcpApiKey, requestMetadata, cleanupMcpApiKey);
   } catch (err) {
     await cleanupMcpApiKey().catch((cleanupErr) => {
       logger.error("Failed to clean up in-app agent MCP API key", cleanupErr);

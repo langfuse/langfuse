@@ -1,7 +1,10 @@
 import { v4 } from "uuid";
 import type { z } from "zod";
 
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import {
+  auditLog,
+  type ApiKeyAuditLogScope,
+} from "@/src/features/audit-logs/auditLog";
 import { validateCommentReferenceObject } from "@/src/features/comments/validateCommentReferenceObject";
 import type {
   GetCommentV1Query,
@@ -13,9 +16,7 @@ import { prisma } from "@langfuse/shared/src/db";
 
 type CommentAuditScope = {
   projectId: string;
-  orgId: string;
-  apiKeyId: string;
-};
+} & ApiKeyAuditLogScope;
 
 type CreateCommentInput = {
   input: z.infer<typeof PostCommentsV1Body>;
@@ -106,6 +107,7 @@ export const createCommentForApi = async ({
     projectId: auditScope.projectId,
     orgId: auditScope.orgId,
     apiKeyId: auditScope.apiKeyId,
+    actingOnBehalfOfUserId: auditScope.actingOnBehalfOfUserId,
     after: comment,
   });
 

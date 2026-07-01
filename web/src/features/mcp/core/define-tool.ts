@@ -8,6 +8,7 @@
 import { z } from "zod";
 import { wrapErrorHandling } from "./error-formatting";
 import type { ServerContext } from "../types";
+import { getMcpAuditScope, type McpAuditScope } from "../features/publicApi";
 
 /**
  * Tool handler function type
@@ -15,6 +16,9 @@ import type { ServerContext } from "../types";
 export type ToolHandler<TInput> = (
   input: TInput,
   context: ServerContext,
+  helpers: {
+    auditScope: McpAuditScope;
+  },
 ) => Promise<unknown>;
 
 /**
@@ -171,7 +175,9 @@ export function defineTool<TInput, const TName extends string>(
     async (rawInput: unknown, context: ServerContext) => {
       // Validate input with the full schema (including refinements)
       const validatedInput = inputSchema.parse(rawInput);
-      return await handler(validatedInput, context);
+      return await handler(validatedInput, context, {
+        auditScope: getMcpAuditScope(context),
+      });
     },
   );
 

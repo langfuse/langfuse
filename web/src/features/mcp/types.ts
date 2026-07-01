@@ -16,7 +16,7 @@ import type { McpToolName } from "./server/bootstrap";
  * Audit Logging: All mutating operations must create audit log entries
  * using @/src/features/audit-logs/auditLog
  *
- * PII Protection: userId is PII - use sanitized logging
+ * PII Protection: user attribution metadata is PII - use sanitized logging
  *
  * RBAC: Check accessLevel and scope before operations
  *
@@ -35,9 +35,6 @@ export interface ServerContext {
 
   /** Organization ID from authenticated API key */
   orgId: string;
-
-  /** User ID from authenticated user (optional for API key auth) */
-  userId?: string;
 
   /** API Key ID for audit logging */
   apiKeyId: string;
@@ -63,8 +60,10 @@ export interface ServerContext {
 export type InAppAgentContext =
   | {
       permissions: "read";
+      actingOnBehalfOfUserId: string;
     }
   | {
       permissions: "single-tool-override";
+      actingOnBehalfOfUserId: string;
       allowedToolName: McpToolName;
     };

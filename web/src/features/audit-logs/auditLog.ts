@@ -49,6 +49,12 @@ export type AuditableResource =
   // legacy resources
   | "membership";
 
+export type ApiKeyAuditLogScope = {
+  orgId: string;
+  apiKeyId: string;
+  actingOnBehalfOfUserId?: string;
+};
+
 type AuditLog = {
   resourceType: AuditableResource;
   resourceId: string;
@@ -76,37 +82,44 @@ type AuditLog = {
     }
   | {
       apiKeyId: string;
+      actingOnBehalfOfUserId?: string;
       orgId: string;
       projectId?: string;
     }
 );
 
 export async function auditLog(log: AuditLog, prisma?: typeof _prisma) {
-  const meta =
-    "session" in log
-      ? {
-          userId: log.session.user.id,
-          orgId: log.session.orgId,
-          userOrgRole: log.session.orgRole,
-          projectId: log.session.projectId,
-          userProjectRole: log.session.projectRole,
-          type: AuditLogRecordType.USER,
-        }
-      : "userId" in log
-        ? {
-            userId: log.userId,
-            orgId: log.orgId,
-            userOrgRole: log.orgRole,
-            projectId: log.projectId,
-            userProjectRole: log.projectRole,
-            type: AuditLogRecordType.USER,
-          }
-        : {
-            apiKeyId: log.apiKeyId,
-            orgId: log.orgId,
-            projectId: log.projectId,
-            type: AuditLogRecordType.API_KEY,
-          };
+  const meta = (() => {
+    if ("session" in log) {
+      return {
+        userId: log.session.user.id,
+        orgId: log.session.orgId,
+        userOrgRole: log.session.orgRole,
+        projectId: log.session.projectId,
+        userProjectRole: log.session.projectRole,
+        type: AuditLogRecordType.USER as const,
+      };
+    }
+
+    if ("apiKeyId" in log) {
+      return {
+        apiKeyId: log.apiKeyId,
+        userId: log.actingOnBehalfOfUserId,
+        orgId: log.orgId,
+        projectId: log.projectId,
+        type: AuditLogRecordType.API_KEY as const,
+      };
+    }
+
+    return {
+      userId: log.userId,
+      orgId: log.orgId,
+      userOrgRole: log.orgRole,
+      projectId: log.projectId,
+      userProjectRole: log.projectRole,
+      type: AuditLogRecordType.USER as const,
+    };
+  })();
 
   await (prisma ?? _prisma).auditLog.create({
     data: {

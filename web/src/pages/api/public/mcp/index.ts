@@ -40,8 +40,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import { BaseError, UnauthorizedError, ForbiddenError } from "@langfuse/shared";
 import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
-import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@/src/ee/features/in-app-agent/constants";
-import { InAppAgentMcpRunOverrideSchema } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
+import { IN_APP_AGENT_MCP_REQUEST_METADATA_HEADER } from "@/src/ee/features/in-app-agent/constants";
+import { InAppAgentMcpRequestMetadataSchema } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
 import { safeJsonParse } from "@/src/utils/json";
 
 // Bootstrap MCP features - registers all tools at module load time
@@ -122,14 +122,18 @@ export default async function handler(
     // Build ServerContext from authenticated scope. In-app-agent keys need a
     // run override for mutating tools; read-only tools remain available
     // without it via their MCP readOnlyHint annotation.
+    const inAppAgentRequestMetadata = getInAppAgentRequestMetadata(
+      req,
+      authCheck.scope.isInAppAgentKey,
+    );
+
     const context: ServerContext = {
       projectId: authCheck.scope.projectId,
       orgId: authCheck.scope.orgId,
-      userId: undefined, // API keys don't have associated users
       apiKeyId: authCheck.scope.apiKeyId,
       accessLevel: "project",
       publicKey: authCheck.scope.publicKey,
-      inAppAgent: getInAppAgentContext(req, authCheck.scope.isInAppAgentKey),
+      inAppAgent: inAppAgentRequestMetadata?.inAppAgent,
     };
 
     logger.debug("MCP request authenticated", {
@@ -175,30 +179,42 @@ export default async function handler(
   }
 }
 
-export function getInAppAgentContext(
+export function getInAppAgentRequestMetadata(
   req: NextApiRequest,
   isInAppAgentKey: boolean | undefined,
-): ServerContext["inAppAgent"] {
+):
+  | {
+      inAppAgent: ServerContext["inAppAgent"];
+    }
+  | undefined {
   if (isInAppAgentKey !== true) {
     return undefined;
   }
 
-  const headerValue = req.headers[IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER];
+  const headerValue = req.headers[IN_APP_AGENT_MCP_REQUEST_METADATA_HEADER];
 
   if (typeof headerValue !== "string") {
-    return { permissions: "read" };
+    throw new ForbiddenError(
+      "In-app agent MCP requests must include request metadata.",
+    );
   }
 
-  const parsedOverride = InAppAgentMcpRunOverrideSchema.safeParse(
+  const parsedMetadata = InAppAgentMcpRequestMetadataSchema.safeParse(
     safeJsonParse(headerValue),
   );
 
-  return parsedOverride.success
-    ? {
-        permissions: "single-tool-override",
-        allowedToolName: parsedOverride.data.toolName,
-      }
-    : { permissions: "read" };
+  if (!parsedMetadata.success) {
+    throw new ForbiddenError("Invalid in-app agent MCP request metadata.");
+  }
+
+  return { inAppAgent: parsedMetadata.data };
+}
+
+export function getInAppAgentContext(
+  req: NextApiRequest,
+  isInAppAgentKey: boolean | undefined,
+): ServerContext["inAppAgent"] {
+  return getInAppAgentRequestMetadata(req, isInAppAgentKey)?.inAppAgent;
 }
 
 /**

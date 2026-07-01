@@ -1,9 +1,12 @@
-import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@/src/ee/features/in-app-agent/constants";
+import { IN_APP_AGENT_MCP_REQUEST_METADATA_HEADER } from "@/src/ee/features/in-app-agent/constants";
 import {
-  createInAppAgentMcpRunOverride,
-  InAppAgentMcpRunOverrideSchema,
+  createInAppAgentMcpRequestMetadata,
+  InAppAgentMcpRequestMetadataSchema,
 } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
-import { getInAppAgentContext } from "@/src/pages/api/public/mcp";
+import {
+  getInAppAgentContext,
+  getInAppAgentRequestMetadata,
+} from "@/src/pages/api/public/mcp";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 
@@ -15,7 +18,7 @@ describe("MCP route in-app-agent context", () => {
         overrideHeader === undefined
           ? {}
           : {
-              [IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER]: overrideHeader,
+              [IN_APP_AGENT_MCP_REQUEST_METADATA_HEADER]: overrideHeader,
             },
     });
 
@@ -23,42 +26,86 @@ describe("MCP route in-app-agent context", () => {
   };
 
   it("returns undefined for non in-app-agent keys", () => {
-    const req = createRequest('{"toolName":"upsertDataset"}');
+    const req = createRequest(
+      '{"permissions":"single-tool-override","actingOnBehalfOfUserId":"user-1","allowedToolName":"upsertDataset"}',
+    );
 
     expect(getInAppAgentContext(req, false)).toBeUndefined();
     expect(getInAppAgentContext(req, undefined)).toBeUndefined();
+    expect(getInAppAgentRequestMetadata(req, false)).toBeUndefined();
   });
 
-  it("defaults to read permissions when no override header is present", () => {
+  it("fails when in-app-agent metadata is missing", () => {
     const req = createRequest();
 
-    expect(getInAppAgentContext(req, true)).toEqual({ permissions: "read" });
+    expect(() => getInAppAgentContext(req, true)).toThrow(
+      "In-app agent MCP requests must include request metadata.",
+    );
   });
 
-  it("falls back to read permissions for malformed override headers", () => {
+  it("fails for malformed metadata headers", () => {
     const malformedJsonReq = createRequest("not-json");
-    const invalidToolReq = createRequest('{"toolName":"notAMcpTool"}');
+    const invalidToolReq = createRequest(
+      '{"permissions":"single-tool-override","actingOnBehalfOfUserId":"user-1","allowedToolName":"notAMcpTool"}',
+    );
 
-    expect(getInAppAgentContext(malformedJsonReq, true)).toEqual({
+    expect(() => getInAppAgentContext(malformedJsonReq, true)).toThrow(
+      "Invalid in-app agent MCP request metadata.",
+    );
+    expect(() => getInAppAgentContext(invalidToolReq, true)).toThrow(
+      "Invalid in-app agent MCP request metadata.",
+    );
+  });
+
+  it("returns user metadata for read-only in-app-agent requests", async () => {
+    const metadataHeader = createInAppAgentMcpRequestMetadata({
       permissions: "read",
+      actingOnBehalfOfUserId: "user-1",
     });
-    expect(getInAppAgentContext(invalidToolReq, true)).toEqual({
+    const req = createRequest(metadataHeader);
+
+    expect(
+      InAppAgentMcpRequestMetadataSchema.parse(JSON.parse(metadataHeader)),
+    ).toEqual({
+      permissions: "read",
+      actingOnBehalfOfUserId: "user-1",
+    });
+    expect(getInAppAgentRequestMetadata(req, true)).toEqual({
+      inAppAgent: {
+        actingOnBehalfOfUserId: "user-1",
+        permissions: "read",
+      },
+    });
+    expect(getInAppAgentContext(req, true)).toEqual({
+      actingOnBehalfOfUserId: "user-1",
       permissions: "read",
     });
   });
 
-  it("returns a single-tool override for valid override headers", async () => {
-    const overrideHeader = await createInAppAgentMcpRunOverride({
-      toolName: "upsertDataset",
+  it("returns a single-tool override for valid metadata headers", async () => {
+    const overrideHeader = createInAppAgentMcpRequestMetadata({
+      permissions: "single-tool-override",
+      actingOnBehalfOfUserId: "user-1",
+      allowedToolName: "upsertDataset",
     });
     const req = createRequest(overrideHeader);
 
     expect(
-      InAppAgentMcpRunOverrideSchema.parse(JSON.parse(overrideHeader)),
+      InAppAgentMcpRequestMetadataSchema.parse(JSON.parse(overrideHeader)),
     ).toEqual({
-      toolName: "upsertDataset",
+      permissions: "single-tool-override",
+      actingOnBehalfOfUserId: "user-1",
+      allowedToolName: "upsertDataset",
+    });
+    expect(getInAppAgentRequestMetadata(req, true)).toEqual({
+      inAppAgent: {
+        actingOnBehalfOfUserId: "user-1",
+        permissions: "single-tool-override",
+        allowedToolName: "upsertDataset",
+      },
     });
     expect(getInAppAgentContext(req, true)).toEqual({
+      actingOnBehalfOfUserId: "user-1",
       permissions: "single-tool-override",
       allowedToolName: "upsertDataset",
     });

@@ -13,7 +13,7 @@ export const [
   description: "Remove a project user's assignment from an annotation queue.",
   baseSchema: DeleteAnnotationQueueAssignmentToolSchema,
   inputSchema: DeleteAnnotationQueueAssignmentToolSchema,
-  handler: async (input, context) =>
+  handler: async (input, context, { auditScope }) =>
     runMcpTool({
       spanName: "mcp.annotation_queue_assignments.delete",
       context,
@@ -24,7 +24,7 @@ export const [
             projectId: context.projectId,
             queueId: input.queueId,
             input: { userId: input.userId },
-            auditScope: context,
+            auditScope,
           });
 
           return DeleteAnnotationQueueAssignmentResponse.parse(result.response);
