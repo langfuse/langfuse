@@ -6,21 +6,19 @@ import {
   scoreDomainToV3,
   type ScoreRecordReadType,
 } from "@langfuse/shared/src/server";
-import { LangfuseNotFoundError, type APIScoreV3 } from "@langfuse/shared";
+import { type APIScoreV3 } from "@langfuse/shared";
 
 import {
+  encodeExperimentItemsCursor,
   encodeExperimentsCursor,
-  type GetExperimentV1QueryType,
   type GetExperimentItemsV1QueryType,
   type GetExperimentsV1QueryType,
 } from "@/src/features/public-api/types/experiments";
 import {
   queryExperimentItemsForPublicApi,
-  queryExperimentSummaryForPublicApi,
   queryExperimentSummariesForPublicApi,
 } from "@/src/features/experiments/server/public/repository";
 
-export type GetExperimentPublicQuery = GetExperimentV1QueryType;
 export type ListExperimentsPublicQuery = GetExperimentsV1QueryType;
 export type ListExperimentItemsPublicQuery = GetExperimentItemsV1QueryType;
 type ExperimentSummaryRow = Awaited<
@@ -40,7 +38,6 @@ const transformExperimentSummaryRow = (
     name: row.experiment_name,
     description: row.experiment_description ?? null,
     startTime: parseClickhouseUTCDateTimeFormat(row.start_time),
-    itemCount: Number(row.item_count),
     datasetId: row.experiment_dataset_id || null,
   };
 
@@ -52,20 +49,6 @@ const transformExperimentSummaryRow = (
 
   return withOptionalFields;
 };
-
-const transformExperimentDetailRow = (
-  row: ExperimentSummaryRow,
-  projectId: string,
-) => ({
-  id: row.experiment_id,
-  name: row.experiment_name,
-  description: row.experiment_description ?? null,
-  startTime: parseClickhouseUTCDateTimeFormat(row.start_time),
-  itemCount: Number(row.item_count),
-  datasetId: row.experiment_dataset_id || null,
-  metadata: row.experiment_metadata ?? null,
-  scores: scoreRecordsToV3(row.scores ?? [], projectId),
-});
 
 const toExperimentScoreV3 = (row: ScoreRecordReadType): APIScoreV3 => {
   const score = convertClickhouseScoreToDomain(row);
@@ -176,7 +159,6 @@ export async function listExperimentsForPublicApi({
     cursor: query.cursor
       ? {
           lastStartTime: query.cursor.lastStartTimeTo,
-          lastTraceId: query.cursor.lastTraceId,
           lastId: query.cursor.lastId,
           lastExperimentId: query.cursor.lastExperimentId,
         }
@@ -205,7 +187,6 @@ export async function listExperimentsForPublicApi({
           cursor: encodeExperimentsCursor({
             v: 1,
             lastStartTimeTo: lastRow.start_time,
-            lastTraceId: lastRow.cursor_trace_id,
             lastId: lastRow.cursor_span_id,
             lastExperimentId: lastRow.experiment_id,
           }),
@@ -216,27 +197,6 @@ export async function listExperimentsForPublicApi({
     data,
     meta,
   };
-}
-
-export async function getExperimentForPublicApi({
-  projectId,
-  query,
-}: {
-  projectId: string;
-  query: GetExperimentPublicQuery;
-}) {
-  const row = await queryExperimentSummaryForPublicApi({
-    projectId,
-    experimentId: query.experimentId,
-  });
-
-  if (!row) {
-    throw new LangfuseNotFoundError(
-      `Experiment ${query.experimentId} not found within authorized project`,
-    );
-  }
-
-  return transformExperimentDetailRow(row, projectId);
 }
 
 export async function listExperimentItemsForPublicApi({
@@ -311,7 +271,7 @@ export async function listExperimentItemsForPublicApi({
   const meta =
     hasMore && lastRow
       ? {
-          cursor: encodeExperimentsCursor({
+          cursor: encodeExperimentItemsCursor({
             v: 1,
             lastStartTimeTo: lastRow.start_time,
             lastTraceId: lastRow.trace_id,

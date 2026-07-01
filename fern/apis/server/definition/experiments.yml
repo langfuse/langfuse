@@ -54,19 +54,6 @@ service:
               JSON string containing an array of structured filter conditions.
               Supported columns are `id`, `name`, and `datasetId`.
       response: ExperimentsResponse
-    get:
-      method: GET
-      path: /experiments/{experimentId}
-      docs: |
-        Get an experiment summary.
-
-        This endpoint returns the full experiment summary for the given
-        experiment ID.
-      path-parameters:
-        experimentId:
-          type: string
-          docs: The unique experiment ID.
-      response: ExperimentDetails
     listItems:
       method: GET
       path: /experiment-items
@@ -139,7 +126,6 @@ types:
       name: string
       description: nullable<string>
       startTime: datetime
-      itemCount: integer
       datasetId:
         type: nullable<string>
         docs: Null when the experiment is not associated with a dataset.
@@ -149,19 +135,6 @@ types:
       scores:
         type: optional<list<scoresV3.ScoreV3>>
         docs: Included only when `fields=scores` is requested. Contains scores directly attached to the experiment.
-
-  ExperimentDetails:
-    properties:
-      id: string
-      name: string
-      description: nullable<string>
-      startTime: datetime
-      itemCount: integer
-      datasetId:
-        type: nullable<string>
-        docs: Null when the experiment is not associated with a dataset.
-      metadata: nullable<map<string, unknown>>
-      scores: list<scoresV3.ScoreV3>
 
   ExperimentItemsResponse:
     properties:

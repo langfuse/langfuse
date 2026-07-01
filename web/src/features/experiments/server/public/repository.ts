@@ -2,7 +2,6 @@ import {
   convertDateToClickhouseDateTime,
   deriveFilters,
   EventsQueryBuilder,
-  ExperimentsAggregationQueryBuilder,
   buildEventsFullTableSplitQuery,
   measureAndReturn,
   parseClickhouseUTCDateTimeFormat,
@@ -29,7 +28,6 @@ type ExperimentSummaryClickhouseRow = {
   cursor_trace_hash: number;
   cursor_trace_id: string;
   cursor_span_id: string;
-  item_count: number;
   experiment_metadata?: Record<string, unknown> | null;
 };
 
@@ -66,9 +64,12 @@ const DEFAULT_SCORE_LIMIT = 50;
 
 type ExperimentCursor = {
   lastStartTime: string;
-  lastTraceId: string;
   lastId: string;
   lastExperimentId: string;
+};
+
+type ExperimentItemCursor = ExperimentCursor & {
+  lastTraceId: string;
 };
 
 type QueryExperimentSummariesParams = {
@@ -86,11 +87,6 @@ type QueryExperimentSummariesParams = {
   scoreLimit?: number;
 };
 
-type QueryExperimentSummaryParams = {
-  projectId: string;
-  experimentId: string;
-};
-
 type QueryExperimentItemsParams = {
   projectId: string;
   fromStartTime?: Date;
@@ -101,7 +97,7 @@ type QueryExperimentItemsParams = {
   experimentItemId?: string[];
   datasetId?: string[];
   advancedFilters?: EventsTableFilterState;
-  cursor?: ExperimentCursor;
+  cursor?: ExperimentItemCursor;
   includeDataset: boolean;
   includeIo: boolean;
   includeMetadata: boolean;
@@ -139,26 +135,10 @@ const groupExperimentItemScores = (scores: ScoreRecordReadType[]) => {
   return { byObservationId, byTraceId };
 };
 
-const startTimeBounds = (rows: { start_time: string }[]) => ({
-  min: parseClickhouseUTCDateTimeFormat(rows[rows.length - 1]!.start_time),
-  max: parseClickhouseUTCDateTimeFormat(rows[0]!.start_time),
-});
+const startTimeFromLastRow = (rows: { start_time: string }[]) =>
+  parseClickhouseUTCDateTimeFormat(rows[rows.length - 1]!.start_time);
 
-const experimentSummaryQueryBuilder = ({
-  projectId,
-  includeMetadata,
-}: {
-  projectId: string;
-  includeMetadata: boolean;
-}) =>
-  new ExperimentsAggregationQueryBuilder({
-    projectId,
-  })
-    .selectFieldSet(
-      "publicApiCore",
-      ...(includeMetadata ? (["publicApiMetadata"] as const) : []),
-    )
-    .whereRaw("e.experiment_id != ''");
+const EXPERIMENT_SUMMARY_CURSOR_LOOKBACK_INTERVAL = "INTERVAL 1 DAY";
 
 async function queryExperimentSummaryRowsForPublicApi(
   params: QueryExperimentSummariesParams,
@@ -185,26 +165,33 @@ async function queryExperimentSummaryRowsForPublicApi(
     publicApiExperimentColumnDefinitions,
   );
 
-  const queryBuilder = experimentSummaryQueryBuilder({
-    projectId: params.projectId,
-    includeMetadata: params.includeMetadata,
-  })
+  const queryBuilder = new EventsQueryBuilder({ projectId: params.projectId })
+    .selectFieldSet(
+      "publicApiExperimentSummaryCore",
+      ...(params.includeMetadata
+        ? (["publicApiExperimentSummaryMetadata"] as const)
+        : []),
+    )
+    .whereRaw("e.experiment_id != ''")
     .withExactStartTimeFrom(fromStartTime)
     .withExactStartTimeTo(toStartTime)
     .applyFilters(filterList)
-    .withCursor(
+    .withExperimentSummaryCursor(
       params.cursor
         ? {
             lastStartTime: params.cursor.lastStartTime,
-            lastTraceId: params.cursor.lastTraceId,
             lastId: params.cursor.lastId,
             lastExperimentId: params.cursor.lastExperimentId,
+            lookbackInterval: EXPERIMENT_SUMMARY_CURSOR_LOOKBACK_INTERVAL,
           }
         : undefined,
     )
-    .orderBy(
-      "ORDER BY start_time DESC, cursor_trace_hash DESC, cursor_span_id DESC, experiment_id DESC",
-    )
+    .orderByColumns([
+      { column: "e.experiment_id", direction: "DESC" },
+      { column: "e.start_time", direction: "DESC" },
+      { column: "e.span_id", direction: "DESC" },
+    ])
+    .limitBy("e.project_id", "e.experiment_id")
     .limit(params.limit);
 
   const { query, params: queryParams } = queryBuilder.buildWithParams();
@@ -234,58 +221,6 @@ async function queryExperimentSummaryRowsForPublicApi(
   return rows;
 }
 
-export async function queryExperimentSummaryForPublicApi(
-  params: QueryExperimentSummaryParams,
-) {
-  const queryBuilder = experimentSummaryQueryBuilder({
-    projectId: params.projectId,
-    includeMetadata: true,
-  })
-    .withExperimentIds([params.experimentId])
-    .limit(1);
-
-  const { query, params: queryParams } = queryBuilder.buildWithParams();
-
-  const rows = await measureAndReturn({
-    operationName: "queryExperimentSummaryForPublicApi",
-    projectId: params.projectId,
-    input: {
-      params: queryParams,
-      tags: {
-        feature: "experiments",
-        type: "events",
-        kind: "publicApi",
-        projectId: params.projectId,
-        operation_name: "queryExperimentSummaryForPublicApi",
-      },
-    },
-    fn: async (input) =>
-      await queryClickhouse<ExperimentSummaryRow>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "EventsReadOnly",
-      }),
-  });
-
-  const row = rows[0];
-  if (!row) return null;
-
-  const scoresByExperimentId = groupExperimentScores(
-    await queryScoreRecordsForExperiments({
-      projectId: params.projectId,
-      experimentIds: [row.experiment_id],
-      fromTimestamp: parseClickhouseUTCDateTimeFormat(row.start_time),
-      scoreLimit: DEFAULT_SCORE_LIMIT,
-    }),
-  );
-
-  return {
-    ...row,
-    scores: scoresByExperimentId[row.experiment_id] ?? [],
-  };
-}
-
 export async function queryExperimentSummariesForPublicApi(
   params: QueryExperimentSummariesParams,
 ) {
@@ -297,7 +232,7 @@ export async function queryExperimentSummariesForPublicApi(
     await queryScoreRecordsForExperiments({
       projectId: params.projectId,
       experimentIds: rows.map((row) => row.experiment_id),
-      fromTimestamp: startTimeBounds(rows).min,
+      fromTimestamp: startTimeFromLastRow(rows),
       scoreLimit: params.scoreLimit ?? DEFAULT_SCORE_LIMIT,
     }),
   );
@@ -434,13 +369,12 @@ export async function queryExperimentItemsForPublicApi(
 
   if (!params.includeScores || rows.length === 0) return rows;
 
-  const { min } = startTimeBounds(rows);
   const groupedScores = groupExperimentItemScores(
     await queryScoreRecordsForExperimentItems({
       projectId: params.projectId,
       traceIds: rows.map((row) => row.trace_id),
       observationIds: rows.map((row) => row.id),
-      min,
+      min: startTimeFromLastRow(rows),
       scoreLimit: params.scoreLimit ?? DEFAULT_SCORE_LIMIT,
     }),
   );

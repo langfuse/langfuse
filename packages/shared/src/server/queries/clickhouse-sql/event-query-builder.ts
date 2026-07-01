@@ -129,6 +129,10 @@ const EVENTS_FIELDS = {
   experimentDatasetId: 'e.experiment_dataset_id as "experiment_dataset_id"',
   experimentMetadata:
     "mapFromArrays(e.experiment_metadata_names, e.experiment_metadata_values) as experiment_metadata",
+  publicApiExperimentCursorTraceHash:
+    "xxHash32(e.trace_id) AS cursor_trace_hash",
+  publicApiExperimentCursorTraceId: "e.trace_id AS cursor_trace_id",
+  publicApiExperimentCursorSpanId: "e.span_id AS cursor_span_id",
 
   // Experiment item fields
   experimentItemId: 'e.experiment_item_id as "experiment_item_id"',
@@ -264,6 +268,17 @@ const FIELD_SETS = {
     "experimentMetadata",
     "experimentDescription",
   ],
+  publicApiExperimentSummaryCore: [
+    "experimentId",
+    "experimentName",
+    "experimentDescription",
+    "experimentDatasetId",
+    "startTime",
+    "publicApiExperimentCursorTraceHash",
+    "publicApiExperimentCursorTraceId",
+    "publicApiExperimentCursorSpanId",
+  ],
+  publicApiExperimentSummaryMetadata: ["experimentMetadata"],
 
   // getById field sets (reuse the same fields - all queries use `FROM events_<type> e`)
   byIdBase: [
@@ -577,6 +592,28 @@ abstract class AbstractQueryBuilder {
   }
 
   /**
+   * Add exact event-level start time lower bound.
+   */
+  withExactStartTimeFrom(startTimeFrom?: string | null): this {
+    return this.when(Boolean(startTimeFrom), (b) =>
+      b.whereRaw("e.start_time >= {startTimeFrom: DateTime64(3)}", {
+        startTimeFrom,
+      }),
+    );
+  }
+
+  /**
+   * Add exact event-level start time upper bound.
+   */
+  withExactStartTimeTo(startTimeTo?: string | null): this {
+    return this.when(Boolean(startTimeTo), (b) =>
+      b.whereRaw("e.start_time < {startTimeTo: DateTime64(3)}", {
+        startTimeTo,
+      }),
+    );
+  }
+
+  /**
    * Add cursor support for experiment APIs.
    *
    * The cursor is applied to raw event rows before any optional aggregation.
@@ -601,6 +638,43 @@ abstract class AbstractQueryBuilder {
           lastExperimentId: cursor.lastExperimentId,
         },
       );
+    });
+  }
+
+  /**
+   * Add cursor support for public experiment summary pagination.
+   *
+   * This follows the summary ordering key:
+   * toStartOfMinute(start_time), experiment_id, start_time, span_id.
+   */
+  withExperimentSummaryCursor(cursor?: {
+    lastStartTime: string;
+    lastId: string;
+    lastExperimentId: string;
+    lookbackInterval: string;
+  }): this {
+    return this.when(Boolean(cursor), (b) => {
+      if (!cursor) return b;
+
+      return b
+        .whereRaw(
+          "(toStartOfMinute(e.start_time), e.experiment_id, e.start_time, e.span_id) < (toStartOfMinute({lastStartTime: DateTime64(6)}), {lastExperimentId: String}, {lastStartTime: DateTime64(6)}, {lastId: String})",
+          {
+            lastStartTime: cursor.lastStartTime,
+            lastExperimentId: cursor.lastExperimentId,
+            lastId: cursor.lastId,
+          },
+        )
+        .whereRaw(
+          `e.experiment_id NOT IN (
+  SELECT e2.experiment_id
+  FROM events_core e2
+  WHERE e2.project_id = {projectId: String}
+    AND e2.experiment_id != ''
+    AND e2.start_time >= {lastStartTime: DateTime64(6)} - ${cursor.lookbackInterval}
+    AND e2.start_time < {lastStartTime: DateTime64(6)}
+)`,
+        );
     });
   }
 
@@ -1848,8 +1922,6 @@ const EXPERIMENTS_AGGREGATION_FIELDS = {
   publicApiCursorSpanId:
     "argMin(e.span_id, (e.start_time, xxHash32(e.trace_id), e.span_id, e.experiment_id)) AS cursor_span_id",
   itemCount: "uniq(e.experiment_item_id) AS item_count",
-  publicApiItemCount:
-    "uniqIf(e.span_id, e.span_id = e.experiment_item_root_span_id) AS item_count",
   errorCount: "countIf(e.level = 'ERROR') AS error_count",
   prompts:
     "groupUniqArrayIf(tuple(e.prompt_name, e.prompt_version), e.prompt_name != '') AS prompts",
@@ -1887,7 +1959,6 @@ const EXPERIMENTS_AGGREGATION_FIELD_SETS = {
     "publicApiCursorTraceHash",
     "publicApiCursorTraceId",
     "publicApiCursorSpanId",
-    "publicApiItemCount",
   ] as const,
   publicApiMetadata: ["experimentMetadata"] as const,
   metrics: ["experimentId", "totalCost", "latencyAvg"] as const,

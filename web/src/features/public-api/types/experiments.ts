@@ -53,7 +53,20 @@ const experimentItemFilterState = z
   )
   .transform((filters) => filters as EventsTableFilterState);
 
-export const ExperimentsCursorV1 = z.discriminatedUnion("v", [
+const encodedCursorString = z
+  .string()
+  .describe("Base64url-encoded cursor for pagination");
+
+const decodeCursor = (value: string) => {
+  try {
+    const decoded = Buffer.from(value, "base64url").toString("utf-8");
+    return JSON.parse(decoded);
+  } catch (_error) {
+    throw new InvalidRequestError("Invalid cursor format");
+  }
+};
+
+export const ExperimentItemsCursorV1 = z.discriminatedUnion("v", [
   z.object({
     v: z.literal(1),
     lastStartTimeTo: z.string(),
@@ -63,22 +76,31 @@ export const ExperimentsCursorV1 = z.discriminatedUnion("v", [
   }),
 ]);
 
+export type ExperimentItemsCursorV1Type = z.infer<
+  typeof ExperimentItemsCursorV1
+>;
+
+export const ExperimentsCursorV1 = z.discriminatedUnion("v", [
+  z.object({
+    v: z.literal(1),
+    lastStartTimeTo: z.string(),
+    lastId: z.string(),
+    lastExperimentId: z.string(),
+  }),
+]);
+
 export type ExperimentsCursorV1Type = z.infer<typeof ExperimentsCursorV1>;
 
-export const EncodedExperimentsCursorV1String = z
+export const EncodedExperimentsCursorString = encodedCursorString;
+
+export const EncodedExperimentItemsCursorV1 = z
   .string()
-  .describe("Base64url-encoded cursor for pagination");
+  .transform(decodeCursor)
+  .pipe(ExperimentItemsCursorV1);
 
 export const EncodedExperimentsCursorV1 = z
   .string()
-  .transform((value) => {
-    try {
-      const decoded = Buffer.from(value, "base64url").toString("utf-8");
-      return JSON.parse(decoded);
-    } catch (_error) {
-      throw new InvalidRequestError("Invalid cursor format");
-    }
-  })
+  .transform(decodeCursor)
   .pipe(ExperimentsCursorV1);
 
 const experimentScoreLimitZod = z.preprocess(
@@ -88,7 +110,19 @@ const experimentScoreLimitZod = z.preprocess(
 
 export const encodeExperimentsCursor = (
   cursor: ExperimentsCursorV1Type,
-): z.infer<typeof EncodedExperimentsCursorV1String> =>
+): z.infer<typeof EncodedExperimentsCursorString> =>
+  Buffer.from(
+    JSON.stringify({
+      v: cursor.v,
+      lastStartTimeTo: cursor.lastStartTimeTo,
+      lastId: cursor.lastId,
+      lastExperimentId: cursor.lastExperimentId,
+    }),
+  ).toString("base64url");
+
+export const encodeExperimentItemsCursor = (
+  cursor: ExperimentItemsCursorV1Type,
+): z.infer<typeof EncodedExperimentsCursorString> =>
   Buffer.from(
     JSON.stringify({
       v: cursor.v,
@@ -126,12 +160,6 @@ export const GetExperimentsV1Query = z.object({
 
 export type GetExperimentsV1QueryType = z.infer<typeof GetExperimentsV1Query>;
 
-export const GetExperimentV1Query = z.object({
-  experimentId: z.string(),
-});
-
-export type GetExperimentV1QueryType = z.infer<typeof GetExperimentV1Query>;
-
 export const GetExperimentItemsV1Query = z
   .object({
     fields: commaSeparatedEnumArray(EXPERIMENT_ITEM_FIELD_GROUPS, [
@@ -140,7 +168,7 @@ export const GetExperimentItemsV1Query = z
     ]),
     limit: publicApiPaginationLimitZod,
     scoreLimit: experimentScoreLimitZod,
-    cursor: EncodedExperimentsCursorV1.optional(),
+    cursor: EncodedExperimentItemsCursorV1.optional(),
     fromStartTime: z.iso.datetime({ offset: true }).optional(),
     toStartTime: z.iso.datetime({ offset: true }).optional(),
     experimentId: optionalCommaSeparatedStringArray,
@@ -181,7 +209,6 @@ export const ExperimentV1 = z
     name: z.string(),
     description: z.string().nullable(),
     startTime: z.coerce.date(),
-    itemCount: z.number(),
     datasetId: z.string().nullable(),
     metadata: z.record(z.string(), z.unknown()).nullable().optional(),
     scores: z.array(APIScoreSchemaV3).optional(),
@@ -192,22 +219,13 @@ export const GetExperimentsV1Response = z
   .object({
     data: z.array(ExperimentV1),
     meta: z.object({
-      cursor: EncodedExperimentsCursorV1String.optional(),
+      cursor: EncodedExperimentsCursorString.optional(),
     }),
   })
   .strict();
 
 export type GetExperimentsV1ResponseType = z.infer<
   typeof GetExperimentsV1Response
->;
-
-export const GetExperimentV1Response = ExperimentV1.extend({
-  metadata: z.record(z.string(), z.unknown()).nullable(),
-  scores: z.array(APIScoreSchemaV3),
-}).strict();
-
-export type GetExperimentV1ResponseType = z.infer<
-  typeof GetExperimentV1Response
 >;
 
 export const ExperimentItemV1 = z
@@ -241,7 +259,7 @@ export const GetExperimentItemsV1Response = z
   .object({
     data: z.array(ExperimentItemV1),
     meta: z.object({
-      cursor: EncodedExperimentsCursorV1String.optional(),
+      cursor: EncodedExperimentsCursorString.optional(),
     }),
   })
   .strict();

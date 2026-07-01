@@ -16,7 +16,6 @@ import {
 } from "@/src/features/experiments/server/public";
 import {
   queryExperimentItemsForPublicApi,
-  queryExperimentSummaryForPublicApi,
   queryExperimentSummariesForPublicApi,
 } from "@/src/features/experiments/server/public/repository";
 
@@ -90,62 +89,6 @@ describe("Public API experiments repository", () => {
   });
 
   maybe("queryExperimentSummariesForPublicApi", () => {
-    it("returns a single unwindowed experiment summary by id", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-      const startTimeMs = Date.now() - 30 * 24 * 60 * 60 * 1_000;
-      const experimentId = `exp-${randomUUID()}`;
-      const scoreId = `score-${randomUUID()}`;
-
-      await createEventsCh([
-        createExperimentRootEvent({
-          projectId,
-          experimentId,
-          experimentName: "single repository experiment",
-          datasetId: "dataset-public-api",
-          startTimeMs,
-          metadata: { region: "eu" },
-          experimentItemId: "item-1",
-        }),
-        createExperimentRootEvent({
-          projectId,
-          experimentId,
-          experimentName: "single repository experiment",
-          datasetId: "dataset-public-api",
-          startTimeMs: startTimeMs + 1_000,
-          metadata: { region: "eu" },
-          experimentItemId: "item-2",
-        }),
-      ]);
-      await createScoresCh([
-        createDatasetRunScore({
-          id: scoreId,
-          project_id: projectId,
-          dataset_run_id: experimentId,
-          name: "experiment quality",
-          value: 0.75,
-          timestamp: startTimeMs + 2_000,
-          created_at: startTimeMs + 2_000,
-          updated_at: startTimeMs + 2_000,
-          event_ts: startTimeMs + 2_000,
-        }),
-      ]);
-
-      const row = await queryExperimentSummaryForPublicApi({
-        projectId,
-        experimentId,
-      });
-
-      expect(row).toMatchObject({
-        experiment_id: experimentId,
-        experiment_name: "single repository experiment",
-        experiment_description: "single repository experiment description",
-        experiment_dataset_id: "dataset-public-api",
-        item_count: 2,
-        experiment_metadata: { region: "eu" },
-      });
-      expect(row?.scores?.map((score) => score.id)).toEqual([scoreId]);
-    });
-
     it("returns public API summary fields with cursor anchors", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const startTimeMs = Date.now();
@@ -188,9 +131,9 @@ describe("Public API experiments repository", () => {
         experiment_dataset_id: "dataset-public-api",
         cursor_trace_id: expect.any(String),
         cursor_span_id: expect.any(String),
-        item_count: 2,
         experiment_metadata: { region: "eu" },
       });
+      expect(row).not.toHaveProperty("item_count");
     });
 
     it("does not include metadata unless requested", async () => {
@@ -217,36 +160,6 @@ describe("Public API experiments repository", () => {
       const row = rows.find((item) => item.experiment_id === experimentId);
       expect(row).toBeDefined();
       expect(row).not.toHaveProperty("experiment_metadata");
-    });
-
-    it("deduplicates physical root event rows for public item counts", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-      const startTimeMs = Date.now();
-      const experimentId = `exp-${randomUUID()}`;
-      const spanId = `span-${randomUUID()}`;
-
-      const rootEvent = createExperimentRootEvent({
-        projectId,
-        experimentId,
-        startTimeMs,
-        spanId,
-        experimentItemId: "item-1",
-      });
-
-      await createEventsCh([
-        rootEvent,
-        { ...rootEvent, event_ts: rootEvent.event_ts + 1 },
-      ]);
-
-      const rows = await queryExperimentSummariesForPublicApi({
-        projectId,
-        fromStartTime: new Date(startTimeMs - 1_000),
-        includeMetadata: false,
-        limit: 10,
-      });
-
-      const row = rows.find((item) => item.experiment_id === experimentId);
-      expect(row?.item_count).toBe(1);
     });
 
     it("includes experiment events without a dataset id", async () => {
@@ -417,30 +330,26 @@ describe("Public API experiments repository", () => {
       const row = response.data.find((item) => item.id === experimentId);
       expect(row).toMatchObject({
         id: experimentId,
-        itemCount: 1,
       });
       expect(row?.scores?.map((score) => score.id)).toEqual([scoreId]);
     });
 
-    it("paginates tied start times by cursor tuple order", async () => {
+    it("paginates by experiment summary cursor tuple order", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const startTimeMs = Date.now();
-      const traceId = `trace-${randomUUID()}`;
-      const experimentIds = [`exp-b-${randomUUID()}`, `exp-a-${randomUUID()}`];
+      const experimentIds = [`exp-z-${randomUUID()}`, `exp-a-${randomUUID()}`];
 
       await createEventsCh([
         createExperimentRootEvent({
           projectId,
           experimentId: experimentIds[0],
           startTimeMs,
-          traceId,
           spanId: "span-a",
         }),
         createExperimentRootEvent({
           projectId,
           experimentId: experimentIds[1],
           startTimeMs,
-          traceId,
           spanId: "span-z",
         }),
       ]);
@@ -468,7 +377,6 @@ describe("Public API experiments repository", () => {
         includeMetadata: false,
         cursor: {
           lastStartTime: firstRow.start_time,
-          lastTraceId: firstRow.cursor_trace_id,
           lastId: firstRow.cursor_span_id,
           lastExperimentId: firstRow.experiment_id,
         },
@@ -480,6 +388,68 @@ describe("Public API experiments repository", () => {
       );
       expect(secondPage.map((row) => row.experiment_id)).not.toContain(
         firstExperimentId,
+      );
+    });
+
+    it("excludes experiments seen in the one day lookback on cursor pages", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const startTimeMs = Date.now();
+      const repeatedExperimentId = `exp-z-${randomUUID()}`;
+      const nextExperimentId = `exp-a-${randomUUID()}`;
+
+      await createEventsCh([
+        createExperimentRootEvent({
+          projectId,
+          experimentId: repeatedExperimentId,
+          startTimeMs,
+          spanId: "span-z-new",
+        }),
+        createExperimentRootEvent({
+          projectId,
+          experimentId: repeatedExperimentId,
+          startTimeMs: startTimeMs - 10_000,
+          spanId: "span-z-old",
+        }),
+        createExperimentRootEvent({
+          projectId,
+          experimentId: nextExperimentId,
+          startTimeMs: startTimeMs - 25 * 60 * 60 * 1_000,
+          spanId: "span-a",
+        }),
+      ]);
+
+      const fromStartTime = new Date(startTimeMs - 26 * 60 * 60 * 1_000);
+      const firstPage = await queryExperimentSummariesForPublicApi({
+        projectId,
+        fromStartTime,
+        includeMetadata: false,
+        limit: 1,
+      });
+
+      expect(firstPage.map((row) => row.experiment_id)).toEqual([
+        repeatedExperimentId,
+      ]);
+
+      const firstRow = firstPage[0];
+      if (!firstRow) throw new Error("expected first page row");
+
+      const secondPage = await queryExperimentSummariesForPublicApi({
+        projectId,
+        fromStartTime,
+        includeMetadata: false,
+        cursor: {
+          lastStartTime: firstRow.start_time,
+          lastId: firstRow.cursor_span_id,
+          lastExperimentId: firstRow.experiment_id,
+        },
+        limit: 10,
+      });
+
+      expect(secondPage.map((row) => row.experiment_id)).toContain(
+        nextExperimentId,
+      );
+      expect(secondPage.map((row) => row.experiment_id)).not.toContain(
+        repeatedExperimentId,
       );
     });
   });

@@ -482,12 +482,8 @@ describe("ExperimentsAggregationQueryBuilder", () => {
       "any(coalesce(e.experiment_name, '')) AS experiment_name",
     );
     expect(query).toContain(
-      "uniqIf(e.span_id, e.span_id = e.experiment_item_root_span_id) AS item_count",
-    );
-    expect(query).toContain(
       "any(mapFromArrays(e.experiment_metadata_names, e.experiment_metadata_values)) AS experiment_metadata",
     );
-    expect(query).not.toContain("uniq(e.experiment_item_id) AS item_count");
   });
 
   it("does not add experiment cursor predicates without a cursor", () => {
