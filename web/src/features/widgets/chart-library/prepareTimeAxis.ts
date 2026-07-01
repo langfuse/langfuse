@@ -32,11 +32,12 @@ type AxisMode = "time" | "date" | "month" | "category";
 
 /**
  * Max characters shown for a categorical (non-time) x-axis tick. Entity names
- * (experiment / dataset-run names) are frequently long; recharts neither wraps
- * nor truncates a tick. We render category ticks angled (so neighbours don't
- * collide) and cap the *shown* label so a single very long outlier can't run
- * off-canvas — the full value always stays in the tooltip. Generous, because
- * angled labels have vertical room; short labels are untouched.
+ * (experiment / dataset-run names) are frequently long and recharts neither
+ * wraps nor truncates a tick. The width-aware thinning (see `prepareTimeAxis`)
+ * is what keeps ticks from colliding; this cap just bounds the *shown* width so
+ * a single very long outlier can't force the step so wide that almost nothing
+ * shows (nor run off-canvas). The full value always stays in the tooltip; short
+ * labels are untouched.
  */
 const MAX_CATEGORY_LABEL_CHARS = 24;
 
@@ -178,9 +179,9 @@ export function prepareTimeAxis(rawValues: unknown[], maxTicks = 6): TimeAxis {
     const full = (raw: unknown): string =>
       raw == null ? "" : typeof raw === "string" ? raw : String(raw);
     return {
-      // THE fix for the smear (LFE-10583). A numeric interval makes recharts
-      // show every Nth tick BY INDEX and skip its label-collision test, so a
-      // handful of long entity names (~50 chars each) still overlap into an
+      // The fix for the categorical smear (LFE-10583). A numeric interval makes
+      // recharts show every Nth tick BY INDEX and skip its label-collision test,
+      // so a handful of long entity names (~50 chars each) still overlap into an
       // illegible black strip — no matter how few we target, index-thinning is
       // blind to how wide each label actually is. `equidistantPreserveStart`
       // instead picks the largest even step at which every Nth *rendered* label
