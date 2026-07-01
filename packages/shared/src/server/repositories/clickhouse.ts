@@ -174,8 +174,8 @@ export async function upsertClickhouse<
           const bucketPath = `${buildEventBucketPrefix({
             projectId: String(record.project_id),
             entityType,
-            entityId: String(record.id),
-          })}${eventId}.json`;
+            entityId: encodeURIComponent(String(record.id)),
+          })}${encodeURIComponent(eventId)}.json`;
 
           if (env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG === "true") {
             // Write new file directly to ClickHouse. We don't use the ClickHouse writer here as we expect more limited traffic
