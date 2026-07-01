@@ -86,9 +86,9 @@ function prepareObservations(list: ObservationReturnType[]): {
 } {
   if (list.length === 0) return { sortedObservations: [] };
 
-  // De-duplicate by observation id. The tree builder assumes ids are unique, but
+  // Deduplicate by observation id. The tree builder assumes ids are unique, but
   // real traces can contain multiple rows sharing the same id (colliding /
-  // re-used ids in ingested data) — and those rows may each carry a DIFFERENT
+  // reused ids in ingested data) — and those rows may each carry a DIFFERENT
   // parentObservationId. Left un-deduped, one node gets wired under several
   // parents, turning the parent→child graph into a dense multi-parent DAG whose
   // root→node path count is exponential; the depth-propagation BFS below then
@@ -169,7 +169,7 @@ function buildDependencyGraph(sortedObservations: ObservationReturnType[]): {
   // BFS to propagate depth down the tree.
   //
   // Defense in depth: track visited nodes so a node is enqueued at most once.
-  // prepareObservations already de-dups by id (making the graph a proper forest),
+  // prepareObservations already dedupes by id (making the graph a proper forest),
   // but guarding here means even a pathological multi-parent / cyclic graph can
   // never grow the queue without bound — the failure mode that crashed the trace
   // peek with "RangeError: Invalid array length" / OOM. For a well-formed forest

@@ -2185,7 +2185,7 @@ describe("getSubtreeDurationOverflowMs", () => {
 
 describe("Duplicate / colliding observation IDs (LFE-10588)", () => {
   // Regression guard for a prod trace crash. Real traces can contain multiple
-  // rows that share the same observation id (colliding / re-used ids in ingested
+  // rows that share the same observation id (colliding / reused ids in ingested
   // data), and those rows may each carry a DIFFERENT parentObservationId. The
   // tree builder keys nodes by id, so duplicate rows wire one node under several
   // parents — turning the parent→child graph into a dense multi-parent DAG whose
@@ -2228,7 +2228,7 @@ describe("Duplicate / colliding observation IDs (LFE-10588)", () => {
 
   it("does not explode on colliding ids that form a multi-parent DAG", () => {
     // Shortcut ladder: node i is a child of BOTH i-1 and i-2, each via a separate
-    // row that reuses id `n{i}`. Without de-duplication the root→node path count
+    // row that reuses id `n{i}`. Without deduplication the root→node path count
     // is Fibonacci-large and the depth BFS / flatten grow without bound (the prod
     // crash). Sized so the pre-fix blowup stays finite (~Fib(24)) rather than
     // OOM-ing the test worker, while still being orders of magnitude too big.
@@ -2254,7 +2254,7 @@ describe("Duplicate / colliding observation IDs (LFE-10588)", () => {
       }),
     );
     for (let i = 2; i <= N; i++) {
-      // primary edge (earlier startTime → survives de-dup): parent = i-1
+      // primary edge (earlier startTime → survives dedup): parent = i-1
       observations.push(
         createMockObservation({
           id: `n${i}`,
@@ -2275,7 +2275,7 @@ describe("Duplicate / colliding observation IDs (LFE-10588)", () => {
 
     const result = buildTraceUiData(trace, observations);
 
-    // De-dup keeps the earliest-startTime row per id → a clean chain
+    // Dedup keeps the earliest-startTime row per id → a clean chain
     // n0→n1→…→nN. Every distinct id survives exactly once (+ TRACE wrapper), and
     // the flattened list is bounded — pre-fix the duplicated edges either dropped
     // nodes (in-degree never hit zero) or blew the traversal up Fibonacci-large.
