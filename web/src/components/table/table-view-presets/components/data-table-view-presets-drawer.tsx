@@ -9,7 +9,7 @@ import {
   Lock,
 } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
-import { LangfuseIcon } from "@/src/components/LangfuseLogo";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import {
   DrawerTrigger,
   DrawerContent,
@@ -573,6 +573,7 @@ export function TableViewPresetsDrawer({
                                   ? "flex items-center gap-1.5"
                                   : "truncate",
                               )}
+                              title={view.name}
                             >
                               {isSystemView && <LangfuseIcon size={14} />}
                               {view.name}

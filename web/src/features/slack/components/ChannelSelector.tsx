@@ -242,7 +242,9 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
       ) : (
         <Hash className="text-muted-foreground h-4 w-4" />
       )}
-      <span className="flex-1 truncate">{channel.name}</span>
+      <span className="flex-1 truncate" title={channel.name}>
+        {channel.name}
+      </span>
     </div>
   );
 
@@ -295,7 +297,10 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
                       className="cursor-pointer"
                     >
                       <Hash className="text-muted-foreground h-4 w-4" />
-                      <span className="flex-1 truncate">
+                      <span
+                        className="flex-1 truncate"
+                        title={`Use &quot; ${effectiveName} &quot;`}
+                      >
                         Use &quot;{effectiveName}&quot;
                       </span>
                     </CommandItem>
@@ -342,7 +347,10 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
                       className="text-muted-foreground"
                     >
                       <RefreshCw className="h-4 w-4 animate-spin" />
-                      <span className="flex-1 truncate">
+                      <span
+                        className="flex-1 truncate"
+                        title="Loading Slack channels. This can take a while for large workspaces."
+                      >
                         Loading Slack channels. This can take a while for large
                         workspaces.
                       </span>
