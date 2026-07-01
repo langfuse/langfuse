@@ -654,6 +654,7 @@ async function getObservationsFromEventsTableInternal<T>(
     .applyFilters(observationsFilter)
     .where(search)
     .when(orderByEntries.length > 0, (b) => b.orderByColumns(orderByEntries))
+    .when(opts.select === "rows", (b) => b.limitBy("e.span_id", "e.project_id"))
     .limit(limit, offset);
 
   const { query, params } = queryBuilder.buildWithParams();

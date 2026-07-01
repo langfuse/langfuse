@@ -2214,6 +2214,38 @@ describe("Clickhouse Events Repository Test", () => {
         usagePricingTierName: "Enterprise",
       });
     });
+
+    it("should deduplicate observations with the same span_id", async () => {
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      const baseEvent = createEvent({
+        id: spanId,
+        span_id: spanId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "SPAN",
+        name: "dedup-test-v1",
+      });
+
+      const updatedEvent = {
+        ...baseEvent,
+        name: "dedup-test-v2",
+        event_ts: baseEvent.event_ts + 1_000_000,
+      };
+
+      await createEventsCh([baseEvent, updatedEvent]);
+
+      const { observations, totalCount } =
+        await getObservationsForTraceFromEventsTable({
+          traceId,
+          projectId,
+        });
+
+      expect(totalCount).toBe(1);
+      expect(observations).toHaveLength(1);
+      expect(observations[0]!.id).toBe(spanId);
+    });
   });
 
   maybe("getObservationsFromEventsTableForPublicApi", () => {
