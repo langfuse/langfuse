@@ -77,33 +77,55 @@ export function getObservationLevels(
 }
 
 /**
- * Prepares observations for tree building.
- * Cleans orphaned parent references and sorts by startTime.
- * Returns flat array (nesting happens in buildDependencyGraph).
+ * Collapse observations sharing the same id to a single row per id, keeping the
+ * earliest by startTime (deterministic).
+ *
+ * The tree builder assumes observation ids are unique, but real traces can
+ * contain multiple rows with the same id (colliding / reused ids in ingested
+ * data, or un-merged event rows), and those rows may each carry a DIFFERENT
+ * parentObservationId. Left un-deduped, one node gets wired under several
+ * parents, turning the parent→child graph into a dense multi-parent DAG whose
+ * root→node path count is exponential; the depth-propagation BFS then grows its
+ * queue without bound and the trace crashes the client with "RangeError:
+ * Invalid array length" / out of memory.
+ *
+ * The trace detail panel resolves the selected row from this same observation
+ * list, so tree and panel MUST agree on which duplicate wins — hence a single
+ * shared de-dup used both here (via prepareObservations) and by TraceDataContext
+ * for the array the panel searches.
+ *
+ * Generic over the row shape so ObservationReturnType and the with-metadata
+ * variant used by the UI context share one implementation. Returns the input
+ * array unchanged (same reference) when all ids are already unique — a no-op for
+ * well-formed traces that also preserves referential identity for memoization.
  */
-function prepareObservations(list: ObservationReturnType[]): {
-  sortedObservations: ObservationReturnType[];
-} {
-  if (list.length === 0) return { sortedObservations: [] };
-
-  // Deduplicate by observation id. The tree builder assumes ids are unique, but
-  // real traces can contain multiple rows sharing the same id (colliding /
-  // reused ids in ingested data) — and those rows may each carry a DIFFERENT
-  // parentObservationId. Left un-deduped, one node gets wired under several
-  // parents, turning the parent→child graph into a dense multi-parent DAG whose
-  // root→node path count is exponential; the depth-propagation BFS below then
-  // grows its queue without bound, so loading such a trace crashed the client
-  // with "RangeError: Invalid array length" / out of memory. Collapse to one row
-  // per id (earliest by startTime, deterministic) so the structure stays a
-  // proper forest. No-op for well-formed traces (all ids already unique).
-  const byId = new Map<string, ObservationReturnType>();
+export function dedupeObservationsById<
+  T extends { id: string; startTime: Date },
+>(list: T[]): T[] {
+  const byId = new Map<string, T>();
   for (const o of list) {
     const existing = byId.get(o.id);
     if (!existing || o.startTime.getTime() < existing.startTime.getTime()) {
       byId.set(o.id, o);
     }
   }
-  const dedupedList = Array.from(byId.values());
+  return byId.size === list.length ? list : Array.from(byId.values());
+}
+
+/**
+ * Prepares observations for tree building.
+ * De-duplicates colliding ids, cleans orphaned parent references, sorts by
+ * startTime. Returns flat array (nesting happens in buildDependencyGraph).
+ */
+function prepareObservations(list: ObservationReturnType[]): {
+  sortedObservations: ObservationReturnType[];
+} {
+  if (list.length === 0) return { sortedObservations: [] };
+
+  // One row per id (earliest by startTime) so the parent→child graph stays a
+  // proper forest — see dedupeObservationsById for why duplicates crash the
+  // builder. No-op for well-formed traces.
+  const dedupedList = dedupeObservationsById(list);
 
   // Build a Set of all observation IDs for O(1) lookup
   const observationIds = new Set(dedupedList.map((o) => o.id));
