@@ -118,7 +118,10 @@ export class InAppAgentInstrumentation {
       parentMessageId?: string;
     }
   >();
-  private readonly toolCallApprovals = new Map<string, ToolCallApprovalStatus>();
+  private readonly toolCallApprovals = new Map<
+    string,
+    ToolCallApprovalStatus
+  >();
   private readonly metadata: Record<string, unknown>;
   private readonly agentRunOutputMessages: AgentRunChatMessage[] = [];
   private readonly agentRunToolCalls: AgentRunToolCall[] = [];

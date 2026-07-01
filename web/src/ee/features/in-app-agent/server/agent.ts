@@ -310,15 +310,15 @@ export async function createAgUiStream(params: {
       const completeManualToolApprovalRun = (
         runInput: ManualToolApprovalRunInput,
       ) => {
-          const terminalEvents = [
-            createRunStartedEvent(params.input),
-            ...runInput.syntheticEvents,
-          ];
+        const terminalEvents = [
+          createRunStartedEvent(params.input),
+          ...runInput.syntheticEvents,
+        ];
 
-          instrumentation?.recordToolCallApproval(runInput.toolCallApproval);
-          instrumentation?.recordEvents(terminalEvents);
-          for (const syntheticEvent of terminalEvents) {
-            enqueueEvent(syntheticEvent);
+        instrumentation?.recordToolCallApproval(runInput.toolCallApproval);
+        instrumentation?.recordEvents(terminalEvents);
+        for (const syntheticEvent of terminalEvents) {
+          enqueueEvent(syntheticEvent);
         }
 
         closeController(() => {
