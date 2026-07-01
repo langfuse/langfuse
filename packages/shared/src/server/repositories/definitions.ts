@@ -97,8 +97,8 @@ export type ObservationRecordInsertType = z.infer<
 export const observationBatchStagingRecordInsertSchema =
   observationRecordInsertSchema.extend({
     ingestion_api_key: z.string().optional(),
-    ingestion_sdk_name: z.string().optional(),
-    ingestion_sdk_version: z.string().optional(),
+    langfuse_sdk_name: z.string().optional(),
+    langfuse_sdk_version: z.string().optional(),
     s3_first_seen_timestamp: z.number(),
   });
 export type ObservationBatchStagingRecordInsertType = z.infer<
@@ -231,8 +231,8 @@ export const scoreRecordBaseSchema = z.object({
   queue_id: z.string().nullish(),
   execution_trace_id: z.string().nullish(),
   ingestion_api_key: z.string().optional(),
-  ingestion_sdk_name: z.string().optional(),
-  ingestion_sdk_version: z.string().optional(),
+  langfuse_sdk_name: z.string().optional(),
+  langfuse_sdk_version: z.string().optional(),
   is_deleted: z.number(),
 });
 
@@ -716,8 +716,8 @@ export const eventRecordBaseSchema = z.object({
   // Source metadata (Instrumentation)
   source: z.string(),
   ingestion_api_key: z.string().optional(),
-  ingestion_sdk_name: z.string().optional(),
-  ingestion_sdk_version: z.string().optional(),
+  langfuse_sdk_name: z.string().optional(),
+  langfuse_sdk_version: z.string().optional(),
   service_name: z.string().nullish(),
   service_version: z.string().nullish(),
   scope_name: z.string().nullish(),

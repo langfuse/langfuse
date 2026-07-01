@@ -20,8 +20,8 @@ const postIngestion = (body: unknown, customHeaders?: Record<string, string>) =>
 
 type IngestionAttributionRow = {
   ingestion_api_key: string;
-  ingestion_sdk_name: string;
-  ingestion_sdk_version: string;
+  langfuse_sdk_name: string;
+  langfuse_sdk_version: string;
 };
 
 const getIngestionAttribution = async (table: "scores", id: string) => {
@@ -29,8 +29,8 @@ const getIngestionAttribution = async (table: "scores", id: string) => {
     query: `
       SELECT
         ingestion_api_key,
-        ingestion_sdk_name,
-        ingestion_sdk_version
+        langfuse_sdk_name,
+        langfuse_sdk_version
       FROM ${table}
       WHERE project_id = {projectId: String}
         AND id = {id: String}
@@ -550,8 +550,8 @@ describe("/api/public/ingestion API Endpoint", () => {
 
       expect(await getIngestionAttribution("scores", scoreId)).toEqual({
         ingestion_api_key: publicKey,
-        ingestion_sdk_name: "python",
-        ingestion_sdk_version: "3.4.0",
+        langfuse_sdk_name: "python",
+        langfuse_sdk_version: "3.4.0",
       });
     }, 15_000);
   }, 20_000);
