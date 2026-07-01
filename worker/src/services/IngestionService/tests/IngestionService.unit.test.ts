@@ -97,7 +97,7 @@ describe("IngestionService unit tests", () => {
     });
   });
 
-  it("adds ingestion attribution to observation records", async () => {
+  it("adds ingestion attribution to observation staging records only", async () => {
     const addToQueue = vi.fn();
     const ingestionService = new IngestionService(
       {} as any,
@@ -133,7 +133,7 @@ describe("IngestionService unit tests", () => {
       entityId: "observation-id",
       createdAtTimestamp: new Date(timestamp),
       observationEventList,
-      writeToStagingTables: false,
+      writeToStagingTables: true,
       attribution: {
         ingestionApiKey: "pk-lf-public",
         ingestionSdkName: "python",
@@ -144,15 +144,21 @@ describe("IngestionService unit tests", () => {
     const observationRecord = addToQueue.mock.calls.find(
       ([table]) => table === TableName.Observations,
     )?.[1];
+    const stagingRecord = addToQueue.mock.calls.find(
+      ([table]) => table === TableName.ObservationsBatchStaging,
+    )?.[1];
 
-    expect(observationRecord).toMatchObject({
+    expect(observationRecord).not.toHaveProperty("ingestion_api_key");
+    expect(observationRecord).not.toHaveProperty("ingestion_sdk_name");
+    expect(observationRecord).not.toHaveProperty("ingestion_sdk_version");
+    expect(stagingRecord).toMatchObject({
       ingestion_api_key: "pk-lf-public",
       ingestion_sdk_name: "python",
       ingestion_sdk_version: "3.4.0",
     });
   });
 
-  it("preserves existing observation SDK attribution when incoming attribution lacks SDK headers", async () => {
+  it("does not assign empty SDK attribution to observation staging records", async () => {
     const addToQueue = vi.fn();
     const ingestionService = new IngestionService(
       {} as any,
@@ -166,9 +172,6 @@ describe("IngestionService unit tests", () => {
       trace_id: "trace-id",
       project_id: "project-id",
       start_time: new Date(timestamp).getTime(),
-      ingestion_api_key: "pk-lf-original",
-      ingestion_sdk_name: "python",
-      ingestion_sdk_version: "3.4.0",
     });
     const observationEventList: ObservationEvent[] = [
       {
@@ -198,7 +201,7 @@ describe("IngestionService unit tests", () => {
       entityId: "observation-id",
       createdAtTimestamp: new Date(timestamp),
       observationEventList,
-      writeToStagingTables: false,
+      writeToStagingTables: true,
       attribution: {
         ingestionApiKey: "pk-lf-update",
         ingestionSdkName: "",
@@ -209,12 +212,18 @@ describe("IngestionService unit tests", () => {
     const observationRecord = addToQueue.mock.calls.find(
       ([table]) => table === TableName.Observations,
     )?.[1];
+    const stagingRecord = addToQueue.mock.calls.find(
+      ([table]) => table === TableName.ObservationsBatchStaging,
+    )?.[1];
 
-    expect(observationRecord).toMatchObject({
+    expect(observationRecord).not.toHaveProperty("ingestion_api_key");
+    expect(observationRecord).not.toHaveProperty("ingestion_sdk_name");
+    expect(observationRecord).not.toHaveProperty("ingestion_sdk_version");
+    expect(stagingRecord).toMatchObject({
       ingestion_api_key: "pk-lf-update",
-      ingestion_sdk_name: "python",
-      ingestion_sdk_version: "3.4.0",
     });
+    expect(stagingRecord).not.toHaveProperty("ingestion_sdk_name");
+    expect(stagingRecord).not.toHaveProperty("ingestion_sdk_version");
   });
 
   it("preserves existing score SDK attribution when incoming attribution lacks SDK headers", async () => {

@@ -325,8 +325,10 @@ export const ingestionQueueProcessorBuilder = (
         canonicalEntityId,
         firstS3WriteTime,
         events,
-        forwardToEventsTable,
-        attribution,
+        {
+          forwardToEventsTable,
+          attribution,
+        },
       );
     } catch (e) {
       // Check if this is a SlowDown error and mark the project for secondary queue

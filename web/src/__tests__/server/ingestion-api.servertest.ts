@@ -24,10 +24,7 @@ type IngestionAttributionRow = {
   ingestion_sdk_version: string;
 };
 
-const getIngestionAttribution = async (
-  table: "observations" | "scores",
-  id: string,
-) => {
+const getIngestionAttribution = async (table: "scores", id: string) => {
   const result = await clickhouseClient().query({
     query: `
       SELECT
@@ -494,7 +491,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     },
   );
 
-  it("should persist ingestion attribution for observations and scores", async () => {
+  it("should persist ingestion attribution for scores", async () => {
     const timestamp = new Date().toISOString();
     const traceId = randomUUID();
     const observationId = randomUUID();
@@ -551,13 +548,6 @@ describe("/api/public/ingestion API Endpoint", () => {
       });
       expect(score).toBeDefined();
 
-      expect(
-        await getIngestionAttribution("observations", observationId),
-      ).toEqual({
-        ingestion_api_key: publicKey,
-        ingestion_sdk_name: "python",
-        ingestion_sdk_version: "3.4.0",
-      });
       expect(await getIngestionAttribution("scores", scoreId)).toEqual({
         ingestion_api_key: publicKey,
         ingestion_sdk_name: "python",

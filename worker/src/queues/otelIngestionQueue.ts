@@ -305,7 +305,7 @@ export const otelIngestionQueueProcessorBuilder = (
       // Generate events via OtelIngestionProcessor
       const processor = new OtelIngestionProcessor({
         projectId,
-        publicKey,
+        publicKey: attribution.ingestionApiKey,
         sdkName: attribution.ingestionSdkName,
         sdkVersion: attribution.ingestionSdkVersion,
         ingestionVersion: job.data.payload.ingestionVersion,
@@ -450,8 +450,10 @@ export const otelIngestionQueueProcessorBuilder = (
               observation.body.id || "", // id is always defined for observations
               new Date(), // Use the current timestamp as event time
               [observation],
-              shouldForwardToEventsTable,
-              attribution,
+              {
+                forwardToEventsTable: shouldForwardToEventsTable,
+                attribution,
+              },
             ),
           ),
         );

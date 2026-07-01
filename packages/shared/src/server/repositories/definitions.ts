@@ -54,9 +54,6 @@ export const observationRecordBaseSchema = z.object({
   prompt_id: z.string().nullish(),
   prompt_name: z.string().nullish(),
   prompt_version: z.number().nullish(),
-  ingestion_api_key: z.string().optional(),
-  ingestion_sdk_name: z.string().optional(),
-  ingestion_sdk_version: z.string().optional(),
   tool_definitions: z.record(z.string(), z.string()).optional(),
   tool_calls: z.array(z.string()).optional(),
   tool_call_names: z.array(z.string()).optional(),
@@ -99,6 +96,9 @@ export type ObservationRecordInsertType = z.infer<
 
 export const observationBatchStagingRecordInsertSchema =
   observationRecordInsertSchema.extend({
+    ingestion_api_key: z.string().optional(),
+    ingestion_sdk_name: z.string().optional(),
+    ingestion_sdk_version: z.string().optional(),
     s3_first_seen_timestamp: z.number(),
   });
 export type ObservationBatchStagingRecordInsertType = z.infer<

@@ -88,6 +88,10 @@ type IngestionAttributionRecordFields = {
   ingestion_sdk_name?: string;
   ingestion_sdk_version?: string;
 };
+type MergeAndWriteOptions = {
+  forwardToEventsTable: boolean;
+  attribution?: Partial<IngestionAttribution>;
+};
 
 const getNonEmptyIngestionAttributionRecordFields = (
   attribution?: Partial<IngestionAttribution>,
@@ -178,12 +182,12 @@ export class IngestionService {
     entityId: string,
     createdAtTimestamp: Date,
     events: IngestionEventType[],
-    forwardToEventsTable: boolean,
-    attribution?: Partial<IngestionAttribution>,
+    options: MergeAndWriteOptions,
   ): Promise<void> {
     logger.debug(
       `Merging ingestion ${eventType} event for project ${projectId} and event ${entityId}`,
     );
+    const { forwardToEventsTable, attribution } = options;
 
     switch (eventType) {
       case "trace":
@@ -895,11 +899,16 @@ export class IngestionService {
       projectId,
       observationRecord: mergedObservationRecord,
     });
-    const finalObservationRecord = {
+    const observationRecordWithPossibleLegacyAttribution = {
       ...mergedObservationRecord,
       ...generationUsage,
-      ...getNonEmptyIngestionAttributionRecordFields(attribution),
-    };
+    } as ObservationRecordInsertType & IngestionAttributionRecordFields;
+    const {
+      ingestion_api_key: _legacyIngestionApiKey,
+      ingestion_sdk_name: _legacyIngestionSdkName,
+      ingestion_sdk_version: _legacyIngestionSdkVersion,
+      ...finalObservationRecord
+    } = observationRecordWithPossibleLegacyAttribution;
 
     // Backward compat: create wrapper trace for SDK < 2.0.0 events that do not have a traceId
     if (!finalObservationRecord.trace_id) {
@@ -937,6 +946,7 @@ export class IngestionService {
     if (writeToStagingTables) {
       const stagingRecord = {
         ...finalObservationRecord,
+        ...getNonEmptyIngestionAttributionRecordFields(attribution),
         s3_first_seen_timestamp:
           this.getPartitionAwareTimestamp(createdAtTimestamp),
       };
