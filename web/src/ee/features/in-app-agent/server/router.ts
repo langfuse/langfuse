@@ -23,6 +23,7 @@ import {
   protectedProjectProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
 import {
+  getConversationMessagesForDisplay,
   getConversationMessages,
   getOwnedConversationOrThrow,
   serializeConversation,
@@ -110,7 +111,7 @@ export const inAppAgentRouter = createTRPCRouter({
         userId: ctx.session.user.id,
       });
 
-      const messages = await getConversationMessages({
+      const messages = await getConversationMessagesForDisplay({
         prisma: ctx.prisma,
         projectId: input.projectId,
         conversationId: input.conversationId,
@@ -125,6 +126,33 @@ export const inAppAgentRouter = createTRPCRouter({
           conversationId: input.conversationId,
         },
       };
+    }),
+
+  deleteConversation: protectedProjectProcedureWithoutTracing
+    .input(ConversationIdInput)
+    .mutation(async ({ ctx, input }) => {
+      await assertInAppAgentAvailable({ ctx, projectId: input.projectId });
+
+      await getOwnedConversationOrThrow({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        conversationId: input.conversationId,
+        userId: ctx.session.user.id,
+      });
+
+      await ctx.prisma.inAppAgentConversation.update({
+        where: {
+          id_projectId: {
+            id: input.conversationId,
+            projectId: input.projectId,
+          },
+        },
+        data: {
+          deletedAt: new Date(),
+        },
+      });
+
+      return { success: true };
     }),
 
   submitFeedback: protectedProjectProcedureWithoutTracing

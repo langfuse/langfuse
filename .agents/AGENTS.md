@@ -26,8 +26,14 @@ evaluating, and debugging AI applications.
   cross-view extension playbook — the bar is intended to become the primary
   filter interface for every filterable view, so new filtering work extends it
   through that contract rather than forking it.
+- When adding or modifying any chart, dashboard, or chart formatter, read
+  `web/src/features/widgets/chart-library/ARCHITECTURE.md` first — the charts
+  manifesto. It owns the data → preparer → visualiser contract: presentation
+  decisions live in the preparer, not the chart components.
 - Do not add or widen ESLint disable comments or config overrides
   without explicit user approval for the exact rule and scope.
+- Always quote file paths in shell commands, or use `noglob` for path-heavy
+  commands, to avoid zsh glob expansion issues with dynamic Next.js routes.
 - Never commit secrets or credentials. Keep `.env*.example` files in
   sync with required env vars.
 

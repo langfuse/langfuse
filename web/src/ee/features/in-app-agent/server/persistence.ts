@@ -293,6 +293,15 @@ export async function getConversationMessages(params: {
   return getMessagesFromPersistedEvents(await getConversationEvents(params));
 }
 
+export async function getConversationMessagesForDisplay(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+}) {
+  const messages = await getConversationMessages(params);
+  return dropEmptyAssistantMessages(dropUnpairedAssistantToolCalls(messages));
+}
+
 export async function getConversationMessagesForReplay(params: {
   prisma: PrismaClient;
   projectId: string;
