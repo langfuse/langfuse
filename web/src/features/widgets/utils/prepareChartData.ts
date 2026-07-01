@@ -1,5 +1,5 @@
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
-import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
+import { type QueryType } from "@langfuse/shared/query";
 import {
   type ChartDrilldown,
   type DataPoint,
@@ -23,7 +23,6 @@ type PrepareWidgetChartDataParams = {
   rows: Array<Record<string, unknown>> | undefined;
   projectId: string;
   query: QueryType;
-  version: ViewVersion;
   chartType: DashboardWidgetChartType;
   metrics: WidgetMetricConfig[];
   dimensions: WidgetDimensionConfig[];

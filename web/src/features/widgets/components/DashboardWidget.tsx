@@ -254,20 +254,12 @@ export function DashboardWidget({
       rows: queryResult.data as Array<Record<string, unknown>>,
       projectId,
       query: widgetQuery,
-      version: metricsVersion,
       chartType: widget.data.chartType,
       metrics: widget.data.metrics,
       dimensions: widget.data.dimensions,
       isV4Enabled: isBetaEnabled,
     });
-  }, [
-    queryResult.data,
-    widget.data,
-    projectId,
-    widgetQuery,
-    metricsVersion,
-    isBetaEnabled,
-  ]);
+  }, [queryResult.data, widget.data, projectId, widgetQuery, isBetaEnabled]);
 
   const chartPresentation = useMemo(() => {
     if (!widget.data) {

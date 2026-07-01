@@ -132,15 +132,12 @@ const getV4TracesFilterColumn = (
   }
 };
 
-const isSupportedScoreField = (view: QueryView, field: string) =>
-  (view === "scores-numeric" || view === "scores-categorical") &&
-  !SCORE_SPECIFIC_FIELDS.has(field);
-
 const isSupportedField = (view: QueryView, field: string) => {
+  const hasV4Column = getV4TracesFilterColumn(view, field) !== null;
   if (view === "scores-numeric" || view === "scores-categorical") {
-    return isSupportedScoreField(view, field);
+    return hasV4Column && !SCORE_SPECIFIC_FIELDS.has(field);
   }
-  return getV4TracesFilterColumn(view, field) !== null;
+  return hasV4Column;
 };
 
 const getEventColumn = (columnId: string) => EVENT_COLUMN_BY_ID.get(columnId);

@@ -96,6 +96,27 @@ describe("buildV4TracesChartDrilldownPath", () => {
     ]);
   });
 
+  it("maps supported score observation fields to v4 observation columns", () => {
+    const path = buildV4TracesChartDrilldownPath({
+      projectId: PROJECT_ID,
+      query: query({ view: "scores-numeric" }),
+      mark: {
+        type: "dimension",
+        field: "observationName",
+        value: "generation",
+      },
+    });
+
+    expect(filtersOf(path!)).toEqual([
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["generation"],
+      },
+    ]);
+  });
+
   it("omits drilldowns when a base filter cannot be represented on the v4 table", () => {
     const path = buildV4TracesChartDrilldownPath({
       projectId: PROJECT_ID,
@@ -110,6 +131,34 @@ describe("buildV4TracesChartDrilldownPath", () => {
         ],
       }),
       mark: { type: "base" },
+    });
+
+    expect(path).toBeNull();
+  });
+
+  it("omits time-series drilldowns when the clicked series cannot be represented", () => {
+    const path = buildV4TracesChartDrilldownPath({
+      projectId: PROJECT_ID,
+      query: query({ timeDimension: { granularity: "auto" } }),
+      mark: {
+        type: "timeSeries",
+        bucketStart: "2024-01-01T01:00:00.000Z",
+        dimension: { field: "release", value: "2024.01" },
+      },
+    });
+
+    expect(path).toBeNull();
+  });
+
+  it("omits score fields without a known v4 traces mapping", () => {
+    const path = buildV4TracesChartDrilldownPath({
+      projectId: PROJECT_ID,
+      query: query({ view: "scores-numeric" }),
+      mark: {
+        type: "dimension",
+        field: "unknownScoreField",
+        value: "unmapped",
+      },
     });
 
     expect(path).toBeNull();
