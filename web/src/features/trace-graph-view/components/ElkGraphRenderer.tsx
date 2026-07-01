@@ -119,6 +119,10 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     setLayout(null);
     setFitted(false);
     userControlledRef.current = false;
+    // Also clear cross-graph view state so a graph change re-focuses the
+    // selected node on the new instance and drops stale hover highlighting.
+    prevSelectedRef.current = null;
+    setHoveredId(null);
     computeGraphLayout(graph, nodeToObservationsMap)
       .then((result) => {
         if (!cancelled) setLayout(result);
