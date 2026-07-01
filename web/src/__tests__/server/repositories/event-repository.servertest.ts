@@ -3373,5 +3373,63 @@ describe("Clickhouse Events Repository Test", () => {
       expect(options.scores_avg).toContain(observationScoreName);
       expect(options.trace_scores_avg).not.toContain(observationScoreName);
     });
+
+    it("offers a trace-level categorical score under trace_score_categories, not score_categories", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+      const observationId = randomUUID();
+      const traceCategoryName = `hallucination-check-${randomUUID()}`;
+      const observationCategoryName = `answer-relevancy-${randomUUID()}`;
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "Help Assistant",
+        }),
+      ]);
+
+      await createScoresCh([
+        // Trace-level categorical (observation_id NULL) -> trace_score_categories only.
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: null,
+          name: traceCategoryName,
+          value: 0,
+          string_value: "faithful",
+          data_type: "CATEGORICAL",
+        }),
+        // Observation-level categorical -> score_categories only.
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: observationId,
+          name: observationCategoryName,
+          value: 0,
+          string_value: "relevant",
+          data_type: "CATEGORICAL",
+        }),
+      ]);
+
+      const options = await getEventFilterOptions({
+        projectId: uniqueProjectId,
+      });
+
+      const scoreCategoryLabels = options.score_categories.map((c) => c.label);
+      const traceScoreCategoryLabels = options.trace_score_categories.map(
+        (c) => c.label,
+      );
+
+      expect(traceScoreCategoryLabels).toContain(traceCategoryName);
+      expect(scoreCategoryLabels).not.toContain(traceCategoryName);
+
+      expect(scoreCategoryLabels).toContain(observationCategoryName);
+      expect(traceScoreCategoryLabels).not.toContain(observationCategoryName);
+    });
   });
 });
