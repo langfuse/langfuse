@@ -85,8 +85,8 @@ type InsertRecord =
 export type EventInput = InternalTraceEventInput;
 type IngestionAttributionRecordFields = {
   ingestion_api_key?: string;
-  langfuse_sdk_name?: string;
-  langfuse_sdk_version?: string;
+  ingestion_sdk_name?: string;
+  ingestion_sdk_version?: string;
 };
 type MergeAndWriteOptions = {
   forwardToEventsTable: boolean;
@@ -103,11 +103,11 @@ const getNonEmptyIngestionAttributionRecordFields = (
   }
 
   if (attribution?.ingestionSdkName) {
-    fields.langfuse_sdk_name = attribution.ingestionSdkName;
+    fields.ingestion_sdk_name = attribution.ingestionSdkName;
   }
 
   if (attribution?.ingestionSdkVersion) {
-    fields.langfuse_sdk_version = attribution.ingestionSdkVersion;
+    fields.ingestion_sdk_version = attribution.ingestionSdkVersion;
   }
 
   return fields;
@@ -380,8 +380,8 @@ export class IngestionService {
       // Source/instrumentation metadata
       source: eventData.source,
       ingestion_api_key: eventData.ingestionApiKey ?? "",
-      langfuse_sdk_name: eventData.ingestionSdkName ?? "",
-      langfuse_sdk_version: eventData.ingestionSdkVersion ?? "",
+      ingestion_sdk_name: eventData.ingestionSdkName ?? "",
+      ingestion_sdk_version: eventData.ingestionSdkVersion ?? "",
       service_name: eventData.serviceName,
       service_version: eventData.serviceVersion,
       scope_name: eventData.scopeName,
@@ -905,8 +905,8 @@ export class IngestionService {
     } as ObservationRecordInsertType & IngestionAttributionRecordFields;
     const {
       ingestion_api_key: _legacyIngestionApiKey,
-      langfuse_sdk_name: _legacyLangfuseSdkName,
-      langfuse_sdk_version: _legacyLangfuseSdkVersion,
+      ingestion_sdk_name: _legacyIngestionSdkName,
+      ingestion_sdk_version: _legacyIngestionSdkVersion,
       ...finalObservationRecord
     } = observationRecordWithPossibleLegacyAttribution;
 

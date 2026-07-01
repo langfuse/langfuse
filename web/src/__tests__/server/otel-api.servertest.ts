@@ -12,8 +12,8 @@ const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 type IngestionAttributionRow = {
   ingestion_api_key: string;
-  langfuse_sdk_name: string;
-  langfuse_sdk_version: string;
+  ingestion_sdk_name: string;
+  ingestion_sdk_version: string;
 };
 
 const getEventsAttribution = async (
@@ -24,8 +24,8 @@ const getEventsAttribution = async (
     query: `
       SELECT
         ingestion_api_key,
-        langfuse_sdk_name,
-        langfuse_sdk_version
+        ingestion_sdk_name,
+        ingestion_sdk_version
       FROM ${table}
       WHERE project_id = {projectId: String}
         AND span_id = {spanId: String}
@@ -454,8 +454,8 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
 
       const expectedAttribution = {
         ingestion_api_key: "pk-lf-1234567890",
-        langfuse_sdk_name: "python",
-        langfuse_sdk_version: "4.0.0",
+        ingestion_sdk_name: "python",
+        ingestion_sdk_version: "4.0.0",
       };
       if (!hasEventsTables) return;
 

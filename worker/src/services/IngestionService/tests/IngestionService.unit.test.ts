@@ -149,12 +149,12 @@ describe("IngestionService unit tests", () => {
     )?.[1];
 
     expect(observationRecord).not.toHaveProperty("ingestion_api_key");
-    expect(observationRecord).not.toHaveProperty("langfuse_sdk_name");
-    expect(observationRecord).not.toHaveProperty("langfuse_sdk_version");
+    expect(observationRecord).not.toHaveProperty("ingestion_sdk_name");
+    expect(observationRecord).not.toHaveProperty("ingestion_sdk_version");
     expect(stagingRecord).toMatchObject({
       ingestion_api_key: "pk-lf-public",
-      langfuse_sdk_name: "python",
-      langfuse_sdk_version: "3.4.0",
+      ingestion_sdk_name: "python",
+      ingestion_sdk_version: "3.4.0",
     });
   });
 
@@ -217,13 +217,13 @@ describe("IngestionService unit tests", () => {
     )?.[1];
 
     expect(observationRecord).not.toHaveProperty("ingestion_api_key");
-    expect(observationRecord).not.toHaveProperty("langfuse_sdk_name");
-    expect(observationRecord).not.toHaveProperty("langfuse_sdk_version");
+    expect(observationRecord).not.toHaveProperty("ingestion_sdk_name");
+    expect(observationRecord).not.toHaveProperty("ingestion_sdk_version");
     expect(stagingRecord).toMatchObject({
       ingestion_api_key: "pk-lf-update",
     });
-    expect(stagingRecord).not.toHaveProperty("langfuse_sdk_name");
-    expect(stagingRecord).not.toHaveProperty("langfuse_sdk_version");
+    expect(stagingRecord).not.toHaveProperty("ingestion_sdk_name");
+    expect(stagingRecord).not.toHaveProperty("ingestion_sdk_version");
   });
 
   it("preserves existing score SDK attribution when incoming attribution lacks SDK headers", async () => {
@@ -241,8 +241,8 @@ describe("IngestionService unit tests", () => {
       trace_id: "trace-id",
       timestamp: new Date(timestamp).getTime(),
       ingestion_api_key: "pk-lf-original",
-      langfuse_sdk_name: "python",
-      langfuse_sdk_version: "3.4.0",
+      ingestion_sdk_name: "python",
+      ingestion_sdk_version: "3.4.0",
     });
     const scoreEventList: ScoreEventType[] = [
       {
@@ -283,8 +283,8 @@ describe("IngestionService unit tests", () => {
 
     expect(scoreRecord).toMatchObject({
       ingestion_api_key: "pk-lf-update",
-      langfuse_sdk_name: "python",
-      langfuse_sdk_version: "3.4.0",
+      ingestion_sdk_name: "python",
+      ingestion_sdk_version: "3.4.0",
     });
   });
 
@@ -341,8 +341,8 @@ describe("IngestionService unit tests", () => {
     expect(stagingRecord).toMatchObject({
       ingestion_api_key: "pk-lf-update",
     });
-    expect(stagingRecord).not.toHaveProperty("langfuse_sdk_name");
-    expect(stagingRecord).not.toHaveProperty("langfuse_sdk_version");
+    expect(stagingRecord).not.toHaveProperty("ingestion_sdk_name");
+    expect(stagingRecord).not.toHaveProperty("ingestion_sdk_version");
   });
 
   it("adds ingestion attribution to events records", async () => {
@@ -373,8 +373,8 @@ describe("IngestionService unit tests", () => {
 
     expect(eventRecord).toMatchObject({
       ingestion_api_key: "pk-lf-public",
-      langfuse_sdk_name: "python",
-      langfuse_sdk_version: "3.4.0",
+      ingestion_sdk_name: "python",
+      ingestion_sdk_version: "3.4.0",
     });
   });
 });

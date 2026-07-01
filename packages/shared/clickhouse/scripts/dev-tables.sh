@@ -573,11 +573,11 @@ ALTER TABLE observations_batch_staging
   SETTINGS enable_full_text_index = 1;
 
 ALTER TABLE observations_batch_staging
-  ADD COLUMN IF NOT EXISTS langfuse_sdk_name LowCardinality(String) DEFAULT ''
+  ADD COLUMN IF NOT EXISTS ingestion_sdk_name LowCardinality(String) DEFAULT ''
   SETTINGS enable_full_text_index = 1;
 
 ALTER TABLE observations_batch_staging
-  ADD COLUMN IF NOT EXISTS langfuse_sdk_version LowCardinality(String) DEFAULT ''
+  ADD COLUMN IF NOT EXISTS ingestion_sdk_version LowCardinality(String) DEFAULT ''
   SETTINGS enable_full_text_index = 1;
 
 ALTER TABLE events_full
@@ -585,11 +585,11 @@ ALTER TABLE events_full
   SETTINGS enable_full_text_index = 1;
 
 ALTER TABLE events_full
-  ADD COLUMN IF NOT EXISTS langfuse_sdk_name LowCardinality(String) DEFAULT ''
+  ADD COLUMN IF NOT EXISTS ingestion_sdk_name LowCardinality(String) DEFAULT ''
   SETTINGS enable_full_text_index = 1;
 
 ALTER TABLE events_full
-  ADD COLUMN IF NOT EXISTS langfuse_sdk_version LowCardinality(String) DEFAULT ''
+  ADD COLUMN IF NOT EXISTS ingestion_sdk_version LowCardinality(String) DEFAULT ''
   SETTINGS enable_full_text_index = 1;
 
 ALTER TABLE events_core
@@ -597,11 +597,11 @@ ALTER TABLE events_core
   SETTINGS enable_full_text_index = 1;
 
 ALTER TABLE events_core
-  ADD COLUMN IF NOT EXISTS langfuse_sdk_name LowCardinality(String) DEFAULT ''
+  ADD COLUMN IF NOT EXISTS ingestion_sdk_name LowCardinality(String) DEFAULT ''
   SETTINGS enable_full_text_index = 1;
 
 ALTER TABLE events_core
-  ADD COLUMN IF NOT EXISTS langfuse_sdk_version LowCardinality(String) DEFAULT ''
+  ADD COLUMN IF NOT EXISTS ingestion_sdk_version LowCardinality(String) DEFAULT ''
   SETTINGS enable_full_text_index = 1;
 
 -- Update events MV
@@ -661,8 +661,8 @@ SELECT
     experiment_item_root_span_id,
     source,
     ingestion_api_key,
-    langfuse_sdk_name,
-    langfuse_sdk_version,
+    ingestion_sdk_name,
+    ingestion_sdk_version,
     service_name,
     service_version,
     scope_name,
@@ -707,7 +707,7 @@ clickhouse client \
                       experiment_metadata_names, experiment_metadata_values,
                       experiment_item_metadata_names, experiment_item_metadata_values,
                       experiment_item_root_span_id,
-                      source, ingestion_api_key, langfuse_sdk_name, langfuse_sdk_version, blob_storage_file_path, event_bytes,
+                      source, ingestion_api_key, ingestion_sdk_name, ingestion_sdk_version, blob_storage_file_path, event_bytes,
                       created_at, updated_at, event_ts, is_deleted)
   SELECT o.project_id,
          o.trace_id,
@@ -764,8 +764,8 @@ clickhouse client \
          if(dri.dataset_run_id != '', o.id, '')                                          AS experiment_item_root_span_id,
          multiIf(dri.dataset_run_id != '', 'ingestion-api-dual-write-experiments', mapContains(o.metadata, 'resourceAttributes'), 'otel-dual-write', 'ingestion-api-dual-write') AS source,
          ''                                                                              AS ingestion_api_key,
-         ''                                                                              AS langfuse_sdk_name,
-         ''                                                                              AS langfuse_sdk_version,
+         ''                                                                              AS ingestion_sdk_name,
+         ''                                                                              AS ingestion_sdk_version,
          ''                                                                              AS blob_storage_file_path,
          byteSize(*)                                                                     AS event_bytes,
          o.created_at,
@@ -792,7 +792,7 @@ clickhouse client \
                       experiment_metadata_names, experiment_metadata_values,
                       experiment_item_metadata_names, experiment_item_metadata_values,
                       experiment_item_root_span_id,
-                      source, ingestion_api_key, langfuse_sdk_name, langfuse_sdk_version, blob_storage_file_path, event_bytes,
+                      source, ingestion_api_key, ingestion_sdk_name, ingestion_sdk_version, blob_storage_file_path, event_bytes,
                       created_at, updated_at, event_ts, is_deleted)
   SELECT t.project_id,
          t.id,
@@ -838,8 +838,8 @@ clickhouse client \
          if(dri.dataset_run_id != '', concat('t-', t.id), '')                            AS experiment_item_root_span_id,
          multiIf(dri.dataset_run_id != '', 'ingestion-api-dual-write-experiments', mapContains(t.metadata, 'resourceAttributes'), 'otel-dual-write', 'ingestion-api-dual-write') AS source,
          ''                                                                              AS ingestion_api_key,
-         ''                                                                              AS langfuse_sdk_name,
-         ''                                                                              AS langfuse_sdk_version,
+         ''                                                                              AS ingestion_sdk_name,
+         ''                                                                              AS ingestion_sdk_version,
          ''                                                                              AS blob_storage_file_path,
          byteSize(*)                                                                     AS event_bytes,
          t.created_at,
