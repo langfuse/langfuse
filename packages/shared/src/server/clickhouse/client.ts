@@ -12,10 +12,6 @@ import { propagation, context, trace } from "@opentelemetry/api";
 import { ClickHouseLogger, mapLogLevel } from "./clickhouse-logger";
 import { getClickHouseCompatibilitySettings } from "./compatibility";
 
-// Re-exported from the client's bundled common utils. As of @clickhouse/client
-// 1.23.x this constant is no longer surfaced on the package root (nor via a
-// separately installed @clickhouse/client-common), so we centralize the deep
-// import here and let consumers pull it from this module. See LFE-10463.
 export { EXCEPTION_TAG_HEADER_NAME } from "@clickhouse/client/dist/common";
 
 export type ClickhouseClientType = ReturnType<typeof createClient>;
@@ -55,25 +51,9 @@ const noopClickhouseSpan: ClickHouseSpan = {
 
 /**
  * Builds the tracer passed to the ClickHouse client so that each tracked
- * operation (query/command/exec/insert/ping) is emitted as an OTEL span. This
- * wires up the client's built-in, zero-dependency `tracer` hook documented at
- * https://github.com/ClickHouse/clickhouse-js/blob/1.23.0/docs/howto/tracing.md
- *
- * A raw OTEL tracer is structurally assignable to `ClickHouseTracer`, but we
- * wrap it with the upstream "requireParentSpan" recipe so operations running
- * outside a traced request (background jobs with no active span, health-check
- * pings) don't mint new root traces. This mirrors `requireParentforOutgoingSpans`
- * in our HTTP instrumentation and keeps trace volume/cost bounded.
- * https://github.com/ClickHouse/clickhouse-js/blob/1.22.0/examples/node/coding/otel_tracing.ts
- *
- * Returns undefined when disabled, in which case the client falls back to its
- * internal no-op tracer and we keep the legacy static traceparent injection.
+ * operation (query/command/exec/insert/ping) is emitted as an OTEL span.
  */
 const getClickhouseTracer = (): ClickHouseTracer | undefined => {
-  if (env.CLICKHOUSE_TRACING_ENABLED !== "true") {
-    return undefined;
-  }
-
   const tracer = trace.getTracer(CLICKHOUSE_TRACER_NAME);
   return {
     startActiveSpan: (name, options, fn) =>

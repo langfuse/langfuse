@@ -19,7 +19,6 @@ const mocks = vi.hoisted(() => ({
     CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE: "alter_update",
     CLICKHOUSE_UPDATE_PARALLEL_MODE: "auto",
     CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: "auto",
-    CLICKHOUSE_TRACING_ENABLED: "false",
     LANGFUSE_LOG_LEVEL: "error",
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
   },
@@ -46,7 +45,6 @@ describe("ClickHouseClientManager compatibility settings", () => {
     mocks.createClient.mockReset();
     mocks.createClient.mockReturnValue({ close: mocks.close });
     mocks.env.CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION = "auto";
-    mocks.env.CLICKHOUSE_TRACING_ENABLED = "false";
     setClickHouseCompatibilityVersionForTests(null);
   });
 
@@ -94,22 +92,10 @@ describe("ClickHouseClientManager tracing", () => {
     mocks.close.mockClear();
     mocks.createClient.mockReset();
     mocks.createClient.mockReturnValue({ close: mocks.close });
-    mocks.env.CLICKHOUSE_TRACING_ENABLED = "false";
     setClickHouseCompatibilityVersionForTests(null);
   });
 
-  it("passes no tracer when tracing is disabled", () => {
-    mocks.env.CLICKHOUSE_TRACING_ENABLED = "false";
-
-    clickhouseClient();
-
-    expect(mocks.createClient).toHaveBeenCalledTimes(1);
-    expect(mocks.createClient.mock.calls[0][0].tracer).toBeUndefined();
-  });
-
   it("passes a tracer when tracing is enabled", () => {
-    mocks.env.CLICKHOUSE_TRACING_ENABLED = "true";
-
     clickhouseClient();
 
     expect(mocks.createClient).toHaveBeenCalledTimes(1);
@@ -119,8 +105,6 @@ describe("ClickHouseClientManager tracing", () => {
   });
 
   it("skips span creation when there is no active parent span", () => {
-    mocks.env.CLICKHOUSE_TRACING_ENABLED = "true";
-
     clickhouseClient();
     const { tracer } = mocks.createClient.mock.calls[0][0];
 
