@@ -46,12 +46,14 @@ export function bindManagedCredentialToRedis(
     const authArgs = provider.username
       ? [provider.username, token.token]
       : [token.token];
-    Promise.resolve(client.call("AUTH", ...authArgs)).catch((error) =>
-      logger.warn(
-        `Failed to re-authenticate Redis after ${provider.name} token refresh`,
-        error,
-      ),
-    );
+    client
+      .call("AUTH", ...authArgs)
+      .catch((error) =>
+        logger.warn(
+          `Failed to re-authenticate Redis after ${provider.name} token refresh`,
+          error,
+        ),
+      );
   });
 
   const connect = client.connect.bind(client);

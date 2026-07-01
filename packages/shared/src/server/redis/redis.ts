@@ -203,6 +203,19 @@ export const createNewRedisInstance = (
     return null;
   }
 
+  // Managed credentials are wired only into the single-node path below; warn so
+  // the combination is not silently ignored (which would fail with an opaque
+  // NOAUTH at connect time when no static REDIS_AUTH is set).
+  if (
+    env.REDIS_AUTH_METHOD !== "static" &&
+    (env.REDIS_CLUSTER_ENABLED === "true" ||
+      env.REDIS_SENTINEL_ENABLED === "true")
+  ) {
+    logger.warn(
+      `REDIS_AUTH_METHOD=${env.REDIS_AUTH_METHOD} is only supported for single-node Redis; cluster and sentinel modes use static credentials.`,
+    );
+  }
+
   if (env.REDIS_CLUSTER_ENABLED === "true") {
     return createRedisClusterInstance(additionalOptions);
   }
