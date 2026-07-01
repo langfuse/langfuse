@@ -495,6 +495,25 @@ const EnvSchema = z.object({
     .int()
     .default(10),
 
+  // Health-check threshold for the event-propagation ("dual write") job. When a
+  // client opts in via /api/health?failIfEventPropagationStuck=true, the check
+  // returns 503 if the heartbeat has not been refreshed within this many minutes,
+  // letting k8s liveness probes restart a container whose global-concurrency
+  // slot is wedged. The heartbeat is refreshed at the top of every invocation and
+  // per-chunk during the experiment backfill, so the threshold only needs to
+  // exceed the longest un-heartbeated step — a single CH INSERT (request_timeout
+  // 10 min). 15 min leaves headroom.
+  //
+  // Probes using this flag MUST set initialDelaySeconds >= 60s (one cron cycle):
+  // the heartbeat is only refreshed when the minute-boundary cron next runs, so a
+  // just-restarted (or just-re-enabled) container can carry a stale value until
+  // then. A shorter delay can crash-loop the very restart this check triggers.
+  LANGFUSE_EVENT_PROPAGATION_STUCK_THRESHOLD_MINUTES: z.coerce
+    .number()
+    .positive()
+    .int()
+    .default(15),
+
   LANGFUSE_WEBHOOK_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .positive()
