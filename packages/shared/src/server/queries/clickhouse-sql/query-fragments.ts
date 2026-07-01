@@ -10,6 +10,7 @@ import {
   ExperimentsAggregationQueryBuilder,
   type CTEWithSchema,
 } from "./event-query-builder";
+import { AGGREGATABLE_SCORE_TYPES } from "../../../domain/scores";
 
 /**
  * Lightweight trace metadata query: one row per trace with name, user_id, tags.
@@ -31,6 +32,7 @@ interface EventsTracesAggregationParams {
   projectId: string;
   traceIds?: string[];
   startTimeFrom?: string | null;
+  orderByTimestamp?: boolean;
   /**
    * Whether to use truncated I/O (events_core) or full I/O (events_full).
    * Default is false (full) for better compatibility.
@@ -59,7 +61,9 @@ export const eventsTracesAggregation = (
     .withStartTimeFrom(params.startTimeFrom)
     .withTruncated(params.truncated ?? false);
 
-  builder.orderByColumns([{ column: "timestamp", direction: "DESC" }]);
+  if (params.orderByTimestamp ?? true) {
+    builder.orderByColumns([{ column: "timestamp", direction: "DESC" }]);
+  }
 
   return builder;
 };
@@ -366,6 +370,54 @@ export const eventsExperimentTraceIds = (
   eventsExperiments({ projectId })
     .selectRaw("e.project_id", "e.experiment_id", "e.trace_id")
     .limitBy("e.trace_id");
+
+export const buildScoreRowsCTE = (params: BaseScoresParams): CTEWithSchema => {
+  const queryParams: Record<string, any> = {
+    projectId: params.projectId,
+    dataTypes: AGGREGATABLE_SCORE_TYPES,
+  };
+
+  if (params.startTimeFrom) {
+    queryParams.startTimeFrom = params.startTimeFrom;
+  }
+
+  const isTraceLevel = params.level === "trace";
+  const observationFilter = isTraceLevel
+    ? "AND observation_id IS NULL"
+    : "AND observation_id IS NOT NULL";
+
+  const query = `
+    SELECT
+      project_id,
+      trace_id,
+      observation_id,
+      name,
+      source,
+      data_type,
+      string_value
+    FROM scores s
+    WHERE
+      project_id = {projectId: String}
+      AND trace_id != ''
+      ${observationFilter}
+      AND data_type IN ({dataTypes: Array(String)})
+      ${params.startTimeFrom ? `AND timestamp >= {startTimeFrom: DateTime64(3)}` : ""}
+  `.trim();
+
+  return {
+    query,
+    params: queryParams,
+    schema: [
+      "project_id",
+      "trace_id",
+      "observation_id",
+      "name",
+      "source",
+      "data_type",
+      "string_value",
+    ],
+  };
+};
 
 export const buildScoresCTE = (params: BaseScoresParams): CTEWithSchema => {
   const queryParams: Record<string, any> = {

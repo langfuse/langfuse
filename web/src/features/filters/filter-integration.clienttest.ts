@@ -13,6 +13,7 @@ import {
 import {
   encodeFiltersGeneric,
   decodeFiltersGeneric,
+  computeSelectedValues,
 } from "./lib/filter-query-encoding";
 import { validateFilters } from "@/src/components/table/table-view-presets/validation";
 import { traceFilterConfig } from "./config/traces-config";
@@ -618,6 +619,19 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
     expect(result[0]?.column).toBe("traceTags");
   });
 
+  it("should preserve empty arrayOptions none-of filters through complete URL flow", () => {
+    const filters: FilterState = [
+      {
+        column: "tags",
+        type: "arrayOptions",
+        operator: "none of",
+        value: [],
+      },
+    ];
+
+    expect(simulateUrlFlow(filters)).toEqual(filters);
+  });
+
   it("should discard stale positionInTrace URL filters on the general events table", () => {
     const urlFilter = "positionInTrace;positionInTrace;last;=;";
 
@@ -627,6 +641,98 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
     );
 
     expect(normalized).toEqual([]);
+  });
+
+  it.each([
+    ["column ID", "hasParentObservation", "=", false, true],
+    ["display name", "Has Parent Observation", "=", false, true],
+    ["column ID", "hasParentObservation", "<>", true, true],
+    ["display name", "Has Parent Observation", "<>", true, true],
+  ] as const)(
+    "should redirect legacy %s root-observation URL filters to isRootObservation",
+    (_label, column, operator, legacyValue, expectedValue) => {
+      const legacyFilters: FilterState = [
+        {
+          column,
+          type: "boolean",
+          operator,
+          value: legacyValue,
+        },
+      ];
+
+      const normalized = decodeAndNormalizeFilters(
+        encodeFiltersGeneric(legacyFilters),
+        observationEventsFilterConfig.columnDefinitions,
+        observationEventsFilterConfig.migrateFilterState,
+      );
+
+      expect(normalized).toEqual([
+        {
+          column: "isRootObservation",
+          type: "boolean",
+          operator: "=",
+          value: expectedValue,
+        },
+      ]);
+    },
+  );
+
+  it("should migrate isRootObservation inequality URL filters for the sidebar", () => {
+    const filters: FilterState = [
+      {
+        column: "isRootObservation",
+        type: "boolean",
+        operator: "<>",
+        value: false,
+      },
+    ];
+
+    const normalized = decodeAndNormalizeFilters(
+      encodeFiltersGeneric(filters),
+      observationEventsFilterConfig.columnDefinitions,
+      observationEventsFilterConfig.migrateFilterState,
+    );
+
+    expect(normalized).toEqual([
+      {
+        column: "isRootObservation",
+        type: "boolean",
+        operator: "=",
+        value: true,
+      },
+    ]);
+  });
+
+  it("should prefer isRootObservation URL filters over legacy duplicates", () => {
+    const filters: FilterState = [
+      {
+        column: "hasParentObservation",
+        type: "boolean",
+        operator: "=",
+        value: false,
+      },
+      {
+        column: "isRootObservation",
+        type: "boolean",
+        operator: "=",
+        value: false,
+      },
+    ];
+
+    const normalized = decodeAndNormalizeFilters(
+      encodeFiltersGeneric(filters),
+      observationEventsFilterConfig.columnDefinitions,
+      observationEventsFilterConfig.migrateFilterState,
+    );
+
+    expect(normalized).toEqual([
+      {
+        column: "isRootObservation",
+        type: "boolean",
+        operator: "=",
+        value: false,
+      },
+    ]);
   });
 });
 
@@ -645,6 +751,42 @@ describe("Saved view validation", () => {
       validateFilters(filters, observationEventsFilterConfig.columnDefinitions),
     ).toEqual([]);
   });
+
+  it.each([
+    ["column ID", "hasParentObservation", false, true, "="],
+    ["display name", "Has Parent Observation", false, true, "="],
+    ["column ID", "hasParentObservation", true, false, "="],
+    ["display name", "Has Parent Observation", true, false, "="],
+    ["column ID", "hasParentObservation", true, true, "<>"],
+    ["display name", "Has Parent Observation", true, true, "<>"],
+  ] as const)(
+    "should redirect legacy %s root-observation saved-view filters to isRootObservation",
+    (_label, column, legacyValue, expectedValue, operator) => {
+      const filters: FilterState = [
+        {
+          column,
+          type: "boolean",
+          operator,
+          value: legacyValue,
+        },
+      ];
+
+      expect(
+        validateFilters(
+          filters,
+          observationEventsFilterConfig.columnDefinitions,
+          observationEventsFilterConfig.migrateFilterState,
+        ),
+      ).toEqual([
+        {
+          column: "isRootObservation",
+          type: "boolean",
+          operator: "=",
+          value: expectedValue,
+        },
+      ]);
+    },
+  );
 
   it("should preserve the session detail positionInTrace presets when the session view defines the column", () => {
     const sessionEventColumns: ColumnDefinition[] = [
@@ -722,7 +864,7 @@ describe("resolveCheckboxOperator (arrayOptions vs stringOptions)", () => {
       });
     });
 
-    it('should switch from "none of" to "any of" for arrayOptions', () => {
+    it('should preserve "none of" for arrayOptions', () => {
       const result = resolveCheckboxOperator({
         colType: "arrayOptions",
         existingFilter: {
@@ -735,9 +877,8 @@ describe("resolveCheckboxOperator (arrayOptions vs stringOptions)", () => {
         availableValues,
       });
 
-      // Must NOT keep "none of" — it gives wrong results for multi-valued arrays
       expect(result).toEqual({
-        finalOperator: "any of",
+        finalOperator: "none of",
         finalValues: ["tag-1", "tag-2"],
       });
     });
@@ -837,6 +978,28 @@ describe("resolveCheckboxOperator (arrayOptions vs stringOptions)", () => {
   });
 });
 
+describe("computeSelectedValues", () => {
+  it('should keep excluded values checked for arrayOptions "none of" filters', () => {
+    const result = computeSelectedValues(["tag-1", "tag-2", "tag-3"], {
+      type: "arrayOptions",
+      operator: "none of",
+      value: ["tag-2"],
+    });
+
+    expect(result).toEqual(["tag-2"]);
+  });
+
+  it('should continue to invert "none of" for stringOptions filters', () => {
+    const result = computeSelectedValues(["prod", "staging", "dev"], {
+      type: "stringOptions",
+      operator: "none of",
+      value: ["dev"],
+    });
+
+    expect(result).toEqual(["prod", "staging"]);
+  });
+});
+
 describe("Implicit Environment Defaults (sidebar only)", () => {
   const hiddenEnvironments = [...DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS];
   const availableValues = [
@@ -851,7 +1014,6 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
   const strip = (explicitFilters: FilterState) =>
     stripImplicitEnvironmentFilterFromExplicitState({
       explicitFilters,
-      availableEnvironmentValues: [...availableValues],
       config: managedEnvironmentConfig,
     });
 
@@ -892,7 +1054,11 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
     ).toEqual([]);
   });
 
-  it("strips default-equivalent env filters before URL/session persistence", () => {
+  it("strips only the system-shaped implicit default, keeping user-authored selections", () => {
+    // The implicit default the sidebar auto-derives — and that the facet
+    // re-creates when the user clears back to the default selection — is the
+    // `none of [hidden]` shape. That is the ONLY env filter we strip before
+    // persistence, so returning to default leaves a clean URL.
     const explicitWithExactDefault: FilterState = [
       {
         column: "environment",
@@ -917,16 +1083,19 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
       },
     ]);
 
-    expect(
-      strip([
-        {
-          column: "environment",
-          type: "stringOptions",
-          operator: "any of",
-          value: ["production", "staging"],
-        },
-      ]),
-    ).toEqual([]);
+    // A user-authored POSITIVE selection (typed in the search bar or stored in a
+    // saved view) is kept explicit even when it happens to equal the current
+    // default set — we never silently remove what the user committed to. The
+    // user returns to the default by removing the filter, not by us guessing.
+    const userAuthoredDefaultSet: FilterState = [
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["production", "staging"],
+      },
+    ];
+    expect(strip(userAuthoredDefaultSet)).toEqual(userAuthoredDefaultSet);
   });
 
   it("keeps explicit overrides that enable hidden environments", () => {

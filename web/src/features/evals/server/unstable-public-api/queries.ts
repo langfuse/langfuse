@@ -10,6 +10,7 @@ import type {
   StoredPublicEvaluationRuleConfig,
   StoredPublicEvaluatorTemplate,
 } from "./types";
+import { toStoredEvaluatorType } from "./adapters";
 
 export function getPrismaClient(client?: PrismaClientLike) {
   return client ?? prisma;
@@ -22,7 +23,7 @@ export async function findPublicEvaluatorTemplateOrThrow(params: {
 }) {
   const client = getPrismaClient(params.client);
 
-  const template = await client.evalTemplate.findUnique({
+  const template = await client.evalTemplate.findFirst({
     where: {
       id: params.evaluatorId,
     },
@@ -50,6 +51,7 @@ export async function findLatestPublicEvaluatorTemplateInFamilyOrThrow(params: {
     where: {
       name: params.evaluator.name,
       projectId: params.evaluator.scope === "project" ? params.projectId : null,
+      type: toStoredEvaluatorType(params.evaluator.type),
     },
     orderBy: {
       version: "desc",
@@ -129,14 +131,15 @@ export async function listPublicEvaluatorTemplates(params: {
     prisma.$queryRaw<Array<{ id: string }>>(
       Prisma.sql`
         WITH latest_templates AS (
-          SELECT DISTINCT ON (project_id, name)
+          SELECT DISTINCT ON (project_id, name, type)
             id,
             project_id,
             name,
+            type,
             updated_at
           FROM eval_templates
-          WHERE project_id = ${params.projectId} OR project_id IS NULL
-          ORDER BY project_id, name, version DESC
+          WHERE (project_id = ${params.projectId} OR project_id IS NULL)
+          ORDER BY project_id, name, type, version DESC
         )
         SELECT id
         FROM latest_templates
@@ -153,9 +156,9 @@ export async function listPublicEvaluatorTemplates(params: {
       Prisma.sql`
         SELECT COUNT(*) as count
         FROM (
-          SELECT DISTINCT project_id, name
+          SELECT DISTINCT project_id, name, type
           FROM eval_templates
-          WHERE project_id = ${params.projectId} OR project_id IS NULL
+          WHERE (project_id = ${params.projectId} OR project_id IS NULL)
         ) latest_template_families
       `,
     ),
@@ -224,8 +227,7 @@ export async function findPublicEvaluationRuleOrThrow(params: {
           id: true,
           projectId: true,
           name: true,
-          vars: true,
-          prompt: true,
+          type: true,
         },
       },
     },
@@ -267,6 +269,11 @@ export async function countActiveEvaluationRules(params: {
       },
       status: JobConfigState.ACTIVE,
       blockedAt: null,
+      evalTemplate: {
+        is: {
+          OR: [{ projectId: params.projectId }, { projectId: null }],
+        },
+      },
     },
   });
 }
@@ -295,8 +302,7 @@ export async function listPublicEvaluationRuleConfigs(params: {
             id: true,
             projectId: true,
             name: true,
-            vars: true,
-            prompt: true,
+            type: true,
           },
         },
       },

@@ -9,7 +9,22 @@ import {
   createAndAddApiKeysToDb,
   createBasicAuthHeader,
 } from "@langfuse/shared/src/server";
+import {
+  OBSERVATION_FIELD_GROUPS_FULL,
+  LEGACY_BLOB_EXPORT_CUTOFF,
+  LEGACY_BLOB_EXPORTER_CUTOFF,
+} from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const PRE_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() - MS_PER_DAY);
+const POST_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() + MS_PER_DAY);
+const INTEGRATION_PRE_CUTOFF = new Date(
+  LEGACY_BLOB_EXPORTER_CUTOFF.getTime() - MS_PER_DAY,
+);
+const INTEGRATION_POST_CUTOFF = new Date(
+  LEGACY_BLOB_EXPORTER_CUTOFF.getTime() + MS_PER_DAY,
+);
 
 // Schemas based on Fern schema definition
 const BlobStorageIntegrationResponseSchema = z.object({
@@ -21,13 +36,19 @@ const BlobStorageIntegrationResponseSchema = z.object({
   region: z.string(),
   accessKeyId: z.string().nullable(),
   prefix: z.string(),
-  exportFrequency: z.enum(["hourly", "daily", "weekly"]),
+  exportFrequency: z.enum(["every_20_minutes", "hourly", "daily", "weekly"]),
   enabled: z.boolean(),
   forcePathStyle: z.boolean(),
   fileType: z.enum(["JSON", "CSV", "JSONL"]),
   exportMode: z.enum(["FULL_HISTORY", "FROM_TODAY", "FROM_CUSTOM_DATE"]),
   exportStartDate: z.coerce.date().nullable(),
   compressed: z.boolean(),
+  exportSource: z.enum([
+    "LEGACY_TRACES_OBSERVATIONS",
+    "OBSERVATIONS_V2",
+    "LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS",
+  ]),
+  exportFieldGroups: z.array(z.enum(OBSERVATION_FIELD_GROUPS_FULL)).nullable(),
   nextSyncAt: z.coerce.date().nullable(),
   lastSyncAt: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),
@@ -67,6 +88,7 @@ describe("Blob Storage Integrations API", () => {
   let testProject2Id: string;
   let testApiKey: string;
   let testApiSecretKey: string;
+  let testApiKeyId: string;
   let otherOrgId: string;
   let otherProjectId: string;
 
@@ -110,6 +132,7 @@ describe("Blob Storage Integrations API", () => {
     });
     testApiKey = orgApiKey.publicKey;
     testApiSecretKey = orgApiKey.secretKey;
+    testApiKeyId = orgApiKey.id;
 
     // Create another organization for cross-org tests
     const otherOrg = await prisma.organization.create({
@@ -278,7 +301,8 @@ describe("Blob Storage Integrations API", () => {
     });
 
     it("should update an existing blob storage integration", async () => {
-      // Create initial integration
+      // Backdated: the row keeps the legacy exportSource column default,
+      // which only grandfathered (pre-integration-cutoff) rows may carry.
       await prisma.blobStorageIntegration.create({
         data: {
           projectId: testProject1Id,
@@ -293,6 +317,7 @@ describe("Blob Storage Integrations API", () => {
           forcePathStyle: true,
           fileType: "JSON",
           exportMode: "FROM_TODAY",
+          createdAt: INTEGRATION_PRE_CUTOFF,
         },
       });
 
@@ -424,7 +449,7 @@ describe("Blob Storage Integrations API", () => {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
         type: "AZURE_BLOB_STORAGE" as const,
-        endpoint: "https://myaccount.blob.core.windows.net",
+        endpoint: "https://example.com",
       };
 
       const response = await makeZodVerifiedAPICall(
@@ -438,9 +463,7 @@ describe("Blob Storage Integrations API", () => {
 
       expect(response.status).toBe(200);
       expect(response.body.type).toBe("AZURE_BLOB_STORAGE");
-      expect(response.body.endpoint).toBe(
-        "https://myaccount.blob.core.windows.net",
-      );
+      expect(response.body.endpoint).toBe("https://example.com");
     });
 
     it("should reject invalid Azure container names", async () => {
@@ -448,7 +471,7 @@ describe("Blob Storage Integrations API", () => {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
         type: "AZURE_BLOB_STORAGE" as const,
-        endpoint: "https://myaccount.blob.core.windows.net",
+        endpoint: "https://example.com",
         bucketName: "Feedback N8N Bot",
       };
 
@@ -557,6 +580,737 @@ describe("Blob Storage Integrations API", () => {
       });
       expect(savedIntegration?.compressed).toBe(false);
     });
+
+    it("should store all exportFieldGroups by default when creating via REST", async () => {
+      const requestBody = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+      };
+
+      await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        requestBody,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+
+      const saved = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: testProject1Id },
+      });
+      expect(saved?.exportFieldGroups).toHaveLength(11);
+    });
+
+    it("should preserve exportFieldGroups in DB when updating via REST", async () => {
+      // Seed a custom subset. Backdated: the row keeps the legacy exportSource
+      // column default, which only grandfathered rows may carry.
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId: testProject1Id,
+          type: "S3",
+          bucketName: "initial-bucket",
+          region: "us-east-1",
+          accessKeyId: "key",
+          secretAccessKey: "secret",
+          prefix: "",
+          exportFrequency: "daily",
+          enabled: true,
+          forcePathStyle: false,
+          fileType: "JSONL",
+          exportMode: "FULL_HISTORY",
+          exportFieldGroups: ["core", "io"],
+          createdAt: INTEGRATION_PRE_CUTOFF,
+        },
+      });
+
+      // Update via REST — exportFieldGroups is not part of the REST API schema
+      await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        {
+          ...validBlobStorageConfig,
+          projectId: testProject1Id,
+          bucketName: "updated-bucket",
+        },
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+
+      const saved = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: testProject1Id },
+      });
+      expect(saved?.exportFieldGroups).toStrictEqual(["core", "io"]);
+    });
+  });
+
+  describe("PUT/GET exportSource + exportFieldGroups behavior", () => {
+    // Pin projects to a pre-cutoff date so legacy-source tests remain valid
+    // once the clock crosses LEGACY_BLOB_EXPORT_CUTOFF (CI runs with
+    // NEXT_PUBLIC_LANGFUSE_CLOUD_REGION set, so the gate would otherwise
+    // reject LEGACY_TRACES_OBSERVATIONS for projects created at now()).
+    beforeAll(async () => {
+      await prisma.project.updateMany({
+        where: { id: { in: [testProject1Id, testProject2Id] } },
+        data: { createdAt: PRE_CUTOFF },
+      });
+    });
+
+    afterAll(async () => {
+      await prisma.project.updateMany({
+        where: { id: { in: [testProject1Id, testProject2Id] } },
+        data: { createdAt: new Date() },
+      });
+    });
+
+    afterEach(async () => {
+      await prisma.blobStorageIntegration.deleteMany({
+        where: {
+          projectId: { in: [testProject1Id, testProject2Id] },
+        },
+      });
+    });
+
+    // Pre-integration-cutoff legacy row: lets a legacy-source PUT pass the
+    // integration-level gate (new Cloud rows can no longer be legacy, so these
+    // tests exercise the UPDATE path).
+    const seedGrandfatheredLegacyRow = (
+      data: { exportFieldGroups?: string[] } = {},
+    ) =>
+      prisma.blobStorageIntegration.create({
+        data: {
+          projectId: testProject1Id,
+          type: "S3",
+          bucketName: "seed-bucket",
+          region: "us-east-1",
+          accessKeyId: "key",
+          secretAccessKey: "secret",
+          prefix: "",
+          exportFrequency: "daily",
+          enabled: true,
+          forcePathStyle: false,
+          fileType: "JSONL",
+          exportMode: "FULL_HISTORY",
+          exportSource: "TRACES_OBSERVATIONS",
+          createdAt: INTEGRATION_PRE_CUTOFF,
+          ...data,
+        },
+      });
+
+    // ---- OBSERVATIONS_V2 / LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS path ----
+
+    it("OBSERVATIONS_V2 + exportFieldGroups=[core,io] -> 200 and GET returns same value", async () => {
+      const requestBody = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+        exportSource: "OBSERVATIONS_V2" as const,
+        exportFieldGroups: ["core", "io"],
+      };
+
+      const putResponse = await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        requestBody,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(putResponse.status).toBe(200);
+      expect(putResponse.body.exportSource).toBe("OBSERVATIONS_V2");
+      expect(putResponse.body.exportFieldGroups).toStrictEqual(["core", "io"]);
+
+      const getResponse = await makeZodVerifiedAPICall(
+        z.object({ data: z.array(BlobStorageIntegrationResponseSchema) }),
+        "GET",
+        "/api/public/integrations/blob-storage",
+        undefined,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+        200,
+      );
+      const integration = getResponse.body.data.find(
+        (i) => i.projectId === testProject1Id,
+      );
+      expect(integration).toBeDefined();
+      expect(integration?.exportSource).toBe("OBSERVATIONS_V2");
+      expect(integration?.exportFieldGroups).toStrictEqual(["core", "io"]);
+    });
+
+    it("OBSERVATIONS_V2 + exportFieldGroups=[io] (missing core) -> 400", async () => {
+      const requestBody = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+        exportSource: "OBSERVATIONS_V2" as const,
+        exportFieldGroups: ["io"],
+      };
+
+      const result = await makeAPICall(
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        requestBody,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(result.status).toBe(400);
+    });
+
+    it("OBSERVATIONS_V2 + exportFieldGroups omitted -> 200 and GET returns all 11 groups", async () => {
+      const requestBody = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+        exportSource: "OBSERVATIONS_V2" as const,
+      };
+
+      const putResponse = await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        requestBody,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(putResponse.status).toBe(200);
+
+      const getResponse = await makeZodVerifiedAPICall(
+        z.object({ data: z.array(BlobStorageIntegrationResponseSchema) }),
+        "GET",
+        "/api/public/integrations/blob-storage",
+        undefined,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+        200,
+      );
+      const integration = getResponse.body.data.find(
+        (i) => i.projectId === testProject1Id,
+      );
+      expect(integration).toBeDefined();
+      expect(integration?.exportSource).toBe("OBSERVATIONS_V2");
+      expect(integration?.exportFieldGroups).toBeDefined();
+      expect(integration?.exportFieldGroups).toHaveLength(
+        OBSERVATION_FIELD_GROUPS_FULL.length,
+      );
+      expect(new Set(integration?.exportFieldGroups)).toStrictEqual(
+        new Set(OBSERVATION_FIELD_GROUPS_FULL),
+      );
+    });
+
+    it("OBSERVATIONS_V2 + exportFieldGroups=null -> 200 and GET returns all 11 groups", async () => {
+      const requestBody = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+        exportSource: "OBSERVATIONS_V2" as const,
+        exportFieldGroups: null,
+      };
+
+      const putResponse = await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        requestBody,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(putResponse.status).toBe(200);
+
+      const getResponse = await makeZodVerifiedAPICall(
+        z.object({ data: z.array(BlobStorageIntegrationResponseSchema) }),
+        "GET",
+        "/api/public/integrations/blob-storage",
+        undefined,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+        200,
+      );
+      const integration = getResponse.body.data.find(
+        (i) => i.projectId === testProject1Id,
+      );
+      expect(integration).toBeDefined();
+      expect(integration?.exportFieldGroups).toBeDefined();
+      expect(integration?.exportFieldGroups).toHaveLength(
+        OBSERVATION_FIELD_GROUPS_FULL.length,
+      );
+      expect(new Set(integration?.exportFieldGroups)).toStrictEqual(
+        new Set(OBSERVATION_FIELD_GROUPS_FULL),
+      );
+    });
+
+    // ---- LEGACY_TRACES_OBSERVATIONS path ----
+
+    it("LEGACY_TRACES_OBSERVATIONS + exportFieldGroups omitted -> 200; GET returns all 11 groups", async () => {
+      await seedGrandfatheredLegacyRow();
+      const requestBody = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+        exportSource: "LEGACY_TRACES_OBSERVATIONS" as const,
+      };
+
+      const putResponse = await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        requestBody,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(putResponse.status).toBe(200);
+
+      const getResponse = await makeZodVerifiedAPICall(
+        z.object({ data: z.array(BlobStorageIntegrationResponseSchema) }),
+        "GET",
+        "/api/public/integrations/blob-storage",
+        undefined,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+        200,
+      );
+      const integration = getResponse.body.data.find(
+        (i) => i.projectId === testProject1Id,
+      );
+      expect(integration).toBeDefined();
+      expect(integration?.exportSource).toBe("LEGACY_TRACES_OBSERVATIONS");
+      expect(integration?.exportFieldGroups).toHaveLength(
+        OBSERVATION_FIELD_GROUPS_FULL.length,
+      );
+    });
+
+    it("LEGACY_TRACES_OBSERVATIONS + exportFieldGroups=null -> 200; GET returns all 11 groups", async () => {
+      await seedGrandfatheredLegacyRow();
+      const requestBody = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+        exportSource: "LEGACY_TRACES_OBSERVATIONS" as const,
+        exportFieldGroups: null,
+      };
+
+      const putResponse = await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        requestBody,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(putResponse.status).toBe(200);
+
+      const getResponse = await makeZodVerifiedAPICall(
+        z.object({ data: z.array(BlobStorageIntegrationResponseSchema) }),
+        "GET",
+        "/api/public/integrations/blob-storage",
+        undefined,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+        200,
+      );
+      const integration = getResponse.body.data.find(
+        (i) => i.projectId === testProject1Id,
+      );
+      expect(integration).toBeDefined();
+      expect(integration?.exportFieldGroups).toHaveLength(
+        OBSERVATION_FIELD_GROUPS_FULL.length,
+      );
+    });
+
+    it("LEGACY_TRACES_OBSERVATIONS + exportFieldGroups=[] (missing core) -> 400", async () => {
+      const requestBody = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+        exportSource: "LEGACY_TRACES_OBSERVATIONS" as const,
+        exportFieldGroups: [],
+      };
+
+      const result = await makeAPICall(
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        requestBody,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(result.status).toBe(400);
+      const message = JSON.stringify(result.body);
+      expect(message.toLowerCase()).toContain("core");
+    });
+
+    it("LEGACY_TRACES_OBSERVATIONS + exportFieldGroups=[core,io] -> 200 and GET returns same value", async () => {
+      await seedGrandfatheredLegacyRow();
+      const requestBody = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+        exportSource: "LEGACY_TRACES_OBSERVATIONS" as const,
+        exportFieldGroups: ["core", "io"],
+      };
+
+      const putResponse = await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        requestBody,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(putResponse.status).toBe(200);
+      expect(putResponse.body.exportFieldGroups).toStrictEqual(["core", "io"]);
+
+      const saved = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: testProject1Id },
+      });
+      expect(saved?.exportFieldGroups).toStrictEqual(["core", "io"]);
+    });
+
+    it("GET returns exportFieldGroups for LEGACY_TRACES_OBSERVATIONS rows seeded via Prisma", async () => {
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId: testProject1Id,
+          type: "S3",
+          bucketName: "legacy-bucket",
+          region: "us-east-1",
+          accessKeyId: "key",
+          secretAccessKey: "secret",
+          prefix: "",
+          exportFrequency: "daily",
+          enabled: true,
+          forcePathStyle: false,
+          fileType: "JSONL",
+          exportMode: "FULL_HISTORY",
+          exportSource: "TRACES_OBSERVATIONS",
+          exportFieldGroups: ["core", "io", "metadata"],
+        },
+      });
+
+      const getResponse = await makeZodVerifiedAPICall(
+        z.object({ data: z.array(BlobStorageIntegrationResponseSchema) }),
+        "GET",
+        "/api/public/integrations/blob-storage",
+        undefined,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+        200,
+      );
+
+      const integration = getResponse.body.data.find(
+        (i) => i.projectId === testProject1Id,
+      );
+      expect(integration).toBeDefined();
+      expect(integration?.exportSource).toBe("LEGACY_TRACES_OBSERVATIONS");
+      expect(integration?.exportFieldGroups).toStrictEqual([
+        "core",
+        "io",
+        "metadata",
+      ]);
+    });
+
+    it("PUT LEGACY_TRACES_OBSERVATIONS preserves existing export_field_groups column in DB", async () => {
+      // Seed a grandfathered row with a custom subset
+      await seedGrandfatheredLegacyRow({ exportFieldGroups: ["core", "io"] });
+
+      await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        {
+          ...validBlobStorageConfig,
+          projectId: testProject1Id,
+          exportSource: "LEGACY_TRACES_OBSERVATIONS" as const,
+          bucketName: "updated-bucket",
+        },
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+
+      const saved = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: testProject1Id },
+      });
+      expect(saved?.bucketName).toBe("updated-bucket");
+      // Omitting exportFieldGroups on update preserves the stored value.
+      expect(saved?.exportFieldGroups).toStrictEqual(["core", "io"]);
+    });
+
+    // ---- Response shape ----
+
+    it("PUT response includes exportSource and exportFieldGroups for LEGACY_TRACES_OBSERVATIONS", async () => {
+      await seedGrandfatheredLegacyRow();
+      const requestBody = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+        exportSource: "LEGACY_TRACES_OBSERVATIONS" as const,
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        requestBody,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty(
+        "exportSource",
+        "LEGACY_TRACES_OBSERVATIONS",
+      );
+      expect(response.body.exportFieldGroups).toHaveLength(
+        OBSERVATION_FIELD_GROUPS_FULL.length,
+      );
+    });
+
+    it("GET response includes exportSource and exportFieldGroups for all sources", async () => {
+      // Seed two integrations on different projects with different sources
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId: testProject1Id,
+          type: "S3",
+          bucketName: "bucket-1",
+          region: "us-east-1",
+          accessKeyId: "key",
+          secretAccessKey: "secret",
+          prefix: "",
+          exportFrequency: "daily",
+          enabled: true,
+          forcePathStyle: false,
+          fileType: "JSONL",
+          exportMode: "FULL_HISTORY",
+          exportSource: "TRACES_OBSERVATIONS",
+          exportFieldGroups: ["core", "io", "metadata"],
+        },
+      });
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId: testProject2Id,
+          type: "S3",
+          bucketName: "bucket-2",
+          region: "us-east-1",
+          accessKeyId: "key",
+          secretAccessKey: "secret",
+          prefix: "",
+          exportFrequency: "daily",
+          enabled: true,
+          forcePathStyle: false,
+          fileType: "JSONL",
+          exportMode: "FULL_HISTORY",
+          exportSource: "EVENTS",
+          exportFieldGroups: ["core", "io"],
+        },
+      });
+
+      const getResponse = await makeZodVerifiedAPICall(
+        z.object({ data: z.array(BlobStorageIntegrationResponseSchema) }),
+        "GET",
+        "/api/public/integrations/blob-storage",
+        undefined,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+        200,
+      );
+
+      const legacyIntegration = getResponse.body.data.find(
+        (i) => i.projectId === testProject1Id,
+      );
+      const enrichedIntegration = getResponse.body.data.find(
+        (i) => i.projectId === testProject2Id,
+      );
+      expect(legacyIntegration?.exportSource).toBe(
+        "LEGACY_TRACES_OBSERVATIONS",
+      );
+      expect(legacyIntegration?.exportFieldGroups).toStrictEqual([
+        "core",
+        "io",
+        "metadata",
+      ]);
+      expect(enrichedIntegration?.exportSource).toBe("OBSERVATIONS_V2");
+      expect(enrichedIntegration?.exportFieldGroups).toStrictEqual([
+        "core",
+        "io",
+      ]);
+    });
+
+    it("GET response maps internal TRACES_OBSERVATIONS_EVENTS to public LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS", async () => {
+      // Seed via Prisma with the third internal enum value to exercise the
+      // mapping for LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS through the public REST surface.
+      // satisfies-enforced exhaustiveness in INTERNAL_TO_PUBLIC_EXPORT_SOURCE
+      // catches a missing key at compile time, but only a runtime assertion
+      // catches a copy-paste regression (e.g. "OBSERVATIONS_V2" written twice).
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId: testProject1Id,
+          type: "S3",
+          bucketName: "bucket-mixed",
+          region: "us-east-1",
+          accessKeyId: "key",
+          secretAccessKey: "secret",
+          prefix: "",
+          exportFrequency: "daily",
+          enabled: true,
+          forcePathStyle: false,
+          fileType: "JSONL",
+          exportMode: "FULL_HISTORY",
+          exportSource: "TRACES_OBSERVATIONS_EVENTS",
+          exportFieldGroups: ["core", "io", "metadata"],
+        },
+      });
+
+      const getResponse = await makeZodVerifiedAPICall(
+        z.object({ data: z.array(BlobStorageIntegrationResponseSchema) }),
+        "GET",
+        "/api/public/integrations/blob-storage",
+        undefined,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+        200,
+      );
+
+      const integration = getResponse.body.data.find(
+        (i) => i.projectId === testProject1Id,
+      );
+      expect(integration).toBeDefined();
+      expect(integration?.exportSource).toBe(
+        "LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS",
+      );
+      // exportFieldGroups is only masked to null for LEGACY_TRACES_OBSERVATIONS — the
+      // LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS source returns the raw DB array.
+      expect(integration?.exportFieldGroups).toStrictEqual([
+        "core",
+        "io",
+        "metadata",
+      ]);
+    });
+
+    it("PUT without exportSource preserves existing OBSERVATIONS_V2 source and field groups", async () => {
+      // Pre-seed an OBSERVATIONS_V2 row with a custom field-group subset
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId: testProject1Id,
+          type: "S3",
+          bucketName: "initial-bucket",
+          region: "us-east-1",
+          accessKeyId: "key",
+          secretAccessKey: "secret",
+          prefix: "",
+          exportFrequency: "daily",
+          enabled: true,
+          forcePathStyle: false,
+          fileType: "JSONL",
+          exportMode: "FULL_HISTORY",
+          exportSource: "EVENTS",
+          exportFieldGroups: ["core", "io"],
+        },
+      });
+
+      // PUT update with exportSource and exportFieldGroups both omitted
+      const requestBody = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+        bucketName: "updated-bucket",
+      };
+      const putResponse = await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        requestBody,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(putResponse.status).toBe(200);
+      expect(putResponse.body.exportSource).toBe("OBSERVATIONS_V2");
+      expect(putResponse.body.exportFieldGroups).toStrictEqual(["core", "io"]);
+
+      // DB row preserved on both columns; bucket updated
+      const saved = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: testProject1Id },
+      });
+      expect(saved?.exportSource).toBe("EVENTS");
+      expect(saved?.exportFieldGroups).toStrictEqual(["core", "io"]);
+      expect(saved?.bucketName).toBe("updated-bucket");
+    });
+
+    it("PUT exportSource=null preserves existing OBSERVATIONS_V2 source and field groups", async () => {
+      // Pre-seed an OBSERVATIONS_V2 row with a custom field-group subset
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId: testProject1Id,
+          type: "S3",
+          bucketName: "initial-bucket",
+          region: "us-east-1",
+          accessKeyId: "key",
+          secretAccessKey: "secret",
+          prefix: "",
+          exportFrequency: "daily",
+          enabled: true,
+          forcePathStyle: false,
+          fileType: "JSONL",
+          exportMode: "FULL_HISTORY",
+          exportSource: "EVENTS",
+          exportFieldGroups: ["core", "io"],
+        },
+      });
+
+      // PUT with exportSource explicitly null — mirrors what an OpenAPI/SDK
+      // client would emit for a not-provided value
+      const requestBody = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+        exportSource: null,
+        bucketName: "updated-bucket",
+      };
+      const putResponse = await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        requestBody,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(putResponse.status).toBe(200);
+      expect(putResponse.body.exportSource).toBe("OBSERVATIONS_V2");
+      expect(putResponse.body.exportFieldGroups).toStrictEqual(["core", "io"]);
+
+      const saved = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: testProject1Id },
+      });
+      expect(saved?.exportSource).toBe("EVENTS");
+      expect(saved?.exportFieldGroups).toStrictEqual(["core", "io"]);
+    });
+
+    it("PUT exportSource=OBSERVATIONS_V2 without exportFieldGroups on existing OBSERVATIONS_V2 row preserves field groups", async () => {
+      // Pre-seed an OBSERVATIONS_V2 row with a custom field-group subset
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId: testProject1Id,
+          type: "S3",
+          bucketName: "initial-bucket",
+          region: "us-east-1",
+          accessKeyId: "key",
+          secretAccessKey: "secret",
+          prefix: "",
+          exportFrequency: "daily",
+          enabled: true,
+          forcePathStyle: false,
+          fileType: "JSONL",
+          exportMode: "FULL_HISTORY",
+          exportSource: "EVENTS",
+          exportFieldGroups: ["core", "io"],
+        },
+      });
+
+      // PUT with explicit exportSource=OBSERVATIONS_V2 but exportFieldGroups omitted
+      const requestBody = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+        exportSource: "OBSERVATIONS_V2" as const,
+        bucketName: "updated-bucket",
+      };
+      const putResponse = await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        requestBody,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(putResponse.status).toBe(200);
+      expect(putResponse.body.exportSource).toBe("OBSERVATIONS_V2");
+      expect(putResponse.body.exportFieldGroups).toStrictEqual(["core", "io"]);
+
+      const saved = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: testProject1Id },
+      });
+      expect(saved?.exportFieldGroups).toStrictEqual(["core", "io"]);
+      expect(saved?.bucketName).toBe("updated-bucket");
+    });
+
+    it("PUT with exportFieldGroups but no exportSource -> 400", async () => {
+      const requestBody = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+        exportFieldGroups: ["core", "io"],
+      };
+
+      const result = await makeAPICall(
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        requestBody,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(result.status).toBe(400);
+      const message = JSON.stringify(result.body).toLowerCase();
+      expect(message).toContain("exportsource is required");
+    });
   });
 
   describe("DELETE /api/public/integrations/blob-storage/{id}", () => {
@@ -610,6 +1364,34 @@ describe("Blob Storage Integrations API", () => {
         },
       );
       expect(deletedIntegration).toBeNull();
+    });
+
+    it("should create an audit log entry for delete", async () => {
+      const auditLogWhere = {
+        resourceType: "blobStorageIntegration",
+        resourceId: testIntegrationId,
+        action: "delete",
+        orgId: testOrgId,
+        projectId: testIntegrationId,
+        apiKeyId: testApiKeyId,
+      };
+      const auditLogCountBefore = await prisma.auditLog.count({
+        where: auditLogWhere,
+      });
+
+      await makeZodVerifiedAPICall(
+        BlobStorageIntegrationDeletionResponseSchema,
+        "DELETE",
+        `/api/public/integrations/blob-storage/${testIntegrationId}`,
+        undefined,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+        200,
+      );
+
+      const auditLogCountAfter = await prisma.auditLog.count({
+        where: auditLogWhere,
+      });
+      expect(auditLogCountAfter).toBe(auditLogCountBefore + 1);
     });
 
     it("should return 404 for non-existent integration", async () => {
@@ -707,6 +1489,385 @@ describe("Blob Storage Integrations API", () => {
       );
       expect(result.status).toBe(405);
       expect(result.body.message).toContain("Method not allowed");
+    });
+  });
+
+  describe("legacy blob export source cutoff gate", () => {
+    const basePayload = {
+      type: "S3" as const,
+      bucketName: "test-bucket",
+      endpoint: null,
+      region: "us-east-1",
+      accessKeyId: "AKIA123456789",
+      secretAccessKey: "secret123456789",
+      prefix: "exports/",
+      exportFrequency: "daily",
+      enabled: true,
+      forcePathStyle: false,
+      fileType: "JSONL",
+      exportMode: "FULL_HISTORY",
+      exportStartDate: null,
+    };
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    // All REST cutoff-gate tests rely on the CI server already running in Cloud
+    // mode (NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is set in .env.dev.example). The
+    // makeAPICall goes over HTTP to a separate process whose env is frozen at
+    // boot, so any (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION mutation in
+    // the test process never reaches the server and would be dead code.
+
+    it("Cloud + pre-cutoff project + LEGACY_TRACES_OBSERVATIONS → 200", async () => {
+      try {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: PRE_CUTOFF },
+        });
+        // Grandfathered row: legacy sources are only allowed on existing
+        // pre-integration-cutoff rows.
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId: testProject1Id,
+            type: "S3",
+            bucketName: "seed-bucket",
+            region: "us-east-1",
+            accessKeyId: "key",
+            secretAccessKey: "secret",
+            prefix: "",
+            exportFrequency: "daily",
+            enabled: true,
+            forcePathStyle: false,
+            fileType: "JSONL",
+            exportMode: "FULL_HISTORY",
+            exportSource: "TRACES_OBSERVATIONS",
+            createdAt: INTEGRATION_PRE_CUTOFF,
+          },
+        });
+        const result = await makeAPICall(
+          "PUT",
+          "/api/public/integrations/blob-storage",
+          {
+            ...basePayload,
+            projectId: testProject1Id,
+            exportSource: "LEGACY_TRACES_OBSERVATIONS",
+          },
+          createBasicAuthHeader(testApiKey, testApiSecretKey),
+        );
+        expect(result.status).toBe(200);
+      } finally {
+        await prisma.blobStorageIntegration.deleteMany({
+          where: { projectId: testProject1Id },
+        });
+      }
+    });
+
+    it("Cloud + post-cutoff project + LEGACY_TRACES_OBSERVATIONS → 400", async () => {
+      try {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        const result = await makeAPICall(
+          "PUT",
+          "/api/public/integrations/blob-storage",
+          {
+            ...basePayload,
+            projectId: testProject1Id,
+            exportSource: "LEGACY_TRACES_OBSERVATIONS",
+          },
+          createBasicAuthHeader(testApiKey, testApiSecretKey),
+        );
+        expect(result.status).toBe(400);
+        expect(result.body.message).toContain("OBSERVATIONS_V2");
+      } finally {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: new Date() },
+        });
+      }
+    });
+
+    it("Cloud + post-cutoff project + LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS → 400", async () => {
+      try {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        const result = await makeAPICall(
+          "PUT",
+          "/api/public/integrations/blob-storage",
+          {
+            ...basePayload,
+            projectId: testProject1Id,
+            exportSource: "LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS",
+          },
+          createBasicAuthHeader(testApiKey, testApiSecretKey),
+        );
+        expect(result.status).toBe(400);
+        expect(result.body.message).toContain("OBSERVATIONS_V2");
+      } finally {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: new Date() },
+        });
+      }
+    });
+
+    it("Cloud + post-cutoff project + OBSERVATIONS_V2 → 200", async () => {
+      try {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        const result = await makeAPICall(
+          "PUT",
+          "/api/public/integrations/blob-storage",
+          {
+            ...basePayload,
+            projectId: testProject1Id,
+            exportSource: "OBSERVATIONS_V2",
+          },
+          createBasicAuthHeader(testApiKey, testApiSecretKey),
+        );
+        expect(result.status).toBe(200);
+      } finally {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: new Date() },
+        });
+        await prisma.blobStorageIntegration.deleteMany({
+          where: { projectId: testProject1Id },
+        });
+      }
+    });
+    it("Cloud + post-cutoff project + no exportSource + CREATE → defaults to OBSERVATIONS_V2", async () => {
+      // No existing row → CREATE path: handler forces EVENTS (OBSERVATIONS_V2).
+      try {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        const result = await makeAPICall(
+          "PUT",
+          "/api/public/integrations/blob-storage",
+          { ...basePayload, projectId: testProject1Id },
+          createBasicAuthHeader(testApiKey, testApiSecretKey),
+        );
+        expect(result.status).toBe(200);
+        expect(result.body.exportSource).toBe("OBSERVATIONS_V2");
+      } finally {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: new Date() },
+        });
+        await prisma.blobStorageIntegration.deleteMany({
+          where: { projectId: testProject1Id },
+        });
+      }
+    });
+
+    it("Cloud + post-cutoff project + no exportSource + UPDATE → preserves existing value", async () => {
+      // Existing row with OBSERVATIONS_V2 → UPDATE path: omitting exportSource
+      // must not overwrite the persisted value.
+      try {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId: testProject1Id,
+            type: "S3",
+            bucketName: "test-bucket",
+            region: "us-east-1",
+            prefix: "",
+            exportFrequency: "daily",
+            enabled: true,
+            forcePathStyle: false,
+            fileType: "JSONL",
+            exportMode: "FULL_HISTORY",
+            exportSource: "EVENTS",
+          },
+        });
+        const result = await makeAPICall(
+          "PUT",
+          "/api/public/integrations/blob-storage",
+          { ...basePayload, projectId: testProject1Id },
+          createBasicAuthHeader(testApiKey, testApiSecretKey),
+        );
+        expect(result.status).toBe(200);
+        expect(result.body.exportSource).toBe("OBSERVATIONS_V2");
+      } finally {
+        await prisma.project.update({
+          where: { id: testProject1Id },
+          data: { createdAt: new Date() },
+        });
+        await prisma.blobStorageIntegration.deleteMany({
+          where: { projectId: testProject1Id },
+        });
+      }
+    });
+  });
+
+  describe("integration-level legacy exporter cutoff gate", () => {
+    // Cloud mode comes from the server process env (see note in the
+    // project-level gate suite). The project is pinned pre-cutoff, so every
+    // 400 here is the integration-level cutoff. The self-hosted bypass cannot
+    // be tested over HTTP (frozen server env); the tRPC suite covers it
+    // through the same shared gate.
+    const basePayload = {
+      ...validBlobStorageConfig,
+      projectId: "", // set per test
+    };
+
+    const seedIntegration = (createdAt: Date) =>
+      prisma.blobStorageIntegration.create({
+        data: {
+          projectId: testProject1Id,
+          type: "S3",
+          bucketName: "existing-bucket",
+          region: "us-east-1",
+          accessKeyId: "key",
+          secretAccessKey: "secret",
+          prefix: "",
+          exportFrequency: "daily",
+          enabled: true,
+          forcePathStyle: false,
+          fileType: "JSONL",
+          exportMode: "FULL_HISTORY",
+          exportSource: "TRACES_OBSERVATIONS",
+          createdAt,
+        },
+      });
+
+    beforeAll(async () => {
+      await prisma.project.update({
+        where: { id: testProject1Id },
+        data: { createdAt: PRE_CUTOFF },
+      });
+    });
+
+    afterAll(async () => {
+      await prisma.project.update({
+        where: { id: testProject1Id },
+        data: { createdAt: new Date() },
+      });
+    });
+
+    afterEach(async () => {
+      await prisma.blobStorageIntegration.deleteMany({
+        where: { projectId: testProject1Id },
+      });
+    });
+
+    it("no existing row + legacy source → 400 mentioning the integration cutoff", async () => {
+      const result = await makeAPICall(
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        {
+          ...basePayload,
+          projectId: testProject1Id,
+          exportSource: "LEGACY_TRACES_OBSERVATIONS",
+        },
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(result.status).toBe(400);
+      expect(result.body.message).toContain(
+        "blob storage integrations created on or after",
+      );
+      expect(result.body.message).toContain(
+        LEGACY_BLOB_EXPORTER_CUTOFF.toISOString(),
+      );
+      expect(result.body.message).toContain("OBSERVATIONS_V2");
+    });
+
+    it("pre-cutoff existing row + legacy source → 200 (grandfathered)", async () => {
+      await seedIntegration(INTEGRATION_PRE_CUTOFF);
+      const result = await makeAPICall(
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        {
+          ...basePayload,
+          projectId: testProject1Id,
+          exportSource: "LEGACY_TRACES_OBSERVATIONS",
+        },
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(result.status).toBe(200);
+      expect(result.body.exportSource).toBe("LEGACY_TRACES_OBSERVATIONS");
+    });
+
+    it("existing row created exactly at the cutoff + legacy source → 400", async () => {
+      // Boundary: only rows created strictly before the cutoff are
+      // grandfathered.
+      await seedIntegration(LEGACY_BLOB_EXPORTER_CUTOFF);
+      const result = await makeAPICall(
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        {
+          ...basePayload,
+          projectId: testProject1Id,
+          exportSource: "LEGACY_TRACES_OBSERVATIONS",
+        },
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(result.status).toBe(400);
+      expect(result.body.message).toContain(
+        "blob storage integrations created on or after",
+      );
+    });
+
+    it("post-cutoff existing row + legacy source → 400", async () => {
+      await seedIntegration(INTEGRATION_POST_CUTOFF);
+      const result = await makeAPICall(
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        {
+          ...basePayload,
+          projectId: testProject1Id,
+          exportSource: "LEGACY_TRACES_OBSERVATIONS",
+        },
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(result.status).toBe(400);
+      expect(result.body.message).toContain(
+        "blob storage integrations created on or after",
+      );
+    });
+
+    it("no existing row + OBSERVATIONS_V2 → 200", async () => {
+      const result = await makeAPICall(
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        {
+          ...basePayload,
+          projectId: testProject1Id,
+          exportSource: "OBSERVATIONS_V2",
+        },
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(result.status).toBe(200);
+      expect(result.body.exportSource).toBe("OBSERVATIONS_V2");
+    });
+
+    it("no existing row + omitted exportSource → 200 and persists EVENTS", async () => {
+      // New Cloud rows must never get the legacy column default, even on a
+      // pre-cutoff project.
+      const result = await makeAPICall(
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        { ...basePayload, projectId: testProject1Id },
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(result.status).toBe(200);
+      expect(result.body.exportSource).toBe("OBSERVATIONS_V2");
+
+      const saved = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: testProject1Id },
+      });
+      expect(saved?.exportSource).toBe("EVENTS");
     });
   });
 });

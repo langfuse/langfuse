@@ -1,11 +1,15 @@
 import { Processor } from "bullmq";
+import { Readable } from "node:stream";
 import {
   logger,
-  StorageService,
   StorageServiceFactory,
+  type StorageService,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
+
+const PROMPT_EXPORT_PAGE_SIZE = 1_000;
+const PROMPT_EXPORT_PART_SIZE_BYTES = 100 * 1024 * 1024;
 
 let s3StorageServiceClient: StorageService;
 
@@ -24,6 +28,79 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
     });
   }
   return s3StorageServiceClient;
+};
+
+type PromptCoreData = {
+  id: string;
+  name: string;
+  projectId: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type FetchPromptPage = (args: {
+  skip: number;
+  take: number;
+}) => Promise<PromptCoreData[]>;
+
+async function* createPromptJsonlStream({
+  fetchPromptPage,
+  pageSize,
+}: {
+  fetchPromptPage: FetchPromptPage;
+  pageSize: number;
+}): AsyncGenerator<string> {
+  let skip = 0;
+  let isFirstRow = true;
+
+  while (true) {
+    const prompts = await fetchPromptPage({ skip, take: pageSize });
+
+    if (prompts.length === 0) {
+      break;
+    }
+
+    for (const prompt of prompts) {
+      yield `${isFirstRow ? "" : "\n"}${JSON.stringify(prompt)}`;
+      isFirstRow = false;
+    }
+
+    if (prompts.length < pageSize) {
+      break;
+    }
+
+    skip += prompts.length;
+  }
+}
+
+export const uploadPromptsCoreDataJsonl = async ({
+  s3Client,
+  uploadPrefix,
+  pageSize = PROMPT_EXPORT_PAGE_SIZE,
+  fetchPromptPage = (args) =>
+    prisma.prompt.findMany({
+      ...args,
+      orderBy: { id: "asc" },
+      select: {
+        id: true,
+        name: true,
+        projectId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    }),
+}: {
+  s3Client: StorageService;
+  uploadPrefix: string;
+  pageSize?: number;
+  fetchPromptPage?: FetchPromptPage;
+}): Promise<void> => {
+  await s3Client.uploadFileBuffered({
+    fileName: `${uploadPrefix}prompts.jsonl`,
+    fileType: "application/x-ndjson",
+    data: Readable.from(createPromptJsonlStream({ fetchPromptPage, pageSize })),
+    partSizeBytes: PROMPT_EXPORT_PART_SIZE_BYTES,
+  });
 };
 
 export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {
@@ -47,9 +124,9 @@ export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {
     organizations,
     orgMemberships,
     projectMemberships,
-    prompts,
     billingMeterBackup,
     surveys,
+    blobStorageIntegrations,
   ] = await Promise.all([
     prisma.project.findMany({
       select: {
@@ -100,15 +177,6 @@ export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {
         updatedAt: true,
       },
     }),
-    prisma.prompt.findMany({
-      select: {
-        id: true,
-        name: true,
-        projectId: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    }),
     prisma.billingMeterBackup.findMany(),
     prisma.survey.findMany({
       select: {
@@ -121,6 +189,32 @@ export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {
         createdAt: true,
       },
     }),
+    prisma.blobStorageIntegration.findMany({
+      select: {
+        projectId: true,
+        type: true,
+        bucketName: true,
+        prefix: true,
+        region: true,
+        endpoint: true,
+        forcePathStyle: true,
+        nextSyncAt: true,
+        lastSyncAt: true,
+        enabled: true,
+        exportFrequency: true,
+        fileType: true,
+        exportMode: true,
+        exportStartDate: true,
+        exportSource: true,
+        exportFieldGroups: true,
+        compressed: true,
+        lastError: true,
+        lastErrorAt: true,
+        lastFailureNotificationSentAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    }),
   ]);
 
   // Iterate through the tables and upload them to S3 as JSONLs
@@ -131,9 +225,9 @@ export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {
       organizations,
       orgMemberships,
       projectMemberships,
-      prompts,
       billingMeterBackup,
       surveys,
+      blobStorageIntegrations,
     }).map(async ([key, value]) =>
       s3Client.uploadFile({
         fileName: `${env.LANGFUSE_S3_CORE_DATA_UPLOAD_PREFIX}${key}.jsonl`,
@@ -142,6 +236,11 @@ export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {
       }),
     ),
   );
+
+  await uploadPromptsCoreDataJsonl({
+    s3Client,
+    uploadPrefix: env.LANGFUSE_S3_CORE_DATA_UPLOAD_PREFIX,
+  });
 
   logger.info("Finished core data S3 export");
 };

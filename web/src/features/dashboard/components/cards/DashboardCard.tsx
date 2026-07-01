@@ -1,3 +1,4 @@
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import {
   Card,
   CardHeader,
@@ -6,7 +7,6 @@ import {
   CardContent,
 } from "@/src/components/ui/card";
 import { cn } from "@/src/utils/tailwind";
-import { Loader } from "lucide-react";
 import { type ReactNode } from "react";
 
 export type DashboardCardProps = {
@@ -35,7 +35,7 @@ export const DashboardCard = ({
   return (
     <Card className={cn("flex flex-col", className)}>
       <CardHeader className={cn("relative", headerClassName)}>
-        <div className="items-top flex justify-between">
+        <div className="flex justify-between">
           <div className="flex flex-col gap-1.5">
             <CardTitle>{title}</CardTitle>
             {description ? (
@@ -47,7 +47,7 @@ export const DashboardCard = ({
         {headerChildren}
         {isLoading ? (
           <div className="absolute top-5 right-5">
-            <Loader className="h-5 w-5 animate-spin" />
+            <Spinner size="md" />
           </div>
         ) : null}
       </CardHeader>

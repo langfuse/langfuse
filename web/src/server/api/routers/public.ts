@@ -1,6 +1,10 @@
 import { VERSION } from "@/src/constants/VERSION";
 import { env } from "@/src/env.mjs";
-import { createTRPCRouter, publicProcedure } from "@/src/server/api/trpc";
+import {
+  createTRPCRouter,
+  protectedProjectProcedure,
+  publicProcedure,
+} from "@/src/server/api/trpc";
 import { logger, compareVersions } from "@langfuse/shared/src/server";
 import { z } from "zod";
 
@@ -14,6 +18,12 @@ const ReleaseApiRes = z.array(
 );
 
 export const publicRouter = createTRPCRouter({
+  tracingSearchConfig: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(() => ({
+      legacyTracingIoSearchEnabled:
+        env.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH !== "true",
+    })),
   checkUpdate: publicProcedure.query(async () => {
     // Skip update check on Langfuse Cloud
     if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return null;

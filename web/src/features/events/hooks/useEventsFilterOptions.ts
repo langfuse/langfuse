@@ -1,17 +1,22 @@
-import { api } from "@/src/utils/api";
+import { api, type RouterInputs } from "@/src/utils/api";
 import { useMemo } from "react";
 import { type FilterState, type TimeFilter } from "@langfuse/shared";
+
+type EventFilterOptionColumnsInput =
+  RouterInputs["events"]["filterOptions"]["columns"];
 
 type UseEventsFilterOptionsParams = {
   projectId: string;
   oldFilterState: FilterState;
-  hasParentObservation?: boolean;
+  isRootObservation?: boolean;
+  columns?: EventFilterOptionColumnsInput;
 };
 
 export function useEventsFilterOptions({
   projectId,
   oldFilterState,
-  hasParentObservation,
+  isRootObservation,
+  columns,
 }: UseEventsFilterOptionsParams) {
   // Extract start time filters for filter options query
   const startTimeFilters = useMemo(() => {
@@ -28,7 +33,8 @@ export function useEventsFilterOptions({
       projectId,
       startTimeFilter:
         startTimeFilters.length > 0 ? startTimeFilters : undefined,
-      hasParentObservation,
+      isRootObservation,
+      columns,
     },
     {
       trpc: {
@@ -85,8 +91,7 @@ export function useEventsFilterOptions({
       experimentDatasetId: filterOptions.data?.experimentDatasetId ?? undefined,
       experimentId: filterOptions.data?.experimentId ?? undefined,
       experimentName: filterOptions.data?.experimentName ?? undefined,
-      hasParentObservation:
-        filterOptions.data?.hasParentObservation ?? undefined,
+      isRootObservation: filterOptions.data?.isRootObservation ?? undefined,
       toolNames: filterOptions.data?.toolNames ?? undefined,
       calledToolNames: filterOptions.data?.calledToolNames ?? undefined,
       toolDefinitions: [],

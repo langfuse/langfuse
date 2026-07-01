@@ -54,15 +54,14 @@ const createObservationData = (
       end_time: data.end_time ? data.end_time : undefined,
       event_ts: data.event_ts ? data.event_ts : undefined,
     });
-  } else {
-    // Observations table: use milliseconds, requires internal_model_id
-    const { model_id, ...rest } = data;
-    return createObservation({
-      ...rest,
-      internal_model_id: model_id || data.internal_model_id,
-      // Timestamps already in milliseconds
-    });
   }
+  // Observations table: use milliseconds, requires internal_model_id
+  const { model_id, ...rest } = data;
+  return createObservation({
+    ...rest,
+    internal_model_id: model_id || data.internal_model_id,
+    // Timestamps already in milliseconds
+  });
 };
 
 // Helper to insert observations into the correct table
@@ -471,7 +470,7 @@ describe("/api/public/observations API Endpoint", () => {
   };
 
   // Run tests with both implementations
-  if (env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true") {
+  if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true") {
     runTestSuite(true); // with events table
   }
   runTestSuite(false); // with observations table

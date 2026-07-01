@@ -9,9 +9,6 @@ import { TracesAndObservationsTimeSeriesChart } from "@/src/features/dashboard/c
 import { UserChart } from "@/src/features/dashboard/components/UserChart";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { useDashboardFilterOptions } from "@/src/hooks/useDashboardFilterOptions";
-import { FeedbackButtonWrapper } from "@/src/features/feedback/component/FeedbackButton";
-import { BarChart2 } from "lucide-react";
-import { Button } from "@/src/components/ui/button";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { type ColumnDefinition, type FilterState } from "@langfuse/shared";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
@@ -27,7 +24,6 @@ import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { ScoreAnalytics } from "@/src/features/dashboard/components/score-analytics/ScoreAnalytics";
 import SetupTracingButton from "@/src/features/setup/components/SetupTracingButton";
-import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import Page from "@/src/components/layouts/page";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
@@ -36,7 +32,7 @@ import {
   useEnvironmentFilter,
 } from "@/src/hooks/useEnvironmentFilter";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { type ViewVersion } from "@/src/features/query";
+import { type ViewVersion } from "@langfuse/shared/query";
 import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import {
@@ -58,6 +54,10 @@ const HOME_DASHBOARD_CARD_IDS = {
   scoreAnalytics: "home:score-analytics",
 } as const;
 
+// Shared across the home time-series charts so hovering one moves the time
+// crosshair on all of them (they share one time range + granularity). (LFE-10549)
+const HOME_DASHBOARD_SYNC_ID = "home-dashboard-timeseries";
+
 export default function Dashboard() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
@@ -70,7 +70,6 @@ export default function Dashboard() {
     [timeRange],
   );
 
-  const uiCustomization = useUiCustomization();
   const lookbackLimit = useEntitlementLimit("data-access-days");
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
@@ -242,27 +241,6 @@ export default function Dashboard() {
           ),
           actionButtonsRight: (
             <>
-              {uiCustomization?.feedbackHref === undefined && (
-                <FeedbackButtonWrapper
-                  title="Request Chart"
-                  description="Your feedback matters! Let the Langfuse team know what additional data or metrics you'd like to see in your dashboard."
-                  className="hidden lg:flex"
-                >
-                  <Button
-                    id="date"
-                    variant={"outline"}
-                    className={
-                      "text-primary hover:bg-primary-foreground hover:text-primary-accent group justify-start gap-x-3 text-left font-semibold"
-                    }
-                  >
-                    <BarChart2
-                      className="text-primary group-hover:text-primary-accent hidden h-6 w-6 shrink-0 lg:block"
-                      aria-hidden="true"
-                    />
-                    Request Chart
-                  </Button>
-                </FeedbackButtonWrapper>
-              )}
               <SetupTracingButton />
             </>
           ),
@@ -309,6 +287,7 @@ export default function Dashboard() {
               isLoading={environmentOptionsState.isPending}
               metricsVersion={metricsVersion}
               schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.tracesTimeSeries}`}
+              syncId={HOME_DASHBOARD_SYNC_ID}
             />
             <ModelUsageChart
               className="col-span-1 min-h-24 xl:col-span-3"
@@ -321,6 +300,7 @@ export default function Dashboard() {
               isLoading={environmentOptionsState.isPending}
               metricsVersion={metricsVersion}
               schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.modelUsage}`}
+              syncId={HOME_DASHBOARD_SYNC_ID}
             />
             <UserChart
               className="col-span-1 xl:col-span-3"
@@ -342,6 +322,7 @@ export default function Dashboard() {
               isLoading={environmentOptionsState.isPending}
               metricsVersion={metricsVersion}
               schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.chartScores}`}
+              syncId={HOME_DASHBOARD_SYNC_ID}
             />
             <LatencyTables
               projectId={projectId}
@@ -362,6 +343,7 @@ export default function Dashboard() {
               isLoading={environmentOptionsState.isPending}
               metricsVersion={metricsVersion}
               schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.generationLatency}`}
+              syncId={HOME_DASHBOARD_SYNC_ID}
             />
             <ScoreAnalytics
               className="col-span-1 flex-auto justify-between lg:col-span-full"
@@ -373,6 +355,7 @@ export default function Dashboard() {
               isLoading={environmentOptionsState.isPending}
               metricsVersion={metricsVersion}
               schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.scoreAnalytics}`}
+              syncId={HOME_DASHBOARD_SYNC_ID}
             />
           </div>
         )}

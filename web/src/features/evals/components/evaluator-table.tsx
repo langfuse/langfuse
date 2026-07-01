@@ -24,25 +24,12 @@ import {
 } from "@/src/features/evals/utils/typeHelpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import TableIdOrName from "@/src/components/table/table-id";
-import {
-  MoreVertical,
-  Loader2,
-  ExternalLinkIcon,
-  Edit,
-  Info,
-} from "lucide-react";
+import { ExternalLinkIcon, Info, Pen } from "lucide-react";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { PeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
-import { TablePeekView } from "@/src/components/table/peek";
+import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
 import { evalConfigTargetValues } from "@/src/server/api/definitions/evalConfigsTable";
-import {
-  DropdownMenu,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
+import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
   Dialog,
@@ -69,6 +56,12 @@ import {
   type EvaluatorDataRow,
   useEvaluatorTableData,
 } from "@/src/features/evals/hooks/useEvaluatorTableData";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import {
+  TableBadgeLoadingCell,
+  TableIconButtonLoadingCell,
+  TableTextLoadingCell,
+} from "@/src/components/table/loading-cells";
 
 function LegacyBadgeCell({ status }: { status: string }) {
   return (
@@ -194,6 +187,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       header: "Status",
       id: "status",
       size: 80,
+      loadingCell: <TableBadgeLoadingCell />,
       cell: (row) => {
         const status = row.getValue();
         return (
@@ -238,6 +232,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       header: "Logs",
       id: "logs",
       size: 150,
+      loadingCell: <Skeleton className="h-6 w-16 rounded-md" />,
       cell: ({ row }) => {
         const id = row.original.id;
         return (
@@ -262,6 +257,12 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       id: "template",
       header: "Referenced Evaluator",
       size: 200,
+      loadingCell: (
+        <div className="flex items-center gap-2">
+          <TableTextLoadingCell className="w-32" />
+          <TableBadgeLoadingCell className="w-6" />
+        </div>
+      ),
       cell: ({ row }) => {
         const template = row.original.template;
         if (!template) return "template not found";
@@ -292,6 +293,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       header: "Eval Version",
       size: 180,
       enableHiding: true,
+      loadingCell: <TableBadgeLoadingCell />,
       cell: (row) => {
         const targetObject = row.row.original.target;
         const status = row.row.original.rawStatus;
@@ -359,45 +361,38 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       header: "Actions",
       id: "actions",
       size: 100,
+      loadingCell: <TableIconButtonLoadingCell />,
       cell: ({ row }) => {
         const id = row.original.id;
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                className="h-8 w-8 p-0"
-                aria-label="actions"
-              >
-                <span className="sr-only relative">Open menu</span>
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem
-                key={id}
-                aria-label="edit"
-                disabled={!hasAccess}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (id) setEditConfigId(id);
-                }}
-              >
-                <Edit className="mr-2 h-4 w-4" />
-                Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <DeleteEvalConfigButton
-                  aria-label="delete"
-                  itemId={id}
-                  projectId={projectId}
-                  redirectUrl={`/project/${projectId}/evals`}
-                  deleteConfirmation={row.original.scoreName}
-                />
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center gap-1">
+            <IconOnlyButton
+              key={id}
+              icon={<Pen className="h-4 w-4" />}
+              label="Edit"
+              aria-label="edit"
+              disabledReason={
+                hasAccess
+                  ? undefined
+                  : "You don't have permission to edit this evaluator."
+              }
+              onClick={(e) => {
+                e.stopPropagation();
+                if (id) setEditConfigId(id);
+              }}
+            />
+            <DeleteEvalConfigButton
+              aria-label="delete"
+              itemId={id}
+              projectId={projectId}
+              isTableAction
+              deleteConfirmation={row.original.scoreName}
+              icon
+              variant="ghost"
+              size="icon-xs"
+              title="Delete"
+            />
+          </div>
         );
       },
     }),
@@ -417,13 +412,12 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       detailNavigationKey: "evals",
       peekEventOptions: {
         ignoredSelectors: [
-          "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
+          "[aria-label='edit'], [aria-label='view-logs'], [aria-label='delete']",
         ],
       },
-      children: <PeekViewEvaluatorConfigDetail projectId={projectId} />,
       ...peekNavigationProps,
     }),
-    [projectId, peekNavigationProps],
+    [peekNavigationProps],
   );
 
   return (
@@ -519,7 +513,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             />
           </div>
         </ResizableFilterLayout>
-        <TablePeekView peekView={peekConfig} />
+        <TablePeekViewEvaluatorConfigDetail
+          {...peekConfig}
+          projectId={projectId}
+        />
       </div>
       <Dialog
         open={!!editConfigId && existingEvaluator.isSuccess}
@@ -533,7 +530,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
           </DialogHeader>
           {existingEvaluator.isLoading ? (
             <div className="flex items-center justify-center p-4">
-              <Loader2 className="h-6 w-6 animate-spin" />
+              <Spinner size="lg" />
             </div>
           ) : (
             <EvaluatorForm
@@ -554,7 +551,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               mode="edit"
               onFormSuccess={() => {
                 setEditConfigId(null);
-                void utils.evals.allConfigs.invalidate();
+                utils.evals.allConfigs.invalidate();
                 showSuccessToast({
                   title: "Evaluator updated successfully",
                   description:

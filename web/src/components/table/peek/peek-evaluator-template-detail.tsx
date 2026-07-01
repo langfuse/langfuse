@@ -4,8 +4,9 @@ import { usePeekEvalTemplateData } from "@/src/components/table/peek/hooks/usePe
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
+import { TablePeekView } from "@/src/components/table/peek";
 
-export const PeekViewEvaluatorTemplateDetail = ({
+const PeekViewEvaluatorTemplateDetail = ({
   projectId,
 }: {
   projectId: string;
@@ -42,5 +43,22 @@ export const PeekViewEvaluatorTemplateDetail = ({
         />
       </div>
     </div>
+  );
+};
+
+export const TablePeekViewEvaluatorTemplateDetail = (
+  props: Omit<
+    React.ComponentProps<typeof TablePeekView>,
+    "children" | "title"
+  > & {
+    projectId: string;
+  },
+) => {
+  const { projectId } = props;
+
+  return (
+    <TablePeekView {...props}>
+      <PeekViewEvaluatorTemplateDetail projectId={projectId} />
+    </TablePeekView>
   );
 };

@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/src/utils/api";
 import {
-  type views,
-  type metricAggregations,
+  buildWidgetOrderBy,
+  getResultUnit,
+  isV2BreakdownChart,
+  requiresV2,
+  toQueryChartConfig,
+  validateQuery,
   type QueryType,
-  mapLegacyUiTableFilterToView,
-} from "@/src/features/query";
+  type ViewVersion,
+  type metricAggregations,
+  type views,
+} from "@langfuse/shared/query";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
@@ -24,6 +31,7 @@ import {
   formatMetricName,
   shouldUseWidgetSSE,
   sanitizePivotTableDefaultSort,
+  getWidgetMetricPresentation,
 } from "@/src/features/widgets/utils";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
 import {
@@ -31,15 +39,7 @@ import {
   getChartLoadingStateProps,
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { type ViewVersion } from "@/src/features/query";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
-import {
-  validateQuery,
-  toQueryChartConfig,
-  isV2BreakdownChart,
-  buildWidgetOrderBy,
-} from "@/src/features/query/validateQuery";
-import { requiresV2 } from "@/src/features/query/dataModel";
 
 export interface WidgetPlacement {
   id: string;
@@ -92,9 +92,11 @@ export function DashboardWidget({
   // If widget requires v2 features (minVersion >= 2), must use v2.
   // Otherwise follow the beta toggle.
   const metricsVersion: ViewVersion =
-    widgetRequiresV2 || (widget.data?.minVersion ?? 1) >= 2 || isBetaEnabled
+    widgetRequiresV2 || (widget.data?.minVersion ?? 1) >= 2
       ? "v2"
-      : "v1";
+      : isBetaEnabled && (widget.data?.view ?? "traces") !== "traces"
+        ? "v2"
+        : "v1";
   const hasCUDAccess =
     useHasProjectAccess({ projectId, scope: "dashboards:CUD" }) &&
     dashboardOwner !== "LANGFUSE";
@@ -296,6 +298,65 @@ export function DashboardWidget({
     });
   }, [queryResult.data, widget.data]);
 
+  const chartPresentation = useMemo(() => {
+    if (!widget.data) {
+      return undefined;
+    }
+
+    if (widget.data.chartType === "PIVOT_TABLE") {
+      return undefined;
+    }
+
+    const metric = widget.data.metrics[0];
+    if (!metric) {
+      return undefined;
+    }
+
+    return getWidgetMetricPresentation({
+      metric,
+      view: widget.data.view,
+      version: metricsVersion,
+    });
+  }, [metricsVersion, widget.data]);
+
+  // Memoize the Chart's config/chartConfig objects so the scheduler's page
+  // re-renders don't hand Chart fresh literals every tick (transformedData is
+  // already memoized) — letting Chart's React.memo bail. (LFE-10549)
+  const chartConfigForRender = useMemo(() => {
+    const data = widget.data;
+    if (!data) return undefined;
+    return {
+      ...data.chartConfig,
+      // For PIVOT_TABLE, enhance chartConfig with dimensions and metric field names
+      ...(data.chartType === "PIVOT_TABLE" && {
+        dimensions: data.dimensions.map((dim) => dim.field),
+        metrics: data.metrics.map(
+          (metric) => `${metric.agg}_${metric.measure}`,
+        ),
+        units: data.metrics.map((metric) =>
+          getResultUnit(data.view, metric.measure, metric.agg, metricsVersion),
+        ),
+        defaultSort,
+      }),
+      ...(data.chartType !== "PIVOT_TABLE" && {
+        unit: getResultUnit(
+          data.view,
+          data.metrics[0]?.measure ?? "",
+          data.metrics[0]?.agg,
+          metricsVersion,
+        ),
+      }),
+    };
+  }, [widget.data, metricsVersion, defaultSort]);
+
+  const chartMetricConfig = useMemo(
+    () =>
+      chartPresentation
+        ? { metric: { label: chartPresentation.label } }
+        : undefined,
+    [chartPresentation],
+  );
+
   const handleEdit = () => {
     router.push(
       `/project/${projectId}/widgets/${placement.widgetId}?dashboardId=${dashboardId}`,
@@ -426,6 +487,10 @@ export function DashboardWidget({
             <Chart
               chartType={widget.data.chartType}
               data={transformedData}
+              // Sync the hover crosshair across all time-series widgets on this
+              // dashboard (non-time-series chart types ignore it). (LFE-10549)
+              syncId={dashboardId}
+              config={chartMetricConfig}
               rowLimit={
                 widget.data.chartConfig.type === "LINE_TIME_SERIES" ||
                 widget.data.chartConfig.type === "BAR_TIME_SERIES" ||
@@ -433,17 +498,7 @@ export function DashboardWidget({
                   ? 100
                   : (widget.data.chartConfig.row_limit ?? 100)
               }
-              chartConfig={{
-                ...widget.data.chartConfig,
-                // For PIVOT_TABLE, enhance chartConfig with dimensions and metric field names
-                ...(widget.data.chartType === "PIVOT_TABLE" && {
-                  dimensions: widget.data.dimensions.map((dim) => dim.field),
-                  metrics: widget.data.metrics.map(
-                    (metric) => `${metric.agg}_${metric.measure}`,
-                  ),
-                  defaultSort,
-                }),
-              }}
+              chartConfig={chartConfigForRender}
               sortState={
                 widget.data.chartType === "PIVOT_TABLE" ? sortState : undefined
               }
@@ -451,6 +506,7 @@ export function DashboardWidget({
                 widget.data.chartType === "PIVOT_TABLE" ? updateSort : undefined
               }
               isLoading={queryResult.isPending}
+              metricFormatter={chartPresentation?.metricFormatter}
             />
             <ChartLoadingState
               isLoading={chartLoadingState.isLoading}

@@ -163,7 +163,7 @@ Two types of entry points:
 ```typescript
 1. HTTP POST /api/public/datasets
    ↓
-2. Next.js API route handler (pages/api/public/datasets.ts)
+2. Next.js API route handler (pages/api/public/datasets/index.ts)
    ↓
 3. withMiddlewares wrapper executes:
    - Basic auth verification
@@ -571,7 +571,7 @@ export async function createDataset(data: {
 **Public API (Alternative Entry Point):**
 
 ```typescript
-// web/src/pages/api/public/datasets.ts
+// web/src/pages/api/public/datasets/index.ts
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { createDataset } from "@/src/features/datasets/server/service";
@@ -864,7 +864,7 @@ const validated = bodySchema.parse(req.body);
 
 **Related Files:**
 
-- [../AGENTS.md](../AGENTS.md) - Main guide
+- [../SKILL.md](../SKILL.md) - Main guide
 - [routing-and-controllers.md](routing-and-controllers.md) - tRPC and Public API details
 - [services-and-repositories.md](services-and-repositories.md) - Service patterns
 - [testing-guide.md](testing-guide.md) - Testing strategies

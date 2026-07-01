@@ -6,7 +6,7 @@ import {
 } from "@/src/__tests__/test-utils";
 import { GetMetricsV1Response } from "@/src/features/public-api/types/metrics";
 import { createBasicAuthHeader } from "@langfuse/shared/src/server";
-import { type QueryType } from "@/src/features/query/types";
+import { type QueryType } from "@langfuse/shared/query";
 import {
   createTrace,
   createObservation,
@@ -531,9 +531,10 @@ describe("/api/public/metrics API Endpoint", () => {
       expect(response.body).toMatchObject({
         error: "InvalidRequestError",
         message: expect.stringContaining(
-          "Array fields require type 'arrayOptions', not 'string'",
+          "Filter type 'string' is not supported for dimension type 'string[]'",
         ),
       });
+      expect(response.body.message).toContain("Expected 'arrayOptions'.");
     });
 
     it("should return 400 error for invalid metadata filters", async () => {
@@ -568,6 +569,54 @@ describe("/api/public/metrics API Endpoint", () => {
           "Metadata filters require type 'stringObject'",
         ),
       });
+    });
+
+    it("should return 400 when arrayOptions is used on scalar sessionId", async () => {
+      const invalidSessionIdTypeQuery = {
+        view: "observations",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "tags",
+            operator: "all of",
+            value: ["test-tag"],
+            type: "arrayOptions",
+          },
+          {
+            column: "type",
+            operator: "=",
+            value: "GENERATION",
+            type: "string",
+          },
+          {
+            column: "sessionId",
+            operator: "any of",
+            value: [randomUUID()],
+            type: "arrayOptions",
+          },
+        ],
+        timeDimension: null,
+        fromTimestamp: yesterday.toISOString(),
+        toTimestamp: tomorrow.toISOString(),
+        orderBy: null,
+      };
+
+      const response = await makeAPICall(
+        "GET",
+        `/api/public/metrics?query=${encodeURIComponent(JSON.stringify(invalidSessionIdTypeQuery))}`,
+      );
+
+      expect(response.status).toBe(400);
+      expect(response.body).toMatchObject({
+        error: "InvalidRequestError",
+        message: expect.stringContaining(
+          "Filter type 'arrayOptions' is not supported for dimension type 'string'",
+        ),
+      });
+      expect(response.body.message).toContain(
+        "Expected 'string' or 'stringOptions'.",
+      );
     });
 
     it("should work correctly with proper array field filter configuration", async () => {

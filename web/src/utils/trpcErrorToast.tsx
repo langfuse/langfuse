@@ -38,6 +38,17 @@ const getErrorTitleAndHttpCode = (error: TRPCClientError<any>) => {
   const httpStatus: number =
     typeof error.data?.httpStatus === "number" ? error.data.httpStatus : 500;
 
+  if (
+    httpStatus === 422 &&
+    error.data?.errorName === "ClickHouseResourceError"
+  ) {
+    // Handle ClickHouse resource limit errors with specific messaging
+    return {
+      errorTitle: "Request Timed Out",
+      httpStatus,
+    };
+  }
+
   if (httpStatus in httpStatusOverride) {
     return {
       errorTitle: errorTitleMap[httpStatusOverride[httpStatus]],

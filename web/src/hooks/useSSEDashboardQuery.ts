@@ -235,7 +235,7 @@ export function useSSEDashboardQuery(
     }
 
     const abortController = new AbortController();
-    void runQuery(inputKey, abortController.signal);
+    runQuery(inputKey, abortController.signal);
 
     return () => {
       abortController.abort();

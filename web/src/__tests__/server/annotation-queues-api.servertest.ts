@@ -20,25 +20,26 @@ import {
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { v4 as uuidv4 } from "uuid";
 
+const TOTAL_TEST_QUEUES = 10; // Create enough queues to test pagination
+const TOTAL_TEST_QUEUE_ITEMS = 6; // Create enough queue items to test filtering
+
 describe("Annotation Queues API Endpoints", () => {
   let auth: string;
   let projectId: string;
-  let queueId: string;
-  let queueItemId: string;
-  const TOTAL_TEST_QUEUES = 15; // Create enough queues to test pagination
-  const TOTAL_TEST_QUEUE_ITEMS = 20; // Create enough queue items to test pagination
 
-  beforeEach(async () => {
-    // Create organization, project, and API key for testing
-    const { auth: newAuth, projectId: newProjectId } =
-      await createOrgProjectAndApiKey();
-    auth = newAuth;
-    projectId = newProjectId;
+  const createQueue = (overrides: Partial<{ name: string }> = {}) =>
+    prisma.annotationQueue.create({
+      data: {
+        name: overrides.name ?? "Test Queue 1",
+        description: "Test Queue Description 1",
+        scoreConfigIds: [],
+        projectId,
+      },
+    });
 
-    // Create multiple test annotation queues
-    const queuePromises = [];
-    for (let i = 0; i < TOTAL_TEST_QUEUES; i++) {
-      queuePromises.push(
+  const createQueues = async (count = TOTAL_TEST_QUEUES) =>
+    Promise.all(
+      Array.from({ length: count }, (_, i) =>
         prisma.annotationQueue.create({
           data: {
             name: `Test Queue ${i + 1}`,
@@ -47,30 +48,26 @@ describe("Annotation Queues API Endpoints", () => {
             projectId,
           },
         }),
-      );
-    }
+      ),
+    );
 
-    const queues = await Promise.all(queuePromises);
-    queueId = queues[0].id; // Use the first queue for specific tests
+  const createQueueItems = async (queueIds: string[]) =>
+    Promise.all(
+      Array.from({ length: TOTAL_TEST_QUEUE_ITEMS }, (_, i) => {
+        // Distribute items across the provided queues to test filtering
+        const targetQueueId = queueIds[i % queueIds.length];
 
-    // Create multiple test annotation queue items
-    const queueItemPromises = [];
-    for (let i = 0; i < TOTAL_TEST_QUEUE_ITEMS; i++) {
-      // Distribute items across the first 3 queues to test filtering
-      const targetQueueId = queues[i % 3].id;
+        // Alternate between PENDING and COMPLETED status
+        const status =
+          i % 2 === 0
+            ? AnnotationQueueStatus.PENDING
+            : AnnotationQueueStatus.COMPLETED;
 
-      // Alternate between PENDING and COMPLETED status
-      const status =
-        i % 2 === 0
-          ? AnnotationQueueStatus.PENDING
-          : AnnotationQueueStatus.COMPLETED;
+        // Set completedAt for COMPLETED items
+        const completedAt =
+          status === AnnotationQueueStatus.COMPLETED ? new Date() : null;
 
-      // Set completedAt for COMPLETED items
-      const completedAt =
-        status === AnnotationQueueStatus.COMPLETED ? new Date() : null;
-
-      queueItemPromises.push(
-        prisma.annotationQueueItem.create({
+        return prisma.annotationQueueItem.create({
           data: {
             queueId: targetQueueId,
             objectId: uuidv4(),
@@ -79,15 +76,33 @@ describe("Annotation Queues API Endpoints", () => {
             completedAt,
             projectId,
           },
-        }),
-      );
-    }
+        });
+      }),
+    );
 
-    const queueItems = await Promise.all(queueItemPromises);
-    queueItemId = queueItems[0].id; // Use the first queue item for specific tests
+  const createScoreConfig = (name = "Test Score Config") =>
+    prisma.scoreConfig.create({
+      data: {
+        name,
+        description: "Test Score Config Description",
+        projectId,
+        dataType: "NUMERIC",
+      },
+    });
+
+  beforeEach(async () => {
+    // Create organization, project, and API key for testing
+    const { auth: newAuth, projectId: newProjectId } =
+      await createOrgProjectAndApiKey();
+    auth = newAuth;
+    projectId = newProjectId;
   });
 
   describe("GET /annotation-queues", () => {
+    beforeEach(async () => {
+      await createQueues();
+    });
+
     it("should get all annotation queues", async () => {
       const response = await makeZodVerifiedAPICall(
         GetAnnotationQueuesResponse,
@@ -128,23 +143,22 @@ describe("Annotation Queues API Endpoints", () => {
     it("should return different results for different pages", async () => {
       const limit = 5;
 
-      // Get first page
-      const firstPageResponse = await makeZodVerifiedAPICall(
-        GetAnnotationQueuesResponse,
-        "GET",
-        `/api/public/annotation-queues?page=1&limit=${limit}`,
-        undefined,
-        auth,
-      );
-
-      // Get second page
-      const secondPageResponse = await makeZodVerifiedAPICall(
-        GetAnnotationQueuesResponse,
-        "GET",
-        `/api/public/annotation-queues?page=2&limit=${limit}`,
-        undefined,
-        auth,
-      );
+      const [firstPageResponse, secondPageResponse] = await Promise.all([
+        makeZodVerifiedAPICall(
+          GetAnnotationQueuesResponse,
+          "GET",
+          `/api/public/annotation-queues?page=1&limit=${limit}`,
+          undefined,
+          auth,
+        ),
+        makeZodVerifiedAPICall(
+          GetAnnotationQueuesResponse,
+          "GET",
+          `/api/public/annotation-queues?page=2&limit=${limit}`,
+          undefined,
+          auth,
+        ),
+      ]);
 
       expect(firstPageResponse.status).toBe(200);
       expect(secondPageResponse.status).toBe(200);
@@ -169,14 +183,7 @@ describe("Annotation Queues API Endpoints", () => {
 
   describe("POST /annotation-queues", () => {
     it("should create a new annotation queue", async () => {
-      const scoreConfig = await prisma.scoreConfig.create({
-        data: {
-          name: "Test Score Config",
-          description: "Test Score Config Description",
-          projectId,
-          dataType: "NUMERIC",
-        },
-      });
+      const scoreConfig = await createScoreConfig();
 
       const response = await makeZodVerifiedAPICall(
         CreateAnnotationQueueResponse,
@@ -198,14 +205,7 @@ describe("Annotation Queues API Endpoints", () => {
     });
 
     it("should create a queue with description set to null", async () => {
-      const scoreConfig = await prisma.scoreConfig.create({
-        data: {
-          name: "Score Config for Null Desc",
-          description: "Test",
-          projectId,
-          dataType: "NUMERIC",
-        },
-      });
+      const scoreConfig = await createScoreConfig("Score Config for Null Desc");
 
       const response = await makeZodVerifiedAPICall(
         CreateAnnotationQueueResponse,
@@ -224,14 +224,7 @@ describe("Annotation Queues API Endpoints", () => {
     });
 
     it("should create a queue with description omitted", async () => {
-      const scoreConfig = await prisma.scoreConfig.create({
-        data: {
-          name: "Score Config for No Desc",
-          description: "Test",
-          projectId,
-          dataType: "NUMERIC",
-        },
-      });
+      const scoreConfig = await createScoreConfig("Score Config for No Desc");
 
       const response = await makeZodVerifiedAPICall(
         CreateAnnotationQueueResponse,
@@ -249,14 +242,7 @@ describe("Annotation Queues API Endpoints", () => {
     });
 
     it("should return 400 if the queue name already exists", async () => {
-      await prisma.annotationQueue.create({
-        data: {
-          name: "Test Queue",
-          description: "Test Queue Description",
-          scoreConfigIds: [],
-          projectId,
-        },
-      });
+      await createQueue({ name: "Test Queue" });
 
       const response = await makeAPICall(
         "POST",
@@ -342,6 +328,13 @@ describe("Annotation Queues API Endpoints", () => {
   });
 
   describe("GET /annotation-queues/:queueId", () => {
+    let queueId: string;
+
+    beforeEach(async () => {
+      const queue = await createQueue();
+      queueId = queue.id;
+    });
+
     it("should get a specific annotation queue", async () => {
       const response = await makeZodVerifiedAPICall(
         GetAnnotationQueueByIdResponse,
@@ -371,6 +364,14 @@ describe("Annotation Queues API Endpoints", () => {
   });
 
   describe("GET /annotation-queues/:queueId/items", () => {
+    let queueId: string;
+
+    beforeEach(async () => {
+      const queues = await createQueues(3);
+      queueId = queues[0].id;
+      await createQueueItems(queues.map((queue) => queue.id));
+    });
+
     it("should get all items for a specific queue", async () => {
       const response = await makeZodVerifiedAPICall(
         GetAnnotationQueueItemsResponse,
@@ -412,10 +413,9 @@ describe("Annotation Queues API Endpoints", () => {
     it("should return different results for different pages of queue items", async () => {
       // First, create enough items to ensure we have multiple pages
       const itemsToCreate = 15;
-      const createPromises = [];
 
-      for (let i = 0; i < itemsToCreate; i++) {
-        createPromises.push(
+      await Promise.all(
+        Array.from({ length: itemsToCreate }, () =>
           makeZodVerifiedAPICall(
             CreateAnnotationQueueItemResponse,
             "POST",
@@ -426,30 +426,27 @@ describe("Annotation Queues API Endpoints", () => {
             },
             auth,
           ),
-        );
-      }
-
-      await Promise.all(createPromises);
+        ),
+      );
 
       const limit = 7;
 
-      // Get first page
-      const firstPageResponse = await makeZodVerifiedAPICall(
-        GetAnnotationQueueItemsResponse,
-        "GET",
-        `/api/public/annotation-queues/${queueId}/items?page=1&limit=${limit}`,
-        undefined,
-        auth,
-      );
-
-      // Get second page
-      const secondPageResponse = await makeZodVerifiedAPICall(
-        GetAnnotationQueueItemsResponse,
-        "GET",
-        `/api/public/annotation-queues/${queueId}/items?page=2&limit=${limit}`,
-        undefined,
-        auth,
-      );
+      const [firstPageResponse, secondPageResponse] = await Promise.all([
+        makeZodVerifiedAPICall(
+          GetAnnotationQueueItemsResponse,
+          "GET",
+          `/api/public/annotation-queues/${queueId}/items?page=1&limit=${limit}`,
+          undefined,
+          auth,
+        ),
+        makeZodVerifiedAPICall(
+          GetAnnotationQueueItemsResponse,
+          "GET",
+          `/api/public/annotation-queues/${queueId}/items?page=2&limit=${limit}`,
+          undefined,
+          auth,
+        ),
+      ]);
 
       expect(firstPageResponse.status).toBe(200);
       expect(secondPageResponse.status).toBe(200);
@@ -503,31 +500,35 @@ describe("Annotation Queues API Endpoints", () => {
   });
 
   describe("GET /annotation-queues/:queueId/items/:itemId", () => {
+    let queueId: string;
+    let queueItemId: string;
+
+    beforeEach(async () => {
+      const queue = await createQueue();
+      queueId = queue.id;
+      const queueItem = await prisma.annotationQueueItem.create({
+        data: {
+          queueId,
+          objectId: uuidv4(),
+          objectType: AnnotationQueueObjectType.TRACE,
+          status: AnnotationQueueStatus.PENDING,
+          projectId,
+        },
+      });
+      queueItemId = queueItem.id;
+    });
+
     it("should get a specific annotation queue item", async () => {
-      // First, get an item that belongs to the queue
-      const itemsResponse = await makeZodVerifiedAPICall(
-        GetAnnotationQueueItemsResponse,
-        "GET",
-        `/api/public/annotation-queues/${queueId}/items?limit=1`,
-        undefined,
-        auth,
-      );
-
-      expect(itemsResponse.status).toBe(200);
-      expect(itemsResponse.body.data.length).toBeGreaterThan(0);
-
-      const itemId = itemsResponse.body.data[0].id;
-
       const response = await makeZodVerifiedAPICall(
         GetAnnotationQueueItemByIdResponse,
         "GET",
-        `/api/public/annotation-queues/${queueId}/items/${itemId}`,
+        `/api/public/annotation-queues/${queueId}/items/${queueItemId}`,
         undefined,
         auth,
       );
 
       expect(response.status).toBe(200);
-      expect(response.body.id).toBe(itemId);
+      expect(response.body.id).toBe(queueItemId);
       expect(response.body.queueId).toBe(queueId);
     });
 
@@ -557,6 +558,13 @@ describe("Annotation Queues API Endpoints", () => {
   });
 
   describe("POST /annotation-queues/:queueId/items", () => {
+    let queueId: string;
+
+    beforeEach(async () => {
+      const queue = await createQueue();
+      queueId = queue.id;
+    });
+
     it("should create a new annotation queue item", async () => {
       const objectId = uuidv4();
       const response = await makeZodVerifiedAPICall(
@@ -578,39 +586,38 @@ describe("Annotation Queues API Endpoints", () => {
     });
 
     it("should create queue items with different object types and statuses", async () => {
-      // Create a queue item with TRACE object type
       const traceObjectId = uuidv4();
-      const traceResponse = await makeZodVerifiedAPICall(
-        CreateAnnotationQueueItemResponse,
-        "POST",
-        `/api/public/annotation-queues/${queueId}/items`,
-        {
-          objectId: traceObjectId,
-          objectType: AnnotationQueueObjectType.TRACE,
-          status: AnnotationQueueStatus.COMPLETED,
-        },
-        auth,
-      );
+      const observationObjectId = uuidv4();
+
+      const [traceResponse, observationResponse] = await Promise.all([
+        makeZodVerifiedAPICall(
+          CreateAnnotationQueueItemResponse,
+          "POST",
+          `/api/public/annotation-queues/${queueId}/items`,
+          {
+            objectId: traceObjectId,
+            objectType: AnnotationQueueObjectType.TRACE,
+            status: AnnotationQueueStatus.COMPLETED,
+          },
+          auth,
+        ),
+        makeZodVerifiedAPICall(
+          CreateAnnotationQueueItemResponse,
+          "POST",
+          `/api/public/annotation-queues/${queueId}/items`,
+          {
+            objectId: observationObjectId,
+            objectType: AnnotationQueueObjectType.OBSERVATION,
+            status: AnnotationQueueStatus.PENDING,
+          },
+          auth,
+        ),
+      ]);
 
       expect(traceResponse.status).toBe(200);
       expect(traceResponse.body.objectType).toBe(
         AnnotationQueueObjectType.TRACE,
       );
-
-      // Create a queue item with OBSERVATION object type
-      const observationObjectId = uuidv4();
-      const observationResponse = await makeZodVerifiedAPICall(
-        CreateAnnotationQueueItemResponse,
-        "POST",
-        `/api/public/annotation-queues/${queueId}/items`,
-        {
-          objectId: observationObjectId,
-          objectType: AnnotationQueueObjectType.OBSERVATION,
-          status: AnnotationQueueStatus.PENDING,
-        },
-        auth,
-      );
-
       expect(observationResponse.status).toBe(200);
       expect(observationResponse.body.objectType).toBe(
         AnnotationQueueObjectType.OBSERVATION,
@@ -662,6 +669,13 @@ describe("Annotation Queues API Endpoints", () => {
   });
 
   describe("PATCH /annotation-queues/:queueId/items/:itemId", () => {
+    let queueId: string;
+
+    beforeEach(async () => {
+      const queue = await createQueue();
+      queueId = queue.id;
+    });
+
     it("should update an annotation queue item to COMPLETED", async () => {
       // Create a new item to update
       const createResponse = await makeZodVerifiedAPICall(
@@ -745,10 +759,19 @@ describe("Annotation Queues API Endpoints", () => {
     });
 
     it("should return 404 for non-existent queue", async () => {
+      const queueItem = await prisma.annotationQueueItem.create({
+        data: {
+          queueId,
+          objectId: uuidv4(),
+          objectType: AnnotationQueueObjectType.TRACE,
+          status: AnnotationQueueStatus.PENDING,
+          projectId,
+        },
+      });
       const nonExistentId = uuidv4();
       const response = await makeAPICall(
         "PATCH",
-        `/api/public/annotation-queues/${nonExistentId}/items/${queueItemId}`,
+        `/api/public/annotation-queues/${nonExistentId}/items/${queueItem.id}`,
         {
           status: AnnotationQueueStatus.COMPLETED,
         },
@@ -760,6 +783,13 @@ describe("Annotation Queues API Endpoints", () => {
   });
 
   describe("DELETE /annotation-queues/:queueId/items/:itemId", () => {
+    let queueId: string;
+
+    beforeEach(async () => {
+      const queue = await createQueue();
+      queueId = queue.id;
+    });
+
     it("should delete an annotation queue item", async () => {
       // Create a new item to delete
       const createResponse = await makeZodVerifiedAPICall(
@@ -810,10 +840,19 @@ describe("Annotation Queues API Endpoints", () => {
     });
 
     it("should return 404 for non-existent queue", async () => {
+      const queueItem = await prisma.annotationQueueItem.create({
+        data: {
+          queueId,
+          objectId: uuidv4(),
+          objectType: AnnotationQueueObjectType.TRACE,
+          status: AnnotationQueueStatus.PENDING,
+          projectId,
+        },
+      });
       const nonExistentId = uuidv4();
       const response = await makeAPICall(
         "DELETE",
-        `/api/public/annotation-queues/${nonExistentId}/items/${queueItemId}`,
+        `/api/public/annotation-queues/${nonExistentId}/items/${queueItem.id}`,
         undefined,
         auth,
       );

@@ -3,7 +3,9 @@ import { ApiAccessScope } from "../server";
 
 export const RateLimitResource = z.enum([
   "ingestion",
+  "media-upload",
   "public-api",
+  "public-api-legacy",
   "public-api-metrics",
   "public-api-daily-metrics-legacy",
   "prompts",
@@ -11,6 +13,7 @@ export const RateLimitResource = z.enum([
   "datasets",
   "trace-delete",
   "score-delete",
+  "in-app-agent-run",
 ]);
 
 // result of the rate limit check.

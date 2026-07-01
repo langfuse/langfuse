@@ -16,7 +16,7 @@ import { NumericScoreHistogram } from "@/src/features/dashboard/components/score
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { type ViewVersion } from "@/src/features/query";
+import { type ViewVersion } from "@langfuse/shared/query";
 import {
   convertScoreColumnsToAnalyticsData,
   getScoreDataTypeIcon,
@@ -32,6 +32,8 @@ export function ScoreAnalytics(props: {
   isLoading?: boolean;
   metricsVersion?: ViewVersion;
   schedulerId?: string;
+  /** Shared hover-sync group so the per-score line charts join the dashboard crosshair. */
+  syncId?: string;
 }) {
   // Stale score selections in localStorage are ignored as we only show scores that exist in scoreAnalyticsOptions
   const [selectedDashboardScoreKeys, setSelectedDashboardScoreKeys] =
@@ -185,6 +187,7 @@ export function ScoreAnalytics(props: {
                         toTimestamp={props.toTimestamp}
                         metricsVersion={props.metricsVersion}
                         schedulerId={props.schedulerId}
+                        syncId={props.syncId}
                       />
                     )}
                   </div>

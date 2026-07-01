@@ -46,7 +46,7 @@ import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
-import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
+import { joinSessionCoreAndMetrics } from "@/src/components/table/use-cases/session-row-data";
 import TagList from "@/src/features/tag/components/TagList";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { cn } from "@/src/utils/tailwind";
@@ -294,8 +294,6 @@ export default function SessionsTable({
     projectId,
     filter: backendFilterState,
     orderBy: null,
-    page: 0,
-    limit: 1,
   };
 
   const payloadGetAll = {
@@ -381,7 +379,7 @@ export default function SessionsTable({
 
   const sessionRowData = useMemo(
     () =>
-      joinTableCoreAndMetrics<SessionCoreOutput, SessionMetricOutput>(
+      joinSessionCoreAndMetrics<SessionCoreOutput, SessionMetricOutput>(
         sessions.data?.sessions,
         sessionMetrics.data,
       ),
@@ -755,7 +753,8 @@ export default function SessionsTable({
           return <TableTextLoadingCell />;
         }
         return (
-          value && (
+          value &&
+          value.length > 0 && (
             <div
               className={cn(
                 "flex gap-x-2 gap-y-1",
@@ -796,14 +795,19 @@ export default function SessionsTable({
     stateUpdaters: {
       setOrderBy: setOrderByState,
       setFilters: setFiltersWrapper,
+      setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibility,
     },
     validationContext: {
       columns,
       filterColumnDefinition: sessionsFilterConfig.columnDefinitions,
+      expandableFilterColumns: sessionsFilterConfig.facets.map(
+        (facet) => facet.column,
+      ),
     },
     currentFilterState: queryFilter.explicitFilterState,
+    currentExpandedFilters: queryFilter.expanded,
   });
 
   return (
@@ -863,7 +867,11 @@ export default function SessionsTable({
 
         {/* Content area with sidebar and table */}
         <ResizableFilterLayout>
-          <DataTableControls queryFilter={queryFilter} />
+          <DataTableControls
+            // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
+            key={viewControllers.selectedViewId ?? "no-view"}
+            queryFilter={queryFilter}
+          />
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable

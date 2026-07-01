@@ -35,7 +35,6 @@ import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
 import { type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { PeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { ExperimentGridView } from "./ExperimentGridView";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
@@ -51,22 +50,46 @@ import {
   getExperimentColorStyles,
 } from "./types";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
-import {
-  type DataTablePeekViewProps,
-  TablePeekView,
-} from "@/src/components/table/peek";
+import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { cn } from "@/src/utils/tailwind";
-import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import { createScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
+import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { ExperimentCompareTable } from "./ExperimentCompareTable";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
+import {
+  useExperimentItemsFilterOptions,
+  type ScoreColumnDef,
+} from "@/src/features/experiments/hooks/useExperimentItemsFilterOptions";
 import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
+import { TablePeekViewExperimentItemDetail } from "@/src/components/table/peek/peek-experiment-item-detail";
 
 const renderExperimentSpecificHeader = (label: string) => (
   <span className="text-muted-foreground">{label}</span>
 );
+
+/**
+ * Transforms score column definitions to the format expected by createScoreColumns.
+ * Computes the aggregate key from name/source/dataType.
+ */
+function toScoreColumnInput(scoreColumnDefs: ScoreColumnDef[]): Array<{
+  key: string;
+  name: string;
+  source: string;
+  dataType: "NUMERIC" | "BOOLEAN" | "CATEGORICAL";
+}> {
+  return scoreColumnDefs.map(({ name, dataType, source }) => ({
+    key: composeAggregateScoreKey({
+      name,
+      source: source as "API" | "ANNOTATION" | "EVAL",
+      dataType,
+    }),
+    name,
+    source,
+    dataType,
+  }));
+}
 
 export const getDefaultExperimentFilterTarget = (props: {
   baselineId?: string;
@@ -250,6 +273,13 @@ export default function ExperimentItemsTable({
         : comparisonIds,
     [comparisonIds, fallbackBaselineId],
   );
+  // All experiment IDs (base first, then comparisons)
+  const allExperimentIds = useMemo(() => {
+    return fallbackBaselineId
+      ? [fallbackBaselineId, ...comparisonIdsWithoutFallbackBaseline]
+      : [];
+  }, [fallbackBaselineId, comparisonIdsWithoutFallbackBaseline]);
+
   const defaultFilterTargetExperimentId = getDefaultExperimentFilterTarget({
     baselineId,
     comparisonIds,
@@ -288,12 +318,22 @@ export default function ExperimentItemsTable({
     order: "DESC",
   });
 
+  // Fetch score filter options scoped to selected experiments
+  const {
+    filterOptions: scoreFilterOptions,
+    scoreColumns: scoreColumnDefs,
+    isLoading: isFilterOptionsLoading,
+  } = useExperimentItemsFilterOptions({
+    projectId,
+    experimentIds: allExperimentIds,
+  });
+
   // Use sidebar filter state for the sidebar UI (provides proper facets, options, etc.)
   // This is the single source of truth for filters
   const queryFilter = useSidebarFilterState(
     experimentItemsFilterConfig,
-    {},
-    { stateLocation: "url" },
+    scoreFilterOptions,
+    { stateLocation: "url", loading: isFilterOptionsLoading },
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -474,44 +514,42 @@ export default function ExperimentItemsTable({
     },
   );
 
-  // All experiment IDs for color coding (base first, then comparisons)
-  const allExperimentIds = useMemo(() => {
-    return fallbackBaselineId
-      ? [fallbackBaselineId, ...comparisonIdsWithoutFallbackBaseline]
-      : [];
-  }, [fallbackBaselineId, comparisonIdsWithoutFallbackBaseline]);
   const colorExperimentIds = useMemo(
     () => (hasBaseline ? allExperimentIds : []),
     [hasBaseline, allExperimentIds],
   );
 
-  const {
-    scoreColumns: observationScoreColumns,
-    isLoading: isObservationScoreColumnsLoading,
-  } = useScoreColumns<ExperimentItemData>({
-    scoreColumnKey: "observationScores",
-    projectId,
-    rawKey: true,
-    filter: scoreFilters.forExperimentItems({
-      experimentIds: allExperimentIds,
-    }),
-    isFilterDataPending: allExperimentIds.length === 0,
-  });
+  // Create score columns from the shared filter options data
+  // This ensures sidebar filters and column visibility use the same data source
+  const observationScoreColumns = useMemo(
+    () =>
+      createScoreColumns<ExperimentItemData>(
+        toScoreColumnInput(scoreColumnDefs.observationScoreColumns),
+        "observationScores",
+        "smart",
+        undefined,
+        undefined,
+        true,
+      ),
+    [scoreColumnDefs.observationScoreColumns],
+  );
 
-  const {
-    scoreColumns: traceScoreColumns,
-    isLoading: isTraceScoreColumnsLoading,
-  } = useScoreColumns<ExperimentItemData>({
-    scoreColumnKey: "traceScores",
-    projectId,
-    rawKey: true,
-    filter: scoreFilters.forExperimentItems({
-      experimentIds: allExperimentIds,
-    }),
-    prefix: "Trace",
-    defaultHidden: true,
-    isFilterDataPending: allExperimentIds.length === 0,
-  });
+  const traceScoreColumns = useMemo(
+    () =>
+      createScoreColumns<ExperimentItemData>(
+        toScoreColumnInput(scoreColumnDefs.traceScoreColumns),
+        "traceScores",
+        "smart",
+        "Trace",
+        true,
+        true,
+      ),
+    [scoreColumnDefs.traceScoreColumns],
+  );
+
+  // Use the shared loading state for both sidebar and columns
+  const isObservationScoreColumnsLoading = isFilterOptionsLoading;
+  const isTraceScoreColumnsLoading = isFilterOptionsLoading;
 
   const buildExperimentScoreColumns = useCallback(
     (
@@ -886,26 +924,29 @@ export default function ExperimentItemsTable({
     stateUpdaters: {
       setOrderBy: setOrderByState,
       setFilters: setFiltersWrapper,
+      setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibilityState,
     },
     validationContext: {
       columns,
       filterColumnDefinition: experimentItemsFilterConfig.columnDefinitions,
+      expandableFilterColumns: experimentItemsFilterConfig.facets.map(
+        (facet) => facet.column,
+      ),
     },
-    currentFilterState: queryFilter.filterState,
+    currentFilterState: queryFilter.explicitFilterState,
+    currentExpandedFilters: queryFilter.expanded,
   });
 
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
     if (!canUsePeek) return undefined;
     return {
       itemType: "TRACE",
-      customTitlePrefix: "Experiment Item:",
       detailNavigationKey: "experiment-items",
-      children: <PeekViewObservationDetail projectId={projectId} />,
       ...peekNavigationProps,
     };
-  }, [projectId, peekNavigationProps, canUsePeek]);
+  }, [peekNavigationProps, canUsePeek]);
 
   const rows: ExperimentItemsTableRow[] = useMemo(() => {
     if (items.status === "success" && items.rows) {
@@ -1080,7 +1121,13 @@ export default function ExperimentItemsTable({
 
         {/* Content area with sidebar and table */}
         <ResizableFilterLayout>
-          {!hideControls && <DataTableControls queryFilter={queryFilter} />}
+          {!hideControls && (
+            <DataTableControls
+              // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
+              key={viewControllers.selectedViewId ?? "no-view"}
+              queryFilter={queryFilter}
+            />
+          )}
 
           <div className="flex flex-1 flex-col overflow-hidden">
             {layout === "grid" ? (
@@ -1144,7 +1191,12 @@ export default function ExperimentItemsTable({
         </ResizableFilterLayout>
 
         {/* Peek view panel */}
-        {peekConfig && <TablePeekView peekView={peekConfig} />}
+        {peekConfig && (
+          <TablePeekViewExperimentItemDetail
+            {...peekConfig}
+            projectId={projectId}
+          />
+        )}
 
         {/* Run Evaluation Dialog */}
         {showRunEvaluationDialog && (

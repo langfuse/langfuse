@@ -111,7 +111,11 @@ export const events = {
   ],
   sign_in: ["cloud_region_switch", "button_click"],
   sign_up: ["button_click"],
-  auth: ["reset_password_email_requested", "update_password_form_submit"],
+  auth: [
+    "reset_password_email_requested",
+    "update_password_form_submit",
+    "set_password_form_submit",
+  ],
   playground: [
     "execute_button_click",
     "save_to_new_prompt_button_click",
@@ -127,6 +131,7 @@ export const events = {
     "delete_dashboard_form_open",
     "delete_dashboard_button_click",
   ],
+  monitors: ["delete_form_open", "delete_monitor_button_click"],
   datasets: [
     "delete_form_open",
     "delete_dataset_button_click",
@@ -166,6 +171,7 @@ export const events = {
     "compare_run_removed",
   ],
   notification: ["click_link", "dismiss_notification"],
+  toast: ["report_issue", "dismiss"],
   tag: [
     "add_existing_tag",
     "remove_tag",
@@ -204,6 +210,7 @@ export const events = {
     "pricing_dialog_opened",
     "delete_organization",
     "ai_features_toggle",
+    "ai_telemetry_toggle",
   ],
   help_popup: ["opened", "href_clicked"],
   navigate_detail_pages: ["button_click_prev_or_next"],
@@ -213,6 +220,7 @@ export const events = {
     "message_sent",
     "community_hours_click",
   ], // also used on landing page for consistency
+  in_app_agent: ["new_chat_started", "new_chat_turn"],
   cmd_k_menu: ["opened", "search_entered", "navigated"],
   spend_alert: ["created", "updated", "deleted"],
   sidebar: ["book_a_call_clicked", "v4_beta_toggled"],

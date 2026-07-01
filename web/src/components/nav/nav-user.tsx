@@ -108,6 +108,10 @@ export function NavUser({ user, items }: UserNavigationProps) {
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
+            // No z-index: this dropdown portals into the `popover` overlay
+            // layer, which sits above the `agent` layer (the assistant window)
+            // by layer ORDER — so it opens above the window with no magic
+            // number. See components/ui/layer.tsx.
             className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
             side={isMobile ? "bottom" : "right"}
             align="end"

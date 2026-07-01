@@ -13,9 +13,20 @@ import {
   Implementation,
   OperationType,
 } from "../datasets/executeWithDatasetServiceStrategy";
+import { addTagsToCurrentSpan } from "../instrumentation";
 import { v4 } from "uuid";
+import {
+  deleteDatasetItemMediaLinks,
+  findUnresolvableMediaReferences,
+  linkDatasetItemMedia,
+  validateDatasetItemMediaReferences,
+} from "./dataset-item-media";
 import { FieldValidationError } from "../../utils/jsonSchemaValidation";
-import { DatasetItemDomain, DatasetItemDomainWithoutIO } from "../../domain";
+import {
+  DatasetItemDomain,
+  DatasetItemDomainWithoutIO,
+  type DatasetItemMediaField,
+} from "../../domain";
 import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
@@ -49,7 +60,9 @@ const emptyValidateOpts: { normalizeUndefinedToNull?: boolean } = {};
 async function getDatasets(props: {
   projectId: string;
   datasetIds: string[];
-}): Promise<Pick<Dataset, "id" | "inputSchema" | "expectedOutputSchema">[]> {
+}): Promise<
+  Pick<Dataset, "id" | "name" | "inputSchema" | "expectedOutputSchema">[]
+> {
   const datasets = await prisma.dataset.findMany({
     where: {
       id: { in: props.datasetIds },
@@ -57,6 +70,7 @@ async function getDatasets(props: {
     },
     select: {
       id: true,
+      name: true,
       inputSchema: true,
       expectedOutputSchema: true,
     },
@@ -73,7 +87,9 @@ async function getDatasets(props: {
 async function getDatasetById(props: {
   projectId: string;
   datasetId: string;
-}): Promise<Pick<Dataset, "id" | "inputSchema" | "expectedOutputSchema">> {
+}): Promise<
+  Pick<Dataset, "id" | "name" | "inputSchema" | "expectedOutputSchema">
+> {
   const result = await getDatasets({
     projectId: props.projectId,
     datasetIds: [props.datasetId],
@@ -84,7 +100,9 @@ async function getDatasetById(props: {
 async function getDatasetByName(props: {
   projectId: string;
   datasetName: string;
-}): Promise<Pick<Dataset, "id" | "inputSchema" | "expectedOutputSchema">> {
+}): Promise<
+  Pick<Dataset, "id" | "name" | "inputSchema" | "expectedOutputSchema">
+> {
   const dataset = await prisma.dataset.findFirst({
     where: {
       name: props.datasetName,
@@ -92,6 +110,7 @@ async function getDatasetByName(props: {
     },
     select: {
       id: true,
+      name: true,
       inputSchema: true,
       expectedOutputSchema: true,
     },
@@ -272,7 +291,7 @@ export async function upsertDatasetItem(
     normalizeOpts?: { sanitizeControlChars?: boolean };
     validateOpts: { normalizeUndefinedToNull?: boolean };
   } & IdOrName,
-): Promise<DatasetItemDomain> {
+): Promise<DatasetItemDomain & { datasetName: string }> {
   // 1. Get dataset
   const dataset =
     "datasetId" in props
@@ -301,6 +320,9 @@ export async function upsertDatasetItem(
       );
     }
   }
+  addTagsToCurrentSpan({
+    "langfuse.dataset_item.upsert.existing_item_count": existingItem ? 1 : 0,
+  });
 
   // 3. Merge incoming data with existing data
   // For fields where props value is undefined, use existing value
@@ -342,35 +364,64 @@ export async function upsertDatasetItem(
     status: mergedItemData.status,
   };
 
+  await validateDatasetItemMediaReferences({
+    projectId: props.projectId,
+    items: [itemData],
+  });
+
   let item: DatasetItem | null = null;
+
+  const linkWrittenItemMedia = (
+    tx: Prisma.TransactionClient,
+    written: DatasetItem,
+  ) =>
+    linkDatasetItemMedia(tx, {
+      projectId: props.projectId,
+      items: [
+        {
+          datasetId: dataset.id,
+          datasetItemId: written.id,
+          datasetItemValidFrom: written.validFrom,
+          input: written.input,
+          expectedOutput: written.expectedOutput,
+          metadata: written.metadata,
+        },
+      ],
+      replaceExisting: true,
+    });
+
   // 6. Update item
   await executeWithDatasetServiceStrategy(OperationType.WRITE, {
     [Implementation.STATEFUL]: async () => {
-      if (existingItem) {
-        const res = await prisma.datasetItem.update({
-          where: {
-            id_projectId_validFrom: {
-              id: existingItem.id,
-              projectId: props.projectId,
-              validFrom: existingItem.validFrom,
-            },
-            datasetId: dataset.id,
-          },
-          data: {
-            ...itemData,
-          },
+      await prisma.$transaction(async (tx) => {
+        const res = existingItem
+          ? await tx.datasetItem.update({
+              where: {
+                id_projectId_validFrom: {
+                  id: existingItem.id,
+                  projectId: props.projectId,
+                  validFrom: existingItem.validFrom,
+                },
+                datasetId: dataset.id,
+              },
+              data: {
+                ...itemData,
+              },
+            })
+          : await tx.datasetItem.create({
+              data: {
+                ...itemData,
+                datasetId: dataset.id,
+                projectId: props.projectId,
+              },
+            });
+        addTagsToCurrentSpan({
+          "langfuse.dataset_item.upsert.updated_count": existingItem ? 1 : 0,
+          "langfuse.dataset_item.upsert.created_count": existingItem ? 0 : 1,
         });
         item = res;
-      } else {
-        const res = await prisma.datasetItem.create({
-          data: {
-            ...itemData,
-            datasetId: dataset.id,
-            projectId: props.projectId,
-          },
-        });
-        item = res;
-      }
+        await linkWrittenItemMedia(tx, res);
+      });
     },
     [Implementation.VERSIONED]: async () => {
       // VERSIONED: Invalidate old row by setting valid_to, then create new row
@@ -411,6 +462,10 @@ export async function upsertDatasetItem(
             },
           });
         }
+        addTagsToCurrentSpan({
+          "langfuse.dataset_item.upsert.updated_count": current ? 1 : 0,
+          "langfuse.dataset_item.upsert.created_count": current ? 0 : 1,
+        });
 
         // 2. Create new version
         const res = await tx.datasetItem.create({
@@ -422,6 +477,7 @@ export async function upsertDatasetItem(
           },
         });
         item = res;
+        await linkWrittenItemMedia(tx, res);
       });
     },
   });
@@ -430,7 +486,7 @@ export async function upsertDatasetItem(
     throw new InternalServerError("Failed to upsert dataset item");
   }
 
-  return toDomainType(item);
+  return { ...toDomainType(item), datasetName: dataset.name };
 }
 
 /**
@@ -457,14 +513,25 @@ export async function deleteDatasetItem(props: {
 
   await executeWithDatasetServiceStrategy(OperationType.WRITE, {
     [Implementation.STATEFUL]: async () => {
-      await prisma.datasetItem.delete({
-        where: {
-          id_projectId_validFrom: {
-            id: item.id,
-            validFrom: item.validFrom,
-            projectId: props.projectId,
+      await prisma.$transaction(async (tx) => {
+        await tx.datasetItem.delete({
+          where: {
+            id_projectId_validFrom: {
+              id: item.id,
+              validFrom: item.validFrom,
+              projectId: props.projectId,
+            },
           },
-        },
+        });
+        await deleteDatasetItemMediaLinks(tx, {
+          projectId: props.projectId,
+          itemVersions: [
+            {
+              datasetItemId: item.id,
+              datasetItemValidFrom: item.validFrom,
+            },
+          ],
+        });
       });
     },
     [Implementation.VERSIONED]: async () => {
@@ -496,6 +563,10 @@ export async function deleteDatasetItem(props: {
             validFrom: newValidFrom,
           },
         });
+
+        // Versioning preserves history: keep the invalidated version's
+        // dataset_item_media rows so the historical view still resolves its
+        // media. They are dropped when the dataset itself is deleted.
       });
     },
   });
@@ -547,6 +618,10 @@ export async function createManyDatasetItems(props: {
       failedCount: number;
     }
 > {
+  addTagsToCurrentSpan({
+    "langfuse.dataset_items.create.input_count": props.items.length,
+  });
+
   let successCount = 0;
   let failedCount = 0;
 
@@ -592,7 +667,10 @@ export async function createManyDatasetItems(props: {
 
   // 3. Validate all items, collect errors with original index
   const validationErrors: CreateManyValidationError[] = [];
-  const preparedItems: CreateManyItemsInsert = [];
+  let preparedItems: CreateManyItemsInsert = [];
+  // Original input index per prepared item, so media validation below can
+  // report a bad reference against the right input row.
+  const preparedOriginalIndices: number[] = [];
 
   for (const datasetId of datasetIds) {
     const datasetItems = itemsByDataset[datasetId];
@@ -651,9 +729,65 @@ export async function createManyDatasetItems(props: {
           sourceTraceId: item.sourceTraceId,
           sourceObservationId: item.sourceObservationId,
         });
+        preparedOriginalIndices.push(item.originalIndex);
       }
     }
   }
+
+  // 3b. Validate media references the same way as schema errors: record each
+  // unresolvable reference (missing or not-yet-uploaded media) against its item
+  // and drop the item, so the early return below handles schema and media
+  // failures uniformly.
+  const unresolvableMedia = preparedItems.length
+    ? await findUnresolvableMediaReferences({
+        projectId: props.projectId,
+        items: preparedItems,
+      })
+    : [];
+  if (unresolvableMedia.length > 0) {
+    const failedItemIndices = new Set(
+      unresolvableMedia.map((r) => r.itemIndex),
+    );
+    const mediaValidationErrorsByField = new Map<
+      string,
+      CreateManyValidationError
+    >();
+    for (const r of unresolvableMedia) {
+      const field: CreateManyValidationError["field"] = r.field;
+      const itemIndex = preparedOriginalIndices[r.itemIndex];
+      const key = `${itemIndex}-${field}`;
+      const error = {
+        path: r.jsonPath,
+        message: `references unknown media: ${r.mediaId}`,
+        keyword: "media",
+      };
+
+      const existing = mediaValidationErrorsByField.get(key);
+      if (existing) {
+        existing.errors.push(error);
+      } else {
+        mediaValidationErrorsByField.set(key, {
+          itemIndex,
+          field,
+          errors: [error],
+        });
+      }
+    }
+    for (const error of mediaValidationErrorsByField.values()) {
+      validationErrors.push(error);
+    }
+    successCount -= failedItemIndices.size;
+    failedCount += failedItemIndices.size;
+    preparedItems = preparedItems.filter((_, i) => !failedItemIndices.has(i));
+  }
+
+  addTagsToCurrentSpan({
+    "langfuse.dataset_items.create.prepared_count": preparedItems.length,
+    "langfuse.dataset_items.create.validation_error_count":
+      validationErrors.length,
+    "langfuse.dataset_items.create.success_count": successCount,
+    "langfuse.dataset_items.create.failed_count": failedCount,
+  });
 
   // 4. If any validation errors and partial success not allowed, return early
   if (validationErrors.length > 0 && !props.allowPartialSuccess) {
@@ -667,10 +801,41 @@ export async function createManyDatasetItems(props: {
 
   // 5. Bulk insert all valid items
   if (preparedItems.length > 0) {
+    // Set explicitly (instead of the column default) so the media link below
+    // knows each inserted row's validFrom
+    const newValidFrom = new Date();
+
+    // Link media in the same transaction as the item write so an item is never
+    // committed without its dataset_item_media rows.
+    const mediaItems = preparedItems.map((item) => ({
+      datasetId: item.datasetId,
+      datasetItemId: item.id,
+      datasetItemValidFrom: newValidFrom,
+      input: item.input,
+      expectedOutput: item.expectedOutput,
+      metadata: item.metadata,
+    }));
+    addTagsToCurrentSpan({
+      "langfuse.dataset_items.create.media_item_count": mediaItems.length,
+    });
+
     await executeWithDatasetServiceStrategy(OperationType.WRITE, {
       [Implementation.STATEFUL]: async () => {
-        await prisma.datasetItem.createMany({
-          data: preparedItems,
+        await prisma.$transaction(async (tx) => {
+          const createResult = await tx.datasetItem.createMany({
+            data: preparedItems.map((item) => ({
+              ...item,
+              validFrom: newValidFrom,
+            })),
+          });
+          addTagsToCurrentSpan({
+            "langfuse.dataset_items.create.created_count": createResult.count,
+          });
+          await linkDatasetItemMedia(tx, {
+            projectId: props.projectId,
+            items: mediaItems,
+            replaceExisting: false,
+          });
         });
       },
       [Implementation.VERSIONED]: async () => {
@@ -683,13 +848,15 @@ export async function createManyDatasetItems(props: {
         //
         // Note: This is replace semantics, NOT merge. Existing items are fully overwritten.
         await prisma.$transaction(async (tx) => {
-          const newValidFrom = new Date();
-
           // 1. Get unique IDs from preparedItems
           const itemIds = [...new Set(preparedItems.map((item) => item.id))];
+          addTagsToCurrentSpan({
+            "langfuse.dataset_items.create.unique_item_id_count":
+              itemIds.length,
+          });
 
           // 2. Invalidate current versions if IDs already exist (no-op for new IDs)
-          await tx.datasetItem.updateMany({
+          const updateResult = await tx.datasetItem.updateMany({
             where: {
               id: { in: itemIds },
               projectId: props.projectId,
@@ -699,13 +866,26 @@ export async function createManyDatasetItems(props: {
               validTo: newValidFrom,
             },
           });
+          addTagsToCurrentSpan({
+            "langfuse.dataset_items.create.updated_count": updateResult.count,
+          });
 
           // 3. Create all new versions with the same validFrom timestamp
-          await tx.datasetItem.createMany({
+          const createResult = await tx.datasetItem.createMany({
             data: preparedItems.map((item) => ({
               ...item,
               validFrom: newValidFrom,
             })),
+          });
+          addTagsToCurrentSpan({
+            "langfuse.dataset_items.create.created_count": createResult.count,
+          });
+
+          // 4. Link media in the same transaction as the write
+          await linkDatasetItemMedia(tx, {
+            projectId: props.projectId,
+            items: mediaItems,
+            replaceExisting: false,
           });
         });
       },
@@ -772,7 +952,9 @@ export type CreateManyItemsInsert = {
  */
 export type CreateManyValidationError = {
   itemIndex: number;
-  field: "input" | "expectedOutput";
+  // "metadata" only occurs for media-reference errors; schema validation
+  // reports input/expectedOutput.
+  field: DatasetItemMediaField;
   errors: Array<{
     path: string;
     message: string;
@@ -1733,10 +1915,6 @@ export async function getDatasetVersionForRun(params: {
           projectId: params.projectId,
           datasetId: params.datasetId,
           runId: params.runId,
-        },
-        tags: {
-          feature: "datasets",
-          operation: "getDatasetVersionForRun",
         },
       });
 

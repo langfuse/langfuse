@@ -47,7 +47,7 @@ function CopyableSnippet({
         variant="outline"
         size="sm"
         className="shrink-0 gap-2"
-        onClick={() => void handleCopy()}
+        onClick={() => handleCopy()}
       >
         {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
         {copied ? "Copied" : "Copy prompt"}

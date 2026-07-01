@@ -10,6 +10,21 @@ import { env } from "./src/env.mjs";
  * CSP headers
  * img-src https to allow loading images from SSO providers
  */
+// Dataset attachments PUT media directly to presigned storage URLs, so
+// connect-src must allow AWS S3, Azure Blob Storage, GCS, and the configured
+// S3-compatible endpoint. The endpoint env var is only present at runtime in
+// official Docker images, so static wildcards cover the common providers too.
+const mediaUploadConnectSrc = (() => {
+  const endpoint = env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT;
+  if (!endpoint) return "";
+  try {
+    const url = new URL(endpoint);
+    const port = url.port ? `:${url.port}` : "";
+    return `${url.origin} ${url.protocol}//*.${url.hostname}${port} `;
+  } catch {
+    return "";
+  }
+})();
 const cspHeader = `
   default-src 'self' https://*.langfuse.com https://*.langfuse.dev https://*.posthog.com https://*.sentry.io;
   script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.langfuse.com https://*.langfuse.dev https://challenges.cloudflare.com https://*.sentry.io  https://static.cloudflareinsights.com https://*.stripe.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
@@ -22,7 +37,7 @@ const cspHeader = `
   base-uri 'self';
   form-action 'self' https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
   frame-ancestors 'none';
-  connect-src 'self' https://*.langfuse.com https://*.langfuse.dev https://*.ingest.us.sentry.io https://*.sentry.io https://chat.uk.plain.com https://*.s3.amazonaws.com https://prod-uk-services-attachm-attachmentsuploadbucket2-1l2e4906o2asm.s3.eu-west-2.amazonaws.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com https://graph.microsoft.com;
+  connect-src 'self' ${mediaUploadConnectSrc}https://*.langfuse.com https://*.langfuse.dev https://*.ingest.us.sentry.io https://*.sentry.io https://chat.uk.plain.com https://*.amazonaws.com https://*.blob.core.windows.net https://storage.googleapis.com https://prod-uk-services-attachm-attachmentsuploadbucket2-1l2e4906o2asm.s3.eu-west-2.amazonaws.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com https://graph.microsoft.com;
   media-src 'self' https: http://localhost:*;
   ${env.LANGFUSE_CSP_ENFORCE_HTTPS === "true" ? "upgrade-insecure-requests; block-all-mixed-content;" : ""}
   ${env.SENTRY_CSP_REPORT_URI ? `report-uri ${env.SENTRY_CSP_REPORT_URI}; report-to csp-endpoint;` : ""}
@@ -49,6 +64,12 @@ const reportToHeader = {
 const nextConfig = {
   // Allow building to alternate directory for parallel build checks while dev server runs
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  typescript: {
+    // CI test jobs run `pnpm run typecheck` separately and skip duplicate
+    // Next.js type checks to keep test builds fast. Production/Docker builds
+    // do not set this flag and still fail on TypeScript errors.
+    ignoreBuildErrors: process.env.NEXT_IGNORE_BUILD_ERRORS === "true",
+  },
   // Agent/browser tooling often targets 127.0.0.1 instead of localhost in dev.
   allowedDevOrigins: ["127.0.0.1"],
   staticPageGenerationTimeout: 500, // default is 60. Required for build process for amd
@@ -64,6 +85,11 @@ const nextConfig = {
   ],
   poweredByHeader: false,
   basePath: env.NEXT_PUBLIC_BASE_PATH,
+  compiler: {
+    define: {
+      "import.meta.vitest": "undefined",
+    },
+  },
   turbopack: {
     resolveAlias: {
       "@langfuse/shared": "./packages/shared/src",
@@ -188,10 +214,18 @@ const nextConfig = {
     ];
   },
 
-  webpack(config, { isServer }) {
+  webpack(config, { isServer, webpack }) {
     // Exclude Datadog packages from webpack bundling to avoid issues
     // see: https://docs.datadoghq.com/tracing/trace_collection/automatic_instrumentation/dd_libraries/nodejs/#bundling-with-nextjs
     config.externals.push("@datadog/pprof", "dd-trace");
+
+    // Setup in-source testing: https://vitest.dev/guide/in-source.html#other-bundlers
+    config.plugins.push(
+      new webpack.DefinePlugin({
+        "import.meta.vitest": "undefined",
+      }),
+    );
+
     return config;
   },
 };

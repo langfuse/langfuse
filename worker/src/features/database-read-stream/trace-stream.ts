@@ -110,7 +110,11 @@ export const getTraceStream = async (props: {
 
   const appliedScoresFilter = scoresFilter.apply();
 
-  const search = clickhouseSearchCondition(searchQuery, searchType, "t");
+  const search = clickhouseSearchCondition({
+    query: searchQuery,
+    searchType,
+    tablePrefix: "t",
+  });
 
   const query = `
     WITH scores_agg AS (
@@ -216,12 +220,7 @@ export const getTraceStream = async (props: {
       ...search.params,
     },
     clickhouseConfigs,
-    tags: {
-      feature: "batch-export",
-      type: "trace",
-      kind: "export",
-      projectId,
-    },
+    tags: { projectId },
   });
 
   // Helper function to process a single trace row

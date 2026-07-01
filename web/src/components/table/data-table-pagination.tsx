@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { LoaderCircle } from "lucide-react";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { Input } from "@/src/components/ui/input";
 import { useEffect, useState } from "react";
 
@@ -150,7 +150,9 @@ export function DataTablePagination<TData>({
                 <span>
                   of{" "}
                   {isLoading ? (
-                    <LoaderCircle className="text-muted-foreground ml-1 inline-block h-3 w-3 animate-spin" />
+                    <span className="ml-1 inline-flex align-middle">
+                      <Spinner size="xxs" variant="muted" display="inline" />
+                    </span>
                   ) : (
                     1
                   )}

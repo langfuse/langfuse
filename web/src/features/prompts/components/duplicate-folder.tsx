@@ -62,7 +62,7 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
 
   const mutDuplicateFolder = api.prompts.duplicateFolder.useMutation({
     onSuccess: () => {
-      void utils.prompts.invalidate();
+      utils.prompts.invalidate();
       setError(null);
       setIsOpen(false);
       form.reset();

@@ -53,6 +53,9 @@ supports them.
    spans, error logs, metrics, and monitors — split across `prod-eu`
    and `prod-us` (and `prod-hipaa` / `prod-jp` when relevant). Always check
    regional disparity first; it usually rules whole hypotheses in or out.
+   Use [`datadog-query-recipes`](../datadog-query-recipes/SKILL.md) for
+   reusable tenant, public API, queue consumer, and cross-environment query
+   shapes.
 
 4. **Cluster the errors.** Group by `(projectId, error.message)` or
    `(error.type, error.message)`. Treat each distinct cluster as its own
@@ -107,6 +110,9 @@ do not invent root causes.
 
 ## Cross-References
 
+- Production telemetry query recipes, tenant/public API usage, and queue
+  consumer measurements:
+  [`datadog-query-recipes`](../datadog-query-recipes/SKILL.md)
 - Backend layout, queue contracts, instrumentation patterns:
   [`backend-dev-guidelines`](../backend-dev-guidelines/SKILL.md)
 - ClickHouse-related findings (memory ceilings, JOIN spills, slow queries):

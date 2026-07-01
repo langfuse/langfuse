@@ -115,6 +115,7 @@ export const eventsObservationRecordReadSchema =
     user_id: z.string().nullish(),
     session_id: z.string().nullish(),
     trace_name: z.string().nullish(),
+    release: z.string().nullish(),
     tags: z.array(z.string()).optional(),
     bookmarked: z.boolean().optional(),
     public: z.boolean().optional(),
@@ -650,6 +651,7 @@ export const eventRecordBaseSchema = z.object({
   trace_name: z.string().nullish(),
   user_id: z.string().nullish(),
   session_id: z.string().nullish(),
+  is_app_root: z.boolean().default(false),
 
   // User updatable flags
   tags: z.array(z.string()).default([]),

@@ -1,5 +1,13 @@
 import React, { useState, useMemo } from "react";
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+import {
+  type FormatMetricOptions,
+  type MetricFormatterFunction,
+  type DataPoint,
+  type ChartThreshold,
+  type LegendSummaryMode,
+  type LegendInteraction,
+} from "@/src/features/widgets/chart-library/chart-props";
+import { formatMetric } from "@/src/features/widgets/chart-library/utils";
 import { CardContent } from "@/src/components/ui/card";
 import LineChartTimeSeries from "@/src/features/widgets/chart-library/LineChartTimeSeries";
 import AreaChartTimeSeries from "@/src/features/widgets/chart-library/AreaChartTimeSeries";
@@ -14,18 +22,30 @@ import { AlertCircle } from "lucide-react";
 import { BigNumber } from "@/src/features/widgets/chart-library/BigNumber";
 import { PivotTable } from "@/src/features/widgets/chart-library/PivotTable";
 import { type OrderByState } from "@langfuse/shared";
+import { type ChartConfig } from "@/src/components/ui/chart";
 
-export const Chart = ({
+const DEFAULT_METRIC_THEME = {
+  light: "hsl(var(--chart-1))",
+  dark: "hsl(var(--chart-1))",
+} as const;
+
+const ChartComponent = ({
   chartType,
   data,
   rowLimit,
   chartConfig,
+  config,
   sortState,
   onSortChange,
   isLoading = false,
-  valueFormatter,
   legendPosition,
+  legendSummary,
+  legendInteraction,
+  maxVisibleSeries,
+  syncId,
   overrideWarning = false,
+  metricFormatter: metricFormatterOverride,
+  thresholds,
 }: {
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
@@ -36,53 +56,62 @@ export const Chart = ({
     bins?: number;
     dimensions?: string[];
     metrics?: string[];
+    units?: (string | undefined)[];
+    unit?: string | undefined;
     defaultSort?: OrderByState;
     show_value_labels?: boolean;
     show_data_point_dots?: boolean;
     subtle_fill?: boolean;
   };
+  config?: ChartConfig;
   sortState?: OrderByState | null;
   onSortChange?: (sortState: OrderByState | null) => void;
   isLoading?: boolean;
-  valueFormatter?: (value: number) => string;
   legendPosition?: "above" | "none";
+  legendSummary?: LegendSummaryMode;
+  legendInteraction?: LegendInteraction;
+  maxVisibleSeries?: number;
+  syncId?: string;
   overrideWarning?: boolean;
+  metricFormatter?: MetricFormatterFunction;
+  thresholds?: ChartThreshold[];
 }) => {
   const [forceRender, setForceRender] = useState(overrideWarning);
   const shouldWarn = data.length > 2000 && !forceRender;
 
-  const renderedData = useMemo(() => {
-    return data.map((item) => {
-      if (!item.time_dimension) return { ...item, time_dimension: undefined };
-      const value = item.time_dimension;
-      const looksLikeIso =
-        value.includes("T") || /^\d{4}-\d{2}-\d{2}$/.test(value);
-      if (!looksLikeIso) {
-        return { ...item, time_dimension: value };
-      }
-      const parsed = new Date(value);
-      if (Number.isNaN(parsed.getTime())) return { ...item };
-      const isMidnight =
-        parsed.getUTCHours() === 0 &&
-        parsed.getUTCMinutes() === 0 &&
-        parsed.getUTCSeconds() === 0 &&
-        parsed.getUTCMilliseconds() === 0;
-      const time_dimension = isMidnight
-        ? parsed.toLocaleDateString("en-US", {
-            year: "2-digit",
-            month: "numeric",
-            day: "numeric",
-          })
-        : parsed.toLocaleTimeString("en-US", {
-            year: "2-digit",
-            month: "numeric",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          });
-      return { ...item, time_dimension };
-    });
-  }, [data]);
+  const metricFormatter = useMemo(
+    () =>
+      metricFormatterOverride ??
+      ((value: number, options: FormatMetricOptions) =>
+        formatMetric(value, { ...options, unit: chartConfig?.unit })),
+    [metricFormatterOverride, chartConfig?.unit],
+  );
+
+  // Time-axis formatting is NOT decided here. Raw time_dimension values flow
+  // straight to the visualiser, which formats them via the prepareTimeAxis
+  // preparer — one source of truth, so every chart formats time the same way.
+  // (LFE-10549)
+  const renderedData = data;
+
+  const resolvedConfig = useMemo(() => {
+    if (!config) return undefined;
+
+    return Object.fromEntries(
+      Object.entries(config).map(([key, value]) => {
+        if (value.theme || value.color) {
+          return [key, value];
+        }
+
+        return [
+          key,
+          {
+            ...value,
+            theme: DEFAULT_METRIC_THEME,
+          },
+        ];
+      }),
+    ) as ChartConfig;
+  }, [config]);
 
   const renderChart = () => {
     switch (chartType) {
@@ -90,17 +119,28 @@ export const Chart = ({
         return (
           <LineChartTimeSeries
             data={renderedData}
-            valueFormatter={valueFormatter}
+            config={resolvedConfig}
+            metricFormatter={metricFormatter}
             legendPosition={legendPosition}
-            showDataPointDots={chartConfig?.show_data_point_dots ?? true}
+            legendSummary={legendSummary}
+            legendInteraction={legendInteraction}
+            maxVisibleSeries={maxVisibleSeries}
+            syncId={syncId}
+            showDataPointDots={chartConfig?.show_data_point_dots ?? false}
+            thresholds={thresholds}
           />
         );
       case "AREA_TIME_SERIES":
         return (
           <AreaChartTimeSeries
             data={renderedData}
-            valueFormatter={valueFormatter}
+            config={resolvedConfig}
+            metricFormatter={metricFormatter}
             legendPosition={legendPosition}
+            legendSummary={legendSummary}
+            legendInteraction={legendInteraction}
+            maxVisibleSeries={maxVisibleSeries}
+            syncId={syncId}
             subtleFill={chartConfig?.subtle_fill}
           />
         );
@@ -108,7 +148,13 @@ export const Chart = ({
         return (
           <VerticalBarChartTimeSeries
             data={renderedData}
-            valueFormatter={valueFormatter}
+            config={resolvedConfig}
+            metricFormatter={metricFormatter}
+            legendPosition={legendPosition}
+            legendSummary={legendSummary}
+            legendInteraction={legendInteraction}
+            maxVisibleSeries={maxVisibleSeries}
+            syncId={syncId}
             subtleFill={chartConfig?.subtle_fill}
           />
         );
@@ -116,8 +162,9 @@ export const Chart = ({
         return (
           <HorizontalBarChart
             data={renderedData.slice(0, rowLimit)}
+            config={resolvedConfig}
             showValueLabels={chartConfig?.show_value_labels}
-            valueFormatter={valueFormatter}
+            metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
           />
         );
@@ -125,7 +172,8 @@ export const Chart = ({
         return (
           <VerticalBarChart
             data={renderedData.slice(0, rowLimit)}
-            valueFormatter={valueFormatter}
+            config={resolvedConfig}
+            metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
           />
         );
@@ -133,7 +181,8 @@ export const Chart = ({
         return (
           <PieChart
             data={renderedData.slice(0, rowLimit)}
-            valueFormatter={valueFormatter}
+            config={resolvedConfig}
+            metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
           />
         );
@@ -141,17 +190,26 @@ export const Chart = ({
         return (
           <HistogramChart
             data={renderedData}
+            config={resolvedConfig}
+            metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
           />
         );
       case "NUMBER": {
-        return <BigNumber data={renderedData} />;
+        return (
+          <BigNumber
+            data={renderedData}
+            config={resolvedConfig}
+            metricFormatter={metricFormatter}
+          />
+        );
       }
       case "PIVOT_TABLE": {
         // Extract pivot table configuration from chartConfig
         const pivotConfig = {
           dimensions: chartConfig?.dimensions ?? [],
           metrics: chartConfig?.metrics ?? ["metric"], // Use metrics from chartConfig
+          units: chartConfig?.units,
           rowLimit: chartConfig?.row_limit ?? rowLimit,
           defaultSort: chartConfig?.defaultSort,
         };
@@ -170,7 +228,7 @@ export const Chart = ({
           <HorizontalBarChart
             data={renderedData.slice(0, rowLimit)}
             showValueLabels={chartConfig?.show_value_labels}
-            valueFormatter={valueFormatter}
+            metricFormatter={metricFormatter}
           />
         );
     }
@@ -202,3 +260,11 @@ export const Chart = ({
     </CardContent>
   );
 };
+
+/**
+ * Memoized so a parent re-render (e.g. the dashboard query scheduler bumping its
+ * version during load) doesn't reconcile the recharts subtree when the chart's
+ * inputs are unchanged. Effective only when callers pass stable `data`/`config`
+ * references — the dashboard time-series consumers memoize those. (LFE-10549)
+ */
+export const Chart = React.memo(ChartComponent);

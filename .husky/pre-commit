@@ -6,6 +6,15 @@ current_branch=$(git rev-parse --abbrev-ref HEAD)
 # Define the protected branch
 protected_branch="main"
 
+run_lint() {
+    if [ -n "${LANGFUSE_PRE_COMMIT_SKIP_LINT-}" ]; then
+        echo "Skipping lint because LANGFUSE_PRE_COMMIT_SKIP_LINT is set."
+        return 0
+    fi
+
+    pnpm run lint
+}
+
 # Check if the current branch is the protected branch
 if [ "$current_branch" = "$protected_branch" ]; then
     echo "🚨 You are about to commit to the $protected_branch branch. Are you sure? (y/n)"
@@ -13,7 +22,7 @@ if [ "$current_branch" = "$protected_branch" ]; then
     if [ "$answer" != "${answer#[Yy]}" ]; then
         # Commit approved, run checks
         pnpm run format:check
-        pnpm run lint
+        run_lint
     else
         echo "Commit to $protected_branch branch has been canceled."
         exit 1 # Commit will be blocked
@@ -22,4 +31,4 @@ fi
 
 # If not the protected branch, run checks
 pnpm run format:check
-pnpm run lint
+run_lint

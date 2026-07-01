@@ -5,6 +5,7 @@ import {
   createObservationsCh,
   createOrgProjectAndApiKey,
   createTraceScore,
+  createDatasetRunScore,
   createScoresCh,
   createTrace,
   createTracesCh,
@@ -13,8 +14,13 @@ import {
   createEvent,
   createEventsCh,
   getEventsForBlobStorageExport,
+  streamTransformations,
 } from "@langfuse/shared/src/server";
-import { BatchExportTableName, DatasetStatus } from "@langfuse/shared";
+import {
+  BatchExportFileFormat,
+  BatchExportTableName,
+  DatasetStatus,
+} from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { getDatabaseReadStreamPaginated } from "../features/database-read-stream/getDatabaseReadStream";
 import { getObservationStream } from "../features/database-read-stream/observation-stream";
@@ -26,7 +32,7 @@ process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
 process.env.LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION = "true";
 
 const maybeDescribe =
-  process.env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
+  process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
     ? describe
     : describe.skip;
 
@@ -2358,6 +2364,450 @@ describe("batch export test suite", () => {
   // ==================== EVENTS TABLE EXPORT TESTS ====================
 
   maybeDescribe("events table export tests", () => {
+    it("should export scores with trace metadata from the events table when useEventsTable is true", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      const traceId = randomUUID();
+      const score = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        name: "accuracy",
+        value: 0.95,
+        data_type: "NUMERIC",
+        metadata: { reason: "test-metadata" },
+      });
+      const runScore = createDatasetRunScore({
+        project_id: projectId,
+        name: "run-accuracy",
+        value: 0.5,
+        data_type: "NUMERIC",
+      });
+      await createScoresCh([score, runScore]);
+
+      // The trace exists only in the events table (v4 world) — no row is
+      // written to the legacy traces table, so the legacy traces JOIN would
+      // return empty trace metadata.
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          is_app_root: true,
+          trace_name: "events-trace",
+          user_id: "events-user",
+          tags: ["events-tag"],
+        }),
+      ]);
+
+      const stream = await getDatabaseReadStreamPaginated({
+        projectId,
+        tableName: BatchExportTableName.Scores,
+        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+        filter: [],
+        orderBy: { column: "timestamp", order: "DESC" },
+        useEventsTable: true,
+      });
+
+      const rows: any[] = [];
+      for await (const chunk of stream) {
+        rows.push(chunk);
+      }
+
+      expect(rows).toHaveLength(2);
+      const traceScoreRow = rows.find((r) => r.id === score.id);
+      expect(traceScoreRow).toMatchObject({
+        traceId,
+        name: "accuracy",
+        value: 0.95,
+        traceName: "events-trace",
+        userId: "events-user",
+        traceTags: ["events-tag"],
+        metadata: { reason: "test-metadata" },
+      });
+      // Dataset run scores have no trace; the export must keep the run id.
+      const runScoreRow = rows.find((r) => r.id === runScore.id);
+      expect(runScoreRow).toMatchObject({
+        traceId: null,
+        datasetRunId: runScore.dataset_run_id,
+        name: "run-accuracy",
+        value: 0.5,
+      });
+    });
+
+    it("should export sessions from the events table when useEventsTable is true", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      const sessionId = randomUUID();
+      const sessionId2 = randomUUID();
+
+      await prisma.traceSession.createMany({
+        data: [
+          { id: sessionId, projectId },
+          { id: sessionId2, projectId },
+        ],
+      });
+
+      const now = Date.now() * 1000; // Events use microseconds
+
+      // session 1: one trace; session 2: two traces
+      const events = [
+        createEvent({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          session_id: sessionId,
+          type: "GENERATION",
+          start_time: now,
+          end_time: now + 1000000,
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          session_id: sessionId2,
+          type: "GENERATION",
+          start_time: now,
+          end_time: now + 1000000,
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          session_id: sessionId2,
+          type: "GENERATION",
+          start_time: now,
+          end_time: now + 1000000,
+        }),
+      ];
+
+      await createEventsCh(events);
+
+      const stream = await getDatabaseReadStreamPaginated({
+        projectId,
+        tableName: BatchExportTableName.Sessions,
+        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        useEventsTable: true,
+      });
+
+      const rows: any[] = [];
+      for await (const chunk of stream) {
+        rows.push(chunk);
+      }
+
+      expect(rows).toHaveLength(2);
+      expect(rows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: sessionId, countTraces: 1 }),
+          expect.objectContaining({ id: sessionId2, countTraces: 2 }),
+        ]),
+      );
+      // Concrete metric check: usage aggregates from the events table, so a
+      // regression that silently zeroed metrics would surface here.
+      const session2Row = rows.find((r) => r.id === sessionId2);
+      expect(session2Row?.totalTokens).toBeGreaterThan(0n);
+    });
+
+    it("should export observations from the events table when useEventsTable is true", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      const traceId = randomUUID();
+      const now = Date.now() * 1000; // Events use microseconds
+
+      const events = [
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "events-generation",
+          trace_name: "events-trace",
+          user_id: "events-user",
+          tags: ["tag-a", "tag-b"],
+          start_time: now,
+          end_time: now + 1000000,
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name: "events-span",
+          start_time: now,
+          end_time: now + 2000000,
+        }),
+      ];
+
+      await createEventsCh(events);
+
+      const score = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        observation_id: events[0].span_id,
+        name: "quality",
+        value: 42,
+      });
+      await createScoresCh([score]);
+
+      const stream = await getObservationStream({
+        projectId,
+        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+        filter: [],
+        useEventsTable: true,
+      });
+
+      const rows: any[] = [];
+      for await (const chunk of stream) {
+        rows.push(chunk);
+      }
+
+      expect(rows).toHaveLength(2);
+      // Rows keep the legacy observation export field names so the export
+      // schema is stable across the legacy and events read paths.
+      expect(rows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: events[0].span_id,
+            name: "events-generation",
+            type: "GENERATION",
+            traceId: traceId,
+            traceName: "events-trace",
+            traceTags: ["tag-a", "tag-b"],
+            userId: "events-user",
+            model: "gpt-3.5-turbo",
+            input: "Hello World",
+            output: "Hello John",
+            metadata: expect.objectContaining({
+              source: "API",
+              server: "Node",
+            }),
+            quality: [score.value],
+            comments: [],
+          }),
+          expect.objectContaining({
+            id: events[1].span_id,
+            name: "events-span",
+            type: "SPAN",
+            latency: 2,
+            quality: null,
+          }),
+        ]),
+      );
+      // Concrete usage check: a regression that silently zeroed the usage
+      // aggregates read from the events table would surface here.
+      const generationRow = rows.find((r) => r.id === events[0].span_id);
+      expect(generationRow?.totalUsage).toBeGreaterThan(0);
+    });
+
+    it("should apply observation-level score filters and ignore trace-level score filters when useEventsTable is true", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      const traceId = randomUUID();
+      const now = Date.now() * 1000;
+
+      const events = [
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "high-accuracy",
+          start_time: now,
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "medium-accuracy",
+          start_time: now,
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "low-accuracy",
+          start_time: now,
+        }),
+      ];
+      await createEventsCh(events);
+
+      const scores = [
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: events[0].span_id,
+          name: "accuracy",
+          value: 0.95,
+          data_type: "NUMERIC",
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: events[1].span_id,
+          name: "accuracy",
+          value: 0.75,
+          data_type: "NUMERIC",
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: events[2].span_id,
+          name: "accuracy",
+          value: 0.45,
+          data_type: "NUMERIC",
+        }),
+      ];
+      await createScoresCh(scores);
+
+      // Observation-level score filter applies (accuracy >= 0.7); the
+      // trace-level score filter references the trace_scores_agg CTE that the
+      // export does not join, so it is dropped rather than failing the export.
+      const stream = await getObservationStream({
+        projectId,
+        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+        filter: [
+          {
+            type: "numberObject",
+            column: "Scores",
+            key: "accuracy",
+            operator: ">=",
+            value: 0.7,
+          },
+          {
+            type: "numberObject",
+            column: "Trace Scores (numeric)",
+            key: "accuracy",
+            operator: "<",
+            value: 0,
+          },
+        ],
+        useEventsTable: true,
+      });
+
+      const rows: any[] = [];
+      for await (const chunk of stream) {
+        rows.push(chunk);
+      }
+
+      expect(rows).toHaveLength(2);
+      expect(rows.map((row) => row.name).sort()).toEqual([
+        "high-accuracy",
+        "medium-accuracy",
+      ]);
+      expect(rows.find((r) => r.name === "high-accuracy")?.accuracy).toEqual([
+        0.95,
+      ]);
+      expect(rows.find((r) => r.name === "medium-accuracy")?.accuracy).toEqual([
+        0.75,
+      ]);
+    });
+
+    it("should not read the legacy observations table when useEventsTable is true", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      // One row only in the legacy observations table, one only in events
+      const legacyObservation = createObservation({
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+      });
+      await createObservationsCh([legacyObservation]);
+
+      const event = createEvent({
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        start_time: Date.now() * 1000,
+      });
+      await createEventsCh([event]);
+
+      const streamParams = {
+        projectId,
+        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+        filter: [],
+      };
+
+      const eventsRows: any[] = [];
+      for await (const chunk of await getObservationStream({
+        ...streamParams,
+        useEventsTable: true,
+      })) {
+        eventsRows.push(chunk);
+      }
+      expect(eventsRows).toHaveLength(1);
+      expect(eventsRows[0].id).toBe(event.span_id);
+
+      const legacyRows: any[] = [];
+      for await (const chunk of await getObservationStream(streamParams)) {
+        legacyRows.push(chunk);
+      }
+      expect(legacyRows).toHaveLength(1);
+      expect(legacyRows[0].id).toBe(legacyObservation.id);
+
+      // Schema parity: both read paths must emit exactly the same columns in
+      // the same order, since CSV headers are derived from the first row's
+      // keys in insertion order. No .sort() here — order is part of the
+      // contract.
+      expect(Object.keys(eventsRows[0])).toEqual(Object.keys(legacyRows[0]));
+    });
+
+    it("should produce byte-identical CSV headers across legacy and events read paths", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      await createObservationsCh([
+        createObservation({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "GENERATION",
+        }),
+      ]);
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "GENERATION",
+          start_time: Date.now() * 1000,
+        }),
+      ]);
+
+      // End-to-end through the same CSV transform handleBatchExportJob uses:
+      // the header line is built from the first row's key order, and export
+      // consumers pin columns by index, so the two read paths must produce
+      // byte-identical header lines.
+      const readCsvHeader = async (useEventsTable: boolean) => {
+        const stream = await getObservationStream({
+          projectId,
+          cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+          filter: [],
+          fileFormat: BatchExportFileFormat.CSV,
+          useEventsTable,
+        });
+        const csvStream = stream.pipe(
+          streamTransformations[BatchExportFileFormat.CSV](),
+        );
+        let csv = "";
+        for await (const chunk of csvStream) {
+          csv += chunk.toString();
+        }
+        return csv.split("\n")[0];
+      };
+
+      const legacyHeader = await readCsvHeader(false);
+      const eventsHeader = await readCsvHeader(true);
+
+      expect(eventsHeader).toBe(legacyHeader);
+    });
+
+    it("routes events exports through getEventsStream, not the paginated reader", async () => {
+      // Path A contract: the events-table export is served by getEventsStream
+      // (wired in handleBatchExportJob). The paginated reader intentionally has
+      // no "events" case, so a regression that drops the getEventsStream route
+      // would surface as this throw rather than silently exporting nothing.
+      await expect(
+        getDatabaseReadStreamPaginated({
+          projectId: randomUUID(),
+          tableName: BatchExportTableName.Events,
+          cutoffCreatedAt: new Date(),
+          filter: [],
+          orderBy: { column: "startTime", order: "DESC" },
+        }),
+      ).rejects.toThrow("Unhandled table case: events");
+    });
+
     it("should export events from events table", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
 
@@ -4112,5 +4562,304 @@ maybeDescribe("getEventsForBlobStorageExport", () => {
     }
 
     expect(rows).toHaveLength(0);
+  });
+
+  it("should return exactly the expected set of output columns with correct types and values", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const now = Date.now();
+    const traceId = randomUUID();
+    const modelId = randomUUID();
+    const promptId = randomUUID();
+
+    const event = createEvent({
+      project_id: projectId,
+      trace_id: traceId,
+      type: "GENERATION",
+      name: "column-contract-event",
+      start_time: now * 1000,
+      end_time: (now + 1000) * 1000,
+      completion_start_time: (now + 500) * 1000,
+      bookmarked: true,
+      public: true,
+      provided_model_name: "gpt-4",
+      model_id: modelId,
+      model_parameters: '{"temperature":0.7}',
+      usage_details: { input: 10, output: 20, total: 30 },
+      cost_details: { input: 0.01, output: 0.02, total: 0.03 },
+      prompt_id: promptId,
+      prompt_name: "test-prompt",
+      prompt_version: 1,
+      tool_calls: ["search"],
+      tool_definitions: { search: "Search the web" },
+      tool_call_names: ["search"],
+      input: "test input",
+      output: "test output",
+      metadata_names: ["env"],
+      metadata_values: ["production"],
+    });
+
+    await createEventsCh([event]);
+
+    const stream = getEventsForBlobStorageExport(
+      projectId,
+      new Date(now - 60 * 60 * 1000),
+      new Date(now + 60 * 60 * 1000),
+    );
+
+    const rows: Record<string, unknown>[] = [];
+    for await (const row of stream) {
+      rows.push(row);
+    }
+
+    expect(rows).toHaveLength(1);
+    const row = rows[0];
+
+    // Exact column set — any addition, removal, or rename will fail this test
+    const expectedColumns = [
+      "id",
+      "trace_id",
+      "project_id",
+      "start_time",
+      "end_time",
+      "name",
+      "type",
+      "environment",
+      "version",
+      "user_id",
+      "session_id",
+      "level",
+      "status_message",
+      "prompt_name",
+      "prompt_id",
+      "prompt_version",
+      "model_id",
+      "provided_model_name",
+      "model_parameters",
+      "usage_details",
+      "cost_details",
+      "total_cost",
+      "completion_start_time",
+      "latency",
+      "time_to_first_token",
+      "tags",
+      "release",
+      "trace_name",
+      "parent_observation_id",
+      "bookmarked",
+      "public",
+      "created_at",
+      "updated_at",
+      "tool_definitions",
+      "tool_calls",
+      "tool_call_names",
+      "usage_pricing_tier_id",
+      "usage_pricing_tier_name",
+      "input",
+      "output",
+      "metadata",
+    ].sort();
+
+    expect(Object.keys(row).sort()).toEqual(expectedColumns);
+
+    // --- Fixture-set string columns ---
+    expect(row.id).toBe(event.span_id);
+    expect(row.trace_id).toBe(traceId);
+    expect(row.project_id).toBe(projectId);
+    expect(row.name).toBe("column-contract-event");
+    expect(row.type).toBe("GENERATION");
+    expect(row.environment).toBe("default"); // createEvent default
+    expect(row.level).toBe("DEFAULT"); // createEvent default
+    expect(row.provided_model_name).toBe("gpt-4");
+    expect(row.model_id).toBe(modelId);
+    expect(row.model_parameters).toBe('{"temperature":0.7}');
+    expect(row.prompt_name).toBe("test-prompt");
+    expect(row.prompt_id).toBe(promptId);
+    expect(row.input).toBe("test input");
+    expect(row.output).toBe("test output");
+
+    // --- Boolean columns ---
+    expect(row.bookmarked).toBe(true);
+    expect(row.public).toBe(true);
+
+    // --- Numeric columns ---
+    expect(row.prompt_version).toBe(1);
+    // latency = date_diff('millisecond', start_time, end_time)
+    // start: now*1000 µs, end: (now+1000)*1000 µs → 1000 ms
+    expect(row.latency).toBe(1000);
+    // time_to_first_token = date_diff('millisecond', start_time, completion_start_time)
+    // start: now*1000 µs, completion: (now+500)*1000 µs → 500 ms
+    expect(row.time_to_first_token).toBe(500);
+
+    // --- Object / array columns ---
+    expect(row.usage_details).toEqual({ input: 10, output: 20, total: 30 });
+    expect(row.cost_details).toEqual({
+      input: 0.01,
+      output: 0.02,
+      total: 0.03,
+    });
+    expect(row.tool_calls).toEqual(["search"]);
+    expect(row.tool_definitions).toEqual({ search: "Search the web" });
+    expect(row.tool_call_names).toEqual(["search"]);
+    expect(row.tags).toEqual([]); // createEvent default
+    expect(row.metadata).toEqual({ env: "production" });
+
+    // --- Date columns — ClickHouse returns DateTime64 as strings ---
+    expect(typeof row.start_time).toBe("string");
+    expect(typeof row.end_time).toBe("string");
+    expect(typeof row.completion_start_time).toBe("string");
+    expect(typeof row.created_at).toBe("string");
+    expect(typeof row.updated_at).toBe("string");
+
+    // --- Unset String columns (non-nullable in events_core → return "" not null) ---
+    expect(row.version).toBe("");
+    expect(row.user_id).toBe("");
+    expect(row.session_id).toBe("");
+    expect(row.status_message).toBe("");
+    expect(row.release).toBe("");
+    // parent_span_id is non-nullable String; createEvent sets it to null → stored as ""
+    expect(row.parent_observation_id).toBe("");
+    // trace_name is non-nullable String; not populated (no trace inserted) → ""
+    expect(row.trace_name).toBe("");
+
+    // --- Nullable columns (NULL when unset) ---
+    // usage_pricing_tier_id is Nullable(String) in events_core
+    expect(row.usage_pricing_tier_id).toBeNull();
+    // usage_pricing_tier_name is Nullable(String) in events_core
+    expect(row.usage_pricing_tier_name).toBeNull();
+
+    // --- total_cost: ALIAS for cost_details['total'] → 0.03 (set in fixture) ---
+    expect(row.total_cost).toBeCloseTo(0.03);
+  });
+
+  it("should return all columns when all field groups are selected", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const now = Date.now();
+    const traceId = randomUUID();
+
+    const event = createEvent({
+      project_id: projectId,
+      trace_id: traceId,
+      type: "GENERATION",
+      name: "all-groups-event",
+      start_time: now * 1000,
+    });
+
+    await createEventsCh([event]);
+
+    const stream = getEventsForBlobStorageExport(
+      projectId,
+      new Date(now - 60 * 60 * 1000),
+      new Date(now + 60 * 60 * 1000),
+      [
+        "core",
+        "basic",
+        "time",
+        "io",
+        "metadata",
+        "model",
+        "usage",
+        "prompt",
+        "metrics",
+        "tools",
+        "trace_context",
+      ],
+    );
+
+    const rows: Record<string, unknown>[] = [];
+    for await (const row of stream) {
+      rows.push(row);
+    }
+
+    expect(rows).toHaveLength(1);
+    const expectedColumns = [
+      "id",
+      "trace_id",
+      "project_id",
+      "start_time",
+      "end_time",
+      "name",
+      "type",
+      "environment",
+      "version",
+      "user_id",
+      "session_id",
+      "level",
+      "status_message",
+      "prompt_name",
+      "prompt_id",
+      "prompt_version",
+      "model_id",
+      "provided_model_name",
+      "model_parameters",
+      "usage_details",
+      "cost_details",
+      "total_cost",
+      "completion_start_time",
+      "latency",
+      "time_to_first_token",
+      "tags",
+      "release",
+      "trace_name",
+      "parent_observation_id",
+      "bookmarked",
+      "public",
+      "created_at",
+      "updated_at",
+      "tool_definitions",
+      "tool_calls",
+      "tool_call_names",
+      "usage_pricing_tier_id",
+      "usage_pricing_tier_name",
+      "input",
+      "output",
+      "metadata",
+    ].sort();
+    expect(Object.keys(rows[0]).sort()).toEqual(expectedColumns);
+  });
+
+  it("should return only columns for the requested field groups subset", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const now = Date.now();
+    const traceId = randomUUID();
+
+    const event = createEvent({
+      project_id: projectId,
+      trace_id: traceId,
+      type: "SPAN",
+      name: "subset-groups-event",
+      start_time: now * 1000,
+      input: "hello",
+      output: "world",
+    });
+
+    await createEventsCh([event]);
+
+    const stream = getEventsForBlobStorageExport(
+      projectId,
+      new Date(now - 60 * 60 * 1000),
+      new Date(now + 60 * 60 * 1000),
+      ["core", "io"],
+    );
+
+    const rows: Record<string, unknown>[] = [];
+    for await (const row of stream) {
+      rows.push(row);
+    }
+
+    expect(rows).toHaveLength(1);
+    const expectedColumns = [
+      "id",
+      "trace_id",
+      "start_time",
+      "end_time",
+      "project_id",
+      "parent_observation_id",
+      "type",
+      "input",
+      "output",
+    ].sort();
+    expect(Object.keys(rows[0]).sort()).toEqual(expectedColumns);
+    expect(rows[0].input).toBe("hello");
+    expect(rows[0].output).toBe("world");
   });
 });

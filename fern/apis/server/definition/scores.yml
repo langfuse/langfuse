@@ -7,7 +7,11 @@ service:
   base-path: /api/public/v2
   endpoints:
     get-many:
-      docs: Get a list of scores (supports both trace and session scores)
+      docs: |
+        **Deprecated.** Use `GET /api/public/v3/scores` instead. This endpoint
+        is no longer available on Langfuse v4 and later.
+
+        Get a list of scores (supports both trace and session scores)
       method: GET
       path: /scores
       request:
@@ -18,7 +22,7 @@ service:
             docs: Page number, starts at 1.
           limit:
             type: optional<integer>
-            docs: Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit.
+            docs: Limit of items per page. Maximum 100. Defaults to 50. Requests with a limit greater than 100 return HTTP 400. If you encounter api issues due to too large page sizes, try to reduce the limit.
           userId:
             type: optional<string>
             docs: Retrieve only scores with this userId associated to the trace.
@@ -85,7 +89,11 @@ service:
               Supported operators for stringObject: =, contains, does not contain, starts with, ends with.
       response: GetScoresResponse
     get-by-id:
-      docs: Get a score (supports both trace and session scores)
+      docs: |
+        **Deprecated.** Use `GET /api/public/v3/scores` with the `id` filter
+        instead. This endpoint is no longer available on Langfuse v4 and later.
+
+        Get a score (supports both trace and session scores)
       method: GET
       path: /scores/{scoreId}
       path-parameters:

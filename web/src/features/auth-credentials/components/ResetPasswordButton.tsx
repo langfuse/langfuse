@@ -10,10 +10,12 @@ export function RequestResetPasswordEmailButton({
   email,
   className,
   variant = "default",
+  callbackUrl,
 }: {
   email: string;
   className?: string;
   variant?: "default" | "secondary";
+  callbackUrl?: string;
 }) {
   const [isEmailSent, setIsEmailSent] = useState(false);
   const [code, setCode] = useState("");
@@ -34,9 +36,12 @@ export function RequestResetPasswordEmailButton({
     setIsLoading(true);
     setErrorMessage(null);
     try {
+      const targetCallbackUrl = callbackUrl
+        ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${callbackUrl}`
+        : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`;
       const res = await signIn("email", {
         email: email,
-        callbackUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`,
+        callbackUrl: targetCallbackUrl,
         redirect: false,
       });
       if (res?.error) {
@@ -63,9 +68,10 @@ export function RequestResetPasswordEmailButton({
     try {
       const formattedEmail = encodeURIComponent(email.toLowerCase().trim());
       const formattedCode = encodeURIComponent(code.trim());
-      const callback = encodeURIComponent(
-        `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`,
-      );
+      const targetCb = callbackUrl
+        ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${callbackUrl}`
+        : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`;
+      const callback = encodeURIComponent(targetCb);
       const url = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/callback/email?email=${formattedEmail}&token=${formattedCode}&callbackUrl=${callback}`;
       window.location.href = url;
     } catch (error) {

@@ -7,7 +7,12 @@ import {
   protectedOrganizationProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { paginationZod, type PrismaClient, Role } from "@langfuse/shared";
+import {
+  paginationZod,
+  type Prisma,
+  type PrismaClient,
+  Role,
+} from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
@@ -24,30 +29,32 @@ async function getInvites(
   query:
     | z.infer<typeof orgLevelInviteQuery>
     | (z.infer<typeof projectLevelInviteQuery> & { orgId: string }),
-  showAllOrgMembers: boolean = true,
+  showAllOrgMembers = true,
 ) {
+  const where: Prisma.MembershipInvitationWhereInput = {
+    orgId: query.orgId,
+    // restrict to only invites with role in a project if projectId is set
+    ...("projectId" in query && !showAllOrgMembers
+      ? {
+          OR: [
+            {
+              orgRole: {
+                not: Role.NONE,
+              },
+            },
+            {
+              projectId: query.projectId,
+              projectRole: {
+                not: Role.NONE,
+              },
+            },
+          ],
+        }
+      : {}),
+  };
+
   const invitations = await prisma.membershipInvitation.findMany({
-    where: {
-      orgId: query.orgId,
-      // restrict to only invites with role in a project if projectId is set
-      ...("projectId" in query && !showAllOrgMembers
-        ? {
-            OR: [
-              {
-                orgRole: {
-                  not: Role.NONE,
-                },
-              },
-              {
-                projectId: query.projectId,
-                projectRole: {
-                  not: Role.NONE,
-                },
-              },
-            ],
-          }
-        : {}),
-    },
+    where,
     include: {
       invitedByUser: {
         select: {
@@ -64,9 +71,7 @@ async function getInvites(
   });
 
   const totalCount = await prisma.membershipInvitation.count({
-    where: {
-      orgId: query.orgId,
-    },
+    where,
   });
 
   return {

@@ -22,22 +22,12 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
 
-      - name: Run zizmor (fork PR - fail on findings)
-        # Fork PRs don't get security-events: write on GITHUB_TOKEN, so SARIF
-        # upload isn't possible. Fail the job on findings instead so contributors
-        # see the error directly in the PR check.
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
-        uses: zizmorcore/zizmor-action@b1d7e1fb5de872772f31590499237e7cce841e8e # v0.5.3
-
-      - name: Run zizmor (trusted - upload SARIF)
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: zizmorcore/zizmor-action@b1d7e1fb5de872772f31590499237e7cce841e8e # v0.5.3
+      - name: Run zizmor
+        uses: zizmorcore/zizmor-action@5f14fd08f7cf1cb1609c1e344975f152c7ee938d # v0.5.6
         with:
-          # Means that the action will only report issues, but not fail the workflow.
-          # Blocking merges are handled by rulesets:
-          # https://docs.github.com/en/code-security/concepts/code-scanning/about-code-scanning-alerts#pull-request-check-failures-for-code-scanning-alerts
-          advanced-security: true
+          advanced-security: ${{ github.event_name == 'push' && 'true' || 'false' }}
+          min-severity: low

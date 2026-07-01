@@ -53,6 +53,40 @@ import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/src/components/ui/accordion";
+import { ExperimentChartsGrid } from "../ExperimentChartsGrid";
+import { useExperimentChartsAccordion } from "../../hooks/useExperimentChartsAccordion";
+
+/**
+ * LFE-10460: the metadata column's default position moved from last to right
+ * after `description`. Both persistence paths (localStorage replay and saved
+ * table views) snapshot the pre-PR order with metadata trailing, so this pure
+ * transform repositions it to its new default slot ONLY when it is currently
+ * the last column (the stale pre-PR default). If a user has manually moved
+ * metadata anywhere else, their layout is left untouched.
+ *
+ * Reused as both the one-time `useColumnOrder` migration (localStorage path)
+ * and the `migrateColumnOrder` transform on saved-view payloads.
+ */
+const repositionTrailingMetadata = (order: string[]): string[] => {
+  const lastIndex = order.length - 1;
+  // Only act on the stale default: metadata sitting as the last column.
+  if (order[lastIndex] !== "metadata") return order;
+  // New default slot: immediately after the `description` column, matching the
+  // JS column definition (select, name, description, metadata...).
+  const descriptionIndex = order.indexOf("description");
+  const targetIndex = descriptionIndex === -1 ? 0 : descriptionIndex + 1;
+  if (targetIndex === lastIndex) return order; // already in place
+  const next = [...order];
+  next.splice(lastIndex, 1); // remove trailing metadata
+  next.splice(targetIndex, 0, "metadata"); // insert at new default slot
+  return next;
+};
 
 export default function ExperimentsTable({
   projectId,
@@ -280,6 +314,21 @@ export default function ExperimentsTable({
       },
     },
     {
+      // Placed here (right after the identifying name/description columns) rather
+      // than last so it is never the trailing column. As the last column its right
+      // resize handle sat flush against the table edge and could not be dragged
+      // wider in a maximized browser (LFE-10460).
+      accessorKey: "metadata",
+      id: "metadata",
+      header: getExperimentsColumnName("metadata"),
+      size: 100,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const value: Record<string, string> = row.getValue("metadata");
+        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
+      },
+    },
+    {
       accessorKey: "itemCount",
       id: "itemCount",
       header: getExperimentsColumnName("itemCount"),
@@ -452,17 +501,6 @@ export default function ExperimentsTable({
       },
       columns: experimentScoreColumns,
     },
-    {
-      accessorKey: "metadata",
-      id: "metadata",
-      header: getExperimentsColumnName("metadata"),
-      size: 100,
-      enableHiding: true,
-      cell: ({ row }) => {
-        const value: Record<string, string> = row.getValue("metadata");
-        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
-      },
-    },
   ];
 
   const [columnVisibility, setColumnVisibilityState] =
@@ -471,9 +509,28 @@ export default function ExperimentsTable({
       columns,
     );
 
+  // One-time migration for LFE-10460 on the localStorage replay path:
+  // useColumnOrder replays a returning user's stored order verbatim and never
+  // repositions an existing column, so without this metadata would stay the
+  // trailing column and the resize bug would persist. Guarded by a version flag
+  // so it runs once (won't re-fight a user who later moves metadata themselves).
+  // The saved-view persistence path is covered separately via
+  // `validationContext.migrateColumnOrder` below — both reuse
+  // `repositionTrailingMetadata`.
+  const columnOrderMigrations = useMemo(
+    () => [
+      {
+        versionKey: `experimentsColumnOrder-metadataReorder-v1-${projectId}`,
+        apply: repositionTrailingMetadata,
+      },
+    ],
+    [projectId],
+  );
+
   const [columnOrder, setColumnOrder] = useColumnOrder<ExperimentsTableRow>(
     `experimentsColumnOrder-${projectId}`,
     columns,
+    columnOrderMigrations,
   );
 
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
@@ -482,14 +539,22 @@ export default function ExperimentsTable({
     stateUpdaters: {
       setOrderBy: setOrderByState,
       setFilters: setFiltersWrapper,
+      setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibilityState,
     },
     validationContext: {
       columns,
       filterColumnDefinition: filterConfig.columnDefinitions,
+      expandableFilterColumns: filterConfig.facets.map((facet) => facet.column),
+      // A pre-PR saved view persists its own metadata-last column order, which
+      // would otherwise re-introduce LFE-10460 after applying the view (the
+      // localStorage migration is one-shot and doesn't reach this path). Reuse
+      // the same "only reposition a stale default" transform here.
+      migrateColumnOrder: repositionTrailingMetadata,
     },
-    currentFilterState: queryFilter.filterState,
+    currentFilterState: queryFilter.explicitFilterState,
+    currentExpandedFilters: queryFilter.expanded,
   });
 
   const rows: ExperimentsTableRow[] = useMemo(() => {
@@ -497,6 +562,15 @@ export default function ExperimentsTable({
       ? experiments.rows
       : [];
   }, [experiments]);
+
+  // Get experiments from the current query result (for charts)
+  const chartExperiments = useMemo(() => {
+    return rows.map((row) => ({ id: row.id, name: row.name }));
+  }, [rows]);
+
+  // Charts accordion collapsed state (persisted in session storage)
+  const { accordionValue, setAccordionValue } =
+    useExperimentChartsAccordion(projectId);
 
   // Get selected experiment IDs in the order they appear in the table
   const selectedExperimentIds = useMemo(() => {
@@ -546,7 +620,7 @@ export default function ExperimentsTable({
       params.append("c", id);
     });
 
-    void router.push(
+    router.push(
       `/project/${projectId}/experiments/results?${params.toString()}`,
     );
   }, [selectedExperimentIds, projectId, router]);
@@ -617,8 +691,8 @@ export default function ExperimentsTable({
             setRowHeight={setRowHeight}
             timeRange={timeRange}
             setTimeRange={setTimeRange}
-            actionButtons={
-              shouldShowActions
+            actionButtons={[
+              ...(shouldShowActions
                 ? [
                     <TableActionMenu
                       key="experiments-multi-select-actions"
@@ -638,13 +712,44 @@ export default function ExperimentsTable({
                       }}
                     />,
                   ]
-                : undefined
-            }
+                : []),
+            ]}
           />
+
+          {/* Charts section - Collapsible Accordion */}
+          {tableDateRange && (
+            <Accordion
+              type="single"
+              collapsible
+              value={accordionValue}
+              onValueChange={setAccordionValue}
+            >
+              <AccordionItem value="charts" className="border-t">
+                <AccordionTrigger className="px-3 pt-2 pb-1 hover:no-underline">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">Charts</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="max-h-[40dvh] overflow-x-auto px-3 pt-1 pb-1">
+                  <ExperimentChartsGrid
+                    projectId={projectId}
+                    experiments={chartExperiments}
+                    fromTimestamp={tableDateRange.from}
+                    toTimestamp={tableDateRange.to}
+                    isExternalLoading={experiments.status === "loading"}
+                  />
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          )}
 
           {/* Content area with sidebar and table */}
           <ResizableFilterLayout>
-            <DataTableControls queryFilter={queryFilter} />
+            <DataTableControls
+              // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
+              key={viewControllers.selectedViewId ?? "no-view"}
+              queryFilter={queryFilter}
+            />
 
             <div className="flex flex-1 flex-col overflow-hidden">
               <DataTable
@@ -706,7 +811,7 @@ export default function ExperimentsTable({
                   }
                   // For normal clicks, navigate to experiment detail page
                   else {
-                    void router.push(
+                    router.push(
                       `/project/${projectId}/experiments/results?baseline=${encodeURIComponent(row.id)}`,
                     );
                   }

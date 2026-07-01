@@ -32,6 +32,27 @@ Comprehensive guidance for ClickHouse covering schema design, query optimization
   you first confirm the query builder cannot express the query.
 - Never use `FINAL` on the `events` table; it is designed so `FINAL` is not
   required and the keyword hurts performance.
+- ClickHouse query attribution is stored in `system.query_log.log_comment` as
+  JSON from `packages/shared/src/server/clickhouse/queryTags.ts`. Parse it with
+  `JSONExtractString(log_comment, 'surface')`,
+  `JSONExtractString(log_comment, 'route')`, and
+  `JSONExtractString(log_comment, 'projectId')`. Known `surface` values are
+  `trpc`, `publicapi`, `worker`, `mcp`, and `unknown`; ClickhouseWriter inserts
+  use `projectId = "MULTI_PROJECT"`.
+- Query attribution is propagated through OpenTelemetry baggage. Entry points
+  call `contextWithLangfuseProps(...)` from
+  `packages/shared/src/server/headerPropagation.ts`, setting ClickHouse
+  `surface`, optional `route`, and optional `projectId`. The ClickHouse
+  repository layer then reads baggage via `normalizeClickHouseQueryTags(...)`
+  and writes it to `log_comment`. Prefer setting attribution at entry points
+  rather than passing tags through every repository call.
+- Any migration in `packages/shared/clickhouse/migrations/clustered/**` with
+  more than one `ALTER` on the same table must end every metadata `ALTER`
+  (`ADD/DROP/MODIFY COLUMN`, `ADD/DROP INDEX`) with `SETTINGS alter_sync = 2`,
+  and every mutation-creating `ALTER` (`MATERIALIZE …`, `UPDATE`, `DELETE`)
+  with `SETTINGS mutations_sync = 2`. The matching `unclustered/` file runs
+  against plain `MergeTree` and does not need (and should not duplicate)
+  these settings.
 
 ---
 
@@ -52,11 +73,13 @@ Comprehensive guidance for ClickHouse covering schema design, query optimization
 9. `rules/schema-partition-lifecycle.md` - Partitioning purpose
 
 **Check for:**
+
 - [ ] PRIMARY KEY / ORDER BY column order (low-to-high cardinality)
 - [ ] Data types match actual data ranges
 - [ ] LowCardinality applied to appropriate string columns
 - [ ] Partition key cardinality bounded (100-1,000 values)
 - [ ] ReplacingMergeTree has version column if used
+- [ ] Clustered migration files with multiple ALTERs on the same table use `SETTINGS alter_sync = 2` (metadata) and `SETTINGS mutations_sync = 2` (`MATERIALIZE …`, `UPDATE`, `DELETE`); unclustered mirror has none
 
 ### For Query Reviews (SELECT, JOIN, aggregations)
 
@@ -69,6 +92,7 @@ Comprehensive guidance for ClickHouse covering schema design, query optimization
 5. `rules/schema-pk-filter-on-orderby.md` - Filter alignment with ORDER BY
 
 **Check for:**
+
 - [ ] Filters use ORDER BY prefix columns
 - [ ] JOINs filter tables before joining (not after)
 - [ ] Correct JOIN algorithm for table sizes
@@ -85,6 +109,7 @@ Comprehensive guidance for ClickHouse covering schema design, query optimization
 5. `rules/insert-optimize-avoid-final.md` - OPTIMIZE TABLE risks
 
 **Check for:**
+
 - [ ] Batch size 10K-100K rows per INSERT
 - [ ] No ALTER TABLE UPDATE for frequent changes
 - [ ] ReplacingMergeTree or CollapsingMergeTree for update patterns
@@ -121,19 +146,19 @@ Structure your response as follows:
 
 ## Rule Categories by Priority
 
-| Priority | Category | Impact | Prefix | Rule Count |
-|----------|----------|--------|--------|------------|
-| 1 | Primary Key Selection | CRITICAL | `schema-pk-` | 4 |
-| 2 | Data Type Selection | CRITICAL | `schema-types-` | 5 |
-| 3 | JOIN Optimization | CRITICAL | `query-join-` | 5 |
-| 4 | Insert Batching | CRITICAL | `insert-batch-` | 1 |
-| 5 | Mutation Avoidance | CRITICAL | `insert-mutation-` | 2 |
-| 6 | Partitioning Strategy | HIGH | `schema-partition-` | 4 |
-| 7 | Skipping Indices | HIGH | `query-index-` | 1 |
-| 8 | Materialized Views | HIGH | `query-mv-` | 2 |
-| 9 | Async Inserts | HIGH | `insert-async-` | 2 |
-| 10 | OPTIMIZE Avoidance | HIGH | `insert-optimize-` | 1 |
-| 11 | JSON Usage | MEDIUM | `schema-json-` | 1 |
+| Priority | Category              | Impact   | Prefix              | Rule Count |
+| -------- | --------------------- | -------- | ------------------- | ---------- |
+| 1        | Primary Key Selection | CRITICAL | `schema-pk-`        | 4          |
+| 2        | Data Type Selection   | CRITICAL | `schema-types-`     | 5          |
+| 3        | JOIN Optimization     | CRITICAL | `query-join-`       | 5          |
+| 4        | Insert Batching       | CRITICAL | `insert-batch-`     | 1          |
+| 5        | Mutation Avoidance    | CRITICAL | `insert-mutation-`  | 2          |
+| 6        | Partitioning Strategy | HIGH     | `schema-partition-` | 4          |
+| 7        | Skipping Indices      | HIGH     | `query-index-`      | 1          |
+| 8        | Materialized Views    | HIGH     | `query-mv-`         | 2          |
+| 9        | Async Inserts         | HIGH     | `insert-async-`     | 2          |
+| 10       | OPTIMIZE Avoidance    | HIGH     | `insert-optimize-`  | 1          |
+| 11       | JSON Usage            | MEDIUM   | `schema-json-`      | 1          |
 
 ---
 
@@ -228,11 +253,3 @@ Each rule file in `rules/` contains:
 - **Incorrect example**: Anti-pattern with explanation
 - **Correct example**: Best practice with explanation
 - **Additional context**: Trade-offs, when to apply, references
-
----
-
-## Compatibility Entrypoint
-
-`AGENTS.md` is a short compatibility index for agents that open that file
-directly. The authoritative workflow lives in this `SKILL.md`, and detailed rule
-bodies live in `rules/`.

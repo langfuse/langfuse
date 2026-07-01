@@ -45,6 +45,14 @@ If `aggregate_spans` returns no results, check:
 - the time window covers when the issue was actually firing;
 - the region tag matches reality (the EU MCP only sees EU traces).
 
+### Public API tenant / legacy-endpoint usage
+
+For tenant-specific public API route usage, use
+[`../../datadog-query-recipes/references/public-api-tenant-usage.md`](../../datadog-query-recipes/references/public-api-tenant-usage.md).
+The key gotcha is that tenant tags usually live on the `api-auth-verify` child
+span while the HTTP route lives on the request root span, so correlate by
+`traceid` rather than relying on one combined span filter.
+
 ## 2. Log Sweep — read what the handler said
 
 Logs are the right tool for *messages* the handler emitted. Spans are the
