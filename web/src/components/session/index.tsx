@@ -68,6 +68,7 @@ import {
   SESSION_DETAIL_SYSTEM_PRESETS,
   type SessionDetailSystemPreset,
   getSessionDetailPresetToApply,
+  getSessionDetailViewConfig,
 } from "@/src/components/session/session-detail-presets";
 import { downloadSessionAsJson } from "@/src/components/session/actions/downloadSessionAsJson";
 import { SessionDetailStoreProvider } from "@/src/components/session/SessionDetailStoreProvider";
@@ -921,9 +922,9 @@ const LoadedSessionEventsPage: React.FC<{
     if (!presetToApply) return;
 
     defaultPresetAppliedRef.current = true;
-    // Only re-applies a system preset that's explicitly selected (deep link /
-    // saved view). With no selection the view defaults to all observations that
-    // carry I/O — see getSessionDetailPresetToApply / TraceEventsRow.
+    // Applies the explicitly selected system preset (deep link / saved view),
+    // or the default "All observations with I/O" view when nothing is selected
+    // — see getSessionDetailPresetToApply / TraceEventsRow (LFE-10520).
     applySystemPreset(presetToApply);
   }, [
     applySystemPreset,
@@ -931,6 +932,10 @@ const LoadedSessionEventsPage: React.FC<{
     isViewLoading,
     viewControllers.selectedViewId,
   ]);
+
+  // The selected view is the single source of truth for what each card shows.
+  const { label: viewLabel, hideObservationsWithoutIO } =
+    getSessionDetailViewConfig(viewControllers.selectedViewId);
 
   const virtualizer = useVirtualizer({
     count: traces?.length ?? 0,
@@ -1051,12 +1056,15 @@ const LoadedSessionEventsPage: React.FC<{
               systemFilterPresets={SESSION_DETAIL_SYSTEM_PRESETS}
             />
 
-            {/* Filter Builder */}
+            {/* Refines the selected view by filtering observations within each
+                trace (it does not filter the list of traces) — labelled to say
+                so (LFE-10520). */}
             <PopoverFilterBuilder
               columns={filterColumns}
               filterState={visibleFilterState}
               onChange={queryFilter.setFilterState}
               columnsWithCustomSelect={filterColumnsWithCustomSelect}
+              label="Filter observations"
             />
 
             {/* Separator */}
@@ -1092,7 +1100,7 @@ const LoadedSessionEventsPage: React.FC<{
                   <SessionVirtualizedRow
                     key={virtualItem.key}
                     itemKey={String(virtualItem.key)}
-                    measurementKey={`${String(virtualItem.key)}:${showCorrections}:${visibleFilterMeasurementKey}`}
+                    measurementKey={`${String(virtualItem.key)}:${showCorrections}:${hideObservationsWithoutIO}:${visibleFilterMeasurementKey}`}
                     source="events"
                     virtualItem={virtualItem}
                     virtualizer={virtualizer}
@@ -1107,6 +1115,8 @@ const LoadedSessionEventsPage: React.FC<{
                       )}
                       index={virtualItem.index}
                       filterState={visibleFilterState}
+                      hideObservationsWithoutIO={hideObservationsWithoutIO}
+                      viewLabel={viewLabel}
                     />
                   </SessionVirtualizedRow>
                 );

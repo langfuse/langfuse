@@ -7,9 +7,32 @@ export interface SessionDetailSystemPreset {
   name: string;
   description?: string;
   filters: FilterState;
+  /**
+   * When true, this view hides observations that carry no input/output. It is
+   * the only "view rule" that is not expressible as a FilterState (it needs a
+   * cross-field OR on input/output), so it lives on the view and is applied at
+   * render — see TraceEventsRow. Named explicitly so it is a visible choice,
+   * not hidden behaviour.
+   */
+  hideObservationsWithoutIO?: boolean;
 }
 
 export const SESSION_DETAIL_SYSTEM_PRESETS: SessionDetailSystemPreset[] = [
+  {
+    id: `${SYSTEM_PRESET_ID_PREFIX}with_io__`,
+    name: "All observations with I/O",
+    description:
+      "Every observation that has input or output — a chat renders as a chat, an agent run shows its tool calls",
+    filters: [],
+    hideObservationsWithoutIO: true,
+  },
+  {
+    id: `${SYSTEM_PRESET_ID_PREFIX}all__`,
+    name: "All observations",
+    description:
+      "Every observation in each trace, including ones without input/output",
+    filters: [],
+  },
   {
     id: `${SYSTEM_PRESET_ID_PREFIX}first_generation__`,
     name: "First Generation in Trace",
@@ -51,12 +74,18 @@ export const SESSION_DETAIL_SYSTEM_PRESETS: SessionDetailSystemPreset[] = [
 ];
 
 /**
- * Which system preset to auto-apply on load. A system preset is re-applied when
- * its id is in the URL (a deep link / saved view). Otherwise NOTHING is applied:
- * the session view defaults to showing every observation that carries
- * input/output (see TraceEventsRow), so agentic sessions with no GENERATION are
- * no longer hidden behind the old "first generation" default (LFE-10520). The
- * generation presets remain available as opt-in saved views.
+ * The default view: "All observations with I/O". Shows the real session out of
+ * the box (chat looks like chat, an agent run shows its tool calls) without the
+ * old "first generation" default that rendered empty cards for agentic sessions
+ * with no GENERATION (LFE-10520).
+ */
+export const getSessionDetailDefaultPreset = () =>
+  SESSION_DETAIL_SYSTEM_PRESETS[0];
+
+/**
+ * Which system preset to auto-apply on load. A selected system preset (deep
+ * link / saved view) is re-applied; a user's own filters win; otherwise the
+ * default "All observations with I/O" view is applied.
  */
 export const getSessionDetailPresetToApply = ({
   selectedViewId,
@@ -77,5 +106,23 @@ export const getSessionDetailPresetToApply = ({
     return null;
   }
 
-  return selectedSystemPreset ?? null;
+  return selectedSystemPreset ?? getSessionDetailDefaultPreset();
+};
+
+/**
+ * Render config for the currently selected view — the single source of truth
+ * (`selectedViewId`) drives what each trace card shows. `label` is the view's
+ * display name (null when the user is on a custom/saved filter);
+ * `hideObservationsWithoutIO` mirrors the selected view's flag.
+ */
+export const getSessionDetailViewConfig = (
+  selectedViewId: string | null,
+): { label: string | null; hideObservationsWithoutIO: boolean } => {
+  const preset = SESSION_DETAIL_SYSTEM_PRESETS.find(
+    (candidate) => candidate.id === selectedViewId,
+  );
+  return {
+    label: preset?.name ?? null,
+    hideObservationsWithoutIO: preset?.hideObservationsWithoutIO ?? false,
+  };
 };
