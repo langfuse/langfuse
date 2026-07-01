@@ -31,6 +31,25 @@ const MONTH_SCALE_MIN = 180 * DAY;
 type AxisMode = "time" | "date" | "month" | "category";
 
 /**
+ * Max characters shown for a categorical (non-time) x-axis tick. Entity names
+ * (experiment / dataset-run names) are frequently long; recharts neither wraps
+ * nor truncates a tick. We render category ticks angled (so neighbours don't
+ * collide) and cap the *shown* label so a single very long outlier can't run
+ * off-canvas — the full value always stays in the tooltip. Generous, because
+ * angled labels have vertical room; short labels are untouched.
+ */
+const MAX_CATEGORY_LABEL_CHARS = 24;
+
+/** End-truncate a long categorical label ("foo-bar-…"). Entity names carry
+ * their distinguishing token early (e.g. "…-run-2-…"), so keeping the head and
+ * dropping the tail preserves what tells ticks apart; the tooltip has the full
+ * name. Short labels pass through untouched. */
+function truncateCategoryLabel(label: string): string {
+  if (label.length <= MAX_CATEGORY_LABEL_CHARS) return label;
+  return `${label.slice(0, MAX_CATEGORY_LABEL_CHARS - 1)}…`;
+}
+
+/**
  * Parse a raw bucket value into a Date, but ONLY when it actually looks like a
  * timestamp: an epoch-ms number, an ISO string, or a "YYYY-MM-DD[ T]HH:MM:SS"
  * ClickHouse datetime (optionally a bare "YYYY-MM-DD"). Values without an
@@ -101,6 +120,19 @@ export type TimeAxis = {
   /** Fuller label for the tooltip (always date + year, time when intraday). */
   formatTooltip: (raw: unknown) => string;
   mode: AxisMode;
+  /**
+   * Tick-label orientation the visualiser spreads onto the recharts `XAxis`.
+   * Time / date / month ticks are short single-units rendered flat (`{}` → the
+   * spread is a no-op, so dashboards are unchanged). Categorical entity names
+   * are long, so we render them angled + end-anchored — the standard way to fit
+   * long category labels without overlapping their neighbours. (LFE-10583)
+   */
+  tickProps: {
+    angle?: number;
+    textAnchor?: "start" | "middle" | "end";
+    /** Extra x-axis height (px) an angled label needs so it isn't clipped. */
+    height?: number;
+  };
 };
 
 /**
@@ -116,19 +148,26 @@ export function prepareTimeAxis(rawValues: unknown[], maxTicks = 6): TimeAxis {
 
   const target = Math.max(2, maxTicks);
 
-  // Non-temporal x-axis (e.g. dataset-compare run names): the labels aren't
-  // timestamps, so we don't invent dates — render them verbatim and only thin
-  // by index. We treat the axis as time only when most values actually parse.
+  // Non-temporal x-axis (e.g. the experiments / dataset-compare charts, whose
+  // ticks are entity names like "demo-dataset-run-2-…-transcription-dataset"):
+  // the labels aren't timestamps, so we don't invent dates. We treat the axis as
+  // time only when most values actually parse.
   const temporal =
     timestamps.length > 0 && timestamps.length >= rawValues.length / 2;
   if (!temporal) {
-    const passthrough = (raw: unknown): string =>
+    const full = (raw: unknown): string =>
       raw == null ? "" : typeof raw === "string" ? raw : String(raw);
     return {
       interval: getEvenTickInterval(rawValues.length, target),
-      formatTick: passthrough,
-      formatTooltip: passthrough,
+      // Entity names can be long (run / experiment names) — recharts neither
+      // wraps nor truncates a tick, so rendering them flat overlaps adjacent
+      // ticks into an unreadable smear. Render them angled + end-anchored (see
+      // tickProps) and end-truncate the shown label so an outlier name can't
+      // run off-canvas; the full name always stays in the tooltip. (LFE-10583)
+      formatTick: (raw: unknown) => truncateCategoryLabel(full(raw)),
+      formatTooltip: full,
       mode: "category",
+      tickProps: { angle: -30, textAnchor: "end", height: 60 },
     };
   }
 
@@ -205,5 +244,7 @@ export function prepareTimeAxis(rawValues: unknown[], maxTicks = 6): TimeAxis {
     });
   };
 
-  return { interval, formatTick, formatTooltip, mode };
+  // Time / date / month ticks are short single-units — rendered flat, exactly
+  // as the dashboards do today (no orientation change → pixel-identical).
+  return { interval, formatTick, formatTooltip, mode, tickProps: {} };
 }
