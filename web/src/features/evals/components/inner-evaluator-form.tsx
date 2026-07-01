@@ -46,7 +46,7 @@ import { Slider } from "@/src/components/ui/slider";
 import { Card } from "@/src/components/ui/card";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Checkbox } from "@/src/components/ui/checkbox";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   evalConfigFormSchema,
   type EvalFormType,
@@ -752,9 +752,8 @@ export const InnerEvaluatorForm = (props: {
         if ("message" in error && typeof error.message === "string") {
           setFormError(error.message as string);
           return;
-        } else {
-          setFormError(JSON.stringify(error));
         }
+        setFormError(JSON.stringify(error));
       });
   }
 
@@ -1027,7 +1026,7 @@ export const InnerEvaluatorForm = (props: {
                       <FormLabel>Evaluate</FormLabel>
                       <FormControl>
                         <div className="flex flex-col gap-2">
-                          <div className="items-top flex space-x-2">
+                          <div className="flex space-x-2">
                             <Checkbox
                               id="newObjects"
                               checked={field.value.includes("NEW")}
@@ -1048,7 +1047,7 @@ export const InnerEvaluatorForm = (props: {
                               </label>
                             </div>
                           </div>
-                          <div className="items-top flex space-x-2">
+                          <div className="flex space-x-2">
                             <Checkbox
                               id="existingObjects"
                               checked={field.value.includes("EXISTING")}
@@ -1193,12 +1192,11 @@ export const InnerEvaluatorForm = (props: {
                         return experimentEvalFilterColsWithOptions(
                           experimentEvalFilterOptions,
                         );
-                      } else {
-                        // dataset (legacy non-OTEL experiments)
-                        return datasetFormFilterColsWithOptions(
-                          datasetFilterOptions,
-                        );
                       }
+                      // dataset (legacy non-OTEL experiments)
+                      return datasetFormFilterColsWithOptions(
+                        datasetFilterOptions,
+                      );
                     };
 
                     const hasFilters = field.value && field.value.length > 0;
@@ -1254,7 +1252,7 @@ export const InnerEvaluatorForm = (props: {
                           </div>
                         </FormControl>
                         {!props.disabled && !hasFilters && (
-                          <div className="align-center flex max-w-[500px] gap-1">
+                          <div className="flex max-w-[500px] gap-1">
                             <AlertTriangle className="text-dark-yellow h-4 w-4" />
                             <AlertDescription className="text-dark-yellow">
                               No filters set. This evaluator will run on all{" "}
@@ -1397,7 +1395,7 @@ export const InnerEvaluatorForm = (props: {
         </Button>
       ) : null}
       {formError ? (
-        <p className="text-red w-full text-center">
+        <p className="w-full text-center">
           <span className="font-bold">Error:</span> {formError}
         </p>
       ) : null}

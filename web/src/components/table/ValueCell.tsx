@@ -1,10 +1,35 @@
 import { memo, type JSX, useState } from "react";
+import { useRouter } from "next/router";
 import { type Row } from "@tanstack/react-table";
 import { urlRegex } from "@langfuse/shared";
 import { type JsonTableRow } from "@/src/components/table/utils/jsonExpansionUtils";
+import { classifyMediaLeaf } from "@/src/components/ui/media/classifyMediaLeaf";
+import { JsonMediaTag } from "@/src/components/ui/media/JsonMediaTag";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Button } from "@/src/components/ui/button";
-import { Copy, Check } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import {
+  buildEventsTablePathForMetadataFilter,
+  type MetadataFilterOperator,
+} from "@/src/features/events/lib/eventsTablePaths";
+import { Copy, Check, EllipsisVertical, Filter, FilterX } from "lucide-react";
+
+/**
+ * Enables the per-row actions menu in a metadata JSON view: copy value/
+ * structure/path plus "Include in / Exclude from filter" shortcuts that land on
+ * the matching events table. Passed only by the metadata view, so input/output
+ * cells keep their plain one-click copy button.
+ */
+export type MetadataFilterActions = {
+  projectId: string;
+  filterTarget: "observations" | "traces";
+};
 
 const MAX_STRING_LENGTH_FOR_LINK_DETECTION = 1500;
 export const MAX_CELL_DISPLAY_CHARS = 2000;
@@ -77,32 +102,30 @@ function renderArrayValue(arr: unknown[]): JSX.Element {
           if (keys.length <= OBJECT_PREVIEW_KEYS) {
             const keyPreview = keys.map((k) => `"${k}": ...`).join(", ");
             return `{${keyPreview}}`;
-          } else {
-            return `{"${keys[0]}": ...}`;
           }
+          return `{"${keys[0]}": ...}`;
         }
         if (itemType === "array") return "...";
         return String(item);
       })
       .join(", ");
     return <span className={PREVIEW_TEXT_CLASSES}>[{displayItems}]</span>;
-  } else {
-    // Show truncated values for large arrays
-    const preview = arr
-      .slice(0, ARRAY_PREVIEW_ITEMS)
-      .map((item) => {
-        const itemType = getValueType(item);
-        if (itemType === "string") return `"${String(item)}"`;
-        if (itemType === "object" || itemType === "array") return "...";
-        return String(item);
-      })
-      .join(", ");
-    return (
-      <span className={PREVIEW_TEXT_CLASSES}>
-        [{preview}, ...{arr.length - ARRAY_PREVIEW_ITEMS} more]
-      </span>
-    );
   }
+  // Show truncated values for large arrays
+  const preview = arr
+    .slice(0, ARRAY_PREVIEW_ITEMS)
+    .map((item) => {
+      const itemType = getValueType(item);
+      if (itemType === "string") return `"${String(item)}"`;
+      if (itemType === "object" || itemType === "array") return "...";
+      return String(item);
+    })
+    .join(", ");
+  return (
+    <span className={PREVIEW_TEXT_CLASSES}>
+      [{preview}, ...{arr.length - ARRAY_PREVIEW_ITEMS} more]
+    </span>
+  );
 }
 
 function renderObjectValue(obj: Record<string, unknown>): JSX.Element {
@@ -154,17 +177,182 @@ function getCopyValue(value: unknown): string {
   }
 }
 
+/** Walks up to the top-level (level 0) ancestor key for a metadata row. */
+function resolveTopLevelMetadataKey(row: Row<JsonTableRow>): string {
+  let cursor: Row<JsonTableRow> | undefined = row;
+  while (cursor && cursor.original.level > 0) {
+    cursor = cursor.getParentRow() ?? undefined;
+  }
+  return cursor?.original.key ?? row.original.key;
+}
+
+/**
+ * Builds the dotted key path from the row's actual keys (root → leaf). Unlike
+ * `convertRowIdToKeyPath`, which reconstructs the path from the hyphen-joined
+ * row id, this is lossless for keys that themselves contain `-` (e.g.
+ * `x-request-id`).
+ */
+function resolveKeyPath(row: Row<JsonTableRow>): string {
+  const keys: string[] = [];
+  let cursor: Row<JsonTableRow> | undefined = row;
+  while (cursor) {
+    keys.unshift(String(cursor.original.key));
+    cursor = cursor.getParentRow() ?? undefined;
+  }
+  return keys.join(".");
+}
+
+/**
+ * The per-row overflow menu shown in metadata views. Containers offer "Copy
+ * structure"; scalar leaves offer "Copy value" plus filter shortcuts. Rendered
+ * only when `metadataActions` is provided, so `useRouter` stays off the hot
+ * path for the (far more numerous) input/output JSON cells.
+ */
+function ValueCellActionsMenu({
+  row,
+  metadataActions,
+}: {
+  row: Row<JsonTableRow>;
+  metadataActions: MetadataFilterActions;
+}) {
+  const router = useRouter();
+  const { value, type, hasChildren, level } = row.original;
+
+  const filterValue = String(value);
+  // A nested value is matched as a substring of its JSON-ENCODED top-level
+  // branch, but `filterValue` is the JSON-parsed (unescaped) form shown in the
+  // tree. When the value carries JSON-escapable characters (quotes,
+  // backslashes, newlines) the two differ, so `contains` would never match —
+  // hide the shortcut rather than build a confidently-wrong filter.
+  //
+  // Top-level scalars are *usually* stored raw (ingestion keeps top-level
+  // strings as-is), so we skip the check there. This heuristic misses the rare
+  // case of a top-level value that was itself JSON-encoded with escapes; we
+  // accept that miss because the alternative — always applying the check —
+  // would wrongly hide the far more common top-level raw string with literal
+  // newlines (which filters fine), since its encoded form also differs.
+  const valueMatchesStoredForm =
+    level === 0 || JSON.stringify(filterValue).slice(1, -1) === filterValue;
+  const isScalarLeaf =
+    !hasChildren &&
+    (type === "string" || type === "number" || type === "boolean") &&
+    // Skip empty values: `contains ""` matches every row (ClickHouse
+    // position(x, "") === 1, and Map[missingKey] defaults to "") while
+    // `does not contain ""` matches none — both shortcuts would be no-ops.
+    filterValue.length > 0 &&
+    valueMatchesStoredForm;
+
+  // Metadata is a flat Map(String, String), so a nested value can only be
+  // matched as a substring of its top-level branch. We use contains/does not
+  // contain uniformly (top-level included) so Include and Exclude stay exact
+  // complements — stringObject has no "!=" to invert an exact "=".
+  const metadataKey = resolveTopLevelMetadataKey(row);
+  const includeOperator: MetadataFilterOperator = "contains";
+  const excludeOperator: MetadataFilterOperator = "does not contain";
+  const displayValue = type === "string" ? `"${filterValue}"` : filterValue;
+
+  const handleCopyData = () => {
+    copyTextToClipboard(getCopyValue(value));
+  };
+  const handleCopyPath = () => {
+    copyTextToClipboard(resolveKeyPath(row));
+  };
+  const navigateWithFilter = (operator: MetadataFilterOperator) => {
+    router.push(
+      buildEventsTablePathForMetadataFilter({
+        currentPath: router.asPath,
+        projectId: metadataActions.projectId,
+        metadataKey,
+        value: filterValue,
+        operator,
+        target: metadataActions.filterTarget,
+      }),
+    );
+  };
+
+  const includeFilterText = `metadata.${metadataKey} ${includeOperator} ${displayValue}`;
+  const excludeFilterText = `metadata.${metadataKey} ${excludeOperator} ${displayValue}`;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Value actions"
+          title="Actions"
+          className="bg-background/80 hover:bg-background absolute top-1/2 right-1 h-4 w-4 -translate-y-1/2 border p-0 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100 data-[state=open]:opacity-100"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <EllipsisVertical className="h-3 w-3" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className="max-w-[320px]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <DropdownMenuItem className="text-xs" onSelect={handleCopyData}>
+          <Copy className="mr-2 h-3.5 w-3.5 shrink-0" />
+          {hasChildren ? "Copy structure" : "Copy value"}
+        </DropdownMenuItem>
+        <DropdownMenuItem className="text-xs" onSelect={handleCopyPath}>
+          <Copy className="mr-2 h-3.5 w-3.5 shrink-0" />
+          Copy path
+        </DropdownMenuItem>
+        {isScalarLeaf && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-xs"
+              onSelect={() => navigateWithFilter(includeOperator)}
+            >
+              <Filter className="mr-2 h-3.5 w-3.5 shrink-0" />
+              <span className="flex min-w-0 flex-col">
+                <span>Include in filter</span>
+                <span
+                  className="text-muted-foreground truncate font-mono"
+                  title={includeFilterText}
+                >
+                  {includeFilterText}
+                </span>
+              </span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-xs"
+              onSelect={() => navigateWithFilter(excludeOperator)}
+            >
+              <FilterX className="mr-2 h-3.5 w-3.5 shrink-0" />
+              <span className="flex min-w-0 flex-col">
+                <span>Exclude from filter</span>
+                <span
+                  className="text-muted-foreground truncate font-mono"
+                  title={excludeFilterText}
+                >
+                  {excludeFilterText}
+                </span>
+              </span>
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export const ValueCell = memo(
   ({
     row,
     expandedCells,
     toggleCellExpansion,
     preserveStringWhitespace = false,
+    metadataActions,
   }: {
     row: Row<JsonTableRow>;
     expandedCells: Set<string>;
     toggleCellExpansion: (cellId: string) => void;
     preserveStringWhitespace?: boolean;
+    metadataActions?: MetadataFilterActions;
   }) => {
     const { value, type } = row.original;
     const cellId = `${row.id}-value`;
@@ -188,6 +376,17 @@ export const ValueCell = memo(
       switch (type) {
         case "string": {
           const stringValue = String(value);
+
+          // Render previewable media (Langfuse refs, data URIs, media URLs) as a
+          // hover-to-peek chip instead of the raw string.
+          const mediaDescriptor = classifyMediaLeaf(stringValue);
+          if (mediaDescriptor) {
+            return {
+              content: <JsonMediaTag descriptor={mediaDescriptor} />,
+              needsTruncation: false,
+            };
+          }
+
           const needsTruncation = stringValue.length > MAX_CELL_DISPLAY_CHARS;
           const displayValue =
             needsTruncation && !isCellExpanded
@@ -300,21 +499,26 @@ export const ValueCell = memo(
           </div>
         )}
 
-        {/* Copy button - appears on hover */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="bg-background/80 hover:bg-background absolute top-0 right-0 h-5 w-5 border p-0.5 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100"
-          onClick={handleCopy}
-          title="Copy value"
-          aria-label="Copy cell value"
-        >
-          {showCopySuccess ? (
-            <Check className="h-2.5 w-2.5 text-green-600" />
-          ) : (
-            <Copy className="h-2.5 w-2.5" />
-          )}
-        </Button>
+        {/* Hover affordance: a one-click copy by default, or an actions menu
+            (copy + filter shortcuts) in metadata views. */}
+        {metadataActions ? (
+          <ValueCellActionsMenu row={row} metadataActions={metadataActions} />
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="bg-background/80 hover:bg-background absolute top-0 right-0 h-5 w-5 border p-0.5 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100"
+            onClick={handleCopy}
+            title="Copy value"
+            aria-label="Copy cell value"
+          >
+            {showCopySuccess ? (
+              <Check className="h-2.5 w-2.5 text-green-600" />
+            ) : (
+              <Copy className="h-2.5 w-2.5" />
+            )}
+          </Button>
+        )}
       </div>
     );
   },

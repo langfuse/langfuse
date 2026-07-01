@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { Separator } from "@/src/components/ui/separator";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { useRouter } from "next/router";
 import { z } from "zod";
 import { type Control, useForm } from "react-hook-form";
@@ -473,9 +473,8 @@ export const AutomationForm = ({
             githubDefaults.githubDispatch.displayGitHubToken || undefined,
         },
       };
-    } else {
-      throw new Error("Invalid action type");
     }
+    throw new Error("Invalid action type");
   };
 
   // Initialize form with default values or values from existing automation

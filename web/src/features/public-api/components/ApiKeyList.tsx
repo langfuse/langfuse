@@ -3,14 +3,7 @@ import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import { Input } from "@/src/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/src/components/ui/dialog";
+import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import {
   Table,
   TableBody,
@@ -25,7 +18,6 @@ import { CreateApiKeyButton } from "@/src/features/public-api/components/CreateA
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
-import { DialogDescription } from "@radix-ui/react-dialog";
 import { TrashIcon } from "lucide-react";
 import { useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
@@ -149,6 +141,7 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
                     density="comfortable"
                     text={apiKey.publicKey}
                     className="truncate font-mono"
+                    title={apiKey.publicKey}
                   />
                   <TableCell density="comfortable" className="font-mono">
                     {apiKey.displaySecretKey}
@@ -238,36 +231,20 @@ function DeleteApiKeyButton(props: {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
+    <ConfirmDialog
+      open={open}
+      onOpenChange={setOpen}
+      trigger={
         <Button variant="ghost" size="icon">
           <TrashIcon className="h-4 w-4" />
         </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle className="mb-5">Delete API key</DialogTitle>
-          <DialogDescription>
-            Are you sure you want to delete this API key? This action cannot be
-            undone.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button
-            variant="destructive"
-            onClick={handleDelete}
-            loading={
-              mutDeleteOrgApiKey.isPending || mutDeleteProjectApiKey.isPending
-            }
-          >
-            Permanently delete
-          </Button>
-          <Button variant="ghost" onClick={() => setOpen(false)}>
-            Cancel
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      }
+      title="Delete API key"
+      description="Are you sure you want to delete this API key? This action cannot be undone."
+      confirmLabel="Permanently delete"
+      loading={mutDeleteOrgApiKey.isPending || mutDeleteProjectApiKey.isPending}
+      onConfirm={handleDelete}
+    />
   );
 }
 

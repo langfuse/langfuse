@@ -93,6 +93,8 @@ jobs:
             llm_connections:
               - 'packages/shared/package.json'
               - 'packages/shared/src/server/llm/fetchLLMCompletion.ts'
+              - 'packages/shared/src/server/llm/secureLlmFetch.ts'
+              - 'packages/shared/src/server/llm/utils.ts'
 
   lint:
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -211,6 +213,8 @@ jobs:
     # at run creation, so this job starts immediately (!cancelled() lets the
     # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    env:
+      NODE_ENV: test
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -245,6 +249,8 @@ jobs:
     # at run creation, so this job starts immediately (!cancelled() lets the
     # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    env:
+      NODE_ENV: test
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -268,9 +274,19 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
-      - name: Load default env
+      - name: Load default env (for prisma generate)
         run: |
           cp .env.dev.example .env
+      - name: generate prisma client
+        # The Storybook Vitest browser project imports the real production cell
+        # components, which transitively pull in `@langfuse/shared` modules that
+        # build Zod schemas from Prisma enums at import time (e.g.
+        # packages/shared/src/features/monitors/types.ts: `z.enum(MonitorSeverity)`).
+        # Without a generated `@prisma/client`, those enums are `undefined` and
+        # the story file fails to import ("Cannot convert undefined or null to
+        # object"). Mirror `tests-shared`, which generates the client for the
+        # same reason. `prisma generate` only reads the schema; it needs no DB.
+        run: pnpm --filter=shared run db:generate
       - name: Install playwright
         run: pnpm --filter=web exec playwright install --with-deps --only-shell chromium
       - name: run Storybook tests
@@ -285,6 +301,8 @@ jobs:
     # at run creation, so this job starts immediately (!cancelled() lets the
     # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    env:
+      NODE_ENV: test
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -405,6 +423,8 @@ jobs:
     # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
+    env:
+      NODE_ENV: test
     strategy:
       matrix:
         node-version: [24]
@@ -565,6 +585,8 @@ jobs:
     # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
+    env:
+      NODE_ENV: test
     strategy:
       matrix:
         node-version: [24]
@@ -660,6 +682,8 @@ jobs:
       - llm-connections-filter
     if: ${{ !cancelled() && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.llm-connections-filter.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'))) }}
     name: test-worker-llm-connections (node24, pg15)
+    env:
+      NODE_ENV: test
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -740,6 +764,8 @@ jobs:
     # at run creation, so this job starts immediately (!cancelled() lets the
     # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    env:
+      NODE_ENV: test
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -851,6 +877,8 @@ jobs:
     # at run creation, so this job starts immediately (!cancelled() lets the
     # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    env:
+      NODE_ENV: test
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:

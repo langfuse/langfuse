@@ -36,7 +36,6 @@ import {
 } from "./utils/seed-helpers";
 import { seedInAppAgentDemoConversation } from "./utils/in-app-agent-seed";
 import { seedDatasetVersions } from "./seed-dataset-versions";
-import { seedMediaTraces } from "./seed-media";
 
 const options = {
   environment: { type: "string" },
@@ -47,7 +46,7 @@ const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
 const IN_APP_AGENT_SYSTEM_PROMPT_PATH = resolve(
   __dirname,
   "../../../..",
-  "web/src/features/in-app-agent/prompts/in-app-agent-system-prompt.txt",
+  "web/src/ee/features/in-app-agent/prompts/in-app-agent-system-prompt.txt",
 );
 
 const inAppAgentSystemPrompt = readFileSync(
@@ -385,9 +384,6 @@ async function main() {
 
     await createDashboardsAndWidgets([project1, project2]);
     await seedDatasetVersions(prisma, [project1.id, project2.id]);
-
-    // Seed media test traces (uploads to MinIO + creates Media/TraceMedia records)
-    await seedMediaTraces(project1.id);
 
     await prisma.llmSchema.createMany({
       data: [

@@ -28,7 +28,7 @@ export class ClickHouseQueryBuilder {
 
   private buildNestedMetadataMapSql(
     baseEntries: string[],
-    rowExpression: string = "number",
+    rowExpression = "number",
   ): string {
     return `map(
           ${baseEntries.join(",\n          ")},
@@ -88,7 +88,7 @@ export class ClickHouseQueryBuilder {
   buildBulkTracesInsert(
     projectId: string,
     count: number,
-    environment: string = "default",
+    environment = "default",
     fileContent?: { heavyMarkdown: string; nestedJson: any; chatMlJson: any },
     opts: {
       numberOfDays: number;
@@ -129,7 +129,7 @@ export class ClickHouseQueryBuilder {
       SELECT
         concat('${idPrefix}trace-bulk-', toString(number), '-${idSuffix}') AS id,
         toDateTime(${anchorSeconds} - intDiv(number * ${spreadSeconds}, ${Math.max(count, 1)})) AS timestamp,
-        concat('trace-', toString(number % 10)) AS name,
+        arrayElement(['chat-completion','summarize-document','extract-entities','embed-documents','classify-intent','generate-title','translate-text','moderate-content','rerank-results','answer-question'], 1 + (number % 10)) AS name,
         if(h1 % 10 < 3, concat('${idPrefix}user_', toString(h1 % 1000)), NULL) AS user_id,
         ${this.buildNestedMetadataMapSql(["'generated'", "'bulk'"])} AS metadata,
         NULL AS release,
@@ -169,8 +169,8 @@ export class ClickHouseQueryBuilder {
   buildBulkObservationsInsert(
     projectId: string,
     tracesCount: number,
-    observationsPerTrace: number = 5,
-    environment: string = "default",
+    observationsPerTrace = 5,
+    environment = "default",
     fileContent?: { heavyMarkdown: string; nestedJson: any; chatMlJson: any },
     opts: {
       numberOfDays: number;
@@ -242,7 +242,10 @@ export class ClickHouseQueryBuilder {
         if(type = 'GENERATION',
           if(h2 % 10 >= 7, '${escapedNestedJson}', '${escapedChatMl}'),
           NULL) AS output,
-        if(type = 'GENERATION', 'gpt-4', NULL) AS provided_model_name,
+        -- Spread generations across a realistic model pool (keyed on the stable
+        -- per-row hash h4) so model-usage / cost / latency-by-model dashboards
+        -- show multiple series instead of a single hardcoded model.
+        if(type = 'GENERATION', arrayElement(['gpt-4o-mini','gpt-3.5-turbo','claude-3-haiku-20240307','gpt-4o','claude-3-5-sonnet-20241022'], 1 + (h4 % 5)), NULL) AS provided_model_name,
         NULL AS internal_model_id,
         if(type = 'GENERATION', '{"temperature": 0.7}', '{}') AS model_parameters,
         if(type = 'GENERATION', map('input', toUInt64(20 + h1 % 181), 'output', toUInt64(10 + h2 % 91), 'total', toUInt64(30 + h1 % 181 + h2 % 91)), map()) AS provided_usage_details,
@@ -288,7 +291,8 @@ export class ClickHouseQueryBuilder {
           number,
           xxHash32(toUInt64(number * 4 + ${seedSalt})) AS h1,
           xxHash32(toUInt64(number * 4 + 1 + ${seedSalt})) AS h2,
-          xxHash32(toUInt64(number * 4 + 2 + ${seedSalt})) AS h3
+          xxHash32(toUInt64(number * 4 + 2 + ${seedSalt})) AS h3,
+          xxHash32(toUInt64(number * 4 + 3 + ${seedSalt})) AS h4
         FROM numbers(${totalObservations})
       );
     `;
@@ -301,8 +305,8 @@ export class ClickHouseQueryBuilder {
   buildBulkScoresInsert(
     projectId: string,
     tracesCount: number,
-    scoresPerTrace: number = 2,
-    environment: string = "default",
+    scoresPerTrace = 2,
+    environment = "default",
     opts: {
       numberOfDays: number;
       idPrefix?: string;

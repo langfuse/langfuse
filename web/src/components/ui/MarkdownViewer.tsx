@@ -479,7 +479,7 @@ export function MarkdownView({
   );
 
   return (
-    <div className={cn("overflow-hidden")} key={theme}>
+    <div className="overflow-hidden" key={theme}>
       {title ? (
         <>
           <MarkdownJsonViewHeader
@@ -572,7 +572,10 @@ export function MarkdownView({
                   <span title="<Base64 data URI>" className="h-4 w-4">
                     <ImageOff className="h-4 w-4" />
                   </span>
-                  <span className="truncate text-sm">
+                  <span
+                    className="truncate text-sm"
+                    title={imageUrl.toString()}
+                  >
                     {imageUrl.toString()}
                   </span>
                 </div>
@@ -604,11 +607,11 @@ export function MarkdownView({
           <div className="text-muted-foreground mx-3 border-t px-2 py-1 text-xs">
             Media
           </div>
-          <div className="flex flex-wrap gap-2 p-4 pt-1">
+          <div className="mx-3 flex flex-wrap gap-2 pt-1 pb-4">
             {remainingMedia.map((m) => (
               <LangfuseMediaView
                 mediaAPIReturnValue={m}
-                asFileIcon={true}
+                variant="icon"
                 key={m.mediaId}
               />
             ))}

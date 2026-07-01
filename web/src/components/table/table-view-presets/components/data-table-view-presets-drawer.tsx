@@ -9,7 +9,7 @@ import {
   Lock,
 } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
-import { LangfuseIcon } from "@/src/components/LangfuseLogo";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import {
   DrawerTrigger,
   DrawerContent,
@@ -77,6 +77,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -138,6 +140,9 @@ interface TableViewPresetsDrawerProps {
     projectId: string;
     controllers: {
       selectedViewId: string | null;
+      /** The view whose full state was actually applied this session (null on a
+       * shared-link visit where the view is intentionally not applied). */
+      appliedViewId: string | null;
       handleSetViewId: (viewId: string | null) => void;
       applyViewState: (viewData: TableViewPresetState) => void;
     };
@@ -176,7 +181,8 @@ export function TableViewPresetsDrawer({
 }: TableViewPresetsDrawerProps) {
   const [searchQuery, setSearchQueryLocal] = useState("");
   const { tableName, projectId, controllers } = viewConfig;
-  const { handleSetViewId, applyViewState, selectedViewId } = controllers;
+  const { handleSetViewId, applyViewState, selectedViewId, appliedViewId } =
+    controllers;
   const { TableViewPresetsList } = useViewData({ tableName, projectId });
   const {
     createMutation,
@@ -300,6 +306,27 @@ export function TableViewPresetsDrawer({
       name: updatedView.name,
     });
 
+    // Column order/visibility are the visitor's per-table localStorage, which
+    // only reflects this view when the view was actually applied this session.
+    // On a shared-link visit the view is intentionally not applied, so
+    // `currentState`'s columns are the visitor's own unrelated layout — sending
+    // them would silently overwrite the saved view's columns. In that case keep
+    // the view's stored column layout instead (LFE-10486). Filters/sort/search
+    // always come from the live state, since updating those to what the visitor
+    // currently sees is exactly the intent.
+    const viewWasApplied = appliedViewId === selectedViewId;
+    const storedView = TableViewPresetsList?.find(
+      (view) => view.id === selectedViewId,
+    );
+    const columnOrder =
+      viewWasApplied || !storedView
+        ? currentState.columnOrder
+        : storedView.columnOrder;
+    const columnVisibility =
+      viewWasApplied || !storedView
+        ? currentState.columnVisibility
+        : storedView.columnVisibility;
+
     updateConfigMutation.mutate({
       projectId,
       name: updatedView.name,
@@ -307,8 +334,8 @@ export function TableViewPresetsDrawer({
       tableName,
       orderBy: currentState.orderBy,
       filters: currentState.filters,
-      columnOrder: currentState.columnOrder,
-      columnVisibility: currentState.columnVisibility,
+      columnOrder,
+      columnVisibility,
       searchQuery: currentState.searchQuery,
     });
   };
@@ -355,6 +382,36 @@ export function TableViewPresetsDrawer({
       tableName,
       viewId,
     });
+
+    // For the view that is currently active, the page URL already encodes the
+    // applied filters, sort and search — the URL is the source of truth. Share
+    // it verbatim so in-view edits travel with the link. A server-built
+    // `?viewId=…` permalink points at the saved view's stored state and would
+    // silently drop those edits, which is the recipient-gets-stale-filters bug
+    // (LFE-10486). Non-active views still get a clean link to the saved view.
+    if (
+      viewId === selectedViewId &&
+      typeof window !== "undefined" &&
+      window.location?.href
+    ) {
+      // Toast on the clipboard write's resolution: a permission failure must
+      // surface an error instead of falsely reporting success.
+      copyTextToClipboard(window.location.href)
+        .then(() =>
+          showSuccessToast({
+            title: "Permalink copied to clipboard",
+            description: "You can now share the permalink with others",
+          }),
+        )
+        .catch(() =>
+          showErrorToast(
+            "Failed to copy permalink",
+            "Could not write to the clipboard. Please copy the page URL manually.",
+            "WARNING",
+          ),
+        );
+      return;
+    }
 
     if (window.location.origin) {
       generatePermalinkMutation.mutate({
@@ -516,6 +573,7 @@ export function TableViewPresetsDrawer({
                                   ? "flex items-center gap-1.5"
                                   : "truncate",
                               )}
+                              title={view.name}
                             >
                               {isSystemView && <LangfuseIcon size={14} />}
                               {view.name}
@@ -639,7 +697,7 @@ export function TableViewPresetsDrawer({
                                       <PopoverContent
                                         onClick={(e) => e.stopPropagation()}
                                       >
-                                        <h2 className="text-md mb-3 font-semibold">
+                                        <h2 className="mb-3 font-semibold">
                                           Edit
                                         </h2>
                                         <Form {...form}>

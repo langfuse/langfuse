@@ -94,7 +94,10 @@ export function V4PromoBanner() {
           className="flex flex-1 gap-1 overflow-hidden text-sm"
           title={`${pageMessage} Enable the Fast (Preview) toggle for a more performant experience.`}
         >
-          <span className="truncate">
+          <span
+            className="truncate"
+            title={`${pageMessage} Enable the Fast (Preview) toggle for a more performant experience.`}
+          >
             <span className="hidden font-semibold md:inline">
               {pageMessage}
             </span>{" "}

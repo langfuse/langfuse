@@ -1,9 +1,10 @@
-import { Prompt, PrismaClient } from "@prisma/client";
 import { Redis, Cluster } from "ioredis";
 import { randomBytes } from "crypto";
 import { env } from "../../../env";
 import { logger } from "../../logger";
 import { escapeRegex } from "./utils";
+import { LangfuseConflictError } from "../../../errors";
+import { type Prisma, type PrismaClient, type Prompt } from "../../../db";
 import {
   PromptGraph,
   PromptParams,
@@ -16,6 +17,7 @@ import {
 import { ParsedPromptDependencyTag } from "../../../features/prompts/parsePromptDependencyTags";
 
 export const MAX_PROMPT_NESTING_DEPTH = 5;
+type PrismaClientOrTransaction = PrismaClient | Prisma.TransactionClient;
 
 export class PromptService {
   private cacheEnabled: boolean;
@@ -26,7 +28,7 @@ export class PromptService {
   private epochTtlSeconds = 7 * 24 * 60 * 60;
 
   constructor(
-    private prisma: PrismaClient,
+    private prisma: PrismaClientOrTransaction,
     private redis: Redis | Cluster | null,
 
     private metricIncrementer?: // used for otel metrics
@@ -256,7 +258,7 @@ export class PromptService {
       ) => {
         // Nesting depth check
         if (level >= MAX_PROMPT_NESTING_DEPTH) {
-          throw Error(
+          throw new LangfuseConflictError(
             `Maximum nesting depth exceeded (${MAX_PROMPT_NESTING_DEPTH})`,
           );
         }
@@ -267,7 +269,7 @@ export class PromptService {
           (currentPrompt.name === parentPrompt.name &&
             currentPrompt.id !== parentPrompt.id) // ensure that the parent prompt cannot reference a prompt of the same name but different version
         ) {
-          throw Error(
+          throw new LangfuseConflictError(
             `Circular dependency detected involving prompt '${currentPrompt.name}' version ${currentPrompt.version}`,
           );
         }
@@ -289,15 +291,27 @@ export class PromptService {
                 childVersion: true,
               },
             })
-          ).map(
-            (dep) =>
-              ({
+          ).map((dep) => {
+            if (dep.childVersion !== null) {
+              return {
                 name: dep.childName,
-                ...(dep.childVersion
-                  ? { type: "version", version: dep.childVersion }
-                  : { type: "label", label: dep.childLabel }),
-              }) as ParsedPromptDependencyTag,
-          );
+                type: "version",
+                version: dep.childVersion,
+              } as ParsedPromptDependencyTag;
+            }
+
+            if (dep.childLabel !== null) {
+              return {
+                name: dep.childName,
+                type: "label",
+                label: dep.childLabel,
+              } as ParsedPromptDependencyTag;
+            }
+
+            throw new LangfuseConflictError(
+              `Prompt dependency is malformed: ${dep.childName}`,
+            );
+          });
         }
 
         if (promptDependencies && promptDependencies.length) {
@@ -319,9 +333,13 @@ export class PromptService {
             const logName = `${dep.name} - ${dep.type} ${dep.type === "version" ? dep.version : dep.label}`;
 
             if (!depPrompt)
-              throw Error(`Prompt dependency not found: ${logName}`);
+              throw new LangfuseConflictError(
+                `Prompt dependency not found: ${logName}`,
+              );
             if (depPrompt.type !== "text")
-              throw Error(`Prompt dependency is not a text prompt: ${logName}`);
+              throw new LangfuseConflictError(
+                `Prompt dependency is not a text prompt: ${logName}`,
+              );
 
             // side-effect: populate adjacency list to return later as well
             graph.dependencies[currentPrompt.id] ??= []; // initializes an empty list if it does not exist yet
@@ -358,11 +376,11 @@ export class PromptService {
           seen.delete(currentPrompt.id);
 
           return JSON.parse(resolvedPrompt);
-        } else {
-          seen.delete(currentPrompt.id);
-
-          return currentPrompt.prompt;
         }
+
+        seen.delete(currentPrompt.id);
+
+        return currentPrompt.prompt;
       };
 
       const resolvedPrompt = await resolve(parentPrompt, dependencies, 0);
@@ -386,7 +404,7 @@ export class PromptService {
     logger.debug(`[PromptService] ${message}`, ...args);
   }
 
-  private incrementMetric(name: PromptServiceMetrics, value: number = 1) {
+  private incrementMetric(name: PromptServiceMetrics, value = 1) {
     try {
       this.metricIncrementer?.(name, value);
     } catch (e) {

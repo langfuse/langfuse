@@ -12,9 +12,10 @@ Runs are foreground-only. A conversation can have one active run; stale unfinish
 
 ## Major Files
 
-- `schema.ts`: runtime-neutral AG-UI schemas and types shared by browser, server, persistence, replay, and rendering.
+- `schema.ts`: runtime-neutral AG-UI schemas and types shared by browser, server, persistence, replay, and rendering, including Langfuse-owned human-in-the-loop wire contracts.
 - `server/handler.ts`: streaming route and authority boundary for auth, request sanitization, run creation, MCP credentials, and terminal state.
-- `server/agent.ts`: Mastra/Bedrock/MCP runtime setup, custom tool wiring, AG-UI event normalization, and cleanup.
+- `server/agent.ts`: Mastra/Bedrock/MCP runtime setup, custom tool wiring, human-in-the-loop approval gates, AG-UI event normalization, and cleanup.
+- `server/human-in-the-loop.ts`: interrupt parsing helpers, pending tool approval persistence, and resume approval validation/consumption.
 - `server/tools.ts`: custom agent tools with strict schemas and scoped, user-visible behavior.
 - `server/persistence.ts`: conversations, runs, events, replay, active-run locking, and stale-run recovery.
 - `server/router.ts`: non-streaming tRPC routes for conversation lists, replay, and feedback.
@@ -36,11 +37,14 @@ flowchart TB
 
   Schema["schema.ts\nshared AG-UI contract"] -.-> Provider
   Schema -.-> Handler
+  Schema -.-> HumanLoop["server/human-in-the-loop.ts\napproval state + validation"]
   Schema -.-> Router
   Schema -.-> Persistence["server/persistence.ts"]
 
   Handler --> Persistence
   Handler --> Agent["server/agent.ts\nagent runtime"]
+  Handler --> HumanLoop
+  Agent --> HumanLoop
   Agent --> Tools["server/tools.ts\ncustom tools"]
   Agent --> Instrumentation["server/instrumentation.ts\nLangfuse telemetry"]
   Router --> Persistence
@@ -50,10 +54,34 @@ flowchart TB
 
 1. Browser sends the latest message, conversation state, and screen context through `HttpAgent`.
 2. `server/handler.ts` validates the request and creates a server-owned run.
-3. `server/agent.ts` streams normalized AG-UI events and calls telemetry hooks.
-4. `server/instrumentation.ts` records prompt metadata, stream events, completion, aborts, and errors.
-5. `server/persistence.ts` stores compacted events and reconstructs replay messages.
-6. `InAppAiAgentProvider.tsx` renders live AG-UI state and hydrates selected conversations through `server/router.ts`.
+3. `server/handler.ts` creates a temporary in-app-agent MCP API key and passes the signed-in user's project role/admin state into the agent runtime.
+4. `server/agent.ts` filters Langfuse MCP tools through RBAC before exposing them to the model, and for approved Langfuse MCP resumes adds a tool-scoped override payload.
+5. `server/agent.ts` connects Mastra to Langfuse MCP with the temporary API key and sends the override in `x-langfuse-in-app-agent-tool-override` when a single approved mutating MCP tool may run.
+6. `server/agent.ts` streams normalized AG-UI events and calls telemetry hooks.
+7. `server/instrumentation.ts` records prompt metadata, stream events, completion, aborts, and errors.
+8. `server/persistence.ts` stores compacted events and reconstructs replay messages.
+9. `InAppAiAgentProvider.tsx` renders live AG-UI state and hydrates selected conversations through `server/router.ts`.
+
+## MCP Tool Authorization
+
+The in-app agent uses two request-scoped inputs when calling Langfuse MCP:
+
+- A temporary project-scoped API key marked as an in-app-agent key.
+- An optional server-generated tool override sent with `x-langfuse-in-app-agent-tool-override`.
+
+The API key authenticates the request and scopes it to the project. Without an override, in-app-agent keys are restricted to MCP tools annotated with `readOnlyHint: true`. When the user approves a single Langfuse MCP tool call, `server/handler.ts` creates a JSON override naming that one unprefixed MCP registry tool and passes it to the MCP route through the request header above.
+
+MCP registry behavior:
+
+- Normal project API keys can call all enabled MCP tools.
+- In-app-agent keys can call read-only tools directly when the tool has `readOnlyHint: true`.
+- In-app-agent keys need a valid tool override to call one non-read-only Langfuse MCP tool.
+
+RBAC is the first gate for Langfuse MCP tools. Before a tool is exposed to the model, `server/tools.ts` checks the signed-in user's `projectRole` and `isAdmin` against the tool's required `ProjectScope` with `hasProjectAccess()`. That means the assistant never sees tools the user could not use manually in the product UI or APIs. Human approval is a second gate on top of RBAC for tools classified as `"approval"`: approval can allow one execution of a tool the user already has access to, but it does not widen the user's project permissions.
+
+Human approval is separate from the MCP tool override. `server/agent.ts` classifies every Langfuse MCP tool in `IN_APP_AGENT_LANGFUSE_MCP_TOOL_APPROVALS`, using unprefixed MCP registry names and either `"auto"` or `"approval"`. The map is keyed by a type-only `McpToolName` union derived from the MCP feature modules, and tests compare this map against `toolRegistry`, so adding a Langfuse MCP tool requires an explicit in-app agent approval classification without exporting MCP feature modules into production in-app-agent code.
+
+`IN_APP_AGENT_AUTO_APPROVED_TOOL_NAMES` is generated from that map by prefixing Langfuse MCP tools with `langfuse_` and adding local tools such as `IN_APP_AGENT_REDIRECT_TOOL_NAME`; docs MCP tools are auto-approved by the `langfuseDocs_` prefix. `server/agent.ts` marks every other tool with Mastra `requireApproval: true`. Mastra emits an interrupt, the browser asks the user, and resumed approvals are validated by `server/handler.ts` against the pending approval row persisted in Postgres. `server/human-in-the-loop.ts` adapts Mastra's runtime interrupt payload into the Langfuse-owned `tool_approval_request` contract from `schema.ts`; the browser stores and forwards only that runtime-neutral shape. `server/human-in-the-loop.ts` consumes the pending approval, executes approved tool calls at the adapter boundary, and injects synthetic AG-UI tool-call events/messages before the agent continues. The pending approval row stays server-local, stores the tool call identity and a stable argument fingerprint, and expires after a short TTL.
 
 ## Change Rules
 

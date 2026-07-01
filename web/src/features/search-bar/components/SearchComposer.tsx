@@ -16,7 +16,7 @@
 
 import * as React from "react";
 import { useShallow } from "zustand/react/shallow";
-import { AlertCircle, X } from "lucide-react";
+import { AlertCircle, WandSparkles, X } from "lucide-react";
 
 import { Layer } from "@/src/components/ui/layer";
 import { cn } from "@/src/utils/tailwind";
@@ -286,10 +286,13 @@ function useLatest<T>(value: T) {
 export function SearchComposer({
   projectId,
   observed,
+  onActivateAi,
 }: {
   projectId: string;
   /** Observed facet values for value suggestions; undefined = loading. */
   observed: ObservedOptions | undefined;
+  /** When set, a clickable "Ask AI" button is shown to build / refine filters. */
+  onActivateAi?: () => void;
 }) {
   const storeApi = useSearchBarStoreApi();
   const commitToFilterState = useSearchBarCommit();
@@ -1298,15 +1301,25 @@ export function SearchComposer({
           // break across a wrap. Balanced padding: a small, even gutter on all
           // sides (the left no longer dwarfs the inter-pill gap and top), py
           // centers a single line near min-h-9 and the box grows when wrapped.
-          // pr-8 keeps the top-right error icon clear of the last token.
-          "border-input bg-background relative min-h-9 rounded-md border px-2 py-1.5 pr-8",
+          // Right gutter keeps the last token clear of the top-right control:
+          // the "Ask AI" button (pr-20), or the error icon (pr-8).
+          "border-input bg-background relative min-h-9 rounded-md border px-2 py-1.5",
+          onActivateAi !== undefined && !showGlobalDiagnostics
+            ? "pr-20"
+            : "pr-8",
           "focus-within:ring-ring focus-within:ring-1",
           showGlobalDiagnostics &&
             "border-destructive focus-within:ring-destructive/40",
         )}
       >
         {draft.length === 0 && (
-          <div className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 truncate pr-8 font-mono text-xs">
+          <div
+            className={cn(
+              "text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 truncate font-mono text-xs",
+              onActivateAi !== undefined ? "pr-20" : "pr-8",
+            )}
+            title={COMPOSER_PLACEHOLDER}
+          >
             {COMPOSER_PLACEHOLDER}
           </div>
         )}
@@ -1364,6 +1377,41 @@ export function SearchComposer({
             scoreTypes={scoreTypes}
           />
         </div>
+        {/* "Ask AI" affordance — a plain button, always available so filters can
+            be built from scratch OR refined. Placed AFTER the field in the DOM so
+            forward Tab moves from the field onto this button (not past the bar).
+            Deliberately NOT a Tab shortcut: while typing, Tab belongs to
+            autocomplete navigation. Hidden while the error icon occupies the
+            corner. bg-background keeps it legible; onMouseDown preventDefault so a
+            click doesn't blur the editor first. */}
+        {onActivateAi !== undefined && !showGlobalDiagnostics && (
+          <button
+            type="button"
+            data-testid="search-bar-ask-ai"
+            aria-label="Ask AI to build or refine filters"
+            title={
+              draft.trim().length === 0
+                ? "Describe filters in natural language"
+                : "Refine these filters with AI"
+            }
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={(event) => {
+              event.stopPropagation();
+              onActivateAi();
+            }}
+            className={cn(
+              "absolute top-1.5 right-2 z-20 inline-flex items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5",
+              "bg-background text-muted-foreground font-sans text-xs",
+              "hover:border-border hover:text-foreground hover:bg-accent transition-colors",
+              // Match the app's focus ring (ring-ring) instead of the browser's
+              // default blue outline, like the shared Button used elsewhere.
+              "ring-offset-background focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
+            )}
+          >
+            <WandSparkles className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Ask AI</span>
+          </button>
+        )}
         {/* Bar-local overlay stacking ladder: token text (base) < remove-X
             (z-20) < autocomplete popover (z-50). Both the X and the popover drop
             BELOW the bar, staying in-flow inside the table. The error tooltip is

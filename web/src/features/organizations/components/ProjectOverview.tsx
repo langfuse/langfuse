@@ -51,7 +51,7 @@ const OrganizationProjectTiles = ({
         .map((project) => (
           <Card key={project.id}>
             <CardHeader>
-              <CardTitle className="truncate text-base">
+              <CardTitle className="truncate text-base" title={project.name}>
                 {project.name}
               </CardTitle>
             </CardHeader>

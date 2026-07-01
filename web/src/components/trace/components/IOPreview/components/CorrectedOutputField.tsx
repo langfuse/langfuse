@@ -8,7 +8,7 @@ import { useCorrectionEditor } from "./hooks/useCorrectionEditor";
 import { useMemo, useState } from "react";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CorrectedOutputDiffDialog } from "./CorrectedOutputDiffDialog";
 import {
@@ -252,12 +252,14 @@ export function CorrectedOutputField({
                 )}
               </div>
               <div className="flex items-center">
-                <Switch
-                  checked={strictJsonMode}
-                  onCheckedChange={handleStrictJsonModeChange}
-                  disabled={!isEditing}
-                  className="scale-75"
-                />
+                <div className="mx-1">
+                  <Switch
+                    checked={strictJsonMode}
+                    onCheckedChange={handleStrictJsonModeChange}
+                    disabled={!isEditing}
+                    size="sm"
+                  />
+                </div>
                 <span className="text-muted-foreground text-xs">JSON</span>
               </div>
             </div>
@@ -267,9 +269,7 @@ export function CorrectedOutputField({
             <button
               onClick={handleEdit}
               disabled={!hasAccess}
-              className={cn(
-                "text-muted-foreground hover:bg-muted/50 w-full cursor-pointer rounded-md border px-3 py-4 text-center text-xs transition-colors",
-              )}
+              className="text-muted-foreground hover:bg-muted/50 w-full cursor-pointer rounded-md border px-3 py-4 text-center text-xs transition-colors"
             >
               Click to add corrected output
             </button>

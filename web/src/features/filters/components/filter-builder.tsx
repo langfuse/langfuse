@@ -203,11 +203,7 @@ export function PopoverFilterBuilder({
             >
               <FilterIcon className="h-4 w-4" />
               {filterState.length > 0 && (
-                <span
-                  className={cn(
-                    "bg-input absolute top-0 -right-1 flex h-4 min-w-4 items-center justify-center rounded-sm px-1 text-xs shadow-xs",
-                  )}
-                >
+                <span className="bg-input absolute top-0 -right-1 flex h-4 min-w-4 items-center justify-center rounded-sm px-1 text-xs shadow-xs">
                   {filterState.length}
                 </span>
               )}
@@ -605,6 +601,7 @@ function FilterBuilderForm({
                         (o) => NonEmptyString.safeParse(o).success,
                       )
                     : undefined;
+                const columnLabel = column ? column.name : "Column";
                 return (
                   <tr key={i}>
                     <td className="p-1 text-sm">{i === 0 ? "Where" : "And"}</td>
@@ -619,8 +616,8 @@ function FilterBuilderForm({
                             disabled={disabled}
                             className="flex w-full min-w-32 items-center justify-between gap-2"
                           >
-                            <span className="truncate">
-                              {column ? column.name : "Column"}
+                            <span className="truncate" title={columnLabel}>
+                              {columnLabel}
                             </span>
                             <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
                           </Button>

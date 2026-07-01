@@ -14,7 +14,7 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Command } from "@/src/components/ui/command";
 import { Badge } from "@/src/components/ui/badge";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
@@ -24,7 +24,7 @@ import {
   SidePanelHeader,
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
-import { LangfuseIcon } from "@/src/components/LangfuseLogo";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { DeleteEvalTemplateButton } from "@/src/features/evals/components/delete-eval-template-button";
 
 export const EvalTemplateDetail = () => {

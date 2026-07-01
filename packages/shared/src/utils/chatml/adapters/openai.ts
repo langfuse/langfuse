@@ -258,10 +258,10 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
       // Rich object: spread for table rendering
       const { content, ...rest } = normalized;
       return { ...rest, ...content };
-    } else {
-      // Simple object: stringify for text rendering
-      normalized.content = stringifyToolResultContent(normalized.content);
     }
+
+    // Simple object: stringify for text rendering
+    normalized.content = stringifyToolResultContent(normalized.content);
   }
 
   return normalized;
@@ -338,6 +338,16 @@ function preprocessData(data: unknown): unknown {
         return normalizeMessage(firstChoice.message);
       }
     }
+  }
+
+  if (
+    typeof data === "object" &&
+    !Array.isArray(data) &&
+    ["function_call", "tool_call", "function_call_output"].includes(
+      String((data as Record<string, unknown>).type),
+    )
+  ) {
+    return normalizeMessage(data);
   }
 
   // Array of messages

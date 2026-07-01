@@ -18,6 +18,8 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
+import { classifyMediaLeaf } from "@/src/components/ui/media/classifyMediaLeaf";
+import { JsonMediaTag } from "@/src/components/ui/media/JsonMediaTag";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import {
   renderRichPromptContent,
@@ -91,7 +93,7 @@ export function JSONView(props: {
     <>
       <div
         className={cn(
-          "io-message-content flex gap-2 text-xs wrap-break-word whitespace-pre-wrap",
+          "io-message-content flex max-w-full min-w-0 gap-2 text-xs wrap-break-word whitespace-pre-wrap",
           props.borderless ? "" : "p-2",
           props.title === "assistant" || props.title === "Output"
             ? "bg-accent-light-green dark:border-accent-dark-green"
@@ -107,7 +109,7 @@ export function JSONView(props: {
           <Skeleton className="h-3 w-3/4" />
         ) : promptReferenceProjectId && typeof parsedJson === "string" ? (
           <code
-            className="wrap-break-word whitespace-pre-wrap"
+            className="max-w-full min-w-0 wrap-break-word whitespace-pre-wrap"
             dir="auto"
             style={{ unicodeBidi: "plaintext" }}
           >
@@ -115,6 +117,7 @@ export function JSONView(props: {
           </code>
         ) : (
           <div
+            className="max-w-full min-w-0 flex-1 overflow-hidden"
             onClick={() => {
               // If externally collapsed and user clicks to expand, sync the state
               if (props.externalJsonCollapsed && props.onToggleCollapse) {
@@ -139,8 +142,17 @@ export function JSONView(props: {
               }
               displaySize={isCollapsed ? "collapsed" : "expanded"}
               matchesURL={true}
+              // Render previewable media (Langfuse refs, data URIs, media URLs)
+              // as a hover-to-peek chip instead of the raw string; everything
+              // else falls through to the default value rendering.
+              customizeNode={({ node }) => {
+                const descriptor = classifyMediaLeaf(node);
+                return descriptor ? (
+                  <JsonMediaTag descriptor={descriptor} />
+                ) : undefined;
+              }}
               customizeCopy={(node) => stringifyJsonNode(node)}
-              className="w-full"
+              className="w-full max-w-full min-w-0"
             />
           </div>
         )}
@@ -150,11 +162,11 @@ export function JSONView(props: {
           <div className="text-muted-foreground my-1 px-0 py-1 text-xs">
             Media
           </div>
-          <div className="flex flex-wrap gap-2 p-4 pt-1">
+          <div className="flex flex-wrap gap-2 pt-1 pb-4">
             {props.media.map((m) => (
               <LangfuseMediaView
                 mediaAPIReturnValue={m}
-                asFileIcon={true}
+                variant="icon"
                 key={m.mediaId}
               />
             ))}
@@ -167,7 +179,7 @@ export function JSONView(props: {
   return (
     <div
       className={cn(
-        "flex max-h-full min-h-0 flex-col",
+        "flex max-h-full min-h-0 max-w-full min-w-0 flex-col",
         props.className,
         props.scrollable ? "overflow-hidden" : "",
       )}
@@ -199,8 +211,8 @@ export function JSONView(props: {
         />
       ) : null}
       {props.scrollable ? (
-        <div className="flex h-full min-h-0 overflow-hidden rounded-sm border">
-          <div className="max-h-full min-h-0 w-full overflow-y-auto">
+        <div className="flex h-full min-h-0 max-w-full overflow-hidden rounded-sm border">
+          <div className="max-h-full min-h-0 w-full max-w-full min-w-0 overflow-y-auto">
             {body}
           </div>
         </div>
@@ -257,7 +269,10 @@ export function CodeView(props: {
       <div className="animate-appear relative h-3">
         <Check className="h-3 w-3" />
         {copiedToClipboardMessage && (
-          <div className="text-secondary-foreground absolute top-0 right-0 mr-6 h-full max-w-[60vw] transform truncate overflow-hidden text-right text-sm leading-none whitespace-nowrap">
+          <div
+            className="text-secondary-foreground absolute top-0 right-0 mr-6 h-full max-w-[60vw] transform truncate overflow-hidden text-right text-sm leading-none whitespace-nowrap"
+            title={copiedToClipboardMessage}
+          >
             {copiedToClipboardMessage}
           </div>
         )}
@@ -268,7 +283,7 @@ export function CodeView(props: {
   return (
     <div
       className={cn(
-        "flex max-w-full flex-col",
+        "flex max-w-full min-w-0 flex-col",
         props.className,
         props.scrollable && "max-h-full min-h-0",
       )}
@@ -290,7 +305,7 @@ export function CodeView(props: {
       </>
       <div
         className={cn(
-          "relative flex flex-col gap-2 rounded-md border",
+          "relative flex max-w-full min-w-0 flex-col gap-2 overflow-hidden rounded-md border",
           props.scrollable ? "max-h-full min-h-0 overflow-hidden" : "",
         )}
       >
@@ -306,7 +321,7 @@ export function CodeView(props: {
         )}
         <code
           className={cn(
-            "relative flex-1 px-4 py-3 font-mono text-xs wrap-break-word whitespace-pre-wrap",
+            "relative max-w-full min-w-0 flex-1 px-4 py-3 font-mono text-xs wrap-break-word whitespace-pre-wrap",
             isCollapsed ? `line-clamp-6` : "block",
             props.scrollable ? "overflow-y-auto" : "",
           )}
