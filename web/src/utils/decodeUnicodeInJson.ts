@@ -6,6 +6,14 @@ import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 export const DECODE_UNICODE_MAX_NODES = 50_000;
 export const DECODE_UNICODE_MAX_DEPTH = 200;
 
+// Mirrors the anti-prototype-pollution guard in deepParseJson (see
+// packages/shared/src/utils/json.ts). deepParseJson strips these keys before
+// we run, but an escaped wire key like "\\u005f\\u005fproto\\u005f\\u005f"
+// survives its literal-string filter and only becomes "__proto__" after we
+// decode it here — so we must re-apply the same guard on the decoded key to
+// avoid assigning to Object.prototype accessors (e.g. the __proto__ setter).
+const DANGEROUS_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
 /**
  * Iteratively decode \uXXXX escape sequences in all string values of a parsed JSON
  * structure. Used so that traces ingested via Python SDK's json.dumps(ensure_ascii=True)
@@ -67,6 +75,11 @@ export function decodeUnicodeInJson(value: unknown): unknown {
         // Keys can also contain \uXXXX escapes when the ingest path double-
         // encodes the payload, so decode them alongside the values.
         const decodedKey = decodeUnicodeEscapesOnly(k, true);
+        // Drop keys that decode to a prototype-pollution vector (e.g. an
+        // escaped "__proto__"), matching deepParseJson's DANGEROUS_KEYS filter.
+        if (DANGEROUS_KEYS.has(decodedKey)) {
+          continue;
+        }
         if (budgetExceeded || ++nodeCount > DECODE_UNICODE_MAX_NODES) {
           budgetExceeded = true;
           obj[decodedKey] = v;
