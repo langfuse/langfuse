@@ -77,6 +77,11 @@ changes.
 
 ## Web Conventions
 
+- **Before adding or modifying a chart, dashboard, or chart formatter, read
+  `src/features/widgets/chart-library/ARCHITECTURE.md` first** — the charts
+  manifesto. It owns the data → preparer → visualiser contract: presentation
+  decisions (formatting, colors, axis scale, overload) live in the preparer,
+  not the chart components.
 - Put net-new feature code under `src/features/<feature>/*`; put broadly reusable
   components under `src/components/*`.
 - We use tRPC for full-stack web features; register routers in

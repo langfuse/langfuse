@@ -2,12 +2,14 @@
 
 import { useMemo } from "react";
 import { InAppAgentWindow } from "./InAppAgentWindow";
+import type { InAppAgentWindowConversation } from "./InAppAgentWindow";
 import { useInAppAiAgent } from "./InAppAiAgentProvider";
 import { getDrawerMessages } from "./utils/utils";
 
 type ControlledInAppAgentWindowBaseProps = {
   isHeaderDragHandleEnabled?: boolean;
   isExpanded: boolean;
+  onDeleteConversation: (conversation: InAppAgentWindowConversation) => void;
   onExpandedChange: (isExpanded: boolean) => void;
 };
 
@@ -66,6 +68,7 @@ export function ControlledInAppAgentWindow(
       isLoadingMoreConversations={isLoadingMoreConversations}
       selectedConversationId={selectedConversationId}
       onLoadMoreConversations={loadMoreConversations}
+      onDeleteConversation={props.onDeleteConversation}
       onSelectConversation={selectConversation}
       onNewConversation={() => selectConversation(null)}
       onExpandedChange={props.onExpandedChange}

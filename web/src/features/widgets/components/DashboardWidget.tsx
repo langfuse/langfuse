@@ -319,6 +319,44 @@ export function DashboardWidget({
     });
   }, [metricsVersion, widget.data]);
 
+  // Memoize the Chart's config/chartConfig objects so the scheduler's page
+  // re-renders don't hand Chart fresh literals every tick (transformedData is
+  // already memoized) — letting Chart's React.memo bail. (LFE-10549)
+  const chartConfigForRender = useMemo(() => {
+    const data = widget.data;
+    if (!data) return undefined;
+    return {
+      ...data.chartConfig,
+      // For PIVOT_TABLE, enhance chartConfig with dimensions and metric field names
+      ...(data.chartType === "PIVOT_TABLE" && {
+        dimensions: data.dimensions.map((dim) => dim.field),
+        metrics: data.metrics.map(
+          (metric) => `${metric.agg}_${metric.measure}`,
+        ),
+        units: data.metrics.map((metric) =>
+          getResultUnit(data.view, metric.measure, metric.agg, metricsVersion),
+        ),
+        defaultSort,
+      }),
+      ...(data.chartType !== "PIVOT_TABLE" && {
+        unit: getResultUnit(
+          data.view,
+          data.metrics[0]?.measure ?? "",
+          data.metrics[0]?.agg,
+          metricsVersion,
+        ),
+      }),
+    };
+  }, [widget.data, metricsVersion, defaultSort]);
+
+  const chartMetricConfig = useMemo(
+    () =>
+      chartPresentation
+        ? { metric: { label: chartPresentation.label } }
+        : undefined,
+    [chartPresentation],
+  );
+
   const handleEdit = () => {
     router.push(
       `/project/${projectId}/widgets/${placement.widgetId}?dashboardId=${dashboardId}`,
@@ -449,15 +487,10 @@ export function DashboardWidget({
             <Chart
               chartType={widget.data.chartType}
               data={transformedData}
-              config={
-                chartPresentation
-                  ? {
-                      metric: {
-                        label: chartPresentation.label,
-                      },
-                    }
-                  : undefined
-              }
+              // Sync the hover crosshair across all time-series widgets on this
+              // dashboard (non-time-series chart types ignore it). (LFE-10549)
+              syncId={dashboardId}
+              config={chartMetricConfig}
               rowLimit={
                 widget.data.chartConfig.type === "LINE_TIME_SERIES" ||
                 widget.data.chartConfig.type === "BAR_TIME_SERIES" ||
@@ -465,33 +498,7 @@ export function DashboardWidget({
                   ? 100
                   : (widget.data.chartConfig.row_limit ?? 100)
               }
-              chartConfig={{
-                ...widget.data.chartConfig,
-                // For PIVOT_TABLE, enhance chartConfig with dimensions and metric field names
-                ...(widget.data.chartType === "PIVOT_TABLE" && {
-                  dimensions: widget.data.dimensions.map((dim) => dim.field),
-                  metrics: widget.data.metrics.map(
-                    (metric) => `${metric.agg}_${metric.measure}`,
-                  ),
-                  units: widget.data.metrics.map((metric) =>
-                    getResultUnit(
-                      widget.data.view,
-                      metric.measure,
-                      metric.agg,
-                      metricsVersion,
-                    ),
-                  ),
-                  defaultSort,
-                }),
-                ...(widget.data.chartType !== "PIVOT_TABLE" && {
-                  unit: getResultUnit(
-                    widget.data.view,
-                    widget.data.metrics[0]?.measure ?? "",
-                    widget.data.metrics[0]?.agg,
-                    metricsVersion,
-                  ),
-                }),
-              }}
+              chartConfig={chartConfigForRender}
               sortState={
                 widget.data.chartType === "PIVOT_TABLE" ? sortState : undefined
               }
