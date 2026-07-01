@@ -336,13 +336,23 @@ export async function getEventList(params: GetObservationsListParams) {
     }
   }
 
-  const observationsWithScores = observations.map((observation) => ({
-    ...observation,
-    scores: aggregateScores(scoresByObservationId.get(observation.id) ?? []),
-    traceScores: observation.traceId
-      ? aggregateScores(scoresByTraceId.get(observation.traceId) ?? [])
-      : {},
-  }));
+  const observationsWithScores = observations.map((observation) => {
+    const observationScores = scoresByObservationId.get(observation.id) ?? [];
+    const traceScores = observation.traceId
+      ? (scoresByTraceId.get(observation.traceId) ?? [])
+      : [];
+    return {
+      ...observation,
+      // Level-agnostic "Scores": roll up this observation's scores together with
+      // the trace's trace-level scores into a single aggregate, so a trace-level
+      // score (e.g. CSAT) shows in the one "Scores" column — matching the
+      // level-agnostic score filter (LFE-10596). aggregateScores groups by
+      // name/source/dataType, so a score present at both levels merges cleanly.
+      scores: aggregateScores([...observationScores, ...traceScores]),
+      // Trace-only aggregate, retained for callers that need the breakdown.
+      traceScores: aggregateScores(traceScores),
+    };
+  });
 
   return { observations: observationsWithScores, hasMore };
 }
