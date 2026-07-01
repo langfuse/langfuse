@@ -28,9 +28,11 @@ import {
   getTracesIdentifierForSessionFromTracesTable,
 } from "./traces";
 import {
+  CategoryOptionsFilter,
   DateTimeFilter,
   type Filter,
   FilterList,
+  NumberObjectFilter,
   FullEventsObservations,
   orderByToClickhouseSql,
   orderByToEntries,
@@ -497,6 +499,80 @@ export const getObservationsWithModelDataFromEventsTable = async (
   return enrichObservationsWithTraceFields(withModelData);
 };
 
+// LFE-10596: in v4 the events table splits scores into an observation-scoped
+// column (`s.scores_avg` / `s.score_categories`, joined on span_id) and a
+// trace-scoped column (`ts.scores_avg` / `ts.score_categories`, joined on
+// trace_id). A trace-level score only ever lands in the trace column, so a
+// filter on `scores_avg` / `score_categories` (the customer's saved filter,
+// the sidebar "Scores" facets, and the search bar's `scores.` namespace) never
+// matched trace-level scores. These helpers make those columns LEVEL-AGNOSTIC:
+// the predicate matches if the score is found at observation OR trace level,
+// restoring v3 "has it anywhere" semantics. `trace_scores_avg` /
+// `trace_score_categories` (the search bar's `traceScores.`) stay trace-only.
+const OBSERVATION_SCORE_FIELDS = {
+  "s.scores_avg": "ts.scores_avg",
+  "s.score_categories": "ts.score_categories",
+} as const;
+
+/** A Filter whose predicate combines its children with a single junction. */
+const unionFilter = (filters: Filter[], junction: "AND" | "OR"): Filter => ({
+  clickhouseTable: filters[0].clickhouseTable,
+  field: filters[0].field,
+  operator: filters[0].operator,
+  tablePrefix: filters[0].tablePrefix,
+  apply() {
+    const compiled = filters.map((f) => f.apply());
+    return {
+      query: `(${compiled.map((c) => `(${c.query})`).join(` ${junction} `)})`,
+      params: Object.assign({}, ...compiled.map((c) => c.params)),
+    };
+  },
+});
+
+/**
+ * Rewrites an observation-scoped score filter into a level-agnostic union
+ * across the observation (`s.`) and trace (`ts.`) score columns. Filters on any
+ * other column (including the trace-only `ts.*` columns) are returned as-is.
+ *
+ * Junction: numeric operators (`= > < >= <=`) and categorical `any of` are
+ * existence checks -> OR. Categorical `none of` is an exclusion, which over a
+ * union must be `NOT-obs AND NOT-trace` (De Morgan), not `NOT(obs OR trace)`,
+ * so it uses AND.
+ */
+const toLevelAgnosticScoreFilter = (filter: Filter): Filter => {
+  if (filter instanceof NumberObjectFilter && filter.field === "s.scores_avg") {
+    const traceFilter = new NumberObjectFilter({
+      clickhouseTable: filter.clickhouseTable,
+      field: OBSERVATION_SCORE_FIELDS["s.scores_avg"],
+      key: filter.key,
+      operator: filter.operator,
+      value: filter.value,
+      tablePrefix: filter.tablePrefix,
+    });
+    return unionFilter([filter, traceFilter], "OR");
+  }
+
+  if (
+    filter instanceof CategoryOptionsFilter &&
+    filter.field === "s.score_categories"
+  ) {
+    const traceFilter = new CategoryOptionsFilter({
+      clickhouseTable: filter.clickhouseTable,
+      field: OBSERVATION_SCORE_FIELDS["s.score_categories"],
+      key: filter.key,
+      operator: filter.operator,
+      values: filter.values,
+      tablePrefix: filter.tablePrefix,
+    });
+    return unionFilter(
+      [filter, traceFilter],
+      filter.operator === "none of" ? "AND" : "OR",
+    );
+  }
+
+  return filter;
+};
+
 async function getObservationsFromEventsTableInternal<T>(
   opts: ObservationTableQuery & {
     select: "count" | "rows";
@@ -521,13 +597,16 @@ async function getObservationsFromEventsTableInternal<T>(
     ...filter.filter((f) => f.type !== "positionInTrace"),
   ];
 
-  // Build filter list from baseFilter (without positionInTrace)
+  // Build filter list from baseFilter (without positionInTrace). The
+  // observation-scoped score filters (`scores_avg` / `score_categories`) are
+  // rewritten into a level-agnostic union across the obs (`s.`) and trace
+  // (`ts.`) score columns (LFE-10596).
   const observationsFilter = new FilterList(
     createFilterFromFilterState(
       baseFilter,
       eventsTableUiColumnDefinitions,
       eventsTableCols,
-    ),
+    ).map(toLevelAgnosticScoreFilter),
   );
 
   const startTimeFrom = extractTimeFilter(observationsFilter);
@@ -550,6 +629,11 @@ async function getObservationsFromEventsTableInternal<T>(
       column === "trace scores (categorical)"
     );
   });
+  // The level-agnostic `scores_avg` / `score_categories` union references the
+  // trace score CTE too, so join it whenever an observation-scoped score filter
+  // is present, not only for explicit `trace_scores_avg` filters.
+  const needsTraceScoresJoin =
+    hasTraceScoresFilter || hasObservationScoresFilter;
   const orderByEntries = orderByToEntries(
     [orderBy ?? null],
     eventsTableUiColumnDefinitions,
@@ -631,7 +715,7 @@ async function getObservationsFromEventsTableInternal<T>(
         eventsScoresAggregation({ projectId, startTimeFrom }),
       ),
     )
-    .when(hasTraceScoresFilter, (b) =>
+    .when(needsTraceScoresJoin, (b) =>
       b.withCTE(
         "trace_scores_agg",
         eventsTracesScoresAggregation({
@@ -644,7 +728,7 @@ async function getObservationsFromEventsTableInternal<T>(
     .when(hasObservationScoresFilter, (b) =>
       b.leftJoin("scores_agg AS s", "ON s.observation_id = e.span_id"),
     )
-    .when(hasTraceScoresFilter, (b) =>
+    .when(needsTraceScoresJoin, (b) =>
       b.leftJoin(
         "trace_scores_agg AS ts",
         "ON ts.trace_id = e.trace_id AND ts.project_id = e.project_id",
