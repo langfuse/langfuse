@@ -314,17 +314,15 @@ export const ingestionQueueProcessorBuilder = (
         prisma,
         clickhouseWriter,
         clickhouseClient(),
-      ).mergeAndWrite(
-        getClickhouseEntityType(events[0].type),
-        job.data.payload.authCheck.scope.projectId,
-        canonicalEntityId,
-        firstS3WriteTime,
+      ).mergeAndWrite({
+        eventType: getClickhouseEntityType(events[0].type),
+        projectId: job.data.payload.authCheck.scope.projectId,
+        entityId: canonicalEntityId,
+        createdAtTimestamp: firstS3WriteTime,
         events,
-        {
-          forwardToEventsTable,
-          attribution,
-        },
-      );
+        forwardToEventsTable,
+        attribution,
+      });
     } catch (e) {
       // Check if this is a SlowDown error and mark the project for secondary queue
       if (isS3SlowDownError(e)) {

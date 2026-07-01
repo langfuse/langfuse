@@ -443,17 +443,15 @@ export const otelIngestionQueueProcessorBuilder = (
         // Process observations via mergeAndWrite
         const observationWritePromise = Promise.all(
           observations.map((observation) =>
-            ingestionService.mergeAndWrite(
-              getClickhouseEntityType(observation.type),
-              auth.scope.projectId,
-              observation.body.id || "", // id is always defined for observations
-              new Date(), // Use the current timestamp as event time
-              [observation],
-              {
-                forwardToEventsTable: shouldForwardToEventsTable,
-                attribution,
-              },
-            ),
+            ingestionService.mergeAndWrite({
+              eventType: getClickhouseEntityType(observation.type),
+              projectId: auth.scope.projectId,
+              entityId: observation.body.id || "", // id is always defined for observations
+              createdAtTimestamp: new Date(), // Use the current timestamp as event time
+              events: [observation],
+              forwardToEventsTable: shouldForwardToEventsTable,
+              attribution,
+            }),
           ),
         );
 

@@ -623,6 +623,9 @@ export function convertEnrichedSpansToEventRecords(
       metadata_values: flattened.values.map((v) => v ?? ""),
 
       source: span.source,
+      ingestion_api_key: "",
+      ingestion_sdk_name: "",
+      ingestion_sdk_version: "",
 
       blob_storage_file_path: "",
       event_bytes: 0,

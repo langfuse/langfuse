@@ -77,18 +77,29 @@ function parseUInt16(value: string | null | undefined): number | undefined {
   return num;
 }
 
-type InsertRecord =
-  | TraceRecordInsertType
-  | ScoreRecordInsertType
-  | ObservationRecordInsertType
-  | DatasetRunItemRecordInsertType;
 export type EventInput = InternalTraceEventInput;
 type IngestionAttributionRecordFields = {
   ingestion_api_key?: string;
   ingestion_sdk_name?: string;
   ingestion_sdk_version?: string;
 };
-type MergeAndWriteOptions = {
+type ScoreRecordInsertWithOptionalAttribution = Omit<
+  ScoreRecordInsertType,
+  keyof IngestionAttributionRecordFields
+> &
+  IngestionAttributionRecordFields;
+type InsertRecord =
+  | TraceRecordInsertType
+  | ScoreRecordInsertType
+  | ScoreRecordInsertWithOptionalAttribution
+  | ObservationRecordInsertType
+  | DatasetRunItemRecordInsertType;
+type MergeAndWriteParams = {
+  eventType: IngestionEntityTypes;
+  projectId: string;
+  entityId: string;
+  createdAtTimestamp: Date;
+  events: IngestionEventType[];
   forwardToEventsTable: boolean;
   attribution: IngestionAttribution;
 };
@@ -205,18 +216,20 @@ export class IngestionService {
     this.promptService = new PromptService(prisma, redis);
   }
 
-  public async mergeAndWrite(
-    eventType: IngestionEntityTypes,
-    projectId: string,
-    entityId: string,
-    createdAtTimestamp: Date,
-    events: IngestionEventType[],
-    options: MergeAndWriteOptions,
-  ): Promise<void> {
+  public async mergeAndWrite(params: MergeAndWriteParams): Promise<void> {
+    const {
+      eventType,
+      projectId,
+      entityId,
+      createdAtTimestamp,
+      events,
+      forwardToEventsTable,
+      attribution,
+    } = params;
+
     logger.debug(
       `Merging ingestion ${eventType} event for project ${projectId} and event ${entityId}`,
     );
-    const { forwardToEventsTable, attribution } = options;
 
     switch (eventType) {
       case "trace":
@@ -986,7 +999,7 @@ export class IngestionService {
   }
 
   private async mergeScoreRecords(params: {
-    scoreRecords: ScoreRecordInsertType[];
+    scoreRecords: ScoreRecordInsertWithOptionalAttribution[];
     clickhouseScoreRecord?: ScoreRecordInsertType | null;
   }): Promise<ScoreRecordInsertType> {
     const { scoreRecords, clickhouseScoreRecord } = params;
