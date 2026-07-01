@@ -52,6 +52,18 @@ Always fetch pricing from the provider's official docs before editing.
   10% of the base input price (e.g. Gemini 2.5 Flash: $0.30/MTok input → $0.03/MTok
   cached). If a cache-read price in the file diverges from this ratio, treat it as
   suspicious and verify against the official page before correcting.
+- **Anthropic flat large-context models** — The Anthropic pricing page lists models with
+  "full 1M token context window at standard pricing" in a dedicated "Long context pricing"
+  section. As of June 2026 this list includes: Claude Fable 5, Claude Mythos 5, Claude
+  Mythos Preview, Claude Opus 4.8, Opus 4.7, Opus 4.6, and Sonnet 4.6. These models must
+  NOT have a Large Context tier in the pricing file. Models not on this list (e.g. Sonnet
+  4.5, Haiku 4.5) may retain a Large Context tier if it was previously set. The Sonnet 4.6
+  Large Context tier was found and removed during the June 2026 audit.
+- **OpenAI WebFetch permissions** — In CI or restricted harness runs the WebFetch tool may
+  be blocked by the harness permissions layer (error: "Claude requested permissions to use
+  WebFetch, but you haven't granted it yet"), not a website-level HTTP 403. If the
+  `developers.openai.com/api/docs/pricing` fetch fails for either reason, leave OpenAI
+  prices unchanged and report it as an unresolved finding.
 
 Capture:
 
