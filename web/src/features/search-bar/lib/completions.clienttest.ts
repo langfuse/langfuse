@@ -561,23 +561,34 @@ describe("planInputCompletions", () => {
       ]);
     });
 
-    // On a terminal fetch error the value stage must settle to the empty state
-    // (no loading row, no further request) — matching the sidebar — since there
-    // is no auto-retry. Mirrors `optionsErrored` threaded from the hook's isError.
-    it("settles to empty (no loading, no request) when the options fetch errored", () => {
+    // A column whose fetch terminally errored settles to the empty state (no
+    // loading row, no further request) — matching the sidebar — since there is no
+    // auto-retry. Threaded per column via `erroredColumns`.
+    it("settles an errored column to empty (no loading, no request)", () => {
       const field = plan("userId:", 7, {
         observed: OBSERVED,
-        optionsErrored: true,
+        erroredColumns: new Set(["userId"]),
       });
       expect(field?.loading).not.toBe(true);
       expect(field?.requestColumns).toBeUndefined();
 
       const score = plan("scores.", 7, {
         observed: { level: [{ value: "ERROR" }] },
-        optionsErrored: true,
+        erroredColumns: new Set(["scores_avg", "score_categories"]),
       });
       expect(score?.loading).not.toBe(true);
       expect(score?.requestColumns).toBeUndefined();
+    });
+
+    // One column's error must NOT block loading another (per-column, not global):
+    // a userId timeout still lets sessionId load on demand.
+    it("still loads a different column when an unrelated one errored", () => {
+      const p = plan("sessionId:", 10, {
+        observed: OBSERVED,
+        erroredColumns: new Set(["userId"]),
+      });
+      expect(p?.loading).toBe(true);
+      expect(p?.requestColumns).toEqual(["sessionId"]);
     });
   });
 

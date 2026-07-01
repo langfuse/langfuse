@@ -512,8 +512,9 @@ type ValueStageInput = {
   typed: string;
   valuePrefix: string;
   observed: ObservedOptions | undefined;
-  /** Lazy fetch terminally errored — settle pending columns to empty, not loading. */
-  optionsErrored?: boolean;
+  /** Columns whose lazy fetch terminally errored — settle those to empty (not
+   *  loading), per column, without blocking others. */
+  erroredColumns?: ReadonlySet<string>;
   /** Whole-token span, for rewrites that replace the entire `key:value`. */
   tokenSpan: { from: number; to: number };
   /** The token carries a leading `-` (a negated filter). Scope rewrites must be
@@ -533,7 +534,7 @@ function valueStageSections(input: ValueStageInput): {
     typed,
     valuePrefix,
     observed,
-    optionsErrored,
+    erroredColumns,
     tokenSpan,
     negated,
   } = input;
@@ -542,10 +543,12 @@ function valueStageSections(input: ValueStageInput): {
   // observed map (lazy mode: requested but not yet streamed in). An empty list
   // ([]) means loaded-but-no-values, which is NOT loading. `observed` itself
   // being undefined is the initial bulk-load — everything is pending.
-  // A terminally-errored fetch is never pending: it settles to the empty state
-  // (no loading row, no further request) exactly like the sidebar facets.
+  // A column whose fetch terminally errored is never pending: it settles to the
+  // empty state (no loading row, no further request) exactly like the sidebar
+  // facet — but PER COLUMN, so a different column can still load on demand.
   const columnPending = (column: string): boolean =>
-    !optionsErrored && (observed === undefined || !(column in observed));
+    !erroredColumns?.has(column) &&
+    (observed === undefined || !(column in observed));
 
   // An operator prefix was already typed: the rest is free-form entry.
   if (valuePrefix.length > 0) return null;
@@ -811,13 +814,13 @@ export type InputCompletionContext = {
   /** Observed facet values; undefined = still loading. */
   observed: ObservedOptions | undefined;
   /**
-   * The lazy filter-options fetch has terminally errored. Suppresses the
-   * per-field "Loading values…" row and on-demand requests for not-yet-loaded
-   * columns, so a failed fetch settles to the empty state (matching the
-   * sidebar's `isFetching`-gated skeleton) instead of pinning loading forever
-   * with no auto-retry.
+   * Columns whose lazy filter-options fetch terminally errored. For those the
+   * planner suppresses the "Loading values…" row and the on-demand request, so a
+   * failed fetch settles to the empty state (matching the sidebar's per-column
+   * skeleton) instead of pinning loading forever with no auto-retry — but PER
+   * COLUMN, so an unrelated column can still load on demand.
    */
-  optionsErrored?: boolean;
+  erroredColumns?: ReadonlySet<string>;
   recents: string[];
   /** Full committed/draft query text (recents identical to it are hidden). */
   currentQueryText: string;
@@ -996,7 +999,7 @@ export function planInputCompletions(
             ? "trace_score_categories"
             : "score_categories";
         const scorePending = (column: string): boolean =>
-          !ctx.optionsErrored &&
+          !ctx.erroredColumns?.has(column) &&
           (ctx.observed === undefined || !(column in ctx.observed));
         if (scorePending(numericColumn) || scorePending(categoricalColumn)) {
           return {
@@ -1171,7 +1174,7 @@ export function planInputCompletions(
     typed,
     valuePrefix,
     observed: ctx.observed,
-    optionsErrored: ctx.optionsErrored,
+    erroredColumns: ctx.erroredColumns,
     tokenSpan: { from: start, to: term?.to ?? caret },
     negated,
   });

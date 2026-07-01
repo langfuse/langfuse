@@ -30,7 +30,7 @@ export function EventsSearchBarRow({
   store,
   commit,
   observed,
-  optionsErrored,
+  erroredColumns,
   onApplyFilters,
   onRequestColumns,
   aiDataContext,
@@ -39,9 +39,10 @@ export function EventsSearchBarRow({
   store: SearchBarStore;
   commit: () => string | null;
   observed: ObservedOptions | undefined;
-  /** Lazy filter-options fetch terminally errored — value-stage loading settles
-   *  to empty instead of pinning (matches the sidebar's settled-error state). */
-  optionsErrored?: boolean;
+  /** Columns whose lazy fetch terminally errored — value-stage loading settles to
+   *  empty (per column) instead of pinning, matching the sidebar's settled-error
+   *  state, without blocking other columns. */
+  erroredColumns?: ReadonlySet<string>;
   /**
    * Applies AI-generated filters (apply-immediately); the bar re-derives them.
    * Preserves filters the grammar can't represent (no-silent-drop contract) —
@@ -88,7 +89,7 @@ export function EventsSearchBarRow({
           <SearchComposer
             projectId={projectId}
             observed={observed}
-            optionsErrored={optionsErrored}
+            erroredColumns={erroredColumns}
             onActivateAi={aiAvailable ? activateAi : undefined}
             onRequestColumns={onRequestColumns}
           />

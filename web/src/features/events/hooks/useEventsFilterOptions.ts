@@ -47,15 +47,25 @@ const ALL_EVENT_FILTER_OPTION_COLUMNS = [
 
 // Columns loaded eagerly on mount in lazy mode: the sidebar's default-expanded
 // facets (environment/name/type/isRootObservation) plus the search-bar empty-stage
-// suggestion fields (level/type/environment/name). Everything else — high-cardinality
-// userId/sessionId, model/prompt/experiment/tool facets, and the (3 separate CH
-// queries) score columns — loads only when a facet is opened or typed into.
+// suggestion fields (level/type/environment/name). The high-cardinality facets
+// (userId/sessionId, model/prompt/experiment/tool) load only when opened or typed.
+//
+// The four score-NAME columns are eager too. They are cheap (just the distinct
+// score names + their categorical buckets, not per-row data) and drive the
+// grammar's score-type routing: `scoreTypeContextFromObserved` must be populated
+// before the bar lowers a `scores.<name>:5` token, or a categorical numeric-label
+// score (e.g. a 1–5 rating) mis-routes to `scores_avg` and silently empties the
+// table. Keeping them eager restores that pre-lazy invariant.
 const EAGER_EVENT_FILTER_OPTION_COLUMNS = [
   "environment",
   "name",
   "type",
   "level",
   "isRootObservation",
+  "scores_avg",
+  "score_categories",
+  "trace_scores_avg",
+  "trace_score_categories",
 ] as const satisfies readonly EventFilterOptionColumn[];
 
 const EAGER_COLUMN_SET: ReadonlySet<string> = new Set(
@@ -186,21 +196,27 @@ export function useEventsFilterOptions({
     (results: readonly LazyFilterOptionResult[]) => {
       const data: FilterOptionsData = {};
       const pendingColumns: string[] = [];
-      let errored = false;
+      const erroredColumns: string[] = [];
       results.forEach((r, i) => {
         const column = lazyColumns[i];
         if (column === undefined) return;
-        if (r.isError) {
-          errored = true;
-          return;
-        }
+        // Publish data first: a post-success refetch error keeps placeholderData,
+        // so an already-loaded facet retains its values instead of blanking out —
+        // symmetric with the (combine-free) eager query.
         if (r.data) {
           Object.assign(data, r.data);
+          return;
+        }
+        // No data: a terminal error settles this column to empty; an in-flight
+        // fetch is loading. Tracked PER COLUMN so one facet's error (e.g. a
+        // userId approx_top_k timeout) never blocks loading the others.
+        if (r.isError) {
+          erroredColumns.push(column);
         } else if (r.isFetching) {
           pendingColumns.push(column);
         }
       });
-      return { data, pendingColumns, errored };
+      return { data, pendingColumns, erroredColumns };
     },
     [lazyColumns],
   );
@@ -301,12 +317,28 @@ export function useEventsFilterOptions({
     return pending;
   }, [lazy, lazyResult.pendingColumns, isEagerFetching, rawData]);
 
+  // Columns whose fetch terminally errored, per column. Consumers settle these to
+  // the empty state (no skeleton, no perpetual loading row — there is no
+  // auto-retry) WITHOUT blocking any other column's on-demand load. The eager
+  // bulk is read directly (no combine); if it fails, its columns — which are
+  // never lazily re-requestable — settle too.
+  const lazyErroredColumns = lazyResult.erroredColumns;
+  const isEagerError = eagerQuery.isError;
+  const erroredColumns = useMemo<ReadonlySet<string>>(() => {
+    const errored = new Set<string>(lazyErroredColumns);
+    if (isEagerError) {
+      for (const column of EAGER_EVENT_FILTER_OPTION_COLUMNS)
+        errored.add(column);
+    }
+    return errored;
+  }, [lazyErroredColumns, isEagerError]);
+
   return {
     filterOptions: newFilterOptions,
     isFilterOptionsPending: eagerQuery.isPending,
-    /** Terminal fetch error: consumers settle to the empty state (no skeleton /
-     *  no perpetual loading row), since there is no auto-retry. */
-    isFilterOptionsError: eagerQuery.isError || lazyResult.errored,
+    /** Columns whose fetch terminally errored (per column). Consumers settle these
+     *  to the empty state; other columns keep loading normally. */
+    erroredColumns,
     /** Lazy mode only: columns requested but not yet loaded (per-facet skeletons). */
     loadingColumns,
     /** Lazy mode only: widen the requested column set (no-op otherwise). */
