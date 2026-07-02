@@ -161,6 +161,24 @@ describe("LocalCodeEvalDispatcher", () => {
     } satisfies Partial<CodeEvalDispatcherError>);
   });
 
+  it("includes the error name for non-generic evaluator throws", async () => {
+    const dispatcher = new LocalCodeEvalDispatcher();
+
+    await expect(
+      dispatcher.dispatch({
+        ...baseInput,
+        runtime: { language: "TYPESCRIPT" },
+        code: {
+          source: `function evaluate(ctx) { return ctx.observation.output.definitely.missing; }`,
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: "USER_CODE_ERROR",
+      retryable: false,
+      message: expect.stringMatching(/^TypeError: /),
+    } satisfies Partial<CodeEvalDispatcherError>);
+  });
+
   it("times out runaway evaluators", async () => {
     const dispatcher = new LocalCodeEvalDispatcher({ timeoutMs: 50 });
 

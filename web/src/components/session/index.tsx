@@ -107,19 +107,25 @@ export function SessionUsers({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {initialUsers.map((userId: string) => (
-        <Link
-          key={userId}
-          href={`/project/${projectId}/users/${encodeURIComponent(userId ?? "")}`}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Badge className="max-w-[300px]">
-            <span className="truncate">User ID: {userId}</span>
-            <ExternalLinkIcon className="ml-1 h-3 w-3" />
-          </Badge>
-        </Link>
-      ))}
+      {initialUsers.map((userId: string) => {
+        const userBadgeText = `User ID: ${userId}`;
+
+        return (
+          <Link
+            key={userId}
+            href={`/project/${projectId}/users/${encodeURIComponent(userId ?? "")}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Badge className="max-w-[300px]">
+              <span className="truncate" title={userBadgeText}>
+                {userBadgeText}
+              </span>
+              <ExternalLinkIcon className="ml-1 h-3 w-3" />
+            </Badge>
+          </Link>
+        );
+      })}
 
       {remainingUsers.length > 0 && (
         <Popover modal>
@@ -137,20 +143,26 @@ export function SessionUsers({
                     page * USERS_PER_PAGE_IN_POPOVER,
                     (page + 1) * USERS_PER_PAGE_IN_POPOVER,
                   )
-                  .map((userId: string) => (
-                    <Link
-                      key={userId}
-                      href={`/project/${projectId}/users/${encodeURIComponent(userId ?? "")}`}
-                      className="hover:bg-accent block"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <Badge className="max-w-[260px]">
-                        <span className="truncate">User ID: {userId}</span>
-                        <ExternalLinkIcon className="ml-1 h-3 w-3" />
-                      </Badge>
-                    </Link>
-                  ))}
+                  .map((userId: string) => {
+                    const userBadgeText = `User ID: ${userId}`;
+
+                    return (
+                      <Link
+                        key={userId}
+                        href={`/project/${projectId}/users/${encodeURIComponent(userId ?? "")}`}
+                        className="hover:bg-accent block"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Badge className="max-w-[260px]">
+                          <span className="truncate" title={userBadgeText}>
+                            {userBadgeText}
+                          </span>
+                          <ExternalLinkIcon className="ml-1 h-3 w-3" />
+                        </Badge>
+                      </Link>
+                    );
+                  })}
               </div>
             </ScrollArea>
             {remainingUsers.length > USERS_PER_PAGE_IN_POPOVER && (

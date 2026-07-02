@@ -18,7 +18,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
-import { classifyMediaLeaf } from "@/src/components/ui/media/classifyMediaLeaf";
+import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
 import { JsonMediaTag } from "@/src/components/ui/media/JsonMediaTag";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import {
@@ -146,7 +146,7 @@ export function JSONView(props: {
               // as a hover-to-peek chip instead of the raw string; everything
               // else falls through to the default value rendering.
               customizeNode={({ node }) => {
-                const descriptor = classifyMediaLeaf(node);
+                const descriptor = classifyMediaValue(node);
                 return descriptor ? (
                   <JsonMediaTag descriptor={descriptor} />
                 ) : undefined;
@@ -231,8 +231,10 @@ export function CodeView(props: {
   title?: string;
   scrollable?: boolean;
   copiedToClipboardMessage?: string;
+  lineWrap?: boolean;
 }) {
   const { copiedToClipboardMessage } = props;
+  const lineWrap = props.lineWrap ?? true;
 
   const [isCollapsed, setCollapsed] = useState(props.defaultCollapsed);
 
@@ -269,7 +271,10 @@ export function CodeView(props: {
       <div className="animate-appear relative h-3">
         <Check className="h-3 w-3" />
         {copiedToClipboardMessage && (
-          <div className="text-secondary-foreground absolute top-0 right-0 mr-6 h-full max-w-[60vw] transform truncate overflow-hidden text-right text-sm leading-none whitespace-nowrap">
+          <div
+            className="text-secondary-foreground absolute top-0 right-0 mr-6 h-full max-w-[60vw] transform truncate overflow-hidden text-right text-sm leading-none whitespace-nowrap"
+            title={copiedToClipboardMessage}
+          >
             {copiedToClipboardMessage}
           </div>
         )}
@@ -318,7 +323,11 @@ export function CodeView(props: {
         )}
         <code
           className={cn(
-            "relative max-w-full min-w-0 flex-1 px-4 py-3 font-mono text-xs wrap-break-word whitespace-pre-wrap",
+            "relative max-w-full min-w-0 flex-1 px-4 py-3 font-mono text-xs",
+            !props.title && !lineWrap ? "w-[calc(100%-2.5rem)] pr-12" : "",
+            lineWrap
+              ? "wrap-break-word whitespace-pre-wrap"
+              : "overflow-x-auto whitespace-pre",
             isCollapsed ? `line-clamp-6` : "block",
             props.scrollable ? "overflow-y-auto" : "",
           )}

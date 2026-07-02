@@ -95,6 +95,7 @@ jobs:
               - 'packages/shared/src/server/llm/fetchLLMCompletion.ts'
               - 'packages/shared/src/server/llm/secureLlmFetch.ts'
               - 'packages/shared/src/server/llm/utils.ts'
+              - 'worker/src/__tests__/llmConnections.test.ts'
 
   lint:
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -213,6 +214,8 @@ jobs:
     # at run creation, so this job starts immediately (!cancelled() lets the
     # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    env:
+      NODE_ENV: test
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -247,6 +250,8 @@ jobs:
     # at run creation, so this job starts immediately (!cancelled() lets the
     # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    env:
+      NODE_ENV: test
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -297,6 +302,8 @@ jobs:
     # at run creation, so this job starts immediately (!cancelled() lets the
     # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    env:
+      NODE_ENV: test
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -417,6 +424,8 @@ jobs:
     # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
+    env:
+      NODE_ENV: test
     strategy:
       matrix:
         node-version: [24]
@@ -537,7 +546,6 @@ jobs:
       - name: Start Langfuse
         run: (pnpm run start&)
         env:
-          NODE_ENV: test
           LANGFUSE_INIT_ORG_ID: "seed-org-id"
           LANGFUSE_INIT_ORG_NAME: "Seed Org"
           LANGFUSE_INIT_ORG_CLOUD_PLAN: "Team"
@@ -578,6 +586,8 @@ jobs:
     # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
+    env:
+      NODE_ENV: test
     strategy:
       matrix:
         node-version: [24]
@@ -673,6 +683,8 @@ jobs:
       - llm-connections-filter
     if: ${{ !cancelled() && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.llm-connections-filter.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'))) }}
     name: test-worker-llm-connections (node24, pg15)
+    env:
+      NODE_ENV: test
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -753,6 +765,8 @@ jobs:
     # at run creation, so this job starts immediately (!cancelled() lets the
     # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    env:
+      NODE_ENV: test
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -855,8 +869,6 @@ jobs:
           exit "$(cat /tmp/playwright-install.exit)"
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e
-        env:
-          NODE_ENV: test
 
   e2e-server-tests:
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -866,6 +878,8 @@ jobs:
     # at run creation, so this job starts immediately (!cancelled() lets the
     # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    env:
+      NODE_ENV: test
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -938,8 +952,6 @@ jobs:
           pnpm --filter=shared run db:seed:examples
       - name: Run server
         run: (pnpm run start&)
-        env:
-          NODE_ENV: test
       - name: Check worker health
         run: |
           timeout 10 bash -c 'until curl -f http://localhost:3030/api/health; do sleep 2; done'

@@ -41,7 +41,7 @@ import {
   observationVariableMapping,
 } from "@langfuse/shared";
 import { useRouter } from "next/router";
-import { toast } from "sonner";
+import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { Slider } from "@/src/components/ui/slider";
 import { Card } from "@/src/components/ui/card";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -372,13 +372,9 @@ export const InnerEvaluatorForm = (props: {
   evalCapabilities: EvalCapabilities;
   defaultRunOnLive?: boolean;
   defaultTarget?: EvalTargetObject;
-  renderFooter?: (params: {
-    isLoading: boolean;
-    formError: string | null;
-  }) => React.ReactNode;
+  renderFooter?: (params: { isLoading: boolean }) => React.ReactNode;
   oldConfigId?: string;
 }) => {
-  const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
   const router = useRouter();
   const [showTraceConfirmDialog, setShowTraceConfirmDialog] = useState(false);
@@ -559,17 +555,13 @@ export const InnerEvaluatorForm = (props: {
   const utils = api.useUtils();
   const createJobMutation = api.evals.createJob.useMutation({
     onSuccess: () => utils.models.invalidate(),
-    onError: (error) => {
-      setFormError(error.message);
-      toast.error(error.message);
-    },
+    // Defining onError replaces the react-query default that shows the
+    // standard error toast, so trigger it explicitly.
+    onError: trpcErrorToast,
   });
   const updateJobMutation = api.evals.updateEvalJob.useMutation({
     onSuccess: () => utils.evals.invalidate(),
-    onError: (error) => {
-      setFormError(error.message);
-      toast.error(error.message);
-    },
+    onError: trpcErrorToast,
   });
   const [availableVariables, setAvailableVariables] = useState<
     typeof availableTraceEvalVariables | typeof availableDatasetEvalVariables
@@ -749,11 +741,10 @@ export const InnerEvaluatorForm = (props: {
         }
       })
       .catch((error) => {
-        if ("message" in error && typeof error.message === "string") {
-          setFormError(error.message as string);
-          return;
-        }
-        setFormError(JSON.stringify(error));
+        // Mutation failures are surfaced via the onError toast; this catch
+        // also swallows post-success errors (onFormSuccess, router.push),
+        // so keep a console trace for those.
+        console.error("Evaluator form submission failed", error);
       });
   }
 
@@ -1382,7 +1373,7 @@ export const InnerEvaluatorForm = (props: {
     createJobMutation.isPending || updateJobMutation.isPending;
 
   const formFooter = props.renderFooter ? (
-    props.renderFooter({ isLoading: mutationIsLoading, formError })
+    props.renderFooter({ isLoading: mutationIsLoading })
   ) : (
     <div className="flex w-full flex-col items-end gap-4">
       {!props.disabled ? (
@@ -1393,11 +1384,6 @@ export const InnerEvaluatorForm = (props: {
         >
           {props.mode === "edit" ? "Update" : "Execute"}
         </Button>
-      ) : null}
-      {formError ? (
-        <p className="w-full text-center">
-          <span className="font-bold">Error:</span> {formError}
-        </p>
       ) : null}
     </div>
   );
