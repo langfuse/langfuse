@@ -121,6 +121,115 @@ const templateTableRowHeights: CustomHeights = {
   l: "h-8",
 };
 
+// Owns the per-row actions dropdown plus the delete confirm dialog as its
+// sibling (see the overlay-lifecycle rule in web/AGENTS.md). The dialog's
+// open state is local so opening it re-renders only this cell, not the table.
+const EvalTemplateRowActionsMenu = ({
+  projectId,
+  templateId,
+  templateName,
+  usageCount,
+  hasAccess,
+  showClone,
+  showEditAndDelete,
+  onEdit,
+  onClone,
+}: {
+  projectId: string;
+  templateId: string;
+  templateName: string;
+  usageCount?: number;
+  hasAccess: boolean;
+  showClone: boolean;
+  showEditAndDelete: boolean;
+  onEdit: () => void;
+  onClone: () => void;
+}) => {
+  // undefined = never opened: keeps the dialog unmounted for untouched rows,
+  // while close (false) keeps it mounted so the exit animation can play.
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState<boolean>();
+  const capture = usePostHogClientCapture();
+  const utils = api.useUtils();
+  const hasTemplateWriteAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalTemplate:CUD",
+  });
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon-xs" aria-label="actions">
+            <span className="sr-only relative">Open menu</span>
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+          {showClone ? (
+            <DropdownMenuItem
+              aria-label="clone"
+              disabled={!hasAccess}
+              onClick={(e) => {
+                e.stopPropagation();
+                onClone();
+              }}
+            >
+              <Copy className="mr-2 h-4 w-4" />
+              Clone
+            </DropdownMenuItem>
+          ) : null}
+          {showEditAndDelete ? (
+            <>
+              <DropdownMenuItem
+                aria-label="edit"
+                disabled={!hasAccess}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit();
+                }}
+              >
+                <Pen className="mr-2 h-4 w-4" />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                aria-label="delete"
+                disabled={!hasTemplateWriteAccess}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  capture("eval_templates:delete_form_open", {
+                    source: "table-single-row",
+                  });
+                  setIsDeleteDialogOpen(true);
+                }}
+              >
+                <Trash className="mr-2 h-4 w-4" />
+                Delete
+              </DropdownMenuItem>
+            </>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {isDeleteDialogOpen !== undefined ? (
+        <DeleteEvalTemplateDialog
+          projectId={projectId}
+          templateId={templateId}
+          templateName={templateName}
+          initialUsageCount={usageCount}
+          open={isDeleteDialogOpen}
+          onOpenChange={setIsDeleteDialogOpen}
+          onSuccess={() => {
+            capture("eval_templates:delete_template_button_click", {
+              source: "table-single-row",
+            });
+            utils.evals.templateNames.invalidate();
+          }}
+        />
+      ) : null}
+    </>
+  );
+};
+
 export default function EvalsTemplateTable({
   projectId,
 }: {
@@ -141,11 +250,6 @@ export default function EvalsTemplateTable({
   );
   const [editTemplateId, setEditTemplateId] = useState<string | null>(null);
   const [cloneTemplateId, setCloneTemplateId] = useState<string | null>(null);
-  const [templateToDelete, setTemplateToDelete] = useState<{
-    id: string;
-    name: string;
-    usageCount?: number;
-  } | null>(null);
   const [showReferenceUpdateDialog, setShowReferenceUpdateDialog] =
     useState(false);
   const [pendingCloneSubmission, setPendingCloneSubmission] = useState<
@@ -161,11 +265,6 @@ export default function EvalsTemplateTable({
   });
 
   const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
-  const hasTemplateWriteAccess = useHasProjectAccess({
-    projectId,
-    scope: "evalTemplate:CUD",
-  });
-  const capture = usePostHogClientCapture();
 
   const totalCount = templates.data?.totalCount ?? null;
 
@@ -378,63 +477,17 @@ export default function EvalsTemplateTable({
               Use Evaluator
             </ActionButton>
             {hasMenuItems && id ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon-xs" aria-label="actions">
-                    <span className="sr-only relative">Open menu</span>
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                  {!isUserMaintained && !isCodeTemplate ? (
-                    <DropdownMenuItem
-                      aria-label="clone"
-                      disabled={!hasAccess}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setCloneTemplateId(id);
-                      }}
-                    >
-                      <Copy className="mr-2 h-4 w-4" />
-                      Clone
-                    </DropdownMenuItem>
-                  ) : null}
-                  {isUserMaintained ? (
-                    <>
-                      <DropdownMenuItem
-                        aria-label="edit"
-                        disabled={!hasAccess}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditTemplateId(id);
-                        }}
-                      >
-                        <Pen className="mr-2 h-4 w-4" />
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        aria-label="delete"
-                        disabled={!hasTemplateWriteAccess}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          capture("eval_templates:delete_form_open", {
-                            source: "table-single-row",
-                          });
-                          setTemplateToDelete({
-                            id,
-                            name: row.original.name,
-                            usageCount: row.original.usageCount,
-                          });
-                        }}
-                      >
-                        <Trash className="mr-2 h-4 w-4" />
-                        Delete
-                      </DropdownMenuItem>
-                    </>
-                  ) : null}
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <EvalTemplateRowActionsMenu
+                projectId={projectId}
+                templateId={id}
+                templateName={row.original.name}
+                usageCount={row.original.usageCount}
+                hasAccess={hasAccess}
+                showClone={!isUserMaintained && !isCodeTemplate}
+                showEditAndDelete={isUserMaintained}
+                onEdit={() => setEditTemplateId(id)}
+                onClone={() => setCloneTemplateId(id)}
+              />
             ) : null}
           </div>
         );
@@ -656,23 +709,6 @@ export default function EvalsTemplateTable({
           />
         </DialogContent>
       </Dialog>
-
-      <DeleteEvalTemplateDialog
-        projectId={projectId}
-        templateId={templateToDelete?.id ?? null}
-        templateName={templateToDelete?.name ?? null}
-        initialUsageCount={templateToDelete?.usageCount}
-        open={!!templateToDelete}
-        onOpenChange={(open) => {
-          if (!open) setTemplateToDelete(null);
-        }}
-        onSuccess={() => {
-          capture("eval_templates:delete_template_button_click", {
-            source: "table-single-row",
-          });
-          utils.evals.templateNames.invalidate();
-        }}
-      />
 
       <Dialog
         open={showReferenceUpdateDialog}

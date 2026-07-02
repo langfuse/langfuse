@@ -48,10 +48,8 @@ export function DeleteEvalTemplateDialog({
   initialUsageCount,
 }: {
   projectId: string;
-  // Nullable so a single dialog instance can stay mounted with no target row
-  // selected, preserving the close animation.
-  templateId: string | null;
-  templateName: string | null;
+  templateId: string;
+  templateName: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   // Called after successful deletion; the caller owns follow-up side effects
@@ -77,19 +75,12 @@ export function DeleteEvalTemplateDialog({
   });
 
   // Once deletion starts, the usage query must go inactive so post-delete
-  // invalidation does not refetch it and surface a NOT_FOUND. Success is
-  // scoped to the deleted id because one dialog instance serves all table rows.
-  const deletedThisTemplate =
-    templateMutation.isSuccess &&
-    templateMutation.variables?.evalTemplateId === templateId;
+  // invalidation does not refetch it and surface a NOT_FOUND.
   const usage = api.evals.evalTemplateUsage.useQuery(
-    { projectId, evalTemplateId: templateId as string },
+    { projectId, evalTemplateId: templateId },
     {
       enabled:
-        open &&
-        !!templateId &&
-        !templateMutation.isPending &&
-        !deletedThisTemplate,
+        open && !templateMutation.isPending && !templateMutation.isSuccess,
     },
   );
   const referencingEvaluators = usage.data;
@@ -104,7 +95,6 @@ export function DeleteEvalTemplateDialog({
   };
 
   const handleConfirm = async () => {
-    if (!templateId) return;
     try {
       await templateMutation.mutateAsync({
         evalTemplateId: templateId,
