@@ -132,17 +132,21 @@ export const TraceEventsRow = React.memo(
     // What each card shows is entirely determined by the selected view
     // (LFE-10520): the server applies the view's FilterState (incl. the "with
     // I/O" view's Has-Input-or-Output filter). The only client-side shaping is
-    // dropping the synthetic trace-level row (no parent observation) — it
-    // mirrors the trace's own I/O, already shown by the trace panel — unless it
-    // is all the trace has, so a card is never needlessly empty.
+    // dropping the synthetic trace-level row — it mirrors the trace's own I/O,
+    // already shown by the trace panel — unless it is all the trace has, so a
+    // card is never needlessly empty. Identify it by its id (`t-<traceId>`, the
+    // canonical synthetic-span id — see handleEventPropagationJob), NOT an empty
+    // parent: OTel/internal-tracing roots also have an empty parent but are real
+    // observations that must not be dropped.
     const observations = observationsQuery.data;
     const visibleObservations = React.useMemo(() => {
       if (!observations) return undefined;
-      const realObservations = observations.filter((observation) =>
-        Boolean(observation.parentObservationId),
+      const syntheticTraceRowId = `t-${trace.id}`;
+      const realObservations = observations.filter(
+        (observation) => observation.id !== syntheticTraceRowId,
       );
       return realObservations.length > 0 ? realObservations : observations;
-    }, [observations]);
+    }, [observations, trace.id]);
 
     return (
       <Card className="border-border shadow-none">

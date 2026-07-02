@@ -1,4 +1,5 @@
 import { type FilterState } from "@langfuse/shared";
+import isEqual from "lodash/isEqual";
 
 const SYSTEM_PRESET_ID_PREFIX = "__langfuse_";
 
@@ -117,14 +118,37 @@ export const getSessionDetailPresetToApply = ({
   return selectedSystemPreset ?? getSessionDetailDefaultPreset();
 };
 
+/** Strip `undefined` values so two filter states compare structurally equal. */
+const normalizeFilterState = (filters: FilterState): FilterState =>
+  filters.map(
+    (filter) =>
+      Object.fromEntries(
+        Object.entries(filter).filter(([, value]) => value !== undefined),
+      ) as FilterState[number],
+  );
+
 /**
- * Display name of the currently selected system view (null when the user is on
- * a custom/saved filter). Used only to label the empty-state notice — what each
- * card renders is driven entirely by the FilterState (the single source of
- * truth), applied server-side.
+ * The system view whose filters exactly match `filterState`, or null. Matched
+ * by **filters**, not by the URL `viewId`: the label stays correct after the
+ * table view manager strips the frontend system-preset id from the URL on a
+ * reload/shared-link, and it drops to null the moment the user edits the filter
+ * away from the preset (so the notice never names a stale view).
+ */
+export const findSessionDetailViewByFilters = (
+  filterState: FilterState,
+): SessionDetailSystemPreset | null =>
+  SESSION_DETAIL_SYSTEM_PRESETS.find((preset) =>
+    isEqual(
+      normalizeFilterState(preset.filters),
+      normalizeFilterState(filterState),
+    ),
+  ) ?? null;
+
+/**
+ * Display name of the view whose filters match `filterState` (null for a custom
+ * filter). Labels the empty-state notice — what each card renders is driven
+ * entirely by the FilterState (the single source of truth), applied server-side.
  */
 export const getSessionDetailViewLabel = (
-  selectedViewId: string | null,
-): string | null =>
-  SESSION_DETAIL_SYSTEM_PRESETS.find((preset) => preset.id === selectedViewId)
-    ?.name ?? null;
+  filterState: FilterState,
+): string | null => findSessionDetailViewByFilters(filterState)?.name ?? null;

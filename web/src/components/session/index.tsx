@@ -68,7 +68,7 @@ import {
   SESSION_DETAIL_SYSTEM_PRESETS,
   type SessionDetailSystemPreset,
   getSessionDetailPresetToApply,
-  getSessionDetailViewLabel,
+  findSessionDetailViewByFilters,
   SESSION_DETAIL_VIEW_TRIGGER_ID,
 } from "@/src/components/session/session-detail-presets";
 import { downloadSessionAsJson } from "@/src/components/session/actions/downloadSessionAsJson";
@@ -934,9 +934,25 @@ const LoadedSessionEventsPage: React.FC<{
     viewControllers.selectedViewId,
   ]);
 
-  // The selected view is the single source of truth for what each card shows;
-  // its label only feeds the empty-state notice.
-  const viewLabel = getSessionDetailViewLabel(viewControllers.selectedViewId);
+  // The applied FilterState is the single source of truth for what each card
+  // shows and which named view is active. Deriving the view from the filters
+  // (not the URL viewId) keeps the label correct even after the table view
+  // manager strips the frontend system-preset id from the URL on reload.
+  const matchedView = findSessionDetailViewByFilters(visibleFilterState);
+  const viewLabel = matchedView?.name ?? null;
+
+  // On reload / shared-link the view manager strips the frontend system-preset
+  // viewId (it isn't backend-fetchable), so the View drawer trigger loses its
+  // "View: …" label. Recover the provenance viewId from the surviving filter
+  // for filter-bearing views. (An empty filter — "All observations" — is
+  // ambiguous with a fresh load and shows no empty-state notice, so it is left
+  // to the default-view effect.)
+  useEffect(() => {
+    if (isViewLoading) return;
+    if (viewControllers.selectedViewId) return;
+    if (!matchedView || matchedView.filters.length === 0) return;
+    viewControllers.handleSetViewId(matchedView.id);
+  }, [isViewLoading, matchedView, viewControllers]);
 
   const virtualizer = useVirtualizer({
     count: traces?.length ?? 0,
