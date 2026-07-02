@@ -42,11 +42,13 @@ export function useLogViewObservationIO({
       traceId,
       projectId,
       startTime,
+      verbosity: "truncated",
     },
     {
       enabled: enabled && !isBetaEnabled,
       staleTime: Infinity,
       refetchOnWindowFocus: false,
+      meta: { silentHttpCodes: [422] },
     },
   );
 
@@ -111,6 +113,7 @@ export function useObservationIOLoadedCount({
             traceId,
             projectId,
             startTime: item.node.startTime,
+            verbosity: "truncated",
           },
           type: "query",
         },
