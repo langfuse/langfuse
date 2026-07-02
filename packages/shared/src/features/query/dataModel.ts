@@ -819,6 +819,12 @@ const createScoreSpecificDimensions = (
     type: "string",
     description: "Origin of the score. Can be API, ANNOTATION, or EVAL.",
   },
+  comment: {
+    sql: `${tableAlias}.comment`,
+    alias: "comment",
+    type: "string",
+    description: "Comment attached to the score.",
+  },
   dataType: {
     sql: `${tableAlias}.data_type`,
     alias: "dataType",
