@@ -3,75 +3,8 @@ import { randomUUID } from "crypto";
 
 import type { Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-
-describe("userAccountRouter.setFeaturePreviewEnabled", () => {
-  const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-
-  beforeEach(() => {
-    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-  });
-
-  afterEach(() => {
-    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
-  });
-
-  it("enables the search bar preview, leaving other flags intact", async () => {
-    const { caller, userId } = await createCaller({
-      featureFlags: ["templateFlag"],
-    });
-
-    const result = await caller.userAccount.setFeaturePreviewEnabled({
-      flag: "searchBar",
-      enabled: true,
-    });
-
-    expect(result).toEqual({ success: true, flag: "searchBar", enabled: true });
-
-    const user = await prisma.user.findUniqueOrThrow({
-      where: { id: userId },
-      select: { featureFlags: true },
-    });
-    expect(user.featureFlags).toEqual(["templateFlag", "searchBar"]);
-  });
-
-  it("disables a preview flag without touching the others", async () => {
-    const { caller, userId } = await createCaller({
-      featureFlags: ["templateFlag", "searchBar"],
-    });
-
-    const result = await caller.userAccount.setFeaturePreviewEnabled({
-      flag: "searchBar",
-      enabled: false,
-    });
-
-    expect(result).toEqual({
-      success: true,
-      flag: "searchBar",
-      enabled: false,
-    });
-
-    const user = await prisma.user.findUniqueOrThrow({
-      where: { id: userId },
-      select: { featureFlags: true },
-    });
-    expect(user.featureFlags).toEqual(["templateFlag"]);
-  });
-
-  it("rejects enabling in self-hosted deployments", async () => {
-    const { caller } = await createCaller();
-    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-
-    await expect(
-      caller.userAccount.setFeaturePreviewEnabled({
-        flag: "searchBar",
-        enabled: true,
-      }),
-    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
-  });
-});
 
 async function createCaller({
   plan = "cloud:hobby",
@@ -146,7 +79,6 @@ async function createCaller({
         },
       ],
       featureFlags: {
-        searchBar: featureFlags.includes("searchBar"),
         templateFlag: featureFlags.includes("templateFlag"),
         excludeClickhouseRead: false,
         observationEvals: false,
