@@ -139,6 +139,7 @@ export * from "./services/sessions-ui-table-service";
 export * from "./services/sessions-ui-table-events-service";
 export * from "./services/DashboardService";
 export * from "./services/TableViewService";
+export * from "./services/ObservationIoParserService";
 export * from "./services/DefaultViewService";
 export * from "./services/DefaultEvaluationModelService";
 export * from "./services/blockEvaluatorConfigs";

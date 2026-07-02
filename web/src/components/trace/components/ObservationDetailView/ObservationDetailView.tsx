@@ -64,6 +64,8 @@ import {
   getDescendantIds,
 } from "@/src/components/trace/lib/trace-aggregation";
 import TagList from "@/src/features/tag/components/TagList";
+import { ObservationIoParserSelector } from "@/src/features/observation-io-parsers/components/ObservationIoParserSelector";
+import { getParsedObservationIoPreview } from "@/src/features/observation-io-parsers/components/ParsedObservationIoView";
 
 export interface ObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -229,12 +231,14 @@ export function ObservationDetailView({
     parsedMetadata,
     isLoadingObservation,
     isWaitingForParsing,
+    parsedObservationIo,
   } = useParsedObservation({
     observationId: observation.id,
     traceId: traceId,
     projectId: projectId,
     startTime: observation.startTime,
     baseObservation: observation,
+    forceFetchRaw: true,
   });
 
   // Type narrowing: when baseObservation is provided, result has full observation fields
@@ -249,6 +253,34 @@ export function ObservationDetailView({
     data: observationWithIO,
     isLoading: isLoadingObservation,
   };
+  const parsedObservationIoData =
+    parsedObservationIo?.mode === "parsed" ? parsedObservationIo : undefined;
+  const parsedObservationIoPreview = useMemo(
+    () =>
+      parsedObservationIoData
+        ? getParsedObservationIoPreview(parsedObservationIoData)
+        : undefined,
+    [parsedObservationIoData],
+  );
+  const previewInput = parsedObservationIoPreview
+    ? parsedObservationIoPreview.input
+    : (observationWithIOCompat.data?.input ?? undefined);
+  const previewOutput = parsedObservationIoPreview
+    ? parsedObservationIoPreview.output
+    : (observationWithIOCompat.data?.output ?? undefined);
+  const previewMetadata = parsedObservationIoPreview
+    ? parsedObservationIoPreview.metadata
+    : (observationWithIOCompat.data?.metadata ?? undefined);
+  const previewParsedInput = parsedObservationIoPreview
+    ? parsedObservationIoPreview.input
+    : parsedInput;
+  const previewParsedOutput = parsedObservationIoPreview
+    ? parsedObservationIoPreview.output
+    : parsedOutput;
+  const previewParsedMetadata = parsedObservationIoPreview
+    ? parsedObservationIoPreview.metadata
+    : parsedMetadata;
+  const isParsedPreview = Boolean(parsedObservationIoPreview);
 
   // Fetch media for this observation
   const observationMedia = useMedia({
@@ -337,9 +369,17 @@ export function ObservationDetailView({
               {/* JSON views are disabled for virtualized log view (large traces) */}
               {(selectedTab === "log" ||
                 (selectedTab === "preview" && isPrettyViewAvailable)) && (
-                <>
+                <div className="ml-auto flex items-center gap-1">
+                  {selectedTab === "preview" && isV4Enabled && (
+                    <ObservationIoParserSelector
+                      projectId={projectId}
+                      appliedConfig={
+                        parsedObservationIoData?.matchedConfig ?? null
+                      }
+                    />
+                  )}
                   <Tabs
-                    className="ml-auto h-fit px-2 py-0.5"
+                    className="h-fit px-2 py-0.5"
                     value={
                       selectedTab === "log" && isLogViewVirtualized
                         ? "pretty"
@@ -417,7 +457,7 @@ export function ObservationDetailView({
                         </span>
                       </div>
                     )}
-                </>
+                </div>
               )}
             </TabsBarList>
           </TooltipProvider>
@@ -457,16 +497,19 @@ export function ObservationDetailView({
             <IOPreview
               key={observation.id}
               observationName={observation.name ?? undefined}
-              input={observationWithIOCompat.data?.input ?? undefined}
-              output={observationWithIOCompat.data?.output ?? undefined}
-              outputCorrection={outputCorrection}
-              metadata={observationWithIOCompat.data?.metadata ?? undefined}
-              parsedInput={parsedInput}
-              parsedOutput={parsedOutput}
-              parsedMetadata={parsedMetadata}
-              isLoading={observationWithIOCompat.isLoading}
-              isParsing={isWaitingForParsing}
-              media={observationMedia.data}
+              input={previewInput}
+              output={previewOutput}
+              outputCorrection={isParsedPreview ? undefined : outputCorrection}
+              metadata={previewMetadata}
+              parsedInput={previewParsedInput}
+              parsedOutput={previewParsedOutput}
+              parsedMetadata={previewParsedMetadata}
+              isLoading={
+                isParsedPreview ? false : observationWithIOCompat.isLoading
+              }
+              isParsing={isParsedPreview ? false : isWaitingForParsing}
+              hideIfNull={isParsedPreview}
+              media={isParsedPreview ? [] : observationMedia.data}
               currentView={currentView}
               setIsPrettyViewAvailable={setIsPrettyViewAvailable}
               inputExpansionState={formattedExpansion.input}
@@ -504,7 +547,7 @@ export function ObservationDetailView({
               onJsonMetadataExpandedChange={(expanded) =>
                 setJsonFieldExpansion("metadata", expanded)
               }
-              enableInlineComments={true}
+              enableInlineComments={!isParsedPreview}
               onAddInlineComment={handleAddInlineComment}
               commentedPathsByField={commentedPathsByField}
               showMetadata
@@ -513,6 +556,7 @@ export function ObservationDetailView({
               projectId={projectId}
               traceId={traceId}
               environment={observation.environment}
+              showCorrections={!isParsedPreview}
             />
             {currentView !== "json-beta" && (
               <div className="h-4 w-full shrink-0" />
