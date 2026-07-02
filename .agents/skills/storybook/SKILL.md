@@ -31,6 +31,7 @@ Keep the existing component, but update it to use the newly created component fo
 - Use "CSF Next" format by default.
 - Cover only the relevant component by default.
 - Avoid custom render functions by default.
+- Never use `decorators` to add styling or layout to a story. Stories should render the components as they are.
 - Use `satisfies` and typed Storybook metadata so invalid args, decorators, and play functions are type-checked.
 - Use play functions to test user-relevant interactions after render, not to compensate for complex setup or hidden dependencies.
 - Prefix stories whose primary purpose is interaction test coverage with `(Test)` in the Storybook display name, for example `name: "(Test) Opens Menu"`.
