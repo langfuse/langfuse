@@ -1,22 +1,7 @@
 import { MediaReferenceStringSchema } from "@langfuse/shared";
 
-/**
- * A JSON string leaf classified as previewable media. `contentType` is always
- * known here without any fetch, so the collapsed chip can render from it alone.
- * Langfuse refs resolve their URL lazily (via `useResolvedMedia`); data URIs
- * and plain URLs carry their own `src`.
- */
-export type MediaLeafDescriptor =
-  | {
-      kind: "langfuseRef";
-      contentType: string;
-      mediaId: string;
-      referenceString: string;
-    }
-  | { kind: "dataUri"; contentType: string; src: string }
-  | { kind: "url"; contentType: string; src: string };
-
 const LANGFUSE_MEDIA_PREFIX = "@@@langfuseMedia:";
+const LANGFUSE_MEDIA_REFERENCE_PATTERN = /@@@langfuseMedia:[^@]*@@@/g;
 const DATA_URI_PREFIX = "data:";
 const MAX_LANGFUSE_REFERENCE_LENGTH = 512;
 
@@ -50,15 +35,15 @@ const URL_EXTENSION_TO_MIME: Record<string, string> = {
 // data: URIs are only surfaced for genuinely-previewable top-level types.
 const PREVIEWABLE_TOP_LEVEL = new Set(["image", "audio", "video"]);
 
-// Guards the per-leaf hot path: bail before parsing a URL out of long strings.
+// Guards the per-value hot path: bail before parsing a URL out of long strings.
 const MAX_URL_LENGTH = 2048;
 
 /**
- * Classifies a JSON string leaf as previewable media, or returns null. Pure and
+ * Classifies a string value as previewable media, or returns null. Pure and
  * cheap: a prefix check gates every branch so non-media strings (the common
  * case, possibly thousands per view) cost only a couple of `startsWith` calls.
  */
-export function classifyMediaLeaf(value: unknown): MediaLeafDescriptor | null {
+export function classifyMediaValue(value: unknown) {
   if (typeof value !== "string" || value.length === 0) return null;
 
   if (value.startsWith(LANGFUSE_MEDIA_PREFIX)) {
@@ -66,7 +51,7 @@ export function classifyMediaLeaf(value: unknown): MediaLeafDescriptor | null {
     const parsed = MediaReferenceStringSchema.safeParse(value);
     if (!parsed.success) return null;
     return {
-      kind: "langfuseRef",
+      kind: "langfuseRef" as const,
       contentType: parsed.data.type,
       mediaId: parsed.data.id,
       referenceString: parsed.data.referenceString,
@@ -79,20 +64,62 @@ export function classifyMediaLeaf(value: unknown): MediaLeafDescriptor | null {
     const contentType = match?.[1];
     if (!contentType) return null;
     if (!PREVIEWABLE_TOP_LEVEL.has(contentType.split("/")[0]!)) return null;
-    return { kind: "dataUri", contentType, src: value };
+    return { kind: "dataUri" as const, contentType, src: value };
   }
 
   if (value.startsWith("http://") || value.startsWith("https://")) {
     if (value.length > MAX_URL_LENGTH) return null;
     const contentType = mimeFromUrl(value);
     if (!contentType) return null;
-    return { kind: "url", contentType, src: value };
+    return { kind: "url" as const, contentType, src: value };
   }
 
   return null;
 }
 
-function mimeFromUrl(url: string): string | null {
+export type MediaDescriptor = NonNullable<
+  ReturnType<typeof classifyMediaValue>
+>;
+
+export function splitStringByMediaReferences(value: string) {
+  const segments: Array<
+    | { type: "text"; value: string }
+    | {
+        type: "media";
+        value: string;
+        descriptor: MediaDescriptor;
+      }
+  > = [];
+  let lastIndex = 0;
+
+  for (const match of value.matchAll(LANGFUSE_MEDIA_REFERENCE_PATTERN)) {
+    const reference = match[0];
+    const index = match.index ?? 0;
+    const descriptor = classifyMediaValue(reference);
+
+    if (!descriptor) continue;
+
+    if (index > lastIndex) {
+      segments.push({ type: "text", value: value.slice(lastIndex, index) });
+    }
+
+    segments.push({ type: "media", value: reference, descriptor });
+    lastIndex = index + reference.length;
+  }
+
+  if (segments.length === 0) {
+    segments.push({ type: "text", value });
+    return segments;
+  }
+
+  if (lastIndex < value.length) {
+    segments.push({ type: "text", value: value.slice(lastIndex) });
+  }
+
+  return segments;
+}
+
+function mimeFromUrl(url: string) {
   let pathname: string;
   try {
     pathname = new URL(url).pathname;

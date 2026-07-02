@@ -13,7 +13,15 @@ const DocsButton = ({ href }: { href: string }) => (
   </Button>
 );
 
-export function DeveloperToolsSettings() {
+const ManageApiKeysButton = ({ projectId }: { projectId: string }) => (
+  <Button asChild variant="secondary">
+    <Link href={`/project/${projectId}/settings/api-keys`}>
+      Manage API keys
+    </Link>
+  </Button>
+);
+
+export function DeveloperToolsSettings({ projectId }: { projectId: string }) {
   return (
     <div>
       <Header title="MCP & CLI" />
@@ -63,6 +71,7 @@ export function DeveloperToolsSettings() {
   --header "Authorization: Basic {your-base64-token}"`}
           />
           <div className="mt-4 flex items-center gap-2">
+            <ManageApiKeysButton projectId={projectId} />
             <DocsButton href="https://langfuse.com/docs/api-and-data-platform/features/mcp-server" />
           </div>
         </Card>
@@ -86,6 +95,7 @@ export LANGFUSE_SECRET_KEY="sk-lf-..."
 npx langfuse-cli api <resource> <action>`}
           />
           <div className="mt-4 flex items-center gap-2">
+            <ManageApiKeysButton projectId={projectId} />
             <DocsButton href="https://langfuse.com/docs/api-and-data-platform/features/cli" />
           </div>
         </Card>
