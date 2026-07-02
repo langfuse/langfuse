@@ -147,7 +147,9 @@ function scanFile(file) {
     if (!findings.has(name)) findings.set(name, []);
     findings
       .get(name)
-      .push(`${ref.identifier.loc.start.line}:${ref.identifier.loc.start.column}`);
+      .push(
+        `${ref.identifier.loc.start.line}:${ref.identifier.loc.start.column}`,
+      );
   }
   return findings;
 }
