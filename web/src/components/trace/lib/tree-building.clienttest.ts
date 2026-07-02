@@ -2182,3 +2182,60 @@ describe("getSubtreeDurationOverflowMs", () => {
     expect(getSubtreeDurationOverflowMs(64_000, 65_000)).toBe(65_000);
   });
 });
+
+describe("resilience to duplicate observation ids", () => {
+  it("builds the full tree when the input has duplicate rows for the same id (events-based)", () => {
+    // v4 events can surface the same observation as multiple rows (start/end
+    // events, or overlaid data), so byTraceId may return duplicate ids. A
+    // duplicated child id must NOT inflate its parent's in-degree in the
+    // topological sort — otherwise the parent (and every ancestor up to the
+    // root) is never emitted and the whole tree renders blank.
+    const trace = createMockTrace({
+      id: "t1",
+      rootObservationType: "SPAN",
+      rootObservationId: "root",
+    });
+    const mkMid = (endMs: string) =>
+      createMockObservation({
+        id: "mid",
+        name: "mid",
+        parentObservationId: "root",
+        startTime: new Date("2024-01-01T00:00:00.100Z"),
+        endTime: new Date(endMs),
+      });
+    const observations: ObservationReturnType[] = [
+      createMockObservation({
+        id: "root",
+        name: "root",
+        parentObservationId: null,
+        startTime: new Date("2024-01-01T00:00:00.000Z"),
+      }),
+      mkMid("2024-01-01T00:00:00.400Z"),
+      mkMid("2024-01-01T00:00:00.900Z"), // duplicate id "mid"
+      createMockObservation({
+        id: "leaf",
+        name: "leaf",
+        parentObservationId: "mid",
+        startTime: new Date("2024-01-01T00:00:00.200Z"),
+        endTime: new Date("2024-01-01T00:00:00.300Z"),
+      }),
+    ];
+
+    const result = buildTraceUiData(trace, observations);
+
+    // The root must be emitted (not swallowed by the in-degree miscount).
+    expect(result.roots).toHaveLength(1);
+    expect(result.roots[0].id).toBe("root");
+    // Every unique observation renders exactly once (no duplicate rows).
+    expect(result.searchItems.map((i) => i.node.id).sort()).toEqual([
+      "leaf",
+      "mid",
+      "root",
+    ]);
+    // Structure is preserved: root → mid → leaf, with "mid" appearing once.
+    expect(result.roots[0].children.map((c) => c.id)).toEqual(["mid"]);
+    expect(result.roots[0].children[0].children.map((c) => c.id)).toEqual([
+      "leaf",
+    ]);
+  });
+});

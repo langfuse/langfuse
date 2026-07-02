@@ -86,6 +86,26 @@ function prepareObservations(list: ObservationReturnType[]): {
 } {
   if (list.length === 0) return { sortedObservations: [] };
 
+  // Dedupe by id first. v4 events can surface the same observation as multiple
+  // rows (a start event + an end event, or overlaid/duplicated data), so the
+  // input may contain duplicate ids. Left in, a duplicated child id gets pushed
+  // to its parent's childrenIds more than once, inflating the parent's in-degree
+  // in the topological sort — the child is only processed once, so the parent
+  // (and every ancestor up to the root) never reaches in-degree 0, is never
+  // emitted, and the whole tree renders blank. Keep the most-complete row per
+  // id: prefer one with an endTime, then the latest endTime, else the latest
+  // startTime.
+  const completeness = (o: ObservationReturnType) =>
+    o.endTime ? o.endTime.getTime() : o.startTime.getTime();
+  const dedupedById = new Map<string, ObservationReturnType>();
+  for (const o of list) {
+    const existing = dedupedById.get(o.id);
+    if (!existing || completeness(o) >= completeness(existing)) {
+      dedupedById.set(o.id, o);
+    }
+  }
+  list = [...dedupedById.values()];
+
   // Build a Set of all observation IDs for O(1) lookup
   const observationIds = new Set(list.map((o) => o.id));
 
