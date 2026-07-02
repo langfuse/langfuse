@@ -49,7 +49,9 @@ export const IngestionEvent = z.object({
 export const OtelIngestionEvent = z.object({
   data: z.object({
     fileKey: z.string(),
-    publicKey: z.string(),
+    // Optional for compatibility with queued/replayed payloads that do not
+    // carry API-key attribution.
+    publicKey: z.string().optional(),
   }),
   authCheck: z.object({
     validKey: z.literal(true),

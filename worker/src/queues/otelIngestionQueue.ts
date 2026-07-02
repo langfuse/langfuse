@@ -211,7 +211,7 @@ export const otelIngestionQueueProcessorBuilder = (
   ): Promise<void> => {
     try {
       const projectId = job.data.payload.authCheck.scope.projectId;
-      const publicKey = job.data.payload.data.publicKey;
+      const publicKey = job.data.payload.data.publicKey ?? "";
       const fileKey = job.data.payload.data.fileKey;
       const auth = job.data.payload.authCheck;
       const attribution: IngestionAttribution = {

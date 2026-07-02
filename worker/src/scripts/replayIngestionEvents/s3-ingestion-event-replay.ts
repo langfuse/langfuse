@@ -75,7 +75,7 @@ interface OTelJsonOutputItem {
   };
   data: {
     fileKey: string;
-    publicKey: string;
+    publicKey?: string;
   };
   sdkName: string;
   sdkVersion: string;

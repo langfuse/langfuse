@@ -69,11 +69,10 @@ describe("ingestion queue payload compatibility", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("accepts otel jobs created before SDK attribution fields existed", () => {
+  it("accepts otel jobs with omitted attribution fields", () => {
     const parsed = OtelIngestionEvent.safeParse({
       data: {
         fileKey: "otel-01",
-        publicKey: "pk-lf-public",
       },
       authCheck: {
         validKey: true,
