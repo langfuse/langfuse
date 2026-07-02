@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const VERTEXAI_USE_DEFAULT_CREDENTIALS = "__VERTEXAI_DEFAULT_CREDENTIALS__";
 
 const anthropicInvokeMock = vi.fn();
 const chatAnthropicConstructorMock = vi.fn().mockImplementation(function () {
@@ -504,5 +506,147 @@ describe("fetchLLMCompletion provider error classification", () => {
     // The validated `model` field must win; the injected override is stripped.
     const { invocationKwargs } = chatAnthropicConstructorMock.mock.calls[0][0];
     expect(invocationKwargs).not.toHaveProperty("model");
+  });
+});
+
+describe("fetchLLMCompletion VertexAI ADC project override", () => {
+  const googleAuthConstructorMock = vi.fn();
+  const chatGoogleInvokeMock = vi.fn();
+  const chatGoogleConstructorMock = vi.fn().mockImplementation(function () {
+    return {
+      invoke: chatGoogleInvokeMock,
+      pipe: vi.fn().mockReturnValue({
+        invoke: chatGoogleInvokeMock,
+        stream: vi.fn(),
+      }),
+    };
+  });
+
+  let originalCloudRegion: string | undefined;
+  let originalAdcOverride: "true" | "false";
+  let env: typeof import("../../../packages/shared/src/env").env;
+  let encrypt: typeof import("../../../packages/shared/src/encryption").encrypt;
+  let fetchLLMCompletion: typeof import("../../../packages/shared/src/server/llm/fetchLLMCompletion").fetchLLMCompletion;
+
+  beforeEach(async () => {
+    googleAuthConstructorMock.mockClear();
+    chatGoogleInvokeMock.mockReset().mockResolvedValue({ content: "ok" });
+    chatGoogleConstructorMock.mockClear();
+    anthropicInvokeMock.mockReset().mockResolvedValue({ content: "ok" });
+    chatAnthropicConstructorMock.mockClear();
+    vi.resetModules();
+    originalCloudRegion = process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    delete process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+    // Bare specifiers can't reliably resolve from this test file under pnpm
+    // strict isolation; mock through the resolved shared-package path.
+    vi.doMock(
+      "../../../packages/shared/node_modules/google-auth-library",
+      () => ({
+        GoogleAuth: googleAuthConstructorMock,
+      }),
+    );
+    vi.doMock(
+      "../../../packages/shared/node_modules/@langchain/google",
+      () => ({
+        ChatGoogle: chatGoogleConstructorMock,
+      }),
+    );
+    vi.doMock(
+      "../../../packages/shared/node_modules/@langchain/anthropic",
+      () => ({
+        ChatAnthropic: chatAnthropicConstructorMock,
+      }),
+    );
+    vi.doMock("../../../packages/shared/src/server/llm/errors", () => ({
+      LLMCompletionError: MockLLMCompletionError,
+    }));
+
+    ({ env } = await import("../../../packages/shared/src/env"));
+    ({ encrypt } = await import("../../../packages/shared/src/encryption"));
+    ({ fetchLLMCompletion } =
+      await import("../../../packages/shared/src/server/llm/fetchLLMCompletion"));
+
+    originalAdcOverride = env.VERTEXAI_ADC_ALLOW_PROJECT_OVERRIDE;
+  });
+
+  afterEach(() => {
+    env.VERTEXAI_ADC_ALLOW_PROJECT_OVERRIDE = originalAdcOverride;
+    if (originalCloudRegion === undefined) {
+      delete process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    } else {
+      process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+    }
+  });
+
+  const invokeVertex = async ({
+    model,
+    config,
+  }: {
+    model: string;
+    config: Record<string, string> | null;
+  }) => {
+    await fetchLLMCompletion({
+      streaming: false,
+      messages: [{ role: "user", content: "ping", type: "public-api-created" }],
+      modelParams: {
+        provider: "vertexai",
+        adapter: "google-vertex-ai",
+        model,
+        temperature: 0,
+        max_tokens: 10,
+      },
+      llmConnection: {
+        secretKey: encrypt(VERTEXAI_USE_DEFAULT_CREDENTIALS),
+        config,
+      },
+    });
+  };
+
+  // Both the Gemini (createSecureVertexAIApiClient -> new GoogleAuth) and the
+  // Claude-on-Vertex (new GoogleAuth + AnthropicVertex) paths funnel through
+  // the same GoogleAuth constructor, so asserting its args covers both.
+  const lastGoogleAuthArgs = () =>
+    googleAuthConstructorMock.mock.calls.at(-1)?.[0];
+
+  it("ignores config.projectId with ADC when override flag is off (Gemini)", async () => {
+    env.VERTEXAI_ADC_ALLOW_PROJECT_OVERRIDE = "false";
+
+    await invokeVertex({
+      model: "gemini-2.0-flash",
+      config: { projectId: "should-be-ignored" },
+    });
+
+    expect(lastGoogleAuthArgs()?.projectId).toBeUndefined();
+  });
+
+  it("forwards config.projectId to GoogleAuth when override flag is on (Gemini)", async () => {
+    env.VERTEXAI_ADC_ALLOW_PROJECT_OVERRIDE = "true";
+
+    await invokeVertex({
+      model: "gemini-2.0-flash",
+      config: { projectId: "gcp-prod-ml" },
+    });
+
+    expect(lastGoogleAuthArgs()?.projectId).toBe("gcp-prod-ml");
+  });
+
+  it("forwards config.projectId to GoogleAuth when override flag is on (Claude-on-Vertex)", async () => {
+    env.VERTEXAI_ADC_ALLOW_PROJECT_OVERRIDE = "true";
+
+    await invokeVertex({
+      model: "claude-sonnet-4-6",
+      config: { projectId: "gcp-prod-ml", location: "us-east5" },
+    });
+
+    expect(lastGoogleAuthArgs()?.projectId).toBe("gcp-prod-ml");
+  });
+
+  it("leaves GoogleAuth.projectId unset with ADC + flag on when no projectId is configured", async () => {
+    env.VERTEXAI_ADC_ALLOW_PROJECT_OVERRIDE = "true";
+
+    await invokeVertex({ model: "gemini-2.0-flash", config: null });
+
+    expect(lastGoogleAuthArgs()?.projectId).toBeUndefined();
   });
 });

@@ -566,9 +566,9 @@ export async function fetchLLMCompletion(
       additionalModelRequestFields: modelParams.providerOptions as any,
     });
   } else if (modelParams.adapter === LLMAdapter.VertexAI) {
-    const { location } = config
+    const { location, projectId: configProjectId } = config
       ? VertexAIConfigSchema.parse(config)
-      : { location: undefined };
+      : { location: undefined, projectId: undefined };
 
     // location flows into the Vertex host both SDKs build from it
     // (https://${location}-aiplatform.googleapis.com), so reject anything that
@@ -586,17 +586,25 @@ export async function fetchLLMCompletion(
 
     // When using ADC, authOptions must be undefined to use google-auth-library's default credential chain
     // This supports: GKE Workload Identity, Cloud Run service accounts, GCE metadata service, gcloud auth
-    // Security: We intentionally ignore user-provided projectId when using ADC to prevent
-    // privilege escalation attacks where users could access other GCP projects via the server's credentials
+    // Security: With ADC we intentionally ignore the user-provided projectId by default
+    // to prevent privilege-escalation attacks. Self-hosted operators can opt in via
+    // VERTEXAI_ADC_ALLOW_PROJECT_OVERRIDE — GCP IAM still enforces project access
+    // based on the ADC identity, so this only re-targets within already-allowed projects.
     const serviceAccountKey = shouldUseDefaultCredentials
       ? undefined
       : GCPServiceAccountKeySchema.parse(JSON.parse(apiKey));
+    const allowAdcProjectOverride =
+      shouldUseDefaultCredentials &&
+      env.VERTEXAI_ADC_ALLOW_PROJECT_OVERRIDE === "true" &&
+      Boolean(configProjectId);
     const authOptions: GoogleAuthOptions | undefined = serviceAccountKey
       ? {
           credentials: serviceAccountKey,
           projectId: serviceAccountKey.project_id,
         }
-      : undefined; // Always use ADC auto-detection, never allow user-specified projectId
+      : allowAdcProjectOverride
+        ? { projectId: configProjectId }
+        : undefined;
 
     // Requests time out after 60 seconds for both public and private endpoints by default
     // Reference: https://cloud.google.com/vertex-ai/docs/predictions/get-online-predictions#send-request
