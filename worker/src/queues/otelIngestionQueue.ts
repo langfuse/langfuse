@@ -62,7 +62,7 @@ export function checkHeaderBasedDirectWrite(params: {
   const { sdkName, sdkVersion, ingestionVersion } = params;
 
   // Check x-langfuse-ingestion-version (>= 4 means direct write eligible).
-  // Values > 4 are rejected at the API route, so anything reaching here is valid.
+  // Future versions are accepted as compatible so newer clients keep ingesting.
   const parsed = ingestionVersion ? parseInt(ingestionVersion, 10) : NaN;
   if (!isNaN(parsed) && parsed >= 4) {
     return true;
