@@ -17,6 +17,8 @@ import {
 } from "@/src/ee/features/in-app-agent/schema";
 import { compactTextMessageChunks } from "@/src/ee/features/in-app-agent/server/eventCompaction";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
+import { safeJsonParse } from "@/src/utils/json";
+import { IN_APP_AGENT_SANDBOX_TOOL_NAMES } from "@/src/ee/features/in-app-agent/server/tools";
 
 // Keep this close to the route maxDuration (120s) so a killed foreground stream
 // does not block the conversation long after the route can no longer respond.
@@ -34,9 +36,10 @@ export type SerializedInAppAgentConversation = {
   updatedAt: Date;
 };
 
-type PersistedConversationEvent = {
+export type PersistedConversationEvent = {
   event: AgUiEvent;
   runId: string;
+  createdAt: Date;
 };
 
 export function serializeConversation(
@@ -270,19 +273,87 @@ export async function getConversationEvents(params: {
   projectId: string;
   conversationId: string;
 }): Promise<PersistedConversationEvent[]> {
-  const events = await params.prisma.inAppAgentEvent.findMany({
+    const events = await params.prisma.inAppAgentEvent.findMany({
     where: {
       projectId: params.projectId,
       conversationId: params.conversationId,
     },
     orderBy: { sequenceNumber: "asc" },
-    select: { event: true, runId: true },
-  });
+      select: { event: true, runId: true, createdAt: true },
+    });
 
-  return events.map(({ event, runId }) => ({
-    event: event as unknown as AgUiEvent,
-    runId,
-  }));
+    return events.map(({ event, runId, createdAt }) => ({
+      event: event as unknown as AgUiEvent,
+      runId,
+      createdAt,
+    }));
+  }
+
+export function getSandboxToolCallFiles(
+  events: readonly PersistedConversationEvent[],
+) {
+  const drafts = new Map<
+    string,
+    {
+      createdAt: Date;
+      toolName: string;
+      request: string;
+    }
+  >();
+  const files: Array<{ path: string; content: string }> = [];
+
+  for (const { event, createdAt } of events) {
+    if (event.type === EventType.TOOL_CALL_START) {
+      const toolCallId = getString(event, "toolCallId");
+      const toolName = getString(event, "toolCallName");
+
+      if (toolCallId && toolName && !IN_APP_AGENT_SANDBOX_TOOL_NAMES.has(toolName)) {
+        drafts.set(toolCallId, {
+          createdAt,
+          toolName,
+          request: "",
+        });
+      }
+      continue;
+    }
+
+    if (event.type === EventType.TOOL_CALL_ARGS) {
+      const toolCallId = getString(event, "toolCallId");
+      const draft = toolCallId ? drafts.get(toolCallId) : undefined;
+
+      if (draft) {
+        draft.request += getString(event, "delta") ?? "";
+      }
+      continue;
+    }
+
+    if (event.type !== EventType.TOOL_CALL_RESULT) {
+      continue;
+    }
+
+    const toolCallId = getString(event, "toolCallId");
+    const draft = toolCallId ? drafts.get(toolCallId) : undefined;
+
+    if (!toolCallId || !draft) {
+      continue;
+    }
+
+    drafts.delete(toolCallId);
+    files.push({
+      path: `tool_calls/${formatSandboxToolCallTimestamp(draft.createdAt)}_${draft.toolName}.json`,
+      content: JSON.stringify(
+        {
+          request: parseSandboxToolCallValue(draft.request),
+          response: parseSandboxToolCallValue(getString(event, "content")),
+          error: getString(event, "error") ?? null,
+        },
+        null,
+        2,
+      ),
+    });
+  }
+
+  return files;
 }
 
 export async function getConversationMessages(params: {
@@ -932,6 +1003,19 @@ function compactObject<T extends Record<string, unknown>>(value: T): T {
   return Object.fromEntries(
     Object.entries(value).filter(([, entry]) => entry !== undefined),
   ) as T;
+}
+
+function parseSandboxToolCallValue(value: string | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = safeJsonParse(value);
+  return parsed === undefined ? value : parsed;
+}
+
+function formatSandboxToolCallTimestamp(date: Date) {
+  return date.toISOString().replaceAll(":", "-");
 }
 
 function getDefaultConversationTitle(date: Date) {

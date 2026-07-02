@@ -25,11 +25,13 @@ import type {
 } from "@/src/ee/features/in-app-agent/server/instrumentation";
 import { createInAppAgentInstrumentation } from "@/src/ee/features/in-app-agent/server/instrumentation";
 import {
+  createSandboxTools,
   createRedirectActionTool,
   filterInAppAgentAvailableLangfuseMcpTools,
   type InAppAgentUserAccess,
   withInAppAgentToolApproval,
 } from "@/src/ee/features/in-app-agent/server/tools";
+import type { InAppAgentSandbox } from "@/src/ee/features/in-app-agent/server/sandbox";
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
 import { logger } from "@langfuse/shared/src/server";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
@@ -140,6 +142,7 @@ type CreateAgUiStreamOptions = {
   langfuseClient: Langfuse;
   useLocalPrompt: boolean;
   langfuseTracing?: InAppAgentTracingConfig;
+  sandbox?: InAppAgentSandbox;
 };
 
 export async function createAgUiStream(params: {
@@ -201,10 +204,11 @@ export async function createAgUiStream(params: {
     finished = true;
     eventQueue
       .then(async () => {
-        const results = await Promise.allSettled([
-          cleanupAdapter?.(),
-          params.options.onFinish?.(),
-        ]);
+          const results = await Promise.allSettled([
+            cleanupAdapter?.(),
+            params.options.sandbox?.onTurnEnded(),
+            params.options.onFinish?.(),
+          ]);
 
         for (const result of results) {
           if (result.status === "rejected") {
@@ -740,25 +744,28 @@ async function createMastraAdapter(params: {
       });
     }
 
-    // @ag-ui/mastra drives execution via adapter.run(input), not a direct
-    // agent.stream(..., { toolsets }) call. Keep Mastra's per-request MCP
-    // discovery, then prefix tool names for constructor-based tools so the
-    // model sees the same names that later appear in AG-UI tool-call events.
-    const tools = withInAppAgentToolApproval({
-      ...prefixToolsetTools(
-        "langfuse",
-        filterInAppAgentAvailableLangfuseMcpTools({
-          tools: toolsets.langfuse,
-          userAccess: params.options.langfuseMcp.userAccess,
+      // @ag-ui/mastra drives execution via adapter.run(input), not a direct
+      // agent.stream(..., { toolsets }) call. Keep Mastra's per-request MCP
+      // discovery, then prefix tool names for constructor-based tools so the
+      // model sees the same names that later appear in AG-UI tool-call events.
+      const tools = withInAppAgentToolApproval({
+        ...prefixToolsetTools(
+          "langfuse",
+          filterInAppAgentAvailableLangfuseMcpTools({
+            tools: toolsets.langfuse,
+            userAccess: params.options.langfuseMcp.userAccess,
+          }),
+        ),
+        ...prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
+        [IN_APP_AGENT_REDIRECT_TOOL_NAME]: createRedirectActionTool({
+          projectId: params.options.redirectAction.projectId,
+          isV4Enabled: params.options.redirectAction.isV4Enabled,
         }),
-      ),
-      ...prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
-      [IN_APP_AGENT_REDIRECT_TOOL_NAME]: createRedirectActionTool({
-        projectId: params.options.redirectAction.projectId,
-        isV4Enabled: params.options.redirectAction.isV4Enabled,
-      }),
-    });
-    params.onToolsAvailable?.(tools);
+        ...(params.options.sandbox
+          ? createSandboxTools(params.options.sandbox)
+          : {}),
+      });
+      params.onToolsAvailable?.(tools);
 
     const agent = new Agent({
       id: "langfuse-in-app-assistant",

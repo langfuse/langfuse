@@ -10,6 +10,10 @@ import {
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
 } from "@/src/ee/features/in-app-agent/constants";
 import { patchMastraToolCallInputStreaming } from "@/src/ee/features/in-app-agent/server/agent";
+import {
+  createInAppAgentSandbox,
+  type SandboxProvider,
+} from "@/src/ee/features/in-app-agent/server/sandbox";
 import { IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES } from "@/src/ee/features/in-app-agent/server/tools";
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
 import { decodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
@@ -55,6 +59,102 @@ const defaultInAppAgentUserAccess = {
   projectRole: "OWNER" as const,
   isAdmin: false,
 };
+
+  async function createTestSandbox() {
+  let sandboxState: {
+    providerSessionId: string | null;
+    sandboxExpiresAt: Date | null;
+    sandboxProvider: string | null;
+    sandboxSnapshotKey: string | null;
+  } = {
+    providerSessionId: null,
+    sandboxExpiresAt: null,
+    sandboxProvider: null,
+    sandboxSnapshotKey: null,
+  };
+  let sessionCounter = 0;
+  const files = new Map<string, string>();
+  let suspendedFiles = new Map<string, string>();
+  let activeSessionId: string | null = null;
+  let suspensionTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const provider: SandboxProvider = {
+    name: "test-fake",
+    async ensureSession({ sessionId }) {
+      if (sessionId && activeSessionId === sessionId) {
+        if (suspensionTimer) {
+          clearTimeout(suspensionTimer);
+          suspensionTimer = null;
+        }
+        return { sessionId };
+      }
+
+        activeSessionId = `sandbox-session-${sessionCounter++}`;
+        files.clear();
+        for (const [path, content] of suspendedFiles.entries()) {
+          files.set(path, content);
+      }
+      return { sessionId: activeSessionId };
+    },
+    async syncReadonlyFiles({ files: readonlyFiles }) {
+      for (const key of Array.from(files.keys())) {
+        if (key.startsWith("tool_calls/")) files.delete(key);
+      }
+      for (const file of readonlyFiles) {
+        files.set(file.path, file.content);
+      }
+    },
+    async read({ path }) {
+      return { path, content: files.get(path) ?? null };
+    },
+    async write({ path, content }) {
+      files.set(path, content);
+      return { path, bytesWritten: content.length };
+    },
+    async edit({ path, oldText, newText }) {
+      const current = files.get(path) ?? "";
+      const replaced = current.includes(oldText);
+      if (replaced) files.set(path, current.replace(oldText, newText));
+      return { path, replaced };
+    },
+    async bash() {
+      return { stdout: "", stderr: "", exitCode: 0 };
+    },
+    scheduleSuspension({ expiresAt }) {
+      if (suspensionTimer) clearTimeout(suspensionTimer);
+      suspensionTimer = setTimeout(() => {
+        suspendedFiles = new Map(files.entries());
+        activeSessionId = null;
+      }, Math.max(0, expiresAt.getTime() - Date.now()));
+    },
+  };
+
+  return createInAppAgentSandbox({
+    conversationId: "conversation-1",
+    projectId: "project-1",
+    providerSessionId: sandboxState.providerSessionId,
+    sandboxExpiresAt: sandboxState.sandboxExpiresAt,
+    sandboxProvider: sandboxState.sandboxProvider,
+    sandboxSnapshotKey: sandboxState.sandboxSnapshotKey,
+    ttlMs: 1_000,
+    provider,
+    getToolCallFiles: async () => [],
+    saveState: async (nextState) => {
+      sandboxState = {
+        ...sandboxState,
+        ...nextState,
+        providerSessionId:
+          nextState.providerSessionId ?? sandboxState.providerSessionId,
+        sandboxExpiresAt:
+          nextState.sandboxExpiresAt ?? sandboxState.sandboxExpiresAt,
+        sandboxProvider:
+          nextState.sandboxProvider ?? sandboxState.sandboxProvider,
+        sandboxSnapshotKey:
+          nextState.sandboxSnapshotKey ?? sandboxState.sandboxSnapshotKey,
+      };
+    },
+  });
+}
 
 vi.mock("@ag-ui/mastra", () => ({
   MastraAgent: vi.fn().mockImplementation(function () {
@@ -563,10 +663,11 @@ describe("createAgUiStream", () => {
     };
     const persistedEvents: AgUiEvent[] = [];
     const eventOrder: string[] = [];
-    const langfuseClient = {
-      getPrompt: promptMocks.getPrompt,
-    };
-    adapterEvents.inputs = [];
+      const langfuseClient = {
+        getPrompt: promptMocks.getPrompt,
+      };
+      const sandbox = await createTestSandbox();
+      adapterEvents.inputs = [];
 
     adapterEvents.items = [
       {
@@ -622,14 +723,15 @@ describe("createAgUiStream", () => {
           userAccess: defaultInAppAgentUserAccess,
           runOverride: "run-override",
         },
-        redirectAction: {
-          projectId: "project-1",
-          isV4Enabled: false,
-        },
-        langfuseClient,
-        useLocalPrompt: false,
-        langfuseTracing: {
-          environment: "langfuse-in-app-agent",
+          redirectAction: {
+            projectId: "project-1",
+            isV4Enabled: false,
+          },
+          langfuseClient,
+          sandbox,
+          useLocalPrompt: false,
+          langfuseTracing: {
+            environment: "langfuse-in-app-agent",
           metadata: { langfuse_project_id: "project-1" },
           user: { id: "user-1" },
           traceId: "0123456789abcdef0123456789abcdef",
@@ -658,13 +760,25 @@ describe("createAgUiStream", () => {
             server: "langfuseDocs",
             execute: expect.any(Function),
           }),
-          langfuseDocs_fetch: expect.objectContaining({
-            server: "langfuseDocs",
-            execute: expect.any(Function),
-          }),
-          langfuse_proposeRedirect: expect.objectContaining({
-            id: "langfuse_proposeRedirect",
-          }),
+            langfuseDocs_fetch: expect.objectContaining({
+              server: "langfuseDocs",
+              execute: expect.any(Function),
+            }),
+            read: expect.objectContaining({
+              id: "read",
+            }),
+            write: expect.objectContaining({
+              id: "write",
+            }),
+            edit: expect.objectContaining({
+              id: "edit",
+            }),
+            bash: expect.objectContaining({
+              id: "bash",
+            }),
+            langfuse_proposeRedirect: expect.objectContaining({
+              id: "langfuse_proposeRedirect",
+            }),
         }),
       }),
     );

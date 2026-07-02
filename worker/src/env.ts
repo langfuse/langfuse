@@ -131,13 +131,30 @@ const EnvSchema = z.object({
   LANGFUSE_SCORE_DELETE_CONCURRENCY: z.coerce.number().positive().default(1),
   // Delay (ms) inserted after each Mixpanel flush to throttle analytics exports
   // and avoid overwhelming the target instance (see issue #12786).
-  LANGFUSE_MIXPANEL_FLUSH_DELAY_MS: z.coerce.number().min(0).default(100),
-  LANGFUSE_DATASET_DELETE_CONCURRENCY: z.coerce.number().positive().default(1),
-  LANGFUSE_PROJECT_DELETE_CONCURRENCY: z.coerce.number().positive().default(1),
-  LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY: z.coerce
-    .number()
-    .positive()
-    .default(5),
+    LANGFUSE_MIXPANEL_FLUSH_DELAY_MS: z.coerce.number().min(0).default(100),
+    LANGFUSE_DATASET_DELETE_CONCURRENCY: z.coerce.number().positive().default(1),
+    LANGFUSE_PROJECT_DELETE_CONCURRENCY: z.coerce.number().positive().default(1),
+    LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
+      .enum(["dangerous-docker", "lambda-microvm"])
+      .optional(),
+    LANGFUSE_IN_APP_AGENT_SANDBOX_LOCAL_SNAPSHOT_DIR: z.string().optional(),
+    LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_BUCKET: z.string().optional(),
+    LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_PREFIX: z
+      .string()
+      .default("in-app-agent-sandboxes"),
+    LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_REGION: z.string().optional(),
+    LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_ENDPOINT: z.string().optional(),
+    LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_ACCESS_KEY_ID: z.string().optional(),
+    LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_SECRET_ACCESS_KEY: z
+      .string()
+      .optional(),
+    LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_FORCE_PATH_STYLE: z
+      .enum(["true", "false"])
+      .default("false"),
+    LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY: z.coerce
+      .number()
+      .positive()
+      .default(5),
   LANGFUSE_LLM_AS_JUDGE_EXECUTION_WORKER_CONCURRENCY: z.coerce
     .number()
     .positive()

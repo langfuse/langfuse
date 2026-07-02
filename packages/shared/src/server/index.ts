@@ -163,6 +163,7 @@ export * from "./utils/formatAuthProvider";
 export * from "./traceDeletionProcessor";
 export * from "./deletionGuard";
 export * from "./analytics-integrations/types";
+export * from "./inAppAgentSandboxSnapshots";
 
 // Re-annotate these deprecated routing wrappers at the public server barrel.
 // They are otherwise exposed through multiple `export *` hops, where consumers

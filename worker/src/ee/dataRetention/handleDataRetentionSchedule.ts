@@ -17,6 +17,32 @@ export const handleDataRetentionSchedule = async () => {
       },
     },
   });
+  const projectsWithSandboxCleanup = await prisma.inAppAgentConversation.findMany({
+    where: {
+      AND: [
+        {
+          OR: [
+            { providerSessionId: { not: null } },
+            { sandboxSnapshotKey: { not: null } },
+            { sandboxExpiresAt: { not: null } },
+            { sandboxProvider: { not: null } },
+          ],
+        },
+        {
+          OR: [{ createdByUserId: null }, { deletedAt: { not: null } }],
+        },
+      ],
+    },
+    select: { projectId: true },
+    distinct: ["projectId"],
+  });
+  const queuedProjects = new Map(
+    projectsWithRetention.map((project) => [project.id, project.retentionDays]),
+  );
+
+  for (const project of projectsWithSandboxCleanup) {
+    queuedProjects.set(project.projectId, queuedProjects.get(project.projectId) ?? null);
+  }
 
   const dataRetentionProcessingQueue =
     DataRetentionProcessingQueue.getInstance();
@@ -25,15 +51,15 @@ export const handleDataRetentionSchedule = async () => {
   }
 
   await dataRetentionProcessingQueue.addBulk(
-    projectsWithRetention.map((project) => ({
+    Array.from(queuedProjects.entries()).map(([projectId, retention]) => ({
       name: QueueJobs.DataRetentionProcessingJob,
       data: {
         id: randomUUID(),
         name: QueueJobs.DataRetentionProcessingJob,
         timestamp: new Date(),
         payload: {
-          projectId: project.id,
-          retention: project.retentionDays,
+          projectId,
+          retention,
         },
       },
     })),
