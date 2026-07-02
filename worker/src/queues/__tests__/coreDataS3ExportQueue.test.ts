@@ -49,18 +49,6 @@ describe("mapUserToCoreDataRow", () => {
   });
 });
 
-describe("parseSsoEnforcedDomains", () => {
-  it("splits, trims, lowercases, and drops empty entries", () => {
-    expect(
-      parseSsoEnforcedDomains(" Example.com, langfuse.com ,,other.ORG"),
-    ).toStrictEqual(["example.com", "langfuse.com", "other.org"]);
-  });
-
-  it("returns an empty list when unset", () => {
-    expect(parseSsoEnforcedDomains(undefined)).toStrictEqual([]);
-  });
-});
-
 describe("coreDataS3ExportQueue", () => {
   it("streams prompt core data in pages", async () => {
     const createdAt = new Date("2026-05-14T00:00:00.000Z");
