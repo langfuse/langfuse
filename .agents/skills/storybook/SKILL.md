@@ -30,6 +30,7 @@ Keep the existing component, but update it to use the newly created component fo
 
 - Use "CSF Next" format by default.
 - Cover only the relevant component by default.
+- Do not use `args` on the meta story if most stories override these. Instead, define the args on each story.
 - Avoid custom render functions by default.
 - Never use `decorators` to add styling or layout to a story. Stories should render the components as they are.
 - Use `satisfies` and typed Storybook metadata so invalid args, decorators, and play functions are type-checked.
