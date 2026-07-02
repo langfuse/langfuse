@@ -191,8 +191,8 @@ importers:
         specifier: ^12.26.0
         version: 12.26.0
       '@clickhouse/client':
-        specifier: ^1.23.0
-        version: 1.23.0
+        specifier: 1.23.0-head.71b2e8a.1
+        version: 1.23.0-head.71b2e8a.1
       '@google-cloud/storage':
         specifier: ^7.19.0
         version: 7.19.0
@@ -1697,8 +1697,8 @@ packages:
   '@chevrotain/types@11.1.2':
     resolution: {integrity: sha512-U+HFai5+zmJCkK86QsaJtoITlboZHBqrVketcO2ROv865xfCMSFpELQoz1GkX5GzME8pTa+3kbKrZHQtI0gdbw==}
 
-  '@clickhouse/client@1.23.0':
-    resolution: {integrity: sha512-Li6TBcRKfWVxyJa8g+lJwuyn+r+zV/pJJ3yxn3TVlC00vH+zfZ6njFXsZfqIamGXHRrY5iPhAEZu2hSWzlSo3Q==}
+  '@clickhouse/client@1.23.0-head.71b2e8a.1':
+    resolution: {integrity: sha512-cLRCFRAY/2m/0Z8cTWf51gfp8yyoIWb4xu0gDoKZihh2dMs4xuKYtFkhd6mP741WvXNw6Gry5wbBVHbs5HPRjA==}
     engines: {node: '>=20'}
 
   '@codemirror/autocomplete@6.17.0':
@@ -12679,7 +12679,7 @@ snapshots:
 
   '@chevrotain/types@11.1.2': {}
 
-  '@clickhouse/client@1.23.0': {}
+  '@clickhouse/client@1.23.0-head.71b2e8a.1': {}
 
   '@codemirror/autocomplete@6.17.0(@codemirror/language@6.12.3)(@codemirror/state@6.6.0)(@codemirror/view@6.42.0)(@lezer/common@1.5.1)':
     dependencies:
