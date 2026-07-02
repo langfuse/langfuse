@@ -1476,6 +1476,61 @@ describe("Ingestion end-to-end tests", () => {
     expect(trace.project_id).toBe(projectId);
   }, 10_000);
 
+  it("should overwrite environment from the most recent trace-create event", async () => {
+    const traceId = randomUUID();
+
+    // First batch: simulate child span completing first, creating trace with env "staging"
+    const traceEventList1: TraceEventType[] = [
+      {
+        id: randomUUID(),
+        type: "trace-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: traceId,
+          timestamp: new Date().toISOString(),
+          environment: "staging",
+        },
+      },
+    ];
+
+    await ingestionService.processTraceEventList({
+      projectId,
+      entityId: traceId,
+      createdAtTimestamp: new Date(),
+      traceEventList: traceEventList1,
+    });
+
+    await clickhouseWriter.flushAll(true);
+
+    // Second batch: simulate root span arriving later with env "production"
+    const traceEventList2: TraceEventType[] = [
+      {
+        id: randomUUID(),
+        type: "trace-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: traceId,
+          timestamp: new Date().toISOString(),
+          name: "trace-name",
+          environment: "production",
+        },
+      },
+    ];
+
+    await ingestionService.processTraceEventList({
+      projectId,
+      entityId: traceId,
+      createdAtTimestamp: new Date(),
+      traceEventList: traceEventList2,
+    });
+
+    await clickhouseWriter.flushAll(true);
+
+    const trace = await getClickhouseRecord(TableName.Traces, traceId);
+
+    expect(trace.environment).toBe("production");
+  }, 10_000);
+
   it("should merge observations and set negative tokens and cost to null", async () => {
     const modelId = randomUUID();
     const pricingTierId = randomUUID();

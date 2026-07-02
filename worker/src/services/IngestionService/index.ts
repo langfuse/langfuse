@@ -89,13 +89,7 @@ const immutableEntityKeys: {
   [TableName.Observations]: (keyof ObservationRecordInsertType)[];
   [TableName.DatasetRunItems]: (keyof DatasetRunItemRecordInsertType)[];
 } = {
-  [TableName.Traces]: [
-    "id",
-    "project_id",
-    "timestamp",
-    "created_at",
-    "environment",
-  ],
+  [TableName.Traces]: ["id", "project_id", "timestamp", "created_at"],
   [TableName.Scores]: [
     "id",
     "project_id",
