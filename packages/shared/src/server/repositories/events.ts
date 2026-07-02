@@ -3042,6 +3042,50 @@ export type SdkMetadata = {
   language?: string;
 };
 
+const SDK_UPGRADE_SOURCE_LOOKBACK_DAYS = 7;
+
+export async function getSdkUpgradeStatusFromEvents(params: {
+  projectId: string;
+}): Promise<{
+  sources: { source: string; count: number }[];
+}> {
+  const { projectId } = params;
+  const lookbackStart = new Date(
+    Date.now() - SDK_UPGRADE_SOURCE_LOOKBACK_DAYS * 24 * 60 * 60 * 1000,
+  );
+
+  const rows = await queryClickhouse<{
+    source: string;
+    count: string | number;
+  }>({
+    query: `
+      SELECT
+        e.source AS source,
+        count(*) AS count
+      FROM events_core e
+      WHERE e.project_id = {projectId: String}
+        AND e.start_time >= {lookbackStart: DateTime64(3)}
+        AND e.is_deleted = 0
+      GROUP BY e.source
+      ORDER BY count DESC
+      LIMIT 20
+    `,
+    params: {
+      projectId,
+      lookbackStart: convertDateToClickhouseDateTime(lookbackStart),
+    },
+    tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return {
+    sources: rows.map((row) => ({
+      source: row.source,
+      count: Number(row.count),
+    })),
+  };
+}
+
 /**
  * Extract SDK info from v3 metadata object.
  * - Old (nested): `scope: {name, version}`, `resourceAttributes: {"telemetry.sdk.language": ...}`

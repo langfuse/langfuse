@@ -11,6 +11,7 @@ import {
   getTraceByIdFromEventsTable,
   getObservationsBatchIOFromEventsTable,
   getLatestSdkVersionInfoFromEvents,
+  getSdkUpgradeStatusFromEvents,
   getTracesIdentifierForSessionFromEvents,
   getEventsFilterOptionsForColumns,
   getEventsFilterOptionValuesPage,
@@ -3098,6 +3099,103 @@ describe("Clickhouse Events Repository Test", () => {
       // Should not return anything since projectId doesn't match
       expect(result).toBeDefined();
       expect(result.length).toBe(0);
+    });
+  });
+
+  maybe("getSdkUpgradeStatusFromEvents", () => {
+    it("should return recent direct event sources", async () => {
+      const uniqueProjectId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          source: "otel",
+          start_time: Date.now() * 1000,
+        }),
+      ]);
+
+      const result = await getSdkUpgradeStatusFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.sources).toEqual([{ source: "otel", count: 1 }]);
+    });
+
+    it("should return recent non-direct event sources", async () => {
+      const uniqueProjectId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          source: "ingestion-api-dual-write",
+          start_time: Date.now() * 1000,
+        }),
+      ]);
+
+      const result = await getSdkUpgradeStatusFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.sources).toEqual([
+        { source: "ingestion-api-dual-write", count: 1 },
+      ]);
+    });
+
+    it("should return unknown recent event sources", async () => {
+      const uniqueProjectId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          source: "api",
+          start_time: Date.now() * 1000,
+        }),
+      ]);
+
+      const result = await getSdkUpgradeStatusFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.sources).toEqual([{ source: "api", count: 1 }]);
+    });
+
+    it("should return backfill event sources", async () => {
+      const uniqueProjectId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          source: "ingestion-api-backfill",
+          start_time: Date.now() * 1000,
+        }),
+      ]);
+
+      const result = await getSdkUpgradeStatusFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.sources).toEqual([
+        { source: "ingestion-api-backfill", count: 1 },
+      ]);
+    });
+
+    it("should ignore non-direct event sources outside the lookback window", async () => {
+      const uniqueProjectId = randomUUID();
+      const eightDaysAgoMicros = (Date.now() - 8 * 24 * 60 * 60 * 1000) * 1000;
+
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          source: "ingestion-api-dual-write",
+          start_time: eightDaysAgoMicros,
+        }),
+      ]);
+
+      const result = await getSdkUpgradeStatusFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.sources).toEqual([]);
     });
   });
 
