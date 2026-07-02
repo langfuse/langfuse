@@ -62,6 +62,46 @@ export function ConfirmDialog({
   confirmDisabled?: boolean;
   children?: React.ReactNode;
 } & VariantProps<typeof confirmDialogContentVariants>) {
+  const content = (
+    <DialogContent className={confirmDialogContentVariants({ size })}>
+      <DialogHeader variant="action">
+        <DialogTitle>{title}</DialogTitle>
+      </DialogHeader>
+      <DialogBody>
+        {description ? (
+          <DialogDescription>{description}</DialogDescription>
+        ) : null}
+        {children}
+      </DialogBody>
+      <DialogFooter variant="action">
+        <Button
+          variant="outline"
+          disabled={loading}
+          onClick={() => onOpenChange(false)}
+        >
+          {cancelLabel}
+        </Button>
+        <Button
+          variant={confirmVariant}
+          loading={loading}
+          disabled={confirmDisabled}
+          onClick={onConfirm}
+        >
+          {confirmLabel}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  );
+
+  // Callers commonly reset their state synchronously in onOpenChange (clearing
+  // a type-to-confirm input, nulling the table row the dialog points at), but
+  // Radix keeps the content mounted through the exit animation — so render the
+  // last-open content while closed to avoid a flicker to empty/default values
+  // mid fade-out. Render-phase ref write is deliberate: an effect would run
+  // only after the first closed render, too late to prevent the flicker.
+  const lastOpenContent = React.useRef(content);
+  if (open) lastOpenContent.current = content;
+
   return (
     <Dialog
       open={open}
@@ -73,34 +113,7 @@ export function ConfirmDialog({
       }}
     >
       {trigger ? <DialogTrigger asChild>{trigger}</DialogTrigger> : null}
-      <DialogContent className={confirmDialogContentVariants({ size })}>
-        <DialogHeader variant="action">
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-        <DialogBody>
-          {description ? (
-            <DialogDescription>{description}</DialogDescription>
-          ) : null}
-          {children}
-        </DialogBody>
-        <DialogFooter variant="action">
-          <Button
-            variant="outline"
-            disabled={loading}
-            onClick={() => onOpenChange(false)}
-          >
-            {cancelLabel}
-          </Button>
-          <Button
-            variant={confirmVariant}
-            loading={loading}
-            disabled={confirmDisabled}
-            onClick={onConfirm}
-          >
-            {confirmLabel}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+      {open ? content : lastOpenContent.current}
     </Dialog>
   );
 }
