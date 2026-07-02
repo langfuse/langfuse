@@ -791,10 +791,7 @@ export class IngestionService {
       const traceAsStagingObservation = convertTraceToStagingObservation(
         finalTraceRecord,
         this.getPartitionAwareTimestamp(createdAtTimestamp),
-      );
-      Object.assign(
-        traceAsStagingObservation,
-        getIngestionAttributionRecordFields(attribution),
+        attribution,
       );
       this.clickHouseWriter.addToQueue(
         TableName.ObservationsBatchStaging,

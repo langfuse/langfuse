@@ -289,7 +289,7 @@ describe("IngestionService unit tests", () => {
     });
   });
 
-  it("stores unknown SDK attribution on trace staging records", async () => {
+  it("adds ingestion attribution to trace staging records", async () => {
     const addToQueue = vi.fn();
     const ingestionService = new IngestionService(
       {} as any,
@@ -329,9 +329,9 @@ describe("IngestionService unit tests", () => {
       traceEventList,
       createEventTraceRecord: true,
       attribution: {
-        ingestionApiKey: "pk-lf-update",
-        ingestionSdkName: UNKNOWN_INGESTION_SDK_VALUE,
-        ingestionSdkVersion: UNKNOWN_INGESTION_SDK_VALUE,
+        ingestionApiKey: "pk-lf-public",
+        ingestionSdkName: "python",
+        ingestionSdkVersion: "3.4.0",
       },
     });
 
@@ -340,9 +340,9 @@ describe("IngestionService unit tests", () => {
     )?.[1];
 
     expect(stagingRecord).toMatchObject({
-      ingestion_api_key: "pk-lf-update",
-      ingestion_sdk_name: UNKNOWN_INGESTION_SDK_VALUE,
-      ingestion_sdk_version: UNKNOWN_INGESTION_SDK_VALUE,
+      ingestion_api_key: "pk-lf-public",
+      ingestion_sdk_name: "python",
+      ingestion_sdk_version: "3.4.0",
     });
   });
 

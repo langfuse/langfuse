@@ -1,4 +1,5 @@
 import z from "zod";
+import type { IngestionAttribution } from "../ingestion/ingestionAttribution";
 import { UNKNOWN_INGESTION_SDK_VALUE } from "../ingestion/ingestionAttribution";
 import { DEFAULT_TRACE_ENVIRONMENT } from "../ingestion/types";
 
@@ -390,6 +391,7 @@ export const convertScoreReadToInsert = (
 export const convertTraceToStagingObservation = (
   traceRecord: TraceRecordInsertType,
   s3FirstSeenTimestamp: number,
+  attribution: IngestionAttribution,
 ): ObservationBatchStagingRecordInsertType => {
   return {
     // Identity - trace acts as its own span. Modify traceId to avoid cases where users set spanId = traceId.
@@ -439,9 +441,9 @@ export const convertTraceToStagingObservation = (
     tool_call_names: undefined,
 
     // Ingestion attribution
-    ingestion_api_key: "",
-    ingestion_sdk_name: UNKNOWN_INGESTION_SDK_VALUE,
-    ingestion_sdk_version: UNKNOWN_INGESTION_SDK_VALUE,
+    ingestion_api_key: attribution.ingestionApiKey,
+    ingestion_sdk_name: attribution.ingestionSdkName,
+    ingestion_sdk_version: attribution.ingestionSdkVersion,
 
     // System fields
     created_at: traceRecord.created_at,
