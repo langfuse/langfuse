@@ -3,6 +3,10 @@ import type { QueueBaseOptions } from "bullmq";
 import fs from "fs";
 import { env } from "../../env";
 import { logger } from "../logger";
+import {
+  bindManagedCredentialToRedis,
+  getRedisManagedCredentialProviderFromEnv,
+} from "../auth/credentials/redisCredentials";
 
 const defaultRedisOptions: Partial<RedisOptions> = {
   enableReadyCheck: true,
@@ -213,6 +217,19 @@ export const createNewRedisInstance = (
     return null;
   }
 
+  // Managed credentials are wired only into the single-node path below; warn so
+  // the combination is not silently ignored (which would fail with an opaque
+  // NOAUTH at connect time when no static REDIS_AUTH is set).
+  if (
+    env.REDIS_AUTH_METHOD !== "static" &&
+    (env.REDIS_CLUSTER_ENABLED === "true" ||
+      env.REDIS_SENTINEL_ENABLED === "true")
+  ) {
+    logger.warn(
+      `REDIS_AUTH_METHOD=${env.REDIS_AUTH_METHOD} is only supported for single-node Redis; cluster and sentinel modes use static credentials.`,
+    );
+  }
+
   if (env.REDIS_CLUSTER_ENABLED === "true") {
     return createRedisClusterInstance(additionalOptions);
   }
@@ -223,23 +240,41 @@ export const createNewRedisInstance = (
 
   const tlsOptions = buildTlsOptions();
 
+  // null unless an opt-in short-lived credential method is configured.
+  const managedCredentialProvider = getRedisManagedCredentialProviderFromEnv();
+  const lazyConnectOptions = managedCredentialProvider
+    ? { lazyConnect: true }
+    : {};
+
   const instance = env.REDIS_CONNECTION_STRING
     ? new Redis(env.REDIS_CONNECTION_STRING, {
         ...defaultRedisOptions,
         ...additionalOptions,
         ...tlsOptions,
+        ...lazyConnectOptions,
       })
     : env.REDIS_HOST
       ? new Redis({
           host: String(env.REDIS_HOST),
           port: Number(env.REDIS_PORT),
-          username: env.REDIS_USERNAME || undefined,
-          password: String(env.REDIS_AUTH),
+          username: managedCredentialProvider
+            ? managedCredentialProvider.username
+            : env.REDIS_USERNAME || undefined,
+          password: managedCredentialProvider
+            ? undefined
+            : String(env.REDIS_AUTH),
           ...defaultRedisOptions,
           ...additionalOptions,
           ...tlsOptions,
+          ...lazyConnectOptions,
         })
       : null;
+
+  if (instance && managedCredentialProvider) {
+    // Wraps connect() to apply the first token before connecting and to refresh
+    // it ahead of expiry; connecting itself stays lazy until a caller triggers it.
+    bindManagedCredentialToRedis(instance, managedCredentialProvider);
+  }
 
   instance?.on("error", (error) => {
     logger.error("Redis error", error);
