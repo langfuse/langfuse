@@ -39,6 +39,7 @@ minimumReleaseAgeExclude:
   - "@esbuild/win32-ia32@0.28.1"
   - "@esbuild/win32-x64@0.28.1"
   - eslint-plugin-tailwindcss@4.0.2
+  - '@clickhouse/client@1.23.0-head.71b2e8a.1'
 allowBuilds:
   "@prisma/client": true
   "@prisma/engines": true
