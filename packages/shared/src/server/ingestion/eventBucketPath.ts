@@ -116,3 +116,17 @@ export function rawEventBucketPrefix(params: {
 }): string {
   return `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${params.projectId}/${params.entityType}/${params.rawEntityIdSegment}/`;
 }
+
+/**
+ * Reconstruct the full S3 object key for an OTel event from a key parsed by
+ * `parseEventKey` (which is RELATIVE to `LANGFUSE_S3_EVENT_UPLOAD_PREFIX`).
+ *
+ * Unlike standard events — whose download path is rebuilt from
+ * `rawEventBucketPrefix` + eventId — OTel events are downloaded by their
+ * `fileKey` verbatim, so the upload prefix must be re-applied here. Without
+ * this, replay GetObject calls miss whenever `LANGFUSE_S3_EVENT_UPLOAD_PREFIX`
+ * is non-empty.
+ */
+export function rawOtelEventBucketPath(relativeKey: string): string {
+  return `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${relativeKey}`;
+}
