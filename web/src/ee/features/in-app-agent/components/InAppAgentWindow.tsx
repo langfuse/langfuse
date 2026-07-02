@@ -137,6 +137,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const isAutoScrollAttachedRef = useRef(true);
   const previousScrollTopRef = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const previousIsInputDisabledRef = useRef(isInputDisabled);
   const [input, setInput] = useState("");
   const [isConversationHistoryOpen, setIsConversationHistoryOpen] =
     useState(false);
@@ -208,6 +209,17 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
 
     scrollViewportToBottom(viewportRef.current);
   }, [selectedConversationId]);
+
+  useEffect(() => {
+    const wasInputDisabled = previousIsInputDisabledRef.current;
+    previousIsInputDisabledRef.current = isInputDisabled;
+
+    if (!wasInputDisabled || isInputDisabled) {
+      return;
+    }
+
+    inputRef.current?.focus();
+  }, [isInputDisabled]);
 
   useEffect(() => {
     const input = inputRef.current;
