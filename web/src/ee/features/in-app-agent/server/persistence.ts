@@ -371,13 +371,15 @@ export async function maybeInferAndPersistConversationTitle(params: {
       messages: [
         {
           role: ChatMessageRole.System,
-          content: `Generate a concise title for this Langfuse assistant conversation.
+          content: `
+Generate a concise title for this Langfuse assistant conversation.
 
 Rules:
 - Use 3-6 words.
 - Preserve important product names, entities, or task intent.
 - Do not use quotes, markdown, trailing punctuation, or filler words.
-- Return only the title.`,
+- Return only the title.
+`.trim(),
           type: ChatMessageType.PublicAPICreated,
         },
         {
@@ -408,17 +410,7 @@ Rules:
       return;
     }
 
-    const title = truncate(
-      completionText
-        .split("\n")[0]
-        ?.replace(/^title:\s*/i, "")
-        .replace(/^[`'"]+|[`'".!?:;]+$/g, "")
-        .replace(/\s+/g, " ")
-        .trim() ?? "",
-      80,
-    )
-      .replace(/[.!?:;]+$/g, "")
-      .trim();
+    const title = completionText.trim();
 
     if (!title) {
       return;
