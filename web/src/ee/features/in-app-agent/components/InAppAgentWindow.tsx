@@ -101,6 +101,7 @@ export type InAppAgentWindowProps = {
   onNewConversation: () => void;
   onApproveToolCall: (approvalId: string) => Promise<void>;
   onRejectToolCall: (approvalId: string) => Promise<void>;
+  onOpenConversationHistory: () => void;
   onSelectConversation: (conversationId: string) => void;
   onSubmit: (input: string) => boolean | Promise<boolean>;
   onSubmitFeedback: (params: {
@@ -128,6 +129,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onNewConversation,
     onApproveToolCall,
     onRejectToolCall,
+    onOpenConversationHistory,
     onSelectConversation,
     onSubmit,
     onSubmitFeedback,
@@ -279,7 +281,13 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           </Tooltip>
           <DropdownMenu
             open={isConversationHistoryOpen}
-            onOpenChange={setIsConversationHistoryOpen}
+            onOpenChange={(nextOpen) => {
+              setIsConversationHistoryOpen(nextOpen);
+
+              if (nextOpen) {
+                onOpenConversationHistory();
+              }
+            }}
           >
             <Tooltip delayDuration={100} disableHoverableContent>
               <TooltipTrigger asChild>

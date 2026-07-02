@@ -36,6 +36,7 @@ export function ControlledInAppAgentWindow(
     isRunning,
     isSelectedConversationHydrating,
     isSubmitting,
+    invalidateConversations,
     loadMoreConversations,
     messages,
     pendingToolApprovals,
@@ -75,6 +76,7 @@ export function ControlledInAppAgentWindow(
       isLoadingMoreConversations={isLoadingMoreConversations}
       selectedConversationId={selectedConversationId}
       onLoadMoreConversations={loadMoreConversations}
+      onOpenConversationHistory={invalidateConversations}
       onDeleteConversation={props.onDeleteConversation}
       onSelectConversation={selectConversation}
       onNewConversation={() => selectConversation(null)}
