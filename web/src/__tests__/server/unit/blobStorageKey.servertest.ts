@@ -285,3 +285,40 @@ describe("buildEventBucketPrefix / parseEventKey round-trip", () => {
     });
   }
 });
+
+describe("standard ingestion event object keys", () => {
+  const envPrefix = process.env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX ?? "";
+
+  it("encodes LiteLLM-style entity and event ids before composing the S3 key", () => {
+    const projectId = "proj-litellm";
+    const entityType = "observation" as const;
+    const entityId = "time-2026-06-23T12:00:00.000Z_resp_dGVzdA=";
+    const eventId = "event_resp_dGVzdA=";
+
+    const bucketPrefix = buildEventBucketPrefix({
+      projectId,
+      entityType,
+      entityId: encodeURIComponent(entityId),
+    });
+    const fileKey = safeBlobFilenameStem(encodeURIComponent(eventId), ".json");
+    const fullKey = `${bucketPrefix}${fileKey}.json`;
+
+    expect(fullKey).toContain(
+      `${projectId}/${entityType}/time-2026-06-23T12%3A00%3A00.000Z_resp_dGVzdA%3D/`,
+    );
+    expect(fullKey).toContain("/event_resp_dGVzdA%3D.json");
+    expect(fullKey).not.toContain("resp_dGVzdA=/");
+    expect(fullKey).not.toContain("event_resp_dGVzdA=.json");
+
+    const relativeKey = fullKey.startsWith(envPrefix)
+      ? fullKey.slice(envPrefix.length)
+      : fullKey;
+    expect(parseEventKey(relativeKey)).toEqual({
+      kind: "standard",
+      projectId,
+      entityType,
+      eventBodyId: encodeURIComponent(entityId),
+      eventId: encodeURIComponent(eventId),
+    });
+  });
+});

@@ -236,6 +236,7 @@ export const processEventBatch = async (
       const dedupKey = `${entityType}-${event.body.id}`;
       if (!acc[dedupKey]) {
         const eventBodyId = event.body.id;
+        const encodedEventBodyId = encodeURIComponent(eventBodyId);
         const safeEventBodyId = safeBlobKeySegment(eventBodyId);
         if (safeEventBodyId !== eventBodyId) {
           // Do not log the raw or sanitized ID itself: the prefix can carry
@@ -255,14 +256,14 @@ export const processEventBatch = async (
           // write time and rides the queue payload as `fileKey`. Sanitize
           // here so `/`, `\`, control bytes, and over-budget lengths can't
           // reroute the write or overflow NAME_MAX.
-          key: safeBlobFilenameStem(event.id, ".json"),
+          key: safeBlobFilenameStem(encodeURIComponent(event.id), ".json"),
           type: event.type,
           eventBodyId,
           entityType,
           bucketPrefix: buildEventBucketPrefix({
             projectId: String(authCheck.scope.projectId),
             entityType,
-            entityId: eventBodyId,
+            entityId: encodedEventBodyId,
           }),
         };
       }
