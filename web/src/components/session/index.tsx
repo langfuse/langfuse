@@ -68,6 +68,8 @@ import {
   SESSION_DETAIL_SYSTEM_PRESETS,
   type SessionDetailSystemPreset,
   getSessionDetailPresetToApply,
+  findSessionDetailViewByFilters,
+  SESSION_DETAIL_VIEW_TRIGGER_ID,
 } from "@/src/components/session/session-detail-presets";
 import { downloadSessionAsJson } from "@/src/components/session/actions/downloadSessionAsJson";
 import { SessionDetailStoreProvider } from "@/src/components/session/SessionDetailStoreProvider";
@@ -935,8 +937,9 @@ const LoadedSessionEventsPage: React.FC<{
     if (!presetToApply) return;
 
     defaultPresetAppliedRef.current = true;
-    // Sessions intentionally default to the first generation in each trace
-    // when opened without explicit filters or a saved view.
+    // Applies the explicitly selected system preset (deep link / saved view),
+    // or the default "All observations with I/O" view when nothing is selected
+    // — see getSessionDetailPresetToApply / TraceEventsRow (LFE-10520).
     applySystemPreset(presetToApply);
   }, [
     applySystemPreset,
@@ -944,6 +947,26 @@ const LoadedSessionEventsPage: React.FC<{
     isViewLoading,
     viewControllers.selectedViewId,
   ]);
+
+  // The applied FilterState is the single source of truth for what each card
+  // shows and which named view is active. Deriving the view from the filters
+  // (not the URL viewId) keeps the label correct even after the table view
+  // manager strips the frontend system-preset id from the URL on reload.
+  const matchedView = findSessionDetailViewByFilters(visibleFilterState);
+  const viewLabel = matchedView?.name ?? null;
+
+  // On reload / shared-link the view manager strips the frontend system-preset
+  // viewId (it isn't backend-fetchable), so the View drawer trigger loses its
+  // "View: …" label. Recover the provenance viewId from the surviving filter
+  // for filter-bearing views. (An empty filter — "All observations" — is
+  // ambiguous with a fresh load and shows no empty-state notice, so it is left
+  // to the default-view effect.)
+  useEffect(() => {
+    if (isViewLoading) return;
+    if (viewControllers.selectedViewId) return;
+    if (!matchedView || matchedView.filters.length === 0) return;
+    viewControllers.handleSetViewId(matchedView.id);
+  }, [isViewLoading, matchedView, viewControllers]);
 
   const virtualizer = useVirtualizer({
     count: traces?.length ?? 0,
@@ -1064,14 +1087,18 @@ const LoadedSessionEventsPage: React.FC<{
                 searchQuery: "",
               }}
               systemFilterPresets={SESSION_DETAIL_SYSTEM_PRESETS}
+              triggerId={SESSION_DETAIL_VIEW_TRIGGER_ID}
             />
 
-            {/* Filter Builder */}
+            {/* Refines the selected view by filtering observations within each
+                trace (it does not filter the list of traces) — labelled to say
+                so (LFE-10520). */}
             <PopoverFilterBuilder
               columns={filterColumns}
               filterState={visibleFilterState}
               onChange={queryFilter.setFilterState}
               columnsWithCustomSelect={filterColumnsWithCustomSelect}
+              label="Filter observations"
             />
 
             {/* Separator */}
@@ -1122,6 +1149,7 @@ const LoadedSessionEventsPage: React.FC<{
                       )}
                       index={virtualItem.index}
                       filterState={visibleFilterState}
+                      viewLabel={viewLabel}
                     />
                   </SessionVirtualizedRow>
                 );
