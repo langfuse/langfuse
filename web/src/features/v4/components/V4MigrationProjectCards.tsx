@@ -64,6 +64,7 @@ const V4_DOCS_LINK = {
 } as const;
 
 const MAX_STACKED_CHART_SERIES = 6;
+const STACKED_CHART_Y_AXIS_TICK_COUNT = 5;
 const STACKED_CHART_COLORS = [
   "hsl(var(--chart-1))",
   "hsl(var(--chart-2))",
@@ -289,7 +290,39 @@ const getStackedChartSeries = (
   }));
 };
 
-const UsageStackedBarOverview = ({
+const getNiceCountStep = (rawStep: number): number => {
+  if (!Number.isFinite(rawStep) || rawStep <= 0) return 1;
+
+  const magnitude = 10 ** Math.floor(Math.log10(rawStep));
+  const normalizedStep = rawStep / magnitude;
+  const niceStep =
+    [1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 7.5, 10].find(
+      (step) => normalizedStep <= step,
+    ) ?? 10;
+
+  return Math.max(1, Math.ceil(niceStep * magnitude));
+};
+
+const getStackedYAxisTicks = (
+  series: UsageSeries[],
+  tickCount = STACKED_CHART_Y_AXIS_TICK_COUNT,
+): number[] => {
+  const bucketCount = Math.max(0, ...series.map((item) => item.points.length));
+  let maxStackedValue = 0;
+
+  for (let bucketIndex = 0; bucketIndex < bucketCount; bucketIndex += 1) {
+    const bucketTotal = series.reduce((sum, item) => {
+      const value = item.points[bucketIndex] ?? 0;
+      return Number.isFinite(value) && value > 0 ? sum + value : sum;
+    }, 0);
+    maxStackedValue = Math.max(maxStackedValue, bucketTotal);
+  }
+
+  const step = getNiceCountStep(maxStackedValue / (tickCount - 1));
+  return Array.from({ length: tickCount }, (_, index) => index * step);
+};
+
+export const UsageStackedBarOverview = ({
   bucketTimes,
   series,
   valueLabel,
@@ -299,6 +332,11 @@ const UsageStackedBarOverview = ({
   valueLabel: string;
 }) => {
   const chartSeries = useMemo(() => getStackedChartSeries(series), [series]);
+  const yAxisTicks = useMemo(
+    () => getStackedYAxisTicks(chartSeries),
+    [chartSeries],
+  );
+  const yAxisMax = yAxisTicks[yAxisTicks.length - 1] ?? 0;
   const chartData = useMemo(
     () =>
       bucketTimes.map((time, bucketIndex) => {
@@ -345,7 +383,7 @@ const UsageStackedBarOverview = ({
         <BarChart
           accessibilityLayer
           data={chartData}
-          margin={{ top: 4, right: 8, bottom: 0, left: -18 }}
+          margin={{ top: 4, right: 8, bottom: 0, left: 12 }}
         >
           <XAxis
             dataKey="timeLabel"
@@ -359,6 +397,9 @@ const UsageStackedBarOverview = ({
             axisLine={false}
             width={42}
             fontSize={11}
+            domain={[0, yAxisMax]}
+            ticks={yAxisTicks}
+            interval={0}
             tickFormatter={(value) => compactNumberFormatter(Number(value), 1)}
           />
           <ChartTooltip
@@ -398,7 +439,9 @@ const UsageStackedBarOverview = ({
               className="h-2.5 w-2.5 shrink-0 rounded-[2px]"
               style={{ backgroundColor: item.color }}
             />
-            <span className="truncate font-medium">{item.name}</span>
+            <span className="truncate font-medium" title={item.name}>
+              {item.name}
+            </span>
             <span className="text-muted-foreground shrink-0">
               {numberFormatter(item.total, 0, 2)} {valueLabel}
             </span>
@@ -424,10 +467,16 @@ const ActionRow = ({
 }) => (
   <div className="grid gap-3 rounded-md border px-3 py-2 md:grid-cols-[minmax(0,1fr)_8rem] md:items-center">
     <div className="min-w-0">
-      <div className={cn("truncate text-sm font-medium", titleClassName)}>
+      <div
+        className={cn("truncate text-sm font-medium", titleClassName)}
+        title={title}
+      >
         {title}
       </div>
-      <div className="text-muted-foreground mt-0.5 truncate text-xs">
+      <div
+        className="text-muted-foreground mt-0.5 truncate text-xs"
+        title={detail}
+      >
         {detail}
       </div>
     </div>

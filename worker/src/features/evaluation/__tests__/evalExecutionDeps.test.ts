@@ -123,7 +123,7 @@ describe("createProductionEvalExecutionDeps", () => {
     expect(mockRecordIncrement).toHaveBeenCalledWith(
       EXPORT_VOLUME_METRIC,
       expectedBytes,
-      { integration: "llmaj", projectId: "project-123" },
+      { integration: "llmaj" },
     );
     // Not the Zod _def form.
     const zodDefBytes = Buffer.byteLength(
