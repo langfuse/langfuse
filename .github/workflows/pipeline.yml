@@ -343,13 +343,36 @@ jobs:
     # at run creation, so this job starts immediately (!cancelled() lets the
     # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    permissions:
+      contents: read
+      # Required for OIDC: lets the job request a short-lived token that the
+      # GitHubOpenIdConnect role in the base-image ECR account trusts.
+      id-token: write
     env:
       DOCKER_COMPOSE_FILE: docker-compose.build.yml
+      # Hardened node base image hosted in a private ECR. OIDC login below
+      # authenticates only on langfuse/langfuse runs (where the trust policy
+      # is scoped). Forks and other repos fall back to the public node:24-alpine.
+      NODE_BASE_IMAGE: ${{ (github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && '816069167615.dkr.ecr.us-west-2.amazonaws.com/wizos-node:24-hardened' || 'node:24-alpine' }}
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
+      - name: Configure AWS credentials via OIDC
+        # Only when NODE_BASE_IMAGE resolves to the private ECR image (see env
+        # above); on forks/other repos it's the public node:24-alpine and no
+        # AWS login is needed.
+        if: env.NODE_BASE_IMAGE != 'node:24-alpine'
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          role-to-assume: arn:aws:iam::816069167615:role/GitHubOpenIdConnect
+          aws-region: us-west-2
+      - name: Login to AWS ECR
+        if: env.NODE_BASE_IMAGE != 'node:24-alpine'
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
+        with:
+          registries: 816069167615
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
@@ -369,7 +392,9 @@ jobs:
         run: |
           docker compose -f "$DOCKER_COMPOSE_FILE" build --print > /tmp/bake.json
           docker buildx bake -f /tmp/bake.json \
-            --set "langfuse-web.args.NEXT_IGNORE_BUILD_ERRORS=true"
+            --set "langfuse-web.args.NEXT_IGNORE_BUILD_ERRORS=true" \
+            --set "langfuse-web.args.NODE_BASE_IMAGE=${NODE_BASE_IMAGE}" \
+            --set "langfuse-worker.args.NODE_BASE_IMAGE=${NODE_BASE_IMAGE}"
       - name: Start compose services and wait for healthchecks
         run: |
           timeout 300 bash -c 'until [ -f /tmp/deps-up.exit ]; do sleep 1; done' || true
