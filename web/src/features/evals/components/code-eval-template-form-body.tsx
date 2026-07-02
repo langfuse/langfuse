@@ -270,28 +270,42 @@ export function CodeEvalTemplateFormBody({
       : "TypeScript";
   const shouldShowFormatButton = editable;
 
+  // Reveal the editable region only once, after the initial (possibly async)
+  // source code has loaded. Never scroll on subsequent edits.
+  const hasRevealedEditableRegionRef = useRef(false);
+
   const handleCreateEditor = useCallback(
     (view: EditorView) => {
       codeMirrorViewRef.current = view;
       foldContractTypes(view, sourceCodeLanguage);
-      scrollCodeMirrorToBottom(view);
+      if (view.state.doc.length > 0) {
+        scrollCodeMirrorToBottom(view);
+        hasRevealedEditableRegionRef.current = true;
+      }
     },
     [sourceCodeLanguage],
   );
 
   useEffect(() => {
-    const view = codeMirrorViewRef.current;
-    if (!view) return;
+    if (hasRevealedEditableRegionRef.current) return;
 
-    // Don't re-fold on every sourceCode change, only on language change
+    const view = codeMirrorViewRef.current;
+    if (!view || !sourceCode) return;
+
+    // Reveal the editable region once, after the initial source code has
+    // loaded (it may arrive asynchronously). Scrolling on every change would
+    // yank the editor -- and the surrounding page -- to the bottom while the
+    // user is typing.
     scrollCodeMirrorToBottom(view);
+    hasRevealedEditableRegionRef.current = true;
   }, [sourceCode]);
 
   useEffect(() => {
     const view = codeMirrorViewRef.current;
     if (!view) return;
 
-    // Re-fold when language changes
+    // The whole template is replaced when the language changes, so re-fold the
+    // contract and reveal the editable region again.
     foldContractTypes(view, sourceCodeLanguage);
     scrollCodeMirrorToBottom(view);
   }, [sourceCodeLanguage]);
