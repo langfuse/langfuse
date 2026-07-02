@@ -18,6 +18,7 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   ChatMessageRole,
   extractVariables,
+  getMessageText,
   type ChatMessageWithId,
   type ChatMessageWithIdNoPlaceholders,
   type PromptVariable,
@@ -334,7 +335,13 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
 
         const leftOverVariables = extractVariables(
           finalMessages
-            .map((m) => (typeof m.content === "string" ? m.content : ""))
+            .map((m) =>
+              typeof m.content === "string"
+                ? m.content
+                : Array.isArray(m.content)
+                  ? getMessageText(m.content)
+                  : "",
+            )
             .join("\n"),
         );
 

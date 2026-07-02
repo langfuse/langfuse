@@ -13,7 +13,7 @@ export type MessagePlaceholderValues = Record<string, unknown[]>;
 export type PromptMessage = z.infer<typeof PromptChatMessageSchema>;
 
 export function isPlaceholder(
-  message: PromptMessage,
+  message: PromptMessage | ChatMessageWithId,
 ): message is PlaceholderMessage {
   return "type" in message && message.type === ChatMessageType.Placeholder;
 }
@@ -29,6 +29,35 @@ function replaceTextVariables(
     result = result.replace(variablePattern, varValue);
   }
   return result;
+}
+
+/**
+ * Substitute {{variables}} in a message's content. Plain-string content is
+ * replaced directly; multimodal array content has variables substituted inside
+ * its text parts only (media parts pass through untouched). Any other shape is
+ * returned unchanged.
+ */
+function replaceContentVariables(
+  content: unknown,
+  textVariables: Record<string, string>,
+): unknown {
+  if (typeof content === "string") {
+    return replaceTextVariables(content, textVariables);
+  }
+  if (Array.isArray(content)) {
+    return content.map((part) =>
+      part && typeof part === "object" && (part as any).type === "text"
+        ? {
+            ...part,
+            text: replaceTextVariables(
+              String((part as any).text ?? ""),
+              textVariables,
+            ),
+          }
+        : part,
+    );
+  }
+  return content;
 }
 
 function expandPlaceholder(
@@ -79,14 +108,14 @@ export function compileChatMessages(
   }
 
   return expandedMessages.map((message) => {
-    if (!message.content || typeof message.content !== "string") {
+    if (!message.content) {
       return message;
     }
 
     return {
       ...message,
-      content: replaceTextVariables(message.content, textVariables),
-    };
+      content: replaceContentVariables(message.content, textVariables),
+    } as ChatMessage;
   });
 }
 
@@ -112,14 +141,14 @@ export function compileChatMessagesWithIds(
   }
 
   return expandedMessages.map((message) => {
-    if (!message.content || typeof message.content !== "string") {
+    if (!message.content) {
       return message;
     }
 
     return {
       ...message,
-      content: replaceTextVariables(message.content, textVariables),
-    };
+      content: replaceContentVariables(message.content, textVariables),
+    } as ChatMessageWithIdNoPlaceholders;
   });
 }
 

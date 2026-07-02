@@ -30,6 +30,7 @@ import {
   PromptType,
   extractVariables,
   getIsCharOrUnderscore,
+  getMessageText,
 } from "@langfuse/shared";
 import { PromptChatMessages } from "./PromptChatMessages";
 import { ReviewPromptDialog } from "./ReviewPromptDialog";
@@ -187,7 +188,15 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
 
     if (shouldLoadPlaygroundCache && playgroundCache) {
       form.setValue("type", PromptType.Chat);
-      setInitialMessages(playgroundCache.messages);
+      // Prompts are text-only; flatten any multimodal message content to its
+      // text so it round-trips into the prompt (attached media is dropped).
+      setInitialMessages(
+        playgroundCache.messages.map((message) =>
+          "content" in message
+            ? { ...message, content: getMessageText(message.content) }
+            : message,
+        ),
+      );
     } else if (initialPrompt?.type === PromptType.Chat) {
       setInitialMessages(initialPrompt.prompt);
     }
