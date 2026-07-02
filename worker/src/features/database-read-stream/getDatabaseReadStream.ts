@@ -17,9 +17,11 @@ import {
   getTraceMetadataByIdsFromEvents,
   getPublicSessionsFilter,
   getSessionsWithMetrics,
+  getSessionIdentifiers,
   getSessionsWithMetricsFromEvents,
   getDistinctScoreNames,
   getObservationsTableWithModelData,
+  getObservationIdentifiers,
   getScoresForObservations,
   getTracesTable,
   getTracesTableMetrics,
@@ -766,6 +768,135 @@ export const getTraceIdentifierStream = async (props: {
         clickhouseConfigs,
       });
       return identifiers;
+    },
+    env.BATCH_EXPORT_PAGE_SIZE,
+    rowLimit,
+  );
+};
+
+export type SessionIdentifiers = {
+  id: string;
+};
+
+/**
+ * Lightweight stream of session identifiers. Only fetches session_id — no
+ * metrics, scores, or observation joins — to avoid memory pressure when adding
+ * large numbers of sessions to an annotation queue.
+ */
+export const getSessionIdentifierStream = async (props: {
+  projectId: string;
+  cutoffCreatedAt: Date;
+  filter: FilterCondition[];
+  orderBy: OrderByState;
+  searchQuery?: string;
+  searchType?: TracingSearchType[];
+  rowLimit?: number;
+}): Promise<DatabaseReadStream<SessionIdentifiers>> => {
+  const {
+    projectId,
+    cutoffCreatedAt,
+    filter,
+    orderBy,
+    searchQuery: _searchQuery,
+    rowLimit,
+  } = props;
+
+  const createdAtCutoffFilter: FilterCondition = {
+    column: tableNameToTimeFilterColumn["sessions"],
+    operator: "<",
+    value: cutoffCreatedAt,
+    type: "datetime",
+  };
+
+  const clickhouseConfigs = {
+    request_timeout: 180_000,
+    clickhouse_settings: {
+      http_send_timeout: 300,
+      http_receive_timeout: 300,
+    },
+  };
+
+  return new DatabaseReadStream<SessionIdentifiers>(
+    async (pageSize: number, offset: number) => {
+      const finalFilter = filter
+        ? [...filter, createdAtCutoffFilter]
+        : [createdAtCutoffFilter];
+
+      const sessionsFilter = await getPublicSessionsFilter(
+        projectId,
+        finalFilter,
+      );
+
+      return getSessionIdentifiers({
+        projectId,
+        filter: sessionsFilter,
+        orderBy,
+        limit: pageSize,
+        page: Math.floor(offset / pageSize),
+        clickhouseConfigs,
+      });
+    },
+    env.BATCH_EXPORT_PAGE_SIZE,
+    rowLimit,
+  );
+};
+
+export type ObservationIdentifiers = {
+  id: string;
+  projectId: string;
+  startTime: Date;
+};
+
+/**
+ * Lightweight stream of observation identifiers. Only fetches id, projectId,
+ * startTime — no input/output/metadata/scores — to avoid memory pressure when
+ * adding large numbers of observations to an annotation queue.
+ */
+export const getObservationIdentifierStream = async (props: {
+  projectId: string;
+  cutoffCreatedAt: Date;
+  filter: FilterCondition[];
+  searchQuery?: string;
+  searchType?: TracingSearchType[];
+  rowLimit?: number;
+}): Promise<DatabaseReadStream<ObservationIdentifiers>> => {
+  const {
+    projectId,
+    cutoffCreatedAt,
+    filter,
+    searchQuery,
+    searchType,
+    rowLimit,
+  } = props;
+
+  const createdAtCutoffFilter: FilterCondition = {
+    column: tableNameToTimeFilterColumnCh["observations"],
+    operator: "<",
+    value: cutoffCreatedAt,
+    type: "datetime",
+  };
+
+  const clickhouseConfigs = {
+    request_timeout: 180_000,
+    clickhouse_settings: {
+      http_send_timeout: 300,
+      http_receive_timeout: 300,
+    },
+  };
+
+  return new DatabaseReadStream<ObservationIdentifiers>(
+    async (pageSize: number, offset: number) => {
+      return getObservationIdentifiers({
+        projectId,
+        filter: filter
+          ? [...filter, createdAtCutoffFilter]
+          : [createdAtCutoffFilter],
+        searchQuery,
+        searchType: searchType ?? ["id" as const],
+        limit: pageSize,
+        offset,
+        clickhouseConfigs,
+      });
     },
     env.BATCH_EXPORT_PAGE_SIZE,
     rowLimit,

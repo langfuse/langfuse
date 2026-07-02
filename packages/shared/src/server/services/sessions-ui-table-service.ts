@@ -109,7 +109,7 @@ export const getSessionsWithMetrics = async (props: {
 };
 
 export type FetchSessionsTableProps = {
-  select: "count" | "rows" | "metrics";
+  select: "count" | "rows" | "metrics" | "identifiers";
   projectId: string;
   filter: FilterState;
   searchQuery?: string;
@@ -162,6 +162,9 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         session_total_usage,
         scores_avg,
         score_categories`;
+      break;
+    case "identifiers":
+      sqlSelect = "session_id";
       break;
     default: {
       const exhaustiveCheckDefault: never = select;
@@ -403,4 +406,26 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
       });
     },
   });
+};
+
+export const getSessionIdentifiers = async (props: {
+  projectId: string;
+  filter: FilterState;
+  orderBy?: OrderByState;
+  limit?: number;
+  page?: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
+}) => {
+  const rows = await getSessionsTableGeneric<{ session_id: string }>({
+    select: "identifiers",
+    projectId: props.projectId,
+    filter: props.filter,
+    orderBy: props.orderBy,
+    limit: props.limit,
+    page: props.page,
+    tags: { projectId: props.projectId },
+    clickhouseConfigs: props.clickhouseConfigs,
+  });
+
+  return rows.map((row) => ({ id: row.session_id }));
 };
