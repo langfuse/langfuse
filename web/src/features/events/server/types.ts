@@ -1,9 +1,11 @@
 import { z } from "zod";
-import { singleFilter, TracingSearchType, orderBy } from "@langfuse/shared";
+import { filterInput, TracingSearchType, orderBy } from "@langfuse/shared";
 
 export const EventsTableOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
-  filter: z.array(singleFilter),
+  // Accepts a flat FilterState array OR a nested FilterExpression tree
+  // (Search/Filter v2). Bounds (depth/node caps) are enforced by `filterInput`.
+  filter: filterInput,
   searchQuery: z.string().nullable(),
   searchType: z.array(TracingSearchType),
   orderBy: orderBy,

@@ -1,6 +1,7 @@
 import { type z } from "zod";
 import {
   type FilterCondition,
+  type FilterExpression,
   LISTABLE_SCORE_TYPES,
   type NumericEventsTableColumnId,
   filterAndValidateDbScoreList,
@@ -63,7 +64,7 @@ const OBSERVATION_SCORE_SCOPE_FILTER: FilterCondition[] = [
 
 interface GetObservationsListParams {
   projectId: string;
-  filter: any[];
+  filter?: FilterExpression;
   searchQuery?: string;
   searchType: any[];
   orderBy: any;
@@ -73,7 +74,7 @@ interface GetObservationsListParams {
 
 interface GetObservationsCountParams {
   projectId: string;
-  filter: any[];
+  filter?: FilterExpression;
   searchQuery?: string;
   searchType: any[];
   orderBy: any;

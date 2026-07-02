@@ -29,6 +29,168 @@ type ClickhouseFilter = {
   params: { [x: string]: any } | {};
 };
 
+/**
+ * A compiled, ready-to-apply collection of leaf filters. Both the legacy flat
+ * {@link FilterList} and the nested {@link FilterTree} implement this so query
+ * builders can consume either without caring about shape.
+ *
+ * `find` searches ALL leaves; `findMandatory` searches only leaves reachable
+ * through AND groups. Query optimizations that assume a predicate always holds
+ * (e.g. trace-id hash pruning) MUST use `findMandatory`, so they never fire on
+ * a leaf that sits under an OR (where the predicate may not constrain a row).
+ */
+export interface CompiledFilterCollection {
+  apply(): ClickhouseFilter;
+  find(predicate: (filter: Filter) => boolean): Filter | undefined;
+  findMandatory(predicate: (filter: Filter) => boolean): Filter | undefined;
+  some(predicate: (filter: Filter) => boolean): boolean;
+  forEach(callback: (filter: Filter) => void): void;
+  length(): number;
+}
+
+type CompiledFilterNode = Filter | FilterGroupNode;
+
+function isFilterGroupNode(node: CompiledFilterNode): node is FilterGroupNode {
+  return node instanceof FilterGroupNode;
+}
+
+function flattenCompiledFilterNode(node: CompiledFilterNode): Filter[] {
+  if (!isFilterGroupNode(node)) {
+    return [node];
+  }
+
+  return node.children.flatMap((child) => flattenCompiledFilterNode(child));
+}
+
+function collectMandatoryCompiledFilters(node: CompiledFilterNode): Filter[] {
+  if (!isFilterGroupNode(node)) {
+    return [node];
+  }
+
+  // A multi-branch OR has no guaranteed predicate. A single-branch OR collapses
+  // to its unwrapped child in applyCompiledFilterNode, so it stays mandatory —
+  // keeping the optimization set in sync with the emitted SQL.
+  if (node.operator === "OR" && node.children.length !== 1) {
+    return [];
+  }
+
+  return node.children.flatMap((child) =>
+    collectMandatoryCompiledFilters(child),
+  );
+}
+
+/**
+ * Recursive parenthesizing emitter. Each child is wrapped in `( … )` and joined
+ * by the group operator, so precedence is explicit in SQL and never depends on
+ * ClickHouse's operator precedence. Empty children (a child that compiled to no
+ * SQL) are dropped; a group of 0 → `""`, a group of 1 → the unwrapped child.
+ */
+function applyCompiledFilterNode(node: CompiledFilterNode): ClickhouseFilter {
+  if (!isFilterGroupNode(node)) {
+    return node.apply();
+  }
+
+  const compiledChildren = node.children
+    .map((child) => applyCompiledFilterNode(child))
+    .filter((child) => child.query.trim().length > 0);
+
+  if (compiledChildren.length === 0) {
+    return {
+      query: "",
+      params: {},
+    };
+  }
+
+  if (compiledChildren.length === 1) {
+    return compiledChildren[0];
+  }
+
+  return {
+    query: compiledChildren
+      .map((child) => `(${child.query})`)
+      .join(` ${node.operator} `),
+    params: compiledChildren.reduce(
+      (acc, child) => ({ ...acc, ...child.params }),
+      {} as Record<string, any>,
+    ),
+  };
+}
+
+class FilterGroupNode {
+  constructor(
+    public operator: "AND" | "OR",
+    public children: CompiledFilterNode[],
+  ) {}
+}
+
+/**
+ * A compiled nested filter tree. The leaf {@link Filter}s are the SAME classes
+ * the flat path uses (so per-leaf injection safety — randomized named/typed
+ * params, value never interpolated — is unchanged); only the combiner is
+ * recursive. `apply()` emits the parenthesized SQL; `find`/`some`/`forEach`
+ * operate over all leaves, `findMandatory` over AND-only leaves.
+ */
+export class FilterTree implements CompiledFilterCollection {
+  private leaves: Filter[];
+  private mandatoryLeaves: Filter[];
+
+  constructor(private root: CompiledFilterNode | null = null) {
+    this.leaves = this.root ? flattenCompiledFilterNode(this.root) : [];
+    this.mandatoryLeaves = this.root
+      ? collectMandatoryCompiledFilters(this.root)
+      : [];
+  }
+
+  find(predicate: (filter: Filter) => boolean) {
+    return this.leaves.find(predicate);
+  }
+
+  findMandatory(predicate: (filter: Filter) => boolean) {
+    return this.mandatoryLeaves.find(predicate);
+  }
+
+  some(predicate: (filter: Filter) => boolean) {
+    return this.leaves.some(predicate);
+  }
+
+  forEach(callback: (filter: Filter) => void) {
+    this.leaves.forEach(callback);
+  }
+
+  length() {
+    return this.leaves.length;
+  }
+
+  apply(): ClickhouseFilter {
+    if (!this.root) {
+      return {
+        query: "",
+        params: {},
+      };
+    }
+
+    return applyCompiledFilterNode(this.root);
+  }
+
+  static fromFilter(filter: Filter): FilterTree {
+    return new FilterTree(filter);
+  }
+
+  static fromGroup(
+    operator: "AND" | "OR",
+    children: Array<Filter | FilterTree>,
+  ): FilterTree {
+    return new FilterTree(
+      new FilterGroupNode(
+        operator,
+        children
+          .map((child) => (child instanceof FilterTree ? child.root : child))
+          .filter((child): child is CompiledFilterNode => child !== null),
+      ),
+    );
+  }
+}
+
 const NGRAM_ACCELERATED_METADATA_OPERATORS = new Set<
   (typeof filterOperators)["stringObject"][number]
 >(["contains", "starts with", "ends with"]);
@@ -611,7 +773,7 @@ export class BooleanFilter implements Filter {
   }
 }
 
-export class FilterList {
+export class FilterList implements CompiledFilterCollection {
   private filters: Filter[];
 
   constructor(filters: Filter[] = []) {
@@ -624,6 +786,11 @@ export class FilterList {
 
   find(predicate: (filter: Filter) => boolean) {
     return this.filters.find(predicate);
+  }
+
+  // A flat list is an implicit top-level AND, so every leaf is mandatory.
+  findMandatory(predicate: (filter: Filter) => boolean) {
+    return this.find(predicate);
   }
 
   filter(predicate: (filter: Filter) => boolean) {

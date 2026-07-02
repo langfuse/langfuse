@@ -30,6 +30,7 @@ import {
 import {
   DateTimeFilter,
   type Filter,
+  type CompiledFilterCollection,
   FilterList,
   FullEventsObservations,
   orderByToClickhouseSql,
@@ -44,10 +45,19 @@ import {
   type ApiColumnMapping,
   ObservationPriceFields,
 } from "../queries";
-import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
+import {
+  createFilterFromFilterState,
+  createFilterTreeFromFilterExpression,
+} from "../queries/clickhouse-sql/factory";
+import {
+  getFilterExpressionLeafFilters,
+  getMandatoryFilterExpressionLeafFilters,
+  normalizeFilterExpressionInput,
+} from "../../interfaces/filters";
 import type {
   EventsTableFilterState,
   FilterCondition,
+  FilterExpression,
   FilterState,
 } from "../../types";
 import type { TracingSearchType } from "../../interfaces/search";
@@ -154,6 +164,16 @@ type ObservationsTableQueryResultWitouhtTraceFields = Omit<
   ObservationsTableQueryResult,
   "trace_tags" | "trace_name" | "trace_user_id"
 >;
+
+/**
+ * Events-table variant of {@link ObservationTableQuery}: the `filter` accepts a
+ * nested {@link FilterExpression} in addition to the flat {@link FilterState}
+ * (Search/Filter v2). Flat arrays are normalized to a top-level AND group
+ * before compilation, so legacy callers are unaffected.
+ */
+type EventsObservationTableQuery = Omit<ObservationTableQuery, "filter"> & {
+  filter?: FilterState | FilterExpression;
+};
 
 const EVENT_SEARCH_COLUMNS = [
   "span_id",
@@ -309,16 +329,19 @@ async function enrichObservationsWithTraceFields(
 }
 
 /**
- * Internal helper: extract and convert time filter from FilterList
- * Common pattern: find time filter and convert to ClickHouse DateTime format
+ * Internal helper: extract and convert time filter from a compiled filter
+ * collection. Common pattern: find time filter and convert to ClickHouse
+ * DateTime format. Uses `findMandatory` so a start-time lower bound that only
+ * holds inside an OR branch is NOT used as a partition-pruning bound (it does
+ * not constrain every returned row).
  */
 export function extractTimeFilter(
-  filter: FilterList,
+  filter: CompiledFilterCollection,
   tableName: "events_proto" | "traces" = "events_proto",
   fieldName: "start_time" | "timestamp" = "start_time",
   prefix?: "e" | "t",
 ): string | null {
-  const timeFilter = filter.find(
+  const timeFilter = filter.findMandatory(
     (f) =>
       // For events tables, match any events_* prefix (events_proto, events_core, events_full)
       (tableName === "events_proto"
@@ -331,6 +354,45 @@ export function extractTimeFilter(
   return timeFilter
     ? convertDateToClickhouseDateTime((timeFilter as DateTimeFilter).value)
     : null;
+}
+
+/**
+ * Drops positionInTrace leaves from an expression (they are resolved by a CTE
+ * rewrite, not a ClickHouse predicate). Returns undefined when nothing remains,
+ * collapses single-child groups, and preserves the group operators otherwise.
+ */
+function removePositionInTraceFilters(
+  filter?: FilterExpression,
+): FilterExpression | undefined {
+  if (!filter) {
+    return undefined;
+  }
+
+  if (filter.type === "positionInTrace") {
+    return undefined;
+  }
+
+  if (filter.type !== "group") {
+    return filter;
+  }
+
+  const conditions = filter.conditions
+    .map((condition) => removePositionInTraceFilters(condition))
+    .filter((condition): condition is FilterExpression => Boolean(condition));
+
+  if (conditions.length === 0) {
+    return undefined;
+  }
+
+  if (conditions.length === 1) {
+    return conditions[0];
+  }
+
+  return {
+    type: "group",
+    operator: filter.operator,
+    conditions,
+  };
 }
 
 /**
@@ -463,7 +525,7 @@ export const getObservationsForTraceFromEventsTable = async (params: {
 };
 
 export const getObservationsCountFromEventsTable = async (
-  opts: ObservationTableQuery,
+  opts: EventsObservationTableQuery,
 ) => {
   const count = await getObservationsFromEventsTableInternal<{
     count: string;
@@ -476,7 +538,7 @@ export const getObservationsCountFromEventsTable = async (
 };
 
 export const getObservationsWithModelDataFromEventsTable = async (
-  opts: ObservationTableQuery,
+  opts: EventsObservationTableQuery,
 ): Promise<FullEventsObservations> => {
   const observationRecords =
     await getObservationsFromEventsTableInternal<ObservationsTableQueryResultWitouhtTraceFields>(
@@ -498,7 +560,7 @@ export const getObservationsWithModelDataFromEventsTable = async (
 };
 
 async function getObservationsFromEventsTableInternal<T>(
-  opts: ObservationTableQuery & {
+  opts: EventsObservationTableQuery & {
     select: "count" | "rows";
     selectToolData?: boolean;
   },
@@ -515,24 +577,55 @@ async function getObservationsFromEventsTableInternal<T>(
     clickhouseConfigs,
   } = opts;
 
-  // Extract positionInTrace filter and build baseFilter without it
-  const positionFilter = filter.find((f) => f.type === "positionInTrace");
-  const baseFilter: typeof filter = [
-    ...filter.filter((f) => f.type !== "positionInTrace"),
-  ];
+  // Normalize the (possibly nested) filter into a single expression tree.
+  const normalizedFilter = normalizeFilterExpressionInput(filter);
+  const allLeafFilters = getFilterExpressionLeafFilters(normalizedFilter);
+  const mandatoryLeafFilters =
+    getMandatoryFilterExpressionLeafFilters(normalizedFilter);
 
-  // Build filter list from baseFilter (without positionInTrace)
-  const observationsFilter = new FilterList(
-    createFilterFromFilterState(
-      baseFilter,
-      eventsTableUiColumnDefinitions,
-      eventsTableCols,
-    ),
+  // positionInTrace is resolved by a CTE rewrite (not a ClickHouse predicate),
+  // and that rewrite assumes exactly one conjunctive position filter. Reject
+  // any positionInTrace that is duplicated or sits under an OR branch.
+  const allPositionFilters = allLeafFilters.filter(
+    (
+      leafFilter,
+    ): leafFilter is Extract<
+      FilterState[number],
+      { type: "positionInTrace" }
+    > => leafFilter.type === "positionInTrace",
+  );
+  const mandatoryPositionFilters = mandatoryLeafFilters.filter(
+    (
+      leafFilter,
+    ): leafFilter is Extract<
+      FilterState[number],
+      { type: "positionInTrace" }
+    > => leafFilter.type === "positionInTrace",
+  );
+
+  // position-in-trace is resolved by a single CTE rewrite that can only express
+  // an AND-reachable (mandatory) filter. A position filter sitting under an OR
+  // cannot be expressed, so reject it. Duplicates within a conjunctive AND are
+  // allowed and fall back to the first (matching the legacy `.find()` path).
+  if (allPositionFilters.length !== mandatoryPositionFilters.length) {
+    throw new InvalidRequestError(
+      "position-in-trace filters cannot appear inside an OR group.",
+    );
+  }
+
+  const positionFilter = mandatoryPositionFilters[0];
+  const baseFilter = removePositionInTraceFilters(normalizedFilter);
+
+  // Build the filter tree from baseFilter (without positionInTrace)
+  const observationsFilter = createFilterTreeFromFilterExpression(
+    baseFilter,
+    eventsTableUiColumnDefinitions,
+    eventsTableCols,
   );
 
   const startTimeFrom = extractTimeFilter(observationsFilter);
-  const hasObservationScoresFilter = baseFilter.some((f) => {
-    const column = f.column.toLowerCase();
+  const hasObservationScoresFilter = allLeafFilters.some((leafFilter) => {
+    const column = leafFilter.column.toLowerCase();
     return (
       column === "scores" ||
       column === "scores_avg" ||
@@ -541,8 +634,8 @@ async function getObservationsFromEventsTableInternal<T>(
       column === "scores (categorical)"
     );
   });
-  const hasTraceScoresFilter = baseFilter.some((f) => {
-    const column = f.column.toLowerCase();
+  const hasTraceScoresFilter = allLeafFilters.some((leafFilter) => {
+    const column = leafFilter.column.toLowerCase();
     return (
       column === "trace_scores_avg" ||
       column === "trace_score_categories" ||
@@ -597,11 +690,9 @@ async function getObservationsFromEventsTableInternal<T>(
           : 1;
 
     // Build observation-only filter for CTE (no s.* or t.* references)
-    const nativeFilter = new FilterList(
-      createFilterFromFilterState(
-        baseFilter,
-        eventsTableNativeUiColumnDefinitions,
-      ),
+    const nativeFilter = createFilterTreeFromFilterExpression(
+      baseFilter,
+      eventsTableNativeUiColumnDefinitions,
     );
     const appliedNativeFilter = nativeFilter.apply();
     const qualifyingObsBuilder = new EventsQueryBuilder({ projectId })
