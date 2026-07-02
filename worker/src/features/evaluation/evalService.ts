@@ -855,7 +855,7 @@ export async function runLLMAsJudgeEvaluation({
       span.setAttribute("eval.model.name", modelConfig.config.model);
 
       // Prepare LLM call
-      const messages = buildEvalMessages(prompt);
+      const messages = await buildEvalMessages(prompt, projectId);
 
       const executionTraceId = createW3CTraceId(jobExecutionId);
 
