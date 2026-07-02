@@ -163,7 +163,11 @@ export class OtelIngestionProcessor {
     this.orgId = config.orgId;
     this.propagatedHeaders = config.propagatedHeaders;
     this.sdkName = config.sdkName;
+    // Langfuse SDK version from x-langfuse-sdk-version. This is persisted as
+    // ingestionSdkVersion attribution on emitted events.
     this.sdkVersion = config.sdkVersion;
+    // Ingestion protocol version from x-langfuse-ingestion-version. This is
+    // only used as a write-path hint, not as SDK attribution.
     this.ingestionVersion = config.ingestionVersion;
   }
 
