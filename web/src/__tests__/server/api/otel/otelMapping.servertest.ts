@@ -4680,6 +4680,9 @@ describe("OTel Resource Span Mapping", () => {
       expect(tool?.body.input).toBe('{"location":"Berlin"}');
       expect(tool?.body.output).toBe('{"temperature":21}');
       expect(
+        generation?.body.metadata?.attributes?.["gen_ai.input.messages"],
+      ).toBeUndefined();
+      expect(
         generation?.body.metadata?.attributes?.["gen_ai.output.messages"],
       ).toBeUndefined();
       expect(
