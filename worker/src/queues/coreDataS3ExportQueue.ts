@@ -50,13 +50,6 @@ export const mapUserToCoreDataRow = ({
   ],
 });
 
-// Mirrors getSSOBlockedDomains in web/src/features/auth-credentials/server/signupApiHandler.ts
-export const parseSsoEnforcedDomains = (value: string | undefined) =>
-  value
-    ?.split(",")
-    .map((domain) => domain.trim().toLowerCase())
-    .filter(Boolean) ?? [];
-
 type PromptCoreData = {
   id: string;
   name: string;
@@ -276,11 +269,6 @@ export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {
 
   const users = usersWithAuthData.map(mapUserToCoreDataRow);
 
-  // Domains with SSO enforcement are configured per environment via env var
-  const ssoEnforcedDomains = parseSsoEnforcedDomains(
-    env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
-  ).map((domain) => ({ domain }));
-
   // Iterate through the tables and upload them to S3 as JSONLs
   await Promise.all(
     Object.entries({
@@ -294,7 +282,6 @@ export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {
       blobStorageIntegrations,
       ssoConfigs,
       verifiedDomains,
-      ssoEnforcedDomains,
     }).map(async ([key, value]) =>
       s3Client.uploadFile({
         fileName: `${env.LANGFUSE_S3_CORE_DATA_UPLOAD_PREFIX}${key}.jsonl`,
