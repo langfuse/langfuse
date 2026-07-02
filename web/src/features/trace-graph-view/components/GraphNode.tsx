@@ -136,7 +136,7 @@ function GraphNodeComponent({
         {...handlers}
       >
         {!compact && (
-          <span className="truncate" title={label}>
+          <span className="min-w-0 truncate" title={label}>
             {display}
           </span>
         )}
@@ -158,7 +158,7 @@ function GraphNodeComponent({
       {renderFilterIcon(type)}
       {!compact && (
         <>
-          <span className="truncate" title={label}>
+          <span className="min-w-0 truncate" title={label}>
             {display}
           </span>
           {counter && (
