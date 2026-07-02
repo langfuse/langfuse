@@ -52,7 +52,7 @@ import {
  * Requirements:
  * - x-langfuse-sdk-name "python" with x-langfuse-sdk-version >= 4.0.0
  * - x-langfuse-sdk-name "javascript" with x-langfuse-sdk-version >= 5.0.0
- * - x-langfuse-ingestion-version >= "4" (custom OTel exporter opt-in)
+ * - x-langfuse-ingestion-version === "4" (custom OTel exporter opt-in)
  */
 export function checkHeaderBasedDirectWrite(params: {
   sdkName?: string;
@@ -368,7 +368,7 @@ export const otelIngestionQueueProcessorBuilder = (
       //
       // Priority 1: HTTP headers from the SDK request (batch-level decision).
       //   - x-langfuse-sdk-name/version: Python >= 4.0.0 or JS >= 5.0.0
-      //   - x-langfuse-ingestion-version >= "4" (custom OTel exporter opt-in)
+      //   - x-langfuse-ingestion-version: "4" (custom OTel exporter opt-in)
       //   When headers qualify, ALL spans in the batch (including third-party scoped) use direct write.
       //
       // Priority 2 (fallback): Per-span OTEL scope inspection (legacy).
