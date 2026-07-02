@@ -94,18 +94,21 @@ const KNOWN_GLOBALS = new Set([
 function scanFile(file) {
   const code = fs.readFileSync(file, "utf8");
   let ast;
+  let sourceType = "script";
   try {
     ast = espree.parse(code, {
       ecmaVersion: "latest",
-      sourceType: "script",
+      sourceType,
       loc: true,
       range: true,
     });
   } catch {
-    // Some chunks are emitted as ES modules — retry before giving up.
+    // Some chunks are emitted as ES modules — retry before giving up. The
+    // scope analyzer below must use the same mode, or it rejects the AST.
+    sourceType = "module";
     ast = espree.parse(code, {
       ecmaVersion: "latest",
-      sourceType: "module",
+      sourceType,
       loc: true,
       range: true,
     });
@@ -113,7 +116,7 @@ function scanFile(file) {
 
   const scopeManager = eslintScope.analyze(ast, {
     ecmaVersion: 2024,
-    sourceType: "script",
+    sourceType,
     ignoreEval: true,
   });
 
@@ -163,10 +166,19 @@ if (!dir || !fs.existsSync(dir)) {
   process.exit(2);
 }
 
+// Recursive: chunks can be emitted into subdirectories (e.g. app/ or pages/);
+// missing them would silently narrow the gate.
 const files = fs
-  .readdirSync(dir)
-  .filter((f) => f.endsWith(".js"))
+  .readdirSync(dir, { recursive: true })
+  .filter((f) => typeof f === "string" && f.endsWith(".js"))
   .map((f) => path.join(dir, f));
+
+if (files.length === 0) {
+  // An empty scan must never pass — a build-output restructure would
+  // otherwise silently disable the gate.
+  console.error(`no .js chunks found in ${dir} — check the build output path`);
+  process.exit(2);
+}
 
 const started = Date.now();
 const byName = new Map();
