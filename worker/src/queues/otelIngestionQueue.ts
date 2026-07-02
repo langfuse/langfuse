@@ -20,7 +20,7 @@ import {
   traceException,
   compareVersions,
   ResourceSpan,
-  normalizeIngestionAttribution,
+  type IngestionAttribution,
 } from "@langfuse/shared/src/server";
 import {
   applyIngestionMasking,
@@ -61,8 +61,8 @@ export function checkHeaderBasedDirectWrite(params: {
 }): boolean {
   const { sdkName, sdkVersion, ingestionVersion } = params;
 
-  // Check x-langfuse-ingestion-version (>= 4 means direct write eligible).
-  // Future versions are accepted as compatible so newer clients keep ingesting.
+  // Check x-langfuse-ingestion-version.
+  // Values > 4 are rejected at the API route, so anything reaching here is valid.
   const parsed = ingestionVersion ? parseInt(ingestionVersion, 10) : NaN;
   if (!isNaN(parsed) && parsed >= 4) {
     return true;
@@ -213,11 +213,11 @@ export const otelIngestionQueueProcessorBuilder = (
       const publicKey = job.data.payload.data.publicKey;
       const fileKey = job.data.payload.data.fileKey;
       const auth = job.data.payload.authCheck;
-      const attribution = normalizeIngestionAttribution({
-        ingestionApiKey: publicKey ?? "",
+      const attribution: IngestionAttribution = {
+        ingestionApiKey: publicKey,
         ingestionSdkName: job.data.payload.sdkName,
         ingestionSdkVersion: job.data.payload.sdkVersion,
-      });
+      };
 
       const span = getCurrentSpan();
       if (span) {

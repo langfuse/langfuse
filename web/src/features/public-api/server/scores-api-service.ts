@@ -231,7 +231,7 @@ export class ScoresApiService {
     auth: AuthHeaderValidVerificationResultIngestion;
     auditScope?: { projectId: string; orgId: string; apiKeyId: string };
     scoreId?: string;
-    attribution?: Partial<IngestionAttribution>;
+    attribution: IngestionAttribution;
   }) {
     const existingScore = auditScope
       ? await _handleGetScoreById({

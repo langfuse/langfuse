@@ -51,7 +51,6 @@ import {
   hasNoEvalConfigsCache,
   buildClickHouseLogComment,
   type IngestionAttribution,
-  UNKNOWN_INGESTION_SDK_VALUE,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -79,20 +78,9 @@ function parseUInt16(value: string | null | undefined): number | undefined {
 }
 
 export type EventInput = InternalTraceEventInput;
-type IngestionAttributionRecordFields = {
-  ingestion_api_key?: string;
-  ingestion_sdk_name?: string;
-  ingestion_sdk_version?: string;
-};
-type ScoreRecordInsertWithOptionalAttribution = Omit<
-  ScoreRecordInsertType,
-  keyof IngestionAttributionRecordFields
-> &
-  IngestionAttributionRecordFields;
 type InsertRecord =
   | TraceRecordInsertType
   | ScoreRecordInsertType
-  | ScoreRecordInsertWithOptionalAttribution
   | ObservationRecordInsertType
   | DatasetRunItemRecordInsertType;
 type MergeAndWriteParams = {
@@ -103,61 +91,6 @@ type MergeAndWriteParams = {
   events: IngestionEventType[];
   forwardToEventsTable: boolean;
   attribution: IngestionAttribution;
-};
-
-const getNonEmptyIngestionAttributionRecordFields = (
-  attribution?: Partial<IngestionAttribution>,
-): IngestionAttributionRecordFields => {
-  const fields: IngestionAttributionRecordFields = {};
-
-  if (attribution?.ingestionApiKey) {
-    fields.ingestion_api_key = attribution.ingestionApiKey;
-  }
-
-  if (
-    attribution?.ingestionSdkName &&
-    attribution.ingestionSdkName !== UNKNOWN_INGESTION_SDK_VALUE
-  ) {
-    fields.ingestion_sdk_name = attribution.ingestionSdkName;
-  }
-
-  if (
-    attribution?.ingestionSdkVersion &&
-    attribution.ingestionSdkVersion !== UNKNOWN_INGESTION_SDK_VALUE
-  ) {
-    fields.ingestion_sdk_version = attribution.ingestionSdkVersion;
-  }
-
-  return fields;
-};
-
-const getIngestionAttributionRecordFields = (
-  attribution: IngestionAttribution,
-): Required<IngestionAttributionRecordFields> => ({
-  ingestion_api_key: attribution.ingestionApiKey,
-  ingestion_sdk_name: attribution.ingestionSdkName,
-  ingestion_sdk_version: attribution.ingestionSdkVersion,
-});
-
-const setIngestionAttributionRecordFieldDefaults = <
-  T extends Record<string, unknown>,
->(
-  record: T,
-): T & Required<IngestionAttributionRecordFields> => {
-  return Object.assign(record, {
-    ingestion_api_key:
-      typeof record["ingestion_api_key"] === "string"
-        ? record["ingestion_api_key"]
-        : "",
-    ingestion_sdk_name:
-      typeof record["ingestion_sdk_name"] === "string"
-        ? record["ingestion_sdk_name"]
-        : UNKNOWN_INGESTION_SDK_VALUE,
-    ingestion_sdk_version:
-      typeof record["ingestion_sdk_version"] === "string"
-        ? record["ingestion_sdk_version"]
-        : UNKNOWN_INGESTION_SDK_VALUE,
-  }) as T & Required<IngestionAttributionRecordFields>;
 };
 
 const immutableEntityKeys: {
@@ -644,7 +577,9 @@ export class IngestionService {
               long_string_value: validatedScore.longStringValue,
               execution_trace_id: validatedScore.executionTraceId,
               queue_id: validatedScore.queueId ?? null,
-              ...getNonEmptyIngestionAttributionRecordFields(attribution),
+              ingestion_api_key: attribution.ingestionApiKey,
+              ingestion_sdk_name: attribution.ingestionSdkName,
+              ingestion_sdk_version: attribution.ingestionSdkVersion,
               created_at: Date.now(),
               updated_at: Date.now(),
               event_ts: new Date(scoreEvent.timestamp).getTime(),
@@ -944,16 +879,10 @@ export class IngestionService {
       projectId,
       observationRecord: mergedObservationRecord,
     });
-    const observationRecordWithPossibleLegacyAttribution = {
+    const finalObservationRecord = {
       ...mergedObservationRecord,
       ...generationUsage,
-    } as ObservationRecordInsertType & IngestionAttributionRecordFields;
-    const {
-      ingestion_api_key: _legacyIngestionApiKey,
-      ingestion_sdk_name: _legacyIngestionSdkName,
-      ingestion_sdk_version: _legacyIngestionSdkVersion,
-      ...finalObservationRecord
-    } = observationRecordWithPossibleLegacyAttribution;
+    };
 
     // Backward compat: create wrapper trace for SDK < 2.0.0 events that do not have a traceId
     if (!finalObservationRecord.trace_id) {
@@ -991,7 +920,9 @@ export class IngestionService {
     if (writeToStagingTables) {
       const stagingRecord = {
         ...finalObservationRecord,
-        ...getIngestionAttributionRecordFields(attribution),
+        ingestion_api_key: attribution.ingestionApiKey,
+        ingestion_sdk_name: attribution.ingestionSdkName,
+        ingestion_sdk_version: attribution.ingestionSdkVersion,
         s3_first_seen_timestamp:
           this.getPartitionAwareTimestamp(createdAtTimestamp),
       };
@@ -1003,7 +934,7 @@ export class IngestionService {
   }
 
   private async mergeScoreRecords(params: {
-    scoreRecords: ScoreRecordInsertWithOptionalAttribution[];
+    scoreRecords: ScoreRecordInsertType[];
     clickhouseScoreRecord?: ScoreRecordInsertType | null;
   }): Promise<ScoreRecordInsertType> {
     const { scoreRecords, clickhouseScoreRecord } = params;
@@ -1022,7 +953,6 @@ export class IngestionService {
     mergedRecord.metadata = convertRecordValuesToString(
       (mergedRecord.metadata as Record<string, unknown>) ?? {},
     );
-    setIngestionAttributionRecordFieldDefaults(mergedRecord);
 
     return scoreRecordInsertSchema.parse(mergedRecord);
   }

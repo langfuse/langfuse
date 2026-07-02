@@ -26,9 +26,9 @@ export const IngestionEvent = z.object({
     fileKey: z.string().optional(),
     skipS3List: z.boolean().optional(),
     forwardToEventsTable: z.boolean().optional(),
-    ingestionApiKey: z.string().optional(),
-    ingestionSdkName: z.string().optional(),
-    ingestionSdkVersion: z.string().optional(),
+    ingestionApiKey: z.string(),
+    ingestionSdkName: z.string(),
+    ingestionSdkVersion: z.string(),
     // Absolute S3 key prefix the producer used (ends with "/"). Set so the
     // consumer never reconstructs the path and therefore can't drift from
     // the producer when env values differ across containers. Optional for
@@ -47,7 +47,7 @@ export const IngestionEvent = z.object({
 export const OtelIngestionEvent = z.object({
   data: z.object({
     fileKey: z.string(),
-    publicKey: z.string().optional(),
+    publicKey: z.string(),
   }),
   authCheck: z.object({
     validKey: z.literal(true),
@@ -58,8 +58,8 @@ export const OtelIngestionEvent = z.object({
     }),
   }),
   propagatedHeaders: z.record(z.string(), z.string()).optional(),
-  sdkName: z.string().optional(),
-  sdkVersion: z.string().optional(),
+  sdkName: z.string(),
+  sdkVersion: z.string(),
   ingestionVersion: z.string().optional(),
 });
 

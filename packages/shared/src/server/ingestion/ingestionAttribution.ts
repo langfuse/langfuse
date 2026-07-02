@@ -48,10 +48,12 @@ export const createIngestionAttribution = (params: {
   };
 };
 
-export const normalizeIngestionAttribution = (
-  attribution?: Partial<IngestionAttribution>,
-): IngestionAttribution => ({
-  ingestionApiKey: attribution?.ingestionApiKey ?? "",
-  ingestionSdkName: normalizeSdkValue(attribution?.ingestionSdkName),
-  ingestionSdkVersion: normalizeSdkValue(attribution?.ingestionSdkVersion),
+export const createUnknownSdkIngestionAttribution = (params: {
+  authCheck: {
+    scope: { publicKey?: string | null; projectId?: string | null };
+  };
+}): IngestionAttribution => ({
+  ingestionApiKey: params.authCheck.scope.publicKey ?? "",
+  ingestionSdkName: UNKNOWN_INGESTION_SDK_VALUE,
+  ingestionSdkVersion: UNKNOWN_INGESTION_SDK_VALUE,
 });

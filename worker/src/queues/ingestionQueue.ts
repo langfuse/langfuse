@@ -10,7 +10,6 @@ import {
   logger,
   markProjectIngestFailure,
   markProjectS3Slowdown,
-  normalizeIngestionAttribution,
   QueueName,
   rawEventBucketPrefix,
   recordDistribution,
@@ -20,6 +19,7 @@ import {
   SecondaryIngestionQueue,
   TQueueJobTypes,
   traceException,
+  type IngestionAttribution,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 
@@ -271,11 +271,11 @@ export const ingestionQueueProcessorBuilder = (
       const forwardToEventsTable =
         job.data.payload.data.forwardToEventsTable ??
         v4WritesToEventsTable(env);
-      const attribution = normalizeIngestionAttribution({
+      const attribution: IngestionAttribution = {
         ingestionApiKey: job.data.payload.data.ingestionApiKey,
         ingestionSdkName: job.data.payload.data.ingestionSdkName,
         ingestionSdkVersion: job.data.payload.data.ingestionSdkVersion,
-      });
+      };
 
       // Recover the canonical entity id from the downloaded event body, not
       // from the queue payload. On replay, `payload.data.eventBodyId` is the

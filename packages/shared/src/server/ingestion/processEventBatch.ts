@@ -28,7 +28,6 @@ import {
   IngestionEventType,
 } from "./types";
 import type { IngestionAttribution } from "./ingestionAttribution";
-import { normalizeIngestionAttribution } from "./ingestionAttribution";
 import {
   StorageService,
   StorageServiceFactory,
@@ -105,7 +104,7 @@ type ProcessEventBatchOptions = {
   source?: "api" | "otel";
   isLangfuseInternal?: boolean;
   forwardToEventsTable?: boolean;
-  attribution?: Partial<IngestionAttribution>;
+  attribution: IngestionAttribution;
 };
 
 /**
@@ -117,7 +116,7 @@ type ProcessEventBatchOptions = {
 export const processEventBatch = async (
   input: unknown[],
   authCheck: AuthHeaderValidVerificationResultIngestion,
-  options: ProcessEventBatchOptions = {},
+  options: ProcessEventBatchOptions,
 ): Promise<{
   successes: { id: string; status: number }[];
   errors: {
@@ -137,10 +136,6 @@ export const processEventBatch = async (
     forwardToEventsTable,
     attribution,
   } = options;
-  const normalizedAttribution = normalizeIngestionAttribution({
-    ingestionApiKey: authCheck.scope.publicKey ?? "",
-    ...attribution,
-  });
 
   // add context of api call to the span
   const currentSpan = getCurrentSpan();
@@ -396,10 +391,9 @@ export const processEventBatch = async (
                   skipS3List: shouldSkipS3List,
                   forwardToEventsTable,
                   bucketPrefix: eventData.bucketPrefix,
-                  ingestionApiKey: normalizedAttribution.ingestionApiKey,
-                  ingestionSdkName: normalizedAttribution.ingestionSdkName,
-                  ingestionSdkVersion:
-                    normalizedAttribution.ingestionSdkVersion,
+                  ingestionApiKey: attribution.ingestionApiKey,
+                  ingestionSdkName: attribution.ingestionSdkName,
+                  ingestionSdkVersion: attribution.ingestionSdkVersion,
                 },
                 authCheck: authCheck as {
                   validKey: true;

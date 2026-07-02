@@ -255,15 +255,15 @@ export const handleEventPropagationJob = async (
           metadata_names,
           metadata_values,
           source,
-          ingestion_api_key,
-          ingestion_sdk_name,
-          ingestion_sdk_version,
           blob_storage_file_path,
           event_bytes,
           created_at,
           updated_at,
           event_ts,
-          is_deleted
+          is_deleted,
+          ingestion_api_key,
+          ingestion_sdk_name,
+          ingestion_sdk_version
         )
         SELECT
           obs.project_id,
@@ -314,15 +314,15 @@ export const handleEventPropagationJob = async (
           mapKeys(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_names,
           mapValues(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_values,
           multiIf(mapContains(obs.metadata, 'resourceAttributes'), 'otel-dual-write', 'ingestion-api-dual-write') AS source,
-          obs.ingestion_api_key AS ingestion_api_key,
-          obs.ingestion_sdk_name AS ingestion_sdk_name,
-          obs.ingestion_sdk_version AS ingestion_sdk_version,
           '' AS blob_storage_file_path,
           byteSize(*) AS event_bytes,
           obs.created_at,
           obs.updated_at,
           obs.event_ts,
-          obs.is_deleted
+          obs.is_deleted,
+          obs.ingestion_api_key AS ingestion_api_key,
+          obs.ingestion_sdk_name AS ingestion_sdk_name,
+          obs.ingestion_sdk_version AS ingestion_sdk_version
         FROM observations_batch_staging obs FINAL
         LEFT JOIN relevant_traces t
         ON (

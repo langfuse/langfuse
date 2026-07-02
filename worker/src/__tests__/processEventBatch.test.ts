@@ -1,7 +1,10 @@
 import { beforeEach, describe, it, expect, assert, vi } from "vitest";
 import { eventTypes } from "../../../packages/shared/src/server/ingestion/types";
 import { processEventBatch } from "../../../packages/shared/src/server/ingestion/processEventBatch";
-import { UNKNOWN_INGESTION_SDK_VALUE } from "../../../packages/shared/src/server/ingestion/ingestionAttribution";
+import {
+  createUnknownSdkIngestionAttribution,
+  UNKNOWN_INGESTION_SDK_VALUE,
+} from "../../../packages/shared/src/server/ingestion/ingestionAttribution";
 
 const { getQueueInstanceMock, queueAddMock, uploadJsonMock } = vi.hoisted(
   () => ({
@@ -76,12 +79,14 @@ describe("processEventBatch", () => {
       },
     };
 
+    const attribution = createUnknownSdkIngestionAttribution({ authCheck });
+
     assert.doesNotThrow(
-      async () => await processEventBatch([], authCheck, {}),
+      async () => await processEventBatch([], authCheck, { attribution }),
       "UnauthorizedError",
     );
 
-    const res = await processEventBatch([], authCheck, {});
+    const res = await processEventBatch([], authCheck, { attribution });
     expect(res.successes).toEqual([]);
     expect(res.errors).toEqual([]);
   });
@@ -121,7 +126,7 @@ describe("processEventBatch", () => {
     });
   });
 
-  it("falls back to the authenticated public key when no SDK headers are present", async () => {
+  it("forwards explicit unknown SDK attribution", async () => {
     const authCheck = {
       validKey: true as const,
       scope: {
@@ -133,6 +138,7 @@ describe("processEventBatch", () => {
 
     await processEventBatch([createTraceCreateEvent()], authCheck, {
       delay: 0,
+      attribution: createUnknownSdkIngestionAttribution({ authCheck }),
     });
 
     expect(queueAddMock.mock.calls[0][1].payload.data).toMatchObject({
