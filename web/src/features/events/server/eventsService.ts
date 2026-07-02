@@ -415,13 +415,18 @@ const toEventFilterValueOptions = (
     : options;
 };
 
+// Only emit the columns that were actually requested. Returning every column
+// (with `[]` for the unrequested ones) would make a lazily-loaded facet
+// indistinguishable from a loaded-but-empty one on the client, defeating
+// on-demand loading — the FE keys "needs loading" on a column key being absent.
 const toEventFilterOptionsByColumn = (
   items: EventFilterOptionRow[],
-): EventFilterOptionsByColumn =>
-  EVENT_FILTER_OPTION_COLUMNS.reduce((acc, column) => {
+  columns: readonly (keyof EventFilterOptionsByColumn)[],
+): Partial<EventFilterOptionsByColumn> =>
+  columns.reduce((acc, column) => {
     acc[column] = toEventFilterValueOptions(items, column);
     return acc;
-  }, {} as EventFilterOptionsByColumn);
+  }, {} as Partial<EventFilterOptionsByColumn>);
 
 const getEventFilterOptionsScope = (
   params: GetObservationsFilterOptionsParams,
@@ -622,19 +627,31 @@ export async function getEventFilterOptions(
         .map((score) => score.name),
     ),
   );
-  const eventFilterOptionsByColumn =
-    toEventFilterOptionsByColumn(eventFilterOptions);
+  const eventFilterOptionsByColumn = toEventFilterOptionsByColumn(
+    eventFilterOptions,
+    eventColumns,
+  );
 
+  // Only include a score key when its column was requested, so an unrequested
+  // (lazily-loadable) score facet stays absent from the payload rather than
+  // arriving as an empty list (which the client cannot tell from "loaded, no
+  // values"). When everything is requested (the default), all keys are present.
+  // Score names come from the observation-/trace-scoped discovery above so each
+  // column only offers names its filter can match (LFE-10596).
   return {
     ...eventFilterOptionsByColumn,
-    scores_avg: shouldLoadScoresAvg
-      ? numericScoreNames.map((score) => score.name)
-      : [],
-    score_categories: shouldLoadScoreCategories ? categoricalScoreNames : [],
-    trace_scores_avg: shouldLoadTraceScores ? traceNumericScoreNames : [],
-    trace_score_categories: shouldLoadTraceScoreCategories
-      ? traceCategoricalScoreColumns
-      : [],
+    ...(shouldLoadScoresAvg
+      ? { scores_avg: numericScoreNames.map((score) => score.name) }
+      : {}),
+    ...(shouldLoadScoreCategories
+      ? { score_categories: categoricalScoreNames }
+      : {}),
+    ...(shouldLoadTraceScores
+      ? { trace_scores_avg: traceNumericScoreNames }
+      : {}),
+    ...(shouldLoadTraceScoreCategories
+      ? { trace_score_categories: traceCategoricalScoreColumns }
+      : {}),
   };
 }
 

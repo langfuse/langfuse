@@ -94,6 +94,12 @@ const nextConfig = {
     resolveAlias: {
       "@langfuse/shared": "./packages/shared/src",
     },
+    rules: {
+      "*.md": {
+        loaders: ["raw-loader"],
+        as: "*.js",
+      },
+    },
   },
   logging: {
     browserToTerminal: true,
@@ -113,6 +119,15 @@ const nextConfig = {
     defaultLocale: "en",
   },
   output: "standalone",
+
+  async rewrites() {
+    return [
+      {
+        source: "/.well-known/mcp.json",
+        destination: "/api/well-known/mcp.json",
+      },
+    ];
+  },
 
   async headers() {
     return [
@@ -218,6 +233,11 @@ const nextConfig = {
     // Exclude Datadog packages from webpack bundling to avoid issues
     // see: https://docs.datadoghq.com/tracing/trace_collection/automatic_instrumentation/dd_libraries/nodejs/#bundling-with-nextjs
     config.externals.push("@datadog/pprof", "dd-trace");
+
+    config.module.rules.push({
+      test: /\.md$/i,
+      type: "asset/source",
+    });
 
     // Setup in-source testing: https://vitest.dev/guide/in-source.html#other-bundlers
     config.plugins.push(
