@@ -109,7 +109,7 @@ function ToolCallStatusBadge({
     <Badge
       variant={isCalled ? undefined : "secondary"}
       className={cn(
-        "text-xs font-medium",
+        "text-xs font-medium whitespace-nowrap",
         isCalled &&
           "bg-light-green text-dark-green hover:bg-light-green border-transparent select-none",
       )}
@@ -201,9 +201,12 @@ export function ToolCallDefinitionCard({
               }}
             >
               {/* Left: Tool icon + definition number + name */}
-              <div className="flex items-center gap-2">
-                <Wrench className="text-muted-foreground h-3.5 w-3.5" />
-                <span className="text-foreground font-mono text-xs font-medium">
+              <div className="flex min-w-0 items-center gap-2">
+                <Wrench className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+                <span
+                  className="text-foreground block truncate font-mono text-xs font-medium"
+                  title={tool.name}
+                >
                   {toolDefinitionNumber !== undefined && (
                     <span className="mr-1">{toolDefinitionNumber}.</span>
                   )}
@@ -212,7 +215,7 @@ export function ToolCallDefinitionCard({
               </div>
 
               {/* Right: Status badge + chevron indicator */}
-              <div className="flex items-center gap-1.5">
+              <div className="flex shrink-0 items-center gap-1.5">
                 <ToolCallStatusBadge
                   isCalled={isCalled}
                   statusText={statusText}
