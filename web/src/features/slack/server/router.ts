@@ -32,7 +32,7 @@ export const slackRouter = createTRPCRouter({
           isConnected: false,
           teamId: null,
           teamName: null,
-          installUrl: `/api/public/slack/install?projectId=${input.projectId}`,
+          installUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/public/slack/install?projectId=${input.projectId}`,
         };
       }
 
@@ -53,7 +53,7 @@ export const slackRouter = createTRPCRouter({
             isConnected: false,
             teamId: integration.teamId,
             teamName: integration.teamName,
-            installUrl: `/api/public/slack/install?projectId=${input.projectId}`,
+            installUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/public/slack/install?projectId=${input.projectId}`,
             error:
               "Integration is invalid. Please reconnect your Slack workspace.",
           };
@@ -77,7 +77,7 @@ export const slackRouter = createTRPCRouter({
           isConnected: false,
           teamId: integration.teamId,
           teamName: integration.teamName,
-          installUrl: `/api/public/slack/install?projectId=${input.projectId}`,
+          installUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/public/slack/install?projectId=${input.projectId}`,
           error:
             "Failed to validate integration. Please reconnect your Slack workspace.",
         };
