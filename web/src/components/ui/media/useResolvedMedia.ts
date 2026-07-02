@@ -1,12 +1,9 @@
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { type MediaLeafDescriptor } from "./classifyMediaLeaf";
+import { type MediaDescriptor } from "./mediaUtils";
 import { type MediaTagStatus } from "./MediaTag";
 
-type LangfuseRefDescriptor = Extract<
-  MediaLeafDescriptor,
-  { kind: "langfuseRef" }
->;
+type LangfuseRefDescriptor = Extract<MediaDescriptor, { kind: "langfuseRef" }>;
 
 /**
  * Resolves the previewable URL for a media descriptor.
