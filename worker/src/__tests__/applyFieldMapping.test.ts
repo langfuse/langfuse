@@ -112,6 +112,14 @@ describe("applyFieldMapping", () => {
       ).toBeUndefined();
     });
 
+    it("should evaluate filter expressions like $.messages[?(@.role=='user')]", () => {
+      const result = evaluateJsonPath(
+        sampleObservation.input,
+        '$.messages[?(@.role=="user")]',
+      );
+      expect(result).toEqual([{ role: "user", content: "What is 2+2?" }]);
+    });
+
     it("should handle string data (auto-parse JSON)", () => {
       const jsonString = '{"nested": {"value": 42}}';
       expect(evaluateJsonPath(jsonString, "$.nested.value")).toBe(42);
