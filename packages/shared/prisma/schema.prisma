@@ -1262,6 +1262,11 @@ model BlobStorageIntegration {
   lastError   String?   @map("last_error")
   lastErrorAt DateTime? @map("last_error_at")
 
+  // Circuit breaker: consecutive failed sync runs. Reset to 0 on success; once
+  // it reaches the configured threshold the integration is auto-disabled
+  // (enabled = false) so a wedged chunk stops retrying forever (LFE-10279).
+  consecutiveFailures Int @default(0) @map("consecutive_failures")
+
   // Notification tracking
   lastFailureNotificationSentAt DateTime? @map("last_failure_notification_sent_at")
 

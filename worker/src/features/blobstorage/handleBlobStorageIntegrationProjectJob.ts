@@ -1064,63 +1064,73 @@ export const handleBlobStorageIntegrationProjectJob = async (
     return;
   }
 
-  await prisma.blobStorageIntegration.update({
-    where: { projectId },
-    data: { runStartedAt: new Date() },
-  });
-
-  // Sync between lastSyncAt and now - 30 minutes
-  // Cap the export to one frequency period to enable chunked historic exports
-  const minTimestamp = await getMinTimestampForExport(
-    projectId,
-    blobStorageIntegration.lastSyncAt,
-    blobStorageIntegration.exportMode,
-    blobStorageIntegration.exportStartDate,
-  );
-
-  logger.info(
-    `[BLOB INTEGRATION] Calculated minTimestamp for project ${projectId}: ${minTimestamp}, isValid: ${!isNaN(minTimestamp.getTime())}, getTime: ${minTimestamp.getTime()}, exportMode: ${blobStorageIntegration.exportMode}, lastSyncAt: ${blobStorageIntegration.lastSyncAt}, exportStartDate: ${blobStorageIntegration.exportStartDate}`,
-  );
-
-  const now = new Date();
-  const uncappedMaxTimestamp = new Date(
-    now.getTime() - BLOB_STORAGE_LAG_BUFFER_MS,
-  );
-  const frequencyIntervalMs = getFrequencyIntervalMs(
-    blobStorageIntegration.exportFrequency,
-  );
-
-  // Cap maxTimestamp to one frequency period ahead of minTimestamp
-  // This ensures large historic exports are broken into manageable chunks
-  const maxTimestamp = new Date(
-    Math.min(
-      minTimestamp.getTime() + frequencyIntervalMs,
-      uncappedMaxTimestamp.getTime(),
-    ),
-  );
-
-  logger.info(
-    `[BLOB INTEGRATION] Calculated maxTimestamp for project ${projectId}: ${maxTimestamp}, isValid: ${!isNaN(maxTimestamp.getTime())}, getTime: ${maxTimestamp.getTime()}, frequencyIntervalMs: ${frequencyIntervalMs}`,
-  );
-
-  // Skip export if the time window is empty or invalid
-  if (minTimestamp >= maxTimestamp) {
-    logger.info(
-      `[BLOB INTEGRATION] Skipping export for project ${projectId}: time window is empty (min: ${minTimestamp.toISOString()}, max: ${maxTimestamp.toISOString()})`,
-    );
+  try {
+    // The try starts here (not just around the export) so the circuit breaker
+    // also covers the lease update and export-window computation. A throw from
+    // getMinTimestampForExport — which queries ClickHouse on the first
+    // FULL_HISTORY sync — or from the runStartedAt update would otherwise skip
+    // the catch entirely, leaving a wedged project to retry forever without
+    // ever counting toward the breaker or notifying owners (LFE-10279).
     await prisma.blobStorageIntegration.update({
       where: { projectId },
-      data: {
-        runStartedAt: null,
-        nextSyncAt: new Date(now.getTime() + frequencyIntervalMs),
-        lastError: null,
-        lastErrorAt: null,
-      },
+      data: { runStartedAt: new Date() },
     });
-    return;
-  }
 
-  try {
+    // Sync between lastSyncAt and now - 30 minutes
+    // Cap the export to one frequency period to enable chunked historic exports
+    const minTimestamp = await getMinTimestampForExport(
+      projectId,
+      blobStorageIntegration.lastSyncAt,
+      blobStorageIntegration.exportMode,
+      blobStorageIntegration.exportStartDate,
+    );
+
+    logger.info(
+      `[BLOB INTEGRATION] Calculated minTimestamp for project ${projectId}: ${minTimestamp}, isValid: ${!isNaN(minTimestamp.getTime())}, getTime: ${minTimestamp.getTime()}, exportMode: ${blobStorageIntegration.exportMode}, lastSyncAt: ${blobStorageIntegration.lastSyncAt}, exportStartDate: ${blobStorageIntegration.exportStartDate}`,
+    );
+
+    const now = new Date();
+    const uncappedMaxTimestamp = new Date(
+      now.getTime() - BLOB_STORAGE_LAG_BUFFER_MS,
+    );
+    const frequencyIntervalMs = getFrequencyIntervalMs(
+      blobStorageIntegration.exportFrequency,
+    );
+
+    // Cap maxTimestamp to one frequency period ahead of minTimestamp
+    // This ensures large historic exports are broken into manageable chunks
+    const maxTimestamp = new Date(
+      Math.min(
+        minTimestamp.getTime() + frequencyIntervalMs,
+        uncappedMaxTimestamp.getTime(),
+      ),
+    );
+
+    logger.info(
+      `[BLOB INTEGRATION] Calculated maxTimestamp for project ${projectId}: ${maxTimestamp}, isValid: ${!isNaN(maxTimestamp.getTime())}, getTime: ${maxTimestamp.getTime()}, frequencyIntervalMs: ${frequencyIntervalMs}`,
+    );
+
+    // Skip export if the time window is empty or invalid
+    if (minTimestamp >= maxTimestamp) {
+      logger.info(
+        `[BLOB INTEGRATION] Skipping export for project ${projectId}: time window is empty (min: ${minTimestamp.toISOString()}, max: ${maxTimestamp.toISOString()})`,
+      );
+      // An empty window is a successful no-op run, so clear the breaker too and
+      // gate on enabled: true — symmetric to the success commit below, so a
+      // concurrent disable claim isn't clobbered (LFE-10279).
+      await prisma.blobStorageIntegration.updateMany({
+        where: { projectId, enabled: true },
+        data: {
+          runStartedAt: null,
+          nextSyncAt: new Date(now.getTime() + frequencyIntervalMs),
+          lastError: null,
+          lastErrorAt: null,
+          consecutiveFailures: 0,
+        },
+      });
+      return;
+    }
+
     // Fail loudly rather than export from unpopulated tables when an enriched
     // source survives on a deployment without the enriched path, e.g. after a
     // V4-preview rollback. The catch persists lastError and notifies admins
@@ -1316,22 +1326,32 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
-    // Update integration after successful processing
-    await prisma.blobStorageIntegration.update({
-      where: {
-        projectId,
-      },
-      data: {
-        lastSyncAt: maxTimestamp,
-        nextSyncAt,
-        lastError: null,
-        lastErrorAt: null,
-        runStartedAt: null,
-      },
-    });
+    // Update integration after successful processing. Gate on enabled: true so
+    // a concurrent worker that won the circuit-breaker disable claim isn't
+    // clobbered by this late-arriving success — otherwise we'd wipe the
+    // lastError/lastErrorAt it recorded and re-enable nothing, leaving admins a
+    // "paused" email pointing at an empty Review Settings page (LFE-10279).
+    const { count: successCount } =
+      await prisma.blobStorageIntegration.updateMany({
+        where: {
+          projectId,
+          enabled: true,
+        },
+        data: {
+          lastSyncAt: maxTimestamp,
+          nextSyncAt,
+          lastError: null,
+          lastErrorAt: null,
+          runStartedAt: null,
+          // Reset the circuit breaker: this chunk succeeded (LFE-10279).
+          consecutiveFailures: 0,
+        },
+      });
 
-    // If still catching up, immediately queue the next chunk job
-    if (!caughtUp) {
+    // If still catching up, immediately queue the next chunk job — but only if
+    // this success actually landed (the integration is still enabled), so we
+    // don't enqueue a successor for a just-disabled integration.
+    if (!caughtUp && successCount > 0) {
       const queue = BlobStorageIntegrationProcessingQueue.getInstance();
       if (queue) {
         const jobId = `${projectId}-${maxTimestamp.toISOString()}`;
@@ -1356,16 +1376,74 @@ export const handleBlobStorageIntegrationProjectJob = async (
     );
   } catch (error) {
     const errorMessage = extractStorageErrorMessage(error);
+    const maxConsecutiveFailures =
+      env.LANGFUSE_BLOB_STORAGE_MAX_CONSECUTIVE_FAILURES;
 
+    // The queue retries each job up to `attempts` times with exponential
+    // backoff, so one scheduled run produces several catch passes. Only the
+    // final, retry-exhausted pass counts as one failed sync run for the circuit
+    // breaker; otherwise a transient blip absorbed by BullMQ would advance the
+    // counter multiple times within a single run and trip the breaker
+    // prematurely (LFE-10279). attemptsMade is 0-based during processing and is
+    // incremented after this handler returns, so the last allowed attempt has
+    // attemptsMade === attempts - 1.
+    const isFinalAttempt =
+      (job.attemptsMade ?? 0) >= (job.opts?.attempts ?? 1) - 1;
+
+    // Circuit breaker (LFE-10279): count consecutive failed sync runs and
+    // auto-disable the integration once the threshold is reached, so a wedged
+    // or misconfigured chunk stops retrying forever. lastSyncAt only advances on
+    // success, so every failed run here retries the same
+    // (projectId, lastSyncAt) chunk. lastError is recorded on every pass for
+    // live visibility, but the counter only advances once the run is exhausted.
+    let paused = false;
     try {
-      await prisma.blobStorageIntegration.update({
-        where: { projectId },
-        data: {
-          lastError: errorMessage,
-          lastErrorAt: new Date(),
-          runStartedAt: null,
-        },
-      });
+      const { consecutiveFailures } =
+        await prisma.blobStorageIntegration.update({
+          where: { projectId },
+          data: {
+            lastError: errorMessage,
+            lastErrorAt: new Date(),
+            runStartedAt: null,
+            ...(isFinalAttempt
+              ? { consecutiveFailures: { increment: 1 } }
+              : {}),
+          },
+          select: { consecutiveFailures: true },
+        });
+
+      if (isFinalAttempt && consecutiveFailures >= maxConsecutiveFailures) {
+        // Atomic claim on the enabled true→false transition. The increment
+        // above is atomic, so two concurrent workers can both read a value at
+        // or past the threshold; gating the disable on actually flipping the
+        // flag means only one wins and sends the one-time pause email. The
+        // counter is reset on re-enable (upsertBlobStorageIntegration), not
+        // here, so a losing worker's stale increment can't shrink the next
+        // grace period.
+        // Seed lastFailureNotificationSentAt in the same claim so a concurrent
+        // loser (paused=false) hits a fresh cooldown and is suppressed —
+        // otherwise it could send a contradictory "failed" email alongside the
+        // winner's "paused" email for the same trip.
+        // Re-check the counter in the where clause: the increment-read above and
+        // this claim are separate round-trips, so under READ COMMITTED a
+        // concurrent success can reset consecutiveFailures to 0 in between. The
+        // gte gate makes the claim a no-op in that case, avoiding a spurious
+        // disable + "paused" email for an integration that just succeeded.
+        const { count } = await prisma.blobStorageIntegration.updateMany({
+          where: {
+            projectId,
+            enabled: true,
+            consecutiveFailures: { gte: maxConsecutiveFailures },
+          },
+          data: { enabled: false, lastFailureNotificationSentAt: new Date() },
+        });
+        if (count > 0) {
+          paused = true;
+          logger.warn(
+            `[BLOB INTEGRATION] Disabled blob storage integration for project ${projectId} after ${consecutiveFailures} consecutive failures (threshold ${maxConsecutiveFailures})`,
+          );
+        }
+      }
     } catch (persistError) {
       logger.error(
         `[BLOB INTEGRATION] Failed to persist blob storage error for project ${projectId}`,
@@ -1373,7 +1451,12 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
-    notifyBlobStorageExportFailedInBackground(projectId);
+    // Notify only once the run is exhausted: a failure that BullMQ still
+    // recovers on a later retry is not a failed sync run, so it should not
+    // alert owners.
+    if (isFinalAttempt) {
+      notifyBlobStorageExportFailedInBackground(projectId, paused);
+    }
 
     const chain = errorChainText(error);
     logger.error(
@@ -1390,7 +1473,10 @@ export const handleBlobStorageIntegrationProjectJob = async (
   }
 };
 
-function notifyBlobStorageExportFailedInBackground(projectId: string): void {
+function notifyBlobStorageExportFailedInBackground(
+  projectId: string,
+  paused = false,
+): void {
   (async () => {
     try {
       const cooldownMs =
@@ -1399,29 +1485,36 @@ function notifyBlobStorageExportFailedInBackground(projectId: string): void {
         60 *
         1000;
 
-      // Atomic claim: set timestamp before sending to prevent duplicate emails on concurrent retries.
-      // If the email send subsequently fails, the cooldown still applies — the next failure
-      // after cooldown expiry will retry the notification.
-      const claimed = await prisma.blobStorageIntegration.updateMany({
-        where: {
-          projectId,
-          OR: [
-            { lastFailureNotificationSentAt: null },
-            {
-              lastFailureNotificationSentAt: {
-                lt: new Date(Date.now() - cooldownMs),
+      // Cooldown gating prevents email spam on repeated failures. The circuit
+      // breaker pause is a one-time state change, so it bypasses the cooldown to
+      // guarantee owners learn the integration was disabled (LFE-10279).
+      // Dedup for the pause email is handled upstream: only the worker that wins
+      // the atomic enabled true→false claim calls this with paused = true.
+      if (!paused) {
+        // Atomic claim: set timestamp before sending to prevent duplicate emails on concurrent retries.
+        // If the email send subsequently fails, the cooldown still applies — the next failure
+        // after cooldown expiry will retry the notification.
+        const claimed = await prisma.blobStorageIntegration.updateMany({
+          where: {
+            projectId,
+            OR: [
+              { lastFailureNotificationSentAt: null },
+              {
+                lastFailureNotificationSentAt: {
+                  lt: new Date(Date.now() - cooldownMs),
+                },
               },
-            },
-          ],
-        },
-        data: { lastFailureNotificationSentAt: new Date() },
-      });
+            ],
+          },
+          data: { lastFailureNotificationSentAt: new Date() },
+        });
 
-      if (claimed.count === 0) {
-        logger.info(
-          `[BLOB INTEGRATION] Skipping failure notification for project ${projectId}, cooldown still active`,
-        );
-        return;
+        if (claimed.count === 0) {
+          logger.info(
+            `[BLOB INTEGRATION] Skipping failure notification for project ${projectId}, cooldown still active`,
+          );
+          return;
+        }
       }
 
       const emailEnv = {
@@ -1459,6 +1552,7 @@ function notifyBlobStorageExportFailedInBackground(projectId: string): void {
         projectName,
         settingsUrl,
         receiverEmails: adminEmails,
+        paused,
       });
     } catch (error) {
       logger.error(

@@ -117,9 +117,23 @@ export async function upsertBlobStorageIntegration(params: {
   };
 
   return prisma.$transaction(async (tx) => {
+    // Lock the row for the duration of the transaction so a concurrent worker
+    // circuit-breaker disable can't commit between this read and the upsert.
+    // Without it, `reactivated` is computed from a stale enabled=true and the
+    // breaker reset is skipped while the upsert re-enables the row, leaving a
+    // tripped counter that re-disables on the next failure and sends a second
+    // pause email (LFE-10279). No-op for a brand-new integration (no row to
+    // lock; the upsert INSERTs and ON CONFLICT handles concurrent creates).
+    await tx.$queryRaw`SELECT 1 FROM blob_storage_integrations WHERE project_id = ${projectId} FOR UPDATE`;
+
     const existing = await tx.blobStorageIntegration.findUnique({
       where: { projectId },
-      select: { exportMode: true, lastError: true, runStartedAt: true },
+      select: {
+        exportMode: true,
+        enabled: true,
+        lastError: true,
+        runStartedAt: true,
+      },
     });
 
     // Require secret key for new integrations (unless using host credentials)
@@ -134,6 +148,12 @@ export async function upsertBlobStorageIntegration(params: {
     }
 
     const modeChanged = existing && existing.exportMode !== data.exportMode;
+    // Re-enabling a circuit-breaker-disabled integration grants a fresh failure
+    // budget: clear the consecutive-failure counter and last error so the next
+    // failure doesn't immediately re-trip the breaker (LFE-10279). Only on the
+    // false→true transition — an edit to an already-enabled integration leaves
+    // an in-progress failure count intact.
+    const reactivated = existing != null && !existing.enabled && data.enabled;
     const encryptedSecret = secretAccessKey ? encrypt(secretAccessKey) : null;
 
     // exportSource for the CREATE payload. The !existing guard was previously
@@ -174,6 +194,19 @@ export async function upsertBlobStorageIntegration(params: {
         // previous mode's lastSyncAt.
         ...(modeChanged ? { lastSyncAt: null, nextSyncAt: new Date() } : {}),
         runStartedAt: null,
+        // Reset the circuit breaker on re-enable (see `reactivated` above).
+        // Clear lastFailureNotificationSentAt too: the auto-disable claim seeds
+        // it to dedupe the pause email, so leaving it set would suppress the
+        // first failure email after re-enable. Null matches a brand-new
+        // integration and restores the full cooldown grace (LFE-10279).
+        ...(reactivated
+          ? {
+              consecutiveFailures: 0,
+              lastError: null,
+              lastErrorAt: null,
+              lastFailureNotificationSentAt: null,
+            }
+          : {}),
       },
     });
 

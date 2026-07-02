@@ -199,6 +199,19 @@ const EnvSchema = z.object({
     .positive()
     .default(24),
 
+  // Circuit breaker: after this many consecutive failed sync runs the blob
+  // storage integration is auto-disabled (enabled = false) and the project
+  // owners are notified, so a wedged chunk stops retrying forever (LFE-10279).
+  // A "sync run" is a fully retry-exhausted BullMQ job: the queue already
+  // retries each job up to `attempts` times, so only the final retry counts
+  // here. The default is kept below the per-job retry count so transient blips
+  // absorbed by BullMQ never advance the counter on their own.
+  LANGFUSE_BLOB_STORAGE_MAX_CONSECUTIVE_FAILURES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(3),
+
   // Comma-separated list of project IDs that should only export traces table (skip observations and scores)
   LANGFUSE_BLOB_STORAGE_EXPORT_TRACE_ONLY_PROJECT_IDS: z
     .string()

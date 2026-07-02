@@ -611,6 +611,57 @@ describe("Blob Storage Integration tRPC Router", () => {
     });
   });
 
+  // LFE-10279: re-enabling a circuit-breaker-disabled integration must grant a
+  // fresh failure budget, otherwise the next single failure re-trips the breaker.
+  describe("circuit breaker reset on re-enable", () => {
+    it("clears consecutiveFailures and lastError when a disabled integration is re-enabled", async () => {
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id, enabled: false });
+      await prisma.blobStorageIntegration.update({
+        where: { projectId: project.id },
+        data: {
+          consecutiveFailures: 5,
+          lastError: "boom",
+          lastErrorAt: new Date(),
+        },
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        enabled: true,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.enabled).toBe(true);
+      expect(row.consecutiveFailures).toBe(0);
+      expect(row.lastError).toBeNull();
+      expect(row.lastErrorAt).toBeNull();
+    });
+
+    it("leaves an in-progress failure count intact when an already-enabled integration is edited", async () => {
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id, enabled: true });
+      await prisma.blobStorageIntegration.update({
+        where: { projectId: project.id },
+        data: { consecutiveFailures: 2 },
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        enabled: true,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.consecutiveFailures).toBe(2);
+    });
+  });
+
   describe("legacy blob export source cutoff gate", () => {
     afterEach(() => {
       vi.restoreAllMocks();
