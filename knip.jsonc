@@ -1,0 +1,18 @@
+{
+  "ignore": [".agents/skills/**", "scripts/**", "vitest.workspace.ts"],
+  "ignoreDependencies": ["braces"],
+  "ignoreBinaries": ["vitest"],
+  "ignoreWorkspaces": [
+    "web",
+    "worker",
+    "ee",
+    "packages/shared",
+    "packages/eslint-plugin",
+  ],
+  "workspaces": {
+    "packages/config-eslint": {
+      "entry": ["index.d.ts", "library.d.ts", "shared.d.ts", "next.d.ts"],
+      "project": ["*.d.ts"],
+    },
+  },
+}
