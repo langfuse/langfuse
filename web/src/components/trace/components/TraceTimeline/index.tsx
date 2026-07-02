@@ -22,14 +22,14 @@ import {
   useState,
   useLayoutEffect,
 } from "react";
-import { Pause, Play, Square } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTraceData } from "../../contexts/TraceDataContext";
 import { useSelection } from "../../contexts/SelectionContext";
 import { useViewPreferences } from "../../contexts/ViewPreferencesContext";
 import {
   useActiveObservationIds,
-  useSetActiveObservationIds,
+  usePlayhead,
+  useShowPlayhead,
 } from "../../contexts/PlayheadContext";
 import { useHandlePrefetchObservation } from "../../hooks/useHandlePrefetchObservation";
 import { flattenTreeWithTimelineMetrics } from "./timeline-flattening";
@@ -54,10 +54,6 @@ const GUTTER_WIDTH_MAX = 560;
 // with ~5px of breathing room. Drives both the virtualizer estimate and the
 // rendered row height, so the two never drift.
 const ROW_HEIGHT = 26;
-// Playback compresses to at most this many wall-clock seconds: traces shorter
-// than this play in real time; anything longer is scaled so the whole trace
-// always plays in exactly this window (no manual speed control needed).
-const PLAYBACK_MAX_SECONDS = 10;
 
 export function TraceTimeline() {
   const { roots, serverScores: scores, comments } = useTraceData();
@@ -312,91 +308,44 @@ export function TraceTimeline() {
   const totalSize = rowVirtualizer.getTotalSize();
   const virtualItems = rowVirtualizer.getVirtualItems();
 
-  // --- Playhead / transport (Ableton-style) ---------------------------------
-  // A vertical playhead over the gantt. Click the time scale to place it, drag
-  // its handle to scrub, or play/pause/stop it. The line + handle positions are
-  // driven imperatively (refs + style.transform) so playback animates at 60fps
-  // without re-rendering the virtualized rows every frame.
+  // --- Playhead (driven by the shared playback engine) -----------------------
+  // The transport (play/pause/stop) + circular progress live in the navigation
+  // header so they show in every view; the engine (PlayheadContext) owns the
+  // RAF loop and position. Here we only draw the Timeline's vertical playhead
+  // line + handle and let the scale place/scrub it.
   const scaleOuterRef = useRef<HTMLDivElement>(null);
   const playheadLineRef = useRef<HTMLDivElement>(null);
   const playheadHandleRef = useRef<HTMLDivElement>(null);
-  const playheadSecRef = useRef(0);
-  const rafRef = useRef<number | null>(null);
-  const lastTsRef = useRef(0);
-  const [showPlayhead, setShowPlayhead] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
 
-  // The observations "playing" at the playhead's time (start ≤ t ≤ end). Lives
-  // in a shared store (PlayheadContext) so the graph view lights up the same
-  // set; written from positionPlayhead only when the SET changes (a boundary
-  // crossing — a handful of times/sec), not every animation frame.
+  const { seekToSec, pause, getPlayheadSec, subscribePosition } = usePlayhead();
+  const showPlayhead = useShowPlayhead();
+  // The observations "playing" at the playhead — drives the row glow. Set by the
+  // engine; re-renders the rows only on boundary crossings.
   const activeNodeIds = useActiveObservationIds();
-  const setActiveNodeIds = useSetActiveObservationIds();
-  const activeIdsRef = useRef(activeNodeIds);
-  activeIdsRef.current = activeNodeIds;
 
-  // Per-row active window in seconds from the timeline origin.
-  const nodeWindows = useMemo(
-    () =>
-      flattenedItems.map((item) => {
-        const originMs = traceStartTime.getTime();
-        const startSec = (item.node.startTime.getTime() - originMs) / 1000;
-        const endSec =
-          ((item.node.endTime ?? item.node.startTime).getTime() - originMs) /
-          1000;
-        return { id: item.node.id, startSec, endSec };
-      }),
-    [flattenedItems, traceStartTime],
-  );
-  const nodeWindowsRef = useRef(nodeWindows);
-  nodeWindowsRef.current = nodeWindows;
-
+  // Map a playhead time (seconds from origin) to an x within the gantt content.
   const secToX = useCallback(
     (sec: number) =>
       traceDuration > 0 ? (sec / traceDuration) * SCALE_WIDTH : 0,
     [traceDuration],
   );
 
-  // Write the playhead position straight to the DOM (no setState → no row
-  // re-render). Refs are null until showPlayhead renders them; the JSX seeds the
-  // initial transform from playheadSecRef so the first placement is correct.
-  const positionPlayhead = useCallback(
-    (sec: number) => {
-      const clamped = Math.max(0, Math.min(traceDuration, sec));
-      playheadSecRef.current = clamped;
-      const x = secToX(clamped);
-      const t = `translateX(${x}px)`;
+  // Position the line + handle imperatively off the engine's position pub/sub
+  // (no re-render). They only exist while showPlayhead; re-subscribe when the
+  // scale (secToX) changes so the mapping stays correct.
+  useEffect(() => {
+    if (!showPlayhead) return;
+    const apply = (sec: number) => {
+      const t = `translateX(${secToX(sec)}px)`;
       if (playheadLineRef.current) playheadLineRef.current.style.transform = t;
       if (playheadHandleRef.current)
         playheadHandleRef.current.style.transform = t;
+    };
+    apply(getPlayheadSec());
+    return subscribePosition(apply);
+  }, [showPlayhead, secToX, getPlayheadSec, subscribePosition]);
 
-      // Recompute the active set; only commit to state when it actually changes,
-      // so playback re-renders rows on boundary crossings, not every frame.
-      const next = new Set<string>();
-      for (const w of nodeWindowsRef.current) {
-        if (clamped >= w.startSec && clamped <= w.endSec) next.add(w.id);
-      }
-      const cur = activeIdsRef.current;
-      let changed = cur.size !== next.size;
-      if (!changed) {
-        for (const id of next) {
-          if (!cur.has(id)) {
-            changed = true;
-            break;
-          }
-        }
-      }
-      if (changed) setActiveNodeIds(next);
-    },
-    [traceDuration, secToX, setActiveNodeIds],
-  );
-
-  const pause = useCallback(() => {
-    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-    rafRef.current = null;
-    setIsPlaying(false);
-  }, []);
-
+  // Translate a pointer x on the scale into a seek (places/moves the playhead).
   const seekFromClientX = useCallback(
     (clientX: number) => {
       const outer = scaleOuterRef.current;
@@ -405,17 +354,15 @@ export function TraceTimeline() {
         clientX -
         outer.getBoundingClientRect().left +
         (chartRef.current?.scrollLeft ?? 0);
-      positionPlayhead((contentX / SCALE_WIDTH) * traceDuration);
+      seekToSec((contentX / SCALE_WIDTH) * traceDuration);
     },
-    [traceDuration, positionPlayhead],
+    [traceDuration, seekToSec],
   );
 
   const handleScalePointerDown = useCallback(
     (e: React.PointerEvent) => {
       e.preventDefault(); // don't start a text selection on the scale labels
-      pause();
-      setShowPlayhead(true);
-      seekFromClientX(e.clientX);
+      seekFromClientX(e.clientX); // seekToSec pauses + shows the playhead
       // Allow click-and-drag on the scale to scrub in one gesture.
       const onMove = (ev: PointerEvent) => seekFromClientX(ev.clientX);
       const onUp = () => {
@@ -427,48 +374,8 @@ export function TraceTimeline() {
       window.addEventListener("pointerup", onUp);
       window.addEventListener("pointercancel", onUp);
     },
-    [pause, seekFromClientX],
+    [seekFromClientX],
   );
-
-  const play = useCallback(() => {
-    if (traceDuration <= 0) return;
-    setShowPlayhead(true);
-    // Restart from the beginning if the playhead is at (or past) the end.
-    if (playheadSecRef.current >= traceDuration - 0.05) positionPlayhead(0);
-    setIsPlaying(true);
-    lastTsRef.current = 0;
-    // Rate = trace-seconds per wall-clock-second. Short traces play in real time
-    // (rate 1); long ones are scaled so the whole trace finishes in
-    // PLAYBACK_MAX_SECONDS regardless of its true length.
-    const rate =
-      traceDuration > PLAYBACK_MAX_SECONDS
-        ? traceDuration / PLAYBACK_MAX_SECONDS
-        : 1;
-    const step = (ts: number) => {
-      if (!lastTsRef.current) lastTsRef.current = ts;
-      const dt = (ts - lastTsRef.current) / 1000;
-      lastTsRef.current = ts;
-      const next = playheadSecRef.current + dt * rate;
-      if (next >= traceDuration) {
-        positionPlayhead(traceDuration);
-        pause();
-        return;
-      }
-      positionPlayhead(next);
-      rafRef.current = requestAnimationFrame(step);
-    };
-    rafRef.current = requestAnimationFrame(step);
-  }, [traceDuration, positionPlayhead, pause]);
-
-  const stop = useCallback(() => {
-    pause();
-    playheadSecRef.current = 0;
-    setActiveNodeIds(new Set());
-    setShowPlayhead(false); // stop clears the playhead (and the glow)
-  }, [pause, setActiveNodeIds]);
-
-  // Cancel any in-flight animation on unmount.
-  useEffect(() => () => pause(), [pause]);
 
   // Classic scrollbars (Windows/Linux) on the chart pane consume client area
   // the gutter/scale don't: its horizontal scrollbar eats ~15px of height, its
@@ -605,35 +512,14 @@ export function TraceTimeline() {
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
-      {/* Header: transport + name label + time scale (transform-synced). */}
+      {/* Header: name label + time scale (transform-synced). Transport controls
+          live in the shared navigation header (see PlaybackControls). */}
       <div className="flex shrink-0">
         <div
-          className="bg-background text-muted-foreground flex shrink-0 items-center gap-0.5 pl-1 text-xs font-medium"
+          className="bg-background text-muted-foreground flex shrink-0 items-center pl-2 text-xs font-medium"
           style={{ width: `${gutterWidth}px` }}
         >
-          <button
-            type="button"
-            onClick={isPlaying ? pause : play}
-            title={isPlaying ? "Pause" : "Play"}
-            aria-label={isPlaying ? "Pause" : "Play"}
-            className="hover:bg-muted hover:text-foreground flex h-5 w-5 items-center justify-center rounded"
-          >
-            {isPlaying ? (
-              <Pause className="h-3.5 w-3.5" />
-            ) : (
-              <Play className="h-3.5 w-3.5" />
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={stop}
-            title="Stop"
-            aria-label="Stop"
-            className="hover:bg-muted hover:text-foreground flex h-5 w-5 items-center justify-center rounded"
-          >
-            <Square className="h-3 w-3" />
-          </button>
-          <span className="ml-1 truncate">Name</span>
+          <span className="truncate">Name</span>
         </div>
         <div className="bg-border/60 w-px shrink-0" />
         <div
@@ -673,7 +559,7 @@ export function TraceTimeline() {
                 }}
                 className="absolute top-0 bottom-0 z-30 -ml-1.5 w-3 cursor-ew-resize select-none"
                 style={{
-                  transform: `translateX(${secToX(playheadSecRef.current)}px)`,
+                  transform: `translateX(${secToX(getPlayheadSec())}px)`,
                 }}
               >
                 <div className="bg-primary mx-auto h-2 w-2 rotate-45" />
@@ -753,7 +639,7 @@ export function TraceTimeline() {
                 style={{
                   left: 0,
                   height: `${totalSize}px`,
-                  transform: `translateX(${secToX(playheadSecRef.current)}px)`,
+                  transform: `translateX(${secToX(getPlayheadSec())}px)`,
                 }}
               />
             )}
