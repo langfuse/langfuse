@@ -11,7 +11,7 @@
 
 import { createStore, type StoreApi } from "zustand/vanilla";
 
-import type { ScoreTypeContext } from "../lib/adapter";
+import { registryFromContext, type ScoreTypeContext } from "../lib/adapter";
 import { astEquals } from "../lib/ast";
 import { removeToken } from "../lib/edits";
 import { foldDerivedNegation } from "../lib/filter-state-to-query";
@@ -35,9 +35,10 @@ export function draftsSemanticallyEqual(
   b: string,
   scoreTypes?: ScoreTypeContext,
 ): boolean {
+  const registry = registryFromContext(scoreTypes);
   return astEquals(
-    foldDerivedNegation(parse(a).ast, scoreTypes),
-    foldDerivedNegation(parse(b).ast, scoreTypes),
+    foldDerivedNegation(parse(a, registry).ast, scoreTypes),
+    foldDerivedNegation(parse(b, registry).ast, scoreTypes),
   );
 }
 
@@ -138,7 +139,12 @@ export function createSearchBarStore(
           writeDraft(committedText);
         },
         removeChipSpan: (from, to) => {
-          const next = removeToken(get().draft, { from, to });
+          const scoreTypes = resolveScoreTypes?.();
+          const next = removeToken(
+            get().draft,
+            { from, to },
+            registryFromContext(scoreTypes),
+          );
           writeDraft(next);
           return next;
         },

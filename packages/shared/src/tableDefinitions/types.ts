@@ -120,6 +120,7 @@ export const tableNames = [
   "traces_parent_observation_scores",
   "sessions",
   "prompts",
+  "datasets",
   "users",
   "job_configurations",
   "job_executions",

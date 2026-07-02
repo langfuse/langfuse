@@ -1,4 +1,11 @@
-import { type ColumnDefinition, JobExecutionStatus } from "@langfuse/shared";
+import type { ColumnDefinition } from "@langfuse/shared";
+
+const FILTERABLE_JOB_EXECUTION_STATUSES = [
+  "COMPLETED",
+  "ERROR",
+  "PENDING",
+  "DELAYED",
+] as const;
 
 export const evalExecutionsFilterCols: ColumnDefinition[] = [
   {
@@ -6,9 +13,7 @@ export const evalExecutionsFilterCols: ColumnDefinition[] = [
     id: "status",
     type: "stringOptions",
     internal: 'je."status"::text',
-    options: Object.values(JobExecutionStatus)
-      .filter((value) => value !== JobExecutionStatus.CANCELLED)
-      .map((value) => ({ value })),
+    options: FILTERABLE_JOB_EXECUTION_STATUSES.map((value) => ({ value })),
   },
   {
     name: "Trace ID",

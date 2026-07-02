@@ -24,11 +24,12 @@ import { type FilterState, type TracingSearchType } from "@langfuse/shared";
 
 import type { ASTNode, FilterNode } from "./ast";
 import {
+  eventsSearchBarRegistry,
+  type FieldRegistry,
   isDanglingDotPrefix,
   negationIssue,
   operatorIssue,
   resolveField,
-  SCORE_COLUMNS,
   type FieldDef,
 } from "./fields";
 import { quoteIfNeeded } from "./quoting";
@@ -56,11 +57,18 @@ export type AstToFilterStateResult = {
  * Absent/unknown names fall back to the value-syntax heuristic.
  */
 export type ScoreTypeContext = {
+  registry?: FieldRegistry;
   numericScoreNames?: ReadonlySet<string>;
   categoricalScoreNames?: ReadonlySet<string>;
   traceNumericScoreNames?: ReadonlySet<string>;
   traceCategoricalScoreNames?: ReadonlySet<string>;
 };
+
+export function registryFromContext(
+  ctx: ScoreTypeContext | undefined,
+): FieldRegistry {
+  return ctx?.registry ?? eventsSearchBarRegistry;
+}
 
 export function resolveScoreType(
   ctx: ScoreTypeContext | undefined,
@@ -113,6 +121,7 @@ type LowerContext = {
   searchTerms: string[];
   errors: string[];
   scoreTypes?: ScoreTypeContext;
+  registry: FieldRegistry;
 };
 
 export function astToFilterState(
@@ -124,6 +133,7 @@ export function astToFilterState(
     searchTerms: [],
     errors: [],
     scoreTypes,
+    registry: registryFromContext(scoreTypes),
   };
 
   if (ast !== null) {
@@ -155,11 +165,17 @@ function lowerTopLevel(
         );
         return;
       }
+      if (!ctx.registry.freeText.enabled) {
+        ctx.errors.push(
+          `Free text search is not available on this table — use field:value filters`,
+        );
+        return;
+      }
       // A bare dot-prefix (`metadata.`, `scores.`, …) parses as free text, so
       // committing it would silently set searchQuery to the prefix. Reject it
       // here so every commit path (typed Enter and structured pick) is gated.
       // Quoted text is an explicit literal search and is allowed.
-      if (!node.quoted && isDanglingDotPrefix(node.value)) {
+      if (!node.quoted && isDanglingDotPrefix(node.value, ctx.registry)) {
         ctx.errors.push(
           `Incomplete field "${node.value}" — add a key after the dot (e.g. metadata.region:eu)`,
         );
@@ -208,7 +224,14 @@ function lowerFilterNode(
   negated: boolean,
   ctx: LowerContext,
 ): void {
-  lowerFilter(node, negated, ctx.filters, ctx.errors, ctx.scoreTypes);
+  lowerFilter(
+    node,
+    negated,
+    ctx.filters,
+    ctx.errors,
+    ctx.scoreTypes,
+    ctx.registry,
+  );
 }
 
 function lowerFilter(
@@ -217,6 +240,7 @@ function lowerFilter(
   out: SingleEventsFilter[],
   errors: string[],
   scoreTypes?: ScoreTypeContext,
+  registry: FieldRegistry = registryFromContext(scoreTypes),
 ): void {
   if (node.values.length === 0) {
     // The parser already flags every empty-value FilterNode at this span — and
@@ -227,7 +251,7 @@ function lowerFilter(
     return;
   }
 
-  const ref = resolveField(node.key);
+  const ref = resolveField(node.key, registry);
   if (ref === null) {
     errors.push(`Unknown field "${node.key}"`);
     return;
@@ -249,13 +273,23 @@ function lowerFilter(
   switch (ref.type) {
     case "pseudo":
       // `has` is the only pseudo-field.
-      lowerHas(node, negated, out, errors);
+      lowerHas(node, negated, out, errors, registry);
       return;
     case "metadata":
       lowerMetadata(node, ref.key, negated, out, errors);
       return;
     case "scores":
-      lowerScores(node, ref.key, ref.level, negated, out, errors, scoreTypes);
+      lowerScores(
+        node,
+        ref.key,
+        ref.level,
+        ref.columns,
+        ref.canonicalPrefix,
+        negated,
+        out,
+        errors,
+        scoreTypes,
+      );
       return;
     case "field":
       switch (ref.field.kind) {
@@ -609,19 +643,17 @@ function lowerScores(
   node: FilterNode,
   key: string,
   level: "observation" | "trace",
+  columns: { numeric: string; categorical: string },
+  canonicalPrefix: string,
   negated: boolean,
   out: SingleEventsFilter[],
   errors: string[],
   scoreTypes?: ScoreTypeContext,
 ): void {
-  const columns = SCORE_COLUMNS[level];
   // Quoted so the example syntax in error messages parses for grammar-char
   // names (`scores."Rouge Score":<n`). `path` is used only in messages here;
   // the lowered columns come from SCORE_COLUMNS.
-  const path =
-    level === "trace"
-      ? `traceScores.${quoteIfNeeded(key)}`
-      : `scores.${quoteIfNeeded(key)}`;
+  const path = `${canonicalPrefix}${quoteIfNeeded(key)}`;
 
   const lowerNumeric = (): void => {
     const numbers = parseNumbers(node, path, errors);
@@ -709,6 +741,7 @@ function lowerHas(
   negated: boolean,
   out: SingleEventsFilter[],
   errors: string[],
+  registry: FieldRegistry,
 ): void {
   if (node.values.length > 1 && !negated) {
     // has:(a OR b) would be an OR of null checks — not flat. The negated
@@ -719,7 +752,7 @@ function lowerHas(
     return;
   }
   for (const v of node.values) {
-    const target = resolveField(v);
+    const target = resolveField(v, registry);
     if (target === null || target.type !== "field") {
       errors.push(`has: expects a field name, got "${v}"`);
       continue;

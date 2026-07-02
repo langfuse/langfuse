@@ -88,6 +88,7 @@ import {
   WEBHOOK_URL_VALIDATION_LOG_CONTEXT,
   deleteDatasetsByIds,
   findDatasetsForDeletion,
+  tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
@@ -97,6 +98,7 @@ import {
 import { type BulkDatasetItemValidationError } from "@langfuse/shared";
 import { v4 } from "uuid";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
+import { datasetsTableCols } from "@langfuse/shared";
 
 // Batch size kept small (100) as items may have large input/output/metadata JSON
 const DUPLICATE_DATASET_ITEMS_BATCH_SIZE = 100;
@@ -205,6 +207,7 @@ type GenerateDatasetQueryInput = {
   projectId: string;
   pathFilter: Prisma.Sql;
   searchFilter: Prisma.Sql;
+  filterCondition?: Prisma.Sql;
   orderCondition?: Prisma.Sql;
   limit?: number;
   page?: number;
@@ -215,6 +218,7 @@ const generateDatasetQuery = ({
   select,
   projectId,
   pathFilter,
+  filterCondition = Prisma.empty,
   orderCondition = Prisma.empty,
   searchFilter = Prisma.empty,
   pathPrefix = "",
@@ -229,6 +233,7 @@ const generateDatasetQuery = ({
    WHERE d.project_id = ${projectId}
      ${pathFilter}
      ${searchFilter}
+     ${filterCondition}
   )`;
 
   // Common ORDER BY and LIMIT clauses
@@ -390,6 +395,7 @@ export const datasetRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         searchQuery: z.string().nullable(),
+        filter: z.array(singleFilter).nullable(),
         pathPrefix: z.string().optional(),
         ...paginationZod,
       }),
@@ -405,6 +411,11 @@ export const datasetRouter = createTRPCRouter({
       const pathFilter = buildPathPrefixFilter(input.pathPrefix);
 
       const searchFilter = resolveSearchCondition(input.searchQuery);
+      const filterCondition = tableColumnsToSqlFilterAndPrefix(
+        input.filter ?? [],
+        datasetsTableCols,
+        "datasets",
+      );
 
       // Query for dataset and count
       const [datasets, datasetCount] = await Promise.all([
@@ -439,6 +450,7 @@ export const datasetRouter = createTRPCRouter({
             pathFilter, // SQL WHERE clause: filters DB to only datasets in current folder, derived from prefix.
             pathPrefix: input.pathPrefix, // Raw folder path: used for segment splitting & folder detection logic
             searchFilter,
+            filterCondition,
             orderCondition: Prisma.sql`ORDER BY d.created_at DESC`,
           }),
         ),
@@ -447,6 +459,7 @@ export const datasetRouter = createTRPCRouter({
           generateDatasetQuery({
             select: Prisma.sql`count(*) AS "totalCount"`,
             searchFilter,
+            filterCondition,
             projectId: input.projectId,
             pathFilter,
             pathPrefix: input.pathPrefix,

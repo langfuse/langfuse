@@ -1,5 +1,7 @@
-import { prisma, type Prisma } from "../../db";
+import { Prisma, prisma } from "../../db";
 import { type BatchActionQuery } from "../../features/batchAction/types";
+import { datasetsTableCols } from "../../tableDefinitions/datasetsTable";
+import { tableColumnsToSqlFilterAndPrefix } from "../filterToPrisma";
 import { escapeSqlLikePattern } from "../utils/sqlLike";
 
 type PrismaClientOrTransaction = typeof prisma | Prisma.TransactionClient;
@@ -46,29 +48,33 @@ export async function findDatasetIdsForBatchDeletion({
   projectId: string;
   query: BatchActionQuery;
 }): Promise<Array<{ id: string }>> {
-  const where: Prisma.DatasetWhereInput = {
-    projectId,
-    createdAt: { lte: cutoffCreatedAt },
-  };
-
   // Match the listing predicate (resolveSearchCondition) exactly: it ILIKEs the
   // raw query, only trimming to test emptiness. Trimming here too would delete a
   // broader set than the table shows for a whitespace-padded search.
-  if (query.searchQuery && query.searchQuery.trim() !== "") {
-    where.name = {
-      contains: query.searchQuery,
-      mode: "insensitive",
-    };
-  }
+  const searchFilter =
+    query.searchQuery && query.searchQuery.trim() !== ""
+      ? Prisma.sql`AND d.name ILIKE ${`%${query.searchQuery}%`}`
+      : Prisma.empty;
 
-  if (query.pathPrefix) {
-    where.AND = [buildDatasetFolderWhere(query.pathPrefix)];
-  }
+  const pathFilter = query.pathPrefix
+    ? Prisma.sql`AND d.name LIKE ${`${escapeSqlLikePattern(query.pathPrefix)}/%`} ESCAPE '\\'`
+    : Prisma.empty;
 
-  return prisma.dataset.findMany({
-    where,
-    select: { id: true },
-  });
+  const filterCondition = tableColumnsToSqlFilterAndPrefix(
+    query.filter ?? [],
+    datasetsTableCols,
+    "datasets",
+  );
+
+  return prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT d.id
+    FROM datasets d
+    WHERE d.project_id = ${projectId}
+      AND d.created_at <= ${cutoffCreatedAt}
+      ${searchFilter}
+      ${pathFilter}
+      ${filterCondition}
+  `);
 }
 
 export async function findDatasetIdsByIds({

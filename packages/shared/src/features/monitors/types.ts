@@ -1,10 +1,5 @@
 /** types.ts contains the monitor domain — schemas, types, and the
  * `validate*` refinements consumed by the input schemas. */
-import {
-  MonitorSeverity as PrismaMonitorSeverity,
-  MonitorStatus as PrismaMonitorStatus,
-  MonitorThresholdOperator as PrismaMonitorThresholdOperator,
-} from "@prisma/client";
 import { z } from "zod";
 
 import { InvalidRequestError } from "../../errors";
@@ -36,24 +31,37 @@ export const MonitorFiltersSchema = z.array(singleFilter);
 export type MonitorFilters = z.infer<typeof MonitorFiltersSchema>;
 
 /** MonitorSeveritySchema is the wire form of Prisma's `MonitorSeverity` enum. */
-export const MonitorSeveritySchema = z.enum(PrismaMonitorSeverity);
+export const MonitorSeveritySchema = z.enum([
+  "PAUSED",
+  "UNKNOWN",
+  "NO_DATA",
+  "OK",
+  "WARNING",
+  "ALERT",
+]);
 export type MonitorSeverity = z.infer<typeof MonitorSeveritySchema>;
 
 /** MonitorStatusSchema is the wire form of Prisma's `MonitorStatus` enum. */
-export const MonitorStatusSchema = z.enum(PrismaMonitorStatus);
+export const MonitorStatusSchema = z.enum([
+  "PAUSED",
+  "ACTIVE",
+  "ERROR_BAD_QUERY",
+]);
 export type MonitorStatus = z.infer<typeof MonitorStatusSchema>;
 
 /** MonitorWriteStatusSchema is the subset of MonitorStatusSchema callers may submit on create/update. */
-export const MonitorWriteStatusSchema = z.enum([
-  PrismaMonitorStatus.ACTIVE,
-  PrismaMonitorStatus.PAUSED,
-]);
+export const MonitorWriteStatusSchema = z.enum(["ACTIVE", "PAUSED"]);
 export type MonitorWriteStatus = z.infer<typeof MonitorWriteStatusSchema>;
 
 /** MonitorThresholdOperatorSchema is the wire form of Prisma's `MonitorThresholdOperator` enum. */
-export const MonitorThresholdOperatorSchema = z.enum(
-  PrismaMonitorThresholdOperator,
-);
+export const MonitorThresholdOperatorSchema = z.enum([
+  "GT",
+  "GTE",
+  "LT",
+  "LTE",
+  "EQ",
+  "NEQ",
+]);
 export type MonitorThresholdOperator = z.infer<
   typeof MonitorThresholdOperatorSchema
 >;

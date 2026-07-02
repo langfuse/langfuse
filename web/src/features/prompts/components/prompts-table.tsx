@@ -16,19 +16,21 @@ import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { TagPromptPopover } from "@/src/features/tag/components/TagPromptPopover";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { promptFilterConfig } from "@/src/features/filters/config/prompts-config";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { useDebounce } from "@/src/hooks/useDebounce";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
 import { buildFullPath } from "@/src/features/folders/utils";
 import { FolderBreadcrumb } from "@/src/features/folders/components/FolderBreadcrumb";
 import { FolderBreadcrumbLink } from "@/src/features/folders/components/FolderBreadcrumbLink";
+import { SearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
+import { useTableSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { createPromptsSearchBarRegistry } from "@/src/features/search-bar/lib/registries";
 
 type PromptTableRow = {
   id: string;
@@ -75,8 +77,6 @@ export function PromptTable() {
     return { fromTimestamp, toTimestamp };
   }, []);
 
-  const [filterState] = useQueryFilterState([], "prompts", projectId);
-
   const [orderByState, setOrderByState] = useOrderByState({
     column: "createdAt",
     order: "DESC",
@@ -99,12 +99,90 @@ export function PromptTable() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery]);
 
+  const promptFilterOptions = api.prompts.filterOptions.useQuery(
+    {
+      projectId,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
+  const filterOptionTags = promptFilterOptions.data?.tags ?? [];
+  const allTags = filterOptionTags.map((t) => t.value);
+
+  const newFilterOptions = useMemo(
+    () => ({
+      type: ["text", "chat"],
+      labels:
+        promptFilterOptions.data?.labels?.map((l) => {
+          return {
+            value: l.value,
+            count:
+              "count" in l && l.count !== undefined
+                ? Number(l.count)
+                : undefined,
+          };
+        }) ?? undefined,
+      tags:
+        promptFilterOptions.data?.tags?.map((t) => {
+          return {
+            value: t.value,
+            count:
+              "count" in t && t.count !== undefined
+                ? Number(t.count)
+                : undefined,
+          };
+        }) ?? undefined,
+      version: [],
+    }),
+    [promptFilterOptions.data],
+  );
+
+  const queryFilter = useSidebarFilterState(
+    promptFilterConfig,
+    newFilterOptions,
+    {
+      loading: promptFilterOptions.isPending,
+      stateLocation: "urlAndSessionStorage",
+      sessionFilterContextId: projectId ?? null,
+    },
+  );
+
+  const searchBarRegistry = useMemo(
+    () => createPromptsSearchBarRegistry(promptFilterConfig.columnDefinitions),
+    [],
+  );
+  const searchBarObserved = useMemo(
+    () => toObservedOptions(newFilterOptions, promptFilterOptions.isPending),
+    [newFilterOptions, promptFilterOptions.isPending],
+  );
+  const { store: searchBarStore, commit: searchBarCommit } = useTableSearchBar({
+    projectId,
+    enabled: true,
+    registry: searchBarRegistry,
+    filterState: queryFilter.explicitFilterState,
+    searchQuery,
+    searchType,
+    observed: searchBarObserved,
+    setFilterState: queryFilter.setFilterState,
+    setSearchQuery,
+    setSearchType,
+  });
+
   const prompts = api.prompts.all.useQuery(
     {
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
       projectId,
-      filter: filterState,
+      filter: queryFilter.filterState,
       orderBy: orderByState,
       pathPrefix: currentFolderPath,
       searchQuery: searchQuery || undefined,
@@ -198,63 +276,7 @@ export function PromptTable() {
     };
   }, [promptsRowData]);
 
-  const promptFilterOptions = api.prompts.filterOptions.useQuery(
-    {
-      projectId,
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-    },
-  );
-  const filterOptionTags = promptFilterOptions.data?.tags ?? [];
-  const allTags = filterOptionTags.map((t) => t.value);
   const totalCount = prompts.data?.totalCount ?? null;
-
-  const newFilterOptions = useMemo(
-    () => ({
-      type: ["text", "chat"],
-      labels:
-        promptFilterOptions.data?.labels?.map((l) => {
-          return {
-            value: l.value,
-            count:
-              "count" in l && l.count !== undefined
-                ? Number(l.count)
-                : undefined,
-          };
-        }) ?? undefined,
-      tags:
-        promptFilterOptions.data?.tags?.map((t) => {
-          return {
-            value: t.value,
-            count:
-              "count" in t && t.count !== undefined
-                ? Number(t.count)
-                : undefined,
-          };
-        }) ?? undefined,
-      version: [],
-    }),
-    [promptFilterOptions.data],
-  );
-
-  const queryFilter = useSidebarFilterState(
-    promptFilterConfig,
-    newFilterOptions,
-    {
-      loading: promptFilterOptions.isPending,
-      stateLocation: "urlAndSessionStorage",
-      sessionFilterContextId: projectId ?? null,
-    },
-  );
 
   useEffect(() => {
     if (prompts.isSuccess) {
@@ -371,7 +393,7 @@ export function PromptTable() {
               page: 0,
               limit: 50,
               projectId,
-              filter: filterState,
+              filter: queryFilter.filterState,
               orderBy: orderByState,
             }}
           />
@@ -415,28 +437,17 @@ export function PromptTable() {
             navigateToFolder={navigateToFolder}
           />
         )}
+        <SearchBarRow
+          projectId={projectId}
+          store={searchBarStore}
+          commit={searchBarCommit}
+          observed={searchBarObserved}
+          registry={searchBarRegistry}
+        />
         <DataTableToolbar
           columns={promptColumns}
-          filterState={queryFilter.filterState}
+          filterState={queryFilter.explicitFilterState}
           columnsWithCustomSelect={["labels", "tags"]}
-          searchConfig={{
-            metadataSearchFields: ["Name", "Tags", "Content"],
-            updateQuery: useDebounce(setSearchQuery, 300),
-            currentQuery: searchQuery ?? undefined,
-            tableAllowsFullTextSearch: true,
-            setSearchType,
-            searchType,
-            customDropdownLabels: {
-              metadata: "Names, Tags",
-              fullText: "Full Text",
-            },
-            hidePerformanceWarning: true,
-            availableSearchTypes: {
-              content: true,
-              input: false,
-              output: false,
-            },
-          }}
         />
 
         {/* Content area with sidebar and table */}

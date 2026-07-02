@@ -1,7 +1,7 @@
 // Business rules for the legacy blob export source deprecation gate.
 // This is a client-safe file that can be imported from @langfuse/shared.
 
-import { AnalyticsIntegrationExportSource } from "@prisma/client";
+import type { AnalyticsIntegrationExportSource } from "@prisma/client";
 
 // Cloud projects created on or after this instant cannot use legacy export sources.
 // Both cutoffs in this file are Cloud-only by design (the `!isCloud` short-circuits
@@ -35,8 +35,8 @@ export const LEGACY_BLOB_EXPORTER_CUTOFF =
 // removals at compile time. Adding a new enum variant does NOT automatically
 // produce an error here; the list must be reviewed manually.
 export const LEGACY_BLOB_EXPORT_SOURCES = [
-  AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
-  AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS,
+  "TRACES_OBSERVATIONS",
+  "TRACES_OBSERVATIONS_EVENTS",
 ] as const satisfies ReadonlyArray<AnalyticsIntegrationExportSource>;
 
 /**
@@ -59,8 +59,8 @@ export function isLegacyBlobExportAllowed(
 // AnalyticsIntegrationExportSource. Adding a new enum variant does NOT
 // automatically produce an error here; the list must be reviewed manually.
 export const ENRICHED_BLOB_EXPORT_SOURCES = [
-  AnalyticsIntegrationExportSource.EVENTS,
-  AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS,
+  "EVENTS",
+  "TRACES_OBSERVATIONS_EVENTS",
 ] as const satisfies ReadonlyArray<AnalyticsIntegrationExportSource>;
 
 export function isEnrichedBlobExportSource(

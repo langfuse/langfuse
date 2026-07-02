@@ -23,6 +23,10 @@ import {
 } from "@/src/features/search-bar/lib/commit";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import {
+  eventsSearchBarRegistry,
+  type FieldRegistry,
+} from "@/src/features/search-bar/lib/fields";
+import {
   type ObservedOptions,
   scoreTypeContextFromObserved,
 } from "@/src/features/search-bar/lib/observed-options";
@@ -59,9 +63,10 @@ function filterIdentity(f: FilterState[number]): string {
   return `${f.column}\u0000${"key" in f ? f.key : ""}`;
 }
 
-export function useEventsSearchBar({
+export function useTableSearchBar({
   projectId,
   enabled,
+  registry = eventsSearchBarRegistry,
   filterState,
   searchQuery,
   searchType,
@@ -72,20 +77,24 @@ export function useEventsSearchBar({
 }: {
   projectId: string;
   enabled: boolean;
+  registry?: FieldRegistry;
   /** The user's explicit facet filters (sidebar `explicitFilterState`). */
   filterState: FilterState;
-  searchQuery: string | null;
-  searchType: TracingSearchType[];
+  searchQuery?: string | null;
+  searchType?: TracingSearchType[];
   /** Observed filter options — used to route `scores.<name>` by score type. */
   observed: ObservedOptions | undefined;
   setFilterState: (filters: FilterState) => void;
-  setSearchQuery: (query: string | null) => void;
-  setSearchType: (type: TracingSearchType[]) => void;
+  setSearchQuery?: (query: string | null) => void;
+  setSearchType?: (type: TracingSearchType[]) => void;
 }): {
   store: SearchBarStore;
   commit: () => string | null;
   applyFilters: (filters: FilterState) => void;
 } {
+  const registryRef = useRef(registry);
+  registryRef.current = registry;
+
   // Latest observed options, read inside commit and by the store's draft
   // validation so both route `scores.<name>` by the same observed score type.
   const observedRef = useRef(observed);
@@ -93,7 +102,7 @@ export function useEventsSearchBar({
 
   const [store] = useState(() =>
     createSearchBarStore(() =>
-      scoreTypeContextFromObserved(observedRef.current),
+      scoreTypeContextFromObserved(observedRef.current, registryRef.current),
     ),
   );
 
@@ -101,8 +110,13 @@ export function useEventsSearchBar({
   // are filters that have no grammar form — the bar can't show them, so they
   // must be preserved across a commit instead of being silently wiped.
   const derived = useMemo(
-    () => filterStateToQueryText(filterState, { searchQuery, searchType }),
-    [filterState, searchQuery, searchType],
+    () =>
+      filterStateToQueryText(filterState, {
+        registry,
+        searchQuery,
+        searchType,
+      }),
+    [filterState, registry, searchQuery, searchType],
   );
   const committedText = restingDraft(derived.text);
   const skippedFiltersRef = useRef(derived.skippedFilters);
@@ -134,8 +148,8 @@ export function useEventsSearchBar({
   applyRef.current = { setFilterState, setSearchQuery, setSearchType };
 
   // Latest searchType, so commit can skip writing an unchanged value.
-  const searchTypeRef = useRef(searchType);
-  searchTypeRef.current = searchType;
+  const searchTypeRef = useRef(searchType ?? []);
+  searchTypeRef.current = searchType ?? [];
 
   // Re-attach the filters the grammar can't represent so neither a grammar
   // commit nor an AI apply ever drops them (no-silent-drop contract) — but drop
@@ -163,9 +177,9 @@ export function useEventsSearchBar({
       const { setFilterState, setSearchQuery, setSearchType } =
         applyRef.current;
       setFilterState(mergeWithSkipped(filters));
-      setSearchQuery(null);
+      setSearchQuery?.(null);
       if (!sameScopes(DEFAULT_SEARCH_TYPE, searchTypeRef.current)) {
-        setSearchType(DEFAULT_SEARCH_TYPE);
+        setSearchType?.(DEFAULT_SEARCH_TYPE);
       }
     },
     [mergeWithSkipped],
@@ -174,7 +188,7 @@ export function useEventsSearchBar({
   const commit = useCallback((): string | null => {
     const result = planCommit(
       store.getState().draft,
-      scoreTypeContextFromObserved(observedRef.current),
+      scoreTypeContextFromObserved(observedRef.current, registry),
     );
     if (result.status === "invalid") {
       store.getState().actions.revealInvalid();
@@ -185,17 +199,17 @@ export function useEventsSearchBar({
     // drops them (no-silent-drop contract; shared with the AI apply path).
     const committedFilters = mergeWithSkipped(result.filters);
     setFilterState(committedFilters);
-    setSearchQuery(result.searchQuery);
+    setSearchQuery?.(result.searchQuery);
     // Only write searchType when it actually changed. planCommit coerces a
     // draft with no scope token to the default (`["id","content"]` — ids+names
     // +input+output); the bar's default deliberately differs from the legacy
     // toolbar's `["id"]`, so it IS written to the URL (that's how the content
     // lane persists). The guard just avoids a redundant rewrite when unchanged.
     if (!sameScopes(result.searchType, searchTypeRef.current)) {
-      setSearchType(result.searchType);
+      setSearchType?.(result.searchType);
     }
     if (result.canonical.length > 0) {
-      recordRecentSearch(projectId, result.canonical);
+      recordRecentSearch(projectId, result.canonical, registry.id);
     }
     // Return the CANONICAL committed text in its RESTING form (trailing space) —
     // exactly what the resetTo effect re-derives on the next render (same
@@ -204,11 +218,14 @@ export function useEventsSearchBar({
     // commit reorders the query (e.g. `refund level:ERROR` → `level:ERROR refund`).
     return restingDraft(
       filterStateToQueryText(committedFilters, {
+        registry,
         searchQuery: result.searchQuery,
         searchType: result.searchType,
       }).text,
     );
-  }, [store, projectId, mergeWithSkipped]);
+  }, [store, projectId, registry, mergeWithSkipped]);
 
   return { store, commit, applyFilters };
 }
+
+export const useEventsSearchBar = useTableSearchBar;

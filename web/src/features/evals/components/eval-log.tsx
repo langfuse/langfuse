@@ -17,10 +17,15 @@ import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrde
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { evalLogFilterConfig } from "@/src/features/filters/config/eval-logs-config";
+import { SearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
+import { useTableSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { createEvalLogsSearchBarRegistry } from "@/src/features/search-bar/lib/registries";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
-import { type Prisma } from "@langfuse/shared";
+import { JobExecutionStatus, type Prisma } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
+import { useMemo } from "react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 export type JobExecutionRow = {
@@ -57,15 +62,40 @@ export default function EvalLogTable({
     pageSize: withDefault(NumberParam, 50),
   });
 
+  const evalLogFilterOptions = useMemo(
+    () => ({
+      status: Object.values(JobExecutionStatus).filter(
+        (value) => value !== JobExecutionStatus.CANCELLED,
+      ),
+    }),
+    [],
+  );
   const queryFilter = useSidebarFilterState(
     evalLogFilterConfig,
-    {}, // No dynamic options needed - status options are in column definition
+    evalLogFilterOptions,
     {
       loading: false,
       stateLocation: "urlAndSessionStorage",
       sessionFilterContextId: projectId,
     },
   );
+  const searchBarRegistry = useMemo(
+    () =>
+      createEvalLogsSearchBarRegistry(evalLogFilterConfig.columnDefinitions),
+    [],
+  );
+  const searchBarObserved = useMemo(
+    () => toObservedOptions(evalLogFilterOptions, false),
+    [evalLogFilterOptions],
+  );
+  const { store: searchBarStore, commit: searchBarCommit } = useTableSearchBar({
+    projectId,
+    enabled: true,
+    registry: searchBarRegistry,
+    filterState: queryFilter.explicitFilterState,
+    observed: searchBarObserved,
+    setFilterState: queryFilter.setFilterState,
+  });
 
   const logs = api.evals.getLogs.useQuery({
     page: paginationState.pageIndex,
@@ -267,6 +297,14 @@ export default function EvalLogTable({
       defaultSidebarCollapsed={evalLogFilterConfig.defaultSidebarCollapsed}
     >
       <div className="flex h-full w-full flex-col">
+        <SearchBarRow
+          projectId={projectId}
+          store={searchBarStore}
+          commit={searchBarCommit}
+          observed={searchBarObserved}
+          registry={searchBarRegistry}
+        />
+
         <DataTableToolbar
           columns={columns}
           columnVisibility={columnVisibility}

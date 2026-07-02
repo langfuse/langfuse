@@ -4,7 +4,12 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { paginationZod, singleFilter } from "@langfuse/shared";
+import {
+  type FilterState,
+  paginationZod,
+  singleFilter,
+  timeFilter,
+} from "@langfuse/shared";
 import {
   getTotalUserCount,
   getTracesGroupedByUsers,
@@ -27,6 +32,11 @@ const UserFilterOptions = z.object({
 
 const UserAllOptions = UserFilterOptions.extend({
   ...paginationZod,
+});
+
+const UserFilterOptionsInput = z.object({
+  projectId: z.string(),
+  timestampFilter: z.array(timeFilter).optional(),
 });
 
 export const userRouter = createTRPCRouter({
@@ -98,6 +108,26 @@ export const userRouter = createTRPCRouter({
         totalTraces: BigInt(metric.traceCount),
         sumCalculatedTotalCost: metric.totalCost,
       }));
+    }),
+
+  filterOptions: protectedProjectProcedure
+    .input(UserFilterOptionsInput)
+    .query(async ({ input }) => {
+      const filter: FilterState = input.timestampFilter ?? [];
+      const users = await getTracesGroupedByUsers(
+        input.projectId,
+        filter,
+        undefined,
+        100,
+        0,
+      );
+
+      return {
+        userId: users.map((user) => ({
+          value: user.user,
+          count: Number(user.count),
+        })),
+      };
     }),
 
   byId: protectedProjectProcedure
@@ -193,6 +223,26 @@ export const userRouter = createTRPCRouter({
         totalTraces: BigInt(metric.traceCount),
         sumCalculatedTotalCost: metric.totalCost,
       }));
+    }),
+
+  filterOptionsFromEvents: protectedProjectProcedure
+    .input(UserFilterOptionsInput)
+    .query(async ({ input }) => {
+      const filter: FilterState = input.timestampFilter ?? [];
+      const users = await getUsersFromEventsTable(
+        input.projectId,
+        filter,
+        undefined,
+        100,
+        0,
+      );
+
+      return {
+        userId: users.map((user) => ({
+          value: user.user,
+          count: Number(user.count),
+        })),
+      };
     }),
 
   byIdFromEvents: protectedProjectProcedure
