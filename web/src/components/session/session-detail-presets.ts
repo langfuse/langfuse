@@ -14,14 +14,6 @@ export interface SessionDetailSystemPreset {
   name: string;
   description?: string;
   filters: FilterState;
-  /**
-   * When true, this view hides observations that carry no input/output. It is
-   * the only "view rule" that is not expressible as a FilterState (it needs a
-   * cross-field OR on input/output), so it lives on the view and is applied at
-   * render — see TraceEventsRow. Named explicitly so it is a visible choice,
-   * not hidden behaviour.
-   */
-  hideObservationsWithoutIO?: boolean;
 }
 
 export const SESSION_DETAIL_SYSTEM_PRESETS: SessionDetailSystemPreset[] = [
@@ -30,8 +22,17 @@ export const SESSION_DETAIL_SYSTEM_PRESETS: SessionDetailSystemPreset[] = [
     name: "All observations with I/O",
     description:
       "Every observation that has input or output — a chat renders as a chat, an agent run shows its tool calls",
-    filters: [],
-    hideObservationsWithoutIO: true,
+    // Expressed as a real, renderable filter (the "Has Input or Output" boolean
+    // column lowers to `input != '' OR output != ''`), so the view shows up in
+    // the "Filter observations" UI like any other filter — no hidden view rule.
+    filters: [
+      {
+        column: "hasInputOutput",
+        type: "boolean",
+        operator: "=",
+        value: true,
+      },
+    ] satisfies FilterState,
   },
   {
     id: `${SYSTEM_PRESET_ID_PREFIX}all__`,
@@ -117,19 +118,13 @@ export const getSessionDetailPresetToApply = ({
 };
 
 /**
- * Render config for the currently selected view — the single source of truth
- * (`selectedViewId`) drives what each trace card shows. `label` is the view's
- * display name (null when the user is on a custom/saved filter);
- * `hideObservationsWithoutIO` mirrors the selected view's flag.
+ * Display name of the currently selected system view (null when the user is on
+ * a custom/saved filter). Used only to label the empty-state notice — what each
+ * card renders is driven entirely by the FilterState (the single source of
+ * truth), applied server-side.
  */
-export const getSessionDetailViewConfig = (
+export const getSessionDetailViewLabel = (
   selectedViewId: string | null,
-): { label: string | null; hideObservationsWithoutIO: boolean } => {
-  const preset = SESSION_DETAIL_SYSTEM_PRESETS.find(
-    (candidate) => candidate.id === selectedViewId,
-  );
-  return {
-    label: preset?.name ?? null,
-    hideObservationsWithoutIO: preset?.hideObservationsWithoutIO ?? false,
-  };
-};
+): string | null =>
+  SESSION_DETAIL_SYSTEM_PRESETS.find((preset) => preset.id === selectedViewId)
+    ?.name ?? null;

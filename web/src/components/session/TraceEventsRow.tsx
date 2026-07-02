@@ -24,19 +24,6 @@ const openSessionViewMenu = () => {
   if (trigger instanceof HTMLElement) trigger.click();
 };
 
-// An observation "carries I/O" when its input or output is a non-empty value.
-// The events mirror stores '' for absent payloads, so blank strings count as
-// no-I/O. Used by the "All observations with I/O" view (LFE-10520).
-const hasContent = (value: unknown): boolean =>
-  value !== null &&
-  value !== undefined &&
-  !(typeof value === "string" && value.trim() === "");
-
-const observationHasIO = (observation: {
-  input?: unknown;
-  output?: unknown;
-}): boolean => hasContent(observation.input) || hasContent(observation.output);
-
 /**
  * LFE-10520 — replaces the silent "No observations match the current filter."
  * empty state. When the selected view (the single source of truth) matches
@@ -85,8 +72,6 @@ type LazyTraceEventsRowProps = {
   traceCommentCounts: Map<string, number> | undefined;
   showCorrections: boolean;
   filterState: FilterState;
-  /** Selected view's I/O rule (LFE-10520): hide observations without I/O. */
-  hideObservationsWithoutIO: boolean;
   /** Selected view's display name, for the empty-state notice (null = custom). */
   viewLabel: string | null;
   hideTracePanel?: boolean;
@@ -104,7 +89,6 @@ const areLazyTraceEventsRowPropsEqual = (
   previous.traceCommentCounts === next.traceCommentCounts &&
   previous.showCorrections === next.showCorrections &&
   previous.filterState === next.filterState &&
-  previous.hideObservationsWithoutIO === next.hideObservationsWithoutIO &&
   previous.viewLabel === next.viewLabel &&
   previous.hideTracePanel === next.hideTracePanel;
 
@@ -117,7 +101,6 @@ export const TraceEventsRow = React.memo(
     traceCommentCounts,
     showCorrections,
     filterState,
-    hideObservationsWithoutIO,
     viewLabel,
     hideTracePanel = false,
   }: {
@@ -128,7 +111,6 @@ export const TraceEventsRow = React.memo(
     traceCommentCounts: Map<string, number> | undefined;
     showCorrections: boolean;
     filterState: FilterState;
-    hideObservationsWithoutIO: boolean;
     viewLabel: string | null;
     hideTracePanel?: boolean;
   }) => {
@@ -148,21 +130,19 @@ export const TraceEventsRow = React.memo(
       );
 
     // What each card shows is entirely determined by the selected view
-    // (LFE-10520): the server applies the view's FilterState, then the "with
-    // I/O" view additionally hides observations that carry no input/output.
-    // The synthetic trace-level row (no parent observation) mirrors the trace's
-    // own I/O — already shown by the trace panel — so it's dropped unless it is
-    // all the trace has, keeping a card from being needlessly empty.
+    // (LFE-10520): the server applies the view's FilterState (incl. the "with
+    // I/O" view's Has-Input-or-Output filter). The only client-side shaping is
+    // dropping the synthetic trace-level row (no parent observation) — it
+    // mirrors the trace's own I/O, already shown by the trace panel — unless it
+    // is all the trace has, so a card is never needlessly empty.
     const observations = observationsQuery.data;
     const visibleObservations = React.useMemo(() => {
       if (!observations) return undefined;
       const realObservations = observations.filter((observation) =>
         Boolean(observation.parentObservationId),
       );
-      const pool =
-        realObservations.length > 0 ? realObservations : observations;
-      return hideObservationsWithoutIO ? pool.filter(observationHasIO) : pool;
-    }, [observations, hideObservationsWithoutIO]);
+      return realObservations.length > 0 ? realObservations : observations;
+    }, [observations]);
 
     return (
       <Card className="border-border shadow-none">

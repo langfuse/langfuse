@@ -68,7 +68,7 @@ import {
   SESSION_DETAIL_SYSTEM_PRESETS,
   type SessionDetailSystemPreset,
   getSessionDetailPresetToApply,
-  getSessionDetailViewConfig,
+  getSessionDetailViewLabel,
   SESSION_DETAIL_VIEW_TRIGGER_ID,
 } from "@/src/components/session/session-detail-presets";
 import { downloadSessionAsJson } from "@/src/components/session/actions/downloadSessionAsJson";
@@ -934,9 +934,9 @@ const LoadedSessionEventsPage: React.FC<{
     viewControllers.selectedViewId,
   ]);
 
-  // The selected view is the single source of truth for what each card shows.
-  const { label: viewLabel, hideObservationsWithoutIO } =
-    getSessionDetailViewConfig(viewControllers.selectedViewId);
+  // The selected view is the single source of truth for what each card shows;
+  // its label only feeds the empty-state notice.
+  const viewLabel = getSessionDetailViewLabel(viewControllers.selectedViewId);
 
   const virtualizer = useVirtualizer({
     count: traces?.length ?? 0,
@@ -1102,7 +1102,7 @@ const LoadedSessionEventsPage: React.FC<{
                   <SessionVirtualizedRow
                     key={virtualItem.key}
                     itemKey={String(virtualItem.key)}
-                    measurementKey={`${String(virtualItem.key)}:${showCorrections}:${hideObservationsWithoutIO}:${visibleFilterMeasurementKey}`}
+                    measurementKey={`${String(virtualItem.key)}:${showCorrections}:${visibleFilterMeasurementKey}`}
                     source="events"
                     virtualItem={virtualItem}
                     virtualizer={virtualizer}
@@ -1117,7 +1117,6 @@ const LoadedSessionEventsPage: React.FC<{
                       )}
                       index={virtualItem.index}
                       filterState={visibleFilterState}
-                      hideObservationsWithoutIO={hideObservationsWithoutIO}
                       viewLabel={viewLabel}
                     />
                   </SessionVirtualizedRow>

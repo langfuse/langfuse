@@ -15,7 +15,6 @@ type LazySessionTraceEventsRowProps = {
   index: number;
   traceCommentCounts: Map<string, number> | undefined;
   filterState: FilterState;
-  hideObservationsWithoutIO: boolean;
   viewLabel: string | null;
   hideTracePanel?: boolean;
 };
