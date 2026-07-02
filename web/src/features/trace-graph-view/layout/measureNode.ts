@@ -10,11 +10,11 @@ import { type GraphNodeData } from "../types";
 export const NODE_HEIGHT = 34;
 export const MAX_LABEL_LENGTH = 28;
 
-const APPROX_CHAR_WIDTH = 6.6; // px per char at the ~13px label font
+export const APPROX_CHAR_WIDTH = 6.6; // px per char at the ~13px label font
 const ICON_SLOT = 22; // type icon + gap
 const PADDING_X = 22; // left + right padding
-const MIN_WIDTH = 96;
-const MAX_WIDTH = 240;
+export const MIN_WIDTH = 96;
+export const MAX_WIDTH = 240;
 
 /** Truncate a label to keep nodes compact; full name is shown on hover. */
 export function truncateLabel(label: string): string {

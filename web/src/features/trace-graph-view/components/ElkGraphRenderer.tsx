@@ -52,11 +52,27 @@ function toPath(points: { x: number; y: number }[]): string {
   return points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
 }
 
+function toCss({ x, y, k }: Transform): string {
+  return `translate(${x}px, ${y}px) scale(${k})`;
+}
+
+/** Edge strokes scale with the world's CSS transform (the SVG is inside the
+ * transformed div, so vector-effect can't help) — compensate so they keep a
+ * constant on-screen width when zoomed OUT and never vanish. */
+function strokeCompensation(k: number): number {
+  return Math.max(1, 1 / k);
+}
+
 /**
  * Custom read-only graph renderer: ELK lays out the DAG, we draw HTML nodes over
  * an SVG edge layer inside a single transformed "world" container. d3-zoom owns
  * the pan/zoom transform (one source of truth → no view-state drift), and gives
  * us drag-pan, wheel + pinch zoom, and programmatic fit/focus for free.
+ *
+ * Per-frame gestures stay out of React: the zoom handler writes the world
+ * transform (and the edge stroke compensation CSS var) straight to the DOM.
+ * React state holds only the discrete derivations — `compact` (labels hidden
+ * below a zoom threshold) and `fitted` (first framing applied).
  */
 export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   graph,
@@ -67,6 +83,8 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   activeNodeNames = null,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const worldRef = useRef<HTMLDivElement>(null);
+  const transformRef = useRef<Transform>({ x: 0, y: 0, k: 1 });
   const zoomRef = useRef<ZoomBehavior<HTMLDivElement, unknown> | null>(null);
   const selectionRef = useRef<Selection<
     HTMLDivElement,
@@ -85,8 +103,11 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   const pointerDownPos = useRef<{ x: number; y: number } | null>(null);
 
   const [layout, setLayout] = useState<GraphLayout | null>(null);
+  const [layoutError, setLayoutError] = useState(false);
+  const [layoutAttempt, setLayoutAttempt] = useState(0);
   const [size, setSize] = useState({ width: 0, height: 0 });
-  const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, k: 1 });
+  // Discrete zoom derivation: labels hide below LABEL_HIDE_SCALE.
+  const [compact, setCompact] = useState(false);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   // Keep the world hidden until the first fit is applied, so we never flash one
   // frame of the unfitted (scale-1, top-left) graph after layout resolves.
@@ -116,10 +137,11 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     return map;
   }, [nodeToObservationsMap, currentObservationIndices]);
 
-  // Compute layout via ELK whenever the graph changes.
+  // Compute layout via ELK whenever the graph changes (or a retry is asked).
   useEffect(() => {
     let cancelled = false;
     setLayout(null);
+    setLayoutError(false);
     setFitted(false);
     userControlledRef.current = false;
     // Also clear cross-graph view state so a graph change re-focuses the
@@ -130,11 +152,15 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
       .then((result) => {
         if (!cancelled) setLayout(result);
       })
-      .catch((error) => console.error("Graph layout failed:", error));
+      .catch((error) => {
+        console.error("Graph layout failed:", error);
+        // Guarded so a superseded effect's rejection can't stomp newer state.
+        if (!cancelled) setLayoutError(true);
+      });
     return () => {
       cancelled = true;
     };
-  }, [graph, nodeToObservationsMap]);
+  }, [graph, nodeToObservationsMap, layoutAttempt]);
 
   // Track container size.
   useEffect(() => {
@@ -147,7 +173,9 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     return () => observer.disconnect();
   }, []);
 
-  // Wire up d3-zoom once (drag-pan + wheel/pinch zoom).
+  // Wire up d3-zoom once (drag-pan + wheel/pinch zoom). Per-frame transform
+  // updates are written imperatively to the world div — pan/zoom frames commit
+  // ZERO React renders (compact/fitted bail on unchanged values).
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -157,7 +185,16 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
       .on("zoom", (event: D3ZoomEvent<HTMLDivElement, unknown>) => {
         if (event.sourceEvent) userControlledRef.current = true;
         const { x, y, k } = event.transform;
-        setTransform({ x, y, k });
+        transformRef.current = { x, y, k };
+        const world = worldRef.current;
+        if (world) {
+          world.style.transform = toCss(transformRef.current);
+          world.style.setProperty(
+            "--graph-stroke-comp",
+            String(strokeCompensation(k)),
+          );
+        }
+        setCompact(k < LABEL_HIDE_SCALE);
         // First transform (auto-fit or focus) means the graph is framed — reveal it.
         setFitted(true);
       });
@@ -171,6 +208,18 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
       selectionRef.current = null;
     };
   }, []);
+
+  // Bound panning to a generous frame around the laid-out graph so a drag can
+  // never strand the user on a blank canvas (d3-zoom's default translate
+  // extent is infinite).
+  useEffect(() => {
+    const zoomBehavior = zoomRef.current;
+    if (!zoomBehavior || !layout) return;
+    zoomBehavior.translateExtent([
+      [-layout.width, -layout.height],
+      [layout.width * 2, layout.height * 2],
+    ]);
+  }, [layout]);
 
   // Drive all transform changes through d3-zoom so its internal state stays in
   // sync with what's displayed (otherwise the next gesture jumps).
@@ -295,8 +344,6 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     if (fit) applyTransform(fit);
   };
 
-  const compact = transform.k < LABEL_HIDE_SCALE;
-
   if (!graph.nodes.length) {
     return (
       <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
@@ -308,25 +355,49 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   return (
     <div
       ref={containerRef}
+      role="group"
+      aria-label="Trace agent graph"
       className="bg-background/50 relative h-full w-full cursor-grab overflow-hidden active:cursor-grabbing"
       onPointerDown={(e) =>
         (pointerDownPos.current = { x: e.clientX, y: e.clientY })
       }
       onClick={handleBackgroundClick}
     >
-      {!layout && (
+      {!layout && !layoutError && (
         <div className="text-muted-foreground absolute inset-0 flex items-center justify-center text-sm">
           Laying out graph…
+        </div>
+      )}
+      {layoutError && (
+        <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm">
+          <span>Couldn&apos;t lay out the graph.</span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation(); // don't treat the retry as a canvas deselect
+              setLayoutAttempt((n) => n + 1);
+            }}
+          >
+            Retry
+          </Button>
         </div>
       )}
 
       {layout && (
         <div
+          ref={worldRef}
           className="absolute top-0 left-0 origin-top-left"
           style={{
             width: layout.width,
             height: layout.height,
-            transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.k})`,
+            // Seed from the last known transform so a layout-change remount
+            // paints in place instead of at identity; the zoom handler owns
+            // every subsequent update imperatively.
+            transform: toCss(transformRef.current),
+            ["--graph-stroke-comp" as string]: String(
+              strokeCompensation(transformRef.current.k),
+            ),
             opacity: fitted ? 1 : 0,
           }}
         >
@@ -370,13 +441,17 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
                 <path
                   key={edge.id}
                   d={toPath(edge.points)}
-                  vectorEffect="non-scaling-stroke"
                   className={
                     active
                       ? "stroke-primary fill-none"
                       : "stroke-muted-foreground/40 fill-none"
                   }
-                  strokeWidth={active ? 2 : 1.5}
+                  // Strokes scale with the world transform (vector-effect can't
+                  // reach across the HTML ancestor) — the CSS var, written by
+                  // the zoom handler, keeps them visible when zoomed out.
+                  style={{
+                    strokeWidth: `calc(${active ? 2 : 1.5}px * var(--graph-stroke-comp, 1))`,
+                  }}
                   markerEnd={
                     active ? "url(#graph-arrow-active)" : "url(#graph-arrow)"
                   }

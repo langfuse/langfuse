@@ -22,19 +22,12 @@ const TYPE_BORDER_CLASS: Record<string, string> = {
   SPAN: "border-muted-blue",
   CHAIN: "border-pink-600",
   RETRIEVER: "border-teal-600",
+  EVALUATOR: "border-primary-accent",
   EVENT: "border-muted-green",
   EMBEDDING: "border-amber-600",
   GUARDRAIL: "border-red-600",
 };
 const DEFAULT_BORDER_CLASS = "border-muted-blue";
-
-/**
- * "Playing at the playhead" glow: an accent ring + soft halo so the active run
- * lights UP (rather than dimming everything else down). Uses the vivid
- * `primary-accent` so it reads in both themes and lifts above its neighbours.
- */
-const ACTIVE_GLOW_CLASS =
-  "z-10 ring-2 ring-primary-accent shadow-[0_0_16px_2px_hsl(var(--primary-accent)/0.65)]";
 
 const isStartNode = (id: string) =>
   id === LANGFUSE_START_NODE_NAME || id === LANGGRAPH_START_NODE_NAME;
@@ -80,33 +73,65 @@ function GraphNodeComponent({
 
   const shared = cn(
     "absolute flex select-none items-center justify-center gap-1.5 overflow-hidden rounded-md px-2 text-xs font-medium transition-[box-shadow]",
-    onSelect && "cursor-pointer hover:ring-2 hover:ring-ring/40",
-    active && ACTIVE_GLOW_CLASS,
+    onSelect && [
+      "cursor-pointer hover:ring-2 hover:ring-ring/40",
+      "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
+    ],
+    // Playhead glow ("playing at the playhead"): lift + soft accent halo. Ring
+    // colors live in exactly one branch each so tailwind-merge never has to
+    // arbitrate: selected+active shares the accent ring (the two signals
+    // reinforce), selected-only keeps the neutral selection ring.
+    active && "z-10 shadow-[0_0_16px_2px_hsl(var(--primary-accent)/0.65)]",
+    active && !selected && "ring-primary-accent ring-2",
+    selected &&
+      (active
+        ? "ring-primary-accent ring-2 ring-offset-1"
+        : "ring-ring ring-2 ring-offset-1"),
   );
 
-  const handlers = {
-    onClick: onSelect
-      ? (event: React.MouseEvent) => {
+  // Real-HTML accessibility (the win over the old canvas renderer): selectable
+  // nodes are keyboard-focusable buttons announced with their type + label.
+  const handlers = onSelect
+    ? {
+        role: "button" as const,
+        tabIndex: 0,
+        "aria-label": `${type} ${label}${counter ?? ""}`,
+        "aria-pressed": !!selected,
+        onClick: (event: React.MouseEvent) => {
           event.stopPropagation(); // don't trigger the canvas background deselect
           onSelect(id);
-        }
-      : undefined,
-    onMouseEnter: onHover ? () => onHover(id) : undefined,
-    onMouseLeave: onHover ? () => onHover(null) : undefined,
-  };
+        },
+        onKeyDown: (event: React.KeyboardEvent) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            event.stopPropagation();
+            onSelect(id);
+          }
+        },
+        onMouseEnter: onHover ? () => onHover(id) : undefined,
+        onMouseLeave: onHover ? () => onHover(null) : undefined,
+      }
+    : {
+        onMouseEnter: onHover ? () => onHover(id) : undefined,
+        onMouseLeave: onHover ? () => onHover(null) : undefined,
+      };
+
+  // Tooltip only when the label is hidden (compact) — otherwise the label
+  // span's own title covers truncation (both estimator and CSS ellipsis).
+  const containerTitle = compact ? label : undefined;
 
   if (isStartNode(id) || isEndNode(id)) {
     const isStart = isStartNode(id);
     return (
       <div
         style={style}
+        title={containerTitle}
         className={cn(
           shared,
           "border-2 text-white",
           isStart
             ? "border-green-700 bg-green-600"
             : "border-red-700 bg-red-600",
-          selected && "ring-ring ring-2 ring-offset-1",
         )}
         {...handlers}
       >
@@ -122,12 +147,11 @@ function GraphNodeComponent({
   return (
     <div
       style={style}
-      title={truncateLabel(label) === label ? undefined : label}
+      title={containerTitle}
       className={cn(
         shared,
         "bg-background text-foreground border-2",
         TYPE_BORDER_CLASS[type] ?? DEFAULT_BORDER_CLASS,
-        selected && "ring-ring ring-2 ring-offset-1",
       )}
       {...handlers}
     >
