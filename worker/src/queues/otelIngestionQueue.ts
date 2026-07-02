@@ -21,6 +21,7 @@ import {
   compareVersions,
   ResourceSpan,
   type IngestionAttribution,
+  UNKNOWN_INGESTION_SDK_VALUE,
 } from "@langfuse/shared/src/server";
 import {
   applyIngestionMasking,
@@ -215,8 +216,10 @@ export const otelIngestionQueueProcessorBuilder = (
       const auth = job.data.payload.authCheck;
       const attribution: IngestionAttribution = {
         ingestionApiKey: publicKey,
-        ingestionSdkName: job.data.payload.sdkName,
-        ingestionSdkVersion: job.data.payload.sdkVersion,
+        ingestionSdkName:
+          job.data.payload.sdkName || UNKNOWN_INGESTION_SDK_VALUE,
+        ingestionSdkVersion:
+          job.data.payload.sdkVersion || UNKNOWN_INGESTION_SDK_VALUE,
       };
 
       const span = getCurrentSpan();

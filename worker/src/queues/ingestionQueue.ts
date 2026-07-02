@@ -20,6 +20,7 @@ import {
   TQueueJobTypes,
   traceException,
   type IngestionAttribution,
+  UNKNOWN_INGESTION_SDK_VALUE,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 
@@ -272,9 +273,12 @@ export const ingestionQueueProcessorBuilder = (
         job.data.payload.data.forwardToEventsTable ??
         v4WritesToEventsTable(env);
       const attribution: IngestionAttribution = {
-        ingestionApiKey: job.data.payload.data.ingestionApiKey,
-        ingestionSdkName: job.data.payload.data.ingestionSdkName,
-        ingestionSdkVersion: job.data.payload.data.ingestionSdkVersion,
+        ingestionApiKey: job.data.payload.data.ingestionApiKey ?? "",
+        ingestionSdkName:
+          job.data.payload.data.ingestionSdkName || UNKNOWN_INGESTION_SDK_VALUE,
+        ingestionSdkVersion:
+          job.data.payload.data.ingestionSdkVersion ||
+          UNKNOWN_INGESTION_SDK_VALUE,
       };
 
       // Recover the canonical entity id from the downloaded event body, not
