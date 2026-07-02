@@ -52,14 +52,22 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
             <CardTitle className="text-base">Prompt</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <div className="flex gap-2">
-              <span className="text-muted-foreground">Name:</span>
-              <span className="font-medium">{selectedPromptName}</span>
-            </div>
-            <div className="flex gap-2">
-              <span className="text-muted-foreground">Version:</span>
-              <span className="font-medium">v{selectedPromptVersion}</span>
-            </div>
+            {selectedPromptName ? (
+              <>
+                <div className="flex gap-2">
+                  <span className="text-muted-foreground">Name:</span>
+                  <span className="font-medium">{selectedPromptName}</span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-muted-foreground">Version:</span>
+                  <span className="font-medium">v{selectedPromptVersion}</span>
+                </div>
+              </>
+            ) : (
+              <p className="text-destructive text-sm font-medium">
+                Please select a prompt
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -72,14 +80,22 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
             <CardTitle className="text-base">Model</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <div className="flex gap-2">
-              <span className="text-muted-foreground">Provider:</span>
-              <span>{modelParams.provider.value}</span>
-            </div>
-            <div className="flex gap-2">
-              <span className="text-muted-foreground">Model:</span>
-              <span>{modelParams.model.value}</span>
-            </div>
+            {!modelParams.provider.value || !modelParams.model.value ? (
+              <p className="text-destructive text-sm font-medium">
+                Please select a model
+              </p>
+            ) : (
+              <>
+                <div className="flex gap-2">
+                  <span className="text-muted-foreground">Provider:</span>
+                  <span>{modelParams.provider.value}</span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-muted-foreground">Model:</span>
+                  <span>{modelParams.model.value}</span>
+                </div>
+              </>
+            )}
             {modelParams.temperature.enabled && (
               <div className="flex gap-2">
                 <span className="text-muted-foreground">Temperature:</span>
@@ -112,10 +128,16 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
             <CardTitle className="text-base">Dataset</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <div className="flex gap-2">
-              <span className="text-muted-foreground">Name:</span>
-              <span className="font-medium">{selectedDataset?.name}</span>
-            </div>
+            {selectedDataset ? (
+              <div className="flex gap-2">
+                <span className="text-muted-foreground">Name:</span>
+                <span className="font-medium">{selectedDataset.name}</span>
+              </div>
+            ) : (
+              <p className="text-destructive text-sm font-medium">
+                Please select a dataset
+              </p>
+            )}
             {validationResult?.isValid && (
               <div className="flex gap-2">
                 <span className="text-muted-foreground">Items:</span>
@@ -157,10 +179,16 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
             <CardTitle className="text-base">Experiment Run Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <div className="flex gap-2">
-              <span className="text-muted-foreground">Experiment Name:</span>
-              <span className="font-medium">{formValues.name}</span>
-            </div>
+            {formValues.name ? (
+              <div className="flex gap-2">
+                <span className="text-muted-foreground">Experiment Name:</span>
+                <span className="font-medium">{formValues.name}</span>
+              </div>
+            ) : (
+              <p className="text-destructive text-sm font-medium">
+                Please enter an experiment name
+              </p>
+            )}
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">Run Name:</span>
               <span className="font-medium">{formValues.runName}</span>
