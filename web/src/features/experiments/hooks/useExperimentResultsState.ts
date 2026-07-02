@@ -4,6 +4,7 @@ import {
   ArrayParam,
   StringParam,
 } from "use-query-params";
+import useLocalStorage from "@/src/components/useLocalStorage";
 
 const MAX_COMPARISONS = 4;
 
@@ -11,7 +12,7 @@ export function useExperimentResultsState() {
   const [state, setState] = useQueryParams({
     baseline: withDefault(StringParam, undefined),
     c: withDefault(ArrayParam, []),
-    layout: withDefault(StringParam, "grid"),
+    layout: StringParam,
     itemVisibility: withDefault(StringParam, "baseline-only"),
   });
 
@@ -76,10 +77,15 @@ export function useExperimentResultsState() {
     setComparisonIds(comparisonIds.filter((existingId) => existingId !== id));
   };
 
-  // Layout management
-  const layout = (state.layout as "grid" | "list") ?? "list";
+  // Layout management - persist to localStorage so preference survives navigation
+  const [savedLayout, setSavedLayout] = useLocalStorage<"grid" | "list">(
+    "experimentResultsLayout",
+    "grid",
+  );
+  const layout = (state.layout as "grid" | "list") ?? savedLayout ?? "grid";
   const setLayout = (newLayout: "grid" | "list") => {
     setState({ layout: newLayout });
+    setSavedLayout(newLayout);
   };
 
   // Item visibility management
