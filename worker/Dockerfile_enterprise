@@ -1,11 +1,8 @@
-# The node alpine image is available here: https://github.com/nodejs/docker-node
-FROM --platform=${TARGETPLATFORM:-linux/amd64} node:24-alpine AS alpine
+# WizOS build image has shell/npm; hardened runtime image has no shell/apk.
+ARG WIZOS_NODE_BUILDER_IMAGE=816069167615.dkr.ecr.eu-west-1.amazonaws.com/wizos-node:24
+ARG WIZOS_NODE_RUNTIME_IMAGE=816069167615.dkr.ecr.eu-west-1.amazonaws.com/wizos-node:24-hardened
 
-# It's important to update the index before installing packages to ensure you're getting the latest versions.
-# Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
-RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox ssl_client zlib
-
-FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS build-base
+FROM --platform=${TARGETPLATFORM:-linux/amd64} ${WIZOS_NODE_BUILDER_IMAGE} AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
 RUN npm install turbo@2.9.18 --global
 ENV PNPM_HOME="/pnpm"
@@ -13,11 +10,28 @@ ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 RUN corepack prepare pnpm@11.4.0 --activate
 
-FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runtime-base
-# package managers and build-only CLIs only increase exposure to CVEs -> remove them
-RUN rm -rf /usr/local/lib/node_modules/corepack /usr/local/lib/node_modules/npm \
-            /root/.cache/node/corepack && \
-    rm -f /usr/local/bin/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/yarn /usr/local/bin/yarnpkg
+# busybox ships into the runtime image, so build this stage for the target arch.
+FROM --platform=${TARGETPLATFORM:-linux/amd64} busybox:1.37.0-musl AS shell-tools
+RUN mkdir -p /out/bin /out/usr/bin && \
+    cp /bin/busybox /out/bin/busybox && \
+    for applet in sh sed wget grep cat env printf test '[' date mkdir; do \
+      ln -s busybox "/out/bin/${applet}"; \
+    done && \
+    ln -s /bin/busybox /out/usr/bin/env
+
+FROM --platform=${BUILDPLATFORM} ${WIZOS_NODE_BUILDER_IMAGE} AS dumb-init-builder
+ARG TARGETARCH
+ARG DUMB_INIT_VERSION=1.2.5
+RUN case "${TARGETARCH}" in \
+      amd64) dumb_init_arch=x86_64; dumb_init_sha256=e874b55f3279ca41415d290c512a7ba9d08f98041b28ae7c2acb19a545f1c4df ;; \
+      arm64) dumb_init_arch=aarch64; dumb_init_sha256=b7d648f97154a99c539b63c55979cd29f005f88430fb383007fe3458340b795e ;; \
+      *) echo "unsupported TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
+    esac && \
+    dumb_init_file="dumb-init_${DUMB_INIT_VERSION}_${dumb_init_arch}" && \
+    wget -O "/tmp/${dumb_init_file}" "https://github.com/Yelp/dumb-init/releases/download/v${DUMB_INIT_VERSION}/${dumb_init_file}" && \
+    echo "${dumb_init_sha256}  /tmp/${dumb_init_file}" | sha256sum -c - && \
+    mv "/tmp/${dumb_init_file}" /usr/bin/dumb-init && \
+    chmod 755 /usr/bin/dumb-init
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS pruner
 
@@ -65,12 +79,13 @@ RUN pnpm --filter worker deploy --legacy --prod /prod/worker && \
     cp -R "$builder_prisma_client_dir" "$deployed_prisma_client_dir" && \
     cp -R "$builder_prisma_runtime_dir" "$deployed_prisma_runtime_dir"
 
-FROM --platform=${TARGETPLATFORM:-linux/amd64} runtime-base AS runner
+FROM --platform=${TARGETPLATFORM:-linux/amd64} ${WIZOS_NODE_RUNTIME_IMAGE} AS runner
 
-ARG TARGETPLATFORM
-ARG BUILDPLATFORM
-
-RUN apk add --no-cache dumb-init
+# Copy runtime-only tools from throwaway stages so the hardened runtime does
+# not need a shell or package manager.
+COPY --from=shell-tools /out/bin /bin
+COPY --from=shell-tools /out/usr/bin /usr/bin
+COPY --from=dumb-init-builder /usr/bin/dumb-init /bin/dumb-init
 
 WORKDIR /app
 
@@ -79,24 +94,20 @@ ENV BUILD_ID=$NEXT_PUBLIC_BUILD_ID
 
 ENV NODE_ENV production
 ENV DOCKER_BUILD 0
-
-# Don't run production as root
-ARG UID=1001
-ARG GID=1001
-RUN addgroup --system --gid ${GID} expressjs
-RUN adduser --system --uid ${UID} expressjs
+ENV PATH="${PATH}:/bin"
 
 # Copy only production worker payload instead of full builder workspace (just /prod/worker not entire /app)
-COPY --from=prod-deps --chown=expressjs:expressjs /prod/worker ./worker
-RUN chmod +x ./worker/entrypoint.sh
-USER expressjs
+COPY --from=prod-deps --chown=1001:1001 /prod/worker ./worker
+COPY --chmod=755 ./worker/entrypoint.sh ./worker/entrypoint.sh
+
+USER 1001:1001
 
 EXPOSE 3030
 ENV PORT=3030
 
 # Docker ENTRYPOINT (dumb-init) is covered by semantic versioning, not the entrypoint.sh itself
 # Reasoning: ENTRYPOINT is overridden by some self-hosted deployments, thus changing this is breaking
-ENTRYPOINT ["dumb-init", "--", "./worker/entrypoint.sh"]
+ENTRYPOINT ["/bin/dumb-init", "--", "./worker/entrypoint.sh"]
 
 # startup command
 CMD ["node", "worker/dist/index.js"]
