@@ -37,6 +37,16 @@ export type ApiKeyCreateDialogContentProps =
   | ApiKeyCreateDialogFormProps
   | ApiKeyCreateDialogDetailProps;
 
+function encodeMcpCredential(publicKey: string, secretKey: string) {
+  const credential = `${publicKey}:${secretKey}`;
+
+  if (typeof globalThis.btoa === "function") {
+    return globalThis.btoa(credential);
+  }
+
+  return Buffer.from(credential).toString("base64");
+}
+
 export function ApiKeyCreateDialogContent(
   props: ApiKeyCreateDialogContentProps,
 ) {
@@ -45,6 +55,7 @@ export function ApiKeyCreateDialogContent(
   if (props.type === "detail") {
     const { secretKey, publicKey, baseUrl } = props;
     const envCode = getLangfuseEnvCode(baseUrl, { secretKey, publicKey });
+    const mcpCredential = encodeMcpCredential(publicKey, secretKey);
 
     return (
       <DialogContent onPointerDownOutside={(e) => e.preventDefault()}>
@@ -52,7 +63,7 @@ export function ApiKeyCreateDialogContent(
           <DialogTitle>API Keys</DialogTitle>
         </DialogHeader>
         <DialogBody>
-          <div className="space-y-6">
+          <div>
             <div>
               <SubHeader title="Secret Key" />
               <div className="text-muted-foreground text-sm">
@@ -61,13 +72,36 @@ export function ApiKeyCreateDialogContent(
               </div>
               <CodeView content={secretKey} className="mt-2" />
             </div>
-            <div>
+            <div className="mt-6">
               <SubHeader title="Public Key" />
               <CodeView content={publicKey} className="mt-2" />
             </div>
-            <div>
+            <div className="mt-6">
               <SubHeader title=".env" />
               <CodeView content={envCode} className="mt-2" />
+            </div>
+            <hr className="my-6" />
+            <SubHeader title="Using with MCP" />
+            <p className="text-muted-foreground text-sm">
+              For a detailed guide on how to use this API key to connect to the
+              Langfuse MCP server, see the{" "}
+              <a
+                href="https://langfuse.com/docs/api-and-data-platform/features/mcp-server"
+                target="_blank"
+                rel="noreferrer"
+                className="text-foreground underline"
+              >
+                MCP setup docs
+              </a>
+              .
+            </p>
+            <div className="mt-4">
+              <Label>Header</Label>
+              <CodeView
+                content={`Authorization: Basic ${mcpCredential}`}
+                className="mt-2"
+                lineWrap={false}
+              />
             </div>
           </div>
         </DialogBody>

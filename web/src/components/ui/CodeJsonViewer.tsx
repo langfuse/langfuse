@@ -231,8 +231,10 @@ export function CodeView(props: {
   title?: string;
   scrollable?: boolean;
   copiedToClipboardMessage?: string;
+  lineWrap?: boolean;
 }) {
   const { copiedToClipboardMessage } = props;
+  const lineWrap = props.lineWrap ?? true;
 
   const [isCollapsed, setCollapsed] = useState(props.defaultCollapsed);
 
@@ -321,7 +323,11 @@ export function CodeView(props: {
         )}
         <code
           className={cn(
-            "relative max-w-full min-w-0 flex-1 px-4 py-3 font-mono text-xs wrap-break-word whitespace-pre-wrap",
+            "relative max-w-full min-w-0 flex-1 px-4 py-3 font-mono text-xs",
+            !props.title && !lineWrap ? "w-[calc(100%-2.5rem)] pr-12" : "",
+            lineWrap
+              ? "wrap-break-word whitespace-pre-wrap"
+              : "overflow-x-auto whitespace-pre",
             isCollapsed ? `line-clamp-6` : "block",
             props.scrollable ? "overflow-y-auto" : "",
           )}
