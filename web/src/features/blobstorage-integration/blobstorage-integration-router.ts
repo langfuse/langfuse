@@ -29,9 +29,11 @@ import { decrypt } from "@langfuse/shared/encryption";
 import {
   AnalyticsIntegrationExportSource,
   BlobStorageIntegrationType,
+  BlobStorageIntegrationFileType,
   InvalidRequestError,
   isEnrichedBlobExportAvailable,
 } from "@langfuse/shared";
+import { isParquetFileTypeAllowed } from "@/src/features/blobstorage-integration/parquetFileType";
 
 const getAuditLogErrorType = (error: unknown) =>
   error instanceof TRPCError
@@ -124,12 +126,29 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
 
         // Feeds both gates: the legacy gate needs createdAt for an explicit
         // source; the enriched gate needs the persisted source to reject a
-        // stale enriched value on an omitted update.
+        // stale enriched value on an omitted update. fileType feeds the parquet
+        // whitelist gate below.
         const existingIntegration =
           await ctx.prisma.blobStorageIntegration.findUnique({
             where: { projectId: input.projectId },
-            select: { createdAt: true, exportSource: true },
+            select: { createdAt: true, exportSource: true, fileType: true },
           });
+
+        // Parquet is whitelist-gated while it stabilises as a first-class
+        // fileType. Only gate a *change to* PARQUET — a project already
+        // persisting it (e.g. later removed from the whitelist) must still be
+        // able to save unrelated edits without being locked out. The legacy
+        // `exportTuning.parquet` override is a separate, DB-only path unaffected
+        // by this check.
+        const isChangingToParquet =
+          input.fileType === BlobStorageIntegrationFileType.PARQUET &&
+          existingIntegration?.fileType !==
+            BlobStorageIntegrationFileType.PARQUET;
+        if (isChangingToParquet && !isParquetFileTypeAllowed(input.projectId)) {
+          throw new InvalidRequestError(
+            "Parquet export is not available for this project.",
+          );
+        }
 
         // Legacy gate checks explicit values only; omitted preserves the row,
         // CREATE is covered by forceEventsOnCreate below.

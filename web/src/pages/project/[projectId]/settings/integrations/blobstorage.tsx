@@ -34,6 +34,7 @@ import {
   type BlobStorageIntegrationFormSchema,
   type BlobStorageSyncStatus,
 } from "@/src/features/blobstorage-integration/types";
+import { isParquetFileTypeAllowed } from "@/src/features/blobstorage-integration/parquetFileType";
 import { deriveSyncStatus } from "@/src/features/blobstorage-integration/deriveSyncStatus";
 import { Alert, AlertTitle, AlertDescription } from "@/src/components/ui/alert";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -377,6 +378,16 @@ const BlobStorageIntegrationSettingsForm = ({
   // Internal `exportTuning.parquet` override (no write path); reflected read-only
   // below since the worker forces Parquet over the persisted fileType + gzip.
   const isParquetOverride = parquetEnabledFromTuning(state?.exportTuning);
+  // First-class Parquet fileType is whitelist-gated while it stabilises; only
+  // whitelisted projects can select it. The legacy override above is separate.
+  const isParquetWhitelisted = isParquetFileTypeAllowed(projectId);
+  const watchedFileType = blobStorageForm.watch("fileType");
+  // Effective Parquet export: the locked internal override OR a first-class
+  // PARQUET fileType selection. Both hide gzip and switch the field-group
+  // descriptions to the Parquet (price-stripped) variants.
+  const isParquetExport =
+    isParquetOverride ||
+    watchedFileType === BlobStorageIntegrationFileType.PARQUET;
   const exportSourceOptions = getExportSourceOptions(
     state?.exportSource,
     availability,
@@ -705,7 +716,11 @@ const BlobStorageIntegrationSettingsForm = ({
             <FormItem>
               <FormLabel>File Type</FormLabel>
               <FormControl>
-                {/* "PARQUET" is display-only; the persisted fileType is kept but ignored. */}
+                {/*
+                  The internal override locks the selector to a display-only
+                  "Parquet" (persisted fileType kept but ignored). Whitelisted
+                  projects instead get Parquet as a real, selectable fileType.
+                */}
                 <Select
                   value={isParquetOverride ? "PARQUET" : field.value}
                   onValueChange={field.onChange}
@@ -718,7 +733,16 @@ const BlobStorageIntegrationSettingsForm = ({
                     <SelectItem value="JSONL">JSONL</SelectItem>
                     <SelectItem value="CSV">CSV</SelectItem>
                     <SelectItem value="JSON">JSON</SelectItem>
-                    {isParquetOverride && (
+                    {/*
+                      Also render when the current value is already PARQUET so a
+                      project that was de-whitelisted (or rolled back) keeps the
+                      option visible and can deliberately switch away, instead of
+                      showing a blank trigger.
+                    */}
+                    {(isParquetWhitelisted ||
+                      isParquetOverride ||
+                      watchedFileType ===
+                        BlobStorageIntegrationFileType.PARQUET) && (
                       <SelectItem value="PARQUET">Parquet</SelectItem>
                     )}
                   </SelectContent>
@@ -727,7 +751,9 @@ const BlobStorageIntegrationSettingsForm = ({
               <FormDescription>
                 {isParquetOverride
                   ? "Exporting as Apache Parquet — a columnar binary format encoded and compressed by ClickHouse. This is configured for your project and overrides the file type; gzip compression is not applicable."
-                  : "The file format for exported data."}
+                  : field.value === BlobStorageIntegrationFileType.PARQUET
+                    ? "Apache Parquet — a columnar binary format encoded and compressed by ClickHouse. Gzip compression does not apply."
+                    : "The file format for exported data."}
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -914,7 +940,7 @@ const BlobStorageIntegrationSettingsForm = ({
                           )}
                         </div>
                         <div className="text-muted-foreground text-xs">
-                          {isParquetOverride
+                          {isParquetExport
                             ? isLegacyOnlyExport
                               ? option.legacyParquetDescription
                               : option.parquetDescription
@@ -972,7 +998,7 @@ const BlobStorageIntegrationSettingsForm = ({
         )}
 
         {/* Parquet compresses internally — gzip does not apply. */}
-        {!isParquetOverride && (
+        {!isParquetExport && (
           <FormField
             control={blobStorageForm.control}
             name="compressed"
