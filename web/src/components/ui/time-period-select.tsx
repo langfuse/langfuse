@@ -46,7 +46,7 @@ export const TimePeriodSelect = React.forwardRef<
           new Date(date),
           hours.toString(),
           "12hours",
-          period === "AM" ? "PM" : "AM",
+          value,
         ),
       );
     }
