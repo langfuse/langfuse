@@ -510,6 +510,76 @@ describe("/api/public/v2/scores API Endpoint", () => {
         );
       });
 
+      it("excludes soft-deleted score versions from data and totalItems", async () => {
+        const { projectId, auth } = await createOrgProjectAndApiKey();
+        const traceId = v4();
+        const visibleScoreId = v4();
+        const deletedScoreId = v4();
+        const baseTimestamp = Date.now();
+
+        await createTracesCh([
+          createTrace({
+            id: traceId,
+            project_id: projectId,
+          }),
+        ]);
+
+        const deletedScoreLiveVersion = createTraceScore({
+          id: deletedScoreId,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "deleted-score",
+          timestamp: baseTimestamp,
+          event_ts: baseTimestamp,
+          value: 1,
+          data_type: "NUMERIC",
+        });
+
+        const deletedScoreTombstone = {
+          ...deletedScoreLiveVersion,
+          event_ts: baseTimestamp + 1,
+          is_deleted: 1 as const,
+        };
+
+        const visibleScore = createTraceScore({
+          id: visibleScoreId,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "visible-score",
+          timestamp: baseTimestamp + 2,
+          event_ts: baseTimestamp + 2,
+          value: 2,
+          data_type: "NUMERIC",
+        });
+
+        await createScoresCh([
+          deletedScoreLiveVersion,
+          deletedScoreTombstone,
+          visibleScore,
+        ]);
+
+        const getScores = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores`,
+          undefined,
+          auth,
+        );
+
+        expect(getScores.status).toBe(200);
+        expect(getScores.body.meta).toMatchObject({
+          page: 1,
+          limit: 50,
+          totalItems: 1,
+          totalPages: 1,
+        });
+        expect(getScores.body.data).toHaveLength(1);
+        expect(getScores.body.data[0].id).toBe(visibleScoreId);
+        expect(
+          getScores.body.data.find((score) => score.id === deletedScoreId),
+        ).toBeUndefined();
+      });
+
       it("get all scores for config", async () => {
         const getAllScore = await makeZodVerifiedAPICall(
           GetScoresResponseV2,
