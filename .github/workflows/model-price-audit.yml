@@ -178,6 +178,22 @@ jobs:
           anthropic_api_key: ${{ secrets.CLAUDE_API_KEY }}
           github_token: ${{ github.token }}
           display_report: "true"
+          # Keep telemetry in Claude Code settings because this pinned composite
+          # action only forwards a subset of step-level OTEL env vars.
+          settings: |
+            {
+              "env": {
+                "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+                "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA": "1",
+                "OTEL_TRACES_EXPORTER": "otlp",
+                "OTEL_METRICS_EXPORTER": "none",
+                "OTEL_LOGS_EXPORTER": "none",
+                "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+                "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "${{ secrets.LANGFUSE_OTEL_TRACES_ENDPOINT }}",
+                "OTEL_EXPORTER_OTLP_HEADERS": "Authorization=Basic ${{ secrets.LANGFUSE_OTEL_BASIC_AUTH }}",
+                "OTEL_RESOURCE_ATTRIBUTES": "service.name=model-price-audit-agent,service.namespace=github-actions,github.repository=${{ github.repository }},github.workflow=${{ github.workflow }},github.run_id=${{ github.run_id }},github.run_attempt=${{ github.run_attempt }},github.ref=${{ github.ref_name }},github.actor=${{ github.actor }}"
+              }
+            }
           prompt: |
             You are running Langfuse's scheduled default model price audit.
 
