@@ -42,11 +42,11 @@ async function clickhouseTableExists(table: string): Promise<boolean> {
 async function skipUnlessEventPropagationTablesExist(
   ctx: TestContext,
 ): Promise<void> {
-  const hasTables =
+  const eventPropagationTablesExist =
     (await clickhouseTableExists(TableName.ObservationsBatchStaging)) &&
     (await clickhouseTableExists(TableName.EventsFull));
 
-  if (!hasTables) {
+  if (!eventPropagationTablesExist) {
     ctx.skip("event propagation ClickHouse tables are not enabled");
   }
 }
