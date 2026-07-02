@@ -1,56 +1,68 @@
-# In-App Agent Prompt Sync
+# In-App Agent Sync
 
-The canonical system prompt for the in-app agent lives at:
+Canonical files:
 
-`web/src/ee/features/in-app-agent/prompts/in-app-agent-system-prompt.txt`
+- Prompt: `web/src/ee/features/in-app-agent/prompts/in-app-agent-system-prompt.txt`
+- Evaluators: `web/src/features/in-app-agent/evaluators/*-evaluator.json`
+- Evaluation rules: `web/src/features/in-app-agent/evaluators/*-evaluation-rule.json`
 
-The local Postgres seeder reads this file and creates the text prompt named
-`in-app-agent-system-prompt` in the seed project
-`7a88fb47-b4e2-43b8-a06c-a5ce950dc53a` with the `production` and `latest`
-labels.
+## Environment
 
-## Manual Sync
-
-Use `sync-prompt.sh` to create the prompt in a Langfuse project via the public
-API. If the prompt already exists in a region, the same API call adds a new
-version instead.
-
-Set the target project credentials for all cloud regions before running the
-script:
+Targets: `LOCAL`, `STAGING`, `EU`, `US`, `JP`, `HIPAA`.
 
 ```sh
-export LANGFUSE_AI_FEATURES_EU_PUBLIC_KEY="pk-lf-..."
-export LANGFUSE_AI_FEATURES_EU_SECRET_KEY="sk-lf-..."
-export LANGFUSE_AI_FEATURES_US_PUBLIC_KEY="pk-lf-..."
-export LANGFUSE_AI_FEATURES_US_SECRET_KEY="sk-lf-..."
-export LANGFUSE_AI_FEATURES_JP_PUBLIC_KEY="pk-lf-..."
-export LANGFUSE_AI_FEATURES_JP_SECRET_KEY="sk-lf-..."
-export LANGFUSE_AI_FEATURES_HIPAA_PUBLIC_KEY="pk-lf-..."
-export LANGFUSE_AI_FEATURES_HIPAA_SECRET_KEY="sk-lf-..."
+export LANGFUSE_AI_FEATURES_SYNC_TARGETS="LOCAL"
+export LANGFUSE_AI_FEATURES_LOCAL_BASE_URL="http://localhost:3000"
+export LANGFUSE_AI_FEATURES_LOCAL_PUBLIC_KEY="pk-lf-..."
+export LANGFUSE_AI_FEATURES_LOCAL_SECRET_KEY="sk-lf-..."
+```
 
+For other targets, set:
+
+```sh
+export LANGFUSE_AI_FEATURES_<TARGET>_PUBLIC_KEY="pk-lf-..."
+export LANGFUSE_AI_FEATURES_<TARGET>_SECRET_KEY="sk-lf-..."
+```
+
+If using a dotenv file with plain assignments:
+
+```sh
+set -a; source .env; set +a
+```
+
+## Prompt Sync
+
+Creates `in-app-agent-system-prompt` or adds a new version with `production` and
+`latest` labels.
+
+```sh
 ./scripts/in-app-agent/sync-prompt.sh
 ```
 
-Or move the export statements to a .env file and run:
+Requires `curl` and `jq`.
+
+## Evaluator Sync
+
+Syncs every checked-in evaluator JSON plus its matching evaluation rule.
 
 ```sh
-(source .env; ./sync-prompt.sh)
+pnpm assistant:sync-evals -- --dry-run
+pnpm assistant:sync-evals
+pnpm assistant:sync-evals -- --yes
 ```
 
-The script asks for confirmation before syncing each Langfuse Cloud region:
-`https://cloud.langfuse.com`, `https://us.cloud.langfuse.com`,
-`https://jp.cloud.langfuse.com`, and `https://hipaa.cloud.langfuse.com`.
-
-The script assumes `curl` and `jq` are installed and available on `PATH`.
+Evaluators use the target project's default evaluation model because
+`modelConfig` is `null`.
 
 ## Verify
 
 ```sh
-LANGFUSE_PUBLIC_KEY="$LANGFUSE_AI_FEATURES_EU_PUBLIC_KEY" \
-LANGFUSE_SECRET_KEY="$LANGFUSE_AI_FEATURES_EU_SECRET_KEY" \
-LANGFUSE_BASE_URL="https://cloud.langfuse.com" \
-langfuse api prompts get in-app-agent-system-prompt --label production
-```
+curl --silent --show-error \
+  --user "$LANGFUSE_AI_FEATURES_EU_PUBLIC_KEY:$LANGFUSE_AI_FEATURES_EU_SECRET_KEY" \
+  "https://cloud.langfuse.com/api/public/v2/prompts/in-app-agent-system-prompt"
 
-Run the verification command with the corresponding regional public key, secret
-key, and base URL.
+curl --silent --show-error \
+  --user "$LANGFUSE_AI_FEATURES_EU_PUBLIC_KEY:$LANGFUSE_AI_FEATURES_EU_SECRET_KEY" \
+  "https://cloud.langfuse.com/api/public/unstable/evaluators?page=1&limit=100" \
+  | jq '.data[] | select(.name | startswith("iaa-"))'
+```

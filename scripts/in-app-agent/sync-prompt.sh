@@ -5,14 +5,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 PROMPT_FILE="${REPO_ROOT}/web/src/ee/features/in-app-agent/prompts/in-app-agent-system-prompt.txt"
 PROMPT_NAME="in-app-agent-system-prompt"
-REGIONS=(STAGING EU US JP HIPAA)
+REGIONS=(LOCAL STAGING EU US JP HIPAA)
 BASE_URLS=(
+  "${LANGFUSE_AI_FEATURES_LOCAL_BASE_URL:-http://localhost:3000}"
   "https://staging.langfuse.com"
   "https://cloud.langfuse.com"
   "https://us.cloud.langfuse.com"
   "https://jp.cloud.langfuse.com"
   "https://hipaa.cloud.langfuse.com"
 )
+IFS=" " read -r -a SELECTED_REGIONS <<< "${LANGFUSE_AI_FEATURES_SYNC_TARGETS:-${REGIONS[*]}}"
 
 if [[ ! -f "${PROMPT_FILE}" ]]; then
   echo "Prompt file not found: ${PROMPT_FILE}" >&2
@@ -35,8 +37,19 @@ REQUEST_BODY="$(
 SYNCED_REGIONS=()
 PREFLIGHT_ERRORS=()
 
-for REGION_INDEX in "${!REGIONS[@]}"; do
-  REGION="${REGIONS[${REGION_INDEX}]}"
+for REGION in "${SELECTED_REGIONS[@]}"; do
+  REGION_INDEX="-1"
+  for CANDIDATE_INDEX in "${!REGIONS[@]}"; do
+    if [[ "${REGIONS[${CANDIDATE_INDEX}]}" == "${REGION}" ]]; then
+      REGION_INDEX="${CANDIDATE_INDEX}"
+      break
+    fi
+  done
+  if [[ "${REGION_INDEX}" == "-1" ]]; then
+    PREFLIGHT_ERRORS+=("${REGION}: unknown target. Expected one of: ${REGIONS[*]}.")
+    continue
+  fi
+
   PUBLIC_KEY_VAR="LANGFUSE_AI_FEATURES_${REGION}_PUBLIC_KEY"
   SECRET_KEY_VAR="LANGFUSE_AI_FEATURES_${REGION}_SECRET_KEY"
   BASE_URL="${BASE_URLS[${REGION_INDEX}]}"
@@ -67,8 +80,15 @@ if [[ ${#PREFLIGHT_ERRORS[@]} -gt 0 ]]; then
   exit 1
 fi
 
-for REGION_INDEX in "${!REGIONS[@]}"; do
-  REGION="${REGIONS[${REGION_INDEX}]}"
+for REGION in "${SELECTED_REGIONS[@]}"; do
+  REGION_INDEX="-1"
+  for CANDIDATE_INDEX in "${!REGIONS[@]}"; do
+    if [[ "${REGIONS[${CANDIDATE_INDEX}]}" == "${REGION}" ]]; then
+      REGION_INDEX="${CANDIDATE_INDEX}"
+      break
+    fi
+  done
+
   PUBLIC_KEY_VAR="LANGFUSE_AI_FEATURES_${REGION}_PUBLIC_KEY"
   SECRET_KEY_VAR="LANGFUSE_AI_FEATURES_${REGION}_SECRET_KEY"
   BASE_URL="${BASE_URLS[${REGION_INDEX}]}"
