@@ -729,17 +729,11 @@ const scoreRecordReadColumns = [
   "event_ts",
 ];
 
-const scoreRecordReadSelect = scoreRecordReadColumns
-  .map((column) => `s.${column}`)
-  .join(",\n              ");
+const commaSeparatedSelect = (columns: string[]) => columns.join(", ");
 
-const experimentItemScoreRecordReadSelect = scoreRecordReadColumns
-  .map((column) =>
-    column === "observation_id"
-      ? "ifNull(s.observation_id, {observationIdMapping: Array(String)}[indexOf({traceIdMapping: Array(String)}, s.trace_id)]) AS observation_id"
-      : `s.${column}`,
-  )
-  .join(",\n              ");
+const scoreRecordReadSelect = commaSeparatedSelect(
+  scoreRecordReadColumns.map((column) => `s.${column}`),
+);
 
 export async function queryScoreRecordsForExperimentItems({
   projectId,
@@ -756,17 +750,7 @@ export async function queryScoreRecordsForExperimentItems({
   toTimestamp?: Date;
   scoreLimit: number;
 }) {
-  const traceToObservationId = new Map<string, string>();
-  traceIds.forEach((traceId, index) => {
-    const observationId = observationIds[index];
-    if (traceId && observationId) {
-      traceToObservationId.set(traceId, observationId);
-    }
-  });
-
-  const traceIdMapping = [...traceToObservationId.keys()];
-  const observationIdMapping = [...traceToObservationId.values()];
-  const uniqueTraceIds = traceIdMapping;
+  const uniqueTraceIds = uniqueNonEmptyStrings(traceIds);
   const uniqueObservationIds = uniqueNonEmptyStrings(observationIds);
 
   if (uniqueTraceIds.length === 0 && uniqueObservationIds.length === 0) {
@@ -781,8 +765,6 @@ export async function queryScoreRecordsForExperimentItems({
         projectId,
         traceIds: uniqueTraceIds,
         observationIds: uniqueObservationIds,
-        traceIdMapping,
-        observationIdMapping,
         minStartTime: convertDateToClickhouseDateTime(min),
         ...(toTimestamp
           ? { maxStartTime: convertDateToClickhouseDateTime(toTimestamp) }
@@ -802,7 +784,7 @@ export async function queryScoreRecordsForExperimentItems({
             ${scoreRecordReadSelect}
           FROM (
             SELECT
-              ${experimentItemScoreRecordReadSelect}
+              ${scoreRecordReadSelect}
             FROM scores s
             WHERE s.project_id = {projectId: String}
               AND s.timestamp >= {minStartTime: DateTime64(3)}
@@ -812,7 +794,7 @@ export async function queryScoreRecordsForExperimentItems({
                 s.observation_id IN ({observationIds: Array(String)})
                 OR (
                   s.trace_id IN ({traceIds: Array(String)})
-                  AND s.observation_id IS NULL
+                  AND (s.observation_id IS NULL OR s.observation_id = '')
                   AND s.session_id IS NULL
                   AND s.dataset_run_id IS NULL
                 )
@@ -820,8 +802,8 @@ export async function queryScoreRecordsForExperimentItems({
             ORDER BY s.event_ts DESC
             LIMIT 1 BY s.id
           ) s
-          ORDER BY s.observation_id ASC, s.event_ts DESC
-          LIMIT {scoreLimit: UInt32} BY s.observation_id
+          ORDER BY s.event_ts DESC
+          LIMIT {scoreLimit: UInt32} BY s.trace_id
         `,
         params: input.params,
         tags: input.tags,

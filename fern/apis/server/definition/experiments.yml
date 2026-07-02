@@ -64,7 +64,7 @@ service:
         and optionally item/trace scores. Results are ordered by time
         descending.
 
-        `fromTime` is required unless `experimentId` is provided.
+        `fromTime` is required.
       request:
         name: ListExperimentItemsRequest
         query-parameters:
@@ -85,8 +85,8 @@ service:
             type: optional<string>
             docs: Versioned base64url cursor from the previous response page.
           fromTime:
-            type: optional<datetime>
-            docs: Retrieve only experiment items on or after this datetime. Required unless `experimentId` is provided.
+            type: datetime
+            docs: Retrieve only experiment items on or after this datetime.
           toTime:
             type: optional<datetime>
             docs: Retrieve only experiment items before this datetime.

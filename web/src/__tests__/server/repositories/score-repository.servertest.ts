@@ -834,7 +834,7 @@ describe("Clickhouse Scores Repository Test", () => {
   });
 
   describe("queryScoreRecordsForExperimentItems", () => {
-    it("returns item and trace scores only, limited per experiment item", async () => {
+    it("returns item and trace scores only", async () => {
       const { projectId: isolatedProjectId } =
         await createOrgProjectAndApiKey();
       const startTimeMs = Date.now();
@@ -883,7 +883,7 @@ describe("Clickhouse Scores Repository Test", () => {
           id: latestTraceScoreId,
           project_id: isolatedProjectId,
           trace_id: traceId,
-          observation_id: null,
+          observation_id: "",
           name: "latest trace score",
           timestamp: startTimeMs + 4,
           created_at: startTimeMs + 4,
@@ -913,13 +913,14 @@ describe("Clickhouse Scores Repository Test", () => {
         traceIds: [traceId],
         observationIds: [observationId],
         min: new Date(startTimeMs),
-        scoreLimit: 1,
+        scoreLimit: 50,
       });
 
       const scoreIds = result.map((score) => score.id);
-      expect(scoreIds).toHaveLength(1);
-      expect(scoreIds[0]).toEqual(latestTraceScoreId);
-      expect(scoreIds).not.toContain(latestItemScoreId);
+      expect(scoreIds).toHaveLength(4);
+      expect(scoreIds).toEqual(
+        expect.arrayContaining([latestItemScoreId, latestTraceScoreId]),
+      );
       expect(scoreIds).not.toContain(experimentScoreId);
       expect(scoreIds).not.toContain(sessionScoreId);
     });

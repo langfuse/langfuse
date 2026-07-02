@@ -318,7 +318,7 @@ describe("GET /api/public/experiment-items", () => {
     expect(res.status).toBe(404);
   });
 
-  it("requires fromTime unless experimentId is provided", async () => {
+  it("requires fromTime", async () => {
     const { auth } = await createOrgProjectAndApiKey();
 
     const res = await makeAPICall(

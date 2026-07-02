@@ -14,12 +14,11 @@ import {
   queryClickhouse,
   queryScoreRecordsForExperimentItems,
   queryScoreRecordsForExperiments,
-  type QueryWithParams,
   type ScoreRecordReadType,
 } from "@langfuse/shared/src/server";
 import { type EventsTableFilterState } from "@langfuse/shared";
 
-type ExperimentSummaryClickhouseRow = {
+type ExperimentSummaryRow = {
   experiment_id: string;
   experiment_name: string;
   experiment_description: string | null;
@@ -29,13 +28,10 @@ type ExperimentSummaryClickhouseRow = {
   cursor_trace_id: string;
   cursor_span_id: string;
   experiment_metadata?: Record<string, unknown> | null;
-};
-
-type ExperimentSummaryRow = ExperimentSummaryClickhouseRow & {
   scores?: ScoreRecordReadType[];
 };
 
-type ExperimentItemClickhouseRow = {
+type ExperimentItemRow = {
   id: string;
   trace_id: string;
   start_time: string;
@@ -54,9 +50,6 @@ type ExperimentItemClickhouseRow = {
   experiment_item_metadata?: Record<string, unknown> | null;
   experiment_metadata?: Record<string, unknown> | null;
   experiment_description?: string | null;
-};
-
-type ExperimentItemRow = ExperimentItemClickhouseRow & {
   scores?: ScoreRecordReadType[];
 };
 
@@ -255,12 +248,10 @@ export async function queryExperimentSummariesForPublicApi(
     }),
   );
 
-  return rows.map(
-    (row): ExperimentSummaryRow => ({
-      ...row,
-      scores: scoresByExperimentId[row.experiment_id] ?? [],
-    }),
-  );
+  return rows.map((row) => ({
+    ...row,
+    scores: scoresByExperimentId[row.experiment_id] ?? [],
+  }));
 }
 
 const experimentItemOrderByColumns = (alias: "e" | "b") => {
@@ -319,16 +310,8 @@ async function queryExperimentItemRowsForPublicApi(
     .when(params.includeIo, (b) =>
       b.selectFieldSet("publicApiExperimentItemExpectedOutput"),
     )
-    .when(Boolean(fromTime), (b) =>
-      b.whereRaw("e.start_time >= {startTimeFrom: DateTime64(3)}", {
-        startTimeFrom: fromTime,
-      }),
-    )
-    .when(Boolean(toTime), (b) =>
-      b.whereRaw("e.start_time < {startTimeTo: DateTime64(3)}", {
-        startTimeTo: toTime,
-      }),
-    )
+    .withExactTimeFrom(fromTime)
+    .withExactTimeTo(toTime)
     .applyFilters(filterList)
     .withCursor(
       params.cursor
@@ -344,7 +327,7 @@ async function queryExperimentItemRowsForPublicApi(
     .limitBy("e.span_id", "e.project_id")
     .limit(params.limit);
 
-  const builder: QueryWithParams =
+  const builder =
     params.includeIo || params.includeMetadata
       ? buildEventsFullTableSplitQuery({
           projectId: params.projectId,
@@ -394,7 +377,7 @@ export async function queryExperimentItemsForPublicApi(
     rows,
     (row) => row.start_time,
   );
-  const scoresBySpanId = Object.groupBy(
+  const scoresByTraceId = Object.groupBy(
     await queryScoreRecordsForExperimentItems({
       projectId: params.projectId,
       traceIds: rows.map((row) => row.trace_id),
@@ -405,13 +388,11 @@ export async function queryExperimentItemsForPublicApi(
       toTimestamp: scoreTimestampBounds.toTimestamp,
       scoreLimit: params.scoreLimit ?? DEFAULT_SCORE_LIMIT,
     }),
-    (score) => score.observation_id ?? "",
+    (score) => score.trace_id ?? "",
   );
 
-  return rows.map(
-    (row): ExperimentItemRow => ({
-      ...row,
-      scores: scoresBySpanId[row.id] ?? [],
-    }),
-  );
+  return rows.map((row) => ({
+    ...row,
+    scores: scoresByTraceId[row.trace_id] ?? [],
+  }));
 }

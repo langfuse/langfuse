@@ -180,7 +180,7 @@ export async function listExperimentsForPublicApi({
     ),
   );
 
-  const lastRow = rowsToReturn[rowsToReturn.length - 1];
+  const lastRow = rowsToReturn.at(-1);
   const meta =
     hasMore && lastRow
       ? {
@@ -224,7 +224,7 @@ export async function listExperimentItemsForPublicApi({
 
   const rows = await queryExperimentItemsForPublicApi({
     projectId,
-    fromTime: query.fromTime ? new Date(query.fromTime) : undefined,
+    fromTime: new Date(query.fromTime),
     toTime: query.toTime ? new Date(query.toTime) : undefined,
     experimentId: query.experimentId,
     experimentName: query.experimentName,
@@ -265,7 +265,7 @@ export async function listExperimentItemsForPublicApi({
     });
   });
 
-  const lastRow = rowsToReturn[rowsToReturn.length - 1];
+  const lastRow = rowsToReturn.at(-1);
   const meta =
     hasMore && lastRow
       ? {

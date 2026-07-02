@@ -1675,7 +1675,7 @@ paths:
         and optionally item/trace scores. Results are ordered by time
         descending.
 
-        `fromTime` is required unless `experimentId` is provided.
+        `fromTime` is required.
       operationId: experiments_listItems
       tags:
         - Experiments
@@ -1718,14 +1718,11 @@ paths:
             nullable: true
         - name: fromTime
           in: query
-          description: >-
-            Retrieve only experiment items on or after this datetime. Required
-            unless `experimentId` is provided.
-          required: false
+          description: Retrieve only experiment items on or after this datetime.
+          required: true
           schema:
             type: string
             format: date-time
-            nullable: true
         - name: toTime
           in: query
           description: Retrieve only experiment items before this datetime.

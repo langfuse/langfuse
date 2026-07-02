@@ -160,44 +160,34 @@ export const GetExperimentsV1Query = z.object({
 
 export type GetExperimentsV1QueryType = z.infer<typeof GetExperimentsV1Query>;
 
-export const GetExperimentItemsV1Query = z
-  .object({
-    fields: commaSeparatedEnumArray(EXPERIMENT_ITEM_FIELD_GROUPS, [
-      "core",
-      "dataset",
-    ]),
-    limit: publicApiPaginationLimitZod,
-    scoreLimit: experimentScoreLimitZod,
-    cursor: EncodedExperimentItemsCursorV1.optional(),
-    fromTime: z.iso.datetime({ offset: true }).optional(),
-    toTime: z.iso.datetime({ offset: true }).optional(),
-    experimentId: optionalCommaSeparatedStringArray,
-    experimentName: optionalCommaSeparatedStringArray,
-    experimentItemId: optionalCommaSeparatedStringArray,
-    datasetId: optionalCommaSeparatedStringArray,
-    filter: z
-      .string()
-      .optional()
-      .transform((str) => {
-        if (!str) return undefined;
-        try {
-          return JSON.parse(str);
-        } catch (error) {
-          if (error instanceof InvalidRequestError) throw error;
-          throw new InvalidRequestError("Invalid JSON in filter parameter");
-        }
-      })
-      .pipe(experimentItemFilterState.optional()),
-  })
-  .superRefine((query, ctx) => {
-    if (!query.fromTime && !query.experimentId?.length) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["fromTime"],
-        message: "fromTime is required unless experimentId is provided",
-      });
-    }
-  });
+export const GetExperimentItemsV1Query = z.object({
+  fields: commaSeparatedEnumArray(EXPERIMENT_ITEM_FIELD_GROUPS, [
+    "core",
+    "dataset",
+  ]),
+  limit: publicApiPaginationLimitZod,
+  scoreLimit: experimentScoreLimitZod,
+  cursor: EncodedExperimentItemsCursorV1.optional(),
+  fromTime: z.iso.datetime({ offset: true }),
+  toTime: z.iso.datetime({ offset: true }).optional(),
+  experimentId: optionalCommaSeparatedStringArray,
+  experimentName: optionalCommaSeparatedStringArray,
+  experimentItemId: optionalCommaSeparatedStringArray,
+  datasetId: optionalCommaSeparatedStringArray,
+  filter: z
+    .string()
+    .optional()
+    .transform((str) => {
+      if (!str) return undefined;
+      try {
+        return JSON.parse(str);
+      } catch (error) {
+        if (error instanceof InvalidRequestError) throw error;
+        throw new InvalidRequestError("Invalid JSON in filter parameter");
+      }
+    })
+    .pipe(experimentItemFilterState.optional()),
+});
 
 export type GetExperimentItemsV1QueryType = z.infer<
   typeof GetExperimentItemsV1Query
