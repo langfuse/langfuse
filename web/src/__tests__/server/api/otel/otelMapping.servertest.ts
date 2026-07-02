@@ -2256,6 +2256,117 @@ describe("OTel Resource Span Mapping", () => {
       ).toBeUndefined();
     });
 
+    it("should extract Google ADK cached_content_token_count from gcp.vertex.agent.llm_response into input_cached_tokens", async () => {
+      // Google ADK (instrumentation scope "gcp.vertex.agent") records prompt/
+      // completion tokens as gen_ai.usage.input_tokens / output_tokens, but the
+      // cached-token count is only present inside the serialized response on
+      // gcp.vertex.agent.llm_response (usage_metadata.cached_content_token_count)
+      // and never as a gen_ai.usage.* attribute. Without extracting it, cached
+      // input would be billed at the full input rate.
+      // https://github.com/langfuse/langfuse/issues/13988
+      const traceId = "abcdef0123456789abcdef0123456780";
+
+      // gen_ai.usage.input_tokens (= prompt_token_count) already includes the
+      // cached tokens, matching how LiteLLM/Gemini report usage.
+      const adkLlmResponse = JSON.stringify({
+        usage_metadata: {
+          cached_content_token_count: 2560,
+          candidates_token_count: 200,
+          prompt_token_count: 5000,
+          total_token_count: 5200,
+        },
+      });
+
+      const adkCacheSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "telemetry.sdk.language",
+              value: { stringValue: "python" },
+            },
+            {
+              key: "service.name",
+              value: { stringValue: "test-adk" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "gcp.vertex.agent",
+              version: "1.31.1",
+              attributes: [],
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("a1b2c3d4e5f60719", "hex"),
+                name: "call_llm",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.system",
+                    value: { stringValue: "gcp.vertex.agent" },
+                  },
+                  {
+                    key: "gen_ai.request.model",
+                    value: { stringValue: "claude-sonnet-4-6" },
+                  },
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: {
+                      intValue: { low: 5000, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: {
+                      intValue: { low: 200, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "gcp.vertex.agent.llm_request",
+                    value: { stringValue: "{}" },
+                  },
+                  {
+                    key: "gcp.vertex.agent.llm_response",
+                    value: { stringValue: adkLlmResponse },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        adkCacheSpan,
+        new Set(),
+      );
+
+      const observationEvent = events.find(
+        (e) => e.type.endsWith("-create") && e.type !== "trace-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      // input must be the uncached remainder: input_tokens - cached = 5000 - 2560 = 2440
+      expect(observationEvent?.body.usageDetails.input).toBe(2440);
+      expect(observationEvent?.body.usageDetails.output).toBe(200);
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(2560);
+    });
+
     it("should prepend gen_ai.system_instructions to pydantic_ai.all_messages input when system message is absent", async () => {
       const traceId = "9d7aa9a729def1eadc0b2063ca4ebeb4";
 
