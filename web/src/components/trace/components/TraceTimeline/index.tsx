@@ -54,6 +54,10 @@ const GUTTER_WIDTH_MAX = 560;
 // with ~5px of breathing room. Drives both the virtualizer estimate and the
 // rendered row height, so the two never drift.
 const ROW_HEIGHT = 26;
+// Playback compresses to at most this many wall-clock seconds: traces shorter
+// than this play in real time; anything longer is scaled so the whole trace
+// always plays in exactly this window (no manual speed control needed).
+const PLAYBACK_MAX_SECONDS = 10;
 
 export function TraceTimeline() {
   const { roots, serverScores: scores, comments } = useTraceData();
@@ -321,9 +325,6 @@ export function TraceTimeline() {
   const lastTsRef = useRef(0);
   const [showPlayhead, setShowPlayhead] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackRate, setPlaybackRate] = useState(1);
-  const playbackRateRef = useRef(1);
-  playbackRateRef.current = playbackRate;
 
   // The observations "playing" at the playhead's time (start ≤ t ≤ end). Lives
   // in a shared store (PlayheadContext) so the graph view lights up the same
@@ -436,11 +437,18 @@ export function TraceTimeline() {
     if (playheadSecRef.current >= traceDuration - 0.05) positionPlayhead(0);
     setIsPlaying(true);
     lastTsRef.current = 0;
+    // Rate = trace-seconds per wall-clock-second. Short traces play in real time
+    // (rate 1); long ones are scaled so the whole trace finishes in
+    // PLAYBACK_MAX_SECONDS regardless of its true length.
+    const rate =
+      traceDuration > PLAYBACK_MAX_SECONDS
+        ? traceDuration / PLAYBACK_MAX_SECONDS
+        : 1;
     const step = (ts: number) => {
       if (!lastTsRef.current) lastTsRef.current = ts;
       const dt = (ts - lastTsRef.current) / 1000;
       lastTsRef.current = ts;
-      const next = playheadSecRef.current + dt * playbackRateRef.current;
+      const next = playheadSecRef.current + dt * rate;
       if (next >= traceDuration) {
         positionPlayhead(traceDuration);
         pause();
@@ -458,11 +466,6 @@ export function TraceTimeline() {
     setActiveNodeIds(new Set());
     setShowPlayhead(false); // stop clears the playhead (and the glow)
   }, [pause, setActiveNodeIds]);
-
-  const cycleRate = useCallback(
-    () => setPlaybackRate((r) => (r >= 4 ? 1 : r * 2)),
-    [],
-  );
 
   // Cancel any in-flight animation on unmount.
   useEffect(() => () => pause(), [pause]);
@@ -629,15 +632,6 @@ export function TraceTimeline() {
             className="hover:bg-muted hover:text-foreground flex h-5 w-5 items-center justify-center rounded"
           >
             <Square className="h-3 w-3" />
-          </button>
-          <button
-            type="button"
-            onClick={cycleRate}
-            title="Playback speed"
-            aria-label={`Playback speed ${playbackRate}x`}
-            className="hover:bg-muted hover:text-foreground flex h-5 min-w-5 items-center justify-center rounded px-1 text-[10px] tabular-nums"
-          >
-            {playbackRate}×
           </button>
           <span className="ml-1 truncate">Name</span>
         </div>
