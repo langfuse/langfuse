@@ -312,6 +312,7 @@ type LLMCompletionParams = {
   maxRetries?: number;
   traceSinkParams?: TraceSinkParams;
   shouldUseLangfuseAPIKey?: boolean;
+  promptCacheKey?: string;
 };
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
@@ -364,6 +365,7 @@ export async function fetchLLMCompletion(
     maxRetries,
     traceSinkParams,
     shouldUseLangfuseAPIKey = false,
+    promptCacheKey,
   } = params;
 
   const { baseURL, config } = llmConnection;
@@ -516,6 +518,7 @@ export async function fetchLLMCompletion(
       },
       useResponsesApi: openAIConfig.useResponsesApi,
       modelKwargs: modelParams.providerOptions,
+      promptCacheKey,
       timeout: timeoutMs,
     });
   } else if (modelParams.adapter === LLMAdapter.Azure) {

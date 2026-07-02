@@ -18,6 +18,7 @@ import { createDeterministicEvalScoreId } from "../../../../packages/shared/src/
 import {
   buildEvalExecutionMetadata,
   buildEvalMessages,
+  buildEvalPromptCacheKey,
   compileEvalPrompt,
   getEnvironmentFromVariables,
 } from "./evalRuntime";
@@ -25,6 +26,45 @@ import { buildEvalScoreWritePayloads } from "./evalScoreEvent";
 import { buildEvalExecutionSpanAttributes } from "./evalSpanAttributes";
 
 describe("evaluation helpers", () => {
+  describe("buildEvalPromptCacheKey", () => {
+    const baseParams = {
+      projectId: "project-123",
+      templateId: "template-123",
+      templateVersion: 1,
+      templatePrompt: "Judge {{input}} against {{output}}",
+      provider: "fireworks",
+      model: "accounts/fireworks/models/kimi-k2-instruct",
+    };
+
+    it("should build a deterministic versioned cache key", () => {
+      const firstKey = buildEvalPromptCacheKey(baseParams);
+      const secondKey = buildEvalPromptCacheKey({
+        model: baseParams.model,
+        provider: baseParams.provider,
+        templatePrompt: baseParams.templatePrompt,
+        templateVersion: baseParams.templateVersion,
+        templateId: baseParams.templateId,
+        projectId: baseParams.projectId,
+      });
+
+      expect(firstKey).toMatch(/^lf-eval-v1-[A-Za-z0-9_-]+$/);
+      expect(secondKey).toBe(firstKey);
+    });
+
+    it.each([
+      ["project", { projectId: "project-456" }],
+      ["template id", { templateId: "template-456" }],
+      ["template version", { templateVersion: 2 }],
+      ["template prompt", { templatePrompt: "Judge {{output}}" }],
+      ["provider", { provider: "openai" }],
+      ["model", { model: "gpt-4.1" }],
+    ])("should change when %s changes", (_field, override) => {
+      expect(buildEvalPromptCacheKey({ ...baseParams, ...override })).not.toBe(
+        buildEvalPromptCacheKey(baseParams),
+      );
+    });
+  });
+
   describe("compileEvalPrompt", () => {
     it("should compile template with variables", () => {
       const params = {

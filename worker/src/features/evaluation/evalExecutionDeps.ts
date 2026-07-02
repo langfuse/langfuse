@@ -49,6 +49,7 @@ export interface LLMCallParams {
   messages: ReturnType<typeof buildEvalMessages>;
   modelConfig: Extract<ModelConfigResult, { valid: true }>["config"];
   structuredOutputSchema: StructuredOutputSchema;
+  promptCacheKey?: string;
   traceSinkParams: {
     targetProjectId: string;
     traceId: string;
@@ -231,8 +232,9 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
           provider: params.modelConfig.provider,
           model: params.modelConfig.model,
           adapter,
-          ...params.modelConfig.modelParams,
+          ...(params.modelConfig.modelParams ?? {}),
         },
+        promptCacheKey: params.promptCacheKey,
         structuredOutputSchema: params.structuredOutputSchema,
         maxRetries: 1,
         traceSinkParams: {
