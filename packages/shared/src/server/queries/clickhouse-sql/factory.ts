@@ -18,6 +18,7 @@ import {
   NumberFilter,
   ArrayOptionsFilter,
   BooleanFilter,
+  BooleanObjectFilter,
   NumberObjectFilter,
   StringObjectFilter,
   NullFilter,
@@ -124,6 +125,15 @@ export const createFilterFromFilterState = (
         });
       case "numberObject":
         return new NumberObjectFilter({
+          clickhouseTable: column.clickhouseTableName,
+          field: column.clickhouseSelect,
+          key: frontEndFilter.key,
+          operator: frontEndFilter.operator,
+          value: frontEndFilter.value,
+          tablePrefix: column.queryPrefix,
+        });
+      case "booleanObject":
+        return new BooleanObjectFilter({
           clickhouseTable: column.clickhouseTableName,
           field: column.clickhouseSelect,
           key: frontEndFilter.key,

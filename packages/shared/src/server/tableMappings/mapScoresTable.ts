@@ -58,6 +58,14 @@ export const scoresTableUiColumnDefinitions: UiColumnMappings = [
     queryPrefix: "s",
   },
   {
+    uiTableName: "Boolean Value",
+    uiTableId: "booleanValue",
+    clickhouseTableName: "scores",
+    clickhouseSelect:
+      "if(s.data_type = 'BOOLEAN' AND notEmpty(s.string_value), lowerUTF8(s.string_value), '')",
+    emptyEqualsNull: true,
+  },
+  {
     uiTableName: "Source",
     uiTableId: "source",
     clickhouseTableName: "scores",

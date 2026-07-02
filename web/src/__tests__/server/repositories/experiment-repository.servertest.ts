@@ -1162,9 +1162,11 @@ describe("Clickhouse Experiment Repository Test", () => {
       expect(result).toEqual({
         obs_scores_avg: [],
         obs_score_categories: [],
+        obs_score_booleans: [],
         obs_score_columns: [],
         trace_scores_avg: [],
         trace_score_categories: [],
+        trace_score_booleans: [],
         trace_score_columns: [],
       });
     });
@@ -1178,9 +1180,11 @@ describe("Clickhouse Experiment Repository Test", () => {
       expect(result).toEqual({
         obs_scores_avg: [],
         obs_score_categories: [],
+        obs_score_booleans: [],
         obs_score_columns: [],
         trace_scores_avg: [],
         trace_score_categories: [],
+        trace_score_booleans: [],
         trace_score_columns: [],
       });
     });

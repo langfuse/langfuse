@@ -6,6 +6,7 @@ import {
   createTrace,
   createTracesCh,
   createTraceScore,
+  createSessionScore,
   createScoresCh,
   getTraceByIdFromTracesTable,
   createEventsCh,
@@ -528,34 +529,130 @@ describe("traces trpc", () => {
       await createTracesCh([trace]);
       await createObservationsCh([observation]);
 
-      const observationScore = createTraceScore({
-        project_id: projectId,
-        trace_id: trace.id,
-        observation_id: observation.id,
-        name: "observation_only_quality",
-        source: "API",
-        data_type: "NUMERIC",
-        value: 0.7,
-      });
-      const sessionScore = createTraceScore({
-        project_id: projectId,
-        trace_id: null,
-        session_id: randomUUID(),
-        name: "session_only_quality",
-        source: "API",
-        data_type: "NUMERIC",
-        value: 0.5,
-      });
-      await createScoresCh([observationScore, sessionScore]);
+      const observationScoreName = `observation_quality_${randomUUID()}`;
+      const sessionScoreName = `session_quality_${randomUUID()}`;
+      const scoreTimestamp = Date.now();
+
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          trace_id: trace.id,
+          observation_id: observation.id,
+          name: observationScoreName,
+          source: "API",
+          data_type: "NUMERIC",
+          value: 0.7,
+          timestamp: scoreTimestamp,
+        }),
+        createSessionScore({
+          project_id: projectId,
+          name: sessionScoreName,
+          source: "API",
+          data_type: "NUMERIC",
+          value: 0.5,
+          timestamp: scoreTimestamp,
+        }),
+      ]);
 
       const filterOptions = await caller.traces.filterOptions({
         projectId,
+        timestampFilter: [
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: new Date(scoreTimestamp - 1_000),
+          },
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: "<=",
+            value: new Date(scoreTimestamp + 1_000),
+          },
+        ],
       });
 
       expect(filterOptions.scores_avg).toEqual(
-        expect.arrayContaining(["observation_only_quality"]),
+        expect.arrayContaining([observationScoreName]),
       );
-      expect(filterOptions.scores_avg).not.toContain("session_only_quality");
+      expect(filterOptions.scores_avg).not.toContain(sessionScoreName);
+    });
+
+    it("should include observation-only boolean score names for trace-scoped aggregates", async () => {
+      const trace = createTrace({
+        project_id: projectId,
+      });
+      const observation = createObservation({
+        project_id: projectId,
+        trace_id: trace.id,
+      });
+      await createTracesCh([trace]);
+      await createObservationsCh([observation]);
+
+      const observationScoreName = `observation_bool_${randomUUID()}`;
+      const emptyObservationScoreName = `observation_bool_empty_${randomUUID()}`;
+      const sessionScoreName = `session_bool_${randomUUID()}`;
+      const scoreTimestamp = Date.now();
+
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          trace_id: trace.id,
+          observation_id: observation.id,
+          name: observationScoreName,
+          source: "API",
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "True",
+          timestamp: scoreTimestamp,
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: trace.id,
+          observation_id: observation.id,
+          name: emptyObservationScoreName,
+          source: "API",
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "",
+          timestamp: scoreTimestamp,
+        }),
+        createSessionScore({
+          project_id: projectId,
+          name: sessionScoreName,
+          source: "API",
+          data_type: "BOOLEAN",
+          value: 0,
+          string_value: "False",
+          timestamp: scoreTimestamp,
+        }),
+      ]);
+
+      const filterOptions = await caller.traces.filterOptions({
+        projectId,
+        timestampFilter: [
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: new Date(scoreTimestamp - 1_000),
+          },
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: "<=",
+            value: new Date(scoreTimestamp + 1_000),
+          },
+        ],
+      });
+
+      expect(filterOptions.score_booleans).toEqual(
+        expect.arrayContaining([observationScoreName]),
+      );
+      expect(filterOptions.score_booleans).not.toContain(
+        emptyObservationScoreName,
+      );
+      expect(filterOptions.score_booleans).not.toContain(sessionScoreName);
     });
   });
 

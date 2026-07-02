@@ -216,6 +216,12 @@ export type NumericKeyValueFilterEntry = {
   value: number | "";
 };
 
+export type BooleanKeyValueFilterEntry = {
+  key: string;
+  operator: "=" | "<>";
+  value: boolean | "";
+};
+
 // Represents one active string filter row in the string key-value facet UI
 // Example: key="environment", operator="=", value="production"
 export type StringKeyValueFilterEntry = {
@@ -239,6 +245,13 @@ export interface NumericKeyValueUIFilter extends BaseUIFilter {
   onChange: (filters: NumericKeyValueFilterEntry[]) => void;
 }
 
+export interface BooleanKeyValueUIFilter extends BaseUIFilter {
+  type: "booleanKeyValue";
+  value: BooleanKeyValueFilterEntry[]; // Array of active filter rows
+  keyOptions?: string[];
+  onChange: (filters: BooleanKeyValueFilterEntry[]) => void;
+}
+
 export interface StringKeyValueUIFilter extends BaseUIFilter {
   type: "stringKeyValue";
   value: StringKeyValueFilterEntry[]; // Array of active filter rows
@@ -252,6 +265,7 @@ export type UIFilter =
   | StringUIFilter
   | KeyValueUIFilter
   | NumericKeyValueUIFilter
+  | BooleanKeyValueUIFilter
   | StringKeyValueUIFilter;
 
 const EMPTY_MAP: Map<string, number> = new Map();
@@ -1419,6 +1433,81 @@ export function useSidebarFilterState(
               const newFilters = filterState.filter(
                 (f) =>
                   !(f.column === facet.column && f.type === "numberObject"),
+              );
+              setFilterState(newFilters);
+            },
+          };
+        }
+
+        // Handle booleanKeyValue filters
+        if (facet.type === "booleanKeyValue") {
+          const booleanFilters = filterState.filter(
+            (f) => f.column === facet.column && f.type === "booleanObject",
+          ) as Array<{
+            column: string;
+            type: "booleanObject";
+            operator: "=" | "<>";
+            key: string;
+            value: boolean;
+          }>;
+
+          const activeFilters: BooleanKeyValueFilterEntry[] =
+            booleanFilters.map((f) => ({
+              key: f.key,
+              operator: f.operator,
+              value: f.value,
+            }));
+
+          const isActive = activeFilters.length > 0;
+          const disableState = getFacetDisabledState(facet);
+          const availableKeys = options[facet.column];
+          const keyOptions = resolveKnownKeyOptions(
+            facet.keyOptions,
+            availableKeys,
+            activeFilters.map((filter) => filter.key),
+          );
+
+          return {
+            type: "booleanKeyValue",
+            column: facet.column,
+            label: facet.label,
+            tooltip: facet.tooltip,
+            help: facet.help,
+
+            value: activeFilters,
+            keyOptions,
+            loading: shouldShowLoading(facet.column),
+            expanded: expandedSet.has(facet.column),
+            isActive,
+            isDisabled: disableState.isDisabled,
+            disabledReason: disableState.reason,
+            onChange: (filters: BooleanKeyValueFilterEntry[]) => {
+              const withoutBoolean = filterState.filter(
+                (f) =>
+                  !(f.column === facet.column && f.type === "booleanObject"),
+              );
+
+              const validFilters = filters.filter(
+                (entry) => entry.key && entry.value !== "",
+              );
+
+              const newFilters: FilterState = [
+                ...withoutBoolean,
+                ...validFilters.map((entry) => ({
+                  column: facet.column,
+                  type: "booleanObject" as const,
+                  operator: entry.operator,
+                  key: entry.key,
+                  value: entry.value as boolean,
+                })),
+              ];
+
+              setFilterState(newFilters);
+            },
+            onReset: () => {
+              const newFilters = filterState.filter(
+                (f) =>
+                  !(f.column === facet.column && f.type === "booleanObject"),
               );
               setFilterState(newFilters);
             },

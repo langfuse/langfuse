@@ -322,7 +322,11 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
              groupArrayIf(
                concat(name, ':', string_value),
                data_type = 'CATEGORICAL' AND notEmpty(string_value)
-             ) AS score_categories
+             ) AS score_categories,
+             groupArrayIf(
+               concat(name, ':', lowerUTF8(string_value)),
+               data_type = 'BOOLEAN' AND notEmpty(string_value)
+             ) AS score_booleans
            FROM (
                   SELECT
                     project_id,

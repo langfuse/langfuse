@@ -107,8 +107,11 @@ export function useEventsFilterOptions({
       totalCost: [],
       score_categories: scoreCategories,
       scores_avg: scoresNumeric,
+      score_booleans: filterOptions.data?.score_booleans ?? undefined,
       trace_score_categories: traceScoreCategories,
       trace_scores_avg: traceScoresNumeric,
+      trace_score_booleans:
+        filterOptions.data?.trace_score_booleans ?? undefined,
     };
   }, [filterOptions.data]);
 

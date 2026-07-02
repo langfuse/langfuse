@@ -53,6 +53,7 @@ import {
   getTraceScoresForDatasetRuns,
   getDatasetRunItemsCountCh,
   getNumericScoresGroupedByName,
+  getBooleanScoresGroupedByName,
   getCategoricalScoresGroupedByName,
   getDatasetRunsTableRowsCh,
   getDatasetRunsTableCountCh,
@@ -758,20 +759,26 @@ export const datasetRouter = createTRPCRouter({
 
       const { timestampFilter } = input;
 
-      const [numericScoreNames, categoricalScoreNames] = await Promise.all([
-        getNumericScoresGroupedByName(
-          input.projectId,
-          timestampFilter ? [timestampFilter] : [],
-        ),
-        getCategoricalScoresGroupedByName(
-          input.projectId,
-          timestampFilter ? [timestampFilter] : [],
-        ),
-      ]);
+      const [numericScoreNames, categoricalScoreNames, booleanScoreNames] =
+        await Promise.all([
+          getNumericScoresGroupedByName(
+            input.projectId,
+            timestampFilter ? [timestampFilter] : [],
+          ),
+          getCategoricalScoresGroupedByName(
+            input.projectId,
+            timestampFilter ? [timestampFilter] : [],
+          ),
+          getBooleanScoresGroupedByName(
+            input.projectId,
+            timestampFilter ? [timestampFilter] : [],
+          ),
+        ]);
 
       return {
         agg_scores_avg: numericScoreNames.map((s) => s.name),
         agg_score_categories: categoricalScoreNames,
+        agg_score_booleans: booleanScoreNames.map((s) => s.name),
       };
     }),
 
@@ -796,20 +803,26 @@ export const datasetRouter = createTRPCRouter({
 
       const { projectId, timestampFilter } = input;
 
-      const [numericScoreNames, categoricalScoreNames] = await Promise.all([
-        getNumericScoresGroupedByName(
-          projectId,
-          timestampFilter ? [timestampFilter] : [],
-        ),
-        getCategoricalScoresGroupedByName(
-          projectId,
-          timestampFilter ? [timestampFilter] : [],
-        ),
-      ]);
+      const [numericScoreNames, categoricalScoreNames, booleanScoreNames] =
+        await Promise.all([
+          getNumericScoresGroupedByName(
+            projectId,
+            timestampFilter ? [timestampFilter] : [],
+          ),
+          getCategoricalScoresGroupedByName(
+            projectId,
+            timestampFilter ? [timestampFilter] : [],
+          ),
+          getBooleanScoresGroupedByName(
+            projectId,
+            timestampFilter ? [timestampFilter] : [],
+          ),
+        ]);
 
       return {
         agg_scores_avg: numericScoreNames.map((s) => s.name),
         agg_score_categories: categoricalScoreNames,
+        agg_score_booleans: booleanScoreNames.map((s) => s.name),
       };
     }),
 

@@ -89,9 +89,23 @@ describe("parseGeneratedFilters", () => {
         operator: ">",
         value: 0.8,
       },
+      {
+        type: "booleanObject",
+        column: "score_booleans",
+        key: "flag",
+        operator: "=",
+        value: true,
+      },
+      {
+        type: "booleanObject",
+        column: "trace_score_booleans",
+        key: "traceFlag",
+        operator: "<>",
+        value: false,
+      },
     ]);
     const { filters, droppedCount } = parseGeneratedFilters(completion);
-    expect(filters).toHaveLength(2);
+    expect(filters).toHaveLength(4);
     expect(droppedCount).toBe(0);
   });
 

@@ -580,6 +580,44 @@ export class NumberObjectFilter implements Filter {
   }
 }
 
+export class BooleanObjectFilter implements Filter {
+  public clickhouseTable: string;
+  public field: string;
+  public key: string;
+  public value: boolean;
+  public operator: (typeof filterOperators)["booleanObject"][number];
+  public tablePrefix?: string;
+
+  constructor(opts: {
+    clickhouseTable: string;
+    field: string;
+    operator: (typeof filterOperators)["booleanObject"][number];
+    key: string;
+    value: boolean;
+    tablePrefix?: string;
+  }) {
+    this.clickhouseTable = opts.clickhouseTable;
+    this.field = opts.field;
+    this.value = opts.value;
+    this.operator = opts.operator;
+    this.tablePrefix = opts.tablePrefix;
+    this.key = opts.key;
+  }
+
+  apply(): ClickhouseFilter {
+    const uid = clickhouseCompliantRandomCharacters();
+    const varName = `booleanObjectFilter${uid}`;
+    const column = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
+    const value = `${this.key}:${this.value ? "true" : "false"}`;
+    const predicate = `has(${column}, {${varName}: String})`;
+
+    return {
+      query: this.operator === "<>" ? `NOT ${predicate}` : predicate,
+      params: { [varName]: value },
+    };
+  }
+}
+
 export class BooleanFilter implements Filter {
   public clickhouseTable: string;
   public field: string;

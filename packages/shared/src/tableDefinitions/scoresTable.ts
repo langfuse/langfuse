@@ -64,6 +64,14 @@ export const scoresTableCols: ColumnDefinition[] = [
   },
   { name: "Value", id: "value", type: "number", internal: 's."value"' },
   {
+    name: "Boolean Value",
+    id: "booleanValue",
+    type: "stringOptions",
+    internal:
+      "if(s.data_type = 'BOOLEAN' AND notEmpty(s.string_value), lowerUTF8(s.string_value), '')",
+    options: [{ value: "true" }, { value: "false" }],
+  },
+  {
     name: "String Value",
     id: "stringValue",
     type: "stringOptions",

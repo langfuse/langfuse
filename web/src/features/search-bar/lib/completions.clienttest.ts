@@ -8,7 +8,10 @@ import {
   SECTION_VALUES,
   type InputCompletionContext,
 } from "@/src/features/search-bar/lib/completions";
-import type { ObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import {
+  toObservedOptions,
+  type ObservedOptions,
+} from "@/src/features/search-bar/lib/observed-options";
 
 const OBSERVED: ObservedOptions = {
   level: [
@@ -18,6 +21,7 @@ const OBSERVED: ObservedOptions = {
   environment: [{ value: "production" }, { value: "dev" }],
   scores_avg: [{ value: "accuracy" }],
   score_categories: [{ value: "feedback" }],
+  score_booleans: [{ value: "flag" }],
   "score_categories.feedback": [{ value: "positive" }, { value: "negative" }],
   "metadata.region": [{ value: "eu" }, { value: "us" }],
 };
@@ -207,6 +211,26 @@ describe("planInputCompletions", () => {
     const labels = flattenOptions(p).map((o) => o.label);
     expect(labels).toContain("scores.accuracy");
     expect(labels).toContain("scores.feedback");
+    expect(labels).toContain("scores.flag");
+  });
+
+  it("shows overlapping boolean score names as boolean-only", () => {
+    const observed = toObservedOptions(
+      {
+        scores_avg: [{ value: "flag" }],
+        score_booleans: [{ value: "flag" }],
+      },
+      false,
+    );
+
+    const option = flattenOptions(plan("scores.", 7, { observed })).find(
+      (o) => o.label === "scores.flag",
+    );
+
+    expect(option).toMatchObject({
+      label: "scores.flag",
+      detail: "boolean score",
+    });
   });
 
   it("suggests trace-score names for every accepted alias incl. singular tracescore.", () => {
@@ -229,6 +253,14 @@ describe("planInputCompletions", () => {
       "positive",
       "negative",
     ]);
+  });
+
+  it("suggests boolean score values", () => {
+    const p = plan("scores.flag:", 12);
+    const values = flattenOptions(p)
+      .filter((o) => o.kind === "value")
+      .map((o) => o.label);
+    expect(values).toEqual(["true", "false"]);
   });
 
   it("suggests metadata values for known keys", () => {

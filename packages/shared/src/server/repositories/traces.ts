@@ -1711,7 +1711,10 @@ async function buildTracesBaseQuery(
   const filtersNeedScores = filter.some((f) => f.clickhouseTable === "scores");
 
   const hasScoreAggregationFilters = filter.some(
-    (f) => f.field === "s.scores_avg" || f.field === "s.score_categories",
+    (f) =>
+      f.field === "s.scores_avg" ||
+      f.field === "s.score_categories" ||
+      f.field === "s.score_booleans",
   );
 
   const ctes = [];
@@ -1761,7 +1764,8 @@ async function buildTracesBaseQuery(
         project_id,
         groupUniqArray(id) as score_ids,
         groupArrayIf(tuple(name, avg_value), data_type IN ('NUMERIC', 'BOOLEAN')) AS scores_avg,
-        groupArrayIf(concat(name, ':', string_value), data_type = 'CATEGORICAL' AND notEmpty(string_value)) AS score_categories
+        groupArrayIf(concat(name, ':', string_value), data_type = 'CATEGORICAL' AND notEmpty(string_value)) AS score_categories,
+        groupArrayIf(concat(name, ':', lowerUTF8(string_value)), data_type = 'BOOLEAN' AND notEmpty(string_value)) AS score_booleans
       FROM (
         SELECT
           project_id,
@@ -1796,7 +1800,8 @@ async function buildTracesBaseQuery(
         project_id,
         groupUniqArray(id) as score_ids,
         groupArrayIf(tuple(name, value), data_type IN ('NUMERIC', 'BOOLEAN')) as scores_avg,
-        groupArrayIf(concat(name, ':', string_value), data_type = 'CATEGORICAL') as score_categories
+        groupArrayIf(concat(name, ':', string_value), data_type = 'CATEGORICAL') as score_categories,
+        groupArrayIf(concat(name, ':', lowerUTF8(string_value)), data_type = 'BOOLEAN' AND notEmpty(string_value)) AS score_booleans
       FROM scores
       WHERE project_id = {projectId: String}
       AND session_id IS NULL

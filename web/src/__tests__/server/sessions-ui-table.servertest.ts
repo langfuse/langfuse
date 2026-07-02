@@ -628,6 +628,65 @@ describe("trpc.sessions", () => {
     expect(tableRows).toHaveLength(1);
     expect(tableRows[0].session_id).toEqual(session_id_with_score);
   });
+
+  it("should GET correct session data with boolean score filters", async () => {
+    const project_id = v4();
+    const trace_id_with_score = v4();
+    const session_id_with_score = v4();
+    const trace_id_without_score = v4();
+    const session_id_without_score = v4();
+
+    const filterState: FilterState = [
+      {
+        type: "booleanObject",
+        column: "score_booleans",
+        key: "passes_guardrail",
+        operator: "=",
+        value: true,
+      },
+    ];
+
+    const trace_with_score = createTrace({
+      id: trace_id_with_score,
+      project_id,
+      session_id: session_id_with_score,
+    });
+    const trace_without_score = createTrace({
+      id: trace_id_without_score,
+      project_id,
+      session_id: session_id_without_score,
+    });
+    await seedSessionData([trace_with_score, trace_without_score]);
+
+    await createScoresCh([
+      createSessionScore({
+        project_id,
+        session_id: session_id_with_score,
+        name: "passes_guardrail",
+        value: 1,
+        string_value: "True",
+        data_type: "BOOLEAN",
+      }),
+      createSessionScore({
+        project_id,
+        session_id: session_id_without_score,
+        name: "passes_guardrail",
+        value: 0,
+        string_value: "False",
+        data_type: "BOOLEAN",
+      }),
+    ]);
+
+    const tableRows = await sessionsTable({
+      projectId: project_id,
+      filter: filterState,
+      limit: 10,
+      page: 0,
+    });
+
+    expect(tableRows).toHaveLength(1);
+    expect(tableRows[0].session_id).toEqual(session_id_with_score);
+  });
 });
 
 // The events tables only exist where the v4 preview is enabled (CI creates
