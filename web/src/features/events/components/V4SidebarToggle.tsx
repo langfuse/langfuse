@@ -102,6 +102,8 @@ export function V4SidebarToggle() {
     }
   };
 
+  const fastPreviewLabel = "Fast (Preview)";
+
   return (
     <>
       <SidebarMenuButton
@@ -114,8 +116,9 @@ export function V4SidebarToggle() {
             <Label
               htmlFor="v4-beta-toggle"
               className="block min-w-0 flex-1 cursor-pointer truncate text-sm font-normal"
+              title={fastPreviewLabel}
             >
-              Fast (Preview)
+              {fastPreviewLabel}
             </Label>
           </div>
           <Tooltip>

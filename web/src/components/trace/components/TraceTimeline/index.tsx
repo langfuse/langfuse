@@ -519,7 +519,9 @@ export function TraceTimeline() {
           className="bg-background text-muted-foreground flex shrink-0 items-center pl-2 text-xs font-medium"
           style={{ width: `${gutterWidth}px` }}
         >
-          <span className="truncate">Name</span>
+          <span className="truncate" title="Name">
+            Name
+          </span>
         </div>
         <div className="bg-border/60 w-px shrink-0" />
         <div

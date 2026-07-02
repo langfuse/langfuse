@@ -131,6 +131,8 @@ describe("InAppAgentInstrumentation", () => {
         metadata: {
           langfuse_project_id: "project-1",
           langfuse_user_email: "user@example.com",
+          langfuse_user_project_role: "ADMIN",
+          langfuse_user_is_admin: true,
         },
         targetProjectId: "project-1",
         traceId,
@@ -169,6 +171,9 @@ describe("InAppAgentInstrumentation", () => {
         }),
       }),
     );
+    expect(
+      mocks.handler.langfuse.enqueue.mock.calls[0]?.[1].metadata,
+    ).not.toHaveProperty("toolCallApproval");
     expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
       expect.objectContaining({
         name: "agent-run",
@@ -199,6 +204,51 @@ describe("InAppAgentInstrumentation", () => {
     );
     expect(mocks.trace.update.mock.calls[0][0]).not.toHaveProperty("output");
   });
+
+  it.each(["approved", "rejected"] as const)(
+    "records manual tool approval metadata as %s",
+    (status) => {
+      const instrumentation = createInstrumentation();
+
+      instrumentation.recordToolCallApproval({
+        toolCallId: "tool-1",
+        status,
+      });
+      instrumentation.recordEvents([
+        {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: "tool-1",
+          toolCallName: "createScoreConfig",
+          parentMessageId: "tool-1-approval-tool-call",
+        },
+        {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: "tool-1",
+          delta: '{"name":"readiness"}',
+        },
+        {
+          type: EventType.TOOL_CALL_END,
+          toolCallId: "tool-1",
+        },
+        {
+          type: EventType.TOOL_CALL_RESULT,
+          toolCallId: "tool-1",
+          content: "ok",
+        },
+      ]);
+
+      expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+        "tool-create",
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            toolCallId: "tool-1",
+            parentMessageId: "tool-1-approval-tool-call",
+            toolCallApproval: status,
+          }),
+        }),
+      );
+    },
+  );
 
   it("records run failures on the agent generation", () => {
     const instrumentation = createInstrumentation();
@@ -257,7 +307,7 @@ describe("InAppAgentInstrumentation", () => {
     );
   });
 
-  it("records available tools on the agent generation input", () => {
+  it("records available tools & skills on the agent generation input", () => {
     const instrumentation = createInstrumentation();
 
     instrumentation.recordAvailableTools({
@@ -279,6 +329,15 @@ describe("InAppAgentInstrumentation", () => {
         },
       },
     });
+    instrumentation.recordAvailableSkills([
+      {
+        name: "error-analysis",
+        description: "Investigate errors in the current trace.",
+      },
+      {
+        description: "Missing skill name should be ignored.",
+      },
+    ]);
     instrumentation.end();
 
     expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
@@ -308,6 +367,12 @@ describe("InAppAgentInstrumentation", () => {
                 name: "langfuse_redirect",
                 description: "Redirect the user to a Langfuse page.",
               },
+            },
+          ],
+          skills: [
+            {
+              name: "error-analysis",
+              description: "Investigate errors in the current trace.",
             },
           ],
         },
@@ -380,6 +445,8 @@ describe("InAppAgentInstrumentation", () => {
         metadata: {
           langfuse_project_id: "project-1",
           langfuse_user_email: "user@example.com",
+          langfuse_user_project_role: "ADMIN",
+          langfuse_user_is_admin: true,
           prompt_name: "in-app-agent-system-prompt",
           prompt_version: 3,
         },
@@ -390,6 +457,8 @@ describe("InAppAgentInstrumentation", () => {
         metadata: {
           langfuse_project_id: "project-1",
           langfuse_user_email: "user@example.com",
+          langfuse_user_project_role: "ADMIN",
+          langfuse_user_is_admin: true,
           prompt_name: "in-app-agent-system-prompt",
           prompt_version: 3,
         },
@@ -402,6 +471,8 @@ describe("InAppAgentInstrumentation", () => {
       metadata: {
         langfuse_project_id: "project-1",
         langfuse_user_email: "user@example.com",
+        langfuse_user_project_role: "ADMIN",
+        langfuse_user_is_admin: true,
         prompt_name: "in-app-agent-system-prompt",
         prompt_version: 3,
       },
@@ -660,6 +731,8 @@ function createInstrumentation(
     metadata: { langfuse_project_id: "project-1" },
     userId: "user-1",
     userEmail: "user@example.com",
+    userProjectRole: "ADMIN",
+    userIsAdmin: true,
     traceId,
     targetProjectId: "project-1",
     environment: "prod",

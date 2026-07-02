@@ -110,7 +110,11 @@ function GraphNodeComponent({
         )}
         {...handlers}
       >
-        {!compact && <span className="truncate">{display}</span>}
+        {!compact && (
+          <span className="truncate" title={label}>
+            {display}
+          </span>
+        )}
       </div>
     );
   }
@@ -130,7 +134,9 @@ function GraphNodeComponent({
       {renderFilterIcon(type)}
       {!compact && (
         <>
-          <span className="truncate">{display}</span>
+          <span className="truncate" title={label}>
+            {display}
+          </span>
           {counter && (
             <span className="text-muted-foreground shrink-0 tabular-nums">
               {counter}
