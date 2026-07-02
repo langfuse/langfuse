@@ -861,6 +861,13 @@ jobs:
           pnpm run db:migrate
           pnpm --filter=shared run ch:up
           pnpm --filter=shared run db:seed
+      - name: Seed ClickHouse smoke data
+        # The prod-smoke spec needs real ClickHouse rows: a peek-openable
+        # trace tree and a session. The seed CLI scenarios are deterministic
+        # (seeded RNG, stable ids) and tiny — a few seconds of runtime.
+        run: |
+          pnpm run seed -- trace-tree --observations 25 --v4
+          pnpm run seed -- long-session --traces 5 --observations-per-trace 3 --v4
       - name: Wait for playwright install
         run: |
           timeout 600 bash -c 'until [ -f /tmp/playwright-install.exit ]; do sleep 1; done' \
