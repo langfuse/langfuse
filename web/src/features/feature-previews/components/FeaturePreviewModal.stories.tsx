@@ -55,32 +55,9 @@ const meta = preview.meta({
   args: {
     open: true,
     onOpenChange: fn(),
-    state: {
-      searchBar: { enabled: false, onToggle: fn(), isToggling: false },
-    },
+    state: {},
   },
   render: StatefulFeaturePreviewModal,
 });
 
 export const Default = meta.story({});
-
-export const Warning = meta.story({
-  args: {
-    state: {
-      searchBar: {
-        enabled: false,
-        warningReason:
-          "The search bar appears on the new (v4) Observations and Traces tables. Turn on Fast (Preview) in the sidebar to use it after enabling this preview.",
-        onToggle: fn(),
-      },
-    },
-  },
-});
-
-export const Loading = meta.story({
-  args: {
-    state: {
-      searchBar: { enabled: false, onToggle: fn(), isToggling: false },
-    },
-  },
-});
