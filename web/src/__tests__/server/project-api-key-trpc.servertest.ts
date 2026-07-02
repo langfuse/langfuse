@@ -8,6 +8,23 @@ import {
 } from "@langfuse/shared/src/server";
 
 describe("project API keys trpc", () => {
+  // The session user is persisted as the API key creator, so it must exist
+  // in the database (CI does not run the seeder that creates user-1).
+  // createMany + skipDuplicates is atomic, so concurrently running test
+  // files can ensure the user without racing each other.
+  beforeAll(async () => {
+    await prisma.user.createMany({
+      data: [
+        {
+          id: "user-1",
+          name: "Demo User",
+          email: "demo-user-1@langfuse.com",
+        },
+      ],
+      skipDuplicates: true,
+    });
+  });
+
   async function createProjectCaller() {
     const { projectId, orgId } = await createOrgProjectAndApiKey();
 

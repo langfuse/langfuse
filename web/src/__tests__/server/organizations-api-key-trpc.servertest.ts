@@ -8,6 +8,23 @@ import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server";
 describe("organization API keys trpc", () => {
   const organizationId = "seed-org-id";
 
+  // The session user is persisted as the API key creator, so it must exist
+  // in the database (CI does not run the seeder that creates user-1).
+  // createMany + skipDuplicates is atomic, so concurrently running test
+  // files can ensure the user without racing each other.
+  beforeAll(async () => {
+    await prisma.user.createMany({
+      data: [
+        {
+          id: "user-1",
+          name: "Demo User",
+          email: "demo-user-1@langfuse.com",
+        },
+      ],
+      skipDuplicates: true,
+    });
+  });
+
   const ownerSession: Session = {
     expires: "1",
     user: {
