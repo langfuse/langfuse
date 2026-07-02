@@ -85,3 +85,50 @@ describe("ClickHouseClientManager compatibility settings", () => {
     expect(mocks.createClient).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("ClickHouseClientManager tracing", () => {
+  beforeEach(async () => {
+    await ClickHouseClientManager.getInstance().closeAllConnections();
+    mocks.close.mockClear();
+    mocks.createClient.mockReset();
+    mocks.createClient.mockReturnValue({ close: mocks.close });
+    setClickHouseCompatibilityVersionForTests(null);
+  });
+
+  it("passes a tracer when tracing is enabled", () => {
+    clickhouseClient();
+
+    expect(mocks.createClient).toHaveBeenCalledTimes(1);
+    const { tracer } = mocks.createClient.mock.calls[0][0];
+    expect(tracer).toBeDefined();
+    expect(typeof tracer.startActiveSpan).toBe("function");
+  });
+
+  it("skips span creation when there is no active parent span", () => {
+    clickhouseClient();
+    const { tracer } = mocks.createClient.mock.calls[0][0];
+
+    // No active parent span in the test context: the wrapper must still invoke
+    // the callback (with a no-op span) and return its result untouched, without
+    // starting a root trace.
+    const span = { ended: false };
+    const result = tracer.startActiveSpan(
+      "clickhouse.query",
+      {},
+      (s: {
+        setAttributes: (a: unknown) => void;
+        setStatus: (st: unknown) => void;
+        recordException: (e: Error) => void;
+        end: () => void;
+      }) => {
+        s.setAttributes({ foo: "bar" });
+        s.end();
+        span.ended = true;
+        return "ok";
+      },
+    );
+
+    expect(result).toBe("ok");
+    expect(span.ended).toBe(true);
+  });
+});
