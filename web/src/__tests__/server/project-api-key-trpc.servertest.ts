@@ -72,6 +72,28 @@ describe("project API keys trpc", () => {
     });
   });
 
+  describe("projectApiKeys.create", () => {
+    it("stores the creating user and returns it in the list", async () => {
+      const { caller, projectId } = await createProjectCaller();
+
+      const apiKeyResult = await caller.projectApiKeys.create({
+        projectId,
+        note: "Created-by test key",
+      });
+
+      const dbKey = await prisma.apiKey.findUniqueOrThrow({
+        where: { id: apiKeyResult.id },
+      });
+      expect(dbKey.createdByUserId).toBe("user-1");
+      expect(dbKey.createdByApiKeyId).toBeNull();
+
+      const apiKeys = await caller.projectApiKeys.byProjectId({ projectId });
+      const listedKey = apiKeys.find((key) => key.id === apiKeyResult.id);
+      expect(listedKey?.createdByUser?.id).toBe("user-1");
+      expect(listedKey?.createdByApiKey).toBeNull();
+    });
+  });
+
   describe("projectApiKeys.updateNote", () => {
     it("does not update in-app agent API keys", async () => {
       const { caller, projectId } = await createProjectCaller();

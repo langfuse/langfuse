@@ -179,6 +179,26 @@ describe("organization API keys trpc", () => {
       expect(apiKeyResult.note).toBe("Test API Key");
     });
 
+    it("stores the creating user and returns it in the list", async () => {
+      const apiKeyResult = await ownerCaller.organizationApiKeys.create({
+        orgId: organizationId,
+        note: "Created-by test key",
+      });
+
+      const dbKey = await prisma.apiKey.findUniqueOrThrow({
+        where: { id: apiKeyResult.id },
+      });
+      expect(dbKey.createdByUserId).toBe("user-1");
+      expect(dbKey.createdByApiKeyId).toBeNull();
+
+      const apiKeys = await ownerCaller.organizationApiKeys.byOrganizationId({
+        orgId: organizationId,
+      });
+      const listedKey = apiKeys.find((key) => key.id === apiKeyResult.id);
+      expect(listedKey?.createdByUser?.id).toBe("user-1");
+      expect(listedKey?.createdByApiKey).toBeNull();
+    });
+
     it("regular member cannot create organization API keys", async () => {
       await expect(
         memberCaller.organizationApiKeys.create({
