@@ -63,7 +63,13 @@ export function ConfirmDialog({
   children?: React.ReactNode;
 } & VariantProps<typeof confirmDialogContentVariants>) {
   const content = (
-    <DialogContent className={confirmDialogContentVariants({ size })}>
+    <DialogContent
+      className={confirmDialogContentVariants({ size })}
+      // A confirm carries no unsaved work worth guarding, so an outside click
+      // dismisses it (the shared default keeps outside interaction blocked to
+      // protect form dialogs).
+      closeOnInteractionOutside
+    >
       <DialogHeader variant="action">
         <DialogTitle>{title}</DialogTitle>
       </DialogHeader>
