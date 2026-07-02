@@ -8,7 +8,7 @@ import {
 } from "../../../src/server";
 import { ObservationType } from "../../../src/domain";
 import { observationToEvent, traceToEvent } from "./event-mirror";
-import { buildPayload } from "./payload";
+import { buildPayload, generationUsageCost } from "./payload";
 import { jitter, Rng, utcDayStartMs } from "./rng";
 import {
   chunk,
@@ -212,6 +212,7 @@ const run = async (
   const observations: ObservationRecordInsertType[] = planned.map((p) => {
     const start = traceTimestamp + p.startOffset;
     const end = traceTimestamp + p.endOffset;
+    const durationMs = p.endOffset - p.startOffset;
     const usageInput = rng.int(200, 3000);
     const usageOutput = rng.int(50, 1200);
     const metadata: Record<string, string> = {
@@ -233,7 +234,12 @@ const run = async (
       name: p.name,
       start_time: start,
       end_time: end,
-      completion_start_time: p.isGeneration ? start + rng.int(60, 300) : null,
+      // Clamp the time-to-first-token into the observation's own window so
+      // completion_start_time never lands after end_time (short generations).
+      // Exactly one rng.int draw either way — the rng stream is unchanged.
+      completion_start_time: p.isGeneration
+        ? start + Math.min(rng.int(60, 300), Math.max(10, durationMs - 10))
+        : null,
       level: "DEFAULT",
       status_message: null,
       version: null,
@@ -259,33 +265,17 @@ const run = async (
       model_parameters: p.isGeneration
         ? JSON.stringify({ temperature: 0.2, max_tokens: 1024 })
         : "{}",
-      provided_usage_details: p.isGeneration
-        ? {
-            input: usageInput,
-            output: usageOutput,
-            total: usageInput + usageOutput,
-          }
-        : {},
-      usage_details: p.isGeneration
-        ? {
-            input: usageInput,
-            output: usageOutput,
-            total: usageInput + usageOutput,
-          }
-        : {},
-      provided_cost_details: p.isGeneration
-        ? { input: usageInput * 2e-6, output: usageOutput * 6e-6 }
-        : {},
-      cost_details: p.isGeneration
-        ? {
-            input: usageInput * 2e-6,
-            output: usageOutput * 6e-6,
-            total: usageInput * 2e-6 + usageOutput * 6e-6,
-          }
-        : {},
-      total_cost: p.isGeneration
-        ? usageInput * 2e-6 + usageOutput * 6e-6
-        : null,
+      // Empty fields stay explicit for non-generations: the createObservation
+      // factory would otherwise fill non-empty usage/cost defaults.
+      ...(p.isGeneration
+        ? generationUsageCost(usageInput, usageOutput)
+        : {
+            provided_usage_details: {},
+            usage_details: {},
+            provided_cost_details: {},
+            cost_details: {},
+            total_cost: null,
+          }),
       prompt_id: null,
       prompt_name: null,
       prompt_version: null,
@@ -333,6 +323,16 @@ const run = async (
       "uniqExact(id)",
     ),
   };
+  if (withMetadata) {
+    // The langgraph metadata is what this scenario exists to seed (the graph
+    // view's explicit-step model) — verify it landed, not just the row counts.
+    verified.langgraphNodes = await countRows(
+      "observations",
+      `project_id = {projectId: String} AND trace_id = {traceId: String} AND metadata[{nodeTag: String}] != ''`,
+      { projectId: ctx.projectId, traceId, nodeTag: LANGGRAPH_NODE_TAG },
+      `uniqExact(metadata[{nodeTag: String}])`,
+    );
+  }
   if (withV4) {
     verified.events = await countRows(
       "events_full",
@@ -350,6 +350,11 @@ const run = async (
   if (verified.observations < observations.length) {
     throw new SeedError(
       `Readback mismatch: expected ${observations.length} observations, found ${verified.observations}`,
+    );
+  }
+  if (withMetadata && verified.langgraphNodes < LOOP_NODES.length) {
+    throw new SeedError(
+      `Readback mismatch: expected ${LOOP_NODES.length} distinct langgraph_node metadata values, found ${verified.langgraphNodes}`,
     );
   }
   if (withV4 && verified.events < events.length) {
