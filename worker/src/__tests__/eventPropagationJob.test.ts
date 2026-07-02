@@ -55,7 +55,7 @@ function formatClickHouseDateTime(date: Date): string {
   return date.toISOString().slice(0, 19).replace("T", " ");
 }
 
-describe("handleEventPropagationJob attribution propagation", () => {
+describe("handleEventPropagationJob", () => {
   beforeEach(async () => {
     if (!redis) throw new Error("Redis not initialized");
 
@@ -78,7 +78,7 @@ describe("handleEventPropagationJob attribution propagation", () => {
     }
   });
 
-  it("copies ingestion attribution from observation staging rows into events_full", async (ctx) => {
+  it("propagates observation staging rows into events_full", async (ctx) => {
     await skipUnlessEventPropagationTablesExist(ctx);
 
     const { projectId } = await createOrgProjectAndApiKey();
@@ -109,7 +109,10 @@ describe("handleEventPropagationJob attribution propagation", () => {
             id: observationId,
             trace_id: traceId,
             project_id: projectId,
+            type: "GENERATION",
+            environment: "default",
             name: "propagated-observation",
+            parent_observation_id: null,
             start_time: oldEnoughForPropagation,
             end_time: oldEnoughForPropagation + 1_000,
             created_at: oldEnoughForPropagation,
@@ -151,11 +154,17 @@ describe("handleEventPropagationJob attribution propagation", () => {
     await redis!.set(LAST_PROCESSED_PARTITION_KEY, partitionCursor);
 
     await handleEventPropagationJob({
-      data: { id: "event-propagation-attribution-test" },
+      data: { id: "event-propagation-job-test" },
     } as Parameters<typeof handleEventPropagationJob>[0]);
 
     await waitForExpect(async () => {
       const rows = await queryClickhouse<{
+        trace_id: string;
+        span_id: string;
+        parent_span_id: string;
+        name: string;
+        type: string;
+        environment: string;
         ingestion_api_key: string;
         ingestion_sdk_name: string;
         ingestion_sdk_version: string;
@@ -166,6 +175,12 @@ describe("handleEventPropagationJob attribution propagation", () => {
       }>({
         query: `
           SELECT
+            trace_id,
+            span_id,
+            parent_span_id,
+            name,
+            type,
+            environment,
             ingestion_api_key,
             ingestion_sdk_name,
             ingestion_sdk_version,
@@ -188,6 +203,12 @@ describe("handleEventPropagationJob attribution propagation", () => {
 
       expect(rows).toEqual([
         {
+          trace_id: traceId,
+          span_id: observationId,
+          parent_span_id: `t-${traceId}`,
+          name: "propagated-observation",
+          type: "GENERATION",
+          environment: "default",
           ingestion_api_key: "pk-lf-propagation-test",
           ingestion_sdk_name: "langfuse-js",
           ingestion_sdk_version: "4.2.0",
