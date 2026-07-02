@@ -52,6 +52,8 @@ declare module "next-auth" {
       metadata: Record<string, unknown>;
       aiFeaturesEnabled: boolean;
       aiTelemetryEnabled: boolean;
+      crossProjectTraceTrackingEnabled: boolean;
+      crossProjectTraceCorrelationKey: string;
       projects: {
         id: PrismaProject["id"];
         name: PrismaProject["name"];

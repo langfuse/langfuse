@@ -16,6 +16,7 @@ import { stripBasePath } from "@/src/utils/redirect";
 import { Badge } from "@/src/components/ui/badge";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useEffect } from "react";
+import { RelatedTracesButton } from "@/src/features/trace-correlation/components/RelatedTracesButton";
 
 export function TracePage({
   traceId,
@@ -119,6 +120,13 @@ export function TracePage({
         breadcrumbBadges: sharedBadge,
         actionButtonsRight: (
           <>
+            <RelatedTracesButton
+              projectId={trace.data.projectId}
+              traceId={trace.data.id}
+              timestamp={trace.data.timestamp}
+              observations={trace.data.observations}
+              enabled={hasProjectAccess && !showPublicIndicators}
+            />
             <DetailPageNav
               currentId={traceId}
               path={(entry) => {
