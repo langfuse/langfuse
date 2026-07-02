@@ -6,6 +6,7 @@ export const experimentItemsTableNativeUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "obs_scores_avg",
     clickhouseTableName: "scores",
     clickhouseSelect: "s.scores_avg",
+    clickhouseTypeOverwrite: "Float64",
   },
   {
     uiTableName: "Scores (categorical)",
@@ -18,6 +19,7 @@ export const experimentItemsTableNativeUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "trace_scores_avg",
     clickhouseTableName: "scores",
     clickhouseSelect: "ts.scores_avg",
+    clickhouseTypeOverwrite: "Float64",
   },
   {
     uiTableName: "Trace Scores (categorical)",
