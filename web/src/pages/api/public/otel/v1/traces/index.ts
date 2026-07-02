@@ -161,7 +161,7 @@ export default withMiddlewares({
 
       const processor = new OtelIngestionProcessor({
         projectId: auth.scope.projectId,
-        publicKey: auth.scope.publicKey ?? "",
+        publicKey: auth.scope.publicKey,
         orgId: auth.scope.orgId,
         propagatedHeaders:
           Object.keys(propagatedHeaders).length > 0

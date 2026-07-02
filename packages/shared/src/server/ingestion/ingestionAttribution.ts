@@ -1,4 +1,4 @@
-import type { AuthHeaderValidVerificationResultIngestion } from "../auth/types";
+import type { AuthHeaderValidVerificationResult } from "../auth/types";
 
 type HeaderValue = string | string[] | undefined;
 export type IngestionHeaderMap = Record<string, HeaderValue>;
@@ -33,12 +33,12 @@ export const getLangfuseHeaderValue = getHeaderValue;
 
 export const createIngestionAttribution = (params: {
   headers?: IngestionHeaderMap;
-  authCheck: AuthHeaderValidVerificationResultIngestion;
+  authCheck: AuthHeaderValidVerificationResult;
 }): IngestionAttribution => {
   const { headers, authCheck } = params;
 
   return {
-    ingestionApiKey: authCheck.scope.publicKey ?? "",
+    ingestionApiKey: authCheck.scope.publicKey,
     ingestionSdkName: normalizeSdkValue(
       getHeaderValue(headers, "x-langfuse-sdk-name"),
     ),
