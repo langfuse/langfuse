@@ -199,6 +199,32 @@ describe("default-model-prices.json", () => {
     }
   });
 
+  it("should expose canonical _tokens-suffixed audio price keys whenever bare audio keys are present", () => {
+    // The cost calculator does exact-match `find(p => p.usageType === key)` against
+    // parsed usage_details (see IngestionService.calculateUsageCosts). The canonical
+    // post-parse key for audio tokens is `input_audio_tokens` / `output_audio_tokens`
+    // (established by IngestionService integration tests and OTel mapping). A price
+    // entry that lists only the bare `input_audio` / `output_audio` key silently bills
+    // $0 for audio because no usage key matches.
+    const offenders: string[] = [];
+    for (const model of defaultModelPrices) {
+      for (const tier of model.pricingTiers) {
+        const keys = new Set(Object.keys(tier.prices));
+        if (keys.has("input_audio") && !keys.has("input_audio_tokens")) {
+          offenders.push(
+            `${model.modelName} (${tier.name}): has "input_audio" but missing canonical "input_audio_tokens"`,
+          );
+        }
+        if (keys.has("output_audio") && !keys.has("output_audio_tokens")) {
+          offenders.push(
+            `${model.modelName} (${tier.name}): has "output_audio" but missing canonical "output_audio_tokens"`,
+          );
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
   it("should have valid regex patterns in all conditions", () => {
     for (const model of defaultModelPrices) {
       for (const tier of model.pricingTiers) {
