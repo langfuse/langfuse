@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   type ChatMessage,
   type LLMJSONSchema,
@@ -38,6 +39,34 @@ export type PlaygroundCache = {
   tools?: PlaygroundTool[];
   structuredOutputSchema?: PlaygroundSchema | null;
 } | null;
+
+/** Zod schema for runtime validation of imported playground draft JSON files. */
+export const PlaygroundDraftSnapshotSchema = z.object({
+  schemaVersion: z.literal("langfuse-playground-draft/v1"),
+  model: z.string().optional(),
+  messages: z
+    .array(
+      z.object({
+        role: z.string().optional(),
+        content: z.union([z.string(), z.any()]).optional(),
+        type: z.string().optional(),
+        id: z.string().optional(),
+        name: z.string().optional(),
+        toolCallId: z.string().optional(),
+        toolCalls: z.array(z.any()).optional(),
+      }),
+    )
+    .optional(),
+  variables: z.record(z.string(), z.string()).optional(),
+  tools: z.array(z.any()).optional(),
+  schema: z.any().optional(),
+  structuredOutputSchema: z.any().optional(),
+  modelParameters: z.record(z.string(), z.any()).optional(),
+});
+
+export type PlaygroundDraftSnapshot = z.infer<
+  typeof PlaygroundDraftSnapshotSchema
+>;
 
 // Multi-window types and interfaces
 
