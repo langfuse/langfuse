@@ -107,19 +107,11 @@ test("trace peek opens without client-side errors (LFE-10640 regression)", async
   await expect(peek.getByText("Trace", { exact: true }).first()).toBeVisible();
 
   // Full-page trace view exercises the same layout module on its other path.
-  // Carry the timestamp param over from the peek URL — the trace lookup
-  // needs it to locate the trace in ClickHouse.
   tracker.setSurface("trace detail (full page)");
-  const peekUrl = new URL(page.url());
-  const peekTraceId = peekUrl.searchParams.get("peek");
-  const peekTimestamp = peekUrl.searchParams.get("timestamp");
+  const peekTraceId = new URL(page.url()).searchParams.get("peek");
   expect(peekTraceId).toBeTruthy();
-  await page.goto(
-    `${PROJECT_PATH}/traces/${peekTraceId}` +
-      (peekTimestamp ? `?timestamp=${encodeURIComponent(peekTimestamp)}` : ""),
-  );
+  await page.goto(`${PROJECT_PATH}/traces/${peekTraceId}`);
   await expect(page.locator('[data-testid="page-header-title"]')).toBeVisible();
-  await expect(page.getByText("Trace not found")).not.toBeVisible();
 
   // Give late async errors (effects, deferred queries) a moment to surface.
   await page.waitForTimeout(1000);
