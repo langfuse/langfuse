@@ -39,16 +39,21 @@ const createSmartDiff = (
     };
   }
 
+  // Render each message as readable text so newlines inside the content show as
+  // actual line breaks instead of escaped "\n" sequences (as JSON.stringify would).
   const formatMessages = (messages: any[]) =>
-    JSON.stringify(
-      messages.map((m) =>
-        Object.fromEntries(
-          Object.entries(m).sort(([a], [b]) => a.localeCompare(b)),
-        ),
-      ),
-      null,
-      2,
-    );
+    messages
+      .map((m) =>
+        Object.entries(m)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([key, value]) =>
+            typeof value === "string"
+              ? `${key}: ${value}`
+              : `${key}: ${JSON.stringify(value, null, 2)}`,
+          )
+          .join("\n"),
+      )
+      .join("\n\n");
 
   return {
     oldString: formatMessages(oldPrompt.prompt as any[]),
@@ -102,28 +107,27 @@ export const PromptVersionDiffDialog: React.FC<PromptVersionDiffDialogProps> = (
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
-          <div className="space-y-6">
-            <div className="space-y-4">
-              <div>
-                <h3 className="mb-2 text-base font-medium">Content</h3>
-                <DiffViewer
-                  {...createSmartDiff(leftPrompt, rightPrompt)}
-                  oldLabel={`v${leftPrompt.version}`}
-                  newLabel={`v${rightPrompt.version}`}
-                  oldSubLabel={leftPrompt.commitMessage ?? undefined}
-                  newSubLabel={rightPrompt.commitMessage ?? undefined}
-                />
-              </div>
-              <div>
-                <h3 className="mb-2 text-base font-medium">Config</h3>
-                <DiffViewer
-                  oldString={JSON.stringify(leftPrompt.config, null, 2)}
-                  newString={JSON.stringify(rightPrompt.config, null, 2)}
-                  oldLabel={`v${leftPrompt.version}`}
-                  newLabel={`v${rightPrompt.version}`}
-                />
-              </div>
-            </div>
+          {/* Content fills the full body height; scroll the body to reach Config */}
+          <div className="flex h-full shrink-0 flex-col">
+            <h3 className="mb-2 text-base font-medium">Content</h3>
+            <DiffViewer
+              {...createSmartDiff(leftPrompt, rightPrompt)}
+              oldLabel={`v${leftPrompt.version}`}
+              newLabel={`v${rightPrompt.version}`}
+              oldSubLabel={leftPrompt.commitMessage ?? undefined}
+              newSubLabel={rightPrompt.commitMessage ?? undefined}
+              fillContainerHeight
+              className="min-h-0 flex-1"
+            />
+          </div>
+          <div className="flex shrink-0 flex-col">
+            <h3 className="mb-2 text-base font-medium">Config</h3>
+            <DiffViewer
+              oldString={JSON.stringify(leftPrompt.config, null, 2)}
+              newString={JSON.stringify(rightPrompt.config, null, 2)}
+              oldLabel={`v${leftPrompt.version}`}
+              newLabel={`v${rightPrompt.version}`}
+            />
           </div>
         </DialogBody>
 

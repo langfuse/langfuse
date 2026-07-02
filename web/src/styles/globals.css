@@ -474,6 +474,16 @@
     border-right: 2px solid currentColor !important;
     border-bottom: 2px solid currentColor !important;
   }
+
+  /* Hide the native scrollbar while preserving scroll behaviour. Used by
+     components that render their own scroll overview (e.g. DiffViewer). */
+  .no-native-scrollbar {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/legacy Edge */
+  }
+  .no-native-scrollbar::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
+  }
 }
 
 /* 

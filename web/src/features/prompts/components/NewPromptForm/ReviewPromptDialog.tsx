@@ -22,22 +22,26 @@ type ReviewPromptDialogProps = {
   getNewPromptValues: () => NewPromptFormSchemaType;
 };
 
+// Render each message as readable text so newlines inside the content show as
+// actual line breaks instead of escaped "\n" sequences (as JSON.stringify would).
 const formatMessages = (messages: any[], excludeKeys: string[] = []) => {
-  return JSON.stringify(
-    messages.map((m) =>
-      Object.fromEntries(
-        Object.entries(m)
-          .filter(
-            ([k]) =>
-              !excludeKeys.includes(k) &&
-              (k !== "type" || m.type === "placeholder"),
-          )
-          .sort(([a], [b]) => a.localeCompare(b)),
-      ),
-    ),
-    null,
-    2,
-  );
+  return messages
+    .map((m) =>
+      Object.entries(m)
+        .filter(
+          ([k]) =>
+            !excludeKeys.includes(k) &&
+            (k !== "type" || m.type === "placeholder"),
+        )
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, value]) =>
+          typeof value === "string"
+            ? `${key}: ${value}`
+            : `${key}: ${JSON.stringify(value, null, 2)}`,
+        )
+        .join("\n"),
+    )
+    .join("\n\n");
 };
 
 export const ReviewPromptDialog: React.FC<ReviewPromptDialogProps> = (
@@ -83,29 +87,26 @@ export const ReviewPromptDialog: React.FC<ReviewPromptDialogProps> = (
         </DialogHeader>
 
         <DialogBody>
-          <div className="max-h-[80vh] max-w-(--breakpoint-xl) space-y-6 overflow-y-auto">
-            <div className="space-y-6">
-              <div className="space-y-4">
-                <div>
-                  <h3 className="mb-2 text-base font-medium">Content</h3>
-                  <DiffViewer
-                    oldString={initialPromptContent}
-                    newString={newPromptContent}
-                    oldLabel={`Previous content (v${initialPrompt.version})`}
-                    newLabel="New content (draft)"
-                  />
-                </div>
-                <div>
-                  <h3 className="mb-2 text-base font-medium">Config</h3>
-                  <DiffViewer
-                    oldString={JSON.stringify(initialPrompt.config, null, 2)}
-                    newString={newConfig ?? "failed"}
-                    oldLabel={`Previous config (v${initialPrompt.version})`}
-                    newLabel="New config (draft)"
-                  />
-                </div>
-              </div>
-            </div>
+          {/* Content fills the full body height; scroll the body to reach Config */}
+          <div className="flex h-full shrink-0 flex-col">
+            <h3 className="mb-2 text-base font-medium">Content</h3>
+            <DiffViewer
+              oldString={initialPromptContent}
+              newString={newPromptContent}
+              oldLabel={`Previous content (v${initialPrompt.version})`}
+              newLabel="New content (draft)"
+              fillContainerHeight
+              className="min-h-0 flex-1"
+            />
+          </div>
+          <div className="flex shrink-0 flex-col">
+            <h3 className="mb-2 text-base font-medium">Config</h3>
+            <DiffViewer
+              oldString={JSON.stringify(initialPrompt.config, null, 2)}
+              newString={newConfig ?? "failed"}
+              oldLabel={`Previous config (v${initialPrompt.version})`}
+              newLabel="New config (draft)"
+            />
           </div>
         </DialogBody>
 
