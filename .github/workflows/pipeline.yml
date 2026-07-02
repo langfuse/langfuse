@@ -353,7 +353,7 @@ jobs:
       # Hardened node base image hosted in a private ECR. OIDC login below
       # authenticates only on langfuse/langfuse runs (where the trust policy
       # is scoped). Forks and other repos fall back to the public node:24-alpine.
-      NODE_BASE_IMAGE: ${{ (github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && '816069167615.dkr.ecr.us-west-2.amazonaws.com/wizos-node:24-hardened' || 'node:24-alpine' }}
+      NODE_BASE_IMAGE: ${{ (github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && '816069167615.dkr.ecr.eu-west-1.amazonaws.com/wizos-node:24-hardened' || 'node:24-alpine' }}
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -367,7 +367,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
         with:
           role-to-assume: arn:aws:iam::816069167615:role/GitHubOpenIdConnect
-          aws-region: us-west-2
+          aws-region: eu-west-1
       - name: Login to AWS ECR
         if: env.NODE_BASE_IMAGE != 'node:24-alpine'
         uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
