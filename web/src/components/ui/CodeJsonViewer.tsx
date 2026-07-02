@@ -18,7 +18,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
-import { classifyMediaLeaf } from "@/src/components/ui/media/classifyMediaLeaf";
+import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
 import { JsonMediaTag } from "@/src/components/ui/media/JsonMediaTag";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import {
@@ -146,7 +146,7 @@ export function JSONView(props: {
               // as a hover-to-peek chip instead of the raw string; everything
               // else falls through to the default value rendering.
               customizeNode={({ node }) => {
-                const descriptor = classifyMediaLeaf(node);
+                const descriptor = classifyMediaValue(node);
                 return descriptor ? (
                   <JsonMediaTag descriptor={descriptor} />
                 ) : undefined;

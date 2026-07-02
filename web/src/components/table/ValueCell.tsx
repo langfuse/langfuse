@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import { type Row } from "@tanstack/react-table";
 import { urlRegex } from "@langfuse/shared";
 import { type JsonTableRow } from "@/src/components/table/utils/jsonExpansionUtils";
-import { classifyMediaLeaf } from "@/src/components/ui/media/classifyMediaLeaf";
+import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
 import { JsonMediaTag } from "@/src/components/ui/media/JsonMediaTag";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Button } from "@/src/components/ui/button";
@@ -379,7 +379,7 @@ export const ValueCell = memo(
 
           // Render previewable media (Langfuse refs, data URIs, media URLs) as a
           // hover-to-peek chip instead of the raw string.
-          const mediaDescriptor = classifyMediaLeaf(stringValue);
+          const mediaDescriptor = classifyMediaValue(stringValue);
           if (mediaDescriptor) {
             return {
               content: <JsonMediaTag descriptor={mediaDescriptor} />,
