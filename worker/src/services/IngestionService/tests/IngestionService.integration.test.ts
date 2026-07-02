@@ -1,5 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type TestContext,
+} from "vitest";
 import { uuid, z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -16,6 +24,7 @@ import {
   TraceRecordReadType,
   createOrgProjectAndApiKey,
   createIngestionEventSchema,
+  queryClickhouse,
   setNoEvalConfigsCache,
 } from "@langfuse/shared/src/server";
 import waitForExpect from "wait-for-expect";
@@ -30,6 +39,7 @@ const testIngestionAttribution = {
   ingestionSdkName: "langfuse-test",
   ingestionSdkVersion: "0.0.0",
 };
+let observationsBatchStagingTableEnabled: boolean | undefined;
 
 describe("Ingestion end-to-end tests", () => {
   let ingestionService: IngestionService;
@@ -109,7 +119,9 @@ describe("Ingestion end-to-end tests", () => {
     expect(trace.timestamp).toBe(timestamp);
   });
 
-  it("should write ingestion attribution to observation staging records", async () => {
+  it("should write ingestion attribution to observation staging records", async (ctx) => {
+    await skipUnlessObservationsBatchStagingEnabled(ctx);
+
     const traceId = randomUUID();
     const generationId = randomUUID();
     const timestamp = new Date().toISOString();
@@ -3053,3 +3065,36 @@ type RecordReadType<T extends TableName> = T extends TableName.Scores
     : T extends TableName.Traces
       ? TraceRecordReadType
       : never;
+
+async function isObservationsBatchStagingEnabled(): Promise<boolean> {
+  if (observationsBatchStagingTableEnabled !== undefined) {
+    return observationsBatchStagingTableEnabled;
+  }
+
+  try {
+    const rows = await queryClickhouse<{ count: number | string }>({
+      query: `
+        SELECT count() AS count
+        FROM system.tables
+        WHERE database = currentDatabase()
+          AND name = {table: String}
+      `,
+      params: {
+        table: TableName.ObservationsBatchStaging,
+      },
+    });
+    observationsBatchStagingTableEnabled = Number(rows[0]?.count ?? 0) > 0;
+  } catch {
+    observationsBatchStagingTableEnabled = false;
+  }
+
+  return observationsBatchStagingTableEnabled;
+}
+
+async function skipUnlessObservationsBatchStagingEnabled(
+  ctx: TestContext,
+): Promise<void> {
+  if (!(await isObservationsBatchStagingEnabled())) {
+    ctx.skip("observations_batch_staging is not enabled in this ClickHouse");
+  }
+}
