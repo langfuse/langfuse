@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { Readable } from "node:stream";
 import { type StorageService } from "@langfuse/shared/src/server";
-import { uploadPromptsCoreDataJsonl } from "../coreDataS3ExportQueue";
+import {
+  mapUserToCoreDataRow,
+  parseSsoEnforcedDomains,
+  uploadPromptsCoreDataJsonl,
+} from "../coreDataS3ExportQueue";
 
 const readStream = async (stream: Readable): Promise<string> => {
   const chunks: string[] = [];
@@ -12,6 +16,50 @@ const readStream = async (stream: Readable): Promise<string> => {
 
   return chunks.join("");
 };
+
+describe("mapUserToCoreDataRow", () => {
+  it("derives auth methods from password and account providers", () => {
+    const row = mapUserToCoreDataRow({
+      id: "user-1",
+      email: "user@example.com",
+      password: "hashed-password",
+      accounts: [
+        { provider: "google" },
+        { provider: "okta" },
+        { provider: "google" },
+      ],
+    });
+
+    expect(row).toStrictEqual({
+      id: "user-1",
+      email: "user@example.com",
+      authMethods: ["credentials", "google", "okta"],
+    });
+    expect(JSON.stringify(row)).not.toContain("hashed-password");
+  });
+
+  it("returns no auth methods for users without password and accounts", () => {
+    const row = mapUserToCoreDataRow({
+      id: "user-2",
+      password: null,
+      accounts: [],
+    });
+
+    expect(row).toStrictEqual({ id: "user-2", authMethods: [] });
+  });
+});
+
+describe("parseSsoEnforcedDomains", () => {
+  it("splits, trims, lowercases, and drops empty entries", () => {
+    expect(
+      parseSsoEnforcedDomains(" Example.com, langfuse.com ,,other.ORG"),
+    ).toStrictEqual(["example.com", "langfuse.com", "other.org"]);
+  });
+
+  it("returns an empty list when unset", () => {
+    expect(parseSsoEnforcedDomains(undefined)).toStrictEqual([]);
+  });
+});
 
 describe("coreDataS3ExportQueue", () => {
   it("streams prompt core data in pages", async () => {

@@ -30,6 +30,33 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
   return s3StorageServiceClient;
 };
 
+type UserCoreDataInput = {
+  password: string | null;
+  accounts: { provider: string }[];
+} & Record<string, unknown>;
+
+// Derives the auth methods per user from the linked next-auth accounts and the
+// presence of a password hash ("credentials"). The hash itself must never
+// reach the export.
+export const mapUserToCoreDataRow = ({
+  password,
+  accounts,
+  ...user
+}: UserCoreDataInput) => ({
+  ...user,
+  authMethods: [
+    ...(password ? ["credentials"] : []),
+    ...Array.from(new Set(accounts.map((account) => account.provider))),
+  ],
+});
+
+// Mirrors getSSOBlockedDomains in web/src/features/auth-credentials/server/signupApiHandler.ts
+export const parseSsoEnforcedDomains = (value: string | undefined) =>
+  value
+    ?.split(",")
+    .map((domain) => domain.trim().toLowerCase())
+    .filter(Boolean) ?? [];
+
 type PromptCoreData = {
   id: string;
   name: string;
@@ -120,13 +147,15 @@ export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {
   // Fetch table data
   const [
     projects,
-    users,
+    usersWithAuthData,
     organizations,
     orgMemberships,
     projectMemberships,
     billingMeterBackup,
     surveys,
     blobStorageIntegrations,
+    ssoConfigs,
+    verifiedDomains,
   ] = await Promise.all([
     prisma.project.findMany({
       select: {
@@ -147,6 +176,14 @@ export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {
         v4BetaEnabled: true,
         createdAt: true,
         updatedAt: true,
+        // password and accounts are mapped to authMethods below and must not
+        // be exported as-is
+        password: true,
+        accounts: {
+          select: {
+            provider: true,
+          },
+        },
       },
     }),
     prisma.organization.findMany({
@@ -154,6 +191,7 @@ export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {
         id: true,
         name: true,
         cloudConfig: true,
+        sfdcOrgId: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -215,7 +253,33 @@ export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {
         updatedAt: true,
       },
     }),
+    // authConfig is excluded as it may contain client secrets
+    prisma.ssoConfig.findMany({
+      select: {
+        domain: true,
+        authProvider: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    }),
+    prisma.verifiedDomain.findMany({
+      select: {
+        id: true,
+        organizationId: true,
+        domain: true,
+        verifiedAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    }),
   ]);
+
+  const users = usersWithAuthData.map(mapUserToCoreDataRow);
+
+  // Domains with SSO enforcement are configured per environment via env var
+  const ssoEnforcedDomains = parseSsoEnforcedDomains(
+    env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
+  ).map((domain) => ({ domain }));
 
   // Iterate through the tables and upload them to S3 as JSONLs
   await Promise.all(
@@ -228,6 +292,9 @@ export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {
       billingMeterBackup,
       surveys,
       blobStorageIntegrations,
+      ssoConfigs,
+      verifiedDomains,
+      ssoEnforcedDomains,
     }).map(async ([key, value]) =>
       s3Client.uploadFile({
         fileName: `${env.LANGFUSE_S3_CORE_DATA_UPLOAD_PREFIX}${key}.jsonl`,

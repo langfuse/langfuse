@@ -340,6 +340,9 @@ const EnvSchema = z.object({
     .default("false"),
   LANGFUSE_S3_CORE_DATA_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
   LANGFUSE_S3_CORE_DATA_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
+  // Same env var as in web; included in the core data export so the DWH knows
+  // which domains have SSO enforcement per environment
+  AUTH_DOMAINS_WITH_SSO_ENFORCEMENT: z.string().optional(),
 
   // Media upload
   LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: z.string().optional(),
