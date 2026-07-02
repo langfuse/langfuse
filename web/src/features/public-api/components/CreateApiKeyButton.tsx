@@ -108,6 +108,7 @@ export function CreateApiKeyButton(props: {
               secretKey: generatedKeys.secretKey,
               publicKey: generatedKeys.publicKey,
               baseUrl,
+              showMcpSection: true,
             }
           : {
               type: "form" as const,
