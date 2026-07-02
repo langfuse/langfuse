@@ -363,7 +363,7 @@ export async function maybeInferAndPersistConversationTitle(params: {
       }),
     );
 
-    if (!transcript) {
+    if (transcript.length < 1) {
       return;
     }
 
