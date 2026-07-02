@@ -109,6 +109,11 @@ describe("checkHeaderBasedDirectWrite", () => {
       label: "ingestionVersion '4'",
     },
     {
+      input: { ingestionVersion: "5" },
+      expected: true,
+      label: "future ingestionVersion '5'",
+    },
+    {
       input: {
         ingestionVersion: "4",
         sdkName: undefined,
