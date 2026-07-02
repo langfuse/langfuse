@@ -3,7 +3,6 @@ import { Readable } from "node:stream";
 import { type StorageService } from "@langfuse/shared/src/server";
 import {
   mapUserToCoreDataRow,
-  parseSsoEnforcedDomains,
   uploadPromptsCoreDataJsonl,
 } from "../coreDataS3ExportQueue";
 
