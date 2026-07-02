@@ -10,6 +10,7 @@ export {
 // Explicitly export adapters to ensure they're available
 export {
   selectAdapter,
+  ag2Adapter,
   langgraphAdapter,
   aisdkAdapter,
   openAIAdapter,

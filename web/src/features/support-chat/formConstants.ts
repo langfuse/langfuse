@@ -131,6 +131,7 @@ export const IntegrationTypeSchema = z.enum([
   "Vercel AI SDK",
   "LangChain",
   "LangGraph",
+  "AG2 (AutoGen)",
   "OTel Instrumentation",
   "LLM Proxy (LiteLLM)",
   "3rd Party (Dify / LangFlow / Flowise)",
