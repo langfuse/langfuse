@@ -260,7 +260,14 @@ describe("planInputCompletions", () => {
     // The parser resolves tracescore./tracescores./trace_scores.; each must also
     // produce the score-name dropdown, or that spelling parses but suggests
     // nothing. (The singular form was previously missing from PATH_PREFIXES.)
-    const observed = { ...OBSERVED, trace_scores_avg: [{ value: "nps" }] };
+    // Both trace score-name columns are requested + returned together, so model
+    // the categorical one as loaded-but-empty (lazy mode keys loading on column
+    // presence, not value count).
+    const observed = {
+      ...OBSERVED,
+      trace_scores_avg: [{ value: "nps" }],
+      trace_score_categories: [],
+    };
     for (const prefix of ["tracescore.", "tracescores.", "trace_scores."]) {
       const p = plan(prefix, prefix.length, { observed });
       const labels = flattenOptions(p).map((o) => o.label);
@@ -544,6 +551,92 @@ describe("planInputCompletions", () => {
   it("shows a loading row while observed values load", () => {
     const p = plan("level:", 6, { observed: undefined });
     expect(p?.loading).toBe(true);
+  });
+
+  describe("lazy filter-options (per-field on-demand loading)", () => {
+    // observed is loaded for some columns but the typed field's column is absent
+    // (not yet requested/streamed in). Distinct from observed === undefined.
+    it("requests an option field's column and shows loading when its values are absent", () => {
+      const p = plan("userId:", 7, { observed: OBSERVED });
+      expect(p?.stage).toBe("value");
+      expect(p?.loading).toBe(true);
+      expect(p?.requestColumns).toEqual(["userId"]);
+      expect(flattenOptions(p)).toHaveLength(0);
+    });
+
+    it("shows values (no loading, no request) once the column is present — even when empty", () => {
+      const present = plan("userId:", 7, {
+        observed: { ...OBSERVED, userId: [{ value: "u-1" }] },
+      });
+      expect(present?.loading).toBe(false);
+      expect(present?.requestColumns).toBeUndefined();
+      expect(flattenOptions(present).map((o) => o.label)).toContain("u-1");
+
+      // Loaded-but-empty ([] present) is NOT loading — it offers no values (a
+      // bare `userId:` with no matches yields no popover at all).
+      const empty = plan("userId:", 7, {
+        observed: { ...OBSERVED, userId: [] },
+      });
+      expect(empty?.loading).not.toBe(true);
+      expect(empty?.requestColumns).toBeUndefined();
+    });
+
+    it("never lazy-loads a textSearch field with no server option list (id)", () => {
+      // `id` is textSearch + suggestObservedValues but has no filter-options
+      // column, so it must not show an endless loading row or request a column.
+      const p = plan("id:abc", 6, { observed: OBSERVED });
+      expect(p?.loading).toBe(false);
+      expect(p?.requestColumns).toBeUndefined();
+    });
+
+    it("requests both score-name columns and shows loading on a score path", () => {
+      const p = plan("scores.", 7, {
+        observed: { level: [{ value: "ERROR" }] },
+      });
+      expect(p?.loading).toBe(true);
+      expect(p?.requestColumns).toEqual(["scores_avg", "score_categories"]);
+    });
+
+    it("requests trace score-name columns while typing a trace score value", () => {
+      const p = plan("traceScores.nps:", 16, {
+        observed: { level: [{ value: "ERROR" }] },
+      });
+      expect(p?.loading).toBe(true);
+      expect(p?.requestColumns).toEqual([
+        "trace_scores_avg",
+        "trace_score_categories",
+      ]);
+    });
+
+    // A column whose fetch terminally errored settles to the empty state (no
+    // loading row, no further request) — matching the sidebar — since there is no
+    // auto-retry. Threaded per column via `erroredColumns`.
+    it("settles an errored column to empty (no loading, no request)", () => {
+      const field = plan("userId:", 7, {
+        observed: OBSERVED,
+        erroredColumns: new Set(["userId"]),
+      });
+      expect(field?.loading).not.toBe(true);
+      expect(field?.requestColumns).toBeUndefined();
+
+      const score = plan("scores.", 7, {
+        observed: { level: [{ value: "ERROR" }] },
+        erroredColumns: new Set(["scores_avg", "score_categories"]),
+      });
+      expect(score?.loading).not.toBe(true);
+      expect(score?.requestColumns).toBeUndefined();
+    });
+
+    // One column's error must NOT block loading another (per-column, not global):
+    // a userId timeout still lets sessionId load on demand.
+    it("still loads a different column when an unrelated one errored", () => {
+      const p = plan("sessionId:", 10, {
+        observed: OBSERVED,
+        erroredColumns: new Set(["userId"]),
+      });
+      expect(p?.loading).toBe(true);
+      expect(p?.requestColumns).toEqual(["sessionId"]);
+    });
   });
 
   it("never suggests the OR keyword between filters", () => {

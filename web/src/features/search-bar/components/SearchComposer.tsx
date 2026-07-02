@@ -286,13 +286,25 @@ function useLatest<T>(value: T) {
 export function SearchComposer({
   projectId,
   observed,
+  erroredColumns,
   onActivateAi,
+  onRequestColumns,
 }: {
   projectId: string;
   /** Observed facet values for value suggestions; undefined = loading. */
   observed: ObservedOptions | undefined;
+  /** Columns whose lazy fetch terminally errored — settle the value-stage
+   *  loading row to empty (per column) instead of pinning it (matches the
+   *  sidebar), without blocking other columns from loading. */
+  erroredColumns?: ReadonlySet<string>;
   /** When set, a clickable "Ask AI" button is shown to build / refine filters. */
   onActivateAi?: () => void;
+  /**
+   * Lazy filter-options: request a field's observed values on demand when the
+   * caret enters its value stage (e.g. typing `userId:`). No-op unless lazy
+   * loading is wired by the host table.
+   */
+  onRequestColumns?: (columns: readonly string[]) => void;
 }) {
   const storeApi = useSearchBarStoreApi();
   const commitToFilterState = useSearchBarCommit();
@@ -353,10 +365,20 @@ export function SearchComposer({
           input: draft,
           caret: Math.min(caret, draft.length),
           observed,
+          erroredColumns,
           recents,
           currentQueryText: draft,
         })
       : null;
+  // Lazy filter-options: when the current completion stage needs option columns
+  // that have not loaded yet, ask the host table to fetch them. Keyed on the
+  // joined column list so it fires once per distinct need, not every keystroke.
+  const requestColumnsKey = plan?.requestColumns?.join(",") ?? "";
+  React.useEffect(() => {
+    if (!onRequestColumns || requestColumnsKey.length === 0) return;
+    onRequestColumns(requestColumnsKey.split(","));
+  }, [requestColumnsKey, onRequestColumns]);
+
   const options = flattenOptions(plan);
   // Highlight policy: Enter only picks what typing narrowed. Explicit user
   // highlights (arrows/hover) always win; otherwise only plans that completed

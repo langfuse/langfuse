@@ -82,6 +82,13 @@ export type CompletionPlan = {
   sections: CompletionSection[];
   /** Value stage waiting on observed values (popover shows a loading row). */
   loading: boolean;
+  /**
+   * Lazy filter-options: the option columns this stage needs but does not yet
+   * have in `observed`. The composer relays these to the table so it requests
+   * just those facets on demand (e.g. typing `userId:` loads the userId values).
+   * Always valid filter-options column ids; empty/absent when nothing is needed.
+   */
+  requestColumns?: readonly string[];
   /** Defaults to false; useful for incomplete grouped value entry. */
   keepOpenOnPick?: boolean;
   /**
@@ -505,6 +512,9 @@ type ValueStageInput = {
   typed: string;
   valuePrefix: string;
   observed: ObservedOptions | undefined;
+  /** Columns whose lazy fetch terminally errored — settle those to empty (not
+   *  loading), per column, without blocking others. */
+  erroredColumns?: ReadonlySet<string>;
   /** Whole-token span, for rewrites that replace the entire `key:value`. */
   tokenSpan: { from: number; to: number };
   /** The token carries a leading `-` (a negated filter). Scope rewrites must be
@@ -514,10 +524,31 @@ type ValueStageInput = {
 };
 
 /** Sections for the caret-in-value context, or null when free-form entry. */
-function valueStageSections(
-  input: ValueStageInput,
-): { sections: CompletionSection[]; loading: boolean } | null {
-  const { ref, typed, valuePrefix, observed, tokenSpan, negated } = input;
+function valueStageSections(input: ValueStageInput): {
+  sections: CompletionSection[];
+  loading: boolean;
+  requestColumns?: readonly string[];
+} | null {
+  const {
+    ref,
+    typed,
+    valuePrefix,
+    observed,
+    erroredColumns,
+    tokenSpan,
+    negated,
+  } = input;
+
+  // A loadable option column is "pending" when its key is absent from the
+  // observed map (lazy mode: requested but not yet streamed in). An empty list
+  // ([]) means loaded-but-no-values, which is NOT loading. `observed` itself
+  // being undefined is the initial bulk-load — everything is pending.
+  // A column whose fetch terminally errored is never pending: it settles to the
+  // empty state (no loading row, no further request) exactly like the sidebar
+  // facet — but PER COLUMN, so a different column can still load on demand.
+  const columnPending = (column: string): boolean =>
+    !erroredColumns?.has(column) &&
+    (observed === undefined || !(column in observed));
 
   // An operator prefix was already typed: the rest is free-form entry.
   if (valuePrefix.length > 0) return null;
@@ -560,11 +591,19 @@ function valueStageSections(
     }
 
     case "scores": {
-      if (observed === undefined) return { sections: [], loading: true };
       const numericColumn =
         ref.level === "trace" ? "trace_scores_avg" : "scores_avg";
       const categoricalColumn =
         ref.level === "trace" ? "trace_score_categories" : "score_categories";
+      // Routing a `scores.<name>:` value needs both score-name columns; request
+      // and show a loading row while either is still streaming in.
+      if (columnPending(numericColumn) || columnPending(categoricalColumn)) {
+        return {
+          sections: [],
+          loading: true,
+          requestColumns: [numericColumn, categoricalColumn],
+        };
+      }
       // Quoted for the example shown in the compare-op tooltip — a spaced score
       // name must read as `scores."Rouge Score":>0.8`, not the unparsable bare
       // form. (The data lookups above use the unquoted column names.)
@@ -673,6 +712,16 @@ function valueStageSections(
       // Observed-value picker: exactOption/arrayOption fields, plus textSearch
       // fields flagged `suggestObservedValues` (id/name — they search as
       // substring but still suggest existing values).
+      // Lazy mode: an option-backed field (exactOption/arrayOption) whose values
+      // have not loaded yet shows a loading row and requests its column. Its `id`
+      // IS the filter-options column id. textSearch fields (id/name) are not
+      // lazily loaded — `name` is eager and `id` has no server option list — so
+      // they fall through to the picker, which is empty when nothing is observed.
+      const isOptionColumn =
+        f.syncMode === "exactOption" || f.syncMode === "arrayOption";
+      if (isOptionColumn && columnPending(f.id)) {
+        return { sections: [], loading: true, requestColumns: [f.id] };
+      }
       if (observed === undefined) return { sections: [], loading: true };
       const all = observedValues(observed, f.id).map((o) => ({
         id: `value:${o.value}`,
@@ -764,6 +813,14 @@ export type InputCompletionContext = {
   caret: number;
   /** Observed facet values; undefined = still loading. */
   observed: ObservedOptions | undefined;
+  /**
+   * Columns whose lazy filter-options fetch terminally errored. For those the
+   * planner suppresses the "Loading values…" row and the on-demand request, so a
+   * failed fetch settles to the empty state (matching the sidebar's per-column
+   * skeleton) instead of pinning loading forever with no auto-retry — but PER
+   * COLUMN, so an unrelated column can still load on demand.
+   */
+  erroredColumns?: ReadonlySet<string>;
   recents: string[];
   /** Full committed/draft query text (recents identical to it are hidden). */
   currentQueryText: string;
@@ -931,6 +988,30 @@ export function planInputCompletions(
     // Dot paths (metadata./scores./traceScores.) suggest observed keys.
     const path = pathKindOf(keyPart);
     if (path !== null) {
+      // Score-name suggestions need both score-name columns; request and show a
+      // loading row while they stream in (lazy mode). Metadata keys are not
+      // server-enumerated, so there is nothing to request there.
+      if (path.kind.canonical !== "metadata.") {
+        const numericColumn =
+          path.kind.level === "trace" ? "trace_scores_avg" : "scores_avg";
+        const categoricalColumn =
+          path.kind.level === "trace"
+            ? "trace_score_categories"
+            : "score_categories";
+        const scorePending = (column: string): boolean =>
+          !ctx.erroredColumns?.has(column) &&
+          (ctx.observed === undefined || !(column in ctx.observed));
+        if (scorePending(numericColumn) || scorePending(categoricalColumn)) {
+          return {
+            stage: "field",
+            from: bodyStart,
+            to,
+            loading: true,
+            sections: [],
+            requestColumns: [numericColumn, categoricalColumn],
+          };
+        }
+      }
       const { title, options } = keyPathOptions(
         path.kind,
         path.typedKey,
@@ -1101,6 +1182,7 @@ export function planInputCompletions(
     typed,
     valuePrefix,
     observed: ctx.observed,
+    erroredColumns: ctx.erroredColumns,
     tokenSpan: { from: start, to: term?.to ?? caret },
     negated,
   });
@@ -1112,6 +1194,9 @@ export function planInputCompletions(
       to: segTo,
       loading: true,
       sections: [],
+      ...(staged.requestColumns
+        ? { requestColumns: staged.requestColumns }
+        : {}),
       ...groupedPlanAttrs,
     };
   }
