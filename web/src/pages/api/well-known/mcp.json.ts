@@ -1,7 +1,12 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { getProductBaseUrl } from "@/src/utils/base-url";
 
-export default function handler(_req: NextApiRequest, res: NextApiResponse) {
+export default function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== "GET") {
+    res.setHeader("Allow", "GET");
+    res.status(405).end("Method Not Allowed");
+    return;
+  }
   const baseUrl = getProductBaseUrl();
   const payload = {
     $schema:
