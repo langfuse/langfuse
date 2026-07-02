@@ -1,4 +1,5 @@
 import {
+  type ChartDrilldown,
   type DataPoint,
   type FormatMetricOptions,
   type FormattedMetric,
@@ -9,6 +10,65 @@ import { compactNumberFormatter, numberFormatter } from "@/src/utils/numbers";
 export const toFullMetricString = (metric: FormattedMetric): string =>
   `${metric.negative ? "-" : ""}${metric.prefix ?? ""}${metric.main}${metric.suffix ?? ""}`;
 
+export const TIME_SERIES_DRILLDOWN_KEY =
+  "__langfuseDrilldownByDimension" as const;
+
+export type GroupedTimeSeriesDataPoint = {
+  time_dimension: string;
+  [TIME_SERIES_DRILLDOWN_KEY]?: Record<string, ChartDrilldown | undefined>;
+  [dimension: string]:
+    | string
+    | number
+    | Record<string, ChartDrilldown | undefined>
+    | undefined;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getPayloadRecord = (payload: unknown): Record<string, unknown> | null => {
+  if (!isRecord(payload)) return null;
+
+  const activePayload = payload.activePayload;
+  if (
+    Array.isArray(activePayload) &&
+    isRecord(activePayload[0]) &&
+    isRecord(activePayload[0].payload)
+  ) {
+    return activePayload[0].payload;
+  }
+
+  const nestedPayload = payload.payload;
+  return isRecord(nestedPayload) ? nestedPayload : payload;
+};
+
+const toChartDrilldown = (value: unknown): ChartDrilldown | undefined =>
+  isRecord(value) && typeof value.href === "string"
+    ? { href: value.href }
+    : undefined;
+
+export const getDrilldownFromPayload = (
+  payload: unknown,
+): ChartDrilldown | undefined => {
+  const row = getPayloadRecord(payload);
+  return row ? toChartDrilldown(row.drilldown) : undefined;
+};
+
+export const getTimeSeriesDrilldown = (
+  payload: unknown,
+  dimension: string | undefined,
+): ChartDrilldown | undefined => {
+  if (!dimension) return undefined;
+
+  const row = getPayloadRecord(payload);
+  if (!row) return undefined;
+
+  const drilldownByDimension = row[TIME_SERIES_DRILLDOWN_KEY];
+  if (!isRecord(drilldownByDimension)) return undefined;
+
+  return toChartDrilldown(drilldownByDimension[dimension]);
+};
+
 /**
  * Groups data by dimension to prepare it for time series breakdowns
  * @param data
@@ -16,14 +76,20 @@ export const toFullMetricString = (metric: FormattedMetric): string =>
 export const groupDataByTimeDimension = (data: DataPoint[]) => {
   // First, group by time_dimension
   const timeGroups = data.reduce(
-    (acc: Record<string, Record<string, number>>, item: DataPoint) => {
+    (acc: Record<string, GroupedTimeSeriesDataPoint>, item: DataPoint) => {
       const time = item.time_dimension || "Unknown";
       if (!acc[time]) {
-        acc[time] = {};
+        acc[time] = { time_dimension: time };
       }
 
       const dimension = item.dimension || "Unknown";
       acc[time][dimension] = item.metric as number;
+      if (item.drilldown) {
+        acc[time][TIME_SERIES_DRILLDOWN_KEY] = {
+          ...acc[time][TIME_SERIES_DRILLDOWN_KEY],
+          [dimension]: item.drilldown,
+        };
+      }
 
       return acc;
     },
@@ -31,10 +97,7 @@ export const groupDataByTimeDimension = (data: DataPoint[]) => {
   );
 
   // Convert to array format for Recharts
-  return Object.entries(timeGroups).map(([time, dimensions]) => ({
-    time_dimension: time,
-    ...dimensions,
-  }));
+  return Object.values(timeGroups);
 };
 
 export const getUniqueDimensions = (data: DataPoint[]) => {

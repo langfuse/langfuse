@@ -38,6 +38,10 @@ export const DEFAULT_ROW_LIMIT = 20;
  */
 export const MAX_PIVOT_TABLE_METRICS = 10;
 
+export type PivotDimensionValue = string | number | null;
+
+const AMBIGUOUS_DIMENSION_VALUE = "__langfuse_ambiguous_dimension_value__";
+
 /**
  * Represents a single row in the processed pivot table structure
  * Supports different row types for data, subtotals, and grand totals
@@ -66,7 +70,7 @@ export interface PivotTableRow {
   isTotal?: boolean;
 
   /** Original dimension values for this row (for data rows only) */
-  dimensionValues?: Record<string, string>;
+  dimensionValues?: Record<string, PivotDimensionValue>;
 }
 
 /**
@@ -138,13 +142,13 @@ export function validatePivotTableConfig(config: PivotTableConfig): void {
  * @returns Unique string identifier for the row
  */
 export function generateRowId(
-  dimensionValues: Record<string, string>,
+  dimensionValues: Record<string, unknown>,
   type: PivotTableRow["type"],
   level: number,
 ): string {
   const valueKey = Object.entries(dimensionValues)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, value]) => `${key}:${value}`)
+    .map(([key, value]) => `${key}:${String(value)}`)
     .join("|");
 
   return `${type}-${level}-${valueKey}`;
@@ -186,6 +190,7 @@ function processLevelRecursively(
   metrics: string[],
   totalDimensions: number,
   dimensionPath: string[],
+  dimensionValues: Record<string, PivotDimensionValue> = {},
 ): PivotTableRow[] {
   const rows: PivotTableRow[] = [];
   const currentDimensionIndex = totalDimensions - remainingDimensions.length;
@@ -197,7 +202,6 @@ function processLevelRecursively(
 
     // Create data rows for the final level
     const dataRows = data.map((row, index) => {
-      const dimensionValues = extractDimensionValues(row, []);
       const metricValues = extractMetricValues(row, metrics);
 
       // Create label from dimension path (all parent dimension values)
@@ -226,6 +230,17 @@ function processLevelRecursively(
 
   for (const [dimensionValue, groupData] of sortedGroups) {
     const newDimensionPath = [...dimensionPath, dimensionValue];
+    const rawDimensionValue = getSingleRawDimensionValue(
+      groupData,
+      currentDimension!,
+    );
+    const newDimensionValues = {
+      ...dimensionValues,
+      [currentDimension!]:
+        rawDimensionValue === undefined
+          ? AMBIGUOUS_DIMENSION_VALUE
+          : rawDimensionValue,
+    };
 
     // Add subtotal row for this dimension group BEFORE processing child rows
     // Only if there are more dimensions to process (not the deepest level)
@@ -235,6 +250,7 @@ function processLevelRecursively(
         dimensionValue,
         subtotalValues,
         currentDimensionIndex, // Subtotals at current dimension level
+        newDimensionValues,
       );
       rows.push(subtotalRow);
     }
@@ -246,6 +262,7 @@ function processLevelRecursively(
       metrics,
       totalDimensions,
       newDimensionPath,
+      newDimensionValues,
     );
 
     rows.push(...childRows);
@@ -347,14 +364,15 @@ export function transformToPivotTable(
 export function extractDimensionValues(
   row: DatabaseRow,
   dimensions: string[],
-): Record<string, string> {
+): Record<string, PivotDimensionValue> {
   return dimensions.reduce(
     (acc, dimension) => {
       const value = row[dimension];
-      acc[dimension] = value?.toString() ?? "";
+      acc[dimension] =
+        typeof value === "number" ? value : (value?.toString() ?? null);
       return acc;
     },
-    {} as Record<string, string>,
+    {} as Record<string, PivotDimensionValue>,
   );
 }
 
@@ -441,6 +459,25 @@ export function groupDataByDimension(
     },
     {} as Record<string, DatabaseRow[]>,
   );
+}
+
+function getSingleRawDimensionValue(
+  data: DatabaseRow[],
+  dimensionField: string,
+): PivotDimensionValue | undefined {
+  const uniqueValues = new Map<string, PivotDimensionValue>();
+
+  for (const row of data) {
+    const rawValue = row[dimensionField] ?? null;
+    const value: PivotDimensionValue =
+      typeof rawValue === "number" ? rawValue : (rawValue?.toString() ?? null);
+    const key = `${typeof value}:${String(value)}`;
+    uniqueValues.set(key, value);
+  }
+
+  if (uniqueValues.size !== 1) return undefined;
+
+  return uniqueValues.values().next().value;
 }
 
 /**
@@ -576,9 +613,10 @@ export function createSubtotalRow(
   dimensionValue: string,
   subtotalValues: Record<string, number>,
   level: number,
+  dimensionValues: Record<string, PivotDimensionValue> = {
+    subtotal: dimensionValue,
+  },
 ): PivotTableRow {
-  const dimensionValues = { subtotal: dimensionValue };
-
   return {
     id: generateRowId(dimensionValues, "subtotal", level),
     type: "subtotal",
@@ -602,7 +640,9 @@ export function createGrandTotalRow(
   metrics: string[],
   grandTotalValues: Record<string, number>,
 ): PivotTableRow {
-  const dimensionValues = { total: "grand" };
+  const dimensionValues: Record<string, PivotDimensionValue> = {
+    total: "grand",
+  };
 
   return {
     id: generateRowId(dimensionValues, "total", 0),

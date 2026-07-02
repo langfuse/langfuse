@@ -201,7 +201,7 @@ describe("pivot-table-utils", () => {
 
       expect(result).toEqual({
         model: "gpt-4",
-        missing: "",
+        missing: null,
       });
     });
 

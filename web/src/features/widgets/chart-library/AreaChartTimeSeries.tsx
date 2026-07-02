@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   ChartActiveReferenceLine,
   ChartContainer,
@@ -6,10 +6,15 @@ import {
   ChartTooltipContent,
   ChartTooltipPortal,
 } from "@/src/components/ui/chart";
+import { NearestSeriesProbe } from "@/src/features/widgets/chart-library/NearestSeriesProbe";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import {
+  type ChartDrilldownClickEvent,
+  type ChartProps,
+} from "@/src/features/widgets/chart-library/chart-props";
 import {
   formatMetric,
+  getTimeSeriesDrilldown,
   getUniqueDimensions,
   groupDataByTimeDimension,
   toFullMetricString,
@@ -42,8 +47,10 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
   maxVisibleSeries,
   syncId,
   subtleFill = false,
+  onDrilldown,
 }) => {
   const [selfHovered, setSelfHovered] = useState(false);
+  const [nearestDimensions, setNearestDimensions] = useState<string[]>([]);
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const allDimensions = useMemo(() => getUniqueDimensions(data), [data]);
   // Cap how many series we draw (data -> preparer seam): a high-cardinality
@@ -64,13 +71,33 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
     [groupedData, maxTicks],
   );
 
-  const { legendItems, onLegendClick, isRendered, isDimmed } = useSeriesLegend({
+  const {
+    legendItems,
+    onLegendClick,
+    isRendered,
+    isDimmed,
+    isHighlightActive,
+  } = useSeriesLegend({
     data,
     dimensions,
     legendSummary,
     legendInteraction,
     maxVisibleSeries,
   });
+
+  const renderedDimensions = dimensions.filter(isRendered);
+  const hasDrilldowns = Boolean(
+    onDrilldown && data.some((point) => point.drilldown),
+  );
+
+  const handleChartClick = useCallback(
+    (payload: unknown, event?: ChartDrilldownClickEvent) => {
+      const dimension = nearestDimensions[0];
+      const drilldown = getTimeSeriesDrilldown(payload, dimension);
+      if (drilldown) onDrilldown?.(drilldown.href, event);
+    },
+    [nearestDimensions, onDrilldown],
+  );
 
   const tooltipFormatter = (value: number) =>
     toFullMetricString(metricFormatter(value, { style: "compact" }));
@@ -115,6 +142,12 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
           data={groupedData}
           syncId={syncId}
           syncMethod="value"
+          onClick={hasDrilldowns ? handleChartClick : undefined}
+          className={
+            hasDrilldowns && nearestDimensions.length > 0
+              ? "cursor-pointer"
+              : undefined
+          }
         >
           <CartesianGrid stroke="hsl(var(--chart-grid))" vertical={false} />
           <XAxis
@@ -177,6 +210,11 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
                 </ChartTooltipPortal>
               ) : null
             }
+          />
+          <NearestSeriesProbe
+            dimensions={renderedDimensions}
+            enabled={selfHovered && !isHighlightActive}
+            onNearestChange={setNearestDimensions}
           />
         </AreaChart>
       </ChartContainer>

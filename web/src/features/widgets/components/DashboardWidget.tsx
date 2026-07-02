@@ -28,7 +28,6 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { DownloadButton } from "@/src/features/widgets/chart-library/DownloadButton";
 import {
-  formatMetricName,
   shouldUseWidgetSSE,
   sanitizePivotTableDefaultSort,
   getWidgetMetricPresentation,
@@ -40,6 +39,7 @@ import {
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { prepareWidgetChartData } from "@/src/features/widgets/utils/prepareChartData";
 
 export interface WidgetPlacement {
   id: string;
@@ -250,53 +250,16 @@ export function DashboardWidget({
     if (!widget.data || !queryResult.data) {
       return [];
     }
-    return queryResult.data.map((item: any) => {
-      if (widget.data.chartType === "PIVOT_TABLE") {
-        // For pivot tables, preserve all raw data fields without any transformation
-        // The PivotTable component will extract the appropriate metric fields
-        // using the metric field names passed via chartConfig
-        return {
-          dimension:
-            widget.data.dimensions.length > 0
-              ? (widget.data.dimensions[0]?.field ?? "dimension")
-              : "dimension", // Fallback for compatibility
-          metric: 0, // Placeholder - not used for pivot tables
-          time_dimension: item["time_dimension"],
-          // Include all original query fields for pivot table processing
-          ...item,
-        };
-      }
-
-      // Regular chart processing for non-pivot tables
-      const metric = widget.data.metrics.slice().shift() ?? {
-        measure: "count",
-        agg: "count",
-      };
-      const metricField = `${metric.agg}_${metric.measure}`;
-      const metricValue = item[metricField];
-
-      const dimensionField =
-        widget.data.dimensions.slice().shift()?.field ?? "none";
-      return {
-        dimension:
-          item[dimensionField] !== undefined
-            ? (() => {
-                const val = item[dimensionField];
-                if (typeof val === "string") return val;
-                if (val === null || val === undefined || val === "")
-                  return "n/a";
-                if (Array.isArray(val)) return val.join(", ");
-                // Objects / numbers / booleans are stringified to avoid React key issues
-                return String(val);
-              })()
-            : formatMetricName(metricField),
-        metric: Array.isArray(metricValue)
-          ? metricValue
-          : Number(metricValue || 0),
-        time_dimension: item["time_dimension"],
-      };
+    return prepareWidgetChartData({
+      rows: queryResult.data as Array<Record<string, unknown>>,
+      projectId,
+      query: widgetQuery,
+      chartType: widget.data.chartType,
+      metrics: widget.data.metrics,
+      dimensions: widget.data.dimensions,
+      isV4Enabled: isBetaEnabled,
     });
-  }, [queryResult.data, widget.data]);
+  }, [queryResult.data, widget.data, projectId, widgetQuery, isBetaEnabled]);
 
   const chartPresentation = useMemo(() => {
     if (!widget.data) {
@@ -389,6 +352,13 @@ export function DashboardWidget({
       onDeleteWidget(placement.id);
     }
   };
+
+  const handleDrilldown = useCallback(
+    (href: string) => {
+      router.push(href);
+    },
+    [router],
+  );
 
   if (widget.isPending) {
     return (
@@ -507,6 +477,7 @@ export function DashboardWidget({
               }
               isLoading={queryResult.isPending}
               metricFormatter={chartPresentation?.metricFormatter}
+              onDrilldown={handleDrilldown}
             />
             <ChartLoadingState
               isLoading={chartLoadingState.isLoading}

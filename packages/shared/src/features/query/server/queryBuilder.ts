@@ -19,6 +19,7 @@ import {
   query as queryModel,
   getValidAggregationsForMeasureType,
 } from "../types";
+import { determineTimeGranularity } from "../timeBuckets";
 import { getViewDeclaration } from "../dataModel";
 import { InvalidRequestError } from "../../../errors";
 import { env } from "../../../env";
@@ -875,26 +876,7 @@ export class QueryBuilder {
     fromTimestamp: string,
     toTimestamp: string,
   ): z.infer<typeof granularities> {
-    const from = new Date(fromTimestamp);
-    const to = new Date(toTimestamp);
-    const diffMs = to.getTime() - from.getTime();
-    const diffHours = diffMs / (1000 * 60 * 60);
-
-    // Choose appropriate granularity based on date range to get ~50 buckets
-    if (diffHours < 2) {
-      return "minute"; // Less than a 2h, use minutes
-    }
-    if (diffHours < 72) {
-      return "hour"; // Less than 3 days, use hours
-    }
-    if (diffHours < 1440) {
-      return "day"; // Less than 60 days, use days
-    }
-    if (diffHours < 8760) {
-      return "week"; // Less than a year, use weeks
-    }
-
-    return "month"; // Over a year, use months
+    return determineTimeGranularity(fromTimestamp, toTimestamp);
   }
 
   private getTimeDimensionSql(
