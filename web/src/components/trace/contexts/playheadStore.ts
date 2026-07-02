@@ -85,6 +85,9 @@ export function playbackRate(traceDuration: number): number {
 
 /**
  * Flatten the trace tree into activation windows (seconds from origin).
+ * The synthetic TRACE wrapper (v3 traces) gets no window: it isn't an
+ * observation, and its zero-width window (endTime null) would otherwise be
+ * padded into a brief bogus glow of the trace-name row at playback start.
  * Iterative to avoid stack overflow on deep trees. Pure — unit-testable.
  */
 export function buildNodeWindows(
@@ -96,11 +99,12 @@ export function buildNodeWindows(
   const stack: TreeNode[] = [...roots];
   while (stack.length > 0) {
     const node = stack.pop()!;
+    for (const child of node.children) stack.push(child);
+    if (node.type === "TRACE") continue;
     const startSec = (node.startTime.getTime() - originMs) / 1000;
     const endSec =
       ((node.endTime ?? node.startTime).getTime() - originMs) / 1000;
     out.push({ id: node.id, startSec, endSec });
-    for (const child of node.children) stack.push(child);
   }
   return out;
 }

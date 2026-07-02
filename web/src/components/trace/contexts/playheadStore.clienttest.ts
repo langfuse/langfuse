@@ -59,6 +59,18 @@ describe("buildNodeWindows", () => {
     const windows = buildNodeWindows([makeNode("n", 5_000, null)], ORIGIN);
     expect(windows[0]).toEqual({ id: "n", startSec: 5, endSec: 5 });
   });
+
+  it("skips the synthetic TRACE wrapper but keeps its descendants", () => {
+    // v3 traces wrap observations in a TRACE root (endTime null) — it must not
+    // get an activation window, else padding makes the trace-name row glow
+    // briefly at playback start.
+    const traceRoot = {
+      ...makeNode("trace-t1", 0, null, [makeNode("obs", 1_000, 2_000)]),
+      type: "TRACE",
+    } as TreeNode;
+    const windows = buildNodeWindows([traceRoot], ORIGIN);
+    expect(windows.map((w) => w.id)).toEqual(["obs"]);
+  });
 });
 
 describe("padActivationWindows", () => {

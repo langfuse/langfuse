@@ -370,7 +370,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
       )}
       {layoutError && (
         <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm">
-          <span>Couldn&apos;t lay out the graph.</span>
+          <span>Could not lay out the graph.</span>
           <Button
             variant="outline"
             size="sm"
