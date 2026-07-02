@@ -9,6 +9,12 @@ import { LangfuseNotFoundError } from "@langfuse/shared";
 import { getTracesBySessionId } from "@langfuse/shared/src/server";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 
+// Trace timestamps are client-supplied and may predate the session row's
+// ingestion-time createdAt (e.g. backfills, buffered OTEL exports). Two days
+// of slack covers realistic backdating while still letting ClickHouse prune
+// partitions by timestamp.
+const SESSION_TRACE_LOOKBACK_MS = 2 * 24 * 60 * 60 * 1000;
+
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Session",
@@ -42,9 +48,11 @@ export default withMiddlewares({
         );
       }
 
-      const traces = await getTracesBySessionId(auth.scope.projectId, [
-        sessionId,
-      ]);
+      const traces = await getTracesBySessionId(
+        auth.scope.projectId,
+        [sessionId],
+        new Date(session.createdAt.getTime() - SESSION_TRACE_LOOKBACK_MS),
+      );
 
       return {
         ...session,

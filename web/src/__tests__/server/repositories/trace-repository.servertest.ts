@@ -187,6 +187,70 @@ describe("Clickhouse Traces Repository Test", () => {
     expect(resultIds).toContain(trace2.id);
   });
 
+  it("should apply the timestamp lower bound when retrieving traces by session ID", async () => {
+    const sessionId = v4();
+    const recentTrace = createTrace({
+      id: v4(),
+      project_id: projectId,
+      session_id: sessionId,
+      timestamp: Date.now(),
+    });
+    const backdatedTrace = createTrace({
+      id: v4(),
+      project_id: projectId,
+      session_id: sessionId,
+      timestamp: Date.now() - 10 * 24 * 60 * 60 * 1000,
+    });
+
+    await createTracesCh([recentTrace, backdatedTrace]);
+
+    const results = await getTracesBySessionId(
+      projectId,
+      [sessionId],
+      new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+    );
+
+    expect(results).toHaveLength(1);
+    expect(results[0].id).toBe(recentTrace.id);
+
+    const unboundedResults = await getTracesBySessionId(projectId, [sessionId]);
+    expect(unboundedResults.map((t) => t.id)).toEqual(
+      expect.arrayContaining([recentTrace.id, backdatedTrace.id]),
+    );
+  });
+
+  it("should return the latest version of a trace retrieved by session ID", async () => {
+    // ReplacingMergeTree keeps row versions until parts merge; the by-session
+    // read must dedupe to the version with the highest event_ts.
+    const sessionId = v4();
+    const traceId = v4();
+    const timestamp = Date.now();
+
+    const olderVersion = createTrace({
+      id: traceId,
+      project_id: projectId,
+      session_id: sessionId,
+      timestamp,
+      name: "old-name",
+      event_ts: timestamp,
+    });
+    const newerVersion = createTrace({
+      id: traceId,
+      project_id: projectId,
+      session_id: sessionId,
+      timestamp,
+      name: "new-name",
+      event_ts: timestamp + 5000,
+    });
+
+    await createTracesCh([olderVersion, newerVersion]);
+
+    const results = await getTracesBySessionId(projectId, [sessionId]);
+
+    expect(results).toHaveLength(1);
+    expect(results[0].name).toBe("new-name");
+  });
+
   it("should check if trace exists with level filter", async () => {
     const traceId = v4();
     const trace = createTrace({

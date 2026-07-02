@@ -15,6 +15,7 @@ import { orderByToClickhouseSql } from "../queries";
 import { shouldSkipObservationsFinal } from "../queries/clickhouse-sql/query-options";
 import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
 import { OrderByState } from "../../interfaces/orderBy";
+import chunk from "lodash/chunk";
 import snakeCase from "lodash/snakeCase";
 import { FilterState } from "../../types";
 import {
@@ -267,7 +268,13 @@ export const getTracesBySessionId = async (
   sessionIds: string[],
   timestamp?: Date,
 ) => {
-  const records = await measureAndReturn({
+  // Two-phase read: session_id is not part of the traces sorting key, so a
+  // `SELECT *` filtered only by session_id reads the heavy input/output
+  // columns for every matching row version across all partitions. Resolve the
+  // trace ids and their minimum timestamp over narrow columns first, then
+  // fetch full rows via getTracesByIds, whose timestamp bound enables
+  // partition and primary-key pruning.
+  const identifiers = await measureAndReturn({
     operationName: "getTracesBySessionId",
     projectId,
     input: {
@@ -283,15 +290,16 @@ export const getTracesBySessionId = async (
     },
     fn: (input) => {
       const query = `
-        SELECT *
+        SELECT
+          id,
+          min(timestamp) as min_timestamp
         FROM traces
         WHERE session_id IN ({sessionIds: Array(String)})
         AND project_id = {projectId: String}
         ${timestamp ? `AND timestamp >= {timestamp: DateTime64(3)}` : ""}
-        ORDER BY event_ts DESC
-        LIMIT 1 by id, project_id;
+        GROUP BY id;
       `;
-      return queryClickhouse<TraceRecordReadType>({
+      return queryClickhouse<{ id: string; min_timestamp: string }>({
         query,
         params: input.params,
         tags: input.tags,
@@ -299,9 +307,27 @@ export const getTracesBySessionId = async (
     },
   });
 
-  const traces = records.map((record) =>
-    convertClickhouseToDomain(record, DEFAULT_RENDERING_PROPS),
-  );
+  if (identifiers.length === 0) {
+    return [];
+  }
+
+  const traces = (
+    await Promise.all(
+      chunk(identifiers, 500).map((identifierChunk) =>
+        getTracesByIds(
+          identifierChunk.map((t) => t.id),
+          projectId,
+          new Date(
+            Math.min(
+              ...identifierChunk.map((t) =>
+                parseClickhouseUTCDateTimeFormat(t.min_timestamp).getTime(),
+              ),
+            ),
+          ),
+        ),
+      ),
+    )
+  ).flat();
 
   traces.forEach((trace) => {
     recordDistribution(

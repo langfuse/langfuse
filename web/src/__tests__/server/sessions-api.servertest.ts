@@ -50,6 +50,41 @@ describe("/api/public/sessions API Endpoint", () => {
         expect.arrayContaining(traces.map((trace) => trace.id)),
       );
     });
+
+    it("should include traces backdated less than 2 days before session creation, but not older ones", async () => {
+      const sessionId = v4();
+
+      await prisma.traceSession.create({
+        data: {
+          id: sessionId,
+          projectId: projectId,
+        },
+      });
+
+      const backdatedWithinLookback = createTrace({
+        session_id: sessionId,
+        project_id: projectId,
+        timestamp: Date.now() - 1 * 24 * 60 * 60 * 1000,
+      });
+      const backdatedBeyondLookback = createTrace({
+        session_id: sessionId,
+        project_id: projectId,
+        timestamp: Date.now() - 10 * 24 * 60 * 60 * 1000,
+      });
+
+      await createTracesCh([backdatedWithinLookback, backdatedBeyondLookback]);
+
+      const getSession = await makeZodVerifiedAPICall(
+        GetSessionV1Response,
+        "GET",
+        `/api/public/sessions/${sessionId}`,
+      );
+
+      expect(getSession.status).toBe(200);
+      const traceIds = getSession.body.traces.map((t) => t.id);
+      expect(traceIds).toContain(backdatedWithinLookback.id);
+      expect(traceIds).not.toContain(backdatedBeyondLookback.id);
+    });
   });
 
   describe("GET /api/public/sessions API Endpoint", () => {
