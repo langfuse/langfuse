@@ -41,6 +41,7 @@ export const GetSessionsV1Response = z
 // GET /sessions/:id
 export const GetSessionV1Query = z.object({
   sessionId: z.string(),
+  fromTimestamp: stringDateTime,
 });
 export const GetSessionV1Response = APISession.extend({
   traces: z.array(APITrace),

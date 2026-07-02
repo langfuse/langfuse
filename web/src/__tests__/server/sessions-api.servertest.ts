@@ -85,6 +85,56 @@ describe("/api/public/sessions API Endpoint", () => {
       expect(traceIds).toContain(backdatedWithinLookback.id);
       expect(traceIds).not.toContain(backdatedBeyondLookback.id);
     });
+
+    it("should let fromTimestamp override the default trace lookback", async () => {
+      const sessionId = v4();
+
+      await prisma.traceSession.create({
+        data: {
+          id: sessionId,
+          projectId: projectId,
+        },
+      });
+
+      const recentTrace = createTrace({
+        session_id: sessionId,
+        project_id: projectId,
+        timestamp: Date.now(),
+      });
+      const backdatedTrace = createTrace({
+        session_id: sessionId,
+        project_id: projectId,
+        timestamp: Date.now() - 10 * 24 * 60 * 60 * 1000,
+      });
+
+      await createTracesCh([recentTrace, backdatedTrace]);
+
+      // Widening beyond the 2-day default includes traces backdated further.
+      const widened = await makeZodVerifiedAPICall(
+        GetSessionV1Response,
+        "GET",
+        `/api/public/sessions/${sessionId}?fromTimestamp=${encodeURIComponent(
+          new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+        )}`,
+      );
+      expect(widened.status).toBe(200);
+      expect(widened.body.traces.map((t) => t.id)).toEqual(
+        expect.arrayContaining([recentTrace.id, backdatedTrace.id]),
+      );
+
+      // Narrowing excludes traces older than the provided bound.
+      const narrowed = await makeZodVerifiedAPICall(
+        GetSessionV1Response,
+        "GET",
+        `/api/public/sessions/${sessionId}?fromTimestamp=${encodeURIComponent(
+          new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+        )}`,
+      );
+      expect(narrowed.status).toBe(200);
+      const narrowedIds = narrowed.body.traces.map((t) => t.id);
+      expect(narrowedIds).toContain(recentTrace.id);
+      expect(narrowedIds).not.toContain(backdatedTrace.id);
+    });
   });
 
   describe("GET /api/public/sessions API Endpoint", () => {

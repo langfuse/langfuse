@@ -50,6 +50,16 @@ service:
         sessionId:
           type: string
           docs: The unique id of a session
+      request:
+        name: GetSessionRequest
+        query-parameters:
+          fromTimestamp:
+            type: optional<datetime>
+            docs: |
+              Optional lower bound for the traces returned with the session (ISO 8601).
+              Only traces with a timestamp on or after this value are included.
+              Defaults to the session's createdAt minus 2 days, so traces backdated
+              further need an explicit fromTimestamp.
       response: commons.SessionWithTraces
 types:
   PaginatedSessions:

@@ -12,7 +12,8 @@ import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/
 // Trace timestamps are client-supplied and may predate the session row's
 // ingestion-time createdAt (e.g. backfills, buffered OTEL exports). Two days
 // of slack covers realistic backdating while still letting ClickHouse prune
-// partitions by timestamp.
+// partitions by timestamp. Callers with older traces can widen the window
+// via the fromTimestamp query parameter.
 const SESSION_TRACE_LOOKBACK_MS = 2 * 24 * 60 * 60 * 1000;
 
 export default withMiddlewares({
@@ -26,7 +27,7 @@ export default withMiddlewares({
     // which has no events_full fallback.
     rejectInEventsOnlyMode: true,
     fn: async ({ query, auth }) => {
-      const { sessionId } = query;
+      const { sessionId, fromTimestamp } = query;
       const session = await prisma.traceSession.findUnique({
         where: {
           id_projectId: {
@@ -51,7 +52,9 @@ export default withMiddlewares({
       const traces = await getTracesBySessionId(
         auth.scope.projectId,
         [sessionId],
-        new Date(session.createdAt.getTime() - SESSION_TRACE_LOOKBACK_MS),
+        fromTimestamp
+          ? new Date(fromTimestamp)
+          : new Date(session.createdAt.getTime() - SESSION_TRACE_LOOKBACK_MS),
       );
 
       return {
