@@ -429,7 +429,11 @@ export function TraceTimeline() {
       undefined as (typeof roots)[0]["totalCost"],
     );
   }, [roots]);
-  const parentTotalDuration = traceDuration;
+  // MILLISECONDS: TimelineBar heat-maps ownDurationMs against this max, and
+  // the tree path (TraceTree rootTotalDuration) is ms too. traceDuration is
+  // seconds — passing it raw inflated the heat ratio ×1000, painting every
+  // duration label dark red.
+  const parentTotalDuration = traceDuration * 1000;
 
   // Score lookup: one pass over the scores instead of an O(scores) filter per
   // row per render. Two maps preserve the exact TRACE-vs-observation keying:
