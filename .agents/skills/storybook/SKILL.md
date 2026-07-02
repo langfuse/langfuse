@@ -58,6 +58,15 @@ If the button also has a `variant: "primary" | "secondary"` prop, consider using
 
 These compositional stories **should not** contain Storybook play functions. They should also not allow the Storybook user to customize the predefined args, such as `size` and `variant`, via Storybook args. Having an arg for non-bound props, such as `text`, may be acceptable.
 
+## Authoring MDX Docs
+
+- Use `.mdx` for prose docs and guides that sit alongside stories.
+- Keep `.mdx` files simple by default: standard markdown plus Storybook docs blocks such as `Meta` and `Canvas` are usually enough.
+- Do not build bespoke page layouts in `.mdx` with exported inline-styled React components unless there is a strong reason.
+- If docs need reusable typography, spacing, or docs-page chrome, add that once in Storybook preview/docs container setup rather than re-implementing it in a single `.mdx` file.
+- Keep illustrative examples in `.stories.tsx`; keep narrative and explanation in `.mdx`.
+- If an example needs a small wrapper in a story, keep it minimal and focused on presenting the example rather than recreating page design inside Storybook.
+
 ## Additional Information
 
 - We do not use MSW and are not planning to add it.
