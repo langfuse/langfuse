@@ -6,6 +6,7 @@ import {
   createObservation,
   createTrace,
   createTraceScore,
+  UNKNOWN_INGESTION_SDK_VALUE,
   type InternalTraceEventInput,
   type ObservationEvent,
   type ScoreEventType,
@@ -204,8 +205,8 @@ describe("IngestionService unit tests", () => {
       writeToStagingTables: true,
       attribution: {
         ingestionApiKey: "pk-lf-update",
-        ingestionSdkName: "",
-        ingestionSdkVersion: "",
+        ingestionSdkName: UNKNOWN_INGESTION_SDK_VALUE,
+        ingestionSdkVersion: UNKNOWN_INGESTION_SDK_VALUE,
       },
     });
 
@@ -221,8 +222,8 @@ describe("IngestionService unit tests", () => {
     expect(observationRecord).not.toHaveProperty("ingestion_sdk_version");
     expect(stagingRecord).toMatchObject({
       ingestion_api_key: "pk-lf-update",
-      ingestion_sdk_name: "",
-      ingestion_sdk_version: "",
+      ingestion_sdk_name: UNKNOWN_INGESTION_SDK_VALUE,
+      ingestion_sdk_version: UNKNOWN_INGESTION_SDK_VALUE,
     });
   });
 
@@ -272,8 +273,8 @@ describe("IngestionService unit tests", () => {
       scoreEventList,
       attribution: {
         ingestionApiKey: "pk-lf-update",
-        ingestionSdkName: "",
-        ingestionSdkVersion: "",
+        ingestionSdkName: UNKNOWN_INGESTION_SDK_VALUE,
+        ingestionSdkVersion: UNKNOWN_INGESTION_SDK_VALUE,
       },
     });
 
@@ -329,8 +330,8 @@ describe("IngestionService unit tests", () => {
       createEventTraceRecord: true,
       attribution: {
         ingestionApiKey: "pk-lf-update",
-        ingestionSdkName: "",
-        ingestionSdkVersion: "",
+        ingestionSdkName: UNKNOWN_INGESTION_SDK_VALUE,
+        ingestionSdkVersion: UNKNOWN_INGESTION_SDK_VALUE,
       },
     });
 
@@ -340,8 +341,8 @@ describe("IngestionService unit tests", () => {
 
     expect(stagingRecord).toMatchObject({
       ingestion_api_key: "pk-lf-update",
-      ingestion_sdk_name: "",
-      ingestion_sdk_version: "",
+      ingestion_sdk_name: UNKNOWN_INGESTION_SDK_VALUE,
+      ingestion_sdk_version: UNKNOWN_INGESTION_SDK_VALUE,
     });
   });
 

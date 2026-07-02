@@ -1,4 +1,5 @@
 import z from "zod";
+import { UNKNOWN_INGESTION_SDK_VALUE } from "../ingestion/ingestionAttribution";
 import { DEFAULT_TRACE_ENVIRONMENT } from "../ingestion/types";
 
 export const clickhouseStringDateSchema = z
@@ -439,8 +440,8 @@ export const convertTraceToStagingObservation = (
 
     // Ingestion attribution
     ingestion_api_key: "",
-    ingestion_sdk_name: "",
-    ingestion_sdk_version: "",
+    ingestion_sdk_name: UNKNOWN_INGESTION_SDK_VALUE,
+    ingestion_sdk_version: UNKNOWN_INGESTION_SDK_VALUE,
 
     // System fields
     created_at: traceRecord.created_at,
@@ -636,8 +637,8 @@ export const convertPostgresScoreToInsert = (
     queue_id: score.queue_id,
     execution_trace_id: null, // Postgres scores do not have eval execution traces
     ingestion_api_key: "",
-    ingestion_sdk_name: "",
-    ingestion_sdk_version: "",
+    ingestion_sdk_name: UNKNOWN_INGESTION_SDK_VALUE,
+    ingestion_sdk_version: UNKNOWN_INGESTION_SDK_VALUE,
     created_at: score.created_at?.getTime(),
     updated_at: score.updated_at?.getTime(),
     event_ts: score.timestamp?.getTime(),

@@ -20,6 +20,7 @@ import {
   traceException,
   compareVersions,
   ResourceSpan,
+  normalizeIngestionAttribution,
 } from "@langfuse/shared/src/server";
 import {
   applyIngestionMasking,
@@ -212,11 +213,11 @@ export const otelIngestionQueueProcessorBuilder = (
       const publicKey = job.data.payload.data.publicKey;
       const fileKey = job.data.payload.data.fileKey;
       const auth = job.data.payload.authCheck;
-      const attribution = {
+      const attribution = normalizeIngestionAttribution({
         ingestionApiKey: publicKey ?? "",
-        ingestionSdkName: job.data.payload.sdkName ?? "",
-        ingestionSdkVersion: job.data.payload.sdkVersion ?? "",
-      };
+        ingestionSdkName: job.data.payload.sdkName,
+        ingestionSdkVersion: job.data.payload.sdkVersion,
+      });
 
       const span = getCurrentSpan();
       if (span) {

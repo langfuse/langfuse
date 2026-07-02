@@ -6,6 +6,7 @@ import {
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
 } from "../repositories/definitions";
+import { UNKNOWN_INGESTION_SDK_VALUE } from "../ingestion/ingestionAttribution";
 
 export const createTrace = (
   trace: Partial<TraceRecordInsertType>,
@@ -127,8 +128,8 @@ export const createTraceScore = (
     updated_at: Date.now(),
     event_ts: Date.now(),
     ingestion_api_key: "",
-    ingestion_sdk_name: "",
-    ingestion_sdk_version: "",
+    ingestion_sdk_name: UNKNOWN_INGESTION_SDK_VALUE,
+    ingestion_sdk_version: UNKNOWN_INGESTION_SDK_VALUE,
     is_deleted: 0,
     ...score,
     session_id: null,
@@ -156,8 +157,8 @@ export const createSessionScore = (
     updated_at: Date.now(),
     event_ts: Date.now(),
     ingestion_api_key: "",
-    ingestion_sdk_name: "",
-    ingestion_sdk_version: "",
+    ingestion_sdk_name: UNKNOWN_INGESTION_SDK_VALUE,
+    ingestion_sdk_version: UNKNOWN_INGESTION_SDK_VALUE,
     is_deleted: 0,
     ...score,
     observation_id: null,
@@ -186,8 +187,8 @@ export const createDatasetRunScore = (
     updated_at: Date.now(),
     event_ts: Date.now(),
     ingestion_api_key: "",
-    ingestion_sdk_name: "",
-    ingestion_sdk_version: "",
+    ingestion_sdk_name: UNKNOWN_INGESTION_SDK_VALUE,
+    ingestion_sdk_version: UNKNOWN_INGESTION_SDK_VALUE,
     is_deleted: 0,
     ...score,
     observation_id: null,

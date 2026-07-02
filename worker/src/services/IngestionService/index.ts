@@ -51,6 +51,7 @@ import {
   hasNoEvalConfigsCache,
   buildClickHouseLogComment,
   type IngestionAttribution,
+  UNKNOWN_INGESTION_SDK_VALUE,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -113,11 +114,17 @@ const getNonEmptyIngestionAttributionRecordFields = (
     fields.ingestion_api_key = attribution.ingestionApiKey;
   }
 
-  if (attribution?.ingestionSdkName) {
+  if (
+    attribution?.ingestionSdkName &&
+    attribution.ingestionSdkName !== UNKNOWN_INGESTION_SDK_VALUE
+  ) {
     fields.ingestion_sdk_name = attribution.ingestionSdkName;
   }
 
-  if (attribution?.ingestionSdkVersion) {
+  if (
+    attribution?.ingestionSdkVersion &&
+    attribution.ingestionSdkVersion !== UNKNOWN_INGESTION_SDK_VALUE
+  ) {
     fields.ingestion_sdk_version = attribution.ingestionSdkVersion;
   }
 
@@ -145,11 +152,11 @@ const setIngestionAttributionRecordFieldDefaults = <
     ingestion_sdk_name:
       typeof record["ingestion_sdk_name"] === "string"
         ? record["ingestion_sdk_name"]
-        : "",
+        : UNKNOWN_INGESTION_SDK_VALUE,
     ingestion_sdk_version:
       typeof record["ingestion_sdk_version"] === "string"
         ? record["ingestion_sdk_version"]
-        : "",
+        : UNKNOWN_INGESTION_SDK_VALUE,
   }) as T & Required<IngestionAttributionRecordFields>;
 };
 

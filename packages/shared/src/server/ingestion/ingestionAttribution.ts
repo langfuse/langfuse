@@ -9,6 +9,8 @@ export type IngestionAttribution = {
   ingestionSdkVersion: string;
 };
 
+export const UNKNOWN_INGESTION_SDK_VALUE = "unknown";
+
 const getHeaderValue = (
   headers: IngestionHeaderMap | undefined,
   name: string,
@@ -24,6 +26,9 @@ const getHeaderValue = (
   return "";
 };
 
+const normalizeSdkValue = (value: string | undefined): string =>
+  value || UNKNOWN_INGESTION_SDK_VALUE;
+
 export const getLangfuseHeaderValue = getHeaderValue;
 
 export const createIngestionAttribution = (params: {
@@ -34,8 +39,12 @@ export const createIngestionAttribution = (params: {
 
   return {
     ingestionApiKey: authCheck.scope.publicKey ?? "",
-    ingestionSdkName: getHeaderValue(headers, "x-langfuse-sdk-name"),
-    ingestionSdkVersion: getHeaderValue(headers, "x-langfuse-sdk-version"),
+    ingestionSdkName: normalizeSdkValue(
+      getHeaderValue(headers, "x-langfuse-sdk-name"),
+    ),
+    ingestionSdkVersion: normalizeSdkValue(
+      getHeaderValue(headers, "x-langfuse-sdk-version"),
+    ),
   };
 };
 
@@ -43,6 +52,6 @@ export const normalizeIngestionAttribution = (
   attribution?: Partial<IngestionAttribution>,
 ): IngestionAttribution => ({
   ingestionApiKey: attribution?.ingestionApiKey ?? "",
-  ingestionSdkName: attribution?.ingestionSdkName ?? "",
-  ingestionSdkVersion: attribution?.ingestionSdkVersion ?? "",
+  ingestionSdkName: normalizeSdkValue(attribution?.ingestionSdkName),
+  ingestionSdkVersion: normalizeSdkValue(attribution?.ingestionSdkVersion),
 });

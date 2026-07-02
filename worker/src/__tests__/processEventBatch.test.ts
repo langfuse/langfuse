@@ -1,6 +1,7 @@
 import { beforeEach, describe, it, expect, assert, vi } from "vitest";
 import { eventTypes } from "../../../packages/shared/src/server/ingestion/types";
 import { processEventBatch } from "../../../packages/shared/src/server/ingestion/processEventBatch";
+import { UNKNOWN_INGESTION_SDK_VALUE } from "../../../packages/shared/src/server/ingestion/ingestionAttribution";
 
 const { getQueueInstanceMock, queueAddMock, uploadJsonMock } = vi.hoisted(
   () => ({
@@ -136,8 +137,8 @@ describe("processEventBatch", () => {
 
     expect(queueAddMock.mock.calls[0][1].payload.data).toMatchObject({
       ingestionApiKey: "pk-lf-public",
-      ingestionSdkName: "",
-      ingestionSdkVersion: "",
+      ingestionSdkName: UNKNOWN_INGESTION_SDK_VALUE,
+      ingestionSdkVersion: UNKNOWN_INGESTION_SDK_VALUE,
     });
   });
 });

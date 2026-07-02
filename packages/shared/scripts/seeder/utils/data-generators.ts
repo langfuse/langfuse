@@ -35,6 +35,7 @@ import {
   DatasetRunItemRecordInsertType,
   createDatasetRunItem,
   createDatasetRunScore,
+  UNKNOWN_INGESTION_SDK_VALUE,
 } from "../../../src/server";
 
 /**
@@ -119,8 +120,8 @@ export class DataGenerator {
       case "raw-api":
         return {
           ingestion_api_key: `pk-lf-seed-${keySuffix}-raw-api`,
-          ingestion_sdk_name: "",
-          ingestion_sdk_version: "",
+          ingestion_sdk_name: UNKNOWN_INGESTION_SDK_VALUE,
+          ingestion_sdk_version: UNKNOWN_INGESTION_SDK_VALUE,
         };
     }
   }

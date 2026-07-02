@@ -573,11 +573,11 @@ ALTER TABLE observations_batch_staging
   SETTINGS enable_full_text_index = 1;
 
 ALTER TABLE observations_batch_staging
-  ADD COLUMN IF NOT EXISTS ingestion_sdk_name LowCardinality(String) DEFAULT ''
+  ADD COLUMN IF NOT EXISTS ingestion_sdk_name LowCardinality(String) DEFAULT 'unknown'
   SETTINGS enable_full_text_index = 1;
 
 ALTER TABLE observations_batch_staging
-  ADD COLUMN IF NOT EXISTS ingestion_sdk_version LowCardinality(String) DEFAULT ''
+  ADD COLUMN IF NOT EXISTS ingestion_sdk_version LowCardinality(String) DEFAULT 'unknown'
   SETTINGS enable_full_text_index = 1;
 
 ALTER TABLE events_full
@@ -585,11 +585,11 @@ ALTER TABLE events_full
   SETTINGS enable_full_text_index = 1;
 
 ALTER TABLE events_full
-  ADD COLUMN IF NOT EXISTS ingestion_sdk_name LowCardinality(String) DEFAULT ''
+  ADD COLUMN IF NOT EXISTS ingestion_sdk_name LowCardinality(String) DEFAULT 'unknown'
   SETTINGS enable_full_text_index = 1;
 
 ALTER TABLE events_full
-  ADD COLUMN IF NOT EXISTS ingestion_sdk_version LowCardinality(String) DEFAULT ''
+  ADD COLUMN IF NOT EXISTS ingestion_sdk_version LowCardinality(String) DEFAULT 'unknown'
   SETTINGS enable_full_text_index = 1;
 
 ALTER TABLE events_core
@@ -597,11 +597,11 @@ ALTER TABLE events_core
   SETTINGS enable_full_text_index = 1;
 
 ALTER TABLE events_core
-  ADD COLUMN IF NOT EXISTS ingestion_sdk_name LowCardinality(String) DEFAULT ''
+  ADD COLUMN IF NOT EXISTS ingestion_sdk_name LowCardinality(String) DEFAULT 'unknown'
   SETTINGS enable_full_text_index = 1;
 
 ALTER TABLE events_core
-  ADD COLUMN IF NOT EXISTS ingestion_sdk_version LowCardinality(String) DEFAULT ''
+  ADD COLUMN IF NOT EXISTS ingestion_sdk_version LowCardinality(String) DEFAULT 'unknown'
   SETTINGS enable_full_text_index = 1;
 
 -- Update events MV
@@ -771,8 +771,8 @@ clickhouse client \
          o.event_ts,
          o.is_deleted,
          ''                                                                              AS ingestion_api_key,
-         ''                                                                              AS ingestion_sdk_name,
-         ''                                                                              AS ingestion_sdk_version
+         'unknown'                                                                       AS ingestion_sdk_name,
+         'unknown'                                                                       AS ingestion_sdk_version
   FROM observations o FINAL
   LEFT JOIN traces t ON o.project_id = t.project_id AND o.trace_id = t.id
   LEFT JOIN dataset_run_items_rmt dri ON o.project_id = dri.project_id AND o.trace_id = dri.trace_id
@@ -846,8 +846,8 @@ clickhouse client \
          t.event_ts,
          t.is_deleted,
          ''                                                                              AS ingestion_api_key,
-         ''                                                                              AS ingestion_sdk_name,
-         ''                                                                              AS ingestion_sdk_version
+         'unknown'                                                                       AS ingestion_sdk_name,
+         'unknown'                                                                       AS ingestion_sdk_version
   FROM traces t FINAL
   LEFT JOIN dataset_run_items_rmt dri ON t.project_id = dri.project_id AND t.id = dri.trace_id
   WHERE (t.is_deleted = 0);
