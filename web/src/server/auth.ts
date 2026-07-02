@@ -65,6 +65,7 @@ import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/sig
 import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
 import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
 import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
+import { validateSignupModeEligibility } from "@/src/features/auth/lib/signupPolicy";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -596,17 +597,18 @@ const extendedPrismaAdapter: Adapter = {
   async createUser(profile: Omit<AdapterUser, "id">) {
     if (!prismaAdapter.createUser)
       throw new Error("createUser not implemented");
-    if (
-      env.NEXT_PUBLIC_SIGN_UP_DISABLED === "true" ||
-      env.AUTH_DISABLE_SIGNUP === "true"
-    ) {
-      throw new Error("Sign up is disabled.");
-    }
     if (!profile.email) {
       throw new Error(
         "Cannot create db user as login profile does not contain an email: " +
           JSON.stringify(profile),
       );
+    }
+
+    const signupModeError = await validateSignupModeEligibility({
+      email: profile.email,
+    });
+    if (signupModeError) {
+      throw new Error(signupModeError);
     }
 
     const user = await prismaAdapter.createUser(profile);
