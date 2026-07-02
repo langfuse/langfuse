@@ -1,350 +1,137 @@
 /**
- * PlayheadContext - the trace playback engine, shared across every trace view.
+ * PlayheadContext - provides the per-mount trace playback store.
  *
- * Owns a single "playhead" that sweeps the trace's timeline and drives:
- *  - the transport controls (play/pause/stop), rendered view-agnostically in the
- *    navigation header so they show in Tree AND Timeline views;
- *  - a circular time-progress ring (fills as the playhead advances);
- *  - the Timeline's vertical playhead line + handle;
- *  - the "active run" glow across the timeline rows and the graph nodes.
+ * The engine itself (state, actions, RAF loop) lives in playheadStore.ts as a
+ * vanilla Zustand store; this file is only the integration boundary:
+ * - creates one store instance per mounted trace view (lazy useState),
+ * - syncs trace-derived inputs (duration, activation windows) into the store
+ *   via a named action whenever the trace or its geometry changes,
+ * - exposes narrow hooks so each consumer re-renders only for its slice.
  *
- * Re-render discipline (see frontend-large-feature-architecture):
- *  - Position moves ~60fps during playback → an imperative pub/sub
- *    (subscribePosition); subscribers write the DOM directly, no React re-render.
- *  - The active-observation Set changes only on boundary crossings → its own
- *    store; only the timeline rows + graph (its subscribers) re-render.
- *  - Transport flags (isPlaying/showPlayhead) change only on discrete actions →
- *    a third store with primitive selector hooks, so the provider value stays
- *    stable and the whole trace body never re-renders during playback.
+ * The ~60fps playhead position is consumed imperatively via subscribePosition
+ * (store.subscribe → write the DOM directly); only discrete flags and the
+ * boundary-crossing active Set go through React.
  */
 
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
   useMemo,
   useRef,
-  useSyncExternalStore,
+  useState,
   type ReactNode,
 } from "react";
+import { useStore } from "zustand";
 import { useTraceData } from "./TraceDataContext";
 import {
-  calculateTraceDuration,
-  findEarliestStartTime,
-} from "../components/TraceTimeline/timeline-calculations";
-import { type TreeNode } from "../lib/types";
+  buildNodeWindows,
+  createPlayheadStore,
+  type PlayheadStore,
+} from "./playheadStore";
 
-// Playback compresses to at most this many wall-clock seconds: traces shorter
-// than this play in real time; anything longer scales so the whole trace always
-// plays in exactly this window (no manual speed control).
-const PLAYBACK_MAX_SECONDS = 10;
-// End-of-trace epsilon: at/after this close to the end, "play" restarts from 0.
-const END_EPSILON_SECONDS = 0.05;
-
-const EMPTY_IDS: ReadonlySet<string> = new Set();
-const NOOP_SUBSCRIBE = () => () => {};
-
-type NodeWindow = { id: string; startSec: number; endSec: number };
-type Transport = { isPlaying: boolean; showPlayhead: boolean };
-
-interface PlayheadContextValue {
-  /** true when the trace has a positive duration (a timeline to play). */
-  hasTimeline: boolean;
-  /** Total trace span in seconds (timeline origin → latest end). */
-  traceDuration: number;
-  /** Timeline origin (the 0s mark). */
-  traceStartTime: Date;
-  play: () => void;
-  pause: () => void;
-  stop: () => void;
-  /** Move the playhead to an absolute time (seconds from origin) and pause. */
-  seekToSec: (sec: number) => void;
-  /** Current playhead time in seconds (read on demand; not reactive). */
-  getPlayheadSec: () => number;
-  /** High-frequency position updates (imperative — write the DOM, don't setState). */
-  subscribePosition: (listener: (sec: number) => void) => () => void;
-  // active-observation Set store (glow) — updated only on boundary crossings.
-  getActiveIds: () => ReadonlySet<string>;
-  subscribeActive: (listener: () => void) => () => void;
-  // transport store — read via the primitive selector hooks below.
-  getTransport: () => Transport;
-  subscribeTransport: (listener: () => void) => () => void;
-}
-
-const PlayheadContext = createContext<PlayheadContextValue | null>(null);
+const PlayheadStoreContext = createContext<PlayheadStore | null>(null);
 
 export function PlayheadProvider({ children }: { children: ReactNode }) {
-  const { roots } = useTraceData();
+  const { trace, roots, traceStartTime, traceDuration } = useTraceData();
 
-  const traceStartTime = useMemo(
-    () => findEarliestStartTime(roots) ?? new Date(),
-    [roots],
-  );
-  const traceDuration = useMemo(
-    () => calculateTraceDuration(roots, traceStartTime),
+  const nodeWindows = useMemo(
+    () => buildNodeWindows(roots, traceStartTime),
     [roots, traceStartTime],
   );
 
-  // Active window (start/end sec from origin) for EVERY node in the tree — the
-  // full tree, not just uncollapsed timeline rows, so the timeline glow and the
-  // graph glow stay consistent regardless of collapse state.
-  const nodeWindows = useMemo<NodeWindow[]>(() => {
-    const originMs = traceStartTime.getTime();
-    const out: NodeWindow[] = [];
-    const stack: TreeNode[] = [...roots];
-    while (stack.length > 0) {
-      const node = stack.pop()!;
-      const startSec = (node.startTime.getTime() - originMs) / 1000;
-      const endSec =
-        ((node.endTime ?? node.startTime).getTime() - originMs) / 1000;
-      out.push({ id: node.id, startSec, endSec });
-      for (const child of node.children) stack.push(child);
-    }
-    return out;
-  }, [roots, traceStartTime]);
-  const nodeWindowsRef = useRef(nodeWindows);
-  nodeWindowsRef.current = nodeWindows;
-
-  const playheadSecRef = useRef(0);
-  const rafRef = useRef<number | null>(null);
-  const lastTsRef = useRef(0);
-
-  // --- position pub/sub (imperative, ~60fps) ---
-  const positionListeners = useRef(new Set<(sec: number) => void>());
-  const subscribePosition = useCallback((listener: (sec: number) => void) => {
-    positionListeners.current.add(listener);
-    return () => {
-      positionListeners.current.delete(listener);
-    };
-  }, []);
-  const getPlayheadSec = useCallback(() => playheadSecRef.current, []);
-  const notifyPosition = useCallback((sec: number) => {
-    positionListeners.current.forEach((l) => l(sec));
-  }, []);
-
-  // --- active-observation Set store (re-renders subscribers on boundary crossings) ---
-  const activeIdsRef = useRef<ReadonlySet<string>>(EMPTY_IDS);
-  const activeListeners = useRef(new Set<() => void>());
-  const subscribeActive = useCallback((listener: () => void) => {
-    activeListeners.current.add(listener);
-    return () => {
-      activeListeners.current.delete(listener);
-    };
-  }, []);
-  const getActiveIds = useCallback(() => activeIdsRef.current, []);
-  const setActiveIds = useCallback((ids: ReadonlySet<string>) => {
-    if (ids === activeIdsRef.current) return;
-    activeIdsRef.current = ids;
-    activeListeners.current.forEach((l) => l());
-  }, []);
-
-  // --- transport store (isPlaying / showPlayhead; discrete changes only) ---
-  const transportRef = useRef<Transport>({
-    isPlaying: false,
-    showPlayhead: false,
+  // One engine instance per mounted trace view, seeded synchronously so the
+  // first render already sees the real duration (no "controls flash in" frame).
+  const [store] = useState(() => {
+    const created = createPlayheadStore();
+    created.getState().actions.syncTrace({
+      traceDuration,
+      nodeWindows,
+      hard: true,
+    });
+    return created;
   });
-  const transportListeners = useRef(new Set<() => void>());
-  const subscribeTransport = useCallback((listener: () => void) => {
-    transportListeners.current.add(listener);
-    return () => {
-      transportListeners.current.delete(listener);
-    };
-  }, []);
-  const getTransport = useCallback(() => transportRef.current, []);
-  const setTransport = useCallback((patch: Partial<Transport>) => {
-    const cur = transportRef.current;
-    const next = { ...cur, ...patch };
-    if (
-      next.isPlaying === cur.isPlaying &&
-      next.showPlayhead === cur.showPlayhead
-    )
+
+  // Integration boundary: push geometry changes into the store. A different
+  // trace id is a hard reset (playback cleared); same-trace churn (level
+  // filter, refetch) is a soft sync that re-clamps and keeps playing.
+  const syncedTraceIdRef = useRef(trace.id);
+  const firstSyncRef = useRef(true);
+  useEffect(() => {
+    if (firstSyncRef.current) {
+      // The lazy initializer above already synced this exact geometry.
+      firstSyncRef.current = false;
       return;
-    transportRef.current = next;
-    transportListeners.current.forEach((l) => l());
-  }, []);
-
-  // Move the playhead: write the position (imperative), then recompute the
-  // active set and commit only when it changes (a boundary crossing).
-  const positionPlayhead = useCallback(
-    (sec: number) => {
-      const clamped = Math.max(0, Math.min(traceDuration, sec));
-      playheadSecRef.current = clamped;
-      notifyPosition(clamped);
-
-      const next = new Set<string>();
-      for (const w of nodeWindowsRef.current) {
-        if (clamped >= w.startSec && clamped <= w.endSec) next.add(w.id);
-      }
-      const cur = activeIdsRef.current;
-      let changed = cur.size !== next.size;
-      if (!changed) {
-        for (const id of next) {
-          if (!cur.has(id)) {
-            changed = true;
-            break;
-          }
-        }
-      }
-      if (changed) setActiveIds(next);
-    },
-    [traceDuration, notifyPosition, setActiveIds],
-  );
-
-  const pause = useCallback(() => {
-    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-    rafRef.current = null;
-    setTransport({ isPlaying: false });
-  }, [setTransport]);
-
-  const seekToSec = useCallback(
-    (sec: number) => {
-      pause();
-      setTransport({ showPlayhead: true });
-      positionPlayhead(sec);
-    },
-    [pause, setTransport, positionPlayhead],
-  );
-
-  const play = useCallback(() => {
-    if (traceDuration <= 0) return;
-    setTransport({ showPlayhead: true, isPlaying: true });
-    // Restart from the beginning if the playhead is at (or past) the end.
-    if (playheadSecRef.current >= traceDuration - END_EPSILON_SECONDS) {
-      positionPlayhead(0);
     }
-    lastTsRef.current = 0;
-    // Rate = trace-seconds per wall-clock-second. Short traces play in real time
-    // (rate 1); long ones scale so the whole trace finishes in
-    // PLAYBACK_MAX_SECONDS regardless of its true length.
-    const rate =
-      traceDuration > PLAYBACK_MAX_SECONDS
-        ? traceDuration / PLAYBACK_MAX_SECONDS
-        : 1;
-    const startSec = playheadSecRef.current;
-    const step = (ts: number) => {
-      if (!lastTsRef.current) lastTsRef.current = ts;
-      const dt = (ts - lastTsRef.current) / 1000;
-      lastTsRef.current = ts;
-      const nextSec = playheadSecRef.current + dt * rate;
-      if (nextSec >= traceDuration) {
-        positionPlayhead(traceDuration);
-        pause();
-        return;
-      }
-      positionPlayhead(nextSec);
-      rafRef.current = requestAnimationFrame(step);
-    };
-    // Seed the position so a paused-at-start play doesn't skip the first frame.
-    positionPlayhead(startSec);
-    rafRef.current = requestAnimationFrame(step);
-  }, [traceDuration, positionPlayhead, pause, setTransport]);
+    const hard = syncedTraceIdRef.current !== trace.id;
+    syncedTraceIdRef.current = trace.id;
+    store.getState().actions.syncTrace({ traceDuration, nodeWindows, hard });
+  }, [store, trace.id, traceDuration, nodeWindows]);
 
-  const stop = useCallback(() => {
-    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-    rafRef.current = null;
-    playheadSecRef.current = 0;
-    notifyPosition(0);
-    setActiveIds(EMPTY_IDS);
-    setTransport({ isPlaying: false, showPlayhead: false });
-  }, [notifyPosition, setActiveIds, setTransport]);
-
-  // Reset when the trace changes (new roots → new duration/windows) and on
-  // unmount — cancel any in-flight animation and clear the playhead.
-  useEffect(() => {
-    return () => {
-      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    // A different trace loaded — reset the playhead to the start.
-    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-    rafRef.current = null;
-    playheadSecRef.current = 0;
-    notifyPosition(0);
-    setActiveIds(EMPTY_IDS);
-    setTransport({ isPlaying: false, showPlayhead: false });
-  }, [roots, notifyPosition, setActiveIds, setTransport]);
-
-  const value = useMemo<PlayheadContextValue>(
-    () => ({
-      hasTimeline: traceDuration > 0,
-      traceDuration,
-      traceStartTime,
-      play,
-      pause,
-      stop,
-      seekToSec,
-      getPlayheadSec,
-      subscribePosition,
-      getActiveIds,
-      subscribeActive,
-      getTransport,
-      subscribeTransport,
-    }),
-    [
-      traceDuration,
-      traceStartTime,
-      play,
-      pause,
-      stop,
-      seekToSec,
-      getPlayheadSec,
-      subscribePosition,
-      getActiveIds,
-      subscribeActive,
-      getTransport,
-      subscribeTransport,
-    ],
-  );
+  // Halt the RAF loop when the trace view unmounts.
+  useEffect(() => () => store.getState().actions.pause(), [store]);
 
   return (
-    <PlayheadContext.Provider value={value}>
+    <PlayheadStoreContext.Provider value={store}>
       {children}
-    </PlayheadContext.Provider>
+    </PlayheadStoreContext.Provider>
   );
 }
 
-export function usePlayhead(): PlayheadContextValue {
-  const ctx = useContext(PlayheadContext);
-  if (!ctx) {
-    throw new Error("usePlayhead must be used within a PlayheadProvider");
+export function usePlayheadStore(): PlayheadStore {
+  const store = useContext(PlayheadStoreContext);
+  if (!store) {
+    throw new Error("usePlayheadStore must be used within a PlayheadProvider");
   }
-  return ctx;
+  return store;
+}
+
+/**
+ * Transport surface: stable actions plus the imperative position feed for
+ * ~60fps consumers (the progress ring, the timeline playhead line/handle).
+ */
+export function usePlayhead() {
+  const store = usePlayheadStore();
+  return useMemo(
+    () => ({
+      ...store.getState().actions,
+      getPlayheadSec: () => store.getState().playheadSec,
+      /** High-frequency position updates — write the DOM, don't setState. */
+      subscribePosition: (listener: (sec: number) => void) =>
+        store.subscribe((state, prev) => {
+          if (state.playheadSec !== prev.playheadSec) {
+            listener(state.playheadSec);
+          }
+        }),
+    }),
+    [store],
+  );
 }
 
 /** Whether playback is currently running (re-renders only on play/pause). */
 export function useIsPlaying(): boolean {
-  const ctx = useContext(PlayheadContext);
-  return useSyncExternalStore(
-    ctx?.subscribeTransport ?? NOOP_SUBSCRIBE,
-    ctx ? () => ctx.getTransport().isPlaying : () => false,
-    () => false,
-  );
+  return useStore(usePlayheadStore(), (s) => s.isPlaying);
 }
 
 /** Whether a playhead has been placed (re-renders only when it toggles). */
 export function useShowPlayhead(): boolean {
-  const ctx = useContext(PlayheadContext);
-  return useSyncExternalStore(
-    ctx?.subscribeTransport ?? NOOP_SUBSCRIBE,
-    ctx ? () => ctx.getTransport().showPlayhead : () => false,
-    () => false,
-  );
+  return useStore(usePlayheadStore(), (s) => s.showPlayhead);
 }
 
 /**
- * The set of observation ids "playing" at the playhead. Subscribes to the
- * active-set store — re-renders on boundary crossings only. Used by the timeline
- * rows and (mapped to node names) the graph, so both glow in sync.
+ * The set of observation ids "playing" at the playhead. Re-renders on
+ * boundary crossings only. Drives the timeline row glow and (mapped to node
+ * names) the graph glow, so both stay in sync.
  */
 export function useActiveObservationIds(): ReadonlySet<string> {
-  const ctx = useContext(PlayheadContext);
-  return useSyncExternalStore(
-    ctx?.subscribeActive ?? NOOP_SUBSCRIBE,
-    ctx?.getActiveIds ?? (() => EMPTY_IDS),
-    () => EMPTY_IDS,
-  );
+  return useStore(usePlayheadStore(), (s) => s.activeIds);
+}
+
+/**
+ * Per-row glow subscription: re-renders ONLY the row whose membership flipped
+ * (a primitive selector), so a boundary crossing never re-renders the whole
+ * virtualized list.
+ */
+export function useIsObservationActive(id: string): boolean {
+  return useStore(usePlayheadStore(), (s) => s.activeIds.has(id));
 }

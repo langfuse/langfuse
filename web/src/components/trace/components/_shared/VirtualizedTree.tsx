@@ -90,13 +90,17 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
       prevSelectedIdRef.current = selectedNodeId;
       return;
     }
-    const isInitial = prevSelectedIdRef.current === undefined;
-    prevSelectedIdRef.current = selectedNodeId;
 
     const index = flattenedItems.findIndex(
       (item) => item.node.id === selectedNodeId,
     );
-    if (index === -1) return; // selected node is collapsed/not in the flat list
+    // Keep the scroll PENDING when the row is missing (collapsed subtree,
+    // level filter) — the ref stays un-advanced, so this retries when
+    // flattenedItems changes and the row appears.
+    if (index === -1) return;
+
+    const isInitial = prevSelectedIdRef.current === undefined;
+    prevSelectedIdRef.current = selectedNodeId;
 
     // Initial load: center it instantly (no post-paint animation). Later
     // selection changes: minimal, smooth scroll only if it's off-screen.

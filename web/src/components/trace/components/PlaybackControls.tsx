@@ -6,14 +6,16 @@
  * playhead sweeps the trace's total time — a compact "where are we in the
  * trace" indicator that isn't tied to the gantt. Stop resets it.
  *
- * The ring is driven imperatively off the playhead position pub/sub, so it
+ * The ring is driven imperatively off the playhead position feed, so it
  * animates at 60fps without re-rendering (only the play/pause icon flips, via
- * the isPlaying store).
+ * the isPlaying selector).
  */
 
 import { useEffect, useRef } from "react";
 import { Pause, Play, Square } from "lucide-react";
+import { Button } from "@/src/components/ui/button";
 import { usePlayhead, useIsPlaying } from "../contexts/PlayheadContext";
+import { useTraceData } from "../contexts/TraceDataContext";
 
 // A 22px ring around the ~28px (h-7) button; 2px stroke reads at this size.
 const RING_SIZE = 22;
@@ -22,15 +24,9 @@ const RING_R = (RING_SIZE - RING_STROKE) / 2;
 const RING_C = 2 * Math.PI * RING_R;
 
 export function PlaybackControls() {
-  const {
-    hasTimeline,
-    traceDuration,
-    play,
-    pause,
-    stop,
-    getPlayheadSec,
-    subscribePosition,
-  } = usePlayhead();
+  const { traceDuration } = useTraceData();
+  const { play, pause, stop, getPlayheadSec, subscribePosition } =
+    usePlayhead();
   const isPlaying = useIsPlaying();
   const ringRef = useRef<SVGCircleElement>(null);
 
@@ -47,16 +43,18 @@ export function PlaybackControls() {
     return subscribePosition(apply);
   }, [traceDuration, getPlayheadSec, subscribePosition]);
 
-  if (!hasTimeline) return null;
+  if (traceDuration <= 0) return null;
 
   return (
     <div className="ml-1 flex shrink-0 flex-row items-center gap-0.5">
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon"
         onClick={isPlaying ? pause : play}
         title={isPlaying ? "Pause playback" : "Play trace over time"}
         aria-label={isPlaying ? "Pause playback" : "Play trace over time"}
-        className="hover:bg-muted text-muted-foreground hover:text-foreground relative flex h-7 w-7 items-center justify-center rounded"
+        className="relative h-7 w-7"
       >
         <svg
           className="pointer-events-none absolute inset-0 m-auto"
@@ -92,16 +90,18 @@ export function PlaybackControls() {
         ) : (
           <Play className="h-3 w-3 translate-x-px" />
         )}
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="ghost"
+        size="icon"
         onClick={stop}
         title="Stop playback"
         aria-label="Stop playback"
-        className="hover:bg-muted text-muted-foreground hover:text-foreground flex h-7 w-7 items-center justify-center rounded"
+        className="h-7 w-7"
       >
         <Square className="h-2.5 w-2.5" />
-      </button>
+      </Button>
     </div>
   );
 }
