@@ -167,6 +167,48 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Exclude local Claude observability plugin checkout from audit diff
+        if: steps.validate-inputs.outputs.dry_run_mode == 'disabled'
+        run: |
+          set -euo pipefail
+
+          echo ".github/actions/claude-observability-plugin/" >> .git/info/exclude
+
+      - name: Checkout Claude observability plugin
+        if: steps.validate-inputs.outputs.dry_run_mode == 'disabled'
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          repository: langfuse/Claude-Observability-Plugin
+          ref: ea5eca1dfa26dcb552e2892dde99bcd749eb7253
+          path: .github/actions/claude-observability-plugin
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install uv
+        if: steps.validate-inputs.outputs.dry_run_mode == 'disabled'
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          version: "0.11.2"
+
+      - name: Validate Claude observability secrets
+        if: steps.validate-inputs.outputs.dry_run_mode == 'disabled'
+        env:
+          LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+          LANGFUSE_BASE_URL: ${{ secrets.LANGFUSE_BASE_URL }}
+        run: |
+          set -euo pipefail
+
+          missing=0
+          for secret_name in LANGFUSE_PUBLIC_KEY LANGFUSE_SECRET_KEY LANGFUSE_BASE_URL; do
+            if [ -z "${!secret_name:-}" ]; then
+              echo "::error::Required Claude observability secret is not set: ${secret_name}"
+              missing=1
+            fi
+          done
+
+          exit "$missing"
+
       - name: Run Claude price audit
         id: claude-audit
         if: steps.validate-inputs.outputs.dry_run_mode == 'disabled'
@@ -178,6 +220,41 @@ jobs:
           anthropic_api_key: ${{ secrets.CLAUDE_API_KEY }}
           github_token: ${{ github.token }}
           display_report: "true"
+          settings: |
+            {
+              "env": {
+                "LANGFUSE_PUBLIC_KEY": "${{ secrets.LANGFUSE_PUBLIC_KEY }}",
+                "LANGFUSE_SECRET_KEY": "${{ secrets.LANGFUSE_SECRET_KEY }}",
+                "LANGFUSE_BASE_URL": "${{ secrets.LANGFUSE_BASE_URL }}",
+                "LANGFUSE_USER_ID": "${{ github.actor }}",
+                "CC_LANGFUSE_DEBUG": "false",
+                "CC_LANGFUSE_MAX_CHARS": "20000",
+                "CC_LANGFUSE_SKILL_TAGS": "true",
+                "CC_LANGFUSE_CAPTURE_SKILL_CONTENT": "false"
+              },
+              "hooks": {
+                "Stop": [
+                  {
+                    "hooks": [
+                      {
+                        "type": "command",
+                        "command": "uv run --quiet --script ${{ github.workspace }}/.github/actions/claude-observability-plugin/hooks/langfuse_hook.py"
+                      }
+                    ]
+                  }
+                ],
+                "SessionEnd": [
+                  {
+                    "hooks": [
+                      {
+                        "type": "command",
+                        "command": "uv run --quiet --script ${{ github.workspace }}/.github/actions/claude-observability-plugin/hooks/langfuse_hook.py"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
           prompt: |
             You are running Langfuse's scheduled default model price audit.
 
