@@ -1,6 +1,9 @@
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { AnnotationQueueObjectType } from "@langfuse/shared";
+import {
+  AnnotationQueueObjectType,
+  AnnotationQueueStatus,
+} from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
@@ -113,6 +116,139 @@ describe("annotationQueueItems trpc", () => {
           itemId: item.id,
         }),
       ).rejects.toThrow("User does not have access to this resource or action");
+    });
+  });
+
+  describe("fetchAndLockNext", () => {
+    it("processes pending queue items in the requested order", async () => {
+      const setup = await createOrgProjectAndApiKey();
+      orgIds.push(setup.org.id);
+
+      const { caller } = createCallerForProjectRole(setup);
+      const queue = await prisma.annotationQueue.create({
+        data: {
+          name: "Ordered Queue",
+          scoreConfigIds: [],
+          projectId: setup.project.id,
+        },
+      });
+
+      const oldestItemId = uuidv4();
+      const newestItemId = uuidv4();
+      const completedItemId = uuidv4();
+      const lockedItemId = uuidv4();
+
+      await prisma.annotationQueueItem.createMany({
+        data: [
+          {
+            id: oldestItemId,
+            queueId: queue.id,
+            objectId: uuidv4(),
+            objectType: AnnotationQueueObjectType.TRACE,
+            projectId: setup.project.id,
+            createdAt: new Date("2025-01-01T00:00:00.000Z"),
+          },
+          {
+            id: newestItemId,
+            queueId: queue.id,
+            objectId: uuidv4(),
+            objectType: AnnotationQueueObjectType.TRACE,
+            projectId: setup.project.id,
+            createdAt: new Date("2025-01-02T00:00:00.000Z"),
+          },
+          {
+            id: completedItemId,
+            queueId: queue.id,
+            objectId: uuidv4(),
+            objectType: AnnotationQueueObjectType.TRACE,
+            status: AnnotationQueueStatus.COMPLETED,
+            projectId: setup.project.id,
+            createdAt: new Date("2025-01-03T00:00:00.000Z"),
+          },
+          {
+            id: lockedItemId,
+            queueId: queue.id,
+            objectId: uuidv4(),
+            objectType: AnnotationQueueObjectType.TRACE,
+            projectId: setup.project.id,
+            createdAt: new Date("2025-01-04T00:00:00.000Z"),
+            lockedAt: new Date(),
+          },
+        ],
+      });
+
+      await expect(
+        caller.annotationQueues.fetchAndLockNext({
+          queueId: queue.id,
+          projectId: setup.project.id,
+          seenItemIds: [],
+        }),
+      ).resolves.toMatchObject({ id: oldestItemId });
+
+      await expect(
+        caller.annotationQueues.fetchAndLockNext({
+          queueId: queue.id,
+          projectId: setup.project.id,
+          seenItemIds: [],
+          order: "asc",
+        }),
+      ).resolves.toMatchObject({ id: oldestItemId });
+
+      await expect(
+        caller.annotationQueues.fetchAndLockNext({
+          queueId: queue.id,
+          projectId: setup.project.id,
+          seenItemIds: [],
+          order: "desc",
+        }),
+      ).resolves.toMatchObject({ id: newestItemId });
+    });
+
+    it("uses the item id to break equal created-at timestamps", async () => {
+      const setup = await createOrgProjectAndApiKey();
+      orgIds.push(setup.org.id);
+
+      const { caller } = createCallerForProjectRole(setup);
+      const queue = await prisma.annotationQueue.create({
+        data: {
+          name: "Tie Breaker Queue",
+          scoreConfigIds: [],
+          projectId: setup.project.id,
+        },
+      });
+      const createdAt = new Date("2025-01-01T00:00:00.000Z");
+      const itemIdPrefix = uuidv4().slice(0, 8);
+      const lowerItemId = `${itemIdPrefix}-0000-0000-0000-000000000001`;
+      const higherItemId = `${itemIdPrefix}-0000-0000-0000-000000000002`;
+
+      await prisma.annotationQueueItem.createMany({
+        data: [lowerItemId, higherItemId].map((id) => ({
+          id,
+          queueId: queue.id,
+          objectId: uuidv4(),
+          objectType: AnnotationQueueObjectType.TRACE,
+          projectId: setup.project.id,
+          createdAt,
+        })),
+      });
+
+      await expect(
+        caller.annotationQueues.fetchAndLockNext({
+          queueId: queue.id,
+          projectId: setup.project.id,
+          seenItemIds: [],
+          order: "asc",
+        }),
+      ).resolves.toMatchObject({ id: lowerItemId });
+
+      await expect(
+        caller.annotationQueues.fetchAndLockNext({
+          queueId: queue.id,
+          projectId: setup.project.id,
+          seenItemIds: [],
+          order: "desc",
+        }),
+      ).resolves.toMatchObject({ id: higherItemId });
     });
   });
 });
