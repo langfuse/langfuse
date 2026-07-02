@@ -6,7 +6,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { createColumnHelper } from "@tanstack/react-table";
-import { Copy, MoreVertical, Pen } from "lucide-react";
+import { Copy, MoreVertical, Pen, Trash } from "lucide-react";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 import { useEffect, useMemo, useState } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
@@ -31,7 +31,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { DeleteEvalTemplateButton } from "@/src/features/evals/components/delete-eval-template-button";
+import { DeleteEvalTemplateDialog } from "@/src/features/evals/components/delete-eval-template-dialog";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { EvalReferencedEvaluators } from "@/src/features/evals/types";
@@ -140,6 +141,11 @@ export default function EvalsTemplateTable({
   );
   const [editTemplateId, setEditTemplateId] = useState<string | null>(null);
   const [cloneTemplateId, setCloneTemplateId] = useState<string | null>(null);
+  const [templateToDelete, setTemplateToDelete] = useState<{
+    id: string;
+    name: string;
+    usageCount?: number;
+  } | null>(null);
   const [showReferenceUpdateDialog, setShowReferenceUpdateDialog] =
     useState(false);
   const [pendingCloneSubmission, setPendingCloneSubmission] = useState<
@@ -155,6 +161,11 @@ export default function EvalsTemplateTable({
   });
 
   const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
+  const hasTemplateWriteAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalTemplate:CUD",
+  });
+  const capture = usePostHogClientCapture();
 
   const totalCount = templates.data?.totalCount ?? null;
 
@@ -402,19 +413,23 @@ export default function EvalsTemplateTable({
                         <Pen className="mr-2 h-4 w-4" />
                         Edit
                       </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <DeleteEvalTemplateButton
-                          aria-label="delete"
-                          itemId={id}
-                          projectId={projectId}
-                          isTableAction
-                          className="w-full justify-start"
-                          deleteConfirmation={row.original.name}
-                          initialUsageCount={row.original.usageCount}
-                          invalidateFunc={() => {
-                            utils.evals.templateNames.invalidate();
-                          }}
-                        />
+                      <DropdownMenuItem
+                        aria-label="delete"
+                        disabled={!hasTemplateWriteAccess}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          capture("eval_templates:delete_form_open", {
+                            source: "table-single-row",
+                          });
+                          setTemplateToDelete({
+                            id,
+                            name: row.original.name,
+                            usageCount: row.original.usageCount,
+                          });
+                        }}
+                      >
+                        <Trash className="mr-2 h-4 w-4" />
+                        Delete
                       </DropdownMenuItem>
                     </>
                   ) : null}
@@ -641,6 +656,23 @@ export default function EvalsTemplateTable({
           />
         </DialogContent>
       </Dialog>
+
+      <DeleteEvalTemplateDialog
+        projectId={projectId}
+        templateId={templateToDelete?.id ?? null}
+        templateName={templateToDelete?.name ?? null}
+        initialUsageCount={templateToDelete?.usageCount}
+        open={!!templateToDelete}
+        onOpenChange={(open) => {
+          if (!open) setTemplateToDelete(null);
+        }}
+        onSuccess={() => {
+          capture("eval_templates:delete_template_button_click", {
+            source: "table-single-row",
+          });
+          utils.evals.templateNames.invalidate();
+        }}
+      />
 
       <Dialog
         open={showReferenceUpdateDialog}
