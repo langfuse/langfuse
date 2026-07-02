@@ -25,13 +25,13 @@ import {
   deriveComposerSegments,
   type ComposerSegment,
 } from "@/src/features/search-bar/lib/composer-segments";
-import { serializeValue, termAt } from "@/src/features/search-bar/lib/langQ";
 import {
   scoreTypeContextFromObserved,
   type ObservedOptions,
 } from "@/src/features/search-bar/lib/observed-options";
 import { getRecentSearches } from "@/src/features/search-bar/lib/recent-searches";
 import {
+  applyPick,
   flattenOptions,
   planInputCompletions,
   type CompletionOption,
@@ -756,76 +756,18 @@ export function SearchComposer({
         return;
       }
 
-      const current = draftRef.current;
-      let insert: string;
-      let keepOpen: boolean;
-      let replaceFrom = currentPlan.from;
-      let replaceTo = currentPlan.to;
-      if (option.kind === "field") {
-        // Replacing the key of an existing filter: the span ends AT the colon,
-        // so the insert must not bring its own.
-        const colonFollows = current.slice(currentPlan.to).startsWith(":");
-        insert = option.fieldId.endsWith(".")
-          ? option.fieldId
-          : colonFollows
-            ? option.fieldId
-            : `${option.fieldId}:`;
-        keepOpen = true;
-        // A dot-prefix field (`metadata.`/`scores.`/`traceScores.`) is itself a
-        // partial key. When an existing `:value` follows the replaced key, the
-        // bare prefix would splice in front of it (`meta:foo` -> broken
-        // `metadata.:foo`). Consume the whole term so the user re-picks the key
-        // from observed options instead.
-        if (option.fieldId.endsWith(".") && colonFollows) {
-          replaceTo = termAt(current, currentPlan.from)?.to ?? currentPlan.to;
-        }
-      } else if (option.kind === "value") {
-        insert = serializeValue(option.value);
-        keepOpen = currentPlan.keepOpenOnPick ?? false;
-      } else {
-        insert = option.insert;
-        // A scope rewrite carries its own span (the whole coalesced free-text
-        // run), so it replaces that, not just the token under the caret.
-        if (option.kind === "pattern" && option.replaceSpan) {
-          replaceFrom = option.replaceSpan.from;
-          replaceTo = option.replaceSpan.to;
-        }
-        // A trailing `:`, ` `, or `(` drops the caret into an interactive
-        // context (value stage, next field, or an open array group like
-        // `tags:(`) — keep the popover open so the next pick is immediate.
-        keepOpen =
-          option.insert.endsWith(":") ||
-          option.insert.endsWith(" ") ||
-          option.insert.endsWith("(");
-      }
-
-      // A pick that COMPLETES a filter token — a value (`name:checkout`) or a
-      // ready-to-run suggestion (`level:DEFAULT`) — and sits at the END of the
-      // draft advances to a fresh token: append a trailing space, drop the caret
-      // AFTER it (OUTSIDE the just-completed pill), and reopen field suggestions
-      // for the next filter, instead of leaving the caret inside the pill where
-      // typing would edit what was just picked. Picks that invite more input (a
-      // bare `field:` key, a `metadata.` prefix, an open `tags:(` group), grouped
-      // value entry, and mid-query edits (non-whitespace follows) stay put.
-      const grouped = currentPlan.keepOpenOnPick ?? false;
-      const invitesMoreInput =
-        option.kind === "field" || // a `field:` key always needs a value next
-        insert.endsWith(":") ||
-        insert.endsWith(" ") ||
-        insert.endsWith("(");
-      const completesFilterAtEnd =
-        !grouped &&
-        !invitesMoreInput &&
-        current.slice(replaceTo).trim().length === 0;
-      if (completesFilterAtEnd) {
-        insert += " ";
-        // Consume any existing trailing whitespace so the space never doubles.
-        replaceTo = current.length;
-        keepOpen = true;
-      }
-
-      const next = replaceRange(current, replaceFrom, replaceTo, insert);
-      const caretAt = replaceFrom + insert.length;
+      // The pure text/caret computation — insert, caret placement, and whether
+      // to keep the popover open — lives in `applyPick` (unit-tested). A pick
+      // that COMPLETES a filter at the END of the draft appends a trailing space
+      // and drops the caret OUTSIDE the pill (next-filter affordance); a pick
+      // that INVITES MORE INPUT (a `field:` key, a `metadata.` prefix, an open
+      // `tags:(` group, a comparison/logical operator awaiting its value) keeps
+      // the caret in place.
+      const {
+        next,
+        caret: caretAt,
+        keepOpen,
+      } = applyPick(option, draftRef.current, currentPlan);
       setDraftWithSelection(next, caretAt);
       setAutocompleteOpen(keepOpen);
       setHighlightedOptionId(null);

@@ -1082,9 +1082,17 @@ export function planInputCompletions(
   // Drop quotes so the typed text matches observed values (both the grouped
   // and non-grouped value segments go through the same helper). For a glob
   // value the typed text is the bare core inside the `*`s.
-  const typed = stripValueQuotes(
+  const typedRaw = stripValueQuotes(
     glob !== null ? glob.core : activeValueText.slice(valuePrefix.length),
   );
+  // An empty OR whitespace-only value is "no value typed yet": normalize it to
+  // "" so the value stage stays a plain, unarmed list — no active value, no
+  // autoHighlight, no match-op refinements. Without this, a lone space typed
+  // between empty quotes (`traceName:" "`) ranked every observed value that
+  // CONTAINS a space and armed the first for Enter, committing an unwanted
+  // value (LFE-10501 BUG B). A value with real content plus surrounding spaces
+  // (`"foo "`) still counts as typed.
+  const typed = typedRaw.trim().length === 0 ? "" : typedRaw;
   const groupedPlanAttrs =
     grouped === null ? {} : { keepOpenOnPick: !grouped.completeGroup };
 
@@ -1124,6 +1132,94 @@ export function planInputCompletions(
     sections: staged.sections,
     ...groupedPlanAttrs,
   };
+}
+
+/**
+ * Apply a picked completion option to the draft — the pure text/caret half of
+ * the composer's `pickOption` (the composer keeps the DOM/selection side
+ * effects and the whole-query `recent` replacement, which is why `recent` is
+ * excluded here). Returns the rewritten draft, the caret offset to place inside
+ * it, and whether the popover should stay open.
+ *
+ * The classification is the crux: an option that INVITES MORE INPUT leaves the
+ * caret where it lands — a `field:` key awaiting a value, a `metadata.` prefix,
+ * an open `tags:(` group, and a comparison/logical OPERATOR awaiting its value.
+ * An option that COMPLETES a filter at the END of the draft appends a trailing
+ * space and drops the caret AFTER it (outside the finished pill), reopening
+ * field suggestions for the next filter.
+ */
+export function applyPick(
+  option: Exclude<CompletionOption, { kind: "recent" }>,
+  current: string,
+  plan: CompletionPlan,
+): { next: string; caret: number; keepOpen: boolean } {
+  let insert: string;
+  let keepOpen: boolean;
+  let replaceFrom = plan.from;
+  let replaceTo = plan.to;
+  if (option.kind === "field") {
+    // Replacing the key of an existing filter: the span ends AT the colon, so
+    // the insert must not bring its own.
+    const colonFollows = current.slice(plan.to).startsWith(":");
+    insert = option.fieldId.endsWith(".")
+      ? option.fieldId
+      : colonFollows
+        ? option.fieldId
+        : `${option.fieldId}:`;
+    keepOpen = true;
+    // A dot-prefix field (`metadata.`/`scores.`/`traceScores.`) is itself a
+    // partial key. When an existing `:value` follows, consume the whole term so
+    // the user re-picks the key from observed options instead.
+    if (option.fieldId.endsWith(".") && colonFollows) {
+      replaceTo = termAt(current, plan.from)?.to ?? plan.to;
+    }
+  } else if (option.kind === "value") {
+    insert = serializeValue(option.value);
+    keepOpen = plan.keepOpenOnPick ?? false;
+  } else {
+    insert = option.insert;
+    // A scope rewrite carries its own span (the whole coalesced free-text run),
+    // so it replaces that, not just the token under the caret.
+    if (option.kind === "pattern" && option.replaceSpan) {
+      replaceFrom = option.replaceSpan.from;
+      replaceTo = option.replaceSpan.to;
+    }
+    // A trailing `:`, ` `, or `(` drops the caret into an interactive context
+    // (value stage, next field, or an open `tags:(` group) — keep the popover
+    // open so the next pick is immediate.
+    keepOpen =
+      option.insert.endsWith(":") ||
+      option.insert.endsWith(" ") ||
+      option.insert.endsWith("(");
+  }
+
+  const grouped = plan.keepOpenOnPick ?? false;
+  const invitesMoreInput =
+    option.kind === "field" || // a `field:` key always needs a value next
+    // A comparison (`>`, `>=`, …) or logical (AND/NOT) OPERATOR awaits its
+    // value next, so keep the caret in the block instead of appending a space
+    // and jumping outside it. Without this, a `latency:` → `>` pick landed
+    // `latency:> ` with the caret after the space, so the number typed OUTSIDE
+    // the filter (LFE-10501 BUG A). AND/NOT already carry a trailing space, so
+    // this only changes the value-stage comparison operators.
+    option.kind === "operator" ||
+    insert.endsWith(":") ||
+    insert.endsWith(" ") ||
+    insert.endsWith("(");
+  const completesFilterAtEnd =
+    !grouped &&
+    !invitesMoreInput &&
+    current.slice(replaceTo).trim().length === 0;
+  if (completesFilterAtEnd) {
+    insert += " ";
+    // Consume any existing trailing whitespace so the space never doubles.
+    replaceTo = current.length;
+    keepOpen = true;
+  }
+
+  const next =
+    current.slice(0, replaceFrom) + insert + current.slice(replaceTo);
+  return { next, caret: replaceFrom + insert.length, keepOpen };
 }
 
 /** Flat option list in render order (keyboard navigation walks this). */
