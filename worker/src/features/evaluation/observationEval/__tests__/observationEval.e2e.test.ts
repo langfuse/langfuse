@@ -36,6 +36,9 @@ vi.mock("@langfuse/shared/src/db", () => ({
     jobConfiguration: {
       findFirst: vi.fn(),
     },
+    datasetItem: {
+      findFirst: vi.fn(),
+    },
   },
 }));
 

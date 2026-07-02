@@ -65,6 +65,7 @@ export const observationForEvalSchema = z.object({
   experiment_item_expected_output: z.string().nullish(),
   experiment_item_metadata: z.record(z.string(), z.unknown()).nullish(),
   experiment_item_root_span_id: z.string().nullish(),
+  experiment_item_version: z.string().nullish(),
 
   // Data - accepts any type (string, array, object) from different OTEL SDKs
   input: z.unknown().nullish(),

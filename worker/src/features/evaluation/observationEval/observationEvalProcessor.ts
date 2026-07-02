@@ -13,6 +13,7 @@ import {
   type EvalTemplateLlmAsAJudge,
   isJobConfigExecutableForExecutionMode,
   type ObservationVariableMapping,
+  EvalTargetObject,
 } from "@langfuse/shared";
 import {
   EvalTemplateType,
@@ -203,6 +204,44 @@ export async function processObservationEval(
   logger.debug(
     `Downloaded observation data for job ${job.id}: span_id=${observationData.span_id}`,
   );
+
+  // Fetch dataset item details if we are running an experiment evaluation and have an experiment item ID
+  if (
+    evalJobConfig.targetObject === EvalTargetObject.EXPERIMENT &&
+    observationData.experiment_item_id
+  ) {
+    try {
+      const datasetItem = await prisma.datasetItem.findFirst({
+        where: {
+          id: observationData.experiment_item_id,
+          projectId: event.projectId,
+          ...(observationData.experiment_item_version
+            ? { validFrom: new Date(observationData.experiment_item_version) }
+            : { validTo: null }),
+        },
+      });
+
+      if (datasetItem) {
+        observationData.input = datasetItem.input;
+        observationData.metadata = {
+          ...observationData.metadata,
+          ...(datasetItem.metadata as Record<string, unknown> || {}),
+        };
+      } else {
+        logger.warn(
+          `Dataset item ${observationData.experiment_item_id} for project ${event.projectId} not found during experiment eval processing.`
+        );
+      }
+    } catch (error) {
+      logger.error(
+        `Failed to fetch dataset item details for experiment eval: ${error}`,
+        {
+          experimentItemId: observationData.experiment_item_id,
+          projectId: event.projectId,
+        }
+      );
+    }
+  }
 
   // Extract variables from observation
   const parsedVariableMapping = observationVariableMappingList.parse(
