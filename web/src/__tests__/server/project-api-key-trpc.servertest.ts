@@ -95,7 +95,7 @@ describe("project API keys trpc", () => {
 
       const apiKeyResult = await caller.projectApiKeys.create({
         projectId,
-        note: "Created-by test key",
+        note: "Key for creator attribution test",
       });
 
       const dbKey = await prisma.apiKey.findUniqueOrThrow({

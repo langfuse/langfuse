@@ -199,7 +199,7 @@ describe("organization API keys trpc", () => {
     it("stores the creating user and returns it in the list", async () => {
       const apiKeyResult = await ownerCaller.organizationApiKeys.create({
         orgId: organizationId,
-        note: "Created-by test key",
+        note: "Key for creator attribution test",
       });
 
       const dbKey = await prisma.apiKey.findUniqueOrThrow({
