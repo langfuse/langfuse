@@ -462,7 +462,7 @@ jobs:
         run: |
           timeout 300 bash -c 'until [ -f /tmp/enterprise-deps-up.exit ]; do sleep 1; done' || true
           cat /tmp/enterprise-deps-up.log
-          docker compose -f "docker-compose.build.yml" -f "docker-compose.enterprise-build.yml" up -d --wait --wait-timeout 180
+          docker compose -f "docker-compose.build.yml" -f "docker-compose.enterprise-build.yml" up --no-build -d --wait --wait-timeout 180
       - name: Check worker health
         run: |
           curl --retry 10 --retry-delay 2 --retry-all-errors --silent --show-error --fail \
