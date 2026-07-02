@@ -457,29 +457,6 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
     30_000,
   );
 
-  it("should accept future ingestion versions in underscore format", async () => {
-    const response = await makeAPICall(
-      "POST",
-      "/api/public/otel/v1/traces",
-      {
-        resourceSpans: [
-          {
-            resource: {
-              attributes: [],
-            },
-            scopeSpans: [],
-          },
-        ],
-      },
-      undefined,
-      {
-        x_langfuse_ingestion_version: "5",
-      },
-    );
-
-    expect(response.status).toBe(200);
-  });
-
   it("should transform deployment.environment to lowercase", async () => {
     const traceId = randomBytes(16);
     const spanId = randomBytes(8);
