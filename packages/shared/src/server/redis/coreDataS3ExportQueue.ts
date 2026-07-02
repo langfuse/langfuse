@@ -3,6 +3,7 @@ import { QueueName, QueueJobs } from "../queues";
 import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
 import { env } from "../../env";
+import { getBullMQRepeatableJobOptions } from "./repeatableJobs";
 
 export class CoreDataS3ExportQueue {
   private static instance: Queue | null = null;
@@ -45,7 +46,9 @@ export class CoreDataS3ExportQueue {
           QueueJobs.CoreDataS3ExportJob,
           {},
           {
-            repeat: { pattern: "15 3 * * *" }, // every day at 3:15am
+            repeat: getBullMQRepeatableJobOptions(
+              QueueJobs.CoreDataS3ExportJob,
+            ),
           },
         )
         .catch((err) => {
