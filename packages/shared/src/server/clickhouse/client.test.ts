@@ -85,14 +85,14 @@ describe("ClickHouseClientManager compatibility settings", () => {
     expect(mocks.createClient).toHaveBeenCalledTimes(2);
   });
 
-  it("does not apply ClickHouse server timeout settings without a request timeout", () => {
+  it("sets ClickHouse server timeout after the default client request timeout", () => {
     clickhouseClient();
 
     expect(
       mocks.createClient.mock.calls[0][0].clickhouse_settings,
-    ).not.toMatchObject({
-      timeout_before_checking_execution_speed: expect.anything(),
-      max_execution_time: expect.anything(),
+    ).toMatchObject({
+      timeout_before_checking_execution_speed: 0,
+      max_execution_time: 35,
     });
   });
 
