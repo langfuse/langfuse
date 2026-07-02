@@ -95,6 +95,7 @@ jobs:
               - 'packages/shared/src/server/llm/fetchLLMCompletion.ts'
               - 'packages/shared/src/server/llm/secureLlmFetch.ts'
               - 'packages/shared/src/server/llm/utils.ts'
+              - 'worker/src/__tests__/llmConnections.test.ts'
 
   lint:
     runs-on: blacksmith-4vcpu-ubuntu-2404
