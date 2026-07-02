@@ -39,6 +39,10 @@ const IOTableCellContent = ({
   const shouldTruncate =
     stringifiedJson && stringifiedJson.length > IO_TABLE_CHAR_LIMIT;
 
+  const singleLineText = stringifiedJson
+    ? decodeUnicodeEscapesOnly(stringifiedJson, true)
+    : stringifiedJson;
+
   return singleLine ? (
     <div
       className={cn(
@@ -46,10 +50,9 @@ const IOTableCellContent = ({
         paddingClassName,
         className,
       )}
+      title={singleLineText}
     >
-      {stringifiedJson
-        ? decodeUnicodeEscapesOnly(stringifiedJson, true)
-        : stringifiedJson}
+      {singleLineText}
     </div>
   ) : shouldTruncate ? (
     <div className="grid h-full grid-cols-1">

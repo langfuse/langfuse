@@ -7,6 +7,7 @@ import type {
   AgUiRunAgentInput,
 } from "@/src/ee/features/in-app-agent/schema";
 import { compactTextMessageChunks } from "@/src/ee/features/in-app-agent/server/eventCompaction";
+import type { InAppAgentUserAccess } from "@/src/ee/features/in-app-agent/server/tools";
 
 export type InAppAgentTracingConfig = {
   environment: string;
@@ -14,6 +15,9 @@ export type InAppAgentTracingConfig = {
   user: {
     id: string;
     email?: string | null;
+    projectRole?: InAppAgentUserAccess["projectRole"];
+    // Global Langfuse admin flag. This bypasses project membership checks.
+    isAdmin: boolean;
   };
   traceId: string;
   targetProjectId: string;
@@ -73,6 +77,7 @@ type ToolObservationBody = {
   statusMessage?: string;
   metadata?: Record<string, unknown>;
 };
+type ToolCallApprovalStatus = "approved" | "rejected";
 
 export function createInAppAgentInstrumentation({
   input,
@@ -88,6 +93,8 @@ export function createInAppAgentInstrumentation({
       metadata: tracing.metadata,
       userId: tracing.user.id,
       userEmail: tracing.user.email,
+      userProjectRole: tracing.user.projectRole,
+      userIsAdmin: tracing.user.isAdmin,
       traceId: tracing.traceId,
       targetProjectId: tracing.targetProjectId,
       environment: tracing.environment,
@@ -117,6 +124,10 @@ export class InAppAgentInstrumentation {
       parentMessageId?: string;
     }
   >();
+  private readonly toolCallApprovals = new Map<
+    string,
+    ToolCallApprovalStatus
+  >();
   private readonly metadata: Record<string, unknown>;
   private readonly agentRunOutputMessages: AgentRunChatMessage[] = [];
   private readonly agentRunToolCalls: AgentRunToolCall[] = [];
@@ -130,6 +141,8 @@ export class InAppAgentInstrumentation {
     metadata: Record<string, unknown>;
     userId: string;
     userEmail?: string | null;
+    userProjectRole?: InAppAgentUserAccess["projectRole"];
+    userIsAdmin: boolean;
     traceId: string;
     targetProjectId: string;
     environment: string;
@@ -138,6 +151,10 @@ export class InAppAgentInstrumentation {
     this.metadata = {
       ...params.metadata,
       ...(params.userEmail ? { langfuse_user_email: params.userEmail } : {}),
+      ...(params.userProjectRole
+        ? { langfuse_user_project_role: params.userProjectRole }
+        : {}),
+      langfuse_user_is_admin: params.userIsAdmin,
       ...(params.prompt
         ? {
             prompt_name: params.prompt.name,
@@ -211,6 +228,17 @@ export class InAppAgentInstrumentation {
       this.agentRunInput,
       availableTools,
     );
+  }
+
+  recordToolCallApproval(approval?: {
+    toolCallId: string;
+    status: ToolCallApprovalStatus;
+  }) {
+    if (this.ended || !approval) {
+      return;
+    }
+
+    this.toolCallApprovals.set(approval.toolCallId, approval.status);
   }
 
   endWithError(error: unknown) {
@@ -441,6 +469,7 @@ export class InAppAgentInstrumentation {
     const output =
       tool.output === undefined ? undefined : normalizeToolOutput(tool.output);
     const isError = options?.statusMessage !== undefined || isToolError(output);
+    const toolCallApproval = this.toolCallApprovals.get(toolCallId);
     const body: ToolObservationBody = {
       id: toolCallId,
       traceId: this.agentRun.traceId,
@@ -458,6 +487,7 @@ export class InAppAgentInstrumentation {
       metadata: {
         ...(options?.metadata ?? {}),
         toolCallId,
+        ...(toolCallApproval ? { toolCallApproval } : {}),
         ...(tool.argsComplete ? {} : { argsComplete: false }),
         ...(tool.parentMessageId
           ? { parentMessageId: tool.parentMessageId }
@@ -466,6 +496,7 @@ export class InAppAgentInstrumentation {
     };
 
     this.recordToolCall(toolCallId, tool, output);
+    this.toolCallApprovals.delete(toolCallId);
 
     (
       this.langfuse as unknown as {

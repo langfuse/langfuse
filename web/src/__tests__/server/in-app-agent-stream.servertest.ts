@@ -32,6 +32,7 @@ const instrumentationMocks = vi.hoisted(() => {
   const instrumentation = {
     recordEvents: vi.fn(),
     recordAvailableTools: vi.fn(),
+    recordToolCallApproval: vi.fn(),
     end: vi.fn(),
     endWithError: vi.fn(),
     flush: vi.fn(),
@@ -833,6 +834,7 @@ describe("createAgUiStream", () => {
         },
         langfuseClient,
         useLocalPrompt: false,
+        langfuseTracing: createTestTracingConfig(),
       },
     });
     await readStream(stream);
@@ -942,6 +944,12 @@ describe("createAgUiStream", () => {
         role: "tool",
       },
     ]);
+    expect(
+      instrumentationMocks.instrumentation.recordToolCallApproval,
+    ).toHaveBeenCalledWith({
+      toolCallId: "tool-call-1",
+      status: "approved",
+    });
 
     const agentConfig = vi.mocked(Agent).mock.calls[0]?.[0];
     const createScoreConfigTool = agentConfig?.tools
@@ -1212,6 +1220,7 @@ describe("createAgUiStream", () => {
         },
         langfuseClient,
         useLocalPrompt: false,
+        langfuseTracing: createTestTracingConfig(),
       },
     });
     await readStream(stream, (event) => {
@@ -1257,6 +1266,12 @@ describe("createAgUiStream", () => {
       },
     ]);
     expect(streamedEvents).toEqual(persistedEvents);
+    expect(
+      instrumentationMocks.instrumentation.recordToolCallApproval,
+    ).toHaveBeenCalledWith({
+      toolCallId: "tool-call-1",
+      status: "rejected",
+    });
     expect(onComplete).toHaveBeenCalledOnce();
   });
 
@@ -1494,6 +1509,16 @@ function createToolApprovalResumeInput(approved: boolean) {
         },
       },
     },
+  };
+}
+
+function createTestTracingConfig() {
+  return {
+    environment: "langfuse-in-app-agent",
+    metadata: { langfuse_project_id: "project-1" },
+    user: { id: "user-1" },
+    traceId: "0123456789abcdef0123456789abcdef",
+    targetProjectId: "project-1",
   };
 }
 

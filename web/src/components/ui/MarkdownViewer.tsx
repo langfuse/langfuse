@@ -572,7 +572,10 @@ export function MarkdownView({
                   <span title="<Base64 data URI>" className="h-4 w-4">
                     <ImageOff className="h-4 w-4" />
                   </span>
-                  <span className="truncate text-sm">
+                  <span
+                    className="truncate text-sm"
+                    title={imageUrl.toString()}
+                  >
                     {imageUrl.toString()}
                   </span>
                 </div>

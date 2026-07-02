@@ -60,8 +60,11 @@ describe("prepareTimeAxis", () => {
     const axis = prepareTimeAxis(values, 6);
 
     expect(axis.mode).toBe("date");
-    // bucketsPerDay = 24 → shown ticks land a whole number of days apart
-    expect((axis.interval + 1) % 24).toBe(0);
+    // bucketsPerDay = 24 → shown ticks land a whole number of days apart.
+    // In date mode `interval` is always numeric (the string interval is only for
+    // the categorical branch), but its type is `number | "equidistantPreserveStart"`,
+    // so coerce for the arithmetic. (LFE-10602)
+    expect((Number(axis.interval) + 1) % 24).toBe(0);
     expect(MONTH_DAY.test(axis.formatTick(values[0]))).toBe(true);
   });
 
