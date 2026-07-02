@@ -9,11 +9,10 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} node-builder-base AS build-base
 RUN npm install turbo@2.9.18 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
-RUN corepack prepare pnpm@11.4.0 --activate
+RUN npm install pnpm@11.4.0 --global
 
 # Throwaway stage: only the paths COPY'd out of it reach the hardened runtime,
-# so npm/corepack need no cleanup here.
+# so npm does not need cleanup here.
 FROM --platform=${TARGETPLATFORM:-linux/amd64} node-builder-base AS runtime-deps
 WORKDIR /app
 # COPY dereferences a symlink given as src, which breaks prisma's

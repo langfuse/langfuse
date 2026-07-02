@@ -7,8 +7,7 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} ${WIZOS_NODE_BUILDER_IMAGE} AS bu
 RUN npm install turbo@2.9.18 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
-RUN corepack prepare pnpm@11.4.0 --activate
+RUN npm install pnpm@11.4.0 --global
 
 # busybox ships into the runtime image, so build this stage for the target arch.
 FROM --platform=${TARGETPLATFORM:-linux/amd64} busybox:1.37.0-musl AS shell-tools
