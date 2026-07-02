@@ -1221,8 +1221,42 @@ export function CreateLLMApiKeyForm({
               {isCustomModelsRequired(currentAdapter) &&
                 renderCustomModelsField()}
 
-              {/* Extra headers - show for Azure in main section (Azure has no advanced settings) */}
-              {currentAdapter === LLMAdapter.Azure && renderExtraHeadersField()}
+              {/* Bedrock gateway base URL - optional, Bedrock has no advanced settings */}
+              {currentAdapter === LLMAdapter.Bedrock && (
+                <FormField
+                  control={form.control}
+                  name="baseURL"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        API Base URL
+                        <span className="text-muted-foreground font-normal">
+                          {" "}
+                          (optional)
+                        </span>
+                      </FormLabel>
+                      <FormDescription>
+                        Route Bedrock Converse calls through a gateway endpoint
+                        (e.g. a corporate APIM gateway). Leave blank to use the
+                        default AWS Bedrock endpoint for the region. Send any
+                        gateway authentication via Extra Headers below.
+                      </FormDescription>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder="https://your-gateway.example.com/bedrock"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* Extra headers - show for Azure/Bedrock in main section (no advanced settings) */}
+              {(currentAdapter === LLMAdapter.Azure ||
+                currentAdapter === LLMAdapter.Bedrock) &&
+                renderExtraHeadersField()}
 
               {hasAdvancedSettings(currentAdapter) && (
                 <div className="flex items-center">
@@ -1268,6 +1302,15 @@ export function CreateLLMApiKeyForm({
                             <span>
                               Anthropic default: https://api.anthropic.com
                               (excluding /v1/messages)
+                            </span>
+                          )}
+                          {currentAdapter === LLMAdapter.VertexAI && (
+                            <span>
+                              Set this to route Vertex calls through a gateway
+                              (e.g. a corporate APIM gateway). The gateway
+                              authenticates with its own credentials supplied
+                              via Extra Headers below; no Google OAuth token is
+                              sent.
                             </span>
                           )}
                         </FormDescription>
@@ -1335,9 +1378,11 @@ export function CreateLLMApiKeyForm({
                   )}
 
                   {/* Extra Headers */}
-                  {[LLMAdapter.OpenAI, LLMAdapter.Anthropic].includes(
-                    currentAdapter,
-                  ) && renderExtraHeadersField()}
+                  {[
+                    LLMAdapter.OpenAI,
+                    LLMAdapter.Anthropic,
+                    LLMAdapter.VertexAI,
+                  ].includes(currentAdapter) && renderExtraHeadersField()}
 
                   {/* With default models */}
                   <FormField
