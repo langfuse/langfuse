@@ -1,23 +1,16 @@
 import { useState } from "react";
 import { MediaTag } from "./MediaTag";
 import { useResolvedMedia } from "./useResolvedMedia";
-import { type MediaLeafDescriptor } from "./classifyMediaLeaf";
+import { type MediaDescriptor } from "./mediaUtils";
 
-type LangfuseRefDescriptor = Extract<
-  MediaLeafDescriptor,
-  { kind: "langfuseRef" }
->;
+type LangfuseRefDescriptor = Extract<MediaDescriptor, { kind: "langfuseRef" }>;
 
 /**
- * Container that connects a classified media leaf to the pure `MediaTag`: it
+ * Container that connects a classified media value to the pure `MediaTag`: it
  * arms the lazy fetch the first time the peek opens (hover/focus) and keeps it
  * armed so re-hovers read from the query cache instead of re-fetching.
  */
-export function JsonMediaTag({
-  descriptor,
-}: {
-  descriptor: MediaLeafDescriptor;
-}) {
+export function JsonMediaTag({ descriptor }: { descriptor: MediaDescriptor }) {
   if (descriptor.kind !== "langfuseRef") {
     return (
       <MediaTag
