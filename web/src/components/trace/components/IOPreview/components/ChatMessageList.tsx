@@ -79,10 +79,7 @@ export function ChatMessageList({
     visibleMessages.forEach(({ message }) => {
       const content = message.content;
 
-      // Queue previews reliably render standalone media tags in strings and
-      // output audio inline, but OpenAI content-part images still fall back to
-      // the shared media strip on this surface.
-      if (typeof content === "string") {
+      if (typeof content === "string" || Array.isArray(content)) {
         getRenderedInlineMediaIds({
           markdown: content,
           audio: message.audio,
