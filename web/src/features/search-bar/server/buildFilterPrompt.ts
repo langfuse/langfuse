@@ -182,10 +182,13 @@ phrase (e.g. "routing queue" → metadata.routing.queue), use that exact key. Us
 
 ## Scores (evaluation results)
 
-Filter by score NAME via the "key" field. Default to OBSERVATION-level scores
-unless the request clearly means trace-level scores.
-- Numeric score: {"type": "numberObject", "column": "${SCORE_COLUMNS.observation.numeric}" (observation) or "${SCORE_COLUMNS.trace.numeric}" (trace), "key": "<score name>", "operator": ">" | "<" | ">=" | "<=" | "=", "value": <number>}
-- Categorical score: {"type": "categoryOptions", "column": "${SCORE_COLUMNS.observation.categorical}" (observation) or "${SCORE_COLUMNS.trace.categorical}" (trace), "key": "<score name>", "operator": "any of" | "none of", "value": ["<category>"]}
+Filter by score NAME via the "key" field. Default to the level-agnostic score
+columns (${SCORE_COLUMNS.observation.numeric} / ${SCORE_COLUMNS.observation.categorical}): they match a score whether it was
+recorded at observation OR trace level. Use the trace-only columns
+(${SCORE_COLUMNS.trace.numeric} / ${SCORE_COLUMNS.trace.categorical}) ONLY when the request explicitly asks to scope to
+trace-level scores.
+- Numeric score: {"type": "numberObject", "column": "${SCORE_COLUMNS.observation.numeric}" (any level) or "${SCORE_COLUMNS.trace.numeric}" (trace-only), "key": "<score name>", "operator": ">" | "<" | ">=" | "<=" | "=", "value": <number>}
+- Categorical score: {"type": "categoryOptions", "column": "${SCORE_COLUMNS.observation.categorical}" (any level) or "${SCORE_COLUMNS.trace.categorical}" (trace-only), "key": "<score name>", "operator": "any of" | "none of", "value": ["<category>"]}
 
 NEVER use ${SCORE_COLUMNS.observation.numeric} / ${SCORE_COLUMNS.observation.categorical} / ${SCORE_COLUMNS.trace.numeric} / ${SCORE_COLUMNS.trace.categorical} as a plain column (no bare {"type":"number","column":"${SCORE_COLUMNS.observation.numeric}"} etc.) — they REQUIRE the keyed numberObject/categoryOptions shape above with the score name in "key". Only use a score name that appears in the observed data; do not invent one.
 

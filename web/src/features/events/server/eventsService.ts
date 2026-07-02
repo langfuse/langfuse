@@ -46,21 +46,6 @@ const TRACE_SCORE_SCOPE_FILTER: FilterCondition[] = [
   },
 ];
 
-// Observation-level scores: written against a specific observation
-// (observation_id set). These are the scores the observation `scores_avg` /
-// `score_categories` columns aggregate and filter on (joined by span_id).
-// Trace-level scores (observation_id NULL) live under `trace_scores_avg` /
-// `trace_score_categories` instead, so they must NOT be offered here — filtering
-// a trace-level score name via the observation column can never match (LFE-10596).
-const OBSERVATION_SCORE_SCOPE_FILTER: FilterCondition[] = [
-  {
-    type: "null",
-    column: "observationId",
-    operator: "is not null",
-    value: "",
-  },
-];
-
 interface GetObservationsListParams {
   projectId: string;
   filter: any[];
@@ -351,13 +336,23 @@ export async function getEventList(params: GetObservationsListParams) {
     }
   }
 
-  const observationsWithScores = observations.map((observation) => ({
-    ...observation,
-    scores: aggregateScores(scoresByObservationId.get(observation.id) ?? []),
-    traceScores: observation.traceId
-      ? aggregateScores(scoresByTraceId.get(observation.traceId) ?? [])
-      : {},
-  }));
+  const observationsWithScores = observations.map((observation) => {
+    const observationScores = scoresByObservationId.get(observation.id) ?? [];
+    const traceScores = observation.traceId
+      ? (scoresByTraceId.get(observation.traceId) ?? [])
+      : [];
+    return {
+      ...observation,
+      // Level-agnostic "Scores": roll up this observation's scores together with
+      // the trace's trace-level scores into a single aggregate, so a trace-level
+      // score (e.g. CSAT) shows in the one "Scores" column — matching the
+      // level-agnostic score filter (LFE-10596). aggregateScores groups by
+      // name/source/dataType, so a score present at both levels merges cleanly.
+      scores: aggregateScores([...observationScores, ...traceScores]),
+      // Trace-only aggregate, retained for callers that need the breakdown.
+      traceScores: aggregateScores(traceScores),
+    };
+  });
 
   return { observations: observationsWithScores, hasMore };
 }
@@ -576,8 +571,11 @@ export async function getEventFilterOptions(
     "trace_score_categories",
   );
 
-  // Observation-scoped and trace-scoped discovery are kept separate so each
-  // score column only offers names its filter/join can actually match.
+  // The `scores_avg` / `score_categories` groups are level-agnostic (their
+  // filter matches observation- OR trace-level scores; see
+  // `toLevelAgnosticScoreFilter` in events.ts), so they offer ALL score names —
+  // matchable-set == offered-set (LFE-10596). The trace-scoped discovery below
+  // stays trace-only to back the search bar's `traceScores.` escape hatch.
   const [
     numericScoreNames,
     categoricalScoreNames,
@@ -586,16 +584,10 @@ export async function getEventFilterOptions(
     eventFilterOptions,
   ] = await Promise.all([
     shouldLoadScoresAvg
-      ? getNumericScoresGroupedByName(projectId, [
-          ...OBSERVATION_SCORE_SCOPE_FILTER,
-          ...traceTimestampFilters,
-        ])
+      ? getNumericScoresGroupedByName(projectId, traceTimestampFilters)
       : Promise.resolve([]),
     shouldLoadScoreCategories
-      ? getCategoricalScoresGroupedByName(projectId, [
-          ...OBSERVATION_SCORE_SCOPE_FILTER,
-          ...traceTimestampFilters,
-        ])
+      ? getCategoricalScoresGroupedByName(projectId, traceTimestampFilters)
       : Promise.resolve([]),
     shouldLoadTraceScores
       ? getScoresGroupedByNameSourceType({

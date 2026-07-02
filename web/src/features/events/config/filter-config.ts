@@ -277,6 +277,11 @@ export const observationEventsFilterConfig: FilterConfig = {
       min: 0,
       max: 25,
     },
+    // The "Scores" facets are level-agnostic: their filter matches a score at
+    // observation OR trace level (LFE-10596), and their options list all score
+    // names. The trace-only `trace_scores_avg` / `trace_score_categories`
+    // columns stay valid (search bar `traceScores.` + existing saved views) but
+    // are no longer offered as separate sidebar facets — one "Scores" group.
     {
       type: "keyValue" as const,
       column: "score_categories",
@@ -286,16 +291,6 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "numericKeyValue" as const,
       column: "scores_avg",
       label: "Numeric Scores",
-    },
-    {
-      type: "keyValue" as const,
-      column: "trace_score_categories",
-      label: "Trace Categorical Scores",
-    },
-    {
-      type: "numericKeyValue" as const,
-      column: "trace_scores_avg",
-      label: "Trace Numeric Scores",
     },
     {
       type: "numeric" as const,
