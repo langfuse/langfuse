@@ -64,6 +64,7 @@ const V4_DOCS_LINK = {
 } as const;
 
 const MAX_STACKED_CHART_SERIES = 6;
+const STACKED_CHART_Y_AXIS_TICK_COUNT = 5;
 const STACKED_CHART_COLORS = [
   "hsl(var(--chart-1))",
   "hsl(var(--chart-2))",
@@ -289,6 +290,38 @@ const getStackedChartSeries = (
   }));
 };
 
+const getNiceCountStep = (rawStep: number): number => {
+  if (!Number.isFinite(rawStep) || rawStep <= 0) return 1;
+
+  const magnitude = 10 ** Math.floor(Math.log10(rawStep));
+  const normalizedStep = rawStep / magnitude;
+  const niceStep =
+    [1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 7.5, 10].find(
+      (step) => normalizedStep <= step,
+    ) ?? 10;
+
+  return Math.max(1, Math.ceil(niceStep * magnitude));
+};
+
+const getStackedYAxisTicks = (
+  series: UsageSeries[],
+  tickCount = STACKED_CHART_Y_AXIS_TICK_COUNT,
+): number[] => {
+  const bucketCount = Math.max(0, ...series.map((item) => item.points.length));
+  let maxStackedValue = 0;
+
+  for (let bucketIndex = 0; bucketIndex < bucketCount; bucketIndex += 1) {
+    const bucketTotal = series.reduce((sum, item) => {
+      const value = item.points[bucketIndex] ?? 0;
+      return Number.isFinite(value) && value > 0 ? sum + value : sum;
+    }, 0);
+    maxStackedValue = Math.max(maxStackedValue, bucketTotal);
+  }
+
+  const step = getNiceCountStep(maxStackedValue / (tickCount - 1));
+  return Array.from({ length: tickCount }, (_, index) => index * step);
+};
+
 export const UsageStackedBarOverview = ({
   bucketTimes,
   series,
@@ -299,6 +332,11 @@ export const UsageStackedBarOverview = ({
   valueLabel: string;
 }) => {
   const chartSeries = useMemo(() => getStackedChartSeries(series), [series]);
+  const yAxisTicks = useMemo(
+    () => getStackedYAxisTicks(chartSeries),
+    [chartSeries],
+  );
+  const yAxisMax = yAxisTicks[yAxisTicks.length - 1] ?? 0;
   const chartData = useMemo(
     () =>
       bucketTimes.map((time, bucketIndex) => {
@@ -359,6 +397,9 @@ export const UsageStackedBarOverview = ({
             axisLine={false}
             width={42}
             fontSize={11}
+            domain={[0, yAxisMax]}
+            ticks={yAxisTicks}
+            interval={0}
             tickFormatter={(value) => compactNumberFormatter(Number(value), 1)}
           />
           <ChartTooltip
