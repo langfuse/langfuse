@@ -14,6 +14,15 @@ import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/c
 import { IOPreview } from "@/src/components/trace/components/IOPreview/IOPreview";
 import { api } from "@/src/utils/api";
 import { FilterX } from "lucide-react";
+import { SESSION_DETAIL_VIEW_TRIGGER_ID } from "@/src/components/session/session-detail-presets";
+
+// Opens the session-detail "View" drawer by activating its trigger — the empty
+// notice's action routes through the one shared View control (no per-card state).
+const openSessionViewMenu = () => {
+  if (typeof document === "undefined") return;
+  const trigger = document.getElementById(SESSION_DETAIL_VIEW_TRIGGER_ID);
+  if (trigger instanceof HTMLElement) trigger.click();
+};
 
 // An observation "carries I/O" when its input or output is a non-empty value.
 // The events mirror stores '' for absent payloads, so blank strings count as
@@ -44,8 +53,15 @@ const ViewMismatchNotice = ({ viewLabel }: { viewLabel: string | null }) => (
         : "No observation matches the current filter in this trace"}
     </div>
     <p className="text-muted-foreground text-xs">
-      Its content is hidden by the current view, not missing. Switch the view
-      above to see it.
+      Its content is hidden by the current view, not missing.{" "}
+      <button
+        type="button"
+        onClick={openSessionViewMenu}
+        className="text-primary underline underline-offset-2 hover:no-underline"
+      >
+        Switch the view
+      </button>{" "}
+      to see it.
     </p>
   </div>
 );

@@ -2,6 +2,13 @@ import { type FilterState } from "@langfuse/shared";
 
 const SYSTEM_PRESET_ID_PREFIX = "__langfuse_";
 
+/**
+ * DOM id of the session-detail "View" drawer trigger. The empty-state notice
+ * (TraceEventsRow) uses it to open the View menu, so switching view from a
+ * card routes through the same single control — no per-card state.
+ */
+export const SESSION_DETAIL_VIEW_TRIGGER_ID = "session-detail-view-trigger";
+
 export interface SessionDetailSystemPreset {
   id: string;
   name: string;

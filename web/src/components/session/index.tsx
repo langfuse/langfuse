@@ -69,6 +69,7 @@ import {
   type SessionDetailSystemPreset,
   getSessionDetailPresetToApply,
   getSessionDetailViewConfig,
+  SESSION_DETAIL_VIEW_TRIGGER_ID,
 } from "@/src/components/session/session-detail-presets";
 import { downloadSessionAsJson } from "@/src/components/session/actions/downloadSessionAsJson";
 import { SessionDetailStoreProvider } from "@/src/components/session/SessionDetailStoreProvider";
@@ -1054,6 +1055,7 @@ const LoadedSessionEventsPage: React.FC<{
                 searchQuery: "",
               }}
               systemFilterPresets={SESSION_DETAIL_SYSTEM_PRESETS}
+              triggerId={SESSION_DETAIL_VIEW_TRIGGER_ID}
             />
 
             {/* Refines the selected view by filtering observations within each
