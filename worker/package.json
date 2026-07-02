@@ -31,6 +31,7 @@
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
     "@appsignal/opentelemetry-instrumentation-bullmq": "^0.8.0",
+    "@aws-sdk/client-lambda-microvms": "3.1074.0",
     "@aws-sdk/client-s3": "^3.1013.0",
     "@langfuse/shared": "workspace:*",
     "@opentelemetry/api": "^1.9.1",
@@ -53,6 +54,7 @@
     "csv-parse": "^5.6.0",
     "dd-trace": "5.109.0",
     "decimal.js": "^10.4.3",
+    "dockerode": "^4.0.9",
     "dotenv": "^16.4.5",
     "exponential-backoff": "^3.1.2",
     "express": "^5.2.1",
@@ -73,6 +75,7 @@
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/cors": "^2.8.17",
+    "@types/dockerode": "^4.0.1",
     "@types/express": "^5.0.6",
     "@types/express-serve-static-core": "^5.1.1",
     "@types/lodash": "^4.17.24",

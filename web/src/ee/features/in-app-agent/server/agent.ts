@@ -25,12 +25,14 @@ import type {
 } from "@/src/ee/features/in-app-agent/server/instrumentation";
 import { createInAppAgentInstrumentation } from "@/src/ee/features/in-app-agent/server/instrumentation";
 import {
+  createSandboxTools,
   createRedirectActionTool,
   filterInAppAgentAvailableLangfuseMcpTools,
   type InAppAgentUserAccess,
   withInAppAgentToolApproval,
 } from "@/src/ee/features/in-app-agent/server/tools";
 import { LANGFUSE_IN_APP_AGENT_SKILLS } from "@/src/ee/features/in-app-agent/server/skills";
+import type { InAppAgentSandbox } from "@/src/ee/features/in-app-agent/server/sandbox";
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
 import { logger } from "@langfuse/shared/src/server";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
@@ -166,6 +168,7 @@ type CreateAgUiStreamOptions = {
   langfuseClient: Langfuse;
   useLocalPrompt: boolean;
   langfuseTracing?: InAppAgentTracingConfig;
+  sandbox?: InAppAgentSandbox;
 };
 
 export async function createAgUiStream(params: {
@@ -230,6 +233,7 @@ export async function createAgUiStream(params: {
       .then(async () => {
         const results = await Promise.allSettled([
           cleanupAdapter?.(),
+          params.options.sandbox?.onTurnEnded(),
           params.options.onFinish?.(),
         ]);
 
@@ -789,6 +793,9 @@ async function createMastraAdapter(params: {
         projectId: params.options.redirectAction.projectId,
         isV4Enabled: params.options.redirectAction.isV4Enabled,
       }),
+      ...(params.options.sandbox
+        ? createSandboxTools(params.options.sandbox)
+        : {}),
     });
     params.onToolsAvailable?.(tools);
 

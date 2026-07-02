@@ -11,6 +11,7 @@ import {
 } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import {
+  clearInAppAgentConversationSandbox,
   convertDateToClickhouseDateTime,
   upsertScore,
 } from "@langfuse/shared/src/server";
@@ -20,6 +21,7 @@ import {
   getInAppAgentInstrumentationTraceId,
 } from "@/src/ee/features/in-app-agent/constants";
 import { InAppAgentMessageFeedbackValueSchema } from "@/src/ee/features/in-app-agent/schema";
+import { deleteInAppAgentSandboxSnapshot } from "@/src/ee/features/in-app-agent/server/sandbox";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   createTRPCRouter,
@@ -146,6 +148,13 @@ export const inAppAgentRouter = createTRPCRouter({
         projectId: input.projectId,
         conversationId: input.conversationId,
         userId: ctx.session.user.id,
+      });
+
+      await clearInAppAgentConversationSandbox({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        conversationId: input.conversationId,
+        deleteSnapshot: deleteInAppAgentSandboxSnapshot,
       });
 
       await ctx.prisma.inAppAgentConversation.update({

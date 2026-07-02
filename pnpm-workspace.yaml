@@ -28,6 +28,8 @@ allowBuilds:
   protobufjs: false
   "@datadog/pprof": false
   "@scarf/scarf": false
+  cpu-features: true
+  ssh2: true
 overrides:
   esbuild: "0.28.1"
   "undici@7": 7.28.0
