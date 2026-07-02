@@ -18,6 +18,13 @@ type ServiceClickhouseSettings = ClickHouseSettings & {
   enable_full_text_index?: 1;
 };
 
+type RequestTimeoutClickHouseSettings = ClickHouseSettings & {
+  max_execution_time?: number;
+  timeout_before_checking_execution_speed?: number;
+};
+
+const CLICKHOUSE_SERVER_TIMEOUT_GRACE_SECONDS = 5;
+
 /**
  * Remove these once we remove corresponding variables
  */
@@ -109,6 +116,19 @@ export class ClickHouseClientManager {
     return EVENTS_TABLE_READ_PATH_ENV_KEYS.some(
       (key) => process.env[key] === "true",
     );
+  }
+
+  private getRequestTimeoutClickHouseSettings(
+    requestTimeout?: number,
+  ): RequestTimeoutClickHouseSettings {
+    if (!requestTimeout) return {};
+
+    return {
+      timeout_before_checking_execution_speed: 0,
+      max_execution_time:
+        Math.ceil(requestTimeout / 1000) +
+        CLICKHOUSE_SERVER_TIMEOUT_GRACE_SECONDS,
+    };
   }
 
   private generateClientSettingsKey(
@@ -204,6 +224,7 @@ export class ClickHouseClientManager {
             : {}),
           ...cloudOptions,
           ...serviceClickhouseSettings,
+          ...this.getRequestTimeoutClickHouseSettings(opts.request_timeout),
           ...opts.clickhouse_settings,
           async_insert: 1,
           wait_for_async_insert: 1, // if disabled, we won't get errors from clickhouse
