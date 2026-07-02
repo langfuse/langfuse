@@ -1,10 +1,14 @@
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { vi } from "vitest";
-import { UsageStackedBarOverview } from "@/src/features/v4/components/V4MigrationProjectCards";
+import {
+  UsageStackedBarOverview,
+  V4MigrationProjectCards,
+} from "@/src/features/v4/components/V4MigrationProjectCards";
 import type { ReactNode } from "react";
 
 const rechartsProps = vi.hoisted(() => ({
   barCharts: [] as Array<{ margin?: { left?: number } }>,
+  bars: [] as Array<{ dataKey?: string }>,
   yAxes: [] as Array<{
     width?: number;
     domain?: [number, number];
@@ -45,12 +49,18 @@ vi.mock("recharts", () => ({
     return <div data-testid="y-axis" />;
   },
   Tooltip: () => null,
-  Bar: () => <div data-testid="bar" />,
+  Bar: (props: Record<string, unknown>) => {
+    rechartsProps.bars.push({
+      dataKey: typeof props.dataKey === "string" ? props.dataKey : undefined,
+    });
+    return <div data-testid="bar" />;
+  },
 }));
 
 describe("UsageStackedBarOverview", () => {
   beforeEach(() => {
     rechartsProps.barCharts.length = 0;
+    rechartsProps.bars.length = 0;
     rechartsProps.yAxes.length = 0;
   });
 
@@ -110,5 +120,120 @@ describe("UsageStackedBarOverview", () => {
     );
 
     expect(rechartsProps.yAxes[0]?.ticks).toEqual([0, 2, 4, 6, 8]);
+  });
+
+  it("can render every exact usage series without rolling hidden items into other", () => {
+    render(
+      <UsageStackedBarOverview
+        bucketTimes={["2026-06-30T04:00:00.000Z"]}
+        valueLabel="records"
+        seriesLimit={null}
+        series={Array.from({ length: 7 }, (_, index) => ({
+          name: `python@3.${index}.0 - pk-lf-key-${index}`,
+          total: index + 1,
+          points: [index + 1],
+        }))}
+      />,
+    );
+
+    expect(rechartsProps.bars).toHaveLength(7);
+    expect(screen.queryByText("Other")).not.toBeInTheDocument();
+    expect(screen.getByText("python@3.6.0 - pk-lf-key-6")).toBeInTheDocument();
+  });
+});
+
+describe("V4MigrationProjectCards SDK usage", () => {
+  beforeEach(() => {
+    rechartsProps.barCharts.length = 0;
+    rechartsProps.bars.length = 0;
+    rechartsProps.yAxes.length = 0;
+  });
+
+  it("shows SDK usage by exact SDK version and API key", () => {
+    render(
+      <V4MigrationProjectCards
+        projectId="project-v4"
+        legacyIntegrationSummary={{
+          legacyIntegrationCount: 0,
+          legacyIntegrations: {
+            posthog: false,
+            mixpanel: false,
+            blobStorage: false,
+          },
+        }}
+        traceLevelEvalCount={0}
+        legacyApiUsage={[]}
+        traceLevelEvalExecutions={[]}
+        sdkUsage={[
+          {
+            time: "2026-06-30T04:00:00.000Z",
+            sdkName: "python",
+            sdkVersion: "3.9.0",
+            publicKey: "pk-lf-old-python",
+            apiKeyNote: "backend worker",
+            count: 5,
+            firstSeen: "2026-06-30T04:02:00.000Z",
+            lastSeen: "2026-06-30T04:04:00.000Z",
+            canonicalSdkName: "python",
+            latestMajor: 4,
+            major: 3,
+            upgradeStatus: "outdated_major",
+          },
+          {
+            time: "2026-06-30T04:02:00.000Z",
+            sdkName: "python",
+            sdkVersion: "3.9.0",
+            publicKey: "pk-lf-old-python",
+            apiKeyNote: "backend worker",
+            count: 0,
+            firstSeen: null,
+            lastSeen: null,
+            canonicalSdkName: "python",
+            latestMajor: 4,
+            major: 3,
+            upgradeStatus: "outdated_major",
+          },
+          {
+            time: "2026-06-30T04:00:00.000Z",
+            sdkName: "unknown",
+            sdkVersion: "unknown",
+            publicKey: "",
+            apiKeyNote: null,
+            count: 2,
+            firstSeen: "2026-06-30T04:00:00.000Z",
+            lastSeen: "2026-06-30T04:00:00.000Z",
+            canonicalSdkName: null,
+            latestMajor: null,
+            major: null,
+            upgradeStatus: "unknown",
+          },
+        ]}
+        isLegacyIntegrationSummaryLoading={false}
+        isTraceLevelEvalSummaryLoading={false}
+        isLegacyApiUsageLoading={false}
+        isTraceLevelEvalExecutionsLoading={false}
+        isSdkUsageLoading={false}
+        hasLegacyIntegrationSummaryError={false}
+        hasTraceLevelEvalSummaryError={false}
+        hasLegacyApiUsageError={false}
+        hasTraceLevelEvalExecutionsError={false}
+        hasSdkUsageError={false}
+      />,
+    );
+
+    expect(screen.getByText("SDK usage")).toBeInTheDocument();
+    expect(screen.getByText("python@3.9.0")).toBeInTheDocument();
+    expect(screen.getByText("pk-lf-old-python")).toBeInTheDocument();
+    expect(screen.getByText("backend worker")).toBeInTheDocument();
+    expect(screen.getAllByText("untracked").length).toBeGreaterThan(0);
+    expect(
+      screen.queryByText("unknown@unknown - No API key"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Upgrade")).toBeInTheDocument();
+    expect(screen.getByText("Upgrade guide")).toHaveAttribute(
+      "href",
+      "https://langfuse.com/docs/observability/sdk/upgrade-path/python-v3-to-v4",
+    );
+    expect(rechartsProps.bars).toHaveLength(2);
   });
 });

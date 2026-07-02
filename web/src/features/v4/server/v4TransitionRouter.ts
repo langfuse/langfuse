@@ -5,15 +5,21 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { v4MigrationOrgScope } from "@/src/features/rbac/constants/organizationAccessRights";
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import {
+  hasOrganizationAccess,
+  throwIfNoOrganizationAccess,
+} from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   AnalyticsIntegrationExportSource,
   Prisma,
 } from "@langfuse/shared/src/db";
 import {
+  classifyIngestionSdkVersion,
   convertDateToClickhouseDateTime,
   queryClickhouse,
   systemTableRef,
+  type IngestionSdkUpgradeStatus,
 } from "@langfuse/shared/src/server";
 import {
   addTimelineBucket,
@@ -110,6 +116,48 @@ type LegacyApiUsageSummaryByProjectResultRow = {
   count: number;
 };
 
+type SdkUsageTimeSeriesRow = {
+  time: string;
+  sdkName: string;
+  sdkVersion: string;
+  publicKey: string;
+  count: string | number;
+  firstSeen: string;
+  lastSeen: string;
+};
+
+type SdkUsageTimeSeriesResultRow = {
+  time: string;
+  sdkName: string;
+  sdkVersion: string;
+  publicKey: string;
+  apiKeyNote: string | null;
+  count: number;
+  firstSeen: string | null;
+  lastSeen: string | null;
+  canonicalSdkName: "python" | "javascript" | null;
+  latestMajor: number | null;
+  major: number | null;
+  upgradeStatus: IngestionSdkUpgradeStatus;
+};
+
+type SdkUsageSummaryByProjectRow = {
+  projectId: string;
+  sdkName: string;
+  sdkVersion: string;
+  publicKey: string;
+  count: string | number;
+};
+
+type SdkUsageSummaryByProjectResultRow = {
+  projectId: string;
+  outdatedSdkUsageSeriesCount: number;
+};
+
+type ScoreAttributionColumnsRow = {
+  columnCount: string | number;
+};
+
 const getEmptyTimelineBuckets = (
   fromTimestamp: Date,
   toTimestamp: Date,
@@ -142,6 +190,117 @@ const compareTimelineRows = (
   if (left.entrypoint === "") return -1;
   if (right.entrypoint === "") return 1;
   return left.entrypoint.localeCompare(right.entrypoint);
+};
+
+const getTimelineBucketTimes = (
+  fromTimestamp: Date,
+  toTimestamp: Date,
+  granularity: ResolvedTimelineGranularity,
+): string[] => {
+  const buckets: string[] = [];
+
+  for (
+    let bucket = floorTimelineBucket(fromTimestamp, granularity);
+    bucket.getTime() < toTimestamp.getTime();
+    bucket = addTimelineBucket(bucket, granularity)
+  ) {
+    buckets.push(formatTimelineBucket(bucket));
+  }
+
+  return buckets;
+};
+
+const getSdkUsageSeriesKey = (row: {
+  sdkName: string;
+  sdkVersion: string;
+  publicKey: string;
+}): string => `${row.sdkName}\u0000${row.sdkVersion}\u0000${row.publicKey}`;
+
+const compareSdkUsageRows = (
+  left: SdkUsageTimeSeriesResultRow,
+  right: SdkUsageTimeSeriesResultRow,
+): number => {
+  if (left.time < right.time) return -1;
+  if (left.time > right.time) return 1;
+
+  const leftSeries = getSdkUsageSeriesKey(left);
+  const rightSeries = getSdkUsageSeriesKey(right);
+
+  return leftSeries.localeCompare(rightSeries);
+};
+
+const fillSdkUsageBuckets = ({
+  rows,
+  fromTimestamp,
+  toTimestamp,
+  granularity,
+  apiKeyNotesByPublicKey,
+}: {
+  rows: SdkUsageTimeSeriesRow[];
+  fromTimestamp: Date;
+  toTimestamp: Date;
+  granularity: ResolvedTimelineGranularity;
+  apiKeyNotesByPublicKey: Map<string, string | null>;
+}): SdkUsageTimeSeriesResultRow[] => {
+  if (rows.length === 0) return [];
+
+  const bucketTimes = getTimelineBucketTimes(
+    fromTimestamp,
+    toTimestamp,
+    granularity,
+  );
+  const countsByBucketAndSeries = new Map(
+    rows.map((row) => [
+      `${row.time}\u0000${getSdkUsageSeriesKey(row)}`,
+      {
+        count: Number(row.count),
+        firstSeen: row.firstSeen,
+        lastSeen: row.lastSeen,
+      },
+    ]),
+  );
+  const series = Array.from(
+    new Map(rows.map((row) => [getSdkUsageSeriesKey(row), row])).values(),
+  ).sort((left, right) =>
+    getSdkUsageSeriesKey(left).localeCompare(getSdkUsageSeriesKey(right)),
+  );
+  const classificationBySeries = new Map(
+    series.map((item) => [
+      getSdkUsageSeriesKey(item),
+      classifyIngestionSdkVersion({
+        sdkName: item.sdkName,
+        sdkVersion: item.sdkVersion,
+      }),
+    ]),
+  );
+  const filledRows: SdkUsageTimeSeriesResultRow[] = [];
+
+  for (const time of bucketTimes) {
+    for (const item of series) {
+      const seriesKey = getSdkUsageSeriesKey(item);
+      const bucketValues = countsByBucketAndSeries.get(
+        `${time}\u0000${seriesKey}`,
+      );
+      const classification = classificationBySeries.get(seriesKey)!;
+
+      filledRows.push({
+        time,
+        sdkName: item.sdkName,
+        sdkVersion: item.sdkVersion,
+        publicKey: item.publicKey,
+        apiKeyNote: apiKeyNotesByPublicKey.get(item.publicKey) ?? null,
+        count: bucketValues?.count ?? 0,
+        firstSeen: bucketValues?.firstSeen ?? null,
+        lastSeen: bucketValues?.lastSeen ?? null,
+        canonicalSdkName: classification.canonicalSdkName,
+        latestMajor: classification.latestMajor,
+        major: classification.major,
+        upgradeStatus: classification.status,
+      });
+    }
+  }
+
+  return filledRows.sort(compareSdkUsageRows);
 };
 
 type TraceLevelEvalExecutionTimeSeriesRow = {
@@ -460,6 +619,269 @@ ORDER BY bucket_time ASC, score_name ASC
         toTimestamp: input.toTimestamp,
         granularity,
       });
+    }),
+
+  sdkUsageTimeSeries: protectedProjectProcedure
+    .input(timelineInputSchema)
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "apiKeys:read",
+      });
+
+      const granularity = resolveTimelineGranularity(
+        input.fromTimestamp,
+        input.toTimestamp,
+      );
+      const bucketTimeSql = getTimelineBucketSql("event_time", granularity);
+      const scoreAttributionColumns =
+        await queryClickhouse<ScoreAttributionColumnsRow>({
+          query: `
+SELECT uniqExact(name) AS columnCount
+FROM ${systemTableRef("system.columns")}
+WHERE database = currentDatabase()
+  AND table = 'scores'
+  AND name IN ('ingestion_api_key', 'ingestion_sdk_name', 'ingestion_sdk_version')
+        `,
+          tags: {
+            projectId: input.projectId,
+            route: "v4-sdk-usage-score-columns",
+          },
+          preferredClickhouseService: "EventsReadOnly",
+        });
+      const includeScores =
+        Number(scoreAttributionColumns[0]?.columnCount ?? 0) === 3;
+      const scoresUnionSql = includeScores
+        ? `
+
+  UNION ALL
+
+  SELECT
+    timestamp AS event_time,
+    if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdk_name,
+    if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version,
+    ingestion_api_key AS public_key
+  FROM scores FINAL
+  WHERE
+    project_id = {projectId: String}
+    AND timestamp >= {fromTimestamp: DateTime64(3)}
+    AND timestamp <= {toTimestamp: DateTime64(3)}
+    AND toDate(timestamp) >= toDate({fromTimestamp: DateTime64(3)})
+    AND toDate(timestamp) <= toDate({toTimestamp: DateTime64(3)})
+    AND is_deleted = 0`
+        : "";
+
+      const rows = await queryClickhouse<SdkUsageTimeSeriesRow>({
+        query: `
+WITH selected AS (
+  SELECT
+    start_time AS event_time,
+    if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdk_name,
+    if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version,
+    ingestion_api_key AS public_key
+  FROM events_core
+  WHERE
+    project_id = {projectId: String}
+    AND start_time >= {fromTimestamp: DateTime64(3)}
+    AND start_time <= {toTimestamp: DateTime64(3)}
+    AND toDate(start_time) >= toDate({fromTimestamp: DateTime64(3)})
+    AND toDate(start_time) <= toDate({toTimestamp: DateTime64(3)})
+    AND is_deleted = 0
+  ${scoresUnionSql}
+)
+
+SELECT
+  formatDateTime(${bucketTimeSql}, '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS time,
+  sdk_name AS sdkName,
+  sdk_version AS sdkVersion,
+  public_key AS publicKey,
+  count() AS count,
+  formatDateTime(min(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS firstSeen,
+  formatDateTime(max(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen
+FROM selected
+GROUP BY ${bucketTimeSql}, sdk_name, sdk_version, public_key
+ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
+        `,
+        params: {
+          projectId: input.projectId,
+          fromTimestamp: convertDateToClickhouseDateTime(input.fromTimestamp),
+          toTimestamp: convertDateToClickhouseDateTime(input.toTimestamp),
+        },
+        tags: {
+          projectId: input.projectId,
+          route: "v4-sdk-usage-timeseries",
+        },
+        preferredClickhouseService: "EventsReadOnly",
+      });
+
+      const publicKeys = Array.from(
+        new Set(rows.map((row) => row.publicKey).filter(Boolean)),
+      );
+      const canReadOrganizationApiKeys = hasOrganizationAccess({
+        role: ctx.session.orgRole,
+        admin: ctx.session.user.admin,
+        scope: "organization:CRUD_apiKeys",
+      });
+      const apiKeyScopeFilters = [
+        {
+          projectId: input.projectId,
+          scope: "PROJECT" as const,
+        },
+        ...(canReadOrganizationApiKeys
+          ? [
+              {
+                orgId: ctx.session.orgId,
+                scope: "ORGANIZATION" as const,
+              },
+            ]
+          : []),
+      ];
+      const apiKeys =
+        publicKeys.length === 0
+          ? []
+          : await ctx.prisma.apiKey.findMany({
+              where: {
+                OR: apiKeyScopeFilters,
+                publicKey: { in: publicKeys },
+                isInAppAgentKey: false,
+              },
+              select: {
+                publicKey: true,
+                note: true,
+              },
+            });
+      const apiKeyNotesByPublicKey = new Map(
+        apiKeys.map((apiKey) => [apiKey.publicKey, apiKey.note]),
+      );
+
+      return fillSdkUsageBuckets({
+        rows,
+        fromTimestamp: input.fromTimestamp,
+        toTimestamp: input.toTimestamp,
+        granularity,
+        apiKeyNotesByPublicKey,
+      });
+    }),
+
+  sdkUsageSummaryByProject: protectedV4MigrationOrgProcedure
+    .input(organizationTimeRangeInputSchema)
+    .query(async ({ input, ctx }) => {
+      const projects = await ctx.prisma.project.findMany({
+        where: {
+          orgId: input.orgId,
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+        },
+      });
+      const projectIds = projects.map((project) => project.id);
+
+      if (projectIds.length === 0) return [];
+
+      const scoreAttributionColumns =
+        await queryClickhouse<ScoreAttributionColumnsRow>({
+          query: `
+SELECT uniqExact(name) AS columnCount
+FROM ${systemTableRef("system.columns")}
+WHERE database = currentDatabase()
+  AND table = 'scores'
+  AND name IN ('ingestion_api_key', 'ingestion_sdk_name', 'ingestion_sdk_version')
+        `,
+          tags: {
+            route: "v4-org-sdk-usage-score-columns",
+          },
+          preferredClickhouseService: "EventsReadOnly",
+        });
+      const includeScores =
+        Number(scoreAttributionColumns[0]?.columnCount ?? 0) === 3;
+      const scoresUnionSql = includeScores
+        ? `
+
+  UNION ALL
+
+  SELECT
+    project_id,
+    if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdk_name,
+    if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version,
+    ingestion_api_key AS public_key
+  FROM scores FINAL
+  WHERE
+    project_id IN {projectIds: Array(String)}
+    AND timestamp >= {fromTimestamp: DateTime64(3)}
+    AND timestamp <= {toTimestamp: DateTime64(3)}
+    AND toDate(timestamp) >= toDate({fromTimestamp: DateTime64(3)})
+    AND toDate(timestamp) <= toDate({toTimestamp: DateTime64(3)})
+    AND is_deleted = 0`
+        : "";
+
+      const rows = await queryClickhouse<SdkUsageSummaryByProjectRow>({
+        query: `
+WITH selected AS (
+  SELECT
+    project_id,
+    if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdk_name,
+    if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version,
+    ingestion_api_key AS public_key
+  FROM events_core
+  WHERE
+    project_id IN {projectIds: Array(String)}
+    AND start_time >= {fromTimestamp: DateTime64(3)}
+    AND start_time <= {toTimestamp: DateTime64(3)}
+    AND toDate(start_time) >= toDate({fromTimestamp: DateTime64(3)})
+    AND toDate(start_time) <= toDate({toTimestamp: DateTime64(3)})
+    AND is_deleted = 0
+  ${scoresUnionSql}
+)
+
+SELECT
+  project_id AS projectId,
+  sdk_name AS sdkName,
+  sdk_version AS sdkVersion,
+  public_key AS publicKey,
+  count() AS count
+FROM selected
+GROUP BY project_id, sdk_name, sdk_version, public_key
+ORDER BY project_id ASC, sdk_name ASC, sdk_version ASC, public_key ASC
+        `,
+        params: {
+          projectIds,
+          fromTimestamp: convertDateToClickhouseDateTime(input.fromTimestamp),
+          toTimestamp: convertDateToClickhouseDateTime(input.toTimestamp),
+        },
+        tags: {
+          route: "v4-org-sdk-usage-summary",
+        },
+        preferredClickhouseService: "EventsReadOnly",
+      });
+
+      const outdatedCountsByProjectId = new Map<string, number>();
+
+      for (const row of rows) {
+        const classification = classifyIngestionSdkVersion({
+          sdkName: row.sdkName,
+          sdkVersion: row.sdkVersion,
+        });
+
+        if (
+          classification.status === "outdated_major" &&
+          Number(row.count) > 0
+        ) {
+          outdatedCountsByProjectId.set(
+            row.projectId,
+            (outdatedCountsByProjectId.get(row.projectId) ?? 0) + 1,
+          );
+        }
+      }
+
+      return projectIds.map(
+        (projectId): SdkUsageSummaryByProjectResultRow => ({
+          projectId,
+          outdatedSdkUsageSeriesCount:
+            outdatedCountsByProjectId.get(projectId) ?? 0,
+        }),
+      );
     }),
 
   legacyApiUsageSummaryByProject: protectedV4MigrationOrgProcedure

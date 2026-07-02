@@ -79,6 +79,10 @@ overrides:
   # Remove once @langchain/anthropic allows the same SDK range.
   # Check: https://www.npmjs.com/package/@langchain/anthropic?activeTab=dependencies
   "@anthropic-ai/vertex-sdk>@anthropic-ai/sdk": 0.104.1
+packageExtensions:
+  next-auth@4.24.13:
+    dependencies:
+      https-proxy-agent: 7.0.6
 patchedDependencies:
   next-auth@4.24.13: patches/next-auth@4.24.13.patch
 publicHoistPattern:

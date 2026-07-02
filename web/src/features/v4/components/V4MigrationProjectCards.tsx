@@ -44,6 +44,26 @@ export type V4TraceLevelEvalExecutionPoint = {
   count: number;
 };
 
+export type V4SdkUsagePoint = {
+  time: string;
+  sdkName: string;
+  sdkVersion: string;
+  publicKey: string;
+  apiKeyNote: string | null;
+  count: number;
+  firstSeen: string | null;
+  lastSeen: string | null;
+  canonicalSdkName: "python" | "javascript" | null;
+  latestMajor: number | null;
+  major: number | null;
+  upgradeStatus:
+    | "current"
+    | "outdated_major"
+    | "unknown"
+    | "unsupported_sdk"
+    | "invalid_version";
+};
+
 type ProductHref = string | { pathname: string; query: Record<string, string> };
 
 type UsageSeries = {
@@ -58,9 +78,28 @@ type StackedUsageChartSeries = UsageSeries & {
   color: string;
 };
 
+type SdkUsageSeries = UsageSeries & {
+  sdkName: string;
+  sdkVersion: string;
+  publicKey: string;
+  apiKeyNote: string | null;
+  canonicalSdkName: V4SdkUsagePoint["canonicalSdkName"];
+  firstSeen?: string;
+  upgradeStatus: V4SdkUsagePoint["upgradeStatus"];
+  latestMajor: number | null;
+  major: number | null;
+};
+
 const V4_DOCS_LINK = {
   label: "Docs",
   href: "https://langfuse.com/docs/v4",
+} as const;
+
+const SDK_UPGRADE_LINKS = {
+  python:
+    "https://langfuse.com/docs/observability/sdk/upgrade-path/python-v3-to-v4",
+  javascript:
+    "https://langfuse.com/docs/observability/sdk/upgrade-path/js-v4-to-v5",
 } as const;
 
 const MAX_STACKED_CHART_SERIES = 6;
@@ -179,6 +218,177 @@ const groupUsageSeries = <T extends { time: string; count: number }>({
     });
 };
 
+const getSdkUsageSeriesKey = (row: {
+  sdkName: string;
+  sdkVersion: string;
+  publicKey: string;
+}): string => `${row.sdkName}\u0000${row.sdkVersion}\u0000${row.publicKey}`;
+
+const getCompactPublicKey = (publicKey: string) =>
+  publicKey.length > 16
+    ? `${publicKey.slice(0, 9)}...${publicKey.slice(-6)}`
+    : publicKey || "No API key";
+
+const isUntrackedSdkUsage = (row: {
+  sdkName: string;
+  sdkVersion: string;
+  publicKey: string;
+}) =>
+  row.publicKey === "" &&
+  (row.sdkName || "unknown") === "unknown" &&
+  (row.sdkVersion || "unknown") === "unknown";
+
+const getSdkPackageLabel = (row: { sdkName: string; sdkVersion: string }) =>
+  `${row.sdkName || "unknown"}@${row.sdkVersion || "unknown"}`;
+
+const getSdkUsageSeriesName = (row: {
+  sdkName: string;
+  sdkVersion: string;
+  publicKey: string;
+}) =>
+  isUntrackedSdkUsage(row)
+    ? "untracked"
+    : `${getSdkPackageLabel(row)} - ${getCompactPublicKey(row.publicKey)}`;
+
+const getSdkUpgradeStatusLabel = (status: V4SdkUsagePoint["upgradeStatus"]) => {
+  switch (status) {
+    case "current":
+      return "Current";
+    case "outdated_major":
+      return "Upgrade";
+    case "unknown":
+      return "Unknown";
+    case "unsupported_sdk":
+      return "Other";
+    case "invalid_version":
+      return "Invalid";
+    default: {
+      const exhaustiveCheck: never = status;
+      return exhaustiveCheck;
+    }
+  }
+};
+
+const getSdkUpgradeStatusBadgeVariant = (
+  status: V4SdkUsagePoint["upgradeStatus"],
+): "success" | "warning" | "outline-solid" =>
+  status === "current"
+    ? "success"
+    : status === "outdated_major"
+      ? "warning"
+      : "outline-solid";
+
+const groupSdkUsageSeries = ({
+  rows,
+  bucketTimes,
+}: {
+  rows: V4SdkUsagePoint[] | undefined;
+  bucketTimes: string[];
+}): SdkUsageSeries[] => {
+  const groups = new Map<
+    string,
+    {
+      sdkName: string;
+      sdkVersion: string;
+      publicKey: string;
+      apiKeyNote: string | null;
+      canonicalSdkName: V4SdkUsagePoint["canonicalSdkName"];
+      upgradeStatus: V4SdkUsagePoint["upgradeStatus"];
+      latestMajor: number | null;
+      major: number | null;
+      total: number;
+      countsByTime: Map<string, number>;
+      firstSeen?: string;
+      lastSeen?: string;
+    }
+  >();
+
+  for (const row of rows ?? []) {
+    const key = getSdkUsageSeriesKey(row);
+    const group =
+      groups.get(key) ??
+      ({
+        sdkName: row.sdkName,
+        sdkVersion: row.sdkVersion,
+        publicKey: row.publicKey,
+        apiKeyNote: row.apiKeyNote,
+        canonicalSdkName: row.canonicalSdkName,
+        upgradeStatus: row.upgradeStatus,
+        latestMajor: row.latestMajor,
+        major: row.major,
+        total: 0,
+        countsByTime: new Map<string, number>(),
+      } satisfies {
+        sdkName: string;
+        sdkVersion: string;
+        publicKey: string;
+        apiKeyNote: string | null;
+        canonicalSdkName: V4SdkUsagePoint["canonicalSdkName"];
+        upgradeStatus: V4SdkUsagePoint["upgradeStatus"];
+        latestMajor: number | null;
+        major: number | null;
+        total: number;
+        countsByTime: Map<string, number>;
+        firstSeen?: string;
+        lastSeen?: string;
+      });
+
+    group.total += row.count;
+    group.countsByTime.set(
+      row.time,
+      (group.countsByTime.get(row.time) ?? 0) + row.count,
+    );
+
+    if (row.count > 0) {
+      if (
+        row.firstSeen &&
+        (!group.firstSeen || row.firstSeen < group.firstSeen)
+      ) {
+        group.firstSeen = row.firstSeen;
+      }
+      if (row.lastSeen && (!group.lastSeen || row.lastSeen > group.lastSeen)) {
+        group.lastSeen = row.lastSeen;
+      }
+    }
+
+    groups.set(key, group);
+  }
+
+  return Array.from(groups.values())
+    .map((group) => ({
+      name: getSdkUsageSeriesName(group),
+      sdkName: group.sdkName,
+      sdkVersion: group.sdkVersion,
+      publicKey: group.publicKey,
+      apiKeyNote: group.apiKeyNote,
+      canonicalSdkName: group.canonicalSdkName,
+      upgradeStatus: group.upgradeStatus,
+      latestMajor: group.latestMajor,
+      major: group.major,
+      total: group.total,
+      points: bucketTimes.map((time) => group.countsByTime.get(time) ?? 0),
+      firstSeen: group.firstSeen,
+      lastSeen: group.lastSeen,
+    }))
+    .filter((series) => series.total > 0)
+    .sort((left, right) => {
+      if (
+        left.upgradeStatus === "outdated_major" &&
+        right.upgradeStatus !== "outdated_major"
+      ) {
+        return -1;
+      }
+      if (
+        right.upgradeStatus === "outdated_major" &&
+        left.upgradeStatus !== "outdated_major"
+      ) {
+        return 1;
+      }
+      if (right.total !== left.total) return right.total - left.total;
+      return left.name.localeCompare(right.name);
+    });
+};
+
 const Notice = ({ children }: { children: ReactNode }) => (
   <Alert>
     <AlertDescription>{children}</AlertDescription>
@@ -263,9 +473,11 @@ const Section = ({
 
 const getStackedChartSeries = (
   series: UsageSeries[],
+  seriesLimit: number | null = MAX_STACKED_CHART_SERIES,
 ): StackedUsageChartSeries[] => {
-  const visibleSeries = series.slice(0, MAX_STACKED_CHART_SERIES);
-  const hiddenSeries = series.slice(MAX_STACKED_CHART_SERIES);
+  const visibleSeries =
+    seriesLimit === null ? series : series.slice(0, seriesLimit);
+  const hiddenSeries = seriesLimit === null ? [] : series.slice(seriesLimit);
   const stackSeries =
     hiddenSeries.length === 0
       ? visibleSeries
@@ -326,12 +538,17 @@ export const UsageStackedBarOverview = ({
   bucketTimes,
   series,
   valueLabel,
+  seriesLimit,
 }: {
   bucketTimes: string[];
   series: UsageSeries[];
   valueLabel: string;
+  seriesLimit?: number | null;
 }) => {
-  const chartSeries = useMemo(() => getStackedChartSeries(series), [series]);
+  const chartSeries = useMemo(
+    () => getStackedChartSeries(series, seriesLimit),
+    [series, seriesLimit],
+  );
   const yAxisTicks = useMemo(
     () => getStackedYAxisTicks(chartSeries),
     [chartSeries],
@@ -452,6 +669,120 @@ export const UsageStackedBarOverview = ({
   );
 };
 
+const SdkUsageDetails = ({
+  bucketTimes,
+  series,
+}: {
+  bucketTimes: string[];
+  series: SdkUsageSeries[];
+}) => {
+  const total = series.reduce((sum, item) => sum + item.total, 0);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <UsageStackedBarOverview
+        bucketTimes={bucketTimes}
+        series={series}
+        valueLabel="records"
+        seriesLimit={null}
+      />
+      <div className="overflow-hidden rounded-md border">
+        <div className="bg-muted/30 text-muted-foreground hidden grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_7rem_7rem] gap-3 border-b px-3 py-2 text-xs font-medium md:grid">
+          <span>SDK</span>
+          <span>API key</span>
+          <span className="text-right">Last seen</span>
+          <span className="text-right">Records</span>
+        </div>
+        <div className="max-h-80 overflow-y-auto">
+          {series.map((item) => {
+            const upgradeHref =
+              item.upgradeStatus === "outdated_major" && item.canonicalSdkName
+                ? SDK_UPGRADE_LINKS[item.canonicalSdkName]
+                : null;
+            const publicKeyLabel = item.publicKey || "No API key";
+            const detail = [
+              item.apiKeyNote ? `note: ${item.apiKeyNote}` : null,
+              item.latestMajor ? `latest major: ${item.latestMajor}` : null,
+            ]
+              .filter(Boolean)
+              .join(" - ");
+
+            return (
+              <div
+                key={getSdkUsageSeriesKey(item)}
+                className="grid gap-3 border-b px-3 py-2 last:border-b-0 md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_7rem_7rem] md:items-center"
+              >
+                <div className="min-w-0">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Badge
+                      variant={getSdkUpgradeStatusBadgeVariant(
+                        item.upgradeStatus,
+                      )}
+                      size="sm"
+                      className="shrink-0"
+                    >
+                      {getSdkUpgradeStatusLabel(item.upgradeStatus)}
+                    </Badge>
+                    <span
+                      className="truncate text-sm font-medium"
+                      title={
+                        isUntrackedSdkUsage(item)
+                          ? "untracked"
+                          : getSdkPackageLabel(item)
+                      }
+                    >
+                      {isUntrackedSdkUsage(item)
+                        ? "untracked"
+                        : getSdkPackageLabel(item)}
+                    </span>
+                  </div>
+                  <div
+                    className="text-muted-foreground mt-0.5 truncate text-xs"
+                    title={detail}
+                  >
+                    {upgradeHref ? (
+                      <InlineLink href={upgradeHref} external>
+                        Upgrade guide
+                      </InlineLink>
+                    ) : (
+                      detail || "No upgrade guidance"
+                    )}
+                  </div>
+                </div>
+                <div className="min-w-0 md:block">
+                  <div
+                    className="truncate font-mono text-xs"
+                    title={publicKeyLabel}
+                  >
+                    {publicKeyLabel}
+                  </div>
+                  {item.apiKeyNote ? (
+                    <div
+                      className="text-muted-foreground mt-0.5 truncate text-xs"
+                      title={item.apiKeyNote}
+                    >
+                      {item.apiKeyNote}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="text-muted-foreground text-xs md:text-right">
+                  {item.lastSeen ? getBucketLabel(item.lastSeen) : "-"}
+                </div>
+                <div className="text-sm font-medium md:text-right">
+                  {numberFormatter(item.total, 0, 2)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="bg-muted/20 text-muted-foreground border-t px-3 py-2 text-right text-xs">
+          {numberFormatter(total, 0, 2)} records
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ActionRow = ({
   title,
   titleClassName,
@@ -504,14 +835,17 @@ export const V4MigrationProjectCards = ({
   traceLevelEvalCount: configuredTraceLevelEvalCount,
   legacyApiUsage,
   traceLevelEvalExecutions,
+  sdkUsage,
   isLegacyIntegrationSummaryLoading,
   isTraceLevelEvalSummaryLoading,
   isLegacyApiUsageLoading,
   isTraceLevelEvalExecutionsLoading,
+  isSdkUsageLoading,
   hasLegacyIntegrationSummaryError,
   hasTraceLevelEvalSummaryError,
   hasLegacyApiUsageError,
   hasTraceLevelEvalExecutionsError,
+  hasSdkUsageError,
 }: {
   projectId: string;
   projectName?: string;
@@ -519,14 +853,17 @@ export const V4MigrationProjectCards = ({
   traceLevelEvalCount: number | undefined;
   legacyApiUsage: V4LegacyApiUsagePoint[] | undefined;
   traceLevelEvalExecutions: V4TraceLevelEvalExecutionPoint[] | undefined;
+  sdkUsage: V4SdkUsagePoint[] | undefined;
   isLegacyIntegrationSummaryLoading: boolean;
   isTraceLevelEvalSummaryLoading: boolean;
   isLegacyApiUsageLoading: boolean;
   isTraceLevelEvalExecutionsLoading: boolean;
+  isSdkUsageLoading: boolean;
   hasLegacyIntegrationSummaryError: boolean;
   hasTraceLevelEvalSummaryError: boolean;
   hasLegacyApiUsageError: boolean;
   hasTraceLevelEvalExecutionsError: boolean;
+  hasSdkUsageError: boolean;
 }) => {
   const traceLevelEvalsHref = useMemo(
     () => getTraceLevelEvalsHref(projectId),
@@ -559,6 +896,26 @@ export const V4MigrationProjectCards = ({
     [evalExecutionBucketTimes, traceLevelEvalExecutions],
   );
 
+  const sdkUsageBucketTimes = useMemo(
+    () => getBucketTimes(sdkUsage ?? []),
+    [sdkUsage],
+  );
+  const sdkUsageSeries = useMemo(
+    () =>
+      groupSdkUsageSeries({
+        rows: sdkUsage,
+        bucketTimes: sdkUsageBucketTimes,
+      }),
+    [sdkUsage, sdkUsageBucketTimes],
+  );
+  const outdatedSdkUsageSeries = useMemo(
+    () =>
+      sdkUsageSeries.filter(
+        (series) => series.upgradeStatus === "outdated_major",
+      ),
+    [sdkUsageSeries],
+  );
+
   const legacyIntegrationLinks = useMemo(
     () =>
       INTEGRATION_LINKS.filter(
@@ -572,18 +929,22 @@ export const V4MigrationProjectCards = ({
     hasLegacyIntegrationSummaryError ||
     hasTraceLevelEvalSummaryError ||
     hasLegacyApiUsageError ||
-    hasTraceLevelEvalExecutionsError;
+    hasTraceLevelEvalExecutionsError ||
+    hasSdkUsageError;
   const traceLevelEvalCount =
     configuredTraceLevelEvalCount ?? evalExecutionSeries.length;
   const activeTaskCount =
     legacyApiSeries.length +
     traceLevelEvalCount +
-    legacyIntegrationLinks.length;
+    legacyIntegrationLinks.length +
+    outdatedSdkUsageSeries.length;
   const migrationStatus = getV4MigrationStatus(activeTaskCount);
   const isSummaryLoading =
     isLegacyIntegrationSummaryLoading || isTraceLevelEvalSummaryLoading;
   const isTimelineLoading =
-    isLegacyApiUsageLoading || isTraceLevelEvalExecutionsLoading;
+    isLegacyApiUsageLoading ||
+    isTraceLevelEvalExecutionsLoading ||
+    isSdkUsageLoading;
 
   return (
     <DashboardCard
@@ -645,6 +1006,26 @@ export const V4MigrationProjectCards = ({
           />
         ) : (
           <Notice>No legacy public API usage in this range.</Notice>
+        )}
+      </Section>
+
+      <Section
+        title="SDK usage"
+        count={sdkUsageSeries.length}
+        isCountLoading={isSdkUsageLoading}
+        detailsHref={`/project/${projectId}/settings/api-keys`}
+      >
+        {isSdkUsageLoading ? (
+          <SectionLoading />
+        ) : hasSdkUsageError ? (
+          <Notice>Failed to load SDK usage.</Notice>
+        ) : sdkUsageSeries.length ? (
+          <SdkUsageDetails
+            bucketTimes={sdkUsageBucketTimes}
+            series={sdkUsageSeries}
+          />
+        ) : (
+          <Notice>No SDK usage detected in this range.</Notice>
         )}
       </Section>
 
