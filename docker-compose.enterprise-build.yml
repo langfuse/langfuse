@@ -1,0 +1,16 @@
+services:
+  langfuse-web:
+    build:
+      dockerfile: ./web/Dockerfile_enterprise
+      # Value-less args are only forwarded when set in the environment, so the
+      # Dockerfile ARG defaults stay the single source of the image URIs.
+      args:
+        - WIZOS_NODE_BUILDER_IMAGE
+        - WIZOS_NODE_RUNTIME_IMAGE
+
+  langfuse-worker:
+    build:
+      dockerfile: ./worker/Dockerfile_enterprise
+      args:
+        - WIZOS_NODE_BUILDER_IMAGE
+        - WIZOS_NODE_RUNTIME_IMAGE
