@@ -40,7 +40,7 @@ import {
   type ObservationLevelType,
   type FilterState,
   BatchExportTableName,
-  type ObservationType,
+  ObservationType,
   TableViewPresetTableName,
   AnnotationQueueObjectType,
   BatchActionType,
@@ -48,6 +48,7 @@ import {
   type TimeFilter,
   type OrderByState,
   type TracingSearchType,
+  getGenerationLikeTypes,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
@@ -163,6 +164,20 @@ export type ObservationsTableProps = {
   limitRows?: number;
 };
 
+const getDefaultObservationTypeFilter = ({
+  hasPromptFilter,
+}: {
+  hasPromptFilter: boolean;
+}) => {
+  const defaultTypes = getGenerationLikeTypes();
+
+  if (!hasPromptFilter) {
+    return defaultTypes;
+  }
+
+  return [...defaultTypes, ObservationType.SPAN];
+};
+
 export default function ObservationsTable({
   projectId,
   promptName,
@@ -264,16 +279,9 @@ export default function ObservationsTable({
             column: "type",
             type: "stringOptions",
             operator: "any of",
-            value: [
-              "GENERATION",
-              "AGENT",
-              "TOOL",
-              "CHAIN",
-              "RETRIEVER",
-              "EVALUATOR",
-              "EMBEDDING",
-              "GUARDRAIL",
-            ],
+            value: getDefaultObservationTypeFilter({
+              hasPromptFilter: Boolean(promptName || promptVersion),
+            }),
           },
         ]
       : [],
@@ -1725,3 +1733,24 @@ const GenerationsDynamicCell = ({
     />
   );
 };
+
+/* eslint-disable @repo/no-in-source-vitest */
+const vitest = import.meta.vitest;
+
+if (vitest && typeof vitest === "object") {
+  const { describe, expect, it } = vitest;
+
+  describe("getDefaultObservationTypeFilter", () => {
+    it("keeps the normal observations table scoped to generation-like types", () => {
+      expect(
+        getDefaultObservationTypeFilter({ hasPromptFilter: false }),
+      ).toEqual(getGenerationLikeTypes());
+    });
+
+    it("includes SPAN for prompt-linked tables so OTEL prompt spans are visible", () => {
+      expect(
+        getDefaultObservationTypeFilter({ hasPromptFilter: true }),
+      ).toEqual([...getGenerationLikeTypes(), ObservationType.SPAN]);
+    });
+  });
+}
