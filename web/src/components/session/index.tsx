@@ -58,10 +58,7 @@ import {
 import { StringParam, useQueryParam } from "use-query-params";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
-import {
-  TableViewPresetsDrawer,
-  isSystemPresetId,
-} from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
+import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import { Separator } from "@/src/components/ui/separator";
 import {
   type VisibilityState,
@@ -941,15 +938,18 @@ const LoadedSessionEventsPage: React.FC<{
   const selectedViewId = viewControllers.selectedViewId;
 
   // Which named view drives the empty-state notice. Derived from the applied
-  // FilterState (the single source of truth), so the label stays correct after
-  // the manager strips the viewId on reload and drops to null the moment the
-  // filter is edited. A selected SAVED view (non-system id) wins over a
-  // coincidental system-preset filter match, so the notice and the drawer
-  // trigger name the same view.
+  // FilterState (the single source of truth) so the label survives the manager
+  // stripping the viewId on reload, and drops to null the moment the filter is
+  // edited. Mirrors the drawer trigger's rule: only name a view when it also
+  // matches the selected view id — so a selected saved view, or a filter
+  // hand-edited into another preset's exact shape, doesn't make the notice and
+  // the drawer trigger disagree.
+  const filterMatchedView = findSessionDetailViewByFilters(visibleFilterState);
   const matchedView =
-    selectedViewId && !isSystemPresetId(selectedViewId)
-      ? null
-      : findSessionDetailViewByFilters(visibleFilterState);
+    filterMatchedView &&
+    (!selectedViewId || filterMatchedView.id === selectedViewId)
+      ? filterMatchedView
+      : null;
   const viewLabel = matchedView?.name ?? null;
 
   // Recover the system-preset viewId the view manager strips from the URL on

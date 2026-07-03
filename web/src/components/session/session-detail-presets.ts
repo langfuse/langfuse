@@ -143,12 +143,3 @@ export const findSessionDetailViewByFilters = (
       normalizeFilterState(filterState),
     ),
   ) ?? null;
-
-/**
- * Display name of the view whose filters match `filterState` (null for a custom
- * filter). Labels the empty-state notice — what each card renders is driven
- * entirely by the FilterState (the single source of truth), applied server-side.
- */
-export const getSessionDetailViewLabel = (
-  filterState: FilterState,
-): string | null => findSessionDetailViewByFilters(filterState)?.name ?? null;

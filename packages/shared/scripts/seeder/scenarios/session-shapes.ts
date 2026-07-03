@@ -26,18 +26,19 @@ import { countRows, sessionLink } from "./verify";
 /**
  * Diverse v4 session shapes for the session-detail view (LFE-10520).
  *
- * The v4 session view renders one card per trace and, by default, applies the
- * "First Generation in Trace" preset — it surfaces only the first
- * `type=GENERATION` observation of each trace. That assumption breaks for
- * agentic sessions whose I/O lives on AGENT/TOOL observations and which carry
- * no GENERATION at all: every card then renders "No observations match the
- * current filter." This scenario seeds the shapes needed to see that:
+ * The v4 session view renders one card per trace. Pre-LFE-10520 it defaulted to
+ * a "First Generation in Trace" preset that surfaced only the first
+ * `type=GENERATION` observation per trace — which broke agentic sessions whose
+ * I/O lives on AGENT/TOOL observations with no GENERATION at all (every card
+ * rendered "No observations match the current filter."). The default is now
+ * "All observations with I/O", which renders those correctly. This scenario
+ * seeds the shapes to see both the fix and the shapes it targets:
  *
  *  - chat   one GENERATION per turn carrying accumulating ChatML messages;
- *           the default preset surfaces it and the card renders as a chat.
+ *           renders as a chat.
  *  - agent  a coding/agent session: I/O on the root AGENT + TOOL children,
- *           NO GENERATION — the default preset yields EMPTY cards (the bug).
- *  - mixed  alternating chat/agent turns — some cards full, some empty.
+ *           NO GENERATION — the shape the old default rendered empty.
+ *  - mixed  alternating chat/agent turns.
  *
  * Each shape is written as its own session (id `<prefix>-<shape>`) so a single
  * `--shape all` run hands back one session link per shape.

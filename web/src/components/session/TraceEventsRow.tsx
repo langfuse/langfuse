@@ -146,11 +146,13 @@ export const TraceEventsRow = React.memo(
     // synthetic trace-level row (id `t-<traceId>`, the canonical synthetic-span
     // id — see handleEventPropagationJob). It is identified by id, NOT an empty
     // parent: OTel/internal-tracing roots also have an empty parent but are real
-    // observations. It is dropped only when redundant — empty, or a mirror of an
-    // observation's I/O (the common auto-derived case) — and KEPT when it
-    // carries distinct trace-level I/O (a v3-migrated trace can set trace I/O
-    // apart from any observation; dropping it would lose content and blind the
-    // annotation queue, which hides the trace panel).
+    // observations. It is dropped when redundant — empty, or a real observation
+    // already shows its (non-empty) input OR output — so a chat turn (the
+    // GENERATION carries the same assistant output) and the common auto-derived
+    // case render one card, not two. It is KEPT only when it carries
+    // trace-level I/O that no observation shows (a v3-migrated trace can set
+    // trace I/O apart from any observation; dropping it would lose content and
+    // blind the annotation queue, which hides the trace panel).
     const observations = observationsQuery.data;
     const visibleObservations = React.useMemo(() => {
       if (!observations) return undefined;
@@ -166,8 +168,10 @@ export const TraceEventsRow = React.memo(
         !observationHasIO(syntheticRow) ||
         realObservations.some(
           (observation) =>
-            isEqual(observation.input, syntheticRow.input) &&
-            isEqual(observation.output, syntheticRow.output),
+            (hasContent(syntheticRow.input) &&
+              isEqual(observation.input, syntheticRow.input)) ||
+            (hasContent(syntheticRow.output) &&
+              isEqual(observation.output, syntheticRow.output)),
         );
       if (!syntheticRowIsRedundant) return observations;
       return realObservations.length > 0 ? realObservations : observations;
