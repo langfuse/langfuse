@@ -432,6 +432,7 @@ const meta = preview.meta({
     selectedConversationId: undefined,
     onDeleteConversation: fn(),
     onLoadMoreConversations: fn(),
+    onOpenConversationHistory: fn(),
     onNewConversation: fn(),
     onApproveToolCall: fn(),
     onRejectToolCall: fn(),
