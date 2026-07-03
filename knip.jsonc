@@ -1,6 +1,5 @@
 {
   "ignore": [".agents/skills/**", "scripts/**", "vitest.workspace.ts"],
-  "ignoreDependencies": ["braces"],
   "ignoreBinaries": ["vitest"],
   "ignoreWorkspaces": [
     "web",
