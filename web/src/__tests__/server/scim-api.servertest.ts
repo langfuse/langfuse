@@ -549,7 +549,9 @@ describe("SCIM API", () => {
         );
 
         expect(result.status).toBe(400);
-        expect(result.body.detail).toContain("userName is required");
+        expect(result.body.detail).toContain(
+          "userName must be a non-empty string",
+        );
       });
 
       it("should create a new user with specified role", async () => {

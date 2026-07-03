@@ -175,11 +175,20 @@ export default async function handler(
 
       const { userName, name, password, displayName, roles } = body;
 
-      if (typeof userName !== "string" || userName.length === 0) {
+      if (userName === undefined || userName === null || userName === "") {
         logger.warn("[SCIM] userName is required for user creation");
         return res.status(400).json({
           schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
           detail: "userName is required",
+          status: 400,
+        });
+      }
+
+      if (typeof userName !== "string") {
+        logger.warn("[SCIM] userName must be a non-empty string");
+        return res.status(400).json({
+          schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+          detail: "userName must be a non-empty string",
           status: 400,
         });
       }
