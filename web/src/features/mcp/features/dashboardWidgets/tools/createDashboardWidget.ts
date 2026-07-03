@@ -74,8 +74,8 @@ export const [createDashboardWidgetTool, handleCreateDashboardWidget] =
   defineTool({
     name: "createDashboardWidget",
     description: [
-      "Create a reusable dashboard widget in the current Langfuse project.",
-      "Input matches the exported dashboard widget JSON shape: name, description, view, dimensions, metrics, filters, chartType, chartConfig, and optional minVersion.",
+      "Create a reusable dashboard widget.",
+      "Widgets are useful to visualize Langfuse project data and give informative breakdowns to the user.",
       "This creates the widget only; placing it on a dashboard requires updating that dashboard's definition in the Langfuse UI.",
     ].join(" "),
     baseSchema: CreateDashboardWidgetBaseSchema,
