@@ -154,25 +154,29 @@ export function DataTableControls({
       {/* Collapsed rail: shown when the sidebar is collapsed on desktop, where
           the resizable panel keeps a thin strip (see ResizableFilterLayout).
           Mirrors the trace peek's collapsed-panel rail. */}
-      <div className="bg-background hidden h-full w-full flex-col items-center gap-1 border-t p-2 group-data-[expanded=false]/controls:flex">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setOpen(true)}
-              aria-label="Show filters"
-              className="h-7 w-7 shrink-0"
-            >
-              <PanelLeftOpen className="h-3.5 w-3.5" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">Show filters</TooltipContent>
-        </Tooltip>
+      <div className="bg-background hidden h-full w-full flex-col items-center border-t group-data-[expanded=false]/controls:flex">
+        {/* Mirror the expanded header's metrics (h-10 row, border-b, 24px
+            button) so the toggle icon doesn't shift when collapsing. */}
+        <div className="flex h-10 w-full shrink-0 items-center justify-center border-b">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setOpen(true)}
+                aria-label="Show filters"
+                className="h-6 w-6"
+              >
+                <PanelLeftOpen className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="right">Show filters</TooltipContent>
+          </Tooltip>
+        </div>
         {activeFilterCount > 0 && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Badge variant="secondary" className="h-5 px-1.5 text-xs">
+              <Badge variant="secondary" className="mt-2 h-5 px-1.5 text-xs">
                 {activeFilterCount}
               </Badge>
             </TooltipTrigger>
