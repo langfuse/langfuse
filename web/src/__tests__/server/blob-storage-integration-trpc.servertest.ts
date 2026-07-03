@@ -43,6 +43,14 @@ vi.mock("@langfuse/shared/src/server", async () => {
   };
 });
 
+// The parquet whitelist ships as an in-code constant (empty by default), so the
+// helper is mocked to exercise both sides of the gate deterministically.
+const isParquetFileTypeAllowedMock = vi.hoisted(() => vi.fn(() => false));
+
+vi.mock("@/src/features/blobstorage-integration/parquetFileType", () => ({
+  isParquetFileTypeAllowed: isParquetFileTypeAllowedMock,
+}));
+
 const __orgIds: string[] = [];
 
 const prepare = async () => {
@@ -1046,6 +1054,110 @@ describe("Blob Storage Integration tRPC Router", () => {
         where: { projectId: project.id },
       });
       expect(row.exportSource).toBe("TRACES_OBSERVATIONS");
+    });
+  });
+
+  describe("parquet fileType whitelist gate", () => {
+    beforeEach(() => {
+      isParquetFileTypeAllowedMock.mockReset();
+      isParquetFileTypeAllowedMock.mockReturnValue(false);
+    });
+
+    it("rejects changing fileType to PARQUET for a non-whitelisted project", async () => {
+      const { caller, project } = await prepare();
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          fileType: "PARQUET" as const,
+        }),
+      ).rejects.toThrow("Parquet export is not available for this project.");
+
+      const row = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: project.id },
+      });
+      expect(row).toBeNull();
+    });
+
+    it("persists PARQUET for a whitelisted project", async () => {
+      isParquetFileTypeAllowedMock.mockReturnValue(true);
+      const { caller, project } = await prepare();
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        fileType: "PARQUET" as const,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.fileType).toBe("PARQUET");
+    });
+
+    it("still saves edits for a de-whitelisted project that already persists PARQUET", async () => {
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id });
+      await prisma.blobStorageIntegration.update({
+        where: { projectId: project.id },
+        data: { fileType: "PARQUET" },
+      });
+
+      // Whitelist off: only a *change to* PARQUET is gated, so re-submitting the
+      // persisted PARQUET alongside an unrelated edit must not lock the user out.
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        fileType: "PARQUET" as const,
+        enabled: false,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.fileType).toBe("PARQUET");
+      expect(row.enabled).toBe(false);
+    });
+
+    it("preserves persisted PARQUET when fileType is omitted from the update input", async () => {
+      // Without the router-level .optional() the base schema would default an
+      // omitted fileType to JSONL and silently downgrade the persisted PARQUET.
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id });
+      await prisma.blobStorageIntegration.update({
+        where: { projectId: project.id },
+        data: { fileType: "PARQUET" },
+      });
+
+      const { fileType: _fileType, ...configWithoutFileType } = baseConfig;
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutFileType,
+        enabled: false,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.fileType).toBe("PARQUET");
+      expect(row.enabled).toBe(false);
+    });
+
+    it("defaults to JSONL when fileType is omitted on CREATE", async () => {
+      // The Prisma column default is CSV; the historical Zod default was JSONL.
+      const { caller, project } = await prepare();
+
+      const { fileType: _fileType, ...configWithoutFileType } = baseConfig;
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutFileType,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.fileType).toBe("JSONL");
     });
   });
 });
