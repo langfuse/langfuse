@@ -7,7 +7,7 @@ import {
 import { splitStringByMediaReferences } from "@/src/components/ui/media/mediaUtils";
 import { JsonMediaTag } from "@/src/components/ui/media/JsonMediaTag";
 import { cn } from "@/src/utils/tailwind";
-import { memo } from "react";
+import { memo, useRef, useState } from "react";
 import {
   HoverCard,
   HoverCardContent,
@@ -23,11 +23,37 @@ const ioTableCellPaddingClassNames: Record<IOTableCellPadding, string> = {
 };
 
 function renderStringWithMediaReferences(value: string) {
-  const segments = splitStringByMediaReferences(value);
+  // Copy the segments: the quote-trim below mutates `value` in place, and the
+  // originals belong to splitStringByMediaReferences (unsafe to mutate if it
+  // ever memoizes its result).
+  const segments = splitStringByMediaReferences(value).map((segment) => ({
+    ...segment,
+  }));
 
   if (segments.length === 1 && segments[0]?.type === "text") {
     return value;
   }
+
+  // JSON.stringify wraps media reference strings in quotes (both nested in
+  // stringified JSON and as a lone compact-verbosity value), which would
+  // render as a quoted chip — while the multi-line JSON view shows a bare
+  // chip. Drop a quote pair that directly encloses a chip; the escaped-quote
+  // check leaves a literal \" in user text alone.
+  segments.forEach((segment, index) => {
+    if (segment.type !== "media") return;
+    const prev = segments[index - 1];
+    const next = segments[index + 1];
+    if (
+      prev?.type === "text" &&
+      next?.type === "text" &&
+      prev.value.endsWith('"') &&
+      !prev.value.endsWith('\\"') &&
+      next.value.startsWith('"')
+    ) {
+      prev.value = prev.value.slice(0, -1);
+      next.value = next.value.slice(1);
+    }
+  });
 
   return segments.map((segment, index) =>
     segment.type === "media" ? (
@@ -46,15 +72,23 @@ const IOTableCellContent = ({
   singleLine,
   className,
   padding,
+  suppressTitle = false,
 }: {
   data: unknown;
   singleLine: boolean;
   className?: string;
   padding: IOTableCellPadding;
+  suppressTitle?: boolean;
 }) => {
   const stringifiedJson =
     data !== null && data !== undefined ? stringifyJsonNode(data) : undefined;
   const paddingClassName = ioTableCellPaddingClassNames[padding];
+
+  // Native title tooltips render on top of open popovers, so the single-line
+  // title is dropped whenever a hover surface supersedes it: entirely when the
+  // cell has an expand-on-hover card (which previews the same content), and
+  // while the pointer is over a media chip (which has its own hover peek).
+  const [isPointerOverMediaTag, setIsPointerOverMediaTag] = useState(false);
 
   // perf: truncate to IO_TABLE_CHAR_LIMIT characters as table becomes unresponsive attempting to render large JSONs with high levels of nesting
   const shouldTruncate =
@@ -71,7 +105,14 @@ const IOTableCellContent = ({
         paddingClassName,
         className,
       )}
-      title={singleLineText}
+      title={
+        suppressTitle || isPointerOverMediaTag ? undefined : singleLineText
+      }
+      onPointerOver={(event) =>
+        setIsPointerOverMediaTag(
+          Boolean((event.target as Element).closest("[data-media-tag]")),
+        )
+      }
     >
       {singleLineText ? renderStringWithMediaReferences(singleLineText) : null}
     </div>
@@ -128,6 +169,13 @@ export const IOTableCell = ({
 }) => {
   const paddingClassName = ioTableCellPaddingClassNames[padding];
 
+  // Media chips inside the cell carry their own hover peek; opening the
+  // cell-wide expand card on top of it stacks two popovers. Track whether the
+  // pointer is over a chip and keep the expand card closed for that region —
+  // hover a chip for the media peek, hover anywhere else for the full JSON.
+  const [isExpandOpen, setIsExpandOpen] = useState(false);
+  const isPointerOverMediaTag = useRef(false);
+
   if (isLoading) {
     return (
       <JsonSkeleton
@@ -154,14 +202,32 @@ export const IOTableCell = ({
   }
 
   return (
-    <HoverCard openDelay={700} closeDelay={100}>
+    <HoverCard
+      openDelay={700}
+      closeDelay={100}
+      open={isExpandOpen}
+      onOpenChange={(open) => {
+        if (open && isPointerOverMediaTag.current) return;
+        setIsExpandOpen(open);
+      }}
+    >
       <HoverCardTrigger asChild>
-        <div className="group/io-cell relative h-full w-full">
+        <div
+          className="group/io-cell relative h-full w-full"
+          onPointerOver={(event) => {
+            const overMediaTag = Boolean(
+              (event.target as Element).closest("[data-media-tag]"),
+            );
+            isPointerOverMediaTag.current = overMediaTag;
+            if (overMediaTag) setIsExpandOpen(false);
+          }}
+        >
           <IOTableCellContent
             data={data}
             singleLine={singleLine}
             className={className}
             padding={padding}
+            suppressTitle
           />
         </div>
       </HoverCardTrigger>

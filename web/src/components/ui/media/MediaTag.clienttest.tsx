@@ -47,6 +47,20 @@ describe("MediaTag", () => {
     expect(onOpenChange).toHaveBeenCalledTimes(1);
   });
 
+  it("empties the native title while the peek is open so no tooltip overlaps it", () => {
+    render(<MediaTag contentType="image/png" status="ready" open />);
+
+    const chip = screen.getByRole("button", { name: "PNG media" });
+    expect(chip.querySelector("span")?.getAttribute("title")).toBe("");
+  });
+
+  it("keeps the label title while the peek is closed", () => {
+    render(<MediaTag contentType="image/png" open={false} />);
+
+    const chip = screen.getByRole("button", { name: "PNG media" });
+    expect(chip.querySelector("span")?.getAttribute("title")).toBe("PNG");
+  });
+
   it("shows the fallback when resolved image media fails to render", async () => {
     render(
       <MediaTag
