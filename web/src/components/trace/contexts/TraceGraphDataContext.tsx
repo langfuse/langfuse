@@ -145,15 +145,22 @@ export function TraceGraphDataProvider({
     }
 
     // Otherwise the graph is still available whenever it would draw more than
-    // one node — the panel just defaults to collapsed for these. Exact mirror
-    // of the timing-based inference these traces go through (buildStepData):
-    // it drops EVENT observations, then keys every node on the observation
-    // NAME (`obs.node = obs.name`), so count distinct non-EVENT names.
-    const distinctNodes = new Set(
-      agentGraphData
-        .filter((obs) => obs.observationType !== "EVENT")
-        .map((obs) => obs.name),
+    // one MEANINGFUL node — the panel just defaults to collapsed for these.
+    // Mirrors the timing-based inference these traces go through
+    // (buildStepData drops EVENTs and keys nodes on the observation NAME),
+    // with one extra rule: a single parentless root (v4 mirrors the trace
+    // itself as a root span, so it exists on every trace) doesn't count —
+    // a root→child chain is the tree again, not structure worth a graph.
+    // Multiple parallel roots ARE structure and count fully.
+    const nonEvent = agentGraphData.filter(
+      (obs) => obs.observationType !== "EVENT",
     );
+    const parentless = nonEvent.filter((obs) => !obs.parentObservationId);
+    const counted =
+      parentless.length === 1
+        ? nonEvent.filter((obs) => obs.parentObservationId)
+        : nonEvent;
+    const distinctNodes = new Set(counted.map((obs) => obs.name));
     return { isGraphViewAvailable: distinctNodes.size > 1, isAgentGraph };
   }, [agentGraphData]);
 
