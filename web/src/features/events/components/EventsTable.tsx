@@ -31,10 +31,12 @@ import {
   BatchExportTableName,
   type ObservationType,
   TableViewPresetTableName,
+  type TableViewPresetState,
   BatchActionType,
   ActionId,
   RESOURCE_LIMIT_ERROR_MESSAGE,
 } from "@langfuse/shared";
+import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
@@ -507,6 +509,7 @@ export default function ObservationsEventsTable({
     store: searchBarStore,
     commit: searchBarCommit,
     applyFilters: searchBarApplyFilters,
+    committedText: searchBarCommittedText,
   } = useEventsSearchBar({
     projectId,
     enabled: searchBarMode,
@@ -518,6 +521,23 @@ export default function ObservationsEventsTable({
     setSearchQuery,
     setSearchType,
   });
+
+  // Non-destructive preview: while hovering a category preset chip, show the
+  // filters it would apply in the search bar's draft; on leave, restore the
+  // draft to the committed source of truth. Clicking still applies for real via
+  // applyViewState. No-op outside search-bar mode.
+  const previewViewInSearchBar = useCallback(
+    (state: TableViewPresetState | null) => {
+      if (!searchBarMode) return;
+      const { actions } = searchBarStore.getState();
+      if (state) {
+        actions.setDraft(filterStateToQueryText(state.filters).text);
+      } else {
+        actions.resetTo(searchBarCommittedText);
+      }
+    },
+    [searchBarMode, searchBarStore, searchBarCommittedText],
+  );
 
   // Disabled for now because perhaps confusing
   // const viewModeFilter: FilterState =
@@ -1673,7 +1693,9 @@ export default function ObservationsEventsTable({
               // so the legacy wand is only offered when the bar is absent.
               filterWithAI={!searchBarMode}
             />
-            <div className="mt-1.5">
+            {/* px-2 matches the DataTableToolbar's horizontal inset so the
+                chips align with the filter/search/views controls above. */}
+            <div className="mt-1.5 px-2">
               <CategoryPresetChips
                 projectId={projectId}
                 activeViewId={
@@ -1681,6 +1703,8 @@ export default function ObservationsEventsTable({
                   viewControllers.selectedViewId
                 }
                 onApplyView={viewControllers.handleSetViewId}
+                applyViewState={viewControllers.applyViewState}
+                onPreviewView={previewViewInSearchBar}
               />
             </div>
           </div>

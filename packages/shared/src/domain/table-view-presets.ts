@@ -31,10 +31,10 @@ export const SYSTEM_TABLE_VIEW_PRESET_CATEGORY_META: Record<
   SystemTableViewPresetCategory,
   { label: string; order: number }
 > = {
-  [SystemTableViewPresetCategory.SlowCalls]: { label: "Slow calls", order: 1 },
+  [SystemTableViewPresetCategory.SlowCalls]: { label: "Slow", order: 1 },
   [SystemTableViewPresetCategory.Errors]: { label: "Errors", order: 2 },
   [SystemTableViewPresetCategory.CostRegression]: {
-    label: "Cost regression",
+    label: "Cost",
     order: 3,
   },
   [SystemTableViewPresetCategory.LowQuality]: {

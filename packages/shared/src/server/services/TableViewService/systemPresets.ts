@@ -161,21 +161,6 @@ const OBSERVATIONS_EVENTS_SYSTEM_TABLE_VIEW_PRESETS: SystemTableViewPreset[] = [
     ],
     orderBy: { column: "latency", order: "DESC" },
   }),
-  buildSystemPreset({
-    id: `${SYSTEM_TABLE_VIEW_PRESET_ID_PREFIX}slow_to_first_token`,
-    name: "Slow to first token",
-    description: "High time-to-first-token for streamed generations",
-    tableName: TableViewPresetTableName.ObservationsEvents,
-    category: SystemTableViewPresetCategory.SlowCalls,
-    filters: [
-      {
-        column: "timeToFirstToken",
-        type: "number",
-        operator: ">",
-        value: 2,
-      },
-    ],
-  }),
 
   // --- Errors ---------------------------------------------------------------
   buildSystemPreset({

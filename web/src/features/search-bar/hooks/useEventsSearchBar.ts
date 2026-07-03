@@ -85,6 +85,10 @@ export function useEventsSearchBar({
   store: SearchBarStore;
   commit: () => string | null;
   applyFilters: (filters: FilterState) => void;
+  /** The committed query text derived from the live filter state (single
+   *  source of truth). Exposed so callers can render a non-destructive preview
+   *  in the bar and restore to this via `store.resetTo(committedText)`. */
+  committedText: string;
 } {
   // Latest observed options, read inside commit and by the store's draft
   // validation so both route `scores.<name>` by the same observed score type.
@@ -210,5 +214,5 @@ export function useEventsSearchBar({
     );
   }, [store, projectId, mergeWithSkipped]);
 
-  return { store, commit, applyFilters };
+  return { store, commit, applyFilters, committedText };
 }

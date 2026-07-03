@@ -12,6 +12,7 @@ import {
   SYSTEM_TABLE_VIEW_PRESET_CATEGORY_META,
   SystemTableViewPresetCategory,
   TableViewPresetTableName,
+  type TableViewPresetState,
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -37,6 +38,18 @@ type PresetItem = {
   description?: string;
   // Mock presets are rendered but not yet wired to a real filter.
   disabled?: boolean;
+  // The filters/orderBy this preset applies to the table. Absent for mocks.
+  state?: TableViewPresetState;
+};
+
+// Applied on toggle-off: clears the preset's filters and sort back to the
+// table's unfiltered default (mirrors an empty system preset).
+const CLEARED_VIEW_STATE: TableViewPresetState = {
+  filters: [],
+  orderBy: null,
+  columnOrder: [],
+  columnVisibility: {},
+  searchQuery: "",
 };
 
 // Placeholder "Low quality" presets. These are visual mocks only for now —
@@ -67,8 +80,16 @@ type CategoryPresetChipsProps = {
   projectId: string;
   /** The currently applied view id, used to render the active chip/row state. */
   activeViewId: string | null;
-  /** Apply a preset by id, or pass null to clear the current view. */
+  /** Sets `?viewId` (deep-link/provenance); pass null to deselect. */
   onApplyView: (viewId: string | null) => void;
+  /** Applies the preset's filters/orderBy to the live table. */
+  applyViewState: (viewData: TableViewPresetState) => void;
+  /**
+   * Non-destructive preview of a preset's filters in the search bar while
+   * hovering/focusing its row; pass null to restore. No-op when the search bar
+   * isn't active.
+   */
+  onPreviewView?: (viewData: TableViewPresetState | null) => void;
 };
 
 /**
@@ -81,6 +102,8 @@ export function CategoryPresetChips({
   projectId,
   activeViewId,
   onApplyView,
+  applyViewState,
+  onPreviewView,
 }: CategoryPresetChipsProps) {
   const capture = usePostHogClientCapture();
   const { TableViewPresetsList } = useViewData({
@@ -97,6 +120,13 @@ export function CategoryPresetChips({
         id: view.id,
         name: view.name,
         description: view.description,
+        state: {
+          filters: view.filters,
+          orderBy: view.orderBy,
+          columnOrder: view.columnOrder,
+          columnVisibility: view.columnVisibility,
+          searchQuery: view.searchQuery,
+        },
       });
       grouped.set(view.category, list);
     }
@@ -151,10 +181,28 @@ export function CategoryPresetChips({
                     key={preset.id}
                     type="button"
                     disabled={preset.disabled}
+                    onMouseEnter={() => {
+                      if (preset.disabled || !preset.state) return;
+                      onPreviewView?.(preset.state);
+                    }}
+                    onMouseLeave={() => onPreviewView?.(null)}
+                    onFocus={() => {
+                      if (preset.disabled || !preset.state) return;
+                      onPreviewView?.(preset.state);
+                    }}
+                    onBlur={() => onPreviewView?.(null)}
                     onClick={() => {
                       if (preset.disabled) return;
                       const next = isPresetActive ? null : preset.id;
+                      // Set the viewId for deep-link/provenance, then actually
+                      // apply the preset's filters/orderBy to the table (or
+                      // clear them when toggling the active preset off).
                       onApplyView(next);
+                      applyViewState(
+                        next && preset.state
+                          ? preset.state
+                          : CLEARED_VIEW_STATE,
+                      );
                       capture("saved_views:category_chip_apply", {
                         category,
                         presetId: next,
