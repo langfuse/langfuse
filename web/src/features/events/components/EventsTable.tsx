@@ -183,6 +183,10 @@ export type EventsTableProps = {
   userId?: string;
   omittedFilter?: ObservationEventsOmittableFilterColumn[];
   hideControls?: boolean;
+  /** Hide the toolbar time-range picker. Set by pages that render the picker
+   *  in the page header (TableTimeRangeHeaderPicker) — both read the same
+   *  shared per-project range, so embedded usages keep the toolbar picker. */
+  hideTimeRangePicker?: boolean;
   // External control props for embedded preview tables
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
@@ -220,6 +224,7 @@ export default function ObservationsEventsTable({
   userId,
   omittedFilter = [],
   hideControls = false,
+  hideTimeRangePicker = false,
   externalFilterState,
   externalDateRange,
   limitRows,
@@ -1604,8 +1609,8 @@ export default function ObservationsEventsTable({
               orderByState={orderByState}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
-              timeRange={timeRange}
-              setTimeRange={setTimeRange}
+              timeRange={hideTimeRangePicker ? undefined : timeRange}
+              setTimeRange={hideTimeRangePicker ? undefined : setTimeRange}
               // Disabled, for now moved to filter sidebar
               // TODO: remove this toggle once v4 looks good as is
               // viewModeToggle={
