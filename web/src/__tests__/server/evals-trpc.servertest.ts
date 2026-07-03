@@ -542,7 +542,9 @@ describe("evals trpc", () => {
           delay: 0,
           timeScope: ["NEW"],
         }),
-      ).rejects.toThrow("Evaluator failed during test run");
+      ).rejects.toThrow(
+        "Evaluator failed when tested against sample data: Evaluator failed during test run",
+      );
 
       await expect(
         prisma.jobConfiguration.findFirst({

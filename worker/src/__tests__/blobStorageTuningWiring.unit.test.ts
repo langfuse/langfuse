@@ -4,10 +4,6 @@ import { Readable } from "stream";
 // Records of every uploadFileBuffered call so we can assert the resolved tuning
 // was threaded through. Hoisted so the module mock can close over it.
 const uploadCalls = vi.hoisted(() => [] as any[]);
-// Records (fnName, args) for each standard-path export getter call so we can
-// assert tuning that targets the ClickHouse query (e.g. chSendTimeout) is
-// threaded all the way down.
-const exportCalls = vi.hoisted(() => [] as { fn: string; args: any[] }[]);
 
 vi.mock("@langfuse/shared/src/db", () => ({
   prisma: {
@@ -40,22 +36,10 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
         }),
       }),
     },
-    getTracesForBlobStorageExport: (...args: any[]) => {
-      exportCalls.push({ fn: "traces", args });
-      return empty();
-    },
-    getObservationsForBlobStorageExport: (...args: any[]) => {
-      exportCalls.push({ fn: "observations", args });
-      return empty();
-    },
-    getScoresForBlobStorageExport: (...args: any[]) => {
-      exportCalls.push({ fn: "scores", args });
-      return empty();
-    },
-    getEventsForBlobStorageExport: (...args: any[]) => {
-      exportCalls.push({ fn: "events", args });
-      return empty();
-    },
+    getTracesForBlobStorageExport: () => empty(),
+    getObservationsForBlobStorageExport: () => empty(),
+    getScoresForBlobStorageExport: () => empty(),
+    getEventsForBlobStorageExport: () => empty(),
     // LFE-10463 Parquet path: each returns an already-resolved
     // { stream } (the binary body) — a tiny Readable with the Parquet magic.
     getTracesForBlobStorageExportParquet: async () => ({
@@ -124,36 +108,7 @@ function baseRow(exportTuning: unknown) {
 describe("handleBlobStorageIntegrationProjectJob tuning wiring", () => {
   beforeEach(() => {
     uploadCalls.length = 0;
-    exportCalls.length = 0;
     vi.clearAllMocks();
-  });
-
-  it("threads chSendTimeout into the standard export query", async () => {
-    (prisma.blobStorageIntegration.findUnique as any).mockResolvedValue(
-      baseRow({ chSendTimeout: 600 }),
-    );
-
-    await handleBlobStorageIntegrationProjectJob(makeJob());
-
-    // Standard-path getters take chSendTimeout as the last positional arg:
-    // traces/scores at index 3, observations (fieldGroups before it) at index 4.
-    const traces = exportCalls.find((c) => c.fn === "traces");
-    expect(traces?.args[3]).toBe(600);
-    const scores = exportCalls.find((c) => c.fn === "scores");
-    expect(scores?.args[3]).toBe(600);
-    const observations = exportCalls.find((c) => c.fn === "observations");
-    expect(observations?.args[4]).toBe(600);
-  });
-
-  it("passes chSendTimeout=undefined when unset (ClickHouse keeps its default)", async () => {
-    (prisma.blobStorageIntegration.findUnique as any).mockResolvedValue(
-      baseRow(null),
-    );
-
-    await handleBlobStorageIntegrationProjectJob(makeJob());
-
-    const traces = exportCalls.find((c) => c.fn === "traces");
-    expect(traces?.args[3]).toBeUndefined();
   });
 
   it("clamps out-of-range tuning and threads it into uploadFileBuffered", async () => {

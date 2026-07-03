@@ -23,6 +23,7 @@ import {
   protectedProjectProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
 import {
+  getConversationMessagesForDisplay,
   getConversationMessages,
   getOwnedConversationOrThrow,
   serializeConversation,
@@ -38,6 +39,10 @@ const ConversationListCursorSchema = z.object({
 const ConversationIdInput = z.object({
   projectId: z.string(),
   conversationId: z.string(),
+});
+
+const RenameConversationInput = ConversationIdInput.extend({
+  title: z.string().trim().min(1).max(80),
 });
 
 const SubmitFeedbackInput = ConversationIdInput.extend({
@@ -110,7 +115,7 @@ export const inAppAgentRouter = createTRPCRouter({
         userId: ctx.session.user.id,
       });
 
-      const messages = await getConversationMessages({
+      const messages = await getConversationMessagesForDisplay({
         prisma: ctx.prisma,
         projectId: input.projectId,
         conversationId: input.conversationId,
@@ -152,6 +157,36 @@ export const inAppAgentRouter = createTRPCRouter({
       });
 
       return { success: true };
+    }),
+
+  renameConversation: protectedProjectProcedureWithoutTracing
+    .input(RenameConversationInput)
+    .mutation(async ({ ctx, input }) => {
+      await assertInAppAgentAvailable({ ctx, projectId: input.projectId });
+
+      await getOwnedConversationOrThrow({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        conversationId: input.conversationId,
+        userId: ctx.session.user.id,
+      });
+
+      const conversation = await ctx.prisma.inAppAgentConversation.update({
+        where: {
+          id_projectId: {
+            id: input.conversationId,
+            projectId: input.projectId,
+          },
+          createdByUserId: ctx.session.user.id,
+          deletedAt: null,
+        },
+        data: {
+          title: input.title,
+          renamedByUserAt: new Date(),
+        },
+      });
+
+      return { conversation: serializeConversation(conversation) };
     }),
 
   submitFeedback: protectedProjectProcedureWithoutTracing
