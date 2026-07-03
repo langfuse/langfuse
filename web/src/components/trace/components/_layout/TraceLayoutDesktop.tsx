@@ -120,7 +120,8 @@ const NOOP_LAYOUT_STORAGE = {
 // single-use top-level const it tripped the SWC prod minifier's dropped-binding
 // bug — the declaration was deleted while this function's inlined body kept the
 // reference, throwing `ReferenceError` on peek open (LFE-10640; the CI
-// client-bundle scan now guards the class, LFE-10645).
+// client-bundle scan now guards the class, LFE-10645). Delete this workaround
+// once swc-project/swc#11983 is fixed in the Next-vendored swc_core.
 function collapsedShareMaxForWidth(groupWidthPx: number): number {
   const boundaryPx = (COLLAPSED_PANEL_PX + NAVIGATION_PANEL_MIN_PX) / 2;
   return (boundaryPx / groupWidthPx) * 100;
