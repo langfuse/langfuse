@@ -1,4 +1,4 @@
-import { type ReactNode, useId, useLayoutEffect } from "react";
+import { type ReactNode, useCallback, useId, useLayoutEffect } from "react";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -115,14 +115,15 @@ export function ResizableSplitLayout({
   // Rail mode: a drag can snap the panel to its collapsed rail (or pull it back
   // open) without going through the caller's toggle, so report the panel's
   // collapsed state back whenever it disagrees with the controlled `open`.
+  const handleSecondaryResizeCallback = useCallback(() => {
+    const panel = secondaryPanelRef.current;
+    if (!panel || !onOpenChange) return;
+    const panelOpen = !panel.isCollapsed();
+    if (panelOpen !== open) onOpenChange(panelOpen);
+  }, [secondaryPanelRef, onOpenChange, open]);
   const handleSecondaryResize =
     hasCollapsedRail && onOpenChange
-      ? () => {
-          const panel = secondaryPanelRef.current;
-          if (!panel) return;
-          const panelOpen = !panel.isCollapsed();
-          if (panelOpen !== open) onOpenChange(panelOpen);
-        }
+      ? handleSecondaryResizeCallback
       : undefined;
 
   // In rail mode the collapsed panel stays visible (the caller renders a rail
