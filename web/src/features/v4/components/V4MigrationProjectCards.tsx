@@ -49,7 +49,6 @@ export type V4SdkUsagePoint = {
   sdkName: string;
   sdkVersion: string;
   publicKey: string;
-  apiKeyNote: string | null;
   count: number;
   firstSeen: string | null;
   lastSeen: string | null;
@@ -87,7 +86,6 @@ type SdkUsageSeries = UsageSeries & {
   sdkName: string;
   sdkVersion: string;
   publicKey: string;
-  apiKeyNote: string | null;
   canonicalSdkName: V4SdkUsagePoint["canonicalSdkName"];
   firstSeen?: string;
   upgradeStatus: V4SdkUsagePoint["upgradeStatus"];
@@ -296,7 +294,6 @@ const groupSdkUsageSeries = ({
       sdkName: string;
       sdkVersion: string;
       publicKey: string;
-      apiKeyNote: string | null;
       canonicalSdkName: V4SdkUsagePoint["canonicalSdkName"];
       upgradeStatus: V4SdkUsagePoint["upgradeStatus"];
       latestMajor: number | null;
@@ -316,7 +313,6 @@ const groupSdkUsageSeries = ({
         sdkName: row.sdkName,
         sdkVersion: row.sdkVersion,
         publicKey: row.publicKey,
-        apiKeyNote: row.apiKeyNote,
         canonicalSdkName: row.canonicalSdkName,
         upgradeStatus: row.upgradeStatus,
         latestMajor: row.latestMajor,
@@ -327,7 +323,6 @@ const groupSdkUsageSeries = ({
         sdkName: string;
         sdkVersion: string;
         publicKey: string;
-        apiKeyNote: string | null;
         canonicalSdkName: V4SdkUsagePoint["canonicalSdkName"];
         upgradeStatus: V4SdkUsagePoint["upgradeStatus"];
         latestMajor: number | null;
@@ -365,7 +360,6 @@ const groupSdkUsageSeries = ({
       sdkName: group.sdkName,
       sdkVersion: group.sdkVersion,
       publicKey: group.publicKey,
-      apiKeyNote: group.apiKeyNote,
       canonicalSdkName: group.canonicalSdkName,
       upgradeStatus: group.upgradeStatus,
       latestMajor: group.latestMajor,
@@ -706,7 +700,6 @@ const SdkUsageDetails = ({
                 : null;
             const publicKeyLabel = item.publicKey || "No API key";
             const detail = [
-              item.apiKeyNote ? `note: ${item.apiKeyNote}` : null,
               item.latestMajor ? `latest major: ${item.latestMajor}` : null,
             ]
               .filter(Boolean)
@@ -761,14 +754,6 @@ const SdkUsageDetails = ({
                   >
                     {publicKeyLabel}
                   </div>
-                  {item.apiKeyNote ? (
-                    <div
-                      className="text-muted-foreground mt-0.5 truncate text-xs"
-                      title={item.apiKeyNote}
-                    >
-                      {item.apiKeyNote}
-                    </div>
-                  ) : null}
                 </div>
                 <div className="text-muted-foreground text-xs md:text-right">
                   {item.lastSeen ? getBucketLabel(item.lastSeen) : "-"}

@@ -129,7 +129,6 @@ type SdkUsageTimeSeriesResultRow = {
   sdkName: string;
   sdkVersion: string;
   publicKey: string;
-  apiKeyNote: string | null;
   count: number;
   firstSeen: string | null;
   lastSeen: string | null;
@@ -230,10 +229,8 @@ const compareSdkUsageRows = (
 
 const decorateSdkUsageRows = ({
   rows,
-  apiKeyNotesByPublicKey,
 }: {
   rows: SdkUsageTimeSeriesRow[];
-  apiKeyNotesByPublicKey: Map<string, string | null>;
 }): SdkUsageTimeSeriesResultRow[] => {
   return rows
     .map((row) => {
@@ -247,7 +244,6 @@ const decorateSdkUsageRows = ({
         sdkName: row.sdkName,
         sdkVersion: row.sdkVersion,
         publicKey: row.publicKey,
-        apiKeyNote: apiKeyNotesByPublicKey.get(row.publicKey) ?? null,
         count: Number(row.count),
         firstSeen: row.firstSeen,
         lastSeen: row.lastSeen,
@@ -591,7 +587,7 @@ ORDER BY bucket_time ASC, score_name ASC
 
   sdkUsageTimeSeries: protectedV4MigrationProjectProcedure
     .input(timelineInputSchema)
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       const granularity = resolveTimelineGranularity(
         input.fromTimestamp,
         input.toTimestamp,
@@ -658,28 +654,6 @@ ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
         preferredClickhouseService: "EventsReadOnly",
       });
 
-      const publicKeys = Array.from(
-        new Set(rows.map((row) => row.publicKey).filter(Boolean)),
-      );
-      const apiKeys =
-        publicKeys.length === 0
-          ? []
-          : await ctx.prisma.apiKey.findMany({
-              where: {
-                projectId: input.projectId,
-                scope: "PROJECT",
-                publicKey: { in: publicKeys },
-                isInAppAgentKey: false,
-              },
-              select: {
-                publicKey: true,
-                note: true,
-              },
-            });
-      const apiKeyNotesByPublicKey = new Map(
-        apiKeys.map((apiKey) => [apiKey.publicKey, apiKey.note]),
-      );
-
       return {
         bucketTimes: getTimelineBucketTimes(
           input.fromTimestamp,
@@ -688,7 +662,6 @@ ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
         ),
         rows: decorateSdkUsageRows({
           rows,
-          apiKeyNotesByPublicKey,
         }),
       } satisfies SdkUsageTimeSeriesResult;
     }),

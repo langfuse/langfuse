@@ -172,7 +172,6 @@ describe("V4MigrationProjectCards SDK usage", () => {
               sdkName: "python",
               sdkVersion: "3.9.0",
               publicKey: "pk-lf-old-python",
-              apiKeyNote: "backend worker",
               count: 5,
               firstSeen: "2026-06-30T04:02:00.000Z",
               lastSeen: "2026-06-30T04:04:00.000Z",
@@ -186,7 +185,6 @@ describe("V4MigrationProjectCards SDK usage", () => {
               sdkName: "unknown",
               sdkVersion: "unknown",
               publicKey: "",
-              apiKeyNote: null,
               count: 2,
               firstSeen: "2026-06-30T04:00:00.000Z",
               lastSeen: "2026-06-30T04:00:00.000Z",
@@ -213,7 +211,7 @@ describe("V4MigrationProjectCards SDK usage", () => {
     expect(screen.getByText("SDK usage")).toBeInTheDocument();
     expect(screen.getByText("python@3.9.0")).toBeInTheDocument();
     expect(screen.getByText("pk-lf-old-python")).toBeInTheDocument();
-    expect(screen.getByText("backend worker")).toBeInTheDocument();
+    expect(screen.queryByText("backend worker")).not.toBeInTheDocument();
     expect(screen.getAllByText("untracked").length).toBeGreaterThan(0);
     expect(
       screen.queryByText("unknown@unknown - No API key"),

@@ -1028,21 +1028,7 @@ describe("v4TransitionRouter", () => {
         lastSeen: "2026-06-25T12:05:00Z",
       },
     ]);
-    const mockPrisma = {
-      apiKey: {
-        findMany: vi.fn().mockResolvedValue([
-          {
-            publicKey: "pk-lf-old-python",
-            note: "backend worker",
-          },
-          {
-            publicKey: "pk-lf-js-current",
-            note: "frontend app",
-          },
-        ]),
-      },
-    };
-    const caller = createCaller(mockPrisma);
+    const caller = createCaller();
 
     const result = await caller.sdkUsageTimeSeries({
       projectId,
@@ -1069,7 +1055,6 @@ describe("v4TransitionRouter", () => {
       sdkName: "python",
       sdkVersion: "3.9.0",
       publicKey: "pk-lf-old-python",
-      apiKeyNote: "backend worker",
       count: 3,
       firstSeen: "2026-06-25T12:01:00Z",
       lastSeen: "2026-06-25T12:03:00Z",
@@ -1091,7 +1076,6 @@ describe("v4TransitionRouter", () => {
       sdkName: "@langfuse/tracing",
       sdkVersion: "5.1.0",
       publicKey: "pk-lf-js-current",
-      apiKeyNote: "frontend app",
       count: 7,
       firstSeen: "2026-06-25T12:04:00Z",
       lastSeen: "2026-06-25T12:05:00Z",
@@ -1142,73 +1126,6 @@ describe("v4TransitionRouter", () => {
       route: "v4-sdk-usage-timeseries",
     });
     expect(clickhouseQuery?.preferredClickhouseService).toBe("EventsReadOnly");
-    expect(mockPrisma.apiKey.findMany).toHaveBeenCalledWith({
-      where: {
-        projectId,
-        scope: "PROJECT",
-        publicKey: {
-          in: ["pk-lf-old-python", "pk-lf-js-current"],
-        },
-        isInAppAgentKey: false,
-      },
-      select: {
-        publicKey: true,
-        note: true,
-      },
-    });
-  });
-
-  it("limits SDK usage API key note lookup to project keys for organization admins", async () => {
-    mockedQueryClickhouse.mockResolvedValueOnce([
-      {
-        time: "2026-06-25T12:00:00Z",
-        sdkName: "python",
-        sdkVersion: "3.9.0",
-        publicKey: "pk-lf-project-python",
-        count: "3",
-        firstSeen: "2026-06-25T12:01:00Z",
-        lastSeen: "2026-06-25T12:03:00Z",
-      },
-    ]);
-    const mockPrisma = {
-      apiKey: {
-        findMany: vi.fn().mockResolvedValue([]),
-      },
-    };
-    const caller = createCaller(mockPrisma, createSessionWithOrgRole("ADMIN"));
-
-    const result = await caller.sdkUsageTimeSeries({
-      projectId,
-      fromTimestamp: new Date("2026-06-25T12:00:00Z"),
-      toTimestamp: new Date("2026-06-25T12:10:00Z"),
-      granularity: "auto",
-    });
-    const rows = result.rows;
-
-    expect(
-      rows.find(
-        (row) =>
-          row.time === "2026-06-25T12:00:00Z" &&
-          row.publicKey === "pk-lf-project-python",
-      ),
-    ).toMatchObject({
-      apiKeyNote: null,
-      upgradeStatus: "outdated_major",
-    });
-    expect(mockPrisma.apiKey.findMany).toHaveBeenCalledWith({
-      where: {
-        projectId,
-        scope: "PROJECT",
-        publicKey: {
-          in: ["pk-lf-project-python"],
-        },
-        isInAppAgentKey: false,
-      },
-      select: {
-        publicKey: true,
-        note: true,
-      },
-    });
   });
 
   it("forbids project members and viewers from accessing project-level v4 data", async () => {
@@ -1226,9 +1143,6 @@ describe("v4TransitionRouter", () => {
         count: vi.fn(),
       },
       $queryRaw: vi.fn(),
-      apiKey: {
-        findMany: vi.fn(),
-      },
     };
 
     for (const role of ["MEMBER", "VIEWER"] as const) {
@@ -1283,7 +1197,6 @@ describe("v4TransitionRouter", () => {
     expect(mockPrisma.blobStorageIntegration.findUnique).not.toHaveBeenCalled();
     expect(mockPrisma.jobConfiguration.count).not.toHaveBeenCalled();
     expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
-    expect(mockPrisma.apiKey.findMany).not.toHaveBeenCalled();
   });
 
   it("queries SDK usage without a ClickHouse metadata preflight", async () => {
@@ -1298,12 +1211,7 @@ describe("v4TransitionRouter", () => {
         lastSeen: "2026-06-25T12:01:00Z",
       },
     ]);
-    const mockPrisma = {
-      apiKey: {
-        findMany: vi.fn().mockResolvedValue([]),
-      },
-    };
-    const caller = createCaller(mockPrisma);
+    const caller = createCaller();
 
     const result = await caller.sdkUsageTimeSeries({
       projectId,
@@ -1326,12 +1234,7 @@ describe("v4TransitionRouter", () => {
   });
 
   it("rejects SDK usage requests for projects outside the caller session", async () => {
-    const mockPrisma = {
-      apiKey: {
-        findMany: vi.fn(),
-      },
-    };
-    const caller = createCaller(mockPrisma);
+    const caller = createCaller();
 
     await expect(
       caller.sdkUsageTimeSeries({
@@ -1343,7 +1246,6 @@ describe("v4TransitionRouter", () => {
     ).rejects.toThrow("User is not a member of this project");
 
     expect(mockedQueryClickhouse).not.toHaveBeenCalled();
-    expect(mockPrisma.apiKey.findMany).not.toHaveBeenCalled();
   });
 
   it("summarizes outdated SDK usage series by organization project", async () => {
