@@ -36,9 +36,13 @@ child.on("error", (error) => {
   console.error(error.message);
   process.exit(127);
 });
-for (const signal of ["SIGTERM", "SIGINT", "SIGQUIT", "SIGHUP"]) {
+/** @type {NodeJS.Signals[]} */
+const signals = ["SIGTERM", "SIGINT", "SIGQUIT", "SIGHUP"];
+for (const signal of signals) {
   process.on(signal, () => child.kill(signal));
 }
 child.on("exit", (code, signal) => {
-  process.exit(code ?? 128 + (os.constants.signals[signal] ?? 0));
+  if (code !== null) process.exit(code);
+  if (signal) process.exit(128 + (os.constants.signals[signal] ?? 0));
+  process.exit(0);
 });

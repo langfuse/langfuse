@@ -13,12 +13,14 @@ const env = process.env;
 
 // Strip valid percent-encoded sequences before checking so partially-encoded
 // values like p%40ss@word are still caught.
+/** @param {string} value */
 const stripPercentEncoded = (value) => value.replace(/%[0-9A-Fa-f]{2}/g, "");
 
 // Check whether a database URL's credentials contain characters that typically
 // need percent-encoding for Prisma (@ : / % # ?). Best-effort heuristic —
 // strips the scheme, extracts the authority (user:pass@host) before the first
 // slash, and checks for common offenders.
+/** @param {string} url */
 function checkUnencodedCredentials(url) {
   const schemeIndex = url.indexOf("://");
   const noScheme = schemeIndex === -1 ? url : url.slice(schemeIndex + 3);
@@ -49,6 +51,7 @@ function checkUnencodedCredentials(url) {
 
 // Check whether CLICKHOUSE_PASSWORD contains characters that would break the
 // query-string interpolation used for the migration URL (& = # ? % + @ space).
+/** @param {string | undefined} pass */
 function checkClickhousePassword(pass) {
   if (!pass) return;
   if (/[&=#?%+@ ]/.test(stripPercentEncoded(pass))) {
@@ -62,6 +65,11 @@ function checkClickhousePassword(pass) {
   }
 }
 
+/**
+ * @param {string} command
+ * @param {string[]} args
+ * @param {import("node:child_process").SpawnSyncOptions} [options]
+ */
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, { stdio: "inherit", ...options });
   if (result.error) console.error(result.error.message);
@@ -187,9 +195,13 @@ child.on("error", (error) => {
   console.error(error.message);
   process.exit(127);
 });
-for (const signal of ["SIGTERM", "SIGINT", "SIGQUIT", "SIGHUP"]) {
+/** @type {NodeJS.Signals[]} */
+const signals = ["SIGTERM", "SIGINT", "SIGQUIT", "SIGHUP"];
+for (const signal of signals) {
   process.on(signal, () => child.kill(signal));
 }
 child.on("exit", (code, signal) => {
-  process.exit(code ?? 128 + (os.constants.signals[signal] ?? 0));
+  if (code !== null) process.exit(code);
+  if (signal) process.exit(128 + (os.constants.signals[signal] ?? 0));
+  process.exit(0);
 });
