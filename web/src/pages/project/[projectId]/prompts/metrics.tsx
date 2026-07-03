@@ -28,7 +28,11 @@ import {
 } from "@/src/features/scores/lib/scoreColumns";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
+import {
+  toAbsoluteTimeRange,
+  TABLE_AGGREGATION_OPTIONS,
+} from "@/src/utils/date-range-utils";
+import { TimeRangePicker } from "@/src/components/date-picker";
 import { useMemo } from "react";
 
 export type PromptVersionTableRow = {
@@ -412,6 +416,16 @@ export default function PromptVersionTable({
           },
           { name: `Metrics` },
         ],
+        // Rendered directly (not TableTimeRangeHeaderPicker) because this page
+        // resolves the shared range with a custom last30Days fallback.
+        actionButtonsLeft: (
+          <TimeRangePicker
+            timeRange={timeRange}
+            onTimeRangeChange={setTimeRange}
+            timeRangePresets={TABLE_AGGREGATION_OPTIONS}
+            className="my-0 max-w-full overflow-x-auto"
+          />
+        ),
         actionButtonsRight: (
           <DetailPageNav
             key="nav"
@@ -429,8 +443,6 @@ export default function PromptVersionTable({
       <div className="gap-3">
         <DataTableToolbar
           columns={columns}
-          timeRange={timeRange}
-          setTimeRange={setTimeRange}
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
           columnVisibility={columnVisibility}

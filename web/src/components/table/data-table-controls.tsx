@@ -8,12 +8,13 @@ import {
   useCallback,
 } from "react";
 import { useMediaQuery } from "react-responsive";
-import useSessionStorage from "@/src/components/useSessionStorage";
+import useLocalStorage from "@/src/components/useLocalStorage";
 import { cn } from "@/src/utils/tailwind";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { Accordion } from "@/src/components/ui/accordion";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Badge } from "@/src/components/ui/badge";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -65,15 +66,18 @@ export function DataTableControlsProvider({
   const storageKey = tableName
     ? `data-table-controls-${tableName}`
     : "data-table-controls";
-  const defaultOpen = isDesktop ? !defaultSidebarCollapsed : false;
-  const [open, setOpen] = useSessionStorage(storageKey, defaultOpen);
-
-  // sessionStorage may carry a previously-open state from a wider viewport.
-  // On mobile, force the sidebar closed on each (re)mount so the filter
-  // panel doesn't cover the table by default.
-  useEffect(() => {
-    if (!isDesktop) setOpen(false);
-  }, [isDesktop, setOpen]);
+  // The desktop preference persists across tabs and sessions (localStorage,
+  // aligned with the peek-panel persistence direction — LFE-10601). Mobile
+  // uses per-mount local state instead, so the filter panel never covers the
+  // table by default and a narrow tab neither inherits nor overwrites the
+  // desktop preference.
+  const [desktopOpen, setDesktopOpen] = useLocalStorage(
+    storageKey,
+    !defaultSidebarCollapsed,
+  );
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const open = isDesktop ? desktopOpen : mobileOpen;
+  const setOpen = isDesktop ? setDesktopOpen : setMobileOpen;
 
   return (
     <ControlsContext.Provider value={{ open, setOpen, tableName }}>
@@ -118,7 +122,11 @@ export function DataTableControls({
   filterWithAI,
 }: DataTableControlsProps) {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const { setOpen } = useDataTableControls();
   const [aiPopoverOpen, setAiPopoverOpen] = useState(false);
+  const activeFilterCount = queryFilter.filters.filter(
+    (filter) => filter.isActive,
+  ).length;
 
   const handleFiltersGenerated = useCallback(
     (filters: FilterState) => {
@@ -142,203 +150,257 @@ export function DataTableControls({
   );
 
   return (
-    <div
-      className={cn(
-        "bg-background flex h-full w-full flex-col overflow-auto border-t",
-        "group-data-[expanded=false]/controls:hidden",
-      )}
-    >
-      <div className="bg-background sticky top-0 z-20 mb-1 flex h-10 shrink-0 items-center justify-between border-b px-3">
-        <span className="text-sm font-medium">Filters</span>
-        <div className="flex items-center gap-1">
-          {queryFilter.isFiltered && (
+    <>
+      {/* Collapsed rail: shown when the sidebar is collapsed on desktop, where
+          the resizable panel keeps a thin strip (see ResizableFilterLayout).
+          Mirrors the trace peek's collapsed-panel rail. */}
+      <div className="bg-background hidden h-full w-full flex-col items-center border-t group-data-[expanded=false]/controls:flex">
+        {/* Mirror the expanded header's metrics (h-10 row, border-b, 24px
+            button) so the toggle icon doesn't shift when collapsing. */}
+        <div className="flex h-10 w-full shrink-0 items-center justify-center border-b">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setOpen(true)}
+                aria-label="Show filters"
+                className="h-6 w-6"
+              >
+                <PanelLeftOpen className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="right">Show filters</TooltipContent>
+          </Tooltip>
+        </div>
+        {activeFilterCount > 0 && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant="secondary" className="mt-2 h-5 px-1.5 text-xs">
+                {activeFilterCount}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              {activeFilterCount} active{" "}
+              {activeFilterCount === 1 ? "filter" : "filters"}
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+      <div
+        className={cn(
+          "bg-background flex h-full w-full flex-col overflow-auto border-t",
+          "group-data-[expanded=false]/controls:hidden",
+        )}
+      >
+        <div className="bg-background sticky top-0 z-20 mb-1 flex h-10 shrink-0 items-center justify-between border-b px-3">
+          <div className="flex items-center gap-1.5">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
-                  size="sm"
-                  onClick={() => queryFilter.clearAll()}
-                  className="h-7 px-2 text-xs"
+                  size="icon"
+                  onClick={() => setOpen(false)}
+                  aria-label="Hide filters"
+                  className="-ml-1 h-6 w-6"
                 >
-                  Clear all
+                  <PanelLeftClose className="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Clear all filters</TooltipContent>
+              <TooltipContent>Hide filters</TooltipContent>
             </Tooltip>
-          )}
-          {filterWithAI && isLangfuseCloud && (
-            <Popover open={aiPopoverOpen} onOpenChange={setAiPopoverOpen}>
+            <span className="text-sm font-medium">Filters</span>
+          </div>
+          <div className="flex items-center gap-1">
+            {queryFilter.isFiltered && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <PopoverTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <WandSparkles className="h-4 w-4" />
-                    </Button>
-                  </PopoverTrigger>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => queryFilter.clearAll()}
+                    className="h-7 px-2 text-xs"
+                  >
+                    Clear all
+                  </Button>
                 </TooltipTrigger>
-                <TooltipContent>Filter with AI</TooltipContent>
+                <TooltipContent>Clear all filters</TooltipContent>
               </Tooltip>
-              <PopoverContent align="center" className="w-[400px]">
-                <DataTableAIFilters
-                  onFiltersGenerated={handleFiltersGenerated}
-                />
-              </PopoverContent>
-            </Popover>
-          )}
+            )}
+            {filterWithAI && isLangfuseCloud && (
+              <Popover open={aiPopoverOpen} onOpenChange={setAiPopoverOpen}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <PopoverTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <WandSparkles className="h-4 w-4" />
+                      </Button>
+                    </PopoverTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>Filter with AI</TooltipContent>
+                </Tooltip>
+                <PopoverContent align="center" className="w-[400px]">
+                  <DataTableAIFilters
+                    onFiltersGenerated={handleFiltersGenerated}
+                  />
+                </PopoverContent>
+              </Popover>
+            )}
+          </div>
+        </div>
+        <div className="pb-10">
+          <Accordion
+            type="multiple"
+            className="w-full"
+            value={queryFilter.expanded}
+            onValueChange={queryFilter.onExpandedChange}
+          >
+            {queryFilter.filters.map((filter) => {
+              if (filter.type === "categorical") {
+                return (
+                  <CategoricalFacet
+                    key={filter.column}
+                    filterKey={filter.column}
+                    label={filter.label}
+                    tooltip={filter.tooltip}
+                    help={filter.help}
+                    expanded={filter.expanded}
+                    options={filter.options}
+                    counts={filter.counts}
+                    displayByValue={filter.displayByValue}
+                    loading={filter.loading}
+                    value={filter.value}
+                    onChange={filter.onChange}
+                    onOnlyChange={filter.onOnlyChange}
+                    renderIcon={filter.renderIcon}
+                    isActive={filter.isActive}
+                    onReset={filter.onReset}
+                    operator={filter.operator}
+                    onOperatorChange={filter.onOperatorChange}
+                    textFilters={filter.textFilters}
+                    onTextFilterAdd={filter.onTextFilterAdd}
+                    onTextFilterRemove={filter.onTextFilterRemove}
+                    isDisabled={filter.isDisabled}
+                    disabledReason={filter.disabledReason}
+                  />
+                );
+              }
+
+              if (filter.type === "numeric") {
+                return (
+                  <NumericFacet
+                    key={filter.column}
+                    filterKey={filter.column}
+                    label={filter.label}
+                    tooltip={filter.tooltip}
+                    help={filter.help}
+                    expanded={filter.expanded}
+                    loading={filter.loading}
+                    min={filter.min}
+                    max={filter.max}
+                    value={filter.value}
+                    onChange={filter.onChange}
+                    unit={filter.unit}
+                    isActive={filter.isActive}
+                    onReset={filter.onReset}
+                    isDisabled={filter.isDisabled}
+                    disabledReason={filter.disabledReason}
+                  />
+                );
+              }
+
+              if (filter.type === "string") {
+                return (
+                  <StringFacet
+                    key={filter.column}
+                    filterKey={filter.column}
+                    label={filter.label}
+                    tooltip={filter.tooltip}
+                    help={filter.help}
+                    expanded={filter.expanded}
+                    loading={filter.loading}
+                    value={filter.value}
+                    onChange={filter.onChange}
+                    isActive={filter.isActive}
+                    onReset={filter.onReset}
+                    isDisabled={filter.isDisabled}
+                    disabledReason={filter.disabledReason}
+                  />
+                );
+              }
+
+              if (filter.type === "keyValue") {
+                return (
+                  <KeyValueFacet
+                    key={filter.column}
+                    filterKey={filter.column}
+                    label={filter.label}
+                    tooltip={filter.tooltip}
+                    help={filter.help}
+                    expanded={filter.expanded}
+                    loading={filter.loading}
+                    keyOptions={filter.keyOptions}
+                    availableValues={filter.availableValues}
+                    value={filter.value}
+                    onChange={filter.onChange}
+                    isActive={filter.isActive}
+                    onReset={filter.onReset}
+                    keyPlaceholder="Name"
+                    isDisabled={filter.isDisabled}
+                    disabledReason={filter.disabledReason}
+                  />
+                );
+              }
+
+              if (filter.type === "numericKeyValue") {
+                return (
+                  <NumericKeyValueFacet
+                    key={filter.column}
+                    filterKey={filter.column}
+                    label={filter.label}
+                    tooltip={filter.tooltip}
+                    help={filter.help}
+                    expanded={filter.expanded}
+                    loading={filter.loading}
+                    keyOptions={filter.keyOptions}
+                    value={filter.value}
+                    onChange={filter.onChange}
+                    isActive={filter.isActive}
+                    onReset={filter.onReset}
+                    keyPlaceholder="Name"
+                    isDisabled={filter.isDisabled}
+                    disabledReason={filter.disabledReason}
+                  />
+                );
+              }
+
+              if (filter.type === "stringKeyValue") {
+                return (
+                  <StringKeyValueFacet
+                    key={filter.column}
+                    filterKey={filter.column}
+                    label={filter.label}
+                    tooltip={filter.tooltip}
+                    help={filter.help}
+                    expanded={filter.expanded}
+                    loading={filter.loading}
+                    keyOptions={filter.keyOptions}
+                    value={filter.value}
+                    onChange={filter.onChange}
+                    isActive={filter.isActive}
+                    onReset={filter.onReset}
+                    isDisabled={filter.isDisabled}
+                    disabledReason={filter.disabledReason}
+                  />
+                );
+              }
+
+              return null;
+            })}
+          </Accordion>
         </div>
       </div>
-      <div className="pb-10">
-        <Accordion
-          type="multiple"
-          className="w-full"
-          value={queryFilter.expanded}
-          onValueChange={queryFilter.onExpandedChange}
-        >
-          {queryFilter.filters.map((filter) => {
-            if (filter.type === "categorical") {
-              return (
-                <CategoricalFacet
-                  key={filter.column}
-                  filterKey={filter.column}
-                  label={filter.label}
-                  tooltip={filter.tooltip}
-                  help={filter.help}
-                  expanded={filter.expanded}
-                  options={filter.options}
-                  counts={filter.counts}
-                  displayByValue={filter.displayByValue}
-                  loading={filter.loading}
-                  value={filter.value}
-                  onChange={filter.onChange}
-                  onOnlyChange={filter.onOnlyChange}
-                  renderIcon={filter.renderIcon}
-                  isActive={filter.isActive}
-                  onReset={filter.onReset}
-                  operator={filter.operator}
-                  onOperatorChange={filter.onOperatorChange}
-                  textFilters={filter.textFilters}
-                  onTextFilterAdd={filter.onTextFilterAdd}
-                  onTextFilterRemove={filter.onTextFilterRemove}
-                  isDisabled={filter.isDisabled}
-                  disabledReason={filter.disabledReason}
-                />
-              );
-            }
-
-            if (filter.type === "numeric") {
-              return (
-                <NumericFacet
-                  key={filter.column}
-                  filterKey={filter.column}
-                  label={filter.label}
-                  tooltip={filter.tooltip}
-                  help={filter.help}
-                  expanded={filter.expanded}
-                  loading={filter.loading}
-                  min={filter.min}
-                  max={filter.max}
-                  value={filter.value}
-                  onChange={filter.onChange}
-                  unit={filter.unit}
-                  isActive={filter.isActive}
-                  onReset={filter.onReset}
-                  isDisabled={filter.isDisabled}
-                  disabledReason={filter.disabledReason}
-                />
-              );
-            }
-
-            if (filter.type === "string") {
-              return (
-                <StringFacet
-                  key={filter.column}
-                  filterKey={filter.column}
-                  label={filter.label}
-                  tooltip={filter.tooltip}
-                  help={filter.help}
-                  expanded={filter.expanded}
-                  loading={filter.loading}
-                  value={filter.value}
-                  onChange={filter.onChange}
-                  isActive={filter.isActive}
-                  onReset={filter.onReset}
-                  isDisabled={filter.isDisabled}
-                  disabledReason={filter.disabledReason}
-                />
-              );
-            }
-
-            if (filter.type === "keyValue") {
-              return (
-                <KeyValueFacet
-                  key={filter.column}
-                  filterKey={filter.column}
-                  label={filter.label}
-                  tooltip={filter.tooltip}
-                  help={filter.help}
-                  expanded={filter.expanded}
-                  loading={filter.loading}
-                  keyOptions={filter.keyOptions}
-                  availableValues={filter.availableValues}
-                  value={filter.value}
-                  onChange={filter.onChange}
-                  isActive={filter.isActive}
-                  onReset={filter.onReset}
-                  keyPlaceholder="Name"
-                  isDisabled={filter.isDisabled}
-                  disabledReason={filter.disabledReason}
-                />
-              );
-            }
-
-            if (filter.type === "numericKeyValue") {
-              return (
-                <NumericKeyValueFacet
-                  key={filter.column}
-                  filterKey={filter.column}
-                  label={filter.label}
-                  tooltip={filter.tooltip}
-                  help={filter.help}
-                  expanded={filter.expanded}
-                  loading={filter.loading}
-                  keyOptions={filter.keyOptions}
-                  value={filter.value}
-                  onChange={filter.onChange}
-                  isActive={filter.isActive}
-                  onReset={filter.onReset}
-                  keyPlaceholder="Name"
-                  isDisabled={filter.isDisabled}
-                  disabledReason={filter.disabledReason}
-                />
-              );
-            }
-
-            if (filter.type === "stringKeyValue") {
-              return (
-                <StringKeyValueFacet
-                  key={filter.column}
-                  filterKey={filter.column}
-                  label={filter.label}
-                  tooltip={filter.tooltip}
-                  help={filter.help}
-                  expanded={filter.expanded}
-                  loading={filter.loading}
-                  keyOptions={filter.keyOptions}
-                  value={filter.value}
-                  onChange={filter.onChange}
-                  isActive={filter.isActive}
-                  onReset={filter.onReset}
-                  isDisabled={filter.isDisabled}
-                  disabledReason={filter.disabledReason}
-                />
-              );
-            }
-
-            return null;
-          })}
-        </Accordion>
-      </div>
-    </div>
+    </>
   );
 }
 
