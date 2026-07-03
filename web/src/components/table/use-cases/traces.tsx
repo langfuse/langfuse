@@ -92,18 +92,13 @@ import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
-import {
-  type TableDateRange,
-  TABLE_AGGREGATION_OPTIONS,
-} from "@/src/utils/date-range-utils";
+import { type TableDateRange } from "@/src/utils/date-range-utils";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import {
-  DataTableRefreshButton,
   type RefreshInterval,
   REFRESH_INTERVALS,
 } from "@/src/components/table/data-table-refresh-button";
-import { TimeRangePicker } from "@/src/components/date-picker";
-import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
+import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
@@ -1431,20 +1426,11 @@ export default function TracesTable({
     <DataTableControlsProvider tableName={tracesFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
         {showControlsInPageHeader && !hideControls && (
-          <PageHeaderControlsPortal>
-            <TimeRangePicker
-              timeRange={timeRange}
-              onTimeRangeChange={setTimeRange}
-              timeRangePresets={TABLE_AGGREGATION_OPTIONS}
-              className="my-0 max-w-full overflow-x-auto"
-            />
-            <DataTableRefreshButton
-              onRefresh={refreshConfig.onRefresh}
-              isRefreshing={refreshConfig.isRefreshing}
-              interval={refreshConfig.interval}
-              setInterval={refreshConfig.setInterval}
-            />
-          </PageHeaderControlsPortal>
+          <TableHeaderControls
+            timeRange={timeRange}
+            setTimeRange={setTimeRange}
+            refresh={refreshConfig}
+          />
         )}
         {/* Toolbar spanning full width */}
         {!hideControls && (

@@ -24,14 +24,10 @@ import { type RouterOutput } from "@/src/utils/types";
 import { type FilterState, usersTableCols } from "@langfuse/shared";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import {
-  toAbsoluteTimeRange,
-  TABLE_AGGREGATION_OPTIONS,
-} from "@/src/utils/date-range-utils";
+import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import Page from "@/src/components/layouts/page";
-import { TimeRangePicker } from "@/src/components/date-picker";
-import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
+import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { UsersOnboarding } from "@/src/components/onboarding/UsersOnboarding";
 import {
   useEnvironmentFilter,
@@ -419,14 +415,7 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
 
   return (
     <>
-      <PageHeaderControlsPortal>
-        <TimeRangePicker
-          timeRange={timeRange}
-          onTimeRangeChange={setTimeRange}
-          timeRangePresets={TABLE_AGGREGATION_OPTIONS}
-          className="my-0 max-w-full overflow-x-auto"
-        />
-      </PageHeaderControlsPortal>
+      <TableHeaderControls timeRange={timeRange} setTimeRange={setTimeRange} />
       <DataTableToolbar
         filterColumnDefinition={usersTableCols}
         filterState={userFilterState}

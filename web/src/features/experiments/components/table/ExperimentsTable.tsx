@@ -26,12 +26,8 @@ import { numberFormatter } from "@/src/utils/numbers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import {
-  toAbsoluteTimeRange,
-  TABLE_AGGREGATION_OPTIONS,
-} from "@/src/utils/date-range-utils";
-import { TimeRangePicker } from "@/src/components/date-picker";
-import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
+import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
+import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { GitCompareArrows, LightbulbIcon } from "lucide-react";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
@@ -679,14 +675,10 @@ export default function ExperimentsTable({
       <DataTableControlsProvider>
         <div className="flex h-full w-full flex-col">
           {showControlsInPageHeader && (
-            <PageHeaderControlsPortal>
-              <TimeRangePicker
-                timeRange={timeRange}
-                onTimeRangeChange={setTimeRange}
-                timeRangePresets={TABLE_AGGREGATION_OPTIONS}
-                className="my-0 max-w-full overflow-x-auto"
-              />
-            </PageHeaderControlsPortal>
+            <TableHeaderControls
+              timeRange={timeRange}
+              setTimeRange={setTimeRange}
+            />
           )}
           {/* Toolbar spanning full width */}
           <DataTableToolbar

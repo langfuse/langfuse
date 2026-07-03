@@ -60,10 +60,8 @@ import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTabl
 import {
   toAbsoluteTimeRange,
   type TableDateRange,
-  TABLE_AGGREGATION_OPTIONS,
 } from "@/src/utils/date-range-utils";
-import { TimeRangePicker } from "@/src/components/date-picker";
-import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
+import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { type ScoreAggregate } from "@langfuse/shared";
 import TagList from "@/src/features/tag/components/TagList";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
@@ -99,7 +97,6 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { buildTraceDetailPath } from "@/src/utils/navigation";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 import {
-  DataTableRefreshButton,
   type RefreshInterval,
   REFRESH_INTERVALS,
 } from "@/src/components/table/data-table-refresh-button";
@@ -1399,20 +1396,11 @@ export default function ObservationsTable({
   const content = (
     <>
       {showControlsInPageHeader && !hideControls && (
-        <PageHeaderControlsPortal>
-          <TimeRangePicker
-            timeRange={timeRange}
-            onTimeRangeChange={setTimeRange}
-            timeRangePresets={TABLE_AGGREGATION_OPTIONS}
-            className="my-0 max-w-full overflow-x-auto"
-          />
-          <DataTableRefreshButton
-            onRefresh={refreshConfig.onRefresh}
-            isRefreshing={refreshConfig.isRefreshing}
-            interval={refreshConfig.interval}
-            setInterval={refreshConfig.setInterval}
-          />
-        </PageHeaderControlsPortal>
+        <TableHeaderControls
+          timeRange={timeRange}
+          setTimeRange={setTimeRange}
+          refresh={refreshConfig}
+        />
       )}
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}

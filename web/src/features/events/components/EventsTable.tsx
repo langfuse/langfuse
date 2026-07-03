@@ -44,10 +44,8 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import {
   toAbsoluteTimeRange,
   type TableDateRange,
-  TABLE_AGGREGATION_OPTIONS,
 } from "@/src/utils/date-range-utils";
-import { TimeRangePicker } from "@/src/components/date-picker";
-import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
+import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { type ScoreAggregate } from "@langfuse/shared";
 import TagList from "@/src/features/tag/components/TagList";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
@@ -95,7 +93,6 @@ import { getSafeRedirectPath } from "@/src/utils/redirect";
 // import { useObservationCountCheck } from "@/src/features/events/hooks/useObservationCountCheck";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import {
-  DataTableRefreshButton,
   type RefreshInterval,
   REFRESH_INTERVALS,
 } from "@/src/components/table/data-table-refresh-button";
@@ -1497,20 +1494,11 @@ export default function ObservationsEventsTable({
     <DataTableControlsProvider tableName={eventsFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
         {showControlsInPageHeader && !hideControls && (
-          <PageHeaderControlsPortal>
-            <TimeRangePicker
-              timeRange={timeRange}
-              onTimeRangeChange={setTimeRange}
-              timeRangePresets={TABLE_AGGREGATION_OPTIONS}
-              className="my-0 max-w-full overflow-x-auto"
-            />
-            <DataTableRefreshButton
-              onRefresh={refreshConfig.onRefresh}
-              isRefreshing={refreshConfig.isRefreshing}
-              interval={refreshConfig.interval}
-              setInterval={refreshConfig.setInterval}
-            />
-          </PageHeaderControlsPortal>
+          <TableHeaderControls
+            timeRange={timeRange}
+            setTimeRange={setTimeRange}
+            refresh={refreshConfig}
+          />
         )}
         {!hideControls && (
           <div
@@ -1524,9 +1512,11 @@ export default function ObservationsEventsTable({
           >
             {/* Search bar row: full-width query composer. In bar mode it sticks
                 together with the toolbar below, so the toolbar controls cannot
-                scroll underneath and render half-clipped. Time-range + refresh
-                live in the toolbar row below, next to the filter toggle and
-                views — not in the page header. */}
+                scroll underneath and render half-clipped. When
+                showControlsInPageHeader is set (the standalone traces/
+                observations pages), time-range + refresh are hoisted to the
+                page header via TableHeaderControls; otherwise they remain in
+                the toolbar row below. */}
             {searchBarMode && (
               <EventsSearchBarRow
                 projectId={projectId}

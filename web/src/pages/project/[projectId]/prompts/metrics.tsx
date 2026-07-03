@@ -28,13 +28,9 @@ import {
 } from "@/src/features/scores/lib/scoreColumns";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import {
-  toAbsoluteTimeRange,
-  TABLE_AGGREGATION_OPTIONS,
-} from "@/src/utils/date-range-utils";
+import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { useMemo } from "react";
-import { TimeRangePicker } from "@/src/components/date-picker";
-import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
+import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 
 export type PromptVersionTableRow = {
   version: number;
@@ -431,14 +427,7 @@ export default function PromptVersionTable({
         },
       }}
     >
-      <PageHeaderControlsPortal>
-        <TimeRangePicker
-          timeRange={timeRange}
-          onTimeRangeChange={setTimeRange}
-          timeRangePresets={TABLE_AGGREGATION_OPTIONS}
-          className="my-0 max-w-full overflow-x-auto"
-        />
-      </PageHeaderControlsPortal>
+      <TableHeaderControls timeRange={timeRange} setTimeRange={setTimeRange} />
       <div className="gap-3">
         <DataTableToolbar
           columns={columns}
