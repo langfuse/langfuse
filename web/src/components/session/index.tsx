@@ -921,11 +921,22 @@ const LoadedSessionEventsPage: React.FC<{
   // from a fresh load) instead of silently replacing its FilterState. Read from
   // window.location synchronously (not useQueryParam, which can lag a render on
   // mount and miss the value before the strip).
-  const initialViewIdRef = useRef<string | null>(
+  const readUrlViewId = (): string | null =>
     typeof window === "undefined"
       ? null
-      : new URLSearchParams(window.location.search).get("viewId"),
-  );
+      : new URLSearchParams(window.location.search).get("viewId");
+  const initialViewIdRef = useRef<string | null>(readUrlViewId());
+  // Navigating between sessions (DetailPageNav prev/next) can reuse this mounted
+  // component when the destination is already in the react-query cache — the
+  // useRef initializer wouldn't re-run, leaving a stale viewId that blocks the
+  // default-view effect on the new session. Re-read the URL during render (not
+  // an effect, which would race the view manager's strip on reload) whenever the
+  // sessionId changes, mirroring the defaultPresetAppliedRef reset above.
+  const initialViewIdSessionRef = useRef(sessionId);
+  if (initialViewIdSessionRef.current !== sessionId) {
+    initialViewIdSessionRef.current = sessionId;
+    initialViewIdRef.current = readUrlViewId();
+  }
 
   const selectedViewId = viewControllers.selectedViewId;
 
