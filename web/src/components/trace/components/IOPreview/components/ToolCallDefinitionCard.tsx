@@ -139,7 +139,7 @@ function ToolGroupHoverContent({
         </div>
       </div>
       <div className="flex flex-col gap-1 p-2">
-        {tools.map((tool) => {
+        {tools.map((tool, index) => {
           const callCount = toolCallCounts.get(tool.name) ?? 0;
           const toolDefinitionNumber = toolNameToDefinitionNumber?.get(
             tool.name,
@@ -147,7 +147,7 @@ function ToolGroupHoverContent({
 
           return (
             <div
-              key={tool.name}
+              key={`${tool.name}-${index}`}
               className="flex min-w-0 items-center justify-between gap-2 rounded-sm px-2 py-1"
             >
               <div className="flex min-w-0 items-center gap-2">
@@ -464,7 +464,7 @@ export function ToolCallDefinitionCard({
   toolNameToDefinitionNumber,
   className,
 }: ToolCallDefinitionCardProps) {
-  const [expandedToolName, setExpandedToolName] = useState<string | null>(null);
+  const [expandedToolKey, setExpandedToolKey] = useState<string | null>(null);
   const [toolGroupExpansion, setToolGroupExpansion] =
     useSessionStorage<ToolGroupExpansionState>(
       TOOL_GROUP_EXPANSION_STORAGE_KEY,
@@ -511,21 +511,25 @@ export function ToolCallDefinitionCard({
   const showAvailableTools =
     !availableToolsShouldCollapse || toolGroupExpansion.availableToolsExpanded;
 
-  const renderToolRows = (toolsToRender: ToolDefinition[]) =>
-    toolsToRender.map((tool) => {
+  const renderToolRows = (
+    toolsToRender: ToolDefinition[],
+    groupKind: ToolGroupKind,
+  ) =>
+    toolsToRender.map((tool, index) => {
       const callCount = toolCallCounts.get(tool.name) || 0;
       const toolCalls = toolCallsByName?.get(tool.name) ?? [];
       const toolDefinitionNumber = toolNameToDefinitionNumber?.get(tool.name);
-      const isExpanded = expandedToolName === tool.name;
+      const toolKey = `${groupKind}-${tool.name}-${index}`;
+      const isExpanded = expandedToolKey === toolKey;
 
       return (
         <ToolDefinitionRow
-          key={tool.name}
+          key={toolKey}
           tool={tool}
           isExpanded={isExpanded}
           onToggle={() =>
-            setExpandedToolName((current) =>
-              current === tool.name ? null : tool.name,
+            setExpandedToolKey((current) =>
+              current === toolKey ? null : toolKey,
             )
           }
           callCount={callCount}
@@ -554,7 +558,7 @@ export function ToolCallDefinitionCard({
           toolNameToDefinitionNumber={toolNameToDefinitionNumber}
         />
       )}
-      {showCalledTools && renderToolRows(calledTools)}
+      {showCalledTools && renderToolRows(calledTools, "called")}
 
       {availableToolsShouldCollapse && (
         <ToolGroupSummary
@@ -571,7 +575,7 @@ export function ToolCallDefinitionCard({
           toolNameToDefinitionNumber={toolNameToDefinitionNumber}
         />
       )}
-      {showAvailableTools && renderToolRows(availableTools)}
+      {showAvailableTools && renderToolRows(availableTools, "available")}
     </div>
   );
 }
