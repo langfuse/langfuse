@@ -3042,31 +3042,40 @@ export type SdkMetadata = {
   language?: string;
 };
 
-const SDK_UPGRADE_SOURCE_LOOKBACK_DAYS = 7;
+const SDK_UPGRADE_TRACE_COUNT_LOOKBACK_HOURS = 24;
 
 export async function getSdkUpgradeStatusFromEvents(params: {
   projectId: string;
 }): Promise<{
-  sources: { source: string; count: number }[];
+  sdkVersions: {
+    sdkName: string;
+    sdkVersion: string;
+    source: string;
+    count: number;
+  }[];
 }> {
   const { projectId } = params;
   const lookbackStart = new Date(
-    Date.now() - SDK_UPGRADE_SOURCE_LOOKBACK_DAYS * 24 * 60 * 60 * 1000,
+    Date.now() - SDK_UPGRADE_TRACE_COUNT_LOOKBACK_HOURS * 60 * 60 * 1000,
   );
 
   const rows = await queryClickhouse<{
+    sdk_name: string;
+    sdk_version: string;
     source: string;
     count: string | number;
   }>({
     query: `
       SELECT
+        e.ingestion_sdk_name AS sdk_name,
+        e.ingestion_sdk_version AS sdk_version,
         e.source AS source,
-        count(*) AS count
+        uniq(e.trace_id) AS count
       FROM events_core e
       WHERE e.project_id = {projectId: String}
         AND e.start_time >= {lookbackStart: DateTime64(3)}
         AND e.is_deleted = 0
-      GROUP BY e.source
+      GROUP BY e.ingestion_sdk_name, e.ingestion_sdk_version, e.source
       ORDER BY count DESC
       LIMIT 20
     `,
@@ -3079,7 +3088,9 @@ export async function getSdkUpgradeStatusFromEvents(params: {
   });
 
   return {
-    sources: rows.map((row) => ({
+    sdkVersions: rows.map((row) => ({
+      sdkName: row.sdk_name,
+      sdkVersion: row.sdk_version,
       source: row.source,
       count: Number(row.count),
     })),

@@ -3105,13 +3105,14 @@ describe("Clickhouse Events Repository Test", () => {
   });
 
   maybe("getSdkUpgradeStatusFromEvents", () => {
-    it("should return recent direct event sources", async () => {
+    it("should return recent SDK attribution", async () => {
       const uniqueProjectId = randomUUID();
 
       await createEventsCh([
         createEvent({
           project_id: uniqueProjectId,
-          source: "otel",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "4.0.0",
           start_time: Date.now() * 1000,
         }),
       ]);
@@ -3120,16 +3121,28 @@ describe("Clickhouse Events Repository Test", () => {
         projectId: uniqueProjectId,
       });
 
-      expect(result.sources).toEqual([{ source: "otel", count: 1 }]);
+      expect(result.sdkVersions).toEqual([
+        { sdkName: "python", sdkVersion: "4.0.0", source: "API", count: 1 },
+      ]);
     });
 
-    it("should return recent non-direct event sources", async () => {
+    it("should group recent SDK attribution by trace count", async () => {
       const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
 
       await createEventsCh([
         createEvent({
           project_id: uniqueProjectId,
-          source: "ingestion-api-dual-write",
+          trace_id: traceId,
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "3.4.0",
+          start_time: Date.now() * 1000,
+        }),
+        createEvent({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "3.4.0",
           start_time: Date.now() * 1000,
         }),
       ]);
@@ -3138,18 +3151,19 @@ describe("Clickhouse Events Repository Test", () => {
         projectId: uniqueProjectId,
       });
 
-      expect(result.sources).toEqual([
-        { source: "ingestion-api-dual-write", count: 1 },
+      expect(result.sdkVersions).toEqual([
+        { sdkName: "python", sdkVersion: "3.4.0", source: "API", count: 1 },
       ]);
     });
 
-    it("should return unknown recent event sources", async () => {
+    it("should return unknown SDK attribution", async () => {
       const uniqueProjectId = randomUUID();
 
       await createEventsCh([
         createEvent({
           project_id: uniqueProjectId,
-          source: "api",
+          ingestion_sdk_name: "unknown",
+          ingestion_sdk_version: "unknown",
           start_time: Date.now() * 1000,
         }),
       ]);
@@ -3158,16 +3172,20 @@ describe("Clickhouse Events Repository Test", () => {
         projectId: uniqueProjectId,
       });
 
-      expect(result.sources).toEqual([{ source: "api", count: 1 }]);
+      expect(result.sdkVersions).toEqual([
+        { sdkName: "unknown", sdkVersion: "unknown", source: "API", count: 1 },
+      ]);
     });
 
-    it("should return backfill event sources", async () => {
+    it("should return backfill source for frontend fallback classification", async () => {
       const uniqueProjectId = randomUUID();
 
       await createEventsCh([
         createEvent({
           project_id: uniqueProjectId,
           source: "ingestion-api-backfill",
+          ingestion_sdk_name: "unknown",
+          ingestion_sdk_version: "unknown",
           start_time: Date.now() * 1000,
         }),
       ]);
@@ -3176,20 +3194,27 @@ describe("Clickhouse Events Repository Test", () => {
         projectId: uniqueProjectId,
       });
 
-      expect(result.sources).toEqual([
-        { source: "ingestion-api-backfill", count: 1 },
+      expect(result.sdkVersions).toEqual([
+        {
+          sdkName: "unknown",
+          sdkVersion: "unknown",
+          source: "ingestion-api-backfill",
+          count: 1,
+        },
       ]);
     });
 
-    it("should ignore non-direct event sources outside the lookback window", async () => {
+    it("should ignore SDK attribution outside the 24 hour lookback window", async () => {
       const uniqueProjectId = randomUUID();
-      const eightDaysAgoMicros = (Date.now() - 8 * 24 * 60 * 60 * 1000) * 1000;
+      const twentyFiveHoursAgoMicros =
+        (Date.now() - 25 * 60 * 60 * 1000) * 1000;
 
       await createEventsCh([
         createEvent({
           project_id: uniqueProjectId,
-          source: "ingestion-api-dual-write",
-          start_time: eightDaysAgoMicros,
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "3.4.0",
+          start_time: twentyFiveHoursAgoMicros,
         }),
       ]);
 
@@ -3197,7 +3222,7 @@ describe("Clickhouse Events Repository Test", () => {
         projectId: uniqueProjectId,
       });
 
-      expect(result.sources).toEqual([]);
+      expect(result.sdkVersions).toEqual([]);
     });
   });
 

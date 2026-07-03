@@ -18,10 +18,22 @@ const SDK_UPGRADE_DISMISSED_STORAGE_PREFIX =
 const SDK_UPGRADE_DOCS_URL =
   "https://langfuse.com/docs/observability/sdk/upgrade-path";
 const SDK_UPGRADE_DISMISS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const UNKNOWN_SDK_VALUE = "unknown";
 const DIRECT_EVENTS_TABLE_SOURCE_VALUES = ["otel"] as const;
 const BACKFILL_EVENTS_TABLE_SOURCE_VALUES = [
   "ingestion-api-backfill",
   "otel-backfill",
+] as const;
+
+const SDK_UPGRADE_MINIMUM_VERSIONS = [
+  {
+    sdkNames: ["python"],
+    minimumVersion: "4.0.0",
+  },
+  {
+    sdkNames: ["javascript", "js", "langfuse-js"],
+    minimumVersion: "5.0.0",
+  },
 ] as const;
 
 export function SdkUpgradeModal({ userId }: { userId: string }) {
@@ -42,10 +54,9 @@ export function SdkUpgradeModal({ userId }: { userId: string }) {
     },
   );
 
-  const shouldShowUpgradeModal =
-    sdkUpgradeStatus.data?.sources.some((source) =>
-      shouldUpgradeSdkForEventsTableSource(source.source),
-    ) === true;
+  const sdkVersionsToUpgrade =
+    sdkUpgradeStatus.data?.sdkVersions?.filter(shouldUpgradeSdkVersion) ?? [];
+  const shouldShowUpgradeModal = sdkVersionsToUpgrade.length > 0;
 
   useEffect(() => {
     if (!storageKey || !shouldShowUpgradeModal) {
@@ -94,6 +105,21 @@ export function SdkUpgradeModal({ userId }: { userId: string }) {
             Upgrade to the latest Langfuse SDK so new observations are ingested
             directly and appear in Langfuse without legacy ingestion delays.
           </p>
+          {sdkVersionsToUpgrade.length > 0 ? (
+            <div className="bg-muted/40 rounded-md border px-3 py-2 text-sm">
+              <div className="text-muted-foreground mb-1">
+                Detected SDK versions in traces from the last 24 hours:
+              </div>
+              <div className="space-y-1">
+                {sdkVersionsToUpgrade.slice(0, 5).map((sdkVersion) => (
+                  <SdkVersionRow
+                    key={`${sdkVersion.sdkName}:${sdkVersion.sdkVersion}`}
+                    sdkVersion={sdkVersion}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
         </DialogBody>
         <DialogFooter>
           <Button variant="outline" onClick={dismiss}>
@@ -111,6 +137,25 @@ export function SdkUpgradeModal({ userId }: { userId: string }) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function SdkVersionRow(sdkVersion: {
+  sdkName: string;
+  sdkVersion: string;
+  count: number;
+}) {
+  const formattedSdkVersion = formatSdkVersion(sdkVersion);
+
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="truncate font-mono text-xs" title={formattedSdkVersion}>
+        {formattedSdkVersion}
+      </span>
+      <span className="text-muted-foreground shrink-0 text-xs">
+        {sdkVersion.count.toLocaleString()}
+      </span>
+    </div>
   );
 }
 
@@ -142,13 +187,109 @@ function markDismissed(storageKey: string) {
   }
 }
 
-function shouldUpgradeSdkForEventsTableSource(source: string) {
-  const isDirect = DIRECT_EVENTS_TABLE_SOURCE_VALUES.includes(
-    source as (typeof DIRECT_EVENTS_TABLE_SOURCE_VALUES)[number],
-  );
-  const isBackfill = BACKFILL_EVENTS_TABLE_SOURCE_VALUES.includes(
-    source as (typeof BACKFILL_EVENTS_TABLE_SOURCE_VALUES)[number],
+function shouldUpgradeSdkVersion(sdk: {
+  sdkName: string;
+  sdkVersion: string;
+  source: string;
+}) {
+  if (isBackfillEventsTableSource(sdk.source)) {
+    return false;
+  }
+
+  const sdkName = sdk.sdkName.trim().toLowerCase();
+  const sdkVersion = sdk.sdkVersion.trim().toLowerCase();
+
+  if (
+    !sdkName ||
+    !sdkVersion ||
+    sdkName === UNKNOWN_SDK_VALUE ||
+    sdkVersion === UNKNOWN_SDK_VALUE
+  ) {
+    return shouldUpgradeForEventsTableSource(sdk.source);
+  }
+
+  const baseVersion = extractBaseSdkVersion(sdkVersion);
+  const sdkThreshold = SDK_UPGRADE_MINIMUM_VERSIONS.find((threshold) =>
+    threshold.sdkNames.includes(sdkName as (typeof threshold.sdkNames)[number]),
   );
 
-  return !isDirect && !isBackfill;
+  if (sdkThreshold) {
+    return (
+      isVersionLessThan(baseVersion, sdkThreshold.minimumVersion) ??
+      shouldUpgradeForEventsTableSource(sdk.source)
+    );
+  }
+
+  return shouldUpgradeForEventsTableSource(sdk.source);
+}
+
+function extractBaseSdkVersion(sdkVersion: string) {
+  const version = sdkVersion.trim();
+
+  if (/^v?\d+\.\d+\.\d+(?:[-+].+)?$/i.test(version)) {
+    return version.split(/[-+]/)[0] ?? version;
+  }
+
+  const pep440Match = version.match(/^(v?\d+\.\d+\.\d+)(?:a|b|rc)\d+$/i);
+  if (pep440Match?.[1]) {
+    return pep440Match[1];
+  }
+
+  return version;
+}
+
+function isVersionLessThan(version: string, minimumVersion: string) {
+  const parsedVersion = parseVersion(version);
+  const parsedMinimum = parseVersion(minimumVersion);
+
+  if (!parsedVersion || !parsedMinimum) return null;
+
+  const [major, minor, patch] = parsedVersion;
+  const [minimumMajor, minimumMinor, minimumPatch] = parsedMinimum;
+
+  if (major !== minimumMajor) return major < minimumMajor;
+  if (minor !== minimumMinor) return minor < minimumMinor;
+  if (patch !== minimumPatch) return patch < minimumPatch;
+
+  return false;
+}
+
+function parseVersion(version: string): [number, number, number] | null {
+  const match = version.match(/^v?(\d+)\.(\d+)\.(\d+)$/);
+  if (!match) return null;
+
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+  const patch = Number(match[3]);
+
+  if (![major, minor, patch].every(Number.isSafeInteger)) return null;
+
+  return [major, minor, patch];
+}
+
+function shouldUpgradeForEventsTableSource(source: string) {
+  const normalizedSource = source.trim().toLowerCase();
+
+  if (isBackfillEventsTableSource(normalizedSource)) {
+    return false;
+  }
+
+  return !DIRECT_EVENTS_TABLE_SOURCE_VALUES.includes(
+    normalizedSource as (typeof DIRECT_EVENTS_TABLE_SOURCE_VALUES)[number],
+  );
+}
+
+function isBackfillEventsTableSource(source: string) {
+  const normalizedSource = source.trim().toLowerCase();
+
+  return BACKFILL_EVENTS_TABLE_SOURCE_VALUES.includes(
+    normalizedSource as (typeof BACKFILL_EVENTS_TABLE_SOURCE_VALUES)[number],
+  );
+}
+
+function formatSdkVersion(sdk: { sdkName: string; sdkVersion: string }) {
+  const sdkName = sdk.sdkName.trim() || UNKNOWN_SDK_VALUE;
+  const sdkVersion = sdk.sdkVersion.trim() || UNKNOWN_SDK_VALUE;
+
+  return `${sdkName}@${sdkVersion}`;
 }
