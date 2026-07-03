@@ -64,15 +64,18 @@ function createCodeEvalHoverExtension(hoverDocs: CodeEvalHoverDocs) {
 }
 
 async function formatTypeScriptSource(source: string) {
-  const [{ format }, typescriptPlugin, estreePlugin] = await Promise.all([
+  // babel-ts instead of the typescript plugin: the latter embeds the
+  // TypeScript compiler, which the SWC minifier miscompiles (dropped
+  // bindings — LFE-10645, caught by scripts/scan-client-bundle.mjs).
+  const [{ format }, babelPlugin, estreePlugin] = await Promise.all([
     import("prettier/standalone"),
-    import("prettier/plugins/typescript"),
+    import("prettier/plugins/babel"),
     import("prettier/plugins/estree"),
   ]);
 
   return format(source, {
-    parser: "typescript",
-    plugins: [typescriptPlugin, estreePlugin],
+    parser: "babel-ts",
+    plugins: [babelPlugin, estreePlugin],
   });
 }
 

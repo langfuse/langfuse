@@ -156,6 +156,8 @@ interface TableViewPresetsDrawerProps {
   };
   /** Page-specific system filter presets (e.g. "Last Generation in Trace") */
   systemFilterPresets?: SystemFilterPreset[];
+  /** Optional DOM id on the trigger button so other UI can open the drawer. */
+  triggerId?: string;
 }
 
 function formatOrderBy(orderBy?: OrderByState) {
@@ -178,6 +180,7 @@ export function TableViewPresetsDrawer({
   viewConfig,
   currentState,
   systemFilterPresets,
+  triggerId,
 }: TableViewPresetsDrawerProps) {
   const [searchQuery, setSearchQueryLocal] = useState("");
   const { tableName, projectId, controllers } = viewConfig;
@@ -444,6 +447,7 @@ export function TableViewPresetsDrawer({
         <DrawerTrigger asChild>
           <Button
             variant="outline"
+            id={triggerId}
             title={selectedViewName ? `View: ${selectedViewName}` : "Views"}
           >
             <span>
