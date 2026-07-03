@@ -576,7 +576,7 @@ declare class URLSearchParams {
 const IGNORED_DIAGNOSTIC_CODES = new Set([2318]);
 const PYTHON_RUFF_SETTINGS = {
   "line-length": 88,
-  "indent-width": 4,
+  "indent-width": 2,
   lint: {
     select: ["E4", "E7", "E9", "F"],
   },
@@ -1000,15 +1000,6 @@ function collectPythonContractDiagnostics(
   diagnostics: CodeEvalDiagnostic[],
 ) {
   if (source.trim().length === 0) return;
-
-  if (!source.trimStart().startsWith(PYTHON_CONTRACT_PREFIX)) {
-    diagnostics.push({
-      from: 0,
-      to: Math.min(source.length, PYTHON_CONTRACT_PREFIX.length),
-      severity: "warning",
-      message: `Python evaluators should start with \`${PYTHON_CONTRACT_PREFIX}\`.`,
-    });
-  }
 
   if (
     hasPythonEvaluateFunction(source) &&

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_PYTHON_CODE_EVAL_SOURCE,
   DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE,
+  PYTHON_CODE_EVAL_CONTRACT,
   TYPESCRIPT_CODE_EVAL_CONTRACT,
   formatAndStripCodeEvalSourceForSubmit,
   formatPythonCodeEvalSourceWithRuff,
@@ -50,43 +51,47 @@ describe("code eval template validation", () => {
     );
     expect(isDefaultCodeEvalSource(DEFAULT_PYTHON_CODE_EVAL_SOURCE)).toBe(true);
     expect(DEFAULT_PYTHON_CODE_EVAL_SOURCE).toMatch(
-      /^from dataclasses import dataclass/,
+      /^def evaluate\(ctx: EvaluationContext\) -> EvaluationResult:/,
     );
-    expect(DEFAULT_PYTHON_CODE_EVAL_SOURCE).toContain(
-      "def evaluate(ctx: EvaluationContext) -> EvaluationResult:",
+    expect(DEFAULT_PYTHON_CODE_EVAL_SOURCE).not.toContain(
+      "from dataclasses import dataclass",
     );
-    expect(
-      DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE.startsWith(
-        TYPESCRIPT_CODE_EVAL_CONTRACT,
-      ),
-    ).toBe(true);
-    expect(DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE).toContain(
+    expect(DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE).toMatch(
+      /^function evaluate\(ctx: EvaluationContext\): EvaluationResult/,
+    );
+    expect(DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE).not.toContain(
       "type EvaluationContext =",
-    );
-    expect(DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE).toContain(
-      "type EvaluationResult =",
-    );
-    expect(DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE).toContain(
-      "function evaluate(ctx: EvaluationContext): EvaluationResult",
     );
   });
 
-  it("strips editor-only contracts before submit", async () => {
+  it("strips pasted contracts before submit", async () => {
     expect(
       await formatAndStripCodeEvalSourceForSubmit({
-        sourceCode: DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE,
+        sourceCode: `${TYPESCRIPT_CODE_EVAL_CONTRACT}\n\n${DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE}`,
         sourceCodeLanguage: "TYPESCRIPT",
       }),
-    ).toContain("function evaluate(ctx: EvaluationContext): EvaluationResult");
+    ).toMatch(/^function evaluate\(ctx: EvaluationContext\)/);
     expect(
       await formatAndStripCodeEvalSourceForSubmit({
-        sourceCode: DEFAULT_PYTHON_CODE_EVAL_SOURCE,
+        sourceCode: `${PYTHON_CODE_EVAL_CONTRACT}\n\n${DEFAULT_PYTHON_CODE_EVAL_SOURCE}`,
         sourceCodeLanguage: "PYTHON",
       }),
     ).toMatch(/^def evaluate\(ctx: EvaluationContext\)/);
   });
 
-  it("rehydrates stored evaluator functions for the editor", () => {
+  it("keeps Python helpers defined above evaluate on submit", async () => {
+    const source =
+      "def helper(value):\n    return value\n\n\ndef evaluate(ctx: EvaluationContext) -> EvaluationResult:\n    return EvaluationResult(scores=[])\n";
+
+    expect(
+      await formatAndStripCodeEvalSourceForSubmit({
+        sourceCode: source,
+        sourceCodeLanguage: "PYTHON",
+      }),
+    ).toMatch(/^def helper/);
+  });
+
+  it("hydrates the editor without the contract types", () => {
     const source =
       "function evaluate(ctx: EvaluationContext): EvaluationResult { return { scores: [] }; }";
 
@@ -95,7 +100,13 @@ describe("code eval template validation", () => {
         sourceCode: source,
         sourceCodeLanguage: "TYPESCRIPT",
       }),
-    ).toContain(TYPESCRIPT_CODE_EVAL_CONTRACT);
+    ).toBe(source);
+    expect(
+      getCodeEvalSourceForEditor({
+        sourceCode: `${TYPESCRIPT_CODE_EVAL_CONTRACT}\n\n${source}`,
+        sourceCodeLanguage: "TYPESCRIPT",
+      }),
+    ).toBe(source);
   });
 
   it("accepts the default TypeScript source", async () => {
