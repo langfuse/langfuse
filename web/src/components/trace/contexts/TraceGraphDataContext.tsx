@@ -148,10 +148,12 @@ export function TraceGraphDataProvider({
     // one MEANINGFUL node — the panel just defaults to collapsed for these.
     // Mirrors the timing-based inference these traces go through
     // (buildStepData drops EVENTs and keys nodes on the observation NAME),
-    // with one extra rule: a single parentless root (v4 mirrors the trace
-    // itself as a root span, so it exists on every trace) doesn't count —
-    // a root→child chain is the tree again, not structure worth a graph.
-    // Multiple parallel roots ARE structure and count fully.
+    // with one extra rule: a single parentless root doesn't count. v4 makes
+    // this mandatory (the trace itself is mirrored as a root span, so EVERY
+    // trace has one), and it's deliberately unconditional — a v3 root→child
+    // chain is exactly as uninformative as a v4 one; the graph only earns its
+    // panel when there's structure beyond the tree. Multiple parallel roots
+    // ARE structure and count fully.
     const nonEvent = agentGraphData.filter(
       (obs) => obs.observationType !== "EVENT",
     );

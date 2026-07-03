@@ -27,6 +27,7 @@ import {
 } from "../contexts/PlayheadContext";
 import { useTraceData } from "../contexts/TraceDataContext";
 import { useTraceGraphData } from "../contexts/TraceGraphDataContext";
+import { useSearch } from "../contexts/SearchContext";
 import { useViewPreferences } from "../contexts/ViewPreferencesContext";
 
 // A 22px ring around the ~28px (h-7) button; 2px stroke reads at this size.
@@ -37,8 +38,10 @@ const RING_C = 2 * Math.PI * RING_R;
 
 export function PlaybackControls() {
   const { traceDuration } = useTraceData();
-  const { isGraphViewAvailable } = useTraceGraphData();
+  const { isGraphViewAvailable, isLoading: isGraphDataLoading } =
+    useTraceGraphData();
   const { showGraph } = useViewPreferences();
+  const { searchQuery } = useSearch();
   const [viewMode] = useQueryParam("view", StringParam);
   const { play, pause, stop, getPlayheadSec, subscribePosition } =
     usePlayhead();
@@ -59,10 +62,17 @@ export function PlaybackControls() {
     return subscribePosition(apply);
   }, [traceDuration, getPlayheadSec, subscribePosition]);
 
-  // A playback surface exists in the timeline view or when the graph panel is
-  // visible; an actively-placed playhead keeps its controls regardless.
+  // A playback surface exists in the timeline view (unless a search query has
+  // replaced it with the search list) or when the graph panel renders — a
+  // COLLAPSED panel still counts (the surface is one click away; hiding the
+  // transport when the user collapses the panel would make it undiscoverable),
+  // and a pending graph query counts too, so graph-eligible traces don't get a
+  // transport pop-in after first load. An actively-placed playhead keeps its
+  // controls regardless.
+  const isSearching = searchQuery.trim().length > 0;
   const hasPlaybackSurface =
-    viewMode === "timeline" || (showGraph && isGraphViewAvailable);
+    (viewMode === "timeline" && !isSearching) ||
+    (showGraph && (isGraphViewAvailable || isGraphDataLoading));
   if (traceDuration <= 0 || (!hasPlaybackSurface && !showPlayhead)) {
     return null;
   }
