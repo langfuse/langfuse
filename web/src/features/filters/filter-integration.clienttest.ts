@@ -798,16 +798,48 @@ describe("Saved view validation", () => {
         internal: "positionInTrace",
       },
     ];
+    // LFE-10520: the default view is "All observations with I/O", expressed as
+    // a real, renderable boolean filter (not a hidden flag). Selecting a
+    // generation preset still applies its positionInTrace filters.
     const defaultPreset = getSessionDetailPresetToApply({
       selectedViewId: null,
+      hasFilters: false,
+    });
+    expect(defaultPreset).toEqual(SESSION_DETAIL_SYSTEM_PRESETS[0]);
+    expect(defaultPreset?.name).toBe("All observations with I/O");
+    expect(defaultPreset?.filters).toEqual([
+      {
+        column: "hasInput",
+        type: "boolean",
+        operator: "=",
+        value: true,
+      },
+      {
+        column: "hasOutput",
+        type: "boolean",
+        operator: "=",
+        value: true,
+      },
+    ]);
+    // The view filter must validate against the session columns so it renders
+    // in the "Filter observations" UI like any other filter.
+    expect(
+      validateFilters(defaultPreset?.filters ?? [], sessionEventColumns),
+    ).toEqual(defaultPreset?.filters ?? []);
+
+    const firstGenerationPreset = SESSION_DETAIL_SYSTEM_PRESETS.find(
+      (preset) => preset.name === "First Generation in Trace",
+    );
+    const appliedFirstGeneration = getSessionDetailPresetToApply({
+      selectedViewId: firstGenerationPreset?.id ?? null,
       hasFilters: false,
     });
     const lastPreset = SESSION_DETAIL_SYSTEM_PRESETS.find(
       (preset) => preset.name === "Last Generation in Trace",
     );
 
-    expect(defaultPreset).toEqual(SESSION_DETAIL_SYSTEM_PRESETS[0]);
-    expect(defaultPreset?.filters).toEqual([
+    expect(appliedFirstGeneration).toEqual(firstGenerationPreset);
+    expect(firstGenerationPreset?.filters).toEqual([
       {
         column: "type",
         type: "stringOptions",
@@ -822,8 +854,11 @@ describe("Saved view validation", () => {
       },
     ]);
     expect(
-      validateFilters(defaultPreset?.filters ?? [], sessionEventColumns),
-    ).toEqual(defaultPreset?.filters ?? []);
+      validateFilters(
+        firstGenerationPreset?.filters ?? [],
+        sessionEventColumns,
+      ),
+    ).toEqual(firstGenerationPreset?.filters ?? []);
     expect(lastPreset?.filters).toEqual([
       {
         column: "type",

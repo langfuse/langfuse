@@ -12,6 +12,7 @@ pnpm run seed -- trace-tree --observations 5000 --breadth 500 --v4
 pnpm run seed -- trace-tree --observations 12 --plain --v4  # SPAN/GENERATION/EVENT only (collapsed-by-default graph panel)
 pnpm run seed -- agent-timeline --turns 6 --v4  # realistic agent flow-with-loop over a timeline (graph view)
 pnpm run seed -- long-session --traces 300 --observations-per-trace 8
+pnpm run seed -- session-shapes --shape all        # chat / coding-agent / mixed v4 sessions
 pnpm run seed -- many-traces --count 100000 --days 14
 pnpm run seed -- scored-traces --traces 24 --v4   # scores w/ spaces in the name
 ```
