@@ -31,26 +31,51 @@ export const PEEK_DEFAULT_WIDTH_FRACTION = 0.5;
 export const PEEK_EXPAND_ENTER_FRACTION = 0.95;
 const KEYBOARD_RESIZE_STEP = 0.05;
 
+// Cap the *default* peek width in px so a bigger screen doesn't mean a
+// proportionally bigger peek (LFE-10601): at 50vw the peek balloons on large
+// monitors, covering the table and — with a share-based inner split — inflating
+// the tree. We keep 50vw on normal laptops (where 50vw < this cap) and only trim
+// the fraction on very wide screens, giving a comfortable-but-bounded default
+// that still leaves the underlying list navigable. The floor is the drag min so
+// the default never lands narrower than the user could drag back to.
+export const PEEK_MAX_DEFAULT_WIDTH_PX = 1400;
+
 export const clampWidthFraction = (fraction: number) =>
   Math.min(
     PEEK_MAX_WIDGET_WIDTH_FRACTION,
     Math.max(PEEK_MIN_WIDTH_FRACTION, fraction),
   );
 
-// Cross-view width preference, persisted as a raw fraction. SSR-safe: reads the
-// default on the server and the first client render, the real value after mount.
-function readStoredWidthFraction(): number {
+// Default width when the user has no saved preference. Viewport-aware: the plain
+// 50vw fraction, but capped so the resulting px never exceeds
+// PEEK_MAX_DEFAULT_WIDTH_PX, then floored at the drag minimum. SSR-safe (returns
+// the plain fraction when there's no window).
+export function resolveDefaultWidthFraction(): number {
+  const vw = typeof window === "undefined" ? 0 : window.innerWidth;
+  if (vw <= 0) return PEEK_DEFAULT_WIDTH_FRACTION;
+  return Math.max(
+    PEEK_MIN_WIDTH_FRACTION,
+    Math.min(PEEK_DEFAULT_WIDTH_FRACTION, PEEK_MAX_DEFAULT_WIDTH_PX / vw),
+  );
+}
+
+// The width fraction that will actually be used to open the peek: the saved
+// preference (clamped) if present, else the viewport-aware default. SSR-safe
+// (returns the plain default when there's no window). Exported so the inner
+// tree↔info split can size its default against the real peek width without
+// re-measuring the DOM.
+export function resolveEffectiveWidthFraction(): number {
   if (typeof window === "undefined") return PEEK_DEFAULT_WIDTH_FRACTION;
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw === null) return PEEK_DEFAULT_WIDTH_FRACTION;
-    const parsed = JSON.parse(raw);
-    return typeof parsed === "number"
-      ? clampWidthFraction(parsed)
-      : PEEK_DEFAULT_WIDTH_FRACTION;
+    if (raw !== null) {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed === "number") return clampWidthFraction(parsed);
+    }
   } catch {
-    return PEEK_DEFAULT_WIDTH_FRACTION;
+    // Fall through to the default on any read/parse failure.
   }
+  return resolveDefaultWidthFraction();
 }
 
 function writeStoredWidthFraction(fraction: number): void {
@@ -90,7 +115,7 @@ export type PeekPanelStore = StoreApi<PeekPanelStoreState>;
 
 export function createPeekPanelStore(): PeekPanelStore {
   return createStore<PeekPanelStoreState>((set, get) => ({
-    widthFraction: readStoredWidthFraction(),
+    widthFraction: resolveEffectiveWidthFraction(),
     draftFraction: null,
     draftExpanded: false,
     isResizing: false,

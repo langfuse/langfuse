@@ -4,11 +4,13 @@
   "ignoreWorkspaces": [
     "web",
     "worker",
-    "ee",
     "packages/shared",
     "packages/config-eslint",
   ],
   "workspaces": {
+    "ee": {
+      "project": ["src/**/*.ts"],
+    },
     "packages/eslint-plugin": {
       "project": ["src/**/*.ts"],
     },
