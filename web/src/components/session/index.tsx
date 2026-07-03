@@ -526,6 +526,7 @@ export const SessionEventsPage: React.FC<{
       projectId: projectId,
     },
     {
+      enabled: !!projectId && !!sessionId,
       retry(failureCount, error) {
         if (
           error.data?.code === "UNAUTHORIZED" ||
