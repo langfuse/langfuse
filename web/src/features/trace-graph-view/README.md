@@ -20,10 +20,15 @@ agentGraphData (tRPC getAgentGraphData)
 
 ## Ownership
 
-- **Viewport**: the d3-zoom transform is the single source of truth. Per-frame
-  pan/zoom writes the world div's CSS transform (and the edge
-  stroke-compensation var) imperatively — React state holds only the discrete
-  derivations (`compact` label threshold, `fitted` reveal, layout/error).
+- **Viewport**: deterministic and data-derived — the rendered transform is
+  always `userOverride ?? fit(layout, size)`. The user's last gesture
+  (drag/wheel/pinch/toolbar zoom) is the ONLY viewport state; without one, fit
+  re-applies on every layout/size change. Selection never moves the viewport
+  (it's a ring/glow — under fit the node is always visible); Fit and a graph
+  change clear the override. Per-frame pan/zoom writes the world div's CSS
+  transform (and the edge stroke-compensation var) imperatively — React state
+  holds only the discrete derivations (`compact` label threshold, `fitted`
+  reveal, layout/error).
 - **Selection**: the `?observation=` URL param, wired in
   `components/TraceGraphView.tsx` (click-cycling through a node's observations,
   URL→node sync with a parent-walk fallback for descendants without their own
