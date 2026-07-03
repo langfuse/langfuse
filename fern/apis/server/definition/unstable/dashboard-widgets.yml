@@ -8,16 +8,12 @@ service:
   endpoints:
     create:
       docs: |
-        Create a reusable dashboard widget in the authenticated project.
+        Create a reusable dashboard widget.
 
-        The request body matches the dashboard widget JSON export/import shape used in the Langfuse UI:
-        `name`, `description`, `view`, `dimensions`, `metrics`, `filters`, `chartType`, `chartConfig`, and optional `minVersion`.
+        This endpoint creates the widget. It does not place the widget on a dashboard grid, this has to be done in the UI.
 
         Supported views are `observations`, `scores-numeric`, and `scores-categorical`.
-        The legacy `traces` view is not supported by this unstable API.
-        `minVersion` defaults to `2`; values below `2` are rejected.
-
-        This endpoint creates the widget. It does not place the widget on a dashboard grid; dashboard placement is stored in the dashboard definition.
+        The legacy `traces` view is not supported by this unstable API, `minVersion` defaults to `2`; values below `2` are rejected.
 
         Unstable API note:
         - This surface may evolve while dashboard/widget APIs are being finalized.
