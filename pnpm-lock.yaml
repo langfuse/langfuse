@@ -22,6 +22,7 @@ overrides:
   '@ai-sdk/provider-utils@<=4.0.26': 4.0.27
   '@ai-sdk/provider-utils-v5': npm:@ai-sdk/provider-utils@4.0.27
   '@copilotkit/runtime@0.0.0-mme-ag-ui-0-0-46-20260227141603>@ag-ui/langgraph': 0.0.29
+  '@anthropic-ai/vertex-sdk>@anthropic-ai/sdk': 0.104.1
 
 packageExtensionsChecksum: sha256-uLYTfDpO3NWuGWcF5EoUkEjmiC8vd1NbzsYwQxDWIJ4=
 
