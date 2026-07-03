@@ -177,16 +177,10 @@ async function handleUpsertBlobStorageIntegration(
     select: { createdAt: true, exportSource: true, fileType: true },
   });
 
-  // PARQUET is not creatable via the public API (the request enum omits it), so
-  // any PUT against a Parquet-configured project would otherwise silently
-  // downgrade fileType to a text format (and re-enable gzip via the `compressed`
-  // default). Reject that. The second clause is currently always true because
-  // the request enum cannot hold PARQUET — so today this blocks every REST
-  // update of a Parquet integration — but it is kept (not collapsed to
-  // `existing === PARQUET`) so that once PARQUET is added to the request enum at
-  // GA this automatically narrows to "only block an actual downgrade" and lets
-  // PARQUET→PARQUET edits (key rotation, toggling enabled, etc.) through.
-  // Compares as a string because the request enum type cannot hold PARQUET.
+  // PARQUET cannot be set via the REST API yet (request enum omits it). Block
+  // any PUT that would silently downgrade a Parquet integration to a text format.
+  // Written as a downgrade check (existing === PARQUET && request !== PARQUET) so
+  // it automatically narrows to no-op once PARQUET is added to the request enum at GA.
   const requestFileType: string = validatedData.fileType;
   if (
     existingIntegration?.fileType === BlobStorageIntegrationFileType.PARQUET &&

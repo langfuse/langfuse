@@ -124,22 +124,13 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         const isV4PreviewEnabled =
           env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
 
-        // Feeds both gates: the legacy gate needs createdAt for an explicit
-        // source; the enriched gate needs the persisted source to reject a
-        // stale enriched value on an omitted update. fileType feeds the parquet
-        // whitelist gate below.
         const existingIntegration =
           await ctx.prisma.blobStorageIntegration.findUnique({
             where: { projectId: input.projectId },
             select: { createdAt: true, exportSource: true, fileType: true },
           });
 
-        // Parquet is whitelist-gated while it stabilises as a first-class
-        // fileType. Only gate a *change to* PARQUET — a project already
-        // persisting it (e.g. later removed from the whitelist) must still be
-        // able to save unrelated edits without being locked out. The legacy
-        // `exportTuning.parquet` override is a separate, DB-only path unaffected
-        // by this check.
+        // Gate only a *change to* PARQUET — not re-submission of an already-persisted value.
         const isChangingToParquet =
           input.fileType === BlobStorageIntegrationFileType.PARQUET &&
           existingIntegration?.fileType !==

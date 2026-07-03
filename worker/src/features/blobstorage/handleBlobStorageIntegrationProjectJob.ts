@@ -83,10 +83,7 @@ export const BlobExportFormat = {
 export type BlobExportFormat =
   (typeof BlobExportFormat)[keyof typeof BlobExportFormat];
 
-// Text-format lookup only. PARQUET has no raw/gzip split (compression is
-// internal) and resolves to BlobExportFormat.PARQUET on the parquet path, so it
-// is intentionally absent here — `resolveBlobExportFormat` is never called for
-// PARQUET (callers branch on `parquetEligible` first).
+// Text formats only; PARQUET is absent because callers branch on parquetEligible first.
 const FORMAT_LOOKUP: Partial<
   Record<
     BlobStorageIntegrationFileType,
@@ -113,9 +110,6 @@ function resolveBlobExportFormat(
 ): BlobExportFormat {
   const entry = FORMAT_LOOKUP[fileType];
   if (!entry) {
-    // PARQUET (the only non-text fileType) must be handled by the parquet path
-    // before reaching here; a miss means a caller skipped the parquetEligible
-    // branch.
     throw new Error(`No text export format for file type: ${fileType}`);
   }
   return compressed ? entry.gzip : entry.raw;
@@ -283,9 +277,6 @@ const getFileTypeProperties = (fileType: BlobStorageIntegrationFileType) => {
         extension: "jsonl",
       };
     case BlobStorageIntegrationFileType.PARQUET:
-      // ClickHouse-native columnar export; compression is internal to Parquet
-      // (no `.gz`). The parquet export path sets these inline, but the case is
-      // required for switch exhaustiveness now that PARQUET is a fileType member.
       return {
         contentType: "application/vnd.apache.parquet",
         extension: "parquet",
@@ -450,12 +441,7 @@ const processBlobStorageExport = async (config: {
       try {
         const blobStorageProps = getFileTypeProperties(config.fileType);
 
-        // Parquet export path. Driven by either the first-class
-        // `fileType = PARQUET` (UI-selectable for whitelisted projects) or the
-        // legacy internal `exportTuning.parquet` override (kept for a seamless
-        // transition). Both converge here: ClickHouse-native `FORMAT Parquet`,
-        // compression internal, and precedence over rawPassthrough (enforced in
-        // resolveBlobExportTuning). Extension/content-type are set inline below.
+        // Both paths converge: legacy exportTuning.parquet override and the new fileType=PARQUET.
         const parquetEligible =
           config.parquet ||
           config.fileType === BlobStorageIntegrationFileType.PARQUET;
@@ -724,11 +710,6 @@ const processBlobStorageExport = async (config: {
           }
 
           const dataStream = countedStream(rawStream, sourceStats);
-          // PARQUET is handled by the parquetEligible branch above; this path
-          // only ever sees the text formats (JSON/CSV/JSONL). Assert the
-          // invariant explicitly so a future regression surfaces as a clear
-          // error rather than a cryptic `undefined is not a function` from the
-          // missing streamTransformations entry.
           if (config.fileType === BlobStorageIntegrationFileType.PARQUET) {
             throw new Error(
               `Reached the text-format export path with fileType=PARQUET for project ${config.projectId}; the parquetEligible branch should have handled it`,
@@ -1241,11 +1222,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
     // so the only integration-level ineligibility is a non-JSONL file type or a
     // trace-only project. The per-table fallback for scores/traces is expected
     // dispatch and is intentionally not warned about (avoids ~hourly log noise).
-    //
-    // Suppress on the Parquet path: when parquet wins (via the tuning override
-    // or fileType=PARQUET) the export does NOT take the standard path, so the
-    // "exporting via the standard path" message would be wrong — and
-    // rawPassthrough is mooted by parquet regardless (see parquetEligible).
     if (
       exportTuning.rawPassthrough &&
       !exportTuning.parquet &&

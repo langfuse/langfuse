@@ -378,13 +378,8 @@ const BlobStorageIntegrationSettingsForm = ({
   // Internal `exportTuning.parquet` override (no write path); reflected read-only
   // below since the worker forces Parquet over the persisted fileType + gzip.
   const isParquetOverride = parquetEnabledFromTuning(state?.exportTuning);
-  // First-class Parquet fileType is whitelist-gated while it stabilises; only
-  // whitelisted projects can select it. The legacy override above is separate.
   const isParquetWhitelisted = isParquetFileTypeAllowed(projectId);
   const watchedFileType = blobStorageForm.watch("fileType");
-  // Effective Parquet export: the locked internal override OR a first-class
-  // PARQUET fileType selection. Both hide gzip and switch the field-group
-  // descriptions to the Parquet (price-stripped) variants.
   const isParquetExport =
     isParquetOverride ||
     watchedFileType === BlobStorageIntegrationFileType.PARQUET;
@@ -716,11 +711,6 @@ const BlobStorageIntegrationSettingsForm = ({
             <FormItem>
               <FormLabel>File Type</FormLabel>
               <FormControl>
-                {/*
-                  The internal override locks the selector to a display-only
-                  "Parquet" (persisted fileType kept but ignored). Whitelisted
-                  projects instead get Parquet as a real, selectable fileType.
-                */}
                 <Select
                   value={isParquetOverride ? "PARQUET" : field.value}
                   onValueChange={field.onChange}
@@ -733,12 +723,6 @@ const BlobStorageIntegrationSettingsForm = ({
                     <SelectItem value="JSONL">JSONL</SelectItem>
                     <SelectItem value="CSV">CSV</SelectItem>
                     <SelectItem value="JSON">JSON</SelectItem>
-                    {/*
-                      Also render when the current value is already PARQUET so a
-                      project that was de-whitelisted (or rolled back) keeps the
-                      option visible and can deliberately switch away, instead of
-                      showing a blank trigger.
-                    */}
                     {(isParquetWhitelisted ||
                       isParquetOverride ||
                       watchedFileType ===
