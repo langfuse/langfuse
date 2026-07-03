@@ -4,6 +4,7 @@ import {
   type ReactNode,
   type ReactElement,
   memo,
+  useMemo,
   isValidElement,
   Children,
   createElement,
@@ -52,6 +53,7 @@ import {
   getRenderedInlineMediaIds,
   getStandaloneMediaReferenceStrings,
 } from "@/src/components/ui/markdown-media.utils";
+import { exceedsMarkdownRenderLimits } from "@/src/components/ui/markdown-render-limits";
 
 type ReactMarkdownNode = ReactMarkdownExtraProps["node"];
 type ReactMarkdownNodeChildren = Exclude<
@@ -210,6 +212,30 @@ function MarkdownRenderer({
   customCodeHeaderClassName?: string;
 }) {
   const promptReferenceProjectId = usePromptReferenceProjectId();
+
+  // Guard against payloads that would overflow the JS call stack while
+  // react-markdown recursively walks the parsed tree (crashes Firefox, whose
+  // stack is much smaller than Chrome's). Rendered as plain text instead.
+  // See markdown-render-limits.ts for the mechanism.
+  const tooLargeOrDeep = useMemo(
+    () => exceedsMarkdownRenderLimits(markdown),
+    [markdown],
+  );
+
+  if (tooLargeOrDeep) {
+    return (
+      <div className={cn("space-y-2 overflow-x-auto text-sm", className)}>
+        <div className="text-muted-foreground flex items-center gap-1 text-xs">
+          <Info className="h-3 w-3" />
+          Content is too large or deeply nested to render as markdown.
+          Displaying as plain text.
+        </div>
+        <pre className="text-sm break-words whitespace-pre-wrap">
+          {markdown}
+        </pre>
+      </div>
+    );
+  }
 
   // Try to parse markdown content
 

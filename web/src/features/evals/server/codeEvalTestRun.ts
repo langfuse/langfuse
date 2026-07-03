@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   DEFAULT_TRACE_ENVIRONMENT,
+  createUnknownSdkIngestionAttribution,
   eventTypes,
   createW3CTraceId,
   extractObservationVariables,
@@ -427,17 +428,19 @@ async function writeTraceViaIngestion(trace: InternalTraceWriteInput) {
     },
   }));
 
-  const result = await processEventBatch(
-    [traceEvent, ...spanEvents],
-    {
-      validKey: true,
-      scope: {
-        projectId: rootEventInput.projectId,
-        accessLevel: "project",
-      },
-    } satisfies Parameters<typeof processEventBatch>[1],
-    { delay: 0, isLangfuseInternal: true },
-  );
+  const auth = {
+    validKey: true,
+    scope: {
+      projectId: rootEventInput.projectId,
+      accessLevel: "project",
+    },
+  } satisfies Parameters<typeof processEventBatch>[1];
+
+  const result = await processEventBatch([traceEvent, ...spanEvents], auth, {
+    delay: 0,
+    isLangfuseInternal: true,
+    attribution: createUnknownSdkIngestionAttribution({ authCheck: auth }),
+  });
 
   if (result.errors.length > 0) {
     throw new Error(result.errors[0]?.error ?? "Failed to write trace");

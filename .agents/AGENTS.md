@@ -78,6 +78,19 @@ langfuse/
 - Worktree maintenance: `bash scripts/codex/maintenance.sh`
 - Install Playwright Chromium: `pnpm run playwright:install`
 
+## Local Data Inspection
+
+- For feature testing and debugging, inspect the local databases directly when
+  it helps you understand the existing test data. Prefer read-only queries, and
+  continue to use the seed CLI to create frontend test state rather than
+  ad-hoc inserts.
+- Dev Docker Compose exposes these clients on `${HOST_IP:-127.0.0.1}`:
+  - Postgres: `PGPASSWORD="${POSTGRES_PASSWORD:-postgres}" psql -h "${HOST_IP:-127.0.0.1}" -p "${POSTGRES_HOST_PORT:-5432}" -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-postgres}"`
+  - ClickHouse: `clickhouse client --host "${HOST_IP:-127.0.0.1}" --port "${CLICKHOUSE_NATIVE_PORT:-9000}" --user "${CLICKHOUSE_USER:-clickhouse}" --password "${CLICKHOUSE_PASSWORD:-clickhouse}" --database default`
+  - Redis: `REDISCLI_AUTH="${REDIS_AUTH:-myredissecret}" redis-cli -h "${HOST_IP:-127.0.0.1}" -p "${REDIS_HOST_PORT:-6379}"`
+- If any connection fails, check `docker-compose.dev.yml` for local override
+  variables and confirm the services are running.
+
 ## Verification
 
 - `web/**`: `pnpm run lint` plus targeted web tests.

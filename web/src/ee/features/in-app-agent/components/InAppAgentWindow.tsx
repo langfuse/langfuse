@@ -101,6 +101,7 @@ export type InAppAgentWindowProps = {
   onNewConversation: () => void;
   onApproveToolCall: (approvalId: string) => Promise<void>;
   onRejectToolCall: (approvalId: string) => Promise<void>;
+  onOpenConversationHistory: () => void;
   onSelectConversation: (conversationId: string) => void;
   onSubmit: (input: string) => boolean | Promise<boolean>;
   onSubmitFeedback: (params: {
@@ -128,6 +129,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onNewConversation,
     onApproveToolCall,
     onRejectToolCall,
+    onOpenConversationHistory,
     onSelectConversation,
     onSubmit,
     onSubmitFeedback,
@@ -137,6 +139,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const isAutoScrollAttachedRef = useRef(true);
   const previousScrollTopRef = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const previousIsInputDisabledRef = useRef(isInputDisabled);
   const [input, setInput] = useState("");
   const [isConversationHistoryOpen, setIsConversationHistoryOpen] =
     useState(false);
@@ -210,6 +213,17 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   }, [selectedConversationId]);
 
   useEffect(() => {
+    const wasInputDisabled = previousIsInputDisabledRef.current;
+    previousIsInputDisabledRef.current = isInputDisabled;
+
+    if (!wasInputDisabled || isInputDisabled) {
+      return;
+    }
+
+    inputRef.current?.focus();
+  }, [isInputDisabled]);
+
+  useEffect(() => {
     const input = inputRef.current;
 
     if (!input) {
@@ -267,7 +281,13 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           </Tooltip>
           <DropdownMenu
             open={isConversationHistoryOpen}
-            onOpenChange={setIsConversationHistoryOpen}
+            onOpenChange={(nextOpen) => {
+              setIsConversationHistoryOpen(nextOpen);
+
+              if (nextOpen) {
+                onOpenConversationHistory();
+              }
+            }}
           >
             <Tooltip delayDuration={100} disableHoverableContent>
               <TooltipTrigger asChild>
