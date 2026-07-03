@@ -176,17 +176,17 @@ describe("mergeIntoProject", () => {
   it("types keys shadowing Object.prototype members correctly", () => {
     // `nextPaths["toString"]` must not read the inherited function as the
     // "existing" entry — that would skip the cap counter and pin the type to
-    // "mixed" forever (review find: greptile/claude on PR #14771).
-    const merged = mergeIntoProject(
-      {},
-      "p1",
-      paths({
-        toString: { type: "string", values: ["hello"] },
-        constructor: { type: "number", values: ["1"] },
-        hasOwnProperty: { type: "boolean" },
-      }),
-      1000,
-    );
+    // "mixed" forever (review find: greptile/claude on PR #14771). Built from
+    // tuples, not an object literal: TS contextual typing breaks on literal
+    // properties named after Object.prototype members (the values widen to
+    // `string` and fail assignability — broke the `next build` type pass,
+    // which unlike tsconfig.build.json includes clienttest files).
+    const shadowing = new Map<string, StoredKeyInfo>([
+      ["toString", { type: "string", values: ["hello"] }],
+      ["constructor", { type: "number", values: ["1"] }],
+      ["hasOwnProperty", { type: "boolean" }],
+    ]);
+    const merged = mergeIntoProject({}, "p1", shadowing, 1000);
     expect(merged?.p1.paths.toString).toEqual({
       type: "string",
       values: ["hello"],
@@ -201,7 +201,9 @@ describe("mergeIntoProject", () => {
       mergeIntoProject(
         merged!,
         "p1",
-        paths({ toString: { type: "string", values: ["hello"] } }),
+        new Map<string, StoredKeyInfo>([
+          ["toString", { type: "string", values: ["hello"] }],
+        ]),
         2000,
       ),
     ).toBe(null);
