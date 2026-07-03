@@ -5,12 +5,18 @@
 //   <columnId>                      → observed values (with counts when known)
 //   scores_avg / trace_scores_avg   → numeric score NAMES
 //   score_categories[.<name>]       → categorical score names / their values
-//   (metadata keys are not enumerated by the API today — metadata key paths
-//   complete from free typing only)
+//   (metadata key paths are not enumerated by the API — they are merged in
+//   client-side from the observed-metadata store; see lib/metadata-paths.ts
+//   withMetadataPathOptions, which fills the `metadata` key)
 
 import type { ScoreTypeContext } from "./adapter";
 
-export type ObservedValue = { value: string; count?: number };
+export type ObservedValue = {
+  value: string;
+  count?: number;
+  /** Display-only type hint (observed metadata paths: "number", "string", …). */
+  type?: string;
+};
 export type ObservedOptions = Record<string, ObservedValue[]>;
 
 type RawOption = string | { value: string; count?: number };

@@ -474,6 +474,31 @@ describe("planInputCompletions", () => {
     );
   });
 
+  it("shows the observed type as the detail of a metadata path suggestion", () => {
+    // Paths from the observed-metadata map carry a display-only type hint;
+    // a path observed with multiple types (or only null) carries none.
+    const observed = {
+      ...OBSERVED,
+      metadata: [
+        { value: "hej", type: "number" },
+        { value: "heyhey.abc", type: "string" },
+        { value: "mixedPath" },
+      ],
+    };
+    const opts = flattenOptions(plan("metadata.", 9, { observed }));
+    const detailOf = (label: string) => {
+      const o = opts.find((o) => o.label === label);
+      return o && "detail" in o ? o.detail : undefined;
+    };
+    expect(detailOf("metadata.hej")).toBe("number");
+    expect(detailOf("metadata.heyhey.abc")).toBe("string");
+    expect(detailOf("metadata.mixedPath")).toBeUndefined();
+    // Typing a nested prefix ranks the matching path first and arms Enter.
+    const nested = plan("metadata.heyhey", 15, { observed });
+    expect(nested?.autoHighlight).toBe(true);
+    expect(flattenOptions(nested)[0]?.label).toBe("metadata.heyhey.abc");
+  });
+
   it("keeps the key-path popover open while typing the quote for a spaced name", () => {
     // The documented syntax is `scores."Rouge Score"`; typing the leading quote
     // must keep ranking the (bare-labelled) options instead of closing the
