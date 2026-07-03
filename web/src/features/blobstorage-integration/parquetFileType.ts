@@ -13,7 +13,7 @@
 // UI-selectable fileType.
 
 export const PARQUET_FILE_TYPE_PROJECT_IDS: readonly string[] = [
-  // Add whitelisted project IDs here, e.g. "cl0abc123...".
+  "cmpyefoyg03yiad0jeoymrmcv",
 ];
 
 const PARQUET_FILE_TYPE_PROJECT_ID_SET = new Set(PARQUET_FILE_TYPE_PROJECT_IDS);
