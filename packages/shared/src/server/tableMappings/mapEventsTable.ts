@@ -5,6 +5,8 @@ import { UiColumnMappings } from "../../tableDefinitions";
 import {
   eventsTableHasParentObservationSql,
   eventsTableIsRootObservationSql,
+  eventsTableHasInputSql,
+  eventsTableHasOutputSql,
 } from "../../eventsTable";
 
 export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
@@ -243,6 +245,18 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "isRootObservation",
     clickhouseTableName: "events_proto",
     clickhouseSelect: eventsTableIsRootObservationSql,
+  },
+  {
+    uiTableName: "Has Input",
+    uiTableId: "hasInput",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: eventsTableHasInputSql,
+  },
+  {
+    uiTableName: "Has Output",
+    uiTableId: "hasOutput",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: eventsTableHasOutputSql,
   },
   {
     uiTableName: "Parent Observation ID",

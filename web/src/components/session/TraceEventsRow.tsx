@@ -13,6 +13,56 @@ import { type FilterState } from "@langfuse/shared";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { IOPreview } from "@/src/components/trace/components/IOPreview/IOPreview";
 import { api } from "@/src/utils/api";
+import { FilterX } from "lucide-react";
+import isEqual from "lodash/isEqual";
+import { SESSION_DETAIL_VIEW_TRIGGER_ID } from "@/src/components/session/session-detail-presets";
+
+const hasContent = (value: unknown): boolean =>
+  value !== null &&
+  value !== undefined &&
+  !(typeof value === "string" && value.trim() === "");
+
+const observationHasIO = (observation: {
+  input?: unknown;
+  output?: unknown;
+}): boolean => hasContent(observation.input) || hasContent(observation.output);
+
+// Opens the session-detail "View" drawer by activating its trigger — the empty
+// notice's action routes through the one shared View control (no per-card state).
+const openSessionViewMenu = () => {
+  if (typeof document === "undefined") return;
+  const trigger = document.getElementById(SESSION_DETAIL_VIEW_TRIGGER_ID);
+  if (trigger instanceof HTMLElement) trigger.click();
+};
+
+/**
+ * LFE-10520 — replaces the silent "No observations match the current filter."
+ * empty state. When the selected view (the single source of truth) matches
+ * nothing in a trace, this says so explicitly instead of rendering a blank
+ * card. It is purely informational: to see the trace's content the user
+ * switches the view above — there is no per-card state.
+ */
+const ViewMismatchNotice = ({ viewLabel }: { viewLabel: string | null }) => (
+  <div className="flex flex-col items-start gap-1.5 rounded-md border border-dashed border-amber-500/50 bg-amber-500/5 p-3">
+    <div className="flex items-center gap-2 text-xs font-medium text-amber-700 dark:text-amber-500">
+      <FilterX className="h-3.5 w-3.5 shrink-0" />
+      {viewLabel
+        ? `No observation matches the "${viewLabel}" view in this trace`
+        : "No observation matches the current filter in this trace"}
+    </div>
+    <p className="text-muted-foreground text-xs">
+      Its content is hidden by the current view, not missing.{" "}
+      <button
+        type="button"
+        onClick={openSessionViewMenu}
+        className="text-primary underline underline-offset-2 hover:no-underline"
+      >
+        Switch the view
+      </button>{" "}
+      to see it.
+    </p>
+  </div>
+);
 
 export const TraceEventsSkeleton = () => {
   return (
@@ -33,6 +83,8 @@ type LazyTraceEventsRowProps = {
   traceCommentCounts: Map<string, number> | undefined;
   showCorrections: boolean;
   filterState: FilterState;
+  /** Selected view's display name, for the empty-state notice (null = custom). */
+  viewLabel: string | null;
   hideTracePanel?: boolean;
 };
 
@@ -48,6 +100,7 @@ const areLazyTraceEventsRowPropsEqual = (
   previous.traceCommentCounts === next.traceCommentCounts &&
   previous.showCorrections === next.showCorrections &&
   previous.filterState === next.filterState &&
+  previous.viewLabel === next.viewLabel &&
   previous.hideTracePanel === next.hideTracePanel;
 
 export const TraceEventsRow = React.memo(
@@ -59,6 +112,7 @@ export const TraceEventsRow = React.memo(
     traceCommentCounts,
     showCorrections,
     filterState,
+    viewLabel,
     hideTracePanel = false,
   }: {
     trace: RouterOutputs["sessions"]["tracesFromEvents"][number];
@@ -68,6 +122,7 @@ export const TraceEventsRow = React.memo(
     traceCommentCounts: Map<string, number> | undefined;
     showCorrections: boolean;
     filterState: FilterState;
+    viewLabel: string | null;
     hideTracePanel?: boolean;
   }) => {
     const observationsQuery =
@@ -85,6 +140,43 @@ export const TraceEventsRow = React.memo(
         },
       );
 
+    // What each card shows is determined by the selected view (LFE-10520): the
+    // server applies the view's FilterState (incl. the "with I/O" view's
+    // Has-Input-or-Output filter). The only client-side shaping is dropping the
+    // synthetic trace-level row (id `t-<traceId>`, the canonical synthetic-span
+    // id — see handleEventPropagationJob). It is identified by id, NOT an empty
+    // parent: OTel/internal-tracing roots also have an empty parent but are real
+    // observations. It is dropped when redundant — empty, or a real observation
+    // already shows its (non-empty) input OR output — so a chat turn (the
+    // GENERATION carries the same assistant output) and the common auto-derived
+    // case render one card, not two. It is KEPT only when it carries
+    // trace-level I/O that no observation shows (a v3-migrated trace can set
+    // trace I/O apart from any observation; dropping it would lose content and
+    // blind the annotation queue, which hides the trace panel).
+    const observations = observationsQuery.data;
+    const visibleObservations = React.useMemo(() => {
+      if (!observations) return undefined;
+      const syntheticTraceRowId = `t-${trace.id}`;
+      const syntheticRow = observations.find(
+        (observation) => observation.id === syntheticTraceRowId,
+      );
+      const realObservations = observations.filter(
+        (observation) => observation.id !== syntheticTraceRowId,
+      );
+      const syntheticRowIsRedundant =
+        !syntheticRow ||
+        !observationHasIO(syntheticRow) ||
+        realObservations.some(
+          (observation) =>
+            (hasContent(syntheticRow.input) &&
+              isEqual(observation.input, syntheticRow.input)) ||
+            (hasContent(syntheticRow.output) &&
+              isEqual(observation.output, syntheticRow.output)),
+        );
+      if (!syntheticRowIsRedundant) return observations;
+      return realObservations.length > 0 ? realObservations : observations;
+    }, [observations, trace.id]);
+
     return (
       <Card className="border-border shadow-none">
         <div
@@ -101,9 +193,9 @@ export const TraceEventsRow = React.memo(
               <div className="text-destructive p-2 text-xs">
                 Failed to load observations.
               </div>
-            ) : observationsQuery.data && observationsQuery.data.length > 0 ? (
+            ) : visibleObservations && visibleObservations.length > 0 ? (
               <div className="flex flex-col gap-4">
-                {observationsQuery.data.map((observation) => (
+                {visibleObservations.map((observation) => (
                   <div key={observation.id} className="flex flex-col gap-2">
                     <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
                       <span>{observation.name ?? "Observation"}</span>
@@ -142,10 +234,17 @@ export const TraceEventsRow = React.memo(
                   </div>
                 ))}
               </div>
-            ) : (
+            ) : observations &&
+              observations.length === 0 &&
+              filterState.length === 0 ? (
+              // No filter and the trace genuinely has no observations.
               <div className="text-muted-foreground p-2 text-xs">
-                No observations match the current filter.
+                This trace has no observations.
               </div>
+            ) : (
+              // The selected view/filter matched nothing (or hid the only
+              // observations, e.g. "with I/O" on a trace with none) — say so.
+              <ViewMismatchNotice viewLabel={viewLabel} />
             )}
           </div>
           {!hideTracePanel && (

@@ -87,6 +87,7 @@ export function PopoverFilterBuilder({
   columnsWithCustomSelect = [],
   filterWithAI = false,
   buttonType = "default",
+  label = "Filters",
 }: {
   /** Which column field to persist in filter.column: 'id' for stable refs, 'name' for legacy compatibility */
   columns: ColumnDefinitionWithAlert[];
@@ -98,6 +99,8 @@ export function PopoverFilterBuilder({
   columnsWithCustomSelect?: string[];
   filterWithAI?: boolean;
   buttonType?: "default" | "icon";
+  /** Trigger button label. Defaults to "Filters"; override to clarify scope. */
+  label?: string;
 }) {
   const capture = usePostHogClientCapture();
   const [wipFilterState, _setWipFilterState] =
@@ -174,7 +177,7 @@ export function PopoverFilterBuilder({
         <PopoverTrigger asChild>
           {buttonType === "default" ? (
             <Button variant="outline" type="button">
-              <span>Filters</span>
+              <span>{label}</span>
               {filterState.length > 0 && filterState.length < 3 ? (
                 <InlineFilterState
                   filterState={filterState}
