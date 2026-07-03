@@ -332,8 +332,13 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
       return;
     }
     prevSelectedRef.current = selectedNodeName;
-    // In-canvas clicks already selected the node; don't move the view.
-    if (cameFromClick) return;
+    // In-canvas clicks already selected the node; don't move the view — and
+    // freeze the framing like a gesture, so a later container resize can't
+    // re-center onto the clicked node via a leftover "focus" framing either.
+    if (cameFromClick) {
+      framingRef.current = "gesture";
+      return;
+    }
 
     if (!selectedNodeName) {
       framingRef.current = "fit";

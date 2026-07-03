@@ -145,10 +145,14 @@ export function TraceGraphDataProvider({
     }
 
     // Otherwise the graph is still available whenever it would draw more than
-    // one node (the timing-based inference keys nodes on `node ?? name`, see
-    // buildStepData) — the panel just defaults to collapsed for these.
+    // one node — the panel just defaults to collapsed for these. Exact mirror
+    // of the timing-based inference these traces go through (buildStepData):
+    // it drops EVENT observations, then keys every node on the observation
+    // NAME (`obs.node = obs.name`), so count distinct non-EVENT names.
     const distinctNodes = new Set(
-      agentGraphData.map((obs) => obs.node?.trim() || obs.name),
+      agentGraphData
+        .filter((obs) => obs.observationType !== "EVENT")
+        .map((obs) => obs.name),
     );
     return { isGraphViewAvailable: distinctNodes.size > 1, isAgentGraph };
   }, [agentGraphData]);

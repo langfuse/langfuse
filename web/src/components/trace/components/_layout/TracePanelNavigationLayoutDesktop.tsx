@@ -121,9 +121,13 @@ export function TracePanelNavigationLayoutDesktop({
                 collapsible
                 collapsedSize={`${GRAPH_BAR_PX}px`}
                 panelRef={graphPanelRef}
-                onResize={() => {
+                onResize={(_size, _id, prevPanelSize) => {
                   // Panel → state: a divider drag snapped the panel
-                  // collapsed/open — persist the user's choice.
+                  // collapsed/open — persist the user's choice. Skip the
+                  // mount call (prevPanelSize undefined): it reports the
+                  // pre-sync defaultSize and would clobber a stored/default
+                  // collapsed state before the layout effect below applies it.
+                  if (prevPanelSize === undefined) return;
                   const collapsed =
                     graphPanelRef.current?.isCollapsed() ?? false;
                   if (collapsed !== graphCollapsed) {
