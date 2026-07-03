@@ -175,7 +175,7 @@ committedText ──resetTo──▶ store.draft ──(type/pick/remove)──�
   `edits.ts` (span-local chip removal with AST-surgery fallback),
   `observed-options.ts` (filterOptions → per-column observed values),
   `metadata-paths.ts` (client-side metadata structure analysis; see "Metadata
-  path suggestions"), `searchBarInvariants.ts` (pure, registry-shaped
+  key suggestions"), `searchBarInvariants.ts` (pure, registry-shaped
   property-test harness — the universal safety net reused per view; see
   Hardening).
 - `store/searchBarStore.ts` — per-mount vanilla zustand store, **draft only**
@@ -184,8 +184,8 @@ committedText ──resetTo──▶ store.draft ──(type/pick/remove)──�
   `store/SearchBarStoreProvider.tsx` (`useSearchBarStore` selector,
   `useSearchBarCommit`).
 - `store/observedMetadataStore.ts` — global zustand store persisted to
-  localStorage: per-project map of observed metadata paths → types (the
-  suggestions cache behind "Metadata path suggestions" below).
+  localStorage: per-project map of observed metadata keys → types (the
+  suggestions cache behind "Metadata key suggestions" below).
 - `hooks/useEventsSearchBar.ts` — the container/bridge. Derives `committedText`
   (memo), runs the one `resetTo` effect, and owns the `commit()` workflow
   (planCommit → write filter state + record recent). No URL param of its own;
@@ -292,30 +292,40 @@ the wand only survives on non-bar/embedded surfaces and the v3 traces table).
   free text the user asked to remove. Without this, a stale `searchQuery` would
   survive and `resetTo` would re-derive the dropped text back into the bar.
 
-## Metadata path suggestions (client-side observed map)
+## Metadata key suggestions (client-side observed map)
 
 The API does not enumerate metadata keys, and backend metadata-structure
 analysis is deferred (until CH26), so `metadata.` completions are fed
 **client-side from rows the user has already loaded**:
 
 - On each fetch, `hooks/useObservedMetadata.ts` samples the visible rows'
-  metadata (same first-30 sampling as the AI-context path), flattens it into
-  dot-paths with observed JSON leaf types (`lib/metadata-paths.ts`, modeled on
-  the AI-context walker: depth cap, arrays as leaves, JSON-string parse), and
-  unions the result into `store/observedMetadataStore.ts` — persisted to
-  localStorage, **per project** (one global `Record<projectId, …>` map, the
-  globalDateRangeStore shape).
+  metadata (same first-30 sampling as the AI-context path), records their
+  **top-level keys** with the observed JSON value type
+  (`lib/metadata-paths.ts`), and unions the result into
+  `store/observedMetadataStore.ts` — persisted to localStorage, **per
+  project** (one global `Record<projectId, …>` map, the globalDateRangeStore
+  shape).
 - `EventsTable` merges the project's map into the observed options under the
   `metadata` key (`withMetadataPathOptions`), which is exactly where the
   completion planner already looked (`keyPathOptions`) — so typing `metadata.`
-  suggests observed paths, with the type shown as the option detail
+  suggests observed keys, with the type shown as the option detail
   (`metadata.hej` · `number`).
+- **Top-level keys only, never flattened dot-paths.** Metadata is stored as a
+  flat `Map(String, String)`: nested object values are JSON-encoded strings
+  under their top-level key, and `StringObjectFilter` matches the LITERAL
+  top-level key — a flattened `metadata.scope.name` suggestion would lower to
+  key `scope.name` and match nothing (the metadata view's filter shortcut
+  resolves the top-level key for the same reason). Dotted suggestions still
+  appear whenever producers use dotted top-level keys (the OTel-attribute
+  shape, `gen_ai.request.model`); object-valued keys are suggested with type
+  `object` and their nested content matches via contains
+  (`metadata.scope:*value*`).
 - **Types are display-only.** Metadata filters always lower to `stringObject`
-  (numeric metadata comparisons are rejected by `operatorIssue`); a path
+  (numeric metadata comparisons are rejected by `operatorIssue`); a key
   observed with more than one type — or only ever `null` — drops its hint
   instead of showing a wrong one (`mixed` is absorbing).
-- **Bounded on every axis**: 30 sampled rows per fetch, depth ≤ 3, path length
-  ≤ 100 chars, ≤ 200 paths per project (first-observed wins), ≤ 20 projects
+- **Bounded on every axis**: 30 sampled rows per fetch, key length ≤ 100
+  chars, ≤ 200 keys per project (first-observed wins), ≤ 20 projects
   (least-recently-updated evicted), plus a persist `version` key that resets
   the cache on schema change. A no-change merge skips the localStorage write.
 - Accepted caveat: metadata the user has never loaded is never suggested (if

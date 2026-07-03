@@ -1,6 +1,6 @@
 // Bridge between the events table and the observed-metadata store: the
 // recorder samples the currently visible rows' metadata into the persisted
-// per-project path map (once per fetch — the rows identity only changes when
+// per-project key map (once per fetch — the rows identity only changes when
 // new data lands), and the reader selects that project's map for merging into
 // the bar's observed options (lib/metadata-paths.ts withMetadataPathOptions).
 // Split in two because EventsTable derives its observed options before the
@@ -15,7 +15,7 @@ import {
 import { useObservedMetadataStore } from "../store/observedMetadataStore";
 
 /**
- * The project's persisted metadata path→type map, or undefined when disabled
+ * The project's persisted metadata key→type map, or undefined when disabled
  * or nothing has been observed yet. Stable identity between store writes.
  */
 export function useObservedMetadataPaths(
@@ -29,10 +29,10 @@ export function useObservedMetadataPaths(
 
 /**
  * Analyze the visible rows' metadata (JSON-encoded string or null, per
- * `MetadataDomainClient`) and union the observed paths into the project's
- * persisted map. Samples the same first rows as the AI-context path; the
- * store skips the write when nothing changed, so re-running on each fetch
- * settles immediately.
+ * `MetadataDomainClient`) and union the observed top-level keys into the
+ * project's persisted map. Samples the same first rows as the AI-context
+ * path; the store skips the write when nothing changed, so re-running on
+ * each fetch settles immediately.
  */
 export function useObservedMetadataRecorder({
   projectId,

@@ -474,15 +474,16 @@ describe("planInputCompletions", () => {
     );
   });
 
-  it("shows the observed type as the detail of a metadata path suggestion", () => {
-    // Paths from the observed-metadata map carry a display-only type hint;
-    // a path observed with multiple types (or only null) carries none.
+  it("shows the observed type as the detail of a metadata key suggestion", () => {
+    // Keys from the observed-metadata map carry a display-only type hint; a
+    // key observed with multiple types (or only null) carries none. Dotted
+    // keys (the OTel-attribute shape) are literal top-level keys.
     const observed = {
       ...OBSERVED,
       metadata: [
         { value: "hej", type: "number" },
         { value: "heyhey.abc", type: "string" },
-        { value: "mixedPath" },
+        { value: "mixedKey" },
       ],
     };
     const opts = flattenOptions(plan("metadata.", 9, { observed }));
@@ -492,11 +493,11 @@ describe("planInputCompletions", () => {
     };
     expect(detailOf("metadata.hej")).toBe("number");
     expect(detailOf("metadata.heyhey.abc")).toBe("string");
-    expect(detailOf("metadata.mixedPath")).toBeUndefined();
-    // Typing a nested prefix ranks the matching path first and arms Enter.
-    const nested = plan("metadata.heyhey", 15, { observed });
-    expect(nested?.autoHighlight).toBe(true);
-    expect(flattenOptions(nested)[0]?.label).toBe("metadata.heyhey.abc");
+    expect(detailOf("metadata.mixedKey")).toBeUndefined();
+    // Typing a key prefix ranks the matching key first and arms Enter.
+    const prefixed = plan("metadata.heyhey", 15, { observed });
+    expect(prefixed?.autoHighlight).toBe(true);
+    expect(flattenOptions(prefixed)[0]?.label).toBe("metadata.heyhey.abc");
   });
 
   it("keeps the key-path popover open while typing the quote for a spaced name", () => {

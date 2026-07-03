@@ -10,26 +10,37 @@ import {
 import type { ObservedOptions } from "./observed-options";
 
 describe("collectMetadataPathTypes", () => {
-  it("flattens nested metadata into dot-paths with observed leaf types", () => {
+  it("records top-level keys with observed value types", () => {
     // The ticket's motivating example, as the JSON-encoded string rows carry.
+    // `heyhey` is a nested branch: stored server-side as ONE Map key whose
+    // value is a JSON string, so it is suggested as an "object" key — never
+    // flattened to `heyhey.abc`, which would not be filterable.
     const collected = collectMetadataPathTypes([
       JSON.stringify({ hej: 123, heyhey: { abc: "hello" } }),
     ]);
     expect(collected.get("hej")).toBe("number");
-    expect(collected.get("heyhey.abc")).toBe("string");
+    expect(collected.get("heyhey")).toBe("object");
+    expect(collected.has("heyhey.abc")).toBe(false);
     expect(collected.size).toBe(2);
   });
 
-  it("types booleans and treats arrays as leaves", () => {
+  it("keeps dotted top-level keys as-is (the OTel attribute shape)", () => {
     const collected = collectMetadataPathTypes([
-      JSON.stringify({ flag: true, tags: ["a", "b"], nested: { xs: [1] } }),
+      JSON.stringify({ "gen_ai.request.model": "gpt-4o", "shape.depth": 3 }),
+    ]);
+    expect(collected.get("gen_ai.request.model")).toBe("string");
+    expect(collected.get("shape.depth")).toBe("number");
+  });
+
+  it("types booleans and arrays", () => {
+    const collected = collectMetadataPathTypes([
+      JSON.stringify({ flag: true, tags: ["a", "b"] }),
     ]);
     expect(collected.get("flag")).toBe("boolean");
     expect(collected.get("tags")).toBe("array");
-    expect(collected.get("nested.xs")).toBe("array");
   });
 
-  it("marks a path observed with two types across rows as mixed", () => {
+  it("marks a key observed with two types across rows as mixed", () => {
     const collected = collectMetadataPathTypes([
       JSON.stringify({ a: 1 }),
       JSON.stringify({ a: "x" }),
@@ -37,7 +48,7 @@ describe("collectMetadataPathTypes", () => {
     expect(collected.get("a")).toBe("mixed");
   });
 
-  it("registers null-only paths without a type and upgrades them later", () => {
+  it("registers null-only keys without a type and upgrades them later", () => {
     const nullOnly = collectMetadataPathTypes([JSON.stringify({ a: null })]);
     expect(nullOnly.get("a")).toBe("");
     const upgraded = collectMetadataPathTypes([
@@ -52,6 +63,7 @@ describe("collectMetadataPathTypes", () => {
       { direct: 1 },
       "not json{",
       '"just a string"',
+      "[1, 2]",
       null,
       undefined,
       42,
@@ -59,16 +71,7 @@ describe("collectMetadataPathTypes", () => {
     expect([...collected.keys()]).toEqual(["direct"]);
   });
 
-  it("caps nesting depth like the AI-context walker", () => {
-    const collected = collectMetadataPathTypes([
-      { a: { b: { c: { d: { e: 1 }, leaf: 2 } } } },
-    ]);
-    // depth 0..3 objects are walked; leaves at depth 3 are kept, deeper drop.
-    expect(collected.get("a.b.c.leaf")).toBe("number");
-    expect(collected.has("a.b.c.d.e")).toBe(false);
-  });
-
-  it("caps the number of collected paths", () => {
+  it("caps the number of collected keys", () => {
     const wide = Object.fromEntries(
       Array.from({ length: MAX_PATHS_PER_PROJECT + 50 }, (_, i) => [
         `k${i}`,
@@ -79,7 +82,7 @@ describe("collectMetadataPathTypes", () => {
     expect(collected.size).toBe(MAX_PATHS_PER_PROJECT);
   });
 
-  it("still merges types for known paths once the cap is reached", () => {
+  it("still merges types for known keys once the cap is reached", () => {
     const wide = Object.fromEntries(
       Array.from({ length: MAX_PATHS_PER_PROJECT }, (_, i) => [`k${i}`, i]),
     );
@@ -126,10 +129,11 @@ describe("withMetadataPathOptions", () => {
     expect(withMetadataPathOptions(observed, {})).toBe(observed);
   });
 
-  it("merges sorted paths under `metadata`, omitting mixed/unknown types", () => {
+  it("merges sorted keys under `metadata`, omitting mixed/unknown types", () => {
     const paths: Record<string, StoredPathType> = {
       "routing.queue": "string",
       hej: "number",
+      scope: "object",
       both: "mixed",
       nullish: "",
     };
@@ -140,6 +144,7 @@ describe("withMetadataPathOptions", () => {
       { value: "hej", type: "number" },
       { value: "nullish" },
       { value: "routing.queue", type: "string" },
+      { value: "scope", type: "object" },
     ]);
   });
 });
