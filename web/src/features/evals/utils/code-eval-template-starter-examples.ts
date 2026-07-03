@@ -130,6 +130,11 @@ export function isDefaultCodeEvalSource(sourceCode: string) {
 // documented at
 // https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators#function-contract
 // and only prepended behind the scenes for validation.
+//
+// Stripping is still required because sources can contain the contract via
+// two paths the UI does not control: templates created through the public
+// API (sourceCode is stored verbatim) and full docs examples pasted into the
+// editor.
 function stripCodeEvalContract({
   sourceCode,
   sourceCodeLanguage,

@@ -7,6 +7,7 @@ import {
   DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE,
   formatAndStripCodeEvalSourceForSubmit,
 } from "@/src/features/evals/utils/code-eval-template-starter-examples";
+import { validateCodeEvalSourceWithPython } from "@/src/features/evals/utils/code-eval-template-validation";
 
 // This suite runs the real formatters (Prettier and the Ruff wasm build), so
 // the starter sources are guaranteed to be format-canonical: clicking Format
@@ -40,5 +41,29 @@ describe("code eval starter examples are format-canonical", () => {
         sourceCodeLanguage: "PYTHON",
       }),
     ).resolves.toBe(DEFAULT_PYTHON_CODE_EVAL_SOURCE);
+  });
+
+  it("still injects the hidden contract when the source imports dataclass itself", async () => {
+    // Regression: the contract-presence check must not mistake a user-owned
+    // `from dataclasses import dataclass` for the full hidden contract,
+    // otherwise the contract types raise blocking F821 errors.
+    const source = `from dataclasses import dataclass
+
+
+@dataclass
+class Helper:
+  flag: bool
+
+
+def evaluate(ctx: EvaluationContext) -> EvaluationResult:
+  return EvaluationResult(scores=[Score(name="ok", value=True)])`;
+
+    const result = await validateCodeEvalSourceWithPython(source);
+
+    expect(
+      result.diagnostics.filter(
+        (diagnostic) => diagnostic.severity === "error",
+      ),
+    ).toEqual([]);
   });
 });

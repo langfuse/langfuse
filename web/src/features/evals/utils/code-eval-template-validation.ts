@@ -587,7 +587,6 @@ const PYTHON_ERROR_DIAGNOSTIC_CODES = new Set([
   "F822",
   "F823",
 ]);
-const PYTHON_CONTRACT_PREFIX = "from dataclasses import dataclass";
 const PYTHON_EVALUATE_SIGNATURE_PATTERN =
   /(?:^|\n)\s*def\s+evaluate\s*\(\s*ctx\s*:\s*EvaluationContext\s*\)\s*->\s*EvaluationResult\s*:/;
 let ruffWorkspacePromise: Promise<RuffWorkspace> | null = null;
@@ -618,7 +617,7 @@ export async function validateCodeEvalSourceWithPython(
 ): Promise<CodeEvalValidationResult> {
   const sourceBytes = getUtf8ByteLength(source);
   const diagnostics: CodeEvalDiagnostic[] = [];
-  const validationSource = source.trimStart().startsWith(PYTHON_CONTRACT_PREFIX)
+  const validationSource = hasPythonContractDeclarations(source)
     ? source
     : `${PYTHON_CODE_EVAL_CONTRACT}\n\n${source}`;
 
@@ -825,6 +824,17 @@ function hasTypeScriptContractDeclarations(source: string) {
     /\btype\s+EvaluationContext\s*=/.test(source) &&
     /\btype\s+Score\s*=/.test(source) &&
     /\btype\s+EvaluationResult\s*=/.test(source)
+  );
+}
+
+// Like hasTypeScriptContractDeclarations: detect the declarations themselves
+// instead of an exact contract prefix, so user code that happens to share the
+// contract's first line still gets the hidden contract injected.
+function hasPythonContractDeclarations(source: string) {
+  return (
+    /\bclass\s+EvaluationContext\b/.test(source) &&
+    /\bclass\s+Score\b/.test(source) &&
+    /\bclass\s+EvaluationResult\b/.test(source)
   );
 }
 
