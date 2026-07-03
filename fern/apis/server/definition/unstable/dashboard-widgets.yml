@@ -13,6 +13,10 @@ service:
         The request body matches the dashboard widget JSON export/import shape used in the Langfuse UI:
         `name`, `description`, `view`, `dimensions`, `metrics`, `filters`, `chartType`, `chartConfig`, and optional `minVersion`.
 
+        Supported views are `observations`, `scores-numeric`, and `scores-categorical`.
+        The legacy `traces` view is not supported by this unstable API.
+        `minVersion` defaults to `2`; values below `2` are rejected.
+
         This endpoint creates the widget. It does not place the widget on a dashboard grid; dashboard placement is stored in the dashboard definition.
 
         Unstable API note:
@@ -68,7 +72,6 @@ service:
 types:
   DashboardWidgetView:
     enum:
-      - traces
       - observations
       - name: ScoresNumeric
         value: scores-numeric

@@ -79,11 +79,26 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
     });
   });
 
-  it("normalizes traces widgets back to minVersion 1 like JSON import", async () => {
+  it("defaults supported views to minVersion 2", async () => {
     const { auth } = await createOrgProjectAndApiKey();
+    const { minVersion: _minVersion, ...bodyWithoutMinVersion } =
+      baseWidgetBody;
 
     const response = await makeZodVerifiedAPICall(
       PostUnstableDashboardWidgetResponse,
+      "POST",
+      "/api/public/unstable/dashboard-widgets",
+      bodyWithoutMinVersion,
+      auth,
+    );
+
+    expect(response.body.minVersion).toBe(2);
+  });
+
+  it("rejects traces widgets", async () => {
+    const { auth } = await createOrgProjectAndApiKey();
+
+    const response = await makeAPICall(
       "POST",
       "/api/public/unstable/dashboard-widgets",
       {
@@ -94,9 +109,28 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
       auth,
     );
 
-    expect(response.body).toMatchObject({
-      view: "traces",
-      minVersion: 1,
+    expectUnstableError(response, {
+      status: 400,
+      code: "invalid_body",
+    });
+  });
+
+  it("rejects legacy minVersion values", async () => {
+    const { auth } = await createOrgProjectAndApiKey();
+
+    const response = await makeAPICall(
+      "POST",
+      "/api/public/unstable/dashboard-widgets",
+      {
+        ...baseWidgetBody,
+        minVersion: 1,
+      },
+      auth,
+    );
+
+    expectUnstableError(response, {
+      status: 400,
+      code: "invalid_body",
     });
   });
 

@@ -29,8 +29,10 @@ import {
   MAX_PIVOT_TABLE_METRICS,
 } from "@/src/features/widgets/utils/pivot-table-utils";
 
-const viewMapping: Record<z.infer<typeof views>, DashboardWidgetViews> = {
-  traces: DashboardWidgetViews.TRACES,
+const viewMapping: Record<
+  PostUnstableDashboardWidgetBodyType["view"],
+  DashboardWidgetViews
+> = {
   observations: DashboardWidgetViews.OBSERVATIONS,
   "scores-numeric": DashboardWidgetViews.SCORES_NUMERIC,
   "scores-categorical": DashboardWidgetViews.SCORES_CATEGORICAL,
@@ -68,7 +70,7 @@ const throwInvalidWidget = (params: {
 function getWidgetViewVersion(
   widget: PostUnstableDashboardWidgetBodyType,
 ): ViewVersion {
-  return (widget.minVersion ?? 1) >= 2 ? "v2" : "v1";
+  return (widget.minVersion ?? 2) >= 2 ? "v2" : "v1";
 }
 
 function getPublicDashboardWidgetViewDeclaration(
@@ -120,7 +122,7 @@ export function normalizePublicDashboardWidgetInput(
       ...filter,
       column: columnAliases[filter.column] ?? filter.column,
     })),
-    minVersion: input.view === "traces" ? 1 : (input.minVersion ?? 1),
+    minVersion: input.minVersion ?? 2,
   };
 }
 

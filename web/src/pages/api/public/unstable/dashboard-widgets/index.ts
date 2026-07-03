@@ -1,7 +1,7 @@
 import {
   createUnstablePublicApiRoute,
   withUnstablePublicApiMiddlewares,
-} from "@/src/features/public-api/server/unstable-public-evals-route";
+} from "@/src/features/public-api/server/unstable-public-api-route";
 import {
   PostUnstableDashboardWidgetBody,
   PostUnstableDashboardWidgetResponse,

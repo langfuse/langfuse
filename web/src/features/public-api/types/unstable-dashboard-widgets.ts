@@ -6,7 +6,13 @@ import {
   MetricSchema,
   singleFilter,
 } from "@langfuse/shared";
-import { metricAggregations, views } from "@langfuse/shared/query";
+import { metricAggregations } from "@langfuse/shared/query";
+
+export const PostUnstableDashboardWidgetView = z.enum([
+  "observations",
+  "scores-numeric",
+  "scores-categorical",
+]);
 
 const DashboardWidgetMetricSchema = MetricSchema.extend({
   measure: z.string().min(1),
@@ -21,13 +27,13 @@ export const PostUnstableDashboardWidgetBody = z
   .object({
     name: z.string().min(1, "Widget name is required"),
     description: z.string(),
-    view: views,
+    view: PostUnstableDashboardWidgetView,
     dimensions: z.array(DashboardWidgetDimensionSchema),
     metrics: z.array(DashboardWidgetMetricSchema).min(1),
     filters: z.array(singleFilter),
     chartType: z.enum(DashboardWidgetChartType),
     chartConfig: ChartConfigSchema,
-    minVersion: z.number().int().positive().optional(),
+    minVersion: z.number().int().min(2).optional(),
   })
   .superRefine((widget, ctx) => {
     if (widget.chartConfig.type !== widget.chartType) {
@@ -46,13 +52,13 @@ export const PublicDashboardWidget = z
     updatedAt: z.coerce.date(),
     name: z.string(),
     description: z.string(),
-    view: views,
+    view: PostUnstableDashboardWidgetView,
     dimensions: z.array(DashboardWidgetDimensionSchema),
     metrics: z.array(DashboardWidgetMetricSchema),
     filters: z.array(singleFilter),
     chartType: z.enum(DashboardWidgetChartType),
     chartConfig: ChartConfigSchema,
-    minVersion: z.number().int().positive(),
+    minVersion: z.number().int().min(2),
   })
   .strict();
 

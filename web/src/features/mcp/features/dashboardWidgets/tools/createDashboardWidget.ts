@@ -1,12 +1,12 @@
 import { z } from "zod";
 import { DashboardWidgetChartType } from "@langfuse/shared";
-import { metricAggregations, views } from "@langfuse/shared/query";
+import { metricAggregations } from "@langfuse/shared/query";
 import { defineTool } from "@/src/features/mcp/core/define-tool";
 import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
 import { createPublicDashboardWidget } from "@/src/features/widgets/server/public-dashboard-widget-service";
 import {
   PostUnstableDashboardWidgetBody,
-  PostUnstableDashboardWidgetResponse,
+  PostUnstableDashboardWidgetView,
 } from "@/src/features/public-api/types/unstable-dashboard-widgets";
 import { buildDashboardWidgetUrl } from "@/src/utils/product-url";
 
@@ -36,8 +36,8 @@ const DashboardWidgetChartConfigBaseSchema = z.object({
 const CreateDashboardWidgetBaseSchema = z.object({
   name: z.string().min(1).describe("Human-readable widget name."),
   description: z.string().describe("Human-readable widget description."),
-  view: views.describe(
-    "Data view for the widget. Use observations or scores-* for v2 widgets; traces is legacy v1 only.",
+  view: PostUnstableDashboardWidgetView.describe(
+    "Data view for the widget. Traces widgets are not supported by this unstable API.",
   ),
   dimensions: z
     .array(z.object({ field: z.string().min(1) }))
@@ -65,9 +65,9 @@ const CreateDashboardWidgetBaseSchema = z.object({
   minVersion: z
     .number()
     .int()
-    .positive()
+    .min(2)
     .optional()
-    .describe("Widget data-model version. traces is normalized to 1."),
+    .describe("Widget data-model version. Defaults to 2."),
 });
 
 export const [createDashboardWidgetTool, handleCreateDashboardWidget] =
@@ -98,13 +98,11 @@ export const [createDashboardWidgetTool, handleCreateDashboardWidget] =
 
           span.setAttribute("mcp.dashboard_widget_id", widget.id);
 
-          const parsed = PostUnstableDashboardWidgetResponse.parse(widget);
-
           return {
-            ...parsed,
+            ...widget,
             url: buildDashboardWidgetUrl({
               projectId: context.projectId,
-              widgetId: parsed.id,
+              widgetId: widget.id,
             }),
           };
         },
