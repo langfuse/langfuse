@@ -64,6 +64,11 @@ export type V4SdkUsagePoint = {
     | "invalid_version";
 };
 
+export type V4SdkUsageTimeSeries = {
+  bucketTimes: string[];
+  rows: V4SdkUsagePoint[];
+};
+
 type ProductHref = string | { pathname: string; query: Record<string, string> };
 
 type UsageSeries = {
@@ -853,7 +858,7 @@ export const V4MigrationProjectCards = ({
   traceLevelEvalCount: number | undefined;
   legacyApiUsage: V4LegacyApiUsagePoint[] | undefined;
   traceLevelEvalExecutions: V4TraceLevelEvalExecutionPoint[] | undefined;
-  sdkUsage: V4SdkUsagePoint[] | undefined;
+  sdkUsage: V4SdkUsageTimeSeries | undefined;
   isLegacyIntegrationSummaryLoading: boolean;
   isTraceLevelEvalSummaryLoading: boolean;
   isLegacyApiUsageLoading: boolean;
@@ -897,16 +902,17 @@ export const V4MigrationProjectCards = ({
   );
 
   const sdkUsageBucketTimes = useMemo(
-    () => getBucketTimes(sdkUsage ?? []),
-    [sdkUsage],
+    () => sdkUsage?.bucketTimes ?? [],
+    [sdkUsage?.bucketTimes],
   );
+  const sdkUsageRows = sdkUsage?.rows;
   const sdkUsageSeries = useMemo(
     () =>
       groupSdkUsageSeries({
-        rows: sdkUsage,
+        rows: sdkUsageRows,
         bucketTimes: sdkUsageBucketTimes,
       }),
-    [sdkUsage, sdkUsageBucketTimes],
+    [sdkUsageBucketTimes, sdkUsageRows],
   );
   const outdatedSdkUsageSeries = useMemo(
     () =>

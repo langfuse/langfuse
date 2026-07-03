@@ -164,50 +164,39 @@ describe("V4MigrationProjectCards SDK usage", () => {
         traceLevelEvalCount={0}
         legacyApiUsage={[]}
         traceLevelEvalExecutions={[]}
-        sdkUsage={[
-          {
-            time: "2026-06-30T04:00:00.000Z",
-            sdkName: "python",
-            sdkVersion: "3.9.0",
-            publicKey: "pk-lf-old-python",
-            apiKeyNote: "backend worker",
-            count: 5,
-            firstSeen: "2026-06-30T04:02:00.000Z",
-            lastSeen: "2026-06-30T04:04:00.000Z",
-            canonicalSdkName: "python",
-            latestMajor: 4,
-            major: 3,
-            upgradeStatus: "outdated_major",
-          },
-          {
-            time: "2026-06-30T04:02:00.000Z",
-            sdkName: "python",
-            sdkVersion: "3.9.0",
-            publicKey: "pk-lf-old-python",
-            apiKeyNote: "backend worker",
-            count: 0,
-            firstSeen: null,
-            lastSeen: null,
-            canonicalSdkName: "python",
-            latestMajor: 4,
-            major: 3,
-            upgradeStatus: "outdated_major",
-          },
-          {
-            time: "2026-06-30T04:00:00.000Z",
-            sdkName: "unknown",
-            sdkVersion: "unknown",
-            publicKey: "",
-            apiKeyNote: null,
-            count: 2,
-            firstSeen: "2026-06-30T04:00:00.000Z",
-            lastSeen: "2026-06-30T04:00:00.000Z",
-            canonicalSdkName: null,
-            latestMajor: null,
-            major: null,
-            upgradeStatus: "unknown",
-          },
-        ]}
+        sdkUsage={{
+          bucketTimes: ["2026-06-30T04:00:00.000Z", "2026-06-30T04:02:00.000Z"],
+          rows: [
+            {
+              time: "2026-06-30T04:00:00.000Z",
+              sdkName: "python",
+              sdkVersion: "3.9.0",
+              publicKey: "pk-lf-old-python",
+              apiKeyNote: "backend worker",
+              count: 5,
+              firstSeen: "2026-06-30T04:02:00.000Z",
+              lastSeen: "2026-06-30T04:04:00.000Z",
+              canonicalSdkName: "python",
+              latestMajor: 4,
+              major: 3,
+              upgradeStatus: "outdated_major",
+            },
+            {
+              time: "2026-06-30T04:00:00.000Z",
+              sdkName: "unknown",
+              sdkVersion: "unknown",
+              publicKey: "",
+              apiKeyNote: null,
+              count: 2,
+              firstSeen: "2026-06-30T04:00:00.000Z",
+              lastSeen: "2026-06-30T04:00:00.000Z",
+              canonicalSdkName: null,
+              latestMajor: null,
+              major: null,
+              upgradeStatus: "unknown",
+            },
+          ],
+        }}
         isLegacyIntegrationSummaryLoading={false}
         isTraceLevelEvalSummaryLoading={false}
         isLegacyApiUsageLoading={false}

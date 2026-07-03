@@ -138,6 +138,11 @@ type SdkUsageTimeSeriesResultRow = {
   upgradeStatus: IngestionSdkUpgradeStatus;
 };
 
+type SdkUsageTimeSeriesResult = {
+  bucketTimes: string[];
+  rows: SdkUsageTimeSeriesResultRow[];
+};
+
 type SdkUsageSummaryByProjectRow = {
   projectId: string;
   sdkName: string;
@@ -222,78 +227,36 @@ const compareSdkUsageRows = (
   return leftSeries.localeCompare(rightSeries);
 };
 
-const fillSdkUsageBuckets = ({
+const decorateSdkUsageRows = ({
   rows,
-  fromTimestamp,
-  toTimestamp,
-  granularity,
   apiKeyNotesByPublicKey,
 }: {
   rows: SdkUsageTimeSeriesRow[];
-  fromTimestamp: Date;
-  toTimestamp: Date;
-  granularity: ResolvedTimelineGranularity;
   apiKeyNotesByPublicKey: Map<string, string | null>;
 }): SdkUsageTimeSeriesResultRow[] => {
-  if (rows.length === 0) return [];
+  return rows
+    .map((row) => {
+      const classification = classifyIngestionSdkVersion({
+        sdkName: row.sdkName,
+        sdkVersion: row.sdkVersion,
+      });
 
-  const bucketTimes = getTimelineBucketTimes(
-    fromTimestamp,
-    toTimestamp,
-    granularity,
-  );
-  const countsByBucketAndSeries = new Map(
-    rows.map((row) => [
-      `${row.time}\u0000${getSdkUsageSeriesKey(row)}`,
-      {
+      return {
+        time: row.time,
+        sdkName: row.sdkName,
+        sdkVersion: row.sdkVersion,
+        publicKey: row.publicKey,
+        apiKeyNote: apiKeyNotesByPublicKey.get(row.publicKey) ?? null,
         count: Number(row.count),
         firstSeen: row.firstSeen,
         lastSeen: row.lastSeen,
-      },
-    ]),
-  );
-  const series = Array.from(
-    new Map(rows.map((row) => [getSdkUsageSeriesKey(row), row])).values(),
-  ).sort((left, right) =>
-    getSdkUsageSeriesKey(left).localeCompare(getSdkUsageSeriesKey(right)),
-  );
-  const classificationBySeries = new Map(
-    series.map((item) => [
-      getSdkUsageSeriesKey(item),
-      classifyIngestionSdkVersion({
-        sdkName: item.sdkName,
-        sdkVersion: item.sdkVersion,
-      }),
-    ]),
-  );
-  const filledRows: SdkUsageTimeSeriesResultRow[] = [];
-
-  for (const time of bucketTimes) {
-    for (const item of series) {
-      const seriesKey = getSdkUsageSeriesKey(item);
-      const bucketValues = countsByBucketAndSeries.get(
-        `${time}\u0000${seriesKey}`,
-      );
-      const classification = classificationBySeries.get(seriesKey)!;
-
-      filledRows.push({
-        time,
-        sdkName: item.sdkName,
-        sdkVersion: item.sdkVersion,
-        publicKey: item.publicKey,
-        apiKeyNote: apiKeyNotesByPublicKey.get(item.publicKey) ?? null,
-        count: bucketValues?.count ?? 0,
-        firstSeen: bucketValues?.firstSeen ?? null,
-        lastSeen: bucketValues?.lastSeen ?? null,
         canonicalSdkName: classification.canonicalSdkName,
         latestMajor: classification.latestMajor,
         major: classification.major,
         upgradeStatus: classification.status,
-      });
-    }
-  }
-
-  return filledRows.sort(compareSdkUsageRows);
+      };
+    })
+    .sort(compareSdkUsageRows);
 };
 
 type TraceLevelEvalExecutionTimeSeriesRow = {
@@ -711,13 +674,17 @@ ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
         apiKeys.map((apiKey) => [apiKey.publicKey, apiKey.note]),
       );
 
-      return fillSdkUsageBuckets({
-        rows,
-        fromTimestamp: input.fromTimestamp,
-        toTimestamp: input.toTimestamp,
-        granularity,
-        apiKeyNotesByPublicKey,
-      });
+      return {
+        bucketTimes: getTimelineBucketTimes(
+          input.fromTimestamp,
+          input.toTimestamp,
+          granularity,
+        ),
+        rows: decorateSdkUsageRows({
+          rows,
+          apiKeyNotesByPublicKey,
+        }),
+      } satisfies SdkUsageTimeSeriesResult;
     }),
 
   sdkUsageSummaryByProject: protectedV4MigrationOrgProcedure

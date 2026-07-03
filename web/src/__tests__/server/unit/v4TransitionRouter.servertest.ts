@@ -1044,15 +1044,18 @@ describe("v4TransitionRouter", () => {
     };
     const caller = createCaller(mockPrisma);
 
-    const rows = await caller.sdkUsageTimeSeries({
+    const result = await caller.sdkUsageTimeSeries({
       projectId,
       fromTimestamp: new Date("2026-06-25T12:00:00Z"),
       toTimestamp: new Date("2026-06-25T13:00:00Z"),
       granularity: "auto",
     });
+    const rows = result.rows;
 
-    expect(rows).toHaveLength(60);
-    expect(new Set(rows.map((row) => row.time)).size).toBe(30);
+    expect(result.bucketTimes).toHaveLength(30);
+    expect(result.bucketTimes[0]).toBe("2026-06-25T12:00:00Z");
+    expect(result.bucketTimes.at(-1)).toBe("2026-06-25T12:58:00Z");
+    expect(rows).toHaveLength(2);
     expect(
       rows.find(
         (row) =>
@@ -1105,13 +1108,7 @@ describe("v4TransitionRouter", () => {
           row.sdkVersion === "3.9.0" &&
           row.publicKey === "pk-lf-old-python",
       ),
-    ).toMatchObject({
-      count: 0,
-      firstSeen: null,
-      lastSeen: null,
-      apiKeyNote: "backend worker",
-      upgradeStatus: "outdated_major",
-    });
+    ).toBeUndefined();
 
     expect(mockedQueryClickhouse).toHaveBeenCalledTimes(1);
     const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
@@ -1180,12 +1177,13 @@ describe("v4TransitionRouter", () => {
     };
     const caller = createCaller(mockPrisma, createSessionWithOrgRole("ADMIN"));
 
-    const rows = await caller.sdkUsageTimeSeries({
+    const result = await caller.sdkUsageTimeSeries({
       projectId,
       fromTimestamp: new Date("2026-06-25T12:00:00Z"),
       toTimestamp: new Date("2026-06-25T12:10:00Z"),
       granularity: "auto",
     });
+    const rows = result.rows;
 
     expect(
       rows.find(
@@ -1258,14 +1256,15 @@ describe("v4TransitionRouter", () => {
     };
     const caller = createCaller(mockPrisma);
 
-    const rows = await caller.sdkUsageTimeSeries({
+    const result = await caller.sdkUsageTimeSeries({
       projectId,
       fromTimestamp: new Date("2026-06-25T12:00:00Z"),
       toTimestamp: new Date("2026-06-25T12:10:00Z"),
       granularity: "auto",
     });
 
-    expect(rows).toHaveLength(10);
+    expect(result.bucketTimes).toHaveLength(10);
+    expect(result.rows).toHaveLength(1);
     expect(mockedQueryClickhouse).toHaveBeenCalledTimes(1);
     const usageQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
     expect(usageQuery?.query).toContain("FROM events_core");
