@@ -175,7 +175,7 @@ export default async function handler(
 
       const { userName, name, password, displayName, roles } = body;
 
-      if (!userName) {
+      if (typeof userName !== "string" || userName.length === 0) {
         logger.warn("[SCIM] userName is required for user creation");
         return res.status(400).json({
           schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],

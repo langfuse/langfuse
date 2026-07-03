@@ -535,6 +535,23 @@ describe("SCIM API", () => {
         expect(result.body.detail).toContain("userName is required");
       });
 
+      it("should return 400 when userName is not a string", async () => {
+        const result = await makeAPICall(
+          "POST",
+          "/api/public/scim/Users",
+          {
+            userName: 123,
+            name: {
+              formatted: "Test User",
+            },
+          },
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+        );
+
+        expect(result.status).toBe(400);
+        expect(result.body.detail).toContain("userName is required");
+      });
+
       it("should create a new user with specified role", async () => {
         const uniqueEmail = `test.user.${randomUUID().substring(0, 8)}@example.com`;
         const response = await makeZodVerifiedAPICall(
