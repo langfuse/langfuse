@@ -100,11 +100,14 @@ export function ResizableSplitLayout({
 
     if (open) {
       // v4 react-resizable-panel `expand()` depends on internal collapsed bookkeeping.
-      // Fallback to default size if the panel remains effectively closed.
+      // Fallback to default size if the panel remains effectively closed: still
+      // collapsed (a no-op expand in rail mode, where the collapsed rail is
+      // wider than any fixed percentage threshold) or near-zero width (the
+      // "0%"-collapse mode).
       if (panel.isCollapsed()) {
         panel.expand();
       }
-      if (panel.getSize().asPercentage < 2) {
+      if (panel.isCollapsed() || panel.getSize().asPercentage < 2) {
         panel.resize(`${defaultSecondarySize}%`);
       }
     } else if (!panel.isCollapsed()) {

@@ -18,6 +18,12 @@ export function FilterToggleButton({
   className?: string;
 }) {
   const { open, setOpen } = useDataTableControls();
+  // Count filtered COLUMNS (facets), not raw FilterState entries — one facet
+  // can emit several entries (e.g. a numeric range writes >= and <=). Keeps
+  // this badge consistent with the desktop rail's active-facet count.
+  const activeFacetCount = filterState
+    ? new Set(filterState.map((filter) => filter.column)).size
+    : 0;
   return (
     <Button
       variant="outline"
@@ -31,9 +37,9 @@ export function FilterToggleButton({
         <PanelLeftOpen className="h-4 w-4" />
       )}
       <span>{open ? "Hide" : "Show"} filters</span>
-      {filterState && filterState.length > 0 && (
+      {activeFacetCount > 0 && (
         <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-          {filterState.length}
+          {activeFacetCount}
         </Badge>
       )}
     </Button>
