@@ -9,15 +9,6 @@ ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN npm install pnpm@11.4.0 --global
 
-# busybox ships into the runtime image, so build this stage for the target arch.
-FROM --platform=${TARGETPLATFORM:-linux/amd64} busybox:1.37.0-musl AS shell-tools
-RUN mkdir -p /out/bin /out/usr/bin && \
-    cp /bin/busybox /out/bin/busybox && \
-    for applet in sh sed wget grep cat env printf test '[' date mkdir; do \
-      ln -s busybox "/out/bin/${applet}"; \
-    done && \
-    ln -s /bin/busybox /out/usr/bin/env
-
 FROM --platform=${BUILDPLATFORM} ${WIZOS_NODE_BUILDER_IMAGE} AS dumb-init-builder
 ARG TARGETARCH
 ARG DUMB_INIT_VERSION=1.2.5
@@ -80,10 +71,8 @@ RUN pnpm --filter worker deploy --legacy --prod /prod/worker && \
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${WIZOS_NODE_RUNTIME_IMAGE} AS runner
 
-# Copy runtime-only tools from throwaway stages so the hardened runtime does
-# not need a shell or package manager.
-COPY --from=shell-tools /out/bin /bin
-COPY --from=shell-tools /out/usr/bin /usr/bin
+# The runtime image stays shell-less; dumb-init is invoked directly and the
+# entrypoint runs under node.
 COPY --from=dumb-init-builder /usr/bin/dumb-init /bin/dumb-init
 
 WORKDIR /app
@@ -93,20 +82,18 @@ ENV BUILD_ID=$NEXT_PUBLIC_BUILD_ID
 
 ENV NODE_ENV production
 ENV DOCKER_BUILD 0
-ENV PATH="${PATH}:/bin"
 
 # Copy only production worker payload instead of full builder workspace (just /prod/worker not entire /app)
 COPY --from=prod-deps --chown=1001:1001 /prod/worker ./worker
-COPY --chmod=755 ./worker/entrypoint.sh ./worker/entrypoint.sh
+COPY --chown=1001:1001 ./worker/entrypoint.mjs ./worker/entrypoint.mjs
 
 USER 1001:1001
 
 EXPOSE 3030
 ENV PORT=3030
 
-# Docker ENTRYPOINT (dumb-init) is covered by semantic versioning, not the entrypoint.sh itself
-# Reasoning: ENTRYPOINT is overridden by some self-hosted deployments, thus changing this is breaking
-ENTRYPOINT ["/bin/dumb-init", "--", "./worker/entrypoint.sh"]
+# The hardened enterprise runtime has no /bin/sh; invoke the Node entrypoint directly.
+ENTRYPOINT ["/bin/dumb-init", "--", "node", "./worker/entrypoint.mjs"]
 
 # startup command
 CMD ["node", "worker/dist/index.js"]

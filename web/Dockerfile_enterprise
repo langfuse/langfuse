@@ -15,27 +15,16 @@ RUN npm install pnpm@11.4.0 --global
 # so npm does not need cleanup here.
 FROM --platform=${TARGETPLATFORM:-linux/amd64} node-builder-base AS runtime-deps
 WORKDIR /app
-# COPY dereferences a symlink given as src, which breaks prisma's
-# __dirname-relative module resolution — stage the launcher symlink inside a
-# directory instead so the runner copies it as a symlink.
+# No bin launcher ships to the runtime: the shell-less entrypoint.mjs runs the
+# prisma CLI via node and this package's build/index.js directly.
 RUN npm install -g --no-package-lock --no-save prisma@6.19.3 && \
-    mkdir -p ./node_modules/dd-trace /out/bin && \
-    ln -s ../lib/node_modules/prisma/build/index.js /out/bin/prisma
+    mkdir -p ./node_modules/dd-trace
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
 # Nested strategy keeps dd-trace's deps inside node_modules/dd-trace so the
 # runner's single-directory COPY ships them too.
 RUN if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
     npm install --no-package-lock --no-save --install-strategy=nested dd-trace@5.109.0; \
     fi
-
-# busybox ships into the runtime image, so build this stage for the target arch.
-FROM --platform=${TARGETPLATFORM:-linux/amd64} busybox:1.37.0-musl AS shell-tools
-RUN mkdir -p /out/bin /out/usr/bin && \
-    cp /bin/busybox /out/bin/busybox && \
-    for applet in sh sed wget grep cat env printf test '[' date mkdir; do \
-      ln -s busybox "/out/bin/${applet}"; \
-    done && \
-    ln -s /bin/busybox /out/usr/bin/env
 
 FROM --platform=${BUILDPLATFORM} golang:1.26 AS migrate-builder
 ARG TARGETOS
@@ -165,17 +154,14 @@ ENV DOCKER_BUILD 0
 ENV NEXT_MANUAL_SIG_HANDLE true
 # Use UTC by default while keeping named time zones available.
 ENV TZ=UTC
-ENV PATH="${PATH}:/bin"
 
-# Copy runtime-only tools/data from throwaway stages so the hardened runtime
-# does not need a shell or package manager.
-COPY --from=shell-tools /out/bin /bin
-COPY --from=shell-tools /out/usr/bin /usr/bin
+# Copy runtime-only tools/data from throwaway stages; the runtime image stays
+# shell-less, so everything below is either data or invoked directly by
+# node/dumb-init without a shell.
 COPY --from=dumb-init-builder /usr/bin/dumb-init /bin/dumb-init
 COPY --from=timezone-data /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=runtime-deps /usr/local/lib/node_modules/prisma /usr/local/lib/node_modules/prisma
 COPY --from=runtime-deps /app/node_modules/dd-trace ./node_modules/dd-trace
-COPY --from=runtime-deps /out/bin /usr/local/bin
 COPY --from=migrate-builder /out/migrate /bin/migrate
 
 # BUILD_ID changes every commit; keep it below the stable tool layers so it
@@ -195,7 +181,7 @@ COPY --from=builder --chown=1001:1001 /app/web/public ./web/public
 COPY --from=builder --chown=1001:1001 /app/packages/shared/prisma ./packages/shared/prisma
 COPY --from=builder --chown=1001:1001 /app/packages/shared/clickhouse ./packages/shared/clickhouse
 
-COPY --chmod=755 --chown=1001:1001 ./web/entrypoint.sh ./web/entrypoint.sh
+COPY --chown=1001:1001 ./web/entrypoint.mjs ./web/entrypoint.mjs
 COPY --chown=1001:1001 ./packages/shared/scripts/cleanup.sql ./packages/shared/scripts/cleanup.sql
 
 USER 1001:1001
@@ -203,13 +189,9 @@ USER 1001:1001
 # Default port to 3000
 ENV PORT 3000
 
-# Docker ENTRYPOINT (dumb-init) is covered by semantic versioning, not the entrypoint.sh itself
-# Reasoning: ENTRYPOINT is overridden by some self-hosted deployments, thus changing this is breaking
-ENTRYPOINT ["/bin/dumb-init", "--", "./web/entrypoint.sh"]
+# The hardened enterprise runtime has no /bin/sh; invoke the Node entrypoint directly.
+ENTRYPOINT ["/bin/dumb-init", "--", "node", "./web/entrypoint.mjs"]
 
-# startup command - use dd-trace if NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is configured
-CMD if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
-    node --import dd-trace/initialize.mjs ./web/server.js --keepAliveTimeout 110000; \
-    else \
-    node ./web/server.js --keepAliveTimeout 110000; \
-    fi
+# startup command - entrypoint.mjs injects dd-trace when
+# NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is configured
+CMD ["node", "./web/server.js", "--keepAliveTimeout", "110000"]
