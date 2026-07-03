@@ -305,11 +305,17 @@ analysis is deferred (until CH26), so `metadata.` completions are fed
   `store/observedMetadataStore.ts` — persisted to localStorage, **per
   project** (one global `Record<projectId, …>` map, the globalDateRangeStore
   shape).
-- `EventsTable` merges the project's map into the observed options under the
-  `metadata` key (`withMetadataPathOptions`), which is exactly where the
-  completion planner already looked (`keyPathOptions`) — so typing `metadata.`
-  suggests observed keys, with the type shown as the option detail
-  (`metadata.hej` · `number`).
+- `EventsTable` merges the project's map into the observed options where the
+  completion planner already looked (`withMetadataPathOptions`): keys under
+  `metadata` (`keyPathOptions`) and each key's observed values under
+  `metadata.<key>` (the value stage). So typing `metadata.` suggests observed
+  keys with the type as the option detail (`metadata.hej` · `number`), and
+  `metadata.region:` offers the first few observed values (`eu`, `us`, …).
+- **Values are first-observed distinct scalars, skip-don't-truncate.** Only
+  string/number/boolean leaves are collected (object/array stored forms could
+  not round-trip into a matching `=` filter), and a value longer than the cap
+  is dropped entirely — a truncated suggestion would insert a filter that
+  confidently matches nothing.
 - **Top-level keys only, never flattened dot-paths.** Metadata is stored as a
   flat `Map(String, String)`: nested object values are JSON-encoded strings
   under their top-level key, and `StringObjectFilter` matches the LITERAL
@@ -325,7 +331,8 @@ analysis is deferred (until CH26), so `metadata.` completions are fed
   observed with more than one type — or only ever `null` — drops its hint
   instead of showing a wrong one (`mixed` is absorbing).
 - **Bounded on every axis**: 30 sampled rows per fetch, key length ≤ 100
-  chars, ≤ 200 keys per project (first-observed wins), ≤ 20 projects
+  chars, ≤ 200 keys per project (first-observed wins), ≤ 5 values per key,
+  value length ≤ 60 chars, ≤ 1024 values per project, ≤ 20 projects
   (least-recently-updated evicted), plus a persist `version` key that resets
   the cache on schema change. A no-change merge skips the localStorage write.
 - Accepted caveat: metadata the user has never loaded is never suggested (if

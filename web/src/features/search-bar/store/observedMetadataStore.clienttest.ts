@@ -6,66 +6,155 @@ import {
 } from "./observedMetadataStore";
 import {
   MAX_PATHS_PER_PROJECT,
-  type StoredPathType,
+  MAX_VALUES_PER_KEY,
+  MAX_VALUES_PER_PROJECT,
+  type StoredKeyInfo,
 } from "../lib/metadata-paths";
 
-const paths = (entries: Record<string, StoredPathType>) =>
+const paths = (entries: Record<string, StoredKeyInfo>) =>
   new Map(Object.entries(entries));
 
 describe("mergeIntoProject", () => {
   it("creates a project entry and merges types on later observations", () => {
-    const first = mergeIntoProject({}, "p1", paths({ a: "number" }), 1000);
-    expect(first?.p1).toEqual({ paths: { a: "number" }, updatedAt: 1000 });
+    const first = mergeIntoProject(
+      {},
+      "p1",
+      paths({ a: { type: "number" } }),
+      1000,
+    );
+    expect(first?.p1).toEqual({
+      paths: { a: { type: "number" } },
+      updatedAt: 1000,
+    });
 
     const second = mergeIntoProject(
       first!,
       "p1",
-      paths({ a: "string", b: "boolean" }),
+      paths({ a: { type: "string" }, b: { type: "boolean" } }),
       2000,
     );
-    expect(second?.p1.paths).toEqual({ a: "mixed", b: "boolean" });
+    expect(second?.p1.paths).toEqual({
+      a: { type: "mixed" },
+      b: { type: "boolean" },
+    });
     expect(second?.p1.updatedAt).toBe(2000);
   });
 
-  it("returns null (no persist) when nothing changed recently", () => {
-    const base = mergeIntoProject({}, "p1", paths({ a: "number" }), 1000)!;
-    expect(mergeIntoProject(base, "p1", paths({ a: "number" }), 2000)).toBe(
-      null,
+  it("unions values per key up to the cap, first-observed wins", () => {
+    const base = mergeIntoProject(
+      {},
+      "p1",
+      paths({ region: { type: "string", values: ["eu", "us"] } }),
+      1000,
+    )!;
+    const merged = mergeIntoProject(
+      base,
+      "p1",
+      paths({
+        region: {
+          type: "string",
+          values: ["us", "apac", "mena", "latam", "antarctica"],
+        },
+      }),
+      2000,
     );
+    // "us" deduped; new ones appended until MAX_VALUES_PER_KEY.
+    expect(merged?.p1.paths.region?.values).toEqual([
+      "eu",
+      "us",
+      "apac",
+      "mena",
+      "latam",
+    ]);
+    expect(merged?.p1.paths.region?.values).toHaveLength(MAX_VALUES_PER_KEY);
+  });
+
+  it("enforces the per-project total value cap as a backstop", () => {
+    // Through normal input the total is bounded by keys × values-per-key
+    // (200 × 5 = 1000 < 1024), so the backstop only binds against drifted
+    // PERSISTED state — an older schema or tampered localStorage. Simulate
+    // that: one key already holding far more values than today's per-key cap.
+    const drifted = {
+      p1: {
+        paths: {
+          bulk: {
+            type: "string" as const,
+            values: Array.from(
+              { length: MAX_VALUES_PER_PROJECT - 2 },
+              (_, i) => `v${i}`,
+            ),
+          },
+        },
+        updatedAt: 1000,
+      },
+    };
+    const merged = mergeIntoProject(
+      drifted,
+      "p1",
+      paths({ fresh: { type: "string", values: ["a", "b", "c", "d"] } }),
+      2000,
+    );
+    // Room for only 2 more values project-wide; the key itself registers.
+    expect(merged?.p1.paths.fresh).toEqual({
+      type: "string",
+      values: ["a", "b"],
+    });
+  });
+
+  it("returns null (no persist) when nothing changed recently", () => {
+    const base = mergeIntoProject(
+      {},
+      "p1",
+      paths({ a: { type: "number", values: ["1"] } }),
+      1000,
+    )!;
+    expect(
+      mergeIntoProject(
+        base,
+        "p1",
+        paths({ a: { type: "number", values: ["1"] } }),
+        2000,
+      ),
+    ).toBe(null);
     // Empty analysis never touches the store.
     expect(mergeIntoProject(base, "p1", new Map(), 2000)).toBe(null);
   });
 
   it("refreshes the LRU stamp of an unchanged-but-active project once stale", () => {
-    const base = mergeIntoProject({}, "p1", paths({ a: "number" }), 1000)!;
+    const base = mergeIntoProject(
+      {},
+      "p1",
+      paths({ a: { type: "number" } }),
+      1000,
+    )!;
     const dayLater = 1000 + 25 * 60 * 60 * 1000;
     const touched = mergeIntoProject(
       base,
       "p1",
-      paths({ a: "number" }),
+      paths({ a: { type: "number" } }),
       dayLater,
     );
     expect(touched?.p1.updatedAt).toBe(dayLater);
     expect(touched?.p1.paths).toBe(base.p1!.paths);
   });
 
-  it("enforces the per-project path cap, keeping existing paths", () => {
+  it("enforces the per-project key cap, keeping existing keys", () => {
     const full = Object.fromEntries(
       Array.from({ length: MAX_PATHS_PER_PROJECT }, (_, i) => [
         `k${i}`,
-        "string" as const,
+        { type: "string" } as StoredKeyInfo,
       ]),
     );
     const base = mergeIntoProject({}, "p1", paths(full), 1000)!;
     const merged = mergeIntoProject(
       base,
       "p1",
-      paths({ overflow: "number", k0: "number" }),
+      paths({ overflow: { type: "number" }, k0: { type: "number" } }),
       2000,
     );
-    // The new path is dropped; the existing path still merges its type.
+    // The new key is dropped; the existing key still merges its type.
     expect(merged?.p1.paths.overflow).toBeUndefined();
-    expect(merged?.p1.paths.k0).toBe("mixed");
+    expect(merged?.p1.paths.k0?.type).toBe("mixed");
     expect(Object.keys(merged!.p1!.paths)).toHaveLength(MAX_PATHS_PER_PROJECT);
   });
 
@@ -75,7 +164,7 @@ describe("mergeIntoProject", () => {
       byProject = mergeIntoProject(
         byProject,
         `p${i}`,
-        paths({ a: "string" }),
+        paths({ a: { type: "string" } }),
         1000 + i,
       )!;
     }
@@ -85,10 +174,20 @@ describe("mergeIntoProject", () => {
   });
 
   it("scopes paths per project (no cross-bleed)", () => {
-    const one = mergeIntoProject({}, "p1", paths({ a: "number" }), 1000)!;
-    const two = mergeIntoProject(one, "p2", paths({ b: "string" }), 2000)!;
-    expect(two.p1?.paths).toEqual({ a: "number" });
-    expect(two.p2?.paths).toEqual({ b: "string" });
+    const one = mergeIntoProject(
+      {},
+      "p1",
+      paths({ a: { type: "number" } }),
+      1000,
+    )!;
+    const two = mergeIntoProject(
+      one,
+      "p2",
+      paths({ b: { type: "string" } }),
+      2000,
+    )!;
+    expect(two.p1?.paths).toEqual({ a: { type: "number" } });
+    expect(two.p2?.paths).toEqual({ b: { type: "string" } });
   });
 });
 
@@ -97,9 +196,12 @@ describe("useObservedMetadataStore", () => {
     useObservedMetadataStore.setState({ byProject: {} });
     useObservedMetadataStore
       .getState()
-      .actions.recordPaths("proj", paths({ "routing.queue": "string" }));
+      .actions.recordPaths(
+        "proj",
+        paths({ "routing.queue": { type: "string", values: ["billing"] } }),
+      );
     expect(useObservedMetadataStore.getState().byProject.proj?.paths).toEqual({
-      "routing.queue": "string",
+      "routing.queue": { type: "string", values: ["billing"] },
     });
   });
 });

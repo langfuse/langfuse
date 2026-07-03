@@ -8,9 +8,11 @@
 // project's entry on an in-app switch). SSR gets a no-op storage.
 //
 // Growth is bounded on every axis (metadata is user-shaped and unbounded):
-// paths per project are capped on merge (MAX_PATHS_PER_PROJECT, drop-new when
-// full), projects are capped with least-recently-updated eviction, and a
-// merge that changes nothing skips the localStorage write entirely.
+// keys per project and values per key/per project are capped on merge
+// (MAX_PATHS_PER_PROJECT / MAX_VALUES_PER_KEY / MAX_VALUES_PER_PROJECT,
+// drop-new when full), projects are capped with least-recently-updated
+// eviction, and a merge that changes nothing skips the localStorage write
+// entirely.
 
 import { create } from "zustand";
 import {
@@ -20,8 +22,10 @@ import {
 } from "zustand/middleware";
 import {
   MAX_PATHS_PER_PROJECT,
+  MAX_VALUES_PER_KEY,
+  MAX_VALUES_PER_PROJECT,
   mergePathType,
-  type StoredPathType,
+  type StoredKeyInfo,
 } from "../lib/metadata-paths";
 
 export const OBSERVED_METADATA_STORAGE_KEY = "langfuse-observed-metadata";
@@ -40,8 +44,8 @@ const noopStorage: StateStorage = {
 };
 
 type ProjectMetadataPaths = {
-  /** Observed dot-path → stored type (see StoredPathType). */
-  paths: Record<string, StoredPathType>;
+  /** Observed top-level key → stored type + sample values (see StoredKeyInfo). */
+  paths: Record<string, StoredKeyInfo>;
   /** Last change (or daily activity refresh) — the project-eviction LRU key. */
   updatedAt: number;
 };
@@ -52,38 +56,57 @@ type ObservedMetadataState = {
     /** Union newly observed paths into a project's map (see mergeIntoProject). */
     recordPaths: (
       projectId: string,
-      collected: ReadonlyMap<string, StoredPathType>,
+      collected: ReadonlyMap<string, StoredKeyInfo>,
     ) => void;
   };
 };
 
 /**
- * Pure merge: union `collected` into the project's path map, merging types
- * per path (mixed-absorbing), enforcing the per-project path cap (existing
- * paths win; excess new ones are dropped) and the project-count cap (evict
- * least-recently-updated). Returns null when nothing needs persisting.
- * Exported for tests.
+ * Pure merge: union `collected` into the project's path map — merging types
+ * per key (mixed-absorbing) and unioning observed values (first-observed
+ * wins) — enforcing the per-project key cap, the per-key and per-project
+ * value caps, and the project-count cap (evict least-recently-updated).
+ * Returns null when nothing needs persisting. Exported for tests.
  */
 export function mergeIntoProject(
   byProject: Record<string, ProjectMetadataPaths>,
   projectId: string,
-  collected: ReadonlyMap<string, StoredPathType>,
+  collected: ReadonlyMap<string, StoredKeyInfo>,
   now: number,
 ): Record<string, ProjectMetadataPaths> | null {
   if (collected.size === 0) return null;
   const prev = byProject[projectId];
-  const nextPaths: Record<string, StoredPathType> = { ...(prev?.paths ?? {}) };
+  const nextPaths: Record<string, StoredKeyInfo> = { ...(prev?.paths ?? {}) };
   let count = Object.keys(nextPaths).length;
+  let totalValues = Object.values(nextPaths).reduce(
+    (sum, info) => sum + (info.values?.length ?? 0),
+    0,
+  );
   let changed = false;
-  for (const [path, type] of collected) {
+  for (const [path, incoming] of collected) {
     const existing = nextPaths[path];
     if (existing === undefined) {
       if (count >= MAX_PATHS_PER_PROJECT) continue;
       count++;
     }
-    const merged = mergePathType(existing, type);
-    if (existing !== merged) {
-      nextPaths[path] = merged;
+    const mergedType = mergePathType(existing?.type, incoming.type);
+    let mergedValues = existing?.values;
+    for (const v of incoming.values ?? []) {
+      if ((mergedValues?.length ?? 0) >= MAX_VALUES_PER_KEY) break;
+      if (totalValues >= MAX_VALUES_PER_PROJECT) break;
+      if (mergedValues?.includes(v)) continue;
+      mergedValues = [...(mergedValues ?? []), v];
+      totalValues++;
+    }
+    if (
+      existing === undefined ||
+      existing.type !== mergedType ||
+      mergedValues !== existing.values
+    ) {
+      nextPaths[path] =
+        mergedValues === undefined
+          ? { type: mergedType }
+          : { type: mergedType, values: mergedValues };
       changed = true;
     }
   }
@@ -126,7 +149,7 @@ export const useObservedMetadataStore = create<ObservedMetadataState>()(
     }),
     {
       name: OBSERVED_METADATA_STORAGE_KEY,
-      version: 1,
+      version: 2,
       // Hydrates from localStorage on the client; no-op during SSR.
       storage: createJSONStorage(() =>
         typeof window !== "undefined" ? window.localStorage : noopStorage,

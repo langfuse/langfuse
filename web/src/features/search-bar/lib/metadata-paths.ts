@@ -41,13 +41,34 @@ export type MetadataLeafType =
  */
 export type StoredPathType = MetadataLeafType | "mixed" | "";
 
+/** Persisted per-key record: display type + a few observed scalar values. */
+export type StoredKeyInfo = {
+  type: StoredPathType;
+  /**
+   * First-observed distinct SCALAR values (string/number/boolean, stringified)
+   * feeding the value-stage dropdown. Object/array/null values and values
+   * longer than MAX_VALUE_LENGTH are never collected — their stored form
+   * could not round-trip into a matching `=` filter. Absent when none.
+   */
+  values?: string[];
+};
+
 // Bounds — metadata is user-shaped and unbounded, so every axis is capped:
-// sampled rows per fetch, key string length, and keys kept per project (the
-// store enforces the same per-project cap on merge; keys beyond it are
-// dropped, first-observed wins).
+// sampled rows per fetch, key string length, keys kept per project, values
+// kept per key, and values kept per project in total (the store enforces the
+// per-project caps on merge; entries beyond a cap are dropped, first-observed
+// wins).
 export const METADATA_SAMPLE_ROWS = 30;
 export const MAX_PATHS_PER_PROJECT = 200;
+export const MAX_VALUES_PER_KEY = 5;
+// Hard per-project total. With today's caps the effective bound is the
+// product 200 × 5 = 1000; this backstop binds only against drifted persisted
+// state (older schema, tampered localStorage) or a future per-key cap raise.
+export const MAX_VALUES_PER_PROJECT = 1024;
 const MAX_PATH_LENGTH = 100;
+// Values longer than this are SKIPPED, never truncated — a truncated value
+// would insert a filter that confidently matches nothing.
+const MAX_VALUE_LENGTH = 60;
 // Skip parsing giant metadata blobs so the per-fetch analysis stays cheap.
 const MAX_METADATA_JSON_LENGTH = 200_000;
 
@@ -81,15 +102,24 @@ export function mergePathType(
   return "mixed";
 }
 
+/** Suggestible scalar value, stringified — or null when not suggestible. */
+function scalarValue(v: unknown): string | null {
+  const t = typeof v;
+  if (t !== "string" && t !== "number" && t !== "boolean") return null;
+  const s = String(v);
+  return s.length > 0 && s.length <= MAX_VALUE_LENGTH ? s : null;
+}
+
 /**
  * Record the observed top-level metadata keys of sampled rows (JSON-encoded
  * strings per `MetadataDomainClient`, or already-parsed objects) with their
- * value types, merged across rows (`a:1` + `a:"x"` → `"mixed"`).
+ * value types, merged across rows (`a:1` + `a:"x"` → `"mixed"`), plus the
+ * first few distinct scalar values per key for the value-stage dropdown.
  */
 export function collectMetadataPathTypes(
   sampleMetadata: readonly unknown[],
-): Map<string, StoredPathType> {
-  const out = new Map<string, StoredPathType>();
+): Map<string, StoredKeyInfo> {
+  const out = new Map<string, StoredKeyInfo>();
   for (const md of sampleMetadata) {
     if (typeof md === "string" && md.length > MAX_METADATA_JSON_LENGTH)
       continue;
@@ -103,31 +133,51 @@ export function collectMetadataPathTypes(
       if (key.length > MAX_PATH_LENGTH) continue;
       const existing = out.get(key);
       if (existing === undefined && out.size >= MAX_PATHS_PER_PROJECT) continue;
-      out.set(key, mergePathType(existing, valueType(v)));
+      const type = mergePathType(existing?.type, valueType(v));
+      const value = scalarValue(v);
+      let values = existing?.values;
+      if (
+        value !== null &&
+        (values?.length ?? 0) < MAX_VALUES_PER_KEY &&
+        !values?.includes(value)
+      ) {
+        values = [...(values ?? []), value];
+      }
+      out.set(key, values === undefined ? { type } : { type, values });
     }
   }
   return out;
 }
 
 /**
- * Merge the persisted per-project key map into the observed-options map under
- * the `metadata` key the completion planner reads (completions.ts
- * keyPathOptions). Keys are sorted so related dotted keys group together in
- * the dropdown; `"mixed"`/null-only keys carry no type hint. `undefined`
- * observed (filter options still loading) stays `undefined` so the planner's
- * loading semantics are untouched.
+ * Merge the persisted per-project key map into the observed-options map where
+ * the completion planner reads it: keys under `metadata` (keyPathOptions) and
+ * each key's observed values under `metadata.<key>` (the value stage). Keys
+ * are sorted so related dotted keys group together in the dropdown;
+ * `"mixed"`/null-only keys carry no type hint. `undefined` observed (filter
+ * options still loading) stays `undefined` so the planner's loading semantics
+ * are untouched.
  */
 export function withMetadataPathOptions(
   observed: ObservedOptions | undefined,
-  paths: Record<string, StoredPathType> | undefined,
+  paths: Record<string, StoredKeyInfo> | undefined,
 ): ObservedOptions | undefined {
   if (observed === undefined || paths === undefined) return observed;
   const entries = Object.entries(paths);
   if (entries.length === 0) return observed;
-  const metadata: ObservedValue[] = entries
+  const out: ObservedOptions = { ...observed };
+  out.metadata = entries
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([path, type]) =>
-      type === "" || type === "mixed" ? { value: path } : { value: path, type },
+    .map(
+      ([path, { type }]): ObservedValue =>
+        type === "" || type === "mixed"
+          ? { value: path }
+          : { value: path, type },
     );
-  return { ...observed, metadata };
+  for (const [path, { values }] of entries) {
+    if (values !== undefined && values.length > 0) {
+      out[`metadata.${path}`] = values.map((v) => ({ value: v }));
+    }
+  }
+  return out;
 }

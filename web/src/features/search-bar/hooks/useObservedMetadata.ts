@@ -10,18 +10,19 @@ import { useEffect } from "react";
 import {
   collectMetadataPathTypes,
   METADATA_SAMPLE_ROWS,
-  type StoredPathType,
+  type StoredKeyInfo,
 } from "../lib/metadata-paths";
 import { useObservedMetadataStore } from "../store/observedMetadataStore";
 
 /**
- * The project's persisted metadata key→type map, or undefined when disabled
- * or nothing has been observed yet. Stable identity between store writes.
+ * The project's persisted metadata key→info map (type + sample values), or
+ * undefined when disabled or nothing has been observed yet. Stable identity
+ * between store writes.
  */
 export function useObservedMetadataPaths(
   projectId: string,
   enabled: boolean,
-): Record<string, StoredPathType> | undefined {
+): Record<string, StoredKeyInfo> | undefined {
   return useObservedMetadataStore((s) =>
     enabled ? s.byProject[projectId]?.paths : undefined,
   );
