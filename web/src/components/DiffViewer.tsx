@@ -441,9 +441,12 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
 
       let target: number | undefined;
       if (direction === 1) {
-        target =
-          positions.find((position) => position > reference + 1) ??
-          positions[positions.length - 1];
+        const next = positions.find((position) => position > reference + 1);
+        if (next === undefined) {
+          el.scrollTop = el.scrollHeight;
+          return;
+        }
+        target = next;
       } else {
         for (let i = positions.length - 1; i >= 0; i--) {
           if (positions[i] < reference - 1) {
@@ -451,7 +454,10 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
             break;
           }
         }
-        target ??= positions[0];
+        if (target === undefined) {
+          el.scrollTop = 0;
+          return;
+        }
       }
 
       scrollToContentY(target);
