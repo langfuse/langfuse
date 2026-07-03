@@ -116,10 +116,14 @@ const NOOP_LAYOUT_STORAGE = {
 // small-share) nav on a wide peek is mis-seeded as collapsed and its content
 // unmounts for a frame until `onResize` corrects it. Boundary = midpoint between
 // the 40px rail and the smallest open min (nav 260px), as a share of the width.
-const COLLAPSED_RAIL_BOUNDARY_PX =
-  (COLLAPSED_PANEL_PX + NAVIGATION_PANEL_MIN_PX) / 2;
+// The boundary is kept LOCAL (not a module const, the #14735 pattern): as a
+// single-use top-level const it tripped the SWC prod minifier's dropped-binding
+// bug — the declaration was deleted while this function's inlined body kept the
+// reference, throwing `ReferenceError` on peek open (LFE-10640; the CI
+// client-bundle scan now guards the class, LFE-10645).
 function collapsedShareMaxForWidth(groupWidthPx: number): number {
-  return (COLLAPSED_RAIL_BOUNDARY_PX / groupWidthPx) * 100;
+  const boundaryPx = (COLLAPSED_PANEL_PX + NAVIGATION_PANEL_MIN_PX) / 2;
+  return (boundaryPx / groupWidthPx) * 100;
 }
 // Full-page fallback (its container width isn't known at seed time): the boundary
 // as a share of the narrowest both-open width, matching the prior heuristic.
