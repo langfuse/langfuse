@@ -5,10 +5,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { v4MigrationOrgScope } from "@/src/features/rbac/constants/organizationAccessRights";
-import {
-  hasOrganizationAccess,
-  throwIfNoOrganizationAccess,
-} from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   AnalyticsIntegrationExportSource,
@@ -695,31 +692,13 @@ ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
       const publicKeys = Array.from(
         new Set(rows.map((row) => row.publicKey).filter(Boolean)),
       );
-      const canReadOrganizationApiKeys = hasOrganizationAccess({
-        role: ctx.session.orgRole,
-        admin: ctx.session.user.admin,
-        scope: "organization:CRUD_apiKeys",
-      });
-      const apiKeyScopeFilters = [
-        {
-          projectId: input.projectId,
-          scope: "PROJECT" as const,
-        },
-        ...(canReadOrganizationApiKeys
-          ? [
-              {
-                orgId: ctx.session.orgId,
-                scope: "ORGANIZATION" as const,
-              },
-            ]
-          : []),
-      ];
       const apiKeys =
         publicKeys.length === 0
           ? []
           : await ctx.prisma.apiKey.findMany({
               where: {
-                OR: apiKeyScopeFilters,
+                projectId: input.projectId,
+                scope: "PROJECT",
                 publicKey: { in: publicKeys },
                 isInAppAgentKey: false,
               },

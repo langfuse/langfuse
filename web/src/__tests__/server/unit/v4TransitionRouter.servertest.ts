@@ -1147,16 +1147,8 @@ describe("v4TransitionRouter", () => {
     expect(clickhouseQuery?.preferredClickhouseService).toBe("EventsReadOnly");
     expect(mockPrisma.apiKey.findMany).toHaveBeenCalledWith({
       where: {
-        OR: [
-          {
-            projectId,
-            scope: "PROJECT",
-          },
-          {
-            orgId,
-            scope: "ORGANIZATION",
-          },
-        ],
+        projectId,
+        scope: "PROJECT",
         publicKey: {
           in: ["pk-lf-old-python", "pk-lf-js-current"],
         },
@@ -1169,13 +1161,13 @@ describe("v4TransitionRouter", () => {
     });
   });
 
-  it("does not join organization API key notes for users without organization API key access", async () => {
+  it("limits SDK usage API key note lookup to project keys for organization admins", async () => {
     mockedQueryClickhouse.mockResolvedValueOnce([
       {
         time: "2026-06-25T12:00:00Z",
         sdkName: "python",
         sdkVersion: "3.9.0",
-        publicKey: "pk-lf-org-python",
+        publicKey: "pk-lf-project-python",
         count: "3",
         firstSeen: "2026-06-25T12:01:00Z",
         lastSeen: "2026-06-25T12:03:00Z",
@@ -1199,7 +1191,7 @@ describe("v4TransitionRouter", () => {
       rows.find(
         (row) =>
           row.time === "2026-06-25T12:00:00Z" &&
-          row.publicKey === "pk-lf-org-python",
+          row.publicKey === "pk-lf-project-python",
       ),
     ).toMatchObject({
       apiKeyNote: null,
@@ -1207,14 +1199,10 @@ describe("v4TransitionRouter", () => {
     });
     expect(mockPrisma.apiKey.findMany).toHaveBeenCalledWith({
       where: {
-        OR: [
-          {
-            projectId,
-            scope: "PROJECT",
-          },
-        ],
+        projectId,
+        scope: "PROJECT",
         publicKey: {
-          in: ["pk-lf-org-python"],
+          in: ["pk-lf-project-python"],
         },
         isInAppAgentKey: false,
       },
