@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "3.195.0",
+  "version": "3.203.3",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -39,15 +39,15 @@
     "playwright:install": "pnpm --filter web exec playwright install chromium",
     "storybook": "pnpm --filter web run storybook",
     "test": "turbo run test",
-    "release": "dotenv -e ../.env -- release-it",
+    "release": "bash ./scripts/release-preflight.sh && dotenv -e ../.env -- release-it",
     "release:cloud": "bash ./scripts/release-cloud.sh",
     "prepare": "husky"
   },
   "devDependencies": {
     "@release-it/bumper": "^7.0.6",
-    "braces": "3.0.3",
     "dotenv-cli": "^7.4.4",
     "husky": "^9.1.7",
+    "knip": "^6.22.0",
     "prettier": "^3.8.3",
     "release-it": "^20.2.0",
     "turbo": "2.9.18"

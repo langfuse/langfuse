@@ -39,7 +39,10 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
   onToggleCollapse,
   onSelectNode,
   estimateSize,
-  overscan = 500,
+  // overscan is a ROW COUNT, not pixels: keep it small so a long tree mounts
+  // only a few dozen extra rows per scroll step instead of ~1000 (the old "500"
+  // mistook it for pixels). ~16 rows ≈ half a viewport of headroom.
+  overscan = 16,
   defaultRowHeight = 37,
   className,
 }: VirtualizedTreeProps<T>) {
@@ -58,6 +61,16 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
     estimateSize: estimateSize
       ? (index) => estimateSize(flattenedItems[index]!.node, index)
       : defaultEstimateSize,
+    // Key the measurement cache by node id, matching the React key on each row.
+    // Rows have dynamic, wildly-varying heights (a node's score badges wrap into
+    // several lines), and collapse/expand reorders the flattened list. Without
+    // this the cache is keyed by index: on a reorder React reuses a row's DOM
+    // element (same id) without resizing it, so the virtualizer never
+    // re-measures and keeps the PREVIOUS node's height at that index — the
+    // translateY offsets drift out of sync with the real heights and rows
+    // overlap (LFE-10591, worst right after "Collapse all"). Keying by id makes
+    // each measurement travel with its node, so offsets stay correct.
+    getItemKey: (index) => flattenedItems[index]!.node.id,
     overscan,
     measureElement:
       typeof window !== "undefined"

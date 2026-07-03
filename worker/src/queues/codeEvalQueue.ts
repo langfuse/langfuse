@@ -32,10 +32,6 @@ export const codeEvalExecutionQueueProcessorBuilder = (
           "messaging.bullmq.job.input.projectId",
           job.data.payload.projectId,
         );
-        span.setAttribute(
-          "messaging.bullmq.job.input.retryBaggage.attempt",
-          job.data.retryBaggage?.attempt ?? 0,
-        );
       }
 
       await processObservationEval({

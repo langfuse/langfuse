@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.195.0",
+  "version": "3.203.3",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -58,7 +58,7 @@
     "@langfuse/shared": "workspace:*",
     "@lezer/highlight": "^1.2.3",
     "@mastra/client-js": "1.21.1",
-    "@mastra/core": "1.37.1",
+    "@mastra/core": "1.46.0",
     "@mastra/mcp": "1.8.1",
     "@modelcontextprotocol/sdk": "1.29.0",
     "@next-auth/prisma-adapter": "^1.0.7",
@@ -174,6 +174,7 @@
     "uuid": "^14.0.0",
     "vaul": "^1.1.2",
     "vis-network": "^9.1.13",
+    "yaml": "^2.9.0",
     "zod": "^4.3.6",
     "zustand": "^5.0.14"
   },
@@ -214,6 +215,7 @@
     "node-mocks-http": "^1.17.2",
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.7.2",
+    "raw-loader": "^4.0.2",
     "storybook": "10.3.6",
     "tailwindcss": "^4.2.2",
     "typescript": "^5.7.2",

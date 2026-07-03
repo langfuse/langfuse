@@ -13,10 +13,11 @@ import { EvalTargetObjectSchema } from "../features/evals/types";
 import { JobConfigExecutionMode } from "../features/evals/evalConfigBlocking";
 import {
   type MonitorQueueEvent,
+  type MonitorQueueEventInput,
   MonitorWebhookQueueEventSchema,
 } from "../features/monitors/scheduler/types";
 
-export type { MonitorQueueEvent };
+export type { MonitorQueueEvent, MonitorQueueEventInput };
 
 export const IngestionEvent = z.object({
   data: z.object({
@@ -25,6 +26,11 @@ export const IngestionEvent = z.object({
     fileKey: z.string().optional(),
     skipS3List: z.boolean().optional(),
     forwardToEventsTable: z.boolean().optional(),
+    // Optional for rolling deploy compatibility with in-flight jobs created
+    // before ingestion attribution was added to the queue payload.
+    ingestionApiKey: z.string().optional(),
+    ingestionSdkName: z.string().optional(),
+    ingestionSdkVersion: z.string().optional(),
     // Absolute S3 key prefix the producer used (ends with "/"). Set so the
     // consumer never reconstructs the path and therefore can't drift from
     // the producer when env values differ across containers. Optional for
@@ -43,6 +49,8 @@ export const IngestionEvent = z.object({
 export const OtelIngestionEvent = z.object({
   data: z.object({
     fileKey: z.string(),
+    // Optional for compatibility with queued/replayed payloads that do not
+    // carry API-key attribution.
     publicKey: z.string().optional(),
   }),
   authCheck: z.object({
@@ -54,6 +62,8 @@ export const OtelIngestionEvent = z.object({
     }),
   }),
   propagatedHeaders: z.record(z.string(), z.string()).optional(),
+  // Optional for rolling deploy compatibility with in-flight jobs created
+  // before SDK attribution was added to the queue payload.
   sdkName: z.string().optional(),
   sdkVersion: z.string().optional(),
   ingestionVersion: z.string().optional(),
@@ -143,6 +153,15 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
   [
     z.object({
       actionId: z.literal("score-delete"),
+      projectId: z.string(),
+      query: BatchActionQuerySchema,
+      tableName: z.enum(BatchTableNames),
+      cutoffCreatedAt: z.date(),
+      targetId: z.string().optional(),
+      type: z.enum(BatchActionType),
+    }),
+    z.object({
+      actionId: z.literal("dataset-delete"),
       projectId: z.string(),
       query: BatchActionQuerySchema,
       tableName: z.enum(BatchTableNames),
@@ -598,7 +617,7 @@ export type TQueueJobTypes = {
   [QueueName.MonitorQueue]: {
     timestamp: Date;
     id: string;
-    payload: MonitorQueueEvent;
+    payload: MonitorQueueEventInput;
     name: QueueJobs.MonitorJob;
   };
 };

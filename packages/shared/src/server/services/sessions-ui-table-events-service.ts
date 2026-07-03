@@ -78,12 +78,7 @@ export const getSessionTracesFromEvents = async (props: {
         projectId: props.projectId,
         sessionId: props.sessionId,
       },
-      tags: {
-        feature: "tracing",
-        type: "sessions-traces",
-        projectId: props.projectId,
-        operation_name: "getSessionTracesFromEvents",
-      },
+      tags: { projectId: props.projectId },
     },
     fn: async (input) => {
       return queryClickhouse<{
@@ -124,7 +119,6 @@ export const getSessionsTableCountFromEvents = async (props: {
     orderBy: props.orderBy,
     limit: props.limit,
     page: props.page,
-    tags: { kind: "count" },
   });
 
   return rows.length > 0 ? Number(rows[0].count) : 0;
@@ -145,7 +139,6 @@ export const getSessionsTableFromEvents = async (props: {
       orderBy: props.orderBy,
       limit: props.limit,
       page: props.page,
-      tags: { kind: "list" },
     });
 
   return rows.map((row) => ({
@@ -175,7 +168,6 @@ export const getSessionsWithMetricsFromEvents = async (props: {
       limit: props.limit,
       page: props.page,
       clickhouseConfigs: props.clickhouseConfigs,
-      tags: { kind: "analytic_events" },
     },
   );
 
@@ -326,13 +318,7 @@ const getSessionsTableFromEventsGeneric = async <T>(
         ...params,
         projectId,
       },
-      tags: {
-        ...(props.tags ?? {}),
-        feature: "tracing",
-        type: "sessions-table",
-        projectId,
-        operation_name: `getSessionsTableFromEventsGeneric-${select}`,
-      },
+      tags: { ...(props.tags ?? {}), projectId },
     },
     fn: async (input) => {
       return queryClickhouse<T>({

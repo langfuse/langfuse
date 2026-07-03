@@ -11,10 +11,14 @@ import {
   streamTransformations,
   getObservationsForBlobStorageExport,
   getObservationsForBlobStorageExportRaw,
+  getObservationsForBlobStorageExportParquet,
   getTracesForBlobStorageExport,
+  getTracesForBlobStorageExportParquet,
   getScoresForBlobStorageExport,
+  getScoresForBlobStorageExportParquet,
   getEventsForBlobStorageExport,
   getEventsForBlobStorageExportRaw,
+  getEventsForBlobStorageExportParquet,
   getCurrentSpan,
   instrumentAsync,
   recordGauge,
@@ -36,7 +40,14 @@ import {
   BLOB_TABLE_EXPORT_METRIC,
   type BlobTableExportOutcome,
 } from "./inFlightExports";
+import {
+  BlobExportAbortTracker,
+  classifyBlobExportError,
+  errorChainText,
+} from "./abortClassification";
+import { isSigtermReceived } from "../health";
 import { TimedGzip, ZLIB_DEFAULT_LEVEL, type GzipStats } from "./gzipStream";
+import { ByteCounter, TimedByteCounter } from "./byteCounters";
 import { WORKER_HOST_ID } from "../../utils/hostId";
 import {
   BlobStorageIntegrationType,
@@ -55,6 +66,47 @@ import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { env, v4AllowPreviewOptIn } from "../../env";
+import { recordExportVolume } from "../../services/exportVolumeMetric";
+
+export const BlobExportFormat = {
+  JSON_RAW: "json-raw",
+  JSON_GZIP: "json-gzip",
+  CSV_RAW: "csv-raw",
+  CSV_GZIP: "csv-gzip",
+  JSONL_RAW: "jsonl-raw",
+  JSONL_GZIP: "jsonl-gzip",
+  // LFE-10463: ClickHouse-native columnar export; compression is internal to
+  // Parquet, so there is no separate raw/gzip split.
+  PARQUET: "parquet",
+} as const;
+export type BlobExportFormat =
+  (typeof BlobExportFormat)[keyof typeof BlobExportFormat];
+
+const FORMAT_LOOKUP: Record<
+  BlobStorageIntegrationFileType,
+  { raw: BlobExportFormat; gzip: BlobExportFormat }
+> = {
+  [BlobStorageIntegrationFileType.JSON]: {
+    raw: BlobExportFormat.JSON_RAW,
+    gzip: BlobExportFormat.JSON_GZIP,
+  },
+  [BlobStorageIntegrationFileType.CSV]: {
+    raw: BlobExportFormat.CSV_RAW,
+    gzip: BlobExportFormat.CSV_GZIP,
+  },
+  [BlobStorageIntegrationFileType.JSONL]: {
+    raw: BlobExportFormat.JSONL_RAW,
+    gzip: BlobExportFormat.JSONL_GZIP,
+  },
+};
+
+function resolveBlobExportFormat(
+  fileType: BlobStorageIntegrationFileType,
+  compressed: boolean,
+): BlobExportFormat {
+  const entry = FORMAT_LOOKUP[fileType];
+  return compressed ? entry.gzip : entry.raw;
+}
 
 export const BLOB_STORAGE_LAG_BUFFER_MS = 20 * 60 * 1000; // 20-minute lag buffer
 
@@ -64,7 +116,7 @@ export async function* enrichObservationStream(
   modelIdField: string,
   convertLatencyToSeconds: boolean,
   fieldGroups?: ObservationFieldGroupFull[],
-  skipEnrichment: boolean = false,
+  skipEnrichment = false,
 ): AsyncGenerator<Record<string, unknown>> {
   const { getModel } = createModelCache(projectId);
 
@@ -224,18 +276,6 @@ const getFileTypeProperties = (fileType: BlobStorageIntegrationFileType) => {
   }
 };
 
-class ByteCounter extends Transform {
-  bytes = 0;
-  _transform(
-    chunk: Buffer,
-    _encoding: string,
-    callback: (error: Error | null, data?: Buffer) => void,
-  ) {
-    this.bytes += chunk.length;
-    callback(null, chunk);
-  }
-}
-
 async function* countedStream<T>(
   source: AsyncGenerator<T>,
   stats: { rows: number; sourceWaitMs: number },
@@ -281,6 +321,9 @@ const processBlobStorageExport = async (config: {
   convertV4LatencyToSeconds: boolean;
   exportFieldGroups?: ObservationFieldGroupFull[];
   rawPassthrough: boolean;
+  // LFE-10463: when true, export via ClickHouse-native `FORMAT Parquet`,
+  // overriding `fileType` and `compressed`. Takes precedence over rawPassthrough.
+  parquet: boolean;
   // undefined concurrency/attempts => backend keeps its native default.
   partSizeBytes: number;
   maxConcurrentParts: number | undefined;
@@ -379,25 +422,19 @@ const processBlobStorageExport = async (config: {
       let uploadSucceeded = false;
       let heartbeat: ReturnType<typeof setInterval> | undefined;
 
+      // Per-stage errors so the catch can name the originating cause instead of
+      // the bare "aborted" the pipeline teardown propagates to every stage.
+      const abortTracker = new BlobExportAbortTracker();
+
       try {
         const blobStorageProps = getFileTypeProperties(config.fileType);
 
-        const timestamp = config.maxTimestamp
-          .toISOString()
-          .replace(/:/g, "-")
-          .substring(0, 19);
-        const extension = config.compressed
-          ? `${blobStorageProps.extension}.gz`
-          : blobStorageProps.extension;
-        const filePath = `${config.prefix ?? ""}${config.projectId}/${config.table}/${timestamp}.${extension}`;
-        const uploadContentType = config.compressed
-          ? "application/gzip"
-          : blobStorageProps.contentType;
-
-        const exportFieldGroups =
-          config.exportFieldGroups && config.exportFieldGroups.length > 0
-            ? config.exportFieldGroups
-            : [...OBSERVATION_FIELD_GROUPS_FULL];
+        // LFE-10463: per-project opt-in spanning all tables/file types. Overrides
+        // fileType and compressed (Parquet compresses internally) and outranks
+        // rawPassthrough (enforced in resolveBlobExportTuning). It isn't a
+        // BlobStorageIntegrationFileType member, so extension/content-type are set
+        // inline below rather than via getFileTypeProperties.
+        const parquetEligible = config.parquet;
 
         // Raw passthrough (LFE-10402) is opt-in per project and only valid for
         // JSONL output of the enriched-observation tables — the only formats
@@ -407,18 +444,48 @@ const processBlobStorageExport = async (config: {
         // select the path per table (scores/traces always use the standard path,
         // so per-table fallback is expected and not worth a warning).
         const passthroughEligible =
+          !parquetEligible &&
           config.rawPassthrough &&
           config.fileType === BlobStorageIntegrationFileType.JSONL &&
           (config.table === "observations" ||
             config.table === "observations_v2");
 
-        span.setAttribute(
-          "blob.path",
-          passthroughEligible ? "passthrough" : "standard",
-        );
+        const exportPath = parquetEligible
+          ? "parquet"
+          : passthroughEligible
+            ? "passthrough"
+            : "standard";
+
+        const timestamp = config.maxTimestamp
+          .toISOString()
+          .replace(/:/g, "-")
+          .substring(0, 19);
+        // Parquet: fixed `.parquet` extension (no `.gz`) and Parquet content type.
+        const extension = parquetEligible
+          ? "parquet"
+          : config.compressed
+            ? `${blobStorageProps.extension}.gz`
+            : blobStorageProps.extension;
+        const filePath = `${config.prefix ?? ""}${config.projectId}/${config.table}/${timestamp}.${extension}`;
+        const uploadContentType = parquetEligible
+          ? "application/vnd.apache.parquet"
+          : config.compressed
+            ? "application/gzip"
+            : blobStorageProps.contentType;
+
+        const exportFieldGroups =
+          config.exportFieldGroups && config.exportFieldGroups.length > 0
+            ? config.exportFieldGroups
+            : [...OBSERVATION_FIELD_GROUPS_FULL];
+
+        // blob.path already encodes parquet (no per-table fallback), so no
+        // separate blob.config.parquet attribute is needed.
+        span.setAttribute("blob.path", exportPath);
 
         const pipelineCallback = (err: NodeJS.ErrnoException | null) => {
           if (err) {
+            // The pipeline source is the ClickHouse read.
+            abortTracker.record("ch-read", err);
             logger.error(
               "[BLOB INTEGRATION] Getting data from DB for blob storage integration failed: ",
               err,
@@ -426,8 +493,22 @@ const processBlobStorageExport = async (config: {
           }
         };
 
-        const serializedCounter = new ByteCounter();
-        const compressedCounter = config.compressed ? new ByteCounter() : null;
+        // Source read wait; backpressureMs is set only by the parquet
+        // TimedByteCounter and stays 0 on every other path.
+        const sourceStats = { rows: 0, sourceWaitMs: 0, backpressureMs: 0 };
+        // When enrichment is active, chStats isolates ClickHouse read wait from
+        // enrichment CPU. enrichMs = sourceStats.sourceWaitMs - chStats.sourceWaitMs.
+        let chStats: { rows: number; sourceWaitMs: number } | null = null;
+
+        // Parquet feeds sourceStats.sourceWaitMs from the piped binary stream so
+        // the shared metrics derivation works without a per-row generator.
+        const serializedCounter = parquetEligible
+          ? new TimedByteCounter(sourceStats)
+          : new ByteCounter();
+        // No worker-side gzip on the parquet path (compression is internal to
+        // Parquet), so the parquet path never allocates a compressed counter.
+        const compressedCounter =
+          !parquetEligible && config.compressed ? new ByteCounter() : null;
         // Paired with compressedCounter: both exist iff compression is on.
         const gzipStats: GzipStats | null = compressedCounter
           ? {
@@ -436,13 +517,6 @@ const processBlobStorageExport = async (config: {
               backpressureMs: 0,
             }
           : null;
-
-        // Both paths tally rows in JS via countedStream (the passthrough yields
-        // raw row text rather than parsed objects, but still iterates).
-        const sourceStats = { rows: 0, sourceWaitMs: 0 };
-        // When enrichment is active, chStats isolates ClickHouse read wait from
-        // enrichment CPU. enrichMs = sourceStats.sourceWaitMs - chStats.sourceWaitMs.
-        let chStats: { rows: number; sourceWaitMs: number } | null = null;
 
         const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
         const heartbeatTags = {
@@ -457,14 +531,73 @@ const processBlobStorageExport = async (config: {
           );
           recordGauge(
             "langfuse.blobstorage.export_heartbeat.serialized_bytes",
-            serializedCounter.bytes,
+            compressedCounter
+              ? compressedCounter.bytes
+              : serializedCounter.bytes,
             heartbeatTags,
           );
         }, HEARTBEAT_INTERVAL_MS);
 
         let fileStream: Readable;
 
-        if (passthroughEligible) {
+        if (parquetEligible) {
+          // LFE-10463: stream raw FORMAT Parquet bytes straight to upload — no JS
+          // parse/enrich/serialize, no gzip, no row counting (binary has no row
+          // boundaries, so sourceStats.rows stays 0). Field-group projection,
+          // latency ms→s, and dropped price columns are baked into the SQL. The
+          // exception-tag Transform in queryClickhouseExecRaw aborts the upload
+          // before commit on a mid-stream failure — same guarantee as passthrough.
+          let parquetSource: Readable;
+          switch (config.table) {
+            case "traces":
+              parquetSource = (
+                await getTracesForBlobStorageExportParquet(
+                  config.projectId,
+                  config.minTimestamp,
+                  config.maxTimestamp,
+                )
+              ).stream;
+              break;
+            case "scores":
+              parquetSource = (
+                await getScoresForBlobStorageExportParquet(
+                  config.projectId,
+                  config.minTimestamp,
+                  config.maxTimestamp,
+                )
+              ).stream;
+              break;
+            case "observations":
+              parquetSource = (
+                await getObservationsForBlobStorageExportParquet(
+                  config.projectId,
+                  config.minTimestamp,
+                  config.maxTimestamp,
+                  exportFieldGroups,
+                )
+              ).stream;
+              break;
+            case "observations_v2": // observations_v2 is the events table
+              parquetSource = (
+                await getEventsForBlobStorageExportParquet(
+                  config.projectId,
+                  config.minTimestamp,
+                  config.maxTimestamp,
+                  exportFieldGroups,
+                  config.convertV4LatencyToSeconds,
+                )
+              ).stream;
+              break;
+            default:
+              throw new Error(`Unsupported table type: ${config.table}`);
+          }
+
+          fileStream = pipeline(
+            parquetSource,
+            serializedCounter,
+            pipelineCallback,
+          );
+        } else if (passthroughEligible) {
           // Stream ClickHouse JSONEachRow row text straight through: skip the
           // per-row JSON.parse, enrichment, and re-serialize. Shaping (latency→s,
           // dropped price columns, field-group selection) is baked into the SQL.
@@ -607,15 +740,22 @@ const processBlobStorageExport = async (config: {
         try {
           uploadStartMs = performance.now();
 
-          await storageService.uploadFileBuffered({
-            fileName: filePath,
-            fileType: uploadContentType,
-            data: fileStream,
-            partSizeBytes: config.partSizeBytes,
-            maxConcurrentParts: config.maxConcurrentParts,
-            maxPartAttempts: config.maxPartAttempts,
-            stats: uploadStats,
-          });
+          try {
+            await storageService.uploadFileBuffered({
+              fileName: filePath,
+              fileType: uploadContentType,
+              data: fileStream,
+              partSizeBytes: config.partSizeBytes,
+              maxConcurrentParts: config.maxConcurrentParts,
+              maxPartAttempts: config.maxPartAttempts,
+              stats: uploadStats,
+            });
+          } catch (uploadError) {
+            // Attribute to the upload stage; a CH-origin error surfacing here is
+            // still classified as ch-error by its preserved cause chain.
+            abortTracker.record("upload", uploadError);
+            throw uploadError;
+          }
           // Record at the upload boundary so a throw in the `finally` below
           // can't miscount a real success as a failure.
           uploadSucceeded = true;
@@ -626,28 +766,35 @@ const processBlobStorageExport = async (config: {
             projectId: config.projectId,
           });
 
-          const byteTags = {
-            table: config.table,
+          const exportFormat = parquetEligible
+            ? BlobExportFormat.PARQUET
+            : resolveBlobExportFormat(config.fileType, config.compressed);
+          // Unified export-volume metric: the actual uploaded volume per
+          // source (post-gzip size for compressed formats, raw/parquet size
+          // otherwise). destination_type (S3 / S3_COMPATIBLE / AZURE_*) splits
+          // the egress by data-transfer cost in the Datadog dashboard.
+          recordExportVolume({
+            integration: "blob_storage",
+            bytes: compressedCounter
+              ? compressedCounter.bytes
+              : serializedCounter.bytes,
             projectId: config.projectId,
-            path: passthroughEligible ? "passthrough" : "standard",
-            compressed: compressedCounter ? "true" : "false",
-          };
-          recordIncrement(
-            "langfuse.blob_export.serialized_bytes",
-            serializedCounter.bytes,
-            byteTags,
-          );
-          if (compressedCounter && gzipStats) {
-            recordIncrement(
-              "langfuse.blob_export.compressed_bytes",
-              compressedCounter.bytes,
-              { ...byteTags, gzipLevel: gzipStats.level },
-            );
-          }
+            destinationType: config.type,
+            source: exportFormat,
+            table: config.table,
+            path: exportPath,
+          });
 
           const uploadDurationMs = uploadDurationMsFinal;
+          // Parquet's source counter sits at the upload boundary, so strip its
+          // backpressure to recover pure CH read (no-op elsewhere: gzip isolates
+          // CH read in chStats, and backpressureMs is 0 on every other path).
           const chReadMs = Math.round(
-            chStats ? chStats.sourceWaitMs : sourceStats.sourceWaitMs,
+            Math.max(
+              0,
+              (chStats ? chStats.sourceWaitMs : sourceStats.sourceWaitMs) -
+                (chStats ? 0 : sourceStats.backpressureMs),
+            ),
           );
           const enrichMs = chStats
             ? Math.max(
@@ -661,14 +808,17 @@ const processBlobStorageExport = async (config: {
                 Math.round(gzipStats.activeMs - gzipStats.backpressureMs),
               )
             : 0;
+          // Measured backpressure (gzip / parquet boundary), else duration residual.
           const uploadWaitMs = gzipStats
             ? Math.round(gzipStats.backpressureMs)
-            : Math.max(0, uploadDurationMs - chReadMs - enrichMs);
+            : parquetEligible
+              ? Math.round(sourceStats.backpressureMs)
+              : Math.max(0, uploadDurationMs - chReadMs - enrichMs);
 
           logger.info(
             `[BLOB INTEGRATION] Successfully exported ${config.table} for project ${config.projectId}: ` +
               `jobId=${config.bullmqJobId} attemptsMade=${config.bullmqAttemptsMade} host=${WORKER_HOST_ID} ` +
-              `path=${passthroughEligible ? "passthrough" : "standard"} ` +
+              `path=${exportPath} ` +
               `rows=${sourceStats.rows} chReadMs=${chReadMs} enrichMs=${enrichMs} ` +
               `gzipCpuMs=${gzipCpuMs} uploadWaitMs=${uploadWaitMs} ` +
               `serializedBytes=${serializedCounter.bytes} uploadDurationMs=${uploadDurationMs} ` +
@@ -685,8 +835,13 @@ const processBlobStorageExport = async (config: {
           );
         } finally {
           span.setAttribute("blob.rows", sourceStats.rows);
+          // Same chReadMs / uploadWaitMs derivation as the success path above.
           const finalChReadMs = Math.round(
-            chStats ? chStats.sourceWaitMs : sourceStats.sourceWaitMs,
+            Math.max(
+              0,
+              (chStats ? chStats.sourceWaitMs : sourceStats.sourceWaitMs) -
+                (chStats ? 0 : sourceStats.backpressureMs),
+            ),
           );
           const finalEnrichMs = chStats
             ? Math.max(
@@ -702,44 +857,54 @@ const processBlobStorageExport = async (config: {
               uploadDurationMsFinal ??
               Math.round(performance.now() - uploadStartMs);
             span.setAttribute("blob.uploadDurationMs", totalUploadMs);
-            if (uploadSucceeded) {
-              const finalGzipCpuMs = gzipStats
-                ? Math.max(
-                    0,
-                    Math.round(gzipStats.activeMs - gzipStats.backpressureMs),
-                  )
-                : 0;
-              const finalUploadWaitMs = gzipStats
-                ? Math.round(gzipStats.backpressureMs)
+            // Emit stage timings on both success and failure. On failure the
+            // values are partial (the upload aborted mid-stream), so an
+            // `outcome` tag keeps them out of the happy-path percentiles while
+            // still capturing where a failed export spent its time.
+            const finalGzipCpuMs = gzipStats
+              ? Math.max(
+                  0,
+                  Math.round(gzipStats.activeMs - gzipStats.backpressureMs),
+                )
+              : 0;
+            const finalUploadWaitMs = gzipStats
+              ? Math.round(gzipStats.backpressureMs)
+              : parquetEligible
+                ? Math.round(sourceStats.backpressureMs)
                 : Math.max(0, totalUploadMs - finalChReadMs - finalEnrichMs);
-              span.setAttribute("blob.gzipCpuMs", finalGzipCpuMs);
-              span.setAttribute("blob.uploadWaitMs", finalUploadWaitMs);
-              const stageTags = {
-                table: config.table,
-                path: passthroughEligible ? "passthrough" : "standard",
-                compressed: config.compressed ? "true" : "false",
-              };
-              recordHistogram(
-                "langfuse.blob_export.ch_read_ms",
-                finalChReadMs,
-                stageTags,
-              );
-              recordHistogram(
-                "langfuse.blob_export.enrich_ms",
-                finalEnrichMs,
-                stageTags,
-              );
-              recordHistogram(
-                "langfuse.blob_export.gzip_cpu_ms",
-                finalGzipCpuMs,
-                stageTags,
-              );
-              recordHistogram(
-                "langfuse.blob_export.upload_wait_ms",
-                finalUploadWaitMs,
-                stageTags,
-              );
-            }
+            span.setAttribute("blob.gzipCpuMs", finalGzipCpuMs);
+            span.setAttribute("blob.uploadWaitMs", finalUploadWaitMs);
+            const finalExportFormat = parquetEligible
+              ? BlobExportFormat.PARQUET
+              : resolveBlobExportFormat(config.fileType, config.compressed);
+            const stageTags = {
+              table: config.table,
+              path: exportPath,
+              source: finalExportFormat,
+              outcome: (uploadSucceeded
+                ? "success"
+                : "failure") satisfies BlobTableExportOutcome,
+            };
+            recordHistogram(
+              "langfuse.blob_export.ch_read_ms",
+              finalChReadMs,
+              stageTags,
+            );
+            recordHistogram(
+              "langfuse.blob_export.enrich_ms",
+              finalEnrichMs,
+              stageTags,
+            );
+            recordHistogram(
+              "langfuse.blob_export.gzip_cpu_ms",
+              finalGzipCpuMs,
+              stageTags,
+            );
+            recordHistogram(
+              "langfuse.blob_export.upload_wait_ms",
+              finalUploadWaitMs,
+              stageTags,
+            );
           }
           if (producesUploadStats) {
             span.setAttribute("blob.upload.parts", uploadStats.partsUploaded);
@@ -774,7 +939,7 @@ const processBlobStorageExport = async (config: {
 
             const metricTags = {
               table: config.table,
-              path: passthroughEligible ? "passthrough" : "standard",
+              path: exportPath,
               gzipLevel: gzipStats.level,
             };
             recordHistogram(
@@ -795,17 +960,31 @@ const processBlobStorageExport = async (config: {
           }
         }
       } catch (error) {
+        // On SIGTERM, add a concrete shutdown record. It wins origin() only when
+        // no earlier concrete fault (e.g. a real CH exception) was recorded.
+        if (isSigtermReceived()) {
+          abortTracker.record("shutdown", error);
+        }
+        // Fall back to the propagated error if no stage recorded one.
+        const origin = abortTracker.origin() ?? classifyBlobExportError(error);
+
+        span.setAttribute("blob.abortReason", origin.reason);
+        span.setAttribute("blob.abortStage", origin.stage);
+
         // Skip if `success` already fired (a later step threw post-upload).
         if (!uploadSucceeded) {
           recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
             outcome: "failure" satisfies BlobTableExportOutcome,
+            abortReason: origin.reason,
             table: config.table,
             projectId: config.projectId,
           });
         }
         logger.error(
           `[BLOB INTEGRATION] Error exporting ${config.table} for project ${config.projectId} ` +
-            `(jobId=${config.bullmqJobId} attemptsMade=${config.bullmqAttemptsMade} host=${WORKER_HOST_ID})`,
+            `(jobId=${config.bullmqJobId} attemptsMade=${config.bullmqAttemptsMade} host=${WORKER_HOST_ID} ` +
+            `abortReason=${origin.reason} abortStage=${origin.stage}` +
+            `${origin.concrete ? "" : " attribution=best-effort"}): ${origin.chain}`,
           error,
         );
         throw error;
@@ -878,8 +1057,17 @@ export const handleBlobStorageIntegrationProjectJob = async (
     logger.info(
       `[BLOB INTEGRATION] Blob storage integration is disabled for project ${projectId}`,
     );
+    await prisma.blobStorageIntegration.update({
+      where: { projectId },
+      data: { runStartedAt: null },
+    });
     return;
   }
+
+  await prisma.blobStorageIntegration.update({
+    where: { projectId },
+    data: { runStartedAt: new Date() },
+  });
 
   // Sync between lastSyncAt and now - 30 minutes
   // Cap the export to one frequency period to enable chunked historic exports
@@ -920,6 +1108,15 @@ export const handleBlobStorageIntegrationProjectJob = async (
     logger.info(
       `[BLOB INTEGRATION] Skipping export for project ${projectId}: time window is empty (min: ${minTimestamp.toISOString()}, max: ${maxTimestamp.toISOString()})`,
     );
+    await prisma.blobStorageIntegration.update({
+      where: { projectId },
+      data: {
+        runStartedAt: null,
+        nextSyncAt: new Date(now.getTime() + frequencyIntervalMs),
+        lastError: null,
+        lastErrorAt: null,
+      },
+    });
     return;
   }
 
@@ -988,6 +1185,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       exportFieldGroups:
         blobStorageIntegration.exportFieldGroups as ObservationFieldGroupFull[],
       rawPassthrough: exportTuning.rawPassthrough,
+      parquet: exportTuning.parquet,
       partSizeBytes: exportTuning.partSizeBytes,
       maxConcurrentParts: exportTuning.maxConcurrentParts,
       maxPartAttempts: exportTuning.maxPartAttempts,
@@ -1020,6 +1218,12 @@ export const handleBlobStorageIntegrationProjectJob = async (
           `Passthrough requires JSONL output of observations or observations_v2.`,
       );
     }
+
+    // Elapsed time spent exporting this one window's data, used to detect
+    // exporters that can't keep up (see metric emit below). Monotonic
+    // performance.now() — matches the file's other deltas and avoids a clock
+    // step (NTP/suspend) producing a negative duration.
+    const exportStartedAt = performance.now();
 
     if (isTraceOnlyProject) {
       // Only process traces table for projects in the trace-only list (legacy behavior)
@@ -1067,8 +1271,35 @@ export const handleBlobStorageIntegrationProjectJob = async (
       await Promise.all(processPromises);
     }
 
+    const exportDurationMs = performance.now() - exportStartedAt;
+
     // Determine if we've caught up with present-day data
     const caughtUp = maxTimestamp.getTime() >= uncappedMaxTimestamp.getTime();
+
+    // Falling-behind signal: how long it took to export one window's data
+    // relative to that window's scheduling cadence (the frequency interval).
+    // A ratio > 1 means a single run takes longer than the period it covers, so
+    // the exporter cannot keep up and lag grows over time. frequencyIntervalMs
+    // is the stable denominator the user reasons about ("exports every 20 min")
+    // — the actual data window collapses toward zero near the lag buffer in
+    // steady state and would make the ratio meaningless (LFE-10521). caughtUp
+    // is tagged so steady-state lag can be separated from expected back-to-back
+    // catch-up runs.
+    const durationTags = {
+      projectId,
+      exportFrequency: blobStorageIntegration.exportFrequency,
+      caughtUp: String(caughtUp),
+    };
+    recordHistogram(
+      "langfuse.blobstorage.window_export_duration_seconds",
+      exportDurationMs / 1000,
+      durationTags,
+    );
+    recordGauge(
+      "langfuse.blobstorage.window_export_duration_ratio",
+      exportDurationMs / frequencyIntervalMs,
+      durationTags,
+    );
 
     let nextSyncAt: Date;
     if (caughtUp) {
@@ -1095,6 +1326,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
         nextSyncAt,
         lastError: null,
         lastErrorAt: null,
+        runStartedAt: null,
       },
     });
 
@@ -1131,6 +1363,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
         data: {
           lastError: errorMessage,
           lastErrorAt: new Date(),
+          runStartedAt: null,
         },
       });
     } catch (persistError) {
@@ -1142,7 +1375,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
     notifyBlobStorageExportFailedInBackground(projectId);
 
-    const chain = formatErrorChain(error);
+    const chain = errorChainText(error);
     logger.error(
       `[BLOB INTEGRATION] Error processing blob storage integration for project ${projectId}: ${chain}`,
       error instanceof Error ? { stack: error.stack } : {},
@@ -1259,15 +1492,4 @@ function extractStorageErrorMessage(error: unknown): string {
 
   const full = details ? `${message} Details: ${details}` : message;
   return full.slice(0, 1000);
-}
-
-function formatErrorChain(error: unknown): string {
-  if (!(error instanceof Error)) return String(error);
-  const parts: string[] = [];
-  let current: unknown = error;
-  while (current instanceof Error) {
-    parts.push(current.message);
-    current = current.cause;
-  }
-  return parts.join(" caused by ");
 }

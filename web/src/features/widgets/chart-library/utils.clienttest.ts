@@ -1,4 +1,9 @@
-import { formatMetric } from "@/src/features/widgets/chart-library/utils";
+import {
+  formatMetric,
+  getDimensionSummaries,
+  getEvenTickInterval,
+} from "@/src/features/widgets/chart-library/utils";
+import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 
 describe("formatMetric", () => {
   it("keeps compact numeric formatting within maxCharacters", () => {
@@ -191,5 +196,87 @@ describe("formatMetric", () => {
     expect(formatMetric(0.00012, { style: "full", maxCharacters: 7 })).toEqual({
       main: "1.20e-4",
     });
+  });
+});
+
+describe("getDimensionSummaries", () => {
+  const point = (
+    time_dimension: string,
+    dimension: string | undefined,
+    metric: DataPoint["metric"],
+  ): DataPoint => ({ time_dimension, dimension, metric });
+
+  it("sums numeric values per series", () => {
+    const summaries = getDimensionSummaries([
+      point("t1", "service_a", 2),
+      point("t2", "service_a", 3),
+      point("t1", "service_b", 10),
+    ]);
+
+    expect(summaries.get("service_a")).toBe(5);
+    expect(summaries.get("service_b")).toBe(10);
+  });
+
+  it("treats 0 as a real value, not as missing data (LFE-10498)", () => {
+    const summaries = getDimensionSummaries([
+      point("t1", "service_c", 0),
+      point("t2", "service_c", 0),
+    ]);
+
+    // A series whose data sums to 0 must keep its 0 summary, not be dropped.
+    expect(summaries.get("service_c")).toBe(0);
+  });
+
+  it("reports series with no real data point as null, not 0 (LFE-10498)", () => {
+    const summaries = getDimensionSummaries([
+      // NaN/Infinity are not real data; the series has no finite metric.
+      point("t1", "service_missing", NaN),
+      point("t2", "service_missing", Infinity),
+    ]);
+
+    expect(summaries.get("service_missing")).toBeNull();
+  });
+
+  it("does not invent a value for a series that has data alongside non-finite points", () => {
+    const summaries = getDimensionSummaries([
+      point("t1", "service_a", NaN),
+      point("t2", "service_a", 4),
+    ]);
+
+    // The single finite point counts; the NaN is ignored.
+    expect(summaries.get("service_a")).toBe(4);
+  });
+
+  it("ignores the histogram tuple metric shape and rows without a dimension", () => {
+    const summaries = getDimensionSummaries([
+      point("t1", undefined, 5),
+      point("t1", "histo", [
+        [0, 1],
+        [1, 2],
+      ]),
+    ]);
+
+    expect(summaries.has("")).toBe(false);
+    expect(summaries.get("histo")).toBeNull();
+  });
+});
+
+describe("getEvenTickInterval", () => {
+  it("shows every tick when the point count fits the target", () => {
+    expect(getEvenTickInterval(7)).toBe(0);
+    expect(getEvenTickInterval(8)).toBe(0);
+    expect(getEvenTickInterval(0)).toBe(0);
+  });
+
+  it("skips ticks evenly past the target so gaps stay uniform", () => {
+    // 14 daily points -> show every 2nd (6/1, 6/3, … — no width-dependent drop).
+    expect(getEvenTickInterval(14)).toBe(1);
+    expect(getEvenTickInterval(9)).toBe(1);
+    expect(getEvenTickInterval(30)).toBe(3);
+  });
+
+  it("honors a custom max tick target", () => {
+    expect(getEvenTickInterval(12, 6)).toBe(1);
+    expect(getEvenTickInterval(6, 6)).toBe(0);
   });
 });

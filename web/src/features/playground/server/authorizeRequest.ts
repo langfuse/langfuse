@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { getAuthOptions } from "@/src/server/auth";
 import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
 import { ForbiddenError, UnauthorizedError } from "@langfuse/shared";
+import { hasProjectAccess } from "../../rbac/utils/checkProjectAccess";
 
 export type AuthorizeRequestResult = {
   userId: string;
@@ -17,6 +18,9 @@ export const authorizeRequestOrThrow = async (
 
   if (!isProjectMemberOrAdmin(session.user, projectId))
     throw new ForbiddenError("User is not a member of this project");
+
+  if (!hasProjectAccess({ session, projectId, scope: "playground:execute" }))
+    throw new ForbiddenError("Insufficient permissions to execute playground.");
 
   return { userId: session.user.id };
 };

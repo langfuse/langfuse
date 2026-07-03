@@ -104,13 +104,7 @@ export const generateDailyMetrics = async ({
             }
           : {}),
       },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "daily_metrics",
-        projectId,
-        operation_name: "generateDailyMetrics",
-      },
+      tags: { projectId },
       timestamp,
     },
     fn: async (input: {
@@ -182,13 +176,7 @@ export const getDailyMetricsCount = async ({
     projectId,
     input: {
       params: { ...appliedFilter.params, projectId },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "daily_metrics_count",
-        projectId,
-        operation_name: "getDailyMetricsCount",
-      },
+      tags: { projectId },
       timestamp,
     },
     fn: async (input: {

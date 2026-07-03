@@ -51,8 +51,8 @@ import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTabl
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BreakdownTooltip } from "@/src/components/trace/components/_shared/BreakdownToolTip";
-import { InfoIcon, LightbulbIcon, PlusCircle } from "lucide-react";
-import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog";
+import { InfoIcon, LightbulbIcon } from "lucide-react";
+import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Badge } from "@/src/components/ui/badge";
 import { type RowSelectionState } from "@tanstack/react-table";
@@ -104,6 +104,7 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { useSearchBarEnabled } from "@/src/features/search-bar/hooks/useSearchBarEnabled";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
+import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 
 export type EventsTableRow = {
@@ -188,6 +189,31 @@ export type EventsTableProps = {
   limitRows?: number;
   sessionId?: string;
 };
+
+// Build the start-time `FilterState` for an absolute date range (lower bound
+// always, upper bound when present). Shared by the live table-rows range and the
+// tick-decoupled facet-options range.
+const toStartTimeFilterState = (range?: TableDateRange): FilterState =>
+  range
+    ? [
+        {
+          column: "startTime",
+          type: "datetime",
+          operator: ">=",
+          value: range.from,
+        },
+        ...(range.to
+          ? [
+              {
+                column: "startTime",
+                type: "datetime",
+                operator: "<=",
+                value: range.to,
+              } as const,
+            ]
+          : []),
+      ]
+    : [];
 
 export default function ObservationsEventsTable({
   projectId,
@@ -317,6 +343,12 @@ export default function ObservationsEventsTable({
   );
 
   const [refreshTick, setRefreshTick] = useState(0);
+  // Facet options are not "live": the auto-refresh tick must keep updating the
+  // table rows without re-fetching facets (their values don't change tick to
+  // tick). They re-anchor only on a real scope change — a new time range or an
+  // explicit refresh — tracked by this separate tick, which the auto interval
+  // never bumps.
+  const [filterOptionsRefreshTick, setFilterOptionsRefreshTick] = useState(0);
 
   // Auto-increment refresh tick to force date range recalculation
   useEffect(() => {
@@ -329,6 +361,9 @@ export default function ObservationsEventsTable({
 
   const handleRefresh = useCallback(() => {
     setRefreshTick((t) => t + 1);
+    // An explicit refresh re-anchors the facets too (and invalidate refetches
+    // whatever is already open); the auto interval above does not.
+    setFilterOptionsRefreshTick((t) => t + 1);
     Promise.all([
       utils.events.all.invalidate(),
       utils.events.countAll.invalidate(),
@@ -344,40 +379,45 @@ export default function ObservationsEventsTable({
     return toAbsoluteTimeRange(timeRange) ?? undefined;
   }, [timeRange, refreshTick]);
 
+  // Same absolute range, but anchored to scope changes only (NOT the auto tick),
+  // so opening/keeping a facet open never re-fetches on a refresh interval.
+  const filterOptionsTableDateRange = useMemo(() => {
+    filterOptionsRefreshTick;
+    return toAbsoluteTimeRange(timeRange) ?? undefined;
+  }, [timeRange, filterOptionsRefreshTick]);
+
   const dateRange = externalDateRange ?? tableDateRange;
+  const filterOptionsDateRange =
+    externalDateRange ?? filterOptionsTableDateRange;
 
-  const dateRangeFilter: FilterState = dateRange
-    ? [
-        {
-          column: "startTime",
-          type: "datetime",
-          operator: ">=",
-          value: dateRange.from,
-        },
-        ...(dateRange.to
-          ? [
-              {
-                column: "startTime",
-                type: "datetime",
-                operator: "<=",
-                value: dateRange.to,
-              } as const,
-            ]
-          : []),
-      ]
-    : [];
+  const dateRangeFilter: FilterState = toStartTimeFilterState(dateRange);
 
-  const oldFilterState = inputFilterState.concat(dateRangeFilter);
+  // Facet options are scoped only by the time window (the facet hook reads just
+  // the start-time filters); use the tick-decoupled range so the auto refresh
+  // leaves them alone.
+  const oldFilterState = inputFilterState.concat(
+    toStartTimeFilterState(filterOptionsDateRange),
+  );
 
-  // Fetch filter options
-  const { filterOptions, isFilterOptionsPending } = useEventsFilterOptions({
+  // Fetch filter options. Lazy: start with the eagerly-visible facets and load
+  // the rest (high-cardinality userId/sessionId, model/prompt/score facets) only
+  // when a sidebar section is opened or a field is typed into the search bar.
+  const {
+    filterOptions,
+    isFilterOptionsPending,
+    erroredColumns,
+    loadingColumns,
+    requestColumns,
+  } = useEventsFilterOptions({
     projectId,
     oldFilterState,
+    lazy: true,
   });
 
   const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(() => {
     const baseOptions = {
       loading: isFilterOptionsPending,
+      loadingColumns,
       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
     };
 
@@ -401,13 +441,26 @@ export default function ObservationsEventsTable({
       stateLocation: "urlAndSessionStorage",
       sessionFilterContextId: projectId,
     };
-  }, [hideControls, isFilterOptionsPending, peekContext, projectId]);
+  }, [
+    hideControls,
+    isFilterOptionsPending,
+    loadingColumns,
+    peekContext,
+    projectId,
+  ]);
 
   const queryFilter = useSidebarFilterState(
     eventsFilterConfig,
     filterOptions,
     queryFilterOptions,
   );
+
+  // Lazy filter-options: load a facet's values when its sidebar section is
+  // expanded (also covers active filters, which auto-expand on mount). The
+  // request set only grows, so re-collapsing never re-fetches.
+  useEffect(() => {
+    requestColumns(queryFilter.expanded);
+  }, [queryFilter.expanded, requestColumns]);
 
   // Grammar search bar: an ADDITIONAL editor that coexists with the facet
   // sidebar, and the two stay in sync. Generally available on the v4 events
@@ -444,19 +497,21 @@ export default function ObservationsEventsTable({
     [filterOptions, isFilterOptionsPending],
   );
 
-  const { store: searchBarStore, commit: searchBarCommit } = useEventsSearchBar(
-    {
-      projectId,
-      enabled: searchBarMode,
-      filterState: queryFilter.explicitFilterState,
-      searchQuery,
-      searchType,
-      observed: observedOptions,
-      setFilterState: setFiltersWrapper,
-      setSearchQuery,
-      setSearchType,
-    },
-  );
+  const {
+    store: searchBarStore,
+    commit: searchBarCommit,
+    applyFilters: searchBarApplyFilters,
+  } = useEventsSearchBar({
+    projectId,
+    enabled: searchBarMode,
+    filterState: queryFilter.explicitFilterState,
+    searchQuery,
+    searchType,
+    observed: observedOptions,
+    setFilterState: setFiltersWrapper,
+    setSearchQuery,
+    setSearchType,
+  });
 
   // Disabled for now because perhaps confusing
   // const viewModeFilter: FilterState =
@@ -548,6 +603,27 @@ export default function ObservationsEventsTable({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [observations.status, observations.rows]);
+
+  // Project data context for the AI filter prompt: observed values (from
+  // filterOptions) + metadata keys sampled from the visible rows + the current
+  // result count, so the model maps NL onto real columns/values rather than
+  // guessing (e.g. `type:chat`). Reuses already-loaded data; only when the bar
+  // is active.
+  const aiDataContext = useMemo(() => {
+    if (!searchBarMode) return undefined;
+    // totalCount is only computed on "select all"; use the loaded/visible row
+    // count for the empty-vs-nonempty signal instead.
+    return buildAiContext({
+      observed: observedOptions,
+      sampleMetadata: (observations.rows ?? [])
+        .slice(0, 30)
+        .map((o) => o.metadata),
+      resultCount:
+        observations.status === "success"
+          ? (observations.rows?.length ?? 0)
+          : null,
+    });
+  }, [searchBarMode, observedOptions, observations.rows, observations.status]);
 
   const { scoreColumns, isLoading: isColumnLoading } =
     useScoreColumns<EventsTableRow>({
@@ -1137,36 +1213,13 @@ export default function ObservationsEventsTable({
         const model = row.getValue("providedModelName") as string;
         const modelId = row.getValue("modelId") as string | undefined;
 
-        if (!model) return null;
-
-        return modelId ? (
-          <TableIdOrName value={model} />
-        ) : (
-          <UpsertModelFormDialog
-            action="create"
+        return (
+          <ProvidedModelNameCell
+            modelName={model}
+            modelId={modelId}
             projectId={projectId}
-            prefilledModelData={{
-              modelName: model,
-              prices:
-                Object.keys(row.original.usageDetails).length > 0
-                  ? Object.keys(row.original.usageDetails)
-                      .filter((key) => key != "total")
-                      .reduce(
-                        (acc, key) => {
-                          acc[key] = 0.000001;
-                          return acc;
-                        },
-                        {} as Record<string, number>,
-                      )
-                  : undefined,
-            }}
-            className="cursor-pointer"
-          >
-            <span className="flex items-center gap-1">
-              <span>{model}</span>
-              <PlusCircle className="h-3 w-3" />
-            </span>
-          </UpsertModelFormDialog>
+            usageDetails={row.original.usageDetails}
+          />
         );
       },
     },
@@ -1202,6 +1255,7 @@ export default function ObservationsEventsTable({
           <Badge
             variant="secondary"
             className="max-w-fit truncate rounded-sm px-1 font-normal"
+            title={value}
           >
             {value}
           </Badge>
@@ -1496,6 +1550,10 @@ export default function ObservationsEventsTable({
                 store={searchBarStore}
                 commit={searchBarCommit}
                 observed={observedOptions}
+                erroredColumns={erroredColumns}
+                onApplyFilters={searchBarApplyFilters}
+                onRequestColumns={requestColumns}
+                aiDataContext={aiDataContext}
               />
             )}
             {/* Toolbar spanning full width */}
@@ -1605,7 +1663,9 @@ export default function ObservationsEventsTable({
                 pageSize: paginationState.limit,
                 pageIndex: paginationState.page - 1,
               }}
-              filterWithAI
+              // In bar mode AI filtering lives in the search bar ("Ask AI"),
+              // so the legacy wand is only offered when the bar is absent.
+              filterWithAI={!searchBarMode}
             />
           </div>
         )}
@@ -1618,7 +1678,9 @@ export default function ObservationsEventsTable({
               // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
               key={viewControllers.selectedViewId ?? "no-view"}
               queryFilter={queryFilter}
-              filterWithAI
+              // In bar mode AI filtering lives in the search bar; only offer the
+              // sidebar wand on non-bar surfaces (embedded scoped tables).
+              filterWithAI={!searchBarMode}
             />
           )}
 

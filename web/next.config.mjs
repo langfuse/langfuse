@@ -11,7 +11,9 @@ import { env } from "./src/env.mjs";
  * img-src https to allow loading images from SSO providers
  */
 // Dataset attachments PUT media directly to presigned storage URLs, so
-// connect-src must allow AWS S3 and the configured S3-compatible endpoint.
+// connect-src must allow AWS S3, Azure Blob Storage, GCS, and the configured
+// S3-compatible endpoint. The endpoint env var is only present at runtime in
+// official Docker images, so static wildcards cover the common providers too.
 const mediaUploadConnectSrc = (() => {
   const endpoint = env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT;
   if (!endpoint) return "";
@@ -35,7 +37,7 @@ const cspHeader = `
   base-uri 'self';
   form-action 'self' https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
   frame-ancestors 'none';
-  connect-src 'self' ${mediaUploadConnectSrc}https://*.langfuse.com https://*.langfuse.dev https://*.ingest.us.sentry.io https://*.sentry.io https://chat.uk.plain.com https://*.amazonaws.com https://prod-uk-services-attachm-attachmentsuploadbucket2-1l2e4906o2asm.s3.eu-west-2.amazonaws.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com https://graph.microsoft.com;
+  connect-src 'self' ${mediaUploadConnectSrc}https://*.langfuse.com https://*.langfuse.dev https://*.ingest.us.sentry.io https://*.sentry.io https://chat.uk.plain.com https://*.amazonaws.com https://*.blob.core.windows.net https://storage.googleapis.com https://prod-uk-services-attachm-attachmentsuploadbucket2-1l2e4906o2asm.s3.eu-west-2.amazonaws.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com https://graph.microsoft.com;
   media-src 'self' https: http://localhost:*;
   ${env.LANGFUSE_CSP_ENFORCE_HTTPS === "true" ? "upgrade-insecure-requests; block-all-mixed-content;" : ""}
   ${env.SENTRY_CSP_REPORT_URI ? `report-uri ${env.SENTRY_CSP_REPORT_URI}; report-to csp-endpoint;` : ""}
@@ -92,6 +94,12 @@ const nextConfig = {
     resolveAlias: {
       "@langfuse/shared": "./packages/shared/src",
     },
+    rules: {
+      "*.md": {
+        loaders: ["raw-loader"],
+        as: "*.js",
+      },
+    },
   },
   logging: {
     browserToTerminal: true,
@@ -111,6 +119,15 @@ const nextConfig = {
     defaultLocale: "en",
   },
   output: "standalone",
+
+  async rewrites() {
+    return [
+      {
+        source: "/.well-known/mcp.json",
+        destination: "/api/well-known/mcp.json",
+      },
+    ];
+  },
 
   async headers() {
     return [
@@ -216,6 +233,11 @@ const nextConfig = {
     // Exclude Datadog packages from webpack bundling to avoid issues
     // see: https://docs.datadoghq.com/tracing/trace_collection/automatic_instrumentation/dd_libraries/nodejs/#bundling-with-nextjs
     config.externals.push("@datadog/pprof", "dd-trace");
+
+    config.module.rules.push({
+      test: /\.md$/i,
+      type: "asset/source",
+    });
 
     // Setup in-source testing: https://vitest.dev/guide/in-source.html#other-bundlers
     config.plugins.push(

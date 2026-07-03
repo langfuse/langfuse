@@ -1,6 +1,6 @@
 import preview from "../../../../../.storybook/preview";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
   InAppAgentWindow,
   type InAppAgentWindowMessage,
@@ -30,7 +30,6 @@ function InAppAgentWindowStoryShell({
       floatingPanelHandle={floatingPanelHandle}
       isExpanded={isExpanded}
       panelRef={panelRef}
-      zIndex={1}
     >
       {children}
     </InAppAgentWindowShell>
@@ -431,8 +430,12 @@ const meta = preview.meta({
     hasMoreConversations: false,
     isLoadingMoreConversations: false,
     selectedConversationId: undefined,
+    onDeleteConversation: fn(),
     onLoadMoreConversations: fn(),
+    onOpenConversationHistory: fn(),
     onNewConversation: fn(),
+    onApproveToolCall: fn(),
+    onRejectToolCall: fn(),
     onSelectConversation: fn(),
     onClose: fn(),
     onExpandedChange: fn(),
@@ -441,6 +444,44 @@ const meta = preview.meta({
     showCloseButton: true,
   },
   render: (args) => <StatefulInAppAgentWindow {...args} />,
+});
+
+export const ToolApprovalRequired = meta.story({
+  args: {
+    isInputDisabled: true,
+    selectedConversationId: "conversation-1",
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Create a dataset for regression examples.",
+        },
+      },
+      {
+        id: "approval-1",
+        role: "assistant",
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              type: "tool",
+              name: "langfuse_upsertDataset",
+              args: JSON.stringify({
+                name: "regression-examples",
+                description: "Examples used for release regression tests",
+              }),
+              approval: {
+                id: "approval-1",
+                status: "pending",
+              },
+            },
+          ],
+        },
+      },
+    ],
+  },
 });
 
 export const Empty = meta.story({
@@ -760,3 +801,76 @@ export const Error = meta.story({
     ],
   },
 });
+
+export const RefocusAfterSubmit = {
+  name: "(Test) Refocus After Submit",
+  render: function Render(args: InAppAgentWindowProps) {
+    const [isExpanded, setIsExpanded] = useState(args.isExpanded);
+    const [isInputDisabled, setIsInputDisabled] = useState(false);
+    const [messages, setMessages] = useState<InAppAgentWindowMessage[]>([
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "Assistant answer",
+        },
+      },
+    ]);
+
+    return (
+      <InAppAgentWindowStoryShell isExpanded={isExpanded}>
+        {({ isHeaderDragHandleEnabled }) => (
+          <InAppAgentWindow
+            {...args}
+            isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
+            isExpanded={isExpanded}
+            isInputDisabled={isInputDisabled}
+            messages={messages}
+            onExpandedChange={(isExpanded) => {
+              setIsExpanded(isExpanded);
+              args.onExpandedChange(isExpanded);
+            }}
+            onSubmit={(input) => {
+              setIsInputDisabled(true);
+              window.setTimeout(() => {
+                setMessages((currentMessages) => [
+                  ...currentMessages,
+                  {
+                    id: `assistant-${currentMessages.length + 1}`,
+                    role: "assistant",
+                    content: {
+                      type: "text",
+                      text: `Answer for: ${input}`,
+                    },
+                  },
+                ]);
+                setIsInputDisabled(false);
+              }, 50);
+
+              args.onSubmit(input);
+              return true;
+            }}
+          />
+        )}
+      </InAppAgentWindowStoryShell>
+    );
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+    const textarea = canvas.getByLabelText("Ask the assistant a question");
+
+    await userEvent.type(textarea, "Check the latest latency regression");
+    await userEvent.click(canvas.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => {
+      expect(
+        canvas.getByText("Answer for: Check the latest latency regression"),
+      ).toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      expect(textarea).toHaveFocus();
+    });
+  },
+};

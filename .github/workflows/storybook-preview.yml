@@ -2,6 +2,9 @@ name: Storybook Preview
 
 on:
   workflow_dispatch: {}
+  push:
+    branches:
+      - main
   pull_request:
     types: [opened, reopened, synchronize, labeled]
 
@@ -16,6 +19,7 @@ jobs:
     name: Deploy Storybook preview
     runs-on: blacksmith-4vcpu-ubuntu-2404
     if: >-
+      (github.event_name == 'push' && github.ref_name == 'main') ||
       github.event_name == 'workflow_dispatch' ||
       (contains(github.event.pull_request.labels.*.name, 'storybook') &&
       github.event.pull_request.head.repo.full_name == github.repository &&
@@ -27,7 +31,7 @@ jobs:
     steps:
       - name: Resolve pull request number
         id: resolve-pr-number
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' && github.ref_name != 'main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -71,6 +75,7 @@ jobs:
         id: publish
         env:
           PR_NUMBER: ${{ github.event.pull_request.number || steps.resolve-pr-number.outputs.pr_number }}
+          STABLE_DEPLOYMENT: ${{ github.ref_name == 'main' && github.event_name != 'pull_request' }}
           VERCEL_ORG_ID: ${{ secrets.STORYBOOK_VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.STORYBOOK_VERCEL_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.STORYBOOK_VERCEL_TOKEN }}
@@ -98,13 +103,19 @@ jobs:
             exit 1
           fi
 
-          preview_alias="pr-${PR_NUMBER}-storybook.langfuse.vercel.app"
+          if [ "${STABLE_DEPLOYMENT}" = "true" ]; then
+            preview_alias="storybook.langfuse.vercel.app"
+          else
+            preview_alias="pr-${PR_NUMBER}-storybook.langfuse.vercel.app"
+          fi
+
           vercel alias set "${preview_url}" "${preview_alias}" --scope langfuse
           preview_url="https://${preview_alias}"
 
           echo "url=${preview_url}" >> "$GITHUB_OUTPUT"
 
       - name: Comment preview link
+        if: github.event_name == 'pull_request' || steps.resolve-pr-number.outputs.pr_number != ''
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           PREVIEW_URL: ${{ steps.publish.outputs.url }}

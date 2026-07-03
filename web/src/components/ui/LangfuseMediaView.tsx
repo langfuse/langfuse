@@ -69,15 +69,20 @@ export const LangfuseMediaView = ({
     };
   }
 
-  if (!mediaData)
+  if (!mediaData) {
+    const text = "Invalid Langfuse Media Tag";
+
     return (
       <div className="flex items-center gap-2">
-        <span title="Invalid Langfuse Media Tag">
+        <span title={text}>
           <ImageOff className="h-4 w-4" />
         </span>
-        <span className="truncate text-sm">Invalid Langfuse Media Tag</span>
+        <span className="truncate text-sm" title={text}>
+          {text}
+        </span>
       </div>
     );
+  }
 
   const { data } = api.media.getById.useQuery(
     {
@@ -122,9 +127,8 @@ export const LangfuseMediaView = ({
     return <AudioPlayer src={mediaUrl} />;
   } else if (mediaData.type.startsWith("video")) {
     return <VideoPlayer src={mediaUrl} />;
-  } else {
-    return <FileViewer src={mediaUrl} contentType={mediaData.type} />;
   }
+  return <FileViewer src={mediaUrl} contentType={mediaData.type} />;
 };
 
 function FileViewer({

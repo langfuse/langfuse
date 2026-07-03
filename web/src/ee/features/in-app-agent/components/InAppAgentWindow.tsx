@@ -9,6 +9,7 @@ import {
   Minus,
   Plus,
   SendHorizontal,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -31,6 +32,7 @@ import {
   type InAppAgentMessageRole,
 } from "./InAppAgentMessage";
 import type { InAppAgentMessageFeedbackValue } from "@/src/ee/features/in-app-agent/schema";
+import { InAppAgentToolCallCard } from "@/src/ee/features/in-app-agent/components/InAppAgentToolCallCard";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
@@ -94,8 +96,12 @@ export type InAppAgentWindowProps = {
   isLoadingMoreConversations: boolean;
   messages: InAppAgentWindowMessage[];
   onExpandedChange: (isExpanded: boolean) => void;
+  onDeleteConversation: (conversation: InAppAgentWindowConversation) => void;
   onLoadMoreConversations: () => void;
   onNewConversation: () => void;
+  onApproveToolCall: (approvalId: string) => Promise<void>;
+  onRejectToolCall: (approvalId: string) => Promise<void>;
+  onOpenConversationHistory: () => void;
   onSelectConversation: (conversationId: string) => void;
   onSubmit: (input: string) => boolean | Promise<boolean>;
   onSubmitFeedback: (params: {
@@ -105,7 +111,6 @@ export type InAppAgentWindowProps = {
     comment?: string | null;
   }) => Promise<void>;
   selectedConversationId: string | undefined;
-  zIndex?: number;
 } & InAppAgentWindowCloseButtonProps;
 
 export function InAppAgentWindow(props: InAppAgentWindowProps) {
@@ -118,21 +123,55 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     isInputDisabled,
     isLoadingMoreConversations,
     messages,
+    onDeleteConversation,
     onExpandedChange,
     onLoadMoreConversations,
     onNewConversation,
+    onApproveToolCall,
+    onRejectToolCall,
+    onOpenConversationHistory,
     onSelectConversation,
     onSubmit,
     onSubmitFeedback,
     selectedConversationId,
-    zIndex,
   } = props;
   const viewportRef = useRef<HTMLDivElement>(null);
   const isAutoScrollAttachedRef = useRef(true);
   const previousScrollTopRef = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const previousIsInputDisabledRef = useRef(isInputDisabled);
   const [input, setInput] = useState("");
+  const [isConversationHistoryOpen, setIsConversationHistoryOpen] =
+    useState(false);
   const hasUserMessage = messages.some((message) => message.role === "user");
+  const pendingToolCalls = messages.flatMap((message) =>
+    message.content.type === "toolGroup"
+      ? message.content.tools.filter((tool) => tool.approval)
+      : [],
+  );
+  const visibleMessages = messages
+    .map((message) => {
+      if (message.content.type !== "toolGroup") {
+        return message;
+      }
+
+      const visibleTools = message.content.tools.filter(
+        (tool) => !tool.approval,
+      );
+
+      if (visibleTools.length === 0) {
+        return null;
+      }
+
+      return {
+        ...message,
+        content: {
+          ...message.content,
+          tools: visibleTools,
+        },
+      } satisfies InAppAgentWindowMessage;
+    })
+    .filter((message): message is InAppAgentWindowMessage => message !== null);
 
   const submitInput = (content: string) => {
     const trimmedContent = content.trim();
@@ -174,6 +213,17 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   }, [selectedConversationId]);
 
   useEffect(() => {
+    const wasInputDisabled = previousIsInputDisabledRef.current;
+    previousIsInputDisabledRef.current = isInputDisabled;
+
+    if (!wasInputDisabled || isInputDisabled) {
+      return;
+    }
+
+    inputRef.current?.focus();
+  }, [isInputDisabled]);
+
+  useEffect(() => {
     const input = inputRef.current;
 
     if (!input) {
@@ -199,7 +249,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         )}
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <p className="shrink-0 truncate text-sm font-semibold">Assistant</p>
+          <p
+            className="shrink-0 truncate text-sm font-semibold"
+            title="Assistant"
+          >
+            Assistant
+          </p>
           <span className="text-muted-foreground rounded border px-1.5 py-1 text-xs leading-none font-medium">
             Beta
           </span>
@@ -224,7 +279,16 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             </TooltipTrigger>
             <TooltipContent>Start new conversation</TooltipContent>
           </Tooltip>
-          <DropdownMenu>
+          <DropdownMenu
+            open={isConversationHistoryOpen}
+            onOpenChange={(nextOpen) => {
+              setIsConversationHistoryOpen(nextOpen);
+
+              if (nextOpen) {
+                onOpenConversationHistory();
+              }
+            }}
+          >
             <Tooltip delayDuration={100} disableHoverableContent>
               <TooltipTrigger asChild>
                 <DropdownMenuTrigger asChild>
@@ -245,9 +309,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             <DropdownMenuContent
               align="end"
               className="max-h-80 w-64 overflow-y-auto"
-              style={
-                typeof zIndex === "number" ? { zIndex: zIndex + 1 } : undefined
-              }
             >
               <DropdownMenuLabel>Recent conversations</DropdownMenuLabel>
               <DropdownMenuSeparator />
@@ -256,19 +317,45 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   No conversations yet
                 </DropdownMenuItem>
               ) : (
-                conversations.map((conversation) => (
-                  <DropdownMenuItem
-                    key={conversation.id}
-                    className={cn(
-                      "truncate",
-                      conversation.id === selectedConversationId &&
-                        "bg-accent text-accent-foreground",
-                    )}
-                    onSelect={() => onSelectConversation(conversation.id)}
-                  >
-                    {conversation.title?.trim() || "Untitled conversation"}
-                  </DropdownMenuItem>
-                ))
+                conversations.map((conversation) => {
+                  const conversationTitle =
+                    conversation.title?.trim() || "Untitled conversation";
+
+                  return (
+                    <DropdownMenuItem
+                      key={conversation.id}
+                      className={cn(
+                        "flex items-center gap-1",
+                        conversation.id === selectedConversationId &&
+                          "bg-accent text-accent-foreground",
+                      )}
+                      onSelect={() => onSelectConversation(conversation.id)}
+                    >
+                      <span
+                        className="min-w-0 flex-1 truncate"
+                        title={conversationTitle}
+                      >
+                        {conversationTitle}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        className="text-muted-foreground hover:text-destructive -mr-1.5 shrink-0"
+                        disabled={isInputDisabled}
+                        aria-label="Delete conversation"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setIsConversationHistoryOpen(false);
+                          onDeleteConversation(conversation);
+                        }}
+                      >
+                        <Trash2 className="size-3" />
+                      </Button>
+                    </DropdownMenuItem>
+                  );
+                })
               )}
               {hasMoreConversations ? (
                 <>
@@ -390,20 +477,20 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             ) : null}
 
             <ol className="flex w-full flex-col gap-3 pb-4">
-              {messages.map((message, index) => {
+              {visibleMessages.map((message, index) => {
                 const hasFullWidthContent =
                   message.content.type === "toolGroup" ||
                   message.content.type === "redirectAction";
 
-                const nextUserMessageIndex = messages.findIndex(
+                const nextUserMessageIndex = visibleMessages.findIndex(
                   (nextMessage, nextIndex) =>
                     nextIndex > index && nextMessage.role === "user",
                 );
                 const nextTurnStartIndex =
                   nextUserMessageIndex === -1
-                    ? messages.length
+                    ? visibleMessages.length
                     : nextUserMessageIndex;
-                const isLastMessageOfTurn = messages
+                const isLastMessageOfTurn = visibleMessages
                   .slice(index + 1, nextTurnStartIndex)
                   .every((nextMessage) => nextMessage.role !== "assistant");
                 const feedbackRunId =
@@ -427,7 +514,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       content={message.content}
                       isCompact={!isExpanded}
                       isFeedbackDisabled={isInputDisabled}
-                      windowZIndex={zIndex}
                       onSubmitFeedback={
                         feedbackRunId
                           ? (params) =>
@@ -457,6 +543,31 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             ) : null}
           </div>
         </div>
+        {pendingToolCalls.length > 0 ? (
+          <div
+            className={cn(
+              "shrink-0 pt-1.5",
+              isExpanded ? "px-1.5 pb-2" : "px-3 pb-2",
+            )}
+          >
+            <div
+              className={cn(
+                "flex flex-col gap-2",
+                isExpanded && "mx-auto max-w-3xl",
+              )}
+            >
+              {pendingToolCalls.map((tool, index) => (
+                <InAppAgentToolCallCard
+                  key={`${tool.approval?.id ?? tool.name}-${index}`}
+                  tool={tool}
+                  isCompact={!isExpanded}
+                  onApproveToolCall={onApproveToolCall}
+                  onRejectToolCall={onRejectToolCall}
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
         <div
           className={cn(
             "p-1.5",

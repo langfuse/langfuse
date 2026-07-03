@@ -9,6 +9,8 @@ import type {
 } from "recharts";
 
 import { cn } from "@/src/utils/tailwind";
+import { Layer } from "@/src/components/ui/layer";
+import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const;
@@ -150,6 +152,8 @@ const ChartTooltipContent = React.forwardRef<
       valueFormatter?: (value: number) => string;
       nameFormatter?: (name: string) => string;
       sortPayloadByValue?: "asc" | "desc";
+      /** dataKeys to emphasize (e.g. the hover-proximity series); their rows are bolded. */
+      highlightedKeys?: ReadonlySet<string>;
     }
 >(
   (
@@ -170,6 +174,7 @@ const ChartTooltipContent = React.forwardRef<
       valueFormatter,
       nameFormatter,
       sortPayloadByValue,
+      highlightedKeys,
     },
     ref,
   ) => {
@@ -239,18 +244,25 @@ const ChartTooltipContent = React.forwardRef<
           {displayPayload.map((item, index) => {
             const key = `${nameKey || item.name || item.dataKey || "value"}`;
             const itemConfig = getPayloadConfigFromPayload(config, item, key);
+            const itemDisplayName = nameFormatter
+              ? nameFormatter(String(item.name ?? item.dataKey ?? ""))
+              : itemConfig?.label || item.name;
+            const itemDisplayTitle = getPlainTextFromReactNode(itemDisplayName);
             const indicatorColor =
               color ||
               getFillColor(item.payload) ||
               item.color ||
               "currentColor";
+            const highlighted =
+              highlightedKeys?.has(String(item.dataKey ?? item.name ?? "")) ??
+              false;
 
             return (
               <div
                 key={String(item.dataKey ?? item.name ?? index)}
                 className={cn(
-                  "[&>svg]:text-muted-foreground flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5",
-                  indicator === "dot" && "items-center",
+                  "[&>svg]:text-muted-foreground flex w-full items-center gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5",
+                  highlighted && "bg-muted -mx-1.5 rounded px-1.5",
                 )}
               >
                 {formatter && item?.value !== undefined && item.name != null ? (
@@ -266,8 +278,11 @@ const ChartTooltipContent = React.forwardRef<
                             "border-border shrink-0 rounded-[2px] bg-(--color-bg)",
                             {
                               "h-2.5 w-2.5": indicator === "dot",
-                              "w-1": indicator === "line",
-                              "w-0 border-[1.5px] border-dashed bg-transparent":
+                              // line/dashed need an explicit height: the row is
+                              // items-center, so a height-less swatch collapses
+                              // to 0px and the series color is invisible.
+                              "h-2.5 w-1": indicator === "line",
+                              "h-2.5 w-0 border-[1.5px] border-dashed bg-transparent":
                                 indicator === "dashed",
                               "my-0.5": nestLabel && indicator === "dashed",
                             },
@@ -283,22 +298,24 @@ const ChartTooltipContent = React.forwardRef<
                     )}
                     <div
                       className={cn(
-                        "flex flex-1 justify-between gap-x-2 leading-none",
+                        "flex min-w-0 flex-1 justify-between gap-x-3 leading-none",
                         nestLabel ? "items-end" : "items-center",
                       )}
                     >
-                      <div className="grid gap-1.5">
+                      <div className="grid min-w-0 gap-1.5">
                         {nestLabel ? tooltipLabel : null}
-                        <span className="text-muted-foreground">
-                          {nameFormatter
-                            ? nameFormatter(
-                                String(item.name ?? item.dataKey ?? ""),
-                              )
-                            : itemConfig?.label || item.name}
+                        <span
+                          className={cn(
+                            "text-muted-foreground truncate",
+                            highlighted && "text-foreground font-medium",
+                          )}
+                          title={itemDisplayTitle}
+                        >
+                          {itemDisplayName}
                         </span>
                       </div>
                       {item.value !== undefined && item.value !== null && (
-                        <span className="text-foreground font-mono font-medium tabular-nums">
+                        <span className="text-foreground shrink-0 font-mono font-medium whitespace-nowrap tabular-nums">
                           {valueFormatter
                             ? valueFormatter(Number(item.value))
                             : item.value.toLocaleString()}
@@ -316,6 +333,67 @@ const ChartTooltipContent = React.forwardRef<
   },
 );
 ChartTooltipContent.displayName = "ChartTooltip";
+
+/**
+ * Renders a chart tooltip into the app's `tooltip` overlay layer (see
+ * `ui/layer.tsx`) so it escapes the chart card's `overflow` clipping and always
+ * paints on top — never cut off at the chart frame. Positioned at the hovered
+ * point (recharts' `coordinate`, relative to the chart box) translated to screen
+ * coordinates, and flipped to the left near the right edge of the viewport.
+ * (LFE-10549)
+ */
+function ChartTooltipPortal({
+  active,
+  coordinate,
+  anchorRef,
+  children,
+}: {
+  active?: boolean;
+  coordinate?: { x?: number; y?: number };
+  anchorRef: React.RefObject<HTMLElement | null>;
+  children: React.ReactNode;
+}) {
+  if (
+    !active ||
+    !coordinate ||
+    coordinate.x == null ||
+    coordinate.y == null ||
+    typeof window === "undefined"
+  ) {
+    return null;
+  }
+  const anchor = anchorRef.current;
+  if (!anchor) return null;
+  const rect = anchor.getBoundingClientRect();
+  const x = rect.left + coordinate.x;
+  const y = rect.top + coordinate.y;
+  // Flip past the cursor near the right edge; anchor the tooltip's bottom/top to
+  // the point near the viewport's bottom/top so a tall multi-series tooltip can't
+  // spill its rows out of view (the overlay layer no longer clips it). (LFE-10549)
+  const flipLeft = x > window.innerWidth * 0.6;
+  const translateY =
+    y > window.innerHeight * 0.65
+      ? "-100%"
+      : y < window.innerHeight * 0.2
+        ? "0%"
+        : "-50%";
+
+  return (
+    <Layer name="tooltip">
+      <div
+        style={{
+          position: "fixed",
+          left: x,
+          top: y,
+          transform: `translate(${flipLeft ? "calc(-100% - 14px)" : "14px"}, ${translateY})`,
+          pointerEvents: "none",
+        }}
+      >
+        {children}
+      </div>
+    </Layer>
+  );
+}
 
 type ChartLegendProps = React.ComponentProps<typeof RechartsPrimitive.Legend>;
 
@@ -349,6 +427,9 @@ function ChartActiveReferenceLine({
       strokeOpacity={strokeOpacity}
       ifOverflow="extendDomain"
       zIndex={zIndex}
+      // The crosshair must never intercept pointer events, otherwise it creates
+      // a dead "no-hover" strip down the middle of the hovered bar/point. (LFE-10549)
+      style={{ pointerEvents: "none" }}
     />
   );
 }
@@ -411,6 +492,7 @@ export {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
+  ChartTooltipPortal,
   ChartLegend,
   ChartActiveReferenceLine,
   useChart,

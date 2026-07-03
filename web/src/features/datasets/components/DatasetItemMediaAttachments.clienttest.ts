@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { collectMediaReferenceStrings } from "./DatasetItemMediaAttachments";
+import {
+  collectMediaReferenceStrings,
+  getMediaReferenceInsertRange,
+} from "./DatasetItemMediaAttachments";
 
 const imageRef =
   "@@@langfuseMedia:type=image/png|id=cc48838a-3da8-4ca4-a007-2cf8df930e69|source=bytes@@@";
@@ -37,5 +40,36 @@ describe("collectMediaReferenceStrings", () => {
         `{ "image": "${imageRef}",`,
       ]),
     ).toEqual([imageRef]);
+  });
+});
+
+describe("getMediaReferenceInsertRange", () => {
+  const doc = (value: string) => ({
+    length: value.length,
+    sliceString: (from: number, to?: number) => value.slice(from, to),
+  });
+
+  it("replaces an empty JSON string when the cursor is between the quotes", () => {
+    expect(
+      getMediaReferenceInsertRange(doc('{ "image": "" }'), 12, 12),
+    ).toEqual({ from: 11, to: 13 });
+  });
+
+  it("replaces a selected empty JSON string", () => {
+    expect(
+      getMediaReferenceInsertRange(doc('{ "image": "" }'), 11, 13),
+    ).toEqual({ from: 11, to: 13 });
+  });
+
+  it("keeps normal insertion ranges unchanged", () => {
+    expect(
+      getMediaReferenceInsertRange(doc('{ "image": null }'), 11, 15),
+    ).toEqual({ from: 11, to: 15 });
+  });
+
+  it("does not replace non-empty JSON string boundaries", () => {
+    expect(
+      getMediaReferenceInsertRange(doc('{ "image": "x" }'), 12, 12),
+    ).toEqual({ from: 12, to: 12 });
   });
 });

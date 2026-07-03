@@ -6,6 +6,64 @@ This document describes how table state (filters, sorting, pagination, search) i
 
 Peek views allow users to quickly preview table items in a side panel. When navigating between items using K/J shortcuts, tables inside the peek view remount, which would normally reset their state. The peek state management system prevents this by storing table state in a context that persists across navigation.
 
+## Panel shell, resize, and expand
+
+`TablePeekView` ([`../peek.tsx`](../peek.tsx)) is responsive and keeps the peek
+**on top of the table** (it does not split the layout):
+
+- **Desktop** — a docked-right, non-modal Radix dialog (no overlay), so the
+  table behind stays interactive. A left-edge handle resizes it; dragging to the
+  far edge (or the header Expand button) **expands** it to the max width
+  (viewport − sidebar; the sidebar stays visible).
+- **Mobile** (`useIsMobile`, <768px) — a `vaul` bottom drawer with native
+  swipe-down dismissal (Expand is hidden).
+
+Dismissal:
+
+- **Click-outside closes**, with exceptions: a target inside the peek
+  (`[data-peek-content]`) never closes it; clicking another table row
+  (`[data-row-index]`) **switches** the peeked item in place; and selection
+  checkboxes / `data-ignore-outside-interaction` regions / the table's
+  `ignoredSelectors` don't close it. Nested Radix popovers/menus opened inside
+  the peek don't close it (DismissableLayer stacking).
+- **Escape**, the close button, and (mobile) swipe-down also close.
+
+Panel state follows the local-feature-state pattern from
+`frontend-large-feature-architecture`:
+
+- [`store/peekPanelStore.ts`](./store/peekPanelStore.ts) — a per-mount vanilla
+  Zustand store (lazy `useState`) owning ONLY the widget width + transient drag
+  state, mutated through named `actions`. Selectors (`selectWidgetWidth`,
+  `selectIsResizing`, `selectDraftExpanded`) return primitives so subscriptions
+  bail out cheaply.
+- [`actions/resizePeekPanel.ts`](./actions/resizePeekPanel.ts) — the drag
+  workflow (window pointer listeners → store actions; on pointer-up commits a
+  widget width or flips the expanded flag). Takes the store instance, not hooks.
+- [`usePeekPanelState.ts`](./usePeekPanelState.ts) — the integration boundary:
+  owns the store, derives the final width (widget vs expanded — measuring the
+  sidebar offset for the expanded case), and wires drag/keyboard to the store +
+  action. Takes `isExpanded` in / `onExpandedChange` out (the URL owns expanded).
+
+State altitudes:
+
+| State       | Altitude                        | Where it lives                                                                                             |
+| ----------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| expanded    | route (shareable, reloadable)   | URL `peekView=expanded`, managed in `peek.tsx` (`router.replace`), cleared on close by `usePeekNavigation` |
+| width       | cross-view persisted preference | store `widthFraction`, mirrored to `localStorage` (`peekViewWidthFraction`)                                |
+| resize drag | high-frequency transient        | store `draftFraction` / `draftExpanded` / `isResizing`, committed on pointer-up                            |
+| which item  | route                           | the `peek` URL param (see below)                                                                           |
+
+The peek and the standalone trace page already share one beta-aware fetch
+([`../../trace/useTraceDetailData.ts`](../../trace/useTraceDetailData.ts)), one
+body + title
+([`../../trace/TraceDetailBody.tsx`](../../trace/TraceDetailBody.tsx) →
+`TraceDetailBody` / `traceDetailTitle`), and one action set
+([`../../trace/TraceDetailActions.tsx`](../../trace/TraceDetailActions.tsx) —
+star / publish / delete) — `usePeekData` is now a thin wrapper over the shared
+hook. **Next slice:** collapse the `<Trace context>` branching and fold these
+primitives into a single `TraceDetailSurface` wrapper so the peek and `TracePage`
+share one component, not four — see the PR discussion.
+
 ## Architecture
 
 The peek state architecture separates the persisting context provider from the remounting content:
