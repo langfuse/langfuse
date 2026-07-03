@@ -86,7 +86,11 @@ function joinPromptCoreAndMetricData(
 
 export default function PromptVersionTable({
   promptName: promptNameProp,
-}: { promptName?: string } = {}) {
+  // Defaults to true because this component always renders its own `Page`, so
+  // the header controls slot is available. Set false if ever embedded without
+  // a `Page` ancestor, to fall back to the toolbar.
+  showControlsInPageHeader = true,
+}: { promptName?: string; showControlsInPageHeader?: boolean } = {}) {
   const router = useRouter();
   const projectId = useProjectIdFromURL() ?? "";
   const promptNameFromQuery = router.query.promptName;
@@ -427,10 +431,17 @@ export default function PromptVersionTable({
         },
       }}
     >
-      <TableHeaderControls timeRange={timeRange} setTimeRange={setTimeRange} />
+      {showControlsInPageHeader && (
+        <TableHeaderControls
+          timeRange={timeRange}
+          setTimeRange={setTimeRange}
+        />
+      )}
       <div className="gap-3">
         <DataTableToolbar
           columns={columns}
+          timeRange={showControlsInPageHeader ? undefined : timeRange}
+          setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
           columnVisibility={columnVisibility}

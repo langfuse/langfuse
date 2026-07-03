@@ -112,13 +112,19 @@ export default function UsersPage() {
       {showOnboarding ? (
         <UsersOnboarding />
       ) : (
-        <UsersTable isBetaEnabled={isBetaEnabled} />
+        <UsersTable isBetaEnabled={isBetaEnabled} showControlsInPageHeader />
       )}
     </Page>
   );
 }
 
-const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
+const UsersTable = ({
+  isBetaEnabled,
+  showControlsInPageHeader = false,
+}: {
+  isBetaEnabled: boolean;
+  showControlsInPageHeader?: boolean;
+}) => {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
@@ -415,12 +421,19 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
 
   return (
     <>
-      <TableHeaderControls timeRange={timeRange} setTimeRange={setTimeRange} />
+      {showControlsInPageHeader && (
+        <TableHeaderControls
+          timeRange={timeRange}
+          setTimeRange={setTimeRange}
+        />
+      )}
       <DataTableToolbar
         filterColumnDefinition={usersTableCols}
         filterState={userFilterState}
         setFilterState={useDebounce(setUserFilterState)}
         columns={columns}
+        timeRange={showControlsInPageHeader ? undefined : timeRange}
+        setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
         searchConfig={{
           metadataSearchFields: ["User ID"],
           updateQuery: setSearchQuery,

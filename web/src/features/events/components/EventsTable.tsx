@@ -107,7 +107,6 @@ import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSea
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
-import { CategoryPresetChips } from "@/src/features/events/components/CategoryPresetChips";
 
 export type EventsTableRow = {
   // Identity fields
@@ -1635,16 +1634,6 @@ export default function ObservationsEventsTable({
               // so the legacy wand is only offered when the bar is absent.
               filterWithAI={!searchBarMode}
             />
-            <div className="mt-1.5">
-              <CategoryPresetChips
-                projectId={projectId}
-                activeViewId={
-                  viewControllers.appliedViewId ??
-                  viewControllers.selectedViewId
-                }
-                onApplyView={viewControllers.handleSetViewId}
-              />
-            </div>
           </div>
         )}
 
