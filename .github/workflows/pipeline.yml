@@ -851,10 +851,12 @@ jobs:
         # The SWC/Turbopack minifier can delete a binding that live code
         # still references, producing a production-only ReferenceError (the
         # LFE-10640 trace-peek crash). The build succeeds and next dev is
-        # unminified, so this scan of the emitted chunks is the only static
+        # unminified, so this scan of the emitted assets is the only static
         # layer that catches the class — including inside vendored
-        # dependencies. Analysis: LFE-10645.
-        run: node scripts/scan-client-bundle.mjs web/.next/static/chunks
+        # dependencies. Scans this job's build as a proxy: release images
+        # minify the same sources separately with different inlined
+        # NEXT_PUBLIC_* constants. Analysis: LFE-10645.
+        run: node scripts/scan-client-bundle.mjs web/.next/static
       - name: Wait for dev containers
         run: |
           timeout 300 bash -c 'until [ -f /tmp/compose-up.exit ]; do sleep 1; done' \
