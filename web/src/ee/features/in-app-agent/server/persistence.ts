@@ -579,24 +579,31 @@ export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
         type: event.type,
         messageId: getString(event, "messageId"),
         role: getString(event, "role"),
+        timestamp: getNumber(event, "timestamp"),
       });
+    case EventType.REASONING_MESSAGE_CHUNK:
     case EventType.REASONING_MESSAGE_CONTENT:
       return compactObject({
-        type: event.type,
+        type: EventType.REASONING_MESSAGE_CONTENT,
         messageId: getString(event, "messageId"),
         role: "reasoning",
         delta: getString(event, "delta") ?? "",
+        timestamp: getNumber(event, "timestamp"),
+        startedAt: getNumber(event, "startedAt"),
+        endedAt: getNumber(event, "endedAt"),
       });
     case EventType.REASONING_ENCRYPTED_VALUE:
       return compactObject({
         type: event.type,
         entityId: getString(event, "entityId"),
         encryptedValue: getString(event, "encryptedValue"),
+        timestamp: getNumber(event, "timestamp"),
       });
     case EventType.REASONING_MESSAGE_END:
       return compactObject({
         type: event.type,
         messageId: getString(event, "messageId"),
+        timestamp: getNumber(event, "timestamp"),
       });
     case EventType.TOOL_CALL_START:
       return compactObject({
@@ -663,7 +670,13 @@ export function createConversationMessageAccumulator(
   >();
   const reasoningDrafts = new Map<
     string,
-    { id: string; content: string; encryptedValue?: string }
+    {
+      id: string;
+      content: string;
+      encryptedValue?: string;
+      startedAt?: Date;
+      endedAt?: Date;
+    }
   >();
   const toolCallDrafts = new Map<
     string,
@@ -786,6 +799,32 @@ export function createConversationMessageAccumulator(
         textDrafts.delete(draft.id);
         return changed;
       }
+      case EventType.REASONING_MESSAGE_START: {
+        const messageId = getString(event, "messageId");
+
+        if (!messageId) {
+          break;
+        }
+
+        const existingDraft = reasoningDrafts.get(messageId);
+        reasoningDrafts.set(messageId, {
+          id: messageId,
+          content: existingDraft?.content ?? "",
+          ...(existingDraft?.encryptedValue
+            ? { encryptedValue: existingDraft.encryptedValue }
+            : {}),
+          ...((existingDraft?.startedAt ?? getDateFromEvent(event, "timestamp"))
+            ? {
+                startedAt:
+                  existingDraft?.startedAt ??
+                  getDateFromEvent(event, "timestamp"),
+              }
+            : {}),
+          ...(existingDraft?.endedAt ? { endedAt: existingDraft.endedAt } : {}),
+        });
+        break;
+      }
+      case EventType.REASONING_MESSAGE_CHUNK:
       case EventType.REASONING_MESSAGE_CONTENT: {
         const messageId = getString(event, "messageId");
 
@@ -801,9 +840,24 @@ export function createConversationMessageAccumulator(
         const draft = reasoningDrafts.get(messageId) ?? {
           id: messageId,
           content: existingContent,
+          ...((getDateFromEvent(event, "startedAt") ??
+          getDateFromEvent(event, "timestamp"))
+            ? {
+                startedAt:
+                  getDateFromEvent(event, "startedAt") ??
+                  getDateFromEvent(event, "timestamp"),
+              }
+            : {}),
         };
 
         draft.content += getString(event, "delta") ?? "";
+        draft.startedAt ??=
+          getDateFromEvent(event, "startedAt") ??
+          getDateFromEvent(event, "timestamp");
+        draft.endedAt =
+          getDateFromEvent(event, "endedAt") ??
+          getDateFromEvent(event, "timestamp") ??
+          draft.endedAt;
 
         const encryptedValue = getString(event, "encryptedValue");
         if (encryptedValue) {
@@ -818,6 +872,77 @@ export function createConversationMessageAccumulator(
           content: draft.content,
           ...(draft.encryptedValue
             ? { encryptedValue: draft.encryptedValue }
+            : {}),
+          ...(getReasoningDurationSeconds(draft)
+            ? { durationSeconds: getReasoningDurationSeconds(draft) }
+            : {}),
+        });
+      }
+      case EventType.REASONING_ENCRYPTED_VALUE: {
+        const entityId = getString(event, "entityId");
+
+        if (!entityId) {
+          break;
+        }
+
+        const existingIndex = messageIndexes.get(entityId);
+        const existingMessage =
+          existingIndex === undefined ? undefined : messages[existingIndex];
+        const draft = reasoningDrafts.get(entityId) ?? {
+          id: entityId,
+          content:
+            existingMessage?.role === "reasoning"
+              ? existingMessage.content
+              : "",
+          ...(getDateFromEvent(event, "timestamp")
+            ? { startedAt: getDateFromEvent(event, "timestamp") }
+            : {}),
+        };
+
+        draft.startedAt ??= getDateFromEvent(event, "timestamp");
+        draft.endedAt = getDateFromEvent(event, "timestamp") ?? draft.endedAt;
+
+        const encryptedValue = getString(event, "encryptedValue");
+        if (encryptedValue) {
+          draft.encryptedValue = encryptedValue;
+        }
+
+        reasoningDrafts.set(entityId, draft);
+
+        return upsertMessage({
+          id: draft.id,
+          role: "reasoning",
+          content: draft.content,
+          ...(draft.encryptedValue
+            ? { encryptedValue: draft.encryptedValue }
+            : {}),
+          ...(getReasoningDurationSeconds(draft)
+            ? { durationSeconds: getReasoningDurationSeconds(draft) }
+            : {}),
+        });
+      }
+      case EventType.REASONING_MESSAGE_END: {
+        const messageId = getString(event, "messageId");
+        const draft = messageId ? reasoningDrafts.get(messageId) : undefined;
+
+        if (!draft) {
+          break;
+        }
+
+        draft.endedAt =
+          getDateFromEvent(event, "timestamp") ??
+          draft.endedAt ??
+          draft.startedAt;
+
+        return upsertMessage({
+          id: draft.id,
+          role: "reasoning",
+          content: draft.content,
+          ...(draft.encryptedValue
+            ? { encryptedValue: draft.encryptedValue }
+            : {}),
+          ...(getReasoningDurationSeconds(draft)
+            ? { durationSeconds: getReasoningDurationSeconds(draft) }
             : {}),
         });
       }
@@ -1122,6 +1247,29 @@ function getTextChunkRole(event: unknown) {
   return role === undefined || role === "assistant" ? "assistant" : role;
 }
 
+function getReasoningDurationSeconds(draft: {
+  startedAt?: Date;
+  endedAt?: Date;
+}) {
+  if (!draft.startedAt || !draft.endedAt) {
+    return undefined;
+  }
+
+  return Math.max(
+    1,
+    Math.round((draft.endedAt.getTime() - draft.startedAt.getTime()) / 1000),
+  );
+}
+
+function getDateFromEvent(event: unknown, key: string): Date | undefined {
+  if (!isRecord(event)) {
+    return undefined;
+  }
+
+  const value = event[key];
+  return typeof value === "number" ? new Date(value) : undefined;
+}
+
 function getString(event: unknown, key: string): string | undefined {
   if (!isRecord(event)) {
     return undefined;
@@ -1129,6 +1277,15 @@ function getString(event: unknown, key: string): string | undefined {
 
   const value = event[key];
   return typeof value === "string" ? value : undefined;
+}
+
+function getNumber(event: unknown, key: string): number | undefined {
+  if (!isRecord(event)) {
+    return undefined;
+  }
+
+  const value = event[key];
+  return typeof value === "number" ? value : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

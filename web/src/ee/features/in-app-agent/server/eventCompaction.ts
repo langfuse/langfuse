@@ -32,12 +32,15 @@ export function compactTextMessageChunks(
         messageId: getString(event, "messageId"),
         role: "reasoning",
         delta: "",
+        ...(getNumber(event, "timestamp") !== undefined
+          ? { startedAt: getNumber(event, "timestamp") }
+          : {}),
       });
       continue;
     }
 
     if (
-      event.type === EventType.REASONING_MESSAGE_CONTENT &&
+      isReasoningContentEvent(event) &&
       previousEvent?.type === EventType.REASONING_MESSAGE_CONTENT &&
       getString(event, "messageId") === getString(previousEvent, "messageId")
     ) {
@@ -46,6 +49,12 @@ export function compactTextMessageChunks(
         delta:
           (getString(previousEvent, "delta") ?? "") +
           (getString(event, "delta") ?? ""),
+        ...(getNumber(event, "startedAt") !== undefined
+          ? { startedAt: getNumber(event, "startedAt") }
+          : {}),
+        ...(getNumber(event, "timestamp") !== undefined
+          ? { endedAt: getNumber(event, "timestamp") }
+          : {}),
       };
       continue;
     }
@@ -58,6 +67,9 @@ export function compactTextMessageChunks(
       compactedEvents[compactedEvents.length - 1] = {
         ...previousEvent,
         encryptedValue: getString(event, "encryptedValue"),
+        ...(getNumber(event, "timestamp") !== undefined
+          ? { endedAt: getNumber(event, "timestamp") }
+          : {}),
       };
       continue;
     }
@@ -67,6 +79,12 @@ export function compactTextMessageChunks(
       previousEvent?.type === EventType.REASONING_MESSAGE_CONTENT &&
       getString(event, "messageId") === getString(previousEvent, "messageId")
     ) {
+      compactedEvents[compactedEvents.length - 1] = {
+        ...previousEvent,
+        ...(getNumber(event, "timestamp") !== undefined
+          ? { endedAt: getNumber(event, "timestamp") }
+          : {}),
+      };
       continue;
     }
 
@@ -82,6 +100,13 @@ function getTextChunkRole(event: unknown) {
   return role === undefined || role === "assistant" ? "assistant" : role;
 }
 
+function isReasoningContentEvent(event: AgUiEvent) {
+  return (
+    event.type === EventType.REASONING_MESSAGE_CONTENT ||
+    event.type === EventType.REASONING_MESSAGE_CHUNK
+  );
+}
+
 function getString(event: unknown, key: string): string | undefined {
   if (!isRecord(event)) {
     return undefined;
@@ -89,6 +114,15 @@ function getString(event: unknown, key: string): string | undefined {
 
   const value = event[key];
   return typeof value === "string" ? value : undefined;
+}
+
+function getNumber(event: unknown, key: string): number | undefined {
+  if (!isRecord(event)) {
+    return undefined;
+  }
+
+  const value = event[key];
+  return typeof value === "number" ? value : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

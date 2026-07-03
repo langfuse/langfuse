@@ -141,6 +141,7 @@ export const AgUiMessageSchema = z.discriminatedUnion("role", [
     role: z.literal("reasoning"),
     content: z.string(),
     encryptedValue: z.string().optional(),
+    durationSeconds: z.number().int().positive().optional(),
   }),
 ]);
 

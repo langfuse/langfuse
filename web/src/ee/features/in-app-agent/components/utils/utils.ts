@@ -169,25 +169,15 @@ export function getDrawerMessages({
 
       const text = typeof message.content === "string" ? message.content : "";
 
-      if (!text.trim()) {
-        if (!isRunning || hasLaterAssistantMessage) {
-          return;
-        }
-
-        mappedMessages.push({
-          id: message.id,
-          role,
-          content: { type: "loading" },
-        });
-        return;
-      }
-
       mappedMessages.push({
         id: message.id,
         role,
         content: {
           type: "reasoning",
           text,
+          ...(message.durationSeconds !== undefined
+            ? { durationSeconds: message.durationSeconds }
+            : {}),
           ...(isRunning && !hasLaterAssistantMessage
             ? { isLoading: true }
             : {}),
@@ -389,6 +379,44 @@ export function getDrawerMessages({
   }
 
   return mappedMessages;
+}
+
+export function mergeLiveReasoningMessages(params: {
+  messages: readonly AgUiMessage[];
+  liveReasoningMessages: readonly Extract<AgUiMessage, { role: "reasoning" }>[];
+}) {
+  if (params.liveReasoningMessages.length === 0) {
+    return [...params.messages];
+  }
+
+  const existingMessageIds = new Set(
+    params.messages.map((message) => message.id),
+  );
+  const pendingReasoningMessages = params.liveReasoningMessages.filter(
+    (message) => !existingMessageIds.has(message.id),
+  );
+
+  if (pendingReasoningMessages.length === 0) {
+    return [...params.messages];
+  }
+
+  const latestUserMessageIndex = params.messages.findLastIndex(
+    (message) => message.role === "user",
+  );
+  const firstAssistantMessageIndexAfterLatestUser = params.messages.findIndex(
+    (message, index) =>
+      index > latestUserMessageIndex && message.role === "assistant",
+  );
+  const insertionIndex =
+    firstAssistantMessageIndexAfterLatestUser === -1
+      ? params.messages.length
+      : firstAssistantMessageIndexAfterLatestUser;
+
+  return [
+    ...params.messages.slice(0, insertionIndex),
+    ...pendingReasoningMessages,
+    ...params.messages.slice(insertionIndex),
+  ];
 }
 
 function stringifyToolArgs(args: unknown) {

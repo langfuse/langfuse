@@ -261,6 +261,14 @@ function ReasoningMessageBody({
   const [elapsedSeconds, setElapsedSeconds] = useState(
     content.durationSeconds ?? 0,
   );
+  const startedAtRef = useRef<number | null>(
+    content.isLoading ? Date.now() : null,
+  );
+  const hasText = content.text.trim().length > 0;
+
+  if (content.isLoading && startedAtRef.current === null) {
+    startedAtRef.current = Date.now();
+  }
 
   useEffect(() => {
     if (content.durationSeconds !== undefined) {
@@ -269,19 +277,28 @@ function ReasoningMessageBody({
     }
 
     if (!content.isLoading) {
+      if (startedAtRef.current !== null) {
+        setElapsedSeconds(
+          Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000)),
+        );
+        startedAtRef.current = null;
+      }
       return;
     }
 
     setElapsedSeconds(0);
 
-    const startedAt = Date.now();
+    const startedAt = startedAtRef.current ?? Date.now();
+    startedAtRef.current = startedAt;
     const intervalId = window.setInterval(() => {
       setElapsedSeconds(
         Math.max(1, Math.round((Date.now() - startedAt) / 1000)),
       );
     }, 1000);
 
-    return () => window.clearInterval(intervalId);
+    return () => {
+      window.clearInterval(intervalId);
+    };
   }, [content.durationSeconds, content.isLoading, content.text]);
 
   const summaryLabel = content.isLoading
@@ -289,6 +306,25 @@ function ReasoningMessageBody({
     : elapsedSeconds > 0
       ? `Thought for ${elapsedSeconds} second${elapsedSeconds === 1 ? "" : "s"}`
       : "Thought";
+
+  if (!hasText) {
+    return (
+      <div
+        className={cn(
+          "flex w-full items-center gap-1 text-left",
+          isCompact ? "text-[0.775rem]" : "text-sm",
+        )}
+      >
+        {content.isLoading ? (
+          <div className="min-w-0 flex-1">
+            <ThinkingIndicator label={summaryLabel} isCompact={isCompact} />
+          </div>
+        ) : (
+          <span>{summaryLabel}</span>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div>

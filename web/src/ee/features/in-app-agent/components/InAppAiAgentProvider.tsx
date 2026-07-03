@@ -24,6 +24,7 @@ import {
 } from "@/src/ee/features/in-app-agent/ids";
 import {
   AgUiMessageSchema,
+  type AgUiEvent,
   type AgUiMessage,
   type InAppAgentMessageFeedback,
   type InAppAgentMessageFeedbackValue,
@@ -38,6 +39,7 @@ import {
   createInAppAgentUserContext,
 } from "@/src/ee/features/in-app-agent/context";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { mergeLiveReasoningMessages } from "./utils/utils";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
@@ -88,6 +90,10 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
 };
 
 type InAppAiAgentMessage = AgUiMessage;
+type InAppAiAgentReasoningMessage = Extract<
+  InAppAiAgentMessage,
+  { role: "reasoning" }
+>;
 
 type InAppAiAgentFeedbackByConversationId = Record<
   string,
@@ -225,6 +231,7 @@ function InAppAiAgentProviderInner({
   const [error, setError] = useState<string | null>(null);
   const agentRef = useRef<HttpAgent | null>(null);
   const activeRunIdRef = useRef<string | null>(null);
+  const liveReasoningMessagesRef = useRef<InAppAiAgentReasoningMessage[]>([]);
   const intentionalAbortRef = useRef(false);
   const submitInFlightRef = useRef(false);
   const subscriptionRef = useRef<ReturnType<HttpAgent["subscribe"]> | null>(
@@ -308,6 +315,7 @@ function InAppAiAgentProviderInner({
     Boolean(selectedConversationId) &&
     conversationQuery.isLoading &&
     !conversationQuery.data;
+
   const updatePendingToolApprovals = useCallback(
     (
       updater: (
@@ -319,6 +327,105 @@ function InAppAiAgentProviderInner({
       setPendingToolApprovals(nextApprovals);
     },
     [],
+  );
+
+  const syncMessages = useCallback((agentMessages: readonly unknown[]) => {
+    setMessages(
+      attachActiveRunIdToAssistantMessages(
+        mergeLiveReasoningMessages({
+          messages: agentMessages.filter(isAgentConversationMessage),
+          liveReasoningMessages: liveReasoningMessagesRef.current,
+        }),
+        activeRunIdRef.current,
+      ),
+    );
+  }, []);
+
+  const upsertLiveReasoningMessage = useCallback(
+    (
+      messageId: string,
+      updater: (
+        currentMessage: InAppAiAgentReasoningMessage | undefined,
+      ) => InAppAiAgentReasoningMessage,
+    ) => {
+      const currentMessages = liveReasoningMessagesRef.current;
+      const existingIndex = currentMessages.findIndex(
+        (message) => message.id === messageId,
+      );
+      const currentMessage =
+        existingIndex === -1 ? undefined : currentMessages[existingIndex];
+      const nextMessage = updater(currentMessage);
+
+      if (existingIndex === -1) {
+        liveReasoningMessagesRef.current = [...currentMessages, nextMessage];
+        return;
+      }
+
+      const nextMessages = [...currentMessages];
+      nextMessages[existingIndex] = nextMessage;
+      liveReasoningMessagesRef.current = nextMessages;
+    },
+    [],
+  );
+
+  const applyLiveReasoningEvent = useCallback(
+    (event: AgUiEvent) => {
+      if (event.type === "REASONING_MESSAGE_START") {
+        const messageId = getEventString(event, "messageId");
+        if (!messageId) {
+          return;
+        }
+
+        upsertLiveReasoningMessage(messageId, (currentMessage) => ({
+          id: messageId,
+          role: "reasoning",
+          content: currentMessage?.content ?? "",
+          ...(currentMessage?.encryptedValue
+            ? { encryptedValue: currentMessage.encryptedValue }
+            : {}),
+        }));
+        return;
+      }
+
+      if (
+        event.type === "REASONING_MESSAGE_CONTENT" ||
+        event.type === "REASONING_MESSAGE_CHUNK"
+      ) {
+        const messageId = getEventString(event, "messageId");
+        if (!messageId) {
+          return;
+        }
+
+        upsertLiveReasoningMessage(messageId, (currentMessage) => ({
+          id: messageId,
+          role: "reasoning",
+          content:
+            (currentMessage?.content ?? "") +
+            (getEventString(event, "delta") ?? ""),
+          ...(currentMessage?.encryptedValue
+            ? { encryptedValue: currentMessage.encryptedValue }
+            : {}),
+        }));
+        return;
+      }
+
+      if (event.type === "REASONING_ENCRYPTED_VALUE") {
+        const entityId = getEventString(event, "entityId");
+        if (!entityId) {
+          return;
+        }
+
+        upsertLiveReasoningMessage(entityId, (currentMessage) => ({
+          id: entityId,
+          role: "reasoning",
+          content: currentMessage?.content ?? "",
+          ...(getEventString(event, "encryptedValue")
+            ? { encryptedValue: getEventString(event, "encryptedValue") }
+            : {}),
+        }));
+      }
+    },
+    [upsertLiveReasoningMessage],
   );
 
   const resetAgent = useCallback((options?: { preserveAgent?: boolean }) => {
@@ -335,6 +442,7 @@ function InAppAiAgentProviderInner({
     agentRef.current?.abortRun();
     agentRef.current = null;
     activeRunIdRef.current = null;
+    liveReasoningMessagesRef.current = [];
     pendingToolApprovalsRef.current = [];
     setPendingToolApprovals([]);
   }, []);
@@ -415,10 +523,16 @@ function InAppAiAgentProviderInner({
       if (subscriptionRef.current) {
         return;
       }
-
       subscriptionRef.current = agent.subscribe({
         onRunStartedEvent: ({ event }) => {
           activeRunIdRef.current = event.runId;
+        },
+        onEvent: ({ event }) => {
+          if (isReasoningEvent(event)) {
+            console.debug("[in-app-agent] reasoning event", event);
+          }
+          applyLiveReasoningEvent(event as AgUiEvent);
+          syncMessages(agent.messages);
         },
         onCustomEvent: ({ event }) => {
           const approvalRequest = parseInAppAgentInterruptEvent(event);
@@ -457,24 +571,38 @@ function InAppAiAgentProviderInner({
           console.error("In-app agent drawer run error", event);
         },
         onMessagesChanged: ({ messages }) => {
-          setMessages(
-            attachActiveRunIdToAssistantMessages(
-              messages.filter(isAgentConversationMessage),
-              activeRunIdRef.current,
-            ),
+          const reasoningMessages = messages.filter(
+            (message): message is AgUiMessage =>
+              isAgentConversationMessage(message) &&
+              message.role === "reasoning",
           );
+
+          if (reasoningMessages.length > 0) {
+            console.debug(
+              "[in-app-agent] reasoning messages changed",
+              reasoningMessages,
+            );
+          }
+          syncMessages(messages);
         },
         onStateChanged: ({ messages }) => {
-          setMessages(
-            attachActiveRunIdToAssistantMessages(
-              messages.filter(isAgentConversationMessage),
-              activeRunIdRef.current,
-            ),
+          const reasoningMessages = messages.filter(
+            (message): message is AgUiMessage =>
+              isAgentConversationMessage(message) &&
+              message.role === "reasoning",
           );
+
+          if (reasoningMessages.length > 0) {
+            console.debug(
+              "[in-app-agent] reasoning state changed",
+              reasoningMessages,
+            );
+          }
+          syncMessages(messages);
         },
       });
     },
-    [updatePendingToolApprovals],
+    [applyLiveReasoningEvent, syncMessages, updatePendingToolApprovals],
   );
 
   const getOrCreateAgent = useCallback(
@@ -555,7 +683,10 @@ function InAppAiAgentProviderInner({
           setIsRunning(false);
           setMessages(
             attachActiveRunIdToAssistantMessages(
-              agent.messages.filter(isAgentConversationMessage),
+              mergeLiveReasoningMessages({
+                messages: agent.messages.filter(isAgentConversationMessage),
+                liveReasoningMessages: liveReasoningMessagesRef.current,
+              }),
               runId,
             ),
           );
@@ -1040,6 +1171,15 @@ function parseInAppAgentInterruptEvent(event: unknown) {
   } satisfies InAppAgentToolApprovalRequest;
 }
 
+function getEventString(event: unknown, key: string): string | undefined {
+  if (!event || typeof event !== "object") {
+    return undefined;
+  }
+
+  const value = key in event ? event[key as keyof typeof event] : undefined;
+  return typeof value === "string" ? value : undefined;
+}
+
 function parseJson(value: string) {
   try {
     return JSON.parse(value) as unknown;
@@ -1071,6 +1211,16 @@ function getAgentErrorMessage(error: unknown): string {
   }
 
   return "Assistant request failed. Please try again.";
+}
+
+function isReasoningEvent(event: unknown): event is { type: string } {
+  return (
+    !!event &&
+    typeof event === "object" &&
+    "type" in event &&
+    typeof event.type === "string" &&
+    event.type.startsWith("REASONING")
+  );
 }
 
 export function useInAppAiAgent() {

@@ -1,5 +1,9 @@
 import type { AgUiMessage } from "@/src/ee/features/in-app-agent/schema";
-import { extractLangfuseDocsSources, getDrawerMessages } from "./utils";
+import {
+  extractLangfuseDocsSources,
+  getDrawerMessages,
+  mergeLiveReasoningMessages,
+} from "./utils";
 
 describe("extractLangfuseDocsSources", () => {
   it("extracts and deduplicates document sources from docs tool results", () => {
@@ -128,6 +132,36 @@ describe("extractLangfuseDocsSources", () => {
 });
 
 describe("getDrawerMessages", () => {
+  it("inserts live reasoning before the current turn assistant message", () => {
+    expect(
+      mergeLiveReasoningMessages({
+        messages: [
+          {
+            id: "user-1",
+            role: "user",
+            content: "Why is ingestion failing?",
+          },
+          {
+            id: "assistant-1",
+            role: "assistant",
+            content: "I found a retry storm caused by invalid credentials.",
+          },
+        ] satisfies AgUiMessage[],
+        liveReasoningMessages: [
+          {
+            id: "reasoning-1",
+            role: "reasoning",
+            content: "Checking recent ingestion failures",
+          },
+        ],
+      }),
+    ).toMatchObject([
+      { id: "user-1", role: "user" },
+      { id: "reasoning-1", role: "reasoning" },
+      { id: "assistant-1", role: "assistant" },
+    ]);
+  });
+
   it("attaches docs sources to the answer after a search preamble", () => {
     const docsResult = JSON.stringify({
       _meta: {
@@ -221,6 +255,68 @@ describe("getDrawerMessages", () => {
     ]);
 
     expect(mappedMessages[1]?.content).not.toHaveProperty("sources");
+  });
+
+  it("keeps empty reasoning visible as a thinking row while the run is active", () => {
+    const mappedMessages = getDrawerMessages({
+      error: null,
+      isRunning: true,
+      messages: [
+        {
+          id: "user-1",
+          role: "user",
+          content: "Why is this failing?",
+        },
+        {
+          id: "reasoning-1",
+          role: "reasoning",
+          content: "",
+        },
+      ] satisfies AgUiMessage[],
+    });
+
+    expect(mappedMessages).toMatchObject([
+      {
+        id: "user-1",
+        content: { type: "text", text: "Why is this failing?" },
+      },
+      {
+        id: "reasoning-1",
+        role: "assistant",
+        content: { type: "reasoning", text: "", isLoading: true },
+      },
+    ]);
+  });
+
+  it("keeps empty reasoning visible after the run completes", () => {
+    const mappedMessages = getDrawerMessages({
+      error: null,
+      isRunning: false,
+      messages: [
+        {
+          id: "user-1",
+          role: "user",
+          content: "Why is this failing?",
+        },
+        {
+          id: "reasoning-1",
+          role: "reasoning",
+          content: "",
+        },
+      ] satisfies AgUiMessage[],
+    });
+
+    expect(mappedMessages).toMatchObject([
+      {
+        id: "user-1",
+        content: { type: "text", text: "Why is this failing?" },
+      },
+      {
+        id: "reasoning-1",
+        role: "assistant",
+        content: { type: "reasoning", text: "" },
+      },
+    ]);
   });
 
   it("adds pending tool approvals as approval tool groups", () => {

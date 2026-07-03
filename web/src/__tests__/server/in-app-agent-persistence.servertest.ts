@@ -702,21 +702,25 @@ describe("in-app agent persistence", () => {
       type: EventType.REASONING_MESSAGE_START,
       messageId: "reasoning-1",
       role: "reasoning",
+      timestamp: 1_000,
     });
     await process({
       type: EventType.REASONING_MESSAGE_CONTENT,
       messageId: "reasoning-1",
       delta: "Checking filters",
+      timestamp: 2_000,
     });
     await process({
       type: EventType.REASONING_ENCRYPTED_VALUE,
       subtype: "message",
       entityId: "reasoning-1",
       encryptedValue: "encrypted-reasoning",
+      timestamp: 2_000,
     });
     await process({
       type: EventType.REASONING_MESSAGE_END,
       messageId: "reasoning-1",
+      timestamp: 2_000,
     });
     await process({
       type: EventType.ACTIVITY_SNAPSHOT,
@@ -760,6 +764,7 @@ describe("in-app agent persistence", () => {
           role: "reasoning",
           content: "Checking filters",
           encryptedValue: "encrypted-reasoning",
+          durationSeconds: 1,
         },
         {
           id: "activity-1",
@@ -804,6 +809,90 @@ describe("in-app agent persistence", () => {
         (event) => event.type === EventType.REASONING_MESSAGE_END,
       ),
     ).toBe(false);
+  });
+
+  it("stores and reduces reasoning chunk events", async () => {
+    const { projectId, userId, caller } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const run = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+
+    const events = await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      messageId: "chunk-user",
+      content: "Investigate failures",
+    });
+    const process = (event: AgUiEvent) =>
+      processAndPersistEvent({
+        projectId,
+        conversationId: conversation.id,
+        runId: run.id,
+        events,
+        event,
+      });
+
+    await process({
+      type: EventType.REASONING_MESSAGE_CHUNK,
+      messageId: "reasoning-chunk-1",
+      delta: "Checking ",
+      timestamp: 1_000,
+    });
+    await process({
+      type: EventType.REASONING_MESSAGE_CHUNK,
+      messageId: "reasoning-chunk-1",
+      delta: "filters",
+      timestamp: 2_000,
+    });
+    await process({
+      type: EventType.REASONING_ENCRYPTED_VALUE,
+      subtype: "message",
+      entityId: "reasoning-chunk-1",
+      encryptedValue: "encrypted-reasoning-chunk",
+      timestamp: 2_000,
+    });
+    await process({
+      type: EventType.REASONING_MESSAGE_END,
+      messageId: "reasoning-chunk-1",
+      timestamp: 2_000,
+    });
+
+    await expect(
+      caller.getConversation({ projectId, conversationId: conversation.id }),
+    ).resolves.toMatchObject({
+      messages: expect.arrayContaining([
+        {
+          id: "reasoning-chunk-1",
+          role: "reasoning",
+          content: "Checking filters",
+          encryptedValue: "encrypted-reasoning-chunk",
+          durationSeconds: 1,
+        },
+      ]),
+    });
+
+    const persistedEvents = await prisma.inAppAgentEvent.findMany({
+      where: { projectId, conversationId: conversation.id, runId: run.id },
+      orderBy: { sequenceNumber: "asc" },
+      select: { type: true, event: true },
+    });
+
+    const reasoningEvents = persistedEvents.filter(
+      (event) => event.type === EventType.REASONING_MESSAGE_CONTENT,
+    );
+
+    expect(reasoningEvents).toHaveLength(1);
+    expect(reasoningEvents[0]?.event).toMatchObject({
+      type: EventType.REASONING_MESSAGE_CONTENT,
+      messageId: "reasoning-chunk-1",
+      role: "reasoning",
+      delta: "Checking filters",
+      encryptedValue: "encrypted-reasoning-chunk",
+    });
   });
 
   it("stores only compact events and skips raw adapter payloads", async () => {
