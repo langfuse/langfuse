@@ -90,10 +90,6 @@ export type ExperimentsTableRow = {
 export type ExperimentsTableProps = {
   projectId: string;
   hideControls?: boolean;
-  /** Hide the toolbar time-range picker. Set by pages that render the picker
-   *  in the page header (TableTimeRangeHeaderPicker) — both read the same
-   *  shared per-project range, so embedded usages keep the toolbar picker. */
-  hideTimeRangePicker?: boolean;
   /** Default filters to apply on mount when no existing filters are set */
   defaultFilter?: FilterState;
   /** Hidden filters that scope the table but should not be user-visible */

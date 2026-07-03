@@ -184,10 +184,6 @@ export type EventsTableProps = {
   userId?: string;
   omittedFilter?: ObservationEventsOmittableFilterColumn[];
   hideControls?: boolean;
-  /** Hide the toolbar time-range picker. Set by pages that render the picker
-   *  in the page header (TableTimeRangeHeaderPicker) — both read the same
-   *  shared per-project range, so embedded usages keep the toolbar picker. */
-  hideTimeRangePicker?: boolean;
   // External control props for embedded preview tables
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
@@ -232,7 +228,6 @@ export default function ObservationsEventsTable({
   userId,
   omittedFilter = [],
   hideControls = false,
-  hideTimeRangePicker = false,
   externalFilterState,
   externalDateRange,
   limitRows,

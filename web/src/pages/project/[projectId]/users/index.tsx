@@ -141,9 +141,9 @@ const UsersTable = ({
     pageSize: withDefault(NumberParam, 50),
   });
 
-  // The picker lives in the page header (TableTimeRangeHeaderPicker); this
+  // The picker renders in the page header via the header controls slot; this
   // reads the same shared per-project range to filter the table.
-  const { timeRange } = useTableDateRange(projectId);
+  const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
   // Convert timeRange to absolute date range for compatibility
   const dateRange = useMemo(() => {
