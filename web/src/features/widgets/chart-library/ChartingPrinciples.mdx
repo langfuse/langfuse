@@ -1,0 +1,94 @@
+import { Meta, Canvas } from "@storybook/addon-docs/blocks";
+import * as Principles from "./ChartingPrinciples.stories";
+
+<Meta title="Design System/Charts/Principles" />
+
+# Charting Principles
+
+The data carries the weight. The frame stays quiet.
+
+A chart here is not a picture we compose by hand. It is the last step of a
+pipeline: **data -> prepare -> visualise -> pixels**. The renderer decides
+nothing. These eight moves are what the _prepare_ step decides so that any
+data, from one clean series to two hundred noisy ones, comes out legible.
+Argue with them in the preparer, never in the chart component.
+
+## 1. Draw what was measured
+
+Straight segments are the honest default because they claim only the points we
+have. A smooth curve **invents values that were never sampled**; use it only
+when you mean to. Stepped lines are for data that holds until it changes, like
+states or counters. The line is a record, not a decoration.
+
+<Canvas of={Principles.Interpolation} sourceState="none" />
+
+## 2. Missing is a gap, not a zero
+
+A null breaks the line. Substituting `0` to fill the hole manufactures a
+measurement that never happened, which is the single most common way a chart
+lies. Bridge a gap only when the series genuinely continues across it. Zero is
+a value, not a synonym for absence.
+
+<Canvas of={Principles.NullHandling} sourceState="none" />
+
+## 3. Show certainty in the ink
+
+A still-aggregating final bucket and a previous-period comparison are real, but
+they are **less certain** than confirmed history. Do not drop them and do not
+draw them as solid fact. Render them dotted and paled, and use that treatment
+consistently so a reader learns the grammar once.
+
+<Canvas of={Principles.Certainty} sourceState="none" />
+
+## 4. Hover is a timeline, not a panel
+
+The cursor between two points must never conjure a reading that is not there.
+The crosshair tracks the cursor, the value snaps to the nearest real sample,
+and near a gap the snap tightens so a tooltip never floats over emptiness.
+Charts on one time range share one vertical marker; only the chart under the
+cursor opens a tooltip.
+
+<Canvas of={Principles.HoverTimeline} sourceState="none" />
+
+## 5. Color is identity
+
+A series color belongs to the series, not to its position in a list. Derive it
+once and let the legend read it back so swatch and line can never diverge, and
+the same entity keeps its color across every chart on the board. The palette is
+bounded, and a colorblind-safe option always exists.
+
+## 6. Trust the scale
+
+Numbers, durations, bytes, percentages, currency, and dates each format by
+their kind and by the magnitude the scale chose. One unit per axis. Tick
+precision follows the scale, tooltip precision is capped for reading, and
+digits are tabular so they do not jitter. Do not out-clever the axis engine;
+format the spacing it gives you.
+
+<Canvas of={Principles.QuietChrome} sourceState="none" />
+
+## 7. Spend ink on data
+
+Faint horizontal gridlines, no axis spine, muted labels, no data-point dots by
+default, fills barely there, and no animation on the series. Every pixel of
+chrome is a pixel stolen from the data. The grid is scaffolding: build the
+building, then take the scaffolding down.
+
+## 8. Bound the frame, not the data
+
+Two hundred series is not a chart; it is a wall. Draw a legible top-N, roll it
+by magnitude, and state the truth in the open: _showing top 25 of 487_. Bound
+the legend, bound the density upstream at about one point per pixel, and never
+buy legibility by silently throwing data away where no one can see you do it.
+
+<Canvas of={Principles.BoundTheFrame} sourceState="none" />
+
+## Summary
+
+One adaptable pipeline. No special cases.
+
+Teach the preparer a new shape, never the component a new exception.
+
+The full architecture and the one-way **data -> prepare -> visualise** rule
+live in `web/src/features/widgets/chart-library/ARCHITECTURE.md`. For how
+overlays escape the chart frame, see `web/src/components/ui/layer.tsx`.

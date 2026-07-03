@@ -47,6 +47,47 @@ export const getUniqueDimensions = (data: DataPoint[]) => {
   return Array.from(uniqueDimensions);
 };
 
+/**
+ * Computes a per-dimension summary value (the sum of a series' numeric metric
+ * values) for use in chart legends. Intended for additive metrics only (event
+ * counts, token totals, cost); callers gate this behind `legendSummary="sum"`.
+ *
+ * The null/0 handling is deliberate and is the crux of LFE-10498: a `0` is a
+ * REAL value, so a series whose data points sum to `0` keeps its `0` summary.
+ * A series with no real data point (no finite numeric metric anywhere) is
+ * reported as `null` so the legend can omit a misleading number rather than
+ * inventing a `0`. Non-finite values (NaN/Infinity) and the histogram tuple
+ * shape are ignored.
+ *
+ * @returns a Map keyed by dimension; value is the numeric summary or `null`
+ *   when the series has no data.
+ */
+export const getDimensionSummaries = (
+  data: DataPoint[],
+): Map<string, number | null> => {
+  const summaries = new Map<string, number | null>();
+
+  for (const item of data) {
+    if (!item.dimension) continue;
+
+    const existing = summaries.has(item.dimension)
+      ? summaries.get(item.dimension)!
+      : null;
+
+    const metric = item.metric;
+    const hasValue = typeof metric === "number" && Number.isFinite(metric);
+
+    if (hasValue) {
+      summaries.set(item.dimension, (existing ?? 0) + metric);
+    } else if (!summaries.has(item.dimension)) {
+      // Track the dimension so it still appears, but without a value yet.
+      summaries.set(item.dimension, null);
+    }
+  }
+
+  return summaries;
+};
+
 export const isTimeSeriesChart = (
   chartType: DashboardWidgetChartType,
 ): boolean => {
@@ -70,6 +111,19 @@ export const isTimeSeriesChart = (
 // Used for a combination of YAxis styling workarounds as discussed in https://github.com/recharts/recharts/issues/2027#issuecomment-769674096.
 export const formatAxisLabel = (label: string): string =>
   label.length > 13 ? label.slice(0, 13).concat("…") : label;
+
+/**
+ * Picks a recharts numeric x-axis `interval` (= ticks skipped between two shown
+ * ticks) that yields UNIFORM gaps targeting ~`maxTicks` labels. We use this
+ * instead of `interval="preserveStartEnd"` + `minTickGap`, whose width-dependent
+ * collision dropping skips ticks unevenly (e.g. 6/9, 6/11, 6/13 vanish while
+ * 6/1–6/8 stay), making tick density vary by chart width. (LFE-10549)
+ */
+export const getEvenTickInterval = (
+  pointCount: number,
+  maxTicks = 8,
+): number =>
+  pointCount <= maxTicks ? 0 : Math.ceil(pointCount / maxTicks) - 1;
 
 /**
  * Maps chart types to their human-readable display names.

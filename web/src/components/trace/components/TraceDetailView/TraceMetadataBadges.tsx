@@ -17,13 +17,18 @@ export function SessionBadge({
   projectId: string;
 }) {
   if (!sessionId) return null;
+
+  const text = `Session: ${sessionId}`;
+
   return (
     <Link
       href={`/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`}
       className="inline-flex"
     >
       <Badge>
-        <span className="truncate">Session: {sessionId}</span>
+        <span className="truncate" title={text}>
+          {text}
+        </span>
         <ExternalLinkIcon className="ml-1 h-3 w-3" />
       </Badge>
     </Link>
@@ -38,13 +43,18 @@ export function UserIdBadge({
   projectId: string;
 }) {
   if (!userId) return null;
+
+  const text = `User ID: ${userId}`;
+
   return (
     <Link
       href={`/project/${projectId}/users/${encodeURIComponent(userId)}`}
       className="inline-flex"
     >
       <Badge>
-        <span className="truncate">User ID: {userId}</span>
+        <span className="truncate" title={text}>
+          {text}
+        </span>
         <ExternalLinkIcon className="ml-1 h-3 w-3" />
       </Badge>
     </Link>
@@ -59,13 +69,18 @@ export function TargetTraceBadge({
   projectId: string;
 }) {
   if (!targetTraceId) return null;
+
+  const text = `Target Trace: ${targetTraceId}`;
+
   return (
     <Link
       href={`/project/${projectId}/traces/${encodeURIComponent(targetTraceId)}`}
       className="inline-flex"
     >
       <Badge>
-        <span className="truncate">Target Trace: {targetTraceId}</span>
+        <span className="truncate" title={text}>
+          {text}
+        </span>
         <ExternalLinkIcon className="ml-1 h-3 w-3" />
       </Badge>
     </Link>

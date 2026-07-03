@@ -2,7 +2,11 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { type DateRange } from "react-day-picker";
 import { Calendar } from "@/src/components/ui/calendar";
-import { nextRangeForDayClick } from "@/src/components/date-picker";
+import {
+  isRangeWithinMaxDuration,
+  nextRangeForDayClick,
+} from "@/src/components/date-picker";
+import { setBeginningOfDay, setEndOfDay } from "@/src/utils/dates";
 
 /**
  * Regression coverage for LFE-8156. The range calendar used to feel "sticky":
@@ -48,6 +52,34 @@ describe("nextRangeForDayClick (LFE-8156)", () => {
     expect(
       nextRangeForDayClick({ from: jun(20), to: undefined }, jun(10)),
     ).toEqual({ from: jun(10), to: jun(20) });
+  });
+});
+
+describe("isRangeWithinMaxDuration", () => {
+  const maxThirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+
+  it("allows a range up to the configured maximum duration", () => {
+    expect(
+      isRangeWithinMaxDuration(
+        {
+          from: setBeginningOfDay(new Date(2026, 5, 1)),
+          to: setEndOfDay(new Date(2026, 5, 30)),
+        },
+        maxThirtyDaysMs,
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects a range longer than the configured maximum duration", () => {
+    expect(
+      isRangeWithinMaxDuration(
+        {
+          from: setBeginningOfDay(new Date(2026, 5, 1)),
+          to: setEndOfDay(new Date(2026, 6, 1)),
+        },
+        maxThirtyDaysMs,
+      ),
+    ).toBe(false);
   });
 });
 

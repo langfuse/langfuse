@@ -7,7 +7,6 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
-import { Select, SelectTrigger, SelectValue } from "@/src/components/ui/select";
 import {
   Command,
   CommandEmpty,
@@ -47,6 +46,61 @@ interface ChannelSelectorProps {
 }
 
 const ITEM_HEIGHT = 32;
+const MAX_SLACK_CHANNEL_PAGES = 20;
+
+const useSlackChannels = (projectId: string) => {
+  const {
+    data: channelsPages,
+    isLoading,
+    isFetching,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    error,
+    refetch: refetchChannels,
+  } = api.slack.getChannels.useInfiniteQuery(
+    { projectId },
+    {
+      enabled: !!projectId,
+      getNextPageParam: (lastPage, allPages) =>
+        allPages.length >= MAX_SLACK_CHANNEL_PAGES
+          ? undefined
+          : lastPage.nextCursor,
+      staleTime: 5 * 60 * 1000,
+    },
+  );
+
+  const channelsData = useMemo(() => {
+    const pages = channelsPages?.pages ?? [];
+    if (pages.length === 0) return null;
+
+    return {
+      channels: pages.flatMap((page) => page.channels),
+      hasPrivateChannelAccess: pages.every(
+        (page) => page.hasPrivateChannelAccess,
+      ),
+    };
+  }, [channelsPages?.pages]);
+
+  const isLoadingChannels =
+    isLoading || isFetchingNextPage || (isFetching && !channelsData);
+
+  // useInfiniteQuery stores page state, but next pages are only loaded when requested.
+  useEffect(() => {
+    if (error || !hasNextPage || isFetchingNextPage) return;
+
+    fetchNextPage().catch((error) => {
+      console.error("Failed to load next Slack channels page", error);
+    });
+  }, [error, fetchNextPage, hasNextPage, isFetchingNextPage]);
+
+  return {
+    channelsData,
+    isLoadingChannels,
+    error,
+    refetchChannels,
+  };
+};
 
 /**
  * A dropdown component for selecting Slack channels with search and filtering capabilities.
@@ -92,19 +146,8 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
   const effectiveName = trimmedSearch.replace(/^#/, "");
 
   // Get available channels
-  const {
-    data: channelsData,
-    isLoading,
-    error,
-    refetch: refetchChannels,
-  } = api.slack.getChannels.useQuery(
-    { projectId },
-    {
-      enabled: !!projectId,
-      // Keep data fresh
-      staleTime: 5 * 60 * 1000, // 5 minutes
-    },
-  );
+  const { channelsData, isLoadingChannels, error, refetchChannels } =
+    useSlackChannels(projectId);
 
   // Handle refresh
   const handleRefresh = async () => {
@@ -199,55 +242,11 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
       ) : (
         <Hash className="text-muted-foreground h-4 w-4" />
       )}
-      <span className="flex-1 truncate">{channel.name}</span>
+      <span className="flex-1 truncate" title={channel.name}>
+        {channel.name}
+      </span>
     </div>
   );
-
-  // Handle loading state
-  if (isLoading) {
-    return (
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Select disabled>
-            <SelectTrigger>
-              <SelectValue placeholder="Loading channels..." />
-            </SelectTrigger>
-          </Select>
-          {showRefreshButton && (
-            <Button variant="outline" size="sm" disabled>
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Handle error state
-  if (error) {
-    return (
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Select disabled>
-            <SelectTrigger>
-              <SelectValue placeholder="Error loading channels" />
-            </SelectTrigger>
-          </Select>
-          {showRefreshButton && (
-            <Button variant="outline" size="sm" onClick={handleRefresh}>
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-        <Alert>
-          <AlertDescription>
-            Failed to load channels. Please check your Slack connection and try
-            again.
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
 
   const hasExactMatch = filteredChannels.some(
     (channel) => channel.name.toLowerCase() === effectiveName.toLowerCase(),
@@ -298,15 +297,20 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
                       className="cursor-pointer"
                     >
                       <Hash className="text-muted-foreground h-4 w-4" />
-                      <span className="flex-1 truncate">
+                      <span
+                        className="flex-1 truncate"
+                        title={`Use &quot; ${effectiveName} &quot;`}
+                      >
                         Use &quot;{effectiveName}&quot;
                       </span>
                     </CommandItem>
                   </CommandGroup>
                 )}
-                {!canUseTypedName && filteredChannels.length === 0 && (
-                  <CommandEmpty>No channels available.</CommandEmpty>
-                )}
+                {!isLoadingChannels &&
+                  !canUseTypedName &&
+                  filteredChannels.length === 0 && (
+                    <CommandEmpty>No channels available.</CommandEmpty>
+                  )}
                 <CommandGroup
                   className="p-0"
                   style={{
@@ -335,6 +339,24 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
                     );
                   })}
                 </CommandGroup>
+                {isLoadingChannels && (
+                  <CommandGroup className="p-0">
+                    <CommandItem
+                      value="loading-slack-channels"
+                      disabled
+                      className="text-muted-foreground"
+                    >
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <span
+                        className="flex-1 truncate"
+                        title="Loading Slack channels. This can take a while for large workspaces."
+                      >
+                        Loading Slack channels. This can take a while for large
+                        workspaces.
+                      </span>
+                    </CommandItem>
+                  </CommandGroup>
+                )}
               </CommandList>
             </Command>
           </PopoverContent>
@@ -345,21 +367,30 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
             variant="outline"
             size="sm"
             onClick={handleRefresh}
-            disabled={disabled || isRefreshing}
+            disabled={disabled || isRefreshing || isLoadingChannels}
           >
             <RefreshCw
-              className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+              className={`h-4 w-4 ${isRefreshing || isLoadingChannels ? "animate-spin" : ""}`}
             />
           </Button>
         )}
       </div>
 
       {/* Channel stats */}
-      {channelsData?.channels && (
+      {channelsData?.channels && !isLoadingChannels ? (
         <div className="text-muted-foreground text-xs">
           {filteredChannels.length} of {channelsData.channels.length} channels
           {memberOnly && " (member only)"}
         </div>
+      ) : null}
+
+      {error && (
+        <Alert>
+          <AlertDescription>
+            Failed to load channels. You can still enter a channel name
+            manually, or check your Slack connection and try again.
+          </AlertDescription>
+        </Alert>
       )}
 
       {/* Private channel scope warning */}
