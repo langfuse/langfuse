@@ -1,7 +1,20 @@
 import {
   OtelIngestionProcessor,
   createIngestionEventSchema,
+  type OtelIngestionProcessorConfig,
 } from "@langfuse/shared/src/server";
+
+function createTestOtelProcessor(
+  config: Partial<OtelIngestionProcessorConfig> = {},
+) {
+  return new OtelIngestionProcessor({
+    projectId: "test-project",
+    publicKey: "",
+    sdkName: "",
+    sdkVersion: "",
+    ...config,
+  });
+}
 
 // Test helper function to maintain backward compatibility with existing tests
 // This mimics the old convertOtelSpanToIngestionEvent function signature
@@ -10,9 +23,8 @@ async function convertOtelSpanToIngestionEvent(
   seenTraces: Set<string>,
   publicKey?: string,
 ) {
-  const processor = new OtelIngestionProcessor({
-    projectId: "test-project",
-    publicKey,
+  const processor = createTestOtelProcessor({
+    publicKey: publicKey ?? "",
   });
 
   // For tests, we bypass Redis initialization and directly set the seen traces
@@ -1244,9 +1256,7 @@ describe("OTel Resource Span Mapping", () => {
           ],
         };
 
-        const processor = new OtelIngestionProcessor({
-          projectId: "test-project",
-        });
+        const processor = createTestOtelProcessor();
         const eventInputs = processor.processToEvent([resourceSpan]);
 
         expect(eventInputs).toHaveLength(1);
@@ -4470,9 +4480,7 @@ describe("OTel Resource Span Mapping", () => {
         observation?.body.metadata?.attributes?.["gen_ai.tool.definitions"],
       ).toBeUndefined();
 
-      const processor = new OtelIngestionProcessor({
-        projectId: "test-project",
-      });
+      const processor = createTestOtelProcessor();
       const eventInputs = processor.processToEvent([span]);
       expect(eventInputs).toHaveLength(1);
 
@@ -4574,9 +4582,7 @@ describe("OTel Resource Span Mapping", () => {
         tools,
       });
 
-      const processor = new OtelIngestionProcessor({
-        projectId: "test-project",
-      });
+      const processor = createTestOtelProcessor();
       const eventInputs = processor.processToEvent([resourceSpan]);
 
       expect(eventInputs).toHaveLength(1);
@@ -4898,9 +4904,7 @@ describe("OTel Resource Span Mapping", () => {
 
   describe("Span Counting", () => {
     it("should count spans correctly across multiple resource spans", () => {
-      const processor = new OtelIngestionProcessor({
-        projectId: "test-project",
-      });
+      const processor = createTestOtelProcessor();
 
       const resourceSpans = [
         {
@@ -4922,27 +4926,21 @@ describe("OTel Resource Span Mapping", () => {
     });
 
     it("should handle empty resource spans", () => {
-      const processor = new OtelIngestionProcessor({
-        projectId: "test-project",
-      });
+      const processor = createTestOtelProcessor();
 
       const count = (processor as any).getTotalSpanCount([]);
       expect(count).toBe(0);
     });
 
     it("should handle null/undefined resource spans", () => {
-      const processor = new OtelIngestionProcessor({
-        projectId: "test-project",
-      });
+      const processor = createTestOtelProcessor();
 
       expect((processor as any).getTotalSpanCount(null)).toBe(0);
       expect((processor as any).getTotalSpanCount(undefined)).toBe(0);
     });
 
     it("should handle malformed resource spans", () => {
-      const processor = new OtelIngestionProcessor({
-        projectId: "test-project",
-      });
+      const processor = createTestOtelProcessor();
 
       const resourceSpans = [
         { scopeSpans: null },
@@ -4963,9 +4961,7 @@ describe("OTel Resource Span Mapping", () => {
     });
 
     it("should return 0 for non-array input", () => {
-      const processor = new OtelIngestionProcessor({
-        projectId: "test-project",
-      });
+      const processor = createTestOtelProcessor();
 
       expect((processor as any).getTotalSpanCount("not-an-array")).toBe(0);
       expect((processor as any).getTotalSpanCount({})).toBe(0);
@@ -4973,9 +4969,7 @@ describe("OTel Resource Span Mapping", () => {
     });
 
     it("should handle deeply nested null/undefined structures", () => {
-      const processor = new OtelIngestionProcessor({
-        projectId: "test-project",
-      });
+      const processor = createTestOtelProcessor();
 
       const resourceSpans = [
         null,
@@ -4994,9 +4988,7 @@ describe("OTel Resource Span Mapping", () => {
     });
 
     it("should return -1 and not throw on unexpected errors", () => {
-      const processor = new OtelIngestionProcessor({
-        projectId: "test-project",
-      });
+      const processor = createTestOtelProcessor();
 
       // Create a malicious object that throws when accessed
       const maliciousResourceSpan = {
@@ -5117,9 +5109,7 @@ describe("OTel Resource Span Mapping", () => {
         ],
       };
 
-      const processor = new OtelIngestionProcessor({
-        projectId: "test-project",
-      });
+      const processor = createTestOtelProcessor();
       const eventInputs = processor.processToEvent([resourceSpan]);
       expect(eventInputs).toHaveLength(1);
       expect(eventInputs[0].startTimeISO).toBeDefined();
@@ -5176,9 +5166,7 @@ describe("OTel Resource Span Mapping", () => {
         ],
       };
 
-      const processor = new OtelIngestionProcessor({
-        projectId: "test-project",
-      });
+      const processor = createTestOtelProcessor();
       const eventInputs = processor.processToEvent([resourceSpan]);
       expect(eventInputs).toHaveLength(1);
       expect(eventInputs[0].startTimeISO).toBe(expectedISO);
@@ -5285,9 +5273,7 @@ describe("OTel Resource Span Mapping", () => {
         ],
       };
 
-      const processor = new OtelIngestionProcessor({
-        projectId: "test-project",
-      });
+      const processor = createTestOtelProcessor();
       const eventInputs = processor.processToEvent([resourceSpan]);
       expect(eventInputs).toHaveLength(1);
       expect(eventInputs[0].name).toBe("chat:generateText");

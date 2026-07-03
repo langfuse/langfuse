@@ -260,7 +260,10 @@ export const handleEventPropagationJob = async (
           created_at,
           updated_at,
           event_ts,
-          is_deleted
+          is_deleted,
+          ingestion_api_key,
+          ingestion_sdk_name,
+          ingestion_sdk_version
         )
         SELECT
           obs.project_id,
@@ -316,7 +319,10 @@ export const handleEventPropagationJob = async (
           obs.created_at,
           obs.updated_at,
           obs.event_ts,
-          obs.is_deleted
+          obs.is_deleted,
+          obs.ingestion_api_key AS ingestion_api_key,
+          obs.ingestion_sdk_name AS ingestion_sdk_name,
+          obs.ingestion_sdk_version AS ingestion_sdk_version
         FROM observations_batch_staging obs FINAL
         LEFT JOIN relevant_traces t
         ON (

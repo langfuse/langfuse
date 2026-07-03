@@ -120,6 +120,15 @@ const nextConfig = {
   },
   output: "standalone",
 
+  async rewrites() {
+    return [
+      {
+        source: "/.well-known/mcp.json",
+        destination: "/api/well-known/mcp.json",
+      },
+    ];
+  },
+
   async headers() {
     return [
       {

@@ -1,3 +1,11 @@
+vi.mock("@langfuse/shared/src/server", async () => {
+  const actual = await vi.importActual("@langfuse/shared/src/server");
+  return {
+    ...actual,
+    fetchLLMCompletion: vi.fn(),
+  };
+});
+
 import type { Session } from "next-auth";
 import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
@@ -5,7 +13,10 @@ import { vi } from "vitest";
 
 import type { Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import {
+  createOrgProjectAndApiKey,
+  fetchLLMCompletion,
+} from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import {
   createInAppAgentConversationId,
@@ -18,6 +29,7 @@ import {
   ensureOwnedConversation,
   finishRun,
   getConversationMessagesForReplay,
+  maybeInferAndPersistConversationTitle,
   replaceRunEvents,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
@@ -29,6 +41,8 @@ vi.mock("@/src/server/auth", () => ({
   getServerAuthSession: vi.fn(),
 }));
 
+const mockFetchLLMCompletion = vi.mocked(fetchLLMCompletion);
+
 describe("in-app agent persistence", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
 
@@ -38,6 +52,7 @@ describe("in-app agent persistence", () => {
 
   afterEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+    mockFetchLLMCompletion.mockReset();
   });
 
   const createCaller = async (
@@ -429,6 +444,86 @@ describe("in-app agent persistence", () => {
     expect(listedConversations.conversations.map((item) => item.id)).toContain(
       conversation.id,
     );
+  });
+
+  it("does not overwrite user-renamed conversation titles", async () => {
+    const originalBedrockSmallModel = env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL;
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+
+    await caller.renameConversation({
+      projectId,
+      conversationId: conversation.id,
+      title: "My custom title",
+    });
+
+    try {
+      (env as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = "small-title-model";
+
+      await maybeInferAndPersistConversationTitle({
+        prisma,
+        projectId,
+        conversationId: conversation.id,
+        userId,
+        aiTelemetryEnabled: false,
+      });
+
+      await expect(
+        prisma.inAppAgentConversation.findUniqueOrThrow({
+          where: { id_projectId: { id: conversation.id, projectId } },
+          select: { title: true, renamedByUserAt: true },
+        }),
+      ).resolves.toEqual({
+        title: "My custom title",
+        renamedByUserAt: expect.any(Date),
+      });
+      expect(mockFetchLLMCompletion).not.toHaveBeenCalled();
+    } finally {
+      (env as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = originalBedrockSmallModel;
+    }
+  });
+
+  it("keeps the default title when title generation fails", async () => {
+    const originalBedrockSmallModel = env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL;
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const originalTitle = conversation.title;
+    const run = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      messageId: "failed-title-user",
+      content: "Inspect latency regressions",
+    });
+
+    try {
+      (env as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = "small-title-model";
+      mockFetchLLMCompletion.mockRejectedValue(new Error("Bedrock failed"));
+
+      await expect(
+        maybeInferAndPersistConversationTitle({
+          prisma,
+          projectId,
+          conversationId: conversation.id,
+          userId,
+          aiTelemetryEnabled: false,
+        }),
+      ).resolves.toBeUndefined();
+
+      await expect(
+        prisma.inAppAgentConversation.findUniqueOrThrow({
+          where: { id_projectId: { id: conversation.id, projectId } },
+          select: { title: true },
+        }),
+      ).resolves.toEqual({ title: originalTitle });
+    } finally {
+      (env as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = originalBedrockSmallModel;
+    }
   });
 
   it("requires feedback run ids to match persisted assistant messages", async () => {
