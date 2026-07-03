@@ -17,7 +17,7 @@
  * - useTraceGraphData() - for the collapsed-by-default heuristic
  */
 
-import { useLayoutEffect, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import {
   ResizablePanel,
@@ -26,6 +26,7 @@ import {
   usePanelRef,
 } from "@/src/components/ui/resizable";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import { cn } from "@/src/utils/tailwind";
 import { useDesktopLayoutContext } from "./TraceLayoutDesktop";
 import { useTraceData } from "../../contexts/TraceDataContext";
 import { useTraceGraphData } from "../../contexts/TraceGraphDataContext";
@@ -85,6 +86,18 @@ export function TracePanelNavigationLayoutDesktop({
   >(`trace-graph-panel-collapsed-${trace.projectId}`, null);
   const graphCollapsed = storedGraphCollapsed ?? !isAgentGraph;
 
+  // Lazy-mount, then keep alive: the graph subtree mounts on the FIRST
+  // expansion (a collapsed-by-default panel never pays the async ELK layout
+  // for a graph the user may not open) and stays mounted-but-hidden across
+  // later collapses, so a collapse → expand round-trip keeps the layout,
+  // pan/zoom, and cycling state instead of re-running "Laying out graph…"
+  // (same reasoning as the detail panel in TraceLayoutDesktop).
+  const [graphHasBeenExpanded, setGraphHasBeenExpanded] =
+    useState(!graphCollapsed);
+  useEffect(() => {
+    if (!graphCollapsed) setGraphHasBeenExpanded(true);
+  }, [graphCollapsed]);
+
   const graphPanelRef = usePanelRef();
 
   // State → panel: keep the imperative panel in sync (mount, storage default,
@@ -140,8 +153,13 @@ export function TracePanelNavigationLayoutDesktop({
                     collapsed={graphCollapsed}
                     onToggle={() => setStoredGraphCollapsed(!graphCollapsed)}
                   />
-                  {!graphCollapsed && (
-                    <div className="min-h-0 flex-1 overflow-hidden">
+                  {graphHasBeenExpanded && (
+                    <div
+                      className={cn(
+                        "min-h-0 flex-1 overflow-hidden",
+                        graphCollapsed && "hidden",
+                      )}
+                    >
                       {secondaryContent}
                     </div>
                   )}
