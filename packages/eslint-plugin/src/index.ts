@@ -6,7 +6,7 @@ import { default as requireTitleWithTruncate } from "./rules/require-title-with-
 import { default as noStyleProps } from "./rules/no-style-props.js";
 import { default as noUnnecessaryCn } from "./rules/no-unnecessary-cn.js";
 
-export const plugin = {
+const plugin = {
   rules: {
     "no-in-source-vitest": noInSourceVitest,
     "no-margin-on-root-elements": noMarginOnRootElements,

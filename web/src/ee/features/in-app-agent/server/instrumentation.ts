@@ -56,6 +56,10 @@ type AgentRunToolDefinition = {
     parameters?: unknown;
   };
 };
+type AgentRunSkillDefinition = {
+  name: string;
+  description?: string;
+};
 type AgentRunChatMessage = {
   role: string;
   name?: string;
@@ -239,6 +243,23 @@ export class InAppAgentInstrumentation {
     }
 
     this.toolCallApprovals.set(approval.toolCallId, approval.status);
+  }
+
+  recordAvailableSkills(skills: unknown[]) {
+    if (this.ended) {
+      return;
+    }
+
+    const availableSkills = getAgentRunAvailableSkills(skills);
+
+    if (availableSkills.length === 0) {
+      return;
+    }
+
+    this.agentRunInput = addAvailableSkillsToAgentRunInput(
+      this.agentRunInput,
+      availableSkills,
+    );
   }
 
   endWithError(error: unknown) {
@@ -611,6 +632,20 @@ function addAvailableToolsToAgentRunInput(
   };
 }
 
+function addAvailableSkillsToAgentRunInput(
+  input: unknown,
+  skills: AgentRunSkillDefinition[],
+) {
+  if (!isRecord(input)) {
+    return input;
+  }
+
+  return {
+    ...input,
+    skills,
+  };
+}
+
 function getAgentRunAvailableTools(
   tools: Record<string, unknown>,
 ): AgentRunToolDefinition[] {
@@ -627,6 +662,28 @@ function getAgentRunAvailableTools(
         ...(parameters ? { parameters } : {}),
       },
     };
+  });
+}
+
+function getAgentRunAvailableSkills(
+  skills: unknown[],
+): AgentRunSkillDefinition[] {
+  return skills.flatMap((skill) => {
+    const skillRecord = isRecord(skill) ? skill : {};
+    const name = getStringValue(skillRecord.name);
+
+    if (!name) {
+      return [];
+    }
+
+    const description = getStringValue(skillRecord.description);
+
+    return [
+      {
+        name,
+        ...(description ? { description } : {}),
+      },
+    ];
   });
 }
 

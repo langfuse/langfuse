@@ -32,6 +32,11 @@ import { useViewPreferences } from "../contexts/ViewPreferencesContext";
 import { useTraceData } from "../contexts/TraceDataContext";
 import type Decimal from "decimal.js";
 
+// How many distinct score groups to show inline on a tree/search row before
+// collapsing the rest into a "+N" pill. Keeps dense-score rows compact; the
+// full set is always on the node's Scores tab. (The timeline caps at 3.)
+const MAX_INLINE_SCORE_GROUPS = 3;
+
 interface SpanContentProps {
   node: TreeNode;
   parentTotalCost?: Decimal;
@@ -233,10 +238,16 @@ export function SpanContent({
           </div>
         )}
 
-        {/* Scores row */}
+        {/* Scores row. Cap the inline badges and roll the rest into a "+N"
+            pill (hover to see them) so a node with many scores stays a compact
+            one/two-line row instead of a tall wrapping grid. */}
         {showScores && nodeScores.length > 0 && (
           <div className="flex flex-wrap gap-1">
-            <GroupedScoreBadges compact scores={nodeScores} />
+            <GroupedScoreBadges
+              compact
+              scores={nodeScores}
+              maxVisible={MAX_INLINE_SCORE_GROUPS}
+            />
           </div>
         )}
       </div>

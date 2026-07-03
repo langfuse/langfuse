@@ -78,6 +78,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   isLoadingMoreConversations: false,
   selectedConversationId: undefined,
   loadMoreConversations: () => undefined,
+  invalidateConversations: () => undefined,
   selectConversation: () => undefined,
   deleteConversation: async () => undefined,
   submit: async () => false,
@@ -122,6 +123,7 @@ type InAppAiAgentContextType = {
   isLoadingMoreConversations: boolean;
   selectedConversationId: string | undefined;
   loadMoreConversations: () => void;
+  invalidateConversations: () => void;
   selectConversation: (conversationId: string | null) => void;
   deleteConversation: (conversationId: string) => Promise<void>;
   submit: (content: string) => Promise<boolean>;
@@ -284,6 +286,10 @@ function InAppAiAgentProviderInner({
     hasMoreConversations,
     isLoadingMoreConversations,
   ]);
+  const invalidateConversations = useCallback(
+    () => utils.inAppAgent.listConversations.invalidate({ projectId }),
+    [projectId, utils.inAppAgent.listConversations],
+  );
 
   useEffect(() => {
     if (!conversationListQuery.error) {
@@ -910,6 +916,7 @@ function InAppAiAgentProviderInner({
       isLoadingMoreConversations,
       selectedConversationId: selectedConversationId ?? undefined,
       loadMoreConversations,
+      invalidateConversations,
       selectConversation,
       deleteConversation,
       submit,
@@ -933,6 +940,7 @@ function InAppAiAgentProviderInner({
       open,
       pendingToolApprovals,
       rejectToolCall,
+      invalidateConversations,
       selectConversation,
       selectedConversationId,
       setOpen,
