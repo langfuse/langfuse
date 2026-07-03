@@ -355,6 +355,57 @@ describe("SCIM API", () => {
         expect(response.body.startIndex).toBe(1);
       });
 
+      it("should normalize startIndex values less than 1", async () => {
+        const response = await makeZodVerifiedAPICall(
+          ScimUsersListSchema,
+          "GET",
+          "/api/public/scim/Users?startIndex=-1",
+          undefined,
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+          200,
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.body.schemas).toContain(
+          "urn:ietf:params:scim:api:messages:2.0:ListResponse",
+        );
+        expect(response.body.startIndex).toBe(1);
+      });
+
+      it("should preserve count=0 as an empty page request", async () => {
+        const response = await makeZodVerifiedAPICall(
+          ScimUsersListSchema,
+          "GET",
+          "/api/public/scim/Users?count=0",
+          undefined,
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+          200,
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.body.startIndex).toBe(1);
+        expect(response.body.itemsPerPage).toBe(0);
+        expect(response.body.Resources).toEqual([]);
+        expect(typeof response.body.totalResults).toBe("number");
+      });
+
+      it("should normalize negative count values as an empty page request", async () => {
+        const response = await makeZodVerifiedAPICall(
+          ScimUsersListSchema,
+          "GET",
+          "/api/public/scim/Users?count=-1",
+          undefined,
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+          200,
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.body.startIndex).toBe(1);
+        expect(response.body.itemsPerPage).toBe(0);
+        expect(response.body.Resources).toEqual([]);
+        expect(typeof response.body.totalResults).toBe("number");
+      });
+
       it("should support filtering by userName", async () => {
         // First create a test user
         const uniqueEmail = `test.user.${randomUUID().substring(0, 8)}@example.com`;

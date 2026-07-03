@@ -11,6 +11,36 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 
+const scimErrorResponse = (detail: string, status = 400) => ({
+  schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  detail,
+  status,
+});
+
+const parsePaginationParam = (
+  value: string | string[] | undefined,
+  defaultValue: number,
+  paramName: "startIndex" | "count",
+) => {
+  if (value === undefined || value === "") {
+    return { value: defaultValue } as const;
+  }
+  if (Array.isArray(value)) {
+    return { error: `${paramName} must be a single integer value` } as const;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed)) {
+    return { error: `${paramName} must be an integer` } as const;
+  }
+
+  if (paramName === "startIndex") {
+    return { value: Math.max(parsed, 1) } as const;
+  }
+
+  return { value: Math.max(parsed, 0) } as const;
+};
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -78,11 +108,21 @@ export default async function handler(
 
   if (req.method === "GET") {
     try {
-      const { filter, startIndex = 1, count = 100 } = req.query;
+      const { filter, startIndex, count } = req.query;
 
-      // Parse startIndex and count to integers
-      const parsedStartIndex = parseInt(startIndex as string, 10) || 1;
-      const parsedCount = parseInt(count as string, 10) || 100;
+      const parsedStartIndex = parsePaginationParam(
+        startIndex,
+        1,
+        "startIndex",
+      );
+      if ("error" in parsedStartIndex) {
+        return res.status(400).json(scimErrorResponse(parsedStartIndex.error));
+      }
+
+      const parsedCount = parsePaginationParam(count, 100, "count");
+      if ("error" in parsedCount) {
+        return res.status(400).json(scimErrorResponse(parsedCount.error));
+      }
 
       let whereClause = {};
       if (filter && typeof filter === "string") {
@@ -105,18 +145,21 @@ export default async function handler(
       });
 
       // Get users with pagination
-      const userMapping = await prisma.organizationMembership.findMany({
-        where: {
-          user: whereClause,
-          orgId: authCheck.scope.orgId,
-        },
-        skip: parsedStartIndex - 1, // SCIM uses 1-based indexing
-        take: parsedCount,
-        select: {
-          id: true,
-          user: true,
-        },
-      });
+      const userMapping =
+        parsedCount.value === 0
+          ? []
+          : await prisma.organizationMembership.findMany({
+              where: {
+                user: whereClause,
+                orgId: authCheck.scope.orgId,
+              },
+              skip: parsedStartIndex.value - 1, // SCIM uses 1-based indexing
+              take: parsedCount.value,
+              select: {
+                id: true,
+                user: true,
+              },
+            });
 
       // Transform to SCIM format
       const scimUsers = userMapping
@@ -143,7 +186,7 @@ export default async function handler(
       return res.status(200).json({
         schemas: ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
         totalResults: totalCount,
-        startIndex: parsedStartIndex,
+        startIndex: parsedStartIndex.value,
         itemsPerPage: scimUsers.length,
         Resources: scimUsers,
       });
