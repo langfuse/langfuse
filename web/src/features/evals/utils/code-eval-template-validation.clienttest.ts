@@ -79,18 +79,6 @@ describe("code eval template validation", () => {
     ).toMatch(/^def evaluate\(ctx: EvaluationContext\)/);
   });
 
-  it("keeps Python helpers defined above evaluate on submit", async () => {
-    const source =
-      "def helper(value):\n    return value\n\n\ndef evaluate(ctx: EvaluationContext) -> EvaluationResult:\n    return EvaluationResult(scores=[])\n";
-
-    expect(
-      await formatAndStripCodeEvalSourceForSubmit({
-        sourceCode: source,
-        sourceCodeLanguage: "PYTHON",
-      }),
-    ).toMatch(/^def helper/);
-  });
-
   it("hydrates the editor without the contract types", () => {
     const source =
       "function evaluate(ctx: EvaluationContext): EvaluationResult { return { scores: [] }; }";

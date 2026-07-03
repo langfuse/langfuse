@@ -43,6 +43,23 @@ describe("code eval starter examples are format-canonical", () => {
     ).resolves.toBe(DEFAULT_PYTHON_CODE_EVAL_SOURCE);
   });
 
+  it("keeps Python helpers defined above evaluate on submit", async () => {
+    const source = `def helper(value):
+  return bool(value)
+
+
+def evaluate(ctx: EvaluationContext) -> EvaluationResult:
+  is_valid = helper(ctx.observation.output)
+  return EvaluationResult(scores=[Score(name="ok", value=is_valid)])`;
+
+    await expect(
+      formatAndStripCodeEvalSourceForSubmit({
+        sourceCode: source,
+        sourceCodeLanguage: "PYTHON",
+      }),
+    ).resolves.toBe(source);
+  });
+
   it("still injects the hidden contract when the source imports dataclass itself", async () => {
     // Regression: the contract-presence check must not mistake a user-owned
     // `from dataclasses import dataclass` for the full hidden contract,
