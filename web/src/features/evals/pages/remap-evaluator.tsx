@@ -248,7 +248,7 @@ export default function RemapEvaluatorPage() {
                   hideAdvancedSettings={true}
                   evalCapabilities={evalCapabilities}
                   oldConfigId={evalConfigId}
-                  renderFooter={({ isLoading, formError }) => (
+                  renderFooter={({ isLoading }) => (
                     <div className="flex w-full flex-col items-end gap-4">
                       <div className="flex items-center">
                         <Button
@@ -294,11 +294,6 @@ export default function RemapEvaluatorPage() {
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
-                      {formError ? (
-                        <p className="w-full text-center">
-                          <span className="font-bold">Error:</span> {formError}
-                        </p>
-                      ) : null}
                     </div>
                   )}
                 />

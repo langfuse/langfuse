@@ -763,6 +763,83 @@ describe("Playground Jump Full Pipeline", () => {
     }
   });
 
+  it("should normalize standalone OpenAI Responses function_call output", () => {
+    const output = {
+      id: "fc_order_status",
+      type: "function_call",
+      status: "completed",
+      arguments: '{"orderIds":null}',
+      call_id: "call_order_status",
+      name: "getOrderStatus",
+    };
+
+    const outputResult = normalizeOutput(output, { framework: "openai" });
+    expect(outputResult.success).toBe(true);
+
+    expect(outputResult.data![0]).toMatchObject({
+      role: "assistant",
+      tool_calls: [
+        {
+          id: "call_order_status",
+          name: "getOrderStatus",
+          arguments: '{"orderIds":null}',
+          type: "function",
+        },
+      ],
+    });
+  });
+
+  it("should normalize OpenAI Responses function_call output arrays", () => {
+    const output = [
+      {
+        id: "fc_order_status",
+        type: "function_call",
+        status: "completed",
+        arguments: '{"orderIds":null}',
+        call_id: "call_order_status",
+        name: "getOrderStatus",
+      },
+      {
+        id: "fc_promotions",
+        type: "function_call",
+        status: "completed",
+        arguments: "{}",
+        call_id: "call_promotions",
+        name: "getPromotions",
+      },
+    ];
+
+    const outputResult = normalizeOutput(output, {
+      observationName: "OpenAI.responses",
+    });
+    expect(outputResult.success).toBe(true);
+
+    expect(outputResult.data).toEqual([
+      expect.objectContaining({
+        role: "assistant",
+        tool_calls: [
+          {
+            id: "call_order_status",
+            name: "getOrderStatus",
+            arguments: '{"orderIds":null}',
+            type: "function",
+          },
+        ],
+      }),
+      expect.objectContaining({
+        role: "assistant",
+        tool_calls: [
+          {
+            id: "call_promotions",
+            name: "getPromotions",
+            arguments: "{}",
+            type: "function",
+          },
+        ],
+      }),
+    ]);
+  });
+
   it("should handle VAPI camelCase toolCalls and preserve IDs", () => {
     // VAPI uses camelCase toolCalls instead of tool_calls
     // Critical: Tool call IDs must be preserved for OpenAI API compatibility

@@ -178,52 +178,61 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
               </div>
             ) : (
               <div className="min-h-0 flex-1 overflow-y-auto rounded-md border">
-                {filteredEvaluators.map((item, index, array) => (
-                  <div key={item.id}>
-                    <div
-                      className="hover:bg-muted/50 flex cursor-pointer items-center gap-2 px-2 py-1.5 transition-colors"
-                      onClick={() => onToggleEvaluator(item.id)}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">
-                          {item.scoreName}
-                        </p>
-                        <p className="text-muted-foreground truncate text-[11px]">
-                          Template:{" "}
-                          {item.evalTemplate?.name ?? "Deleted template"}
-                        </p>
-                      </div>
-                      <EvaluatorPromptPreview
-                        previewContent={getPromptPreview(item)}
-                        trigger={
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="h-7 w-7"
-                            onMouseDown={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                            }}
-                            onClick={(event) => event.stopPropagation()}
-                            aria-label={`Preview ${item.scoreName}`}
+                {filteredEvaluators.map((item, index, array) => {
+                  const templateLabel = `Template: ${item.evalTemplate?.name ?? "Deleted template"}`;
+
+                  return (
+                    <div key={item.id}>
+                      <div
+                        className="hover:bg-muted/50 flex cursor-pointer items-center gap-2 px-2 py-1.5 transition-colors"
+                        onClick={() => onToggleEvaluator(item.id)}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p
+                            className="truncate text-sm font-medium"
+                            title={item.scoreName}
                           >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        }
-                      />
-                      <Checkbox
-                        checked={selectedEvaluatorIds.includes(item.id)}
-                        aria-label={`Select ${item.scoreName}`}
-                        onClick={(event) => event.stopPropagation()}
-                        onCheckedChange={() => onToggleEvaluator(item.id)}
-                        className="mr-1"
-                      />
+                            {item.scoreName}
+                          </p>
+                          <p
+                            className="text-muted-foreground truncate text-[11px]"
+                            title={templateLabel}
+                          >
+                            {templateLabel}
+                          </p>
+                        </div>
+                        <EvaluatorPromptPreview
+                          previewContent={getPromptPreview(item)}
+                          trigger={
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className="h-7 w-7"
+                              onMouseDown={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                              }}
+                              onClick={(event) => event.stopPropagation()}
+                              aria-label={`Preview ${item.scoreName}`}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          }
+                        />
+                        <Checkbox
+                          checked={selectedEvaluatorIds.includes(item.id)}
+                          aria-label={`Select ${item.scoreName}`}
+                          onClick={(event) => event.stopPropagation()}
+                          onCheckedChange={() => onToggleEvaluator(item.id)}
+                          className="mr-1"
+                        />
+                      </div>
+                      {index < array.length - 1 ? (
+                        <div className="border-border/50 border-b" />
+                      ) : null}
                     </div>
-                    {index < array.length - 1 ? (
-                      <div className="border-border/50 border-b" />
-                    ) : null}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

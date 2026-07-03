@@ -17,8 +17,14 @@ const MAX_NODES_FOR_GRAPH_UI = 5000;
 interface TraceGraphDataContextValue {
   /** Agent graph data for visualization */
   agentGraphData: AgentGraphDataResponse[];
-  /** Whether graph view is available (has graphable data, not too large) */
+  /** Whether graph view is available (more than one node, not too large) */
   isGraphViewAvailable: boolean;
+  /**
+   * A "real" agent graph (agentic observation types or LangGraph metadata) —
+   * shown expanded by default. Traces that only qualify via the >1-node rule
+   * get a collapsed-by-default graph panel instead.
+   */
+  isAgentGraph: boolean;
   /** Whether data is currently loading */
   isLoading: boolean;
 }
@@ -113,40 +119,52 @@ export function TraceGraphDataProvider({
 
   const agentGraphData = useMemo(() => query.data ?? [], [query.data]);
 
-  const isGraphViewAvailable = useMemo(() => {
-    if (agentGraphData.length === 0) {
-      return false;
+  const { isGraphViewAvailable, isAgentGraph } = useMemo(() => {
+    if (
+      agentGraphData.length === 0 ||
+      // Don't show graph UI for extremely large traces
+      agentGraphData.length >= MAX_NODES_FOR_GRAPH_UI
+    ) {
+      return { isGraphViewAvailable: false, isAgentGraph: false };
     }
 
-    // Don't show graph UI for extremely large traces
-    if (agentGraphData.length >= MAX_NODES_FOR_GRAPH_UI) {
-      return false;
-    }
-
-    // Check if there are observations that would be included in the graph
-    // (not SPAN, EVENT, or GENERATION)
+    // "Real" agent graph: observations of agentic types (not SPAN, EVENT, or
+    // GENERATION) or LangGraph step metadata — shown expanded by default.
     const hasGraphableObservations = agentGraphData.some(
       (obs) =>
         obs.observationType !== "SPAN" &&
         obs.observationType !== "EVENT" &&
         obs.observationType !== "GENERATION",
     );
-
-    // Check for LangGraph data (has step != 0)
     const hasLangGraphData = agentGraphData.some(
       (obs) => obs.step != null && obs.step !== 0,
     );
+    const isAgentGraph = hasGraphableObservations || hasLangGraphData;
+    if (isAgentGraph) {
+      return { isGraphViewAvailable: true, isAgentGraph };
+    }
 
-    return hasGraphableObservations || hasLangGraphData;
+    // Otherwise the graph is still available whenever it would draw more than
+    // one node — the panel just defaults to collapsed for these. Exact mirror
+    // of the timing-based inference these traces go through (buildStepData):
+    // it drops EVENT observations, then keys every node on the observation
+    // NAME (`obs.node = obs.name`), so count distinct non-EVENT names.
+    const distinctNodes = new Set(
+      agentGraphData
+        .filter((obs) => obs.observationType !== "EVENT")
+        .map((obs) => obs.name),
+    );
+    return { isGraphViewAvailable: distinctNodes.size > 1, isAgentGraph };
   }, [agentGraphData]);
 
   const value = useMemo<TraceGraphDataContextValue>(
     () => ({
       agentGraphData,
       isGraphViewAvailable,
+      isAgentGraph,
       isLoading: query.isLoading,
     }),
-    [agentGraphData, isGraphViewAvailable, query.isLoading],
+    [agentGraphData, isGraphViewAvailable, isAgentGraph, query.isLoading],
   );
 
   return (

@@ -159,6 +159,10 @@ export type ObservationsTableProps = {
   omittedFilter?: ObservationsOmittableFilterColumn[];
   // External control props for embedded preview tables
   hideControls?: boolean;
+  /** Hide the toolbar time-range picker. Set by pages that render the picker
+   *  in the page header (TableTimeRangeHeaderPicker) — both read the same
+   *  shared per-project range, so embedded usages keep the toolbar picker. */
+  hideTimeRangePicker?: boolean;
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
   limitRows?: number;
@@ -178,6 +182,7 @@ export default function ObservationsTable({
   modelId,
   omittedFilter = [],
   hideControls = false,
+  hideTimeRangePicker = false,
   externalFilterState,
   externalDateRange,
   limitRows,
@@ -975,6 +980,7 @@ export default function ObservationsTable({
           <Badge
             variant="secondary"
             className="max-w-fit truncate rounded-sm px-1 font-normal"
+            title={value}
           >
             {value}
           </Badge>

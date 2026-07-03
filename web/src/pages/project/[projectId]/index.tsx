@@ -55,6 +55,10 @@ const HOME_DASHBOARD_CARD_IDS = {
   scoreAnalytics: "home:score-analytics",
 } as const;
 
+// Shared across the home time-series charts so hovering one moves the time
+// crosshair on all of them (they share one time range + granularity). (LFE-10549)
+const HOME_DASHBOARD_SYNC_ID = "home-dashboard-timeseries";
+
 export default function Dashboard() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
@@ -287,6 +291,7 @@ export default function Dashboard() {
               isLoading={environmentOptionsState.isPending}
               metricsVersion={metricsVersion}
               schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.tracesTimeSeries}`}
+              syncId={HOME_DASHBOARD_SYNC_ID}
             />
             <ModelUsageChart
               className="col-span-1 min-h-24 xl:col-span-3"
@@ -299,6 +304,7 @@ export default function Dashboard() {
               isLoading={environmentOptionsState.isPending}
               metricsVersion={metricsVersion}
               schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.modelUsage}`}
+              syncId={HOME_DASHBOARD_SYNC_ID}
             />
             <UserChart
               className="col-span-1 xl:col-span-3"
@@ -320,6 +326,7 @@ export default function Dashboard() {
               isLoading={environmentOptionsState.isPending}
               metricsVersion={metricsVersion}
               schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.chartScores}`}
+              syncId={HOME_DASHBOARD_SYNC_ID}
             />
             <LatencyTables
               projectId={projectId}
@@ -340,6 +347,7 @@ export default function Dashboard() {
               isLoading={environmentOptionsState.isPending}
               metricsVersion={metricsVersion}
               schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.generationLatency}`}
+              syncId={HOME_DASHBOARD_SYNC_ID}
             />
             <ScoreAnalytics
               className="col-span-1 flex-auto justify-between lg:col-span-full"
@@ -351,6 +359,7 @@ export default function Dashboard() {
               isLoading={environmentOptionsState.isPending}
               metricsVersion={metricsVersion}
               schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.scoreAnalytics}`}
+              syncId={HOME_DASHBOARD_SYNC_ID}
             />
           </div>
         )}

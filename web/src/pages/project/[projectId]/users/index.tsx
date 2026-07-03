@@ -141,7 +141,9 @@ const UsersTable = ({
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const { timeRange, setTimeRange } = useTableDateRange(projectId);
+  // The picker lives in the page header (TableTimeRangeHeaderPicker); this
+  // reads the same shared per-project range to filter the table.
+  const { timeRange } = useTableDateRange(projectId);
 
   // Convert timeRange to absolute date range for compatibility
   const dateRange = useMemo(() => {
@@ -326,6 +328,7 @@ const UsersTable = ({
           <Badge
             variant="secondary"
             className="max-w-fit truncate rounded-sm px-1 font-normal"
+            title={value}
           >
             {value}
           </Badge>
