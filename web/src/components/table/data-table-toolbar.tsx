@@ -260,7 +260,11 @@ export function DataTableToolbar<TData, TValue>({
           rowClassName,
         )}
       >
-        {hasNewSidebar && <FilterToggleButton filterState={filterState} />}
+        {/* Desktop uses the sidebar's own header toggle + collapsed rail; this
+            toolbar toggle only remains for the mobile stacked layout. */}
+        {hasNewSidebar && (
+          <FilterToggleButton filterState={filterState} className="md:hidden" />
+        )}
         {!!columnVisibility && !!columnOrder && !!viewConfig && (
           <TableViewPresetsDrawer
             viewConfig={viewConfig}

@@ -241,6 +241,7 @@ export default function ExperimentsTable({
   defaultFilter,
   fixedFilter = [],
   sessionFilterContextId,
+  hideTimeRangePicker = false,
 }: ExperimentsTableProps) {
   const router = useRouter();
   const filterConfig = useMemo(
@@ -748,8 +749,8 @@ export default function ExperimentsTable({
             orderByState={orderByState}
             rowHeight={rowHeight}
             setRowHeight={setRowHeight}
-            timeRange={timeRange}
-            setTimeRange={setTimeRange}
+            timeRange={hideTimeRangePicker ? undefined : timeRange}
+            setTimeRange={hideTimeRangePicker ? undefined : setTimeRange}
             actionButtons={[
               <ExperimentsMultiSelectActionMenu
                 key="experiments-multi-select-actions"

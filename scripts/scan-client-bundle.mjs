@@ -32,7 +32,8 @@
  * minifier while code still reads it. The canonical first-party fix is to
  * move the module-level const into the (single) function that reads it — see
  * the LFE-10640 fix in TraceLayoutDesktop.tsx (#14735) — and to link the
- * upstream SWC issue in a comment so the workaround is deletable once fixed.
+ * upstream SWC issue (swc-project/swc#11983) in a comment so the workaround
+ * is deletable once fixed.
  * For vendored dependency code, change how the dependency is shipped (see the
  * prettier/plugins/typescript → babel-ts swap in #14738).
  */

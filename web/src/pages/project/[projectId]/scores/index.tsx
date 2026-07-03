@@ -7,6 +7,7 @@ import {
   getScoresTabs,
   SCORES_TABS,
 } from "@/src/features/navigation/utils/scores-tabs";
+import { TableTimeRangeHeaderPicker } from "@/src/components/table/table-time-range-header-picker";
 
 export default function ScoresPage() {
   const router = useRouter();
@@ -37,6 +38,9 @@ export default function ScoresPage() {
             "A scores is an evaluation of a traces or observations. It can be created from user feedback, model-based evaluations, or manual review. See docs to learn more.",
           href: "https://langfuse.com/docs/evaluation/overview",
         },
+        actionButtonsLeft: showOnboarding ? undefined : (
+          <TableTimeRangeHeaderPicker projectId={projectId} />
+        ),
         tabsProps: {
           tabs: getScoresTabs(projectId),
           activeTab: SCORES_TABS.SCORES,
@@ -48,7 +52,7 @@ export default function ScoresPage() {
       {showOnboarding ? (
         <ScoresOnboarding />
       ) : (
-        <ScoresTable projectId={projectId} />
+        <ScoresTable projectId={projectId} hideTimeRangePicker />
       )}
     </Page>
   );
