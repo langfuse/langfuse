@@ -108,10 +108,15 @@ const IOTableCellContent = ({
       title={
         suppressTitle || isPointerOverMediaTag ? undefined : singleLineText
       }
-      onPointerOver={(event) =>
-        setIsPointerOverMediaTag(
-          Boolean((event.target as Element).closest("[data-media-tag]")),
-        )
+      // With suppressTitle the state cannot affect output, so skip the
+      // handler to avoid re-rendering on every chip-boundary crossing.
+      onPointerOver={
+        suppressTitle
+          ? undefined
+          : (event) =>
+              setIsPointerOverMediaTag(
+                Boolean((event.target as Element).closest("[data-media-tag]")),
+              )
       }
     >
       {singleLineText ? renderStringWithMediaReferences(singleLineText) : null}
