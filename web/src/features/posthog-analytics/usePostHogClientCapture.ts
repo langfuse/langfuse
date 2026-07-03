@@ -52,6 +52,7 @@ export const events = {
     "update_name",
     "search_views",
     "system_preset_selected",
+    "category_chip_apply",
   ],
   score: [
     "create",

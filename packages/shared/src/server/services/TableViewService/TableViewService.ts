@@ -222,6 +222,7 @@ export class TableViewService {
         name: preset.name,
         description: preset.description,
         isSystem: true,
+        category: preset.category,
         tableName: preset.tableName,
         createdBy: null,
         createdByUser: null,

@@ -251,6 +251,15 @@ export function TableViewPresetsDrawer({
     [TableViewPresetsList],
   );
 
+  // Categorized system presets are surfaced by the category chip row beneath
+  // the search bar, so they are excluded from the drawer list to avoid showing
+  // the same preset in two places. Name lookups and uniqueness checks above
+  // still use the full list.
+  const drawerPresetList = useMemo(
+    () => TableViewPresetsList?.filter((view) => !view.category),
+    [TableViewPresetsList],
+  );
+
   useUniqueNameValidation({
     currentName: form.watch("name"),
     allNames: allViewNames,
@@ -546,12 +555,12 @@ export function TableViewPresetsDrawer({
 
                   {/* Separator between system and user presets */}
                   {systemFilterPresets?.length &&
-                  TableViewPresetsList?.length ? (
+                  drawerPresetList?.length ? (
                     <Separator className="my-2" />
                   ) : null}
 
                   {/* User Presets */}
-                  {TableViewPresetsList?.map((view) => {
+                  {drawerPresetList?.map((view) => {
                     const isUserDefault =
                       defaultAssignments?.userDefaultViewId === view.id;
                     const isProjectDefault =

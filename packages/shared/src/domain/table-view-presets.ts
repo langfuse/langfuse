@@ -14,6 +14,46 @@ export enum TableViewPresetTableName {
   ExperimentItems = "experiment-items",
 }
 
+/**
+ * Categories used to group system table view presets into the quick-access
+ * chip row rendered beneath the search bar (v4 events table). This enum is the
+ * single source of truth for grouping and display order; the frontend maps
+ * each category to an icon locally (lucide icons are not available in shared).
+ */
+export enum SystemTableViewPresetCategory {
+  SlowCalls = "slow-calls",
+  Errors = "errors",
+  CostRegression = "cost-regression",
+  LowQuality = "low-quality",
+}
+
+export const SYSTEM_TABLE_VIEW_PRESET_CATEGORY_META: Record<
+  SystemTableViewPresetCategory,
+  { label: string; order: number }
+> = {
+  [SystemTableViewPresetCategory.SlowCalls]: { label: "Slow calls", order: 1 },
+  [SystemTableViewPresetCategory.Errors]: { label: "Errors", order: 2 },
+  [SystemTableViewPresetCategory.CostRegression]: {
+    label: "Cost regression",
+    order: 3,
+  },
+  [SystemTableViewPresetCategory.LowQuality]: {
+    label: "Low quality",
+    order: 4,
+  },
+};
+
+/** Categories in their defined display order. */
+export const SYSTEM_TABLE_VIEW_PRESET_CATEGORIES_ORDERED = (
+  Object.keys(
+    SYSTEM_TABLE_VIEW_PRESET_CATEGORY_META,
+  ) as SystemTableViewPresetCategory[]
+).sort(
+  (a, b) =>
+    SYSTEM_TABLE_VIEW_PRESET_CATEGORY_META[a].order -
+    SYSTEM_TABLE_VIEW_PRESET_CATEGORY_META[b].order,
+);
+
 export const TableViewPresetDomainSchema = z.object({
   id: z.string(),
   projectId: z.string().nullable(),
