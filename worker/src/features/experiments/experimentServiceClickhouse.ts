@@ -7,6 +7,7 @@ import {
 import {
   ChatMessage,
   convertDateToClickhouseDateTime,
+  createUnknownSdkIngestionAttribution,
   createDatasetItemFilterState,
   DatasetRunItemUpsertQueue,
   eventTypes,
@@ -92,19 +93,18 @@ async function processItem(
     },
   };
 
-  const ingestionResult = await processEventBatch(
-    [event],
-    {
-      validKey: true,
-      scope: {
-        projectId: config.projectId,
-        accessLevel: "project" as const,
-      },
+  const auth = {
+    validKey: true as const,
+    scope: {
+      projectId: config.projectId,
+      accessLevel: "project" as const,
     },
-    {
-      isLangfuseInternal: true,
-    },
-  );
+  };
+
+  const ingestionResult = await processEventBatch([event], auth, {
+    isLangfuseInternal: true,
+    attribution: createUnknownSdkIngestionAttribution({ authCheck: auth }),
+  });
 
   if (ingestionResult.errors.length > 0) {
     const error = ingestionResult.errors[0];
@@ -459,16 +459,17 @@ async function createAllDatasetRunItemsWithConfigError(
       `Creating ${events.length / 3} dataset run items with config error`,
     );
 
-    await processEventBatch(
-      events,
-      {
-        validKey: true,
-        scope: {
-          projectId,
-          accessLevel: "project" as const,
-        },
+    const auth = {
+      validKey: true as const,
+      scope: {
+        projectId,
+        accessLevel: "project" as const,
       },
-      { isLangfuseInternal: true },
-    );
+    };
+
+    await processEventBatch(events, auth, {
+      isLangfuseInternal: true,
+      attribution: createUnknownSdkIngestionAttribution({ authCheck: auth }),
+    });
   }
 }

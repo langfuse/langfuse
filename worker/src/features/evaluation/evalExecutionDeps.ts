@@ -10,6 +10,7 @@ import {
   LLMAdapter,
   QueueJobs,
   ScoreEventType,
+  UNKNOWN_INGESTION_SDK_VALUE,
 } from "@langfuse/shared/src/server";
 import { buildEvalMessages } from "./evalRuntime";
 import { getEvalS3StorageClient } from "./s3StorageClient";
@@ -190,6 +191,9 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
             eventBodyId: params.scoreId,
             fileKey: params.eventId,
             bucketPrefix,
+            ingestionApiKey: "",
+            ingestionSdkName: UNKNOWN_INGESTION_SDK_VALUE,
+            ingestionSdkVersion: UNKNOWN_INGESTION_SDK_VALUE,
           },
           authCheck: {
             validKey: true,
