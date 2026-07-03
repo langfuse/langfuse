@@ -7,6 +7,7 @@ import {
   createOrgProjectAndApiKey,
   createScoresCh,
   createTraceScore,
+  parseClickhouseUTCDateTimeFormat,
 } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
@@ -30,6 +31,7 @@ const createExperimentRootEvent = ({
   experimentName = experimentId,
   datasetId = "dataset-1",
   startTimeMs,
+  endTimeMs = startTimeMs + 100,
   traceId = randomUUID(),
   spanId = randomUUID(),
   metadata = {},
@@ -46,6 +48,7 @@ const createExperimentRootEvent = ({
   experimentName?: string;
   datasetId?: string | null;
   startTimeMs: number;
+  endTimeMs?: number;
   traceId?: string;
   spanId?: string;
   metadata?: Record<string, string>;
@@ -67,7 +70,7 @@ const createExperimentRootEvent = ({
     input,
     output,
     start_time: startTimeMs * 1000,
-    end_time: (startTimeMs + 100) * 1000,
+    end_time: endTimeMs * 1000,
     metadata_names: Object.keys(observationMetadata),
     metadata_values: Object.values(observationMetadata),
     experiment_id: experimentId,
@@ -129,11 +132,128 @@ describe("Public API experiments repository", () => {
         experiment_name: "repository experiment",
         experiment_description: "repository experiment description",
         experiment_dataset_id: "dataset-public-api",
-        cursor_trace_id: expect.any(String),
         cursor_span_id: expect.any(String),
         experiment_metadata: { region: "eu" },
       });
-      expect(row).not.toHaveProperty("item_count");
+      // start_time surfaces the earliest event, cursor anchors the latest one
+      expect(parseClickhouseUTCDateTimeFormat(row!.start_time).getTime()).toBe(
+        startTimeMs,
+      );
+      expect(parseClickhouseUTCDateTimeFormat(row!.cursor_time).getTime()).toBe(
+        startTimeMs + 1_000,
+      );
+      expect(parseClickhouseUTCDateTimeFormat(row!.end_time).getTime()).toBe(
+        startTimeMs + 1_100,
+      );
+      expect(Number(row!.item_count)).toBe(2);
+    });
+
+    it("orders by latest experiment activity while surfacing the earliest start time", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const startTimeMs = Date.now();
+      const longRunningExperimentId = `exp-${randomUUID()}`;
+      const recentExperimentId = `exp-${randomUUID()}`;
+
+      await createEventsCh([
+        createExperimentRootEvent({
+          projectId,
+          experimentId: longRunningExperimentId,
+          startTimeMs,
+          // outlives the later-starting event: the experiment end must come
+          // from here, not from the latest event start
+          endTimeMs: startTimeMs + 300_000,
+        }),
+        createExperimentRootEvent({
+          projectId,
+          experimentId: longRunningExperimentId,
+          startTimeMs: startTimeMs + 120_000,
+        }),
+        createExperimentRootEvent({
+          projectId,
+          experimentId: recentExperimentId,
+          startTimeMs: startTimeMs + 60_000,
+        }),
+      ]);
+
+      const rows = await queryExperimentSummariesForPublicApi({
+        projectId,
+        fromTime: new Date(startTimeMs - 1_000),
+        includeMetadata: false,
+        limit: 10,
+      });
+
+      // The long-running experiment leads the page (latest activity) even
+      // though its start time is the oldest.
+      expect(rows.map((row) => row.experiment_id)).toEqual([
+        longRunningExperimentId,
+        recentExperimentId,
+      ]);
+      expect(
+        parseClickhouseUTCDateTimeFormat(rows[0]!.start_time).getTime(),
+      ).toBe(startTimeMs);
+      expect(
+        parseClickhouseUTCDateTimeFormat(rows[0]!.end_time).getTime(),
+      ).toBe(startTimeMs + 300_000);
+      expect(
+        parseClickhouseUTCDateTimeFormat(rows[1]!.start_time).getTime(),
+      ).toBe(startTimeMs + 60_000);
+    });
+
+    it("lists experiments whose latest event falls between another experiment's first and last event", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const startTimeMs = Date.now();
+      const spanningExperimentId = `exp-${randomUUID()}`;
+      const inBetweenExperimentId = `exp-${randomUUID()}`;
+
+      await createEventsCh([
+        createExperimentRootEvent({
+          projectId,
+          experimentId: spanningExperimentId,
+          startTimeMs,
+        }),
+        createExperimentRootEvent({
+          projectId,
+          experimentId: spanningExperimentId,
+          startTimeMs: startTimeMs + 120_000,
+        }),
+        createExperimentRootEvent({
+          projectId,
+          experimentId: inBetweenExperimentId,
+          startTimeMs: startTimeMs + 60_000,
+        }),
+      ]);
+
+      const fromTime = new Date(startTimeMs - 1_000);
+      const firstPage = await queryExperimentSummariesForPublicApi({
+        projectId,
+        fromTime,
+        includeMetadata: false,
+        limit: 1,
+      });
+
+      expect(firstPage.map((row) => row.experiment_id)).toEqual([
+        spanningExperimentId,
+      ]);
+      const firstRow = firstPage[0];
+      if (!firstRow) throw new Error("expected first page row");
+
+      // The cursor must anchor on the spanning experiment's LATEST event;
+      // anchoring on its earliest would drop the in-between experiment.
+      const secondPage = await queryExperimentSummariesForPublicApi({
+        projectId,
+        fromTime,
+        includeMetadata: false,
+        cursor: {
+          lastTime: firstRow.cursor_time,
+          lastId: firstRow.cursor_span_id,
+          lastExperimentId: firstRow.experiment_id,
+        },
+        limit: 10,
+      });
+
+      expect(secondPage.map((row) => row.experiment_id)).toEqual([
+        inBetweenExperimentId,
+      ]);
     });
 
     it("does not include metadata unless requested", async () => {
@@ -186,7 +306,7 @@ describe("Public API experiments repository", () => {
       expect(rows).toEqual([
         expect.objectContaining({
           experiment_id: experimentId,
-          experiment_dataset_id: "",
+          experiment_dataset_id: null,
         }),
       ]);
     });
@@ -321,7 +441,7 @@ describe("Public API experiments repository", () => {
         projectId,
         query: {
           fields: ["core", "scores"],
-          fromTime: new Date(startTimeMs - 1_000).toISOString(),
+          fromStartTime: new Date(startTimeMs - 1_000).toISOString(),
           limit: 10,
           scoreLimit: 50,
         },
@@ -394,7 +514,7 @@ describe("Public API experiments repository", () => {
         projectId,
         query: {
           fields: ["core", "scores"],
-          fromTime: new Date(startTimeMs - 1_000).toISOString(),
+          fromStartTime: new Date(startTimeMs - 1_000).toISOString(),
           limit: 10,
           scoreLimit: 50,
         },
@@ -452,7 +572,7 @@ describe("Public API experiments repository", () => {
         fromTime,
         includeMetadata: false,
         cursor: {
-          lastTime: firstRow.end_time,
+          lastTime: firstRow.cursor_time,
           lastId: firstRow.cursor_span_id,
           lastExperimentId: firstRow.experiment_id,
         },
@@ -514,7 +634,7 @@ describe("Public API experiments repository", () => {
         fromTime,
         includeMetadata: false,
         cursor: {
-          lastTime: firstRow.end_time,
+          lastTime: firstRow.cursor_time,
           lastId: firstRow.cursor_span_id,
           lastExperimentId: firstRow.experiment_id,
         },
@@ -835,7 +955,7 @@ describe("Public API experiments repository", () => {
           fields: ["core"],
           limit: 1,
           scoreLimit: 50,
-          fromTime: new Date(startTimeMs - 1_000).toISOString(),
+          fromStartTime: new Date(startTimeMs - 1_000).toISOString(),
         },
       });
 
@@ -922,7 +1042,7 @@ describe("Public API experiments repository", () => {
           fields: ["core", "scores"],
           limit: 10,
           scoreLimit: 50,
-          fromTime: new Date(startTimeMs - 1_000).toISOString(),
+          fromStartTime: new Date(startTimeMs - 1_000).toISOString(),
         },
       });
 

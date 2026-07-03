@@ -37,7 +37,9 @@ const transformExperimentSummaryRow = (
     id: row.experiment_id,
     name: row.experiment_name,
     description: row.experiment_description ?? null,
+    startTime: parseClickhouseUTCDateTimeFormat(row.start_time),
     endTime: parseClickhouseUTCDateTimeFormat(row.end_time),
+    itemCount: Number(row.item_count),
     datasetId: row.experiment_dataset_id || null,
   };
 
@@ -153,8 +155,8 @@ export async function listExperimentsForPublicApi({
     id: query.id,
     name: query.name,
     datasetId: query.datasetId,
-    fromTime: new Date(query.fromTime),
-    toTime: query.toTime ? new Date(query.toTime) : undefined,
+    fromTime: new Date(query.fromStartTime),
+    toTime: query.toStartTime ? new Date(query.toStartTime) : undefined,
     advancedFilters: query.filter,
     cursor: query.cursor
       ? {
@@ -186,7 +188,9 @@ export async function listExperimentsForPublicApi({
       ? {
           cursor: encodeExperimentsCursor({
             v: 1,
-            lastTime: lastRow.end_time,
+            // The cursor anchors on the phase-1 latest-event key, not the
+            // surfaced startTime, so pagination stays on the page ordering.
+            lastTime: lastRow.cursor_time,
             lastId: lastRow.cursor_span_id,
             lastExperimentId: lastRow.experiment_id,
           }),
@@ -224,8 +228,8 @@ export async function listExperimentItemsForPublicApi({
 
   const rows = await queryExperimentItemsForPublicApi({
     projectId,
-    fromTime: new Date(query.fromTime),
-    toTime: query.toTime ? new Date(query.toTime) : undefined,
+    fromTime: new Date(query.fromStartTime),
+    toTime: query.toStartTime ? new Date(query.toStartTime) : undefined,
     experimentId: query.experimentId,
     experimentName: query.experimentName,
     experimentItemId: query.experimentItemId,

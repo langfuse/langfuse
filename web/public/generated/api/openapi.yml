@@ -1548,11 +1548,9 @@ paths:
     get:
       description: |-
         List experiments with cursor-based pagination. Results are ordered by
-        time descending.
+        latest experiment activity descending.
 
-        `fromTime` is required. Time filters and cursor bounds are applied
-        before experiments are grouped, so experiments may be represented
-        partially when the requested time range cuts through an experiment.
+        `fromStartTime` is required.
       operationId: experiments_list
       tags:
         - Experiments
@@ -1589,14 +1587,14 @@ paths:
           schema:
             type: string
             nullable: true
-        - name: fromTime
+        - name: fromStartTime
           in: query
           description: Retrieve only experiments on or after this datetime.
           required: true
           schema:
             type: string
             format: date-time
-        - name: toTime
+        - name: toStartTime
           in: query
           description: Retrieve only experiments before this datetime.
           required: false
@@ -1675,7 +1673,7 @@ paths:
         and optionally item/trace scores. Results are ordered by time
         descending.
 
-        `fromTime` is required.
+        `fromStartTime` is required.
       operationId: experiments_listItems
       tags:
         - Experiments
@@ -1716,16 +1714,16 @@ paths:
           schema:
             type: string
             nullable: true
-        - name: fromTime
+        - name: fromStartTime
           in: query
-          description: Retrieve only experiment items on or after this datetime.
+          description: Retrieve only experiment items started on or after this datetime.
           required: true
           schema:
             type: string
             format: date-time
-        - name: toTime
+        - name: toStartTime
           in: query
-          description: Retrieve only experiment items before this datetime.
+          description: Retrieve only experiment items started before this datetime.
           required: false
           schema:
             type: string
@@ -10059,9 +10057,22 @@ components:
         description:
           type: string
           nullable: true
+        startTime:
+          type: string
+          format: date-time
+          description: |-
+            Start of the experiment, i.e. the earliest event within the
+            requested time range. Clipped to `fromStartTime` when the
+            experiment started before the requested range.
         endTime:
           type: string
           format: date-time
+          description: |-
+            End of the experiment, i.e. the latest event end within the
+            requested time range.
+        itemCount:
+          type: integer
+          description: Number of experiment items within the requested time range.
         datasetId:
           type: string
           nullable: true
@@ -10083,7 +10094,9 @@ components:
         - id
         - name
         - description
+        - startTime
         - endTime
+        - itemCount
         - datasetId
     ExperimentItemsResponse:
       title: ExperimentItemsResponse

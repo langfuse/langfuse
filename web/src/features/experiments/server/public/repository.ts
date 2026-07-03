@@ -2,6 +2,7 @@ import {
   convertDateToClickhouseDateTime,
   deriveFilters,
   EventsQueryBuilder,
+  ExperimentsAggregationQueryBuilder,
   buildEventsFullTableSplitQuery,
   measureAndReturn,
   parseClickhouseUTCDateTimeFormat,
@@ -23,10 +24,11 @@ type ExperimentSummaryRow = {
   experiment_name: string;
   experiment_description: string | null;
   experiment_dataset_id: string | null;
+  start_time: string;
   end_time: string;
-  cursor_trace_hash: number;
-  cursor_trace_id: string;
+  cursor_time: string;
   cursor_span_id: string;
+  item_count: number;
   experiment_metadata?: Record<string, unknown> | null;
   scores?: ScoreRecordReadType[];
 };
@@ -169,13 +171,13 @@ async function queryExperimentSummaryRowsForPublicApi(
     publicApiExperimentColumnDefinitions,
   );
 
-  const queryBuilder = new EventsQueryBuilder({ projectId: params.projectId })
-    .selectFieldSet(
-      "publicApiExperimentSummaryCore",
-      ...(params.includeMetadata
-        ? (["publicApiExperimentSummaryMetadata"] as const)
-        : []),
-    )
+  // Phase 1: pick the page of experiment ids via LIMIT 1 BY on raw events.
+  // Reading follows the table sort key and can stop once the page is full, and
+  // the id-set keeps the phase-2 GROUP BY bounded to at most `limit` groups.
+  const pageQueryBuilder = new EventsQueryBuilder({
+    projectId: params.projectId,
+  })
+    .selectRaw("e.experiment_id AS experiment_id")
     .whereRaw("e.experiment_id != ''")
     .withExactTimeFrom(fromTime)
     .withExactTimeTo(toTime)
@@ -198,7 +200,43 @@ async function queryExperimentSummaryRowsForPublicApi(
     .limitBy("e.project_id", "e.experiment_id")
     .limit(params.limit);
 
-  const { query, params: queryParams } = queryBuilder.buildWithParams();
+  const { query: pageQuery, params: pageParams } =
+    pageQueryBuilder.buildWithParams();
+
+  // Phase 2: aggregate only the paged experiments. Page order and cursor stay
+  // on the phase-1 latest-event key (the row LIMIT 1 BY selected); start_time
+  // surfaces the experiment start (earliest in-window event) independently of
+  // the sort key.
+  const aggregationBuilder = new ExperimentsAggregationQueryBuilder({
+    projectId: params.projectId,
+  })
+    .selectFieldSet("publicApiSummary")
+    .when(params.includeMetadata, (b) =>
+      b.selectFieldSet("publicApiSummaryMetadata"),
+    )
+    .selectRaw(
+      // True end: the latest event *end*, not the latest event start — an
+      // earlier event can outlive the latest-starting one. The greatest()
+      // clamps client-reported end_time < start_time rows so that
+      // endTime >= startTime always holds in the response.
+      "max(greatest(e.start_time, coalesce(e.end_time, e.start_time))) AS end_time",
+      // max, not min: the cursor must reproduce the LATEST event (the row
+      // LIMIT 1 BY kept under DESC order). Anchoring on the earliest event
+      // would skip experiments whose only activity lies between the last
+      // page experiment's first and last event.
+      "max(e.start_time) AS cursor_time",
+      "argMax(e.span_id, (e.start_time, e.span_id)) AS cursor_span_id",
+      // Counts item root spans to match what /experiment-items paginates.
+      "uniqIf(e.span_id, e.span_id = e.experiment_item_root_span_id) AS item_count",
+    )
+    .withExactTimeFrom(fromTime)
+    .withExactTimeTo(toTime)
+    .whereRaw(`e.experiment_id IN (${pageQuery})`, pageParams)
+    .orderBy(
+      "ORDER BY toStartOfMinute(cursor_time) DESC, cursor_time DESC, experiment_id DESC, cursor_span_id DESC",
+    );
+
+  const { query, params: queryParams } = aggregationBuilder.buildWithParams();
 
   const rows = await measureAndReturn({
     operationName: "queryExperimentSummaryRowsForPublicApi",
@@ -234,7 +272,7 @@ export async function queryExperimentSummariesForPublicApi(
 
   const scoreTimestampBounds = scoreTimestampBoundsFromRows(
     rows,
-    (row) => row.end_time,
+    (row) => row.cursor_time,
   );
   const scoresByExperimentId = groupExperimentScores(
     await queryScoreRecordsForExperiments({

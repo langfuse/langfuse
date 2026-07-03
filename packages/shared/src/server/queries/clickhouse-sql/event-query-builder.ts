@@ -111,7 +111,6 @@ const EVENTS_FIELDS = {
   // Time fields
   startTime: 'e.start_time as "start_time"',
   endTime: 'e.end_time as "end_time"',
-  publicApiExperimentSummaryEndTime: 'e.start_time as "end_time"',
   completionStartTime: 'e.completion_start_time as "completion_start_time"',
   createdAt: 'e.created_at as "created_at"',
   updatedAt: 'e.updated_at as "updated_at"',
@@ -163,10 +162,6 @@ const EVENTS_FIELDS = {
   experimentDatasetId: 'e.experiment_dataset_id as "experiment_dataset_id"',
   experimentMetadata:
     "mapFromArrays(e.experiment_metadata_names, e.experiment_metadata_values) as experiment_metadata",
-  publicApiExperimentCursorTraceHash:
-    "xxHash32(e.trace_id) AS cursor_trace_hash",
-  publicApiExperimentCursorTraceId: "e.trace_id AS cursor_trace_id",
-  publicApiExperimentCursorSpanId: "e.span_id AS cursor_span_id",
 
   // Experiment item fields
   experimentItemId: 'e.experiment_item_id as "experiment_item_id"',
@@ -303,18 +298,6 @@ const FIELD_SETS = {
     "experimentMetadata",
     "experimentDescription",
   ],
-  publicApiExperimentSummaryCore: [
-    "experimentId",
-    "experimentName",
-    "experimentDescription",
-    "experimentDatasetId",
-    "publicApiExperimentSummaryEndTime",
-    "publicApiExperimentCursorTraceHash",
-    "publicApiExperimentCursorTraceId",
-    "publicApiExperimentCursorSpanId",
-  ],
-  publicApiExperimentSummaryMetadata: ["experimentMetadata"],
-
   // getById field sets (reuse the same fields - all queries use `FROM events_<type> e`)
   byIdBase: [
     "id",
@@ -693,7 +676,10 @@ abstract class AbstractQueryBuilder {
 
       return b
         .whereRaw(
-          "(toStartOfMinute(e.start_time), e.start_time, e.experiment_id, e.span_id) < (toStartOfMinute({lastTime: DateTime64(6)}), {lastTime: DateTime64(6)}, {lastExperimentId: String}, {lastId: String})",
+          // The plain start_time bound is redundant with the tuple comparison
+          // but lets the primary index prune granules newer than the cursor;
+          // the mixed tuple alone is not index-usable.
+          "e.start_time <= {lastTime: DateTime64(6)} AND (toStartOfMinute(e.start_time), e.start_time, e.experiment_id, e.span_id) < (toStartOfMinute({lastTime: DateTime64(6)}), {lastTime: DateTime64(6)}, {lastExperimentId: String}, {lastId: String})",
           {
             lastTime: cursor.lastTime,
             lastExperimentId: cursor.lastExperimentId,
@@ -1956,6 +1942,14 @@ const EXPERIMENTS_AGGREGATION_FIELD_SETS = {
     "experimentMetadata",
   ] as const,
   metrics: ["experimentId", "totalCost", "latencyAvg"] as const,
+  publicApiSummary: [
+    "experimentId",
+    "experimentName",
+    "experimentDescription",
+    "experimentDatasetId",
+    "startTime",
+  ] as const,
+  publicApiSummaryMetadata: ["experimentMetadata"] as const,
 } as const;
 
 export type ExperimentsAggregationFieldSetName =

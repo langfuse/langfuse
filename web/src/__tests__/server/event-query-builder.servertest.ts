@@ -501,7 +501,7 @@ describe("ExperimentsAggregationQueryBuilder", () => {
     const { query, params } = new EventsQueryBuilder({
       projectId: "test-project",
     })
-      .selectFieldSet("publicApiExperimentSummaryCore")
+      .selectRaw("e.experiment_id AS experiment_id")
       .withExperimentSummaryCursor({
         lastTime: "2026-01-01 00:00:00.000000",
         lastId: "span-1",
@@ -513,6 +513,8 @@ describe("ExperimentsAggregationQueryBuilder", () => {
     expect(query).toContain(
       "(toStartOfMinute(e.start_time), e.start_time, e.experiment_id, e.span_id) < (toStartOfMinute({lastTime: DateTime64(6)}), {lastTime: DateTime64(6)}, {lastExperimentId: String}, {lastId: String})",
     );
+    // Index-usable bound so cursor pages skip granules newer than the cursor.
+    expect(query).toContain("e.start_time <= {lastTime: DateTime64(6)}");
     expect(query).toContain("AND e2.start_time >= {lastTime: DateTime64(6)}");
     expect(query).toContain(
       "AND e2.start_time < {lastTime: DateTime64(6)} + INTERVAL 1 DAY",

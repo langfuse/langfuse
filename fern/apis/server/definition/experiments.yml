@@ -12,11 +12,9 @@ service:
       path: /experiments
       docs: |
         List experiments with cursor-based pagination. Results are ordered by
-        time descending.
+        latest experiment activity descending.
 
-        `fromTime` is required. Time filters and cursor bounds are applied
-        before experiments are grouped, so experiments may be represented
-        partially when the requested time range cuts through an experiment.
+        `fromStartTime` is required.
       request:
         name: ListExperimentsRequest
         query-parameters:
@@ -34,10 +32,10 @@ service:
           cursor:
             type: optional<string>
             docs: Versioned base64url cursor from the previous response page.
-          fromTime:
+          fromStartTime:
             type: datetime
             docs: Retrieve only experiments on or after this datetime.
-          toTime:
+          toStartTime:
             type: optional<datetime>
             docs: Retrieve only experiments before this datetime.
           id:
@@ -64,7 +62,7 @@ service:
         and optionally item/trace scores. Results are ordered by time
         descending.
 
-        `fromTime` is required.
+        `fromStartTime` is required.
       request:
         name: ListExperimentItemsRequest
         query-parameters:
@@ -84,12 +82,12 @@ service:
           cursor:
             type: optional<string>
             docs: Versioned base64url cursor from the previous response page.
-          fromTime:
+          fromStartTime:
             type: datetime
-            docs: Retrieve only experiment items on or after this datetime.
-          toTime:
+            docs: Retrieve only experiment items started on or after this datetime.
+          toStartTime:
             type: optional<datetime>
-            docs: Retrieve only experiment items before this datetime.
+            docs: Retrieve only experiment items started before this datetime.
           experimentId:
             type: optional<string>
             docs: Comma-separated list of experiment IDs.
@@ -127,7 +125,20 @@ types:
       id: string
       name: string
       description: nullable<string>
-      endTime: datetime
+      startTime:
+        type: datetime
+        docs: |
+          Start of the experiment, i.e. the earliest event within the
+          requested time range. Clipped to `fromStartTime` when the
+          experiment started before the requested range.
+      endTime:
+        type: datetime
+        docs: |
+          End of the experiment, i.e. the latest event end within the
+          requested time range.
+      itemCount:
+        type: integer
+        docs: Number of experiment items within the requested time range.
       datasetId:
         type: nullable<string>
         docs: Null when the experiment is not associated with a dataset.
