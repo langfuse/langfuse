@@ -2,9 +2,7 @@
 ARG WIZOS_NODE_BUILDER_IMAGE=816069167615.dkr.ecr.eu-west-1.amazonaws.com/wizos-node:24
 ARG WIZOS_NODE_RUNTIME_IMAGE=816069167615.dkr.ecr.eu-west-1.amazonaws.com/wizos-node:24-hardened
 
-FROM --platform=${TARGETPLATFORM:-linux/amd64} ${WIZOS_NODE_BUILDER_IMAGE} AS node-builder-base
-
-FROM --platform=${TARGETPLATFORM:-linux/amd64} node-builder-base AS build-base
+FROM --platform=${TARGETPLATFORM:-linux/amd64} ${WIZOS_NODE_BUILDER_IMAGE} AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
 RUN npm install turbo@2.9.18 --global
 ENV PNPM_HOME="/pnpm"
@@ -13,7 +11,7 @@ RUN npm install pnpm@11.4.0 --global
 
 # Throwaway stage: only the paths COPY'd out of it reach the hardened runtime,
 # so npm does not need cleanup here.
-FROM --platform=${TARGETPLATFORM:-linux/amd64} node-builder-base AS runtime-deps
+FROM --platform=${TARGETPLATFORM:-linux/amd64} ${WIZOS_NODE_BUILDER_IMAGE} AS runtime-deps
 WORKDIR /app
 # No bin launcher ships to the runtime: the shell-less entrypoint.mjs runs the
 # prisma CLI via node and this package's build/index.js directly.
