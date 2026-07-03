@@ -106,6 +106,11 @@ import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSea
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { withMetadataPathOptions } from "@/src/features/search-bar/lib/metadata-paths";
+import {
+  useObservedMetadataPaths,
+  useObservedMetadataRecorder,
+} from "@/src/features/search-bar/hooks/useObservedMetadata";
 
 export type EventsTableRow = {
   // Identity fields
@@ -183,6 +188,10 @@ export type EventsTableProps = {
   userId?: string;
   omittedFilter?: ObservationEventsOmittableFilterColumn[];
   hideControls?: boolean;
+  /** Hide the toolbar time-range picker. Set by pages that render the picker
+   *  in the page header (TableTimeRangeHeaderPicker) — both read the same
+   *  shared per-project range, so embedded usages keep the toolbar picker. */
+  hideTimeRangePicker?: boolean;
   // External control props for embedded preview tables
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
@@ -220,6 +229,7 @@ export default function ObservationsEventsTable({
   userId,
   omittedFilter = [],
   hideControls = false,
+  hideTimeRangePicker = false,
   externalFilterState,
   externalDateRange,
   limitRows,
@@ -492,9 +502,22 @@ export default function ObservationsEventsTable({
     [],
   );
 
+  // Metadata key paths are not server-enumerated: merge the persisted
+  // per-project map of paths observed on previously loaded rows (recorded
+  // below, once the table data hook provides the rows) into the observed
+  // options, so `metadata.` completes with real keys and their types.
+  const observedMetadataPaths = useObservedMetadataPaths(
+    projectId,
+    searchBarMode,
+  );
+
   const observedOptions = useMemo(
-    () => toObservedOptions(filterOptions, isFilterOptionsPending),
-    [filterOptions, isFilterOptionsPending],
+    () =>
+      withMetadataPathOptions(
+        toObservedOptions(filterOptions, isFilterOptionsPending),
+        observedMetadataPaths,
+      ),
+    [filterOptions, isFilterOptionsPending, observedMetadataPaths],
   );
 
   const {
@@ -603,6 +626,15 @@ export default function ObservationsEventsTable({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [observations.status, observations.rows]);
+
+  // Record the visible rows' metadata paths into the persisted per-project
+  // suggestions map (read above into observedMetadataPaths). Same sampling as
+  // the AI context below; runs once per fetch (rows identity).
+  useObservedMetadataRecorder({
+    projectId,
+    rows: observations.rows,
+    enabled: searchBarMode,
+  });
 
   // Project data context for the AI filter prompt: observed values (from
   // filterOptions) + metadata keys sampled from the visible rows + the current
@@ -1604,8 +1636,8 @@ export default function ObservationsEventsTable({
               orderByState={orderByState}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
-              timeRange={timeRange}
-              setTimeRange={setTimeRange}
+              timeRange={hideTimeRangePicker ? undefined : timeRange}
+              setTimeRange={hideTimeRangePicker ? undefined : setTimeRange}
               // Disabled, for now moved to filter sidebar
               // TODO: remove this toggle once v4 looks good as is
               // viewModeToggle={

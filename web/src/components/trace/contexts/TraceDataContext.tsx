@@ -26,6 +26,10 @@ import {
   getObservationLevels,
   removeHiddenNodes,
 } from "../lib/tree-building";
+import {
+  calculateTraceDuration,
+  findEarliestStartTime,
+} from "../components/TraceTimeline/timeline-calculations";
 import { useViewPreferences } from "./ViewPreferencesContext";
 import { useMergedScores } from "@/src/features/scores/lib/useMergedScores";
 
@@ -48,6 +52,12 @@ interface TraceDataContextValue {
   searchItems: TraceSearchListItem[];
   hiddenObservationsCount: number;
   comments: Map<string, number>;
+  /** Timeline origin (the 0s mark): earliest start across the whole tree. The
+   * single owner of the temporal frame — timeline, playhead, and graph all
+   * consume these two instead of re-deriving them. */
+  traceStartTime: Date;
+  /** Total trace span in seconds, origin → latest end (0 for empty traces). */
+  traceDuration: number;
 }
 
 const TraceDataContext = createContext<TraceDataContextValue | null>(null);
@@ -128,6 +138,17 @@ export function TraceDataProvider({
       return { filteredRoots, filteredSearchItems, hiddenObservationsCount };
     }, [uiData, minObservationLevel]);
 
+  // Temporal frame, derived once from the filtered roots (single source of
+  // truth for the timeline scale, the playback engine, and scroll math).
+  const traceStartTime = useMemo(
+    () => findEarliestStartTime(filteredRoots) ?? new Date(),
+    [filteredRoots],
+  );
+  const traceDuration = useMemo(
+    () => calculateTraceDuration(filteredRoots, traceStartTime),
+    [filteredRoots, traceStartTime],
+  );
+
   // Merge scores with optimistic cache
   const mergedScores = useMergedScores(
     serverScores,
@@ -150,6 +171,8 @@ export function TraceDataProvider({
       searchItems: filteredSearchItems,
       hiddenObservationsCount,
       comments,
+      traceStartTime,
+      traceDuration,
     }),
     [
       trace,
@@ -162,6 +185,8 @@ export function TraceDataProvider({
       hiddenObservationsCount,
       uiData.nodeMap,
       comments,
+      traceStartTime,
+      traceDuration,
     ],
   );
 

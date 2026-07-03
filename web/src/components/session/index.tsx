@@ -68,6 +68,8 @@ import {
   SESSION_DETAIL_SYSTEM_PRESETS,
   type SessionDetailSystemPreset,
   getSessionDetailPresetToApply,
+  findSessionDetailViewByFilters,
+  SESSION_DETAIL_VIEW_TRIGGER_ID,
 } from "@/src/components/session/session-detail-presets";
 import { downloadSessionAsJson } from "@/src/components/session/actions/downloadSessionAsJson";
 import { SessionDetailStoreProvider } from "@/src/components/session/SessionDetailStoreProvider";
@@ -526,6 +528,7 @@ export const SessionEventsPage: React.FC<{
       projectId: projectId,
     },
     {
+      enabled: !!projectId && !!sessionId,
       retry(failureCount, error) {
         if (
           error.data?.code === "UNAUTHORIZED" ||
@@ -924,26 +927,82 @@ const LoadedSessionEventsPage: React.FC<{
     [queryFilter, viewControllers],
   );
 
+  // The URL's viewId captured on first render, before the table view manager
+  // strips frontend system-preset ids — lets us restore a reloaded system view
+  // (incl. the empty-filter "All observations", otherwise indistinguishable
+  // from a fresh load) instead of silently replacing its FilterState. Read from
+  // window.location synchronously (not useQueryParam, which can lag a render on
+  // mount and miss the value before the strip).
+  const readUrlViewId = (): string | null =>
+    typeof window === "undefined"
+      ? null
+      : new URLSearchParams(window.location.search).get("viewId");
+  const initialViewIdRef = useRef<string | null>(readUrlViewId());
+  // Navigating between sessions (DetailPageNav prev/next) can reuse this mounted
+  // component when the destination is already in the react-query cache — the
+  // useRef initializer wouldn't re-run, leaving a stale viewId that blocks the
+  // default-view effect on the new session. Re-read the URL during render (not
+  // an effect, which would race the view manager's strip on reload) whenever the
+  // sessionId changes, mirroring the defaultPresetAppliedRef reset above.
+  const initialViewIdSessionRef = useRef(sessionId);
+  if (initialViewIdSessionRef.current !== sessionId) {
+    initialViewIdSessionRef.current = sessionId;
+    initialViewIdRef.current = readUrlViewId();
+  }
+
+  const selectedViewId = viewControllers.selectedViewId;
+
+  // Which named view drives the empty-state notice. Derived from the applied
+  // FilterState (the single source of truth) so the label survives the manager
+  // stripping the viewId on reload, and drops to null the moment the filter is
+  // edited. Mirrors the drawer trigger's rule: only name a view when it also
+  // matches the selected view id — so a selected saved view, or a filter
+  // hand-edited into another preset's exact shape, doesn't make the notice and
+  // the drawer trigger disagree.
+  const filterMatchedView = findSessionDetailViewByFilters(visibleFilterState);
+  const matchedView =
+    filterMatchedView &&
+    (!selectedViewId || filterMatchedView.id === selectedViewId)
+      ? filterMatchedView
+      : null;
+  const viewLabel = matchedView?.name ?? null;
+
+  // Recover the system-preset viewId the view manager strips from the URL on
+  // reload/shared-link (frontend presets aren't backend-fetchable). Idempotent
+  // (no one-shot guard) so it runs *after* the async strip, not before. Recovers
+  // when the surviving filter matches a preset AND either that preset was the
+  // URL's provenance viewId (captured before the strip — covers the empty-filter
+  // "All observations", otherwise indistinguishable from a fresh load) or the
+  // filter is non-empty (unambiguous). The filter itself is never changed.
+  useEffect(() => {
+    if (isViewLoading) return;
+    if (selectedViewId) return;
+    const filterMatchedView =
+      findSessionDetailViewByFilters(visibleFilterState);
+    if (!filterMatchedView) return;
+    const shouldRecover =
+      filterMatchedView.id === initialViewIdRef.current ||
+      visibleFilterState.length > 0;
+    if (shouldRecover) viewControllers.handleSetViewId(filterMatchedView.id);
+  }, [isViewLoading, selectedViewId, visibleFilterState, viewControllers]);
+
+  // Fresh load with nothing in the URL → apply the default view. Skipped on
+  // reload/shared-link (a viewId was in the URL) so the recovery effect above,
+  // not the default, decides the view — otherwise "All observations" would be
+  // silently replaced by the default on every reload.
   useEffect(() => {
     if (defaultPresetAppliedRef.current) return;
     if (isViewLoading) return; // Wait for view manager to initialize
-
+    if (selectedViewId) return;
+    if (initialViewIdRef.current) return;
     const presetToApply = getSessionDetailPresetToApply({
-      selectedViewId: viewControllers.selectedViewId,
-      hasFilters: queryFilter.filterState.length > 0,
+      selectedViewId: null,
+      hasFilters: visibleFilterState.length > 0,
     });
     if (!presetToApply) return;
-
     defaultPresetAppliedRef.current = true;
-    // Sessions intentionally default to the first generation in each trace
-    // when opened without explicit filters or a saved view.
     applySystemPreset(presetToApply);
-  }, [
-    applySystemPreset,
-    queryFilter.filterState.length,
-    isViewLoading,
-    viewControllers.selectedViewId,
-  ]);
+  }, [applySystemPreset, isViewLoading, selectedViewId, visibleFilterState]);
 
   const virtualizer = useVirtualizer({
     count: traces?.length ?? 0,
@@ -1064,14 +1123,18 @@ const LoadedSessionEventsPage: React.FC<{
                 searchQuery: "",
               }}
               systemFilterPresets={SESSION_DETAIL_SYSTEM_PRESETS}
+              triggerId={SESSION_DETAIL_VIEW_TRIGGER_ID}
             />
 
-            {/* Filter Builder */}
+            {/* Refines the selected view by filtering observations within each
+                trace (it does not filter the list of traces) — labelled to say
+                so (LFE-10520). */}
             <PopoverFilterBuilder
               columns={filterColumns}
               filterState={visibleFilterState}
               onChange={queryFilter.setFilterState}
               columnsWithCustomSelect={filterColumnsWithCustomSelect}
+              label="Filter observations"
             />
 
             {/* Separator */}
@@ -1122,6 +1185,7 @@ const LoadedSessionEventsPage: React.FC<{
                       )}
                       index={virtualItem.index}
                       filterState={visibleFilterState}
+                      viewLabel={viewLabel}
                     />
                   </SessionVirtualizedRow>
                 );
