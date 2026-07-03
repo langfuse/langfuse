@@ -173,6 +173,40 @@ describe("mergeIntoProject", () => {
     expect(byProject).toHaveProperty("p20");
   });
 
+  it("types keys shadowing Object.prototype members correctly", () => {
+    // `nextPaths["toString"]` must not read the inherited function as the
+    // "existing" entry — that would skip the cap counter and pin the type to
+    // "mixed" forever (review find: greptile/claude on PR #14771).
+    const merged = mergeIntoProject(
+      {},
+      "p1",
+      paths({
+        toString: { type: "string", values: ["hello"] },
+        constructor: { type: "number", values: ["1"] },
+        hasOwnProperty: { type: "boolean" },
+      }),
+      1000,
+    );
+    expect(merged?.p1.paths.toString).toEqual({
+      type: "string",
+      values: ["hello"],
+    });
+    expect(merged?.p1.paths.constructor).toEqual({
+      type: "number",
+      values: ["1"],
+    });
+    expect(merged?.p1.paths.hasOwnProperty).toEqual({ type: "boolean" });
+    // Re-merging the same observation stays a no-op (types stable, no churn).
+    expect(
+      mergeIntoProject(
+        merged!,
+        "p1",
+        paths({ toString: { type: "string", values: ["hello"] } }),
+        2000,
+      ),
+    ).toBe(null);
+  });
+
   it("scopes paths per project (no cross-bleed)", () => {
     const one = mergeIntoProject(
       {},

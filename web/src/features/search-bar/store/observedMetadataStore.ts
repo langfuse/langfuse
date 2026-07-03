@@ -84,7 +84,14 @@ export function mergeIntoProject(
   );
   let changed = false;
   for (const [path, incoming] of collected) {
-    const existing = nextPaths[path];
+    // Own-property lookup: a key shadowing an Object.prototype member
+    // ("toString", "constructor", …) must read as unseen, not as the
+    // inherited function — which would bypass the cap counter and crash or
+    // pin the type to "mixed" (`nextPaths["constructor"].values` resolves to
+    // the static Object.values).
+    const existing = Object.hasOwn(nextPaths, path)
+      ? nextPaths[path]
+      : undefined;
     if (existing === undefined) {
       if (count >= MAX_PATHS_PER_PROJECT) continue;
       count++;
