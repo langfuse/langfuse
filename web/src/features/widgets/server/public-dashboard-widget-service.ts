@@ -20,7 +20,10 @@ import {
   PostUnstableDashboardWidgetResponse,
   type PostUnstableDashboardWidgetBodyType,
 } from "@/src/features/public-api/types/unstable-dashboard-widgets";
-import { partitionStoredUiTableFiltersToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import {
+  getWidgetImportFilterConfig,
+  partitionStoredUiTableFiltersToView,
+} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import {
   MAX_PIVOT_TABLE_DIMENSIONS,
   MAX_PIVOT_TABLE_METRICS,
@@ -88,6 +91,9 @@ export function normalizePublicDashboardWidgetInput(
 ): PostUnstableDashboardWidgetBodyType {
   const { mappedFilters, unsupportedFilters } =
     partitionStoredUiTableFiltersToView(input.view, input.filters);
+  const { allowedColumns, columnAliases } = getWidgetImportFilterConfig(
+    input.view,
+  );
 
   if (unsupportedFilters.length > 0) {
     throwInvalidWidget({
@@ -96,9 +102,24 @@ export function normalizePublicDashboardWidgetInput(
     });
   }
 
+  const invalidFilterColumns = mappedFilters.flatMap((filter) => {
+    const normalizedColumn = columnAliases[filter.column] ?? filter.column;
+    return allowedColumns.has(normalizedColumn) ? [] : [filter.column];
+  });
+
+  if (invalidFilterColumns.length > 0) {
+    throwInvalidWidget({
+      message: `Unsupported filter column for view "${input.view}": ${invalidFilterColumns.join(", ")}`,
+      field: "filters",
+    });
+  }
+
   return {
     ...input,
-    filters: mappedFilters,
+    filters: mappedFilters.map((filter) => ({
+      ...filter,
+      column: columnAliases[filter.column] ?? filter.column,
+    })),
     minVersion: input.view === "traces" ? 1 : (input.minVersion ?? 1),
   };
 }

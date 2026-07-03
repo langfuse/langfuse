@@ -138,4 +138,31 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
     });
     expect(body.details).toMatchObject({ field: "metrics[0].agg" });
   });
+
+  it("rejects filter columns that widget JSON import would remove", async () => {
+    const { auth } = await createOrgProjectAndApiKey();
+
+    const response = await makeAPICall(
+      "POST",
+      "/api/public/unstable/dashboard-widgets",
+      {
+        ...baseWidgetBody,
+        filters: [
+          {
+            type: "string",
+            column: "notAWidgetFilterColumn",
+            operator: "=",
+            value: "value",
+          },
+        ],
+      },
+      auth,
+    );
+
+    const body = expectUnstableError(response, {
+      status: 400,
+      code: "invalid_request",
+    });
+    expect(body.details).toMatchObject({ field: "filters" });
+  });
 });

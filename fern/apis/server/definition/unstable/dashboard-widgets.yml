@@ -70,8 +70,10 @@ types:
     enum:
       - traces
       - observations
-      - scores-numeric
-      - scores-categorical
+      - name: ScoresNumeric
+        value: scores-numeric
+      - name: ScoresCategorical
+        value: scores-categorical
 
   DashboardWidgetChartType:
     enum:
