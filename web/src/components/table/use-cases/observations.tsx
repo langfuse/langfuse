@@ -60,7 +60,10 @@ import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTabl
 import {
   toAbsoluteTimeRange,
   type TableDateRange,
+  TABLE_AGGREGATION_OPTIONS,
 } from "@/src/utils/date-range-utils";
+import { TimeRangePicker } from "@/src/components/date-picker";
+import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { type ScoreAggregate } from "@langfuse/shared";
 import TagList from "@/src/features/tag/components/TagList";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
@@ -96,6 +99,7 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { buildTraceDetailPath } from "@/src/utils/navigation";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 import {
+  DataTableRefreshButton,
   type RefreshInterval,
   REFRESH_INTERVALS,
 } from "@/src/components/table/data-table-refresh-button";
@@ -161,6 +165,13 @@ export type ObservationsTableProps = {
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
   limitRows?: number;
+  /**
+   * When true, render the time-range picker and auto-refresh button in the
+   * page header (next to the title) via the header controls slot, instead of
+   * inside the table toolbar. Only used when the table is the primary content
+   * of a `Page`.
+   */
+  showControlsInPageHeader?: boolean;
 };
 
 export default function ObservationsTable({
@@ -173,6 +184,7 @@ export default function ObservationsTable({
   externalFilterState,
   externalDateRange,
   limitRows,
+  showControlsInPageHeader = false,
 }: ObservationsTableProps) {
   const peekContext = usePeekTableState();
 
@@ -1377,8 +1389,31 @@ export default function ObservationsTable({
     });
   }, [observationsTableStore, pageRowIds, totalCount]);
 
+  const refreshConfig = {
+    onRefresh: handleRefresh,
+    isRefreshing: generations.isFetching || totalCountQuery.isFetching,
+    interval: refreshInterval,
+    setInterval: setRefreshInterval,
+  };
+
   const content = (
     <>
+      {showControlsInPageHeader && !hideControls && (
+        <PageHeaderControlsPortal>
+          <TimeRangePicker
+            timeRange={timeRange}
+            onTimeRangeChange={setTimeRange}
+            timeRangePresets={TABLE_AGGREGATION_OPTIONS}
+            className="my-0 max-w-full overflow-x-auto"
+          />
+          <DataTableRefreshButton
+            onRefresh={refreshConfig.onRefresh}
+            isRefreshing={refreshConfig.isRefreshing}
+            interval={refreshConfig.interval}
+            setInterval={refreshConfig.setInterval}
+          />
+        </PageHeaderControlsPortal>
+      )}
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         {!hideControls && (
@@ -1411,15 +1446,9 @@ export default function ObservationsTable({
             orderByState={orderByState}
             rowHeight={rowHeight}
             setRowHeight={setRowHeight}
-            timeRange={timeRange}
-            setTimeRange={setTimeRange}
-            refreshConfig={{
-              onRefresh: handleRefresh,
-              isRefreshing:
-                generations.isFetching || totalCountQuery.isFetching,
-              interval: refreshInterval,
-              setInterval: setRefreshInterval,
-            }}
+            timeRange={showControlsInPageHeader ? undefined : timeRange}
+            setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
+            refreshConfig={showControlsInPageHeader ? undefined : refreshConfig}
             projectId={projectId}
             backendFilterState={backendFilterState}
             searchQuery={searchQuery}

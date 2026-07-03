@@ -30,8 +30,13 @@ import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-tr
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
+import {
+  toAbsoluteTimeRange,
+  TABLE_AGGREGATION_OPTIONS,
+} from "@/src/utils/date-range-utils";
 import { api } from "@/src/utils/api";
+import { TimeRangePicker } from "@/src/components/date-picker";
+import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 
 import type { RouterOutput } from "@/src/utils/types";
 import {
@@ -96,6 +101,13 @@ export type ScoresTableProps = {
   hiddenColumns?: ScoresTableHiddenColumn[];
   localStorageSuffix?: string;
   disableUrlPersistence?: boolean;
+  /**
+   * When true, render the time-range picker and auto-refresh button in the
+   * page header (next to the title) via the header controls slot, instead of
+   * inside the table toolbar. Only used when the table is the primary content
+   * of a `Page`.
+   */
+  showControlsInPageHeader?: boolean;
 };
 
 function createFilterState(
@@ -122,6 +134,7 @@ export default function ScoresTable({
   hiddenColumns = [],
   localStorageSuffix = "",
   disableUrlPersistence = false,
+  showControlsInPageHeader = false,
 }: ScoresTableProps) {
   const peekContext = usePeekTableState();
 
@@ -920,6 +933,16 @@ export default function ScoresTable({
       defaultSidebarCollapsed={scoresFilterConfig.defaultSidebarCollapsed}
     >
       <div className="flex h-full w-full flex-col">
+        {showControlsInPageHeader && (
+          <PageHeaderControlsPortal>
+            <TimeRangePicker
+              timeRange={timeRange}
+              onTimeRangeChange={setTimeRange}
+              timeRangePresets={TABLE_AGGREGATION_OPTIONS}
+              className="my-0 max-w-full overflow-x-auto"
+            />
+          </PageHeaderControlsPortal>
+        )}
         {/* Toolbar spanning full width */}
         <DataTableToolbar
           columns={columns}
@@ -955,8 +978,8 @@ export default function ScoresTable({
           ]}
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
-          timeRange={timeRange}
-          setTimeRange={setTimeRange}
+          timeRange={showControlsInPageHeader ? undefined : timeRange}
+          setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
           multiSelect={{
             selectAll,
             setSelectAll,

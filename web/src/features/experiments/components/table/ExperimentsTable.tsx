@@ -26,7 +26,12 @@ import { numberFormatter } from "@/src/utils/numbers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
+import {
+  toAbsoluteTimeRange,
+  TABLE_AGGREGATION_OPTIONS,
+} from "@/src/utils/date-range-utils";
+import { TimeRangePicker } from "@/src/components/date-picker";
+import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { GitCompareArrows, LightbulbIcon } from "lucide-react";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
@@ -93,6 +98,7 @@ export default function ExperimentsTable({
   defaultFilter,
   fixedFilter = [],
   sessionFilterContextId,
+  showControlsInPageHeader = false,
 }: ExperimentsTableProps) {
   const router = useRouter();
   const filterConfig = useMemo(
@@ -672,6 +678,16 @@ export default function ExperimentsTable({
     <>
       <DataTableControlsProvider>
         <div className="flex h-full w-full flex-col">
+          {showControlsInPageHeader && (
+            <PageHeaderControlsPortal>
+              <TimeRangePicker
+                timeRange={timeRange}
+                onTimeRangeChange={setTimeRange}
+                timeRangePresets={TABLE_AGGREGATION_OPTIONS}
+                className="my-0 max-w-full overflow-x-auto"
+              />
+            </PageHeaderControlsPortal>
+          )}
           {/* Toolbar spanning full width */}
           <DataTableToolbar
             columns={columns}
@@ -689,8 +705,8 @@ export default function ExperimentsTable({
             orderByState={orderByState}
             rowHeight={rowHeight}
             setRowHeight={setRowHeight}
-            timeRange={timeRange}
-            setTimeRange={setTimeRange}
+            timeRange={showControlsInPageHeader ? undefined : timeRange}
+            setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
             actionButtons={[
               ...(shouldShowActions
                 ? [

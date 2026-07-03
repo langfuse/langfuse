@@ -44,7 +44,10 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import {
   toAbsoluteTimeRange,
   type TableDateRange,
+  TABLE_AGGREGATION_OPTIONS,
 } from "@/src/utils/date-range-utils";
+import { TimeRangePicker } from "@/src/components/date-picker";
+import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { type ScoreAggregate } from "@langfuse/shared";
 import TagList from "@/src/features/tag/components/TagList";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
@@ -92,6 +95,7 @@ import { getSafeRedirectPath } from "@/src/utils/redirect";
 // import { useObservationCountCheck } from "@/src/features/events/hooks/useObservationCountCheck";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import {
+  DataTableRefreshButton,
   type RefreshInterval,
   REFRESH_INTERVALS,
 } from "@/src/components/table/data-table-refresh-button";
@@ -106,6 +110,7 @@ import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSea
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { CategoryPresetChips } from "@/src/features/events/components/CategoryPresetChips";
 
 export type EventsTableRow = {
   // Identity fields
@@ -188,6 +193,13 @@ export type EventsTableProps = {
   externalDateRange?: TableDateRange;
   limitRows?: number;
   sessionId?: string;
+  /**
+   * When true, render the time-range picker and auto-refresh button in the
+   * page header (next to the title) via the header controls slot, instead of
+   * inside the table toolbar. Only used when the table is the primary content
+   * of a `Page`.
+   */
+  showControlsInPageHeader?: boolean;
 };
 
 export default function ObservationsEventsTable({
@@ -199,6 +211,7 @@ export default function ObservationsEventsTable({
   externalDateRange,
   limitRows,
   sessionId,
+  showControlsInPageHeader = false,
 }: EventsTableProps) {
   const peekContext = usePeekTableState();
   const router = useRouter();
@@ -1473,9 +1486,32 @@ export default function ObservationsEventsTable({
     };
   }, [selectedObservationIds, observations.rows]);
 
+  const refreshConfig = {
+    onRefresh: handleRefresh,
+    isRefreshing: observations.status === "loading",
+    interval: refreshInterval,
+    setInterval: setRefreshInterval,
+  };
+
   return (
     <DataTableControlsProvider tableName={eventsFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
+        {showControlsInPageHeader && !hideControls && (
+          <PageHeaderControlsPortal>
+            <TimeRangePicker
+              timeRange={timeRange}
+              onTimeRangeChange={setTimeRange}
+              timeRangePresets={TABLE_AGGREGATION_OPTIONS}
+              className="my-0 max-w-full overflow-x-auto"
+            />
+            <DataTableRefreshButton
+              onRefresh={refreshConfig.onRefresh}
+              isRefreshing={refreshConfig.isRefreshing}
+              interval={refreshConfig.interval}
+              setInterval={refreshConfig.setInterval}
+            />
+          </PageHeaderControlsPortal>
+        )}
         {!hideControls && (
           <div
             className={cn(
@@ -1549,8 +1585,8 @@ export default function ObservationsEventsTable({
               orderByState={orderByState}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
-              timeRange={timeRange}
-              setTimeRange={setTimeRange}
+              timeRange={showControlsInPageHeader ? undefined : timeRange}
+              setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
               // Disabled, for now moved to filter sidebar
               // TODO: remove this toggle once v4 looks good as is
               // viewModeToggle={
@@ -1559,12 +1595,9 @@ export default function ObservationsEventsTable({
               //     onViewModeChange={setViewMode}
               //   />
               // }
-              refreshConfig={{
-                onRefresh: handleRefresh,
-                isRefreshing: observations.status === "loading",
-                interval: refreshInterval,
-                setInterval: setRefreshInterval,
-              }}
+              refreshConfig={
+                showControlsInPageHeader ? undefined : refreshConfig
+              }
               actionButtons={[
                 <BatchExportTableButton
                   {...{
@@ -1612,6 +1645,16 @@ export default function ObservationsEventsTable({
               // so the legacy wand is only offered when the bar is absent.
               filterWithAI={!searchBarMode}
             />
+            <div className="mt-1.5">
+              <CategoryPresetChips
+                projectId={projectId}
+                activeViewId={
+                  viewControllers.appliedViewId ??
+                  viewControllers.selectedViewId
+                }
+                onApplyView={viewControllers.handleSetViewId}
+              />
+            </div>
           </div>
         )}
 

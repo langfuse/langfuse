@@ -45,10 +45,15 @@ import type Decimal from "decimal.js";
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
+import {
+  toAbsoluteTimeRange,
+  TABLE_AGGREGATION_OPTIONS,
+} from "@/src/utils/date-range-utils";
 import { joinSessionCoreAndMetrics } from "@/src/components/table/use-cases/session-row-data";
 import TagList from "@/src/features/tag/components/TagList";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { TimeRangePicker } from "@/src/components/date-picker";
+import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
@@ -88,6 +93,13 @@ export type SessionTableProps = {
   userId?: string;
   omittedFilter?: SessionOmittableFilterColumn[];
   isBetaEnabled?: boolean;
+  /**
+   * When true, render the time-range picker and auto-refresh button in the
+   * page header (next to the title) via the header controls slot, instead of
+   * inside the table toolbar. Only used when the table is the primary content
+   * of a `Page`.
+   */
+  showControlsInPageHeader?: boolean;
 };
 
 export default function SessionsTable({
@@ -95,6 +107,7 @@ export default function SessionsTable({
   userId,
   omittedFilter = [],
   isBetaEnabled = false,
+  showControlsInPageHeader = false,
 }: SessionTableProps) {
   const sessionsFilterConfig = useMemo(
     () => getSessionFilterConfig(omittedFilter),
@@ -813,6 +826,16 @@ export default function SessionsTable({
   return (
     <DataTableControlsProvider tableName={sessionsFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
+        {showControlsInPageHeader && (
+          <PageHeaderControlsPortal>
+            <TimeRangePicker
+              timeRange={timeRange}
+              onTimeRangeChange={setTimeRange}
+              timeRangePresets={TABLE_AGGREGATION_OPTIONS}
+              className="my-0 max-w-full overflow-x-auto"
+            />
+          </PageHeaderControlsPortal>
+        )}
         {/* Toolbar spanning full width */}
         <DataTableToolbar
           filterState={queryFilter.explicitFilterState}
@@ -850,8 +873,8 @@ export default function SessionsTable({
             projectId,
             controllers: viewControllers,
           }}
-          timeRange={timeRange}
-          setTimeRange={setTimeRange}
+          timeRange={showControlsInPageHeader ? undefined : timeRange}
+          setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
           columnsWithCustomSelect={["userIds"]}
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
