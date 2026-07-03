@@ -58,7 +58,10 @@ import {
 import { StringParam, useQueryParam } from "use-query-params";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
-import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
+import {
+  TableViewPresetsDrawer,
+  isSystemPresetId,
+} from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import { Separator } from "@/src/components/ui/separator";
 import {
   type VisibilityState,
@@ -912,47 +915,68 @@ const LoadedSessionEventsPage: React.FC<{
     [queryFilter, viewControllers],
   );
 
+  // The URL's viewId captured on first render, before the table view manager
+  // strips frontend system-preset ids — lets us restore a reloaded system view
+  // (incl. the empty-filter "All observations", otherwise indistinguishable
+  // from a fresh load) instead of silently replacing its FilterState. Read from
+  // window.location synchronously (not useQueryParam, which can lag a render on
+  // mount and miss the value before the strip).
+  const initialViewIdRef = useRef<string | null>(
+    typeof window === "undefined"
+      ? null
+      : new URLSearchParams(window.location.search).get("viewId"),
+  );
+
+  const selectedViewId = viewControllers.selectedViewId;
+
+  // Which named view drives the empty-state notice. Derived from the applied
+  // FilterState (the single source of truth), so the label stays correct after
+  // the manager strips the viewId on reload and drops to null the moment the
+  // filter is edited. A selected SAVED view (non-system id) wins over a
+  // coincidental system-preset filter match, so the notice and the drawer
+  // trigger name the same view.
+  const matchedView =
+    selectedViewId && !isSystemPresetId(selectedViewId)
+      ? null
+      : findSessionDetailViewByFilters(visibleFilterState);
+  const viewLabel = matchedView?.name ?? null;
+
+  // Recover the system-preset viewId the view manager strips from the URL on
+  // reload/shared-link (frontend presets aren't backend-fetchable). Idempotent
+  // (no one-shot guard) so it runs *after* the async strip, not before. Recovers
+  // when the surviving filter matches a preset AND either that preset was the
+  // URL's provenance viewId (captured before the strip — covers the empty-filter
+  // "All observations", otherwise indistinguishable from a fresh load) or the
+  // filter is non-empty (unambiguous). The filter itself is never changed.
+  useEffect(() => {
+    if (isViewLoading) return;
+    if (selectedViewId) return;
+    const filterMatchedView =
+      findSessionDetailViewByFilters(visibleFilterState);
+    if (!filterMatchedView) return;
+    const shouldRecover =
+      filterMatchedView.id === initialViewIdRef.current ||
+      visibleFilterState.length > 0;
+    if (shouldRecover) viewControllers.handleSetViewId(filterMatchedView.id);
+  }, [isViewLoading, selectedViewId, visibleFilterState, viewControllers]);
+
+  // Fresh load with nothing in the URL → apply the default view. Skipped on
+  // reload/shared-link (a viewId was in the URL) so the recovery effect above,
+  // not the default, decides the view — otherwise "All observations" would be
+  // silently replaced by the default on every reload.
   useEffect(() => {
     if (defaultPresetAppliedRef.current) return;
     if (isViewLoading) return; // Wait for view manager to initialize
-
+    if (selectedViewId) return;
+    if (initialViewIdRef.current) return;
     const presetToApply = getSessionDetailPresetToApply({
-      selectedViewId: viewControllers.selectedViewId,
-      hasFilters: queryFilter.filterState.length > 0,
+      selectedViewId: null,
+      hasFilters: visibleFilterState.length > 0,
     });
     if (!presetToApply) return;
-
     defaultPresetAppliedRef.current = true;
-    // Applies the explicitly selected system preset (deep link / saved view),
-    // or the default "All observations with I/O" view when nothing is selected
-    // — see getSessionDetailPresetToApply / TraceEventsRow (LFE-10520).
     applySystemPreset(presetToApply);
-  }, [
-    applySystemPreset,
-    queryFilter.filterState.length,
-    isViewLoading,
-    viewControllers.selectedViewId,
-  ]);
-
-  // The applied FilterState is the single source of truth for what each card
-  // shows and which named view is active. Deriving the view from the filters
-  // (not the URL viewId) keeps the label correct even after the table view
-  // manager strips the frontend system-preset id from the URL on reload.
-  const matchedView = findSessionDetailViewByFilters(visibleFilterState);
-  const viewLabel = matchedView?.name ?? null;
-
-  // On reload / shared-link the view manager strips the frontend system-preset
-  // viewId (it isn't backend-fetchable), so the View drawer trigger loses its
-  // "View: …" label. Recover the provenance viewId from the surviving filter
-  // for filter-bearing views. (An empty filter — "All observations" — is
-  // ambiguous with a fresh load and shows no empty-state notice, so it is left
-  // to the default-view effect.)
-  useEffect(() => {
-    if (isViewLoading) return;
-    if (viewControllers.selectedViewId) return;
-    if (!matchedView || matchedView.filters.length === 0) return;
-    viewControllers.handleSetViewId(matchedView.id);
-  }, [isViewLoading, matchedView, viewControllers]);
+  }, [applySystemPreset, isViewLoading, selectedViewId, visibleFilterState]);
 
   const virtualizer = useVirtualizer({
     count: traces?.length ?? 0,

@@ -14,7 +14,18 @@ import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/c
 import { IOPreview } from "@/src/components/trace/components/IOPreview/IOPreview";
 import { api } from "@/src/utils/api";
 import { FilterX } from "lucide-react";
+import isEqual from "lodash/isEqual";
 import { SESSION_DETAIL_VIEW_TRIGGER_ID } from "@/src/components/session/session-detail-presets";
+
+const hasContent = (value: unknown): boolean =>
+  value !== null &&
+  value !== undefined &&
+  !(typeof value === "string" && value.trim() === "");
+
+const observationHasIO = (observation: {
+  input?: unknown;
+  output?: unknown;
+}): boolean => hasContent(observation.input) || hasContent(observation.output);
 
 // Opens the session-detail "View" drawer by activating its trigger — the empty
 // notice's action routes through the one shared View control (no per-card state).
@@ -129,22 +140,36 @@ export const TraceEventsRow = React.memo(
         },
       );
 
-    // What each card shows is entirely determined by the selected view
-    // (LFE-10520): the server applies the view's FilterState (incl. the "with
-    // I/O" view's Has-Input-or-Output filter). The only client-side shaping is
-    // dropping the synthetic trace-level row — it mirrors the trace's own I/O,
-    // already shown by the trace panel — unless it is all the trace has, so a
-    // card is never needlessly empty. Identify it by its id (`t-<traceId>`, the
-    // canonical synthetic-span id — see handleEventPropagationJob), NOT an empty
+    // What each card shows is determined by the selected view (LFE-10520): the
+    // server applies the view's FilterState (incl. the "with I/O" view's
+    // Has-Input-or-Output filter). The only client-side shaping is dropping the
+    // synthetic trace-level row (id `t-<traceId>`, the canonical synthetic-span
+    // id — see handleEventPropagationJob). It is identified by id, NOT an empty
     // parent: OTel/internal-tracing roots also have an empty parent but are real
-    // observations that must not be dropped.
+    // observations. It is dropped only when redundant — empty, or a mirror of an
+    // observation's I/O (the common auto-derived case) — and KEPT when it
+    // carries distinct trace-level I/O (a v3-migrated trace can set trace I/O
+    // apart from any observation; dropping it would lose content and blind the
+    // annotation queue, which hides the trace panel).
     const observations = observationsQuery.data;
     const visibleObservations = React.useMemo(() => {
       if (!observations) return undefined;
       const syntheticTraceRowId = `t-${trace.id}`;
+      const syntheticRow = observations.find(
+        (observation) => observation.id === syntheticTraceRowId,
+      );
       const realObservations = observations.filter(
         (observation) => observation.id !== syntheticTraceRowId,
       );
+      const syntheticRowIsRedundant =
+        !syntheticRow ||
+        !observationHasIO(syntheticRow) ||
+        realObservations.some(
+          (observation) =>
+            isEqual(observation.input, syntheticRow.input) &&
+            isEqual(observation.output, syntheticRow.output),
+        );
+      if (!syntheticRowIsRedundant) return observations;
       return realObservations.length > 0 ? realObservations : observations;
     }, [observations, trace.id]);
 
