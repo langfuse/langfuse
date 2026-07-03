@@ -108,6 +108,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           // Drop the base schema default so an omitted value preserves the
           // persisted source instead of rewriting it to the legacy default.
           exportSource: z.enum(AnalyticsIntegrationExportSource).optional(),
+          // Same for fileType: the base default (JSONL) would silently
+          // downgrade a persisted PARQUET past the change-to-Parquet gate.
+          fileType: z.enum(BlobStorageIntegrationFileType).optional(),
         })
         .superRefine(validateAzureContainerName)
         .superRefine(validateExportFieldGroups),

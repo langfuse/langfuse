@@ -1119,5 +1119,45 @@ describe("Blob Storage Integration tRPC Router", () => {
       expect(row.fileType).toBe("PARQUET");
       expect(row.enabled).toBe(false);
     });
+
+    it("preserves persisted PARQUET when fileType is omitted from the update input", async () => {
+      // Without the router-level .optional() the base schema would default an
+      // omitted fileType to JSONL and silently downgrade the persisted PARQUET.
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id });
+      await prisma.blobStorageIntegration.update({
+        where: { projectId: project.id },
+        data: { fileType: "PARQUET" },
+      });
+
+      const { fileType: _fileType, ...configWithoutFileType } = baseConfig;
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutFileType,
+        enabled: false,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.fileType).toBe("PARQUET");
+      expect(row.enabled).toBe(false);
+    });
+
+    it("defaults to JSONL when fileType is omitted on CREATE", async () => {
+      // The Prisma column default is CSV; the historical Zod default was JSONL.
+      const { caller, project } = await prepare();
+
+      const { fileType: _fileType, ...configWithoutFileType } = baseConfig;
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutFileType,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.fileType).toBe("JSONL");
+    });
   });
 });
