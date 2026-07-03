@@ -309,12 +309,15 @@ export type TimeRangePickerProps = {
   onTimeRangeChange: (timeRange: TimeRange) => void;
   timeRangePresets: readonly string[];
   className?: string;
+  /** Extra classes for the trigger button (e.g. tighter padding in the header). */
+  triggerClassName?: string;
   disabled?: boolean | { before?: Date; after?: Date } | Date | Date[];
   maxRangeMs?: number;
 };
 
 export function TimeRangePicker({
   className,
+  triggerClassName,
   timeRange,
   timeRangePresets,
   onTimeRangeChange,
@@ -532,6 +535,7 @@ export function TimeRangePicker({
             className={cn(
               "hover:bg-accent hover:text-accent-foreground w-fit justify-start text-left font-normal",
               !timeRange && "text-muted-foreground",
+              triggerClassName,
             )}
           >
             <div className="flex items-center gap-2">

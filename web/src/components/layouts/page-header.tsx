@@ -85,7 +85,10 @@ const PageHeader = ({
         <div className="border-b">
           <div
             className={cn(
-              "flex min-h-11 flex-wrap items-center gap-3 px-3 py-2",
+              // py-1.5 (not py-2) so a 32px control in the right-aligned slot
+              // fits inside the 44px (min-h-11) row without growing it; the
+              // min-height keeps rows without controls at the same height.
+              "flex min-h-11 flex-wrap items-center gap-3 px-3 py-1.5",
               container && containerLayoutClassName,
             )}
           >

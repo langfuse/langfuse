@@ -42,6 +42,7 @@ export function TableHeaderControls({
         onTimeRangeChange={setTimeRange}
         timeRangePresets={TABLE_AGGREGATION_OPTIONS}
         className="my-0 max-w-full overflow-x-auto"
+        triggerClassName="px-2"
       />
       {refresh && (
         <DataTableRefreshButton
