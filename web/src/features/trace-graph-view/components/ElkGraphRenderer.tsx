@@ -293,16 +293,32 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     const currentK = containerRef.current
       ? zoomTransform(containerRef.current).k
       : 1;
+    // Clamped focus framing: aim the node at the viewport center, but never
+    // leave blank canvas the graph could cover — on an axis where the scaled
+    // graph is larger than the viewport, clamp the pan to the graph bounds
+    // (a node near the graph's edge sits off-center rather than dragging
+    // emptiness in); where the graph is smaller, just center the whole graph.
+    // Without this, deep-link-focusing a node near the top of a small graph
+    // pushed the rest out of the panel while half the canvas sat empty.
     const centerNode = (nodeId: string, k: number): boolean => {
       const node = layout.nodes.find((n) => n.id === nodeId);
       if (!node) return false;
       const cx = node.x + node.width / 2;
       const cy = node.y + node.height / 2;
-      applyTransform({
-        k,
-        x: size.width / 2 - cx * k,
-        y: size.height / 2 - cy * k,
-      });
+      const graphW = layout.width * k;
+      const graphH = layout.height * k;
+      const x =
+        graphW <= size.width
+          ? (size.width - graphW) / 2
+          : Math.min(0, Math.max(size.width - graphW, size.width / 2 - cx * k));
+      const y =
+        graphH <= size.height
+          ? (size.height - graphH) / 2
+          : Math.min(
+              0,
+              Math.max(size.height - graphH, size.height / 2 - cy * k),
+            );
+      applyTransform({ k, x, y });
       return true;
     };
 
