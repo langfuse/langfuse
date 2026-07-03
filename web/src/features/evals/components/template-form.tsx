@@ -959,7 +959,7 @@ export const InnerEvalTemplateForm = (props: {
         {props.useDialog ? <DialogBody>{formBody}</DialogBody> : formBody}
 
         {props.useDialog ? (
-          <DialogFooter>{formFooter}</DialogFooter>
+          <DialogFooter variant="action">{formFooter}</DialogFooter>
         ) : (
           formFooter
         )}
