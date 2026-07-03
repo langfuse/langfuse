@@ -77,6 +77,7 @@ export const [createDashboardWidgetTool, handleCreateDashboardWidget] =
       "Create a reusable dashboard widget.",
       "Widgets are useful to visualize Langfuse project data and give informative breakdowns to the user.",
       "This creates the widget only; placing it on a dashboard requires updating that dashboard's definition in the Langfuse UI.",
+      "The result includes a url field; use it to link to the created widget.",
     ].join(" "),
     baseSchema: CreateDashboardWidgetBaseSchema,
     inputSchema: PostUnstableDashboardWidgetBody,
