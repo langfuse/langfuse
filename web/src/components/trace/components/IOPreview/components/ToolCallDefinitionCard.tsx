@@ -115,12 +115,10 @@ function getStatusText(callCount: number) {
 }
 
 function ToolGroupHoverContent({
-  title,
   tools,
   toolCallCounts,
   toolNameToDefinitionNumber,
 }: {
-  title: string;
   tools: ToolDefinition[];
   toolCallCounts: Map<string, number>;
   toolNameToDefinitionNumber?: Map<string, number>;
@@ -132,12 +130,6 @@ function ToolGroupHoverContent({
       sideOffset={6}
       className="max-h-96 w-80 max-w-[calc(100vw-2rem)] overflow-auto p-0"
     >
-      <div className="border-border border-b px-3 py-2">
-        <div className="text-foreground text-xs font-semibold">{title}</div>
-        <div className="text-muted-foreground text-xs">
-          {tools.length === 1 ? "1 tool" : `${tools.length} tools`}
-        </div>
-      </div>
       <div className="flex flex-col gap-1 p-2">
         {tools.map((tool, index) => {
           const callCount = toolCallCounts.get(tool.name) ?? 0;
@@ -199,59 +191,63 @@ function ToolGroupSummary({
   const summaryText = isCalledGroup
     ? `${tools.length} ${tools.length === 1 ? "tool was" : "tools were"} called`
     : `${tools.length} available ${tools.length === 1 ? "tool was" : "tools were"} not called`;
-  const hoverTitle = isCalledGroup ? "Called tools" : "Available tools";
+
+  const summaryButton = (
+    <button
+      type="button"
+      className={cn(
+        "hover:bg-muted/20 flex w-full items-center justify-between gap-2 rounded-sm border px-3 py-2 text-left",
+        isCalledGroup &&
+          "border-light-green bg-accent-light-green hover:bg-accent-light-green/80",
+      )}
+      aria-expanded={expanded}
+      onClick={onToggle}
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <Wrench
+          className={cn(
+            "text-muted-foreground h-3.5 w-3.5 shrink-0",
+            isCalledGroup && "text-dark-green",
+          )}
+        />
+        <span
+          className={cn(
+            "truncate text-sm font-medium",
+            isCalledGroup ? "text-dark-green" : "text-foreground",
+          )}
+          title={summaryText}
+        >
+          {summaryText}
+        </span>
+      </div>
+      <div className="flex shrink-0 items-center gap-1.5">
+        <Badge
+          variant={isCalledGroup ? undefined : "secondary"}
+          className={cn(
+            "text-xs font-medium",
+            isCalledGroup &&
+              "bg-light-green text-dark-green hover:bg-light-green border-transparent select-none",
+          )}
+        >
+          {expanded ? "hide" : "show"}
+        </Badge>
+        {expanded ? (
+          <ChevronDown className="text-muted-foreground h-3.5 w-3.5" />
+        ) : (
+          <ChevronRight className="text-muted-foreground h-3.5 w-3.5" />
+        )}
+      </div>
+    </button>
+  );
+
+  if (expanded) {
+    return summaryButton;
+  }
 
   return (
     <HoverCard openDelay={200} closeDelay={100}>
-      <HoverCardTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            "hover:bg-muted/20 flex w-full items-center justify-between gap-2 rounded-sm border px-3 py-2 text-left",
-            isCalledGroup &&
-              "border-light-green bg-accent-light-green hover:bg-accent-light-green/80",
-          )}
-          aria-expanded={expanded}
-          onClick={onToggle}
-        >
-          <div className="flex min-w-0 items-center gap-2">
-            <Wrench
-              className={cn(
-                "text-muted-foreground h-3.5 w-3.5 shrink-0",
-                isCalledGroup && "text-dark-green",
-              )}
-            />
-            <span
-              className={cn(
-                "truncate text-sm font-medium",
-                isCalledGroup ? "text-dark-green" : "text-foreground",
-              )}
-              title={summaryText}
-            >
-              {summaryText}
-            </span>
-          </div>
-          <div className="flex shrink-0 items-center gap-1.5">
-            <Badge
-              variant={isCalledGroup ? undefined : "secondary"}
-              className={cn(
-                "text-xs font-medium",
-                isCalledGroup &&
-                  "bg-light-green text-dark-green hover:bg-light-green border-transparent select-none",
-              )}
-            >
-              {expanded ? "hide" : "show"}
-            </Badge>
-            {expanded ? (
-              <ChevronDown className="text-muted-foreground h-3.5 w-3.5" />
-            ) : (
-              <ChevronRight className="text-muted-foreground h-3.5 w-3.5" />
-            )}
-          </div>
-        </button>
-      </HoverCardTrigger>
+      <HoverCardTrigger asChild>{summaryButton}</HoverCardTrigger>
       <ToolGroupHoverContent
-        title={hoverTitle}
         tools={tools}
         toolCallCounts={toolCallCounts}
         toolNameToDefinitionNumber={toolNameToDefinitionNumber}
