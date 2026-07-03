@@ -430,7 +430,7 @@ const EnvSchema = z.object({
     .number()
     .int()
     .positive()
-    .default(600_000), // 10 minutes
+    .default(3_600_000), // 60 minutes
 
   LANGFUSE_EVENT_PROPAGATION_WORKER_GLOBAL_CONCURRENCY: z.coerce
     .number()
