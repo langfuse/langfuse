@@ -245,6 +245,7 @@ describe("Public API experiments repository", () => {
         includeMetadata: false,
         cursor: {
           lastTime: firstRow.cursor_time,
+          lastTraceId: firstRow.cursor_trace_id,
           lastId: firstRow.cursor_span_id,
           lastExperimentId: firstRow.experiment_id,
         },
@@ -573,6 +574,7 @@ describe("Public API experiments repository", () => {
         includeMetadata: false,
         cursor: {
           lastTime: firstRow.cursor_time,
+          lastTraceId: firstRow.cursor_trace_id,
           lastId: firstRow.cursor_span_id,
           lastExperimentId: firstRow.experiment_id,
         },
@@ -635,6 +637,7 @@ describe("Public API experiments repository", () => {
         includeMetadata: false,
         cursor: {
           lastTime: firstRow.cursor_time,
+          lastTraceId: firstRow.cursor_trace_id,
           lastId: firstRow.cursor_span_id,
           lastExperimentId: firstRow.experiment_id,
         },

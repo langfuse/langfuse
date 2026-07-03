@@ -13,8 +13,6 @@ service:
       docs: |
         List experiments with cursor-based pagination. Results are ordered by
         latest experiment activity descending.
-
-        `fromStartTime` is required.
       request:
         name: ListExperimentsRequest
         query-parameters:
@@ -61,8 +59,6 @@ service:
         to export experiment item inputs, outputs, expected outputs, metadata,
         and optionally item/trace scores. Results are ordered by time
         descending.
-
-        `fromStartTime` is required.
       request:
         name: ListExperimentItemsRequest
         query-parameters:

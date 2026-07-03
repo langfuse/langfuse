@@ -66,7 +66,9 @@ const decodeCursor = (value: string) => {
   }
 };
 
-export const ExperimentItemsCursorV1 = z.discriminatedUnion("v", [
+// Shared by /experiments and /experiment-items; summaries pagination does not
+// use lastTraceId today but carries it so both endpoints share one cursor.
+export const ExperimentCursorV1 = z.discriminatedUnion("v", [
   z.object({
     v: z.literal(1),
     lastTime: z.string(),
@@ -76,52 +78,22 @@ export const ExperimentItemsCursorV1 = z.discriminatedUnion("v", [
   }),
 ]);
 
-export type ExperimentItemsCursorV1Type = z.infer<
-  typeof ExperimentItemsCursorV1
->;
-
-export const ExperimentsCursorV1 = z.discriminatedUnion("v", [
-  z.object({
-    v: z.literal(1),
-    lastTime: z.string(),
-    lastId: z.string(),
-    lastExperimentId: z.string(),
-  }),
-]);
-
-export type ExperimentsCursorV1Type = z.infer<typeof ExperimentsCursorV1>;
+export type ExperimentCursorV1Type = z.infer<typeof ExperimentCursorV1>;
 
 export const EncodedExperimentsCursorString = encodedCursorString;
 
-export const EncodedExperimentItemsCursorV1 = z
+export const EncodedExperimentCursorV1 = z
   .string()
   .transform(decodeCursor)
-  .pipe(ExperimentItemsCursorV1);
-
-export const EncodedExperimentsCursorV1 = z
-  .string()
-  .transform(decodeCursor)
-  .pipe(ExperimentsCursorV1);
+  .pipe(ExperimentCursorV1);
 
 const experimentScoreLimitZod = z.preprocess(
   (value) => (value === "" ? undefined : value),
   z.coerce.number().int().gte(1).lte(50).default(50),
 );
 
-export const encodeExperimentsCursor = (
-  cursor: ExperimentsCursorV1Type,
-): z.infer<typeof EncodedExperimentsCursorString> =>
-  Buffer.from(
-    JSON.stringify({
-      v: cursor.v,
-      lastTime: cursor.lastTime,
-      lastId: cursor.lastId,
-      lastExperimentId: cursor.lastExperimentId,
-    }),
-  ).toString("base64url");
-
-export const encodeExperimentItemsCursor = (
-  cursor: ExperimentItemsCursorV1Type,
+export const encodeExperimentCursor = (
+  cursor: ExperimentCursorV1Type,
 ): z.infer<typeof EncodedExperimentsCursorString> =>
   Buffer.from(
     JSON.stringify({
@@ -137,7 +109,7 @@ export const GetExperimentsV1Query = z.object({
   fields: commaSeparatedEnumArray(EXPERIMENT_FIELD_GROUPS, ["core"]),
   limit: publicApiPaginationLimitZod,
   scoreLimit: experimentScoreLimitZod,
-  cursor: EncodedExperimentsCursorV1.optional(),
+  cursor: EncodedExperimentCursorV1.optional(),
   fromStartTime: z.iso.datetime({ offset: true }),
   toStartTime: z.iso.datetime({ offset: true }).optional(),
   id: optionalCommaSeparatedStringArray,
@@ -167,7 +139,7 @@ export const GetExperimentItemsV1Query = z.object({
   ]),
   limit: publicApiPaginationLimitZod,
   scoreLimit: experimentScoreLimitZod,
-  cursor: EncodedExperimentItemsCursorV1.optional(),
+  cursor: EncodedExperimentCursorV1.optional(),
   fromStartTime: z.iso.datetime({ offset: true }),
   toStartTime: z.iso.datetime({ offset: true }).optional(),
   experimentId: optionalCommaSeparatedStringArray,

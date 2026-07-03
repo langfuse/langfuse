@@ -9,8 +9,7 @@ import {
 import { type APIScoreV3 } from "@langfuse/shared";
 
 import {
-  encodeExperimentItemsCursor,
-  encodeExperimentsCursor,
+  encodeExperimentCursor,
   type GetExperimentItemsV1QueryType,
   type GetExperimentsV1QueryType,
 } from "@/src/features/public-api/types/experiments";
@@ -161,6 +160,7 @@ export async function listExperimentsForPublicApi({
     cursor: query.cursor
       ? {
           lastTime: query.cursor.lastTime,
+          lastTraceId: query.cursor.lastTraceId,
           lastId: query.cursor.lastId,
           lastExperimentId: query.cursor.lastExperimentId,
         }
@@ -186,11 +186,12 @@ export async function listExperimentsForPublicApi({
   const meta =
     hasMore && lastRow
       ? {
-          cursor: encodeExperimentsCursor({
+          cursor: encodeExperimentCursor({
             v: 1,
             // The cursor anchors on the phase-1 latest-event key, not the
             // surfaced startTime, so pagination stays on the page ordering.
             lastTime: lastRow.cursor_time,
+            lastTraceId: lastRow.cursor_trace_id,
             lastId: lastRow.cursor_span_id,
             lastExperimentId: lastRow.experiment_id,
           }),
@@ -273,7 +274,7 @@ export async function listExperimentItemsForPublicApi({
   const meta =
     hasMore && lastRow
       ? {
-          cursor: encodeExperimentItemsCursor({
+          cursor: encodeExperimentCursor({
             v: 1,
             lastTime: lastRow.start_time,
             lastTraceId: lastRow.trace_id,

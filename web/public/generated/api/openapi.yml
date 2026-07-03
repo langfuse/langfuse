@@ -1549,8 +1549,6 @@ paths:
       description: |-
         List experiments with cursor-based pagination. Results are ordered by
         latest experiment activity descending.
-
-        `fromStartTime` is required.
       operationId: experiments_list
       tags:
         - Experiments
@@ -1672,8 +1670,6 @@ paths:
         to export experiment item inputs, outputs, expected outputs, metadata,
         and optionally item/trace scores. Results are ordered by time
         descending.
-
-        `fromStartTime` is required.
       operationId: experiments_listItems
       tags:
         - Experiments

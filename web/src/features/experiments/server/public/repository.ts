@@ -27,6 +27,7 @@ type ExperimentSummaryRow = {
   start_time: string;
   end_time: string;
   cursor_time: string;
+  cursor_trace_id: string;
   cursor_span_id: string;
   item_count: number;
   experiment_metadata?: Record<string, unknown> | null;
@@ -59,12 +60,9 @@ const DEFAULT_SCORE_LIMIT = 50;
 
 type ExperimentCursor = {
   lastTime: string;
+  lastTraceId: string;
   lastId: string;
   lastExperimentId: string;
-};
-
-type ExperimentItemCursor = ExperimentCursor & {
-  lastTraceId: string;
 };
 
 type QueryExperimentSummariesParams = {
@@ -92,7 +90,7 @@ type QueryExperimentItemsParams = {
   experimentItemId?: string[];
   datasetId?: string[];
   advancedFilters?: EventsTableFilterState;
-  cursor?: ExperimentItemCursor;
+  cursor?: ExperimentCursor;
   includeDataset: boolean;
   includeIo: boolean;
   includeMetadata: boolean;
@@ -225,6 +223,7 @@ async function queryExperimentSummaryRowsForPublicApi(
       // would skip experiments whose only activity lies between the last
       // page experiment's first and last event.
       "max(e.start_time) AS cursor_time",
+      "argMax(e.trace_id, (e.start_time, e.span_id)) AS cursor_trace_id",
       "argMax(e.span_id, (e.start_time, e.span_id)) AS cursor_span_id",
       // Counts item root spans to match what /experiment-items paginates.
       "uniqIf(e.span_id, e.span_id = e.experiment_item_root_span_id) AS item_count",
