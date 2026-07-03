@@ -28,6 +28,7 @@ import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import Page from "@/src/components/layouts/page";
 import { UsersOnboarding } from "@/src/components/onboarding/UsersOnboarding";
+import { TableTimeRangeHeaderPicker } from "@/src/components/table/table-time-range-header-picker";
 import {
   useEnvironmentFilter,
   convertSelectedEnvironmentsToFilter,
@@ -104,6 +105,9 @@ export default function UsersPage() {
           ),
           href: "https://langfuse.com/docs/observability/features/users",
         },
+        actionButtonsLeft: showOnboarding ? undefined : (
+          <TableTimeRangeHeaderPicker projectId={projectId} />
+        ),
       }}
       scrollable={showOnboarding}
     >
@@ -134,7 +138,9 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const { timeRange, setTimeRange } = useTableDateRange(projectId);
+  // The picker lives in the page header (TableTimeRangeHeaderPicker); this
+  // reads the same shared per-project range to filter the table.
+  const { timeRange } = useTableDateRange(projectId);
 
   // Convert timeRange to absolute date range for compatibility
   const dateRange = useMemo(() => {
@@ -420,8 +426,6 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
         filterState={userFilterState}
         setFilterState={useDebounce(setUserFilterState)}
         columns={columns}
-        timeRange={timeRange}
-        setTimeRange={setTimeRange}
         searchConfig={{
           metadataSearchFields: ["User ID"],
           updateQuery: setSearchQuery,

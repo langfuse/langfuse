@@ -7,7 +7,7 @@ import {
   LEGACY_BLOB_EXPORT_SOURCES,
   LEGACY_BLOB_EXPORTER_CUTOFF,
   isLegacyBlobExporter,
-  type BlobStorageIntegrationFileType,
+  BlobStorageIntegrationFileType,
   type ObservationFieldGroupFull,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
@@ -25,7 +25,9 @@ type UpsertBlobStorageIntegrationInput = {
   exportFrequency: string;
   enabled: boolean;
   forcePathStyle: boolean;
-  fileType: BlobStorageIntegrationFileType;
+  // Optional: undefined preserves the persisted value on UPDATE (Prisma omits
+  // the column) and falls back to JSONL on CREATE.
+  fileType?: BlobStorageIntegrationFileType;
   exportMode: BlobStorageExportMode;
   exportStartDate: Date | null;
   exportSource?: AnalyticsIntegrationExportSource;
@@ -156,6 +158,9 @@ export async function upsertBlobStorageIntegration(params: {
       create: {
         ...writeData,
         exportSource: createExportSource,
+        // The Prisma column default is CSV; keep the historical JSONL default
+        // when the caller omits fileType on CREATE.
+        fileType: data.fileType ?? BlobStorageIntegrationFileType.JSONL,
         projectId,
         secretAccessKey: encryptedSecret,
       },

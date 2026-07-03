@@ -97,6 +97,15 @@ export const buildProjectPath = (params: { projectId: string }) =>
 export const buildDashboardsPath = (params: { projectId: string }) =>
   `${buildProjectPath(params)}/dashboards`;
 
+export const buildDashboardWidgetsPath = (params: { projectId: string }) =>
+  `${buildProjectPath(params)}/widgets`;
+
+export const buildDashboardWidgetPath = (params: {
+  projectId: string;
+  widgetId: string;
+}) =>
+  `${buildDashboardWidgetsPath(params)}/${encodeURIComponent(params.widgetId)}`;
+
 export const buildDatasetsPath = (params: {
   projectId: string;
   folder?: string;
@@ -452,6 +461,11 @@ export const buildModelUrl = (params: { projectId: string; modelId: string }) =>
   buildProductUrl(
     `/project/${encodeURIComponent(params.projectId)}/settings/models/${encodeURIComponent(params.modelId)}`,
   );
+
+export const buildDashboardWidgetUrl = (params: {
+  projectId: string;
+  widgetId: string;
+}) => buildProductUrl(buildDashboardWidgetPath(params));
 
 export const buildEvaluatorUrl = (params: {
   projectId: string;

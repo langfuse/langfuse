@@ -471,7 +471,10 @@ function keyPathOptions(
       id: `key:metadata.${o.value}`,
       kind: "field" as const,
       label: `metadata.${o.value}`,
-      detail: o.count !== undefined ? String(o.count) : undefined,
+      // The observed JSON type of the path (display-only — metadata filters
+      // always lower to stringObject regardless). Paths seen with multiple
+      // types carry no type hint; counts stay the fallback like other lists.
+      detail: o.type ?? (o.count !== undefined ? String(o.count) : undefined),
       fieldId: keyText(o.value),
     }));
     return {
@@ -990,7 +993,8 @@ export function planInputCompletions(
     if (path !== null) {
       // Score-name suggestions need both score-name columns; request and show a
       // loading row while they stream in (lazy mode). Metadata keys are not
-      // server-enumerated, so there is nothing to request there.
+      // server-enumerated — they come from the client-side observed-metadata
+      // map (lib/metadata-paths.ts) — so there is nothing to request there.
       if (path.kind.canonical !== "metadata.") {
         const numericColumn =
           path.kind.level === "trace" ? "trace_scores_avg" : "scores_avg";

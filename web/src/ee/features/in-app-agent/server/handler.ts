@@ -8,6 +8,7 @@ import {
   createInAppAgentRunId,
 } from "@/src/ee/features/in-app-agent/ids";
 import { sanitizeInAppAgentContext } from "@/src/ee/features/in-app-agent/context";
+import { getInAppAgentInstrumentationTraceId } from "@/src/ee/features/in-app-agent/constants";
 import {
   AgUiRunAgentInputSchema,
   type AgUiRunAgentInput,
@@ -460,8 +461,10 @@ export default async function handler(request: Request) {
                   environment: "langfuse-in-app-agent",
                   feature: "in-app-agent",
                   projectId,
-                  traceId: conversation.id,
-                  traceName: "in-app-agent",
+                  traceId: getInAppAgentInstrumentationTraceId(
+                    sanitizedInput.runId,
+                  ),
+                  traceName: "agent-turn",
                   userId,
                   metadata: {
                     langfuse_ai_feature: "in-app-agent",
@@ -482,13 +485,13 @@ export default async function handler(request: Request) {
                   ? {
                       targetProjectId: traceSinkParams.targetProjectId,
                       environment: traceSinkParams.environment,
+                      runId: sanitizedInput.runId,
                       user: {
                         id: userId,
                         email: user.email,
                         projectRole: userAccess.projectRole,
                         isAdmin: userAccess.isAdmin,
                       },
-                      traceId: traceSinkParams.traceId,
                       metadata: traceSinkParams.metadata ?? {},
                     }
                   : undefined;
