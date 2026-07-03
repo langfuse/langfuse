@@ -23,12 +23,21 @@ export const SESSION_DETAIL_SYSTEM_PRESETS: SessionDetailSystemPreset[] = [
     name: "All observations with I/O",
     description:
       "Every observation that has input or output — a chat renders as a chat, an agent run shows its tool calls",
-    // Expressed as a real, renderable filter (the "Has Input or Output" boolean
-    // column lowers to `input != '' OR output != ''`), so the view shows up in
-    // the "Filter observations" UI like any other filter — no hidden view rule.
+    // Expressed as real, renderable filters (the "Has Input" / "Has Output"
+    // boolean columns lower to `input != ''` / `output != ''`), so the view
+    // shows up in the "Filter observations" UI like any other filter — no
+    // hidden view rule. Two AND-joined filters (the flat filter contract can't
+    // express a cross-column OR); observations carry both or neither in
+    // practice, so this matches the intent of "surface observations with I/O".
     filters: [
       {
-        column: "hasInputOutput",
+        column: "hasInput",
+        type: "boolean",
+        operator: "=",
+        value: true,
+      },
+      {
+        column: "hasOutput",
         type: "boolean",
         operator: "=",
         value: true,

@@ -3,9 +3,10 @@ import { type ColumnDefinition } from "./tableDefinitions";
 export const eventsTableHasParentObservationSql = "e.parent_span_id != ''";
 export const eventsTableIsRootObservationSql =
   "(e.parent_span_id = '' OR e.is_app_root = true)";
-// True when the observation carries input or output. NULL/'' both count as
+// True when the observation carries input / output. NULL/'' both count as
 // absent (NULL != '' is NULL, i.e. not true), so only real payloads match.
-export const eventsTableHasInputOutputSql = "(e.input != '' OR e.output != '')";
+export const eventsTableHasInputSql = "e.input != ''";
+export const eventsTableHasOutputSql = "e.output != ''";
 
 type MutableDeep<T> = T extends readonly (infer U)[]
   ? MutableDeep<U>[]
@@ -290,10 +291,16 @@ const eventsTableColsDefinition = [
     internal: eventsTableIsRootObservationSql,
   },
   {
-    name: "Has Input or Output",
-    id: "hasInputOutput",
+    name: "Has Input",
+    id: "hasInput",
     type: "boolean",
-    internal: eventsTableHasInputOutputSql,
+    internal: eventsTableHasInputSql,
+  },
+  {
+    name: "Has Output",
+    id: "hasOutput",
+    type: "boolean",
+    internal: eventsTableHasOutputSql,
   },
   {
     name: "Experiment Dataset ID",

@@ -809,7 +809,13 @@ describe("Saved view validation", () => {
     expect(defaultPreset?.name).toBe("All observations with I/O");
     expect(defaultPreset?.filters).toEqual([
       {
-        column: "hasInputOutput",
+        column: "hasInput",
+        type: "boolean",
+        operator: "=",
+        value: true,
+      },
+      {
+        column: "hasOutput",
         type: "boolean",
         operator: "=",
         value: true,
