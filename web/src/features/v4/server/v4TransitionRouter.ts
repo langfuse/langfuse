@@ -5,6 +5,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { v4MigrationOrgScope } from "@/src/features/rbac/constants/organizationAccessRights";
+import { v4MigrationProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
@@ -334,6 +335,17 @@ const protectedV4MigrationOrgProcedure = protectedOrganizationProcedure.use(
   },
 );
 
+const protectedV4MigrationProjectProcedure = protectedProjectProcedure.use(
+  ({ ctx, next }) => {
+    throwIfNoProjectAccess({
+      role: ctx.session.projectRole,
+      admin: ctx.session.user.admin,
+      scope: v4MigrationProjectScope,
+    });
+    return next();
+  },
+);
+
 const getLegacyIntegrations = ({
   posthogIntegration,
   mixpanelIntegration,
@@ -358,7 +370,7 @@ const getLegacyIntegrations = ({
 });
 
 export const v4TransitionRouter = createTRPCRouter({
-  summary: protectedProjectProcedure
+  summary: protectedV4MigrationProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
       const [posthogIntegration, mixpanelIntegration, blobStorageIntegration] =
@@ -390,7 +402,7 @@ export const v4TransitionRouter = createTRPCRouter({
       };
     }),
 
-  traceLevelEvalSummary: protectedProjectProcedure
+  traceLevelEvalSummary: protectedV4MigrationProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
       const traceLevelEvalCount = await ctx.prisma.jobConfiguration.count({
@@ -525,7 +537,7 @@ export const v4TransitionRouter = createTRPCRouter({
       );
     }),
 
-  traceLevelEvalExecutionsTimeSeries: protectedProjectProcedure
+  traceLevelEvalExecutionsTimeSeries: protectedV4MigrationProjectProcedure
     .input(timelineInputSchema)
     .query(async ({ input, ctx }) => {
       const granularity = resolveTimelineGranularity(
@@ -577,15 +589,9 @@ ORDER BY bucket_time ASC, score_name ASC
       });
     }),
 
-  sdkUsageTimeSeries: protectedProjectProcedure
+  sdkUsageTimeSeries: protectedV4MigrationProjectProcedure
     .input(timelineInputSchema)
     .query(async ({ input, ctx }) => {
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "apiKeys:read",
-      });
-
       const granularity = resolveTimelineGranularity(
         input.fromTimestamp,
         input.toTimestamp,
@@ -901,7 +907,7 @@ SETTINGS skip_unavailable_shards = 1
       );
     }),
 
-  timeSeriesByEntrypoint: protectedProjectProcedure
+  timeSeriesByEntrypoint: protectedV4MigrationProjectProcedure
     .input(timelineInputSchema)
     .query(async ({ input }) => {
       const granularity = resolveTimelineGranularity(

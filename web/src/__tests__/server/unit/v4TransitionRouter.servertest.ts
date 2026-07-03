@@ -1211,29 +1211,78 @@ describe("v4TransitionRouter", () => {
     });
   });
 
-  it("rejects SDK usage API key metadata for project viewers", async () => {
+  it("forbids project members and viewers from accessing project-level v4 data", async () => {
     const mockPrisma = {
+      posthogIntegration: {
+        findUnique: vi.fn(),
+      },
+      mixpanelIntegration: {
+        findUnique: vi.fn(),
+      },
+      blobStorageIntegration: {
+        findUnique: vi.fn(),
+      },
+      jobConfiguration: {
+        count: vi.fn(),
+      },
+      $queryRaw: vi.fn(),
       apiKey: {
         findMany: vi.fn(),
       },
     };
-    const caller = createCaller(
-      mockPrisma,
-      createSessionWithProjectRole("VIEWER"),
-    );
 
-    await expect(
-      caller.sdkUsageTimeSeries({
-        projectId,
-        fromTimestamp: new Date("2026-06-25T12:00:00Z"),
-        toTimestamp: new Date("2026-06-25T13:00:00Z"),
-        granularity: "auto",
-      }),
-    ).rejects.toMatchObject({
-      code: "FORBIDDEN",
-    });
+    for (const role of ["MEMBER", "VIEWER"] as const) {
+      const caller = createCaller(
+        mockPrisma,
+        createSessionWithProjectRole(role),
+      );
+
+      await expect(caller.summary({ projectId })).rejects.toMatchObject({
+        code: "FORBIDDEN",
+      });
+      await expect(
+        caller.traceLevelEvalSummary({ projectId }),
+      ).rejects.toMatchObject({
+        code: "FORBIDDEN",
+      });
+      await expect(
+        caller.timeSeriesByEntrypoint({
+          projectId,
+          fromTimestamp: new Date("2026-06-25T12:00:00Z"),
+          toTimestamp: new Date("2026-06-25T13:00:00Z"),
+          granularity: "auto",
+        }),
+      ).rejects.toMatchObject({
+        code: "FORBIDDEN",
+      });
+      await expect(
+        caller.traceLevelEvalExecutionsTimeSeries({
+          projectId,
+          fromTimestamp: new Date("2026-06-25T12:00:00Z"),
+          toTimestamp: new Date("2026-06-25T13:00:00Z"),
+          granularity: "auto",
+        }),
+      ).rejects.toMatchObject({
+        code: "FORBIDDEN",
+      });
+      await expect(
+        caller.sdkUsageTimeSeries({
+          projectId,
+          fromTimestamp: new Date("2026-06-25T12:00:00Z"),
+          toTimestamp: new Date("2026-06-25T13:00:00Z"),
+          granularity: "auto",
+        }),
+      ).rejects.toMatchObject({
+        code: "FORBIDDEN",
+      });
+    }
 
     expect(mockedQueryClickhouse).not.toHaveBeenCalled();
+    expect(mockPrisma.posthogIntegration.findUnique).not.toHaveBeenCalled();
+    expect(mockPrisma.mixpanelIntegration.findUnique).not.toHaveBeenCalled();
+    expect(mockPrisma.blobStorageIntegration.findUnique).not.toHaveBeenCalled();
+    expect(mockPrisma.jobConfiguration.count).not.toHaveBeenCalled();
+    expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
     expect(mockPrisma.apiKey.findMany).not.toHaveBeenCalled();
   });
 
