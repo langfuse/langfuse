@@ -26,7 +26,7 @@ type UnstablePublicEvalsHandlers = {
   ) => Promise<void>;
 };
 
-export const createUnstablePublicEvalsRoute = <
+export const createUnstablePublicApiRoute = <
   TQuery extends ZodType<any>,
   TBody extends ZodType<any>,
   TResponse extends ZodType<any>,
@@ -38,9 +38,13 @@ export const createUnstablePublicEvalsRoute = <
     errorContract: unstablePublicEvalsErrorContract,
   });
 
-export const withUnstablePublicEvalsMiddlewares = (
+export const withUnstablePublicApiMiddlewares = (
   handlers: UnstablePublicEvalsHandlers,
 ) =>
   withMiddlewares(handlers, {
     errorContract: unstablePublicEvalsErrorContract,
   });
+
+export const createUnstablePublicEvalsRoute = createUnstablePublicApiRoute;
+export const withUnstablePublicEvalsMiddlewares =
+  withUnstablePublicApiMiddlewares;
