@@ -187,6 +187,7 @@ export const SessionAnnotationProcessor: React.FC<
                   traceCommentCounts={asCommentCounts(traceCommentCounts.data)}
                   showCorrections
                   filterState={EMPTY_FILTER_STATE}
+                  viewLabel={null}
                   hideTracePanel
                   index={index}
                 />
