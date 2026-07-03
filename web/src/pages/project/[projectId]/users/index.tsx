@@ -319,6 +319,7 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
           <Badge
             variant="secondary"
             className="max-w-fit truncate rounded-sm px-1 font-normal"
+            title={value}
           >
             {value}
           </Badge>
