@@ -498,7 +498,7 @@ export const experimentsRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         baseExperimentId: z.string().nullish(),
-        compExperimentIds: z.array(z.string()),
+        compExperimentIds: z.array(z.string()).max(9),
         filterByExperiment: z
           .array(
             z.object({
@@ -637,7 +637,7 @@ export const experimentsRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         baseExperimentId: z.string().nullish(),
-        compExperimentIds: z.array(z.string()),
+        compExperimentIds: z.array(z.string()).max(9),
         filterByExperiment: z
           .array(
             z.object({
@@ -678,7 +678,7 @@ export const experimentsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        experimentIds: z.array(z.string()).min(1),
+        experimentIds: z.array(z.string()).min(1).max(10),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -720,7 +720,7 @@ export const experimentsRouter = createTRPCRouter({
         projectId: z.string(),
         itemIds: z.array(z.string()),
         baseExperimentId: z.string().nullish(),
-        compExperimentIds: z.array(z.string()),
+        compExperimentIds: z.array(z.string()).max(9),
       }),
     )
     .query(async ({ input, ctx }) => {
