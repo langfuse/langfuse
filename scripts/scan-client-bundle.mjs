@@ -79,6 +79,14 @@ const AMBIENT_ALLOWLIST = new Map([
   ["Deno", "Deno runtime probe"],
   ["AsyncIterator", "ES proposal probe in vendored libs"],
   [
+    "WebKitCSSMatrix",
+    "d3-interpolate fallback in a DOMMatrix-guarded alternate; a real global in engines old enough to reach it",
+  ],
+  [
+    "$doc",
+    "GWT runtime alias in elkjs, read only on an MSIE-userAgent path — undeclared in the upstream source, not a minifier drop",
+  ],
+  [
     "toString",
     "bare toString.call idiom resolves to globalThis's inherited Object.prototype.toString — cannot throw",
   ],
