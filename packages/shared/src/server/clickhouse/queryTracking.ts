@@ -21,7 +21,7 @@ export function sleep(ms: number): Promise<void> {
  * the local table directly.
  */
 export function systemTableRef(
-  table: "system.processes" | "system.query_log" | "system.columns",
+  table: "system.processes" | "system.query_log",
 ): string {
   if (env.CLICKHOUSE_CLUSTER_ENABLED === "true") {
     return `clusterAllReplicas('${env.CLICKHOUSE_CLUSTER_NAME}', '${table}')`;

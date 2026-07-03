@@ -154,10 +154,6 @@ type SdkUsageSummaryByProjectResultRow = {
   outdatedSdkUsageSeriesCount: number;
 };
 
-type ScoreAttributionColumnsRow = {
-  columnCount: string | number;
-};
-
 const getEmptyTimelineBuckets = (
   fromTimestamp: Date,
   toTimestamp: Date,
@@ -635,26 +631,8 @@ ORDER BY bucket_time ASC, score_name ASC
         input.toTimestamp,
       );
       const bucketTimeSql = getTimelineBucketSql("event_time", granularity);
-      const scoreAttributionColumns =
-        await queryClickhouse<ScoreAttributionColumnsRow>({
-          query: `
-SELECT uniqExact(name) AS columnCount
-FROM ${systemTableRef("system.columns")}
-WHERE database = currentDatabase()
-  AND table = 'scores'
-  AND name IN ('ingestion_api_key', 'ingestion_sdk_name', 'ingestion_sdk_version')
-        `,
-          tags: {
-            projectId: input.projectId,
-            route: "v4-sdk-usage-score-columns",
-          },
-          preferredClickhouseService: "EventsReadOnly",
-        });
-      const includeScores =
-        Number(scoreAttributionColumns[0]?.columnCount ?? 0) === 3;
-      const scoresUnionSql = includeScores
-        ? `
 
+      const scoresUnionSql = `
   UNION ALL
 
   SELECT
@@ -669,8 +647,7 @@ WHERE database = currentDatabase()
     AND timestamp <= {toTimestamp: DateTime64(3)}
     AND toDate(timestamp) >= toDate({fromTimestamp: DateTime64(3)})
     AND toDate(timestamp) <= toDate({toTimestamp: DateTime64(3)})
-    AND is_deleted = 0`
-        : "";
+    AND is_deleted = 0`;
 
       const rows = await queryClickhouse<SdkUsageTimeSeriesRow>({
         query: `
@@ -780,25 +757,7 @@ ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
 
       if (projectIds.length === 0) return [];
 
-      const scoreAttributionColumns =
-        await queryClickhouse<ScoreAttributionColumnsRow>({
-          query: `
-SELECT uniqExact(name) AS columnCount
-FROM ${systemTableRef("system.columns")}
-WHERE database = currentDatabase()
-  AND table = 'scores'
-  AND name IN ('ingestion_api_key', 'ingestion_sdk_name', 'ingestion_sdk_version')
-        `,
-          tags: {
-            route: "v4-org-sdk-usage-score-columns",
-          },
-          preferredClickhouseService: "EventsReadOnly",
-        });
-      const includeScores =
-        Number(scoreAttributionColumns[0]?.columnCount ?? 0) === 3;
-      const scoresUnionSql = includeScores
-        ? `
-
+      const scoresUnionSql = `
   UNION ALL
 
   SELECT
@@ -813,8 +772,7 @@ WHERE database = currentDatabase()
     AND timestamp <= {toTimestamp: DateTime64(3)}
     AND toDate(timestamp) >= toDate({fromTimestamp: DateTime64(3)})
     AND toDate(timestamp) <= toDate({toTimestamp: DateTime64(3)})
-    AND is_deleted = 0`
-        : "";
+    AND is_deleted = 0`;
 
       const rows = await queryClickhouse<SdkUsageSummaryByProjectRow>({
         query: `

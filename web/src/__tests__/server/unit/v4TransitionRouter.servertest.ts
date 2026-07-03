@@ -12,9 +12,8 @@ const sharedServerMock = vi.hoisted(() => ({
   queryClickhouse: vi.fn(),
   convertDateToClickhouseDateTime: (date: Date) =>
     date.toISOString().replace("T", " ").replace("Z", ""),
-  systemTableRef: (
-    table: "system.processes" | "system.query_log" | "system.columns",
-  ) => `clusterAllReplicas('test-cluster', '${table}')`,
+  systemTableRef: (table: "system.processes" | "system.query_log") =>
+    `clusterAllReplicas('test-cluster', '${table}')`,
   classifyIngestionSdkVersion: ({
     sdkName,
     sdkVersion,
@@ -1009,28 +1008,26 @@ describe("v4TransitionRouter", () => {
   });
 
   it("queries SDK usage by exact SDK, version, and API key across event and score ingestion", async () => {
-    mockedQueryClickhouse
-      .mockResolvedValueOnce([{ columnCount: 3 }])
-      .mockResolvedValueOnce([
-        {
-          time: "2026-06-25T12:00:00Z",
-          sdkName: "python",
-          sdkVersion: "3.9.0",
-          publicKey: "pk-lf-old-python",
-          count: "3",
-          firstSeen: "2026-06-25T12:01:00Z",
-          lastSeen: "2026-06-25T12:03:00Z",
-        },
-        {
-          time: "2026-06-25T12:04:00Z",
-          sdkName: "@langfuse/tracing",
-          sdkVersion: "5.1.0",
-          publicKey: "pk-lf-js-current",
-          count: 7,
-          firstSeen: "2026-06-25T12:04:00Z",
-          lastSeen: "2026-06-25T12:05:00Z",
-        },
-      ]);
+    mockedQueryClickhouse.mockResolvedValueOnce([
+      {
+        time: "2026-06-25T12:00:00Z",
+        sdkName: "python",
+        sdkVersion: "3.9.0",
+        publicKey: "pk-lf-old-python",
+        count: "3",
+        firstSeen: "2026-06-25T12:01:00Z",
+        lastSeen: "2026-06-25T12:03:00Z",
+      },
+      {
+        time: "2026-06-25T12:04:00Z",
+        sdkName: "@langfuse/tracing",
+        sdkVersion: "5.1.0",
+        publicKey: "pk-lf-js-current",
+        count: 7,
+        firstSeen: "2026-06-25T12:04:00Z",
+        lastSeen: "2026-06-25T12:05:00Z",
+      },
+    ]);
     const mockPrisma = {
       apiKey: {
         findMany: vi.fn().mockResolvedValue([
@@ -1116,18 +1113,15 @@ describe("v4TransitionRouter", () => {
       upgradeStatus: "outdated_major",
     });
 
-    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(2);
-    const scoreColumnsQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
-    expect(scoreColumnsQuery?.query).toContain(
-      "FROM clusterAllReplicas('test-cluster', 'system.columns')",
-    );
-    expect(scoreColumnsQuery?.query).toContain("table = 'scores'");
-    expect(scoreColumnsQuery?.query).toContain("ingestion_sdk_name");
-
-    const clickhouseQuery = mockedQueryClickhouse.mock.calls[1]?.[0];
+    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(1);
+    const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
     expect(clickhouseQuery?.query).toContain("FROM events_core");
     expect(clickhouseQuery?.query).toContain("UNION ALL");
     expect(clickhouseQuery?.query).toContain("FROM scores FINAL");
+    expect(
+      clickhouseQuery?.query.match(/project_id = \{projectId: String\}/g),
+    ).toHaveLength(2);
+    expect(clickhouseQuery?.query).not.toContain("system.columns");
     expect(clickhouseQuery?.query).toContain(
       "toStartOfInterval(event_time, INTERVAL 2 MINUTE, 'UTC')",
     );
@@ -1176,19 +1170,17 @@ describe("v4TransitionRouter", () => {
   });
 
   it("does not join organization API key notes for users without organization API key access", async () => {
-    mockedQueryClickhouse
-      .mockResolvedValueOnce([{ columnCount: 0 }])
-      .mockResolvedValueOnce([
-        {
-          time: "2026-06-25T12:00:00Z",
-          sdkName: "python",
-          sdkVersion: "3.9.0",
-          publicKey: "pk-lf-org-python",
-          count: "3",
-          firstSeen: "2026-06-25T12:01:00Z",
-          lastSeen: "2026-06-25T12:03:00Z",
-        },
-      ]);
+    mockedQueryClickhouse.mockResolvedValueOnce([
+      {
+        time: "2026-06-25T12:00:00Z",
+        sdkName: "python",
+        sdkVersion: "3.9.0",
+        publicKey: "pk-lf-org-python",
+        count: "3",
+        firstSeen: "2026-06-25T12:01:00Z",
+        lastSeen: "2026-06-25T12:03:00Z",
+      },
+    ]);
     const mockPrisma = {
       apiKey: {
         findMany: vi.fn().mockResolvedValue([]),
@@ -1259,20 +1251,18 @@ describe("v4TransitionRouter", () => {
     expect(mockPrisma.apiKey.findMany).not.toHaveBeenCalled();
   });
 
-  it("queries SDK usage from events only when scores attribution columns are unavailable", async () => {
-    mockedQueryClickhouse
-      .mockResolvedValueOnce([{ columnCount: 0 }])
-      .mockResolvedValueOnce([
-        {
-          time: "2026-06-25T12:00:00Z",
-          sdkName: "python",
-          sdkVersion: "4.0.0",
-          publicKey: "pk-lf-python",
-          count: 2,
-          firstSeen: "2026-06-25T12:00:00Z",
-          lastSeen: "2026-06-25T12:01:00Z",
-        },
-      ]);
+  it("queries SDK usage without a ClickHouse metadata preflight", async () => {
+    mockedQueryClickhouse.mockResolvedValueOnce([
+      {
+        time: "2026-06-25T12:00:00Z",
+        sdkName: "python",
+        sdkVersion: "4.0.0",
+        publicKey: "pk-lf-python",
+        count: 2,
+        firstSeen: "2026-06-25T12:00:00Z",
+        lastSeen: "2026-06-25T12:01:00Z",
+      },
+    ]);
     const mockPrisma = {
       apiKey: {
         findMany: vi.fn().mockResolvedValue([]),
@@ -1288,10 +1278,15 @@ describe("v4TransitionRouter", () => {
     });
 
     expect(rows).toHaveLength(10);
-    const usageQuery = mockedQueryClickhouse.mock.calls[1]?.[0];
+    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(1);
+    const usageQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
     expect(usageQuery?.query).toContain("FROM events_core");
-    expect(usageQuery?.query).not.toContain("FROM scores FINAL");
-    expect(usageQuery?.query).not.toContain("UNION ALL");
+    expect(usageQuery?.query).toContain("FROM scores FINAL");
+    expect(usageQuery?.query).toContain("UNION ALL");
+    expect(
+      usageQuery?.query.match(/project_id = \{projectId: String\}/g),
+    ).toHaveLength(2);
+    expect(usageQuery?.query).not.toContain("system.columns");
   });
 
   it("rejects SDK usage requests for projects outside the caller session", async () => {
@@ -1316,31 +1311,29 @@ describe("v4TransitionRouter", () => {
   });
 
   it("summarizes outdated SDK usage series by organization project", async () => {
-    mockedQueryClickhouse
-      .mockResolvedValueOnce([{ columnCount: 3 }])
-      .mockResolvedValueOnce([
-        {
-          projectId,
-          sdkName: "python",
-          sdkVersion: "3.9.0",
-          publicKey: "pk-lf-old-python",
-          count: "8",
-        },
-        {
-          projectId,
-          sdkName: "python",
-          sdkVersion: "4.0.0",
-          publicKey: "pk-lf-current-python",
-          count: "13",
-        },
-        {
-          projectId: secondProjectId,
-          sdkName: "@langfuse/tracing",
-          sdkVersion: "4.2.0",
-          publicKey: "pk-lf-old-js",
-          count: "5",
-        },
-      ]);
+    mockedQueryClickhouse.mockResolvedValueOnce([
+      {
+        projectId,
+        sdkName: "python",
+        sdkVersion: "3.9.0",
+        publicKey: "pk-lf-old-python",
+        count: "8",
+      },
+      {
+        projectId,
+        sdkName: "python",
+        sdkVersion: "4.0.0",
+        publicKey: "pk-lf-current-python",
+        count: "13",
+      },
+      {
+        projectId: secondProjectId,
+        sdkName: "@langfuse/tracing",
+        sdkVersion: "4.2.0",
+        publicKey: "pk-lf-old-js",
+        count: "5",
+      },
+    ]);
     const mockPrisma = {
       project: {
         findMany: vi
@@ -1376,22 +1369,15 @@ describe("v4TransitionRouter", () => {
         id: true,
       },
     });
-    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(2);
-    const scoreColumnsQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
-    expect(scoreColumnsQuery?.query).toContain(
-      "FROM clusterAllReplicas('test-cluster', 'system.columns')",
-    );
-    expect(scoreColumnsQuery?.tags).toEqual({
-      route: "v4-org-sdk-usage-score-columns",
-    });
-
-    const usageQuery = mockedQueryClickhouse.mock.calls[1]?.[0];
+    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(1);
+    const usageQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
     expect(usageQuery?.query).toContain("FROM events_core");
     expect(usageQuery?.query).toContain("UNION ALL");
     expect(usageQuery?.query).toContain("FROM scores FINAL");
-    expect(usageQuery?.query).toContain(
-      "project_id IN {projectIds: Array(String)}",
-    );
+    expect(usageQuery?.query).not.toContain("system.columns");
+    expect(
+      usageQuery?.query.match(/project_id IN \{projectIds: Array\(String\)\}/g),
+    ).toHaveLength(2);
     expect(usageQuery?.query).toContain(
       "GROUP BY project_id, sdk_name, sdk_version, public_key",
     );
