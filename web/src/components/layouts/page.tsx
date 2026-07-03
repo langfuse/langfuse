@@ -1,10 +1,7 @@
 import PageHeader, {
   type PageHeaderProps,
 } from "@/src/components/layouts/page-header";
-import {
-  PageHeaderControlsSlotProvider,
-  PageHeaderControlsSlotTarget,
-} from "@/src/components/layouts/page-header-controls-slot";
+import { PageHeaderControlsSlotProvider } from "@/src/components/layouts/page-header-controls-slot";
 import { cn } from "@/src/utils/tailwind";
 
 type PageContainerProps = {
@@ -32,17 +29,7 @@ const Page = ({
         id="page"
       >
         <header className="sticky top-0 z-50 w-full">
-          <PageHeader
-            {...headerProps}
-            actionButtonsLeft={
-              <>
-                {headerProps.actionButtonsLeft}
-                <PageHeaderControlsSlotTarget />
-              </>
-            }
-            container={false}
-            className={"top-0"}
-          />
+          <PageHeader {...headerProps} container={false} className={"top-0"} />
         </header>
         <main
           className={cn(

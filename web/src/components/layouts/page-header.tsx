@@ -1,6 +1,7 @@
 import { EnvLabel } from "@/src/components/EnvLabel";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
+import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { SidebarTrigger } from "@/src/components/ui/sidebar";
 import {
@@ -84,7 +85,7 @@ const PageHeader = ({
         <div className="border-b">
           <div
             className={cn(
-              "flex min-h-11 items-center gap-3 px-3 py-2",
+              "flex min-h-11 flex-wrap items-center gap-3 px-3 py-2",
               container && containerLayoutClassName,
             )}
           >
@@ -101,6 +102,12 @@ const PageHeader = ({
             <div className="flex items-center gap-2">
               <BreadcrumbComponent items={breadcrumb} />
               {breadcrumbBadges}
+            </div>
+            {/* Right-aligned slot for page-level controls (time range,
+                auto-refresh) hoisted from a list table via
+                PageHeaderControlsPortal. Empty on pages that don't use it. */}
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <PageHeaderControlsSlotTarget />
             </div>
           </div>
         </div>
