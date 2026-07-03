@@ -21,7 +21,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
-import { parseJsonPrioritised } from "@langfuse/shared";
+import { deepParseJson, parseJsonPrioritised } from "@langfuse/shared";
 import { ActionButton } from "@/src/components/ActionButton";
 import { type MetadataDomainClient } from "@/src/utils/clientSideDomainTypes";
 import { type Prisma } from "@langfuse/shared";
@@ -54,16 +54,25 @@ export const NewDatasetItemFromExistingObject = (props: {
       return null;
     }
 
-    if (typeof value === "string") {
-      const parsed = parseJsonPrioritised(value);
-      return parsed !== undefined ? parsed : value;
-    }
-
-    return value;
+    // metadata arrives as a serialized JSON string (the client envelope);
+    // input/output may already be native objects (from the trace query cache).
+    // Unwrap an outer JSON string first so the envelope doesn't consume
+    // deepParseJson's depth budget, clone native objects so we never mutate the
+    // shared query cache, then recursively parse nested stringified-JSON leaves
+    // (e.g. OTLP attributes stored as JSON strings) into native, editable JSON —
+    // matching how the trace/observation viewer renders the same data.
+    const unwrapped =
+      typeof value === "string" ? parseJsonPrioritised(value) : value;
+    const root =
+      unwrapped && typeof unwrapped === "object"
+        ? structuredClone(unwrapped)
+        : unwrapped;
+    return deepParseJson(root) as Prisma.JsonValue;
   };
 
   const parsedInput = normalizePrefillValue(props.input);
   const parsedOutput = normalizePrefillValue(props.output);
+  const parsedMetadata = normalizePrefillValue(props.metadata);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
@@ -185,7 +194,7 @@ export const NewDatasetItemFromExistingObject = (props: {
               projectId={props.projectId}
               input={parsedInput}
               output={parsedOutput}
-              metadata={props.metadata}
+              metadata={parsedMetadata}
               onFormSuccess={() => setIsFormOpen(false)}
               className="h-full overflow-y-auto"
               currentDatasetId={props.fromDatasetId}
