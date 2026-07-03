@@ -525,7 +525,12 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
   const handleRulerPointerUp = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
       isDraggingRef.current = false;
-      event.currentTarget.releasePointerCapture(event.pointerId);
+      // On pointercancel the capture is implicitly released and the pointer is
+      // no longer active, so guard to avoid a NotFoundError from a redundant
+      // release.
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
     },
     [],
   );
@@ -656,6 +661,7 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
               onPointerDown={handleRulerPointerDown}
               onPointerMove={handleRulerPointerMove}
               onPointerUp={handleRulerPointerUp}
+              onPointerCancel={handleRulerPointerUp}
               onKeyDown={handleRulerKeyDown}
               className={cn(
                 "bg-muted/40 focus-visible:ring-ring relative w-6 shrink-0 border-l outline-none focus-visible:ring-2 focus-visible:ring-inset",
