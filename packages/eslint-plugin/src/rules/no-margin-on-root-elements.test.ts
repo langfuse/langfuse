@@ -32,6 +32,7 @@ ruleTester.run("no-margin-on-root-elements", rule, {
     `function Card() { return <div className={cn({ flex: isActive })} />; }`,
     `function Card() { return <div className={cn({ flex: isActive, "gap-2": hasGap })} />; }`,
     `function Card() { return <div className={cn({ [className]: isActive })} />; }`,
+    `function Card() { return <div className={cn({ [condition ? "mt-2" : "flex"]: isActive })} />; }`,
     `function Card() { return <div className={cn({ ...styles, flex: isActive })} />; }`,
     `function Card() { return <div className={condition && styles.root} />; }`,
     `function Card() { return <div className={"flex"!} />; }`,

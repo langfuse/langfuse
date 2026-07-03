@@ -103,6 +103,7 @@ export const ExperimentGridView = ({
           <div className="flex items-center gap-2">
             <span
               className={cn("truncate font-medium", colorStyles?.textClass)}
+              title={expName}
             >
               {expName}
             </span>

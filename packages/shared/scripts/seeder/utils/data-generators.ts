@@ -35,6 +35,7 @@ import {
   DatasetRunItemRecordInsertType,
   createDatasetRunItem,
   createDatasetRunScore,
+  UNKNOWN_INGESTION_SDK_VALUE,
 } from "../../../src/server";
 
 /**
@@ -92,6 +93,37 @@ export class DataGenerator {
       "flags.beta": index % 2 === 0 ? "true" : "false",
       ...overrides,
     };
+  }
+
+  private buildSeedIngestionAttribution(
+    projectId: string,
+    client: "python-sdk" | "javascript-sdk" | "raw-api",
+  ): Pick<
+    ScoreRecordInsertType,
+    "ingestion_api_key" | "ingestion_sdk_name" | "ingestion_sdk_version"
+  > {
+    const keySuffix = projectId.slice(-8);
+
+    switch (client) {
+      case "python-sdk":
+        return {
+          ingestion_api_key: `pk-lf-seed-${keySuffix}-python`,
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "4.2.1",
+        };
+      case "javascript-sdk":
+        return {
+          ingestion_api_key: `pk-lf-seed-${keySuffix}-javascript`,
+          ingestion_sdk_name: "javascript",
+          ingestion_sdk_version: "5.1.3",
+        };
+      case "raw-api":
+        return {
+          ingestion_api_key: `pk-lf-seed-${keySuffix}-raw-api`,
+          ingestion_sdk_name: UNKNOWN_INGESTION_SDK_VALUE,
+          ingestion_sdk_version: UNKNOWN_INGESTION_SDK_VALUE,
+        };
+    }
   }
 
   /**
@@ -266,6 +298,7 @@ export class DataGenerator {
       data_type: "NUMERIC",
       source: "API",
       environment: "langfuse-prompt-experiment",
+      ...this.buildSeedIngestionAttribution(projectId, "python-sdk"),
     });
   }
 
@@ -294,6 +327,7 @@ export class DataGenerator {
       data_type: "NUMERIC",
       source: "API",
       environment: "langfuse-prompt-experiment",
+      ...this.buildSeedIngestionAttribution(projectId, "javascript-sdk"),
     });
   }
 
@@ -637,6 +671,10 @@ export class DataGenerator {
           source: "API",
           comment: "Generated score\ntest",
           environment: trace.environment,
+          ...this.buildSeedIngestionAttribution(
+            trace.project_id,
+            this.randomElement(["python-sdk", "javascript-sdk", "raw-api"]),
+          ),
         });
 
         scores.push(score);
@@ -1250,6 +1288,7 @@ export class DataGenerator {
           string_value: null,
           long_string_value: "",
           queue_id: null,
+          ...this.buildSeedIngestionAttribution(projectId, "javascript-sdk"),
           created_at: baseTs,
           updated_at: baseTs,
           timestamp: baseTs,
@@ -1277,6 +1316,7 @@ export class DataGenerator {
           data_type: "BOOLEAN",
           string_value: safeVal === 1 ? "True" : "False",
           queue_id: null,
+          ...this.buildSeedIngestionAttribution(projectId, "python-sdk"),
           created_at: baseTs + 10,
           updated_at: baseTs + 10,
           timestamp: baseTs + 10,
@@ -1306,6 +1346,7 @@ export class DataGenerator {
               data_type: "BOOLEAN",
               string_value: "True",
               queue_id: null,
+              ...this.buildSeedIngestionAttribution(projectId, "raw-api"),
               created_at: baseTs + 20,
               updated_at: baseTs + 20,
               timestamp: baseTs + 20,
@@ -1354,6 +1395,7 @@ export class DataGenerator {
           source: "EVAL",
           comment: "Evaluation trace score",
           environment: trace.environment,
+          ...this.buildSeedIngestionAttribution(projectId, "python-sdk"),
         });
 
         scores.push(score);

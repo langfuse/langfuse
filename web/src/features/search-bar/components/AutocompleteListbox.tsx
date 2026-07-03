@@ -127,7 +127,10 @@ export function AutocompleteListbox({
               onMouseMove={highlightOnMove?.(o.id)}
             >
               <OptionIcon kind={o.kind} />
-              <span className="max-w-[480px] min-w-0 flex-none truncate">
+              <span
+                className="max-w-[480px] min-w-0 flex-none truncate"
+                title={o.label}
+              >
                 {o.label}
               </span>
               {o.kind === "value" && o.active && (

@@ -1,5 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type TestContext,
+} from "vitest";
 import { uuid, z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -16,6 +24,7 @@ import {
   TraceRecordReadType,
   createOrgProjectAndApiKey,
   createIngestionEventSchema,
+  queryClickhouse,
   setNoEvalConfigsCache,
 } from "@langfuse/shared/src/server";
 import waitForExpect from "wait-for-expect";
@@ -25,6 +34,12 @@ import { ModelUsageUnit, ScoreSourceEnum } from "@langfuse/shared";
 
 let projectId = "";
 const environment = "default";
+const testIngestionAttribution = {
+  ingestionApiKey: "pk-lf-ingestion-service-test",
+  ingestionSdkName: "langfuse-test",
+  ingestionSdkVersion: "0.0.0",
+};
+let observationsBatchStagingTableEnabled: boolean | undefined;
 
 describe("Ingestion end-to-end tests", () => {
   let ingestionService: IngestionService;
@@ -102,6 +117,60 @@ describe("Ingestion end-to-end tests", () => {
     expect(trace.output).toBe("bar");
     expect(trace.session_id).toBeNull();
     expect(trace.timestamp).toBe(timestamp);
+  });
+
+  it("should write ingestion attribution to observation staging records", async (ctx) => {
+    await skipUnlessObservationsBatchStagingEnabled(ctx);
+
+    const traceId = randomUUID();
+    const generationId = randomUUID();
+    const timestamp = new Date().toISOString();
+    const attribution = {
+      ingestionApiKey: "pk-lf-ingestion-service-integration",
+      ingestionSdkName: "langfuse-js",
+      ingestionSdkVersion: "4.2.0",
+    };
+
+    const generationEventList: ObservationEvent[] = [
+      {
+        id: randomUUID(),
+        type: "generation-create",
+        timestamp,
+        body: {
+          id: generationId,
+          traceId,
+          startTime: timestamp,
+          name: "generation-with-attribution",
+          environment,
+        },
+      },
+    ];
+
+    await ingestionService.mergeAndWrite({
+      projectId,
+      entityId: generationId,
+      createdAtTimestamp: new Date(timestamp),
+      eventType: "observation",
+      events: generationEventList,
+      forwardToEventsTable: true,
+      attribution,
+    });
+
+    await clickhouseWriter.flushAll(true);
+
+    const generation = await getClickhouseRecord(
+      TableName.Observations,
+      generationId,
+    );
+    const stagingAttribution =
+      await getClickhouseObservationBatchStagingAttribution(generationId);
+
+    expect(generation.id).toBe(generationId);
+    expect(stagingAttribution).toEqual({
+      ingestion_api_key: attribution.ingestionApiKey,
+      ingestion_sdk_name: attribution.ingestionSdkName,
+      ingestion_sdk_version: attribution.ingestionSdkVersion,
+    });
   });
 
   [
@@ -554,6 +623,7 @@ describe("Ingestion end-to-end tests", () => {
           entityId: scoreId,
           createdAtTimestamp: new Date(),
           scoreEventList,
+          attribution: testIngestionAttribution,
         }),
       ]);
 
@@ -664,6 +734,7 @@ describe("Ingestion end-to-end tests", () => {
         entityId: scoreId,
         createdAtTimestamp: new Date(),
         scoreEventList,
+        attribution: testIngestionAttribution,
       }),
     ]);
 
@@ -1139,6 +1210,7 @@ describe("Ingestion end-to-end tests", () => {
         entityId: scoreId,
         createdAtTimestamp: new Date(),
         scoreEventList,
+        attribution: testIngestionAttribution,
       }),
     ]);
 
@@ -1251,6 +1323,7 @@ describe("Ingestion end-to-end tests", () => {
         projectId,
         entityId: validScoreId1,
         createdAtTimestamp: new Date(),
+        attribution: testIngestionAttribution,
         scoreEventList: [
           {
             id: validScoreId1,
@@ -1274,6 +1347,7 @@ describe("Ingestion end-to-end tests", () => {
         projectId,
         entityId: validScoreId2,
         createdAtTimestamp: new Date(),
+        attribution: testIngestionAttribution,
         scoreEventList: [
           // invalid score 1
           {
@@ -2947,6 +3021,43 @@ async function getClickhouseRecord<T extends TableName>(
   ) as RecordReadType<T>;
 }
 
+async function getClickhouseObservationBatchStagingAttribution(
+  entityId: string,
+): Promise<{
+  ingestion_api_key: string;
+  ingestion_sdk_name: string;
+  ingestion_sdk_version: string;
+}> {
+  let result: unknown;
+
+  const loadResult = async () => {
+    const query = await clickhouseClient().query({
+      query: `
+        SELECT
+          ingestion_api_key,
+          ingestion_sdk_name,
+          ingestion_sdk_version
+        FROM ${TableName.ObservationsBatchStaging} FINAL
+        WHERE project_id = '${projectId}' AND id = '${entityId}'
+      `,
+      format: "JSONEachRow",
+    });
+
+    result = (await query.json())[0];
+  };
+
+  await waitForExpect(async () => {
+    await loadResult();
+    expect(result).toBeDefined();
+  }, 1_500);
+
+  return result as {
+    ingestion_api_key: string;
+    ingestion_sdk_name: string;
+    ingestion_sdk_version: string;
+  };
+}
+
 type RecordReadType<T extends TableName> = T extends TableName.Scores
   ? ScoreRecordReadType
   : T extends TableName.Observations
@@ -2954,3 +3065,36 @@ type RecordReadType<T extends TableName> = T extends TableName.Scores
     : T extends TableName.Traces
       ? TraceRecordReadType
       : never;
+
+async function isObservationsBatchStagingEnabled(): Promise<boolean> {
+  if (observationsBatchStagingTableEnabled !== undefined) {
+    return observationsBatchStagingTableEnabled;
+  }
+
+  try {
+    const rows = await queryClickhouse<{ count: number | string }>({
+      query: `
+        SELECT count() AS count
+        FROM system.tables
+        WHERE database = currentDatabase()
+          AND name = {table: String}
+      `,
+      params: {
+        table: TableName.ObservationsBatchStaging,
+      },
+    });
+    observationsBatchStagingTableEnabled = Number(rows[0]?.count ?? 0) > 0;
+  } catch {
+    observationsBatchStagingTableEnabled = false;
+  }
+
+  return observationsBatchStagingTableEnabled;
+}
+
+async function skipUnlessObservationsBatchStagingEnabled(
+  ctx: TestContext,
+): Promise<void> {
+  if (!(await isObservationsBatchStagingEnabled())) {
+    ctx.skip("observations_batch_staging is not enabled in this ClickHouse");
+  }
+}

@@ -5,7 +5,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { startCase } from "lodash";
 
-import { api } from "@/src/utils/api";
+import { api, type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import {
   Accordion,
@@ -75,7 +75,12 @@ import {
   UpdateMonitorSchema,
   type UpdateMonitor,
 } from "@langfuse/shared/monitors";
-import { viewDeclarations, type FilterState } from "@langfuse/shared";
+import {
+  ObservationLevelDomain,
+  ObservationTypeDomain,
+  viewDeclarations,
+  type FilterState,
+} from "@langfuse/shared";
 
 import TagManager from "@/src/features/tag/components/TagManager";
 
@@ -138,6 +143,57 @@ const nameOrPlaceholder = (
   name: string | undefined,
   placeholder: string,
 ): string => name || placeholder;
+
+// Observation Level and Type are closed enums, so their filter value pickers
+// list every domain value. Deriving them from the monitor's (short, default 5m)
+// evaluation window instead left them empty whenever that window happened to
+// contain no matching events — e.g. a fresh monitor whose lookback saw no errors
+// or tool calls yet — so the non-searchable "Level"/"Type" value dropdowns
+// showed "No results found" with no way to pick a value (LFE-10616). Mirrors
+// WidgetForm, which builds these two option lists from the domain enums too.
+const observationLevelOptions = ObservationLevelDomain.options.map((value) => ({
+  value,
+}));
+const observationTypeOptions = ObservationTypeDomain.options.map((value) => ({
+  value,
+}));
+
+/**
+ * buildFilterColumnsParams assembles the InlineFilterBuilder option dictionaries
+ * for the picked view. Open-ended facets (environment, model, tags, …) come from
+ * the time-windowed events filter-options discovery; the closed Type/Level enums
+ * come from the domain schemas so their value pickers are always complete.
+ */
+const buildFilterColumnsParams = ({
+  view,
+  filterOptions,
+  datasets,
+}: {
+  view: "traces" | "observations" | "scores-numeric" | "scores-categorical";
+  filterOptions: RouterOutputs["events"]["filterOptions"] | undefined;
+  datasets: Array<{ id: string; name: string }> | undefined;
+}) => {
+  const datasetIds = new Set(
+    (filterOptions?.experimentDatasetId ?? []).map((e) => e.value),
+  );
+  return {
+    selectedView: view,
+    viewVersion: "v2" as const,
+    environmentOptions: filterOptions?.environment ?? [],
+    nameOptions: normalizeSingleValueOptions(filterOptions?.traceName),
+    tagsOptions: filterOptions?.traceTags ?? [],
+    modelOptions: filterOptions?.providedModelName ?? [],
+    toolNamesOptions: filterOptions?.toolNames ?? [],
+    calledToolNamesOptions: filterOptions?.calledToolNames ?? [],
+    observationLevelOptions,
+    experimentNameOptions: filterOptions?.experimentName ?? [],
+    experimentDatasetOptions:
+      datasets
+        ?.filter((d) => datasetIds.has(d.id))
+        .map((d) => ({ value: d.id, displayValue: d.name })) ?? [],
+    observationTypeOptions,
+  };
+};
 
 /** MonitorForm renders the create/edit form for a Monitor. */
 export const MonitorForm = ({
@@ -286,39 +342,19 @@ export const MonitorForm = ({
   );
 
   /** filterColumnsParams collects the filter-column descriptor for InlineFilterBuilder, derived from the picked view and live option dictionaries. */
-  const filterColumnsParams = useMemo(() => {
-    const data = eventsFilterOptions.data;
-    return {
-      selectedView: (watched.view ?? "observations") as
-        | "traces"
-        | "observations"
-        | "scores-numeric"
-        | "scores-categorical",
-      viewVersion: "v2" as const,
-      environmentOptions: data?.environment ?? [],
-      nameOptions: normalizeSingleValueOptions(data?.traceName),
-      tagsOptions: data?.traceTags ?? [],
-      modelOptions: data?.providedModelName ?? [],
-      toolNamesOptions: data?.toolNames ?? [],
-      calledToolNamesOptions: data?.calledToolNames ?? [],
-      observationLevelOptions: data?.level ?? [],
-      experimentNameOptions: data?.experimentName ?? [],
-      experimentDatasetOptions: (() => {
-        const ids = new Set(
-          (data?.experimentDatasetId ?? []).map((e) => e.value),
-        );
-        return (
-          datasets.data
-            ?.filter((d: { id: string }) => ids.has(d.id))
-            .map((d: { id: string; name: string }) => ({
-              value: d.id,
-              displayValue: d.name,
-            })) ?? []
-        );
-      })(),
-      observationTypeOptions: data?.type ?? [],
-    };
-  }, [eventsFilterOptions.data, datasets.data, watched.view]);
+  const filterColumnsParams = useMemo(
+    () =>
+      buildFilterColumnsParams({
+        view: (watched.view ?? "observations") as
+          | "traces"
+          | "observations"
+          | "scores-numeric"
+          | "scores-categorical",
+        filterOptions: eventsFilterOptions.data,
+        datasets: datasets.data,
+      }),
+    [eventsFilterOptions.data, datasets.data, watched.view],
+  );
 
   /** filterColumns is the InlineFilterBuilder column schema for the picked view. */
   const filterColumns = useMemo(
@@ -1092,4 +1128,5 @@ export const __test = {
   createDefaults,
   monitorToDefaults,
   nameOrPlaceholder,
+  buildFilterColumnsParams,
 };

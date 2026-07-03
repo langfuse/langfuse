@@ -5,24 +5,14 @@ import {
   markProjectIngestFailure,
   OtelIngestionProcessor,
   markProjectAsOtelUser,
+  createIngestionAttribution,
+  getLangfuseHeaderValue,
 } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 import { gunzip } from "node:zlib";
 import { ForbiddenError } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
-
-/** Read a Langfuse header that may arrive with hyphens or underscores. */
-function getLangfuseHeader(
-  headers: Record<string, string | string[] | undefined>,
-  name: string,
-): string | undefined {
-  const hyphenVal = headers[name];
-  if (typeof hyphenVal === "string") return hyphenVal;
-  const underscoreVal = headers[name.replaceAll("-", "_")];
-  if (typeof underscoreVal === "string") return underscoreVal;
-  return undefined;
-}
 
 export const config = {
   api: {
@@ -134,12 +124,11 @@ export default withMiddlewares({
       }
 
       // Extract SDK headers for write path decision (supports both hyphen and underscore formats)
-      const sdkName = getLangfuseHeader(req.headers, "x-langfuse-sdk-name");
-      const sdkVersion = getLangfuseHeader(
-        req.headers,
-        "x-langfuse-sdk-version",
-      );
-      const ingestionVersion = getLangfuseHeader(
+      const attribution = createIngestionAttribution({
+        headers: req.headers,
+        authCheck: auth,
+      });
+      const ingestionVersion = getLangfuseHeaderValue(
         req.headers,
         "x-langfuse-ingestion-version",
       );
@@ -178,8 +167,8 @@ export default withMiddlewares({
           Object.keys(propagatedHeaders).length > 0
             ? propagatedHeaders
             : undefined,
-        sdkName,
-        sdkVersion,
+        sdkName: attribution.ingestionSdkName,
+        sdkVersion: attribution.ingestionSdkVersion,
         ingestionVersion,
       });
 

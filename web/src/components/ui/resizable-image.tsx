@@ -46,13 +46,16 @@ const ImageErrorDisplay = ({
         <Link
           href={safeSrc}
           className="truncate text-sm underline"
+          title={src}
           target="_blank"
           rel="noopener noreferrer"
         >
           {src}
         </Link>
       ) : (
-        <span className="truncate text-sm">{src}</span>
+        <span className="truncate text-sm" title={src}>
+          {src}
+        </span>
       )}
     </div>
   );

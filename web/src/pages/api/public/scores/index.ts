@@ -7,7 +7,10 @@ import {
   PostScoresBodyV1,
   PostScoresResponseV1,
 } from "@langfuse/shared";
-import { logger } from "@langfuse/shared/src/server";
+import {
+  createIngestionAttribution,
+  logger,
+} from "@langfuse/shared/src/server";
 import { ForbiddenError } from "@langfuse/shared";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 import { randomUUID } from "crypto";
@@ -18,7 +21,7 @@ export default withMiddlewares({
     bodySchema: PostScoresBodyV1,
     responseSchema: PostScoresResponseV1,
     allowedAccessLevels: ["project", "scores"],
-    fn: async ({ body, auth, res }) => {
+    fn: async ({ body, auth, req, res }) => {
       if (auth.scope.isIngestionSuspended) {
         throw new ForbiddenError(
           "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
@@ -37,6 +40,10 @@ export default withMiddlewares({
       const { id, result } = await scoresApiService.createScore({
         body: conformedBody,
         auth,
+        attribution: createIngestionAttribution({
+          headers: req.headers,
+          authCheck: auth,
+        }),
       });
       if (result.errors.length > 0) {
         const error = result.errors[0];

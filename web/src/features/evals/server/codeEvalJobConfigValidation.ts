@@ -95,7 +95,9 @@ export async function assertCodeEvalJobConfigCanRun(params: {
     }
 
     if (!result.success) {
-      throw new CodeEvalJobConfigError(result.error.message);
+      throw new CodeEvalJobConfigError(
+        `Evaluator failed when tested against sample data: ${result.error.message}`,
+      );
     }
   }
 }

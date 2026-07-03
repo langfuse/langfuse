@@ -3,7 +3,8 @@ import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { SplashScreen } from "@/src/components/ui/splash-screen";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { ApiKeyRender } from "@/src/features/public-api/components/CreateApiKeyButton";
+import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
+import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
@@ -62,6 +63,7 @@ export function TracesSetupOnboardingCard({
   projectId: string;
 }) {
   const capture = usePostHogClientCapture();
+  const baseUrl = useLangfuseBaseUrl();
   const hasApiKeyCreateAccess = useHasProjectAccess({
     projectId,
     scope: "apiKeys:CUD",
@@ -99,10 +101,13 @@ export function TracesSetupOnboardingCard({
           description:
             "Your application needs API keys to send traces to Langfuse.",
           content: apiKeys ? (
-            <ApiKeyRender
-              generatedKeys={apiKeys}
+            <ApiKeyDetailContent
               scope="project"
+              secretKey={apiKeys.secretKey}
+              publicKey={apiKeys.publicKey}
+              baseUrl={baseUrl}
               className="mt-1"
+              showMcpSection={false}
             />
           ) : (
             <div className="flex flex-wrap gap-2">

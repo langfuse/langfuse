@@ -34,6 +34,7 @@ The audit job is the only job that invokes the LLM agent.
 - Prefer `type: choice` for model names, modes, environments, or other enumerations.
 - For freeform numeric inputs, validate with a regex and numeric range before using the value.
 - For string inputs that become CLI args, validate against an allowlist regex or choice set.
+- Optional one-off instruction inputs may be allowed for manual debugging or targeted audits, but validate length and control characters before appending them to prompts. Render them under a clearly labeled lower-priority prompt section that cannot override hard constraints, tool limits, credential boundaries, validation gates, or publish boundaries.
 - Do not interpolate unchecked manual inputs into shell commands, JSON, branch names, file paths, or LLM CLI arguments.
 - Dry-run inputs should use YAML-safe choice values such as `disabled`, `no_changes`, and `mock_allowlisted_diff`. Avoid boolean-like YAML tokens such as `off`, `on`, `yes`, `no`, `true`, and `false`; GitHub may parse or render them as booleans. Dry runs must skip the LLM action and must not publish a PR.
 

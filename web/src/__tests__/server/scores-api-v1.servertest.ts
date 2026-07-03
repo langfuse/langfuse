@@ -1,4 +1,5 @@
 import {
+  clickhouseClient,
   createObservation,
   createTraceScore,
   createTrace,
@@ -25,6 +26,39 @@ import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 import { z } from "zod";
 import waitForExpect from "wait-for-expect";
+
+type IngestionAttributionRow = {
+  ingestion_api_key: string;
+  ingestion_sdk_name: string;
+  ingestion_sdk_version: string;
+};
+
+const getScoreIngestionAttribution = async (
+  projectId: string,
+  scoreId: string,
+) => {
+  const result = await clickhouseClient().query({
+    query: `
+      SELECT
+        ingestion_api_key,
+        ingestion_sdk_name,
+        ingestion_sdk_version
+      FROM scores
+      WHERE project_id = {projectId: String}
+        AND id = {scoreId: String}
+      ORDER BY event_ts DESC
+      LIMIT 1
+    `,
+    query_params: {
+      projectId,
+      scoreId,
+    },
+    format: "JSONEachRow",
+  });
+
+  const rows = await result.json<IngestionAttributionRow>();
+  return rows[0];
+};
 
 describe("/api/public/scores API Endpoint", () => {
   describe("GET /api/public/scores/:scoreId", () => {
@@ -1507,6 +1541,40 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   describe("POST /api/public/scores source field", () => {
+    it("persists SDK attribution for POST /api/public/scores", async () => {
+      const { projectId, auth, publicKey } = await createOrgProjectAndApiKey();
+      const traceId = v4();
+      await createTracesCh([
+        createTrace({ id: traceId, project_id: projectId }),
+      ]);
+
+      const scoreId = v4();
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        { id: scoreId, traceId, name: "feedback", value: 1 },
+        auth,
+        {
+          "x-langfuse-sdk-name": "python",
+          "x-langfuse-sdk-version": "3.4.0",
+        },
+      );
+
+      expect(response.status).toBe(200);
+
+      await waitForExpect(async () => {
+        const score = await getScoreById({ projectId, scoreId });
+        expect(score).toBeDefined();
+        expect(score!.id).toBe(scoreId);
+
+        expect(await getScoreIngestionAttribution(projectId, scoreId)).toEqual({
+          ingestion_api_key: publicKey,
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "3.4.0",
+        });
+      }, 15_000);
+    }, 20_000);
+
     it("defaults source to API when omitted", async () => {
       const { projectId, auth } = await createOrgProjectAndApiKey();
       const traceId = v4();

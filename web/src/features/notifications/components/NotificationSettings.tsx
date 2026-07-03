@@ -4,7 +4,7 @@ import { api } from "@/src/utils/api";
 import Header from "@/src/components/layouts/header";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { Label } from "@/src/components/ui/label";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export function NotificationSettings() {

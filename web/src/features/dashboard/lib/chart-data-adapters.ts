@@ -5,70 +5,21 @@
 import type { DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import type { TimeSeriesChartDataPoint } from "@/src/features/dashboard/components/hooks";
 import type { ChartBin } from "@/src/features/scores/types";
-import {
-  dashboardDateRangeAggregationSettings,
-  type DashboardDateRangeAggregationOption,
-} from "@/src/utils/date-range-utils";
-
 /** Histogram bin shape: binLabel plus numeric fields (e.g. count). Compatible with createHistogramData return type. */
 type HistogramBinLike = { binLabel: string; [key: string]: string | number };
 
-function convertDate(
-  date: number,
-  agg: DashboardDateRangeAggregationOption,
-): string {
-  const parsedDate = new Date(date);
-  const { dateTrunc, minutes } = dashboardDateRangeAggregationSettings[agg];
-
-  switch (dateTrunc) {
-    case "minute":
-      return parsedDate.toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-      });
-    case "hour":
-      if (minutes && minutes <= 24 * 60) {
-        return parsedDate.toLocaleString("en-US", {
-          month: "numeric",
-          day: "numeric",
-          hour: "numeric",
-        });
-      }
-      return parsedDate.toLocaleString("en-US", {
-        month: "numeric",
-        day: "numeric",
-        hour: "numeric",
-      });
-    case "day":
-    case "week":
-      return parsedDate.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      });
-    case "month":
-      return parsedDate.toLocaleDateString("en-US", {
-        month: "short",
-        year: "numeric",
-      });
-    default:
-      return parsedDate.toLocaleDateString("en-US", {
-        month: "numeric",
-        day: "numeric",
-      });
-  }
-}
-
 /**
- * Converts legacy time series data (ts + values per point) to widget Chart DataPoint[].
- * One row per (timestamp, label) with dimension = label, metric = value.
+ * Converts legacy time series data (ts + values per point) to widget Chart
+ * DataPoint[]. One row per (timestamp, label). The timestamp is passed through
+ * as a raw ISO string — all date/time *formatting* is decided later by the
+ * `prepareTimeAxis` preparer, so every chart formats time identically. (LFE-10549)
  */
 export function timeSeriesToDataPoints(
   data: TimeSeriesChartDataPoint[],
-  agg: DashboardDateRangeAggregationOption,
 ): DataPoint[] {
   const result: DataPoint[] = [];
   for (const point of data) {
-    const timeDimension = convertDate(point.ts, agg);
+    const timeDimension = new Date(point.ts).toISOString();
     for (const v of point.values) {
       result.push({
         time_dimension: timeDimension,

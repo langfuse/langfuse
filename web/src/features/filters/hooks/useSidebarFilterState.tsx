@@ -345,6 +345,14 @@ type UpdateFilter = (
 type BaseUseSidebarFilterStateOptions = {
   loading?: boolean;
   implicitDefaultConfig?: ManagedEnvironmentPolicyInput;
+  /**
+   * Precise per-facet loading set (lazy filter-options): exactly the columns
+   * whose options have been requested but not yet arrived. When provided it
+   * drives the facet skeleton instead of the coarse `loading` flag, so a facet
+   * shows a skeleton only while its own options stream in — and never for
+   * columns that are not server-enumerated (e.g. metadata).
+   */
+  loadingColumns?: ReadonlySet<string>;
 };
 
 export type UseSidebarFilterStateOptions =
@@ -432,7 +440,7 @@ export function useSidebarFilterState(
   >,
   hookOptions: UseSidebarFilterStateOptions = DEFAULT_HOOK_OPTIONS,
 ) {
-  const { loading, implicitDefaultConfig } = hookOptions;
+  const { loading, loadingColumns, implicitDefaultConfig } = hookOptions;
   const stateLocationType = hookOptions.stateLocation;
   const peekContext =
     stateLocationType === "peekContext" ? hookOptions.context : undefined;
@@ -1158,6 +1166,11 @@ export function useSidebarFilterState(
     // Helper to determine if a filter should show loading state
     // Only filters that depend on options from the query should show loading
     const shouldShowLoading = (facetColumn: string): boolean => {
+      // Lazy filter-options: a precise per-facet set is supplied, so a facet
+      // shows a skeleton iff its own column is still in flight. This avoids the
+      // coarse-flag false positive where a never-enumerated facet (metadata,
+      // whose options are always undefined) would skeleton on every refetch.
+      if (loadingColumns) return loadingColumns.has(facetColumn);
       if (!loading) return false;
       // Only show loading if the filter depends on options and options are not yet available
       // Filters that use options: categorical, keyValue, numericKeyValue, stringKeyValue
@@ -1788,6 +1801,7 @@ export function useSidebarFilterState(
     config,
     options,
     loading,
+    loadingColumns,
     filterState,
     explicitFilterState,
     updateFilter,

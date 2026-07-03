@@ -1,4 +1,31 @@
-# In-App Agent Prompt Sync
+# In-App Agent Sync Scripts
+
+## Skill Sync
+
+The generated in-app agent skills live at:
+
+`web/src/ee/features/in-app-agent/server/skills/generated/raw`
+
+The generated TypeScript index lives at:
+
+`web/src/ee/features/in-app-agent/server/skills/generated/skill-markdown.ts`
+
+Use `sync-raw-skills.mjs` to download all markdown files from
+`https://github.com/langfuse/skills/tree/main/skills/langfuse/references` whose
+frontmatter has only `LANGFUSE_PROJECT_INTERFACE` in
+`metadata.required_access`:
+
+```sh
+node scripts/in-app-agent/sync-raw-skills.mjs
+```
+
+To verify the checked-in generated skills match upstream without changing files:
+
+```sh
+node scripts/in-app-agent/sync-raw-skills.mjs --check
+```
+
+## Prompt Sync
 
 The canonical system prompt for the in-app agent lives at:
 

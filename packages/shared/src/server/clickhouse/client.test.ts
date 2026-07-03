@@ -84,4 +84,43 @@ describe("ClickHouseClientManager compatibility settings", () => {
 
     expect(mocks.createClient).toHaveBeenCalledTimes(2);
   });
+
+  it("sets ClickHouse server timeout after the default client request timeout", () => {
+    clickhouseClient();
+
+    expect(
+      mocks.createClient.mock.calls[0][0].clickhouse_settings,
+    ).toMatchObject({
+      timeout_before_checking_execution_speed: 0,
+      max_execution_time: 35,
+    });
+  });
+
+  it("sets ClickHouse server timeout just after the client request timeout", () => {
+    clickhouseClient({ request_timeout: 120_000 });
+
+    expect(
+      mocks.createClient.mock.calls[0][0].clickhouse_settings,
+    ).toMatchObject({
+      timeout_before_checking_execution_speed: 0,
+      max_execution_time: 125,
+    });
+  });
+
+  it("lets explicit client settings override derived timeout settings", () => {
+    clickhouseClient({
+      request_timeout: 120_000,
+      clickhouse_settings: {
+        timeout_before_checking_execution_speed: 10,
+        max_execution_time: 60,
+      } as ClickHouseSettings,
+    });
+
+    expect(
+      mocks.createClient.mock.calls[0][0].clickhouse_settings,
+    ).toMatchObject({
+      timeout_before_checking_execution_speed: 10,
+      max_execution_time: 60,
+    });
+  });
 });

@@ -478,6 +478,52 @@ describe("buildStepData", () => {
       expect(parent!.step!).toBeLessThan(child!.step!);
     });
 
+    it(
+      "should terminate when parent pointers form a cycle and still assign steps to well-formed nodes",
+      { timeout: 2000 },
+      () => {
+        // o1 and o2 name each other as parent (malformed data): without the
+        // ancestor-walk cycle guard in assignGlobalTimingSteps this walk would
+        // loop forever; the MAX_ITERATIONS bound caps the unsatisfiable
+        // constraint loop the cycle creates.
+        const observations: AgentGraphDataResponse[] = [
+          createMockObservation({
+            id: "o1",
+            name: "cycle-first",
+            startTime: "2025-08-21 18:53:25.000",
+            endTime: "2025-08-21 18:53:25.100",
+            parentObservationId: "o2",
+          }),
+          createMockObservation({
+            id: "o2",
+            name: "cycle-second",
+            startTime: "2025-08-21 18:53:25.050",
+            endTime: "2025-08-21 18:53:25.150",
+            parentObservationId: "o1",
+          }),
+          createMockObservation({
+            id: "root",
+            name: "well-formed-root",
+            startTime: "2025-08-21 18:53:25.020",
+            endTime: "2025-08-21 18:53:25.120",
+            parentObservationId: null,
+          }),
+        ];
+
+        const result = buildStepData(observations);
+
+        const userObservations = result.filter(
+          (obs) => !obs.name.includes("__"),
+        );
+        expect(userObservations).toHaveLength(3);
+
+        const root = userObservations.find(
+          (obs) => obs.name === "well-formed-root",
+        );
+        expect(root?.step).toEqual(expect.any(Number));
+      },
+    );
+
     it("should handle empty array", () => {
       const result = buildStepData([]);
       // Should only have system nodes (__start__, __end__)

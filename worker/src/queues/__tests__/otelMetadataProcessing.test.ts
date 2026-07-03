@@ -13,6 +13,14 @@ import { prisma } from "@langfuse/shared/src/db";
 import { IngestionService } from "../../services/IngestionService";
 import * as clickhouseWriterExports from "../../services/ClickhouseWriter";
 
+const createTestOtelProcessor = () =>
+  new OtelIngestionProcessor({
+    projectId: "test-project",
+    publicKey: "",
+    sdkName: "",
+    sdkVersion: "",
+  });
+
 // vi.hoisted ensures this is declared before vi.mock's hoisted factory runs.
 // Without it, the variable would be undefined when the factory executes.
 const { mockAddToClickhouseWriter } = vi.hoisted(() => ({
@@ -118,7 +126,7 @@ function buildOtelSpan(params: {
 async function processAndCreateEvent(
   otelSpan: ReturnType<typeof buildOtelSpan>,
 ) {
-  const processor = new OtelIngestionProcessor({ projectId: "test-project" });
+  const processor = createTestOtelProcessor();
   const eventInputs = processor.processToEvent([otelSpan]);
   expect(eventInputs.length).toBeGreaterThan(0);
 

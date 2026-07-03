@@ -5,6 +5,7 @@ import { ChevronRight, ExternalLink } from "lucide-react";
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import { Badge } from "@/src/components/ui/badge";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   ChartContainer,
   ChartTooltip,
@@ -26,8 +27,7 @@ export type V4LegacyIntegrations = {
   blobStorage: boolean;
 };
 
-export type V4MigrationSummary = {
-  traceLevelEvalCount: number;
+export type V4LegacyIntegrationSummary = {
   legacyIntegrationCount: number;
   legacyIntegrations: V4LegacyIntegrations;
 };
@@ -64,6 +64,7 @@ const V4_DOCS_LINK = {
 } as const;
 
 const MAX_STACKED_CHART_SERIES = 6;
+const STACKED_CHART_Y_AXIS_TICK_COUNT = 5;
 const STACKED_CHART_COLORS = [
   "hsl(var(--chart-1))",
   "hsl(var(--chart-2))",
@@ -184,6 +185,21 @@ const Notice = ({ children }: { children: ReactNode }) => (
   </Alert>
 );
 
+const SectionLoading = () => (
+  <div className="rounded-md border p-3">
+    <div className="mb-3 flex items-center justify-between gap-3">
+      <Skeleton className="h-4 w-32" />
+      <Skeleton className="h-3 w-20" />
+    </div>
+    <Skeleton className="h-28 w-full" />
+    <div className="mt-3 flex gap-3 border-t pt-3">
+      <Skeleton className="h-3 w-24" />
+      <Skeleton className="h-3 w-32" />
+      <Skeleton className="h-3 w-20" />
+    </div>
+  </div>
+);
+
 const InlineLink = ({
   href,
   external,
@@ -217,11 +233,13 @@ const InlineLink = ({
 const Section = ({
   title,
   count,
+  isCountLoading,
   detailsHref,
   children,
 }: {
   title: string;
   count: number;
+  isCountLoading?: boolean;
   detailsHref: ProductHref;
   children: ReactNode;
 }) => (
@@ -229,9 +247,13 @@ const Section = ({
     <div className="flex items-center justify-between gap-3">
       <h3 className="text-sm font-medium">{title}</h3>
       <div className="flex items-center gap-2">
-        <Badge variant="outline-solid" size="sm">
-          {numberFormatter(count, 0)}
-        </Badge>
+        {isCountLoading ? (
+          <Skeleton className="h-5 w-8 rounded-full" />
+        ) : (
+          <Badge variant="outline-solid" size="sm">
+            {numberFormatter(count, 0)}
+          </Badge>
+        )}
         <InlineLink href={detailsHref}>Go to details</InlineLink>
       </div>
     </div>
@@ -268,7 +290,39 @@ const getStackedChartSeries = (
   }));
 };
 
-const UsageStackedBarOverview = ({
+const getNiceCountStep = (rawStep: number): number => {
+  if (!Number.isFinite(rawStep) || rawStep <= 0) return 1;
+
+  const magnitude = 10 ** Math.floor(Math.log10(rawStep));
+  const normalizedStep = rawStep / magnitude;
+  const niceStep =
+    [1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 7.5, 10].find(
+      (step) => normalizedStep <= step,
+    ) ?? 10;
+
+  return Math.max(1, Math.ceil(niceStep * magnitude));
+};
+
+const getStackedYAxisTicks = (
+  series: UsageSeries[],
+  tickCount = STACKED_CHART_Y_AXIS_TICK_COUNT,
+): number[] => {
+  const bucketCount = Math.max(0, ...series.map((item) => item.points.length));
+  let maxStackedValue = 0;
+
+  for (let bucketIndex = 0; bucketIndex < bucketCount; bucketIndex += 1) {
+    const bucketTotal = series.reduce((sum, item) => {
+      const value = item.points[bucketIndex] ?? 0;
+      return Number.isFinite(value) && value > 0 ? sum + value : sum;
+    }, 0);
+    maxStackedValue = Math.max(maxStackedValue, bucketTotal);
+  }
+
+  const step = getNiceCountStep(maxStackedValue / (tickCount - 1));
+  return Array.from({ length: tickCount }, (_, index) => index * step);
+};
+
+export const UsageStackedBarOverview = ({
   bucketTimes,
   series,
   valueLabel,
@@ -278,6 +332,11 @@ const UsageStackedBarOverview = ({
   valueLabel: string;
 }) => {
   const chartSeries = useMemo(() => getStackedChartSeries(series), [series]);
+  const yAxisTicks = useMemo(
+    () => getStackedYAxisTicks(chartSeries),
+    [chartSeries],
+  );
+  const yAxisMax = yAxisTicks[yAxisTicks.length - 1] ?? 0;
   const chartData = useMemo(
     () =>
       bucketTimes.map((time, bucketIndex) => {
@@ -324,7 +383,7 @@ const UsageStackedBarOverview = ({
         <BarChart
           accessibilityLayer
           data={chartData}
-          margin={{ top: 4, right: 8, bottom: 0, left: -18 }}
+          margin={{ top: 4, right: 8, bottom: 0, left: 12 }}
         >
           <XAxis
             dataKey="timeLabel"
@@ -338,6 +397,9 @@ const UsageStackedBarOverview = ({
             axisLine={false}
             width={42}
             fontSize={11}
+            domain={[0, yAxisMax]}
+            ticks={yAxisTicks}
+            interval={0}
             tickFormatter={(value) => compactNumberFormatter(Number(value), 1)}
           />
           <ChartTooltip
@@ -377,7 +439,9 @@ const UsageStackedBarOverview = ({
               className="h-2.5 w-2.5 shrink-0 rounded-[2px]"
               style={{ backgroundColor: item.color }}
             />
-            <span className="truncate font-medium">{item.name}</span>
+            <span className="truncate font-medium" title={item.name}>
+              {item.name}
+            </span>
             <span className="text-muted-foreground shrink-0">
               {numberFormatter(item.total, 0, 2)} {valueLabel}
             </span>
@@ -403,10 +467,16 @@ const ActionRow = ({
 }) => (
   <div className="grid gap-3 rounded-md border px-3 py-2 md:grid-cols-[minmax(0,1fr)_8rem] md:items-center">
     <div className="min-w-0">
-      <div className={cn("truncate text-sm font-medium", titleClassName)}>
+      <div
+        className={cn("truncate text-sm font-medium", titleClassName)}
+        title={title}
+      >
         {title}
       </div>
-      <div className="text-muted-foreground mt-0.5 truncate text-xs">
+      <div
+        className="text-muted-foreground mt-0.5 truncate text-xs"
+        title={detail}
+      >
         {detail}
       </div>
     </div>
@@ -430,25 +500,31 @@ const ActionRow = ({
 export const V4MigrationProjectCards = ({
   projectId,
   projectName,
-  summary,
+  legacyIntegrationSummary,
+  traceLevelEvalCount: configuredTraceLevelEvalCount,
   legacyApiUsage,
   traceLevelEvalExecutions,
-  isSummaryLoading,
+  isLegacyIntegrationSummaryLoading,
+  isTraceLevelEvalSummaryLoading,
   isLegacyApiUsageLoading,
   isTraceLevelEvalExecutionsLoading,
-  hasSummaryError,
+  hasLegacyIntegrationSummaryError,
+  hasTraceLevelEvalSummaryError,
   hasLegacyApiUsageError,
   hasTraceLevelEvalExecutionsError,
 }: {
   projectId: string;
   projectName?: string;
-  summary: V4MigrationSummary | undefined;
+  legacyIntegrationSummary: V4LegacyIntegrationSummary | undefined;
+  traceLevelEvalCount: number | undefined;
   legacyApiUsage: V4LegacyApiUsagePoint[] | undefined;
   traceLevelEvalExecutions: V4TraceLevelEvalExecutionPoint[] | undefined;
-  isSummaryLoading: boolean;
+  isLegacyIntegrationSummaryLoading: boolean;
+  isTraceLevelEvalSummaryLoading: boolean;
   isLegacyApiUsageLoading: boolean;
   isTraceLevelEvalExecutionsLoading: boolean;
-  hasSummaryError: boolean;
+  hasLegacyIntegrationSummaryError: boolean;
+  hasTraceLevelEvalSummaryError: boolean;
   hasLegacyApiUsageError: boolean;
   hasTraceLevelEvalExecutionsError: boolean;
 }) => {
@@ -486,130 +562,144 @@ export const V4MigrationProjectCards = ({
   const legacyIntegrationLinks = useMemo(
     () =>
       INTEGRATION_LINKS.filter(
-        (link) => summary?.legacyIntegrations[link.key] === true,
+        (link) =>
+          legacyIntegrationSummary?.legacyIntegrations[link.key] === true,
       ),
-    [summary?.legacyIntegrations],
+    [legacyIntegrationSummary?.legacyIntegrations],
   );
 
   const hasAnyError =
-    hasSummaryError ||
+    hasLegacyIntegrationSummaryError ||
+    hasTraceLevelEvalSummaryError ||
     hasLegacyApiUsageError ||
     hasTraceLevelEvalExecutionsError;
   const traceLevelEvalCount =
-    summary?.traceLevelEvalCount ?? evalExecutionSeries.length;
+    configuredTraceLevelEvalCount ?? evalExecutionSeries.length;
   const activeTaskCount =
     legacyApiSeries.length +
     traceLevelEvalCount +
     legacyIntegrationLinks.length;
   const migrationStatus = getV4MigrationStatus(activeTaskCount);
-  const isLoading =
-    isSummaryLoading ||
-    isLegacyApiUsageLoading ||
-    isTraceLevelEvalExecutionsLoading;
+  const isSummaryLoading =
+    isLegacyIntegrationSummaryLoading || isTraceLevelEvalSummaryLoading;
+  const isTimelineLoading =
+    isLegacyApiUsageLoading || isTraceLevelEvalExecutionsLoading;
 
   return (
     <DashboardCard
       title="Required changes"
       description={
-        isLoading
+        isSummaryLoading
           ? "Loading V4 migration data."
           : hasAnyError
             ? `${projectName ? `${projectName} - ` : ""}Some migration data could not be loaded.`
-            : `${projectName ? `${projectName} - ` : ""}${numberFormatter(
-                activeTaskCount,
-                0,
-              )} required ${
-                activeTaskCount === 1 ? "change" : "changes"
-              } in the selected time range`
+            : isTimelineLoading
+              ? `${projectName ? `${projectName} - ` : ""}Loading usage timelines.`
+              : `${projectName ? `${projectName} - ` : ""}${numberFormatter(
+                  activeTaskCount,
+                  0,
+                )} required ${
+                  activeTaskCount === 1 ? "change" : "changes"
+                } in the selected time range`
       }
-      isLoading={isLoading}
+      isLoading={isSummaryLoading}
       headerRight={
-        isLoading ? undefined : (
+        isSummaryLoading ? undefined : (
           <div className="flex items-center gap-2">
             <InlineLink href={V4_DOCS_LINK.href} external>
               {V4_DOCS_LINK.label}
             </InlineLink>
             <Badge
               variant={
-                hasAnyError ? "outline-solid" : migrationStatus.badgeVariant
+                hasAnyError || isTimelineLoading
+                  ? "outline-solid"
+                  : migrationStatus.badgeVariant
               }
               className="whitespace-nowrap"
             >
-              {hasAnyError ? "Unavailable" : migrationStatus.label}
+              {hasAnyError
+                ? "Unavailable"
+                : isTimelineLoading
+                  ? "Loading"
+                  : migrationStatus.label}
             </Badge>
           </div>
         )
       }
     >
-      {isLoading ? (
-        <div className="min-h-80" />
-      ) : (
-        <>
-          <Section
-            title="Legacy public APIs"
-            count={legacyApiSeries.length}
-            detailsHref={`/project/${projectId}/settings/api-keys`}
-          >
-            {hasLegacyApiUsageError ? (
-              <Notice>Failed to load public API usage.</Notice>
-            ) : legacyApiSeries.length ? (
-              <UsageStackedBarOverview
-                bucketTimes={legacyApiBucketTimes}
-                series={legacyApiSeries}
-                valueLabel="calls"
-              />
-            ) : (
-              <Notice>No legacy public API usage in this range.</Notice>
-            )}
-          </Section>
+      <Section
+        title="Legacy public APIs"
+        count={legacyApiSeries.length}
+        isCountLoading={isLegacyApiUsageLoading}
+        detailsHref={`/project/${projectId}/settings/api-keys`}
+      >
+        {isLegacyApiUsageLoading ? (
+          <SectionLoading />
+        ) : hasLegacyApiUsageError ? (
+          <Notice>Failed to load public API usage.</Notice>
+        ) : legacyApiSeries.length ? (
+          <UsageStackedBarOverview
+            bucketTimes={legacyApiBucketTimes}
+            series={legacyApiSeries}
+            valueLabel="calls"
+          />
+        ) : (
+          <Notice>No legacy public API usage in this range.</Notice>
+        )}
+      </Section>
 
-          <Section
-            title="Trace-level evals"
-            count={traceLevelEvalCount}
-            detailsHref={traceLevelEvalsHref}
-          >
-            {hasSummaryError || hasTraceLevelEvalExecutionsError ? (
-              <Notice>Failed to load trace-level eval data.</Notice>
-            ) : evalExecutionSeries.length ? (
-              <UsageStackedBarOverview
-                bucketTimes={evalExecutionBucketTimes}
-                series={evalExecutionSeries}
-                valueLabel="executions"
-              />
-            ) : traceLevelEvalCount > 0 ? (
-              <ActionRow
-                title={`${numberFormatter(
-                  traceLevelEvalCount,
-                  0,
-                )} configured trace-level evals`}
-                detail="No executions found in the selected range."
-              />
-            ) : (
-              <Notice>No trace-level evals detected.</Notice>
-            )}
-          </Section>
+      <Section
+        title="Trace-level evals"
+        count={traceLevelEvalCount}
+        isCountLoading={isTraceLevelEvalSummaryLoading}
+        detailsHref={traceLevelEvalsHref}
+      >
+        {isTraceLevelEvalSummaryLoading || isTraceLevelEvalExecutionsLoading ? (
+          <SectionLoading />
+        ) : hasTraceLevelEvalSummaryError ||
+          hasTraceLevelEvalExecutionsError ? (
+          <Notice>Failed to load trace-level eval data.</Notice>
+        ) : evalExecutionSeries.length ? (
+          <UsageStackedBarOverview
+            bucketTimes={evalExecutionBucketTimes}
+            series={evalExecutionSeries}
+            valueLabel="executions"
+          />
+        ) : traceLevelEvalCount > 0 ? (
+          <ActionRow
+            title={`${numberFormatter(
+              traceLevelEvalCount,
+              0,
+            )} configured trace-level evals`}
+            detail="No executions found in the selected range."
+          />
+        ) : (
+          <Notice>No trace-level evals detected.</Notice>
+        )}
+      </Section>
 
-          <Section
-            title="Integrations"
-            count={legacyIntegrationLinks.length}
-            detailsHref={`/project/${projectId}/settings/integrations`}
-          >
-            {hasSummaryError ? (
-              <Notice>Failed to load integration data.</Notice>
-            ) : legacyIntegrationLinks.length ? (
-              legacyIntegrationLinks.map((integration) => (
-                <ActionRow
-                  key={integration.key}
-                  title={integration.label}
-                  detail="Legacy traces and observations export is enabled."
-                />
-              ))
-            ) : (
-              <Notice>No legacy integration exports detected.</Notice>
-            )}
-          </Section>
-        </>
-      )}
+      <Section
+        title="Integrations"
+        count={legacyIntegrationLinks.length}
+        isCountLoading={isLegacyIntegrationSummaryLoading}
+        detailsHref={`/project/${projectId}/settings/integrations`}
+      >
+        {isLegacyIntegrationSummaryLoading ? (
+          <SectionLoading />
+        ) : hasLegacyIntegrationSummaryError ? (
+          <Notice>Failed to load integration data.</Notice>
+        ) : legacyIntegrationLinks.length ? (
+          legacyIntegrationLinks.map((integration) => (
+            <ActionRow
+              key={integration.key}
+              title={integration.label}
+              detail="Legacy traces and observations export is enabled."
+            />
+          ))
+        ) : (
+          <Notice>No legacy integration exports detected.</Notice>
+        )}
+      </Section>
     </DashboardCard>
   );
 };

@@ -83,6 +83,7 @@ const LegendItem = ({
           !noTruncate && "max-w-[120px] truncate",
           !visible && "line-through", // Strike through when hidden
         )}
+        title={label}
       >
         {label}
       </span>

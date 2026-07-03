@@ -130,17 +130,20 @@ export const DropzoneContent = ({
     return children;
   }
 
+  const text =
+    src.length > maxLabelItems
+      ? `${new Intl.ListFormat("en").format(
+          src.slice(0, maxLabelItems).map((file) => file.name),
+        )} and ${src.length - maxLabelItems} more`
+      : new Intl.ListFormat("en").format(src.map((file) => file.name));
+
   return (
     <div className={cn("flex flex-col items-center justify-center", className)}>
       <div className="bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-md">
         <UploadIcon size={16} />
       </div>
-      <p className="my-2 w-full truncate text-sm font-medium">
-        {src.length > maxLabelItems
-          ? `${new Intl.ListFormat("en").format(
-              src.slice(0, maxLabelItems).map((file) => file.name),
-            )} and ${src.length - maxLabelItems} more`
-          : new Intl.ListFormat("en").format(src.map((file) => file.name))}
+      <p className="my-2 w-full truncate text-sm font-medium" title={text}>
+        {text}
       </p>
       <p className="text-muted-foreground w-full text-xs text-wrap">
         Drag and drop or click to replace
@@ -183,16 +186,25 @@ export const DropzoneEmptyState = ({
     caption += ` less than ${renderBytes(maxSize)}`;
   }
 
+  const text1 = `Upload ${maxFiles === 1 ? "a file" : "files"}`;
+  const text2 = "Drag and drop or click to upload";
+
   return (
     <div className={cn("flex flex-col items-center justify-center", className)}>
       <div className="bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-md">
         <UploadIcon size={16} />
       </div>
-      <p className="my-2 w-full truncate text-sm font-medium text-wrap">
-        Upload {maxFiles === 1 ? "a file" : "files"}
+      <p
+        className="my-2 w-full truncate text-sm font-medium text-wrap"
+        title={text1}
+      >
+        {text1}
       </p>
-      <p className="text-muted-foreground w-full truncate text-xs text-wrap">
-        Drag and drop or click to upload
+      <p
+        className="text-muted-foreground w-full truncate text-xs text-wrap"
+        title={text2}
+      >
+        {text2}
       </p>
       {caption && (
         <p className="text-muted-foreground text-xs text-wrap">{caption}.</p>

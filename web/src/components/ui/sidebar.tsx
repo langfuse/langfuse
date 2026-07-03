@@ -586,6 +586,7 @@ const SidebarMenuButton = React.forwardRef<
         data-size={size}
         data-active={isActive}
         className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
+        title={props.title}
         {...props}
       />
     );
@@ -755,6 +756,7 @@ const SidebarMenuSubButton = React.forwardRef<
         "group-data-[collapsible=icon]:hidden",
         className,
       )}
+      title={props.title}
       {...props}
     />
   );

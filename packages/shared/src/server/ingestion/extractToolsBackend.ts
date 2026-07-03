@@ -91,7 +91,7 @@ function flattenToolCall(call: unknown): {
     typeof rawArgs === "string" ? rawArgs : JSON.stringify(rawArgs ?? {});
 
   return {
-    id: (c.id ?? c.toolCallId ?? c.call_id) as string | undefined,
+    id: (c.call_id ?? c.id ?? c.toolCallId) as string | undefined,
     name,
     arguments: args,
     type: (c.type ?? (func ? "function" : undefined)) as string | undefined,
@@ -306,6 +306,11 @@ function extractToolCallsFromRawOutput(
 
   if (typeof output !== "object") return;
   const obj = output as Record<string, unknown>;
+
+  if (isToolCallLike(obj) && !isMessageLike(obj)) {
+    addToolArgument(args, obj);
+    return;
+  }
 
   // Direct tool_calls at top level
   const directToolCalls =

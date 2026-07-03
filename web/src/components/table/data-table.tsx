@@ -10,6 +10,7 @@ import React, {
 } from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
+import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 import {
   type CustomHeights,
   type RowHeight,
@@ -480,7 +481,15 @@ export function DataTable<TData extends object, TValue>({
                       >
                         {header.isPlaceholder ? null : (
                           <div className="flex items-center select-none">
-                            <span className="truncate leading-normal">
+                            <span
+                              className="truncate leading-normal"
+                              title={getPlainTextFromReactNode(
+                                flexRender(
+                                  header.column.columnDef.header,
+                                  header.getContext(),
+                                ),
+                              )}
+                            >
                               {flexRender(
                                 header.column.columnDef.header,
                                 header.getContext(),
@@ -806,7 +815,15 @@ function TableBodyComponent<TData>({
                     )}
                   >
                     {isStringCell && isSmallRowHeight ? (
-                      <div className="min-w-0 truncate leading-normal">
+                      <div
+                        className="min-w-0 truncate leading-normal"
+                        title={getPlainTextFromReactNode(
+                          flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          ),
+                        )}
+                      >
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext(),

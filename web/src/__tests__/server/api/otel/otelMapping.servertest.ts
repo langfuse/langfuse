@@ -1,7 +1,20 @@
 import {
   OtelIngestionProcessor,
   createIngestionEventSchema,
+  type OtelIngestionProcessorConfig,
 } from "@langfuse/shared/src/server";
+
+function createTestOtelProcessor(
+  config: Partial<OtelIngestionProcessorConfig> = {},
+) {
+  return new OtelIngestionProcessor({
+    projectId: "test-project",
+    publicKey: "",
+    sdkName: "",
+    sdkVersion: "",
+    ...config,
+  });
+}
 
 // Test helper function to maintain backward compatibility with existing tests
 // This mimics the old convertOtelSpanToIngestionEvent function signature
@@ -10,9 +23,8 @@ async function convertOtelSpanToIngestionEvent(
   seenTraces: Set<string>,
   publicKey?: string,
 ) {
-  const processor = new OtelIngestionProcessor({
-    projectId: "test-project",
-    publicKey,
+  const processor = createTestOtelProcessor({
+    publicKey: publicKey ?? "",
   });
 
   // For tests, we bypass Redis initialization and directly set the seen traces
@@ -1244,9 +1256,7 @@ describe("OTel Resource Span Mapping", () => {
           ],
         };
 
-        const processor = new OtelIngestionProcessor({
-          projectId: "test-project",
-        });
+        const processor = createTestOtelProcessor();
         const eventInputs = processor.processToEvent([resourceSpan]);
 
         expect(eventInputs).toHaveLength(1);
@@ -4470,9 +4480,7 @@ describe("OTel Resource Span Mapping", () => {
         observation?.body.metadata?.attributes?.["gen_ai.tool.definitions"],
       ).toBeUndefined();
 
-      const processor = new OtelIngestionProcessor({
-        projectId: "test-project",
-      });
+      const processor = createTestOtelProcessor();
       const eventInputs = processor.processToEvent([span]);
       expect(eventInputs).toHaveLength(1);
 
@@ -4574,9 +4582,7 @@ describe("OTel Resource Span Mapping", () => {
         tools,
       });
 
-      const processor = new OtelIngestionProcessor({
-        projectId: "test-project",
-      });
+      const processor = createTestOtelProcessor();
       const eventInputs = processor.processToEvent([resourceSpan]);
 
       expect(eventInputs).toHaveLength(1);
@@ -4609,6 +4615,158 @@ describe("OTel Resource Span Mapping", () => {
       expect(eventInput.metadata.topic).toBe("programming");
       expect(eventInput.metadata.attributes["custom.attribute"]).toBe(
         "keep-me",
+      );
+    });
+
+    it("should map AI SDK v7 GenAI semantic convention input/output attributes", async () => {
+      const traceId = "abcdef1234567890abcdef1234567894";
+      const generationSpanId = "1234567890abcded";
+      const toolSpanId = "1234567890abcdee";
+      const resourceSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "otel-test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "ai",
+              version: "7.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(generationSpanId, "hex"),
+                name: "chat test-model",
+                kind: 1,
+                startTimeUnixNano: { low: 0, high: 406528574, unsigned: true },
+                endTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.operation.name",
+                    value: { stringValue: "chat" },
+                  },
+                  {
+                    key: "gen_ai.request.model",
+                    value: { stringValue: "test-model" },
+                  },
+                  {
+                    key: "gen_ai.system_instructions",
+                    value: { stringValue: "Answer concisely." },
+                  },
+                  {
+                    key: "gen_ai.input.messages",
+                    value: {
+                      stringValue: JSON.stringify([
+                        { role: "user", content: "hello" },
+                      ]),
+                    },
+                  },
+                  {
+                    key: "gen_ai.output.messages",
+                    value: {
+                      stringValue: JSON.stringify([
+                        { role: "assistant", content: "hi" },
+                      ]),
+                    },
+                  },
+                  {
+                    key: "custom.generation.attribute",
+                    value: { stringValue: "keep-generation" },
+                  },
+                ],
+                status: {},
+              },
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(toolSpanId, "hex"),
+                parentSpanId: Buffer.from(generationSpanId, "hex"),
+                name: "execute_tool get_weather",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.operation.name",
+                    value: { stringValue: "execute_tool" },
+                  },
+                  {
+                    key: "gen_ai.tool.name",
+                    value: { stringValue: "get_weather" },
+                  },
+                  {
+                    key: "gen_ai.tool.call.arguments",
+                    value: { stringValue: '{"location":"Berlin"}' },
+                  },
+                  {
+                    key: "gen_ai.tool.call.result",
+                    value: { stringValue: '{"temperature":21}' },
+                  },
+                  {
+                    key: "custom.tool.attribute",
+                    value: { stringValue: "keep-tool" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set([traceId]),
+      );
+
+      const generation = events.find((e) => e.type === "generation-create");
+      const tool = events.find((e) => e.type === "tool-create");
+
+      expect(generation?.body.input).toEqual(
+        JSON.stringify([
+          { role: "system", content: "Answer concisely." },
+          { role: "user", content: "hello" },
+        ]),
+      );
+      expect(generation?.body.output).toBe(
+        JSON.stringify([{ role: "assistant", content: "hi" }]),
+      );
+      expect(tool?.body.input).toBe('{"location":"Berlin"}');
+      expect(tool?.body.output).toBe('{"temperature":21}');
+
+      expect(
+        generation?.body.metadata?.attributes?.["gen_ai.input.messages"],
+      ).toBeUndefined();
+      expect(
+        generation?.body.metadata?.attributes?.["gen_ai.output.messages"],
+      ).toBeUndefined();
+      expect(
+        tool?.body.metadata?.attributes?.["gen_ai.tool.call.arguments"],
+      ).toBeUndefined();
+      expect(
+        tool?.body.metadata?.attributes?.["gen_ai.tool.call.result"],
+      ).toBeUndefined();
+      expect(
+        generation?.body.metadata?.attributes?.["custom.generation.attribute"],
+      ).toBe("keep-generation");
+      expect(tool?.body.metadata?.attributes?.["custom.tool.attribute"]).toBe(
+        "keep-tool",
       );
     });
 
@@ -4746,9 +4904,7 @@ describe("OTel Resource Span Mapping", () => {
 
   describe("Span Counting", () => {
     it("should count spans correctly across multiple resource spans", () => {
-      const processor = new OtelIngestionProcessor({
-        projectId: "test-project",
-      });
+      const processor = createTestOtelProcessor();
 
       const resourceSpans = [
         {
@@ -4770,27 +4926,21 @@ describe("OTel Resource Span Mapping", () => {
     });
 
     it("should handle empty resource spans", () => {
-      const processor = new OtelIngestionProcessor({
-        projectId: "test-project",
-      });
+      const processor = createTestOtelProcessor();
 
       const count = (processor as any).getTotalSpanCount([]);
       expect(count).toBe(0);
     });
 
     it("should handle null/undefined resource spans", () => {
-      const processor = new OtelIngestionProcessor({
-        projectId: "test-project",
-      });
+      const processor = createTestOtelProcessor();
 
       expect((processor as any).getTotalSpanCount(null)).toBe(0);
       expect((processor as any).getTotalSpanCount(undefined)).toBe(0);
     });
 
     it("should handle malformed resource spans", () => {
-      const processor = new OtelIngestionProcessor({
-        projectId: "test-project",
-      });
+      const processor = createTestOtelProcessor();
 
       const resourceSpans = [
         { scopeSpans: null },
@@ -4811,9 +4961,7 @@ describe("OTel Resource Span Mapping", () => {
     });
 
     it("should return 0 for non-array input", () => {
-      const processor = new OtelIngestionProcessor({
-        projectId: "test-project",
-      });
+      const processor = createTestOtelProcessor();
 
       expect((processor as any).getTotalSpanCount("not-an-array")).toBe(0);
       expect((processor as any).getTotalSpanCount({})).toBe(0);
@@ -4821,9 +4969,7 @@ describe("OTel Resource Span Mapping", () => {
     });
 
     it("should handle deeply nested null/undefined structures", () => {
-      const processor = new OtelIngestionProcessor({
-        projectId: "test-project",
-      });
+      const processor = createTestOtelProcessor();
 
       const resourceSpans = [
         null,
@@ -4842,9 +4988,7 @@ describe("OTel Resource Span Mapping", () => {
     });
 
     it("should return -1 and not throw on unexpected errors", () => {
-      const processor = new OtelIngestionProcessor({
-        projectId: "test-project",
-      });
+      const processor = createTestOtelProcessor();
 
       // Create a malicious object that throws when accessed
       const maliciousResourceSpan = {
@@ -4965,9 +5109,7 @@ describe("OTel Resource Span Mapping", () => {
         ],
       };
 
-      const processor = new OtelIngestionProcessor({
-        projectId: "test-project",
-      });
+      const processor = createTestOtelProcessor();
       const eventInputs = processor.processToEvent([resourceSpan]);
       expect(eventInputs).toHaveLength(1);
       expect(eventInputs[0].startTimeISO).toBeDefined();
@@ -5024,9 +5166,7 @@ describe("OTel Resource Span Mapping", () => {
         ],
       };
 
-      const processor = new OtelIngestionProcessor({
-        projectId: "test-project",
-      });
+      const processor = createTestOtelProcessor();
       const eventInputs = processor.processToEvent([resourceSpan]);
       expect(eventInputs).toHaveLength(1);
       expect(eventInputs[0].startTimeISO).toBe(expectedISO);
@@ -5133,9 +5273,7 @@ describe("OTel Resource Span Mapping", () => {
         ],
       };
 
-      const processor = new OtelIngestionProcessor({
-        projectId: "test-project",
-      });
+      const processor = createTestOtelProcessor();
       const eventInputs = processor.processToEvent([resourceSpan]);
       expect(eventInputs).toHaveLength(1);
       expect(eventInputs[0].name).toBe("chat:generateText");

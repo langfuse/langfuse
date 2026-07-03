@@ -40,6 +40,9 @@ import { prisma } from "@langfuse/shared/src/db";
 import { BaseError, UnauthorizedError, ForbiddenError } from "@langfuse/shared";
 import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
+import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@/src/ee/features/in-app-agent/constants";
+import { InAppAgentMcpRunOverrideSchema } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
+import { safeJsonParse } from "@/src/utils/json";
 
 // Bootstrap MCP features - registers all tools at module load time
 import "@/src/features/mcp/server/bootstrap";
@@ -116,7 +119,9 @@ export default async function handler(
       return rateLimitCheck.sendRestResponseIfLimited(res);
     }
 
-    // Build ServerContext from authenticated scope
+    // Build ServerContext from authenticated scope. In-app-agent keys need a
+    // run override for mutating tools; read-only tools remain available
+    // without it via their MCP readOnlyHint annotation.
     const context: ServerContext = {
       projectId: authCheck.scope.projectId,
       orgId: authCheck.scope.orgId,
@@ -124,7 +129,7 @@ export default async function handler(
       apiKeyId: authCheck.scope.apiKeyId,
       accessLevel: "project",
       publicKey: authCheck.scope.publicKey,
-      isInAppAgentKey: authCheck.scope.isInAppAgentKey === true,
+      inAppAgent: getInAppAgentContext(req, authCheck.scope.isInAppAgentKey),
     };
 
     logger.debug("MCP request authenticated", {
@@ -168,6 +173,32 @@ export default async function handler(
       });
     }
   }
+}
+
+export function getInAppAgentContext(
+  req: NextApiRequest,
+  isInAppAgentKey: boolean | undefined,
+): ServerContext["inAppAgent"] {
+  if (isInAppAgentKey !== true) {
+    return undefined;
+  }
+
+  const headerValue = req.headers[IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER];
+
+  if (typeof headerValue !== "string") {
+    return { permissions: "read" };
+  }
+
+  const parsedOverride = InAppAgentMcpRunOverrideSchema.safeParse(
+    safeJsonParse(headerValue),
+  );
+
+  return parsedOverride.success
+    ? {
+        permissions: "single-tool-override",
+        allowedToolName: parsedOverride.data.toolName,
+      }
+    : { permissions: "read" };
 }
 
 /**

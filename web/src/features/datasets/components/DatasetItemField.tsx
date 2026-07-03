@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef } from "react";
 import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 
 import { CodeMirrorEditor } from "@/src/components/editor";
+import { useMediaTagChips } from "@/src/components/editor/mediaTagWidget";
 import { DatasetSchemaHoverCard } from "./DatasetSchemaHoverCard";
 import { DatasetItemFieldSchemaErrors } from "./DatasetItemFieldSchemaErrors";
 import {
@@ -83,20 +84,25 @@ export const DatasetItemField = ({
   onChangeRef.current = onChange;
   const handleChange = useCallback((v: string) => onChangeRef.current?.(v), []);
 
-  // Drop/paste of files mirrors the attach button: upload, then insert the
-  // reference string. Only wired in editable form mode so read-only/view
+  // Always render media reference tags as inline chips (read-only and form).
+  // Drop/paste of files mirrors the attach button (upload, then insert the
+  // reference string) and is only wired in editable form mode so read-only/view
   // editors keep native drop/paste behavior.
-  const mediaEditorExtensions = useMemo(
-    () =>
-      showMediaUpload
+  const { extension: mediaChipExtension, portals: mediaChipPortals } =
+    useMediaTagChips();
+  const editorExtensions = useMemo(
+    () => [
+      mediaChipExtension,
+      ...(showMediaUpload
         ? [
             createMediaDropPasteExtension({
               onUploadMedia: (file) =>
                 onUploadMediaRef.current?.(file) ?? Promise.resolve(null),
             }),
           ]
-        : undefined,
-    [showMediaUpload],
+        : []),
+    ],
+    [mediaChipExtension, showMediaUpload],
   );
 
   const content = (
@@ -128,7 +134,7 @@ export const DatasetItemField = ({
             editable={editable}
             editorRef={editorRef}
             minHeight={200}
-            extensions={mediaEditorExtensions}
+            extensions={editorExtensions}
           />
         </FormControl>
       ) : (
@@ -137,8 +143,10 @@ export const DatasetItemField = ({
           value={value}
           editable={editable}
           minHeight={200}
+          extensions={editorExtensions}
         />
       )}
+      {mediaChipPortals}
       {isFormField && <FormMessage />}
       {showErrors && hasSchemas && errors.length > 0 && (
         <DatasetItemFieldSchemaErrors errors={errors} showDatasetName={false} />

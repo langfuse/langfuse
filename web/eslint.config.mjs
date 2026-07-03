@@ -73,6 +73,18 @@ export default [
   },
 
   {
+    name: "langfuse/web/require-title-with-truncate",
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/**/*.stories.{ts,tsx}"],
+    rules: {
+      "@repo/require-title-with-truncate": [
+        "error",
+        { classNameFunctions: ["cn", "clsx"] },
+      ],
+    },
+  },
+
+  {
     name: "langfuse/web/design-system-rules",
     files: ["src/components/design-system/**/*.{ts,tsx}"],
     ignores: ["src/components/design-system/**/*.stories.tsx"],

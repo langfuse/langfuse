@@ -130,6 +130,8 @@ export function DatasetVersionHistoryPanel({
       (iv) => iv.getTime() === version.getTime(),
     );
 
+    const dateLabel = format(version, "MMM d, yyyy 'at' h:mm a");
+
     return (
       <div
         key={version.toISOString()}
@@ -157,8 +159,11 @@ export function DatasetVersionHistoryPanel({
                   title="Item modified in this version"
                 />
               )}
-              <span className={cn("truncate", isSelected && "text-foreground")}>
-                {format(version, "MMM d, yyyy 'at' h:mm a")}
+              <span
+                className={cn("truncate", isSelected && "text-foreground")}
+                title={dateLabel}
+              >
+                {dateLabel}
               </span>
             </div>
             {isLatest && (

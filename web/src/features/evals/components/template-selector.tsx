@@ -154,6 +154,11 @@ export const TemplateSelector = ({
     projectId: projectId,
   });
 
+  const triggerLabel =
+    activeTemplates.length > 0
+      ? `${activeTemplates.length} active evaluators`
+      : "Select evaluators";
+
   return (
     <>
       <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
@@ -165,10 +170,8 @@ export const TemplateSelector = ({
             className={cn("w-full justify-between px-2 font-normal", className)}
           >
             <div className="flex items-center gap-1 overflow-hidden">
-              <span className="mr-1 truncate">
-                {activeTemplates.length > 0
-                  ? `${activeTemplates.length} active evaluators`
-                  : "Select evaluators"}
+              <span className="mr-1 truncate" title={triggerLabel}>
+                {triggerLabel}
               </span>
             </div>
             <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />

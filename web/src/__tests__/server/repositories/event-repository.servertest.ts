@@ -665,13 +665,15 @@ describe("Clickhouse Events Repository Test", () => {
           columns: ["level"],
         });
 
-        expect(options.level.map((level) => level.value)).toContain("WARNING");
-        expect(options.name).toEqual([]);
-        expect(options.traceTags).toEqual([]);
-        expect(options.scores_avg).toEqual([]);
-        expect(options.score_categories).toEqual([]);
-        expect(options.trace_scores_avg).toEqual([]);
-        expect(options.trace_score_categories).toEqual([]);
+        expect(options.level?.map((level) => level.value)).toContain("WARNING");
+        // Unrequested columns are absent (not empty arrays), so the client can
+        // distinguish "loaded, no values" from "not requested yet" for lazy loading.
+        expect(options.name).toBeUndefined();
+        expect(options.traceTags).toBeUndefined();
+        expect(options.scores_avg).toBeUndefined();
+        expect(options.score_categories).toBeUndefined();
+        expect(options.trace_scores_avg).toBeUndefined();
+        expect(options.trace_score_categories).toBeUndefined();
       });
     });
 
@@ -3250,6 +3252,186 @@ describe("Clickhouse Events Repository Test", () => {
       expect(result.name).toBe("ai");
       expect(result.language).toBe("nodejs");
       expect(result.version).toBeUndefined();
+    });
+  });
+
+  // LFE-10596: trace-level score filtering returned empty in v4. The events
+  // table splits scores into observation-scoped (`scores_avg`, joined on
+  // span_id) and trace-scoped (`trace_scores_avg`, joined on trace_id). A
+  // trace-level score (observation_id NULL) can only match the trace-scoped
+  // column, so its NAME must be offered under `trace_scores_avg` only — never
+  // under `scores_avg`, where a filter on it can never match.
+  maybe("LFE-10596 trace-level score filtering", () => {
+    it("trace-level score matches trace_scores_avg but not scores_avg", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "Help Assistant",
+        }),
+      ]);
+
+      await createScoresCh([
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: null,
+          name: "CSAT",
+          value: 1,
+          data_type: "NUMERIC",
+        }),
+      ]);
+
+      const scoresAvgFilter: FilterCondition = {
+        type: "numberObject",
+        column: "scores_avg",
+        operator: "=",
+        key: "CSAT",
+        value: 1,
+      };
+      const traceScoresAvgFilter: FilterCondition = {
+        type: "numberObject",
+        column: "trace_scores_avg",
+        operator: "=",
+        key: "CSAT",
+        value: 1,
+      };
+
+      const [noFilterCount, scoresAvgCount, traceScoresAvgCount] =
+        await Promise.all([
+          getObservationsCountFromEventsTable({
+            projectId: uniqueProjectId,
+            filter: [],
+          }),
+          getObservationsCountFromEventsTable({
+            projectId: uniqueProjectId,
+            filter: [scoresAvgFilter],
+          }),
+          getObservationsCountFromEventsTable({
+            projectId: uniqueProjectId,
+            filter: [traceScoresAvgFilter],
+          }),
+        ]);
+
+      expect(noFilterCount).toBe(1);
+      expect(traceScoresAvgCount).toBe(1);
+      expect(scoresAvgCount).toBe(0);
+    });
+
+    it("offers a trace-level numeric score under trace_scores_avg, not scores_avg", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+      const observationId = randomUUID();
+      const traceScoreName = `csat-${randomUUID()}`;
+      const observationScoreName = `latency-rating-${randomUUID()}`;
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "Help Assistant",
+        }),
+      ]);
+
+      await createScoresCh([
+        // Trace-level score (observation_id NULL) -> trace_scores_avg only.
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: null,
+          name: traceScoreName,
+          value: 1,
+          data_type: "NUMERIC",
+        }),
+        // Observation-level score -> scores_avg only.
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: observationId,
+          name: observationScoreName,
+          value: 1,
+          data_type: "NUMERIC",
+        }),
+      ]);
+
+      const options = await getEventFilterOptions({
+        projectId: uniqueProjectId,
+      });
+
+      expect(options.trace_scores_avg).toContain(traceScoreName);
+      expect(options.scores_avg).not.toContain(traceScoreName);
+
+      expect(options.scores_avg).toContain(observationScoreName);
+      expect(options.trace_scores_avg).not.toContain(observationScoreName);
+    });
+
+    it("offers a trace-level categorical score under trace_score_categories, not score_categories", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+      const observationId = randomUUID();
+      const traceCategoryName = `hallucination-check-${randomUUID()}`;
+      const observationCategoryName = `answer-relevancy-${randomUUID()}`;
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "Help Assistant",
+        }),
+      ]);
+
+      await createScoresCh([
+        // Trace-level categorical (observation_id NULL) -> trace_score_categories only.
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: null,
+          name: traceCategoryName,
+          value: 0,
+          string_value: "faithful",
+          data_type: "CATEGORICAL",
+        }),
+        // Observation-level categorical -> score_categories only.
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: observationId,
+          name: observationCategoryName,
+          value: 0,
+          string_value: "relevant",
+          data_type: "CATEGORICAL",
+        }),
+      ]);
+
+      const options = await getEventFilterOptions({
+        projectId: uniqueProjectId,
+      });
+
+      const scoreCategoryLabels = options.score_categories.map((c) => c.label);
+      const traceScoreCategoryLabels = options.trace_score_categories.map(
+        (c) => c.label,
+      );
+
+      expect(traceScoreCategoryLabels).toContain(traceCategoryName);
+      expect(scoreCategoryLabels).not.toContain(traceCategoryName);
+
+      expect(scoreCategoryLabels).toContain(observationCategoryName);
+      expect(traceScoreCategoryLabels).not.toContain(observationCategoryName);
     });
   });
 });

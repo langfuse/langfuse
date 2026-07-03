@@ -7,7 +7,7 @@ import React, {
 } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 
-import { TraceGraphCanvas } from "./TraceGraphCanvas";
+import { ElkGraphRenderer } from "./ElkGraphRenderer";
 import { type AgentGraphDataResponse } from "../types";
 import { buildStepData } from "../buildStepData";
 import {
@@ -21,14 +21,18 @@ import {
   LANGGRAPH_END_NODE_NAME,
 } from "../types";
 
-const MAX_NODE_NUMBER_FOR_PHYSICS = 500;
-
 type TraceGraphViewProps = {
   agentGraphData: AgentGraphDataResponse[];
+  /**
+   * Observation ids "playing" at the timeline playhead (from PlayheadContext).
+   * Mapped to their node names here so the graph glows in sync with the timeline.
+   */
+  activeObservationIds?: ReadonlySet<string>;
 };
 
 export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   agentGraphData,
+  activeObservationIds,
 }) => {
   const [selectedNodeName, setSelectedNodeName] = useState<string | null>(null);
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
@@ -41,7 +45,14 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   const [previousSelectedNode, setPreviousSelectedNode] = useState<
     string | null
   >(null);
-  const isClickNavigationRef = useRef(false);
+  // The observation id the last in-canvas click WROTE to the URL (undefined =
+  // no pending click write). Value-compared — a plain boolean flag gets stuck
+  // when a click writes the same id the URL already has (the effect never
+  // re-fires to clear it) and then swallows the NEXT genuine tree/timeline
+  // selection, desyncing the graph highlight.
+  const clickWroteObservationIdRef = useRef<string | null | undefined>(
+    undefined,
+  );
 
   const normalizedData = useMemo(() => {
     const hasStepData = agentGraphData.some(
@@ -65,8 +76,33 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
     return buildGraphFromStepData(normalizedData);
   }, [normalizedData]);
 
-  const shouldDisablePhysics =
-    agentGraphData.length >= MAX_NODE_NUMBER_FOR_PHYSICS;
+  // Unfiltered observation lookup for the parent-walk fallback below (child
+  // observations without a langgraph node are absent from normalizedData).
+  const agentGraphById = useMemo(
+    () => new Map(agentGraphData.map((o) => [o.id, o])),
+    [agentGraphData],
+  );
+
+  // observation id → its node name, so the playhead's active-observation set can
+  // be projected onto graph nodes (nodeToObservationsMap only holds the top-most
+  // of a same-name chain, so build the reverse map from the full data instead).
+  const observationToNodeName = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const o of normalizedData) {
+      if (o.id && o.node) map.set(o.id, o.node);
+    }
+    return map;
+  }, [normalizedData]);
+
+  const activeNodeNames = useMemo(() => {
+    if (!activeObservationIds || activeObservationIds.size === 0) return null;
+    const names = new Set<string>();
+    for (const id of activeObservationIds) {
+      const name = observationToNodeName.get(id);
+      if (name) names.add(name);
+    }
+    return names;
+  }, [activeObservationIds, observationToNodeName]);
 
   // Reset indices when graph data changes (new trace loaded)
   useEffect(() => {
@@ -74,15 +110,18 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   }, [normalizedData]);
 
   useEffect(() => {
-    // if this observation ID change came from a click -> skip
-    if (isClickNavigationRef.current) {
-      isClickNavigationRef.current = false;
-      return;
+    // Skip genuine echoes of an in-canvas click (the click already selected the
+    // node); a stale entry from a no-op write is cleared and IGNORED when a
+    // genuinely different observation arrives, so the graph re-syncs.
+    if (clickWroteObservationIdRef.current !== undefined) {
+      const wrote = clickWroteObservationIdRef.current;
+      clickWroteObservationIdRef.current = undefined;
+      if (wrote === (currentObservationId ?? null)) return;
     }
 
-    // Find which node and index corresponds to currentObservationId
-    let foundNodeName = null;
-    let foundIndex = 0;
+    // Find which node and index corresponds to currentObservationId.
+    let foundNodeName: string | null = null;
+    let foundIndex: number | null = null;
 
     for (const [nodeName, observations] of Object.entries(
       nodeToObservationsMap,
@@ -97,15 +136,49 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
       }
     }
 
+    // Fallback for observations not in the cycling map: nested/repeated
+    // same-name observations (only the top-most of a same-name chain is
+    // registered) map to their own node; descendants WITHOUT a node of their
+    // own (e.g. LangGraph child spans, which are filtered out of
+    // normalizedData) resolve by walking UP the parent chain in the unfiltered
+    // data until an ancestor carries one — so selecting any descendant keeps
+    // its enclosing node focused instead of clearing the selection.
+    if (!foundNodeName && currentObservationId) {
+      const own = normalizedData.find((o) => o.id === currentObservationId);
+      if (own?.node) {
+        foundNodeName = own.node;
+      } else {
+        const seen = new Set<string>();
+        let cursor = agentGraphById.get(currentObservationId);
+        while (cursor && !seen.has(cursor.id)) {
+          seen.add(cursor.id);
+          if (cursor.node) {
+            foundNodeName = cursor.node;
+            break;
+          }
+          cursor = cursor.parentObservationId
+            ? agentGraphById.get(cursor.parentObservationId)
+            : undefined;
+        }
+      }
+    }
+
     if (
       foundNodeName &&
       graph.nodes.some((node) => node.id === foundNodeName)
     ) {
       setSelectedNodeName(foundNodeName);
-      setCurrentObservationIndices((prev) => ({
-        ...prev,
-        [foundNodeName]: foundIndex,
-      }));
+      // Only sync the cycling index when the id was actually found in the
+      // cycling map — fallback-resolved observations must not rewind the
+      // node's "(x/N)" counter and next-click cycle position to 0.
+      if (foundIndex !== null) {
+        const nodeKey = foundNodeName;
+        const index = foundIndex;
+        setCurrentObservationIndices((prev) => ({
+          ...prev,
+          [nodeKey]: index,
+        }));
+      }
       setPreviousSelectedNode(foundNodeName);
     } else {
       setSelectedNodeName(null);
@@ -113,9 +186,10 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
     }
   }, [
     currentObservationId,
-    agentGraphData,
+    agentGraphById,
     graph.nodes,
     nodeToObservationsMap,
+    normalizedData,
   ]);
 
   const onCanvasNodeNameChange = useCallback(
@@ -132,7 +206,7 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
           // For system nodes, don't set observation ID (they're synthetic)
           setPreviousSelectedNode(nodeName);
           setSelectedNodeName(nodeName);
-          isClickNavigationRef.current = true;
+          clickWroteObservationIdRef.current = null;
           setCurrentObservationId(null);
           return;
         }
@@ -152,10 +226,10 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
             ...prev,
             [nodeName]: targetIndex,
           }));
-          isClickNavigationRef.current = true;
+          clickWroteObservationIdRef.current = observations[targetIndex];
           setCurrentObservationId(observations[targetIndex]);
         } else {
-          isClickNavigationRef.current = true;
+          clickWroteObservationIdRef.current = null;
           setCurrentObservationId(null);
         }
         setPreviousSelectedNode(nodeName);
@@ -174,14 +248,14 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   );
 
   return (
-    <div className="grid h-full w-full gap-4">
-      <TraceGraphCanvas
+    <div className="h-full w-full">
+      <ElkGraphRenderer
         graph={graph}
         selectedNodeName={selectedNodeName}
         onCanvasNodeNameChange={onCanvasNodeNameChange}
-        disablePhysics={shouldDisablePhysics}
         nodeToObservationsMap={nodeToObservationsMap}
         currentObservationIndices={currentObservationIndices}
+        activeNodeNames={activeNodeNames}
       />
     </div>
   );

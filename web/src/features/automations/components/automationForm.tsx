@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { Separator } from "@/src/components/ui/separator";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { useRouter } from "next/router";
 import { z } from "zod";
 import { type Control, useForm } from "react-hook-form";

@@ -174,6 +174,7 @@ export function IOPreviewPretty({
     additionalInput,
     allTools,
     toolCallCounts,
+    toolCallsByName,
     messageToToolCallNumbers,
     toolNameToDefinitionNumber,
     inputMessageCount,
@@ -255,6 +256,7 @@ export function IOPreviewPretty({
       <SectionToolDefinitions
         tools={allTools}
         toolCallCounts={toolCallCounts}
+        toolCallsByName={toolCallsByName}
         toolNameToDefinitionNumber={toolNameToDefinitionNumber}
       />
 

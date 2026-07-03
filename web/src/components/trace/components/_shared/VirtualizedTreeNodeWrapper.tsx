@@ -78,7 +78,9 @@ export function VirtualizedTreeNodeWrapper({
         {/* 1. Indents: ancestor level indicators */}
         {depth > 0 && (
           <div className="flex shrink-0">
-            {Array.from({ length: depth - 1 }, (_, i) => (
+            {/* Math.max floors the length at 0 so a stray non-positive/NaN depth
+                can never reach Array.from as a value that throws RangeError. */}
+            {Array.from({ length: Math.max(0, depth - 1) }, (_, i) => (
               <div key={i} className="relative w-5">
                 {treeLines[i] && (
                   <div className="bg-border absolute top-0 bottom-0 left-3 w-px" />

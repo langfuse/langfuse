@@ -6,6 +6,7 @@
 
 import {
   buildTraceUiData,
+  dedupeObservationsById,
   removeHiddenNodes,
   getObservationLevels,
 } from "./tree-building";
@@ -2180,5 +2181,178 @@ describe("getSubtreeDurationOverflowMs", () => {
     expect(getSubtreeDurationOverflowMs(64_000, 64_400)).toBeNull();
     // a full second is visible: "1m 04s" vs "1m 05s"
     expect(getSubtreeDurationOverflowMs(64_000, 65_000)).toBe(65_000);
+  });
+});
+
+describe("Duplicate / colliding observation IDs (LFE-10588)", () => {
+  // Regression guard for a prod trace crash. Real traces can contain multiple
+  // rows that share the same observation id (colliding / reused ids in ingested
+  // data), and those rows may each carry a DIFFERENT parentObservationId. The
+  // tree builder keys nodes by id, so duplicate rows wire one node under several
+  // parents — turning the parent→child graph into a dense multi-parent DAG whose
+  // root→node path count grows exponentially. The depth-propagation BFS then grew
+  // its queue without bound, so loading such a trace threw
+  // "RangeError: Invalid array length" / ran out of memory. The builder must
+  // collapse to one row per id so the structure stays a proper forest.
+
+  it("collapses duplicate rows for the same id to a single node", () => {
+    const trace = createMockTrace({ id: "t" });
+    const observations: ObservationReturnType[] = [
+      createMockObservation({
+        id: "a",
+        parentObservationId: null,
+        startTime: new Date("2024-01-01T00:00:00.100Z"),
+      }),
+      createMockObservation({
+        id: "b",
+        parentObservationId: "a",
+        startTime: new Date("2024-01-01T00:00:00.200Z"),
+      }),
+      // duplicate row for child "b" — must not be double-wired under "a"
+      createMockObservation({
+        id: "b",
+        parentObservationId: "a",
+        startTime: new Date("2024-01-01T00:00:00.250Z"),
+      }),
+    ];
+
+    const result = buildTraceUiData(trace, observations);
+
+    // one node per distinct id (+ TRACE wrapper); each appears exactly once.
+    expect(result.nodeMap.size).toBe(3); // trace + a + b
+    expect(result.searchItems).toHaveLength(3);
+    expect(result.searchItems.filter((i) => i.node.id === "b")).toHaveLength(1);
+    // "a" must survive: pre-fix a duplicated child inflated a's in-degree so it
+    // never hit zero in the topological sort and the whole subtree was dropped.
+    expect(result.roots[0].children.map((c) => c.id)).toEqual(["a"]);
+  });
+
+  it("does not explode on colliding ids that form a multi-parent DAG", () => {
+    // Shortcut ladder: node i is a child of BOTH i-1 and i-2, each via a separate
+    // row that reuses id `n{i}`. Without deduplication the root→node path count
+    // is Fibonacci-large and the depth BFS / flatten grow without bound (the prod
+    // crash). Sized so the pre-fix blowup stays finite (~Fib(24)) rather than
+    // OOM-ing the test worker, while still being orders of magnitude too big.
+    const trace = createMockTrace({ id: "t" });
+    const N = 22;
+    const observations: ObservationReturnType[] = [];
+    let clock = 0;
+    const nextStart = () =>
+      new Date(`2024-01-01T00:00:00.${String(clock++).padStart(3, "0")}Z`);
+
+    observations.push(
+      createMockObservation({
+        id: "n0",
+        parentObservationId: null,
+        startTime: nextStart(),
+      }),
+    );
+    observations.push(
+      createMockObservation({
+        id: "n1",
+        parentObservationId: "n0",
+        startTime: nextStart(),
+      }),
+    );
+    for (let i = 2; i <= N; i++) {
+      // primary edge (earlier startTime → survives dedup): parent = i-1
+      observations.push(
+        createMockObservation({
+          id: `n${i}`,
+          parentObservationId: `n${i - 1}`,
+          startTime: nextStart(),
+        }),
+      );
+      // shortcut edge (duplicate id, later startTime): parent = i-2
+      observations.push(
+        createMockObservation({
+          id: `n${i}`,
+          parentObservationId: `n${i - 2}`,
+          startTime: nextStart(),
+        }),
+      );
+    }
+    const distinctIds = N + 1; // n0..nN
+
+    const result = buildTraceUiData(trace, observations);
+
+    // Dedup keeps the earliest-startTime row per id → a clean chain
+    // n0→n1→…→nN. Every distinct id survives exactly once (+ TRACE wrapper), and
+    // the flattened list is bounded — pre-fix the duplicated edges either dropped
+    // nodes (in-degree never hit zero) or blew the traversal up Fibonacci-large.
+    expect(result.nodeMap.size).toBe(distinctIds + 1);
+    expect(result.searchItems).toHaveLength(distinctIds + 1);
+    for (let i = 0; i <= N; i++) {
+      expect(result.nodeMap.has(`n${i}`)).toBe(true);
+    }
+  });
+
+  // The detail panel resolves the clicked observation via
+  // `observations.find(o => o.id === id)`. The tree node is built from the
+  // de-duped set (earliest-startTime row), so the array the panel searches must
+  // be de-duped the same way — otherwise, on a corrupt trace, the timeline row
+  // and the opened detail panel can silently show different data.
+
+  it("keeps the earliest-startTime row per id, independent of array order", () => {
+    // Array order lists the LATER row first, so a naive `.find` would pick it.
+    const later = createMockObservation({
+      id: "x",
+      name: "later",
+      parentObservationId: null,
+      startTime: new Date("2024-01-01T00:00:00.200Z"),
+    });
+    const earlier = createMockObservation({
+      id: "x",
+      name: "earlier",
+      parentObservationId: null,
+      startTime: new Date("2024-01-01T00:00:00.100Z"),
+    });
+
+    const deduped = dedupeObservationsById([later, earlier]);
+
+    expect(deduped).toHaveLength(1);
+    expect(deduped[0].name).toBe("earlier");
+  });
+
+  it("returns the same array reference when all ids are unique (no-op)", () => {
+    const list = [
+      createMockObservation({ id: "a" }),
+      createMockObservation({ id: "b" }),
+    ];
+    expect(dedupeObservationsById(list)).toBe(list);
+  });
+
+  it("resolves the same row for the tree node and a find() on the deduped list", () => {
+    const trace = createMockTrace({ id: "t" });
+    // Two colliding rows for id "x" differing on a user-visible field, with the
+    // later-startTime row first in array order.
+    const raw: ObservationReturnType[] = [
+      createMockObservation({
+        id: "x",
+        name: "later",
+        parentObservationId: null,
+        startTime: new Date("2024-01-01T00:00:00.200Z"),
+      }),
+      createMockObservation({
+        id: "x",
+        name: "earlier",
+        parentObservationId: null,
+        startTime: new Date("2024-01-01T00:00:00.100Z"),
+      }),
+    ];
+    // On the RAW array the panel's `.find` returns the first (wrong) row.
+    expect(raw.find((o) => o.id === "x")?.name).toBe("later");
+
+    // De-dup once (as TraceDataProvider now does), then feed both.
+    const deduped = dedupeObservationsById(raw);
+    const result = buildTraceUiData(trace, deduped);
+
+    const treeNodeName = result.nodeMap.get("x")?.name;
+    const panelRowName = deduped.find((o) => o.id === "x")?.name;
+
+    expect(treeNodeName).toBe("earlier");
+    expect(panelRowName).toBe("earlier");
+    // The invariant: timeline (tree node) and detail panel (find) agree.
+    expect(panelRowName).toBe(treeNodeName);
   });
 });

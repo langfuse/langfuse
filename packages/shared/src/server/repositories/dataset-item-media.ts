@@ -4,7 +4,11 @@ import { prisma } from "../../db";
 import { type DatasetItemMediaField } from "../../domain";
 import { InvalidRequestError, LangfuseNotFoundError } from "../../errors";
 import { findMediaReferences } from "../../utils/mediaReferences";
-import { recordHistogram, recordIncrement } from "../instrumentation";
+import {
+  addTagsToCurrentSpan,
+  recordHistogram,
+  recordIncrement,
+} from "../instrumentation";
 
 type DatasetItemMediaValues = {
   input?: unknown;
@@ -204,6 +208,9 @@ export async function linkDatasetItemMedia(
   },
 ) {
   const { projectId, items, replaceExisting } = props;
+  addTagsToCurrentSpan({
+    "langfuse.dataset_item_media.link.item_count": items.length,
+  });
   if (items.length === 0) return;
 
   const rowsToInsert: Prisma.DatasetItemMediaCreateManyInput[] = items.flatMap(
@@ -219,6 +226,9 @@ export async function linkDatasetItemMedia(
         mediaId: reference.mediaId,
       })),
   );
+  addTagsToCurrentSpan({
+    "langfuse.dataset_item_media.link.reference_count": rowsToInsert.length,
+  });
 
   // Hot path: items without media still need the replaceExisting delete.
   if (rowsToInsert.length === 0 && !replaceExisting) return;
@@ -228,12 +238,15 @@ export async function linkDatasetItemMedia(
   }
 
   if (rowsToInsert.length > 0) {
-    await tx.datasetItemMedia.createMany({
+    const createResult = await tx.datasetItemMedia.createMany({
       data: rowsToInsert,
       skipDuplicates: true,
     });
+    addTagsToCurrentSpan({
+      "langfuse.dataset_item_media.link.created_count": createResult.count,
+    });
     // Consume the claimed pending rows; unclaimed ones are swept by retention.
-    await tx.datasetItemMedia.deleteMany({
+    const pendingDeleteResult = await tx.datasetItemMedia.deleteMany({
       where: {
         projectId,
         datasetItemValidFrom: null,
@@ -242,6 +255,10 @@ export async function linkDatasetItemMedia(
           mediaId: row.mediaId,
         })),
       },
+    });
+    addTagsToCurrentSpan({
+      "langfuse.dataset_item_media.link.pending_deleted_count":
+        pendingDeleteResult.count,
     });
   }
 }
@@ -257,6 +274,10 @@ export async function deleteDatasetItemMediaLinks(
   },
 ) {
   const { projectId, itemVersions } = props;
+  addTagsToCurrentSpan({
+    "langfuse.dataset_item_media.delete.item_version_count":
+      itemVersions.length,
+  });
   if (itemVersions.length === 0) return;
 
   const versionFilters = itemVersions.map((itemVersion) => ({
@@ -264,10 +285,13 @@ export async function deleteDatasetItemMediaLinks(
     datasetItemValidFrom: itemVersion.datasetItemValidFrom,
   }));
 
-  await tx.datasetItemMedia.deleteMany({
+  const deleteResult = await tx.datasetItemMedia.deleteMany({
     where: {
       projectId,
       OR: versionFilters,
     },
+  });
+  addTagsToCurrentSpan({
+    "langfuse.dataset_item_media.delete.deleted_count": deleteResult.count,
   });
 }

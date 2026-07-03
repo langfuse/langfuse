@@ -25,9 +25,7 @@ import {
 import { numberFormatter } from "@/src/utils/numbers";
 import {
   V4MigrationProjectCards,
-  type V4LegacyApiUsagePoint,
-  type V4MigrationSummary,
-  type V4TraceLevelEvalExecutionPoint,
+  type V4LegacyIntegrationSummary,
 } from "@/src/features/v4/components/V4MigrationProjectCards";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import {
@@ -39,17 +37,20 @@ import {
 } from "@/src/features/v4/utils";
 import { cn } from "@/src/utils/tailwind";
 
-type ProjectSummary = V4MigrationSummary & {
+type ProjectSummary = V4LegacyIntegrationSummary & {
   projectId: string;
   projectName: string;
 };
 
-type ProjectScopedLegacyApiUsagePoint = V4LegacyApiUsagePoint & {
+type ProjectScopedLegacyApiUsageSummary = {
   projectId: string;
+  entrypoint: string;
+  count: number;
 };
 
-type ProjectScopedEvalExecutionPoint = V4TraceLevelEvalExecutionPoint & {
+type ProjectTraceLevelEvalSummary = {
   projectId: string;
+  traceLevelEvalCount: number;
 };
 
 const groupByProjectId = <T extends { projectId: string }>(
@@ -67,14 +68,15 @@ const groupByProjectId = <T extends { projectId: string }>(
 };
 
 const sumLegacyApiUsage = (
-  rows: ProjectScopedLegacyApiUsagePoint[] | undefined,
+  rows: Array<{ count: number }> | undefined,
 ): number => rows?.reduce((total, row) => total + row.count, 0) ?? 0;
 
 const getProjectActionCount = (
   project: ProjectSummary,
+  traceLevelEvalCount: number,
   legacyApiEntrypointCount: number,
 ): number =>
-  project.traceLevelEvalCount +
+  traceLevelEvalCount +
   project.legacyIntegrationCount +
   legacyApiEntrypointCount;
 
@@ -109,13 +111,12 @@ export default function OrganizationV4Page() {
     },
   );
 
-  const legacyApiUsageByProject =
-    api.v4Transition.timeSeriesByEntrypointByProject.useQuery(
+  const legacyApiUsageSummaryByProject =
+    api.v4Transition.legacyApiUsageSummaryByProject.useQuery(
       {
         orgId: organizationId ?? "",
         fromTimestamp: absoluteTimeRange.from,
         toTimestamp: absoluteTimeRange.to,
-        granularity: "auto",
       },
       {
         enabled: Boolean(organizationId) && canViewOrgV4Page,
@@ -127,32 +128,39 @@ export default function OrganizationV4Page() {
       },
     );
 
-  const traceLevelEvalExecutionsByProject =
-    api.v4Transition.traceLevelEvalExecutionsTimeSeriesByProject.useQuery(
+  const traceLevelEvalSummaryByProject =
+    api.v4Transition.traceLevelEvalSummaryByProject.useQuery(
       {
         orgId: organizationId ?? "",
-        fromTimestamp: absoluteTimeRange.from,
-        toTimestamp: absoluteTimeRange.to,
-        granularity: "auto",
       },
       {
         enabled: Boolean(organizationId) && canViewOrgV4Page,
+        trpc: {
+          context: {
+            skipBatch: true,
+          },
+        },
       },
     );
 
   const legacyApiUsageRowsByProjectId = useMemo(
     () =>
-      groupByProjectId<ProjectScopedLegacyApiUsagePoint>(
-        legacyApiUsageByProject.data,
+      groupByProjectId<ProjectScopedLegacyApiUsageSummary>(
+        legacyApiUsageSummaryByProject.data,
       ),
-    [legacyApiUsageByProject.data],
+    [legacyApiUsageSummaryByProject.data],
   );
-  const evalExecutionRowsByProjectId = useMemo(
+  const traceLevelEvalCountsByProjectId = useMemo(
     () =>
-      groupByProjectId<ProjectScopedEvalExecutionPoint>(
-        traceLevelEvalExecutionsByProject.data,
+      new Map(
+        (traceLevelEvalSummaryByProject.data ?? []).map(
+          (row: ProjectTraceLevelEvalSummary) => [
+            row.projectId,
+            row.traceLevelEvalCount,
+          ],
+        ),
       ),
-    [traceLevelEvalExecutionsByProject.data],
+    [traceLevelEvalSummaryByProject.data],
   );
 
   const projects = useMemo(
@@ -160,12 +168,14 @@ export default function OrganizationV4Page() {
       [...(summaryByProject.data?.projects ?? [])].sort((a, b) => {
         const bActionCount = getProjectActionCount(
           b,
+          traceLevelEvalCountsByProjectId.get(b.projectId) ?? 0,
           countLegacyApiEntrypoints(
             legacyApiUsageRowsByProjectId.get(b.projectId),
           ),
         );
         const aActionCount = getProjectActionCount(
           a,
+          traceLevelEvalCountsByProjectId.get(a.projectId) ?? 0,
           countLegacyApiEntrypoints(
             legacyApiUsageRowsByProjectId.get(a.projectId),
           ),
@@ -174,7 +184,11 @@ export default function OrganizationV4Page() {
         if (bActionCount !== aActionCount) return bActionCount - aActionCount;
         return a.projectName.localeCompare(b.projectName);
       }),
-    [summaryByProject.data?.projects, legacyApiUsageRowsByProjectId],
+    [
+      summaryByProject.data?.projects,
+      legacyApiUsageRowsByProjectId,
+      traceLevelEvalCountsByProjectId,
+    ],
   );
   const [selectedProjectId, setSelectedProjectId] = useState<
     string | undefined
@@ -185,6 +199,43 @@ export default function OrganizationV4Page() {
       projects[0],
     [projects, selectedProjectId],
   );
+
+  const selectedProjectLegacyApiUsage =
+    api.v4Transition.timeSeriesByEntrypoint.useQuery(
+      {
+        projectId: selectedProject?.projectId ?? "",
+        fromTimestamp: absoluteTimeRange.from,
+        toTimestamp: absoluteTimeRange.to,
+        granularity: "auto",
+      },
+      {
+        enabled: Boolean(selectedProject?.projectId) && canViewOrgV4Page,
+        trpc: {
+          context: {
+            skipBatch: true,
+          },
+        },
+      },
+    );
+
+  const selectedProjectTraceLevelEvalExecutions =
+    api.v4Transition.traceLevelEvalExecutionsTimeSeries.useQuery(
+      {
+        projectId: selectedProject?.projectId ?? "",
+        fromTimestamp: absoluteTimeRange.from,
+        toTimestamp: absoluteTimeRange.to,
+        granularity: "auto",
+      },
+      {
+        enabled: Boolean(selectedProject?.projectId) && canViewOrgV4Page,
+        trpc: {
+          context: {
+            skipBatch: true,
+          },
+        },
+      },
+    );
+
   const migrationSummary = useMemo(() => {
     return projects.reduce(
       (summary, project) => {
@@ -193,6 +244,7 @@ export default function OrganizationV4Page() {
         );
         const actionCount = getProjectActionCount(
           project,
+          traceLevelEvalCountsByProjectId.get(project.projectId) ?? 0,
           countLegacyApiEntrypoints(legacyApiRows),
         );
 
@@ -204,9 +256,20 @@ export default function OrganizationV4Page() {
       },
       { projectsNotMigrated: 0, actionCount: 0 },
     );
-  }, [legacyApiUsageRowsByProjectId, projects]);
+  }, [
+    legacyApiUsageRowsByProjectId,
+    projects,
+    traceLevelEvalCountsByProjectId,
+  ]);
+  const isProjectListLoading = summaryByProject.isPending;
   const isProjectReadinessLoading =
-    summaryByProject.isPending || legacyApiUsageByProject.isPending;
+    summaryByProject.isPending ||
+    legacyApiUsageSummaryByProject.isPending ||
+    traceLevelEvalSummaryByProject.isPending;
+  const hasProjectReadinessError =
+    Boolean(summaryByProject.error) ||
+    Boolean(legacyApiUsageSummaryByProject.error) ||
+    Boolean(traceLevelEvalSummaryByProject.error);
 
   useEffect(() => {
     if (
@@ -252,16 +315,18 @@ export default function OrganizationV4Page() {
           description={
             isProjectReadinessLoading
               ? "Loading V4 migration data."
-              : `${numberFormatter(
-                  migrationSummary.projectsNotMigrated,
-                  0,
-                )} of ${numberFormatter(
-                  projects.length,
-                  0,
-                )} projects not migrated - ${numberFormatter(
-                  migrationSummary.actionCount,
-                  0,
-                )} required changes`
+              : hasProjectReadinessError
+                ? "Some project readiness data could not be loaded."
+                : `${numberFormatter(
+                    migrationSummary.projectsNotMigrated,
+                    0,
+                  )} of ${numberFormatter(
+                    projects.length,
+                    0,
+                  )} projects not migrated - ${numberFormatter(
+                    migrationSummary.actionCount,
+                    0,
+                  )} required changes`
           }
           isLoading={isProjectReadinessLoading}
         >
@@ -269,7 +334,7 @@ export default function OrganizationV4Page() {
             <Alert>
               <AlertDescription>Failed to load projects.</AlertDescription>
             </Alert>
-          ) : isProjectReadinessLoading ? (
+          ) : isProjectListLoading ? (
             <div className="min-h-40" />
           ) : projects.length > 0 ? (
             <div className="overflow-x-auto">
@@ -301,9 +366,23 @@ export default function OrganizationV4Page() {
                       countLegacyApiEntrypoints(legacyApiRows);
                     const actionCount = getProjectActionCount(
                       project,
+                      traceLevelEvalCountsByProjectId.get(project.projectId) ??
+                        0,
                       legacyApiEntrypointCount,
                     );
-                    const migrationStatus = getV4MigrationStatus(actionCount);
+                    const traceLevelEvalCount =
+                      traceLevelEvalCountsByProjectId.get(project.projectId) ??
+                      0;
+                    const isStatusPending =
+                      legacyApiUsageSummaryByProject.isPending ||
+                      traceLevelEvalSummaryByProject.isPending;
+                    const hasStatusError =
+                      Boolean(legacyApiUsageSummaryByProject.error) ||
+                      Boolean(traceLevelEvalSummaryByProject.error);
+                    const migrationStatus =
+                      isStatusPending || hasStatusError
+                        ? null
+                        : getV4MigrationStatus(actionCount);
                     const isSelected =
                       selectedProject?.projectId === project.projectId;
 
@@ -322,31 +401,41 @@ export default function OrganizationV4Page() {
                         </TableCell>
                         <TableCell density="comfortable">
                           <Badge
-                            variant={migrationStatus.badgeVariant}
+                            variant={
+                              migrationStatus?.badgeVariant ?? "outline-solid"
+                            }
                             size="sm"
                           >
-                            {migrationStatus.label}
+                            {hasStatusError
+                              ? "Unavailable"
+                              : (migrationStatus?.label ?? "Loading")}
                           </Badge>
                         </TableCell>
                         <TableCell density="comfortable" className="text-right">
-                          {numberFormatter(project.traceLevelEvalCount, 0)}
+                          {traceLevelEvalSummaryByProject.isPending
+                            ? "Loading..."
+                            : traceLevelEvalSummaryByProject.error
+                              ? "Failed"
+                              : numberFormatter(traceLevelEvalCount, 0)}
                         </TableCell>
                         <TableCell density="comfortable" className="text-right">
                           {numberFormatter(project.legacyIntegrationCount, 0)}
                         </TableCell>
                         <TableCell density="comfortable" className="text-right">
-                          {legacyApiUsageByProject.error
-                            ? "Failed"
-                            : legacyApiEntrypointCount > 0
-                              ? `${numberFormatter(
-                                  legacyApiEntrypointCount,
-                                  0,
-                                )} routes - ${numberFormatter(
-                                  legacyApiUsageCount,
-                                  0,
-                                  2,
-                                )} calls`
-                              : "0"}
+                          {legacyApiUsageSummaryByProject.isPending
+                            ? "Loading..."
+                            : legacyApiUsageSummaryByProject.error
+                              ? "Failed"
+                              : legacyApiEntrypointCount > 0
+                                ? `${numberFormatter(
+                                    legacyApiEntrypointCount,
+                                    0,
+                                  )} routes - ${numberFormatter(
+                                    legacyApiUsageCount,
+                                    0,
+                                    2,
+                                  )} calls`
+                                : "0"}
                         </TableCell>
                         <TableCell density="comfortable">
                           <Button
@@ -378,22 +467,32 @@ export default function OrganizationV4Page() {
           <V4MigrationProjectCards
             projectId={selectedProject.projectId}
             projectName={selectedProject.projectName}
-            summary={selectedProject}
-            legacyApiUsage={legacyApiUsageRowsByProjectId.get(
-              selectedProject.projectId,
-            )}
-            traceLevelEvalExecutions={evalExecutionRowsByProjectId.get(
-              selectedProject.projectId,
-            )}
-            isSummaryLoading={summaryByProject.isPending}
-            isLegacyApiUsageLoading={legacyApiUsageByProject.isPending}
-            isTraceLevelEvalExecutionsLoading={
-              traceLevelEvalExecutionsByProject.isPending
+            legacyIntegrationSummary={selectedProject}
+            traceLevelEvalCount={
+              traceLevelEvalCountsByProjectId.get(selectedProject.projectId) ??
+              0
             }
-            hasSummaryError={Boolean(summaryByProject.error)}
-            hasLegacyApiUsageError={Boolean(legacyApiUsageByProject.error)}
+            legacyApiUsage={selectedProjectLegacyApiUsage.data}
+            traceLevelEvalExecutions={
+              selectedProjectTraceLevelEvalExecutions.data
+            }
+            isLegacyIntegrationSummaryLoading={summaryByProject.isPending}
+            isTraceLevelEvalSummaryLoading={
+              traceLevelEvalSummaryByProject.isPending
+            }
+            isLegacyApiUsageLoading={selectedProjectLegacyApiUsage.isPending}
+            isTraceLevelEvalExecutionsLoading={
+              selectedProjectTraceLevelEvalExecutions.isPending
+            }
+            hasLegacyIntegrationSummaryError={Boolean(summaryByProject.error)}
+            hasTraceLevelEvalSummaryError={Boolean(
+              traceLevelEvalSummaryByProject.error,
+            )}
+            hasLegacyApiUsageError={Boolean(
+              selectedProjectLegacyApiUsage.error,
+            )}
             hasTraceLevelEvalExecutionsError={Boolean(
-              traceLevelEvalExecutionsByProject.error,
+              selectedProjectTraceLevelEvalExecutions.error,
             )}
           />
         ) : null}

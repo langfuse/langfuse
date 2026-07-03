@@ -42,7 +42,7 @@ import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes"
 import { LazyTraceRow } from "@/src/components/session/TraceRow";
 import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { LazySessionTraceEventsRow } from "@/src/components/session/LazySessionTraceEventsRow";
 import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
@@ -107,19 +107,25 @@ export function SessionUsers({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {initialUsers.map((userId: string) => (
-        <Link
-          key={userId}
-          href={`/project/${projectId}/users/${encodeURIComponent(userId ?? "")}`}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Badge className="max-w-[300px]">
-            <span className="truncate">User ID: {userId}</span>
-            <ExternalLinkIcon className="ml-1 h-3 w-3" />
-          </Badge>
-        </Link>
-      ))}
+      {initialUsers.map((userId: string) => {
+        const userBadgeText = `User ID: ${userId}`;
+
+        return (
+          <Link
+            key={userId}
+            href={`/project/${projectId}/users/${encodeURIComponent(userId ?? "")}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Badge className="max-w-[300px]">
+              <span className="truncate" title={userBadgeText}>
+                {userBadgeText}
+              </span>
+              <ExternalLinkIcon className="ml-1 h-3 w-3" />
+            </Badge>
+          </Link>
+        );
+      })}
 
       {remainingUsers.length > 0 && (
         <Popover modal>
@@ -137,20 +143,26 @@ export function SessionUsers({
                     page * USERS_PER_PAGE_IN_POPOVER,
                     (page + 1) * USERS_PER_PAGE_IN_POPOVER,
                   )
-                  .map((userId: string) => (
-                    <Link
-                      key={userId}
-                      href={`/project/${projectId}/users/${encodeURIComponent(userId ?? "")}`}
-                      className="hover:bg-accent block"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <Badge className="max-w-[260px]">
-                        <span className="truncate">User ID: {userId}</span>
-                        <ExternalLinkIcon className="ml-1 h-3 w-3" />
-                      </Badge>
-                    </Link>
-                  ))}
+                  .map((userId: string) => {
+                    const userBadgeText = `User ID: ${userId}`;
+
+                    return (
+                      <Link
+                        key={userId}
+                        href={`/project/${projectId}/users/${encodeURIComponent(userId ?? "")}`}
+                        className="hover:bg-accent block"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Badge className="max-w-[260px]">
+                          <span className="truncate" title={userBadgeText}>
+                            {userBadgeText}
+                          </span>
+                          <ExternalLinkIcon className="ml-1 h-3 w-3" />
+                        </Badge>
+                      </Link>
+                    );
+                  })}
               </div>
             </ScrollArea>
             {remainingUsers.length > USERS_PER_PAGE_IN_POPOVER && (
@@ -425,11 +437,13 @@ export const SessionPage: React.FC<{
                 />
               </div>
               <div className="flex items-center">
-                <Switch
-                  checked={showCorrections}
-                  onCheckedChange={setShowCorrectionsForSession}
-                  className="scale-75"
-                />
+                <div className="mx-1">
+                  <Switch
+                    checked={showCorrections}
+                    onCheckedChange={setShowCorrectionsForSession}
+                    size="sm"
+                  />
+                </div>
                 <span className="text-muted-foreground text-xs">
                   Show corrections
                 </span>
@@ -1018,11 +1032,13 @@ const LoadedSessionEventsPage: React.FC<{
                 />
               </div>
               <div className="flex items-center">
-                <Switch
-                  checked={showCorrections}
-                  onCheckedChange={setShowCorrectionsForSession}
-                  className="scale-75"
-                />
+                <div className="mx-1">
+                  <Switch
+                    checked={showCorrections}
+                    onCheckedChange={setShowCorrectionsForSession}
+                    size="sm"
+                  />
+                </div>
                 <span className="text-muted-foreground text-xs">
                   Show corrections
                 </span>

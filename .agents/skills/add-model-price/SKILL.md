@@ -18,6 +18,8 @@ updates in `packages/shared/`.
   model names
 - Auditing default model prices for stale, missing, or unmatched provider
   pricing
+- Auditing official provider docs for newly released major models that should
+  receive default pricing and, when appropriate, selectable-model coverage
 
 ## How to Read This Skill
 

@@ -108,6 +108,7 @@ const HistogramChart = ({
           fill="hsl(var(--chart-1))"
           radius={[2, 2, 0, 0]}
           fillOpacity={subtleFill ? 0.3 : 1}
+          isAnimationActive={false}
         />
         <ChartTooltip
           cursor={false}

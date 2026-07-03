@@ -10,6 +10,43 @@ export const PAYLOAD_STYLES: PayloadStyle[] = [
   "bignum",
 ];
 
+export const GEN_INPUT_PRICE = 2e-6;
+export const GEN_OUTPUT_PRICE = 6e-6;
+
+/**
+ * The usage/cost field block every scenario attaches to GENERATION
+ * observations. Token counts stay caller-computed (usually from the rng
+ * stream) so extracting this shared shape cannot shift any scenario's rng
+ * consumption. Non-generations must keep their explicit empty `{}` fields at
+ * the call site — the createObservation factory would otherwise fill
+ * non-empty defaults.
+ */
+export const generationUsageCost = (
+  usageInput: number,
+  usageOutput: number,
+) => ({
+  provided_usage_details: {
+    input: usageInput,
+    output: usageOutput,
+    total: usageInput + usageOutput,
+  },
+  usage_details: {
+    input: usageInput,
+    output: usageOutput,
+    total: usageInput + usageOutput,
+  },
+  provided_cost_details: {
+    input: usageInput * GEN_INPUT_PRICE,
+    output: usageOutput * GEN_OUTPUT_PRICE,
+  },
+  cost_details: {
+    input: usageInput * GEN_INPUT_PRICE,
+    output: usageOutput * GEN_OUTPUT_PRICE,
+    total: usageInput * GEN_INPUT_PRICE + usageOutput * GEN_OUTPUT_PRICE,
+  },
+  total_cost: usageInput * GEN_INPUT_PRICE + usageOutput * GEN_OUTPUT_PRICE,
+});
+
 const WORDS = [
   "retrieval",
   "latency",

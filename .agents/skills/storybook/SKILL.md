@@ -30,10 +30,14 @@ Keep the existing component, but update it to use the newly created component fo
 
 - Use "CSF Next" format by default.
 - Cover only the relevant component by default.
+- Do not use `args` on the meta story if most stories override these. Instead, define the args on each story.
 - Avoid custom render functions by default.
+- Do not define helper components inside story files unless the helper component is reused by multiple stories. For one-off setup, inline the stateful render logic directly in the story `render` function.
+- Never use `decorators` to add styling or layout to a story. Stories should render the components as they are.
 - Use `satisfies` and typed Storybook metadata so invalid args, decorators, and play functions are type-checked.
 - Use play functions to test user-relevant interactions after render, not to compensate for complex setup or hidden dependencies.
 - Prefix stories whose primary purpose is interaction test coverage with `(Test)` in the Storybook display name, for example `name: "(Test) Opens Menu"`.
+- Keep `(Test)` stories sorted at the bottom of the file so showcase and product-facing stories stay grouped first.
 - Name stories after the state they represent, not the implementation. Also do not include the component name in the story name.
   - Prefer: `Default`, `Empty`, `WithLongName`, `Error`, `Disabled`, `Loading`
   - Avoid: `Test1`, `CustomRenderExample`, `ButtonWithLongNameAndIcon`
@@ -56,6 +60,15 @@ For example, a `Button` with a `size: "sm" | "md" | "lg"` prop may have a story 
 If the button also has a `variant: "primary" | "secondary"` prop, consider using a matrix-like UI that showcases all possible combinations.
 
 These compositional stories **should not** contain Storybook play functions. They should also not allow the Storybook user to customize the predefined args, such as `size` and `variant`, via Storybook args. Having an arg for non-bound props, such as `text`, may be acceptable.
+
+## Authoring MDX Docs
+
+- Use `.mdx` for prose docs and guides that sit alongside stories.
+- Keep `.mdx` files simple by default: standard markdown plus Storybook docs blocks such as `Meta` and `Canvas` are usually enough.
+- Do not build bespoke page layouts in `.mdx` with exported inline-styled React components unless there is a strong reason.
+- If docs need reusable typography, spacing, or docs-page chrome, add that once in Storybook preview/docs container setup rather than re-implementing it in a single `.mdx` file.
+- Keep illustrative examples in `.stories.tsx`; keep narrative and explanation in `.mdx`.
+- If an example needs a small wrapper in a story, keep it minimal and focused on presenting the example rather than recreating page design inside Storybook.
 
 ## Additional Information
 

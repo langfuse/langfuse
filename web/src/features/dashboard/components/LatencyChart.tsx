@@ -18,9 +18,9 @@ import {
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import type { DatabaseRow } from "@/src/server/api/services/sqlInterface";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { DashboardLineTimeSeriesChart } from "@/src/features/dashboard/components/DashboardLineTimeSeriesChart";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useMemo } from "react";
 
 export const GenerationLatencyChart = ({
   className,
@@ -32,6 +32,7 @@ export const GenerationLatencyChart = ({
   isLoading = false,
   metricsVersion,
   schedulerId,
+  syncId,
 }: {
   className?: string;
   projectId: string;
@@ -42,6 +43,7 @@ export const GenerationLatencyChart = ({
   isLoading?: boolean;
   metricsVersion?: ViewVersion;
   schedulerId?: string;
+  syncId?: string;
 }) => {
   const {
     allModels,
@@ -116,46 +118,33 @@ export const GenerationLatencyChart = ({
     },
   );
 
-  const getData = (valueColumn: string) => {
-    return latencies.data && selectedModels.length > 0
-      ? fillMissingValuesAndTransform(
-          extractTimeSeriesData(
-            latencies.data as DatabaseRow[],
-            "time_dimension",
-            [
-              {
-                uniqueIdentifierColumns: [{ accessor: "providedModelName" }],
-                valueColumn: valueColumn,
-              },
-            ],
-          ),
-          selectedModels,
-        )
-      : [];
-  };
-
-  const data = [
-    {
-      tabTitle: "50th Percentile",
-      data: getData("p50_latency"),
-    },
-    {
-      tabTitle: "75th Percentile",
-      data: getData("p75_latency"),
-    },
-    {
-      tabTitle: "90th Percentile",
-      data: getData("p90_latency"),
-    },
-    {
-      tabTitle: "95th Percentile",
-      data: getData("p95_latency"),
-    },
-    {
-      tabTitle: "99th Percentile",
-      data: getData("p99_latency"),
-    },
-  ];
+  // Memoized on the raw query result + model selection so each series ref is
+  // stable across the scheduler's page re-renders (lets the chart memo bail).
+  const data = useMemo(() => {
+    const getData = (valueColumn: string) =>
+      latencies.data && selectedModels.length > 0
+        ? fillMissingValuesAndTransform(
+            extractTimeSeriesData(
+              latencies.data as DatabaseRow[],
+              "time_dimension",
+              [
+                {
+                  uniqueIdentifierColumns: [{ accessor: "providedModelName" }],
+                  valueColumn: valueColumn,
+                },
+              ],
+            ),
+            selectedModels,
+          )
+        : [];
+    return [
+      { tabTitle: "50th Percentile", data: getData("p50_latency") },
+      { tabTitle: "75th Percentile", data: getData("p75_latency") },
+      { tabTitle: "90th Percentile", data: getData("p90_latency") },
+      { tabTitle: "95th Percentile", data: getData("p95_latency") },
+      { tabTitle: "99th Percentile", data: getData("p99_latency") },
+    ];
+  }, [latencies.data, selectedModels]);
 
   return (
     <DashboardCard
@@ -186,21 +175,11 @@ export const GenerationLatencyChart = ({
               <>
                 {!isEmptyTimeSeries({ data: item.data }) ? (
                   <div className="h-80 w-full shrink-0">
-                    <Chart
-                      chartType="LINE_TIME_SERIES"
-                      data={timeSeriesToDataPoints(item.data, agg)}
-                      config={{
-                        metric: {
-                          label: "Latency",
-                        },
-                      }}
-                      rowLimit={100}
-                      chartConfig={{
-                        type: "LINE_TIME_SERIES",
-                        unit: "millisecond",
-                        show_data_point_dots: false,
-                      }}
-                      legendPosition="above"
+                    <DashboardLineTimeSeriesChart
+                      data={item.data}
+                      label="Latency"
+                      unit="millisecond"
+                      syncId={syncId}
                     />
                   </div>
                 ) : (

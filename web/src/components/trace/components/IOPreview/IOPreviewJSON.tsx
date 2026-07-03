@@ -25,6 +25,7 @@ import { InlineCommentBubble } from "@/src/features/comments/components/InlineCo
 import { type CommentedPathsByField } from "@/src/components/ui/AdvancedJsonViewer/utils/commentRanges";
 import { type ExpansionState } from "@/src/components/ui/AdvancedJsonViewer/types";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
+import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
 
 const VIRTUALIZATION_THRESHOLD = 3333;
@@ -122,19 +123,24 @@ function IOPreviewJSONInner({
 
   // Fall back to raw values when caller does not provide pre-parsed fields
   // (e.g. session events rows in v4 mode).
+  // Decode \uXXXX escapes (e.g. Japanese ingested with Python
+  // ensure_ascii=True) at the data source so that search-match offsets, comment
+  // ranges, rendering and copy-to-clipboard all operate on the same decoded
+  // strings. Decoding at the leaf renderer instead would desync highlight
+  // offsets. Already-decoded strings are a no-op.
   const effectiveInput = useMemo(() => {
     if (isParsing) return undefined;
-    return parsedInput ?? deepParseJson(input);
+    return decodeUnicodeInJson(parsedInput ?? deepParseJson(input));
   }, [parsedInput, input, isParsing]);
 
   const effectiveOutput = useMemo(() => {
     if (isParsing) return undefined;
-    return parsedOutput ?? deepParseJson(output);
+    return decodeUnicodeInJson(parsedOutput ?? deepParseJson(output));
   }, [parsedOutput, output, isParsing]);
 
   const effectiveMetadata = useMemo(() => {
     if (isParsing) return undefined;
-    return parsedMetadata ?? deepParseJson(metadata);
+    return decodeUnicodeInJson(parsedMetadata ?? deepParseJson(metadata));
   }, [parsedMetadata, metadata, isParsing]);
 
   const showInput = !hideInput && !(hideIfNull && effectiveInput === undefined);

@@ -49,8 +49,21 @@ const sharedContextServerTestFiles = serverTestFiles.filter(
   (file) => !isolatedServerTestFiles.includes(file),
 );
 
+function markdownRawPlugin() {
+  return {
+    name: "markdown-raw",
+    enforce: "pre",
+    load(id) {
+      const path = id.split("?", 1)[0];
+      if (!path?.endsWith(".md")) return null;
+
+      return `export default ${JSON.stringify(readFileSync(path, "utf8"))};`;
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [tsconfigPaths(), react()],
+  plugins: [markdownRawPlugin(), tsconfigPaths(), react()],
   test: {
     reporters: process.env.CI
       ? ["default", new VitestCiReporter()]

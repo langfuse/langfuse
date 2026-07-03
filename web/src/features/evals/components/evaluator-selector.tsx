@@ -209,7 +209,9 @@ export function EvaluatorSelector({
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <div className="flex min-w-0 items-center">
-                          <span className="truncate">{name}</span>
+                          <span className="truncate" title={name}>
+                            {name}
+                          </span>
                           {latestVersion.type === EvalTemplateType.CODE ? (
                             <CodeTemplateLanguageIcon
                               sourceCodeLanguage={
@@ -283,7 +285,9 @@ export function EvaluatorSelector({
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <div className="mr-1 flex min-w-0 items-center">
-                          <span className="truncate">{name}</span>
+                          <span className="truncate" title={name}>
+                            {name}
+                          </span>
                           {latestVersion.type === EvalTemplateType.CODE ? (
                             <CodeTemplateLanguageIcon
                               sourceCodeLanguage={

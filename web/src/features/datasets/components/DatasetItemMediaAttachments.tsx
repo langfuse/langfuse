@@ -55,6 +55,33 @@ export function collectMediaReferenceStrings(
   return [...byMediaId.values()];
 }
 
+type SliceableDoc = {
+  readonly length: number;
+  sliceString(from: number, to?: number): string;
+};
+
+export function getMediaReferenceInsertRange(
+  doc: SliceableDoc,
+  from: number,
+  to: number,
+) {
+  if (doc.sliceString(from, to) === '""') {
+    return { from, to };
+  }
+
+  if (
+    from === to &&
+    from > 0 &&
+    from < doc.length &&
+    doc.sliceString(from - 1, from) === '"' &&
+    doc.sliceString(from, from + 1) === '"'
+  ) {
+    return { from: from - 1, to: from + 1 };
+  }
+
+  return { from, to };
+}
+
 /**
  * Inserts a media reference as a JSON string literal. Wrapping in quotes makes
  * it a valid value when inserted in a value slot; the form's JSON validation
@@ -72,9 +99,10 @@ function insertMediaReferenceIntoView(
     anchor != null ? Math.min(anchor, view.state.doc.length) : undefined;
   const { from, to } =
     pos != null ? { from: pos, to: pos } : view.state.selection.main;
+  const range = getMediaReferenceInsertRange(view.state.doc, from, to);
   view.dispatch({
-    changes: { from, to, insert },
-    selection: { anchor: from + insert.length },
+    changes: { ...range, insert },
+    selection: { anchor: range.from + insert.length },
   });
   view.focus();
 }

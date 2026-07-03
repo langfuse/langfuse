@@ -4,6 +4,8 @@ import {
   IO_TABLE_CHAR_LIMIT,
   JSONView,
 } from "@/src/components/ui/CodeJsonViewer";
+import { splitStringByMediaReferences } from "@/src/components/ui/media/mediaUtils";
+import { JsonMediaTag } from "@/src/components/ui/media/JsonMediaTag";
 import { cn } from "@/src/utils/tailwind";
 import { memo } from "react";
 import {
@@ -19,6 +21,25 @@ const ioTableCellPaddingClassNames: Record<IOTableCellPadding, string> = {
   default: "px-2 py-1",
   compact: "px-1 py-1",
 };
+
+function renderStringWithMediaReferences(value: string) {
+  const segments = splitStringByMediaReferences(value);
+
+  if (segments.length === 1 && segments[0]?.type === "text") {
+    return value;
+  }
+
+  return segments.map((segment, index) =>
+    segment.type === "media" ? (
+      <JsonMediaTag
+        key={`${segment.value}-${index}`}
+        descriptor={segment.descriptor}
+      />
+    ) : (
+      segment.value
+    ),
+  );
+}
 
 const IOTableCellContent = ({
   data,
@@ -39,6 +60,10 @@ const IOTableCellContent = ({
   const shouldTruncate =
     stringifiedJson && stringifiedJson.length > IO_TABLE_CHAR_LIMIT;
 
+  const singleLineText = stringifiedJson
+    ? decodeUnicodeEscapesOnly(stringifiedJson, true)
+    : stringifiedJson;
+
   return singleLine ? (
     <div
       className={cn(
@@ -46,10 +71,9 @@ const IOTableCellContent = ({
         paddingClassName,
         className,
       )}
+      title={singleLineText}
     >
-      {stringifiedJson
-        ? decodeUnicodeEscapesOnly(stringifiedJson, true)
-        : stringifiedJson}
+      {singleLineText ? renderStringWithMediaReferences(singleLineText) : null}
     </div>
   ) : shouldTruncate ? (
     <div className="grid h-full grid-cols-1">

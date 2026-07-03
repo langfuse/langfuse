@@ -1,12 +1,10 @@
 import type { FilterState } from "@langfuse/shared";
-import { env } from "@/src/env.mjs";
 import { encodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
+import { getProductBaseUrl } from "@/src/utils/base-url";
 import {
   rangeToString,
   type TABLE_AGGREGATION_OPTIONS,
 } from "@/src/utils/date-range-utils";
-
-const LOCALHOST_HOST_PATTERN = /^(localhost|127\.0\.0\.1|\[::1\])(?::|\/|$)/i;
 
 type ProductPathQuery = Record<string, string | string[] | null | undefined>;
 
@@ -40,21 +38,6 @@ type TracesPathParams = {
     type?: string[];
   };
   timeRange?: TracesPathTimeRange;
-};
-
-const getProductBaseUrl = () => {
-  const rawBaseUrl = env.NEXTAUTH_URL;
-  const baseUrl = new URL(
-    /^https?:\/\//i.test(rawBaseUrl)
-      ? rawBaseUrl
-      : `${LOCALHOST_HOST_PATTERN.test(rawBaseUrl) ? "http" : "https"}://${rawBaseUrl}`,
-  );
-
-  baseUrl.pathname = baseUrl.pathname.replace(/\/api\/auth\/?$/, "/");
-  baseUrl.search = "";
-  baseUrl.hash = "";
-
-  return baseUrl;
 };
 
 export const appendProductPathQuery = (

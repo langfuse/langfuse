@@ -68,6 +68,8 @@ export const logInFlightBlobExportsOnShutdown = (): void => {
     // May double with `success` if the export finishes within the grace period.
     recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
       outcome: "aborted" satisfies BlobTableExportOutcome,
+      // Survivors at a graceful shutdown were aborted by the SIGTERM teardown.
+      abortReason: "shutdown",
       table: entry.table,
       projectId: entry.projectId,
     });

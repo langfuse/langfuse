@@ -299,10 +299,10 @@ describe("v4TransitionRouter", () => {
     );
   });
 
-  it("fills minute buckets for a non-special 45 minute timeline", async () => {
+  it("fills 2 minute buckets for a 45 minute timeline", async () => {
     mockedQueryClickhouse.mockResolvedValueOnce([
       {
-        time: "2026-06-24T00:15:00Z",
+        time: "2026-06-24T00:16:00Z",
         entrypoint: "publicapi: GET /api/public/traces",
         count: "8",
       },
@@ -317,24 +317,24 @@ describe("v4TransitionRouter", () => {
       granularity: "auto",
     });
 
-    expect(rows).toHaveLength(46);
-    expect(new Set(rows.map((row) => row.time)).size).toBe(45);
+    expect(rows).toHaveLength(24);
+    expect(new Set(rows.map((row) => row.time)).size).toBe(23);
     expect(rows[0]).toEqual({
       time: "2026-06-24T00:00:00Z",
       entrypoint: "",
       count: 0,
     });
-    expect(rows[15]).toEqual({
-      time: "2026-06-24T00:15:00Z",
+    expect(rows[8]).toEqual({
+      time: "2026-06-24T00:16:00Z",
       entrypoint: "",
       count: 0,
     });
-    expect(rows[16]).toEqual({
-      time: "2026-06-24T00:15:00Z",
+    expect(rows[9]).toEqual({
+      time: "2026-06-24T00:16:00Z",
       entrypoint: "publicapi: GET /api/public/traces",
       count: 8,
     });
-    expect(rows[45]).toEqual({
+    expect(rows[23]).toEqual({
       time: "2026-06-24T00:44:00Z",
       entrypoint: "",
       count: 0,
@@ -342,7 +342,7 @@ describe("v4TransitionRouter", () => {
 
     const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
     expect(clickhouseQuery?.query).toContain(
-      "toStartOfInterval(event_time_microseconds, INTERVAL 1 MINUTE, 'UTC') AS bucket_time",
+      "toStartOfInterval(event_time_microseconds, INTERVAL 2 MINUTE, 'UTC') AS bucket_time",
     );
   });
 
@@ -393,7 +393,7 @@ describe("v4TransitionRouter", () => {
     );
   });
 
-  it("uses minute buckets for a non-special 7 day timeline", async () => {
+  it("uses hour buckets for a 7 day timeline", async () => {
     mockedQueryClickhouse.mockResolvedValueOnce([]);
 
     const caller = createCaller();
@@ -409,7 +409,7 @@ describe("v4TransitionRouter", () => {
 
     const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
     expect(clickhouseQuery?.query).toContain(
-      "toStartOfInterval(event_time_microseconds, INTERVAL 1 MINUTE, 'UTC') AS bucket_time",
+      "toStartOfInterval(event_time_microseconds, INTERVAL 1 HOUR, 'UTC') AS bucket_time",
     );
   });
 
@@ -441,11 +441,8 @@ describe("v4TransitionRouter", () => {
     expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
   });
 
-  it("summarizes trace-level evals and legacy integrations", async () => {
+  it("summarizes legacy integrations", async () => {
     const mockPrisma = {
-      jobConfiguration: {
-        count: vi.fn().mockResolvedValue(3),
-      },
       posthogIntegration: {
         findUnique: vi.fn().mockResolvedValue({
           enabled: true,
@@ -468,7 +465,6 @@ describe("v4TransitionRouter", () => {
     const caller = createCaller(mockPrisma);
 
     await expect(caller.summary({ projectId })).resolves.toEqual({
-      traceLevelEvalCount: 3,
       legacyIntegrationCount: 2,
       legacyIntegrations: {
         posthog: true,
@@ -477,13 +473,6 @@ describe("v4TransitionRouter", () => {
       },
     });
 
-    expect(mockPrisma.jobConfiguration.count).toHaveBeenCalledWith({
-      where: {
-        projectId,
-        jobType: "EVAL",
-        targetObject: "trace",
-      },
-    });
     expect(mockPrisma.posthogIntegration.findUnique).toHaveBeenCalledWith({
       where: { projectId },
       select: { enabled: true, exportSource: true },
@@ -498,11 +487,29 @@ describe("v4TransitionRouter", () => {
     });
   });
 
-  it("does not count disabled legacy integrations", async () => {
+  it("summarizes trace-level evals", async () => {
     const mockPrisma = {
       jobConfiguration: {
-        count: vi.fn().mockResolvedValue(0),
+        count: vi.fn().mockResolvedValue(3),
       },
+    };
+    const caller = createCaller(mockPrisma);
+
+    await expect(caller.traceLevelEvalSummary({ projectId })).resolves.toEqual({
+      traceLevelEvalCount: 3,
+    });
+
+    expect(mockPrisma.jobConfiguration.count).toHaveBeenCalledWith({
+      where: {
+        projectId,
+        jobType: "EVAL",
+        targetObject: "trace",
+      },
+    });
+  });
+
+  it("does not count disabled legacy integrations", async () => {
+    const mockPrisma = {
       posthogIntegration: {
         findUnique: vi.fn().mockResolvedValue({
           enabled: false,
@@ -525,7 +532,6 @@ describe("v4TransitionRouter", () => {
     const caller = createCaller(mockPrisma);
 
     await expect(caller.summary({ projectId })).resolves.toEqual({
-      traceLevelEvalCount: 0,
       legacyIntegrationCount: 1,
       legacyIntegrations: {
         posthog: false,
@@ -535,20 +541,12 @@ describe("v4TransitionRouter", () => {
     });
   });
 
-  it("summarizes v4 migration data by active organization project", async () => {
+  it("summarizes legacy integrations by active organization project", async () => {
     const mockPrisma = {
       project: {
         findMany: vi.fn().mockResolvedValue([
           { id: projectId, name: "V4 Transition Project" },
           { id: secondProjectId, name: "Second Project" },
-        ]),
-      },
-      jobConfiguration: {
-        groupBy: vi.fn().mockResolvedValue([
-          {
-            projectId,
-            _count: { _all: 3 },
-          },
         ]),
       },
       posthogIntegration: {
@@ -591,7 +589,6 @@ describe("v4TransitionRouter", () => {
         {
           projectId,
           projectName: "V4 Transition Project",
-          traceLevelEvalCount: 3,
           legacyIntegrationCount: 1,
           legacyIntegrations: {
             posthog: true,
@@ -602,7 +599,6 @@ describe("v4TransitionRouter", () => {
         {
           projectId: secondProjectId,
           projectName: "Second Project",
-          traceLevelEvalCount: 0,
           legacyIntegrationCount: 1,
           legacyIntegrations: {
             posthog: false,
@@ -624,6 +620,48 @@ describe("v4TransitionRouter", () => {
       },
       orderBy: {
         createdAt: "desc",
+      },
+    });
+  });
+
+  it("summarizes trace-level evals by active organization project", async () => {
+    const mockPrisma = {
+      project: {
+        findMany: vi
+          .fn()
+          .mockResolvedValue([{ id: projectId }, { id: secondProjectId }]),
+      },
+      jobConfiguration: {
+        groupBy: vi.fn().mockResolvedValue([
+          {
+            projectId,
+            _count: { _all: 3 },
+          },
+        ]),
+      },
+    };
+    const caller = createCaller(mockPrisma);
+
+    await expect(
+      caller.traceLevelEvalSummaryByProject({ orgId }),
+    ).resolves.toEqual([
+      {
+        projectId,
+        traceLevelEvalCount: 3,
+      },
+      {
+        projectId: secondProjectId,
+        traceLevelEvalCount: 0,
+      },
+    ]);
+
+    expect(mockPrisma.project.findMany).toHaveBeenCalledWith({
+      where: {
+        orgId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
       },
     });
     expect(mockPrisma.jobConfiguration.groupBy).toHaveBeenCalledWith({
@@ -652,6 +690,14 @@ describe("v4TransitionRouter", () => {
         orgId,
       }),
     ).resolves.toEqual({ projects: [] });
+    await expect(
+      createCaller(
+        mockPrisma,
+        createSessionWithOrgRole("OWNER"),
+      ).traceLevelEvalSummaryByProject({
+        orgId,
+      }),
+    ).resolves.toEqual([]);
 
     await expect(
       createCaller(
@@ -661,6 +707,14 @@ describe("v4TransitionRouter", () => {
         orgId,
       }),
     ).resolves.toEqual({ projects: [] });
+    await expect(
+      createCaller(
+        mockPrisma,
+        createSessionWithOrgRole("ADMIN"),
+      ).traceLevelEvalSummaryByProject({
+        orgId,
+      }),
+    ).resolves.toEqual([]);
   });
 
   it("forbids organization members from accessing org-level v4 data", async () => {
@@ -677,21 +731,17 @@ describe("v4TransitionRouter", () => {
       code: "FORBIDDEN",
     });
     await expect(
-      caller.traceLevelEvalExecutionsTimeSeriesByProject({
+      caller.traceLevelEvalSummaryByProject({
         orgId,
-        fromTimestamp: new Date("2026-06-25T12:00:00Z"),
-        toTimestamp: new Date("2026-06-25T13:00:00Z"),
-        granularity: "auto",
       }),
     ).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
     await expect(
-      caller.timeSeriesByEntrypointByProject({
+      caller.legacyApiUsageSummaryByProject({
         orgId,
         fromTimestamp: new Date("2026-06-24T00:00:00Z"),
         toTimestamp: new Date("2026-06-25T00:00:00Z"),
-        granularity: "auto",
       }),
     ).rejects.toMatchObject({
       code: "FORBIDDEN",
@@ -793,7 +843,7 @@ describe("v4TransitionRouter", () => {
     ]);
   });
 
-  it("uses minute buckets for non-special trace-level eval execution timelines", async () => {
+  it("uses hour buckets for 7 day trace-level eval execution timelines", async () => {
     const mockPrisma = {
       $queryRaw: vi.fn().mockResolvedValue([]),
     };
@@ -811,93 +861,18 @@ describe("v4TransitionRouter", () => {
     const query = mockPrisma.$queryRaw.mock.calls[0]?.[0] as
       | { sql?: string; text?: string; values?: unknown[] }
       | undefined;
-    expect(query?.values?.[0]).toBe("1 minute");
+    expect(query?.values?.[0]).toBe("1 hour");
   });
 
-  it("queries trace-level eval execution counts by organization project", async () => {
-    const mockPrisma = {
-      project: {
-        findMany: vi
-          .fn()
-          .mockResolvedValue([{ id: projectId }, { id: secondProjectId }]),
-      },
-      $queryRaw: vi.fn().mockResolvedValue([
-        {
-          projectId,
-          time: "2026-06-25T12:00:00Z",
-          scoreName: "toxicity",
-          count: 4n,
-        },
-        {
-          projectId: secondProjectId,
-          time: "2026-06-25T12:04:00Z",
-          scoreName: "helpfulness",
-          count: 2,
-        },
-      ]),
-    };
-    const caller = createCaller(mockPrisma);
-
-    const rows = await caller.traceLevelEvalExecutionsTimeSeriesByProject({
-      orgId,
-      fromTimestamp: new Date("2026-06-25T12:00:00Z"),
-      toTimestamp: new Date("2026-06-25T13:00:00Z"),
-      granularity: "auto",
-    });
-
-    expect(rows).toContainEqual({
-      projectId,
-      time: "2026-06-25T12:00:00Z",
-      scoreName: "toxicity",
-      count: 4,
-    });
-    expect(rows).toContainEqual({
-      projectId: secondProjectId,
-      time: "2026-06-25T12:04:00Z",
-      scoreName: "helpfulness",
-      count: 2,
-    });
-    expect(rows.every((row) => Boolean(row.projectId))).toBe(true);
-
-    expect(mockPrisma.project.findMany).toHaveBeenCalledWith({
-      where: {
-        orgId,
-        deletedAt: null,
-      },
-      select: {
-        id: true,
-      },
-    });
-    const query = mockPrisma.$queryRaw.mock.calls[0]?.[0] as
-      | { sql?: string; text?: string; values?: unknown[] }
-      | undefined;
-    const queryText = query?.sql ?? query?.text ?? "";
-
-    expect(queryText).toContain('project_id AS "projectId"');
-    expect(queryText).toContain("je.project_id IN (?,?)");
-    expect(queryText).toContain("bucket_time AT TIME ZONE 'UTC'");
-    expect(queryText).toContain("GROUP BY project_id, bucket_time, score_name");
-    expect(query?.values).toEqual([
-      "2 minutes",
-      projectId,
-      secondProjectId,
-      "trace",
-      new Date("2026-06-25T12:00:00Z"),
-      new Date("2026-06-25T13:00:00Z"),
-    ]);
-  });
-
-  it("queries legacy public API usage by organization project", async () => {
+  it("summarizes legacy public API usage by organization project", async () => {
     mockedQueryClickhouse.mockResolvedValue([
       {
         projectId,
-        time: "2026-06-24T12:00:00Z",
         entrypoint: "publicapi: GET /api/public/traces/{id}",
         count: "0.6666666666666666",
       },
       {
         projectId: secondProjectId,
-        time: "2026-06-24T13:00:00Z",
         entrypoint: "publicapi: GET /api/public/metrics",
         count: 3,
       },
@@ -911,42 +886,29 @@ describe("v4TransitionRouter", () => {
     };
     const caller = createCaller(mockPrisma);
 
-    const rows = await caller.timeSeriesByEntrypointByProject({
+    const rows = await caller.legacyApiUsageSummaryByProject({
       orgId,
       fromTimestamp: new Date("2026-06-24T00:00:00Z"),
       toTimestamp: new Date("2026-06-25T00:00:00Z"),
-      granularity: "auto",
     });
 
-    expect(rows).toHaveLength(50);
-    expect(
-      rows.filter(
-        (row) => row.projectId === projectId && row.entrypoint === "",
-      ),
-    ).toHaveLength(24);
-    expect(
-      rows.filter(
-        (row) => row.projectId === secondProjectId && row.entrypoint === "",
-      ),
-    ).toHaveLength(24);
-    expect(rows).toContainEqual({
-      projectId,
-      time: "2026-06-24T12:00:00Z",
-      entrypoint: "publicapi: GET /api/public/traces/{id}",
-      count: 0.6666666666666666,
-    });
-    expect(rows).toContainEqual({
-      projectId: secondProjectId,
-      time: "2026-06-24T13:00:00Z",
-      entrypoint: "publicapi: GET /api/public/metrics",
-      count: 3,
-    });
+    expect(rows).toEqual([
+      {
+        projectId,
+        entrypoint: "publicapi: GET /api/public/traces/{id}",
+        count: 0.6666666666666666,
+      },
+      {
+        projectId: secondProjectId,
+        entrypoint: "publicapi: GET /api/public/metrics",
+        count: 3,
+      },
+    ]);
 
     expect(mockedQueryClickhouse).toHaveBeenCalledTimes(1);
     const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
-    expect(clickhouseQuery?.query).toContain(
-      "toStartOfInterval(event_time_microseconds, INTERVAL 1 HOUR, 'UTC') AS bucket_time",
-    );
+    expect(clickhouseQuery?.query).not.toContain("toStartOfInterval");
+    expect(clickhouseQuery?.query).not.toContain("bucket_time");
     expect(clickhouseQuery?.query).toContain(
       "JSONExtractString(log_comment, 'projectId') AS project_id",
     );
@@ -955,13 +917,13 @@ describe("v4TransitionRouter", () => {
     );
     expect(clickhouseQuery?.query).toContain("project_id AS projectId");
     expect(clickhouseQuery?.query).toContain(
-      "GROUP BY project_id, bucket_time, legacy_route",
+      "GROUP BY project_id, legacy_route",
     );
     expect(clickhouseQuery?.params).toMatchObject({
       projectIds: [projectId, secondProjectId],
     });
     expect(clickhouseQuery?.tags).toEqual({
-      route: "v4-org-legacy-api-usage",
+      route: "v4-org-legacy-api-usage-summary",
     });
   });
 });

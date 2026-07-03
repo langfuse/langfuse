@@ -378,7 +378,9 @@ export function SupportFormSection({
                         size="default"
                         onClick={() => field.onChange(v)}
                       >
-                        <span className="truncate">{v}</span>
+                        <span className="truncate" title={v}>
+                          {v}
+                        </span>
                       </Button>
                     ))}
                   </RadioGroup>
@@ -573,7 +575,14 @@ export function SupportFormSection({
                   <DropzoneEmptyState>
                     <div className="flex w-full cursor-pointer items-center justify-start gap-2 p-2 text-xs">
                       <Paperclip className="h-4 w-4" />
-                      <span className="truncate">
+                      <span
+                        className="truncate"
+                        title={
+                          hasFiles
+                            ? `${files!.length} file${files!.length > 1 ? "s" : ""} • ${totalMB} MB`
+                            : "Attach files"
+                        }
+                      >
                         {hasFiles
                           ? `${files!.length} file${files!.length > 1 ? "s" : ""} • ${totalMB} MB`
                           : "Attach files"}
@@ -584,7 +593,9 @@ export function SupportFormSection({
                   <DropzoneContent>
                     <div className="flex w-full cursor-pointer items-center justify-start gap-2 p-2 text-xs">
                       <Paperclip className="h-4 w-4" />
-                      <span className="truncate">Attach files</span>
+                      <span className="truncate" title="Attach files">
+                        Attach files
+                      </span>
                     </div>
                   </DropzoneContent>
                 </Dropzone>

@@ -1,0 +1,18 @@
+{
+  "ignore": [".agents/skills/**", "scripts/**", "vitest.workspace.ts"],
+  "ignoreBinaries": ["vitest"],
+  "ignoreWorkspaces": [
+    "web",
+    "worker",
+    "packages/shared",
+    "packages/config-eslint",
+  ],
+  "workspaces": {
+    "ee": {
+      "project": ["src/**/*.ts"],
+    },
+    "packages/eslint-plugin": {
+      "project": ["src/**/*.ts"],
+    },
+  },
+}

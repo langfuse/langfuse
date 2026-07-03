@@ -29,6 +29,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { decomposeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import { cn } from "@/src/utils/tailwind";
+import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 
 type ExperimentGridCellProps = {
   projectId: string;
@@ -205,7 +206,9 @@ const ScoreItem = ({
     <div className="flex items-center justify-between gap-1 text-xs">
       <HoverCard>
         <HoverCardTrigger className="max-w-[50%] cursor-default">
-          <span className="text-muted-foreground block truncate">{name}</span>
+          <span className="text-muted-foreground block truncate" title={name}>
+            {name}
+          </span>
         </HoverCardTrigger>
         <HoverCardContent
           side="left"
@@ -254,7 +257,12 @@ const MetadataItem = ({
 }) => (
   <div className="flex items-center justify-between gap-4 text-xs">
     <span className="text-muted-foreground shrink-0">{label}</span>
-    <div className="min-w-0 truncate">{children}</div>
+    <div
+      className="min-w-0 truncate"
+      title={getPlainTextFromReactNode(children)}
+    >
+      {children}
+    </div>
   </div>
 );
 

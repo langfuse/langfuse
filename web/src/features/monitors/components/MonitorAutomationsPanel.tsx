@@ -133,7 +133,9 @@ export const MonitorAutomationsPanel = ({
                           type={automation.action.type as ActionTypes}
                           className="h-3.5 w-3.5 shrink-0"
                         />
-                        <span className="truncate">{automation.name}</span>
+                        <span className="truncate" title={automation.name}>
+                          {automation.name}
+                        </span>
                       </div>
                     </li>
                   );

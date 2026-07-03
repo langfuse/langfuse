@@ -39,7 +39,7 @@ import {
  * Registers all prompt management tools with the MCP server.
  * Tools are automatically available to MCP clients once registered.
  */
-export const promptsFeature: McpFeatureModule = {
+export const promptsFeature = {
   name: "prompts",
   description:
     "Manage Langfuse prompts - create, retrieve, and update prompt versions",
@@ -48,17 +48,14 @@ export const promptsFeature: McpFeatureModule = {
     {
       definition: getPromptTool,
       handler: handleGetPrompt,
-      allowInAppAgentKey: true,
     },
     {
       definition: getPromptUnresolvedTool,
       handler: handleGetPromptUnresolved,
-      allowInAppAgentKey: true,
     },
     {
       definition: listPromptsTool,
       handler: handleListPrompts,
-      allowInAppAgentKey: true,
     },
     {
       definition: createTextPromptTool,
@@ -79,4 +76,4 @@ export const promptsFeature: McpFeatureModule = {
   //   // Example: Check entitlements, feature flags, etc.
   //   return true;
   // },
-};
+} as const satisfies McpFeatureModule;

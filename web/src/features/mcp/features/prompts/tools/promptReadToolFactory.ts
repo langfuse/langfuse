@@ -57,14 +57,16 @@ const buildPromptNotFoundMessage = (params: {
   return `Prompt '${name}' not found${label ? ` with label '${label}'` : ""}${version ? ` with version ${version}` : ""}`;
 };
 
-type CreatePromptReadToolOptions = {
-  name: string;
+type CreatePromptReadToolOptions<TName extends string> = {
+  name: TName;
   description: string;
   resolve: boolean;
   spanName: string;
 };
 
-export const createPromptReadTool = (options: CreatePromptReadToolOptions) => {
+export const createPromptReadTool = <const TName extends string>(
+  options: CreatePromptReadToolOptions<TName>,
+) => {
   const { name, description, resolve, spanName } = options;
 
   return defineTool({

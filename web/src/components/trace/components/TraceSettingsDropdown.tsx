@@ -26,7 +26,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuLabel,
 } from "@/src/components/ui/dropdown-menu";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useViewPreferences } from "../contexts/ViewPreferencesContext";
@@ -212,7 +212,6 @@ export function TraceViewOptionsMenuItems({
               checked={colorCodeMetrics}
               onCheckedChange={setColorCodeMetrics}
               disabled={!isColorCodeEnabled}
-              className={cn(!isColorCodeEnabled && "cursor-not-allowed")}
             />
           </div>
         </DropdownMenuItem>

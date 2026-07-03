@@ -307,7 +307,10 @@ export function SetPromptVersionLabels({
                       disabled={!isValidNewLabel}
                       onClick={handleCreateLabel}
                     >
-                      <span className="truncate">
+                      <span
+                        className="truncate"
+                        title={`Create a new label: ${trimmedSearch}`}
+                      >
                         Create a new label:{" "}
                         <strong className="text-foreground">
                           {trimmedSearch}

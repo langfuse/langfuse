@@ -139,6 +139,12 @@ export function instrumentSync<T>(
 
 export const getCurrentSpan = () => opentelemetry.trace.getActiveSpan();
 
+export const addTagsToCurrentSpan = (
+  attributes: Parameters<opentelemetry.Span["setAttributes"]>[0],
+) => {
+  getCurrentSpan()?.setAttributes(attributes);
+};
+
 export const traceException = (
   ex: unknown,
   span?: opentelemetry.Span,

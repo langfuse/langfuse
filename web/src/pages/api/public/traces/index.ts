@@ -16,6 +16,7 @@ import {
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { processEventBatch } from "@langfuse/shared/src/server";
 import {
+  createIngestionAttribution,
   eventTypes,
   logger,
   traceDeletionProcessor,
@@ -42,7 +43,7 @@ export default withMiddlewares(
       // Legacy POST writes a trace-create event that lands in the legacy traces
       // ClickHouse table; events_only deployments expect OTel ingestion.
       rejectInEventsOnlyMode: true,
-      fn: async ({ body, auth, res }) => {
+      fn: async ({ body, auth, req, res }) => {
         await telemetry();
         const event = {
           id: v4(),
@@ -53,7 +54,12 @@ export default withMiddlewares(
         if (!event.body.id) {
           event.body.id = v4();
         }
-        const result = await processEventBatch([event], auth);
+        const result = await processEventBatch([event], auth, {
+          attribution: createIngestionAttribution({
+            headers: req.headers,
+            authCheck: auth,
+          }),
+        });
         if (result.errors.length > 0) {
           const error = result.errors[0];
           res

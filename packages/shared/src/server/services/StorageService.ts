@@ -507,12 +507,12 @@ class AzureBlobStorageService implements StorageService {
     readableStream: NodeJS.ReadableStream,
   ): Promise<string> {
     return new Promise((resolve, reject) => {
-      const chunks: string[] = [];
+      const chunks: Buffer[] = [];
       readableStream.on("data", (data) => {
-        chunks.push(data.toString());
+        chunks.push(Buffer.isBuffer(data) ? data : Buffer.from(data));
       });
       readableStream.on("end", () => {
-        resolve(chunks.join(""));
+        resolve(Buffer.concat(chunks).toString("utf-8"));
       });
       readableStream.on("error", reject);
     });
@@ -1159,6 +1159,17 @@ class GoogleCloudStorageService implements StorageService {
     ttlSeconds: number,
     asAttachment = false,
   ): Promise<string> {
+    return backOff(
+      () => this.getSignedUrlNonRetrying(fileName, ttlSeconds, asAttachment),
+      { numOfAttempts: 3 },
+    );
+  }
+
+  async getSignedUrlNonRetrying(
+    fileName: string,
+    ttlSeconds: number,
+    asAttachment = false,
+  ): Promise<string> {
     try {
       const file = this.bucket.file(fileName);
 
@@ -1184,6 +1195,18 @@ class GoogleCloudStorageService implements StorageService {
   }
 
   public async getSignedUploadUrl(params: {
+    path: string;
+    ttlSeconds: number;
+    sha256Hash: string;
+    contentType: string;
+    contentLength: number;
+  }): Promise<string> {
+    return backOff(() => this.getSignedUploadUrlNonRetrying(params), {
+      numOfAttempts: 3,
+    });
+  }
+
+  async getSignedUploadUrlNonRetrying(params: {
     path: string;
     ttlSeconds: number;
     sha256Hash: string;

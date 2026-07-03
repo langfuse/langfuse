@@ -1,27 +1,8 @@
-import { LLMAdapter } from "@langfuse/shared/src/server";
 import { Langfuse } from "langfuse";
-import { env } from "@/src/env.mjs";
 import { type FilterCondition, singleFilter } from "@langfuse/shared";
 import { z } from "zod";
 
 let langfuseClient: Langfuse | null = null;
-
-export function getDefaultModelParams() {
-  // Intentionally omit `temperature` and `top_p`: newer Bedrock models such as
-  // Claude Opus 4.8 reject these inference params with a ValidationException
-  // ("'temperature' is deprecated for this model"), which surfaces as a 500 on
-  // `naturalLanguageFilters.createCompletion`. Omitting them is robust across
-  // models (older models simply fall back to their defaults), and NL filter
-  // generation works fine at model defaults. We only cap output length.
-  // Note: the param keys are `max_tokens`/`top_p` (snake_case) per ModelParams;
-  // the previous camelCase `maxTokens`/`topP` were silently dropped.
-  return {
-    provider: "bedrock",
-    adapter: LLMAdapter.Bedrock,
-    model: env.LANGFUSE_AWS_BEDROCK_MODEL ?? "",
-    max_tokens: 1000,
-  };
-}
 
 const FilterArraySchema = z.array(singleFilter);
 

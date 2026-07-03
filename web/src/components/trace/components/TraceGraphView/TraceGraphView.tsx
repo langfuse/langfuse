@@ -7,9 +7,11 @@
 
 import { TraceGraphView as TraceGraphViewComponent } from "@/src/features/trace-graph-view/components/TraceGraphView";
 import { useTraceGraphData } from "../../contexts/TraceGraphDataContext";
+import { useActiveObservationIds } from "../../contexts/PlayheadContext";
 
 export function TraceGraphView() {
   const { agentGraphData, isLoading } = useTraceGraphData();
+  const activeObservationIds = useActiveObservationIds();
 
   if (isLoading) {
     return (
@@ -23,5 +25,10 @@ export function TraceGraphView() {
     return null;
   }
 
-  return <TraceGraphViewComponent agentGraphData={agentGraphData} />;
+  return (
+    <TraceGraphViewComponent
+      agentGraphData={agentGraphData}
+      activeObservationIds={activeObservationIds}
+    />
+  );
 }

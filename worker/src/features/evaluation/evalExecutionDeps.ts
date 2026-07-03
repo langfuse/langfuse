@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { z } from "zod";
 import { JobExecutionStatus } from "@prisma/client";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -9,10 +10,12 @@ import {
   LLMAdapter,
   QueueJobs,
   ScoreEventType,
+  UNKNOWN_INGESTION_SDK_VALUE,
 } from "@langfuse/shared/src/server";
 import { buildEvalMessages } from "./evalRuntime";
 import { getEvalS3StorageClient } from "./s3StorageClient";
 import { createInternalEventsWriter } from "../internal-tracing/createInternalEventsWriter";
+import { recordExportVolume } from "../../services/exportVolumeMetric";
 
 type StructuredOutputSchema = NonNullable<
   Parameters<typeof fetchLLMCompletion>[0]["structuredOutputSchema"]
@@ -130,6 +133,15 @@ export interface EvalExecutionDeps {
   ) => Promise<ModelConfigResult>;
 }
 
+// Measure the schema as the JSON Schema LangChain ships, not Zod's _def.
+function serializeSchemaForEgress(schema: unknown): string {
+  try {
+    return JSON.stringify(z.toJSONSchema(schema as z.ZodType));
+  } catch {
+    return JSON.stringify(schema);
+  }
+}
+
 /**
  * Creates the production implementation of eval execution dependencies.
  * This is the default implementation used in production code.
@@ -179,6 +191,9 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
             eventBodyId: params.scoreId,
             fileKey: params.eventId,
             bucketPrefix,
+            ingestionApiKey: "",
+            ingestionSdkName: UNKNOWN_INGESTION_SDK_VALUE,
+            ingestionSdkVersion: UNKNOWN_INGESTION_SDK_VALUE,
           },
           authCheck: {
             validKey: true,
@@ -202,7 +217,17 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         typeof fetchLLMCompletion
       >[0]["modelParams"]["adapter"];
 
-      return fetchLLMCompletion({
+      // llmaj egress: serialized request body (messages + schema), uncompressed.
+      const bytes =
+        Buffer.byteLength(JSON.stringify(params.messages), "utf8") +
+        (params.structuredOutputSchema
+          ? Buffer.byteLength(
+              serializeSchemaForEgress(params.structuredOutputSchema),
+              "utf8",
+            )
+          : 0);
+
+      const result = await fetchLLMCompletion({
         streaming: false,
         llmConnection,
         messages: params.messages,
@@ -223,6 +248,15 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
           eventsWriter: createInternalEventsWriter(),
         },
       });
+
+      // Record only after a successful send, like the other integrations.
+      recordExportVolume({
+        integration: "llmaj",
+        bytes,
+        projectId: params.traceSinkParams.targetProjectId,
+      });
+
+      return result;
     },
 
     fetchModelConfig: async ({ projectId, provider, model, modelParams }) => {

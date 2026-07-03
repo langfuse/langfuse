@@ -141,6 +141,7 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
                     density="comfortable"
                     text={apiKey.publicKey}
                     className="truncate font-mono"
+                    title={apiKey.publicKey}
                   />
                   <TableCell density="comfortable" className="font-mono">
                     {apiKey.displaySecretKey}

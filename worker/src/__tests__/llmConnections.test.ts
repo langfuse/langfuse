@@ -1,6 +1,7 @@
 import { describe, test, expect } from "vitest";
 import {
   fetchLLMCompletion,
+  isLLMCompletionError,
   type CompletionWithReasoning,
 } from "@langfuse/shared/src/server";
 import { encrypt } from "@langfuse/shared/encryption";
@@ -46,6 +47,54 @@ type TestLLMConnection = {
   baseURL?: string | null;
   config?: Record<string, string> | null;
 };
+
+const googleAIStudioFallbackModels = [
+  "gemini-3.1-flash-lite",
+  "gemini-2.5-flash",
+  "gemini-3.5-flash",
+] as const;
+
+async function runWithGoogleAIStudioModelFallback<T>(
+  operation: (model: string) => Promise<T>,
+): Promise<T> {
+  let lastError: unknown;
+
+  for (const [index, model] of googleAIStudioFallbackModels.entries()) {
+    try {
+      return await operation(model);
+    } catch (error) {
+      lastError = error;
+
+      if (
+        index === googleAIStudioFallbackModels.length - 1 ||
+        !isRetryableProviderError(error)
+      ) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+function isRetryableProviderError(error: unknown): boolean {
+  if (isLLMCompletionError(error)) return error.isRetryable;
+
+  if (!error || typeof error !== "object") return false;
+
+  const errorLike = error as {
+    response?: { status?: unknown };
+    status?: unknown;
+    statusCode?: unknown;
+  };
+  const statusCode = [
+    errorLike.response?.status,
+    errorLike.status,
+    errorLike.statusCode,
+  ].find((code): code is number => typeof code === "number");
+
+  return statusCode === 429 || (statusCode !== undefined && statusCode >= 500);
+}
 
 const numericEvalResponseSchema = z.object({
   score: z.number(),
@@ -130,9 +179,10 @@ const evalStructuredOutputTestCases: EvalStructuredOutputTestCase[] = [
 
 function registerEvalStructuredOutputTests(params: {
   checkEnv: () => void;
-  getModelParams: () => ModelParams;
+  getModelParams: (model?: string) => ModelParams;
   getLLMConnection: () => TestLLMConnection;
   timeoutMs: number;
+  runWithModel?: <T>(operation: (model?: string) => Promise<T>) => Promise<T>;
 }) {
   evalStructuredOutputTestCases.forEach((testCase) => {
     test(
@@ -140,21 +190,25 @@ function registerEvalStructuredOutputTests(params: {
       async () => {
         params.checkEnv();
 
-        const completion = await fetchLLMCompletion({
-          streaming: false,
-          messages: [
-            {
-              role: "user",
-              content: testCase.prompt,
-              type: ChatMessageType.PublicAPICreated,
-            },
-          ],
-          modelParams: params.getModelParams(),
-          structuredOutputSchema: buildEvalOutputResultSchema(
-            testCase.outputDefinition,
-          ),
-          llmConnection: params.getLLMConnection(),
-        });
+        const completion = await (
+          params.runWithModel ?? ((operation) => operation())
+        )((model) =>
+          fetchLLMCompletion({
+            streaming: false,
+            messages: [
+              {
+                role: "user",
+                content: testCase.prompt,
+                type: ChatMessageType.PublicAPICreated,
+              },
+            ],
+            modelParams: params.getModelParams(model),
+            structuredOutputSchema: buildEvalOutputResultSchema(
+              testCase.outputDefinition,
+            ),
+            llmConnection: params.getLLMConnection(),
+          }),
+        );
 
         const parsed = testCase.responseSchema.safeParse(completion);
         expect(parsed.success).toBe(true);
@@ -1095,8 +1149,6 @@ describe("LLM Connection Tests", () => {
   });
 
   describe("GoogleAIStudio", () => {
-    const MODEL = "gemini-2.5-flash-lite";
-
     const checkEnvVar = () => {
       if (!process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY) {
         throw new Error(
@@ -1110,28 +1162,30 @@ describe("LLM Connection Tests", () => {
     test("simple completion", async () => {
       checkEnvVar();
 
-      const completion = await fetchLLMCompletion({
-        streaming: false,
-        messages: [
-          {
-            role: "user",
-            content: "What is 2+2? Answer only with the number.",
-            type: ChatMessageType.PublicAPICreated,
+      const completion = await runWithGoogleAIStudioModelFallback((model) =>
+        fetchLLMCompletion({
+          streaming: false,
+          messages: [
+            {
+              role: "user",
+              content: "What is 2+2? Answer only with the number.",
+              type: ChatMessageType.PublicAPICreated,
+            },
+          ],
+          modelParams: {
+            provider: "google-ai-studio",
+            adapter: LLMAdapter.GoogleAIStudio,
+            model,
+            temperature: 0,
+            max_tokens: 10,
           },
-        ],
-        modelParams: {
-          provider: "google-ai-studio",
-          adapter: LLMAdapter.GoogleAIStudio,
-          model: MODEL,
-          temperature: 0,
-          max_tokens: 10,
-        },
-        llmConnection: {
-          secretKey: encrypt(
-            process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
-          ),
-        },
-      });
+          llmConnection: {
+            secretKey: encrypt(
+              process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+            ),
+          },
+        }),
+      );
 
       // GoogleAIStudio always returns CompletionWithReasoning (text + optional reasoning)
       expect(typeof completion).toBe("object");
@@ -1141,48 +1195,50 @@ describe("LLM Connection Tests", () => {
     test("streaming completion", async () => {
       checkEnvVar();
 
-      const stream = await fetchLLMCompletion({
-        streaming: true,
-        messages: [
-          {
-            role: "user",
-            content: "What is 2+2? Answer only with the number.",
-            type: ChatMessageType.PublicAPICreated,
+      await runWithGoogleAIStudioModelFallback(async (model) => {
+        const stream = await fetchLLMCompletion({
+          streaming: true,
+          messages: [
+            {
+              role: "user",
+              content: "What is 2+2? Answer only with the number.",
+              type: ChatMessageType.PublicAPICreated,
+            },
+          ],
+          modelParams: {
+            provider: "google-ai-studio",
+            adapter: LLMAdapter.GoogleAIStudio,
+            model,
+            temperature: 0,
+            max_tokens: 10,
           },
-        ],
-        modelParams: {
-          provider: "google-ai-studio",
-          adapter: LLMAdapter.GoogleAIStudio,
-          model: MODEL,
-          temperature: 0,
-          max_tokens: 10,
-        },
-        llmConnection: {
-          secretKey: encrypt(
-            process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
-          ),
-        },
+          llmConnection: {
+            secretKey: encrypt(
+              process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+            ),
+          },
+        });
+
+        const decoder = new TextDecoder();
+        let fullResponse = "";
+        let chunkCount = 0;
+
+        for await (const chunk of stream) {
+          fullResponse += decoder.decode(chunk);
+          chunkCount++;
+        }
+
+        expect(chunkCount).toBeGreaterThan(0);
+        expect(fullResponse).toContain("4");
       });
-
-      const decoder = new TextDecoder();
-      let fullResponse = "";
-      let chunkCount = 0;
-
-      for await (const chunk of stream) {
-        fullResponse += decoder.decode(chunk);
-        chunkCount++;
-      }
-
-      expect(chunkCount).toBeGreaterThan(0);
-      expect(fullResponse).toContain("4");
     }, 30_000);
 
     registerEvalStructuredOutputTests({
       checkEnv: checkEnvVar,
-      getModelParams: () => ({
+      getModelParams: (model = googleAIStudioFallbackModels[0]) => ({
         provider: "google-ai-studio",
         adapter: LLMAdapter.GoogleAIStudio,
-        model: MODEL,
+        model,
         temperature: 0,
         max_tokens: 200,
       }),
@@ -1192,34 +1248,37 @@ describe("LLM Connection Tests", () => {
         ),
       }),
       timeoutMs: 30_000,
+      runWithModel: runWithGoogleAIStudioModelFallback,
     });
 
     test("tool calling", async () => {
       checkEnvVar();
 
-      const completion = await fetchLLMCompletion({
-        streaming: false,
-        messages: [
-          {
-            role: "user",
-            content: "What's the weather like in Paris?",
-            type: ChatMessageType.PublicAPICreated,
+      const completion = await runWithGoogleAIStudioModelFallback((model) =>
+        fetchLLMCompletion({
+          streaming: false,
+          messages: [
+            {
+              role: "user",
+              content: "What's the weather like in Paris?",
+              type: ChatMessageType.PublicAPICreated,
+            },
+          ],
+          modelParams: {
+            provider: "google-ai-studio",
+            adapter: LLMAdapter.GoogleAIStudio,
+            model,
+            temperature: 0,
+            max_tokens: 100,
           },
-        ],
-        modelParams: {
-          provider: "google-ai-studio",
-          adapter: LLMAdapter.GoogleAIStudio,
-          model: MODEL,
-          temperature: 0,
-          max_tokens: 100,
-        },
-        tools: [weatherTool],
-        llmConnection: {
-          secretKey: encrypt(
-            process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
-          ),
-        },
-      });
+          tools: [weatherTool],
+          llmConnection: {
+            secretKey: encrypt(
+              process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+            ),
+          },
+        }),
+      );
 
       expect(completion).toHaveProperty("tool_calls");
       expect(Array.isArray(completion.tool_calls)).toBe(true);
@@ -1234,28 +1293,30 @@ describe("LLM Connection Tests", () => {
       // Regression test: Text prompts create a single system message.
       // GoogleAIStudio must convert it to a user message to prevent:
       // "GenerateContentRequest.contents is not specified" error
-      const completion = await fetchLLMCompletion({
-        streaming: false,
-        messages: [
-          {
-            role: "system",
-            content: "What is 2+2? Answer only with the number.",
-            type: ChatMessageType.System,
+      const completion = await runWithGoogleAIStudioModelFallback((model) =>
+        fetchLLMCompletion({
+          streaming: false,
+          messages: [
+            {
+              role: "system",
+              content: "What is 2+2? Answer only with the number.",
+              type: ChatMessageType.System,
+            },
+          ],
+          modelParams: {
+            provider: "google-ai-studio",
+            adapter: LLMAdapter.GoogleAIStudio,
+            model,
+            temperature: 0,
+            max_tokens: 10,
           },
-        ],
-        modelParams: {
-          provider: "google-ai-studio",
-          adapter: LLMAdapter.GoogleAIStudio,
-          model: MODEL,
-          temperature: 0,
-          max_tokens: 10,
-        },
-        llmConnection: {
-          secretKey: encrypt(
-            process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
-          ),
-        },
-      });
+          llmConnection: {
+            secretKey: encrypt(
+              process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+            ),
+          },
+        }),
+      );
 
       // GoogleAIStudio always returns CompletionWithReasoning
       expect(typeof completion).toBe("object");

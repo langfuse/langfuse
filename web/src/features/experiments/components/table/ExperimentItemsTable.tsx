@@ -798,9 +798,11 @@ export default function ExperimentItemsTable({
               const expOption = selectedExperimentNames.find(
                 (e) => e.experimentId === exp.experimentId,
               );
+              const experimentLabel =
+                expOption?.experimentName ?? exp.experimentId.slice(0, 8);
               return (
-                <span className="truncate text-xs">
-                  {expOption?.experimentName ?? exp.experimentId.slice(0, 8)}
+                <span className="truncate text-xs" title={experimentLabel}>
+                  {experimentLabel}
                 </span>
               );
             }}

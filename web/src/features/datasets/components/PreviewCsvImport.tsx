@@ -202,7 +202,10 @@ export function PreviewCsvImport({
                     <div className="bg-background flex cursor-grabbing items-center gap-2 rounded-md border p-2 shadow-xl">
                       <GripVertical className="text-muted-foreground/70 h-4 w-4 shrink-0" />
                       <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                        <span className="truncate text-sm">
+                        <span
+                          className="truncate text-sm"
+                          title={dragAndDrop.activeColumn}
+                        >
                           {dragAndDrop.activeColumn}
                         </span>
                         <span className="text-muted-foreground shrink-0 text-xs">

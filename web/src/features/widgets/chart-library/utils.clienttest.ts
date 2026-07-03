@@ -1,6 +1,7 @@
 import {
   formatMetric,
   getDimensionSummaries,
+  getEvenTickInterval,
 } from "@/src/features/widgets/chart-library/utils";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 
@@ -257,5 +258,25 @@ describe("getDimensionSummaries", () => {
 
     expect(summaries.has("")).toBe(false);
     expect(summaries.get("histo")).toBeNull();
+  });
+});
+
+describe("getEvenTickInterval", () => {
+  it("shows every tick when the point count fits the target", () => {
+    expect(getEvenTickInterval(7)).toBe(0);
+    expect(getEvenTickInterval(8)).toBe(0);
+    expect(getEvenTickInterval(0)).toBe(0);
+  });
+
+  it("skips ticks evenly past the target so gaps stay uniform", () => {
+    // 14 daily points -> show every 2nd (6/1, 6/3, … — no width-dependent drop).
+    expect(getEvenTickInterval(14)).toBe(1);
+    expect(getEvenTickInterval(9)).toBe(1);
+    expect(getEvenTickInterval(30)).toBe(3);
+  });
+
+  it("honors a custom max tick target", () => {
+    expect(getEvenTickInterval(12, 6)).toBe(1);
+    expect(getEvenTickInterval(6, 6)).toBe(0);
   });
 });

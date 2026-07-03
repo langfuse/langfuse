@@ -2,11 +2,13 @@ import {
   ToolCallDefinitionCard,
   type ToolDefinition,
 } from "./ToolCallDefinitionCard";
+import type { ToolCallInvocation } from "../hooks/useChatMLParser";
 
 // SectionToolDefinitions props
 export interface SectionToolDefinitionsProps {
   tools: ToolDefinition[];
   toolCallCounts: Map<string, number>;
+  toolCallsByName: Map<string, ToolCallInvocation[]>;
   toolNameToDefinitionNumber: Map<string, number>;
 }
 
@@ -18,6 +20,7 @@ export interface SectionToolDefinitionsProps {
 export function SectionToolDefinitions({
   tools,
   toolCallCounts,
+  toolCallsByName,
   toolNameToDefinitionNumber,
 }: SectionToolDefinitionsProps) {
   if (tools.length === 0) {
@@ -33,6 +36,7 @@ export function SectionToolDefinitions({
         <ToolCallDefinitionCard
           tools={tools}
           toolCallCounts={toolCallCounts}
+          toolCallsByName={toolCallsByName}
           toolNameToDefinitionNumber={toolNameToDefinitionNumber}
           className="px-2"
         />

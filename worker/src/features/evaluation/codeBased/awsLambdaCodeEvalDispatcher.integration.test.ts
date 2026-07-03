@@ -131,4 +131,51 @@ describeWithFloci("AwsLambdaCodeEvalDispatcher Floci integration", () => {
     },
     FLOCI_TEST_TIMEOUT_MS,
   );
+
+  it(
+    "formats Python exceptions with type and evaluator line number",
+    async () => {
+      // Line 4 of the source raises; str(KeyError) alone would be just "'beer'".
+      await expect(
+        dispatcher.dispatch({
+          ...baseInput,
+          runtime: { language: "PYTHON" },
+          code: {
+            source: `
+def evaluate(ctx):
+    data = {"output": ctx.observation.output}
+    return data["beer"]
+`,
+          },
+        }),
+      ).rejects.toMatchObject({
+        code: "USER_CODE_ERROR",
+        message: "KeyError: 'beer' (line 4)",
+        retryable: false,
+      } satisfies Partial<CodeEvalDispatcherError>);
+    },
+    FLOCI_TEST_TIMEOUT_MS,
+  );
+
+  it(
+    "prefixes non-generic error names from the Node runner",
+    async () => {
+      await expect(
+        dispatcher.dispatch({
+          ...baseInput,
+          runtime: { language: "TYPESCRIPT" },
+          code: {
+            source: `function evaluate(ctx: any) { return ctx.observation.missing.deeply; }`,
+          },
+        }),
+      ).rejects.toMatchObject({
+        code: "USER_CODE_ERROR",
+        message: expect.stringMatching(
+          /^TypeError: Cannot read properties of undefined/,
+        ),
+        retryable: false,
+      } satisfies Partial<CodeEvalDispatcherError>);
+    },
+    FLOCI_TEST_TIMEOUT_MS,
+  );
 });

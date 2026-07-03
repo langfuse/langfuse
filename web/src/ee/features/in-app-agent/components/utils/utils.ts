@@ -1,10 +1,9 @@
 import { z } from "zod";
 import type { InAppAgentWindowMessage } from "../InAppAgentWindow";
-import type {
-  InAppAgentMessageContent,
-  InAppAgentToolCallContent,
-} from "../InAppAgentMessage";
+import type { InAppAgentPendingToolApproval } from "../InAppAiAgentProvider";
+import type { InAppAgentMessageContent } from "../InAppAgentMessage";
 import { deduplicateBy } from "@/src/utils/arrays";
+import { stableJsonStringify } from "@/src/utils/json";
 import {
   AgUiMessageSchema,
   type AgUiMessage,
@@ -13,6 +12,18 @@ import {
   InAppAgentMessageSourceSchema,
 } from "@/src/ee/features/in-app-agent/schema";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
+
+export type InAppAgentToolCallContent = {
+  type: "tool";
+  name: string;
+  args: string;
+  result?: string;
+  error?: string;
+  approval?: {
+    id: string;
+    status: "pending" | "submitting";
+  };
+};
 
 const LangfuseDocsDocumentSchema = z.object({
   type: z.literal("document"),
@@ -69,13 +80,20 @@ export function getDrawerMessages({
   error,
   isRunning,
   messages,
+  pendingToolApprovals = [],
 }: {
   error: unknown;
   isRunning: boolean;
   messages: unknown;
+  pendingToolApprovals?: readonly InAppAgentPendingToolApproval[];
 }): InAppAgentWindowMessage[] {
   const parsedMessages = z.array(AgUiMessageSchema).parse(messages);
   const toolResults = getToolResultsByToolCallId(parsedMessages);
+  const resolvedToolCallIds = new Set(toolResults.keys());
+  const pendingApprovalsByToolCallId = new Map(
+    pendingToolApprovals.map((approval) => [approval.id, approval]),
+  );
+  const mappedPendingApprovalIds = new Set<string>();
 
   const mappedMessages: InAppAgentWindowMessage[] = [];
   let pendingTools: InAppAgentToolCallContent[] = [];
@@ -180,12 +198,32 @@ export function getDrawerMessages({
               }
 
               const result = toolResults.get(toolCall.id);
+              const pendingApproval = result
+                ? undefined
+                : findPendingApprovalForToolCall({
+                    toolCall,
+                    pendingApprovals: pendingToolApprovals,
+                    pendingApprovalsByToolCallId,
+                    mappedPendingApprovalIds,
+                  });
+
+              if (pendingApproval) {
+                mappedPendingApprovalIds.add(pendingApproval.id);
+              }
 
               return [
                 {
                   type: "tool",
                   name: toolCall.function.name,
                   args: toolCall.function.arguments,
+                  ...(pendingApproval
+                    ? {
+                        approval: {
+                          id: pendingApproval.id,
+                          status: pendingApproval.status,
+                        },
+                      }
+                    : {}),
                   ...(result?.content !== undefined
                     ? { result: result.content }
                     : {}),
@@ -258,6 +296,35 @@ export function getDrawerMessages({
 
   flushPendingTools();
 
+  for (const approval of pendingToolApprovals) {
+    if (
+      mappedPendingApprovalIds.has(approval.id) ||
+      resolvedToolCallIds.has(approval.id) ||
+      resolvedToolCallIds.has(approval.approvalRequest.toolCallId)
+    ) {
+      continue;
+    }
+
+    mappedMessages.push({
+      id: `tool-approval-${approval.id}`,
+      role: "assistant",
+      content: {
+        type: "toolGroup",
+        tools: [
+          {
+            type: "tool",
+            name: approval.approvalRequest.toolName,
+            args: stringifyToolArgs(approval.approvalRequest.args),
+            approval: {
+              id: approval.id,
+              status: approval.status,
+            },
+          },
+        ],
+      },
+    });
+  }
+
   const latestUserMessageIndex = mappedMessages.findLastIndex(
     (message) => message.role === "user",
   );
@@ -305,6 +372,56 @@ export function getDrawerMessages({
   }
 
   return mappedMessages;
+}
+
+function stringifyToolArgs(args: unknown) {
+  if (typeof args === "string") {
+    return args;
+  }
+
+  try {
+    return JSON.stringify(args ?? {});
+  } catch {
+    return "{}";
+  }
+}
+
+function findPendingApprovalForToolCall({
+  toolCall,
+  pendingApprovals,
+  pendingApprovalsByToolCallId,
+  mappedPendingApprovalIds,
+}: {
+  toolCall: Extract<AgUiMessage, { role: "assistant" }>["toolCalls"] extends
+    | Array<infer TToolCall>
+    | undefined
+    ? TToolCall
+    : never;
+  pendingApprovals: readonly InAppAgentPendingToolApproval[];
+  pendingApprovalsByToolCallId: ReadonlyMap<
+    string,
+    InAppAgentPendingToolApproval
+  >;
+  mappedPendingApprovalIds: ReadonlySet<string>;
+}) {
+  const exactMatch = pendingApprovalsByToolCallId.get(toolCall.id);
+
+  if (exactMatch) {
+    return exactMatch;
+  }
+
+  const toolArgsFingerprint = stableJsonStringify(
+    parseJsonString(toolCall.function.arguments) ?? toolCall.function.arguments,
+  );
+  const matchingApprovals = pendingApprovals.filter(
+    (approval) =>
+      !mappedPendingApprovalIds.has(approval.id) &&
+      approval.approvalRequest.toolName === toolCall.function.name &&
+      stableJsonStringify(approval.approvalRequest.args) ===
+        toolArgsFingerprint,
+  );
+
+  return matchingApprovals.length === 1 ? matchingApprovals[0] : undefined;
 }
 
 function getToolResultsByToolCallId(messages: readonly AgUiMessage[]) {

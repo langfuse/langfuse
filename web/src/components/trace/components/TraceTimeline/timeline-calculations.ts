@@ -157,3 +157,67 @@ export function calculateStepSize(
 export function getPredefinedStepSizes(): number[] {
   return [...PREDEFINED_STEP_SIZES];
 }
+
+// Horizontal reveal on selection: a bar counts as visible only if it sits at
+// least this far inside the viewport; when revealed, it lands this fraction
+// from the left edge.
+export const REVEAL_MARGIN_PX = 16;
+export const REVEAL_LEFT_FRACTION = 0.2;
+
+/**
+ * Scroll target that brings a selected row fully into view on BOTH axes with a
+ * single scrollTo (two competing smooth animations on one element clobber each
+ * other — the vertical one re-fires as it settles and resets the horizontal).
+ *
+ * Vertical: initial load centers the row; later selections scroll the minimum
+ * (above the fold → align top, below → align bottom, visible → unchanged).
+ * Horizontal: no-op while the bar start sits comfortably in view, else land it
+ * REVEAL_LEFT_FRACTION from the left edge.
+ *
+ * Pure — see timeline-calculations.clienttest.ts.
+ */
+export function computeSelectionScrollTarget(args: {
+  index: number;
+  rowHeight: number;
+  scrollTop: number;
+  scrollLeft: number;
+  clientHeight: number;
+  clientWidth: number;
+  /** Bar start offset in content px; null = no horizontal component. */
+  barStart: number | null;
+  isInitial: boolean;
+}): { top: number; left: number } {
+  const {
+    index,
+    rowHeight,
+    scrollTop,
+    scrollLeft,
+    clientHeight,
+    clientWidth,
+    barStart,
+    isInitial,
+  } = args;
+
+  const rowTop = index * rowHeight;
+  let top = scrollTop;
+  if (isInitial) {
+    top = rowTop - (clientHeight - rowHeight) / 2; // center on load
+  } else if (rowTop < scrollTop) {
+    top = rowTop; // above the fold → align to top
+  } else if (rowTop + rowHeight > scrollTop + clientHeight) {
+    top = rowTop - clientHeight + rowHeight; // below → align to bottom
+  }
+
+  let left = scrollLeft;
+  if (barStart != null) {
+    const viewRight = scrollLeft + clientWidth;
+    if (
+      barStart < scrollLeft + REVEAL_MARGIN_PX ||
+      barStart > viewRight - REVEAL_MARGIN_PX
+    ) {
+      left = Math.max(0, barStart - clientWidth * REVEAL_LEFT_FRACTION);
+    }
+  }
+
+  return { top: Math.max(0, top), left };
+}

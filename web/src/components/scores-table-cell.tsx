@@ -34,7 +34,9 @@ const ScoreValueCounts = ({
 }) => {
   return valueCounts.map(({ value, count }, index) => (
     <span key={value} className="inline-block">
-      <span className="truncate">{value}</span>
+      <span className="truncate" title={value}>
+        {value}
+      </span>
       <span>{`: ${numberFormatter(count, 0)}`}</span>
       {index < valueCounts.length - 1 && (
         <span className="mr-1">{wrap ? "" : "; "}</span>
@@ -79,7 +81,9 @@ export const ScoresTableCell = ({
           COLOR_MAP.get(value),
         )}
       >
-        <span className="truncate">{value}</span>
+        <span className="truncate" title={value}>
+          {value}
+        </span>
         {aggregate.comment && (
           <HoverCard>
             <HoverCardTrigger className="inline-block shrink-0 cursor-pointer">

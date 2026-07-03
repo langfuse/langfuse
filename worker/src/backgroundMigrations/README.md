@@ -38,3 +38,28 @@ If it completes, it marks the migration as done and proceeds with the next one u
 If the worker is killed for any reason, another worker will pick up the migration and continue where it left off after the lock expired.
 
 Ideally, background migrations can also be executed via the commandline, e.g. to run them locally or to test them in a staging environment.
+
+## Env-gated migrations (dormant rows)
+
+Some migrations need to ship in release N but only execute in release N+1 (or only when an operator opts in).
+The `envGate` mechanism makes a row **dormant**: it sits in `background_migrations` with `finished_at = NULL` but the manager skips it at query time until the named env var is `"true"`.
+
+The gate check lives in the `findFirst` predicate, so a dormant row does **not** head-of-line block later migrations — anything alphabetically after it that is either un-gated or whose gate is on will still run.
+
+### Authoring a gated migration
+
+1. **Pick a gate name** with the `LANGFUSE_BACKGROUND_MIGRATION_` prefix (the manager discovers gates by scanning the validated env for keys with this prefix).
+2. **Declare the gate in the row's `args`** in the Prisma migration SQL:
+   ```sql
+   INSERT INTO background_migrations (id, name, script, args)
+   VALUES (
+     '...',
+     '20260521120000_my_dormant_migration',
+     'myDormantMigration',
+     '{"projectId": "...", "envGate": "LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_MY_FEATURE"}'::jsonb
+   );
+   ```
+3. **Register the env var** in `worker/src/env.ts` `EnvSchema` with `z.enum(["true", "false"]).default("false")` so it is typed, validated at boot, and dormant by default.
+
+When the env var is `"true"` the row becomes visible to the manager and runs in normal name order.
+When it is `"false"` (or absent) the row is invisible — no lock, no skip log, no head-of-line block.

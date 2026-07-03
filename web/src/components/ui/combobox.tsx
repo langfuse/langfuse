@@ -104,6 +104,10 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
     return options.find((option) => isEqual(option.value, value));
   }, [options, value]);
 
+  const buttonText = selectedOption
+    ? (selectedOption.label ?? String(selectedOption.value))
+    : placeholder;
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -119,10 +123,8 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
           disabled={disabled}
           name={name}
         >
-          <span className="truncate">
-            {selectedOption
-              ? (selectedOption.label ?? String(selectedOption.value))
-              : placeholder}
+          <span className="truncate" title={buttonText}>
+            {buttonText}
           </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>

@@ -1,11 +1,10 @@
-import { useCallback, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DatasetRunItemsByRunTable } from "@/src/features/datasets/components/DatasetRunItemsByRunTable";
 import { DeleteDatasetRunButton } from "@/src/features/datasets/components/DeleteDatasetRunButton";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { api } from "@/src/utils/api";
-import { Columns3, Info, MoreVertical } from "lucide-react";
+import { Columns3, MoreVertical } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
@@ -23,18 +22,12 @@ import {
 } from "@/src/components/ui/side-panel";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { V4IntroDialog } from "@/src/features/events/components/V4IntroDialog";
 
 export default function Dataset() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
   const runId = router.query.runId as string;
-  const [areRunItemsLoadingTooLong, setAreRunItemsLoadingTooLong] =
-    useState(false);
-  const runItemsLoadingTimeoutRef = useRef<number | null>(null);
 
   const dataset = api.datasets.byId.useQuery({
     datasetId,
@@ -45,34 +38,6 @@ export default function Dataset() {
     projectId,
     runId,
   });
-  const {
-    isBetaEnabled: isFastPreviewEnabled,
-    canToggleV4,
-    enableWithIntro,
-    showIntroDialog,
-    confirmIntroDialog,
-    dismissIntroDialog,
-    isLoading: isFastPreviewToggleLoading,
-  } = useV4Beta();
-
-  const showSlowRunItemsAlert =
-    areRunItemsLoadingTooLong && !isFastPreviewEnabled && canToggleV4;
-
-  const handleRunItemsLoadingChange = useCallback((isLoading: boolean) => {
-    if (runItemsLoadingTimeoutRef.current !== null) {
-      window.clearTimeout(runItemsLoadingTimeoutRef.current);
-      runItemsLoadingTimeoutRef.current = null;
-    }
-
-    setAreRunItemsLoadingTooLong(false);
-
-    if (isLoading) {
-      runItemsLoadingTimeoutRef.current = window.setTimeout(() => {
-        setAreRunItemsLoadingTooLong(true);
-        runItemsLoadingTimeoutRef.current = null;
-      }, 5_000);
-    }
-  }, []);
 
   return (
     <Page
@@ -133,35 +98,11 @@ export default function Dataset() {
     >
       <div className="grid flex-1 grid-cols-[1fr_auto] overflow-hidden">
         <div className="flex h-full flex-col overflow-hidden">
-          {showSlowRunItemsAlert ? (
-            <Alert variant="info" className="m-3 mb-0 w-auto shrink-0">
-              <Info className="h-4 w-4" />
-              <AlertTitle>
-                Loading dataset run items is taking longer than usual
-              </AlertTitle>
-              <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <span>
-                  Enable Fast Preview for a more performant experiment run view.
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="w-fit"
-                  onClick={() => enableWithIntro()}
-                  disabled={isFastPreviewToggleLoading}
-                >
-                  Enable Fast Preview
-                </Button>
-              </AlertDescription>
-            </Alert>
-          ) : null}
           <DatasetRunItemsByRunTable
             projectId={projectId}
             datasetId={datasetId}
             datasetRunId={runId}
             datasetVersion={run.data?.datasetVersion}
-            onLoadingChange={handleRunItemsLoadingChange}
           />
         </div>
         <SidePanel
@@ -211,11 +152,6 @@ export default function Dataset() {
           </SidePanelContent>
         </SidePanel>
       </div>
-      <V4IntroDialog
-        open={showIntroDialog}
-        onConfirm={confirmIntroDialog}
-        onDismiss={dismissIntroDialog}
-      />
     </Page>
   );
 }

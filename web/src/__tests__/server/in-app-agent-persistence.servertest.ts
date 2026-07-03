@@ -1,10 +1,22 @@
+vi.mock("@langfuse/shared/src/server", async () => {
+  const actual = await vi.importActual("@langfuse/shared/src/server");
+  return {
+    ...actual,
+    fetchLLMCompletion: vi.fn(),
+  };
+});
+
 import type { Session } from "next-auth";
 import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
+import { vi } from "vitest";
 
 import type { Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import {
+  createOrgProjectAndApiKey,
+  fetchLLMCompletion,
+} from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import {
   createInAppAgentConversationId,
@@ -17,12 +29,19 @@ import {
   ensureOwnedConversation,
   finishRun,
   getConversationMessagesForReplay,
+  maybeInferAndPersistConversationTitle,
   replaceRunEvents,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
 } from "@/src/ee/features/in-app-agent/server/persistence";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
+
+vi.mock("@/src/server/auth", () => ({
+  getServerAuthSession: vi.fn(),
+}));
+
+const mockFetchLLMCompletion = vi.mocked(fetchLLMCompletion);
 
 describe("in-app agent persistence", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
@@ -33,6 +52,7 @@ describe("in-app agent persistence", () => {
 
   afterEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+    mockFetchLLMCompletion.mockReset();
   });
 
   const createCaller = async (
@@ -424,6 +444,86 @@ describe("in-app agent persistence", () => {
     expect(listedConversations.conversations.map((item) => item.id)).toContain(
       conversation.id,
     );
+  });
+
+  it("does not overwrite user-renamed conversation titles", async () => {
+    const originalBedrockSmallModel = env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL;
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+
+    await caller.renameConversation({
+      projectId,
+      conversationId: conversation.id,
+      title: "My custom title",
+    });
+
+    try {
+      (env as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = "small-title-model";
+
+      await maybeInferAndPersistConversationTitle({
+        prisma,
+        projectId,
+        conversationId: conversation.id,
+        userId,
+        aiTelemetryEnabled: false,
+      });
+
+      await expect(
+        prisma.inAppAgentConversation.findUniqueOrThrow({
+          where: { id_projectId: { id: conversation.id, projectId } },
+          select: { title: true, renamedByUserAt: true },
+        }),
+      ).resolves.toEqual({
+        title: "My custom title",
+        renamedByUserAt: expect.any(Date),
+      });
+      expect(mockFetchLLMCompletion).not.toHaveBeenCalled();
+    } finally {
+      (env as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = originalBedrockSmallModel;
+    }
+  });
+
+  it("keeps the default title when title generation fails", async () => {
+    const originalBedrockSmallModel = env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL;
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const originalTitle = conversation.title;
+    const run = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      messageId: "failed-title-user",
+      content: "Inspect latency regressions",
+    });
+
+    try {
+      (env as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = "small-title-model";
+      mockFetchLLMCompletion.mockRejectedValue(new Error("Bedrock failed"));
+
+      await expect(
+        maybeInferAndPersistConversationTitle({
+          prisma,
+          projectId,
+          conversationId: conversation.id,
+          userId,
+          aiTelemetryEnabled: false,
+        }),
+      ).resolves.toBeUndefined();
+
+      await expect(
+        prisma.inAppAgentConversation.findUniqueOrThrow({
+          where: { id_projectId: { id: conversation.id, projectId } },
+          select: { title: true },
+        }),
+      ).resolves.toEqual({ title: originalTitle });
+    } finally {
+      (env as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = originalBedrockSmallModel;
+    }
   });
 
   it("requires feedback run ids to match persisted assistant messages", async () => {
@@ -971,6 +1071,111 @@ describe("in-app agent persistence", () => {
         id: "assistant-1",
         role: "assistant",
         content: "calling tools",
+        toolCalls: [
+          {
+            id: "paired-tool-call",
+            type: "function",
+            function: { name: "list_traces", arguments: "{}" },
+          },
+        ],
+      },
+      {
+        id: "tool-result-1",
+        role: "tool",
+        content: "[]",
+        toolCallId: "paired-tool-call",
+      },
+    ]);
+  });
+
+  it("drops assistant tool calls without results from loaded conversation history", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const run = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    const events = await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      messageId: "user-1",
+      content: "search",
+    });
+    const process = (event: AgUiEvent) =>
+      processAndPersistEvent({
+        projectId,
+        conversationId: conversation.id,
+        runId: run.id,
+        events,
+        event,
+      });
+
+    await process({
+      type: EventType.TEXT_MESSAGE_START,
+      messageId: "assistant-1",
+      role: "assistant",
+    });
+    await process({
+      type: EventType.TOOL_CALL_START,
+      toolCallId: "paired-tool-call",
+      toolCallName: "list_traces",
+      parentMessageId: "assistant-1",
+    });
+    await process({
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: "paired-tool-call",
+      delta: "{}",
+    });
+    await process({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: "paired-tool-call",
+    });
+    await process({
+      type: EventType.TOOL_CALL_START,
+      toolCallId: "unapproved-tool-call",
+      toolCallName: "get_trace",
+      parentMessageId: "assistant-1",
+    });
+    await process({
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: "unapproved-tool-call",
+      delta: "{}",
+    });
+    await process({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: "unapproved-tool-call",
+    });
+    await process({
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      messageId: "assistant-1",
+      delta: "calling tools",
+    });
+    await process({
+      type: EventType.TEXT_MESSAGE_END,
+      messageId: "assistant-1",
+    });
+    await process({
+      type: EventType.TOOL_CALL_RESULT,
+      messageId: "tool-result-1",
+      toolCallId: "paired-tool-call",
+      content: "[]",
+      role: "tool",
+    });
+
+    const detail = await caller.getConversation({
+      projectId,
+      conversationId: conversation.id,
+    });
+
+    expect(detail.messages).toEqual([
+      { id: "user-1", role: "user", content: "search" },
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: "calling tools",
+        runId: run.id,
         toolCalls: [
           {
             id: "paired-tool-call",

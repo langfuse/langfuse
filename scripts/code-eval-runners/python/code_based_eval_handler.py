@@ -1,6 +1,7 @@
 import asyncio
 import dataclasses
 import json
+import traceback
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -82,7 +83,7 @@ def handler(event, context):
         exec(event["code"]["source"], namespace)
     except Exception as error:
         return runner_error(
-            "INVALID_SOURCE", f"Failed to load evaluator source: {error}"
+            "INVALID_SOURCE", f"Failed to load evaluator source: {format_error(error)}"
         )
 
     evaluate = namespace.get("evaluate")
@@ -96,7 +97,7 @@ def handler(event, context):
         if asyncio.iscoroutine(result):
             result = asyncio.run(result)
     except Exception as error:
-        return runner_error("USER_CODE_ERROR", str(error))
+        return runner_error("USER_CODE_ERROR", format_error(error))
 
     return normalize_result(result)
 
@@ -141,6 +142,29 @@ def to_jsonable(value):
         return value
     except TypeError:
         return str(value)
+
+
+def format_error(error: BaseException) -> str:
+    # Bare str() is cryptic for common exceptions — str(KeyError("text")) is
+    # just "'text'" — so always lead with the exception type, Python style.
+    name = type(error).__name__
+    message = str(error)
+    formatted = f"{name}: {message}" if message else name
+
+    line = _user_code_line(error)
+    if line is not None:
+        formatted = f"{formatted} (line {line})"
+
+    return formatted
+
+
+def _user_code_line(error: BaseException) -> int | None:
+    # exec() compiles the evaluator source with filename "<string>", so the
+    # innermost such frame is where the user's own code raised.
+    for frame in reversed(traceback.extract_tb(error.__traceback__)):
+        if frame.filename == "<string>":
+            return frame.lineno
+    return None
 
 
 def runner_error(code: str, message: str):

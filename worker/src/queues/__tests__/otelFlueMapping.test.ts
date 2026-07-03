@@ -10,7 +10,10 @@
  * Flow tested: ResourceSpan -> OtelIngestionProcessor.processToEvent()
  */
 import { describe, it, expect } from "vitest";
-import { OtelIngestionProcessor } from "@langfuse/shared/src/server";
+import {
+  OtelIngestionProcessor,
+  type OtelIngestionProcessorConfig,
+} from "@langfuse/shared/src/server";
 
 const FLUE_SCOPE = "@flue/opentelemetry";
 
@@ -45,6 +48,7 @@ function attrs(record: Record<string, string>): Attr[] {
 function processFlueSpan(params: {
   name: string;
   attributes: Record<string, string>;
+  config?: Partial<OtelIngestionProcessorConfig>;
 }): any {
   const resourceSpan = {
     resource: {
@@ -68,13 +72,40 @@ function processFlueSpan(params: {
     ],
   };
 
-  const processor = new OtelIngestionProcessor({ projectId: "test-project" });
+  const processor = new OtelIngestionProcessor({
+    projectId: "test-project",
+    publicKey: "",
+    sdkName: "",
+    sdkVersion: "",
+    ...params.config,
+  });
   const events = processor.processToEvent([resourceSpan]);
   expect(events).toHaveLength(1);
   return events[0];
 }
 
 describe("Flue OTel span mapping", () => {
+  it("adds request attribution to processed OTel events", () => {
+    const event = processFlueSpan({
+      name: "flue.operation prompt",
+      attributes: {
+        "flue.operation.id": "op_01",
+        "flue.operation.kind": "prompt",
+      },
+      config: {
+        publicKey: "pk-lf-public",
+        sdkName: "python",
+        sdkVersion: "3.4.0",
+      },
+    });
+
+    expect(event).toMatchObject({
+      ingestionApiKey: "pk-lf-public",
+      ingestionSdkName: "python",
+      ingestionSdkVersion: "3.4.0",
+    });
+  });
+
   it("maps a model-turn span to a GENERATION with flue.turn.input/output", () => {
     const event = processFlueSpan({
       name: "chat gpt-4o-mini",

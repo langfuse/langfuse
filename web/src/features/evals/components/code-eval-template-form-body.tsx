@@ -163,25 +163,28 @@ const contractReadOnlyExtension = EditorState.changeFilter.of((tr) => {
 const contractReadOnlyExtensions = [contractReadOnlyExtension];
 
 async function formatTypeScriptSource(source: string) {
-  const [{ format }, typescriptPlugin, estreePlugin] = await Promise.all([
+  // babel-ts instead of the typescript plugin: the latter embeds the
+  // TypeScript compiler, which the SWC minifier miscompiles (dropped
+  // bindings — LFE-10645, caught by scripts/scan-client-bundle.mjs).
+  const [{ format }, babelPlugin, estreePlugin] = await Promise.all([
     import("prettier/standalone"),
-    import("prettier/plugins/typescript"),
+    import("prettier/plugins/babel"),
     import("prettier/plugins/estree"),
   ]);
 
   const ranges = findTypeScriptContractRanges(source);
   if (!ranges?.prelude) {
     return format(source, {
-      parser: "typescript",
-      plugins: [typescriptPlugin, estreePlugin],
+      parser: "babel-ts",
+      plugins: [babelPlugin, estreePlugin],
     });
   }
 
   const formattedEditableSource = await format(
     source.slice(ranges.prelude.to),
     {
-      parser: "typescript",
-      plugins: [typescriptPlugin, estreePlugin],
+      parser: "babel-ts",
+      plugins: [babelPlugin, estreePlugin],
     },
   );
 

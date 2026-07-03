@@ -150,7 +150,7 @@ export const getProjectSettingsPages = ({
       "claude code",
       "cursor",
     ],
-    content: <DeveloperToolsSettings />,
+    content: <DeveloperToolsSettings projectId={project.id} />,
   },
   {
     title: "LLM Connections",

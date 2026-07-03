@@ -218,6 +218,29 @@ export type AgUiCustomEvent = AgUiEvent & {
   value: unknown;
 };
 
+export const InAppAgentToolApprovalRequestSchema = z.object({
+  type: z.literal("tool_approval_request"),
+  toolCallId: z.string().min(1),
+  toolName: z.string().min(1),
+  args: z.unknown().optional(),
+  runId: z.string().min(1),
+});
+
+export type InAppAgentToolApprovalRequest = z.infer<
+  typeof InAppAgentToolApprovalRequestSchema
+>;
+
+export const ResumeForwardedPropsSchema = z.object({
+  command: z.object({
+    resume: z.object({
+      approved: z.boolean(),
+      approvalRequest: InAppAgentToolApprovalRequestSchema,
+    }),
+  }),
+});
+
+export type ResumeForwardedProps = z.infer<typeof ResumeForwardedPropsSchema>;
+
 export const InAppAgentRuntimeStateSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("newConversation"),
