@@ -190,7 +190,23 @@ export function DataTableControls({
         )}
       >
         <div className="bg-background sticky top-0 z-20 mb-1 flex h-10 shrink-0 items-center justify-between border-b px-3">
-          <span className="text-sm font-medium">Filters</span>
+          <div className="flex items-center gap-1.5">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setOpen(false)}
+                  aria-label="Hide filters"
+                  className="-ml-1 h-6 w-6"
+                >
+                  <PanelLeftClose className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Hide filters</TooltipContent>
+            </Tooltip>
+            <span className="text-sm font-medium">Filters</span>
+          </div>
           <div className="flex items-center gap-1">
             {queryFilter.isFiltered && (
               <Tooltip>
@@ -226,20 +242,6 @@ export function DataTableControls({
                 </PopoverContent>
               </Popover>
             )}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setOpen(false)}
-                  aria-label="Hide filters"
-                  className="h-8 w-8"
-                >
-                  <PanelLeftClose className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Hide filters</TooltipContent>
-            </Tooltip>
           </div>
         </div>
         <div className="pb-10">
