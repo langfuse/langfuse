@@ -1,6 +1,7 @@
 "use client";
 import {
   ArrowRight,
+  ChevronRight,
   Check,
   Copy,
   BookOpenText,
@@ -18,6 +19,7 @@ import { stripBasePath } from "@/src/utils/redirect";
 import { cn } from "@/src/utils/tailwind";
 import {
   forwardRef,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -58,6 +60,12 @@ type InAppAgentRedirectActionContent = {
 
 export type InAppAgentMessageContent =
   | { type: "loading"; label?: string }
+  | {
+      type: "reasoning";
+      text: string;
+      isLoading?: boolean;
+      durationSeconds?: number;
+    }
   | {
       type: "text";
       text: string;
@@ -223,6 +231,8 @@ const MessageCard = forwardRef<
     >
       {content.type === "loading" ? (
         <ThinkingIndicator label={content.label} isCompact={isCompact} />
+      ) : content.type === "reasoning" ? (
+        <ReasoningMessageBody content={content} isCompact={isCompact} />
       ) : (
         <>
           <MessageText role={role} text={content.text} isCompact={isCompact} />
@@ -239,6 +249,93 @@ const MessageCard = forwardRef<
     </div>
   );
 });
+
+function ReasoningMessageBody({
+  content,
+  isCompact,
+}: {
+  content: Extract<InAppAgentMessageContent, { type: "reasoning" }>;
+  isCompact: boolean;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(
+    content.durationSeconds ?? 0,
+  );
+
+  useEffect(() => {
+    if (content.durationSeconds !== undefined) {
+      setElapsedSeconds(content.durationSeconds);
+      return;
+    }
+
+    if (!content.isLoading) {
+      return;
+    }
+
+    setElapsedSeconds(0);
+
+    const startedAt = Date.now();
+    const intervalId = window.setInterval(() => {
+      setElapsedSeconds(
+        Math.max(1, Math.round((Date.now() - startedAt) / 1000)),
+      );
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [content.durationSeconds, content.isLoading, content.text]);
+
+  const summaryLabel = content.isLoading
+    ? "Thinking"
+    : elapsedSeconds > 0
+      ? `Thought for ${elapsedSeconds} second${elapsedSeconds === 1 ? "" : "s"}`
+      : "Thought";
+
+  return (
+    <div>
+      <button
+        type="button"
+        aria-expanded={isExpanded}
+        onClick={() => setIsExpanded((value) => !value)}
+        className={cn(
+          "flex w-full items-center gap-1 text-left",
+          isCompact ? "text-[0.775rem]" : "text-sm",
+        )}
+      >
+        {content.isLoading ? (
+          <div className="min-w-0 flex-1">
+            <ThinkingIndicator label={summaryLabel} isCompact={isCompact} />
+          </div>
+        ) : (
+          <div
+            className={cn(
+              "flex min-w-0 flex-1 items-center",
+              isCompact ? "gap-1.5 text-[0.775rem]" : "gap-2 text-sm",
+            )}
+          >
+            <span>{summaryLabel}</span>
+          </div>
+        )}
+        <ChevronRight
+          className={cn(
+            "shrink-0 transition-transform",
+            isCompact ? "h-3 w-3" : "h-3.5 w-3.5",
+            isExpanded && "rotate-90",
+          )}
+        />
+      </button>
+      {isExpanded ? (
+        <p
+          className={cn(
+            "mt-2 whitespace-pre-wrap italic",
+            isCompact ? "leading-4" : "leading-4.5",
+          )}
+        >
+          {content.text}
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 function AssistantMessageWithFeedback({
   content,
@@ -912,11 +1009,9 @@ function CodeBlock({ children }: { children: ReactNode }) {
 }
 
 function ThinkingIndicator({
-  className,
   label = "Thinking...",
   isCompact = false,
 }: {
-  className?: string;
   label?: string;
   isCompact?: boolean;
 }) {
@@ -925,7 +1020,6 @@ function ThinkingIndicator({
       className={cn(
         "flex items-center",
         isCompact ? "gap-1.5 text-[0.775rem]" : "gap-2 text-sm",
-        className,
       )}
     >
       <Loader2

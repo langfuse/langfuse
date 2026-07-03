@@ -158,9 +158,8 @@ export function getDrawerMessages({
     }
 
     const role = message.role === "user" ? "user" : "assistant";
-    const isLoading = message.role === "reasoning";
 
-    if (isLoading) {
+    if (message.role === "reasoning") {
       flushPendingTools();
 
       const hasLaterAssistantMessage = parsedMessages.some(
@@ -168,14 +167,31 @@ export function getDrawerMessages({
           messageIndex > index && message.role === "assistant",
       );
 
-      if (!isRunning || hasLaterAssistantMessage) {
+      const text = typeof message.content === "string" ? message.content : "";
+
+      if (!text.trim()) {
+        if (!isRunning || hasLaterAssistantMessage) {
+          return;
+        }
+
+        mappedMessages.push({
+          id: message.id,
+          role,
+          content: { type: "loading" },
+        });
         return;
       }
 
       mappedMessages.push({
         id: message.id,
         role,
-        content: { type: "loading" },
+        content: {
+          type: "reasoning",
+          text,
+          ...(isRunning && !hasLaterAssistantMessage
+            ? { isLoading: true }
+            : {}),
+        },
       });
       return;
     }
@@ -340,6 +356,7 @@ export function getDrawerMessages({
     !error &&
     latestUserMessageIndex >= 0 &&
     latestAssistantMessage?.content.type !== "text" &&
+    latestAssistantMessage?.content.type !== "reasoning" &&
     latestAssistantMessage?.content.type !== "loading" &&
     latestAssistantMessage?.content.type !== "redirectAction"
   ) {

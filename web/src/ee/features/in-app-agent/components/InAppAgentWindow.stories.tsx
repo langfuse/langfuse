@@ -531,6 +531,15 @@ export const Conversation = meta.story({
         },
       },
       {
+        id: "assistant-reasoning-1",
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "I queried the latency window first, then fetched the slowest traces so I could suggest the shortest path from aggregate latency to the concrete outlier traces.",
+          durationSeconds: 2,
+        },
+      },
+      {
         id: "assistant-text-1",
         role: "assistant",
         content: {
@@ -561,6 +570,15 @@ export const Conversation = meta.story({
         content: {
           type: "text",
           text: "Yes. Add score filters or group the traces by score name to see whether latency correlates with lower quality.",
+        },
+      },
+      {
+        id: "assistant-reasoning-2",
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "The next best step is to keep latency and quality in the same workflow. If the user can pivot directly from slow traces to scores, they can validate whether the latency spike is merely expensive or also hurting answer quality.",
+          durationSeconds: 3,
         },
       },
       {
@@ -674,6 +692,39 @@ export const LoadingResponse = meta.story({
         role: "assistant",
         content: {
           type: "loading",
+        },
+      },
+    ],
+  },
+});
+
+export const Reasoning = meta.story({
+  args: {
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Summarize recent ingestion errors.",
+        },
+      },
+      {
+        id: "assistant-reasoning-loading",
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "Checking recent ingestion failures, grouping them by provider and retry behavior before I summarize the main patterns.",
+          isLoading: true,
+        },
+      },
+      {
+        id: "assistant-reasoning-done",
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "I compared the most recent failures against the previous baseline, then checked whether they cluster around one provider, one queue, or one workspace. The main signal is a retry burst after intermittent provider timeouts.",
+          durationSeconds: 3,
         },
       },
     ],

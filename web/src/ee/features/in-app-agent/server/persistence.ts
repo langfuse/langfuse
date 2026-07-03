@@ -507,6 +507,7 @@ function sanitizeConversationMessagesForReplay(
 export function shouldFlushPersistedEvent(event: AgUiEvent) {
   return (
     event.type === EventType.TEXT_MESSAGE_END ||
+    event.type === EventType.REASONING_MESSAGE_END ||
     event.type === EventType.TOOL_CALL_END ||
     event.type === EventType.TOOL_CALL_RESULT ||
     event.type === EventType.ACTIVITY_SNAPSHOT ||
@@ -573,6 +574,30 @@ export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
         type: event.type,
         messageId: getString(event, "messageId"),
       });
+    case EventType.REASONING_MESSAGE_START:
+      return compactObject({
+        type: event.type,
+        messageId: getString(event, "messageId"),
+        role: getString(event, "role"),
+      });
+    case EventType.REASONING_MESSAGE_CONTENT:
+      return compactObject({
+        type: event.type,
+        messageId: getString(event, "messageId"),
+        role: "reasoning",
+        delta: getString(event, "delta") ?? "",
+      });
+    case EventType.REASONING_ENCRYPTED_VALUE:
+      return compactObject({
+        type: event.type,
+        entityId: getString(event, "entityId"),
+        encryptedValue: getString(event, "encryptedValue"),
+      });
+    case EventType.REASONING_MESSAGE_END:
+      return compactObject({
+        type: event.type,
+        messageId: getString(event, "messageId"),
+      });
     case EventType.TOOL_CALL_START:
       return compactObject({
         type: event.type,
@@ -635,6 +660,10 @@ export function createConversationMessageAccumulator(
   const textDrafts = new Map<
     string,
     { id: string; content: string; runId?: string }
+  >();
+  const reasoningDrafts = new Map<
+    string,
+    { id: string; content: string; encryptedValue?: string }
   >();
   const toolCallDrafts = new Map<
     string,
@@ -756,6 +785,41 @@ export function createConversationMessageAccumulator(
 
         textDrafts.delete(draft.id);
         return changed;
+      }
+      case EventType.REASONING_MESSAGE_CONTENT: {
+        const messageId = getString(event, "messageId");
+
+        if (!messageId) {
+          break;
+        }
+
+        const existingIndex = messageIndexes.get(messageId);
+        const existingMessage =
+          existingIndex === undefined ? undefined : messages[existingIndex];
+        const existingContent =
+          existingMessage?.role === "reasoning" ? existingMessage.content : "";
+        const draft = reasoningDrafts.get(messageId) ?? {
+          id: messageId,
+          content: existingContent,
+        };
+
+        draft.content += getString(event, "delta") ?? "";
+
+        const encryptedValue = getString(event, "encryptedValue");
+        if (encryptedValue) {
+          draft.encryptedValue = encryptedValue;
+        }
+
+        reasoningDrafts.set(messageId, draft);
+
+        return upsertMessage({
+          id: draft.id,
+          role: "reasoning",
+          content: draft.content,
+          ...(draft.encryptedValue
+            ? { encryptedValue: draft.encryptedValue }
+            : {}),
+        });
       }
       case EventType.TOOL_CALL_START: {
         const toolCallId = getString(event, "toolCallId");

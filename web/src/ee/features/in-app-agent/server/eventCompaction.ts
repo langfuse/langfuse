@@ -26,6 +26,50 @@ export function compactTextMessageChunks(
       continue;
     }
 
+    if (event.type === EventType.REASONING_MESSAGE_START) {
+      compactedEvents.push({
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: getString(event, "messageId"),
+        role: "reasoning",
+        delta: "",
+      });
+      continue;
+    }
+
+    if (
+      event.type === EventType.REASONING_MESSAGE_CONTENT &&
+      previousEvent?.type === EventType.REASONING_MESSAGE_CONTENT &&
+      getString(event, "messageId") === getString(previousEvent, "messageId")
+    ) {
+      compactedEvents[compactedEvents.length - 1] = {
+        ...previousEvent,
+        delta:
+          (getString(previousEvent, "delta") ?? "") +
+          (getString(event, "delta") ?? ""),
+      };
+      continue;
+    }
+
+    if (
+      event.type === EventType.REASONING_ENCRYPTED_VALUE &&
+      previousEvent?.type === EventType.REASONING_MESSAGE_CONTENT &&
+      getString(event, "entityId") === getString(previousEvent, "messageId")
+    ) {
+      compactedEvents[compactedEvents.length - 1] = {
+        ...previousEvent,
+        encryptedValue: getString(event, "encryptedValue"),
+      };
+      continue;
+    }
+
+    if (
+      event.type === EventType.REASONING_MESSAGE_END &&
+      previousEvent?.type === EventType.REASONING_MESSAGE_CONTENT &&
+      getString(event, "messageId") === getString(previousEvent, "messageId")
+    ) {
+      continue;
+    }
+
     compactedEvents.push(event);
   }
 

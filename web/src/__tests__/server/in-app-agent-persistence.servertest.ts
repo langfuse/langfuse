@@ -756,6 +756,12 @@ describe("in-app agent persistence", () => {
           toolCallId: "tool-call-1",
         },
         {
+          id: "reasoning-1",
+          role: "reasoning",
+          content: "Checking filters",
+          encryptedValue: "encrypted-reasoning",
+        },
+        {
           id: "activity-1",
           role: "activity",
           activityType: "progress",
@@ -768,7 +774,36 @@ describe("in-app agent persistence", () => {
       prisma.inAppAgentEvent.count({
         where: { projectId, conversationId: conversation.id, runId: run.id },
       }),
-    ).resolves.toBe(9);
+    ).resolves.toBe(10);
+
+    const persistedEvents = await prisma.inAppAgentEvent.findMany({
+      where: { projectId, conversationId: conversation.id, runId: run.id },
+      orderBy: { sequenceNumber: "asc" },
+      select: { type: true, event: true },
+    });
+
+    const reasoningEvents = persistedEvents.filter(
+      (event) => event.type === EventType.REASONING_MESSAGE_CONTENT,
+    );
+
+    expect(reasoningEvents).toHaveLength(1);
+    expect(reasoningEvents[0]?.event).toMatchObject({
+      type: EventType.REASONING_MESSAGE_CONTENT,
+      messageId: "reasoning-1",
+      role: "reasoning",
+      delta: "Checking filters",
+      encryptedValue: "encrypted-reasoning",
+    });
+    expect(
+      persistedEvents.some(
+        (event) => event.type === EventType.REASONING_MESSAGE_START,
+      ),
+    ).toBe(false);
+    expect(
+      persistedEvents.some(
+        (event) => event.type === EventType.REASONING_MESSAGE_END,
+      ),
+    ).toBe(false);
   });
 
   it("stores only compact events and skips raw adapter payloads", async () => {

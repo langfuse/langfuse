@@ -395,6 +395,28 @@ export const Loading = meta.story({
   },
 });
 
+export const ReasoningLoading = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "reasoning",
+      text: "Checking recent ingestion failures, grouping them by provider and retry behavior before summarizing the main patterns.",
+      isLoading: true,
+    },
+  },
+});
+
+export const ReasoningCompleted = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "reasoning",
+      text: "I compared the most recent failures against the previous baseline, then checked whether they cluster around one provider, one queue, or one workspace. The clearest signal is a retry burst after intermittent provider timeouts.",
+      durationSeconds: 3,
+    },
+  },
+});
+
 export const Connecting = meta.story({
   args: {
     role: "assistant",
