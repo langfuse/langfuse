@@ -92,8 +92,13 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     null,
     undefined
   > | null>(null);
-  // Once the user pans/zooms, stop auto-fitting on resize.
-  const userControlledRef = useRef(false);
+  // What framed the current view. Programmatic framings ("fit", "focus") stay
+  // LIVE: when the container resizes (peek panel opening/settling, divider
+  // drag, window resize) they re-apply against the new size — otherwise a
+  // deep-link focus computed against a transient early size stays frozen and
+  // the focused node ends up cropped/off-view. Only a real user gesture
+  // ("gesture") freezes the view.
+  const framingRef = useRef<"fit" | "focus" | "gesture">("fit");
   // The node id (or null for an empty click) of the last in-canvas selection, so
   // the focus effect re-frames only for selections from the tree/timeline.
   const lastCanvasClickRef = useRef<string | null | undefined>(undefined);
@@ -143,7 +148,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     setLayout(null);
     setLayoutError(false);
     setFitted(false);
-    userControlledRef.current = false;
+    framingRef.current = "fit";
     // Also clear cross-graph view state so a graph change re-focuses the
     // selected node on the new instance and drops stale hover highlighting.
     prevSelectedRef.current = null;
@@ -183,7 +188,9 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     const zoomBehavior = createZoom<HTMLDivElement, unknown>()
       .scaleExtent([SCALE_MIN, SCALE_MAX])
       .on("zoom", (event: D3ZoomEvent<HTMLDivElement, unknown>) => {
-        if (event.sourceEvent) userControlledRef.current = true;
+        // sourceEvent is set only for real gestures (drag/wheel/pinch) —
+        // programmatic transforms (fit/focus) keep their live framing kind.
+        if (event.sourceEvent) framingRef.current = "gesture";
         const { x, y, k } = event.transform;
         transformRef.current = { x, y, k };
         const world = worldRef.current;
@@ -258,9 +265,10 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     };
   }, [layout, size]);
 
-  // Auto-fit on layout/size until the user takes control.
+  // Live "fit" framing: re-fit on layout/size changes until a focus or a user
+  // gesture takes over.
   useEffect(() => {
-    if (userControlledRef.current) return;
+    if (framingRef.current !== "fit") return;
     const fit = computeFit();
     if (fit) applyTransform(fit);
   }, [computeFit, applyTransform]);
@@ -268,44 +276,83 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   // Reflect external selection (tree/timeline): bring the node into view at the
   // current zoom (or one reveal scale when zoomed out). In-canvas clicks don't
   // move the view; selecting the root/empty returns to the full-graph overview.
+  // While the view is focus-framed, container size changes re-center the node
+  // against the NEW size (translate only — the zoom stays put), so a peek panel
+  // that finishes laying out after a deep-link focus, or a divider drag, can't
+  // leave the focused node cropped against a stale frame.
   useEffect(() => {
     const cameFromClick = lastCanvasClickRef.current === selectedNodeName;
     lastCanvasClickRef.current = undefined;
-    // Only react to an actual selection change. This effect also depends on
-    // `size`/`computeFit`, so without this guard a resize / panel-drag would
-    // re-frame (and yank) a still-selected node.
-    if (prevSelectedRef.current === selectedNodeName) return;
     // Wait for layout/size before acting — and don't mark the selection as
     // reflected yet, so we retry once they're ready (e.g. a deep link with a
     // preselected observation that arrives before the graph lays out).
     if (!layout || size.width === 0) return;
+
+    // Read d3-zoom's synchronously-updated scale (set by applyTransform before
+    // React re-renders), not a state mirror that's stale in the same commit.
+    const currentK = containerRef.current
+      ? zoomTransform(containerRef.current).k
+      : 1;
+    // Clamped focus framing: aim the node at the viewport center, but never
+    // leave blank canvas the graph could cover — on an axis where the scaled
+    // graph is larger than the viewport, clamp the pan to the graph bounds
+    // (a node near the graph's edge sits off-center rather than dragging
+    // emptiness in); where the graph is smaller, just center the whole graph.
+    // Without this, deep-link-focusing a node near the top of a small graph
+    // pushed the rest out of the panel while half the canvas sat empty.
+    const centerNode = (nodeId: string, k: number): boolean => {
+      const node = layout.nodes.find((n) => n.id === nodeId);
+      if (!node) return false;
+      const cx = node.x + node.width / 2;
+      const cy = node.y + node.height / 2;
+      const graphW = layout.width * k;
+      const graphH = layout.height * k;
+      const x =
+        graphW <= size.width
+          ? (size.width - graphW) / 2
+          : Math.min(0, Math.max(size.width - graphW, size.width / 2 - cx * k));
+      const y =
+        graphH <= size.height
+          ? (size.height - graphH) / 2
+          : Math.min(
+              0,
+              Math.max(size.height - graphH, size.height / 2 - cy * k),
+            );
+      applyTransform({ k, x, y });
+      return true;
+    };
+
+    if (prevSelectedRef.current === selectedNodeName) {
+      // No selection change — this run is a size/layout change. Keep a live
+      // focus framing honest by re-centering at the current zoom; leave user
+      // gestures alone ("fit" re-applies via the auto-fit effect above).
+      if (framingRef.current === "focus" && selectedNodeName) {
+        centerNode(selectedNodeName, currentK);
+      }
+      return;
+    }
     prevSelectedRef.current = selectedNodeName;
-    // In-canvas clicks already selected the node; don't move the view.
-    if (cameFromClick) return;
+    // In-canvas clicks already selected the node; don't move the view. A
+    // leftover "focus" framing must be demoted to "gesture" so a later
+    // container resize can't re-center onto the clicked node — but a live
+    // "fit" framing stays live (clicking a node in a fitted overview should
+    // not kill auto-fit-on-resize).
+    if (cameFromClick) {
+      if (framingRef.current === "focus") framingRef.current = "gesture";
+      return;
+    }
 
     if (!selectedNodeName) {
-      userControlledRef.current = false;
+      framingRef.current = "fit";
       const fit = computeFit();
       if (fit) applyTransform(fit);
       return;
     }
 
-    const node = layout.nodes.find((n) => n.id === selectedNodeName);
-    if (!node) return;
-    userControlledRef.current = true;
-    // Read d3-zoom's synchronously-updated scale (set by applyTransform before
-    // React re-renders), not a state mirror that's stale in the same commit.
-    const current = containerRef.current
-      ? zoomTransform(containerRef.current).k
-      : 1;
-    const k = current >= LABEL_HIDE_SCALE ? current : SELECTION_REVEAL_SCALE;
-    const cx = node.x + node.width / 2;
-    const cy = node.y + node.height / 2;
-    applyTransform({
-      k,
-      x: size.width / 2 - cx * k,
-      y: size.height / 2 - cy * k,
-    });
+    const k = currentK >= LABEL_HIDE_SCALE ? currentK : SELECTION_REVEAL_SCALE;
+    if (centerNode(selectedNodeName, k)) {
+      framingRef.current = "focus";
+    }
   }, [selectedNodeName, layout, size, computeFit, applyTransform]);
 
   const handleSelect = useCallback(
@@ -334,12 +381,14 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     const selection = selectionRef.current;
     const zoomBehavior = zoomRef.current;
     if (!selection || !zoomBehavior) return;
-    userControlledRef.current = true;
+    // Toolbar zoom is a user decision — freeze the framing like a gesture
+    // (scaleBy goes through d3 without a sourceEvent, so set it explicitly).
+    framingRef.current = "gesture";
     zoomBehavior.scaleBy(selection, factor);
   };
 
   const handleFit = () => {
-    userControlledRef.current = false;
+    framingRef.current = "fit";
     const fit = computeFit();
     if (fit) applyTransform(fit);
   };
