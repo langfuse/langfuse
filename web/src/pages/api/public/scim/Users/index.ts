@@ -22,15 +22,20 @@ const parsePaginationParam = (
   defaultValue: number,
   paramName: "startIndex" | "count",
 ) => {
-  if (value === undefined || value === "") {
+  if (value === undefined) {
     return { value: defaultValue } as const;
   }
   if (Array.isArray(value)) {
     return { error: `${paramName} must be a single integer value` } as const;
   }
 
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed)) {
+  const trimmedValue = value.trim();
+  if (trimmedValue === "") {
+    return { value: defaultValue } as const;
+  }
+
+  const parsed = Number(trimmedValue);
+  if (!Number.isSafeInteger(parsed)) {
     return { error: `${paramName} must be an integer` } as const;
   }
 

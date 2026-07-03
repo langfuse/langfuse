@@ -406,6 +406,61 @@ describe("SCIM API", () => {
         expect(typeof response.body.totalResults).toBe("number");
       });
 
+      it("should treat whitespace-only pagination values as omitted", async () => {
+        const uniqueEmail = `test.user.${randomUUID().substring(0, 8)}@example.com`;
+        const createResponse = await makeAPICall(
+          "POST",
+          "/api/public/scim/Users",
+          {
+            userName: uniqueEmail,
+            name: {
+              formatted: "Test User",
+            },
+          },
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+        );
+        expect(createResponse.status).toBe(201);
+        testUserId = createResponse.body.id;
+
+        const response = await makeZodVerifiedAPICall(
+          ScimUsersListSchema,
+          "GET",
+          "/api/public/scim/Users?startIndex=%20&count=%20",
+          undefined,
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+          200,
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.body.startIndex).toBe(1);
+        expect(response.body.itemsPerPage).toBeGreaterThan(0);
+        expect(response.body.Resources.length).toBeGreaterThan(0);
+      });
+
+      it("should return 400 when count is not a safe integer", async () => {
+        const result = await makeAPICall(
+          "GET",
+          "/api/public/scim/Users?count=1e20",
+          undefined,
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+        );
+
+        expect(result.status).toBe(400);
+        expect(result.body.detail).toContain("count must be an integer");
+      });
+
+      it("should return 400 when startIndex is not a safe integer", async () => {
+        const result = await makeAPICall(
+          "GET",
+          "/api/public/scim/Users?startIndex=1e20",
+          undefined,
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+        );
+
+        expect(result.status).toBe(400);
+        expect(result.body.detail).toContain("startIndex must be an integer");
+      });
+
       it("should support filtering by userName", async () => {
         // First create a test user
         const uniqueEmail = `test.user.${randomUUID().substring(0, 8)}@example.com`;
