@@ -73,7 +73,7 @@ const nextConfig = {
   // Agent/browser tooling often targets 127.0.0.1 instead of localhost in dev.
   allowedDevOrigins: ["127.0.0.1"],
   staticPageGenerationTimeout: 500, // default is 60. Required for build process for amd
-  transpilePackages: ["@langfuse/shared", "vis-network/standalone"],
+  transpilePackages: ["@langfuse/shared"],
   reactStrictMode: true,
   serverExternalPackages: [
     "dd-trace",
@@ -119,6 +119,15 @@ const nextConfig = {
     defaultLocale: "en",
   },
   output: "standalone",
+
+  async rewrites() {
+    return [
+      {
+        source: "/.well-known/mcp.json",
+        destination: "/api/well-known/mcp.json",
+      },
+    ];
+  },
 
   async headers() {
     return [

@@ -105,6 +105,12 @@ langfuse/
   targeted server API tests, and Fern update/regeneration.
 - Cross-package refactors: `pnpm run lint`, `pnpm run typecheck`, and targeted
   tests for impacted packages.
+- Client-bundle soundness: CI scans every prod web build
+  (`pnpm run scan:client-bundle`) for minifier-dropped bindings and Node-only
+  globals leaking into browser chunks — the SWC dropped-binding class ships
+  runtime-only `ReferenceError`s that dev builds and type checks cannot see
+  (LFE-10645). On failure, `scripts/scan-client-bundle.mjs`'s header explains
+  the canonical fix.
 
 ## Generated Files
 

@@ -1,4 +1,5 @@
 import {
+  applyPick,
   flattenOptions,
   planInputCompletions,
   SECTION_COMPARE_OPS,
@@ -6,6 +7,7 @@ import {
   SECTION_MATCH_OPS,
   SECTION_RECENT,
   SECTION_VALUES,
+  type CompletionOption,
   type InputCompletionContext,
 } from "@/src/features/search-bar/lib/completions";
 import type { ObservedOptions } from "@/src/features/search-bar/lib/observed-options";
@@ -101,6 +103,51 @@ describe("planInputCompletions", () => {
     ).map((o) => o.label);
     expect(labels).toContain("*chat*"); // contains (the bare-value default)
     expect(labels).toContain("=chat"); // exact
+  });
+
+  it("keeps a whitespace-only value an unarmed plain list (space inside empty quotes)", () => {
+    // LFE-10501 BUG B. `-traceName:""` with the caret between the quotes lists
+    // observed values as a PLAIN, unarmed list — Enter commits the query, not a
+    // value. Typing a space between the quotes (`-traceName:" "`) must NOT flip
+    // that into an armed, committable value: a lone space matched every value
+    // that CONTAINS a space and auto-highlighted the first, so Enter yielded an
+    // unwanted `-traceName:"Codex Turn"`.
+    const observed = {
+      ...OBSERVED,
+      traceName: [{ value: "Codex Turn" }, { value: "Other Trace" }],
+    };
+    // Empty quotes, caret between them — the baseline "just a list" state.
+    const empty = plan('-traceName:""', 12, { observed });
+    expect(empty?.stage).toBe("value");
+    expect(empty?.autoHighlight ?? false).toBe(false);
+    expect(
+      flattenOptions(empty).some((o) => o.kind === "value" && o.active),
+    ).toBe(false);
+
+    // A space between the quotes, caret after it — must stay the same plain list.
+    const spaced = plan('-traceName:" "', 13, { observed });
+    expect(spaced?.stage).toBe("value");
+    expect(spaced?.autoHighlight ?? false).toBe(false);
+    const values = flattenOptions(spaced).filter((o) => o.kind === "value");
+    // Full observed list still offered for browsing, but nothing armed/active.
+    expect(values.map((o) => o.kind === "value" && o.value)).toEqual([
+      "Codex Turn",
+      "Other Trace",
+    ]);
+    expect(values.some((o) => o.kind === "value" && o.active)).toBe(false);
+    // A lone space must not wrap into match-op refinements (`*" "*`) either.
+    expect(spaced?.sections.map((s) => s.title) ?? []).not.toContain(
+      SECTION_MATCH_OPS,
+    );
+  });
+
+  it("still arms Enter for a real typed value prefix (space fix keeps normal typing)", () => {
+    // Guard on the BUG B fix: only empty/whitespace-only values go unarmed. A
+    // real prefix (`ER`) still ranks + arms Enter-to-complete.
+    const p = plan("level:ER", 8);
+    expect(p?.autoHighlight).toBe(true);
+    const first = flattenOptions(p).find((o) => o.kind === "value");
+    expect(first).toMatchObject({ kind: "value", value: "ERROR" });
   });
 
   it("marks a complete typed value active without arming Enter", () => {
@@ -213,7 +260,14 @@ describe("planInputCompletions", () => {
     // The parser resolves tracescore./tracescores./trace_scores.; each must also
     // produce the score-name dropdown, or that spelling parses but suggests
     // nothing. (The singular form was previously missing from PATH_PREFIXES.)
-    const observed = { ...OBSERVED, trace_scores_avg: [{ value: "nps" }] };
+    // Both trace score-name columns are requested + returned together, so model
+    // the categorical one as loaded-but-empty (lazy mode keys loading on column
+    // presence, not value count).
+    const observed = {
+      ...OBSERVED,
+      trace_scores_avg: [{ value: "nps" }],
+      trace_score_categories: [],
+    };
     for (const prefix of ["tracescore.", "tracescores.", "trace_scores."]) {
       const p = plan(prefix, prefix.length, { observed });
       const labels = flattenOptions(p).map((o) => o.label);
@@ -420,6 +474,32 @@ describe("planInputCompletions", () => {
     );
   });
 
+  it("shows the observed type as the detail of a metadata key suggestion", () => {
+    // Keys from the observed-metadata map carry a display-only type hint; a
+    // key observed with multiple types (or only null) carries none. Dotted
+    // keys (the OTel-attribute shape) are literal top-level keys.
+    const observed = {
+      ...OBSERVED,
+      metadata: [
+        { value: "hej", type: "number" },
+        { value: "heyhey.abc", type: "string" },
+        { value: "mixedKey" },
+      ],
+    };
+    const opts = flattenOptions(plan("metadata.", 9, { observed }));
+    const detailOf = (label: string) => {
+      const o = opts.find((o) => o.label === label);
+      return o && "detail" in o ? o.detail : undefined;
+    };
+    expect(detailOf("metadata.hej")).toBe("number");
+    expect(detailOf("metadata.heyhey.abc")).toBe("string");
+    expect(detailOf("metadata.mixedKey")).toBeUndefined();
+    // Typing a key prefix ranks the matching key first and arms Enter.
+    const prefixed = plan("metadata.heyhey", 15, { observed });
+    expect(prefixed?.autoHighlight).toBe(true);
+    expect(flattenOptions(prefixed)[0]?.label).toBe("metadata.heyhey.abc");
+  });
+
   it("keeps the key-path popover open while typing the quote for a spaced name", () => {
     // The documented syntax is `scores."Rouge Score"`; typing the leading quote
     // must keep ranking the (bare-labelled) options instead of closing the
@@ -499,9 +579,167 @@ describe("planInputCompletions", () => {
     expect(p?.loading).toBe(true);
   });
 
+  describe("lazy filter-options (per-field on-demand loading)", () => {
+    // observed is loaded for some columns but the typed field's column is absent
+    // (not yet requested/streamed in). Distinct from observed === undefined.
+    it("requests an option field's column and shows loading when its values are absent", () => {
+      const p = plan("userId:", 7, { observed: OBSERVED });
+      expect(p?.stage).toBe("value");
+      expect(p?.loading).toBe(true);
+      expect(p?.requestColumns).toEqual(["userId"]);
+      expect(flattenOptions(p)).toHaveLength(0);
+    });
+
+    it("shows values (no loading, no request) once the column is present — even when empty", () => {
+      const present = plan("userId:", 7, {
+        observed: { ...OBSERVED, userId: [{ value: "u-1" }] },
+      });
+      expect(present?.loading).toBe(false);
+      expect(present?.requestColumns).toBeUndefined();
+      expect(flattenOptions(present).map((o) => o.label)).toContain("u-1");
+
+      // Loaded-but-empty ([] present) is NOT loading — it offers no values (a
+      // bare `userId:` with no matches yields no popover at all).
+      const empty = plan("userId:", 7, {
+        observed: { ...OBSERVED, userId: [] },
+      });
+      expect(empty?.loading).not.toBe(true);
+      expect(empty?.requestColumns).toBeUndefined();
+    });
+
+    it("never lazy-loads a textSearch field with no server option list (id)", () => {
+      // `id` is textSearch + suggestObservedValues but has no filter-options
+      // column, so it must not show an endless loading row or request a column.
+      const p = plan("id:abc", 6, { observed: OBSERVED });
+      expect(p?.loading).toBe(false);
+      expect(p?.requestColumns).toBeUndefined();
+    });
+
+    it("requests both score-name columns and shows loading on a score path", () => {
+      const p = plan("scores.", 7, {
+        observed: { level: [{ value: "ERROR" }] },
+      });
+      expect(p?.loading).toBe(true);
+      expect(p?.requestColumns).toEqual(["scores_avg", "score_categories"]);
+    });
+
+    it("requests trace score-name columns while typing a trace score value", () => {
+      const p = plan("traceScores.nps:", 16, {
+        observed: { level: [{ value: "ERROR" }] },
+      });
+      expect(p?.loading).toBe(true);
+      expect(p?.requestColumns).toEqual([
+        "trace_scores_avg",
+        "trace_score_categories",
+      ]);
+    });
+
+    // A column whose fetch terminally errored settles to the empty state (no
+    // loading row, no further request) — matching the sidebar — since there is no
+    // auto-retry. Threaded per column via `erroredColumns`.
+    it("settles an errored column to empty (no loading, no request)", () => {
+      const field = plan("userId:", 7, {
+        observed: OBSERVED,
+        erroredColumns: new Set(["userId"]),
+      });
+      expect(field?.loading).not.toBe(true);
+      expect(field?.requestColumns).toBeUndefined();
+
+      const score = plan("scores.", 7, {
+        observed: { level: [{ value: "ERROR" }] },
+        erroredColumns: new Set(["scores_avg", "score_categories"]),
+      });
+      expect(score?.loading).not.toBe(true);
+      expect(score?.requestColumns).toBeUndefined();
+    });
+
+    // One column's error must NOT block loading another (per-column, not global):
+    // a userId timeout still lets sessionId load on demand.
+    it("still loads a different column when an unrelated one errored", () => {
+      const p = plan("sessionId:", 10, {
+        observed: OBSERVED,
+        erroredColumns: new Set(["userId"]),
+      });
+      expect(p?.loading).toBe(true);
+      expect(p?.requestColumns).toEqual(["sessionId"]);
+    });
+  });
+
   it("never suggests the OR keyword between filters", () => {
     const p = plan("O", 1);
     const operators = flattenOptions(p).filter((o) => o.kind === "operator");
     expect(operators.map((o) => o.label)).not.toContain("OR");
+  });
+});
+
+describe("applyPick", () => {
+  // Narrowing helper: the popover only picks non-recent options here.
+  const nonRecent = (o: CompletionOption | undefined) =>
+    o as Exclude<CompletionOption, { kind: "recent" }>;
+
+  it("keeps the caret INSIDE the block after picking a numeric operator", () => {
+    // LFE-10501 BUG A. Picking `>` for a numeric field must not append a
+    // trailing space and jump the caret outside the filter — an operator
+    // invites the value next, so the caret stays right after the symbol and the
+    // next keystroke types the number into `latency:>`.
+    const p = plan("latency:", 8);
+    const gt = flattenOptions(p).find(
+      (o) => o.kind === "operator" && o.label === ">",
+    );
+    expect(gt).toBeDefined();
+    const result = applyPick(nonRecent(gt), "latency:", p!);
+    expect(result.next).toBe("latency:>"); // no trailing space appended
+    expect(result.caret).toBe(9); // caret sits right after `>`, inside the block
+  });
+
+  it("keeps the caret inside the block for datetime operators too", () => {
+    const p = plan("startTime:", 10);
+    const gte = flattenOptions(p).find(
+      (o) => o.kind === "operator" && o.label === ">=",
+    );
+    expect(gte).toBeDefined();
+    const result = applyPick(nonRecent(gte), "startTime:", p!);
+    expect(result.next).toBe("startTime:>=");
+    expect(result.caret).toBe(12);
+  });
+
+  it("keeps the caret inside a score-path block for its comparison operators", () => {
+    const q = "scores.accuracy:";
+    const p = plan(q, q.length);
+    const lt = flattenOptions(p).find(
+      (o) => o.kind === "operator" && o.label === "<",
+    );
+    expect(lt).toBeDefined();
+    const result = applyPick(nonRecent(lt), q, p!);
+    expect(result.next).toBe(`${q}<`);
+    expect(result.caret).toBe(q.length + 1);
+  });
+
+  it("still appends a trailing space + jumps out when a VALUE completes the filter at end", () => {
+    // Guard: the operator fix must not disturb the completes-at-end affordance
+    // for value picks — `level:` + ERROR still lands `level:ERROR ` with the
+    // caret AFTER the trailing space so the next filter starts outside the pill.
+    const p = plan("level:", 6);
+    const err = flattenOptions(p).find(
+      (o) => o.kind === "value" && o.value === "ERROR",
+    );
+    expect(err).toBeDefined();
+    const result = applyPick(nonRecent(err), "level:", p!);
+    expect(result.next).toBe("level:ERROR ");
+    expect(result.caret).toBe(12);
+    expect(result.keepOpen).toBe(true);
+  });
+
+  it("keeps the caret put for an AND/NOT connective (trailing space already inserted)", () => {
+    // AND/NOT already carry their own trailing space, so they were never the
+    // BUG A case — assert the operator clause leaves them unchanged.
+    const p = plan("level:ERROR N", 13);
+    const not = flattenOptions(p).find(
+      (o) => o.kind === "operator" && o.label === "NOT",
+    );
+    expect(not).toBeDefined();
+    const result = applyPick(nonRecent(not), "level:ERROR N", p!);
+    expect(result.next).toBe("level:ERROR NOT ");
+    expect(result.caret).toBe("level:ERROR NOT ".length);
   });
 });

@@ -1,20 +1,109 @@
 import type { Session } from "next-auth";
-import type * as SharedServer from "@langfuse/shared/src/server";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { v4TransitionRouter } from "@/src/features/v4/server/v4TransitionRouter";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { queryClickhouse } from "@langfuse/shared/src/server";
 
-vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
-  const actual = await importOriginal<typeof SharedServer>();
+vi.mock("@/src/server/auth", () => ({
+  getServerAuthSession: vi.fn(),
+}));
+
+const sharedServerMock = vi.hoisted(() => ({
+  queryClickhouse: vi.fn(),
+  convertDateToClickhouseDateTime: (date: Date) =>
+    date.toISOString().replace("T", " ").replace("Z", ""),
+  systemTableRef: (table: "system.processes" | "system.query_log") =>
+    `clusterAllReplicas('test-cluster', '${table}')`,
+  classifyIngestionSdkVersion: ({
+    sdkName,
+    sdkVersion,
+  }: {
+    sdkName: string | null | undefined;
+    sdkVersion: string | null | undefined;
+  }) => {
+    const normalizedSdkName = sdkName?.trim().toLowerCase();
+    const normalizedSdkVersion = sdkVersion?.trim();
+
+    if (
+      !normalizedSdkName ||
+      !normalizedSdkVersion ||
+      normalizedSdkName === "unknown" ||
+      normalizedSdkVersion === "unknown"
+    ) {
+      return {
+        canonicalSdkName: null,
+        latestMajor: null,
+        major: null,
+        status: "unknown",
+      };
+    }
+
+    const canonicalSdkName =
+      normalizedSdkName === "python" || normalizedSdkName === "langfuse-python"
+        ? "python"
+        : normalizedSdkName === "javascript" ||
+            normalizedSdkName.startsWith("@langfuse/")
+          ? "javascript"
+          : null;
+
+    if (!canonicalSdkName) {
+      return {
+        canonicalSdkName: null,
+        latestMajor: null,
+        major: null,
+        status: "unsupported_sdk",
+      };
+    }
+
+    const major = Number(normalizedSdkVersion.match(/^v?(\d+)/)?.[1]);
+    const latestMajor = canonicalSdkName === "python" ? 4 : 5;
+
+    if (!Number.isFinite(major)) {
+      return {
+        canonicalSdkName,
+        latestMajor,
+        major: null,
+        status: "invalid_version",
+      };
+    }
+
+    return {
+      canonicalSdkName,
+      latestMajor,
+      major,
+      status: major >= latestMajor ? "current" : "outdated_major",
+    };
+  },
+}));
+
+vi.mock("@langfuse/shared/src/server", async () => {
+  const { ROOT_CONTEXT } = await import("@opentelemetry/api");
 
   return {
-    ...actual,
-    queryClickhouse: vi.fn(),
-    systemTableRef: vi.fn(
-      (table: "system.processes" | "system.query_log") =>
-        `clusterAllReplicas('test-cluster', '${table}')`,
-    ),
+    ...sharedServerMock,
+    getTraceById: vi.fn(),
+    logger: {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    },
+    redis: {
+      status: "end",
+      disconnect: vi.fn(),
+    },
+    ClickHouseClientManager: {
+      getInstance: () => ({
+        closeAllConnections: vi.fn(),
+      }),
+    },
+    addUserToSpan: vi.fn(),
+    contextWithLangfuseProps: () => ROOT_CONTEXT,
+    ClickHouseResourceError: class ClickHouseResourceError extends Error {
+      static ERROR_ADVICE_MESSAGE = "ClickHouse resource limit exceeded.";
+      errorType = "unknown";
+      tags = {};
+    },
   };
 });
 
@@ -34,6 +123,8 @@ const createCaller = (
   });
 
 type OrganizationRole = Session["user"]["organizations"][number]["role"];
+type ProjectRole =
+  Session["user"]["organizations"][number]["projects"][number]["role"];
 
 const createSessionWithOrgRole = (role: OrganizationRole): Session => ({
   ...session,
@@ -42,6 +133,20 @@ const createSessionWithOrgRole = (role: OrganizationRole): Session => ({
     organizations: session.user.organizations.map((organization) => ({
       ...organization,
       role,
+    })),
+  },
+});
+
+const createSessionWithProjectRole = (role: ProjectRole): Session => ({
+  ...session,
+  user: {
+    ...session.user,
+    organizations: session.user.organizations.map((organization) => ({
+      ...organization,
+      projects: organization.projects.map((project) => ({
+        ...project,
+        role,
+      })),
     })),
   },
 });
@@ -437,6 +542,15 @@ describe("v4TransitionRouter", () => {
       }),
     ).rejects.toThrow("30 days");
 
+    await expect(
+      caller.sdkUsageTimeSeries({
+        projectId,
+        fromTimestamp: new Date("2026-05-25T00:00:00Z"),
+        toTimestamp: new Date("2026-06-25T00:00:00Z"),
+        granularity: "auto",
+      }),
+    ).rejects.toThrow("30 days");
+
     expect(mockedQueryClickhouse).not.toHaveBeenCalled();
     expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
   });
@@ -698,6 +812,16 @@ describe("v4TransitionRouter", () => {
         orgId,
       }),
     ).resolves.toEqual([]);
+    await expect(
+      createCaller(
+        mockPrisma,
+        createSessionWithOrgRole("OWNER"),
+      ).sdkUsageSummaryByProject({
+        orgId,
+        fromTimestamp: new Date("2026-06-24T00:00:00Z"),
+        toTimestamp: new Date("2026-06-25T00:00:00Z"),
+      }),
+    ).resolves.toEqual([]);
 
     await expect(
       createCaller(
@@ -713,6 +837,16 @@ describe("v4TransitionRouter", () => {
         createSessionWithOrgRole("ADMIN"),
       ).traceLevelEvalSummaryByProject({
         orgId,
+      }),
+    ).resolves.toEqual([]);
+    await expect(
+      createCaller(
+        mockPrisma,
+        createSessionWithOrgRole("ADMIN"),
+      ).sdkUsageSummaryByProject({
+        orgId,
+        fromTimestamp: new Date("2026-06-24T00:00:00Z"),
+        toTimestamp: new Date("2026-06-25T00:00:00Z"),
       }),
     ).resolves.toEqual([]);
   });
@@ -739,6 +873,15 @@ describe("v4TransitionRouter", () => {
     });
     await expect(
       caller.legacyApiUsageSummaryByProject({
+        orgId,
+        fromTimestamp: new Date("2026-06-24T00:00:00Z"),
+        toTimestamp: new Date("2026-06-25T00:00:00Z"),
+      }),
+    ).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+    await expect(
+      caller.sdkUsageSummaryByProject({
         orgId,
         fromTimestamp: new Date("2026-06-24T00:00:00Z"),
         toTimestamp: new Date("2026-06-25T00:00:00Z"),
@@ -862,6 +1005,328 @@ describe("v4TransitionRouter", () => {
       | { sql?: string; text?: string; values?: unknown[] }
       | undefined;
     expect(query?.values?.[0]).toBe("1 hour");
+  });
+
+  it("queries SDK usage by exact SDK, version, and API key across event and score ingestion", async () => {
+    mockedQueryClickhouse.mockResolvedValueOnce([
+      {
+        time: "2026-06-25T12:00:00Z",
+        sdkName: "python",
+        sdkVersion: "3.9.0",
+        publicKey: "pk-lf-old-python",
+        count: "3",
+        firstSeen: "2026-06-25T12:01:00Z",
+        lastSeen: "2026-06-25T12:03:00Z",
+      },
+      {
+        time: "2026-06-25T12:04:00Z",
+        sdkName: "@langfuse/tracing",
+        sdkVersion: "5.1.0",
+        publicKey: "pk-lf-js-current",
+        count: 7,
+        firstSeen: "2026-06-25T12:04:00Z",
+        lastSeen: "2026-06-25T12:05:00Z",
+      },
+    ]);
+    const caller = createCaller();
+
+    const result = await caller.sdkUsageTimeSeries({
+      projectId,
+      fromTimestamp: new Date("2026-06-25T12:00:00Z"),
+      toTimestamp: new Date("2026-06-25T13:00:00Z"),
+      granularity: "auto",
+    });
+    const rows = result.rows;
+
+    expect(result.bucketTimes).toHaveLength(30);
+    expect(result.bucketTimes[0]).toBe("2026-06-25T12:00:00Z");
+    expect(result.bucketTimes.at(-1)).toBe("2026-06-25T12:58:00Z");
+    expect(rows).toHaveLength(2);
+    expect(
+      rows.find(
+        (row) =>
+          row.time === "2026-06-25T12:00:00Z" &&
+          row.sdkName === "python" &&
+          row.sdkVersion === "3.9.0" &&
+          row.publicKey === "pk-lf-old-python",
+      ),
+    ).toEqual({
+      time: "2026-06-25T12:00:00Z",
+      sdkName: "python",
+      sdkVersion: "3.9.0",
+      publicKey: "pk-lf-old-python",
+      count: 3,
+      firstSeen: "2026-06-25T12:01:00Z",
+      lastSeen: "2026-06-25T12:03:00Z",
+      canonicalSdkName: "python",
+      latestMajor: 4,
+      major: 3,
+      upgradeStatus: "outdated_major",
+    });
+    expect(
+      rows.find(
+        (row) =>
+          row.time === "2026-06-25T12:04:00Z" &&
+          row.sdkName === "@langfuse/tracing" &&
+          row.sdkVersion === "5.1.0" &&
+          row.publicKey === "pk-lf-js-current",
+      ),
+    ).toEqual({
+      time: "2026-06-25T12:04:00Z",
+      sdkName: "@langfuse/tracing",
+      sdkVersion: "5.1.0",
+      publicKey: "pk-lf-js-current",
+      count: 7,
+      firstSeen: "2026-06-25T12:04:00Z",
+      lastSeen: "2026-06-25T12:05:00Z",
+      canonicalSdkName: "javascript",
+      latestMajor: 5,
+      major: 5,
+      upgradeStatus: "current",
+    });
+    expect(
+      rows.find(
+        (row) =>
+          row.time === "2026-06-25T12:02:00Z" &&
+          row.sdkName === "python" &&
+          row.sdkVersion === "3.9.0" &&
+          row.publicKey === "pk-lf-old-python",
+      ),
+    ).toBeUndefined();
+
+    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(1);
+    const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
+    expect(clickhouseQuery?.query).toContain("FROM events_core");
+    expect(clickhouseQuery?.query).toContain("UNION ALL");
+    expect(clickhouseQuery?.query).toContain("FROM scores FINAL");
+    expect(
+      clickhouseQuery?.query.match(/project_id = \{projectId: String\}/g),
+    ).toHaveLength(2);
+    expect(clickhouseQuery?.query).not.toContain("system.columns");
+    expect(clickhouseQuery?.query).toContain(
+      "toStartOfInterval(event_time, INTERVAL 2 MINUTE, 'UTC')",
+    );
+    expect(clickhouseQuery?.query).toContain(
+      "if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdk_name",
+    );
+    expect(clickhouseQuery?.query).toContain(
+      "if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version",
+    );
+    expect(clickhouseQuery?.query).toContain("ingestion_api_key AS public_key");
+    expect(clickhouseQuery?.query).toContain(
+      "GROUP BY toStartOfInterval(event_time, INTERVAL 2 MINUTE, 'UTC'), sdk_name, sdk_version, public_key",
+    );
+    expect(clickhouseQuery?.params).toMatchObject({
+      projectId,
+      fromTimestamp: "2026-06-25 12:00:00.000",
+      toTimestamp: "2026-06-25 13:00:00.000",
+    });
+    expect(clickhouseQuery?.tags).toEqual({
+      projectId,
+      route: "v4-sdk-usage-timeseries",
+    });
+    expect(clickhouseQuery?.preferredClickhouseService).toBe("EventsReadOnly");
+  });
+
+  it("forbids project members and viewers from accessing project-level v4 data", async () => {
+    const mockPrisma = {
+      posthogIntegration: {
+        findUnique: vi.fn(),
+      },
+      mixpanelIntegration: {
+        findUnique: vi.fn(),
+      },
+      blobStorageIntegration: {
+        findUnique: vi.fn(),
+      },
+      jobConfiguration: {
+        count: vi.fn(),
+      },
+      $queryRaw: vi.fn(),
+    };
+
+    for (const role of ["MEMBER", "VIEWER"] as const) {
+      const caller = createCaller(
+        mockPrisma,
+        createSessionWithProjectRole(role),
+      );
+
+      await expect(caller.summary({ projectId })).rejects.toMatchObject({
+        code: "FORBIDDEN",
+      });
+      await expect(
+        caller.traceLevelEvalSummary({ projectId }),
+      ).rejects.toMatchObject({
+        code: "FORBIDDEN",
+      });
+      await expect(
+        caller.timeSeriesByEntrypoint({
+          projectId,
+          fromTimestamp: new Date("2026-06-25T12:00:00Z"),
+          toTimestamp: new Date("2026-06-25T13:00:00Z"),
+          granularity: "auto",
+        }),
+      ).rejects.toMatchObject({
+        code: "FORBIDDEN",
+      });
+      await expect(
+        caller.traceLevelEvalExecutionsTimeSeries({
+          projectId,
+          fromTimestamp: new Date("2026-06-25T12:00:00Z"),
+          toTimestamp: new Date("2026-06-25T13:00:00Z"),
+          granularity: "auto",
+        }),
+      ).rejects.toMatchObject({
+        code: "FORBIDDEN",
+      });
+      await expect(
+        caller.sdkUsageTimeSeries({
+          projectId,
+          fromTimestamp: new Date("2026-06-25T12:00:00Z"),
+          toTimestamp: new Date("2026-06-25T13:00:00Z"),
+          granularity: "auto",
+        }),
+      ).rejects.toMatchObject({
+        code: "FORBIDDEN",
+      });
+    }
+
+    expect(mockedQueryClickhouse).not.toHaveBeenCalled();
+    expect(mockPrisma.posthogIntegration.findUnique).not.toHaveBeenCalled();
+    expect(mockPrisma.mixpanelIntegration.findUnique).not.toHaveBeenCalled();
+    expect(mockPrisma.blobStorageIntegration.findUnique).not.toHaveBeenCalled();
+    expect(mockPrisma.jobConfiguration.count).not.toHaveBeenCalled();
+    expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
+  it("queries SDK usage without a ClickHouse metadata preflight", async () => {
+    mockedQueryClickhouse.mockResolvedValueOnce([
+      {
+        time: "2026-06-25T12:00:00Z",
+        sdkName: "python",
+        sdkVersion: "4.0.0",
+        publicKey: "pk-lf-python",
+        count: 2,
+        firstSeen: "2026-06-25T12:00:00Z",
+        lastSeen: "2026-06-25T12:01:00Z",
+      },
+    ]);
+    const caller = createCaller();
+
+    const result = await caller.sdkUsageTimeSeries({
+      projectId,
+      fromTimestamp: new Date("2026-06-25T12:00:00Z"),
+      toTimestamp: new Date("2026-06-25T12:10:00Z"),
+      granularity: "auto",
+    });
+
+    expect(result.bucketTimes).toHaveLength(10);
+    expect(result.rows).toHaveLength(1);
+    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(1);
+    const usageQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
+    expect(usageQuery?.query).toContain("FROM events_core");
+    expect(usageQuery?.query).toContain("FROM scores FINAL");
+    expect(usageQuery?.query).toContain("UNION ALL");
+    expect(
+      usageQuery?.query.match(/project_id = \{projectId: String\}/g),
+    ).toHaveLength(2);
+    expect(usageQuery?.query).not.toContain("system.columns");
+  });
+
+  it("rejects SDK usage requests for projects outside the caller session", async () => {
+    const caller = createCaller();
+
+    await expect(
+      caller.sdkUsageTimeSeries({
+        projectId: secondProjectId,
+        fromTimestamp: new Date("2026-06-25T12:00:00Z"),
+        toTimestamp: new Date("2026-06-25T13:00:00Z"),
+        granularity: "auto",
+      }),
+    ).rejects.toThrow("User is not a member of this project");
+
+    expect(mockedQueryClickhouse).not.toHaveBeenCalled();
+  });
+
+  it("summarizes outdated SDK usage series by organization project", async () => {
+    mockedQueryClickhouse.mockResolvedValueOnce([
+      {
+        projectId,
+        sdkName: "python",
+        sdkVersion: "3.9.0",
+        publicKey: "pk-lf-old-python",
+        count: "8",
+      },
+      {
+        projectId,
+        sdkName: "python",
+        sdkVersion: "4.0.0",
+        publicKey: "pk-lf-current-python",
+        count: "13",
+      },
+      {
+        projectId: secondProjectId,
+        sdkName: "@langfuse/tracing",
+        sdkVersion: "4.2.0",
+        publicKey: "pk-lf-old-js",
+        count: "5",
+      },
+    ]);
+    const mockPrisma = {
+      project: {
+        findMany: vi
+          .fn()
+          .mockResolvedValue([{ id: projectId }, { id: secondProjectId }]),
+      },
+    };
+    const caller = createCaller(mockPrisma);
+
+    const rows = await caller.sdkUsageSummaryByProject({
+      orgId,
+      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
+      toTimestamp: new Date("2026-06-25T00:00:00Z"),
+    });
+
+    expect(rows).toEqual([
+      {
+        projectId,
+        outdatedSdkUsageSeriesCount: 1,
+      },
+      {
+        projectId: secondProjectId,
+        outdatedSdkUsageSeriesCount: 1,
+      },
+    ]);
+
+    expect(mockPrisma.project.findMany).toHaveBeenCalledWith({
+      where: {
+        orgId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+      },
+    });
+    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(1);
+    const usageQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
+    expect(usageQuery?.query).toContain("FROM events_core");
+    expect(usageQuery?.query).toContain("UNION ALL");
+    expect(usageQuery?.query).toContain("FROM scores FINAL");
+    expect(usageQuery?.query).not.toContain("system.columns");
+    expect(
+      usageQuery?.query.match(/project_id IN \{projectIds: Array\(String\)\}/g),
+    ).toHaveLength(2);
+    expect(usageQuery?.query).toContain(
+      "GROUP BY project_id, sdk_name, sdk_version, public_key",
+    );
+    expect(usageQuery?.params).toMatchObject({
+      projectIds: [projectId, secondProjectId],
+      fromTimestamp: "2026-06-24 00:00:00.000",
+      toTimestamp: "2026-06-25 00:00:00.000",
+    });
+    expect(usageQuery?.tags).toEqual({
+      route: "v4-org-sdk-usage-summary",
+    });
   });
 
   it("summarizes legacy public API usage by organization project", async () => {

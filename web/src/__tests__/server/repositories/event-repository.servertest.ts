@@ -665,13 +665,15 @@ describe("Clickhouse Events Repository Test", () => {
           columns: ["level"],
         });
 
-        expect(options.level.map((level) => level.value)).toContain("WARNING");
-        expect(options.name).toEqual([]);
-        expect(options.traceTags).toEqual([]);
-        expect(options.scores_avg).toEqual([]);
-        expect(options.score_categories).toEqual([]);
-        expect(options.trace_scores_avg).toEqual([]);
-        expect(options.trace_score_categories).toEqual([]);
+        expect(options.level?.map((level) => level.value)).toContain("WARNING");
+        // Unrequested columns are absent (not empty arrays), so the client can
+        // distinguish "loaded, no values" from "not requested yet" for lazy loading.
+        expect(options.name).toBeUndefined();
+        expect(options.traceTags).toBeUndefined();
+        expect(options.scores_avg).toBeUndefined();
+        expect(options.score_categories).toBeUndefined();
+        expect(options.trace_scores_avg).toBeUndefined();
+        expect(options.trace_score_categories).toBeUndefined();
       });
     });
 
