@@ -91,8 +91,57 @@ describe("PromptService", () => {
       );
 
       expect(mockRedis.set).toHaveBeenCalledWith(
-        "prompt:project1:epoch-1:testPrompt:1",
+        "prompt:project1:epoch-1:testPrompt:version:1",
         JSON.stringify(mockPrompt),
+        "EX",
+        expect.any(Number),
+      );
+    });
+
+    it("caches a version lookup under a version-namespaced key", async () => {
+      mockRedis.get.mockResolvedValueOnce("epoch-1"); // getOrCreateEpoch for cache read
+      mockRedis.get.mockResolvedValueOnce(null); // cache miss
+      mockPrisma.prompt.findFirst.mockResolvedValue(mockPrompt);
+      mockRedis.get.mockResolvedValueOnce("epoch-1"); // getOrCreateEpoch for cache write
+
+      await promptService.getPrompt({
+        projectId: "project1",
+        promptName: "testPrompt",
+        version: 3,
+        label: undefined,
+      });
+
+      expect(mockRedis.set).toHaveBeenCalledWith(
+        "prompt:project1:epoch-1:testPrompt:version:3",
+        expect.any(String),
+        "EX",
+        expect.any(Number),
+      );
+    });
+
+    it("caches a numeric label under a label-namespaced key so it cannot collide with the same-numbered version", async () => {
+      mockRedis.get.mockResolvedValueOnce("epoch-1"); // getOrCreateEpoch for cache read
+      mockRedis.get.mockResolvedValueOnce(null); // cache miss
+      mockPrisma.prompt.findFirst.mockResolvedValue(mockPrompt);
+      mockRedis.get.mockResolvedValueOnce("epoch-1"); // getOrCreateEpoch for cache write
+
+      await promptService.getPrompt({
+        projectId: "project1",
+        promptName: "testPrompt",
+        version: undefined,
+        label: "3",
+      });
+
+      // Must NOT reuse the version:3 key that a `version=3` lookup would write.
+      expect(mockRedis.set).toHaveBeenCalledWith(
+        "prompt:project1:epoch-1:testPrompt:label:3",
+        expect.any(String),
+        "EX",
+        expect.any(Number),
+      );
+      expect(mockRedis.set).not.toHaveBeenCalledWith(
+        "prompt:project1:epoch-1:testPrompt:version:3",
+        expect.any(String),
         "EX",
         expect.any(Number),
       );

@@ -197,7 +197,15 @@ export class PromptService {
 
     const prefix = this.getCacheKeyPrefix(params, epoch);
 
-    return `${prefix}:${params.version ?? params.label}`;
+    // Namespace the selector by lookup type. Labels may be purely numeric
+    // (PROMPT_LABEL_REGEX allows digits), so an untyped `version ?? label`
+    // key lets label "3" collide with version 3 and return the wrong prompt.
+    const selector =
+      typeof params.version === "number"
+        ? `version:${params.version}`
+        : `label:${params.label}`;
+
+    return `${prefix}:${selector}`;
   }
 
   private getCacheKeyPrefix(
