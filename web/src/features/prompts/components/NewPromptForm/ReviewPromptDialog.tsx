@@ -13,6 +13,7 @@ import {
 import { type Prompt } from "@langfuse/shared";
 import { type NewPromptFormSchemaType } from "./validation";
 import DiffViewer from "@/src/components/DiffViewer";
+import { cn } from "@/src/utils/tailwind";
 
 type ReviewPromptDialogProps = {
   initialPrompt: Prompt;
@@ -75,6 +76,11 @@ export const ReviewPromptDialog: React.FC<ReviewPromptDialogProps> = (
     2,
   );
 
+  // Only let the Content section fill the body height when it actually has a
+  // diff. Otherwise the "No changes" state would reserve a full viewport and
+  // push the Config diff below the fold (common for config-only edits).
+  const contentUnchanged = initialPromptContent === newPromptContent;
+
   return (
     <Dialog open={open} onOpenChange={(open) => setOpen(open)}>
       <DialogTrigger asChild>{children}</DialogTrigger>
@@ -87,16 +93,21 @@ export const ReviewPromptDialog: React.FC<ReviewPromptDialogProps> = (
         </DialogHeader>
 
         <DialogBody>
-          {/* Content fills the full body height; scroll the body to reach Config */}
-          <div className="flex h-full shrink-0 flex-col">
+          {/* Content fills the body height when it has a diff; scroll to reach Config */}
+          <div
+            className={cn(
+              "flex shrink-0 flex-col",
+              !contentUnchanged && "h-full",
+            )}
+          >
             <h3 className="mb-2 text-base font-medium">Content</h3>
             <DiffViewer
               oldString={initialPromptContent}
               newString={newPromptContent}
               oldLabel={`Previous content (v${initialPrompt.version})`}
               newLabel="New content (draft)"
-              fillContainerHeight
-              className="min-h-0 flex-1"
+              fillContainerHeight={!contentUnchanged}
+              className={cn(!contentUnchanged && "min-h-0 flex-1")}
             />
           </div>
           <div className="flex shrink-0 flex-col">

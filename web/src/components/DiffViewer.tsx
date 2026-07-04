@@ -536,7 +536,20 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
   );
 
   if (oldString === newString) {
-    return <div className="text-muted-foreground text-sm">No changes</div>;
+    return (
+      <div
+        className={cn(
+          "text-muted-foreground text-sm",
+          // When the viewer is asked to fill its container, center the message
+          // so the reserved space reads as an intentional empty state instead
+          // of a blank region with a stray line of text at the top.
+          fillContainerHeight && "flex items-center justify-center",
+          className,
+        )}
+      >
+        No changes
+      </div>
+    );
   }
 
   const hasOverflow =
