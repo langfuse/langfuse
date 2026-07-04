@@ -507,6 +507,12 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
   const handleRulerPointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
       event.preventDefault();
+      // preventDefault() above suppresses the compat mousedown event that
+      // browsers use to move keyboard focus, so focus the ruler explicitly to
+      // keep the "click to jump, then arrow-step through changes" flow working
+      // without requiring a separate Tab. preventScroll avoids a redundant
+      // scroll-into-view since the ruler is already in the viewport.
+      event.currentTarget.focus({ preventScroll: true });
       isDraggingRef.current = true;
       event.currentTarget.setPointerCapture(event.pointerId);
       scrollToClientY(event.clientY);
