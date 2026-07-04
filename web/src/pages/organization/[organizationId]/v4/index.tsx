@@ -53,6 +53,11 @@ type ProjectTraceLevelEvalSummary = {
   traceLevelEvalCount: number;
 };
 
+type ProjectSdkUsageSummary = {
+  projectId: string;
+  outdatedSdkUsageSeriesCount: number;
+};
+
 const groupByProjectId = <T extends { projectId: string }>(
   rows: T[] | undefined,
 ): Map<string, T[]> => {
@@ -75,10 +80,12 @@ const getProjectActionCount = (
   project: ProjectSummary,
   traceLevelEvalCount: number,
   legacyApiEntrypointCount: number,
+  outdatedSdkUsageSeriesCount: number,
 ): number =>
   traceLevelEvalCount +
   project.legacyIntegrationCount +
-  legacyApiEntrypointCount;
+  legacyApiEntrypointCount +
+  outdatedSdkUsageSeriesCount;
 
 export default function OrganizationV4Page() {
   const router = useRouter();
@@ -143,6 +150,23 @@ export default function OrganizationV4Page() {
       },
     );
 
+  const sdkUsageSummaryByProject =
+    api.v4Transition.sdkUsageSummaryByProject.useQuery(
+      {
+        orgId: organizationId ?? "",
+        fromTimestamp: absoluteTimeRange.from,
+        toTimestamp: absoluteTimeRange.to,
+      },
+      {
+        enabled: Boolean(organizationId) && canViewOrgV4Page,
+        trpc: {
+          context: {
+            skipBatch: true,
+          },
+        },
+      },
+    );
+
   const legacyApiUsageRowsByProjectId = useMemo(
     () =>
       groupByProjectId<ProjectScopedLegacyApiUsageSummary>(
@@ -162,6 +186,18 @@ export default function OrganizationV4Page() {
       ),
     [traceLevelEvalSummaryByProject.data],
   );
+  const outdatedSdkUsageSeriesCountsByProjectId = useMemo(
+    () =>
+      new Map(
+        (sdkUsageSummaryByProject.data ?? []).map(
+          (row: ProjectSdkUsageSummary) => [
+            row.projectId,
+            row.outdatedSdkUsageSeriesCount,
+          ],
+        ),
+      ),
+    [sdkUsageSummaryByProject.data],
+  );
 
   const projects = useMemo(
     () =>
@@ -172,6 +208,7 @@ export default function OrganizationV4Page() {
           countLegacyApiEntrypoints(
             legacyApiUsageRowsByProjectId.get(b.projectId),
           ),
+          outdatedSdkUsageSeriesCountsByProjectId.get(b.projectId) ?? 0,
         );
         const aActionCount = getProjectActionCount(
           a,
@@ -179,6 +216,7 @@ export default function OrganizationV4Page() {
           countLegacyApiEntrypoints(
             legacyApiUsageRowsByProjectId.get(a.projectId),
           ),
+          outdatedSdkUsageSeriesCountsByProjectId.get(a.projectId) ?? 0,
         );
 
         if (bActionCount !== aActionCount) return bActionCount - aActionCount;
@@ -187,6 +225,7 @@ export default function OrganizationV4Page() {
     [
       summaryByProject.data?.projects,
       legacyApiUsageRowsByProjectId,
+      outdatedSdkUsageSeriesCountsByProjectId,
       traceLevelEvalCountsByProjectId,
     ],
   );
@@ -236,6 +275,23 @@ export default function OrganizationV4Page() {
       },
     );
 
+  const selectedProjectSdkUsage = api.v4Transition.sdkUsageTimeSeries.useQuery(
+    {
+      projectId: selectedProject?.projectId ?? "",
+      fromTimestamp: absoluteTimeRange.from,
+      toTimestamp: absoluteTimeRange.to,
+      granularity: "auto",
+    },
+    {
+      enabled: Boolean(selectedProject?.projectId) && canViewOrgV4Page,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+
   const migrationSummary = useMemo(() => {
     return projects.reduce(
       (summary, project) => {
@@ -246,6 +302,7 @@ export default function OrganizationV4Page() {
           project,
           traceLevelEvalCountsByProjectId.get(project.projectId) ?? 0,
           countLegacyApiEntrypoints(legacyApiRows),
+          outdatedSdkUsageSeriesCountsByProjectId.get(project.projectId) ?? 0,
         );
 
         return {
@@ -258,6 +315,7 @@ export default function OrganizationV4Page() {
     );
   }, [
     legacyApiUsageRowsByProjectId,
+    outdatedSdkUsageSeriesCountsByProjectId,
     projects,
     traceLevelEvalCountsByProjectId,
   ]);
@@ -265,10 +323,12 @@ export default function OrganizationV4Page() {
   const isProjectReadinessLoading =
     summaryByProject.isPending ||
     legacyApiUsageSummaryByProject.isPending ||
+    sdkUsageSummaryByProject.isPending ||
     traceLevelEvalSummaryByProject.isPending;
   const hasProjectReadinessError =
     Boolean(summaryByProject.error) ||
     Boolean(legacyApiUsageSummaryByProject.error) ||
+    Boolean(sdkUsageSummaryByProject.error) ||
     Boolean(traceLevelEvalSummaryByProject.error);
 
   useEffect(() => {
@@ -338,7 +398,7 @@ export default function OrganizationV4Page() {
             <div className="min-h-40" />
           ) : projects.length > 0 ? (
             <div className="overflow-x-auto">
-              <Table className="min-w-[60rem] table-auto">
+              <Table className="min-w-[68rem] table-auto">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Project</TableHead>
@@ -352,6 +412,7 @@ export default function OrganizationV4Page() {
                     <TableHead className="w-44 text-right">
                       Public API
                     </TableHead>
+                    <TableHead className="w-32 text-right">SDKs</TableHead>
                     <TableHead className="w-32" />
                   </TableRow>
                 </TableHeader>
@@ -369,15 +430,24 @@ export default function OrganizationV4Page() {
                       traceLevelEvalCountsByProjectId.get(project.projectId) ??
                         0,
                       legacyApiEntrypointCount,
+                      outdatedSdkUsageSeriesCountsByProjectId.get(
+                        project.projectId,
+                      ) ?? 0,
                     );
                     const traceLevelEvalCount =
                       traceLevelEvalCountsByProjectId.get(project.projectId) ??
                       0;
+                    const outdatedSdkUsageSeriesCount =
+                      outdatedSdkUsageSeriesCountsByProjectId.get(
+                        project.projectId,
+                      ) ?? 0;
                     const isStatusPending =
                       legacyApiUsageSummaryByProject.isPending ||
+                      sdkUsageSummaryByProject.isPending ||
                       traceLevelEvalSummaryByProject.isPending;
                     const hasStatusError =
                       Boolean(legacyApiUsageSummaryByProject.error) ||
+                      Boolean(sdkUsageSummaryByProject.error) ||
                       Boolean(traceLevelEvalSummaryByProject.error);
                     const migrationStatus =
                       isStatusPending || hasStatusError
@@ -437,6 +507,18 @@ export default function OrganizationV4Page() {
                                   )} calls`
                                 : "0"}
                         </TableCell>
+                        <TableCell density="comfortable" className="text-right">
+                          {sdkUsageSummaryByProject.isPending
+                            ? "Loading..."
+                            : sdkUsageSummaryByProject.error
+                              ? "Failed"
+                              : outdatedSdkUsageSeriesCount > 0
+                                ? `${numberFormatter(
+                                    outdatedSdkUsageSeriesCount,
+                                    0,
+                                  )} outdated`
+                                : "0"}
+                        </TableCell>
                         <TableCell density="comfortable">
                           <Button
                             variant={isSelected ? "secondary" : "outline"}
@@ -476,6 +558,7 @@ export default function OrganizationV4Page() {
             traceLevelEvalExecutions={
               selectedProjectTraceLevelEvalExecutions.data
             }
+            sdkUsage={selectedProjectSdkUsage.data}
             isLegacyIntegrationSummaryLoading={summaryByProject.isPending}
             isTraceLevelEvalSummaryLoading={
               traceLevelEvalSummaryByProject.isPending
@@ -484,6 +567,7 @@ export default function OrganizationV4Page() {
             isTraceLevelEvalExecutionsLoading={
               selectedProjectTraceLevelEvalExecutions.isPending
             }
+            isSdkUsageLoading={selectedProjectSdkUsage.isPending}
             hasLegacyIntegrationSummaryError={Boolean(summaryByProject.error)}
             hasTraceLevelEvalSummaryError={Boolean(
               traceLevelEvalSummaryByProject.error,
@@ -494,6 +578,7 @@ export default function OrganizationV4Page() {
             hasTraceLevelEvalExecutionsError={Boolean(
               selectedProjectTraceLevelEvalExecutions.error,
             )}
+            hasSdkUsageError={Boolean(selectedProjectSdkUsage.error)}
           />
         ) : null}
       </div>
