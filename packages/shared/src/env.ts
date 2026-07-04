@@ -442,6 +442,17 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(120_000), // 2 minutes
+  LANGFUSE_LLM_COMPLETION_AI_SDK_ADAPTERS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s
+        ? s
+            .split(",")
+            .map((adapter) => adapter.trim())
+            .filter(Boolean)
+        : [],
+    ),
 
   LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
   LANGFUSE_AWS_BEDROCK_SMALL_MODEL: z.string().optional(),
