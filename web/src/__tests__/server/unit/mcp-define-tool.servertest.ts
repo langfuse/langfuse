@@ -105,4 +105,51 @@ describe("defineTool", () => {
       }),
     ).toThrow("Union and intersection schemas are not supported");
   });
+
+  it("strips Unicode property escapes from emitted pattern keywords", () => {
+    const schema = z.object({
+      name: z
+        .string()
+        .min(1)
+        .max(35)
+        .regex(/^[\p{L}\p{N}_ .()-]+$/u, "Name contains invalid characters"),
+    });
+
+    const [tool] = defineTool({
+      name: "scoreConfigTool",
+      description: "",
+      baseSchema: schema,
+      inputSchema: schema,
+      handler: async (input) => input,
+    });
+
+    const nameProperty = (
+      tool.inputSchema.properties as Record<string, unknown>
+    ).name as Record<string, unknown>;
+
+    expect(nameProperty.pattern).toBeUndefined();
+    expect(nameProperty.type).toBe("string");
+    expect(nameProperty.minLength).toBe(1);
+    expect(nameProperty.maxLength).toBe(35);
+  });
+
+  it("preserves ASCII-safe pattern keywords in emitted schemas", () => {
+    const schema = z.object({
+      slug: z.string().regex(/^[a-z0-9_-]+$/),
+    });
+
+    const [tool] = defineTool({
+      name: "slugTool",
+      description: "",
+      baseSchema: schema,
+      inputSchema: schema,
+      handler: async (input) => input,
+    });
+
+    const slugProperty = (
+      tool.inputSchema.properties as Record<string, unknown>
+    ).slug as Record<string, unknown>;
+
+    expect(slugProperty.pattern).toBe("^[a-z0-9_-]+$");
+  });
 });

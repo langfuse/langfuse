@@ -62,8 +62,46 @@ export interface ToolDefinition<TName extends string = string> {
 
 type JsonSchemaObject = Record<string, unknown>;
 
+/** Matches JSON Schema patterns that use ECMAScript Unicode property escapes. */
+const UNICODE_PROPERTY_ESCAPE_PATTERN = /\\p\{/;
+
 function isObjectJsonSchema(schema: JsonSchemaObject): boolean {
   return schema.type === "object";
+}
+
+/**
+ * Remove MCP-incompatible JSON Schema keywords from emitted tool schemas.
+ *
+ * OpenAI and Vertex function-calling validators reject `pattern` values that use
+ * Unicode property escapes (`\p{L}`, `\p{N}`, etc.). Runtime validation still
+ * runs through Zod, so dropping the advertised pattern is safe.
+ */
+function sanitizeMcpJsonSchema(schema: unknown): unknown {
+  if (typeof schema !== "object" || schema === null) {
+    return schema;
+  }
+
+  if (Array.isArray(schema)) {
+    return schema.map(sanitizeMcpJsonSchema);
+  }
+
+  const sanitized: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(
+    schema as Record<string, unknown>,
+  )) {
+    if (
+      key === "pattern" &&
+      typeof value === "string" &&
+      UNICODE_PROPERTY_ESCAPE_PATTERN.test(value)
+    ) {
+      continue;
+    }
+
+    sanitized[key] = sanitizeMcpJsonSchema(value);
+  }
+
+  return sanitized;
 }
 
 function hasJsonSchemaUnion(value: unknown): boolean {
@@ -141,7 +179,9 @@ export function defineTool<TInput, const TName extends string>(
     );
   }
 
-  const jsonSchemaObject = jsonSchema as JsonSchemaObject;
+  const jsonSchemaObject = sanitizeMcpJsonSchema(
+    jsonSchema,
+  ) as JsonSchemaObject;
 
   // Validate that we got a usable plain object schema.
   if (!isObjectJsonSchema(jsonSchemaObject)) {
