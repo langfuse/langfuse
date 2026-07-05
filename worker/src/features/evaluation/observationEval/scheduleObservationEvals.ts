@@ -23,6 +23,27 @@ interface ScheduleObservationEvalsParams {
 }
 
 /**
+ * Whether queue-driven (asynchronous OTel ingestion) observation-eval
+ * scheduling is allowed for an observation environment.
+ *
+ * Internal Langfuse environments are excluded: LLM-as-a-judge executions
+ * publish their own telemetry through the OTel ingestion pipeline
+ * (fetchLLMCompletion AI SDK engine), and scheduling evals on eval
+ * observations would recurse indefinitely — the observation-eval counterpart
+ * of the trace-upsert safeguard in evalService.ts createEvalJobs().
+ *
+ * Experiments (langfuse-prompt-experiment) schedule their observation evals
+ * synchronously via onRootEventRecordReady, not through the queue. If
+ * experiment eval scheduling ever moves to the queue path, allowlist that
+ * single environment here — never langfuse-llm-judge.
+ */
+export function isEnvironmentAllowedForQueuedObservationEvals(
+  environment: string | undefined,
+): boolean {
+  return !environment?.startsWith("langfuse");
+}
+
+/**
  * Schedule observation evals for a given observation.
  *
  * This function receives pre-fetched configs (already filtered by targetObject: "event" or "experiment"

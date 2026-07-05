@@ -1,4 +1,7 @@
-export { scheduleObservationEvals } from "./scheduleObservationEvals";
+export {
+  isEnvironmentAllowedForQueuedObservationEvals,
+  scheduleObservationEvals,
+} from "./scheduleObservationEvals";
 export { fetchObservationEvalConfigs } from "./fetchObservationEvalConfigs";
 export { createObservationEvalSchedulerDeps } from "./createSchedulerDeps";
 export {

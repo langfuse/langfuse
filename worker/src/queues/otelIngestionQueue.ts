@@ -42,6 +42,7 @@ import {
 } from "@langfuse/shared";
 import {
   fetchObservationEvalConfigs,
+  isEnvironmentAllowedForQueuedObservationEvals,
   scheduleObservationEvals,
   createObservationEvalSchedulerDeps,
 } from "../features/evaluation/observationEval";
@@ -531,8 +532,17 @@ export const otelIngestionQueueProcessorBuilder = (
             return;
           }
 
-          // Step 2: Schedule observation evals (independent of event writes)
-          if (hasEvalConfigs && evalSchedulerDeps) {
+          // Step 2: Schedule observation evals (independent of event writes).
+          // Internal langfuse-* environments are excluded to prevent
+          // eval-on-eval recursion; see
+          // isEnvironmentAllowedForQueuedObservationEvals.
+          if (
+            hasEvalConfigs &&
+            evalSchedulerDeps &&
+            isEnvironmentAllowedForQueuedObservationEvals(
+              eventRecord.environment,
+            )
+          ) {
             try {
               const observation =
                 convertEventRecordToObservationForEval(eventRecord);
