@@ -5,9 +5,16 @@ import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { useOrganizationSettingsPages } from "@/src/pages/organization/[organizationId]/settings";
+import { isCloudPlan } from "@langfuse/shared";
 
 vi.mock("@/src/components/PagedSettingsContainer", () => ({
   PagedSettingsContainer: () => null,
+}));
+
+vi.mock("@/src/env.mjs", () => ({
+  env: {
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+  },
 }));
 
 vi.mock("@/src/components/layouts/header", () => ({
@@ -58,6 +65,13 @@ vi.mock("@langfuse/shared", () => ({
   isCloudPlan: vi.fn(() => false),
 }));
 
+vi.mock(
+  "@/src/features/instance-health/components/InstanceHealthSettingsPage",
+  () => ({
+    InstanceHealthSettingsPage: () => null,
+  }),
+);
+
 vi.mock("@/src/features/projects/hooks", () => ({
   useQueryProjectOrOrganization: vi.fn(),
 }));
@@ -102,6 +116,7 @@ describe("useOrganizationSettingsPages", () => {
     );
     vi.mocked(useHasOrganizationAccess).mockReturnValue(false);
     vi.mocked(usePlan).mockReturnValue("oss");
+    vi.mocked(isCloudPlan).mockReturnValue(false);
     vi.mocked(useIsCloudBillingAvailable).mockReturnValue(false);
   });
 
@@ -136,5 +151,23 @@ describe("useOrganizationSettingsPages", () => {
     expect(result.current.find((page) => page.slug === "api-keys")?.show).toBe(
       false,
     );
+  });
+
+  it("shows instance health settings for OSS organizations", () => {
+    const { result } = renderHook(() => useOrganizationSettingsPages());
+
+    expect(
+      result.current.find((page) => page.slug === "instance-health")?.show,
+    ).toBe(true);
+  });
+
+  it("hides instance health settings for Cloud organizations", () => {
+    vi.mocked(isCloudPlan).mockReturnValue(true);
+
+    const { result } = renderHook(() => useOrganizationSettingsPages());
+
+    expect(
+      result.current.find((page) => page.slug === "instance-health")?.show,
+    ).toBe(false);
   });
 });

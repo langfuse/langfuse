@@ -20,6 +20,7 @@ import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCl
 import { env } from "@/src/env.mjs";
 import { OrgAuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/OrgAuditLogsSettingsPage";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { InstanceHealthSettingsPage } from "@/src/features/instance-health/components/InstanceHealthSettingsPage";
 
 type OrganizationSettingsPage = {
   title: string;
@@ -39,7 +40,9 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
   const showOrgApiKeySettings = hasAdminApiEntitlement && hasOrgApiKeyAccess;
   const showAuditLogs = useHasEntitlement("audit-logs");
   const plan = usePlan();
-  const isLangfuseCloud = isCloudPlan(plan) ?? false;
+  const isLangfuseCloud =
+    Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ||
+    (isCloudPlan(plan) ?? false);
   const isCloudBillingAvailable = useIsCloudBillingAvailable();
 
   if (!organization) return [];
@@ -110,6 +113,13 @@ export const getOrganizationSettingsPages = ({
       </div>
     ),
     show: showOrgApiKeySettings,
+  },
+  {
+    title: "Instance Health",
+    slug: "instance-health",
+    cmdKKeywords: ["health", "infra", "queues", "clickhouse", "diagnostics"],
+    content: <InstanceHealthSettingsPage orgId={organization.id} />,
+    show: !isLangfuseCloud,
   },
   {
     title: "Members",

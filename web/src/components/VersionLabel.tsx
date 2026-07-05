@@ -1,4 +1,6 @@
 import {
+  Activity,
+  ArrowUp,
   ArrowUp10,
   BadgeCheck,
   HardDriveDownload,
@@ -17,17 +19,20 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/src/components/ui/dropdown-menu";
-import { ArrowUp } from "lucide-react";
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import { usePlan } from "@/src/features/entitlements/hooks";
-import { isSelfHostedPlan, planLabels } from "@langfuse/shared";
+import { isCloudPlan, isSelfHostedPlan, planLabels } from "@langfuse/shared";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { useSession } from "next-auth/react";
 
 export const VersionLabel = ({ className }: { className?: string }) => {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const { organization } = useQueryProjectOrOrganization();
+  const session = useSession();
 
   const backgroundMigrationStatus = api.backgroundMigrations.status.useQuery(
     undefined,
@@ -49,6 +54,15 @@ export const VersionLabel = ({ className }: { className?: string }) => {
   });
 
   const plan = usePlan();
+  const instanceHealthOrganizationId =
+    organization?.id ?? session.data?.user?.organizations[0]?.id;
+  const instanceHealthHref = instanceHealthOrganizationId
+    ? `/organization/${instanceHealthOrganizationId}/settings/instance-health`
+    : null;
+  const showInstanceHealthEntrypoint =
+    Boolean(instanceHealthHref) &&
+    !isLangfuseCloud &&
+    (!plan || !isCloudPlan(plan));
 
   const selfHostedPlanLabel = !isLangfuseCloud
     ? plan && isSelfHostedPlan(plan)
@@ -148,6 +162,14 @@ export const VersionLabel = ({ className }: { className?: string }) => {
                   className="bg-transparent"
                 />
               )}
+            </Link>
+          </DropdownMenuItem>
+        )}
+        {showInstanceHealthEntrypoint && instanceHealthHref && (
+          <DropdownMenuItem asChild>
+            <Link href={instanceHealthHref}>
+              <Activity size={16} className="mr-2" />
+              Instance Health
             </Link>
           </DropdownMenuItem>
         )}
