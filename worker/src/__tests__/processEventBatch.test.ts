@@ -217,6 +217,12 @@ describe("processEventBatch", () => {
     const enqueuedData = queueAddMock.mock.calls[0][1].payload.data;
     expect(enqueuedData.eventBodyId).toBeTypeOf("string");
     expect(enqueuedData.eventBodyId.length).toBeGreaterThan(0);
+
+    // The invariant this fix relies on: the id backfilled into the S3-uploaded
+    // event body must be the exact same id used as the queue's eventBodyId,
+    // since IngestionService looks up/creates the score row by eventBodyId.
+    const uploadedEvents = uploadJsonMock.mock.calls[0][1];
+    expect(uploadedEvents[0].body.id).toBe(enqueuedData.eventBodyId);
   });
 
   it("enqueues a trace-create event that omits body.id", async () => {
