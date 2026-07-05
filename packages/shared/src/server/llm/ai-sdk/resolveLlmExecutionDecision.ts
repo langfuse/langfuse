@@ -2,9 +2,10 @@ import { getCurrentSpan } from "../../instrumentation";
 import { OpenAIConfigSchema } from "../../../interfaces/customLLMProviderConfigSchemas";
 import type { LLMConnectionConfig } from "../../../interfaces/customLLMProviderConfigSchemas";
 import { LLMAdapter, type TraceSinkParams } from "../types";
-import { translateOpenAIProviderOptions } from "./providerOptions";
-
-export type OpenAIApiMode = "responses" | "chat-completions";
+import {
+  translateOpenAIProviderOptions,
+  type OpenAIApiMode,
+} from "./providers/openai";
 
 export type LlmExecutionDecision =
   | {

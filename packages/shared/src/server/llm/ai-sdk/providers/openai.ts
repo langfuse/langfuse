@@ -1,3 +1,41 @@
+import { createOpenAI } from "@ai-sdk/openai";
+import type { LanguageModel } from "ai";
+
+import type { ModelParams } from "../../types";
+import { processOpenAIBaseURL } from "../../utils";
+
+export type OpenAIApiMode = "responses" | "chat-completions";
+
+export function buildOpenAIModel(params: {
+  modelParams: ModelParams;
+  apiKey: string;
+  baseURL?: string | null;
+  extraHeaders?: Record<string, string>;
+  apiMode: OpenAIApiMode;
+  fetch: typeof fetch;
+}): LanguageModel {
+  const { apiKey, baseURL, extraHeaders, apiMode, modelParams } = params;
+
+  const processedBaseURL = processOpenAIBaseURL({
+    url: baseURL,
+    modelName: modelParams.model,
+  });
+
+  const provider = createOpenAI({
+    apiKey,
+    baseURL: processedBaseURL ?? undefined,
+    headers: extraHeaders,
+    fetch: params.fetch,
+  });
+
+  // Chat Completions is the default; the Responses API is opt-in via the
+  // connection's useResponsesApi config. The provider maps maxOutputTokens to
+  // max_completion_tokens for reasoning models (o*/gpt-5*) on its own.
+  return apiMode === "responses"
+    ? provider.responses(modelParams.model)
+    : provider.chat(modelParams.model);
+}
+
 /**
  * Translation of Langfuse `modelParams.providerOptions` to AI SDK OpenAI
  * provider options.
@@ -9,7 +47,6 @@
  * unacceptable: any key we cannot translate makes the dispatcher decline to
  * LangChain (with a recorded reason) instead.
  */
-
 const OPENAI_PROVIDER_OPTION_KEY_MAP: Record<string, string> = {
   // snake_case (OpenAI request body, as used with LangChain modelKwargs)
   reasoning_effort: "reasoningEffort",

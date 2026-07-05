@@ -1,7 +1,6 @@
 import { ZodType } from "zod";
 
 import { IterableReadableStream } from "@langchain/core/utils/stream";
-import { createOpenAI } from "@ai-sdk/openai";
 import {
   generateText,
   jsonSchema,
@@ -25,9 +24,9 @@ import {
   ToolCallResponseSchema,
   TraceSinkParams,
 } from "../types";
-import { executeWithRuntimeTimeout, processOpenAIBaseURL } from "../utils";
+import { executeWithRuntimeTimeout } from "../utils";
 import { mapChatMessagesToModelMessages } from "./messages";
-import type { OpenAIApiMode } from "./resolveLlmExecutionDecision";
+import { buildOpenAIModel, type OpenAIApiMode } from "./providers/openai";
 import {
   createAiSdkTelemetryCapture,
   type AiSdkTelemetryCapture,
@@ -200,29 +199,6 @@ export async function executeAiSdkCompletion(
   } finally {
     await capture?.flush();
   }
-}
-
-function buildOpenAIModel(params: AiSdkCompletionParams): LanguageModel {
-  const { apiKey, baseURL, extraHeaders, apiMode, modelParams } = params;
-
-  const processedBaseURL = processOpenAIBaseURL({
-    url: baseURL,
-    modelName: modelParams.model,
-  });
-
-  const provider = createOpenAI({
-    apiKey,
-    baseURL: processedBaseURL ?? undefined,
-    headers: extraHeaders,
-    fetch: params.fetch,
-  });
-
-  // Chat Completions is the default; the Responses API is opt-in via the
-  // connection's useResponsesApi config. The provider maps maxOutputTokens to
-  // max_completion_tokens for reasoning models (o*/gpt-5*) on its own.
-  return apiMode === "responses"
-    ? provider.responses(modelParams.model)
-    : provider.chat(modelParams.model);
 }
 
 function buildToolSet(tools: LLMToolDefinition[]): ToolSet {

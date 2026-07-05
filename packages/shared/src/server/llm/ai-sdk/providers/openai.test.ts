@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { translateOpenAIProviderOptions } from "./providerOptions";
+import { translateOpenAIProviderOptions } from "./openai";
 
 describe("translateOpenAIProviderOptions", () => {
   it("returns undefined for empty input", () => {
