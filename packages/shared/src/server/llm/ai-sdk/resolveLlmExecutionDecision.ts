@@ -1,7 +1,7 @@
 import { getCurrentSpan } from "../../instrumentation";
 import { OpenAIConfigSchema } from "../../../interfaces/customLLMProviderConfigSchemas";
 import type { LLMConnectionConfig } from "../../../interfaces/customLLMProviderConfigSchemas";
-import { LLMAdapter, type TraceSinkParams } from "../types";
+import { LLMAdapter } from "../types";
 import {
   translateOpenAIProviderOptions,
   type OpenAIApiMode,
@@ -30,31 +30,13 @@ export function resolveLlmExecutionDecision(params: {
   adapter: LLMAdapter;
   providerOptions?: Record<string, unknown>;
   llmConnectionConfig?: LLMConnectionConfig | null;
-  traceSinkParams?: TraceSinkParams;
   enabledAdapters: readonly string[];
 }): LlmExecutionDecision {
-  const {
-    adapter,
-    providerOptions,
-    llmConnectionConfig,
-    traceSinkParams,
-    enabledAdapters,
-  } = params;
+  const { adapter, providerOptions, llmConnectionConfig, enabledAdapters } =
+    params;
 
   if (adapter !== LLMAdapter.OpenAI || !enabledAdapters.includes("openai")) {
     return { engine: "langchain-js" };
-  }
-
-  // Experiments consume the root event record synchronously
-  // (onRootEventRecordReady) to schedule evals on internal traces, which the
-  // langfuse-prefixed environment excludes from regular eval triggering. The
-  // async OTel ingestion queue cannot provide that, so experiments stay on
-  // LangChain.
-  if (traceSinkParams?.eventsWriter?.experimentContext) {
-    return {
-      engine: "langchain-js",
-      declineReason: "sync-root-event-consumer",
-    };
   }
 
   const translated = translateOpenAIProviderOptions(providerOptions);

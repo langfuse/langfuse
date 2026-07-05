@@ -98,6 +98,7 @@ export async function executeAiSdkCompletion(
   const capture = traceSinkParams
     ? createAiSdkTelemetryCapture({
         traceSinkParams,
+        rootInput: messages,
         attribution: {
           "langfuse.llm.execution_engine": "ai-sdk",
           "langfuse.llm.ai_sdk.adapter": "openai",
@@ -154,7 +155,9 @@ export async function executeAiSdkCompletion(
           ),
       });
 
-      return result.output as Record<string, unknown>;
+      const output = result.output as Record<string, unknown>;
+      capture?.setRootOutput(output);
+      return output;
     }
 
     if (tools && tools.length > 0) {
@@ -179,10 +182,12 @@ export async function executeAiSdkCompletion(
       if (!parsed.success) throw Error("Failed to parse LLM tool call result");
 
       const reasoning = result.finalStep?.reasoningText;
-      return {
+      const toolCallResponse = {
         ...parsed.data,
         ...(reasoning ? { reasoning } : {}),
       };
+      capture?.setRootOutput(toolCallResponse);
+      return toolCallResponse;
     }
 
     const result = await executeWithRuntimeTimeout({
@@ -193,7 +198,11 @@ export async function executeAiSdkCompletion(
     });
 
     const reasoning = result.finalStep?.reasoningText;
-    return reasoning ? { text: result.text, reasoning } : result.text;
+    const completion = reasoning
+      ? { text: result.text, reasoning }
+      : result.text;
+    capture?.setRootOutput(completion);
+    return completion;
   } catch (e) {
     throw mapToLLMCompletionError(e);
   } finally {
@@ -254,11 +263,14 @@ function executeStreaming(args: {
 
   async function* byteStream(): AsyncGenerator<Uint8Array> {
     const encoder = new TextEncoder();
+    let completedText = "";
     try {
       const result = runInTraceContext(() => streamText(baseOptions));
       for await (const textChunk of result.textStream) {
+        completedText += textChunk;
         yield encoder.encode(textChunk);
       }
+      capture?.setRootOutput(completedText);
     } catch (e) {
       throw mapToLLMCompletionError(timedOut ? timeoutError : e);
     } finally {

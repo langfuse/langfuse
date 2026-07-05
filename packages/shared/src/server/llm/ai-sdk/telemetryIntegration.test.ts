@@ -178,4 +178,83 @@ describe("AI SDK telemetry integration", () => {
       "langfuse-llm-judge",
     );
   });
+
+  it("tags experiment run items so the ingestion pipeline can schedule experiment evals", async () => {
+    const experimentTraceId = "1af7651916cd43dd8448eb211c80319d";
+
+    const result = await executeAiSdkCompletion({
+      messages,
+      modelParams,
+      streaming: false,
+      apiKey: "sk-test",
+      timeoutMs: 10_000,
+      fetch: globalThis.fetch,
+      apiMode: "chat-completions",
+      traceSinkParams: {
+        targetProjectId: "project-1",
+        traceId: experimentTraceId,
+        traceName: "dataset-run-item-abc12",
+        environment: "langfuse-prompt-experiment",
+        eventsWriter: {
+          experimentContext: {
+            id: "run-1",
+            name: "run name",
+            datasetId: "dataset-1",
+            itemId: "item-1",
+            itemVersion: "2026-01-01T00:00:00.000Z",
+            itemExpectedOutput: { answer: 42 },
+            metadata: { source: "test" },
+          },
+          write: async () => {},
+        },
+      },
+    });
+
+    expect(result).toBe("Hello there");
+    expect(publishToOtelIngestionQueue).toHaveBeenCalledTimes(1);
+    const resourceSpans = publishToOtelIngestionQueue.mock.calls[0][0];
+
+    // Convert through the real processor exactly like the OTel ingestion
+    // queue's eval-scheduling step (processToEvent -> createEventRecord).
+    const { OtelIngestionProcessor } = await vi.importActual<
+      typeof import("../../otel/OtelIngestionProcessor")
+    >("../../otel/OtelIngestionProcessor");
+    const eventInputs = new OtelIngestionProcessor({
+      projectId: "project-1",
+      publicKey: "",
+      sdkName: "langfuse-internal-ai-sdk",
+      sdkVersion: "unknown",
+    }).processToEvent(resourceSpans);
+
+    const roots = eventInputs.filter((input: any) => !input.parentSpanId);
+    expect(roots).toHaveLength(1);
+    const root = roots[0];
+
+    // The run-item root observation is self-referencing, which is what the
+    // queue-side guard requires to schedule experiment observation evals.
+    expect(root.environment).toBe("langfuse-prompt-experiment");
+    expect(root.experimentId).toBe("run-1");
+    expect(root.experimentDatasetId).toBe("dataset-1");
+    expect(root.experimentItemId).toBe("item-1");
+    expect(root.experimentItemRootSpanId).toBe(root.spanId);
+    expect(root.experimentItemExpectedOutput).toBe(
+      JSON.stringify({ answer: 42 }),
+    );
+
+    // The root observation carries the completion IO that experiment eval
+    // variable mapping reads.
+    expect(root.input).toBeDefined();
+    expect(root.output).toBeDefined();
+    expect(String(root.output)).toContain("Hello there");
+
+    // Child spans point at the root and never at themselves, so only the
+    // run-item root can pass the queue-side eval guard.
+    const children = eventInputs.filter((input: any) => input.parentSpanId);
+    expect(children.length).toBeGreaterThan(0);
+    for (const child of children) {
+      expect(child.environment).toBe("langfuse-prompt-experiment");
+      expect(child.experimentItemRootSpanId).toBe(root.spanId);
+      expect(child.spanId).not.toBe(root.spanId);
+    }
+  });
 });

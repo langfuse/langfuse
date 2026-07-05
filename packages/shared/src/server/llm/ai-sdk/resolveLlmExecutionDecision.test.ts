@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { LLMAdapter, type TraceSinkParams } from "../types";
+import { LLMAdapter } from "../types";
 import { resolveLlmExecutionDecision } from "./resolveLlmExecutionDecision";
 
 const baseParams = {
@@ -52,32 +52,6 @@ describe("resolveLlmExecutionDecision", () => {
         llmConnectionConfig: { useResponsesApi: false },
       }),
     ).toMatchObject({ engine: "ai-sdk", openAIApiMode: "chat-completions" });
-  });
-
-  it("declines experiments that consume the root event record synchronously", () => {
-    const traceSinkParams = {
-      eventsWriter: {
-        experimentContext: { id: "exp-1" },
-        write: async () => {},
-      },
-    } as unknown as TraceSinkParams;
-
-    expect(
-      resolveLlmExecutionDecision({ ...baseParams, traceSinkParams }),
-    ).toEqual({
-      engine: "langchain-js",
-      declineReason: "sync-root-event-consumer",
-    });
-  });
-
-  it("allows eval calls with a plain events writer", () => {
-    const traceSinkParams = {
-      eventsWriter: { write: async () => {} },
-    } as unknown as TraceSinkParams;
-
-    expect(
-      resolveLlmExecutionDecision({ ...baseParams, traceSinkParams }),
-    ).toMatchObject({ engine: "ai-sdk" });
   });
 
   it("declines untranslatable provider options with the offending keys", () => {

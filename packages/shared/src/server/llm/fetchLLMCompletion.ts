@@ -380,7 +380,6 @@ export async function fetchLLMCompletion(
     adapter: modelParams.adapter,
     providerOptions: modelParams.providerOptions,
     llmConnectionConfig: config,
-    traceSinkParams,
     enabledAdapters: env.LANGFUSE_LLM_COMPLETION_AI_SDK_ADAPTERS,
   });
   recordLlmExecutionDecision(executionDecision);

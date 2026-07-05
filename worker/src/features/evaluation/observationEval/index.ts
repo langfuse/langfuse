@@ -1,5 +1,5 @@
 export {
-  isEnvironmentAllowedForQueuedObservationEvals,
+  isObservationAllowedForQueuedObservationEvals,
   scheduleObservationEvals,
 } from "./scheduleObservationEvals";
 export { fetchObservationEvalConfigs } from "./fetchObservationEvalConfigs";
