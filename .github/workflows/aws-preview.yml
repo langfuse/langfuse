@@ -1,0 +1,463 @@
+name: AWS PR Preview
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Deploy or destroy the preview"
+        type: choice
+        options:
+          - deploy
+          - destroy
+        required: true
+      pr_number:
+        description: "Pull request number"
+        required: true
+      ref:
+        description: "Ref to deploy when action=deploy"
+        required: false
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+
+permissions: {}
+
+concurrency:
+  group: aws-preview-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+env:
+  AWS_PREVIEW_CLOUDFORMATION_ROLE_ARN: ${{ vars.AWS_PREVIEW_CLOUDFORMATION_ROLE_ARN }}
+  AWS_PREVIEW_DOMAIN_NAME: ${{ vars.AWS_PREVIEW_DOMAIN_NAME }}
+  AWS_PREVIEW_HOSTED_ZONE_ID: ${{ vars.AWS_PREVIEW_HOSTED_ZONE_ID }}
+  AWS_PREVIEW_INSTANCE_PROFILE_NAME: ${{ vars.AWS_PREVIEW_INSTANCE_PROFILE_NAME }}
+  AWS_PREVIEW_INSTANCE_TYPE: ${{ vars.AWS_PREVIEW_INSTANCE_TYPE || 't3.large' }}
+  AWS_PREVIEW_REGION: ${{ vars.AWS_PREVIEW_REGION }}
+  AWS_PREVIEW_ROLE_ARN: ${{ vars.AWS_PREVIEW_ROLE_ARN }}
+  AWS_PREVIEW_SECURITY_GROUP_ID: ${{ vars.AWS_PREVIEW_SECURITY_GROUP_ID }}
+  AWS_PREVIEW_SUBNET_ID: ${{ vars.AWS_PREVIEW_SUBNET_ID }}
+  AWS_PREVIEW_VOLUME_SIZE_GB: ${{ vars.AWS_PREVIEW_VOLUME_SIZE_GB || '80' }}
+  AWS_PREVIEW_WEB_ECR_REPOSITORY_URL: ${{ vars.AWS_PREVIEW_WEB_ECR_REPOSITORY_URL }}
+  AWS_PREVIEW_WORKER_ECR_REPOSITORY_URL: ${{ vars.AWS_PREVIEW_WORKER_ECR_REPOSITORY_URL }}
+
+jobs:
+  deploy:
+    name: Deploy AWS preview
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    if: >-
+      (github.event_name == 'pull_request' &&
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'workflow_dispatch' && inputs.action == 'deploy')
+    permissions:
+      contents: read
+      id-token: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout preview ref
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || inputs.ref || github.sha }}
+
+      - name: Validate preview configuration
+        run: |
+          set -euo pipefail
+
+          required_vars=(
+            AWS_PREVIEW_CLOUDFORMATION_ROLE_ARN
+            AWS_PREVIEW_DOMAIN_NAME
+            AWS_PREVIEW_HOSTED_ZONE_ID
+            AWS_PREVIEW_INSTANCE_PROFILE_NAME
+            AWS_PREVIEW_REGION
+            AWS_PREVIEW_ROLE_ARN
+            AWS_PREVIEW_SECURITY_GROUP_ID
+            AWS_PREVIEW_SUBNET_ID
+            AWS_PREVIEW_WEB_ECR_REPOSITORY_URL
+            AWS_PREVIEW_WORKER_ECR_REPOSITORY_URL
+          )
+
+          missing=()
+          for var_name in "${required_vars[@]}"; do
+            if [ -z "${!var_name}" ]; then
+              missing+=("${var_name}")
+            fi
+          done
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf 'Missing required GitHub repository variables:\n'
+            printf '  - %s\n' "${missing[@]}"
+            exit 1
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          aws-region: ${{ env.AWS_PREVIEW_REGION }}
+          role-to-assume: ${{ env.AWS_PREVIEW_ROLE_ARN }}
+
+      - name: Login to AWS ECR
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
+
+      - name: Resolve preview metadata
+        id: preview
+        env:
+          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          set -euo pipefail
+
+          pr_number="${{ github.event.pull_request.number }}"
+          if [ -z "${pr_number}" ]; then
+            pr_number="${INPUT_PR_NUMBER}"
+          fi
+
+          commit_sha="$(git rev-parse HEAD)"
+          short_sha="${commit_sha:0:12}"
+          stack_name="langfuse-preview-pr-${pr_number}"
+          image_tag="pr-${pr_number}-${short_sha}"
+          preview_host="pr-${pr_number}.${AWS_PREVIEW_DOMAIN_NAME}"
+          ecr_registry="${AWS_PREVIEW_WEB_ECR_REPOSITORY_URL%%/*}"
+
+          stable_secret() {
+            printf '%s' "$1" | sha256sum | cut -d' ' -f1
+          }
+
+          postgres_password="$(stable_secret "postgres-${pr_number}")"
+          clickhouse_password="$(stable_secret "clickhouse-${pr_number}")"
+          redis_auth="$(stable_secret "redis-${pr_number}")"
+          minio_password="$(stable_secret "minio-${pr_number}")"
+          nextauth_secret="$(stable_secret "nextauth-${pr_number}")"
+          salt="$(stable_secret "salt-${pr_number}")"
+          encryption_key="$(stable_secret "encryption-${pr_number}")"
+          login_password="langfuse-preview-${pr_number}"
+
+          for value in \
+            "${postgres_password}" \
+            "${clickhouse_password}" \
+            "${redis_auth}" \
+            "${minio_password}" \
+            "${nextauth_secret}" \
+            "${salt}" \
+            "${encryption_key}" \
+            "${login_password}"; do
+            echo "::add-mask::${value}"
+          done
+
+          {
+            echo "clickhouse_password=${clickhouse_password}"
+            echo "commit_sha=${commit_sha}"
+            echo "ecr_registry=${ecr_registry}"
+            echo "encryption_key=${encryption_key}"
+            echo "image_tag=${image_tag}"
+            echo "login_email=preview-${pr_number}@langfuse.local"
+            echo "login_password=${login_password}"
+            echo "minio_password=${minio_password}"
+            echo "nextauth_secret=${nextauth_secret}"
+            echo "postgres_password=${postgres_password}"
+            echo "preview_host=${preview_host}"
+            echo "pr_number=${pr_number}"
+            echo "public_key=pk-lf-preview-${pr_number}"
+            echo "redis_auth=${redis_auth}"
+            echo "salt=${salt}"
+            echo "secret_key=sk-lf-preview-${pr_number}"
+            echo "short_sha=${short_sha}"
+            echo "stack_name=${stack_name}"
+            echo "web_image=${AWS_PREVIEW_WEB_ECR_REPOSITORY_URL}:${image_tag}"
+            echo "worker_image=${AWS_PREVIEW_WORKER_ECR_REPOSITORY_URL}:${image_tag}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build and push preview images
+        env:
+          COMMIT_SHA: ${{ steps.preview.outputs.commit_sha }}
+          WEB_IMAGE: ${{ steps.preview.outputs.web_image }}
+          WORKER_IMAGE: ${{ steps.preview.outputs.worker_image }}
+        run: |
+          set -euo pipefail
+
+          docker build \
+            --build-arg NEXT_PUBLIC_BUILD_ID="${COMMIT_SHA}" \
+            --build-arg NEXT_PUBLIC_SIGN_UP_DISABLED=true \
+            -f ./web/Dockerfile \
+            -t "${WEB_IMAGE}" \
+            .
+          docker push "${WEB_IMAGE}"
+
+          docker build \
+            --build-arg NEXT_PUBLIC_BUILD_ID="${COMMIT_SHA}" \
+            -f ./worker/Dockerfile \
+            -t "${WORKER_IMAGE}" \
+            .
+          docker push "${WORKER_IMAGE}"
+
+      - name: Deploy preview host stack
+        env:
+          PR_NUMBER: ${{ steps.preview.outputs.pr_number }}
+          STACK_NAME: ${{ steps.preview.outputs.stack_name }}
+        run: |
+          set -euo pipefail
+
+          aws cloudformation deploy \
+            --stack-name "${STACK_NAME}" \
+            --template-file deployment/aws-preview/cloudformation.yaml \
+            --role-arn "${AWS_PREVIEW_CLOUDFORMATION_ROLE_ARN}" \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              PreviewName="${STACK_NAME}" \
+              PullRequestNumber="${PR_NUMBER}" \
+              SubnetId="${AWS_PREVIEW_SUBNET_ID}" \
+              SecurityGroupId="${AWS_PREVIEW_SECURITY_GROUP_ID}" \
+              InstanceProfileName="${AWS_PREVIEW_INSTANCE_PROFILE_NAME}" \
+              HostedZoneId="${AWS_PREVIEW_HOSTED_ZONE_ID}" \
+              DomainName="${AWS_PREVIEW_DOMAIN_NAME}" \
+              InstanceType="${AWS_PREVIEW_INSTANCE_TYPE}" \
+              VolumeSizeGb="${AWS_PREVIEW_VOLUME_SIZE_GB}" \
+            --tags \
+              Project=langfuse-preview \
+              PullRequest="${PR_NUMBER}" \
+              PreviewManagedBy=github-actions
+
+      - name: Resolve preview host
+        id: host
+        env:
+          STACK_NAME: ${{ steps.preview.outputs.stack_name }}
+        run: |
+          set -euo pipefail
+
+          instance_id="$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='InstanceId'].OutputValue" \
+            --output text)"
+          public_ip="$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='PublicIp'].OutputValue" \
+            --output text)"
+
+          echo "instance_id=${instance_id}" >> "$GITHUB_OUTPUT"
+          echo "public_ip=${public_ip}" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for SSM
+        env:
+          INSTANCE_ID: ${{ steps.host.outputs.instance_id }}
+        run: |
+          set -euo pipefail
+
+          for _ in $(seq 1 60); do
+            ping_status="$(aws ssm describe-instance-information \
+              --filters "Key=InstanceIds,Values=${INSTANCE_ID}" \
+              --query "InstanceInformationList[0].PingStatus" \
+              --output text 2>/dev/null || true)"
+
+            if [ "${ping_status}" = "Online" ]; then
+              exit 0
+            fi
+
+            sleep 5
+          done
+
+          echo "Instance ${INSTANCE_ID} did not become available in SSM."
+          exit 1
+
+      - name: Deploy containers through SSM
+        env:
+          CLICKHOUSE_PASSWORD: ${{ steps.preview.outputs.clickhouse_password }}
+          ECR_REGISTRY: ${{ steps.preview.outputs.ecr_registry }}
+          ENCRYPTION_KEY: ${{ steps.preview.outputs.encryption_key }}
+          INSTANCE_ID: ${{ steps.host.outputs.instance_id }}
+          LOGIN_EMAIL: ${{ steps.preview.outputs.login_email }}
+          LOGIN_PASSWORD: ${{ steps.preview.outputs.login_password }}
+          MINIO_PASSWORD: ${{ steps.preview.outputs.minio_password }}
+          NEXTAUTH_SECRET: ${{ steps.preview.outputs.nextauth_secret }}
+          POSTGRES_PASSWORD: ${{ steps.preview.outputs.postgres_password }}
+          PREVIEW_HOST: ${{ steps.preview.outputs.preview_host }}
+          PR_NUMBER: ${{ steps.preview.outputs.pr_number }}
+          PUBLIC_KEY: ${{ steps.preview.outputs.public_key }}
+          REDIS_AUTH: ${{ steps.preview.outputs.redis_auth }}
+          SALT: ${{ steps.preview.outputs.salt }}
+          SECRET_KEY: ${{ steps.preview.outputs.secret_key }}
+          WEB_IMAGE: ${{ steps.preview.outputs.web_image }}
+          WORKER_IMAGE: ${{ steps.preview.outputs.worker_image }}
+        run: |
+          set -euo pipefail
+
+          env_file="$(mktemp)"
+          cat > "${env_file}" <<EOF
+          AWS_REGION=${AWS_PREVIEW_REGION}
+          CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
+          ECR_REGISTRY=${ECR_REGISTRY}
+          ENCRYPTION_KEY=${ENCRYPTION_KEY}
+          LANGFUSE_INIT_ORG_ID=preview-org-${PR_NUMBER}
+          LANGFUSE_INIT_ORG_NAME=Preview-PR-${PR_NUMBER}
+          LANGFUSE_INIT_PROJECT_ID=preview-project-${PR_NUMBER}
+          LANGFUSE_INIT_PROJECT_NAME=Preview-Project
+          LANGFUSE_INIT_PROJECT_PUBLIC_KEY=${PUBLIC_KEY}
+          LANGFUSE_INIT_PROJECT_SECRET_KEY=${SECRET_KEY}
+          LANGFUSE_INIT_USER_EMAIL=${LOGIN_EMAIL}
+          LANGFUSE_INIT_USER_NAME=Preview-User
+          LANGFUSE_INIT_USER_PASSWORD=${LOGIN_PASSWORD}
+          MINIO_ROOT_PASSWORD=${MINIO_PASSWORD}
+          NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+          POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+          PREVIEW_HOST=${PREVIEW_HOST}
+          REDIS_AUTH=${REDIS_AUTH}
+          SALT=${SALT}
+          WEB_IMAGE=${WEB_IMAGE}
+          WORKER_IMAGE=${WORKER_IMAGE}
+          EOF
+
+          env_b64="$(base64 -w0 "${env_file}")"
+          command_id="$(aws ssm send-command \
+            --document-name "AWS-RunShellScript" \
+            --instance-ids "${INSTANCE_ID}" \
+            --comment "Deploy Langfuse PR ${PR_NUMBER} preview" \
+            --parameters "commands=mkdir -p /opt/langfuse-preview,echo ${env_b64} | base64 -d > /opt/langfuse-preview/deploy.env,chmod 600 /opt/langfuse-preview/deploy.env,for i in \$(seq 1 60); do test -x /opt/langfuse-preview/deploy.sh && break || sleep 5; done,test -x /opt/langfuse-preview/deploy.sh,/opt/langfuse-preview/deploy.sh" \
+            --query "Command.CommandId" \
+            --output text)"
+
+          if ! aws ssm wait command-executed --command-id "${command_id}" --instance-id "${INSTANCE_ID}"; then
+            aws ssm get-command-invocation \
+              --command-id "${command_id}" \
+              --instance-id "${INSTANCE_ID}" \
+              --query "{Status:Status,Stdout:StandardOutputContent,Stderr:StandardErrorContent}" \
+              --output json
+            exit 1
+          fi
+
+      - name: Check preview health
+        env:
+          PUBLIC_IP: ${{ steps.host.outputs.public_ip }}
+        run: |
+          set -euo pipefail
+
+          for _ in $(seq 1 60); do
+            if curl -fsS "http://${PUBLIC_IP}/api/public/health" >/dev/null; then
+              exit 0
+            fi
+            sleep 5
+          done
+
+          echo "Preview did not become healthy."
+          exit 1
+
+      - name: Comment preview link
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          COMMIT_SHA: ${{ steps.preview.outputs.commit_sha }}
+          LOGIN_EMAIL: ${{ steps.preview.outputs.login_email }}
+          LOGIN_PASSWORD: ${{ steps.preview.outputs.login_password }}
+          PREVIEW_URL: http://${{ steps.preview.outputs.preview_host }}
+          PR_NUMBER: ${{ steps.preview.outputs.pr_number }}
+          PUBLIC_KEY: ${{ steps.preview.outputs.public_key }}
+          SECRET_KEY: ${{ steps.preview.outputs.secret_key }}
+        with:
+          script: |
+            const marker = "<!-- aws-pr-preview -->";
+            const body = `${marker}
+            AWS preview: ${process.env.PREVIEW_URL}
+
+            Login: \`${process.env.LOGIN_EMAIL}\` / \`${process.env.LOGIN_PASSWORD}\`
+            API keys: \`${process.env.PUBLIC_KEY}\` / \`${process.env.SECRET_KEY}\`
+
+            Synthetic preview data only. Updated at: ${new Date().toISOString()}
+            Commit: ${process.env.COMMIT_SHA}`;
+
+            const { owner, repo } = context.repo;
+            const issue_number = Number(process.env.PR_NUMBER);
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+            const previousComment = comments.find(
+              (comment) =>
+                comment.user?.login === "github-actions[bot]" &&
+                comment.body?.includes(marker),
+            );
+
+            if (previousComment) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: previousComment.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body,
+              });
+            }
+
+  teardown:
+    name: Destroy AWS preview
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    if: >-
+      (github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'workflow_dispatch' && inputs.action == 'destroy')
+    permissions:
+      contents: read
+      id-token: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          aws-region: ${{ env.AWS_PREVIEW_REGION }}
+          role-to-assume: ${{ env.AWS_PREVIEW_ROLE_ARN }}
+
+      - name: Delete preview stack
+        env:
+          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          set -euo pipefail
+
+          pr_number="${{ github.event.pull_request.number }}"
+          if [ -z "${pr_number}" ]; then
+            pr_number="${INPUT_PR_NUMBER}"
+          fi
+          stack_name="langfuse-preview-pr-${pr_number}"
+
+          if ! aws cloudformation describe-stacks --stack-name "${stack_name}" >/dev/null 2>&1; then
+            echo "Preview stack ${stack_name} does not exist."
+            exit 0
+          fi
+
+          aws cloudformation delete-stack --stack-name "${stack_name}"
+          aws cloudformation wait stack-delete-complete --stack-name "${stack_name}"
+
+      - name: Mark preview destroyed
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const marker = "<!-- aws-pr-preview -->";
+            const body = `${marker}
+            AWS preview destroyed at ${new Date().toISOString()}.`;
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+            const previousComment = comments.find(
+              (comment) =>
+                comment.user?.login === "github-actions[bot]" &&
+                comment.body?.includes(marker),
+            );
+
+            if (previousComment) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: previousComment.id,
+                body,
+              });
+            }
