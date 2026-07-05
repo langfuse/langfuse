@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { vi } from "vitest";
 import {
   UsageStackedBarOverview,
@@ -304,6 +304,11 @@ describe("V4MigrationProjectCards SDK usage", () => {
     expect(
       nonActionDetails.getByText("Details that do not require action"),
     ).toBeInTheDocument();
+    fireEvent.click(
+      nonActionDetails.getByRole("button", {
+        name: /Details that do not require action/i,
+      }),
+    );
     expect(nonActionDetails.queryByText("untracked")).not.toBeInTheDocument();
     expect(nonActionDetails.getByText("unknown@unknown")).toBeInTheDocument();
     expect(nonActionDetails.getByText("pk-lf-raw-api")).toBeInTheDocument();
@@ -403,6 +408,8 @@ describe("V4MigrationProjectCards SDK usage", () => {
     expect(requiredActions.getByText("Legacy public APIs")).toBeInTheDocument();
     expect(requiredActions.getByText("Trace-level evals")).toBeInTheDocument();
     expect(requiredActions.getByText("Legacy exports")).toBeInTheDocument();
+    expect(requiredActions.getByText("1 route")).toBeInTheDocument();
+    expect(requiredActions.getByText("1 integration")).toBeInTheDocument();
     expect(requiredActions.getAllByText("Due Nov 30, 2026")).toHaveLength(4);
   });
 
@@ -417,11 +424,17 @@ describe("V4MigrationProjectCards SDK usage", () => {
     expect(
       requiredActions.queryByText("Legacy public APIs"),
     ).not.toBeInTheDocument();
+    const nonActionDetails = within(screen.getByTestId("non-action-details"));
     expect(
-      screen.getByText("Details that do not require action"),
+      nonActionDetails.getByText("Details that do not require action"),
     ).toBeInTheDocument();
+    fireEvent.click(
+      nonActionDetails.getByRole("button", {
+        name: /Details that do not require action/i,
+      }),
+    );
     expect(
-      screen.getByText("No SDK usage detected in this range."),
+      nonActionDetails.getByText("No SDK usage detected in this range."),
     ).toBeInTheDocument();
   });
 });

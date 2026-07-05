@@ -465,7 +465,6 @@ export default function OrganizationV4Page() {
       { projectsNotMigrated: 0, actionCount: 0 },
     );
   }, [projectReadinessRows]);
-  const isProjectListLoading = summaryByProject.isPending;
   const isProjectReadinessLoading =
     summaryByProject.isPending ||
     legacyApiUsageSummaryByProject.isPending ||
@@ -550,7 +549,7 @@ export default function OrganizationV4Page() {
             <Alert>
               <AlertDescription>Failed to load projects.</AlertDescription>
             </Alert>
-          ) : isProjectListLoading ? (
+          ) : isProjectReadinessLoading ? (
             <div className="min-h-40" />
           ) : projectReadinessRows.length > 0 ? (
             <div className="flex flex-col gap-4">

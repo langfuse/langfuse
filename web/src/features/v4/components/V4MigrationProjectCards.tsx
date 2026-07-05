@@ -132,6 +132,12 @@ const STACKED_CHART_COLORS = [
   "hsl(var(--chart-3))",
 ] as const;
 
+const formatCountLabel = (
+  count: number,
+  singular: string,
+  plural = `${singular}s`,
+) => `${numberFormatter(count, 0)} ${count === 1 ? singular : plural}`;
+
 export const INTEGRATION_LINKS = [
   {
     key: "posthog",
@@ -546,7 +552,7 @@ const NonActionDetails = ({
             </Badge>
           </span>
         </AccordionTrigger>
-        <AccordionContent forceMount className="flex flex-col gap-5 pt-1">
+        <AccordionContent className="flex flex-col gap-5 pt-1">
           {sdkUsageSeries.length ? (
             <section className="flex flex-col gap-2">
               <div>
@@ -1190,7 +1196,7 @@ export const V4MigrationProjectCards = ({
         ) : legacyApiSeries.length ? (
           <AuditSection
             title="Legacy public APIs"
-            countLabel={`${numberFormatter(legacyApiSeries.length, 0)} routes`}
+            countLabel={formatCountLabel(legacyApiSeries.length, "route")}
             consequence="Replace legacy public API reads with v4-compatible APIs before the migration deadline."
             detailsHref={`/project/${projectId}/settings/api-keys`}
           >
@@ -1239,10 +1245,10 @@ export const V4MigrationProjectCards = ({
         ) : legacyIntegrationLinks.length ? (
           <AuditSection
             title="Legacy exports"
-            countLabel={`${numberFormatter(
+            countLabel={formatCountLabel(
               legacyIntegrationLinks.length,
-              0,
-            )} integrations`}
+              "integration",
+            )}
             consequence={V4_LEGACY_EXPORT_AUTO_SWITCH_COPY}
             detailsHref={`/project/${projectId}/settings/integrations`}
           >
