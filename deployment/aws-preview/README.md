@@ -44,4 +44,6 @@ Comment commands only work once the workflow exists on the default branch.
 - Fork PRs are skipped entirely.
 
 Preview data must stay synthetic: the login and API keys are posted publicly
-on the PR.
+on the PR, so anyone on the internet can sign in to a running preview. Never
+enter real LLM provider keys, production data, or any other secrets into a
+preview instance.

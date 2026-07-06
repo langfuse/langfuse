@@ -62,13 +62,17 @@ jobs:
   context:
     name: Resolve preview command
     runs-on: ubuntu-latest
+    # vars.AWS_PREVIEW_ROLE_ARN doubles as the feature flag: while it is
+    # unset (foundation not applied yet, or previews disabled) the whole
+    # workflow stays skipped instead of failing on every PR push.
     if: >-
-      (github.event_name == 'issue_comment' &&
+      vars.AWS_PREVIEW_ROLE_ARN != '' &&
+      ((github.event_name == 'issue_comment' &&
       github.event.issue.pull_request &&
       startsWith(github.event.comment.body, '/preview')) ||
       github.event_name == 'pull_request' ||
       github.event_name == 'schedule' ||
-      github.event_name == 'workflow_dispatch'
+      github.event_name == 'workflow_dispatch')
     permissions:
       issues: write
       pull-requests: read
@@ -210,6 +214,7 @@ jobs:
     if: contains(fromJSON('["deploy", "sync"]'), needs.context.outputs.command)
     permissions:
       id-token: write
+      pull-requests: read
     outputs:
       proceed: ${{ steps.gate.outputs.proceed }}
     steps:
@@ -223,11 +228,21 @@ jobs:
         id: gate
         env:
           COMMAND: ${{ needs.context.outputs.command }}
+          GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ needs.context.outputs.pr_number }}
         run: |
           set -euo pipefail
 
           if [ "${COMMAND}" = "deploy" ]; then
+            # Re-check PR state at execution time: a deploy queued behind the
+            # close-triggered destroy must not recreate the preview stack for
+            # a PR that is now closed (nothing would ever clean it up again).
+            state="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .state)"
+            if [ "${state}" != "open" ]; then
+              echo "PR ${PR_NUMBER} is ${state}; not deploying."
+              echo "proceed=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
             echo "proceed=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
