@@ -5,7 +5,6 @@ import {
   parseSlackInstallationMetadata,
 } from "@langfuse/shared/src/server";
 import { logger } from "@langfuse/shared/src/server";
-import { env } from "@/src/env.mjs";
 import { getServerAuthSession } from "@/src/server/auth";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { prisma } from "@langfuse/shared/src/db";
@@ -115,7 +114,7 @@ export async function handleCallback(
           }
 
           // Redirect to project-specific Slack settings page
-          const redirectUrl = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/project/${projectId}/settings/integrations/slack?success=true&team_name=${encodeURIComponent(installation.team?.name || "")}`;
+          const redirectUrl = `/project/${projectId}/settings/integrations/slack?success=true&team_name=${encodeURIComponent(installation.team?.name || "")}`;
           res.redirect(getSafeRedirectPath(redirectUrl));
         },
 

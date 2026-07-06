@@ -9,6 +9,7 @@ import { logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { env } from "@/src/env.mjs";
+import { getProductBaseUrl } from "@/src/utils/base-url";
 
 export const slackRouter = createTRPCRouter({
   /**
@@ -237,6 +238,10 @@ export const slackRouter = createTRPCRouter({
         const client = await SlackService.getInstance().getWebClientForProject(
           input.projectId,
         );
+        const projectUrl = new URL(
+          `project/${input.projectId}`,
+          getProductBaseUrl(),
+        );
 
         const testBlocks = [
           {
@@ -285,7 +290,7 @@ export const slackRouter = createTRPCRouter({
                   text: "Open Langfuse",
                   emoji: true,
                 },
-                url: `${env.NEXTAUTH_URL}/project/${input.projectId}`,
+                url: projectUrl.toString(),
                 style: "primary",
               },
             ],
