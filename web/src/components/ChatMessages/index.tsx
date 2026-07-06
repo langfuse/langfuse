@@ -1,5 +1,5 @@
 import { ChevronDownIcon, PlusCircleIcon } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useCallback, useRef } from "react";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -20,7 +20,10 @@ import {
   type ChatMessageWithId,
 } from "@langfuse/shared";
 
-import { ChatMessageComponent } from "./ChatMessageComponent";
+import {
+  ChatMessageComponent,
+  type MessageRowRefs,
+} from "./ChatMessageComponent";
 
 import type { MessagesContext } from "./types";
 import {
@@ -44,17 +47,52 @@ import { isString } from "@/src/utils/types";
 type ChatMessagesProps = MessagesContext;
 export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
   const { messages } = props;
-  const scrollAreaRef = useRef<HTMLDivElement | null>(null);
-  const prevMessageCount = useRef(0);
 
-  // Scroll to bottom when new messages are added
-  useEffect(() => {
-    if (prevMessageCount.current < messages.length && scrollAreaRef.current) {
-      const scrollElement = scrollAreaRef.current;
-      scrollElement.scrollTop = scrollElement.scrollHeight;
+  // Registry of the DOM row + editor refs for each message, keyed by id.
+  // Populated by each ChatMessageComponent so that after a new message is
+  // appended we can scroll it into view and focus its editor (LFE-6864).
+  const rowRefsById = useRef(new Map<string, MessageRowRefs>());
+
+  const registerRow = useCallback((id: string, refs: MessageRowRefs | null) => {
+    if (refs) {
+      rowRefsById.current.set(id, refs);
+    } else {
+      rowRefsById.current.delete(id);
     }
-    prevMessageCount.current = messages.length;
-  }, [scrollAreaRef, messages.length]);
+  }, []);
+
+  // Scroll the newly added message into view and focus its editor so the user
+  // can type immediately (LFE-6864). Both the row and its CodeMirror editor
+  // mount asynchronously, and when the message is added from the dropdown menu
+  // the menu's own focus teardown competes with ours over several frames. So
+  // rather than guess a fixed delay, retry over a short bounded window until
+  // the editor is mounted and actually holds focus (or we give up).
+  const scrollToMessage = useCallback((id: string) => {
+    let attempts = 0;
+    const maxAttempts = 20; // ~20 animation frames (< ~350ms)
+
+    const attempt = () => {
+      const refs = rowRefsById.current.get(id);
+      const view = refs?.editorRef.current?.view;
+
+      if (view) {
+        refs?.rowRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "nearest",
+        });
+        view.focus();
+        // The dropdown menu can pull focus back for a frame after closing, so
+        // keep retrying until the editor is the active element.
+        if (view.hasFocus) return;
+      }
+
+      if (attempts++ < maxAttempts) {
+        requestAnimationFrame(attempt);
+      }
+    };
+
+    requestAnimationFrame(attempt);
+  }, []);
 
   const sensors = useSensors(
     useSensor(MouseSensor, {}),
@@ -87,7 +125,7 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
       sensors={sensors}
     >
       <div className="flex h-full flex-col">
-        <div className="flex-1 overflow-auto scroll-smooth" ref={scrollAreaRef}>
+        <div className="flex-1 overflow-auto scroll-smooth">
           <div className="flex-1 space-y-2">
             <SortableContext
               items={props.messages.map((message) => message.id)}
@@ -104,12 +142,13 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
                     replaceMessage={props.replaceMessage}
                     availableRoles={props.availableRoles}
                     toolCallIds={props.toolCallIds}
+                    registerRow={registerRow}
                   />
                 );
               })}
             </SortableContext>
             <div className="mb-4 py-3">
-              <AddMessageButton {...props} />
+              <AddMessageButton {...props} scrollToMessage={scrollToMessage} />
             </div>
           </div>
         </div>
@@ -118,10 +157,16 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
   );
 };
 
-type AddMessageButtonProps = Pick<MessagesContext, "messages" | "addMessage">;
+type AddMessageButtonProps = Pick<
+  MessagesContext,
+  "messages" | "addMessage"
+> & {
+  scrollToMessage: (id: string) => void;
+};
 const AddMessageButton: React.FC<AddMessageButtonProps> = ({
   messages,
   addMessage,
+  scrollToMessage,
 }) => {
   // Skip placeholder messages when determining last roles
   const lastMessageWithRole = messages
@@ -138,53 +183,54 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
       : ChatMessageRole.User;
 
   const addRegularMessage = () => {
-    if (nextMessageRole === ChatMessageRole.User) {
-      addMessage({
-        role: nextMessageRole,
-        content: "",
-        type: ChatMessageType.User,
-      });
-    } else {
-      addMessage({
-        role: nextMessageRole,
-        content: "",
-        type: ChatMessageType.AssistantText,
-      });
-    }
+    const newMessage =
+      nextMessageRole === ChatMessageRole.User
+        ? addMessage({
+            role: nextMessageRole,
+            content: "",
+            type: ChatMessageType.User,
+          })
+        : addMessage({
+            role: nextMessageRole,
+            content: "",
+            type: ChatMessageType.AssistantText,
+          });
+    scrollToMessage(newMessage.id);
   };
 
   const addMessageWithRole = (role: ChatMessageRole) => {
+    let newMessage: ChatMessageWithId;
     switch (role) {
       case ChatMessageRole.User:
-        addMessage({
+        newMessage = addMessage({
           role: ChatMessageRole.User,
           content: "",
           type: ChatMessageType.User,
         });
         break;
       case ChatMessageRole.Assistant:
-        addMessage({
+        newMessage = addMessage({
           role: ChatMessageRole.Assistant,
           content: "",
           type: ChatMessageType.AssistantText,
         });
         break;
       case ChatMessageRole.System:
-        addMessage({
+        newMessage = addMessage({
           role: ChatMessageRole.System,
           content: "",
           type: ChatMessageType.System,
         });
         break;
       case ChatMessageRole.Developer:
-        addMessage({
+        newMessage = addMessage({
           role: ChatMessageRole.Developer,
           content: "",
           type: ChatMessageType.Developer,
         });
         break;
       case ChatMessageRole.Tool:
-        addMessage({
+        newMessage = addMessage({
           role: ChatMessageRole.Tool,
           content: "",
           type: ChatMessageType.ToolResult,
@@ -193,14 +239,17 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
         break;
       default:
         addRegularMessage();
+        return;
     }
+    scrollToMessage(newMessage.id);
   };
 
   const addPlaceholderMessage = () => {
-    addMessage({
+    const newMessage = addMessage({
       type: ChatMessageType.Placeholder,
       name: "",
     });
+    scrollToMessage(newMessage.id);
   };
 
   return (
@@ -225,7 +274,13 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
               <ChevronDownIcon size={14} />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent
+            align="end"
+            // Let the newly added message's editor keep focus: without this,
+            // Radix restores focus to the trigger button on close, stealing it
+            // back from the editor we focus after appending (LFE-6864).
+            onCloseAutoFocus={(event) => event.preventDefault()}
+          >
             <DropdownMenuItem
               onClick={() => addMessageWithRole(ChatMessageRole.User)}
             >
