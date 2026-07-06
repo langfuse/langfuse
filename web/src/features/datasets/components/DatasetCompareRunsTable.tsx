@@ -268,7 +268,7 @@ function DatasetCompareRunsTableInternal(props: {
         className="px-2 pb-2"
       />
       <DataTable
-        tableName={"datasetCompareRuns"}
+        tableName="datasetCompareRuns"
         columns={columns}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}

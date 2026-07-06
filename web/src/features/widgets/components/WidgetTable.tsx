@@ -290,7 +290,7 @@ export function DashboardWidgetTable() {
 
   return (
     <DataTable
-      tableName={"widgets"}
+      tableName="widgets"
       columns={widgetColumns}
       data={
         widgets.isLoading

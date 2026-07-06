@@ -597,7 +597,7 @@ export function DatasetsTable(props: { projectId: string }) {
         viewControllers={viewControllers}
       />
       <DataTable
-        tableName={"datasets"}
+        tableName="datasets"
         columns={columns}
         selectionStore={datasetsTableStore}
         highlightAllRows={selectAll}
