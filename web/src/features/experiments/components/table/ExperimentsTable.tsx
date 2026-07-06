@@ -8,7 +8,10 @@ import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-l
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import {
+  type FilterUrlUpdateType,
+  useSidebarFilterState,
+} from "@/src/features/filters/hooks/useSidebarFilterState";
 import {
   getExperimentsFilterConfig,
   getExperimentsColumnName,
@@ -333,7 +336,8 @@ export default function ExperimentsTable({
   queryFilterRef.current = queryFilter;
 
   const setFiltersWrapper = useCallback(
-    (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
+    (filters: FilterState, updateType?: FilterUrlUpdateType) =>
+      queryFilterRef.current?.setFilterState(filters, updateType),
     [],
   );
 

@@ -18,6 +18,7 @@ import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import {
+  type FilterUrlUpdateType,
   type UseSidebarFilterStateOptions,
   useSidebarFilterState,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
@@ -520,7 +521,8 @@ export default function ObservationsTable({
   queryFilterRef.current = queryFilter;
 
   const setFiltersWrapper = useCallback(
-    (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
+    (filters: FilterState, updateType?: FilterUrlUpdateType) =>
+      queryFilterRef.current?.setFilterState(filters, updateType),
     [],
   );
 

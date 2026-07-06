@@ -16,6 +16,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import {
+  type FilterUrlUpdateType,
   type UseSidebarFilterStateOptions,
   useSidebarFilterState,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
@@ -280,7 +281,8 @@ export default function SessionsTable({
   queryFilterRef.current = queryFilter;
 
   const setFiltersWrapper = useCallback(
-    (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
+    (filters: FilterState, updateType?: FilterUrlUpdateType) =>
+      queryFilterRef.current?.setFilterState(filters, updateType),
     [],
   );
 

@@ -20,12 +20,27 @@ import { validateOrderBy, validateFilters } from "../validation";
 import { isSystemPresetId } from "../components/data-table-view-presets-drawer";
 import type { FilterStateMigration } from "@/src/features/filters/lib/filter-config";
 
+export type TableViewUrlUpdateType =
+  | "push"
+  | "pushIn"
+  | "replace"
+  | "replaceIn";
+
 interface TableStateUpdaters {
   setColumnOrder: (columnOrder: string[]) => void;
   setColumnVisibility: (columnVisibility: VisibilityState) => void;
-  setOrderBy?: (orderBy: OrderByState) => void;
-  setFilters?: (filters: FilterState) => void;
-  setSearchQuery?: (searchQuery: string | null) => void;
+  setOrderBy?: (
+    orderBy: OrderByState,
+    updateType?: TableViewUrlUpdateType,
+  ) => void;
+  setFilters?: (
+    filters: FilterState,
+    updateType?: TableViewUrlUpdateType,
+  ) => void;
+  setSearchQuery?: (
+    searchQuery: string | null,
+    updateType?: TableViewUrlUpdateType,
+  ) => void;
   setExpandedFilters?: (expandedFilters: string[]) => void;
 }
 
@@ -124,9 +139,9 @@ export function useTableViewManager({
 
   // Keep track of the viewId in session storage and in the query params
   const handleSetViewId = useCallback(
-    (viewId: string | null) => {
+    (viewId: string | null, updateType?: TableViewUrlUpdateType) => {
       setStoredViewId(viewId);
-      setSelectedViewId(viewId);
+      setSelectedViewId(viewId, updateType);
 
       // Explicitly selecting "My view (default)" should stop bootstrap restore.
       // Otherwise an in-flight bootstrap can restore a previously selected view.
@@ -179,7 +194,7 @@ export function useTableViewManager({
       isSystemPresetId(selectedViewId) &&
       !allowBackendSystemPresets
     ) {
-      handleSetViewId(null);
+      handleSetViewId(null, "replaceIn");
       return;
     }
 
@@ -214,7 +229,7 @@ export function useTableViewManager({
       storedViewId &&
       (!isSystemPresetId(storedViewId) || allowBackendSystemPresets)
     ) {
-      setSelectedViewId(storedViewId);
+      setSelectedViewId(storedViewId, "replaceIn");
       return;
     }
 
@@ -223,11 +238,11 @@ export function useTableViewManager({
 
     if (defaultViewId) {
       if (isSystemPresetId(defaultViewId) && !allowBackendSystemPresets) {
-        handleSetViewId(null);
+        handleSetViewId(null, "replaceIn");
         return;
       }
       setStoredViewId(defaultViewId);
-      setSelectedViewId(defaultViewId);
+      setSelectedViewId(defaultViewId, "replaceIn");
       return;
     }
 
@@ -251,7 +266,7 @@ export function useTableViewManager({
 
   // Method to apply state from a view
   const applyViewState = useCallback(
-    (viewData: TableViewPresetState) => {
+    (viewData: TableViewPresetState, updateType?: TableViewUrlUpdateType) => {
       // lock table
       setIsLoading(true);
 
@@ -288,7 +303,9 @@ export function useTableViewManager({
         );
       }
 
-      if (setOrderByRef.current) setOrderByRef.current(validOrderBy);
+      if (setOrderByRef.current) {
+        setOrderByRef.current(validOrderBy, updateType);
+      }
 
       const filtersAlreadyApplied = isEqual(currentFilterState, validFilters);
 
@@ -314,14 +331,14 @@ export function useTableViewManager({
       // sidebar filter hook updates optimistically, so the applied filter state
       // — and the URL it writes to — reflect the view synchronously.
       if (setFiltersRef.current && !filtersAlreadyApplied) {
-        setFiltersRef.current(validFilters);
+        setFiltersRef.current(validFilters, updateType);
       }
 
       if (setSearchQueryRef.current) {
         // `||` (not `??`): a persisted empty string — the common case for views
         // saved without a free-text search — must map to null too, or it
         // serializes as a literal empty `?search=` param in the URL.
-        setSearchQueryRef.current(viewData.searchQuery || null);
+        setSearchQueryRef.current(viewData.searchQuery || null, updateType);
       }
 
       // Apply column order and visibility without validation since UI will handle gracefully.
@@ -409,7 +426,7 @@ export function useTableViewManager({
       name: selectedViewData.name,
     });
 
-    applyViewState(selectedViewData);
+    applyViewState(selectedViewData, "replaceIn");
     if (storedViewId !== requestedViewId) {
       setStoredViewId(requestedViewId);
     }

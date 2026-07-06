@@ -16,6 +16,7 @@ import { IOTableCell } from "../../ui/IOTableCell";
 import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import {
+  type FilterUrlUpdateType,
   type UseSidebarFilterStateOptions,
   useSidebarFilterState,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
@@ -364,7 +365,8 @@ export default function ScoresTable({
   queryFilterRef.current = queryFilter;
 
   const setFiltersWrapper = useCallback(
-    (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
+    (filters: FilterState, updateType?: FilterUrlUpdateType) =>
+      queryFilterRef.current?.setFilterState(filters, updateType),
     [],
   );
 

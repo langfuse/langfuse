@@ -80,6 +80,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import TableIdOrName from "@/src/components/table/table-id";
 import {
+  type FilterUrlUpdateType,
   type UseSidebarFilterStateOptions,
   useSidebarFilterState,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
@@ -1326,7 +1327,8 @@ export default function TracesTable({
   queryFilterRef.current = queryFilter;
 
   const setFiltersWrapper = useCallback(
-    (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
+    (filters: FilterState, updateType?: FilterUrlUpdateType) =>
+      queryFilterRef.current?.setFilterState(filters, updateType),
     [],
   );
 

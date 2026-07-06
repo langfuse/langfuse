@@ -892,9 +892,13 @@ const LoadedSessionEventsPage: React.FC<{
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
   const setFiltersWrapper = useCallback(
-    (filters: FilterState) =>
+    (
+      filters: FilterState,
+      updateType?: Parameters<typeof queryFilter.setFilterState>[1],
+    ) =>
       queryFilter.setFilterState(
         normalizeLegacySessionPositionInTraceFilters(filters),
+        updateType,
       ),
     [queryFilter],
   );
@@ -921,8 +925,8 @@ const LoadedSessionEventsPage: React.FC<{
 
   const applySystemPreset = useCallback(
     (preset: SessionDetailSystemPreset) => {
-      viewControllers.handleSetViewId(preset.id);
-      queryFilter.setFilterState(preset.filters);
+      viewControllers.handleSetViewId(preset.id, "replaceIn");
+      queryFilter.setFilterState(preset.filters, "replaceIn");
     },
     [queryFilter, viewControllers],
   );
@@ -983,7 +987,9 @@ const LoadedSessionEventsPage: React.FC<{
     const shouldRecover =
       filterMatchedView.id === initialViewIdRef.current ||
       visibleFilterState.length > 0;
-    if (shouldRecover) viewControllers.handleSetViewId(filterMatchedView.id);
+    if (shouldRecover) {
+      viewControllers.handleSetViewId(filterMatchedView.id, "replaceIn");
+    }
   }, [isViewLoading, selectedViewId, visibleFilterState, viewControllers]);
 
   // Fresh load with nothing in the URL → apply the default view. Skipped on

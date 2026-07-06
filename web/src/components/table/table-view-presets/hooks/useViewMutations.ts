@@ -2,9 +2,13 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api } from "@/src/utils/api";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { type TableViewUrlUpdateType } from "./useTableViewManager";
 
 type UseViewMutationsProps = {
-  handleSetViewId: (viewId: string | null) => void;
+  handleSetViewId: (
+    viewId: string | null,
+    updateType?: TableViewUrlUpdateType,
+  ) => void;
 };
 
 export const useViewMutations = ({

@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import {
+  type FilterUrlUpdateType,
   type UseSidebarFilterStateOptions,
   useSidebarFilterState,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
@@ -498,7 +499,8 @@ export default function ObservationsEventsTable({
   queryFilterRef.current = queryFilter;
 
   const setFiltersWrapper = useCallback(
-    (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
+    (filters: FilterState, updateType?: FilterUrlUpdateType) =>
+      queryFilterRef.current?.setFilterState(filters, updateType),
     [],
   );
 

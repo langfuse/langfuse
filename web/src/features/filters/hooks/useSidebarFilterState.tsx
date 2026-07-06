@@ -342,6 +342,8 @@ type UpdateFilter = (
   operator?: "any of" | "none of" | "all of",
 ) => void;
 
+export type FilterUrlUpdateType = "push" | "pushIn" | "replace" | "replaceIn";
+
 type BaseUseSidebarFilterStateOptions = {
   loading?: boolean;
   implicitDefaultConfig?: ManagedEnvironmentPolicyInput;
@@ -666,7 +668,7 @@ export function useSidebarFilterState(
   );
 
   const setFilterState = useCallback(
-    (newFilters: FilterState) => {
+    (newFilters: FilterState, updateType?: FilterUrlUpdateType) => {
       const explicitFilters = stripImplicitEnvironmentFilterFromExplicitState({
         explicitFilters: newFilters,
         config: managedEnvironmentPolicyConfig,
@@ -687,7 +689,7 @@ export function useSidebarFilterState(
 
       const encoded = encodeFiltersGeneric(explicitFilters);
       setPendingFiltersQuery(encoded);
-      setUrlFiltersQuery(encoded || null);
+      setUrlFiltersQuery(encoded || null, updateType);
       if (stateLocationType === "urlAndSessionStorage") {
         setStoredFiltersQuery(encoded);
       }

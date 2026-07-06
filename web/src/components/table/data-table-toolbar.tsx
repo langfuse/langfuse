@@ -12,6 +12,7 @@ import {
   type TableViewPresetTableName,
   type TracingSearchType,
 } from "@langfuse/shared";
+import { type TableViewUrlUpdateType } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import {
   type RowSelectionState,
   type ColumnOrderState,
@@ -95,7 +96,10 @@ interface TableViewControllers {
   applyViewState: (viewData: TableViewPresetState) => void;
   selectedViewId: string | null;
   appliedViewId: string | null;
-  handleSetViewId: (viewId: string | null) => void;
+  handleSetViewId: (
+    viewId: string | null,
+    updateType?: TableViewUrlUpdateType,
+  ) => void;
 }
 
 interface TableViewConfig {
