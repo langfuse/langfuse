@@ -107,11 +107,6 @@ export async function executeAiSdkCompletion(
   const runInTraceContext = <T>(fn: () => T): T =>
     capture ? capture.run(fn) : fn();
 
-  // The SDK's native timeout aborts the underlying request via
-  // AbortSignal.timeout; for streaming, the deadline covers the whole stream
-  // consumption. Note it is purely signal-based — there is no watchdog race —
-  // so it relies on the fetch implementation honoring abort signals, which
-  // secureLlmFetch (undici) does.
   const baseOptions: BaseCallOptions = {
     model,
     messages: modelMessages,

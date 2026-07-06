@@ -141,7 +141,6 @@ export function createAiSdkTelemetryCapture(params: {
           : {}),
         ...(serializedInput !== undefined
           ? {
-              [LangfuseOtelSpanAttributes.TRACE_INPUT]: serializedInput,
               [LangfuseOtelSpanAttributes.OBSERVATION_INPUT]: serializedInput,
             }
           : {}),
@@ -195,10 +194,7 @@ export function createAiSdkTelemetryCapture(params: {
   const setRootOutput = (output: unknown): void => {
     if (flushed || output === undefined) return;
     const serializedOutput = stringifyValue(output);
-    rootSpan.setAttribute(
-      LangfuseOtelSpanAttributes.TRACE_OUTPUT,
-      serializedOutput,
-    );
+
     rootSpan.setAttribute(
       LangfuseOtelSpanAttributes.OBSERVATION_OUTPUT,
       serializedOutput,
@@ -220,6 +216,7 @@ export function createAiSdkTelemetryCapture(params: {
       const matchingSpans = spans.filter(
         (span) => span.spanContext().traceId === traceId,
       );
+
       if (matchingSpans.length < spans.length) {
         logger.warn(
           "Dropping AI SDK telemetry spans outside the internal trace; is an OTel context manager registered?",
@@ -233,9 +230,11 @@ export function createAiSdkTelemetryCapture(params: {
 
       const serialized = JsonTraceSerializer.serializeRequest(matchingSpans);
       if (!serialized) return;
+
       const { resourceSpans } = JSON.parse(
         new TextDecoder().decode(serialized),
       );
+
       if (!resourceSpans || resourceSpans.length === 0) return;
 
       const processor = new OtelIngestionProcessor({
@@ -244,6 +243,7 @@ export function createAiSdkTelemetryCapture(params: {
         sdkName: INTERNAL_SDK_NAME,
         sdkVersion: "unknown",
       });
+
       await processor.publishToOtelIngestionQueue(resourceSpans);
     } catch (e) {
       traceException(e);

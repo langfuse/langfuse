@@ -384,6 +384,8 @@ export async function fetchLLMCompletion(
   });
   recordLlmExecutionDecision(executionDecision);
 
+  logger.debug(`LLM Completion Execution engine: ${executionDecision.engine}`);
+
   if (executionDecision.engine === "ai-sdk") {
     return executeAiSdkCompletion({
       messages,
