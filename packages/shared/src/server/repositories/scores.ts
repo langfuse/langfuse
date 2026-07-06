@@ -746,8 +746,8 @@ export async function queryScoreRecordsForExperimentItems({
   projectId: string;
   traceIds: string[];
   observationIds: string[];
-  min: Date;
-  toTimestamp?: Date;
+  min: Date; // applied verbatim, no offset widening — callers pre-widen
+  toTimestamp?: Date; // applied verbatim, no offset widening
   scoreLimit: number;
 }) {
   const uniqueTraceIds = uniqueNonEmptyStrings(traceIds);
@@ -821,8 +821,8 @@ export async function queryScoreRecordsForExperiments({
 }: {
   projectId: string;
   experimentIds: string[];
-  fromTimestamp: Date;
-  toTimestamp?: Date;
+  fromTimestamp: Date; // applied verbatim, no offset widening — callers pre-widen
+  toTimestamp?: Date; // applied verbatim, no offset widening
   scoreLimit: number;
 }) {
   const uniqueExperimentIds = uniqueNonEmptyStrings(experimentIds);

@@ -71,6 +71,8 @@ const buildOrderByClause = (
     ? entries.find((e) => e.column.replace(/"/g, "") === startTimeColumn)
     : undefined;
 
+  // When ordering by start_time, prepend project_id and toStartOfMinute(e.start_time)
+  // to match the table PRIMARY KEY: (project_id, toStartOfMinute(start_time), xxHash32(trace_id))
   if (startTimeEntry && eventTableAlias) {
     columns.push(
       `${eventTableAlias}.project_id ${startTimeEntry.direction}`,
@@ -607,100 +609,6 @@ abstract class AbstractQueryBuilder {
   applyFilters(filterList: FilterList): this {
     this.where(filterList.apply());
     return this;
-  }
-
-  /**
-   * Add exact event-level start time lower bound.
-   */
-  withExactTimeFrom(startTimeFrom?: string | null): this {
-    return this.when(Boolean(startTimeFrom), (b) =>
-      b.whereRaw("e.start_time >= {startTimeFrom: DateTime64(3)}", {
-        startTimeFrom,
-      }),
-    );
-  }
-
-  /**
-   * Add exact event-level start time upper bound.
-   */
-  withExactTimeTo(startTimeTo?: string | null): this {
-    return this.when(Boolean(startTimeTo), (b) =>
-      b.whereRaw("e.start_time < {startTimeTo: DateTime64(3)}", {
-        startTimeTo,
-      }),
-    );
-  }
-
-  /**
-   * Add cursor support for experiment APIs.
-   *
-   * The cursor is applied to raw event rows before any optional aggregation.
-   * This keeps pagination on the same event-level ordering key for experiment
-   * summaries and experiment items.
-   */
-  withCursor(cursor?: {
-    lastTime: string;
-    lastTraceId: string;
-    lastId: string;
-    lastExperimentId: string;
-  }): this {
-    return this.when(Boolean(cursor), (b) => {
-      if (!cursor) return b;
-
-      return b.whereRaw(
-        "e.start_time <= {lastTime: DateTime64(6)} AND (e.start_time, xxHash32(e.trace_id), e.span_id, e.experiment_id) < ({lastTime: DateTime64(6)}, xxHash32({lastTraceId: String}), {lastId: String}, {lastExperimentId: String})",
-        {
-          lastTime: cursor.lastTime,
-          lastTraceId: cursor.lastTraceId,
-          lastId: cursor.lastId,
-          lastExperimentId: cursor.lastExperimentId,
-        },
-      );
-    });
-  }
-
-  /**
-   * Add cursor support for public experiment summary pagination.
-   *
-   * This follows the summary ordering key:
-   * toStartOfMinute(start_time), start_time, experiment_id, span_id.
-   */
-  withExperimentSummaryCursor(cursor?: {
-    lastTime: string;
-    lastId: string;
-    lastExperimentId: string;
-    lookbackInterval: string;
-  }): this {
-    return this.when(Boolean(cursor), (b) => {
-      if (!cursor) return b;
-
-      return b
-        .whereRaw(
-          // The plain start_time bound is redundant with the tuple comparison
-          // but lets the primary index prune granules newer than the cursor;
-          // the mixed tuple alone is not index-usable.
-          "e.start_time <= {lastTime: DateTime64(6)} AND (toStartOfMinute(e.start_time), e.start_time, e.experiment_id, e.span_id) < (toStartOfMinute({lastTime: DateTime64(6)}), {lastTime: DateTime64(6)}, {lastExperimentId: String}, {lastId: String})",
-          {
-            lastTime: cursor.lastTime,
-            lastExperimentId: cursor.lastExperimentId,
-            lastId: cursor.lastId,
-          },
-        )
-        .whereRaw(
-          `e.experiment_id NOT IN (
-  SELECT e2.experiment_id
-  FROM events_core e2
-  WHERE e2.project_id = {projectId: String}
-    AND e2.experiment_id != ''
-    -- don't list experiments that were part of the previous page - that means
-    -- no newer item exists
-    AND e2.start_time >= {lastTime: DateTime64(6)}
-    -- experiments shouldn't take more than that so we checked back long
-    AND e2.start_time < {lastTime: DateTime64(6)} + ${cursor.lookbackInterval}
-    AND (toStartOfMinute(e2.start_time), e2.start_time, e2.experiment_id, e2.span_id) >= (toStartOfMinute({lastTime: DateTime64(6)}), {lastTime: DateTime64(6)}, {lastExperimentId: String}, {lastId: String})
-)`,
-        );
-    });
   }
 
   /**

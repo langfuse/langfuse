@@ -1,7 +1,8 @@
 import {
-  convertDateToClickhouseDateTime,
+  DateTimeFilter,
   deriveFilters,
   EventsQueryBuilder,
+  FilterList,
   ExperimentsAggregationQueryBuilder,
   buildEventsFullTableSplitQuery,
   measureAndReturn,
@@ -110,8 +111,105 @@ const groupExperimentScores = (scores: ScoreRecordReadType[]) => {
   );
 };
 
-const EXPERIMENT_SUMMARY_CURSOR_LOOKBACK_INTERVAL = "INTERVAL 1 DAY";
+const EXPERIMENT_SUMMARY_CURSOR_LOOKBACK_DAYS = 1;
 const EXPERIMENT_SCORE_TIMESTAMP_WINDOW_MS = 24 * 60 * 60 * 1000; // 1 day
+
+/**
+ * Exact event-level start_time bounds for the requested time window.
+ */
+const eventTimeBoundFilters = (fromTime?: Date, toTime?: Date) =>
+  new FilterList([
+    ...(fromTime
+      ? [
+          new DateTimeFilter({
+            clickhouseTable: "events_proto",
+            field: "start_time",
+            tablePrefix: "e",
+            operator: ">=" as const,
+            value: fromTime,
+          }),
+        ]
+      : []),
+    ...(toTime
+      ? [
+          new DateTimeFilter({
+            clickhouseTable: "events_proto",
+            field: "start_time",
+            tablePrefix: "e",
+            operator: "<" as const,
+            value: toTime,
+          }),
+        ]
+      : []),
+  ]);
+
+/**
+ * Apply cursor pagination for experiment items.
+ *
+ * The cursor is applied to raw event rows before any optional aggregation.
+ * This keeps pagination on the same event-level ordering key as the item
+ * ORDER BY clause.
+ */
+const applyExperimentItemCursor = (
+  builder: EventsQueryBuilder,
+  cursor?: ExperimentCursor,
+) =>
+  builder.when(Boolean(cursor), (b) => {
+    if (!cursor) return b;
+
+    return b.whereRaw(
+      "e.start_time <= {lastTime: DateTime64(6)} AND (e.start_time, xxHash32(e.trace_id), e.span_id, e.experiment_id) < ({lastTime: DateTime64(6)}, xxHash32({lastTraceId: String}), {lastId: String}, {lastExperimentId: String})",
+      {
+        lastTime: cursor.lastTime,
+        lastTraceId: cursor.lastTraceId,
+        lastId: cursor.lastId,
+        lastExperimentId: cursor.lastExperimentId,
+      },
+    );
+  });
+
+/**
+ * Apply cursor pagination for experiment summaries.
+ *
+ * This follows the summary ordering key:
+ * start_time, experiment_id, span_id.
+ */
+const applyExperimentSummaryCursor = (
+  builder: EventsQueryBuilder,
+  cursor?: ExperimentCursor,
+) =>
+  builder.when(Boolean(cursor), (b) => {
+    if (!cursor) return b;
+
+    return b
+      .whereRaw(
+        // The plain start_time bound is redundant with the tuple comparison
+        // but lets the primary index prune granules newer than the cursor;
+        // the tuple alone is not usable against the toStartOfMinute(start_time)
+        // primary key.
+        "e.start_time <= {lastTime: DateTime64(6)} AND (e.start_time, e.experiment_id, e.span_id) < ({lastTime: DateTime64(6)}, {lastExperimentId: String}, {lastId: String})",
+        {
+          lastTime: cursor.lastTime,
+          lastExperimentId: cursor.lastExperimentId,
+          lastId: cursor.lastId,
+        },
+      )
+      .whereRaw(
+        `e.experiment_id NOT IN (
+  SELECT e2.experiment_id
+  FROM events_core e2
+  WHERE e2.project_id = {projectId: String}
+    AND e2.experiment_id != ''
+    -- don't list experiments that were part of the previous page - that means
+    -- no newer item exists
+    AND e2.start_time >= {lastTime: DateTime64(6)}
+    -- experiments shouldn't take more than that so we checked back long
+    AND e2.start_time < addDays({lastTime: DateTime64(6)}, {summaryCursorLookbackDays: UInt32})
+    AND (e2.start_time, e2.experiment_id, e2.span_id) >= ({lastTime: DateTime64(6)}, {lastExperimentId: String}, {lastId: String})
+)`,
+        { summaryCursorLookbackDays: EXPERIMENT_SUMMARY_CURSOR_LOOKBACK_DAYS },
+      );
+  });
 
 const scoreTimestampBoundsFromRows = <TRow>(
   rows: TRow[],
@@ -147,11 +245,6 @@ const scoreTimestampBoundsFromRows = <TRow>(
 async function queryExperimentSummaryRowsForPublicApi(
   params: QueryExperimentSummariesParams,
 ) {
-  const fromTime = convertDateToClickhouseDateTime(params.fromTime);
-  const toTime = params.toTime
-    ? convertDateToClickhouseDateTime(params.toTime)
-    : undefined;
-
   const filterList = deriveFilters(
     {
       projectId: params.projectId,
@@ -172,24 +265,16 @@ async function queryExperimentSummaryRowsForPublicApi(
   // Phase 1: pick the page of experiment ids via LIMIT 1 BY on raw events.
   // Reading follows the table sort key and can stop once the page is full, and
   // the id-set keeps the phase-2 GROUP BY bounded to at most `limit` groups.
-  const pageQueryBuilder = new EventsQueryBuilder({
-    projectId: params.projectId,
-  })
-    .selectRaw("e.experiment_id AS experiment_id")
-    .whereRaw("e.experiment_id != ''")
-    .withExactTimeFrom(fromTime)
-    .withExactTimeTo(toTime)
-    .applyFilters(filterList)
-    .withExperimentSummaryCursor(
-      params.cursor
-        ? {
-            lastTime: params.cursor.lastTime,
-            lastId: params.cursor.lastId,
-            lastExperimentId: params.cursor.lastExperimentId,
-            lookbackInterval: EXPERIMENT_SUMMARY_CURSOR_LOOKBACK_INTERVAL,
-          }
-        : undefined,
-    )
+  const pageQueryBuilder = applyExperimentSummaryCursor(
+    new EventsQueryBuilder({
+      projectId: params.projectId,
+    })
+      .selectRaw("e.experiment_id AS experiment_id")
+      .whereRaw("e.experiment_id != ''")
+      .applyFilters(eventTimeBoundFilters(params.fromTime, params.toTime))
+      .applyFilters(filterList),
+    params.cursor,
+  )
     .orderByColumns([
       { column: "e.start_time", direction: "DESC" },
       { column: "e.experiment_id", direction: "DESC" },
@@ -228,11 +313,10 @@ async function queryExperimentSummaryRowsForPublicApi(
       // Counts item root spans to match what /experiment-items paginates.
       "uniqIf(e.span_id, e.span_id = e.experiment_item_root_span_id) AS item_count",
     )
-    .withExactTimeFrom(fromTime)
-    .withExactTimeTo(toTime)
+    .applyFilters(eventTimeBoundFilters(params.fromTime, params.toTime))
     .whereRaw(`e.experiment_id IN (${pageQuery})`, pageParams)
     .orderBy(
-      "ORDER BY toStartOfMinute(cursor_time) DESC, cursor_time DESC, experiment_id DESC, cursor_span_id DESC",
+      "ORDER BY cursor_time DESC, experiment_id DESC, cursor_span_id DESC",
     );
 
   const { query, params: queryParams } = aggregationBuilder.buildWithParams();
@@ -305,13 +389,6 @@ const experimentItemOrderByColumns = (alias: "e" | "b") => {
 async function queryExperimentItemRowsForPublicApi(
   params: QueryExperimentItemsParams,
 ) {
-  const fromTime = params.fromTime
-    ? convertDateToClickhouseDateTime(params.fromTime)
-    : undefined;
-  const toTime = params.toTime
-    ? convertDateToClickhouseDateTime(params.toTime)
-    : undefined;
-
   const filterList = deriveFilters(
     {
       projectId: params.projectId,
@@ -328,38 +405,28 @@ async function queryExperimentItemRowsForPublicApi(
     publicApiExperimentItemColumnDefinitions,
   );
 
-  const queryBuilder = new EventsQueryBuilder({ projectId: params.projectId })
-    .selectFieldSet(
-      "publicApiExperimentItemCore",
-      ...(params.includeDataset
-        ? (["publicApiExperimentItemDataset"] as const)
-        : []),
-      ...(params.includeItemMetadata
-        ? (["publicApiExperimentItemMetadataFields"] as const)
-        : []),
-      ...(params.includeExperimentMetadata
-        ? (["publicApiExperimentItemExperimentMetadata"] as const)
-        : []),
-    )
-    .whereRaw("e.experiment_id != ''")
-    .whereRaw("e.experiment_item_id != ''")
-    .whereRaw("e.experiment_item_root_span_id = e.span_id")
-    .when(params.includeIo, (b) =>
-      b.selectFieldSet("publicApiExperimentItemExpectedOutput"),
-    )
-    .withExactTimeFrom(fromTime)
-    .withExactTimeTo(toTime)
-    .applyFilters(filterList)
-    .withCursor(
-      params.cursor
-        ? {
-            lastTime: params.cursor.lastTime,
-            lastTraceId: params.cursor.lastTraceId,
-            lastId: params.cursor.lastId,
-            lastExperimentId: params.cursor.lastExperimentId,
-          }
-        : undefined,
-    )
+  const queryBuilder = applyExperimentItemCursor(
+    new EventsQueryBuilder({ projectId: params.projectId })
+      .selectFieldSet("publicApiExperimentItemCore")
+      .when(params.includeDataset, (b) =>
+        b.selectFieldSet("publicApiExperimentItemDataset"),
+      )
+      .when(params.includeItemMetadata, (b) =>
+        b.selectFieldSet("publicApiExperimentItemMetadataFields"),
+      )
+      .when(params.includeExperimentMetadata, (b) =>
+        b.selectFieldSet("publicApiExperimentItemExperimentMetadata"),
+      )
+      .when(params.includeIo, (b) =>
+        b.selectFieldSet("publicApiExperimentItemExpectedOutput"),
+      )
+      .whereRaw("e.experiment_id != ''")
+      .whereRaw("e.experiment_item_id != ''")
+      .whereRaw("e.experiment_item_root_span_id = e.span_id")
+      .applyFilters(eventTimeBoundFilters(params.fromTime, params.toTime))
+      .applyFilters(filterList),
+    params.cursor,
+  )
     .orderByColumns([...experimentItemOrderByColumns("e")])
     .limitBy("e.span_id", "e.project_id")
     .limit(params.limit);
