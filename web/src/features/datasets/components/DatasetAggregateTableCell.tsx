@@ -159,7 +159,7 @@ const DatasetAggregateCellContent = ({
           <MemoizedIOTableCell
             isLoading={isLoading || !data}
             data={data?.output ?? "null"}
-            className={"bg-accent-light-green min-h-8"}
+            className="bg-accent-light-green min-h-8"
             singleLine={false}
             enableExpandOnHover
           />

@@ -9,7 +9,6 @@ import {
   TRACING_TABS,
 } from "@/src/features/navigation/utils/tracing-tabs";
 import { useQueryProject } from "@/src/features/projects/hooks";
-import { TableTimeRangeHeaderPicker } from "@/src/components/table/table-time-range-header-picker";
 
 export default function Events() {
   const router = useRouter();
@@ -45,9 +44,6 @@ export default function Events() {
             "An observation captures a single function call in an application. This view uses the new ClickHouse events table.",
           href: "https://langfuse.com/docs/observability/data-model",
         },
-        actionButtonsLeft: showOnboarding ? undefined : (
-          <TableTimeRangeHeaderPicker projectId={projectId} />
-        ),
         tabsProps: {
           tabs: getTracingTabs(projectId),
           activeTab: TRACING_TABS.OBSERVATIONS,
@@ -59,7 +55,10 @@ export default function Events() {
       {showOnboarding ? (
         <TracesOnboarding projectId={projectId} />
       ) : (
-        <ObservationsEventsTable projectId={projectId} hideTimeRangePicker />
+        <ObservationsEventsTable
+          projectId={projectId}
+          showControlsInPageHeader
+        />
       )}
     </Page>
   );

@@ -27,8 +27,8 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import Page from "@/src/components/layouts/page";
+import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { UsersOnboarding } from "@/src/components/onboarding/UsersOnboarding";
-import { TableTimeRangeHeaderPicker } from "@/src/components/table/table-time-range-header-picker";
 import {
   useEnvironmentFilter,
   convertSelectedEnvironmentsToFilter,
@@ -105,9 +105,6 @@ export default function UsersPage() {
           ),
           href: "https://langfuse.com/docs/observability/features/users",
         },
-        actionButtonsLeft: showOnboarding ? undefined : (
-          <TableTimeRangeHeaderPicker projectId={projectId} />
-        ),
       }}
       scrollable={showOnboarding}
     >
@@ -115,13 +112,19 @@ export default function UsersPage() {
       {showOnboarding ? (
         <UsersOnboarding />
       ) : (
-        <UsersTable isBetaEnabled={isBetaEnabled} />
+        <UsersTable isBetaEnabled={isBetaEnabled} showControlsInPageHeader />
       )}
     </Page>
   );
 }
 
-const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
+const UsersTable = ({
+  isBetaEnabled,
+  showControlsInPageHeader = false,
+}: {
+  isBetaEnabled: boolean;
+  showControlsInPageHeader?: boolean;
+}) => {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
@@ -138,9 +141,9 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
     pageSize: withDefault(NumberParam, 50),
   });
 
-  // The picker lives in the page header (TableTimeRangeHeaderPicker); this
+  // The picker renders in the page header via the header controls slot; this
   // reads the same shared per-project range to filter the table.
-  const { timeRange } = useTableDateRange(projectId);
+  const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
   // Convert timeRange to absolute date range for compatibility
   const dateRange = useMemo(() => {
@@ -421,11 +424,19 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
 
   return (
     <>
+      {showControlsInPageHeader && (
+        <TableHeaderControls
+          timeRange={timeRange}
+          setTimeRange={setTimeRange}
+        />
+      )}
       <DataTableToolbar
         filterColumnDefinition={usersTableCols}
         filterState={userFilterState}
         setFilterState={useDebounce(setUserFilterState)}
         columns={columns}
+        timeRange={showControlsInPageHeader ? undefined : timeRange}
+        setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
         searchConfig={{
           metadataSearchFields: ["User ID"],
           updateQuery: setSearchQuery,
@@ -441,7 +452,7 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
         }}
       />
       <DataTable
-        tableName={"users"}
+        tableName="users"
         columns={columns}
         data={
           users.isLoading

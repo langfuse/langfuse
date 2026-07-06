@@ -8,6 +8,7 @@ import { ModelUsageChart } from "@/src/features/dashboard/components/ModelUsageC
 import { TracesAndObservationsTimeSeriesChart } from "@/src/features/dashboard/components/TracesTimeSeriesChart";
 import { UserChart } from "@/src/features/dashboard/components/UserChart";
 import { TimeRangePicker } from "@/src/components/date-picker";
+import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { useDashboardFilterOptions } from "@/src/hooks/useDashboardFilterOptions";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { type ColumnDefinition, type FilterState } from "@langfuse/shared";
@@ -206,22 +207,6 @@ export default function Dashboard() {
           title: "Home",
           actionButtonsLeft: (
             <>
-              <TimeRangePicker
-                timeRange={timeRange}
-                onTimeRangeChange={setTimeRange}
-                timeRangePresets={dashboardTimeRangePresets}
-                className="my-0 max-w-full overflow-x-auto"
-                disabled={
-                  lookbackLimit
-                    ? {
-                        before: new Date(
-                          new Date().getTime() -
-                            lookbackLimit * 24 * 60 * 60 * 1000,
-                        ),
-                      }
-                    : undefined
-                }
-              />
               <MultiSelect
                 title="Environment"
                 label="Env"
@@ -246,6 +231,25 @@ export default function Dashboard() {
           ),
         }}
       >
+        <PageHeaderControlsPortal>
+          <TimeRangePicker
+            timeRange={timeRange}
+            onTimeRangeChange={setTimeRange}
+            timeRangePresets={dashboardTimeRangePresets}
+            className="my-0 max-w-full overflow-x-auto"
+            triggerClassName="px-2"
+            disabled={
+              lookbackLimit
+                ? {
+                    before: new Date(
+                      new Date().getTime() -
+                        lookbackLimit * 24 * 60 * 60 * 1000,
+                    ),
+                  }
+                : undefined
+            }
+          />
+        </PageHeaderControlsPortal>
         {!isDashboardDataReady ? (
           <NoDataOrLoading isLoading />
         ) : (

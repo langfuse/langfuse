@@ -15,7 +15,6 @@ import { FlaskConical } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
-import { TableTimeRangeHeaderPicker } from "@/src/components/table/table-time-range-header-picker";
 
 export default function Experiments() {
   const router = useRouter();
@@ -60,7 +59,6 @@ export default function Experiments() {
     <Page
       headerProps={{
         title: "Experiments",
-        actionButtonsLeft: <TableTimeRangeHeaderPicker projectId={projectId} />,
         actionButtonsRight: (
           <div className="flex items-center gap-2">
             <Dialog
@@ -90,7 +88,7 @@ export default function Experiments() {
         ),
       }}
     >
-      <ExperimentsTable projectId={projectId} hideTimeRangePicker />
+      <ExperimentsTable projectId={projectId} showControlsInPageHeader />
     </Page>
   );
 }
