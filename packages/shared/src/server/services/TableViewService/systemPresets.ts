@@ -74,15 +74,6 @@ const OBSERVATIONS_EVENTS_SYSTEM_TABLE_VIEW_PRESETS: SystemTableViewPreset[] = [
 
   // --- Slow calls -----------------------------------------------------------
   buildSystemPreset({
-    id: `${SYSTEM_TABLE_VIEW_PRESET_ID_PREFIX}slowest_calls`,
-    name: "Slowest calls",
-    description: "Highest latency observations first",
-    tableName: TableViewPresetTableName.ObservationsEvents,
-    category: SystemTableViewPresetCategory.SlowCalls,
-    filters: [],
-    orderBy: { column: "latency", order: "DESC" },
-  }),
-  buildSystemPreset({
     id: `${SYSTEM_TABLE_VIEW_PRESET_ID_PREFIX}latency_over_10s`,
     name: "Latency over 10s",
     description: "Observations taking longer than 10 seconds",
@@ -128,27 +119,6 @@ const OBSERVATIONS_EVENTS_SYSTEM_TABLE_VIEW_PRESETS: SystemTableViewPreset[] = [
     ],
   }),
   buildSystemPreset({
-    id: `${SYSTEM_TABLE_VIEW_PRESET_ID_PREFIX}errors_with_message`,
-    name: "Errors with a message",
-    description: "Failed observations that carry a status message",
-    tableName: TableViewPresetTableName.ObservationsEvents,
-    category: SystemTableViewPresetCategory.Errors,
-    filters: [
-      {
-        column: "level",
-        type: "stringOptions",
-        operator: "any of",
-        value: ["ERROR"],
-      },
-      {
-        column: "statusMessage",
-        type: "null",
-        operator: "is not null",
-        value: "",
-      },
-    ],
-  }),
-  buildSystemPreset({
     id: `${SYSTEM_TABLE_VIEW_PRESET_ID_PREFIX}review_output_generations`,
     name: "Review output (generations)",
     description: "LLM generation outputs, for reviewing response quality",
@@ -165,15 +135,6 @@ const OBSERVATIONS_EVENTS_SYSTEM_TABLE_VIEW_PRESETS: SystemTableViewPreset[] = [
   }),
 
   // --- Cost regression ------------------------------------------------------
-  buildSystemPreset({
-    id: `${SYSTEM_TABLE_VIEW_PRESET_ID_PREFIX}most_expensive`,
-    name: "Most expensive",
-    description: "Highest total cost observations first",
-    tableName: TableViewPresetTableName.ObservationsEvents,
-    category: SystemTableViewPresetCategory.CostRegression,
-    filters: [],
-    orderBy: { column: "totalCost", order: "DESC" },
-  }),
   buildSystemPreset({
     id: `${SYSTEM_TABLE_VIEW_PRESET_ID_PREFIX}high_cost`,
     name: "High cost (> $1)",

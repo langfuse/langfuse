@@ -1,11 +1,5 @@
 import { useMemo } from "react";
-import {
-  AlertTriangle,
-  Check,
-  DollarSign,
-  Timer,
-  type LucideIcon,
-} from "lucide-react";
+import { DollarSign, ThumbsDown, Timer, type LucideIcon } from "lucide-react";
 import {
   SYSTEM_TABLE_VIEW_PRESET_CATEGORIES_ORDERED,
   SYSTEM_TABLE_VIEW_PRESET_CATEGORY_META,
@@ -26,7 +20,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 
 const CATEGORY_ICONS: Record<SystemTableViewPresetCategory, LucideIcon> = {
   [SystemTableViewPresetCategory.SlowCalls]: Timer,
-  [SystemTableViewPresetCategory.Errors]: AlertTriangle,
+  [SystemTableViewPresetCategory.Errors]: ThumbsDown,
   [SystemTableViewPresetCategory.CostRegression]: DollarSign,
 };
 
@@ -52,7 +46,7 @@ const CLEARED_VIEW_STATE: TableViewPresetState = {
   searchQuery: "",
 };
 
-// Coming-soon placeholder shown under "Errors & Quality". Real, project-scoped
+// Coming-soon placeholder shown under "Quality & Errors". Real, project-scoped
 // quality presets (eval scores + feedback) are a follow-up; this signals intent
 // without doing anything.
 const LOW_QUALITY_COMING_SOON: PresetItem = {
@@ -117,10 +111,9 @@ export function CategoryPresetChips({
       });
       grouped.set(view.category, list);
     }
-    // Quality lives under the Errors ("Errors & Quality") chip as a
+    // Quality lives under the Errors ("Quality & Errors") chip as a
     // coming-soon placeholder for now.
-    const errorsList =
-      grouped.get(SystemTableViewPresetCategory.Errors) ?? [];
+    const errorsList = grouped.get(SystemTableViewPresetCategory.Errors) ?? [];
     grouped.set(SystemTableViewPresetCategory.Errors, [
       ...errorsList,
       LOW_QUALITY_COMING_SOON,
@@ -160,7 +153,7 @@ export function CategoryPresetChips({
               </Button>
             </PopoverTrigger>
             <PopoverContent align="start" className="w-72 p-1">
-              <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+              <div className="text-muted-foreground px-2 py-1.5 text-xs font-medium">
                 {label}
               </div>
               <div className="max-h-72 overflow-y-auto">
@@ -215,9 +208,6 @@ export function CategoryPresetChips({
                           </span>
                         )}
                       </span>
-                      {isPresetActive && (
-                        <Check className="text-primary-accent mt-0.5 h-4 w-4 shrink-0" />
-                      )}
                     </button>
                   );
                   // The disabled placeholder never applies, so it isn't wrapped

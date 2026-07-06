@@ -30,13 +30,13 @@ export const SYSTEM_TABLE_VIEW_PRESET_CATEGORY_META: Record<
   SystemTableViewPresetCategory,
   { label: string; order: number }
 > = {
-  [SystemTableViewPresetCategory.SlowCalls]: { label: "Slow", order: 1 },
   // "Quality" here is the home of the (coming-soon) eval-score / feedback
   // presets; errors and quality are grouped into one chip.
   [SystemTableViewPresetCategory.Errors]: {
-    label: "Errors & Quality",
-    order: 2,
+    label: "Quality & Errors",
+    order: 1,
   },
+  [SystemTableViewPresetCategory.SlowCalls]: { label: "Slow", order: 2 },
   [SystemTableViewPresetCategory.CostRegression]: {
     label: "Cost",
     order: 3,
