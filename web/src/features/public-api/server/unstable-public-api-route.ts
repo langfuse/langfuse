@@ -10,7 +10,7 @@ import {
 } from "@/src/features/public-api/server/withMiddlewares";
 import { unstablePublicEvalsErrorContract } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 
-type UnstablePublicEvalsRouteConfig<
+type UnstablePublicApiRouteConfig<
   TQuery extends ZodType<any>,
   TBody extends ZodType<any>,
   TResponse extends ZodType<any>,
@@ -19,27 +19,27 @@ type UnstablePublicEvalsRouteConfig<
   "errorContract"
 >;
 
-type UnstablePublicEvalsHandlers = {
+type UnstablePublicApiHandlers = {
   [Method in HttpMethod]?: (
     req: NextApiRequest,
     res: NextApiResponse,
   ) => Promise<void>;
 };
 
-export const createUnstablePublicEvalsRoute = <
+export const createUnstablePublicApiRoute = <
   TQuery extends ZodType<any>,
   TBody extends ZodType<any>,
   TResponse extends ZodType<any>,
 >(
-  routeConfig: UnstablePublicEvalsRouteConfig<TQuery, TBody, TResponse>,
+  routeConfig: UnstablePublicApiRouteConfig<TQuery, TBody, TResponse>,
 ) =>
   createAuthedProjectAPIRoute({
     ...routeConfig,
     errorContract: unstablePublicEvalsErrorContract,
   });
 
-export const withUnstablePublicEvalsMiddlewares = (
-  handlers: UnstablePublicEvalsHandlers,
+export const withUnstablePublicApiMiddlewares = (
+  handlers: UnstablePublicApiHandlers,
 ) =>
   withMiddlewares(handlers, {
     errorContract: unstablePublicEvalsErrorContract,

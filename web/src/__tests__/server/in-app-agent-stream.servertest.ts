@@ -713,6 +713,18 @@ describe("createAgUiStream", () => {
       href: "/project/project-1/traces/trace-1",
     });
 
+    await expect(
+      redirectTool?.execute?.({
+        label: "Open widget",
+        destination: "dashboardWidget",
+        params: { widgetId: "widget-1" },
+      }),
+    ).resolves.toEqual({
+      type: "redirectAction",
+      label: "Open widget",
+      href: "/project/project-1/widgets/widget-1",
+    });
+
     expect(promptMocks.getPrompt).toHaveBeenCalledWith(
       "in-app-agent-system-prompt",
       undefined,

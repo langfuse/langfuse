@@ -1,10 +1,15 @@
 /**
- * PlaybackControls - view-agnostic transport for the trace playhead.
+ * PlaybackControls - transport for the trace playhead, in the navigation
+ * header. The play/pause button is wrapped in a circular progress ring that
+ * fills as the playhead sweeps the trace's total time — a compact "where are
+ * we in the trace" indicator that isn't tied to the gantt. Stop resets it.
  *
- * Lives in the navigation header (shown in Tree AND Timeline views). The
- * play/pause button is wrapped in a circular progress ring that fills as the
- * playhead sweeps the trace's total time — a compact "where are we in the
- * trace" indicator that isn't tied to the gantt. Stop resets it.
+ * Shown only when there is something to WATCH play: the timeline view (the
+ * sweeping playhead) or a visible graph panel (the node glow). In the default
+ * tree view without a graph the transport is hidden — the row glow alone
+ * isn't a playback surface — but it never disappears while a playhead is
+ * actively placed, so an in-flight playback keeps its controls across view
+ * switches.
  *
  * The ring is driven imperatively off the playhead position feed, so it
  * animates at 60fps without re-rendering (only the play/pause icon flips, via
@@ -13,9 +18,17 @@
 
 import { useEffect, useRef } from "react";
 import { Pause, Play, Square } from "lucide-react";
+import { StringParam, useQueryParam } from "use-query-params";
 import { Button } from "@/src/components/ui/button";
-import { usePlayhead, useIsPlaying } from "../contexts/PlayheadContext";
+import {
+  usePlayhead,
+  useIsPlaying,
+  useShowPlayhead,
+} from "../contexts/PlayheadContext";
 import { useTraceData } from "../contexts/TraceDataContext";
+import { useTraceGraphData } from "../contexts/TraceGraphDataContext";
+import { useSearch } from "../contexts/SearchContext";
+import { useViewPreferences } from "../contexts/ViewPreferencesContext";
 
 // A 22px ring around the ~28px (h-7) button; 2px stroke reads at this size.
 const RING_SIZE = 22;
@@ -25,9 +38,15 @@ const RING_C = 2 * Math.PI * RING_R;
 
 export function PlaybackControls() {
   const { traceDuration } = useTraceData();
+  const { isGraphViewAvailable, isLoading: isGraphDataLoading } =
+    useTraceGraphData();
+  const { showGraph } = useViewPreferences();
+  const { searchQuery } = useSearch();
+  const [viewMode] = useQueryParam("view", StringParam);
   const { play, pause, stop, getPlayheadSec, subscribePosition } =
     usePlayhead();
   const isPlaying = useIsPlaying();
+  const showPlayhead = useShowPlayhead();
   const ringRef = useRef<SVGCircleElement>(null);
 
   // Fill the ring to the current playhead fraction; update imperatively as the
@@ -43,7 +62,20 @@ export function PlaybackControls() {
     return subscribePosition(apply);
   }, [traceDuration, getPlayheadSec, subscribePosition]);
 
-  if (traceDuration <= 0) return null;
+  // A playback surface exists in the timeline view (unless a search query has
+  // replaced it with the search list) or when the graph panel renders — a
+  // COLLAPSED panel still counts (the surface is one click away; hiding the
+  // transport when the user collapses the panel would make it undiscoverable),
+  // and a pending graph query counts too, so graph-eligible traces don't get a
+  // transport pop-in after first load. An actively-placed playhead keeps its
+  // controls regardless.
+  const isSearching = searchQuery.trim().length > 0;
+  const hasPlaybackSurface =
+    (viewMode === "timeline" && !isSearching) ||
+    (showGraph && (isGraphViewAvailable || isGraphDataLoading));
+  if (traceDuration <= 0 || (!hasPlaybackSurface && !showPlayhead)) {
+    return null;
+  }
 
   return (
     <div className="ml-1 flex shrink-0 flex-row items-center gap-0.5">
