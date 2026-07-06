@@ -1,6 +1,3 @@
--- V4 events pipeline (clustered / replicated engines): events_core_mv.
--- Materialized view to populate events_core from events_full. Ingestion
--- attribution columns are added to its projection in a later migration.
 CREATE MATERIALIZED VIEW IF NOT EXISTS events_core_mv ON CLUSTER default TO events_core AS
 SELECT
     project_id,

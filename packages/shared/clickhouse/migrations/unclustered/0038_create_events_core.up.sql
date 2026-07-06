@@ -1,8 +1,3 @@
--- V4 events pipeline (unclustered / single-node engines): events_core.
--- events_core is the lightweight, query-optimized projection of events_full
--- with truncated input/output/metadata. It is populated via the events_core_mv
--- materialized view (created in a later migration). Ingestion attribution
--- columns are added in a later migration.
 CREATE TABLE IF NOT EXISTS events_core
 (
     project_id String,

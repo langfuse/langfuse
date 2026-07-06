@@ -1,10 +1,3 @@
--- V4 events pipeline (clustered / replicated engines): ingestion attribution.
--- Adds ingestion_api_key / ingestion_sdk_name / ingestion_sdk_version to the
--- staging table and the events tables, and extends the events_core_mv
--- projection to carry them. Tracked as its own migration (see #14593), matching
--- the self-hosted events rollout doc, which records each schema change after the
--- initial schema as a dedicated entry.
-
 ALTER TABLE observations_batch_staging ON CLUSTER default
   ADD COLUMN IF NOT EXISTS ingestion_api_key String DEFAULT ''
   SETTINGS enable_full_text_index = 1, alter_sync = 2;
@@ -35,7 +28,6 @@ ALTER TABLE events_core ON CLUSTER default
   ADD COLUMN IF NOT EXISTS ingestion_sdk_version LowCardinality(String) DEFAULT 'unknown'
   SETTINGS enable_full_text_index = 1, alter_sync = 2;
 
--- Extend the events_core_mv projection to carry the new columns.
 ALTER TABLE events_core_mv ON CLUSTER default MODIFY QUERY
 SELECT
     project_id,

@@ -1,21 +1,3 @@
--- V4 events pipeline (clustered / replicated engines): staging table.
--- Promoted from clickhouse/scripts/dev-tables.sh now that v4 requires
--- ClickHouse >= 25.12. `IF NOT EXISTS` keeps this compatible with preview
--- self-hosters that already applied the manual schema. Mirrors the
--- "Initial schema" in the self-hosted events rollout doc; later additions
--- (e.g. ingestion attribution columns) are tracked as their own migrations.
-
--- Staging table for the dual-write pipeline that populates events_full.
--- Ingestion writes every observation (and trace-as-synthetic-observation) here
--- with an s3_first_seen_timestamp; the periodic event-propagation job in the
--- worker reads completed 3-minute partitions, joins them with `traces`, and
--- inserts the result into `events_full`.
---
--- Partitions are automatically expired after 48 hours via TTL. The 48h window
--- (vs. the 12h used internally for Langfuse Cloud) gives self-hosters a
--- multi-day grace period to recover the propagation job after an incident
--- without losing staging data. `ttl_only_drop_parts = 1` ensures only complete
--- partitions are dropped, never individual rows.
 CREATE TABLE IF NOT EXISTS observations_batch_staging ON CLUSTER default
 (
     id String,

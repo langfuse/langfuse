@@ -12,21 +12,6 @@
 #   - pnpm run dx
 #   - pnpm run dx-f
 #   - pnpm run ch:reset
-# It always runs AFTER the ClickHouse migrations (pnpm run ch:up), so the v4
-# events tables (events_full / events_core / events_core_mv /
-# observations_batch_staging) already exist by the time the statements below
-# run.
-#
-# Self-hosted v4 rollout note:
-# The core v4 events tables were promoted from this script into a regular
-# migration (clickhouse/migrations/*/0036_add_v4_events_tables.*.sql) once
-# Langfuse v4 raised the minimum ClickHouse version to 25.12, which guarantees
-# the required features (`enable_block_number_column` /
-# `enable_block_offset_column` >= 24.5, `text` indexes / `enable_full_text_index`
-# >= 25.x). The ingestion_api_key / ingestion_sdk_name / ingestion_sdk_version
-# columns are folded into that migration too. What remains here is Cloud-internal
-# diagnostics (ingestion size stats, analytics view), post-create index tweaks
-# that are not part of the self-hoster schema, and local sample-data seeding.
 #
 # When making changes below, treat them like migrations, i.e. DO NOT modify the
 # column inline. Instead add a table mutation adding a net new column. Core

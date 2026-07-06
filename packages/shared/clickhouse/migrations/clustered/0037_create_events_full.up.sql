@@ -1,8 +1,3 @@
--- V4 events pipeline (clustered / replicated engines): events_full.
--- events_full is the immutable, full-fidelity event table that will eventually
--- replace observations. It is populated by the worker propagation job that
--- joins observations_batch_staging with traces and dataset_run_items and new
--- OTel based SDKs. Ingestion attribution columns are added in a later migration.
 CREATE TABLE IF NOT EXISTS events_full ON CLUSTER default
 (
     project_id String,

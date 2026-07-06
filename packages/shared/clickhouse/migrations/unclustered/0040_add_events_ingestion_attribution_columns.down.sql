@@ -1,5 +1,3 @@
--- Revert the events_core_mv projection to the pre-attribution column set BEFORE
--- dropping the columns it references, then drop the columns from each table.
 ALTER TABLE events_core_mv MODIFY QUERY
 SELECT
     project_id,
