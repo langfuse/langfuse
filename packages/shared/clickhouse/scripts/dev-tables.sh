@@ -77,12 +77,6 @@ clickhouse client \
   --database="${CLICKHOUSE_DB}" \
   --multiquery <<'EOF'
 
--- Event metadata substring acceleration for events_full / events_core.
--- Not part of the self-hoster schema in migration 0036; applied here as a
--- post-create mutation to mirror the Cloud tables in local dev.
-ALTER TABLE events_full ADD INDEX IF NOT EXISTS idx_fts_metadata_values_ngram arrayStringConcat(metadata_values) TYPE ngrambf_v1(4, 32000, 3, 0) GRANULARITY 2 SETTINGS enable_full_text_index = 1;
-ALTER TABLE events_core ADD INDEX IF NOT EXISTS idx_fts_metadata_values_ngram arrayStringConcat(metadata_values) TYPE ngrambf_v1(4, 32000, 3, 0) GRANULARITY 2 SETTINGS enable_full_text_index = 1;
-
 -- Diagnostic table to track event size distributions across projects.
 -- Every insert (including updates) produces a row — no deduplication.
 -- See LFE-9402 for context.
