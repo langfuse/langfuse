@@ -1,0 +1,2 @@
+[pre-start]
+codex-setup = "bash scripts/codex/setup.sh"
