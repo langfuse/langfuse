@@ -1719,7 +1719,7 @@ export default function ObservationsEventsTable({
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable
               key={`observations-table-${dataUpdatedAt}-${rows.length > 0 && rows[0]?.input ? "with-io" : "without-io"}`}
-              tableName={"observations"}
+              tableName="observations"
               columns={columns}
               peekView={peekConfig}
               data={

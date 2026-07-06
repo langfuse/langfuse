@@ -441,7 +441,7 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
         }}
       />
       <DataTable
-        tableName={"users"}
+        tableName="users"
         columns={columns}
         data={
           users.isLoading
