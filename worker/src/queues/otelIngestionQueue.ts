@@ -215,10 +215,6 @@ export const otelIngestionQueueProcessorBuilder = (
       const publicKey = job.data.payload.data.publicKey ?? "";
       const fileKey = job.data.payload.data.fileKey;
       const auth = job.data.payload.authCheck;
-      // Langfuse-internal telemetry must be parsed with the internal
-      // ingestion schema: the public schema strips the reserved "langfuse-"
-      // environment prefix, which would expose internal traces as user
-      // environments and bypass the trace-upsert eval-loop guard.
       const isLangfuseInternal = job.data.payload.isLangfuseInternal === true;
       const attribution: IngestionAttribution = {
         ingestionApiKey: publicKey,

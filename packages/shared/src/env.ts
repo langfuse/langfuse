@@ -444,8 +444,7 @@ const EnvSchema = z.object({
     .default(120_000), // 2 minutes
 
   // Comma-separated list of LLM adapters (e.g. "openai") whose completions run
-  // on the AI SDK execution engine instead of LangChain. Unknown values are
-  // ignored by the dispatcher; v1 recognizes only "openai".
+  // on the AI SDK execution engine instead of LangChain
   LANGFUSE_LLM_COMPLETION_AI_SDK_ADAPTERS: z
     .string()
     .optional()
