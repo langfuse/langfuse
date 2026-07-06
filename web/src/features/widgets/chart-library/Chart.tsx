@@ -6,6 +6,7 @@ import {
   type ChartThreshold,
   type LegendSummaryMode,
   type LegendInteraction,
+  type MissingBucketValue,
 } from "@/src/features/widgets/chart-library/chart-props";
 import { formatMetric } from "@/src/features/widgets/chart-library/utils";
 import { CardContent } from "@/src/components/ui/card";
@@ -46,6 +47,7 @@ const ChartComponent = ({
   overrideWarning = false,
   metricFormatter: metricFormatterOverride,
   thresholds,
+  missingValue,
 }: {
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
@@ -75,6 +77,8 @@ const ChartComponent = ({
   overrideWarning?: boolean;
   metricFormatter?: MetricFormatterFunction;
   thresholds?: ChartThreshold[];
+  /** See {@link MissingBucketValue}; consumed by line/area time series. */
+  missingValue?: MissingBucketValue;
 }) => {
   const [forceRender, setForceRender] = useState(overrideWarning);
   const shouldWarn = data.length > 2000 && !forceRender;
@@ -128,6 +132,7 @@ const ChartComponent = ({
             syncId={syncId}
             showDataPointDots={chartConfig?.show_data_point_dots ?? false}
             thresholds={thresholds}
+            missingValue={missingValue}
           />
         );
       case "AREA_TIME_SERIES":
@@ -142,6 +147,7 @@ const ChartComponent = ({
             maxVisibleSeries={maxVisibleSeries}
             syncId={syncId}
             subtleFill={chartConfig?.subtle_fill}
+            missingValue={missingValue}
           />
         );
       case "BAR_TIME_SERIES":

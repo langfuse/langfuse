@@ -28,6 +28,7 @@ import {
   toFullMetricString,
 } from "@/src/features/widgets/chart-library/utils";
 import { useChartTickBudget } from "@/src/features/widgets/chart-library/useChartTickBudget";
+import { prepareDenseSeries } from "@/src/features/widgets/chart-library/prepareDenseSeries";
 import { prepareTimeAxis } from "@/src/features/widgets/chart-library/prepareTimeAxis";
 import { prepareVisibleSeries } from "@/src/features/widgets/chart-library/prepareVisibleSeries";
 import {
@@ -197,11 +198,23 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
   // so the value is readable on hover without littering the line. (LFE-10549, V7)
   showDataPointDots = false,
   thresholds,
+  missingValue = "gap",
+  connectNulls = false,
 }) => {
   const metricExtent = useMemo(() => computeMetricExtent(data), [data]);
 
-  const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const allDimensions = useMemo(() => getUniqueDimensions(data), [data]);
+  // Make every (bucket, series) cell explicit — 0 for additive metrics, null
+  // (a real gap) otherwise — so lines never draw across no-data buckets. (LFE-10694)
+  const groupedData = useMemo(
+    () =>
+      prepareDenseSeries(
+        groupDataByTimeDimension(data),
+        allDimensions,
+        missingValue,
+      ),
+    [data, allDimensions, missingValue],
+  );
   // Cap how many series we draw (data -> preparer seam): a high-cardinality
   // breakdown of hundreds of series is both unreadable and slow to hover. (LFE-10549)
   const series = useMemo(
@@ -329,7 +342,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
                 activeDot={muted ? false : { r: 5, strokeWidth: 0 }}
                 stroke={seriesColor(index)}
                 strokeOpacity={muted ? 0.2 : 1}
-                connectNulls
+                connectNulls={connectNulls}
                 isAnimationActive={false}
               />
             );
