@@ -8,19 +8,35 @@ import {
   createInAppAgentRunId,
 } from "@/src/ee/features/in-app-agent/ids";
 import { sanitizeInAppAgentContext } from "@/src/ee/features/in-app-agent/context";
+import { getInAppAgentInstrumentationTraceId } from "@/src/ee/features/in-app-agent/constants";
 import {
   AgUiRunAgentInputSchema,
   type AgUiRunAgentInput,
   type AgUiEvent,
   InAppAgentRuntimeStateSchema,
   type AgUiMessage,
+  ResumeForwardedPropsSchema,
+  type ResumeForwardedProps,
 } from "@/src/ee/features/in-app-agent/schema";
 import { createAgUiStream } from "@/src/ee/features/in-app-agent/server/agent";
+import {
+  consumeAndValidatePendingToolApproval,
+  createInAppAgentMcpRunOverride,
+  parseInAppAgentInterruptEvent,
+  storePendingToolApproval,
+  validatePendingToolApproval,
+} from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
+import {
+  isMcpToolName,
+  type InAppAgentUserAccess,
+} from "@/src/ee/features/in-app-agent/server/tools";
+import type { McpToolName } from "@/src/features/mcp/server/bootstrap";
 import {
   createRun,
   ensureOwnedConversation,
   finishRun,
   getConversationMessagesForReplay,
+  maybeInferAndPersistConversationTitle,
   replaceRunEvents,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
@@ -33,6 +49,7 @@ import {
   createHttpHeaderFromRateLimit,
   RateLimitService,
 } from "@/src/features/public-api/server/RateLimitService";
+import { getLangfuseAITraceSinkParams } from "@/src/features/ai-features/server/bedrockCompletion";
 import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
 import { assertUnreachable } from "@/src/utils/types";
 import {
@@ -66,7 +83,8 @@ export default async function handler(request: Request) {
       throw new UnauthorizedError("Unauthenticated");
     }
 
-    const userId = session.user.id;
+    const user = session.user;
+    const userId = user.id;
 
     if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       throw new BaseError(
@@ -112,8 +130,6 @@ export default async function handler(request: Request) {
       throw new InvalidRequestError("Invalid agent state");
     }
 
-    const auth = { userId: session.user.id, user: session.user };
-
     const { projectId, conversationId } = (() => {
       if (parsedState.data.type === "newConversation") {
         return {
@@ -132,14 +148,14 @@ export default async function handler(request: Request) {
       };
     })();
 
-    if (!isProjectMemberOrAdmin(auth.user, projectId)) {
+    if (!isProjectMemberOrAdmin(user, projectId)) {
       throw new ForbiddenError("User is not a member of this project");
     }
 
     if (
       !hasEntitlement({
         entitlement: "in-app-agent",
-        sessionUser: auth.user,
+        sessionUser: user,
         projectId,
       })
     ) {
@@ -169,7 +185,6 @@ export default async function handler(request: Request) {
     const sanitizedInput = sanitizeAgentInput(input, projectId);
     const awsProfile = env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
     const bedrockModelId = env.LANGFUSE_AWS_BEDROCK_MODEL;
-    const targetProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
     const langfuseAiFeaturesPublicKey = env.LANGFUSE_AI_FEATURES_PUBLIC_KEY;
     const langfuseAiFeaturesSecretKey = env.LANGFUSE_AI_FEATURES_SECRET_KEY;
     const langfuseAiFeaturesHost = env.LANGFUSE_AI_FEATURES_HOST;
@@ -206,7 +221,7 @@ export default async function handler(request: Request) {
 
     // TODO: Add an additional user-level cap once the rate-limit service supports non-org keys.
     const rateLimitScope = getInAppAgentRateLimitScope(
-      auth.user,
+      user,
       projectId,
       project.organization,
     );
@@ -224,8 +239,17 @@ export default async function handler(request: Request) {
       prisma,
       projectId,
       conversationId,
-      userId: auth.userId,
+      userId: userId,
     });
+
+    if (isResumeAgentInput(sanitizedInput)) {
+      await validatePendingToolApproval({
+        projectId,
+        conversationId: conversation.id,
+        forwardedProps: sanitizedInput.forwardedProps,
+      });
+    }
+
     const conversationMessages = await getConversationMessagesForReplay({
       prisma,
       projectId,
@@ -235,11 +259,40 @@ export default async function handler(request: Request) {
       sanitizedInput,
       conversationMessages,
     );
+    const resumeApprovalRequest = isResumeAgentInput(sanitizedInput)
+      ? sanitizedInput.forwardedProps.command.resume.approvalRequest
+      : undefined;
 
     return await withInAppAgentMcpApiKeyCleanup(
-      projectId,
-      async (mcpApiKey, cleanupMcpApiKey) => {
+      {
+        projectId,
+        runId: sanitizedInput.runId,
+        userId,
+        toolName: getInAppAgentMcpRegistryToolName(
+          resumeApprovalRequest?.toolName,
+        ),
+      },
+      async (mcpApiKey, runOverride, cleanupMcpApiKey) => {
         let runCreated = false;
+        let pendingToolApprovalConsumed = false;
+        let streamCreated = false;
+        let approvedToolResultPersisted = false;
+
+        const restorePendingToolApprovalIfRetryable = () => {
+          if (
+            !pendingToolApprovalConsumed ||
+            !resumeApprovalRequest ||
+            approvedToolResultPersisted
+          ) {
+            return;
+          }
+
+          return storePendingToolApproval({
+            projectId,
+            conversationId: conversation.id,
+            approvalRequest: resumeApprovalRequest,
+          });
+        };
 
         try {
           await createRun({
@@ -276,6 +329,15 @@ export default async function handler(request: Request) {
 
           await replacePersistedRunEvents();
 
+          if (isResumeAgentInput(sanitizedInput)) {
+            await consumeAndValidatePendingToolApproval({
+              projectId,
+              conversationId: conversation.id,
+              forwardedProps: sanitizedInput.forwardedProps,
+            });
+            pendingToolApprovalConsumed = true;
+          }
+
           const finishCurrentRun = (error?: {
             errorCode: string;
             errorMessage: string;
@@ -287,11 +349,23 @@ export default async function handler(request: Request) {
               ...error,
             });
 
+          const userAccess = getInAppAgentUserAccess(user, projectId);
+
           const stream = await createAgUiStream({
             input: agentInput,
             signal: request.signal,
             options: {
-              onEvent: (event) => {
+              onEvent: async (event) => {
+                const approvalRequest = parseInAppAgentInterruptEvent(event);
+
+                if (approvalRequest) {
+                  await storePendingToolApproval({
+                    projectId,
+                    conversationId: conversation.id,
+                    approvalRequest,
+                  });
+                }
+
                 const persistedEvent = toPersistableAgentEvent(event);
 
                 if (!persistedEvent) {
@@ -302,6 +376,14 @@ export default async function handler(request: Request) {
                   return;
                 }
 
+                if (
+                  persistedEvent.type === EventType.TOOL_CALL_RESULT &&
+                  persistedEvent.toolCallId ===
+                    resumeApprovalRequest?.toolCallId
+                ) {
+                  approvedToolResultPersisted = true;
+                }
+
                 persistedEvents.push(persistedEvent);
 
                 if (!shouldFlushPersistedEvent(persistedEvent)) {
@@ -310,25 +392,48 @@ export default async function handler(request: Request) {
 
                 return replacePersistedRunEvents();
               },
+              onApprovedToolCallExecuted: () => {
+                approvedToolResultPersisted = true;
+              },
               onComplete: () =>
-                replacePersistedRunEvents().finally(() => finishCurrentRun()),
+                replacePersistedRunEvents()
+                  .finally(() => finishCurrentRun())
+                  .finally(() => {
+                    if (request.signal.aborted) {
+                      return;
+                    }
+
+                    // This call is intentionally not awaited, as we don't want to block the response on this operation.
+                    maybeInferAndPersistConversationTitle({
+                      prisma,
+                      projectId,
+                      conversationId: conversation.id,
+                      userId,
+                      aiTelemetryEnabled:
+                        project.organization.aiTelemetryEnabled,
+                    });
+                  }),
               onAbort: () =>
-                replacePersistedRunEvents().finally(() =>
-                  finishCurrentRun({
-                    errorCode: "cancelled",
-                    errorMessage: "Client aborted request",
-                  }),
-                ),
+                replacePersistedRunEvents()
+                  .then(() => restorePendingToolApprovalIfRetryable())
+                  .finally(() =>
+                    finishCurrentRun({
+                      errorCode: "cancelled",
+                      errorMessage: "Client aborted request",
+                    }),
+                  ),
               onError: (error) =>
-                replacePersistedRunEvents().finally(() =>
-                  finishCurrentRun({
-                    errorCode: "agent_error",
-                    errorMessage:
-                      error instanceof Error
-                        ? error.message
-                        : "Unknown agent error",
-                  }),
-                ),
+                replacePersistedRunEvents()
+                  .then(() => restorePendingToolApprovalIfRetryable())
+                  .finally(() =>
+                    finishCurrentRun({
+                      errorCode: "agent_error",
+                      errorMessage:
+                        error instanceof Error
+                          ? error.message
+                          : "Unknown agent error",
+                    }),
+                  ),
               onFinish: cleanupMcpApiKey,
               awsBedrock: {
                 region: env.LANGFUSE_AWS_BEDROCK_REGION,
@@ -339,40 +444,62 @@ export default async function handler(request: Request) {
                 url: getLangfuseMcpUrl(),
                 publicKey: mcpApiKey.publicKey,
                 secretKey: mcpApiKey.secretKey,
+                userAccess,
+                runOverride,
               },
               redirectAction: {
                 projectId,
-                isV4Enabled: session.user?.v4BetaEnabled ?? false,
+                isV4Enabled: user?.v4BetaEnabled ?? false,
               },
               langfuseClient,
               useLocalPrompt,
-              langfuseTracing:
-                project.organization.aiTelemetryEnabled && targetProjectId
+              langfuseTracing: (() => {
+                if (!project.organization.aiTelemetryEnabled) {
+                  return undefined;
+                }
+
+                const traceSinkParams = getLangfuseAITraceSinkParams({
+                  environment: "langfuse-in-app-agent",
+                  feature: "in-app-agent",
+                  projectId,
+                  traceId: getInAppAgentInstrumentationTraceId(
+                    sanitizedInput.runId,
+                  ),
+                  traceName: "agent-turn",
+                  userId,
+                  metadata: {
+                    langfuse_ai_feature: "in-app-agent",
+                    langfuse_user_id: userId,
+                    langfuse_project_id: projectId,
+                    conversation_id: conversation.id,
+                    thread_id: sanitizedInput.threadId,
+                    run_id: sanitizedInput.runId,
+                    cloud_region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+                    agent_session_type:
+                      parsedState.data.type === "existingConversation"
+                        ? "existing"
+                        : "new",
+                  },
+                });
+
+                return traceSinkParams
                   ? {
-                      targetProjectId,
-                      environment: "langfuse-in-app-agent",
+                      targetProjectId: traceSinkParams.targetProjectId,
+                      environment: traceSinkParams.environment,
+                      runId: sanitizedInput.runId,
                       user: {
-                        id: auth.userId,
-                        email: auth.user.email,
+                        id: userId,
+                        email: user.email,
+                        projectRole: userAccess.projectRole,
+                        isAdmin: userAccess.isAdmin,
                       },
-                      traceId: conversation.id,
-                      metadata: {
-                        langfuse_ai_feature: "in-app-agent",
-                        langfuse_user_id: auth.userId,
-                        langfuse_project_id: projectId,
-                        conversation_id: conversation.id,
-                        thread_id: sanitizedInput.threadId,
-                        run_id: sanitizedInput.runId,
-                        cloud_region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-                        agent_session_type:
-                          parsedState.data.type === "existingConversation"
-                            ? "existing"
-                            : "new",
-                      },
+                      metadata: traceSinkParams.metadata ?? {},
                     }
-                  : undefined,
+                  : undefined;
+              })(),
             },
           });
+          streamCreated = true;
 
           return new Response(stream, {
             headers: {
@@ -397,6 +524,10 @@ export default async function handler(request: Request) {
             });
           }
 
+          if (!streamCreated) {
+            await restorePendingToolApprovalIfRetryable();
+          }
+
           throw error;
         }
       },
@@ -411,6 +542,20 @@ export default async function handler(request: Request) {
 }
 
 type SessionUser = NonNullable<Session["user"]>;
+
+function getInAppAgentUserAccess(
+  user: SessionUser,
+  projectId: string,
+): InAppAgentUserAccess {
+  const projectRole = user.organizations
+    .flatMap((organization) => organization.projects)
+    .find((project) => project.id === projectId)?.role;
+
+  return {
+    projectRole,
+    isAdmin: user.admin === true,
+  };
+}
 
 function getInAppAgentRateLimitScope(
   user: SessionUser,
@@ -499,31 +644,46 @@ function getLangfuseMcpUrl(): string {
   return baseUrl.toString();
 }
 
-async function createInAppAgentMcpApiKey(projectId: string) {
+async function createInAppAgentMcpApiKey(
+  projectId: string,
+  createdByUserId: string,
+) {
   return createAndAddApiKeysToDb({
     prisma,
     entityId: projectId,
     scope: "PROJECT",
     note: IN_APP_AGENT_API_KEY_NOTE,
     isInAppAgentKey: true,
+    createdByUserId,
   });
 }
 
 async function withInAppAgentMcpApiKeyCleanup<T>(
-  projectId: string,
+  params: {
+    projectId: string;
+    runId: string;
+    userId: string;
+    toolName?: McpToolName;
+  },
   createResponse: (
     mcpApiKey: Awaited<ReturnType<typeof createInAppAgentMcpApiKey>>,
+    runOverride: string | undefined,
     cleanupMcpApiKey: () => Promise<void>,
   ) => T | Promise<T>,
 ): Promise<T> {
-  const mcpApiKey = await createInAppAgentMcpApiKey(projectId);
+  // Each run gets a temporary in-app-agent API key. Approved MCP resumes also
+  // get a tool-scoped run override for the single mutating registry tool.
+  const mcpApiKey = await createInAppAgentMcpApiKey(
+    params.projectId,
+    params.userId,
+  );
   let cleanupPromise: Promise<void> | undefined;
 
   const cleanupMcpApiKey = () => {
     if (!cleanupPromise) {
       cleanupPromise = cleanupInAppAgentMcpApiKey({
         apiKeyId: mcpApiKey.id,
-        projectId,
+        projectId: params.projectId,
       }).catch((cleanupErr) => {
         cleanupPromise = undefined;
         throw cleanupErr;
@@ -534,13 +694,29 @@ async function withInAppAgentMcpApiKeyCleanup<T>(
   };
 
   try {
-    return await createResponse(mcpApiKey, cleanupMcpApiKey);
+    const runOverride = params.toolName
+      ? await createInAppAgentMcpRunOverride({
+          toolName: params.toolName,
+        })
+      : undefined;
+
+    return await createResponse(mcpApiKey, runOverride, cleanupMcpApiKey);
   } catch (err) {
     await cleanupMcpApiKey().catch((cleanupErr) => {
       logger.error("Failed to clean up in-app agent MCP API key", cleanupErr);
     });
     throw err;
   }
+}
+
+function getInAppAgentMcpRegistryToolName(toolName: string | undefined) {
+  if (!toolName?.startsWith("langfuse_")) {
+    return undefined;
+  }
+
+  const registryToolName = toolName.slice("langfuse_".length);
+
+  return isMcpToolName(registryToolName) ? registryToolName : undefined;
 }
 
 async function cleanupInAppAgentMcpApiKey(params: {
@@ -556,14 +732,62 @@ async function cleanupInAppAgentMcpApiKey(params: {
   });
 }
 
-type SanitizedAgentInput = AgUiRunAgentInput & {
-  messages: [SanitizedUserMessage];
-};
+type SanitizedAgentInput = AgUiRunAgentInput &
+  (
+    | {
+        messages: [SanitizedUserMessage];
+        forwardedProps: Record<string, never>;
+      }
+    | {
+        messages: [];
+        forwardedProps: ResumeForwardedProps;
+      }
+  );
+
+function isResumeAgentInput(
+  input: SanitizedAgentInput,
+): input is AgUiRunAgentInput & {
+  messages: [];
+  forwardedProps: ResumeForwardedProps;
+} {
+  return "command" in input.forwardedProps;
+}
 
 function sanitizeAgentInput(
   input: AgUiRunAgentInput,
   projectId: string,
 ): SanitizedAgentInput {
+  const forwardedProps = input.forwardedProps;
+
+  if (
+    forwardedProps !== undefined &&
+    (forwardedProps === null ||
+      typeof forwardedProps !== "object" ||
+      Array.isArray(forwardedProps))
+  ) {
+    throw new InvalidRequestError("Invalid forwarded props");
+  }
+
+  if (forwardedProps && "command" in forwardedProps) {
+    const resumeForwardedProps =
+      ResumeForwardedPropsSchema.safeParse(forwardedProps);
+
+    if (!resumeForwardedProps.success) {
+      throw new InvalidRequestError("Invalid forwarded props");
+    }
+
+    return {
+      threadId: input.threadId,
+      runId: createInAppAgentRunId(),
+      ...(input.parentRunId ? { parentRunId: input.parentRunId } : {}),
+      state: null,
+      messages: [],
+      tools: [],
+      context: sanitizeInAppAgentContext(input.context, projectId),
+      forwardedProps: resumeForwardedProps.data,
+    };
+  }
+
   const lastUserMessage = getLastUserMessage(input.messages);
 
   if (!lastUserMessage) {

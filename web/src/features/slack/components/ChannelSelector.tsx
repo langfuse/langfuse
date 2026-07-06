@@ -17,6 +17,7 @@ import {
 } from "@/src/components/ui/command";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { api } from "@/src/utils/api";
+import { env } from "@/src/env.mjs";
 import { type SlackChannel } from "@langfuse/shared/src/server";
 
 export type { SlackChannel };
@@ -242,7 +243,9 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
       ) : (
         <Hash className="text-muted-foreground h-4 w-4" />
       )}
-      <span className="flex-1 truncate">{channel.name}</span>
+      <span className="flex-1 truncate" title={channel.name}>
+        {channel.name}
+      </span>
     </div>
   );
 
@@ -295,7 +298,10 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
                       className="cursor-pointer"
                     >
                       <Hash className="text-muted-foreground h-4 w-4" />
-                      <span className="flex-1 truncate">
+                      <span
+                        className="flex-1 truncate"
+                        title={`Use &quot; ${effectiveName} &quot;`}
+                      >
                         Use &quot;{effectiveName}&quot;
                       </span>
                     </CommandItem>
@@ -342,7 +348,10 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
                       className="text-muted-foreground"
                     >
                       <RefreshCw className="h-4 w-4 animate-spin" />
-                      <span className="flex-1 truncate">
+                      <span
+                        className="flex-1 truncate"
+                        title="Loading Slack channels. This can take a while for large workspaces."
+                      >
                         Loading Slack channels. This can take a while for large
                         workspaces.
                       </span>
@@ -396,7 +405,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
               className="font-medium underline"
               onClick={() =>
                 window.open(
-                  `/api/public/slack/install?projectId=${projectId}`,
+                  `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/public/slack/install?projectId=${projectId}`,
                   "slack-reauth",
                   "width=600,height=700",
                 )

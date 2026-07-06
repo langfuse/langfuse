@@ -55,6 +55,20 @@ export default function V4Page() {
     },
   );
 
+  const traceLevelEvalSummary = api.v4Transition.traceLevelEvalSummary.useQuery(
+    {
+      projectId: projectId ?? "",
+    },
+    {
+      enabled: Boolean(projectId),
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+
   const traceLevelEvalExecutions =
     api.v4Transition.traceLevelEvalExecutionsTimeSeries.useQuery(
       {
@@ -65,8 +79,30 @@ export default function V4Page() {
       },
       {
         enabled: Boolean(projectId),
+        trpc: {
+          context: {
+            skipBatch: true,
+          },
+        },
       },
     );
+
+  const sdkUsage = api.v4Transition.sdkUsageTimeSeries.useQuery(
+    {
+      projectId: projectId ?? "",
+      fromTimestamp: absoluteTimeRange.from,
+      toTimestamp: absoluteTimeRange.to,
+      granularity: "auto",
+    },
+    {
+      enabled: Boolean(projectId),
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
 
   return (
     <Page
@@ -90,17 +126,23 @@ export default function V4Page() {
       <div className="mx-auto flex w-full max-w-screen-xl flex-col gap-3">
         <V4MigrationProjectCards
           projectId={projectId ?? ""}
-          summary={summary.data}
+          legacyIntegrationSummary={summary.data}
+          traceLevelEvalCount={traceLevelEvalSummary.data?.traceLevelEvalCount}
           legacyApiUsage={legacyApiUsage.data}
           traceLevelEvalExecutions={traceLevelEvalExecutions.data}
-          isSummaryLoading={summary.isPending}
+          sdkUsage={sdkUsage.data}
+          isLegacyIntegrationSummaryLoading={summary.isPending}
+          isTraceLevelEvalSummaryLoading={traceLevelEvalSummary.isPending}
           isLegacyApiUsageLoading={legacyApiUsage.isPending}
           isTraceLevelEvalExecutionsLoading={traceLevelEvalExecutions.isPending}
-          hasSummaryError={Boolean(summary.error)}
+          isSdkUsageLoading={sdkUsage.isPending}
+          hasLegacyIntegrationSummaryError={Boolean(summary.error)}
+          hasTraceLevelEvalSummaryError={Boolean(traceLevelEvalSummary.error)}
           hasLegacyApiUsageError={Boolean(legacyApiUsage.error)}
           hasTraceLevelEvalExecutionsError={Boolean(
             traceLevelEvalExecutions.error,
           )}
+          hasSdkUsageError={Boolean(sdkUsage.error)}
         />
       </div>
     </Page>

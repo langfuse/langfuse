@@ -29,6 +29,8 @@ import { TracingSearchType } from "../../interfaces/search";
 import { ObservationLevelType, TraceDomain } from "../../domain";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { shouldSkipObservationsFinal } from "../queries/clickhouse-sql/query-options";
+import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import type { TraceDeleteBatchActionCursor } from "../../features/batchAction/types";
 
 export type TracesTableReturnType = Pick<
   TraceRecordReadType,
@@ -171,6 +173,8 @@ export type FetchTracesTableProps = {
   page?: number;
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
   tags?: Record<string, string>;
+  traceDeleteCursor?: TraceDeleteBatchActionCursor | null;
+  traceDeleteCursorOrder?: boolean;
 };
 
 // Define return type mapping for better type safety
@@ -214,6 +218,8 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
     searchQuery,
     searchType,
     clickhouseConfigs,
+    traceDeleteCursor,
+    traceDeleteCursorOrder,
   } = props;
 
   // OTel projects use immutable spans - no need for deduplication
@@ -439,6 +445,37 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
         ].flat(),
         orderByCols,
       );
+      const canonicalTraceDeleteOrder =
+        select === "identifiers" && traceDeleteCursorOrder;
+      const usesNonFinalTraceReadPath =
+        defaultOrder || canonicalTraceDeleteOrder;
+      const effectiveOrderBy = canonicalTraceDeleteOrder
+        ? "ORDER BY t.timestamp DESC, t.id DESC, t.event_ts DESC"
+        : chOrderBy;
+      const cursorClause =
+        canonicalTraceDeleteOrder && traceDeleteCursor
+          ? `
+        -- Cursor follows ORDER BY (timestamp DESC, id DESC). Older timestamps
+        -- must pass regardless of how their ids compare to the cursor id.
+        AND (
+          t.timestamp < {cursorTimestamp: DateTime64(3)}
+          OR (
+            t.timestamp = {cursorTimestamp: DateTime64(3)}
+            AND t.id < {cursorTraceId: String}
+          )
+        )`
+          : "";
+      const limitByClause =
+        ["metrics", "rows", "identifiers"].includes(select) &&
+        usesNonFinalTraceReadPath
+          ? "LIMIT 1 BY id, project_id"
+          : "";
+      const limitClause =
+        limit !== undefined && traceDeleteCursorOrder
+          ? "LIMIT {limit: Int32}"
+          : limit !== undefined && page !== undefined
+            ? "LIMIT {limit: Int32} OFFSET {offset: Int32}"
+            : "";
 
       // complex query ahead:
       // - we only join scores and observations if we really need them to speed up default views
@@ -452,17 +489,18 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
 
         SELECT ${sqlSelect}
         -- FINAL is used for non default ordering.
-        FROM traces t  ${defaultOrder || select === "count" ? "" : "FINAL"}
+        FROM traces t  ${usesNonFinalTraceReadPath || select === "count" ? "" : "FINAL"}
         ${select === "metrics" || requiresObservationsJoin ? `LEFT JOIN observations_stats o on o.project_id = t.project_id and o.trace_id = t.id` : ""}
         ${select === "metrics" || requiresScoresJoin ? `LEFT JOIN scores_avg s on s.project_id = t.project_id and s.trace_id = t.id` : ""}
         WHERE t.project_id = {projectId: String}
         ${tracesFilterRes ? `AND ${tracesFilterRes.query}` : ""}
+        ${cursorClause}
         ${search.query}
-        ${chOrderBy}
+        ${effectiveOrderBy}
         -- This is used for metrics and row queries. Count has only one result.
         -- This is only used for default ordering. Otherwise, we use final.
-        ${["metrics", "rows", "identifiers"].includes(select) && defaultOrder ? "LIMIT 1 BY id, project_id" : ""}
-        ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
+        ${limitByClause}
+        ${limitClause}
       `;
 
       const res = await queryClickhouse<
@@ -473,6 +511,14 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
           limit: limit,
           offset: limit && page ? limit * page : 0,
           traceTimestamp: timeStampFilter?.value.getTime(),
+          ...(traceDeleteCursor
+            ? {
+                cursorTimestamp: convertDateToClickhouseDateTime(
+                  new Date(traceDeleteCursor.timestamp),
+                ),
+                cursorTraceId: traceDeleteCursor.traceId,
+              }
+            : {}),
           projectId: projectId,
           ...tracesFilterRes.params,
           ...observationFilterRes.params,
@@ -597,5 +643,41 @@ export const getTraceIdentifiers = async (props: {
     id: row.id,
     projectId: row.projectId,
     timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
+  }));
+};
+
+export const getTraceDeleteCursorPageFromTraces = async (props: {
+  projectId: string;
+  filter: FilterState;
+  cutoffCreatedAt: Date;
+  cursor?: TraceDeleteBatchActionCursor | null;
+  searchQuery?: string;
+  searchType?: TracingSearchType[];
+  limit: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
+}) => {
+  const identifiers = await getTracesTableGeneric({
+    select: "identifiers",
+    projectId: props.projectId,
+    filter: [
+      ...props.filter,
+      {
+        column: "timestamp",
+        operator: "<" as const,
+        value: props.cutoffCreatedAt,
+        type: "datetime" as const,
+      },
+    ],
+    searchQuery: props.searchQuery,
+    searchType: props.searchType,
+    limit: props.limit,
+    clickhouseConfigs: props.clickhouseConfigs,
+    traceDeleteCursor: props.cursor ?? null,
+    traceDeleteCursorOrder: true,
+  });
+
+  return identifiers.map((row) => ({
+    traceId: row.id,
+    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp).toISOString(),
   }));
 };

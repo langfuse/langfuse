@@ -32,6 +32,8 @@ export function ScoreAnalytics(props: {
   isLoading?: boolean;
   metricsVersion?: ViewVersion;
   schedulerId?: string;
+  /** Shared hover-sync group so the per-score line charts join the dashboard crosshair. */
+  syncId?: string;
 }) {
   // Stale score selections in localStorage are ignored as we only show scores that exist in scoreAnalyticsOptions
   const [selectedDashboardScoreKeys, setSelectedDashboardScoreKeys] =
@@ -67,7 +69,7 @@ export function ScoreAnalytics(props: {
       title="Scores Analytics"
       description="Aggregate scores and averages over time"
       isLoading={props.isLoading || scoreKeysAndProps.isPending}
-      headerClassName={"grid grid-cols-[1fr_auto_auto] items-center"}
+      headerClassName="grid grid-cols-[1fr_auto_auto] items-center"
       headerChildren={
         !scoreKeysAndProps.isPending &&
         !props.isLoading &&
@@ -185,6 +187,7 @@ export function ScoreAnalytics(props: {
                         toTimestamp={props.toTimestamp}
                         metricsVersion={props.metricsVersion}
                         schedulerId={props.schedulerId}
+                        syncId={props.syncId}
                       />
                     )}
                   </div>

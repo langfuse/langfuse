@@ -59,8 +59,60 @@ export class RedisLock {
     end
   `;
 
+  private static readonly EXTEND_LOCK_SCRIPT = `
+    if redis.call("get", KEYS[1]) == ARGV[1] then
+      return redis.call("expire", KEYS[1], ARGV[2])
+    else
+      return 0
+    end
+  `;
+
   public get key(): string {
     return this.lockKey;
+  }
+
+  public async isHeldByCurrentProcess(): Promise<boolean> {
+    if (!redis) {
+      return this.onUnavailable === "proceed";
+    }
+
+    try {
+      return (await redis.get(this.lockKey)) === this.lockValue;
+    } catch (error) {
+      logger.error(`[${this.name}] Failed to check lock ownership`, error);
+      return false;
+    }
+  }
+
+  public async extend(): Promise<boolean> {
+    if (!redis) {
+      return this.onUnavailable === "proceed";
+    }
+
+    try {
+      const result = await redis.eval(
+        RedisLock.EXTEND_LOCK_SCRIPT,
+        1,
+        this.lockKey,
+        this.lockValue,
+        String(this.ttlSeconds),
+      );
+
+      if (result === 1) {
+        logger.debug(
+          `[${this.name}] Extended lock with TTL ${this.ttlSeconds}s`,
+        );
+        return true;
+      }
+
+      logger.warn(
+        `[${this.name}] Lock was not extended (not owned or already expired)`,
+      );
+      return false;
+    } catch (error) {
+      logger.error(`[${this.name}] Failed to extend lock`, error);
+      return false;
+    }
   }
 
   constructor(

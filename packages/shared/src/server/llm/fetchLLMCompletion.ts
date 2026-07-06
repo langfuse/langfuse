@@ -131,6 +131,7 @@ const ANTHROPIC_ALWAYS_ADAPTIVE_THINKING_MODELS = [
 ] as const;
 
 const ANTHROPIC_SAMPLING_PARAM_NORMALIZATION_MODELS = [
+  "claude-sonnet-5",
   "claude-fable-5",
   "claude-mythos-5",
   "claude-opus-4-8",
