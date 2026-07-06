@@ -4,7 +4,10 @@ import {
   groupDataByTimeDimension,
   type TimeSeriesGroupedRow,
 } from "@/src/features/widgets/chart-library/utils";
-import { prepareDenseSeries } from "@/src/features/widgets/chart-library/prepareDenseSeries";
+import {
+  prepareDenseSeries,
+  prepareIsolatedPoints,
+} from "@/src/features/widgets/chart-library/prepareDenseSeries";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 
 const point = (
@@ -95,6 +98,54 @@ describe("prepareDenseSeries", () => {
     prepareDenseSeries(grouped, ["gpt-4", "gpt-3.5"], "zero");
 
     expect(grouped).toEqual(snapshot);
+  });
+});
+
+describe("prepareIsolatedPoints", () => {
+  it("finds points with no drawable neighbor on either side", () => {
+    const grouped = prepareDenseSeries(
+      rows([
+        point("d1", "a", 1),
+        point("d2", "a", 2),
+        point("d3", undefined, null),
+        point("d4", "a", 4),
+        point("d5", undefined, null),
+      ]),
+      ["a"],
+      "gap",
+    );
+
+    // d4 is isolated (null on both sides); d1/d2 form a segment.
+    expect(prepareIsolatedPoints(grouped, ["a"])).toEqual(
+      new Map([["a", new Set([3])]]),
+    );
+  });
+
+  it("marks a single-bucket series as isolated", () => {
+    const grouped = rows([point("d1", "a", 1)]);
+    expect(prepareIsolatedPoints(grouped, ["a"])).toEqual(
+      new Map([["a", new Set([0])]]),
+    );
+  });
+
+  it("returns no entry for series without isolated points", () => {
+    const grouped = rows([
+      point("d1", "a", 1),
+      point("d2", "a", 2),
+      point("d3", "a", 3),
+    ]);
+    expect(prepareIsolatedPoints(grouped, ["a"]).size).toBe(0);
+  });
+
+  it("treats a real 0 as drawable and null as a gap", () => {
+    const grouped = rows([
+      point("d1", "a", null),
+      point("d2", "a", 0),
+      point("d3", "a", null),
+    ]);
+    expect(prepareIsolatedPoints(grouped, ["a"])).toEqual(
+      new Map([["a", new Set([1])]]),
+    );
   });
 });
 

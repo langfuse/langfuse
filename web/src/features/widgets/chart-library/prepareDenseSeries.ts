@@ -34,3 +34,41 @@ export function prepareDenseSeries(
     return filled;
   });
 }
+
+/**
+ * Preparer: finds each series' isolated points — real values with no drawable
+ * neighbor on either side. With gaps rendered honestly (no `connectNulls`),
+ * such a point spans no line segment, so without a marker it would be
+ * invisible, silently dropping real data (V8). The visualiser draws a dot for
+ * exactly these points.
+ *
+ * @returns per-dimension sets of isolated row indices; dimensions without any
+ *   isolated point are absent, so the common dense case costs the renderer
+ *   nothing.
+ */
+export function prepareIsolatedPoints(
+  rows: TimeSeriesGroupedRow[],
+  dimensions: string[],
+): Map<string, Set<number>> {
+  const isolated = new Map<string, Set<number>>();
+  for (const dimension of dimensions) {
+    const drawable = (row: TimeSeriesGroupedRow | undefined): boolean =>
+      typeof row?.[dimension] === "number" &&
+      Number.isFinite(row[dimension] as number);
+    for (let index = 0; index < rows.length; index++) {
+      if (
+        drawable(rows[index]) &&
+        !drawable(rows[index - 1]) &&
+        !drawable(rows[index + 1])
+      ) {
+        let set = isolated.get(dimension);
+        if (!set) {
+          set = new Set();
+          isolated.set(dimension, set);
+        }
+        set.add(index);
+      }
+    }
+  }
+  return isolated;
+}
