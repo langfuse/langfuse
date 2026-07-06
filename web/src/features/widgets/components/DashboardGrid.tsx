@@ -146,7 +146,12 @@ export function DashboardGrid({
             <div
               key={widget.id}
               className="w-full"
-              style={{ height: "300px" }} // Fixed height for all widgets on small screens
+              // Fixed height for query widgets (their charts fill whatever
+              // space they get); presets size to their content like the
+              // stacked bespoke Home did.
+              style={{
+                height: widget.type === "preset" ? "auto" : "300px",
+              }}
             >
               {renderPlacement(widget)}
             </div>

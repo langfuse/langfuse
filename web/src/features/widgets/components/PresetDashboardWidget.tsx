@@ -91,7 +91,10 @@ export function PresetDashboardWidget({
       metricsVersion,
       schedulerId,
       syncId: dashboardId,
-      className: "h-full",
+      // Stretch to the tile; when the card's intrinsic content is taller
+      // (fixed chart min-heights, expanded tables) the wrapper scrolls
+      // instead of clipping.
+      className: "min-h-full",
     };
   }, [
     dashboardId,
@@ -119,8 +122,8 @@ export function PresetDashboardWidget({
   }
 
   return (
-    <div className="group relative h-full w-full overflow-hidden">
-      {renderPreset(ctx)}
+    <div className="group relative h-full w-full">
+      <div className="h-full w-full overflow-y-auto">{renderPreset(ctx)}</div>
       {hasCUDAccess && (
         <div className="bg-background/95 absolute top-2 right-2 z-10 hidden items-center gap-2 rounded-md border px-1.5 py-1 shadow-sm group-hover:flex">
           <GripVerticalIcon
