@@ -283,9 +283,6 @@ async function queryExperimentSummaryRowsForPublicApi(
     .limitBy("e.project_id", "e.experiment_id")
     .limit(params.limit);
 
-  const { query: pageQuery, params: pageParams } =
-    pageQueryBuilder.buildWithParams();
-
   // Phase 2: aggregate only the paged experiments. Page order and cursor stay
   // on the phase-1 latest-event key (the row LIMIT 1 BY selected); start_time
   // surfaces the experiment start (earliest in-window event) independently of
@@ -314,7 +311,8 @@ async function queryExperimentSummaryRowsForPublicApi(
       "uniqIf(e.span_id, e.span_id = e.experiment_item_root_span_id) AS item_count",
     )
     .applyFilters(eventTimeBoundFilters(params.fromTime, params.toTime))
-    .whereRaw(`e.experiment_id IN (${pageQuery})`, pageParams)
+    .withCTE("page_experiments", pageQueryBuilder.buildWithParams())
+    .whereRaw("e.experiment_id IN (SELECT experiment_id FROM page_experiments)")
     .orderBy(
       "ORDER BY cursor_time DESC, experiment_id DESC, cursor_span_id DESC",
     );
