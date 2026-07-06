@@ -1063,6 +1063,7 @@ jobs:
         test-worker-llm-connections,
         e2e-tests,
         test-docker-build,
+        test-docker-enterprise-build,
         e2e-server-tests,
       ]
     if: always()
