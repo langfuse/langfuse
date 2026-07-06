@@ -52,7 +52,24 @@ export interface SplitQueryBuilder extends QueryWithParams {
  */
 export type OrderByDirection = "ASC" | "DESC";
 export type OrderByEntry = { column: string; direction: OrderByDirection };
-export type OrderByColumnsOptions = { eventTableAlias?: string };
+export type OrderByColumnsOptions = {
+  eventTableAlias?: string;
+  /**
+   * Prepend `<alias>.project_id, toStartOfMinute(<alias>.start_time)` so the
+   * sort matches the events table PRIMARY KEY (project_id,
+   * toStartOfMinute(start_time), xxHash32(trace_id)) for read-in-order.
+   * Callers should set this when the sort order leads with start_time.
+   */
+  matchTablePrimaryKey?: boolean;
+};
+
+const findStartTimeOrderClause = (
+  entries: OrderByEntry[],
+  eventTableAlias: string,
+) =>
+  entries.find(
+    (e) => e.column.replace(/"/g, "") === `${eventTableAlias}.start_time`,
+  );
 
 const buildOrderByClause = (
   entries: OrderByEntry[],
@@ -63,20 +80,16 @@ const buildOrderByClause = (
   }
 
   const columns: string[] = [];
-  const { eventTableAlias } = options;
-  const startTimeColumn = eventTableAlias
-    ? `${eventTableAlias}.start_time`
-    : undefined;
-  const startTimeEntry = startTimeColumn
-    ? entries.find((e) => e.column.replace(/"/g, "") === startTimeColumn)
-    : undefined;
+  const { eventTableAlias, matchTablePrimaryKey } = options;
 
-  // When ordering by start_time, prepend project_id and toStartOfMinute(e.start_time)
-  // to match the table PRIMARY KEY: (project_id, toStartOfMinute(start_time), xxHash32(trace_id))
-  if (startTimeEntry && eventTableAlias) {
+  if (matchTablePrimaryKey && eventTableAlias) {
+    // The prefix reuses the direction the caller chose for start_time so the
+    // combined order stays equivalent (toStartOfMinute is monotone).
+    const direction =
+      findStartTimeOrderClause(entries, eventTableAlias)?.direction ?? "DESC";
     columns.push(
-      `${eventTableAlias}.project_id ${startTimeEntry.direction}`,
-      `toStartOfMinute(${eventTableAlias}.start_time) ${startTimeEntry.direction}`,
+      `${eventTableAlias}.project_id ${direction}`,
+      `toStartOfMinute(${eventTableAlias}.start_time) ${direction}`,
     );
   }
 
@@ -831,19 +844,21 @@ abstract class BaseEventsQueryBuilder<
   }
 
   /**
-   * Set ORDER BY clause with automatic project_id prepending for optimal ClickHouse performance.
-   * The events table has ORDER BY (project_id, start_time, ...) so queries should match.
+   * Set ORDER BY clause. When the sort order includes e.start_time, the
+   * PRIMARY KEY prefix (project_id, toStartOfMinute(start_time)) is prepended
+   * for optimal ClickHouse performance.
    *
    * @example
    * builder.orderByColumns([
    *   { column: "e.start_time", direction: "DESC" },
    *   { column: "e.event_ts", direction: "DESC" },
    * ])
-   * // Produces: ORDER BY e.project_id DESC, e.start_time DESC, e.event_ts DESC
+   * // Produces: ORDER BY e.project_id DESC, toStartOfMinute(e.start_time) DESC, e.start_time DESC, e.event_ts DESC
    */
   orderByColumns(entries: OrderByEntry[]): this {
     const orderByClause = buildOrderByClause(entries, {
       eventTableAlias: "e",
+      matchTablePrimaryKey: Boolean(findStartTimeOrderClause(entries, "e")),
     });
     if (orderByClause) {
       this.orderByClause = orderByClause;

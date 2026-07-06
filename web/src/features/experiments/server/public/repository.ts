@@ -440,6 +440,7 @@ async function queryExperimentItemRowsForPublicApi(
           includeMetadata: params.includeMetadata,
         }).orderByColumns([...experimentItemOrderByColumns("b")], {
           eventTableAlias: "b",
+          matchTablePrimaryKey: true,
         })
       : queryBuilder;
 

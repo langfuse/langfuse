@@ -304,7 +304,7 @@ describe("CTEQueryBuilder", () => {
           { column: "b.id", direction: "DESC" },
           { column: "b.experiment_id", direction: "DESC" },
         ],
-        { eventTableAlias: "b" },
+        { eventTableAlias: "b", matchTablePrimaryKey: true },
       );
 
     const { query } = builder.buildWithParams();
