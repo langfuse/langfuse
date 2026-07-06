@@ -326,6 +326,8 @@ jobs:
         run: pnpm --filter=web exec playwright install --with-deps --only-shell chromium
       - name: run Storybook tests
         run: pnpm --filter web run test-storybook
+      - name: build Storybook
+        run: pnpm --filter web run build-storybook
 
   tests-shared:
     timeout-minutes: 15
