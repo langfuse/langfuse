@@ -72,6 +72,11 @@ langfuse/
 - Dev worker only: `pnpm run dev:worker`
 - Lint all: `pnpm run lint`
 - Typecheck all: `pnpm run typecheck` / `pnpm tc`
+- Run a single test file (vitest filters on the filename argument):
+  - web server tests: `pnpm --filter web run test <file>`
+    (client tests: `pnpm --filter web run test-client <file>`)
+  - worker: `pnpm --filter worker run test <file>`
+  - shared: `pnpm --filter @langfuse/shared run test <file>`
 - Build check: `pnpm run build:check`
 - Full build: `pnpm run build`
 - Worktree bootstrap: `bash scripts/codex/setup.sh`
@@ -93,9 +98,10 @@ langfuse/
 - Cross-package refactors: `pnpm run lint`, `pnpm run typecheck`, and targeted
   tests for impacted packages.
 
-End your turn with evidence, not claims: paste the output of the checks you
-ran (or say which you skipped and why) — never report work as done that you
-haven't verified in this session, and never end with work pending.
+End your turn with evidence, not claims: quote each check's summary line —
+e.g. `Tasks: 8 successful, 8 total` (turbo lint/typecheck) or
+`Tests  12 passed (12)` (vitest) — say which checks you skipped and why,
+never report unverified work as done, and never end with work pending.
 
 ## Generated Files
 
