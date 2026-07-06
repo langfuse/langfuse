@@ -88,9 +88,9 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
                           {automation.name}
                         </h4>
                         {automation.trigger.status === JobConfigState.ACTIVE ? (
-                          <StatusBadge type={"active"} />
+                          <StatusBadge type="active" />
                         ) : (
-                          <StatusBadge type={"inactive"} />
+                          <StatusBadge type="inactive" />
                         )}
                       </div>
 

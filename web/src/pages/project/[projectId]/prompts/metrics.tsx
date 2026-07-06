@@ -452,7 +452,7 @@ export default function PromptVersionTable({
         />
       </div>
       <DataTable
-        tableName={"promptVersions"}
+        tableName="promptVersions"
         columns={columns}
         data={
           promptVersions.isLoading
