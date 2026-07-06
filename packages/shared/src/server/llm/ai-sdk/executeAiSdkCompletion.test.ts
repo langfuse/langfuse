@@ -118,6 +118,7 @@ describe("executeAiSdkCompletion", () => {
         temperature: 0.2,
         topP: 0.9,
         maxRetries: 2,
+        timeout: 5_000,
         providerOptions: { openai: { reasoningEffort: "high" } },
         messages: [{ role: "user", content: "Hi" }],
       }),
@@ -234,9 +235,34 @@ describe("executeAiSdkCompletion", () => {
     );
   });
 
-  it("times out with the shared non-retryable timeout message", async () => {
-    mockGenerateText.mockImplementation(
-      () => new Promise(() => {}) as never, // never resolves
+  it("maps the SDK's native timeout abort to the shared non-retryable timeout message", async () => {
+    // AbortSignal.timeout (behind the SDK's `timeout` option) aborts with a
+    // DOMException named TimeoutError, which the provider fetch surfaces.
+    mockGenerateText.mockRejectedValueOnce(
+      new DOMException(
+        "The operation was aborted due to timeout",
+        "TimeoutError",
+      ),
+    );
+
+    await executeAiSdkCompletion({ ...baseParams, timeoutMs: 20 }).then(
+      () => expect.unreachable("expected an error"),
+      (e) => {
+        expect(isLLMCompletionError(e)).toBe(true);
+        expect(e.message).toContain("Request timed out after 20ms");
+        expect(e.isRetryable).toBe(false);
+      },
+    );
+  });
+
+  it("detects timeout aborts wrapped in provider error cause chains", async () => {
+    mockGenerateText.mockRejectedValueOnce(
+      Object.assign(new Error("Connection error."), {
+        cause: new DOMException(
+          "The operation was aborted due to timeout",
+          "TimeoutError",
+        ),
+      }),
     );
 
     await executeAiSdkCompletion({ ...baseParams, timeoutMs: 20 }).then(
@@ -268,6 +294,39 @@ describe("executeAiSdkCompletion", () => {
       output += decoder.decode(chunk);
     }
     expect(output).toBe("Hello");
+  });
+
+  it("maps mid-stream timeout aborts to the shared non-retryable timeout message", async () => {
+    mockStreamText.mockReturnValue({
+      textStream: (async function* () {
+        yield "partial";
+        throw new DOMException(
+          "The operation was aborted due to timeout",
+          "TimeoutError",
+        );
+      })(),
+    } as never);
+
+    const stream = await executeAiSdkCompletion({
+      ...baseParams,
+      streaming: true,
+      timeoutMs: 20,
+    });
+
+    let consumedBytes = 0;
+    await (async () => {
+      for await (const chunk of stream as AsyncIterable<Uint8Array>) {
+        consumedBytes += chunk.length;
+      }
+    })().then(
+      () => expect.unreachable("expected an error"),
+      (e) => {
+        expect(consumedBytes).toBeGreaterThan(0);
+        expect(isLLMCompletionError(e)).toBe(true);
+        expect(e.message).toContain("Request timed out after 20ms");
+        expect(e.isRetryable).toBe(false);
+      },
+    );
   });
 
   it("wraps mid-stream errors as LLMCompletionError", async () => {

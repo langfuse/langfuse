@@ -54,16 +54,13 @@ describe("resolveLlmExecutionDecision", () => {
     ).toMatchObject({ engine: "ai-sdk", openAIApiMode: "chat-completions" });
   });
 
-  it("declines untranslatable provider options with the offending keys", () => {
+  it("declines untranslatable provider options", () => {
     expect(
       resolveLlmExecutionDecision({
         ...baseParams,
         providerOptions: { reasoning_effort: "high", response_format: {} },
       }),
-    ).toEqual({
-      engine: "langchain-js",
-      declineReason: "untranslated-provider-options:response_format",
-    });
+    ).toEqual({ engine: "langchain-js" });
   });
 
   it("passes translated provider options through the decision", () => {

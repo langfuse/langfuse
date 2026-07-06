@@ -14,7 +14,11 @@ import {
   type ToolSet,
 } from "ai";
 
-import { mapToLLMCompletionError } from "../completionErrorMapping";
+import {
+  hasTimeoutAbortInCauseChain,
+  mapToLLMCompletionError,
+} from "../completionErrorMapping";
+import { LLMCompletionError } from "../errors";
 import {
   ChatMessage,
   LLMJSONSchema,
@@ -24,7 +28,6 @@ import {
   ToolCallResponseSchema,
   TraceSinkParams,
 } from "../types";
-import { executeWithRuntimeTimeout } from "../utils";
 import { mapChatMessagesToModelMessages } from "./messages";
 import { buildOpenAIModel, type OpenAIApiMode } from "./providers/openai";
 import {
@@ -41,7 +44,7 @@ type BaseCallOptions = {
   temperature?: number;
   topP?: number;
   maxRetries?: number;
-  abortSignal: AbortSignal;
+  timeout: number;
   providerOptions?: Record<string, Record<string, JSONValue>>;
   telemetry?: TelemetryOptions;
 };
@@ -86,7 +89,6 @@ export async function executeAiSdkCompletion(
     structuredOutputSchema,
     maxRetries,
     timeoutMs,
-    apiMode,
     translatedProviderOptions,
     traceSinkParams,
   } = params;
@@ -105,7 +107,11 @@ export async function executeAiSdkCompletion(
   const runInTraceContext = <T>(fn: () => T): T =>
     capture ? capture.run(fn) : fn();
 
-  const abortController = new AbortController();
+  // The SDK's native timeout aborts the underlying request via
+  // AbortSignal.timeout; for streaming, the deadline covers the whole stream
+  // consumption. Note it is purely signal-based — there is no watchdog race —
+  // so it relies on the fetch implementation honoring abort signals, which
+  // secureLlmFetch (undici) does.
   const baseOptions: BaseCallOptions = {
     model,
     messages: modelMessages,
@@ -113,7 +119,7 @@ export async function executeAiSdkCompletion(
     temperature: modelParams.temperature,
     topP: modelParams.top_p,
     maxRetries,
-    abortSignal: abortController.signal,
+    timeout: timeoutMs,
     ...(translatedProviderOptions
       ? {
           providerOptions: {
@@ -127,7 +133,6 @@ export async function executeAiSdkCompletion(
   if (streaming) {
     return executeStreaming({
       baseOptions,
-      abortController,
       timeoutMs,
       capture,
       runInTraceContext,
@@ -136,20 +141,14 @@ export async function executeAiSdkCompletion(
 
   try {
     if (structuredOutputSchema) {
-      const result = await executeWithRuntimeTimeout({
-        enabled: true,
-        timeoutMs,
-        abortController,
-        operation: () =>
-          runInTraceContext(() =>
-            generateText({
-              ...baseOptions,
-              output: Output.object({
-                schema: toFlexibleSchema(structuredOutputSchema),
-              }),
-            }),
-          ),
-      });
+      const result = await runInTraceContext(() =>
+        generateText({
+          ...baseOptions,
+          output: Output.object({
+            schema: toFlexibleSchema(structuredOutputSchema),
+          }),
+        }),
+      );
 
       const output = result.output as Record<string, unknown>;
       capture?.setRootOutput(output);
@@ -158,15 +157,9 @@ export async function executeAiSdkCompletion(
     }
 
     if (tools && tools.length > 0) {
-      const result = await executeWithRuntimeTimeout({
-        enabled: true,
-        timeoutMs,
-        abortController,
-        operation: () =>
-          runInTraceContext(() =>
-            generateText({ ...baseOptions, tools: buildToolSet(tools) }),
-          ),
-      });
+      const result = await runInTraceContext(() =>
+        generateText({ ...baseOptions, tools: buildToolSet(tools) }),
+      );
 
       const parsed = ToolCallResponseSchema.safeParse({
         content: result.text,
@@ -189,12 +182,7 @@ export async function executeAiSdkCompletion(
       return toolCallResponse;
     }
 
-    const result = await executeWithRuntimeTimeout({
-      enabled: true,
-      timeoutMs,
-      abortController,
-      operation: () => runInTraceContext(() => generateText(baseOptions)),
-    });
+    const result = await runInTraceContext(() => generateText(baseOptions));
 
     const reasoning = result.finalStep?.reasoningText;
     const completion = reasoning
@@ -204,10 +192,30 @@ export async function executeAiSdkCompletion(
 
     return completion;
   } catch (e) {
-    throw mapToLLMCompletionError(e);
+    throw toCompletionError(e, timeoutMs);
   } finally {
     await capture?.flush();
   }
+}
+
+/**
+ * Normalizes AI SDK failures to `LLMCompletionError`. Native SDK timeouts
+ * (DOMException "TimeoutError" without status or message pattern) are mapped
+ * to the canonical runtime-timeout error so the shared retry classification
+ * keeps treating timeouts as non-retryable, exactly like the LangChain
+ * engine's `executeWithRuntimeTimeout`.
+ */
+function toCompletionError(e: unknown, timeoutMs: number): LLMCompletionError {
+  if (hasTimeoutAbortInCauseChain(e)) {
+    return new LLMCompletionError({
+      message: `Request timed out after ${timeoutMs}ms`,
+      responseStatusCode: 500,
+      isRetryable: false,
+      cause: e,
+    });
+  }
+
+  return mapToLLMCompletionError(e);
 }
 
 function buildToolSet(tools: LLMToolDefinition[]): ToolSet {
@@ -238,28 +246,11 @@ function toFlexibleSchema(schema: ZodType | LLMJSONSchema) {
 
 function executeStreaming(args: {
   baseOptions: BaseCallOptions;
-  abortController: AbortController;
   timeoutMs: number;
   capture: AiSdkTelemetryCapture | undefined;
   runInTraceContext: <T>(fn: () => T) => T;
 }): IterableReadableStream<Uint8Array> {
-  const {
-    baseOptions,
-    abortController,
-    timeoutMs,
-    capture,
-    runInTraceContext,
-  } = args;
-
-  // Mirrors the runtime-timeout message so the shared retry classification
-  // treats stream timeouts as non-retryable. Unlike the non-streaming race,
-  // the deadline covers the whole stream consumption.
-  const timeoutError = new Error(`Request timed out after ${timeoutMs}ms`);
-  let timedOut = false;
-  const timeoutId = setTimeout(() => {
-    timedOut = true;
-    abortController.abort(timeoutError);
-  }, timeoutMs);
+  const { baseOptions, timeoutMs, capture, runInTraceContext } = args;
 
   async function* byteStream(): AsyncGenerator<Uint8Array> {
     const encoder = new TextEncoder();
@@ -273,10 +264,8 @@ function executeStreaming(args: {
       }
       capture?.setRootOutput(completedText);
     } catch (e) {
-      throw mapToLLMCompletionError(timedOut ? timeoutError : e);
+      throw toCompletionError(e, timeoutMs);
     } finally {
-      clearTimeout(timeoutId);
-
       await capture?.flush();
     }
   }

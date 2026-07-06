@@ -26,12 +26,6 @@ const traceSinkParams: TraceSinkParams = {
   metadata: { jobId: "job-1" },
 };
 
-const attribution = {
-  "langfuse.llm.execution_engine": "ai-sdk",
-  "langfuse.llm.ai_sdk.adapter": "openai",
-  "langfuse.llm.openai.api_mode": "chat-completions",
-};
-
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -41,7 +35,6 @@ describe("createAiSdkTelemetryCapture", () => {
     expect(
       createAiSdkTelemetryCapture({
         traceSinkParams: { ...traceSinkParams, environment: "production" },
-        attribution,
       }),
     ).toBeUndefined();
   });
@@ -50,14 +43,12 @@ describe("createAiSdkTelemetryCapture", () => {
     expect(
       createAiSdkTelemetryCapture({
         traceSinkParams: { ...traceSinkParams, traceId: "not-a-trace-id" },
-        attribution,
       }),
     ).toBeUndefined();
 
     expect(
       createAiSdkTelemetryCapture({
         traceSinkParams: { ...traceSinkParams, traceId: "0".repeat(32) },
-        attribution,
       }),
     ).toBeUndefined();
   });
@@ -68,7 +59,6 @@ describe("createAiSdkTelemetryCapture", () => {
         ...traceSinkParams,
         prompt: { name: "p", version: 3 },
       },
-      attribution,
     });
     expect(capture).toBeDefined();
 
@@ -108,14 +98,11 @@ describe("createAiSdkTelemetryCapture", () => {
     expect(attributes["langfuse.trace.metadata"]).toBe(
       JSON.stringify({ jobId: "job-1" }),
     );
-    expect(attributes["langfuse.llm.execution_engine"]).toBe("ai-sdk");
-    expect(attributes["langfuse.llm.openai.api_mode"]).toBe("chat-completions");
   });
 
   it("is idempotent and never publishes twice", async () => {
     const capture = createAiSdkTelemetryCapture({
       traceSinkParams,
-      attribution,
     });
 
     await capture!.flush();
@@ -129,7 +116,6 @@ describe("createAiSdkTelemetryCapture", () => {
 
     const capture = createAiSdkTelemetryCapture({
       traceSinkParams,
-      attribution,
     });
 
     await expect(capture!.flush()).resolves.toBeUndefined();

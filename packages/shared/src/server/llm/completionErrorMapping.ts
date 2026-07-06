@@ -34,6 +34,22 @@ function* walkCauseChain(error: unknown): Generator<unknown> {
   }
 }
 
+/**
+ * Detects AI SDK native timeouts. `AbortSignal.timeout` (used by the SDK's
+ * `timeout` option) aborts with `DOMException(..., "TimeoutError")`, which
+ * carries neither a status code nor the "Request timed out" message the
+ * shared retry classification keys on — callers must normalize it to the
+ * canonical non-retryable timeout error.
+ */
+export function hasTimeoutAbortInCauseChain(error: unknown): boolean {
+  for (const current of walkCauseChain(error)) {
+    if ((current as { name?: string } | null)?.name === "TimeoutError") {
+      return true;
+    }
+  }
+  return false;
+}
+
 function findNonRetryableCauseMessage(error: unknown): string | undefined {
   for (const current of walkCauseChain(error)) {
     if (!(current instanceof Error)) continue;
