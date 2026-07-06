@@ -13,8 +13,8 @@ name: AWS PR Preview
 # previews are never stopped automatically; previews stopped for more than
 # 7 days are destroyed by a daily reaper.
 #
-# The shared AWS foundation (VPC, ECR, Route53 zone, IAM roles) lives in the
-# private langfuse/infrastructure repo under terraform/org/playground_previews.
+# The shared AWS foundation (VPC, ECR, Route53 zone, IAM roles) is managed
+# in Langfuse's internal infrastructure repository.
 
 on:
   issue_comment:

@@ -3,11 +3,10 @@
 This directory contains the app-side CloudFormation template used by the
 `AWS PR Preview` workflow (`.github/workflows/aws-preview.yml`).
 
-The shared AWS foundation lives in the private `langfuse/infrastructure` repo
-under `terraform/org/playground_previews`. That Terraform stack owns the
-playground VPC, ECR repositories, Route53 zone, GitHub OIDC role,
-CloudFormation service role, and EC2 instance profile. Its
-`github_actions_variables` output lists the `AWS_PREVIEW_*` GitHub repository
+The shared AWS foundation is managed in Langfuse's internal infrastructure
+repository. That Terraform stack owns the playground VPC, ECR repositories,
+Route53 zone, GitHub OIDC role, CloudFormation service role, and EC2 instance
+profile, and exposes an output listing the `AWS_PREVIEW_*` GitHub repository
 variables this workflow expects.
 
 ## Commands
