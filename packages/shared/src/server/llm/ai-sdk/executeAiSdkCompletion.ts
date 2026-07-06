@@ -99,13 +99,9 @@ export async function executeAiSdkCompletion(
     ? createAiSdkTelemetryCapture({
         traceSinkParams,
         rootInput: messages,
-        attribution: {
-          "langfuse.llm.execution_engine": "ai-sdk",
-          "langfuse.llm.ai_sdk.adapter": "openai",
-          "langfuse.llm.openai.api_mode": apiMode,
-        },
       })
     : undefined;
+
   const runInTraceContext = <T>(fn: () => T): T =>
     capture ? capture.run(fn) : fn();
 
@@ -157,6 +153,7 @@ export async function executeAiSdkCompletion(
 
       const output = result.output as Record<string, unknown>;
       capture?.setRootOutput(output);
+
       return output;
     }
 
@@ -179,6 +176,7 @@ export async function executeAiSdkCompletion(
           args: toolCall.input ?? {},
         })),
       });
+
       if (!parsed.success) throw Error("Failed to parse LLM tool call result");
 
       const reasoning = result.finalStep?.reasoningText;
@@ -187,6 +185,7 @@ export async function executeAiSdkCompletion(
         ...(reasoning ? { reasoning } : {}),
       };
       capture?.setRootOutput(toolCallResponse);
+
       return toolCallResponse;
     }
 
@@ -202,6 +201,7 @@ export async function executeAiSdkCompletion(
       ? { text: result.text, reasoning }
       : result.text;
     capture?.setRootOutput(completion);
+
     return completion;
   } catch (e) {
     throw mapToLLMCompletionError(e);
@@ -268,6 +268,7 @@ function executeStreaming(args: {
       const result = runInTraceContext(() => streamText(baseOptions));
       for await (const textChunk of result.textStream) {
         completedText += textChunk;
+
         yield encoder.encode(textChunk);
       }
       capture?.setRootOutput(completedText);
@@ -275,6 +276,7 @@ function executeStreaming(args: {
       throw mapToLLMCompletionError(timedOut ? timeoutError : e);
     } finally {
       clearTimeout(timeoutId);
+
       await capture?.flush();
     }
   }

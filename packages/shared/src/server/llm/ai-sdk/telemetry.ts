@@ -71,11 +71,10 @@ export type AiSdkTelemetryCapture = {
  */
 export function createAiSdkTelemetryCapture(params: {
   traceSinkParams: TraceSinkParams;
-  attribution: Record<string, string>;
   /** Recorded as the root span's (and trace's) input. */
   rootInput?: unknown;
 }): AiSdkTelemetryCapture | undefined {
-  const { traceSinkParams, attribution, rootInput } = params;
+  const { traceSinkParams, rootInput } = params;
 
   // Safeguard: All internal traces must use LangfuseInternalTraceEnvironment enum values
   // This prevents infinite eval loops (user trace → eval → eval trace → another eval)
@@ -146,7 +145,6 @@ export function createAiSdkTelemetryCapture(params: {
               [LangfuseOtelSpanAttributes.OBSERVATION_INPUT]: serializedInput,
             }
           : {}),
-        ...attribution,
       },
     },
     // ROOT_CONTEXT detaches from the server's own observability trace.

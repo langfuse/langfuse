@@ -6,6 +6,7 @@ import {
   translateOpenAIProviderOptions,
   type OpenAIApiMode,
 } from "./providers/openai";
+import { logger } from "../../logger";
 
 export type LlmExecutionDecision =
   | {
@@ -16,7 +17,6 @@ export type LlmExecutionDecision =
     }
   | {
       engine: "langchain-js";
-      declineReason?: string;
     };
 
 /**
@@ -41,10 +41,11 @@ export function resolveLlmExecutionDecision(params: {
 
   const translated = translateOpenAIProviderOptions(providerOptions);
   if (!translated.ok) {
-    return {
-      engine: "langchain-js",
-      declineReason: `untranslated-provider-options:${translated.unknownKeys.join(",")}`,
-    };
+    logger.warn(
+      `Cannot translate provider options: ${translated.unknownKeys.join(",")}`,
+    );
+
+    return { engine: "langchain-js" };
   }
 
   const openAIConfig = OpenAIConfigSchema.parse(llmConnectionConfig ?? {});
@@ -73,13 +74,9 @@ export function recordLlmExecutionDecision(
   if (!span) return;
 
   span.setAttribute("langfuse.llm.execution_engine", decision.engine);
+
   if (decision.engine === "ai-sdk") {
     span.setAttribute("langfuse.llm.ai_sdk.adapter", decision.aiSdkAdapter);
     span.setAttribute("langfuse.llm.openai.api_mode", decision.openAIApiMode);
-  } else if (decision.declineReason) {
-    span.setAttribute(
-      "langfuse.llm.execution_decline_reason",
-      decision.declineReason,
-    );
   }
 }

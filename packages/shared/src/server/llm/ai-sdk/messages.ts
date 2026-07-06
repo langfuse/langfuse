@@ -61,11 +61,13 @@ export function mapChatMessagesToModelMessages(
       ];
       if (content.length === 0) return; // mirror empty-content filter
       modelMessages.push({ role: "assistant", content });
+
       return;
     }
 
     if (message.type === ChatMessageType.ToolResult) {
       const toolName = toolCallIdToName.get(message.toolCallId);
+
       if (toolName === undefined) {
         throw new LLMCompletionError({
           message: `Tool result references unknown tool call id: ${message.toolCallId}`,
@@ -73,7 +75,9 @@ export function mapChatMessagesToModelMessages(
           isRetryable: false,
         });
       }
+
       if (safeContent.length === 0) return; // mirror empty-content filter
+
       modelMessages.push({
         role: "tool",
         content: [
@@ -85,6 +89,7 @@ export function mapChatMessagesToModelMessages(
           },
         ],
       });
+
       return;
     }
 
@@ -92,6 +97,7 @@ export function mapChatMessagesToModelMessages(
 
     if (message.role === ChatMessageRole.User) {
       modelMessages.push({ role: "user", content: safeContent });
+
       return;
     }
 
@@ -104,6 +110,7 @@ export function mapChatMessagesToModelMessages(
           ? { role: "system", content: safeContent }
           : { role: "user", content: safeContent },
       );
+
       return;
     }
 
