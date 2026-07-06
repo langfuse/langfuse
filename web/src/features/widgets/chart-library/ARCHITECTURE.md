@@ -142,12 +142,13 @@ different — and sometimes wrong — dates. One source of truth per decision.)
   The interaction direction (V4/V5) is largely in place: a synced vertical
   crosshair, a tooltip that opens only on the hovered chart, and a vertical
   proximity highlight.
-- **Known visual debts** (drawn but not yet matching the direction above): lines
-  currently smooth (`type="monotone"`) rather than draw straight (V1), and series
-  color is assigned by index and cycles every 8 rather than being a stable
-  identity (V6). Both are visualiser defaults to migrate into the preparer.
+- **Known visual debts** (drawn but not yet matching the direction above):
+  series color is assigned by index and cycles every 8 rather than being a
+  stable identity (V6) — a visualiser default to migrate into the preparer.
+  (V1's smooth-by-default debt is paid: lines and areas draw straight
+  (`type="linear"`) since LFE-10694.)
 - **Next:** move the remaining decisions — series colors (V6), curve/interpolation
-  (V1), legend summaries, units, axis type & scale — out of the components and
+  opt-ins (V1), legend summaries, units, axis type & scale — out of the components and
   into the preparer, until the visualiser is purely presentational and the
   preparer is the single, tested place where "what should this look like" is
   answered.

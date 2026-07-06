@@ -166,7 +166,7 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
             return (
               <Area
                 key={dimension}
-                type="monotone"
+                type="linear"
                 dataKey={dimension}
                 // Neighborless points span no area segment; a dot is the only
                 // thing that keeps them visible. (LFE-10694)

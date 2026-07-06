@@ -344,7 +344,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
             return (
               <Line
                 key={dimension}
-                type="monotone"
+                type="linear"
                 dataKey={dimension}
                 strokeWidth={nearest ? 3.5 : 2.5}
                 dot={
