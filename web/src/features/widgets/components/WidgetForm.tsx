@@ -1178,14 +1178,23 @@ export function WidgetForm({
           selectedChartType as DashboardWidgetChartType,
         );
 
-        // A gap-filled empty bucket arrives as a row with neither a dimension
-        // nor a measured value. Keep it as a pure bucket marker (holds the
-        // spot on the time axis) instead of inventing an "n/a" series. (LFE-10694)
+        // A gap-filled empty bucket arrives as a row with no dimension and the
+        // metric column's type default: NULL for nullable aggregations
+        // (avg/percentiles), 0 for non-nullable ones (count/uniq/sum). Keep it
+        // as a pure bucket marker (holds the spot on the time axis) instead of
+        // inventing an "n/a" series. The 0 form is only treated as filler for
+        // additive metrics, where the marker is lossless (prepareDenseSeries
+        // re-derives the honest 0 for any series that exists); a real
+        // dimension-less avg/percentile 0 stays a visible data point. (LFE-10694)
+        const isFillerMetricValue =
+          metric == null ||
+          (getWidgetMissingBucketValue(selectedAggregation) === "zero" &&
+            Number(metric) === 0);
         if (
           isTimeSeries &&
           dimensionField !== "none" &&
           (dimensionValue === null || dimensionValue === "") &&
-          metric == null
+          isFillerMetricValue
         ) {
           return {
             dimension: undefined,
