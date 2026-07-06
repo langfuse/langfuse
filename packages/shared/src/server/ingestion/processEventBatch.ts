@@ -27,6 +27,7 @@ import {
   createIngestionEventSchema,
   IngestionEventType,
 } from "./types";
+import type { IngestionAttribution } from "./ingestionAttribution";
 import {
   StorageService,
   StorageServiceFactory,
@@ -96,12 +97,14 @@ const getDelay = (delay: number | null, source: "api" | "otel") => {
  * @property source - Source of the events for metrics tracking (e.g., "otel", "api").
  * @property isLangfuseInternal - Whether the events are being ingested by Langfuse internally (e.g. traces created for prompt experiments).
  * @property forwardToEventsTable - Whether to forward events to the staging events table for batch propagation. If undefined, falls back to environment flags.
+ * @property attribution - Request-level ingestion attribution to persist on generated records.
  */
 type ProcessEventBatchOptions = {
   delay?: number | null;
   source?: "api" | "otel";
   isLangfuseInternal?: boolean;
   forwardToEventsTable?: boolean;
+  attribution: IngestionAttribution;
 };
 
 /**
@@ -113,7 +116,7 @@ type ProcessEventBatchOptions = {
 export const processEventBatch = async (
   input: unknown[],
   authCheck: AuthHeaderValidVerificationResultIngestion,
-  options: ProcessEventBatchOptions = {},
+  options: ProcessEventBatchOptions,
 ): Promise<{
   successes: { id: string; status: number }[];
   errors: {
@@ -131,6 +134,7 @@ export const processEventBatch = async (
     source = "api",
     isLangfuseInternal = false,
     forwardToEventsTable,
+    attribution,
   } = options;
 
   // add context of api call to the span
@@ -387,6 +391,9 @@ export const processEventBatch = async (
                   skipS3List: shouldSkipS3List,
                   forwardToEventsTable,
                   bucketPrefix: eventData.bucketPrefix,
+                  ingestionApiKey: attribution.ingestionApiKey,
+                  ingestionSdkName: attribution.ingestionSdkName,
+                  ingestionSdkVersion: attribution.ingestionSdkVersion,
                 },
                 authCheck: authCheck as {
                   validKey: true;

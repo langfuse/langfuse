@@ -23,6 +23,7 @@ import {
   rawEventBucketPrefix,
   SecondaryIngestionQueue,
   TQueueJobTypes,
+  UNKNOWN_INGESTION_SDK_VALUE,
 } from "@langfuse/shared/src/server";
 
 const INPUT_FILE = "events.csv";
@@ -58,6 +59,9 @@ interface JsonOutputItem {
     fileKey: string;
     type: string;
     bucketPrefix: string;
+    ingestionApiKey: string;
+    ingestionSdkName: string;
+    ingestionSdkVersion: string;
   };
 }
 
@@ -71,7 +75,10 @@ interface OTelJsonOutputItem {
   };
   data: {
     fileKey: string;
+    publicKey?: string;
   };
+  sdkName: string;
+  sdkVersion: string;
 }
 
 async function filterCsvFile(
@@ -349,7 +356,10 @@ async function convertCsvToJsonl(
           },
           data: {
             fileKey: keyValue,
+            publicKey: "",
           },
+          sdkName: UNKNOWN_INGESTION_SDK_VALUE,
+          sdkVersion: UNKNOWN_INGESTION_SDK_VALUE,
         };
 
         // Write each OTEL JSON object as a single line (JSONL format)
@@ -382,6 +392,9 @@ async function convertCsvToJsonl(
             fileKey: eventId,
             type: `${entityType}-create`,
             bucketPrefix,
+            ingestionApiKey: "",
+            ingestionSdkName: UNKNOWN_INGESTION_SDK_VALUE,
+            ingestionSdkVersion: UNKNOWN_INGESTION_SDK_VALUE,
           },
         };
 

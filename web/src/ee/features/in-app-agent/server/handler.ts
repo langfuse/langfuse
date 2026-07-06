@@ -8,6 +8,7 @@ import {
   createInAppAgentRunId,
 } from "@/src/ee/features/in-app-agent/ids";
 import { sanitizeInAppAgentContext } from "@/src/ee/features/in-app-agent/context";
+import { getInAppAgentInstrumentationTraceId } from "@/src/ee/features/in-app-agent/constants";
 import {
   AgUiRunAgentInputSchema,
   type AgUiRunAgentInput,
@@ -35,6 +36,7 @@ import {
   ensureOwnedConversation,
   finishRun,
   getConversationMessagesForReplay,
+  maybeInferAndPersistConversationTitle,
   replaceRunEvents,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
@@ -47,6 +49,7 @@ import {
   createHttpHeaderFromRateLimit,
   RateLimitService,
 } from "@/src/features/public-api/server/RateLimitService";
+import { getLangfuseAITraceSinkParams } from "@/src/features/ai-features/server/bedrockCompletion";
 import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
 import { assertUnreachable } from "@/src/utils/types";
 import {
@@ -182,7 +185,6 @@ export default async function handler(request: Request) {
     const sanitizedInput = sanitizeAgentInput(input, projectId);
     const awsProfile = env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
     const bedrockModelId = env.LANGFUSE_AWS_BEDROCK_MODEL;
-    const targetProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
     const langfuseAiFeaturesPublicKey = env.LANGFUSE_AI_FEATURES_PUBLIC_KEY;
     const langfuseAiFeaturesSecretKey = env.LANGFUSE_AI_FEATURES_SECRET_KEY;
     const langfuseAiFeaturesHost = env.LANGFUSE_AI_FEATURES_HOST;
@@ -393,7 +395,23 @@ export default async function handler(request: Request) {
                 approvedToolResultPersisted = true;
               },
               onComplete: () =>
-                replacePersistedRunEvents().finally(() => finishCurrentRun()),
+                replacePersistedRunEvents()
+                  .finally(() => finishCurrentRun())
+                  .finally(() => {
+                    if (request.signal.aborted) {
+                      return;
+                    }
+
+                    // This call is intentionally not awaited, as we don't want to block the response on this operation.
+                    maybeInferAndPersistConversationTitle({
+                      prisma,
+                      projectId,
+                      conversationId: conversation.id,
+                      userId,
+                      aiTelemetryEnabled:
+                        project.organization.aiTelemetryEnabled,
+                    });
+                  }),
               onAbort: () =>
                 replacePersistedRunEvents()
                   .then(() => restorePendingToolApprovalIfRetryable())
@@ -434,33 +452,50 @@ export default async function handler(request: Request) {
               },
               langfuseClient,
               useLocalPrompt,
-              langfuseTracing:
-                project.organization.aiTelemetryEnabled && targetProjectId
+              langfuseTracing: (() => {
+                if (!project.organization.aiTelemetryEnabled) {
+                  return undefined;
+                }
+
+                const traceSinkParams = getLangfuseAITraceSinkParams({
+                  environment: "langfuse-in-app-agent",
+                  feature: "in-app-agent",
+                  projectId,
+                  traceId: getInAppAgentInstrumentationTraceId(
+                    sanitizedInput.runId,
+                  ),
+                  traceName: "agent-turn",
+                  userId,
+                  metadata: {
+                    langfuse_ai_feature: "in-app-agent",
+                    langfuse_user_id: userId,
+                    langfuse_project_id: projectId,
+                    conversation_id: conversation.id,
+                    thread_id: sanitizedInput.threadId,
+                    run_id: sanitizedInput.runId,
+                    cloud_region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+                    agent_session_type:
+                      parsedState.data.type === "existingConversation"
+                        ? "existing"
+                        : "new",
+                  },
+                });
+
+                return traceSinkParams
                   ? {
-                      targetProjectId,
-                      environment: "langfuse-in-app-agent",
+                      targetProjectId: traceSinkParams.targetProjectId,
+                      environment: traceSinkParams.environment,
+                      runId: sanitizedInput.runId,
                       user: {
                         id: userId,
                         email: user.email,
                         projectRole: userAccess.projectRole,
                         isAdmin: userAccess.isAdmin,
                       },
-                      traceId: conversation.id,
-                      metadata: {
-                        langfuse_ai_feature: "in-app-agent",
-                        langfuse_user_id: userId,
-                        langfuse_project_id: projectId,
-                        conversation_id: conversation.id,
-                        thread_id: sanitizedInput.threadId,
-                        run_id: sanitizedInput.runId,
-                        cloud_region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-                        agent_session_type:
-                          parsedState.data.type === "existingConversation"
-                            ? "existing"
-                            : "new",
-                      },
+                      metadata: traceSinkParams.metadata ?? {},
                     }
-                  : undefined,
+                  : undefined;
+              })(),
             },
           });
           streamCreated = true;

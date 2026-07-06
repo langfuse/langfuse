@@ -154,6 +154,7 @@ describe("MCP public API tools", () => {
         "listEvaluationRules",
         "getEvaluationRule",
         "createEvaluationRule",
+        "createDashboardWidget",
         "listDatasets",
         "getHealth",
         "listScores",
@@ -189,6 +190,9 @@ describe("MCP public API tools", () => {
     await expect(
       toolRegistry.getEnabledTool("createModel", context),
     ).resolves.toBeUndefined();
+    await expect(
+      toolRegistry.getEnabledTool("createDashboardWidget", context),
+    ).resolves.toBeUndefined();
   });
 
   it("resolves only the overridden mutating tool for in-app agent keys", async () => {
@@ -210,6 +214,22 @@ describe("MCP public API tools", () => {
     ).resolves.toBeUndefined();
   });
 
+  it("resolves the dashboard widget creation override for in-app agent keys", async () => {
+    const context = mockServerContext({
+      inAppAgent: {
+        permissions: "single-tool-override",
+        allowedToolName: "createDashboardWidget",
+      },
+    });
+
+    await expect(
+      toolRegistry.getEnabledTool("createDashboardWidget", context),
+    ).resolves.toBeTruthy();
+    await expect(
+      toolRegistry.getEnabledTool("upsertDataset", context),
+    ).resolves.toBeUndefined();
+  });
+
   it("marks destructive public API tools", async () => {
     const toolNames = await getToolNames();
 
@@ -223,6 +243,7 @@ describe("MCP public API tools", () => {
     expect(destructiveToolNames).toEqual(
       [
         "createChatPrompt",
+        "createDashboardWidget",
         "createEvaluationRule",
         "upsertEvaluator",
         "createScore",

@@ -236,6 +236,7 @@ model InAppAgentConversation {
   createdByUserId   String?                               @map("created_by_user_id")
   createdByUser     User?                                 @relation("InAppAgentConversationCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
   title             String?
+  renamedByUserAt   DateTime?                             @map("renamed_by_user_at")
   visibilityScope   InAppAgentConversationVisibilityScope @default(PERSONAL) @map("visibility_scope")
   providerSessionId String?                               @map("provider_session_id")
   deletedAt         DateTime?                             @map("deleted_at")
@@ -1303,6 +1304,7 @@ enum BlobStorageIntegrationFileType {
   JSON
   CSV
   JSONL
+  PARQUET
 
   @@map("BlobStorageIntegrationFileType")
 }

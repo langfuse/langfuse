@@ -53,6 +53,23 @@ State altitudes:
 | resize drag | high-frequency transient        | store `draftFraction` / `draftExpanded` / `isResizing`, committed on pointer-up                            |
 | which item  | route                           | the `peek` URL param (see below)                                                                           |
 
+The **default** width (no saved preference) is viewport-aware: 50vw, but capped
+in px (`PEEK_MAX_DEFAULT_WIDTH_PX`) so a bigger screen doesn't mean a
+proportionally bigger peek (LFE-10601). Normal laptops still open at 50vw; only
+very wide monitors trim the fraction so the peek stays comfortable and the list
+navigable.
+
+The **inner tree ↔ info split** inside the peek is a separate
+`react-resizable-panels` group (`TraceLayoutDesktop`), unified with the width to
+persist in **`localStorage`** under a peek-scoped group id (`trace-layout-peek-*`)
+rather than per-tab `sessionStorage`. Its default is computed as an explicit
+**percentage** from the width the peek opens at: the info panel gets a
+comfortable target and the tree/timeline takes the remainder, clamped to a
+comfortable band — so extra width on a big peek flows to info (the content), not
+the tree (the index). A percentage (not a px `defaultSize`, which the library
+resolves against a transient mid-open width) keeps that default deterministic.
+The full-page trace view keeps its own share-based, per-tab layout.
+
 The peek and the standalone trace page already share one beta-aware fetch
 ([`../../trace/useTraceDetailData.ts`](../../trace/useTraceDetailData.ts)), one
 body + title

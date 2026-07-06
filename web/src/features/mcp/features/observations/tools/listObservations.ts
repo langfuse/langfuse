@@ -305,6 +305,7 @@ export const [listObservationsTool, handleListObservations] = defineTool({
   name: "listObservations",
   description: [
     "Find and review observations in the current Langfuse project, such as generations, spans, events, agent steps, and tool calls.",
+    "Traces consist of observations. Use this tool when the user asks to inspect traces: pass traceId to page through the observations for a specific trace; those observation records are the trace data returned by the API.",
     "Use filters to narrow results by trace, name, type, level, environment, time range, or advanced filter conditions. Results are paginated with an opaque cursor.",
     "For metadata filters, first call getObservationFilterMetadataKeys with observationIds, traceId, or a bounded time range, then set the relevant key field in the filter.",
     "",
