@@ -8,8 +8,10 @@ name: AWS PR Preview
 #   /preview destroy   delete the CloudFormation stack and preview images
 #
 # Pushing new commits updates a preview only if one is already deployed and
-# running. Closing the PR destroys the preview. A nightly schedule stops all
-# running preview instances to cap cost; resume them with `/preview resume`.
+# running. Closing the PR destroys the preview. Each engineer may have at
+# most 5 previews running at once (best-effort, PreviewOwner tag). Running
+# previews are never stopped automatically; previews stopped for more than
+# 7 days are destroyed by a daily reaper.
 #
 # The shared AWS foundation (VPC, ECR, Route53 zone, IAM roles) lives in the
 # private langfuse/infrastructure repo under terraform/org/playground_previews.
@@ -20,7 +22,7 @@ on:
   pull_request:
     types: [synchronize, closed]
   schedule:
-    # Stop all running previews nightly (03:17 UTC) to cap cost.
+    # Daily reaper: destroy previews stopped for more than 7 days.
     - cron: "17 3 * * *"
   workflow_dispatch:
     inputs:
@@ -33,9 +35,10 @@ on:
           - resume
           - destroy
           - stop-all
+          - reap
         required: true
       pr_number:
-        description: "Pull request number (not needed for stop-all)"
+        description: "Pull request number (not needed for stop-all/reap)"
         required: false
 
 permissions: {}
@@ -80,6 +83,7 @@ jobs:
       command: ${{ steps.resolve.outputs.command }}
       pr_number: ${{ steps.resolve.outputs.pr_number }}
       head_sha: ${{ steps.resolve.outputs.head_sha }}
+      actor: ${{ steps.resolve.outputs.actor }}
     steps:
       - name: Resolve command, PR, and authorization
         id: resolve
@@ -100,6 +104,9 @@ jobs:
             let command = "";
             let prNumber = "";
             let headSha = "";
+            // GitHub login whose command makes an env run; holds one of the
+            // per-engineer running-env slots via the PreviewOwner tag.
+            let actor = "";
 
             const reply = (body) =>
               github.rest.issues.createComment({
@@ -119,11 +126,12 @@ jobs:
             };
 
             if (context.eventName === "schedule") {
-              command = "stop-all";
+              command = "reap";
             } else if (context.eventName === "workflow_dispatch") {
               command = context.payload.inputs.action;
               prNumber = context.payload.inputs.pr_number || "";
-              if (command !== "stop-all") {
+              actor = context.actor;
+              if (!["stop-all", "reap"].includes(command)) {
                 if (!prNumber) {
                   core.setFailed("pr_number is required for per-PR actions.");
                   return;
@@ -200,12 +208,14 @@ jobs:
               command = parsed;
               prNumber = String(context.payload.issue.number);
               headSha = pr.head.sha;
+              actor = context.payload.comment.user.login;
             }
 
-            core.info(`command=${command} pr=${prNumber} sha=${headSha}`);
+            core.info(`command=${command} pr=${prNumber} sha=${headSha} actor=${actor}`);
             core.setOutput("command", command);
             core.setOutput("pr_number", prNumber);
             core.setOutput("head_sha", headSha);
+            core.setOutput("actor", actor);
 
   deploy_gate:
     name: Check deploy preconditions
@@ -214,7 +224,8 @@ jobs:
     if: contains(fromJSON('["deploy", "sync"]'), needs.context.outputs.command)
     permissions:
       id-token: write
-      pull-requests: read
+      issues: write
+      pull-requests: write
     outputs:
       proceed: ${{ steps.gate.outputs.proceed }}
     steps:
@@ -227,51 +238,75 @@ jobs:
       - name: Decide whether to deploy
         id: gate
         env:
+          ACTOR: ${{ needs.context.outputs.actor }}
           COMMAND: ${{ needs.context.outputs.command }}
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ needs.context.outputs.pr_number }}
         run: |
           set -euo pipefail
 
-          if [ "${COMMAND}" = "deploy" ]; then
-            # Re-check PR state at execution time: a deploy queued behind the
-            # close-triggered destroy must not recreate the preview stack for
-            # a PR that is now closed (nothing would ever clean it up again).
-            state="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .state)"
-            if [ "${state}" != "open" ]; then
-              echo "PR ${PR_NUMBER} is ${state}; not deploying."
-              echo "proceed=false" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            echo "proceed=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # Push events only refresh previews that were explicitly deployed
-          # and are currently running. Stopped previews stay stopped.
           stack_name="langfuse-preview-pr-${PR_NUMBER}"
           instance_id="$(aws cloudformation describe-stacks \
             --stack-name "${stack_name}" \
             --query "Stacks[0].Outputs[?OutputKey=='InstanceId'].OutputValue" \
             --output text 2>/dev/null || true)"
+          instance_state="absent"
+          if [ -n "${instance_id}" ] && [ "${instance_id}" != "None" ]; then
+            instance_state="$(aws ec2 describe-instances \
+              --instance-ids "${instance_id}" \
+              --query "Reservations[0].Instances[0].State.Name" \
+              --output text)"
+          fi
 
-          if [ -z "${instance_id}" ] || [ "${instance_id}" = "None" ]; then
-            echo "No preview stack for PR ${PR_NUMBER}; skipping auto-update."
+          if [ "${COMMAND}" = "sync" ]; then
+            # Push events only refresh previews that were explicitly deployed
+            # and are currently running. Stopped previews stay stopped, and no
+            # per-engineer slot changes hands.
+            if [ "${instance_state}" = "running" ]; then
+              echo "proceed=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "Preview instance is ${instance_state}; skipping auto-update."
+              echo "proceed=false" >> "$GITHUB_OUTPUT"
+            fi
+            exit 0
+          fi
+
+          # Re-check PR state at execution time: a deploy queued behind the
+          # close-triggered destroy must not recreate the preview stack for
+          # a PR that is now closed (nothing would ever clean it up again).
+          pr_state="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .state)"
+          if [ "${pr_state}" != "open" ]; then
+            echo "PR ${PR_NUMBER} is ${pr_state}; not deploying."
             echo "proceed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          state="$(aws ec2 describe-instances \
-            --instance-ids "${instance_id}" \
-            --query "Reservations[0].Instances[0].State.Name" \
-            --output text)"
-
-          if [ "${state}" = "running" ]; then
+          # Refreshing an already-running env does not consume a new slot.
+          if [ "${instance_state}" = "running" ] || [ "${instance_state}" = "pending" ]; then
             echo "proceed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "Preview instance is ${state}; skipping auto-update."
-            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+
+          # Per-engineer limit: at most 5 running envs, attributed by the
+          # PreviewOwner tag. Best-effort — concurrent commands can race.
+          running="$(aws ec2 describe-instances \
+            --filters \
+              "Name=tag:Project,Values=langfuse-preview" \
+              "Name=tag:PreviewOwner,Values=${ACTOR}" \
+              "Name=instance-state-name,Values=pending,running" \
+            --query "Reservations[].Instances[].[Tags[?Key=='PullRequest'] | [0].Value]" \
+            --output text | grep -v '^$' || true)"
+          count="$(printf '%s' "${running}" | grep -c . || true)"
+
+          if [ "${count}" -ge 5 ]; then
+            pr_list="$(printf '%s\n' "${running}" | sed 's/^/#/' | paste -sd ', ' -)"
+            gh pr comment "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}" \
+              --body "@${ACTOR} you already have ${count} running previews (PRs ${pr_list}). Stop or destroy one first (\`/preview stop\` / \`/preview destroy\`), then retry."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "proceed=true" >> "$GITHUB_OUTPUT"
 
   deploy:
     name: Deploy AWS preview
@@ -417,6 +452,7 @@ jobs:
 
       - name: Deploy preview host stack
         env:
+          ACTOR: ${{ needs.context.outputs.actor }}
           PR_NUMBER: ${{ steps.preview.outputs.pr_number }}
           STACK_NAME: ${{ steps.preview.outputs.stack_name }}
         run: |
@@ -436,21 +472,29 @@ jobs:
               ;;
           esac
 
+          overrides=(
+            PreviewName="${STACK_NAME}"
+            PullRequestNumber="${PR_NUMBER}"
+            SubnetId="${AWS_PREVIEW_SUBNET_ID}"
+            SecurityGroupId="${AWS_PREVIEW_SECURITY_GROUP_ID}"
+            InstanceProfileName="${AWS_PREVIEW_INSTANCE_PROFILE_NAME}"
+            HostedZoneId="${AWS_PREVIEW_HOSTED_ZONE_ID}"
+            DomainName="${AWS_PREVIEW_DOMAIN_NAME}"
+            InstanceType="${AWS_PREVIEW_INSTANCE_TYPE}"
+            VolumeSizeGb="${AWS_PREVIEW_VOLUME_SIZE_GB}"
+          )
+          # Push-triggered refreshes have no actor and keep the previous
+          # owner (omitted parameters retain their value on stack updates).
+          if [ -n "${ACTOR}" ]; then
+            overrides+=(PreviewOwner="${ACTOR}")
+          fi
+
           aws cloudformation deploy \
             --stack-name "${STACK_NAME}" \
             --template-file deployment/aws-preview/cloudformation.yaml \
             --role-arn "${AWS_PREVIEW_CLOUDFORMATION_ROLE_ARN}" \
             --no-fail-on-empty-changeset \
-            --parameter-overrides \
-              PreviewName="${STACK_NAME}" \
-              PullRequestNumber="${PR_NUMBER}" \
-              SubnetId="${AWS_PREVIEW_SUBNET_ID}" \
-              SecurityGroupId="${AWS_PREVIEW_SECURITY_GROUP_ID}" \
-              InstanceProfileName="${AWS_PREVIEW_INSTANCE_PROFILE_NAME}" \
-              HostedZoneId="${AWS_PREVIEW_HOSTED_ZONE_ID}" \
-              DomainName="${AWS_PREVIEW_DOMAIN_NAME}" \
-              InstanceType="${AWS_PREVIEW_INSTANCE_TYPE}" \
-              VolumeSizeGb="${AWS_PREVIEW_VOLUME_SIZE_GB}" \
+            --parameter-overrides "${overrides[@]}" \
             --tags \
               Project=langfuse-preview \
               PullRequest="${PR_NUMBER}" \
@@ -485,6 +529,9 @@ jobs:
             aws ec2 start-instances --instance-ids "${instance_id}"
           fi
           aws ec2 wait instance-running --instance-ids "${instance_id}"
+
+          # A deployed env is running again; it is no longer reapable.
+          aws ec2 delete-tags --resources "${instance_id}" --tags Key=StoppedAt
 
           echo "instance_id=${instance_id}" >> "$GITHUB_OUTPUT"
           echo "public_ip=${public_ip}" >> "$GITHUB_OUTPUT"
@@ -605,7 +652,8 @@ jobs:
             **API keys:** `${{ steps.preview.outputs.public_key }}` / `${{ steps.preview.outputs.secret_key }}`
             **Commit:** ${{ steps.preview.outputs.commit_sha }}
 
-            Synthetic preview data only. Previews are stopped automatically overnight.
+            Synthetic preview data only. Each engineer can run up to 5 previews;
+            previews stopped for more than 7 days are destroyed automatically.
             Commands: `/preview deploy` · `/preview stop` · `/preview resume` · `/preview destroy`
 
       - name: Report failure
@@ -661,6 +709,9 @@ jobs:
 
           aws ec2 stop-instances --instance-ids "${instance_id}"
           aws ec2 wait instance-stopped --instance-ids "${instance_id}"
+          # The reaper destroys envs stopped for more than 7 days.
+          aws ec2 create-tags --resources "${instance_id}" \
+            --tags "Key=StoppedAt,Value=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           echo "exists=true" >> "$GITHUB_OUTPUT"
 
       - name: Update status comment
@@ -672,6 +723,7 @@ jobs:
             ### ⏸️ AWS preview stopped
 
             Data, URL, and TLS certificate are kept. Resume with `/preview resume`.
+            Previews stopped for more than 7 days are destroyed automatically.
 
       - name: Report missing preview
         if: steps.stop.outputs.exists == 'false'
@@ -718,6 +770,8 @@ jobs:
       - name: Start preview instance
         id: start
         env:
+          ACTOR: ${{ needs.context.outputs.actor }}
+          GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ needs.context.outputs.pr_number }}
         run: |
           set -euo pipefail
@@ -730,15 +784,50 @@ jobs:
 
           if [ -z "${instance_id}" ] || [ "${instance_id}" = "None" ]; then
             echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "allowed=true" >> "$GITHUB_OUTPUT"
             exit 0
+          fi
+
+          state="$(aws ec2 describe-instances \
+            --instance-ids "${instance_id}" \
+            --query "Reservations[0].Instances[0].State.Name" \
+            --output text)"
+
+          # Per-engineer limit: resuming takes one of the actor's 5 running
+          # slots (unless this env is already running).
+          if [ "${state}" != "running" ] && [ "${state}" != "pending" ]; then
+            running="$(aws ec2 describe-instances \
+              --filters \
+                "Name=tag:Project,Values=langfuse-preview" \
+                "Name=tag:PreviewOwner,Values=${ACTOR}" \
+                "Name=instance-state-name,Values=pending,running" \
+              --query "Reservations[].Instances[].[Tags[?Key=='PullRequest'] | [0].Value]" \
+              --output text | grep -v '^$' || true)"
+            count="$(printf '%s' "${running}" | grep -c . || true)"
+
+            if [ "${count}" -ge 5 ]; then
+              pr_list="$(printf '%s\n' "${running}" | sed 's/^/#/' | paste -sd ', ' -)"
+              gh pr comment "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}" \
+                --body "@${ACTOR} you already have ${count} running previews (PRs ${pr_list}). Stop or destroy one first (\`/preview stop\` / \`/preview destroy\`), then retry."
+              echo "exists=true" >> "$GITHUB_OUTPUT"
+              echo "allowed=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
           fi
 
           aws ec2 start-instances --instance-ids "${instance_id}"
           aws ec2 wait instance-running --instance-ids "${instance_id}"
+
+          # The resumer now owns this env's running slot.
+          aws ec2 delete-tags --resources "${instance_id}" --tags Key=StoppedAt
+          aws ec2 create-tags --resources "${instance_id}" \
+            --tags "Key=PreviewOwner,Value=${ACTOR}"
+
           echo "exists=true" >> "$GITHUB_OUTPUT"
+          echo "allowed=true" >> "$GITHUB_OUTPUT"
 
       - name: Wait for preview health
-        if: steps.start.outputs.exists == 'true'
+        if: steps.start.outputs.exists == 'true' && steps.start.outputs.allowed == 'true'
         env:
           PR_NUMBER: ${{ needs.context.outputs.pr_number }}
         run: |
@@ -759,7 +848,7 @@ jobs:
           exit 1
 
       - name: Update status comment
-        if: steps.start.outputs.exists == 'true'
+        if: steps.start.outputs.exists == 'true' && steps.start.outputs.allowed == 'true'
         uses: ./.github/actions/aws-preview-comment
         with:
           pr-number: ${{ needs.context.outputs.pr_number }}
@@ -911,14 +1000,101 @@ jobs:
             exit 0
           fi
 
+          stopped_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           while read -r instance_id pr_number; do
             [ -z "${instance_id}" ] && continue
             echo "Stopping ${instance_id} (PR ${pr_number})"
             aws ec2 stop-instances --instance-ids "${instance_id}"
+            aws ec2 create-tags --resources "${instance_id}" \
+              --tags "Key=StoppedAt,Value=${stopped_at}"
 
             if [ -n "${pr_number}" ] && [ "${pr_number}" != "None" ]; then
               gh pr comment "${pr_number}" --repo "${GITHUB_REPOSITORY}" \
-                --body "⏸️ AWS preview stopped automatically overnight. Resume with \`/preview resume\`." \
+                --body "⏸️ AWS preview stopped by a manual stop-all. Resume with \`/preview resume\`." \
+                || echo "Could not comment on PR ${pr_number}."
+            fi
+          done <<< "${instances}"
+
+  reap:
+    name: Reap long-stopped previews
+    runs-on: ubuntu-latest
+    needs: context
+    if: needs.context.outputs.command == 'reap'
+    permissions:
+      id-token: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          aws-region: ${{ env.AWS_PREVIEW_REGION }}
+          role-to-assume: ${{ env.AWS_PREVIEW_ROLE_ARN }}
+
+      - name: Destroy previews stopped for more than 7 days
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          cutoff="$(date -u -d '7 days ago' +%s)"
+
+          instances="$(aws ec2 describe-instances \
+            --filters \
+              "Name=tag:Project,Values=langfuse-preview" \
+              "Name=instance-state-name,Values=stopped" \
+              "Name=tag-key,Values=StoppedAt" \
+            --query "Reservations[].Instances[].[InstanceId, Tags[?Key=='StoppedAt'] | [0].Value, Tags[?Key=='PullRequest'] | [0].Value, Tags[?Key=='aws:cloudformation:stack-name'] | [0].Value]" \
+            --output text)"
+
+          if [ -z "${instances}" ]; then
+            echo "No stopped previews with a StoppedAt tag."
+            exit 0
+          fi
+
+          while read -r instance_id stopped_at pr_number stack_name; do
+            [ -z "${instance_id}" ] && continue
+
+            stopped_epoch="$(date -u -d "${stopped_at}" +%s 2>/dev/null || echo 0)"
+            if [ "${stopped_epoch}" -eq 0 ]; then
+              echo "Skipping ${instance_id}: unparseable StoppedAt '${stopped_at}'."
+              continue
+            fi
+            if [ "${stopped_epoch}" -gt "${cutoff}" ]; then
+              continue
+            fi
+            case "${stack_name}" in
+              langfuse-preview-pr-*) ;;
+              *)
+                echo "Skipping ${instance_id}: unexpected stack name '${stack_name}'."
+                continue
+                ;;
+            esac
+
+            echo "Reaping ${stack_name} (stopped since ${stopped_at})"
+            aws cloudformation delete-stack --stack-name "${stack_name}"
+            aws cloudformation wait stack-delete-complete --stack-name "${stack_name}"
+
+            if [ -n "${pr_number}" ] && [ "${pr_number}" != "None" ]; then
+              for repository_url in \
+                "${AWS_PREVIEW_WEB_ECR_REPOSITORY_URL}" \
+                "${AWS_PREVIEW_WORKER_ECR_REPOSITORY_URL}"; do
+                repository_name="${repository_url#*/}"
+                image_ids="$(aws ecr list-images \
+                  --repository-name "${repository_name}" \
+                  --filter tagStatus=TAGGED \
+                  --query "imageIds[?starts_with(imageTag, 'pr-${pr_number}-')]" \
+                  --output json)"
+
+                if [ "${image_ids}" != "[]" ]; then
+                  aws ecr batch-delete-image \
+                    --repository-name "${repository_name}" \
+                    --image-ids "${image_ids}" >/dev/null
+                fi
+              done
+
+              gh pr comment "${pr_number}" --repo "${GITHUB_REPOSITORY}" \
+                --body "🗑️ AWS preview destroyed after 7 days stopped. Recreate with \`/preview deploy\`." \
                 || echo "Could not comment on PR ${pr_number}."
             fi
           done <<< "${instances}"

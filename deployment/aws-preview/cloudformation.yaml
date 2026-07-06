@@ -27,6 +27,13 @@ Parameters:
     Type: String
     Default: t3.large
     Description: EC2 instance type for the single-node preview.
+  PreviewOwner:
+    Type: String
+    Default: unassigned
+    Description: >-
+      GitHub login whose command made this env run. The workflow counts
+      running instances by this tag to enforce the per-engineer limit;
+      omitted on push-triggered updates so the previous owner is retained.
   VolumeSizeGb:
     Type: Number
     Default: 80
@@ -62,6 +69,8 @@ Resources:
           Value: !Ref PullRequestNumber
         - Key: PreviewManagedBy
           Value: github-actions
+        - Key: PreviewOwner
+          Value: !Ref PreviewOwner
       UserData:
         Fn::Base64: |
           #!/bin/bash

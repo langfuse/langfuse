@@ -36,11 +36,17 @@ Comment commands only work once the workflow exists on the default branch.
   TLS certificate survive.
 - Pushing new commits auto-updates a preview only if it is already deployed
   and running; stopped previews stay stopped.
-- All running previews are stopped nightly to cap cost; resume with
-  `/preview resume`.
-- Closing the PR destroys the preview and deletes its images. ECR images also
-  expire 14 days after push, so a long-paused preview may need a fresh
-  `/preview deploy`.
+- Each engineer may have at most 5 previews running at once, attributed to
+  whoever's command made the env run (`PreviewOwner` tag). The limit is
+  best-effort; commands beyond it are rejected with a comment listing your
+  running previews.
+- Running previews are never stopped automatically — stop or destroy your
+  envs when done (a running env costs ≈$67/month). A manual stop-all exists
+  as workflow dispatch for emergencies.
+- A daily reaper destroys previews that have been stopped for more than
+  7 days. Closing the PR destroys the preview and deletes its images. ECR
+  images also expire 14 days after push, so a long-paused preview may need a
+  fresh `/preview deploy`.
 - Fork PRs are skipped entirely.
 
 Preview data must stay synthetic: the login and API keys are posted publicly
