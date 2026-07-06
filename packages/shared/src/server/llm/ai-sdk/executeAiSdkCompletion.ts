@@ -94,16 +94,24 @@ export async function executeAiSdkCompletion(
     traceSinkParams,
   } = params;
 
-  const model = buildOpenAIModel(params);
-  const modelMessages: ModelMessage[] =
-    mapChatMessagesToModelMessages(messages);
-
-  const capture = traceSinkParams
-    ? createAiSdkTelemetryCapture({
-        traceSinkParams,
-        rootInput: messages,
-      })
-    : undefined;
+  // Setup runs outside the main try/finally (the streaming branch returns
+  // before it, and no telemetry exists yet to flush), but its failures must
+  // still honor the LLMCompletionError retryability contract.
+  let model: LanguageModel;
+  let modelMessages: ModelMessage[];
+  let capture: AiSdkTelemetryCapture | undefined;
+  try {
+    model = buildOpenAIModel(params);
+    modelMessages = mapChatMessagesToModelMessages(messages);
+    capture = traceSinkParams
+      ? createAiSdkTelemetryCapture({
+          traceSinkParams,
+          rootInput: messages,
+        })
+      : undefined;
+  } catch (e) {
+    throw toCompletionError(e, timeoutMs);
+  }
 
   const runInTraceContext = <T>(fn: () => T): T =>
     capture ? capture.run(fn) : fn();

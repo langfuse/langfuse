@@ -69,6 +69,10 @@ describe("createAiSdkTelemetryCapture", () => {
       expect.objectContaining({
         projectId: "project-1",
         sdkName: "langfuse-internal-ai-sdk",
+        // Ensures the queue consumer parses these events with the internal
+        // ingestion schema; the public schema strips the "langfuse-"
+        // environment prefix and would bypass the eval-loop guard.
+        isLangfuseInternal: true,
       }),
     );
     expect(publishToOtelIngestionQueue).toHaveBeenCalledTimes(1);

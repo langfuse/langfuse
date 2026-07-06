@@ -257,6 +257,11 @@ export function createAiSdkTelemetryCapture(params: {
         publicKey: "", // internal ingestion has no API key; mirrors internal event writes
         sdkName: INTERNAL_SDK_NAME,
         sdkVersion: "unknown",
+        // The consumer must parse these events with the internal ingestion
+        // schema; the public schema strips the "langfuse-" environment prefix,
+        // exposing internal traces as user environments and bypassing the
+        // trace-upsert eval-loop guard.
+        isLangfuseInternal: true,
       });
 
       await processor.publishToOtelIngestionQueue(resourceSpans);

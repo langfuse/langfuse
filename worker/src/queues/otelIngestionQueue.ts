@@ -215,6 +215,11 @@ export const otelIngestionQueueProcessorBuilder = (
       const publicKey = job.data.payload.data.publicKey ?? "";
       const fileKey = job.data.payload.data.fileKey;
       const auth = job.data.payload.authCheck;
+      // Langfuse-internal telemetry must be parsed with the internal
+      // ingestion schema: the public schema strips the reserved "langfuse-"
+      // environment prefix, which would expose internal traces as user
+      // environments and bypass the trace-upsert eval-loop guard.
+      const isLangfuseInternal = job.data.payload.isLangfuseInternal === true;
       const attribution: IngestionAttribution = {
         ingestionApiKey: publicKey,
         ingestionSdkName:
@@ -322,7 +327,7 @@ export const otelIngestionQueueProcessorBuilder = (
         (e) => getClickhouseEntityType(e.type) !== "observation",
       );
       // We need to parse each incoming observation through our ingestion schema to make use of its included transformations.
-      const ingestionSchema = createIngestionEventSchema();
+      const ingestionSchema = createIngestionEventSchema(isLangfuseInternal);
       const observations = events
         .filter((e) => getClickhouseEntityType(e.type) === "observation")
         .map((o) => ingestionSchema.safeParse(o))
@@ -468,6 +473,7 @@ export const otelIngestionQueueProcessorBuilder = (
             source: "otel",
             forwardToEventsTable: shouldForwardToEventsTable,
             attribution,
+            isLangfuseInternal,
           }),
         ]);
       }
