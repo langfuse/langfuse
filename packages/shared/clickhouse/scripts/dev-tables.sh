@@ -87,7 +87,7 @@ clickhouse client \
   --user="${CLICKHOUSE_USER}" \
   --password="${CLICKHOUSE_PASSWORD}" \
   --database="${CLICKHOUSE_DB}" \
-  --multiquery <<EOF
+  --multiquery <<'EOF'
 
 -- Staging table for the dual-write pipeline that populates events_full.
 -- Ingestion writes every observation (and trace-as-synthetic-observation) here
@@ -567,6 +567,118 @@ FROM events_core
 WHERE toStartOfHour(start_time) <= toStartOfHour(subtractHours(now(), 1))
 GROUP BY project_id, hour;
 
+-- Apply dev-table migrations for ingestion attribution.
+ALTER TABLE observations_batch_staging
+  ADD COLUMN IF NOT EXISTS ingestion_api_key String DEFAULT ''
+  SETTINGS enable_full_text_index = 1;
+
+ALTER TABLE observations_batch_staging
+  ADD COLUMN IF NOT EXISTS ingestion_sdk_name LowCardinality(String) DEFAULT 'unknown'
+  SETTINGS enable_full_text_index = 1;
+
+ALTER TABLE observations_batch_staging
+  ADD COLUMN IF NOT EXISTS ingestion_sdk_version LowCardinality(String) DEFAULT 'unknown'
+  SETTINGS enable_full_text_index = 1;
+
+ALTER TABLE events_full
+  ADD COLUMN IF NOT EXISTS ingestion_api_key String DEFAULT ''
+  SETTINGS enable_full_text_index = 1;
+
+ALTER TABLE events_full
+  ADD COLUMN IF NOT EXISTS ingestion_sdk_name LowCardinality(String) DEFAULT 'unknown'
+  SETTINGS enable_full_text_index = 1;
+
+ALTER TABLE events_full
+  ADD COLUMN IF NOT EXISTS ingestion_sdk_version LowCardinality(String) DEFAULT 'unknown'
+  SETTINGS enable_full_text_index = 1;
+
+ALTER TABLE events_core
+  ADD COLUMN IF NOT EXISTS ingestion_api_key String DEFAULT ''
+  SETTINGS enable_full_text_index = 1;
+
+ALTER TABLE events_core
+  ADD COLUMN IF NOT EXISTS ingestion_sdk_name LowCardinality(String) DEFAULT 'unknown'
+  SETTINGS enable_full_text_index = 1;
+
+ALTER TABLE events_core
+  ADD COLUMN IF NOT EXISTS ingestion_sdk_version LowCardinality(String) DEFAULT 'unknown'
+  SETTINGS enable_full_text_index = 1;
+
+-- Update events MV
+ALTER TABLE events_core_mv MODIFY QUERY
+SELECT
+    project_id,
+    trace_id,
+    span_id,
+    parent_span_id,
+    start_time,
+    end_time,
+    name,
+    type,
+    environment,
+    version,
+    release,
+    trace_name,
+    user_id,
+    session_id,
+    tags,
+    level,
+    status_message,
+    completion_start_time,
+    is_app_root,
+    bookmarked,
+    public,
+    prompt_id,
+    prompt_name,
+    prompt_version,
+    model_id,
+    provided_model_name,
+    model_parameters,
+    provided_usage_details,
+    usage_details,
+    provided_cost_details,
+    cost_details,
+    usage_pricing_tier_id,
+    usage_pricing_tier_name,
+    tool_definitions,
+    tool_calls,
+    tool_call_names,
+    leftUTF8(input, 200) as input,
+    leftUTF8(output, 200) as output,
+    metadata_names,
+    arrayMap(v -> leftUTF8(v, 200), metadata_values) as metadata_values,
+    experiment_id,
+    experiment_name,
+    experiment_metadata_names,
+    experiment_metadata_values,
+    experiment_description,
+    experiment_dataset_id,
+    experiment_item_id,
+    experiment_item_version,
+    experiment_item_expected_output,
+    experiment_item_metadata_names,
+    experiment_item_metadata_values,
+    experiment_item_root_span_id,
+    source,
+    service_name,
+    service_version,
+    scope_name,
+    scope_version,
+    telemetry_sdk_language,
+    telemetry_sdk_name,
+    telemetry_sdk_version,
+    blob_storage_file_path,
+    event_bytes,
+    created_at,
+    updated_at,
+    event_ts,
+    is_deleted,
+    ingestion_api_key,
+    ingestion_sdk_name,
+    ingestion_sdk_version
+FROM events_full
+SETTINGS enable_full_text_index = 1;
+
 EOF
 
 echo "Populating development tables with sample data..."
@@ -577,7 +689,7 @@ clickhouse client \
   --user="${CLICKHOUSE_USER}" \
   --password="${CLICKHOUSE_PASSWORD}" \
   --database="${CLICKHOUSE_DB}" \
-  --multiquery <<EOF
+  --multiquery <<'EOF'
   SET type_json_skip_duplicated_paths = 1;
   TRUNCATE events_core;
   TRUNCATE events_full;
@@ -596,7 +708,8 @@ clickhouse client \
                       experiment_item_metadata_names, experiment_item_metadata_values,
                       experiment_item_root_span_id,
                       source, blob_storage_file_path, event_bytes,
-                      created_at, updated_at, event_ts, is_deleted)
+                      created_at, updated_at, event_ts, is_deleted,
+                      ingestion_api_key, ingestion_sdk_name, ingestion_sdk_version)
   SELECT o.project_id,
          o.trace_id,
          o.id                                                                            AS span_id,
@@ -656,7 +769,10 @@ clickhouse client \
          o.created_at,
          o.updated_at,
          o.event_ts,
-         o.is_deleted
+         o.is_deleted,
+         ''                                                                              AS ingestion_api_key,
+         'unknown'                                                                       AS ingestion_sdk_name,
+         'unknown'                                                                       AS ingestion_sdk_version
   FROM observations o FINAL
   LEFT JOIN traces t ON o.project_id = t.project_id AND o.trace_id = t.id
   LEFT JOIN dataset_run_items_rmt dri ON o.project_id = dri.project_id AND o.trace_id = dri.trace_id
@@ -678,7 +794,8 @@ clickhouse client \
                       experiment_item_metadata_names, experiment_item_metadata_values,
                       experiment_item_root_span_id,
                       source, blob_storage_file_path, event_bytes,
-                      created_at, updated_at, event_ts, is_deleted)
+                      created_at, updated_at, event_ts, is_deleted,
+                      ingestion_api_key, ingestion_sdk_name, ingestion_sdk_version)
   SELECT t.project_id,
          t.id,
          concat('t-', t.id)                                                              AS span_id,
@@ -727,7 +844,10 @@ clickhouse client \
          t.created_at,
          t.updated_at,
          t.event_ts,
-         t.is_deleted
+         t.is_deleted,
+         ''                                                                              AS ingestion_api_key,
+         'unknown'                                                                       AS ingestion_sdk_name,
+         'unknown'                                                                       AS ingestion_sdk_version
   FROM traces t FINAL
   LEFT JOIN dataset_run_items_rmt dri ON t.project_id = dri.project_id AND t.id = dri.trace_id
   WHERE (t.is_deleted = 0);

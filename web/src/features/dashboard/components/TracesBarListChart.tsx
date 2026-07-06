@@ -120,7 +120,7 @@ export const TracesBarListChart = ({
   return (
     <DashboardCard
       className={className}
-      title={"Traces"}
+      title="Traces"
       description={null}
       isLoading={isLoading || traces.isPending || totalTraces.isPending}
     >
@@ -131,7 +131,7 @@ export const TracesBarListChart = ({
               ? Number(totalTraces.data[0][countField])
               : 0,
           )}
-          description={"Total traces tracked"}
+          description="Total traces tracked"
         />
         {adjustedData.length > 0 ? (
           <div

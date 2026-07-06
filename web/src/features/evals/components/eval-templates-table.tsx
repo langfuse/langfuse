@@ -6,7 +6,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { createColumnHelper } from "@tanstack/react-table";
-import { Copy, MoreVertical, Pen } from "lucide-react";
+import { Copy, MoreVertical, Pen, Trash } from "lucide-react";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 import { useEffect, useMemo, useState } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
@@ -31,7 +31,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { DeleteEvalTemplateButton } from "@/src/features/evals/components/delete-eval-template-button";
+import { DeleteEvalTemplateDialog } from "@/src/features/evals/components/delete-eval-template-dialog";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { EvalReferencedEvaluators } from "@/src/features/evals/types";
@@ -118,6 +119,115 @@ const templateTableRowHeights: CustomHeights = {
   s: "h-8",
   m: "h-8",
   l: "h-8",
+};
+
+// Owns the per-row actions dropdown plus the delete confirm dialog as its
+// sibling (see the overlay-lifecycle rule in web/AGENTS.md). The dialog's
+// open state is local so opening it re-renders only this cell, not the table.
+const EvalTemplateRowActionsMenu = ({
+  projectId,
+  templateId,
+  templateName,
+  usageCount,
+  hasAccess,
+  showClone,
+  showEditAndDelete,
+  onEdit,
+  onClone,
+}: {
+  projectId: string;
+  templateId: string;
+  templateName: string;
+  usageCount?: number;
+  hasAccess: boolean;
+  showClone: boolean;
+  showEditAndDelete: boolean;
+  onEdit: () => void;
+  onClone: () => void;
+}) => {
+  // undefined = never opened: keeps the dialog unmounted for untouched rows,
+  // while close (false) keeps it mounted so the exit animation can play.
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState<boolean>();
+  const capture = usePostHogClientCapture();
+  const utils = api.useUtils();
+  const hasTemplateWriteAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalTemplate:CUD",
+  });
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon-xs" aria-label="actions">
+            <span className="sr-only relative">Open menu</span>
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+          {showClone ? (
+            <DropdownMenuItem
+              aria-label="clone"
+              disabled={!hasAccess}
+              onClick={(e) => {
+                e.stopPropagation();
+                onClone();
+              }}
+            >
+              <Copy className="mr-2 h-4 w-4" />
+              Clone
+            </DropdownMenuItem>
+          ) : null}
+          {showEditAndDelete ? (
+            <>
+              <DropdownMenuItem
+                aria-label="edit"
+                disabled={!hasAccess}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit();
+                }}
+              >
+                <Pen className="mr-2 h-4 w-4" />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                aria-label="delete"
+                disabled={!hasTemplateWriteAccess}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  capture("eval_templates:delete_form_open", {
+                    source: "table-single-row",
+                  });
+                  setIsDeleteDialogOpen(true);
+                }}
+              >
+                <Trash className="mr-2 h-4 w-4" />
+                Delete
+              </DropdownMenuItem>
+            </>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {isDeleteDialogOpen !== undefined ? (
+        <DeleteEvalTemplateDialog
+          projectId={projectId}
+          templateId={templateId}
+          templateName={templateName}
+          initialUsageCount={usageCount}
+          open={isDeleteDialogOpen}
+          onOpenChange={setIsDeleteDialogOpen}
+          onSuccess={() => {
+            capture("eval_templates:delete_template_button_click", {
+              source: "table-single-row",
+            });
+            utils.evals.templateNames.invalidate();
+          }}
+        />
+      ) : null}
+    </>
+  );
 };
 
 export default function EvalsTemplateTable({
@@ -367,59 +477,17 @@ export default function EvalsTemplateTable({
               Use Evaluator
             </ActionButton>
             {hasMenuItems && id ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon-xs" aria-label="actions">
-                    <span className="sr-only relative">Open menu</span>
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                  {!isUserMaintained && !isCodeTemplate ? (
-                    <DropdownMenuItem
-                      aria-label="clone"
-                      disabled={!hasAccess}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setCloneTemplateId(id);
-                      }}
-                    >
-                      <Copy className="mr-2 h-4 w-4" />
-                      Clone
-                    </DropdownMenuItem>
-                  ) : null}
-                  {isUserMaintained ? (
-                    <>
-                      <DropdownMenuItem
-                        aria-label="edit"
-                        disabled={!hasAccess}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditTemplateId(id);
-                        }}
-                      >
-                        <Pen className="mr-2 h-4 w-4" />
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <DeleteEvalTemplateButton
-                          aria-label="delete"
-                          itemId={id}
-                          projectId={projectId}
-                          isTableAction
-                          className="w-full justify-start"
-                          deleteConfirmation={row.original.name}
-                          initialUsageCount={row.original.usageCount}
-                          invalidateFunc={() => {
-                            utils.evals.templateNames.invalidate();
-                          }}
-                        />
-                      </DropdownMenuItem>
-                    </>
-                  ) : null}
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <EvalTemplateRowActionsMenu
+                projectId={projectId}
+                templateId={id}
+                templateName={row.original.name}
+                usageCount={row.original.usageCount}
+                hasAccess={hasAccess}
+                showClone={!isUserMaintained && !isCodeTemplate}
+                showEditAndDelete={isUserMaintained}
+                onEdit={() => setEditTemplateId(id)}
+                onClone={() => setCloneTemplateId(id)}
+              />
             ) : null}
           </div>
         );
@@ -492,7 +560,7 @@ export default function EvalsTemplateTable({
         />
         <div className="flex flex-1 flex-col overflow-hidden">
           <DataTable
-            tableName={"evalTemplates"}
+            tableName="evalTemplates"
             columns={columns}
             peekView={peekConfig}
             // "s" vertically centers cell content; the custom heights keep the

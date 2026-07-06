@@ -1039,6 +1039,9 @@ export async function getScoresUiTable<
     config_id: string | null;
     queue_id: string | null;
     execution_trace_id: string | null;
+    ingestion_api_key: string;
+    ingestion_sdk_name: string;
+    ingestion_sdk_version: string;
     is_deleted: number;
     event_ts: string;
     created_at: string;
@@ -1128,6 +1131,9 @@ const getScoresUiGeneric = async <T>(props: {
         s.config_id,
         s.queue_id,
         s.execution_trace_id,
+        s.ingestion_api_key,
+        s.ingestion_sdk_name,
+        s.ingestion_sdk_version,
         s.is_deleted,
         s.event_ts,
         t.user_id,
@@ -1345,6 +1351,9 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         s.config_id,
         s.queue_id,
         s.execution_trace_id,
+        s.ingestion_api_key,
+        s.ingestion_sdk_name,
+        s.ingestion_sdk_version,
         s.is_deleted,
         s.event_ts
         ${includeHasMetadataFlag ? ",length(mapKeys(s.metadata)) > 0 AS has_metadata" : ""}
@@ -1444,6 +1453,9 @@ export async function getScoresUiTableFromEvents(props: {
     config_id: string | null;
     queue_id: string | null;
     execution_trace_id: string | null;
+    ingestion_api_key: string;
+    ingestion_sdk_name: string;
+    ingestion_sdk_version: string;
     is_deleted: number;
     event_ts: string;
     created_at: string;

@@ -96,6 +96,10 @@ export type ScoresTableProps = {
   hiddenColumns?: ScoresTableHiddenColumn[];
   localStorageSuffix?: string;
   disableUrlPersistence?: boolean;
+  /** Hide the toolbar time-range picker. Set by pages that render the picker
+   *  in the page header (TableTimeRangeHeaderPicker) — both read the same
+   *  shared per-project range, so embedded usages keep the toolbar picker. */
+  hideTimeRangePicker?: boolean;
 };
 
 function createFilterState(
@@ -122,6 +126,7 @@ export default function ScoresTable({
   hiddenColumns = [],
   localStorageSuffix = "",
   disableUrlPersistence = false,
+  hideTimeRangePicker = false,
 }: ScoresTableProps) {
   const peekContext = usePeekTableState();
 
@@ -956,8 +961,8 @@ export default function ScoresTable({
           ]}
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
-          timeRange={timeRange}
-          setTimeRange={setTimeRange}
+          timeRange={hideTimeRangePicker ? undefined : timeRange}
+          setTimeRange={hideTimeRangePicker ? undefined : setTimeRange}
           multiSelect={{
             selectAll,
             setSelectAll,
@@ -978,7 +983,7 @@ export default function ScoresTable({
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable
-              tableName={"scores"}
+              tableName="scores"
               columns={columns}
               noResultsMessage={
                 <div className="flex flex-col items-center">

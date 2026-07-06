@@ -50,7 +50,7 @@ export default function DocPopup({
             });
           }}
         >
-          <Info className={"h-3 w-3"} />
+          <Info className="h-3 w-3" />
         </div>
       </HoverCardTrigger>
       <HoverCardPortal>

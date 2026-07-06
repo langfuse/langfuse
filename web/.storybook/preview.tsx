@@ -101,8 +101,56 @@ function ThemedDocsContainer({
   return (
     <DocsContainer context={context} theme={dark ? themes.dark : themes.light}>
       <style>{`
-        .sbdocs-content { font-size: 16px; }
-        .sbdocs-content p, .sbdocs-content li { font-size: 1.0625rem; line-height: 1.7; }
+        .sbdocs-wrapper {
+          background: hsl(var(--background));
+          color: hsl(var(--foreground));
+          padding: 0;
+        }
+
+        .sbdocs-content {
+          max-width: 56rem;
+          padding: 3.5rem 2rem;
+          color: hsl(var(--foreground));
+        }
+
+        .sbdocs-content a {
+          color: hsl(var(--primary));
+        }
+
+        .sbdocs-content code {
+          background: hsl(var(--muted));
+          border-radius: 0.25rem;
+          padding: 0.125rem 0.375rem;
+        }
+
+        .sbdocs-content pre {
+          background: hsl(var(--muted));
+          border: 1px solid hsl(var(--border));
+          border-radius: 0.5rem;
+          color: hsl(var(--foreground));
+        }
+
+        .sbdocs-content pre code {
+          background: transparent;
+          padding: 0;
+        }
+
+        .sbdocs-content blockquote {
+          border-left: 3px solid hsl(var(--border));
+          color: hsl(var(--muted-foreground));
+          margin-left: 0;
+          padding-left: 1rem;
+        }
+
+        .sbdocs-content hr {
+          border-color: hsl(var(--border));
+        }
+
+        .sbdocs-content .sbdocs.sbdocs-preview {
+          background: transparent;
+          border: 1px solid hsl(var(--border));
+          box-shadow: none;
+        }
       `}</style>
       {children}
     </DocsContainer>

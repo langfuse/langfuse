@@ -12,15 +12,12 @@ import { useMemo, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { MEDIA_REFERENCE_PATTERN } from "@langfuse/shared";
 import {
-  classifyMediaLeaf,
-  type MediaLeafDescriptor,
-} from "@/src/components/ui/media/classifyMediaLeaf";
+  classifyMediaValue,
+  type MediaDescriptor,
+} from "@/src/components/ui/media/mediaUtils";
 import { JsonMediaTag } from "@/src/components/ui/media/JsonMediaTag";
 
-type LangfuseRefDescriptor = Extract<
-  MediaLeafDescriptor,
-  { kind: "langfuseRef" }
->;
+type LangfuseRefDescriptor = Extract<MediaDescriptor, { kind: "langfuseRef" }>;
 
 type MediaAnchor = {
   id: number;
@@ -151,7 +148,7 @@ function createMediaTagWidgetExtension(store: MediaTagWidgetStore): Extension {
     // the shared pattern's lastIndex isn't mutated across uses.
     regexp: new RegExp(`"(${MEDIA_REFERENCE_PATTERN.source})"`, "g"),
     decoration: (match) => {
-      const descriptor = classifyMediaLeaf(match[1]);
+      const descriptor = classifyMediaValue(match[1]);
       if (descriptor?.kind !== "langfuseRef") return null;
       return Decoration.replace({
         widget: new MediaTagWidget(store, descriptor),

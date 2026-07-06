@@ -1,12 +1,26 @@
 # In-App Agent Sync
 
+## Skill Sync
+
+Generated skill markdown lives in:
+
+- `web/src/ee/features/in-app-agent/server/skills/generated/raw`
+- `web/src/ee/features/in-app-agent/server/skills/generated/skill-markdown.ts`
+
+Sync or check generated skills:
+
+```sh
+node scripts/in-app-agent/sync-raw-skills.mjs
+node scripts/in-app-agent/sync-raw-skills.mjs --check
+```
+
+## Prompt And Eval Sync
+
 Canonical files:
 
 - Prompt: `web/src/ee/features/in-app-agent/prompts/in-app-agent-system-prompt.txt`
 - Evaluators: `web/src/features/in-app-agent/evaluators/*-evaluator.json`
 - Evaluation rules: `web/src/features/in-app-agent/evaluators/*-evaluation-rule.json`
-
-## Environment
 
 Targets: `LOCAL`, `STAGING`, `EU`, `US`, `JP`, `HIPAA`.
 
@@ -30,20 +44,13 @@ If using a dotenv file with plain assignments:
 set -a; source .env; set +a
 ```
 
-## Prompt Sync
-
-Creates `in-app-agent-system-prompt` or adds a new version with `production` and
-`latest` labels.
+Sync the prompt:
 
 ```sh
 ./scripts/in-app-agent/sync-prompt.sh
 ```
 
-Requires `curl` and `jq`.
-
-## Evaluator Sync
-
-Syncs every checked-in evaluator JSON plus its matching evaluation rule.
+Sync evaluators:
 
 ```sh
 pnpm assistant:sync-evals -- --dry-run
@@ -51,8 +58,8 @@ pnpm assistant:sync-evals
 pnpm assistant:sync-evals -- --yes
 ```
 
-Evaluators use the target project's default evaluation model because
-`modelConfig` is `null`.
+Prompt sync requires `curl` and `jq`. Evaluators use the target project's
+default evaluation model because `modelConfig` is `null`.
 
 ## Verify
 
