@@ -29,7 +29,7 @@ const Page = ({
         id="page"
       >
         <header className="sticky top-0 z-50 w-full">
-          <PageHeader {...headerProps} container={false} className={"top-0"} />
+          <PageHeader {...headerProps} container={false} className="top-0" />
         </header>
         <main
           className={cn(

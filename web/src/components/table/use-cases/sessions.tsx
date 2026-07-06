@@ -891,7 +891,7 @@ export default function SessionsTable({
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable
-              tableName={"sessions"}
+              tableName="sessions"
               columns={columns}
               data={
                 sessions.isPending || isViewLoading

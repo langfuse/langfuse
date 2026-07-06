@@ -52,6 +52,7 @@ import { WORKER_HOST_ID } from "../../utils/hostId";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
+  BatchExportFileFormat,
   BlobStorageExportMode,
   OBSERVATION_FIELD_GROUPS_FULL,
   type ObservationFieldGroupFull,
@@ -82,9 +83,12 @@ export const BlobExportFormat = {
 export type BlobExportFormat =
   (typeof BlobExportFormat)[keyof typeof BlobExportFormat];
 
-const FORMAT_LOOKUP: Record<
-  BlobStorageIntegrationFileType,
-  { raw: BlobExportFormat; gzip: BlobExportFormat }
+// Text formats only; PARQUET is absent because callers branch on parquetEligible first.
+const FORMAT_LOOKUP: Partial<
+  Record<
+    BlobStorageIntegrationFileType,
+    { raw: BlobExportFormat; gzip: BlobExportFormat }
+  >
 > = {
   [BlobStorageIntegrationFileType.JSON]: {
     raw: BlobExportFormat.JSON_RAW,
@@ -105,6 +109,9 @@ function resolveBlobExportFormat(
   compressed: boolean,
 ): BlobExportFormat {
   const entry = FORMAT_LOOKUP[fileType];
+  if (!entry) {
+    throw new Error(`No text export format for file type: ${fileType}`);
+  }
   return compressed ? entry.gzip : entry.raw;
 }
 
@@ -269,6 +276,11 @@ const getFileTypeProperties = (fileType: BlobStorageIntegrationFileType) => {
         contentType: "application/x-ndjson; charset=utf-8",
         extension: "jsonl",
       };
+    case BlobStorageIntegrationFileType.PARQUET:
+      return {
+        contentType: "application/vnd.apache.parquet",
+        extension: "parquet",
+      };
     default:
       // eslint-disable-next-line no-case-declarations
       const _exhaustiveCheck: never = fileType;
@@ -428,12 +440,10 @@ const processBlobStorageExport = async (config: {
       try {
         const blobStorageProps = getFileTypeProperties(config.fileType);
 
-        // LFE-10463: per-project opt-in spanning all tables/file types. Overrides
-        // fileType and compressed (Parquet compresses internally) and outranks
-        // rawPassthrough (enforced in resolveBlobExportTuning). It isn't a
-        // BlobStorageIntegrationFileType member, so extension/content-type are set
-        // inline below rather than via getFileTypeProperties.
-        const parquetEligible = config.parquet;
+        // Both paths converge: legacy exportTuning.parquet override and the new fileType=PARQUET.
+        const parquetEligible =
+          config.parquet ||
+          config.fileType === BlobStorageIntegrationFileType.PARQUET;
 
         // Raw passthrough (LFE-10402) is opt-in per project and only valid for
         // JSONL output of the enriched-observation tables — the only formats
@@ -699,7 +709,13 @@ const processBlobStorageExport = async (config: {
           }
 
           const dataStream = countedStream(rawStream, sourceStats);
-          const formatTransform = streamTransformations[config.fileType]();
+          if (config.fileType === BlobStorageIntegrationFileType.PARQUET) {
+            throw new Error(
+              `Reached the text-format export path with fileType=PARQUET for project ${config.projectId}; the parquetEligible branch should have handled it`,
+            );
+          }
+          const formatTransform =
+            streamTransformations[config.fileType as BatchExportFileFormat]();
 
           fileStream =
             compressedCounter && gzipStats
@@ -1205,6 +1221,9 @@ export const handleBlobStorageIntegrationProjectJob = async (
     // dispatch and is intentionally not warned about (avoids ~hourly log noise).
     if (
       exportTuning.rawPassthrough &&
+      !exportTuning.parquet &&
+      blobStorageIntegration.fileType !==
+        BlobStorageIntegrationFileType.PARQUET &&
       (blobStorageIntegration.fileType !==
         BlobStorageIntegrationFileType.JSONL ||
         isTraceOnlyProject)

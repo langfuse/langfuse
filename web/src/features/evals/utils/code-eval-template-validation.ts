@@ -579,6 +579,10 @@ const PYTHON_RUFF_SETTINGS = {
   "indent-width": 2,
   lint: {
     select: ["E4", "E7", "E9", "F"],
+    // The contract is prepended to the user's source before linting (and at
+    // execution time), so user imports are never at the literal top of the
+    // file — E402 would flag every import.
+    ignore: ["E402"],
   },
 };
 const PYTHON_ERROR_DIAGNOSTIC_CODES = new Set([

@@ -188,6 +188,25 @@ describe("handleBlobStorageIntegrationProjectJob tuning wiring", () => {
     }
   });
 
+  // First-class PARQUET fileType (no exportTuning.parquet) routes through the
+  // same Parquet path as the legacy override.
+  it("produces .parquet files when fileType is PARQUET without the tuning override", async () => {
+    (prisma.blobStorageIntegration.findUnique as any).mockResolvedValue({
+      ...baseRow(undefined),
+      fileType: "PARQUET",
+      compressed: true,
+    });
+
+    await handleBlobStorageIntegrationProjectJob(makeJob());
+
+    expect(uploadCalls.length).toBe(3);
+    for (const call of uploadCalls) {
+      expect(call.fileName.endsWith(".parquet")).toBe(true);
+      expect(call.fileName).not.toContain(".gz");
+      expect(call.fileType).toBe("application/vnd.apache.parquet");
+    }
+  });
+
   it("parquet takes precedence over rawPassthrough", async () => {
     (prisma.blobStorageIntegration.findUnique as any).mockResolvedValue({
       ...baseRow({ parquet: true, rawPassthrough: true }),

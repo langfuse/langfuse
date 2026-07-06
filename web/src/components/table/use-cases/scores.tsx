@@ -993,7 +993,7 @@ export default function ScoresTable({
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable
-              tableName={"scores"}
+              tableName="scores"
               columns={columns}
               noResultsMessage={
                 <div className="flex flex-col items-center">

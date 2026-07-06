@@ -738,7 +738,7 @@ export function DatasetRunsTable(props: {
               ]}
             />
             <DataTable
-              tableName={"datasetRuns"}
+              tableName="datasetRuns"
               columns={columns}
               data={
                 runs.isPending
@@ -802,7 +802,7 @@ export function DatasetRunsTable(props: {
             ]}
           />
           <DataTable
-            tableName={"datasetRuns"}
+            tableName="datasetRuns"
             columns={columns}
             data={
               runs.isPending

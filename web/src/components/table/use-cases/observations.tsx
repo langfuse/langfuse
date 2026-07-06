@@ -1460,7 +1460,7 @@ export default function ObservationsTable({
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable
-              tableName={"observations"}
+              tableName="observations"
               columns={columns}
               peekView={peekConfig}
               selectionStore={observationsTableStore}
