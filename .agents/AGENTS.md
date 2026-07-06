@@ -93,6 +93,10 @@ langfuse/
 - Cross-package refactors: `pnpm run lint`, `pnpm run typecheck`, and targeted
   tests for impacted packages.
 
+End your turn with evidence, not claims: paste the output of the checks you
+ran (or say which you skipped and why) — never report work as done that you
+haven't verified in this session, and never end with work pending.
+
 ## Generated Files
 
 Do not hand-edit generated or build artifacts:
