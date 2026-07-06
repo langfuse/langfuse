@@ -874,6 +874,13 @@ describe("Projects API", () => {
       expect(apiKey?.note).toBe(note);
       expect(apiKey?.projectId).toBe(projectId);
       expect(apiKey?.scope).toBe("PROJECT");
+
+      // Verify the creating org API key is referenced
+      const orgKeyRecord = await prisma.apiKey.findUnique({
+        where: { publicKey: orgApiKey },
+      });
+      expect(apiKey?.createdByApiKeyId).toBe(orgKeyRecord?.id);
+      expect(apiKey?.createdByUserId).toBeNull();
     });
 
     it("should return 403 when using project API key instead of organization API key", async () => {
