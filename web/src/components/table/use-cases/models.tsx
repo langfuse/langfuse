@@ -22,7 +22,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { LangfuseIcon } from "@/src/components/LangfuseLogo";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { useRouter } from "next/router";
 import { PriceUnitSelector } from "@/src/features/models/components/PriceUnitSelector";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
@@ -117,7 +117,10 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       },
       cell: ({ row }) => {
         return (
-          <span className="truncate font-mono text-xs font-semibold">
+          <span
+            className="truncate font-mono text-xs font-semibold"
+            title={row.original.modelName}
+          >
             {row.original.modelName}
           </span>
         );
@@ -164,7 +167,9 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         const value: string = row.getValue("matchPattern");
 
         return value ? (
-          <span className="truncate font-mono text-xs">{value}</span>
+          <span className="truncate font-mono text-xs" title={value}>
+            {value}
+          </span>
         ) : null;
       },
     },

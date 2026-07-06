@@ -5,12 +5,18 @@ import { useMediaQuery } from "react-responsive";
 import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
 import { useDataTableControls } from "./data-table-controls";
 
+// Mirrors the trace peek's collapsed-panel rail (TraceLayoutDesktop): instead
+// of hiding, the sidebar collapses to a thin rail carrying a re-open button
+// (rendered by DataTableControls). Dragging below the min snaps to the rail.
+const FILTER_PANEL_COLLAPSED_PX = 40;
+const FILTER_PANEL_MIN_PX = 160;
+
 /** Resizable layout for filter sidebar and table content.
  *  On mobile, renders a stacked layout instead of resizable panels.
  *  Expects exactly 2 children: filter sidebar (DataTableControls) and table content.
  */
 export function ResizableFilterLayout({ children }: PropsWithChildren) {
-  const { open, tableName } = useDataTableControls();
+  const { open, setOpen, tableName } = useDataTableControls();
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
 
   // Extract filter sidebar and table content from children
@@ -53,10 +59,13 @@ export function ResizableFilterLayout({ children }: PropsWithChildren) {
       }
       secondaryContent={filterSidebar}
       open={open}
+      onOpenChange={setOpen}
       defaultPrimarySize={tableDefault}
       defaultSecondarySize={filterDefault}
       minPrimarySize={50}
       maxSecondarySize={50}
+      collapsedSecondarySize={`${FILTER_PANEL_COLLAPSED_PX}px`}
+      minSecondarySize={`${FILTER_PANEL_MIN_PX}px`}
       secondaryPosition="left"
       persistId={tableName ? `filter-layout-${tableName}` : "filter-layout"}
     />

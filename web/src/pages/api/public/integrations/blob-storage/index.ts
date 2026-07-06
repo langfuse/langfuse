@@ -12,6 +12,8 @@ import {
 } from "@/src/features/public-api/types/blob-storage-integrations";
 import {
   type ObservationFieldGroupFull,
+  BlobStorageIntegrationFileType,
+  InvalidRequestError,
   LangfuseNotFoundError,
   UnauthorizedError,
   ForbiddenError,
@@ -172,8 +174,22 @@ async function handleUpsertBlobStorageIntegration(
   // enriched value is rejected.
   const existingIntegration = await prisma.blobStorageIntegration.findUnique({
     where: { projectId: validatedData.projectId },
-    select: { createdAt: true, exportSource: true },
+    select: { createdAt: true, exportSource: true, fileType: true },
   });
+
+  // PARQUET cannot be set via the REST API yet (request enum omits it). Block
+  // any PUT that would silently downgrade a Parquet integration to a text format.
+  // Written as a downgrade check (existing === PARQUET && request !== PARQUET) so
+  // it automatically narrows to no-op once PARQUET is added to the request enum at GA.
+  const requestFileType: string = validatedData.fileType;
+  if (
+    existingIntegration?.fileType === BlobStorageIntegrationFileType.PARQUET &&
+    requestFileType !== BlobStorageIntegrationFileType.PARQUET
+  ) {
+    throw new InvalidRequestError(
+      "Integrations exporting Parquet must be managed through the Langfuse UI; the public API cannot modify them while Parquet is in stabilisation.",
+    );
+  }
 
   if (internalExportSource) {
     assertLegacyBlobExportSourceAllowedForUpsert({

@@ -75,6 +75,9 @@ export type InternalTraceEventInput = {
   output?: string;
   metadata: Record<string, unknown>;
   source: string;
+  ingestionApiKey?: string;
+  ingestionSdkName?: string;
+  ingestionSdkVersion?: string;
   serviceName?: string;
   serviceVersion?: string;
   scopeName?: string;

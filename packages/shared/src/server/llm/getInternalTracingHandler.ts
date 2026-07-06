@@ -2,6 +2,7 @@ import CallbackHandler from "langfuse-langchain";
 import { ProcessedTraceEvent, TraceSinkParams } from "./types";
 import { buildInternalTraceEventInputs } from "./internalTraceEvents";
 import { processEventBatch } from "../ingestion/processEventBatch";
+import { createUnknownSdkIngestionAttribution } from "../ingestion/ingestionAttribution";
 import { logger } from "../logger";
 import { traceException } from "../instrumentation";
 
@@ -97,18 +98,23 @@ export function getInternalTracingHandler(traceSinkParams: TraceSinkParams): {
 
       // Legacy write to traces/observations tables
       try {
+        const auth = {
+          validKey: true as const,
+          scope: {
+            projectId: traceSinkParams.targetProjectId, // Important: this controls into what project traces are ingested.
+            accessLevel: "project",
+          } as any,
+        };
+
         await processEventBatch(
           JSON.parse(JSON.stringify(processedEvents)), // stringify to emulate network event batch from network call
-          {
-            validKey: true as const,
-            scope: {
-              projectId: traceSinkParams.targetProjectId, // Important: this controls into what project traces are ingested.
-              accessLevel: "project",
-            } as any,
-          },
+          auth,
           {
             isLangfuseInternal: true,
             forwardToEventsTable: eventsWriter ? false : undefined, // Do not dual write when we already direct event write
+            attribution: createUnknownSdkIngestionAttribution({
+              authCheck: auth,
+            }),
           },
         );
       } catch (processingError) {

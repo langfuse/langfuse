@@ -88,6 +88,10 @@ export type SessionTableProps = {
   userId?: string;
   omittedFilter?: SessionOmittableFilterColumn[];
   isBetaEnabled?: boolean;
+  /** Hide the toolbar time-range picker. Set by pages that render the picker
+   *  in the page header (TableTimeRangeHeaderPicker) — both read the same
+   *  shared per-project range, so embedded usages keep the toolbar picker. */
+  hideTimeRangePicker?: boolean;
 };
 
 export default function SessionsTable({
@@ -95,6 +99,7 @@ export default function SessionsTable({
   userId,
   omittedFilter = [],
   isBetaEnabled = false,
+  hideTimeRangePicker = false,
 }: SessionTableProps) {
   const sessionsFilterConfig = useMemo(
     () => getSessionFilterConfig(omittedFilter),
@@ -532,6 +537,7 @@ export default function SessionsTable({
           <Badge
             variant="secondary"
             className="max-w-fit truncate rounded-sm px-1 font-normal"
+            title={value}
           >
             {value}
           </Badge>
@@ -850,8 +856,8 @@ export default function SessionsTable({
             projectId,
             controllers: viewControllers,
           }}
-          timeRange={timeRange}
-          setTimeRange={setTimeRange}
+          timeRange={hideTimeRangePicker ? undefined : timeRange}
+          setTimeRange={hideTimeRangePicker ? undefined : setTimeRange}
           columnsWithCustomSelect={["userIds"]}
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}

@@ -9,7 +9,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { Button } from "@/src/components/ui/button";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 
 export function DeactivateEvalConfig({
   projectId,
@@ -64,7 +64,7 @@ export function DeactivateEvalConfig({
                 evalConfig.timeScope[0] === "EXISTING")
             }
             checked={isActive}
-            className={isActive ? "data-[state=checked]:bg-dark-green" : ""}
+            color="green"
           />
         </div>
       </PopoverTrigger>

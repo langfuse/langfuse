@@ -10,6 +10,7 @@ import {
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
 import { useQueryProject } from "@/src/features/projects/hooks";
+import { TableTimeRangeHeaderPicker } from "@/src/components/table/table-time-range-header-picker";
 
 export default function Traces() {
   const router = useRouter();
@@ -78,6 +79,7 @@ export default function Traces() {
           ),
           href: "https://langfuse.com/docs/observability/data-model",
         },
+        actionButtonsLeft: <TableTimeRangeHeaderPicker projectId={projectId} />,
         tabsProps:
           isBetaEnabled || isInitializing
             ? undefined
@@ -95,9 +97,9 @@ export default function Traces() {
               resolves. */}
         </>
       ) : isBetaEnabled ? (
-        <ObservationsEventsTable projectId={projectId} />
+        <ObservationsEventsTable projectId={projectId} hideTimeRangePicker />
       ) : (
-        <TracesTable projectId={projectId} />
+        <TracesTable projectId={projectId} hideTimeRangePicker />
       )}
     </Page>
   );

@@ -113,6 +113,19 @@ export const formatAxisLabel = (label: string): string =>
   label.length > 13 ? label.slice(0, 13).concat("…") : label;
 
 /**
+ * Picks a recharts numeric x-axis `interval` (= ticks skipped between two shown
+ * ticks) that yields UNIFORM gaps targeting ~`maxTicks` labels. We use this
+ * instead of `interval="preserveStartEnd"` + `minTickGap`, whose width-dependent
+ * collision dropping skips ticks unevenly (e.g. 6/9, 6/11, 6/13 vanish while
+ * 6/1–6/8 stay), making tick density vary by chart width. (LFE-10549)
+ */
+export const getEvenTickInterval = (
+  pointCount: number,
+  maxTicks = 8,
+): number =>
+  pointCount <= maxTicks ? 0 : Math.ceil(pointCount / maxTicks) - 1;
+
+/**
  * Maps chart types to their human-readable display names.
  */
 export function getChartTypeDisplayName(

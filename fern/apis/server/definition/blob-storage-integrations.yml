@@ -48,6 +48,15 @@ types:
       - CSV
       - JSONL
 
+  BlobStorageIntegrationFileTypeResponse:
+    docs: |
+      File type reported for an existing integration. Includes `PARQUET`, which a project may enable through the Langfuse UI but cannot yet be set via this API (the request `fileType` omits it).
+    enum:
+      - JSON
+      - CSV
+      - JSONL
+      - PARQUET
+
   BlobStorageExportMode:
     enum:
       - FULL_HISTORY
@@ -157,7 +166,7 @@ types:
       exportFrequency: BlobStorageExportFrequency
       enabled: boolean
       forcePathStyle: boolean
-      fileType: BlobStorageIntegrationFileType
+      fileType: BlobStorageIntegrationFileTypeResponse
       exportMode: BlobStorageExportMode
       exportStartDate: nullable<datetime>
       compressed: boolean

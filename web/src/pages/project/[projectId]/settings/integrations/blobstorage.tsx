@@ -13,7 +13,7 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { PasswordInput } from "@/src/components/ui/password-input";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import {
   Select,
@@ -34,6 +34,7 @@ import {
   type BlobStorageIntegrationFormSchema,
   type BlobStorageSyncStatus,
 } from "@/src/features/blobstorage-integration/types";
+import { isParquetFileTypeAllowed } from "@/src/features/blobstorage-integration/parquetFileType";
 import { deriveSyncStatus } from "@/src/features/blobstorage-integration/deriveSyncStatus";
 import { Alert, AlertTitle, AlertDescription } from "@/src/components/ui/alert";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -377,6 +378,11 @@ const BlobStorageIntegrationSettingsForm = ({
   // Internal `exportTuning.parquet` override (no write path); reflected read-only
   // below since the worker forces Parquet over the persisted fileType + gzip.
   const isParquetOverride = parquetEnabledFromTuning(state?.exportTuning);
+  const isParquetWhitelisted = isParquetFileTypeAllowed(projectId);
+  const watchedFileType = blobStorageForm.watch("fileType");
+  const isParquetExport =
+    isParquetOverride ||
+    watchedFileType === BlobStorageIntegrationFileType.PARQUET;
   const exportSourceOptions = getExportSourceOptions(
     state?.exportSource,
     availability,
@@ -561,11 +567,12 @@ const BlobStorageIntegrationSettingsForm = ({
               <FormItem>
                 <FormLabel>Force Path Style</FormLabel>
                 <FormControl>
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                    className="mt-1 ml-4"
-                  />
+                  <div className="mt-1 ml-4">
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </div>
                 </FormControl>
                 <FormDescription>
                   Enable for MinIO and some other S3 compatible providers
@@ -704,7 +711,6 @@ const BlobStorageIntegrationSettingsForm = ({
             <FormItem>
               <FormLabel>File Type</FormLabel>
               <FormControl>
-                {/* "PARQUET" is display-only; the persisted fileType is kept but ignored. */}
                 <Select
                   value={isParquetOverride ? "PARQUET" : field.value}
                   onValueChange={field.onChange}
@@ -717,7 +723,10 @@ const BlobStorageIntegrationSettingsForm = ({
                     <SelectItem value="JSONL">JSONL</SelectItem>
                     <SelectItem value="CSV">CSV</SelectItem>
                     <SelectItem value="JSON">JSON</SelectItem>
-                    {isParquetOverride && (
+                    {(isParquetWhitelisted ||
+                      isParquetOverride ||
+                      watchedFileType ===
+                        BlobStorageIntegrationFileType.PARQUET) && (
                       <SelectItem value="PARQUET">Parquet</SelectItem>
                     )}
                   </SelectContent>
@@ -726,7 +735,9 @@ const BlobStorageIntegrationSettingsForm = ({
               <FormDescription>
                 {isParquetOverride
                   ? "Exporting as Apache Parquet — a columnar binary format encoded and compressed by ClickHouse. This is configured for your project and overrides the file type; gzip compression is not applicable."
-                  : "The file format for exported data."}
+                  : field.value === BlobStorageIntegrationFileType.PARQUET
+                    ? "Apache Parquet — a columnar binary format encoded and compressed by ClickHouse. Gzip compression does not apply."
+                    : "The file format for exported data."}
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -913,7 +924,7 @@ const BlobStorageIntegrationSettingsForm = ({
                           )}
                         </div>
                         <div className="text-muted-foreground text-xs">
-                          {isParquetOverride
+                          {isParquetExport
                             ? isLegacyOnlyExport
                               ? option.legacyParquetDescription
                               : option.parquetDescription
@@ -971,7 +982,7 @@ const BlobStorageIntegrationSettingsForm = ({
         )}
 
         {/* Parquet compresses internally — gzip does not apply. */}
-        {!isParquetOverride && (
+        {!isParquetExport && (
           <FormField
             control={blobStorageForm.control}
             name="compressed"
@@ -979,11 +990,12 @@ const BlobStorageIntegrationSettingsForm = ({
               <FormItem>
                 <FormLabel>Gzip Compression</FormLabel>
                 <FormControl>
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                    className="mt-1 ml-4"
-                  />
+                  <div className="mt-1 ml-4">
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </div>
                 </FormControl>
                 <FormDescription>
                   Compress exported files with gzip (.csv.gz, .json.gz,
@@ -1002,11 +1014,12 @@ const BlobStorageIntegrationSettingsForm = ({
             <FormItem>
               <FormLabel>Enabled</FormLabel>
               <FormControl>
-                <Switch
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                  className="mt-1 ml-4"
-                />
+                <div className="mt-1 ml-4">
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </div>
               </FormControl>
               <FormMessage />
             </FormItem>
