@@ -125,8 +125,10 @@ Resources:
           docker volume create langfuse_clickhouse_logs >/dev/null
           docker volume create langfuse_minio_data >/dev/null
           docker volume create langfuse_redis_data >/dev/null
+          # Persists TLS certificates across redeploys and stop/resume cycles.
+          docker volume create langfuse_caddy_data >/dev/null
 
-          for container in langfuse-web langfuse-worker postgres redis clickhouse minio; do
+          for container in caddy langfuse-web langfuse-worker postgres redis clickhouse minio; do
             docker rm -f "${container}" >/dev/null 2>&1 || true
           done
 
@@ -211,7 +213,7 @@ Resources:
             --env LANGFUSE_S3_BATCH_EXPORT_BUCKET=langfuse
             --env LANGFUSE_S3_BATCH_EXPORT_ENABLED=false
             --env LANGFUSE_S3_BATCH_EXPORT_ENDPOINT=http://minio:9000
-            --env LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT="http://${PREVIEW_HOST}"
+            --env LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT="https://${PREVIEW_HOST}"
             --env LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE=true
             --env LANGFUSE_S3_BATCH_EXPORT_PREFIX=exports/
             --env LANGFUSE_S3_BATCH_EXPORT_REGION=auto
@@ -232,7 +234,7 @@ Resources:
             --env LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY="${MINIO_ROOT_PASSWORD}"
             --env NEXT_PUBLIC_SIGN_UP_DISABLED=true
             --env NEXTAUTH_SECRET="${NEXTAUTH_SECRET}"
-            --env NEXTAUTH_URL="http://${PREVIEW_HOST}"
+            --env NEXTAUTH_URL="https://${PREVIEW_HOST}"
             --env REDIS_AUTH="${REDIS_AUTH}"
             --env REDIS_HOST=redis
             --env REDIS_PORT=6379
@@ -246,7 +248,6 @@ Resources:
             --name langfuse-web \
             --network langfuse-preview \
             --restart unless-stopped \
-            -p 80:3000 \
             "${common_env[@]}" \
             --env LANGFUSE_INIT_ORG_ID="${LANGFUSE_INIT_ORG_ID}" \
             --env LANGFUSE_INIT_ORG_NAME="${LANGFUSE_INIT_ORG_NAME}" \
@@ -270,17 +271,52 @@ Resources:
             "${WORKER_IMAGE}"
 
           wait_for langfuse-worker "docker exec langfuse-worker wget --no-verbose --tries=1 --spider http://127.0.0.1:3030/api/health"
+
+          # Caddy terminates TLS with an automatic Let's Encrypt certificate
+          # for the preview hostname and redirects HTTP to HTTPS.
+          docker run -d \
+            --name caddy \
+            --network langfuse-preview \
+            --restart unless-stopped \
+            -p 80:80 \
+            -p 443:443 \
+            -v langfuse_caddy_data:/data \
+            docker.io/caddy:2 \
+            caddy reverse-proxy --from "https://${PREVIEW_HOST}" --to http://langfuse-web:3000
           DEPLOY
 
           chmod +x /opt/langfuse-preview/deploy.sh
 
+  # The Elastic IP keeps the preview address (and therefore DNS and the TLS
+  # certificate) stable across /preview stop and /preview resume cycles.
+  PreviewEip:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Ref PreviewName
+        - Key: Project
+          Value: langfuse-preview
+        - Key: PullRequest
+          Value: !Ref PullRequestNumber
+        - Key: PreviewManagedBy
+          Value: github-actions
+
+  PreviewEipAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      AllocationId: !GetAtt PreviewEip.AllocationId
+      InstanceId: !Ref PreviewInstance
+
   PreviewDnsRecord:
     Type: AWS::Route53::RecordSet
+    DependsOn: PreviewEipAssociation
     Properties:
       HostedZoneId: !Ref HostedZoneId
       Name: !Sub "pr-${PullRequestNumber}.${DomainName}"
       ResourceRecords:
-        - !GetAtt PreviewInstance.PublicIp
+        - !Ref PreviewEip
       TTL: 60
       Type: A
 
@@ -289,8 +325,8 @@ Outputs:
     Description: EC2 instance ID for SSM commands.
     Value: !Ref PreviewInstance
   PublicIp:
-    Description: Public IPv4 address for health checks.
-    Value: !GetAtt PreviewInstance.PublicIp
+    Description: Public IPv4 address (Elastic IP) for health checks.
+    Value: !Ref PreviewEip
   PreviewUrl:
     Description: Public preview URL.
-    Value: !Sub "http://pr-${PullRequestNumber}.${DomainName}"
+    Value: !Sub "https://pr-${PullRequestNumber}.${DomainName}"

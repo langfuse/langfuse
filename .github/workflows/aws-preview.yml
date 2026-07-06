@@ -1,29 +1,48 @@
 name: AWS PR Preview
 
+# Disposable per-PR Langfuse previews on AWS, driven by PR comments:
+#
+#   /preview deploy    build the PR head and (re)deploy the preview host
+#   /preview stop      stop the EC2 instance (data and URL are kept)
+#   /preview resume    start the instance again
+#   /preview destroy   delete the CloudFormation stack and preview images
+#
+# Pushing new commits updates a preview only if one is already deployed and
+# running. Closing the PR destroys the preview. A nightly schedule stops all
+# running preview instances to cap cost; resume them with `/preview resume`.
+#
+# The shared AWS foundation (VPC, ECR, Route53 zone, IAM roles) lives in the
+# private langfuse/infrastructure repo under terraform/org/playground_previews.
+
 on:
+  issue_comment:
+    types: [created]
+  pull_request:
+    types: [synchronize, closed]
+  schedule:
+    # Stop all running previews nightly (03:17 UTC) to cap cost.
+    - cron: "17 3 * * *"
   workflow_dispatch:
     inputs:
       action:
-        description: "Deploy or destroy the preview"
+        description: "Preview action"
         type: choice
         options:
           - deploy
+          - stop
+          - resume
           - destroy
+          - stop-all
         required: true
       pr_number:
-        description: "Pull request number"
-        required: true
-      ref:
-        description: "Ref to deploy when action=deploy"
+        description: "Pull request number (not needed for stop-all)"
         required: false
-  pull_request:
-    types: [opened, reopened, synchronize, closed]
 
 permissions: {}
 
 concurrency:
-  group: aws-preview-${{ github.event.pull_request.number || inputs.pr_number }}
-  cancel-in-progress: true
+  group: aws-preview-${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number || 'global' }}
+  cancel-in-progress: false
 
 env:
   AWS_PREVIEW_CLOUDFORMATION_ROLE_ARN: ${{ vars.AWS_PREVIEW_CLOUDFORMATION_ROLE_ARN }}
@@ -40,14 +59,210 @@ env:
   AWS_PREVIEW_WORKER_ECR_REPOSITORY_URL: ${{ vars.AWS_PREVIEW_WORKER_ECR_REPOSITORY_URL }}
 
 jobs:
+  context:
+    name: Resolve preview command
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '/preview')) ||
+      github.event_name == 'pull_request' ||
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch'
+    permissions:
+      issues: write
+      pull-requests: read
+    outputs:
+      command: ${{ steps.resolve.outputs.command }}
+      pr_number: ${{ steps.resolve.outputs.pr_number }}
+      head_sha: ${{ steps.resolve.outputs.head_sha }}
+    steps:
+      - name: Resolve command, PR, and authorization
+        id: resolve
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const sameRepo = `${owner}/${repo}`;
+            const usage = [
+              "Available AWS preview commands:",
+              "",
+              "- `/preview deploy` — build this PR and (re)deploy the preview",
+              "- `/preview stop` — stop the preview instance (keeps data and URL)",
+              "- `/preview resume` — start a stopped preview instance",
+              "- `/preview destroy` — delete the preview stack and images",
+            ].join("\n");
+
+            let command = "";
+            let prNumber = "";
+            let headSha = "";
+
+            const reply = (body) =>
+              github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: context.payload.issue?.number,
+                body,
+              });
+
+            const loadPullRequest = async (number) => {
+              const { data: pr } = await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number: Number(number),
+              });
+              return pr;
+            };
+
+            if (context.eventName === "schedule") {
+              command = "stop-all";
+            } else if (context.eventName === "workflow_dispatch") {
+              command = context.payload.inputs.action;
+              prNumber = context.payload.inputs.pr_number || "";
+              if (command !== "stop-all") {
+                if (!prNumber) {
+                  core.setFailed("pr_number is required for per-PR actions.");
+                  return;
+                }
+                const pr = await loadPullRequest(prNumber);
+                if (pr.head.repo.full_name !== sameRepo) {
+                  core.setFailed("AWS previews are not available for fork PRs.");
+                  return;
+                }
+                headSha = pr.head.sha;
+              }
+            } else if (context.eventName === "pull_request") {
+              const pr = context.payload.pull_request;
+              prNumber = String(pr.number);
+              if (pr.head.repo.full_name !== sameRepo) {
+                core.info("Skipping: fork pull request.");
+              } else if (context.payload.action === "closed") {
+                command = "destroy";
+              } else {
+                command = "sync";
+                headSha = pr.head.sha;
+              }
+            } else if (context.eventName === "issue_comment") {
+              const body = (context.payload.comment.body || "").trim();
+              const match = body.match(/^\/preview(?:\s+([a-z-]+))?/i);
+              const aliases = {
+                deploy: "deploy",
+                redeploy: "deploy",
+                update: "deploy",
+                stop: "stop",
+                pause: "stop",
+                resume: "resume",
+                start: "resume",
+                destroy: "destroy",
+                delete: "destroy",
+                teardown: "destroy",
+              };
+              const word = (match?.[1] || "").toLowerCase();
+              const parsed = aliases[word];
+
+              if (!parsed) {
+                await reply(usage);
+                return;
+              }
+
+              const association = context.payload.comment.author_association;
+              if (!["OWNER", "MEMBER", "COLLABORATOR"].includes(association)) {
+                await reply(
+                  "Only maintainers can run `/preview` commands. " +
+                    `(author association: ${association})`,
+                );
+                return;
+              }
+
+              const pr = await loadPullRequest(context.payload.issue.number);
+              if (pr.head.repo.full_name !== sameRepo) {
+                await reply("AWS previews are not available for fork PRs.");
+                return;
+              }
+              if (pr.state !== "open" && parsed !== "destroy") {
+                await reply(
+                  "This PR is closed; only `/preview destroy` is available.",
+                );
+                return;
+              }
+
+              await github.rest.reactions.createForIssueComment({
+                owner,
+                repo,
+                comment_id: context.payload.comment.id,
+                content: "rocket",
+              });
+
+              command = parsed;
+              prNumber = String(context.payload.issue.number);
+              headSha = pr.head.sha;
+            }
+
+            core.info(`command=${command} pr=${prNumber} sha=${headSha}`);
+            core.setOutput("command", command);
+            core.setOutput("pr_number", prNumber);
+            core.setOutput("head_sha", headSha);
+
+  deploy_gate:
+    name: Check deploy preconditions
+    runs-on: ubuntu-latest
+    needs: context
+    if: contains(fromJSON('["deploy", "sync"]'), needs.context.outputs.command)
+    permissions:
+      id-token: write
+    outputs:
+      proceed: ${{ steps.gate.outputs.proceed }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          aws-region: ${{ env.AWS_PREVIEW_REGION }}
+          role-to-assume: ${{ env.AWS_PREVIEW_ROLE_ARN }}
+
+      - name: Decide whether to deploy
+        id: gate
+        env:
+          COMMAND: ${{ needs.context.outputs.command }}
+          PR_NUMBER: ${{ needs.context.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+
+          if [ "${COMMAND}" = "deploy" ]; then
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Push events only refresh previews that were explicitly deployed
+          # and are currently running. Stopped previews stay stopped.
+          stack_name="langfuse-preview-pr-${PR_NUMBER}"
+          instance_id="$(aws cloudformation describe-stacks \
+            --stack-name "${stack_name}" \
+            --query "Stacks[0].Outputs[?OutputKey=='InstanceId'].OutputValue" \
+            --output text 2>/dev/null || true)"
+
+          if [ -z "${instance_id}" ] || [ "${instance_id}" = "None" ]; then
+            echo "No preview stack for PR ${PR_NUMBER}; skipping auto-update."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          state="$(aws ec2 describe-instances \
+            --instance-ids "${instance_id}" \
+            --query "Reservations[0].Instances[0].State.Name" \
+            --output text)"
+
+          if [ "${state}" = "running" ]; then
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Preview instance is ${state}; skipping auto-update."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+          fi
+
   deploy:
     name: Deploy AWS preview
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    if: >-
-      (github.event_name == 'pull_request' &&
-      github.event.action != 'closed' &&
-      github.event.pull_request.head.repo.full_name == github.repository) ||
-      (github.event_name == 'workflow_dispatch' && inputs.action == 'deploy')
+    needs: [context, deploy_gate]
+    if: needs.deploy_gate.outputs.proceed == 'true'
     permissions:
       contents: read
       id-token: write
@@ -58,7 +273,7 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
-          ref: ${{ github.event.pull_request.head.sha || inputs.ref || github.sha }}
+          ref: ${{ needs.context.outputs.head_sha }}
 
       - name: Validate preview configuration
         run: |
@@ -102,15 +317,11 @@ jobs:
       - name: Resolve preview metadata
         id: preview
         env:
-          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+          PR_NUMBER: ${{ needs.context.outputs.pr_number }}
         run: |
           set -euo pipefail
 
-          pr_number="${{ github.event.pull_request.number }}"
-          if [ -z "${pr_number}" ]; then
-            pr_number="${INPUT_PR_NUMBER}"
-          fi
-
+          pr_number="${PR_NUMBER}"
           commit_sha="$(git rev-parse HEAD)"
           short_sha="${commit_sha:0:12}"
           stack_name="langfuse-preview-pr-${pr_number}"
@@ -196,6 +407,20 @@ jobs:
         run: |
           set -euo pipefail
 
+          # A stack stuck in a failed create state cannot be updated;
+          # delete it and start fresh.
+          status="$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].StackStatus" \
+            --output text 2>/dev/null || true)"
+          case "${status}" in
+            ROLLBACK_COMPLETE|ROLLBACK_FAILED|CREATE_FAILED)
+              echo "Stack is in ${status}; deleting before redeploy."
+              aws cloudformation delete-stack --stack-name "${STACK_NAME}"
+              aws cloudformation wait stack-delete-complete --stack-name "${STACK_NAME}"
+              ;;
+          esac
+
           aws cloudformation deploy \
             --stack-name "${STACK_NAME}" \
             --template-file deployment/aws-preview/cloudformation.yaml \
@@ -231,6 +456,20 @@ jobs:
             --stack-name "${STACK_NAME}" \
             --query "Stacks[0].Outputs[?OutputKey=='PublicIp'].OutputValue" \
             --output text)"
+
+          # An explicit /preview deploy on a stopped preview boots it again.
+          state="$(aws ec2 describe-instances \
+            --instance-ids "${instance_id}" \
+            --query "Reservations[0].Instances[0].State.Name" \
+            --output text)"
+          if [ "${state}" = "stopping" ]; then
+            aws ec2 wait instance-stopped --instance-ids "${instance_id}"
+            state="stopped"
+          fi
+          if [ "${state}" != "running" ] && [ "${state}" != "pending" ]; then
+            aws ec2 start-instances --instance-ids "${instance_id}"
+          fi
+          aws ec2 wait instance-running --instance-ids "${instance_id}"
 
           echo "instance_id=${instance_id}" >> "$GITHUB_OUTPUT"
           echo "public_ip=${public_ip}" >> "$GITHUB_OUTPUT"
@@ -324,12 +563,13 @@ jobs:
 
       - name: Check preview health
         env:
-          PUBLIC_IP: ${{ steps.host.outputs.public_ip }}
+          PREVIEW_HOST: ${{ steps.preview.outputs.preview_host }}
         run: |
           set -euo pipefail
 
-          for _ in $(seq 1 60); do
-            if curl -fsS "http://${PUBLIC_IP}/api/public/health" >/dev/null; then
+          # TLS certificate issuance on first deploy can take a minute.
+          for _ in $(seq 1 90); do
+            if curl -fsS --max-time 10 "https://${PREVIEW_HOST}/api/public/health" >/dev/null; then
               exit 0
             fi
             sleep 5
@@ -338,68 +578,296 @@ jobs:
           echo "Preview did not become healthy."
           exit 1
 
-      - name: Comment preview link
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        env:
-          COMMIT_SHA: ${{ steps.preview.outputs.commit_sha }}
-          LOGIN_EMAIL: ${{ steps.preview.outputs.login_email }}
-          LOGIN_PASSWORD: ${{ steps.preview.outputs.login_password }}
-          PREVIEW_URL: http://${{ steps.preview.outputs.preview_host }}
-          PR_NUMBER: ${{ steps.preview.outputs.pr_number }}
-          PUBLIC_KEY: ${{ steps.preview.outputs.public_key }}
-          SECRET_KEY: ${{ steps.preview.outputs.secret_key }}
+      - name: Update status comment
+        uses: ./.github/actions/aws-preview-comment
         with:
-          script: |
-            const marker = "<!-- aws-pr-preview -->";
-            const body = `${marker}
-            AWS preview: ${process.env.PREVIEW_URL}
+          pr-number: ${{ steps.preview.outputs.pr_number }}
+          body: |
+            ### 🟢 AWS preview running
 
-            Login: \`${process.env.LOGIN_EMAIL}\` / \`${process.env.LOGIN_PASSWORD}\`
-            API keys: \`${process.env.PUBLIC_KEY}\` / \`${process.env.SECRET_KEY}\`
+            **URL:** https://${{ steps.preview.outputs.preview_host }}
+            **Login:** `${{ steps.preview.outputs.login_email }}` / `${{ steps.preview.outputs.login_password }}`
+            **API keys:** `${{ steps.preview.outputs.public_key }}` / `${{ steps.preview.outputs.secret_key }}`
+            **Commit:** ${{ steps.preview.outputs.commit_sha }}
 
-            Synthetic preview data only. Updated at: ${new Date().toISOString()}
-            Commit: ${process.env.COMMIT_SHA}`;
+            Synthetic preview data only. Previews are stopped automatically overnight.
+            Commands: `/preview deploy` · `/preview stop` · `/preview resume` · `/preview destroy`
 
-            const { owner, repo } = context.repo;
-            const issue_number = Number(process.env.PR_NUMBER);
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner,
-              repo,
-              issue_number,
-              per_page: 100,
-            });
-            const previousComment = comments.find(
-              (comment) =>
-                comment.user?.login === "github-actions[bot]" &&
-                comment.body?.includes(marker),
-            );
+      - name: Report failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.context.outputs.pr_number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh pr comment "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}" \
+            --body "⚠️ AWS preview deploy failed: ${RUN_URL}"
 
-            if (previousComment) {
-              await github.rest.issues.updateComment({
-                owner,
-                repo,
-                comment_id: previousComment.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner,
-                repo,
-                issue_number,
-                body,
-              });
-            }
-
-  teardown:
-    name: Destroy AWS preview
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    if: >-
-      (github.event_name == 'pull_request' &&
-      github.event.action == 'closed' &&
-      github.event.pull_request.head.repo.full_name == github.repository) ||
-      (github.event_name == 'workflow_dispatch' && inputs.action == 'destroy')
+  stop:
+    name: Stop AWS preview
+    runs-on: ubuntu-latest
+    needs: context
+    if: needs.context.outputs.command == 'stop'
     permissions:
-      contents: read
+      id-token: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout composite actions
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.repository.default_branch }}
+          sparse-checkout: .github
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          aws-region: ${{ env.AWS_PREVIEW_REGION }}
+          role-to-assume: ${{ env.AWS_PREVIEW_ROLE_ARN }}
+
+      - name: Stop preview instance
+        id: stop
+        env:
+          PR_NUMBER: ${{ needs.context.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+
+          stack_name="langfuse-preview-pr-${PR_NUMBER}"
+          instance_id="$(aws cloudformation describe-stacks \
+            --stack-name "${stack_name}" \
+            --query "Stacks[0].Outputs[?OutputKey=='InstanceId'].OutputValue" \
+            --output text 2>/dev/null || true)"
+
+          if [ -z "${instance_id}" ] || [ "${instance_id}" = "None" ]; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          aws ec2 stop-instances --instance-ids "${instance_id}"
+          aws ec2 wait instance-stopped --instance-ids "${instance_id}"
+          echo "exists=true" >> "$GITHUB_OUTPUT"
+
+      - name: Update status comment
+        if: steps.stop.outputs.exists == 'true'
+        uses: ./.github/actions/aws-preview-comment
+        with:
+          pr-number: ${{ needs.context.outputs.pr_number }}
+          body: |
+            ### ⏸️ AWS preview stopped
+
+            Data, URL, and TLS certificate are kept. Resume with `/preview resume`.
+
+      - name: Report missing preview
+        if: steps.stop.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.context.outputs.pr_number }}
+        run: |
+          gh pr comment "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}" \
+            --body "There is no AWS preview for this PR. Deploy one with \`/preview deploy\`."
+
+      - name: Report failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.context.outputs.pr_number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh pr comment "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}" \
+            --body "⚠️ AWS preview stop failed: ${RUN_URL}"
+
+  resume:
+    name: Resume AWS preview
+    runs-on: ubuntu-latest
+    needs: context
+    if: needs.context.outputs.command == 'resume'
+    permissions:
+      id-token: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout composite actions
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.repository.default_branch }}
+          sparse-checkout: .github
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          aws-region: ${{ env.AWS_PREVIEW_REGION }}
+          role-to-assume: ${{ env.AWS_PREVIEW_ROLE_ARN }}
+
+      - name: Start preview instance
+        id: start
+        env:
+          PR_NUMBER: ${{ needs.context.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+
+          stack_name="langfuse-preview-pr-${PR_NUMBER}"
+          instance_id="$(aws cloudformation describe-stacks \
+            --stack-name "${stack_name}" \
+            --query "Stacks[0].Outputs[?OutputKey=='InstanceId'].OutputValue" \
+            --output text 2>/dev/null || true)"
+
+          if [ -z "${instance_id}" ] || [ "${instance_id}" = "None" ]; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          aws ec2 start-instances --instance-ids "${instance_id}"
+          aws ec2 wait instance-running --instance-ids "${instance_id}"
+          echo "exists=true" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for preview health
+        if: steps.start.outputs.exists == 'true'
+        env:
+          PR_NUMBER: ${{ needs.context.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+
+          preview_host="pr-${PR_NUMBER}.${AWS_PREVIEW_DOMAIN_NAME}"
+
+          # Containers restart automatically on boot (docker restart policy);
+          # give the stack a few minutes to come back.
+          for _ in $(seq 1 90); do
+            if curl -fsS --max-time 10 "https://${preview_host}/api/public/health" >/dev/null; then
+              exit 0
+            fi
+            sleep 5
+          done
+
+          echo "Preview did not become healthy after resume."
+          exit 1
+
+      - name: Update status comment
+        if: steps.start.outputs.exists == 'true'
+        uses: ./.github/actions/aws-preview-comment
+        with:
+          pr-number: ${{ needs.context.outputs.pr_number }}
+          body: |
+            ### 🟢 AWS preview running
+
+            **URL:** https://pr-${{ needs.context.outputs.pr_number }}.${{ env.AWS_PREVIEW_DOMAIN_NAME }}
+
+            Resumed with the previously deployed images. Run `/preview deploy` to update
+            to the latest commit.
+            Commands: `/preview deploy` · `/preview stop` · `/preview resume` · `/preview destroy`
+
+      - name: Report missing preview
+        if: steps.start.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.context.outputs.pr_number }}
+        run: |
+          gh pr comment "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}" \
+            --body "There is no AWS preview for this PR. Deploy one with \`/preview deploy\`."
+
+      - name: Report failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.context.outputs.pr_number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh pr comment "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}" \
+            --body "⚠️ AWS preview resume failed: ${RUN_URL}"
+
+  destroy:
+    name: Destroy AWS preview
+    runs-on: ubuntu-latest
+    needs: context
+    if: needs.context.outputs.command == 'destroy'
+    permissions:
+      id-token: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout composite actions
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.repository.default_branch }}
+          sparse-checkout: .github
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          aws-region: ${{ env.AWS_PREVIEW_REGION }}
+          role-to-assume: ${{ env.AWS_PREVIEW_ROLE_ARN }}
+
+      - name: Delete preview stack
+        id: delete
+        env:
+          PR_NUMBER: ${{ needs.context.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+
+          stack_name="langfuse-preview-pr-${PR_NUMBER}"
+
+          if aws cloudformation describe-stacks --stack-name "${stack_name}" >/dev/null 2>&1; then
+            aws cloudformation delete-stack --stack-name "${stack_name}"
+            aws cloudformation wait stack-delete-complete --stack-name "${stack_name}"
+            echo "existed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Preview stack ${stack_name} does not exist."
+            echo "existed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Delete preview images
+        env:
+          PR_NUMBER: ${{ needs.context.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+
+          for repository_url in \
+            "${AWS_PREVIEW_WEB_ECR_REPOSITORY_URL}" \
+            "${AWS_PREVIEW_WORKER_ECR_REPOSITORY_URL}"; do
+            repository_name="${repository_url#*/}"
+            image_ids="$(aws ecr list-images \
+              --repository-name "${repository_name}" \
+              --filter tagStatus=TAGGED \
+              --query "imageIds[?starts_with(imageTag, 'pr-${PR_NUMBER}-')]" \
+              --output json)"
+
+            if [ "${image_ids}" != "[]" ]; then
+              aws ecr batch-delete-image \
+                --repository-name "${repository_name}" \
+                --image-ids "${image_ids}" >/dev/null
+              echo "Deleted preview images from ${repository_name}."
+            fi
+          done
+
+      - name: Update status comment
+        if: steps.delete.outputs.existed == 'true'
+        uses: ./.github/actions/aws-preview-comment
+        with:
+          pr-number: ${{ needs.context.outputs.pr_number }}
+          body: |
+            ### 🗑️ AWS preview destroyed
+
+            The preview stack and its images were deleted. Start a new preview with
+            `/preview deploy`.
+
+      - name: Report failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.context.outputs.pr_number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh pr comment "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}" \
+            --body "⚠️ AWS preview destroy failed: ${RUN_URL}"
+
+  stop_all:
+    name: Stop all AWS previews
+    runs-on: ubuntu-latest
+    needs: context
+    if: needs.context.outputs.command == 'stop-all'
+    permissions:
       id-token: write
       issues: write
       pull-requests: write
@@ -410,54 +878,32 @@ jobs:
           aws-region: ${{ env.AWS_PREVIEW_REGION }}
           role-to-assume: ${{ env.AWS_PREVIEW_ROLE_ARN }}
 
-      - name: Delete preview stack
+      - name: Stop running preview instances
         env:
-          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
-          pr_number="${{ github.event.pull_request.number }}"
-          if [ -z "${pr_number}" ]; then
-            pr_number="${INPUT_PR_NUMBER}"
-          fi
-          stack_name="langfuse-preview-pr-${pr_number}"
+          instances="$(aws ec2 describe-instances \
+            --filters \
+              "Name=tag:Project,Values=langfuse-preview" \
+              "Name=instance-state-name,Values=running" \
+            --query "Reservations[].Instances[].[InstanceId, Tags[?Key=='PullRequest'] | [0].Value]" \
+            --output text)"
 
-          if ! aws cloudformation describe-stacks --stack-name "${stack_name}" >/dev/null 2>&1; then
-            echo "Preview stack ${stack_name} does not exist."
+          if [ -z "${instances}" ]; then
+            echo "No running preview instances."
             exit 0
           fi
 
-          aws cloudformation delete-stack --stack-name "${stack_name}"
-          aws cloudformation wait stack-delete-complete --stack-name "${stack_name}"
+          while read -r instance_id pr_number; do
+            [ -z "${instance_id}" ] && continue
+            echo "Stopping ${instance_id} (PR ${pr_number})"
+            aws ec2 stop-instances --instance-ids "${instance_id}"
 
-      - name: Mark preview destroyed
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          script: |
-            const marker = "<!-- aws-pr-preview -->";
-            const body = `${marker}
-            AWS preview destroyed at ${new Date().toISOString()}.`;
-
-            const { owner, repo } = context.repo;
-            const issue_number = context.payload.pull_request.number;
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner,
-              repo,
-              issue_number,
-              per_page: 100,
-            });
-            const previousComment = comments.find(
-              (comment) =>
-                comment.user?.login === "github-actions[bot]" &&
-                comment.body?.includes(marker),
-            );
-
-            if (previousComment) {
-              await github.rest.issues.updateComment({
-                owner,
-                repo,
-                comment_id: previousComment.id,
-                body,
-              });
-            }
+            if [ -n "${pr_number}" ] && [ "${pr_number}" != "None" ]; then
+              gh pr comment "${pr_number}" --repo "${GITHUB_REPOSITORY}" \
+                --body "⏸️ AWS preview stopped automatically overnight. Resume with \`/preview resume\`." \
+                || echo "Could not comment on PR ${pr_number}."
+            fi
+          done <<< "${instances}"
