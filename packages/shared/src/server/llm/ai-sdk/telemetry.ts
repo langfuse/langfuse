@@ -1,6 +1,12 @@
 import { randomBytes } from "node:crypto";
 
-import { context, ROOT_CONTEXT, trace, type Span } from "@opentelemetry/api";
+import {
+  context,
+  ROOT_CONTEXT,
+  SpanStatusCode,
+  trace,
+  type Span,
+} from "@opentelemetry/api";
 import { JsonTraceSerializer } from "@opentelemetry/otlp-transformer";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import {
@@ -39,6 +45,12 @@ export type AiSdkTelemetryCapture = {
    * record of the LangChain internal-tracing path.
    */
   setRootOutput: (output: unknown) => void;
+  /**
+   * Marks the root span (and thus the internal trace) as failed. Call before
+   * `flush`, so a failed completion is visible as an ERROR-level root
+   * observation instead of a bare 0-duration span.
+   */
+  setRootError: (error: unknown) => void;
   /**
    * Ends the root span and publishes all captured spans to the regular OTel
    * ingestion pipeline (same S3 + queue path as the public
@@ -195,6 +207,15 @@ export function createAiSdkTelemetryCapture(params: {
     );
   };
 
+  const setRootError = (error: unknown): void => {
+    if (flushed) return;
+    rootSpan.setStatus({
+      code: SpanStatusCode.ERROR,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    if (error instanceof Error) rootSpan.recordException(error);
+  };
+
   const flush = async (): Promise<void> => {
     if (flushed) return;
     flushed = true;
@@ -255,6 +276,7 @@ export function createAiSdkTelemetryCapture(params: {
     telemetry: { isEnabled: true, integrations: [otelIntegration] },
     run: (fn) => context.with(activeContext, fn),
     setRootOutput,
+    setRootError,
     flush,
   };
 }

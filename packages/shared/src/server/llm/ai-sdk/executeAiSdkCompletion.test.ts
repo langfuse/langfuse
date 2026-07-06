@@ -119,6 +119,9 @@ describe("executeAiSdkCompletion", () => {
         topP: 0.9,
         maxRetries: 2,
         timeout: 5_000,
+        // System-first message lists (compiled prompts, playground) throw
+        // InvalidPromptError in AI SDK v7 without this opt-in.
+        allowSystemInMessages: true,
         providerOptions: { openai: { reasoningEffort: "high" } },
         messages: [{ role: "user", content: "Hi" }],
       }),

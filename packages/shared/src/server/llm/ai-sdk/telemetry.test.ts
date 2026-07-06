@@ -120,4 +120,22 @@ describe("createAiSdkTelemetryCapture", () => {
 
     await expect(capture!.flush()).resolves.toBeUndefined();
   });
+
+  it("marks the root span as errored via setRootError", async () => {
+    const capture = createAiSdkTelemetryCapture({
+      traceSinkParams,
+    });
+
+    capture!.setRootError(new Error("completion failed"));
+    await capture!.flush();
+
+    const resourceSpans = publishToOtelIngestionQueue.mock.calls[0][0];
+    const rootSpan = resourceSpans[0].scopeSpans[0].spans[0];
+
+    // OTLP JSON status code 2 = ERROR
+    expect(rootSpan.status).toMatchObject({
+      code: 2,
+      message: "completion failed",
+    });
+  });
 });

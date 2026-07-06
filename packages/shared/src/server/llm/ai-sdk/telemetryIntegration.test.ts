@@ -56,7 +56,17 @@ const modelParams: ModelParams = {
   max_tokens: 128,
 };
 
+// System-first message lists are the norm for compiled experiment prompts and
+// playground calls; AI SDK v7 rejects system messages in `messages` unless
+// allowSystemInMessages is set, so this shape must go through the REAL
+// generateText here (regression: every experiment item failed instantly with
+// InvalidPromptError and undefined output).
 const messages: ChatMessage[] = [
+  {
+    type: ChatMessageType.System,
+    role: ChatMessageRole.System,
+    content: "You answer in a single word.",
+  },
   { type: ChatMessageType.User, role: ChatMessageRole.User, content: "Hi" },
 ];
 

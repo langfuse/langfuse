@@ -40,6 +40,7 @@ type CompletionWithReasoning = { text: string; reasoning?: string };
 type BaseCallOptions = {
   model: LanguageModel;
   messages: ModelMessage[];
+  allowSystemInMessages: boolean;
   maxOutputTokens?: number;
   temperature?: number;
   topP?: number;
@@ -110,6 +111,11 @@ export async function executeAiSdkCompletion(
   const baseOptions: BaseCallOptions = {
     model,
     messages: modelMessages,
+    // The message mapper keeps the first system/developer message as a system
+    // message inside `messages` (LangChain-parity). AI SDK v7 rejects that by
+    // default with InvalidPromptError — which silently failed every prompt
+    // experiment, since compiled prompts are system-first.
+    allowSystemInMessages: true,
     maxOutputTokens: modelParams.max_tokens,
     temperature: modelParams.temperature,
     topP: modelParams.top_p,
@@ -187,7 +193,9 @@ export async function executeAiSdkCompletion(
 
     return completion;
   } catch (e) {
-    throw toCompletionError(e, timeoutMs);
+    const completionError = toCompletionError(e, timeoutMs);
+    capture?.setRootError(completionError);
+    throw completionError;
   } finally {
     await capture?.flush();
   }
@@ -259,7 +267,9 @@ function executeStreaming(args: {
       }
       capture?.setRootOutput(completedText);
     } catch (e) {
-      throw toCompletionError(e, timeoutMs);
+      const completionError = toCompletionError(e, timeoutMs);
+      capture?.setRootError(completionError);
+      throw completionError;
     } finally {
       await capture?.flush();
     }
