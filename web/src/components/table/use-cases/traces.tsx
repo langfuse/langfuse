@@ -1537,7 +1537,7 @@ export default function TracesTable({
               onColumnOrderChange={setColumnOrder}
               rowHeight={rowHeight}
               peekView={peekConfig}
-              tableName={"traces"}
+              tableName="traces"
             />
           </div>
         </ResizableFilterLayout>

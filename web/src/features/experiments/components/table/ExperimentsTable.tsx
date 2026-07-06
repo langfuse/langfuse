@@ -798,7 +798,7 @@ export default function ExperimentsTable({
             <div className="flex flex-1 flex-col overflow-hidden">
               <DataTable
                 key={`experiments-table-${dataUpdatedAt}`}
-                tableName={"experiments"}
+                tableName="experiments"
                 columns={columns}
                 data={
                   experiments.status === "loading" || isViewLoading
