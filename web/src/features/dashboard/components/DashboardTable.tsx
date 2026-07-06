@@ -283,7 +283,7 @@ export function DashboardTable() {
 
   return (
     <DataTable
-      tableName={"dashboards"}
+      tableName="dashboards"
       columns={dashboardColumns}
       data={
         dashboards.isPending
