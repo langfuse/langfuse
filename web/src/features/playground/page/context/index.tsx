@@ -74,6 +74,14 @@ type PlaygroundContextType = {
 
   handleSubmit: (streaming?: boolean) => Promise<void>;
   isStreaming: boolean;
+
+  // Scroll-into-view for a freshly appended message (LFE-6864). ChatMessages
+  // owns the row/editor registry and registers its scroll helper here; append
+  // sites outside AddMessageButton (e.g. GenerationOutput's "Add to messages")
+  // call scrollToMessage so the new row lands in view rather than below the
+  // fold.
+  scrollToMessage: (id: string) => void;
+  registerScrollToMessage: (fn: ((id: string) => void) | null) => void;
 } & ModelParamsContext &
   MessagesContext;
 
@@ -137,6 +145,20 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     providerModelCombinations,
   } = useModelParams(windowId);
   const { registerWindow, unregisterWindow } = useWindowCoordination();
+
+  // ChatMessages registers its scroll-into-view helper here so sibling append
+  // sites (e.g. GenerationOutput) can scroll a newly added message into view
+  // (LFE-6864).
+  const scrollToMessageRef = useRef<((id: string) => void) | null>(null);
+  const registerScrollToMessage = useCallback(
+    (fn: ((id: string) => void) | null) => {
+      scrollToMessageRef.current = fn;
+    },
+    [],
+  );
+  const scrollToMessage = useCallback((id: string) => {
+    scrollToMessageRef.current?.(id);
+  }, []);
 
   const toolCallIds = messages.reduce((acc, m) => {
     if (m.type === ChatMessageType.AssistantToolCall) {
@@ -712,6 +734,8 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         outputToolCalls,
         handleSubmit,
         isStreaming,
+        scrollToMessage,
+        registerScrollToMessage,
 
         availableProviders,
         availableModels,

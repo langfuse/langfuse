@@ -256,10 +256,12 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   ]);
 
   // Keep the parent ChatMessages registry in sync so it can scroll to and
-  // focus this row when it is the newly added message (LFE-6864).
+  // focus this row when it is the newly added message (LFE-6864). The actual
+  // registration happens in handleEditorMount once CodeMirror has mounted and
+  // editorRef.current is populated — registering here on first render would
+  // store a null editor (CodeMirror mounts async). This effect only handles
+  // unregistering the row when it unmounts.
   useEffect(() => {
-    registerRow?.(message.id, { rowRef, editorRef });
-
     return () => {
       registerRow?.(message.id, null);
     };

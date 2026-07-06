@@ -1,5 +1,5 @@
 import { ChevronDownIcon, PlusCircleIcon } from "lucide-react";
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -43,10 +43,13 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { isString } from "@/src/utils/types";
+import { useOptionalPlaygroundContext } from "@/src/features/playground/page/context";
 
 type ChatMessagesProps = MessagesContext;
 export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
   const { messages } = props;
+  const playgroundContext = useOptionalPlaygroundContext();
+  const registerScrollToMessage = playgroundContext?.registerScrollToMessage;
 
   // Registry of the DOM row + editor refs for each message, keyed by id.
   // Populated by each ChatMessageComponent so that after a new message is
@@ -93,6 +96,18 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
 
     requestAnimationFrame(attempt);
   }, []);
+
+  // Expose scrollToMessage to the playground context so append sites other than
+  // AddMessageButton (e.g. GenerationOutput's "Add to messages") can scroll the
+  // newly appended message into view too (LFE-6864). No-op outside the
+  // playground (e.g. the New Prompt chat editor), where the context is absent.
+  useEffect(() => {
+    if (!registerScrollToMessage) return;
+    registerScrollToMessage(scrollToMessage);
+    return () => {
+      registerScrollToMessage(null);
+    };
+  }, [registerScrollToMessage, scrollToMessage]);
 
   const sensors = useSensors(
     useSensor(MouseSensor, {}),
@@ -168,6 +183,13 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
   addMessage,
   scrollToMessage,
 }) => {
+  // Tracks whether the role dropdown is closing because a menu item was
+  // selected (vs. Escape / click-outside). Only then do we suppress Radix's
+  // focus-return to the trigger, so our scrollToMessage can focus the new
+  // editor. On dismissal we let Radix return focus to the trigger button per
+  // the WAI-ARIA menu button pattern (LFE-6864).
+  const selectedViaItemRef = useRef(false);
+
   // Skip placeholder messages when determining last roles
   const lastMessageWithRole = messages
     .slice()
@@ -199,6 +221,9 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
   };
 
   const addMessageWithRole = (role: ChatMessageRole) => {
+    // A menu item was selected: keep focus on the editor we're about to focus
+    // rather than letting Radix return it to the trigger on close.
+    selectedViaItemRef.current = true;
     let newMessage: ChatMessageWithId;
     switch (role) {
       case ChatMessageRole.User:
@@ -276,10 +301,19 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="end"
-            // Let the newly added message's editor keep focus: without this,
-            // Radix restores focus to the trigger button on close, stealing it
-            // back from the editor we focus after appending (LFE-6864).
-            onCloseAutoFocus={(event) => event.preventDefault()}
+            // When a menu item was selected, let the newly added message's
+            // editor keep focus: without this, Radix restores focus to the
+            // trigger button on close, stealing it back from the editor we
+            // focus after appending. On Escape / click-outside we leave Radix's
+            // default focus-return to the trigger intact so keyboard users
+            // aren't dropped onto <body> (WAI-ARIA menu button pattern,
+            // LFE-6864).
+            onCloseAutoFocus={(event) => {
+              if (selectedViaItemRef.current) {
+                event.preventDefault();
+                selectedViaItemRef.current = false;
+              }
+            }}
           >
             <DropdownMenuItem
               onClick={() => addMessageWithRole(ChatMessageRole.User)}

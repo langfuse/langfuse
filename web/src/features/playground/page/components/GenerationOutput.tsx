@@ -12,8 +12,14 @@ export const GenerationOutput = () => {
   const [isAdded, setIsAdded] = useState(false);
   const [isJson, setIsJson] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
-  const { output, outputReasoning, outputJson, addMessage, outputToolCalls } =
-    usePlaygroundContext();
+  const {
+    output,
+    outputReasoning,
+    outputJson,
+    addMessage,
+    outputToolCalls,
+    scrollToMessage,
+  } = usePlaygroundContext();
 
   const handleCopy = () => {
     setIsCopied(true);
@@ -24,20 +30,22 @@ export const GenerationOutput = () => {
 
   const handleAddAssistantMessage = () => {
     setIsAdded(true);
-    if (outputToolCalls.length > 0) {
-      addMessage({
-        type: ChatMessageType.AssistantToolCall,
-        role: ChatMessageRole.Assistant,
-        content: output,
-        toolCalls: outputToolCalls,
-      });
-    } else {
-      addMessage({
-        type: ChatMessageType.AssistantText,
-        role: ChatMessageRole.Assistant,
-        content: output,
-      });
-    }
+    const newMessage =
+      outputToolCalls.length > 0
+        ? addMessage({
+            type: ChatMessageType.AssistantToolCall,
+            role: ChatMessageRole.Assistant,
+            content: output,
+            toolCalls: outputToolCalls,
+          })
+        : addMessage({
+            type: ChatMessageType.AssistantText,
+            role: ChatMessageRole.Assistant,
+            content: output,
+          });
+    // Scroll the appended assistant message into view; unlike the button path
+    // we don't steal focus for a programmatic add (LFE-6864).
+    scrollToMessage(newMessage.id);
     setTimeout(() => setIsAdded(false), 1000);
   };
 
