@@ -24,7 +24,6 @@ export enum SystemTableViewPresetCategory {
   SlowCalls = "slow-calls",
   Errors = "errors",
   CostRegression = "cost-regression",
-  LowQuality = "low-quality",
 }
 
 export const SYSTEM_TABLE_VIEW_PRESET_CATEGORY_META: Record<
@@ -32,14 +31,15 @@ export const SYSTEM_TABLE_VIEW_PRESET_CATEGORY_META: Record<
   { label: string; order: number }
 > = {
   [SystemTableViewPresetCategory.SlowCalls]: { label: "Slow", order: 1 },
-  [SystemTableViewPresetCategory.Errors]: { label: "Errors", order: 2 },
+  // "Quality" here is the home of the (coming-soon) eval-score / feedback
+  // presets; errors and quality are grouped into one chip.
+  [SystemTableViewPresetCategory.Errors]: {
+    label: "Errors & Quality",
+    order: 2,
+  },
   [SystemTableViewPresetCategory.CostRegression]: {
     label: "Cost",
     order: 3,
-  },
-  [SystemTableViewPresetCategory.LowQuality]: {
-    label: "Low quality",
-    order: 4,
   },
 };
 

@@ -55,44 +55,7 @@ const buildSystemPreset = ({
   },
 });
 
-const buildFilterOnlySystemPreset = (args: {
-  id: string;
-  name: string;
-  description?: string;
-  tableName: TableViewPresetTableName;
-  filters: TableViewPresetState["filters"];
-}): SystemTableViewPreset => buildSystemPreset(args);
-
 const OBSERVATIONS_EVENTS_SYSTEM_TABLE_VIEW_PRESETS: SystemTableViewPreset[] = [
-  buildFilterOnlySystemPreset({
-    id: `${SYSTEM_TABLE_VIEW_PRESET_ID_PREFIX}trace_root_observations`,
-    name: "Root Observations",
-    description:
-      "See top-level observations only, good for trace-level analysis",
-    tableName: TableViewPresetTableName.ObservationsEvents,
-    filters: [
-      {
-        column: "isRootObservation",
-        type: "boolean",
-        operator: "=",
-        value: true,
-      },
-    ],
-  }),
-  buildFilterOnlySystemPreset({
-    id: `${SYSTEM_TABLE_VIEW_PRESET_ID_PREFIX}generations_only`,
-    name: "Generations Only",
-    description: "Focus on LLM generation observations",
-    tableName: TableViewPresetTableName.ObservationsEvents,
-    filters: [
-      {
-        column: "type",
-        type: "stringOptions",
-        operator: "any of",
-        value: ["GENERATION"],
-      },
-    ],
-  }),
   buildSystemPreset({
     id: `${SYSTEM_TABLE_VIEW_PRESET_ID_PREFIX}errors_only`,
     name: "Errors Only",
@@ -105,20 +68,6 @@ const OBSERVATIONS_EVENTS_SYSTEM_TABLE_VIEW_PRESETS: SystemTableViewPreset[] = [
         type: "stringOptions",
         operator: "any of",
         value: ["ERROR"],
-      },
-    ],
-  }),
-  buildFilterOnlySystemPreset({
-    id: `${SYSTEM_TABLE_VIEW_PRESET_ID_PREFIX}agent_workflow`,
-    name: "Agent Workflow",
-    description: "Follow agent steps, tool calls, and retrievals",
-    tableName: TableViewPresetTableName.ObservationsEvents,
-    filters: [
-      {
-        column: "type",
-        type: "stringOptions",
-        operator: "any of",
-        value: ["AGENT", "CHAIN", "TOOL", "RETRIEVER"],
       },
     ],
   }),
@@ -196,6 +145,21 @@ const OBSERVATIONS_EVENTS_SYSTEM_TABLE_VIEW_PRESETS: SystemTableViewPreset[] = [
         type: "null",
         operator: "is not null",
         value: "",
+      },
+    ],
+  }),
+  buildSystemPreset({
+    id: `${SYSTEM_TABLE_VIEW_PRESET_ID_PREFIX}review_output_generations`,
+    name: "Review output (generations)",
+    description: "LLM generation outputs, for reviewing response quality",
+    tableName: TableViewPresetTableName.ObservationsEvents,
+    category: SystemTableViewPresetCategory.Errors,
+    filters: [
+      {
+        column: "type",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["GENERATION"],
       },
     ],
   }),

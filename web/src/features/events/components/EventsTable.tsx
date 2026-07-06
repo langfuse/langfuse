@@ -109,6 +109,7 @@ import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsS
 import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import { CategoryPresetChips } from "@/src/features/events/components/CategoryPresetChips";
+import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import { withMetadataPathOptions } from "@/src/features/search-bar/lib/metadata-paths";
 import {
   useObservedMetadataPaths,
@@ -1640,11 +1641,6 @@ export default function ObservationsEventsTable({
               currentSearchQuery={
                 searchBarMode ? (searchQuery ?? "") : undefined
               }
-              viewConfig={{
-                tableName: TableViewPresetTableName.ObservationsEvents,
-                projectId,
-                controllers: viewControllers,
-              }}
               columnsWithCustomSelect={[
                 "providedModelName",
                 "name",
@@ -1721,8 +1717,9 @@ export default function ObservationsEventsTable({
               filterWithAI={!searchBarMode}
             />
             {/* px-2 matches the DataTableToolbar's horizontal inset so the
-                chips align with the filter/search/views controls above. */}
-            <div className="mt-1.5 px-2">
+                chips align with the filter/search controls above. The "My
+                Views" drawer trigger sits inline with the chips as a pill. */}
+            <div className="mt-1.5 flex flex-wrap items-center gap-2 px-2">
               <CategoryPresetChips
                 projectId={projectId}
                 activeViewId={
@@ -1732,6 +1729,21 @@ export default function ObservationsEventsTable({
                 onApplyView={viewControllers.handleSetViewId}
                 applyViewState={viewControllers.applyViewState}
                 onPreviewView={previewViewInSearchBar}
+              />
+              <TableViewPresetsDrawer
+                chipStyle
+                viewConfig={{
+                  tableName: TableViewPresetTableName.ObservationsEvents,
+                  projectId,
+                  controllers: viewControllers,
+                }}
+                currentState={{
+                  orderBy: orderByState ?? null,
+                  filters: queryFilter.explicitFilterState ?? [],
+                  columnOrder,
+                  columnVisibility,
+                  searchQuery: searchQuery ?? "",
+                }}
               />
             </div>
           </div>
