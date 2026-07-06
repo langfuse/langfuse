@@ -20,7 +20,10 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { v4 as uuidv4 } from "uuid";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
+import {
+  DashboardGrid,
+  type DashboardPlacement,
+} from "@/src/features/widgets/components/DashboardGrid";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
@@ -33,16 +36,6 @@ import {
   getDashboardQuerySchedulerMaxConcurrent,
   useDashboardQueryScheduler,
 } from "@/src/hooks/useDashboardQueryScheduler";
-
-interface WidgetPlacement {
-  id: string;
-  widgetId: string;
-  x: number;
-  y: number;
-  x_size: number;
-  y_size: number;
-  type: "widget";
-}
 
 export default function DashboardDetail() {
   const router = useRouter();
@@ -95,7 +88,7 @@ export default function DashboardDetail() {
 
   // State for handling widget deletion and addition
   const [localDashboardDefinition, setLocalDashboardDefinition] = useState<{
-    widgets: WidgetPlacement[];
+    widgets: DashboardPlacement[];
   } | null>(null);
 
   // State for the widget selection dialog
@@ -136,7 +129,7 @@ export default function DashboardDetail() {
     });
 
   const saveDashboardChanges = useDebounce(
-    (definition: { widgets: WidgetPlacement[] }) => {
+    (definition: { widgets: DashboardPlacement[] }) => {
       if (!hasCUDAccess) return;
       updateDashboardDefinition.mutate({
         projectId,
@@ -173,7 +166,7 @@ export default function DashboardDetail() {
           : 0;
 
       // Create a new widget placement
-      const newWidgetPlacement: WidgetPlacement = {
+      const newWidgetPlacement: DashboardPlacement = {
         id: uuidv4(),
         widgetId: widget.id,
         x: 0, // Start at left
@@ -306,7 +299,7 @@ export default function DashboardDetail() {
     if (localDashboardDefinition && widgetToAdd.data && addWidgetId) {
       if (
         !localDashboardDefinition.widgets.some(
-          (w) => w.widgetId === addWidgetId,
+          (w) => w.type === "widget" && w.widgetId === addWidgetId,
         )
       ) {
         addWidgetToDashboard(widgetToAdd.data);

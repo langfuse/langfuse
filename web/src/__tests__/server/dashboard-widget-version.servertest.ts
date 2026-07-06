@@ -329,6 +329,53 @@ describe("dashboard widget minVersion", () => {
       expect(copiedWidget!.minVersion).toBe(2);
       expect(copiedWidget!.owner).toBe("PROJECT");
     });
+
+    it("should round-trip preset placements in the dashboard definition", async () => {
+      const dashboard = await DashboardService.createDashboard(
+        projectId,
+        "Preset Dashboard",
+        "A dashboard mixing widget and preset placements",
+        userId,
+      );
+
+      const definition = {
+        widgets: [
+          {
+            type: "widget" as const,
+            id: "placement-widget",
+            widgetId: uuidv4(),
+            x: 0,
+            y: 0,
+            x_size: 6,
+            y_size: 4,
+          },
+          {
+            type: "preset" as const,
+            id: "placement-preset",
+            presetId: "home-traces",
+            x: 6,
+            y: 0,
+            x_size: 6,
+            y_size: 4,
+          },
+        ],
+      };
+
+      await DashboardService.updateDashboardDefinition(
+        dashboard.id,
+        projectId,
+        definition,
+        userId,
+      );
+
+      const fetched = await DashboardService.getDashboard(
+        dashboard.id,
+        projectId,
+      );
+
+      expect(fetched).not.toBeNull();
+      expect(fetched!.definition.widgets).toEqual(definition.widgets);
+    });
   });
 
   // ── tRPC measure-aggregation validation ──────────────────────────────

@@ -1,29 +1,23 @@
 import { useRouter } from "next/router";
-import { GenerationLatencyChart } from "@/src/features/dashboard/components/LatencyChart";
-import { ChartScores } from "@/src/features/dashboard/components/ChartScores";
-import { TracesBarListChart } from "@/src/features/dashboard/components/TracesBarListChart";
-import { ModelCostTable } from "@/src/features/dashboard/components/ModelCostTable";
-import { ScoresTable } from "@/src/features/dashboard/components/ScoresTable";
-import { ModelUsageChart } from "@/src/features/dashboard/components/ModelUsageChart";
-import { TracesAndObservationsTimeSeriesChart } from "@/src/features/dashboard/components/TracesTimeSeriesChart";
-import { UserChart } from "@/src/features/dashboard/components/UserChart";
+import { api } from "@/src/utils/api";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { useDashboardFilterOptions } from "@/src/hooks/useDashboardFilterOptions";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { type ColumnDefinition, type FilterState } from "@langfuse/shared";
+import {
+  LANGFUSE_HOME_DASHBOARD_DEFINITION,
+  LANGFUSE_HOME_DASHBOARD_ID,
+  type ColumnDefinition,
+  type FilterState,
+} from "@langfuse/shared";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { LatencyTables } from "@/src/features/dashboard/components/LatencyTables";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
-  findClosestDashboardInterval,
   toAbsoluteTimeRange,
-  type DashboardDateRangeAggregationOption,
 } from "@/src/utils/date-range-utils";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { ScoreAnalytics } from "@/src/features/dashboard/components/score-analytics/ScoreAnalytics";
 import SetupTracingButton from "@/src/features/setup/components/SetupTracingButton";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import Page from "@/src/components/layouts/page";
@@ -41,23 +35,7 @@ import {
   getDashboardQuerySchedulerMaxConcurrent,
   useDashboardQueryScheduler,
 } from "@/src/hooks/useDashboardQueryScheduler";
-
-const HOME_DASHBOARD_CARD_IDS = {
-  traces: "home:traces",
-  modelCosts: "home:model-costs",
-  scoresTable: "home:scores-table",
-  tracesTimeSeries: "home:traces-time-series",
-  modelUsage: "home:model-usage",
-  users: "home:users",
-  chartScores: "home:chart-scores",
-  latencyTables: "home:latency-tables",
-  generationLatency: "home:generation-latency",
-  scoreAnalytics: "home:score-analytics",
-} as const;
-
-// Shared across the home time-series charts so hovering one moves the time
-// crosshair on all of them (they share one time range + granularity). (LFE-10549)
-const HOME_DASHBOARD_SYNC_ID = "home-dashboard-timeseries";
+import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -67,7 +45,7 @@ export default function Dashboard() {
   const metricsVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
 
   const absoluteTimeRange = useMemo(
-    () => toAbsoluteTimeRange(timeRange),
+    () => toAbsoluteTimeRange(timeRange) ?? undefined,
     [timeRange],
   );
 
@@ -132,44 +110,35 @@ export default function Dashboard() {
 
   const dashboardTimeRangePresets = DASHBOARD_AGGREGATION_OPTIONS;
 
-  const agg = useMemo(() => {
-    if ("range" in timeRange) {
-      return timeRange.range as DashboardDateRangeAggregationOption;
-    }
-
-    return findClosestDashboardInterval(timeRange) ?? "last7Days";
-  }, [timeRange]);
-
-  const fromTimestamp = absoluteTimeRange?.from
-    ? absoluteTimeRange.from
-    : new Date(new Date().getTime() - 1000);
-  const toTimestamp = absoluteTimeRange?.to ? absoluteTimeRange.to : new Date();
-  const timeFilter = [
-    {
-      type: "datetime" as const,
-      column: "startTime",
-      operator: ">" as const,
-      value: fromTimestamp,
-    },
-    {
-      type: "datetime" as const,
-      column: "startTime",
-      operator: "<" as const,
-      value: toTimestamp,
-    },
-  ];
-
-  const environmentFilter = convertSelectedEnvironmentsToFilter(
-    ["environment"],
-    selectedEnvironments,
+  const environmentFilter = useMemo(
+    () =>
+      convertSelectedEnvironmentsToFilter(
+        ["environment"],
+        selectedEnvironments,
+      ),
+    [selectedEnvironments],
   );
 
-  const mergedFilterState: FilterState = [
-    ...userFilterState,
-    ...timeFilter,
-    ...environmentFilter,
-  ];
+  const gridFilterState: FilterState = useMemo(
+    () => [...userFilterState, ...environmentFilter],
+    [userFilterState, environmentFilter],
+  );
   const isDashboardDataReady = environmentOptionsState.isReady;
+
+  // Home renders the Langfuse-curated Home dashboard (upserted by the worker
+  // at startup). Fall back to the shared constant so Home still renders when
+  // the row does not exist yet (e.g. worker has not run against this DB).
+  const homeDashboard = api.dashboard.getDashboard.useQuery(
+    { projectId, dashboardId: LANGFUSE_HOME_DASHBOARD_ID },
+    { enabled: Boolean(projectId), retry: false },
+  );
+  const definition =
+    homeDashboard.data?.definition ?? LANGFUSE_HOME_DASHBOARD_DEFINITION;
+
+  const getWidgetSchedulerId = useCallback(
+    (widgetPlacementId: string) => `${projectId}:${widgetPlacementId}`,
+    [projectId],
+  );
 
   const schedulerResetKey = useMemo(() => {
     return [
@@ -193,7 +162,6 @@ export default function Dashboard() {
     maxConcurrent: getDashboardQuerySchedulerMaxConcurrent(timeRange),
     resetKey: schedulerResetKey,
   });
-  const homeSchedulerIdPrefix = `${projectId}:`;
 
   return (
     <DashboardQuerySchedulerProvider
@@ -253,115 +221,18 @@ export default function Dashboard() {
         {!isDashboardDataReady ? (
           <NoDataOrLoading isLoading />
         ) : (
-          <div className="grid w-full grid-cols-1 gap-3 overflow-hidden lg:grid-cols-2 xl:grid-cols-6">
-            <TracesBarListChart
-              className="col-span-1 xl:col-span-2"
-              projectId={projectId}
-              globalFilterState={[...userFilterState, ...environmentFilter]}
-              fromTimestamp={fromTimestamp}
-              toTimestamp={toTimestamp}
-              isLoading={environmentOptionsState.isPending}
-              metricsVersion={metricsVersion}
-              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.traces}`}
-            />
-            <ModelCostTable
-              className="col-span-1 xl:col-span-2"
-              projectId={projectId}
-              globalFilterState={[...userFilterState, ...environmentFilter]}
-              fromTimestamp={fromTimestamp}
-              toTimestamp={toTimestamp}
-              isLoading={environmentOptionsState.isPending}
-              metricsVersion={metricsVersion}
-              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.modelCosts}`}
-            />
-            <ScoresTable
-              className="col-span-1 xl:col-span-2"
-              projectId={projectId}
-              globalFilterState={mergedFilterState}
-              isLoading={environmentOptionsState.isPending}
-              metricsVersion={metricsVersion}
-            />
-            <TracesAndObservationsTimeSeriesChart
-              className="col-span-1 xl:col-span-3"
-              projectId={projectId}
-              globalFilterState={[...userFilterState, ...environmentFilter]}
-              fromTimestamp={fromTimestamp}
-              toTimestamp={toTimestamp}
-              agg={agg}
-              isLoading={environmentOptionsState.isPending}
-              metricsVersion={metricsVersion}
-              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.tracesTimeSeries}`}
-              syncId={HOME_DASHBOARD_SYNC_ID}
-            />
-            <ModelUsageChart
-              className="col-span-1 min-h-24 xl:col-span-3"
-              projectId={projectId}
-              globalFilterState={mergedFilterState}
-              fromTimestamp={fromTimestamp}
-              toTimestamp={toTimestamp}
-              userAndEnvFilterState={[...userFilterState, ...environmentFilter]}
-              agg={agg}
-              isLoading={environmentOptionsState.isPending}
-              metricsVersion={metricsVersion}
-              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.modelUsage}`}
-              syncId={HOME_DASHBOARD_SYNC_ID}
-            />
-            <UserChart
-              className="col-span-1 xl:col-span-3"
-              projectId={projectId}
-              globalFilterState={[...userFilterState, ...environmentFilter]}
-              fromTimestamp={fromTimestamp}
-              toTimestamp={toTimestamp}
-              isLoading={environmentOptionsState.isPending}
-              metricsVersion={metricsVersion}
-              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.users}`}
-            />
-            <ChartScores
-              className="col-span-1 xl:col-span-3"
-              agg={agg}
-              projectId={projectId}
-              globalFilterState={[...userFilterState, ...environmentFilter]}
-              fromTimestamp={fromTimestamp}
-              toTimestamp={toTimestamp}
-              isLoading={environmentOptionsState.isPending}
-              metricsVersion={metricsVersion}
-              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.chartScores}`}
-              syncId={HOME_DASHBOARD_SYNC_ID}
-            />
-            <LatencyTables
-              projectId={projectId}
-              globalFilterState={[...userFilterState, ...environmentFilter]}
-              fromTimestamp={fromTimestamp}
-              toTimestamp={toTimestamp}
-              isLoading={environmentOptionsState.isPending}
-              metricsVersion={metricsVersion}
-              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.latencyTables}`}
-            />
-            <GenerationLatencyChart
-              className="col-span-1 flex-auto justify-between lg:col-span-full"
-              projectId={projectId}
-              agg={agg}
-              globalFilterState={[...userFilterState, ...environmentFilter]}
-              fromTimestamp={fromTimestamp}
-              toTimestamp={toTimestamp}
-              isLoading={environmentOptionsState.isPending}
-              metricsVersion={metricsVersion}
-              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.generationLatency}`}
-              syncId={HOME_DASHBOARD_SYNC_ID}
-            />
-            <ScoreAnalytics
-              className="col-span-1 flex-auto justify-between lg:col-span-full"
-              agg={agg}
-              projectId={projectId}
-              globalFilterState={[...userFilterState, ...environmentFilter]}
-              fromTimestamp={fromTimestamp}
-              toTimestamp={toTimestamp}
-              isLoading={environmentOptionsState.isPending}
-              metricsVersion={metricsVersion}
-              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.scoreAnalytics}`}
-              syncId={HOME_DASHBOARD_SYNC_ID}
-            />
-          </div>
+          <DashboardGrid
+            widgets={definition.widgets}
+            onChange={() => undefined}
+            canEdit={false}
+            dashboardId={LANGFUSE_HOME_DASHBOARD_ID}
+            projectId={projectId}
+            dateRange={absoluteTimeRange}
+            filterState={gridFilterState}
+            onDeleteWidget={() => undefined}
+            dashboardOwner="LANGFUSE"
+            getWidgetSchedulerId={getWidgetSchedulerId}
+          />
         )}
       </Page>
     </DashboardQuerySchedulerProvider>

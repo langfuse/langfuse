@@ -2,9 +2,15 @@ import { Responsive, WidthProvider } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import { type WidgetPlacement } from "../components/DashboardWidget";
+import {
+  PresetDashboardWidget,
+  type PresetPlacement,
+} from "../components/PresetDashboardWidget";
 import { DashboardWidget } from "@/src/features/widgets";
 import { type FilterState } from "@langfuse/shared";
 import { useState, useCallback, useEffect } from "react";
+
+export type DashboardPlacement = WidgetPlacement | PresetPlacement;
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
@@ -38,8 +44,8 @@ export function DashboardGrid({
   dashboardOwner,
   getWidgetSchedulerId,
 }: {
-  widgets: WidgetPlacement[];
-  onChange: (widgets: WidgetPlacement[]) => void;
+  widgets: DashboardPlacement[];
+  onChange: (widgets: DashboardPlacement[]) => void;
   canEdit: boolean;
   dashboardId: string;
   projectId: string;
@@ -101,6 +107,34 @@ export function DashboardGrid({
     onChange(updatedWidgets);
   };
 
+  // Dispatch a placement to its renderer: "preset" placements render a
+  // registered curated component; "widget" placements render the generic
+  // query-backed widget.
+  const renderPlacement = (widget: DashboardPlacement) =>
+    widget.type === "preset" ? (
+      <PresetDashboardWidget
+        dashboardId={dashboardId}
+        projectId={projectId}
+        placement={widget}
+        dateRange={dateRange}
+        filterState={filterState}
+        onDeleteWidget={onDeleteWidget}
+        dashboardOwner={dashboardOwner || "PROJECT"}
+        schedulerId={getWidgetSchedulerId?.(widget.id)}
+      />
+    ) : (
+      <DashboardWidget
+        dashboardId={dashboardId}
+        projectId={projectId}
+        placement={widget}
+        dateRange={dateRange}
+        filterState={filterState}
+        onDeleteWidget={onDeleteWidget}
+        dashboardOwner={dashboardOwner || "PROJECT"}
+        schedulerId={getWidgetSchedulerId?.(widget.id)}
+      />
+    );
+
   // Render flex layout for small screens
   if (isSmallScreen) {
     return (
@@ -114,16 +148,7 @@ export function DashboardGrid({
               className="w-full"
               style={{ height: "300px" }} // Fixed height for all widgets on small screens
             >
-              <DashboardWidget
-                dashboardId={dashboardId}
-                projectId={projectId}
-                placement={widget}
-                dateRange={dateRange}
-                filterState={filterState}
-                onDeleteWidget={onDeleteWidget}
-                dashboardOwner={dashboardOwner || "PROJECT"}
-                schedulerId={getWidgetSchedulerId?.(widget.id)}
-              />
+              {renderPlacement(widget)}
             </div>
           ))}
       </div>
@@ -148,16 +173,7 @@ export function DashboardGrid({
     >
       {widgets.map((widget) => (
         <div key={widget.id} className="max-h-full max-w-full">
-          <DashboardWidget
-            dashboardId={dashboardId}
-            projectId={projectId}
-            placement={widget}
-            dateRange={dateRange}
-            filterState={filterState}
-            onDeleteWidget={onDeleteWidget}
-            dashboardOwner={dashboardOwner || "PROJECT"}
-            schedulerId={getWidgetSchedulerId?.(widget.id)}
-          />
+          {renderPlacement(widget)}
         </div>
       ))}
     </ResponsiveGridLayout>
