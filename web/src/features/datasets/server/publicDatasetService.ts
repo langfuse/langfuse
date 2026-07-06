@@ -37,10 +37,15 @@ import {
   UnauthorizedError,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import {
+  datasetItemMediaReferenceKey,
+  resolveDatasetItemMediaReferences,
+} from "@/src/features/media/server/datasetItemMediaReferences";
 import { upsertDataset } from "./actions/createDataset";
 import {
   addToDeleteDatasetQueue,
   createDatasetItemFilterState,
+  createUnknownSdkIngestionAttribution,
   deleteDatasetItem,
   eventTypes,
   getDatasetItemById,
@@ -481,9 +486,18 @@ export const getDatasetByNameForApi = async ({
 
   const { datasetRuns, ...params } = dataset;
 
+  const mediaReferences = await resolveDatasetItemMediaReferences({
+    projectId,
+    items: datasetItems,
+  });
+
   return {
     ...transformDbDatasetToAPIDataset(params),
-    items: datasetItems.map(transformDbDatasetItemDomainToAPIDatasetItem),
+    items: datasetItems.map((item) => ({
+      ...transformDbDatasetItemDomainToAPIDatasetItem(item),
+      mediaReferences:
+        mediaReferences.get(datasetItemMediaReferenceKey(item)) ?? [],
+    })),
     runs: datasetRuns.map((run) => run.name),
   };
 };
@@ -530,8 +544,17 @@ export const listDatasetItemsForApi = async ({
     }),
   ]);
 
+  const mediaReferences = await resolveDatasetItemMediaReferences({
+    projectId,
+    items,
+  });
+
   return {
-    data: items.map(transformDbDatasetItemDomainToAPIDatasetItem),
+    data: items.map((item) => ({
+      ...transformDbDatasetItemDomainToAPIDatasetItem(item),
+      mediaReferences:
+        mediaReferences.get(datasetItemMediaReferenceKey(item)) ?? [],
+    })),
     meta: {
       page,
       limit,
@@ -569,11 +592,20 @@ export const getDatasetItemForApi = async ({
     throw new LangfuseNotFoundError("Dataset not found");
   }
 
-  return transformDbDatasetItemDomainToAPIDatasetItem({
-    ...datasetItem,
-    status: datasetItem.status ?? "ACTIVE",
-    datasetName: dataset.name,
+  const mediaReferences = await resolveDatasetItemMediaReferences({
+    projectId,
+    items: [datasetItem],
   });
+
+  return {
+    ...transformDbDatasetItemDomainToAPIDatasetItem({
+      ...datasetItem,
+      status: datasetItem.status ?? "ACTIVE",
+      datasetName: dataset.name,
+    }),
+    mediaReferences:
+      mediaReferences.get(datasetItemMediaReferenceKey(datasetItem)) ?? [],
+  };
 };
 
 export const createDatasetItemForApi = async ({
@@ -608,7 +640,7 @@ export const createDatasetItemForApi = async ({
       sourceObservationId: input.sourceObservationId ?? undefined,
       status: input.status ?? undefined,
       normalizeOpts: { sanitizeControlChars: true },
-      validateOpts: { normalizeUndefinedToNull: !!input.id ? false : true },
+      validateOpts: { normalizeUndefinedToNull: !input.id },
     });
 
     if (auditScope) {
@@ -624,11 +656,20 @@ export const createDatasetItemForApi = async ({
       });
     }
 
-    return transformDbDatasetItemDomainToAPIDatasetItem({
-      ...datasetItem,
-      datasetName: datasetItem.datasetName,
-      status: datasetItem.status ?? "ACTIVE",
+    const mediaReferences = await resolveDatasetItemMediaReferences({
+      projectId,
+      items: [datasetItem],
     });
+
+    return {
+      ...transformDbDatasetItemDomainToAPIDatasetItem({
+        ...datasetItem,
+        datasetName: datasetItem.datasetName,
+        status: datasetItem.status ?? "ACTIVE",
+      }),
+      mediaReferences:
+        mediaReferences.get(datasetItemMediaReferenceKey(datasetItem)) ?? [],
+    };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2025") {
@@ -717,6 +758,7 @@ export const createDatasetRunItemForApi = async ({
 
   // Backwards compatibility: dataset run items were historically linked to observations, not traces.
   if (!traceId && observationId) {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
     const observation = await getObservationById({
       id: observationId,
       projectId,
@@ -770,6 +812,7 @@ export const createDatasetRunItemForApi = async ({
 
   // Note: currently we do not accept user defined ids for dataset run items.
   const ingestionResult = await processEventBatch([event], auth, {
+    attribution: createUnknownSdkIngestionAttribution({ authCheck: auth }),
     isLangfuseInternal: true,
   });
 

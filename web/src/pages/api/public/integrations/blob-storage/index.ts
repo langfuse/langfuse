@@ -11,15 +11,16 @@ import {
   type BlobStorageIntegrationResponseType,
 } from "@/src/features/public-api/types/blob-storage-integrations";
 import {
-  AnalyticsIntegrationExportSource,
   type ObservationFieldGroupFull,
+  BlobStorageIntegrationFileType,
+  InvalidRequestError,
   LangfuseNotFoundError,
   UnauthorizedError,
   ForbiddenError,
-  isLegacyBlobExportAllowed,
 } from "@langfuse/shared";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
-import { assertLegacyBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowed";
+import { assertLegacyBlobExportSourceAllowedForUpsert } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowedForUpsert";
+import { assertEnrichedBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertEnrichedBlobExportSourceAllowed";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { env } from "@/src/env.mjs";
 
@@ -96,10 +97,7 @@ async function handleGetBlobStorageIntegrations(
       compressed: integration.compressed,
       exportSource: toPublicExportSource(integration.exportSource),
       exportFieldGroups:
-        integration.exportSource ===
-        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS
-          ? null
-          : (integration.exportFieldGroups as ObservationFieldGroupFull[]),
+        integration.exportFieldGroups as ObservationFieldGroupFull[],
       nextSyncAt: integration.nextSyncAt,
       lastSyncAt: integration.lastSyncAt,
       lastError: integration.lastError,
@@ -163,15 +161,51 @@ async function handleUpsertBlobStorageIntegration(
 
   const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
-  if (validatedData.exportSource) {
-    assertLegacyBlobExportSourceAllowed({
+  const isV4PreviewEnabled =
+    env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
+  const internalExportSource =
+    validatedData.exportSource != null
+      ? toInternalExportSource(validatedData.exportSource)
+      : undefined;
+
+  // Feeds both write-time gates: the legacy upsert gate needs the row's
+  // createdAt when exportSource is provided; the enriched gate needs the
+  // persisted exportSource when it is omitted (partial PUT), so a stale
+  // enriched value is rejected.
+  const existingIntegration = await prisma.blobStorageIntegration.findUnique({
+    where: { projectId: validatedData.projectId },
+    select: { createdAt: true, exportSource: true, fileType: true },
+  });
+
+  // PARQUET cannot be set via the REST API yet (request enum omits it). Block
+  // any PUT that would silently downgrade a Parquet integration to a text format.
+  // Written as a downgrade check (existing === PARQUET && request !== PARQUET) so
+  // it automatically narrows to no-op once PARQUET is added to the request enum at GA.
+  const requestFileType: string = validatedData.fileType;
+  if (
+    existingIntegration?.fileType === BlobStorageIntegrationFileType.PARQUET &&
+    requestFileType !== BlobStorageIntegrationFileType.PARQUET
+  ) {
+    throw new InvalidRequestError(
+      "Integrations exporting Parquet must be managed through the Langfuse UI; the public API cannot modify them while Parquet is in stabilisation.",
+    );
+  }
+
+  if (internalExportSource) {
+    assertLegacyBlobExportSourceAllowedForUpsert({
       project,
-      nextInternalExportSource: toInternalExportSource(
-        validatedData.exportSource,
-      ),
+      existingIntegration,
+      nextInternalExportSource: internalExportSource,
       isCloud,
     });
   }
+
+  assertEnrichedBlobExportSourceAllowed({
+    nextInternalExportSource: internalExportSource,
+    existingExportSource: existingIntegration?.exportSource,
+    isCloud,
+    isV4PreviewEnabled,
+  });
 
   await auditLog({
     action: "update",
@@ -184,12 +218,14 @@ async function handleUpsertBlobStorageIntegration(
   const integration = await upsertBlobStorageIntegration({
     prisma,
     projectId: validatedData.projectId,
-    // When exportSource is absent and the project is post-cutoff Cloud, have
-    // the service substitute EVENTS on CREATE inside its own transaction —
-    // eliminating the TOCTOU window that a pre-flight findUnique would create.
-    forceEventsOnCreate:
-      validatedData.exportSource == null &&
-      !isLegacyBlobExportAllowed(project.createdAt, isCloud),
+    // New Cloud rows default to EVENTS when exportSource is omitted: a
+    // brand-new row is post-cutoff, so the legacy column default would trip
+    // refuseLegacyOnCreate and fail a partial PUT that never mentioned
+    // exportSource. Substituted in-transaction to avoid a TOCTOU window.
+    forceEventsOnCreate: validatedData.exportSource == null && isCloud,
+    // In-transaction backstop: a concurrent DELETE can flip this upsert to
+    // CREATE; never let a new Cloud row be born with a legacy source.
+    refuseLegacyOnCreate: isCloud,
     data: {
       type: validatedData.type,
       bucketName: validatedData.bucketName,
@@ -205,10 +241,7 @@ async function handleUpsertBlobStorageIntegration(
       exportMode: validatedData.exportMode,
       exportStartDate: validatedData.exportStartDate ?? null,
       compressed: validatedData.compressed,
-      exportSource:
-        validatedData.exportSource != null
-          ? toInternalExportSource(validatedData.exportSource)
-          : undefined,
+      exportSource: internalExportSource,
       exportFieldGroups: validatedData.exportFieldGroups ?? undefined,
     },
   });
@@ -232,10 +265,7 @@ async function handleUpsertBlobStorageIntegration(
     compressed: integration.compressed,
     exportSource: toPublicExportSource(integration.exportSource),
     exportFieldGroups:
-      integration.exportSource ===
-      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS
-        ? null
-        : (integration.exportFieldGroups as ObservationFieldGroupFull[]),
+      integration.exportFieldGroups as ObservationFieldGroupFull[],
     nextSyncAt: integration.nextSyncAt,
     lastSyncAt: integration.lastSyncAt,
     lastError: integration.lastError,

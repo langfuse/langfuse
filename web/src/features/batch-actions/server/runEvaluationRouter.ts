@@ -39,7 +39,7 @@ export const runEvaluationRouter = createTRPCRouter({
           sourceTable = BatchEvalSourceTable.EVENTS,
         } = input;
 
-        if (env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS !== "true") {
+        if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") {
           throw new TRPCError({
             code: "BAD_REQUEST",
             message: "Events table is not enabled for this instance.",

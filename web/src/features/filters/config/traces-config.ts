@@ -40,6 +40,13 @@ export const traceFilterConfig: FilterConfig = {
       label: "Session ID",
     },
     {
+      // Tags are a primary, user-defined filter — keep them near the identity
+      // facets at the top of the sidebar rather than buried mid-list (LFE-10494).
+      type: "categorical" as const,
+      column: "traceTags",
+      label: "Tags",
+    },
+    {
       type: "stringKeyValue" as const,
       column: "metadata",
       label: "Metadata",
@@ -72,11 +79,6 @@ export const traceFilterConfig: FilterConfig = {
       type: "string" as const,
       column: "commentContent",
       label: "Comment Content",
-    },
-    {
-      type: "categorical" as const,
-      column: "traceTags",
-      label: "Tags",
     },
     {
       type: "categorical" as const,

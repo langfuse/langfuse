@@ -2,9 +2,20 @@ import { describe, it, expect } from "vitest";
 
 import {
   CreateMonitorSchema,
+  ErrorListMonitorFilterDuplicateColumn,
+  ListMonitorFilterSchema,
   ListMonitorsSchema,
   UpdateMonitorSchema,
 } from "./types";
+import {
+  ErrorAlertThresholdRequired,
+  ErrorAtLeastOneTrigger,
+  ErrorNameRequired,
+  MonitorNoDataModeSchema,
+  MonitorSeveritySchema,
+  MonitorStatusSchema,
+  MonitorThresholdOperatorSchema,
+} from "../types";
 
 // Minimal valid `CreateMonitorSchema` payload. Tests override one field
 // at a time to exercise the refinements wired onto the input schema.
@@ -16,15 +27,16 @@ const validCreateInput = {
   metric: { measure: "count", aggregation: "count" as const },
 
   window: "5m" as const,
-  thresholdOperator: "gt" as const,
+  thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
   alertThreshold: 100,
   warningThreshold: null,
-  noData: { mode: "SILENT" as const },
+  noData: { mode: MonitorNoDataModeSchema.enum.SHOW_NO_DATA },
   renotify: { mode: "OFF" as const },
-  status: "active" as const,
+  status: MonitorStatusSchema.enum.ACTIVE,
 
   name: "High error rate",
   tags: [],
+  triggerIds: ["trig_01"],
 };
 
 const validUpdateInput = {
@@ -40,50 +52,50 @@ describe("CreateMonitorSchema", () => {
   it("rejects warning >= alert for gt (validateThresholdOrder is wired)", () => {
     const result = CreateMonitorSchema.safeParse({
       ...validCreateInput,
-      thresholdOperator: "gt" as const,
+      thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
       alertThreshold: 100,
       warningThreshold: 100,
     });
     expect(result.success).toBe(false);
   });
 
-  it.each(["gt", "gte"] as const)(
-    "%s emits a `>` strict-ordering message (not the operator name)",
-    (op) => {
-      const result = CreateMonitorSchema.safeParse({
-        ...validCreateInput,
-        thresholdOperator: op,
-        alertThreshold: 100,
-        warningThreshold: 100,
-      });
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        const message = result.error.issues[0].message;
-        expect(message).toContain(">");
-        // Must NOT interpolate the operator literal — `gte` would otherwise
-        // produce the misleading "must be gte" (non-strict) phrasing.
-        expect(message).not.toContain(op);
-      }
-    },
-  );
+  it.each([
+    MonitorThresholdOperatorSchema.enum.GT,
+    MonitorThresholdOperatorSchema.enum.GTE,
+  ])("%s emits a `>` strict-ordering message (not the operator name)", (op) => {
+    const result = CreateMonitorSchema.safeParse({
+      ...validCreateInput,
+      thresholdOperator: op,
+      alertThreshold: 100,
+      warningThreshold: 100,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const message = result.error.issues[0].message;
+      expect(message).toContain(">");
+      // Must NOT interpolate the operator literal — `gte` would otherwise
+      // produce the misleading "must be gte" (non-strict) phrasing.
+      expect(message).not.toContain(op);
+    }
+  });
 
-  it.each(["lt", "lte"] as const)(
-    "%s emits a `<` strict-ordering message (not the operator name)",
-    (op) => {
-      const result = CreateMonitorSchema.safeParse({
-        ...validCreateInput,
-        thresholdOperator: op,
-        alertThreshold: 100,
-        warningThreshold: 100,
-      });
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        const message = result.error.issues[0].message;
-        expect(message).toContain("<");
-        expect(message).not.toContain(op);
-      }
-    },
-  );
+  it.each([
+    MonitorThresholdOperatorSchema.enum.LT,
+    MonitorThresholdOperatorSchema.enum.LTE,
+  ])("%s emits a `<` strict-ordering message (not the operator name)", (op) => {
+    const result = CreateMonitorSchema.safeParse({
+      ...validCreateInput,
+      thresholdOperator: op,
+      alertThreshold: 100,
+      warningThreshold: 100,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const message = result.error.issues[0].message;
+      expect(message).toContain("<");
+      expect(message).not.toContain(op);
+    }
+  });
 
   it("rejects an unknown measure (validateQuery is wired)", () => {
     const result = CreateMonitorSchema.safeParse({
@@ -93,12 +105,75 @@ describe("CreateMonitorSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  it("emits a friendly message when name is missing", () => {
+    const { name: _name, ...rest } = validCreateInput;
+    const result = CreateMonitorSchema.safeParse(rest);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const nameIssue = result.error.issues.find(
+        (i) => i.path.join(".") === "name",
+      );
+      expect(nameIssue?.message).toBe(ErrorNameRequired);
+    }
+  });
+
+  it("emits a friendly message when alertThreshold is missing", () => {
+    const { alertThreshold: _t, ...rest } = validCreateInput;
+    const result = CreateMonitorSchema.safeParse(rest);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find(
+        (i) => i.path.join(".") === "alertThreshold",
+      );
+      expect(issue?.message).toBe(ErrorAlertThresholdRequired);
+    }
+  });
+
   it("rejects status `error-bad-query` on create (scheduler-owned)", () => {
     const result = CreateMonitorSchema.safeParse({
       ...validCreateInput,
-      status: "error-bad-query",
+      status: MonitorStatusSchema.enum.ERROR_BAD_QUERY,
     });
     expect(result.success).toBe(false);
+  });
+
+  describe("triggerIds", () => {
+    it("rejects an empty list with ErrorAtLeastOneTrigger on path triggerIds", () => {
+      const result = CreateMonitorSchema.safeParse({
+        ...validCreateInput,
+        triggerIds: [],
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const issue = result.error.issues.find(
+          (i) => i.path.join(".") === "triggerIds",
+        );
+        expect(issue?.message).toBe(ErrorAtLeastOneTrigger);
+      }
+    });
+
+    it("rejects an omitted list with ErrorAtLeastOneTrigger on path triggerIds", () => {
+      const { triggerIds: _t, ...rest } = validCreateInput;
+      const result = CreateMonitorSchema.safeParse(rest);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const issue = result.error.issues.find(
+          (i) => i.path.join(".") === "triggerIds",
+        );
+        expect(issue?.message).toBe(ErrorAtLeastOneTrigger);
+      }
+    });
+
+    it("accepts a list of ids", () => {
+      const result = CreateMonitorSchema.safeParse({
+        ...validCreateInput,
+        triggerIds: ["trig_01", "trig_02"],
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.triggerIds).toEqual(["trig_01", "trig_02"]);
+      }
+    });
   });
 });
 
@@ -110,20 +185,20 @@ describe("UpdateMonitorSchema", () => {
   it("rejects warning <= alert for lt (validateThresholdOrder is wired)", () => {
     const result = UpdateMonitorSchema.safeParse({
       ...validUpdateInput,
-      thresholdOperator: "lt" as const,
+      thresholdOperator: MonitorThresholdOperatorSchema.enum.LT,
       alertThreshold: 100,
       warningThreshold: 100,
     });
     expect(result.success).toBe(false);
   });
 
-  it("rejects an unknown filter column (validateQuery is wired)", () => {
+  it("rejects a disallowed filter column (validateQuery is wired)", () => {
     const result = UpdateMonitorSchema.safeParse({
       ...validUpdateInput,
       filters: [
         {
           type: "string",
-          column: "not_a_dimension",
+          column: "metadata",
           operator: "=",
           value: "x",
         },
@@ -138,9 +213,57 @@ describe("UpdateMonitorSchema", () => {
     // directly — narrowing the input DTO to active/paused enforces that.
     const result = UpdateMonitorSchema.safeParse({
       ...validUpdateInput,
-      status: "error-bad-query",
+      status: MonitorStatusSchema.enum.ERROR_BAD_QUERY,
     });
     expect(result.success).toBe(false);
+  });
+
+  it("leaves status undefined when omitted so a save can't change it", () => {
+    const { status, ...withoutStatus } = validUpdateInput;
+    const result = UpdateMonitorSchema.safeParse(withoutStatus);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.status).toBeUndefined();
+    }
+  });
+
+  describe("triggerIds", () => {
+    it("rejects an empty list with ErrorAtLeastOneTrigger on path triggerIds", () => {
+      const result = UpdateMonitorSchema.safeParse({
+        ...validUpdateInput,
+        triggerIds: [],
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const issue = result.error.issues.find(
+          (i) => i.path.join(".") === "triggerIds",
+        );
+        expect(issue?.message).toBe(ErrorAtLeastOneTrigger);
+      }
+    });
+
+    it("rejects an omitted list with ErrorAtLeastOneTrigger on path triggerIds", () => {
+      const { triggerIds: _t, ...rest } = validUpdateInput;
+      const result = UpdateMonitorSchema.safeParse(rest);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const issue = result.error.issues.find(
+          (i) => i.path.join(".") === "triggerIds",
+        );
+        expect(issue?.message).toBe(ErrorAtLeastOneTrigger);
+      }
+    });
+
+    it("accepts a list of ids", () => {
+      const result = UpdateMonitorSchema.safeParse({
+        ...validUpdateInput,
+        triggerIds: ["trig_01", "trig_02"],
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.triggerIds).toEqual(["trig_01", "trig_02"]);
+      }
+    });
   });
 });
 
@@ -194,5 +317,52 @@ describe("ListMonitorsSchema", () => {
   it("rejects a missing projectId", () => {
     const result = ListMonitorsSchema.safeParse({ orderBy: null });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("ListMonitorFilterSchema", () => {
+  it("parses an empty filter", () => {
+    expect(ListMonitorFilterSchema.safeParse([]).success).toBe(true);
+  });
+
+  it("parses one severity row and one tags row", () => {
+    const result = ListMonitorFilterSchema.safeParse([
+      {
+        type: "stringOptions",
+        column: "severity",
+        operator: "any of",
+        value: [MonitorSeveritySchema.enum.ALERT],
+      },
+      {
+        type: "arrayOptions",
+        column: "tags",
+        operator: "any of",
+        value: ["prod"],
+      },
+    ]);
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects two rows on the same column with ErrorListMonitorFilterDuplicateColumn", () => {
+    const result = ListMonitorFilterSchema.safeParse([
+      {
+        type: "stringOptions",
+        column: "severity",
+        operator: "any of",
+        value: [MonitorSeveritySchema.enum.ALERT],
+      },
+      {
+        type: "stringOptions",
+        column: "severity",
+        operator: "none of",
+        value: [MonitorSeveritySchema.enum.PAUSED],
+      },
+    ]);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].message).toBe(
+        ErrorListMonitorFilterDuplicateColumn,
+      );
+    }
   });
 });

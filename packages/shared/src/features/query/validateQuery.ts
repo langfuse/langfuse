@@ -9,6 +9,34 @@ export type QueryValidationResult =
   | { valid: true }
   | { valid: false; reason: string };
 
+const MAX_ENTITY_DIMENSION_BOUND_VALUES = 50;
+
+function hasSameFieldEntityDimensionBound(
+  filters: QueryType["filters"],
+  field: string,
+): boolean {
+  return filters.some((filter) => {
+    if (filter.column !== field) {
+      return false;
+    }
+
+    if (filter.type === "string") {
+      return filter.operator === "=" && filter.value.length > 0;
+    }
+
+    if (filter.type === "stringOptions" || filter.type === "categoryOptions") {
+      return (
+        filter.operator === "any of" &&
+        filter.value.length > 0 &&
+        filter.value.length <= MAX_ENTITY_DIMENSION_BOUND_VALUES &&
+        filter.value.every((value) => value.length > 0)
+      );
+    }
+
+    return false;
+  });
+}
+
 /**
  * Gets the list of high cardinality dimension fields used in the query.
  *
@@ -58,6 +86,39 @@ function findMeasureInOrderByField(
   return null;
 }
 
+function validateEntityDimension(
+  query: QueryType,
+  version: ViewVersion,
+): QueryValidationResult {
+  const view = getViewDeclaration(query.view, version);
+
+  const field = query.entityDimension!.field;
+  const dimension = view.dimensions[field];
+
+  if (
+    !dimension ||
+    dimension.explodeArray ||
+    dimension.pairExpand ||
+    dimension.aggregationFunction
+  )
+    return {
+      valid: false,
+      reason: `Invalid entity dimension: ${field}. Entity dimensions must be scalar view dimensions.`,
+    };
+
+  if (
+    dimension.highCardinality &&
+    !hasSameFieldEntityDimensionBound(query.filters, field)
+  ) {
+    return {
+      valid: false,
+      reason: `High cardinality dimension '${field}' must be filtered with a finite positive filter.`,
+    };
+  }
+
+  return { valid: true };
+}
+
 /**
  * Validates a query for safety before execution.
  * Performs sanity checks for high cardinality dimension validation.
@@ -67,6 +128,8 @@ function findMeasureInOrderByField(
  * 2. config.row_limit (or chartConfig.row_limit) is explicitly specified (LIMIT)
  * 3. orderBy with direction 'desc' on a measure field is specified (for top-N queries)
  *
+ * High cardinality entityDimension can also be allowed by a finite positive
+ * same-field filter, which bounds the grouped keyspace before GROUP BY.
  * @param query - The query configuration (with original config, before defaults applied)
  * @param version - The view version (v1 or v2)
  * @returns Validation result: { valid: true } or { valid: false, reason: string }
@@ -75,12 +138,33 @@ export function validateQuery(
   query: QueryType,
   version: ViewVersion,
 ): QueryValidationResult {
-  // Only enforce validation for v2 queries
+  if (query.timeDimension && query.entityDimension) {
+    return {
+      valid: false,
+      reason: "timeDimension and entityDimension are mutually exclusive",
+    };
+  }
+
+  if (query.entityDimension && version !== "v2") {
+    return {
+      valid: false,
+      reason: "entityDimension is only supported for v2 queries",
+    };
+  }
+
+  // Only enforce remaining high-cardinality validation for v2 queries.
   if (version !== "v2") {
     return { valid: true };
   }
 
-  // 1. Check for high cardinality dimensions
+  if (query.entityDimension) {
+    const validation = validateEntityDimension(query, version);
+    if (!validation.valid) {
+      return validation;
+    }
+  }
+
+  // 1. Check for high cardinality dimensions, including entityDimension.
   const highCardDims = getHighCardinalityDimensions(query, version);
 
   if (highCardDims.length === 0) {
@@ -94,6 +178,14 @@ export function validateQuery(
     return {
       valid: false,
       reason: `High cardinality dimension(s) '${highCardDims.join(", ")}' cannot be used with timeDimension. Time series queries with high cardinality dimensions produce unbounded result sets.`,
+    };
+  }
+
+  // An entity-dimension query with additional high cardinality dimensions produces unbounded result sets and cannot be meaningfully limited with row_limit.
+  if (query.entityDimension) {
+    return {
+      valid: false,
+      reason: `High cardinality dimension(s) '${highCardDims.join(", ")}' cannot be used with entityDimension. Entity-dimension queries with additional high cardinality dimensions produce unbounded result sets.`,
     };
   }
 

@@ -14,7 +14,7 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { PasswordInput } from "@/src/components/ui/password-input";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   Select,
   SelectContent,
@@ -309,14 +309,15 @@ const PostHogIntegrationSettings = ({
             <FormItem>
               <FormLabel>Enabled</FormLabel>
               <FormControl>
-                <Switch
-                  id="posthog-integration-enabled"
-                  checked={field.value}
-                  onCheckedChange={() => {
-                    field.onChange(!field.value);
-                  }}
-                  className="mt-1 ml-4"
-                />
+                <div className="mt-1 ml-4">
+                  <Switch
+                    id="posthog-integration-enabled"
+                    checked={field.value}
+                    onCheckedChange={() => {
+                      field.onChange(!field.value);
+                    }}
+                  />
+                </div>
               </FormControl>
               <FormMessage />
             </FormItem>

@@ -42,8 +42,8 @@ export type ActionDomainWithSecrets = Omit<Action, "config"> & {
 
 export const ActionTypeSchema = z.enum(["WEBHOOK", "SLACK", "GITHUB_DISPATCH"]);
 
-export const AvailableWebhookApiSchema = z.record(
-  z.enum(["prompt"]),
+export const AvailableWebhookApiSchema = z.partialRecord(
+  z.enum(["prompt", "monitor"]),
   z.enum(["v1"]),
 );
 

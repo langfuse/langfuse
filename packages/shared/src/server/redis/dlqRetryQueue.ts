@@ -1,10 +1,6 @@
 import { Queue } from "bullmq";
 import { QueueName, QueueJobs } from "../queues";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
 
 export class DeadLetterRetryQueue {
@@ -15,15 +11,12 @@ export class DeadLetterRetryQueue {
       return DeadLetterRetryQueue.instance;
     }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
-    DeadLetterRetryQueue.instance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
+      QueueName.DeadLetterRetryQueue,
+    );
+    DeadLetterRetryQueue.instance = queueOptionsWithRedis
       ? new Queue(QueueName.DeadLetterRetryQueue, {
-          connection: newRedis,
-          prefix: getQueuePrefix(QueueName.DeadLetterRetryQueue),
+          ...queueOptionsWithRedis,
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100,

@@ -3,6 +3,7 @@ import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Plus, Trash2 } from "lucide-react";
+import { v4 as uuidv4 } from "uuid";
 import { JsonPathInput } from "./JsonPathInput";
 import { SourceFieldSelector } from "./SourceFieldSelector";
 import type {
@@ -44,7 +45,7 @@ export function CustomMappingEditor({
         keyValueMapConfig: config.keyValueMapConfig ?? {
           entries: [
             {
-              id: crypto.randomUUID(),
+              id: uuidv4(),
               key: "value",
               sourceField: defaultSourceField,
               value: "$.",
@@ -88,7 +89,7 @@ export function CustomMappingEditor({
         entries: [
           ...entries,
           {
-            id: crypto.randomUUID(),
+            id: uuidv4(),
             key: newKey,
             sourceField: defaultSourceField,
             value: "$.",

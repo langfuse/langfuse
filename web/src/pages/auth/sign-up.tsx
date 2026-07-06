@@ -17,7 +17,7 @@ import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { env } from "@/src/env.mjs";
 import { useState } from "react";
-import { LangfuseIcon } from "@/src/components/LangfuseLogo";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
 import {
@@ -77,7 +77,7 @@ export default function SignUp({
 function StandardSignupFlow({
   authProviders,
 }: Pick<PageProps, "authProviders" | "emailVerificationRequired">) {
-  const { isLangfuseCloud, region } = useLangfuseCloudRegion();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const router = useRouter();
   const capture = usePostHogClientCapture();
 
@@ -212,7 +212,7 @@ function StandardSignupFlow({
         password: values.password,
         callbackUrl:
           targetPath ??
-          (isLangfuseCloud && region !== "DEV"
+          (isLangfuseCloud
             ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`
             : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/`),
       });
@@ -407,7 +407,9 @@ function VerifiedSignupFlow({
         </Head>
         <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
           <div className="sm:mx-auto sm:w-full sm:max-w-md">
-            <LangfuseIcon className="mx-auto" />
+            <div className="mx-auto w-fit">
+              <LangfuseIcon />
+            </div>
             <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
               Check your email
             </h2>
@@ -552,7 +554,9 @@ function SignupPageShell({ children }: { children: React.ReactNode }) {
       </Head>
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <LangfuseIcon className="mx-auto" />
+          <div className="mx-auto w-fit">
+            <LangfuseIcon />
+          </div>
           <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
             Create new account
           </h2>

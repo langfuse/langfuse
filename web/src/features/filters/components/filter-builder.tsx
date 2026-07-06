@@ -65,6 +65,7 @@ import {
 } from "@/src/components/ui/input-command";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { openAIFeaturesSettings } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
 
 /**
  * Extended ColumnDefinition with optional alert for UI display.
@@ -86,6 +87,7 @@ export function PopoverFilterBuilder({
   columnsWithCustomSelect = [],
   filterWithAI = false,
   buttonType = "default",
+  label = "Filters",
 }: {
   /** Which column field to persist in filter.column: 'id' for stable refs, 'name' for legacy compatibility */
   columns: ColumnDefinitionWithAlert[];
@@ -97,6 +99,8 @@ export function PopoverFilterBuilder({
   columnsWithCustomSelect?: string[];
   filterWithAI?: boolean;
   buttonType?: "default" | "icon";
+  /** Trigger button label. Defaults to "Filters"; override to clarify scope. */
+  label?: string;
 }) {
   const capture = usePostHogClientCapture();
   const [wipFilterState, _setWipFilterState] =
@@ -173,7 +177,7 @@ export function PopoverFilterBuilder({
         <PopoverTrigger asChild>
           {buttonType === "default" ? (
             <Button variant="outline" type="button">
-              <span>Filters</span>
+              <span>{label}</span>
               {filterState.length > 0 && filterState.length < 3 ? (
                 <InlineFilterState
                   filterState={filterState}
@@ -202,11 +206,7 @@ export function PopoverFilterBuilder({
             >
               <FilterIcon className="h-4 w-4" />
               {filterState.length > 0 && (
-                <span
-                  className={cn(
-                    "bg-input absolute top-0 -right-1 flex h-4 min-w-4 items-center justify-center rounded-sm px-1 text-xs shadow-xs",
-                  )}
-                >
+                <span className="bg-input absolute top-0 -right-1 flex h-4 min-w-4 items-center justify-center rounded-sm px-1 text-xs shadow-xs">
                   {filterState.length}
                 </span>
               )}
@@ -502,10 +502,7 @@ function FilterBuilderForm({
           <Button
             onClick={() => {
               if (!organization?.aiFeaturesEnabled && organization?.id) {
-                window.open(
-                  `/organization/${organization.id}/settings`,
-                  "_blank",
-                );
+                openAIFeaturesSettings(organization.id);
               } else {
                 setShowAiFilter(!showAiFilter);
               }
@@ -513,7 +510,6 @@ function FilterBuilderForm({
             type="button"
             variant="outline"
             size="default"
-            disabled={false}
             title={
               !organization?.aiFeaturesEnabled
                 ? "AI features are disabled for your organization. Click to enable them in organization settings."
@@ -608,6 +604,7 @@ function FilterBuilderForm({
                         (o) => NonEmptyString.safeParse(o).success,
                       )
                     : undefined;
+                const columnLabel = column ? column.name : "Column";
                 return (
                   <tr key={i}>
                     <td className="p-1 text-sm">{i === 0 ? "Where" : "And"}</td>
@@ -622,8 +619,8 @@ function FilterBuilderForm({
                             disabled={disabled}
                             className="flex w-full min-w-32 items-center justify-between gap-2"
                           >
-                            <span className="truncate">
-                              {column ? column.name : "Column"}
+                            <span className="truncate" title={columnLabel}>
+                              {columnLabel}
                             </span>
                             <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
                           </Button>

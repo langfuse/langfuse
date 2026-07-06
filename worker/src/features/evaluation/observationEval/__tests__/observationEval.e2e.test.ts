@@ -154,6 +154,7 @@ describe("Observation Eval E2E Pipeline", () => {
       expect(pipeline.schedulerDeps.uploadObservationToS3).toHaveBeenCalledWith(
         {
           projectId,
+          traceId: observation.trace_id,
           observationId: observation.span_id,
           data: observation,
         },

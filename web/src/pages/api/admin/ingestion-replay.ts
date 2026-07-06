@@ -4,9 +4,12 @@ import { randomUUID } from "crypto";
 import {
   eventTypes,
   logger,
+  parseEventKey,
   QueueJobs,
+  rawEventBucketPrefix,
   SecondaryIngestionQueue,
   OtelIngestionQueue,
+  UNKNOWN_INGESTION_SDK_VALUE,
 } from "@langfuse/shared/src/server";
 import type { QueueName, TQueueJobTypes } from "@langfuse/shared/src/server";
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
@@ -14,10 +17,6 @@ import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApi
 const IngestionReplayBody = z.object({
   keys: z.array(z.string()).min(1).max(1000),
 });
-
-const OTEL_KEY_REGEX =
-  /^otel\/([^/]+)\/(\d{4})\/(\d{2})\/(\d{2})\/(\d{2})\/(\d{2})\/([^.]+)\.json$/;
-const STANDARD_KEY_REGEX = /^([^/]+)\/([^/]+)\/(.+)\/([^/]+)\.json$/;
 
 type StandardReplayJob = TQueueJobTypes[QueueName.IngestionSecondaryQueue];
 type OtelReplayJob = TQueueJobTypes[QueueName.OtelIngestionQueue];
@@ -143,34 +142,45 @@ export default async function handler(
     const errors: string[] = [];
 
     for (const key of body.data.keys) {
-      const otelMatch = key.match(OTEL_KEY_REGEX);
-      if (otelMatch) {
-        const [, projectId] = otelMatch;
+      const parsed = parseEventKey(key);
+      if (parsed?.kind === "otel") {
         otelJobs.push({
           timestamp: new Date(),
           id: randomUUID(),
           payload: {
-            data: { fileKey: key },
+            data: { fileKey: key, publicKey: "" },
             authCheck: {
               validKey: true,
-              scope: { projectId: projectId!, accessLevel: "project" },
+              scope: { projectId: parsed.projectId, accessLevel: "project" },
             },
+            sdkName: UNKNOWN_INGESTION_SDK_VALUE,
+            sdkVersion: UNKNOWN_INGESTION_SDK_VALUE,
           },
           name: QueueJobs.OtelIngestionJob,
         });
         continue;
       }
 
-      const standardMatch = key.match(STANDARD_KEY_REGEX);
-      if (standardMatch) {
-        const [, projectId, type, eventBodyId, eventId] = standardMatch;
-        const replayEventType = getStandardReplayEventType(type!);
+      if (parsed?.kind === "standard") {
+        const { projectId, entityType, eventBodyId, eventId } = parsed;
+        const replayEventType = getStandardReplayEventType(entityType);
 
         if (!replayEventType) {
           skipped++;
-          errors.push(`Unsupported replay type: ${type}`);
+          errors.push(`Unsupported replay type: ${entityType}`);
           continue;
         }
+
+        // The parsed eventBodyId is the literal segment as it sits in S3 —
+        // could be sanitized + hashed (newer producer), raw SDK id (older
+        // producer), or any future shape. Pass it through verbatim via
+        // rawEventBucketPrefix so the worker reads from the same key the
+        // original write produced, regardless of which producer wrote it.
+        const bucketPrefix = rawEventBucketPrefix({
+          projectId,
+          entityType,
+          rawEntityIdSegment: eventBodyId,
+        });
 
         standardJobs.push({
           timestamp: new Date(),
@@ -178,12 +188,16 @@ export default async function handler(
           payload: {
             data: {
               type: replayEventType,
-              eventBodyId: eventBodyId!,
-              fileKey: eventId!,
+              eventBodyId,
+              fileKey: eventId,
+              bucketPrefix,
+              ingestionApiKey: "",
+              ingestionSdkName: UNKNOWN_INGESTION_SDK_VALUE,
+              ingestionSdkVersion: UNKNOWN_INGESTION_SDK_VALUE,
             },
             authCheck: {
               validKey: true,
-              scope: { projectId: projectId! },
+              scope: { projectId },
             },
           },
           name: QueueJobs.IngestionJob,

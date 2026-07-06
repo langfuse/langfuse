@@ -24,6 +24,10 @@ Use this skill for backend and API work across `web/`, `worker/`, and
   end-to-end reference map.
 - Read only the specific reference file that matches the work when the scope is
   narrower.
+- If the task introduces a user-supplied URL, an outbound HTTP request, a new
+  integration, or touches secrets, RBAC, or redirect handling, also load the
+  shared [`security-review`](../security-review/SKILL.md) skill before
+  designing or implementing the change.
 
 ## Quick Start Checklists
 

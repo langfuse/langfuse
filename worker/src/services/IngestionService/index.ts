@@ -49,6 +49,8 @@ import {
   getDatasetItemById,
   normalizeToolsForObservation,
   hasNoEvalConfigsCache,
+  buildClickHouseLogComment,
+  type IngestionAttribution,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -75,12 +77,21 @@ function parseUInt16(value: string | null | undefined): number | undefined {
   return num;
 }
 
+export type EventInput = InternalTraceEventInput;
 type InsertRecord =
   | TraceRecordInsertType
   | ScoreRecordInsertType
   | ObservationRecordInsertType
   | DatasetRunItemRecordInsertType;
-export type EventInput = InternalTraceEventInput;
+type MergeAndWriteParams = {
+  eventType: IngestionEntityTypes;
+  projectId: string;
+  entityId: string;
+  createdAtTimestamp: Date;
+  events: IngestionEventType[];
+  forwardToEventsTable: boolean;
+  attribution: IngestionAttribution;
+};
 
 const immutableEntityKeys: {
   [TableName.Traces]: (keyof TraceRecordInsertType)[];
@@ -145,47 +156,53 @@ export class IngestionService {
     this.promptService = new PromptService(prisma, redis);
   }
 
-  public async mergeAndWrite(
-    eventType: IngestionEntityTypes,
-    projectId: string,
-    eventBodyId: string,
-    createdAtTimestamp: Date,
-    events: IngestionEventType[],
-    forwardToEventsTable: boolean,
-  ): Promise<void> {
+  public async mergeAndWrite(params: MergeAndWriteParams): Promise<void> {
+    const {
+      eventType,
+      projectId,
+      entityId,
+      createdAtTimestamp,
+      events,
+      forwardToEventsTable,
+      attribution,
+    } = params;
+
     logger.debug(
-      `Merging ingestion ${eventType} event for project ${projectId} and event ${eventBodyId}`,
+      `Merging ingestion ${eventType} event for project ${projectId} and event ${entityId}`,
     );
 
     switch (eventType) {
       case "trace":
         return await this.processTraceEventList({
           projectId,
-          entityId: eventBodyId,
+          entityId,
           createdAtTimestamp,
           traceEventList: events as TraceEventType[],
           createEventTraceRecord: forwardToEventsTable,
+          attribution,
         });
       case "observation":
         return await this.processObservationEventList({
           projectId,
-          entityId: eventBodyId,
+          entityId,
           createdAtTimestamp,
           observationEventList: events as ObservationEvent[],
           writeToStagingTables: forwardToEventsTable,
+          attribution,
         });
       case "score": {
         return await this.processScoreEventList({
           projectId,
-          entityId: eventBodyId,
+          entityId,
           createdAtTimestamp,
           scoreEventList: events as ScoreEventType[],
+          attribution,
         });
       }
       case "dataset_run_item": {
         return await this.processDatasetRunItemEventList({
           projectId,
-          entityId: eventBodyId,
+          entityId,
           createdAtTimestamp,
           datasetRunItemEventList: events as DatasetRunItemEventType[],
         });
@@ -343,6 +360,9 @@ export class IngestionService {
 
       // Source/instrumentation metadata
       source: eventData.source,
+      ingestion_api_key: eventData.ingestionApiKey ?? "",
+      ingestion_sdk_name: eventData.ingestionSdkName ?? "",
+      ingestion_sdk_version: eventData.ingestionSdkVersion ?? "",
       service_name: eventData.serviceName,
       service_version: eventData.serviceVersion,
       scope_name: eventData.scopeName,
@@ -491,8 +511,15 @@ export class IngestionService {
     entityId: string;
     createdAtTimestamp: Date;
     scoreEventList: ScoreEventType[];
+    attribution: IngestionAttribution;
   }) {
-    const { projectId, entityId, createdAtTimestamp, scoreEventList } = params;
+    const {
+      projectId,
+      entityId,
+      createdAtTimestamp,
+      scoreEventList,
+      attribution,
+    } = params;
     if (scoreEventList.length === 0) return;
 
     const timeSortedEvents =
@@ -550,6 +577,9 @@ export class IngestionService {
               long_string_value: validatedScore.longStringValue,
               execution_trace_id: validatedScore.executionTraceId,
               queue_id: validatedScore.queueId ?? null,
+              ingestion_api_key: attribution.ingestionApiKey,
+              ingestion_sdk_name: attribution.ingestionSdkName,
+              ingestion_sdk_version: attribution.ingestionSdkVersion,
               created_at: Date.now(),
               updated_at: Date.now(),
               event_ts: new Date(scoreEvent.timestamp).getTime(),
@@ -595,6 +625,7 @@ export class IngestionService {
     createdAtTimestamp: Date;
     traceEventList: TraceEventType[];
     createEventTraceRecord: boolean;
+    attribution: IngestionAttribution;
   }) {
     const {
       projectId,
@@ -602,6 +633,7 @@ export class IngestionService {
       createdAtTimestamp,
       traceEventList,
       createEventTraceRecord,
+      attribution,
     } = params;
     if (traceEventList.length === 0) return;
 
@@ -694,6 +726,7 @@ export class IngestionService {
       const traceAsStagingObservation = convertTraceToStagingObservation(
         finalTraceRecord,
         this.getPartitionAwareTimestamp(createdAtTimestamp),
+        attribution,
       );
       this.clickHouseWriter.addToQueue(
         TableName.ObservationsBatchStaging,
@@ -712,26 +745,26 @@ export class IngestionService {
         `Skipping TraceUpsert queue for project ${projectId} - no job configs cached`,
       );
       return;
-    } else {
-      // Job configs present, so we add to the TraceUpsert queue.
-      const shardingKey = `${projectId}-${entityId}`;
-      const traceUpsertQueue = TraceUpsertQueue.getInstance({ shardingKey });
-      if (!traceUpsertQueue) {
-        logger.error("TraceUpsertQueue is not initialized");
-        return;
-      }
-      await traceUpsertQueue.add(QueueJobs.TraceUpsert, {
-        payload: {
-          projectId,
-          traceId: entityId,
-          exactTimestamp: new Date(finalTraceRecord.timestamp),
-          traceEnvironment: finalTraceRecord.environment,
-        },
-        id: randomUUID(),
-        timestamp: new Date(),
-        name: QueueJobs.TraceUpsert as const,
-      });
     }
+
+    // Job configs present, so we add to the TraceUpsert queue.
+    const shardingKey = `${projectId}-${entityId}`;
+    const traceUpsertQueue = TraceUpsertQueue.getInstance({ shardingKey });
+    if (!traceUpsertQueue) {
+      logger.error("TraceUpsertQueue is not initialized");
+      return;
+    }
+    await traceUpsertQueue.add(QueueJobs.TraceUpsert, {
+      payload: {
+        projectId,
+        traceId: entityId,
+        exactTimestamp: new Date(finalTraceRecord.timestamp),
+        traceEnvironment: finalTraceRecord.environment,
+      },
+      id: randomUUID(),
+      timestamp: new Date(),
+      name: QueueJobs.TraceUpsert as const,
+    });
   }
 
   private async processObservationEventList(params: {
@@ -740,6 +773,7 @@ export class IngestionService {
     createdAtTimestamp: Date;
     observationEventList: ObservationEvent[];
     writeToStagingTables: boolean;
+    attribution: IngestionAttribution;
   }) {
     const {
       projectId,
@@ -747,6 +781,7 @@ export class IngestionService {
       createdAtTimestamp,
       observationEventList,
       writeToStagingTables,
+      attribution,
     } = params;
     if (observationEventList.length === 0) return;
 
@@ -885,6 +920,9 @@ export class IngestionService {
     if (writeToStagingTables) {
       const stagingRecord = {
         ...finalObservationRecord,
+        ingestion_api_key: attribution.ingestionApiKey,
+        ingestion_sdk_name: attribution.ingestionSdkName,
+        ingestion_sdk_version: attribution.ingestionSdkVersion,
         s3_first_seen_timestamp:
           this.getPartitionAwareTimestamp(createdAtTimestamp),
       };
@@ -1435,8 +1473,7 @@ export class IngestionService {
           format: "JSONEachRow",
           query_params: { projectId, entityId, ...additionalFilters.params },
           clickhouse_settings: {
-            log_comment: JSON.stringify({
-              feature: "ingestion",
+            log_comment: buildClickHouseLogComment({
               projectId,
             }),
           },

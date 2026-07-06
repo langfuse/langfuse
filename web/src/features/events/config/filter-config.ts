@@ -96,6 +96,11 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "type",
       label: getEventsColumnName("type"),
+      help: {
+        description:
+          "Observation types classify the work captured within a trace, such as generations, spans, tools, chains, and agents.",
+        href: "https://langfuse.com/docs/observability/features/observation-types",
+      },
       renderIcon: renderFilterIcon,
     },
     {
@@ -116,6 +121,13 @@ export const observationEventsFilterConfig: FilterConfig = {
       label: getEventsColumnName("name"),
     },
     {
+      // Tags are a primary, user-defined filter — keep them near the identity
+      // facets at the top of the sidebar rather than buried mid-list (LFE-10494).
+      type: "categorical" as const,
+      column: "traceTags",
+      label: getEventsColumnName("traceTags"),
+    },
+    {
       type: "categorical" as const,
       column: "level",
       label: getEventsColumnName("level"),
@@ -134,11 +146,6 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "promptName",
       label: getEventsColumnName("promptName"),
-    },
-    {
-      type: "categorical" as const,
-      column: "traceTags",
-      label: getEventsColumnName("traceTags"),
     },
     {
       type: "stringKeyValue" as const,

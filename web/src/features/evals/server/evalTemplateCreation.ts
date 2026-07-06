@@ -19,14 +19,6 @@ import {
   isCodeEvalSourceCodeLanguageSupported,
 } from "@/src/features/evals/server/isCodeEvalEnabled";
 
-export const CODE_EVAL_TEMPLATE_VARIABLES = [
-  "input",
-  "output",
-  "metadata",
-  "experimentItemExpectedOutput",
-  "experimentItemMetadata",
-] as const;
-
 const CreateEvalTemplateBaseInputSchema = z.object({
   name: z.string().min(1),
   projectId: z.string(),
@@ -118,7 +110,7 @@ async function validateLlmAsJudgeTemplateModel(
       provider: modelConfig.config.provider,
       model: modelConfig.config.model,
       apiKey: modelConfig.config.apiKey,
-      modelConfig: input.modelParams,
+      modelConfig: modelConfig.config.modelParams,
       structuredOutputSchema: compilePersistedEvalOutputDefinition(
         input.outputDefinition,
       ).outputResultSchema,

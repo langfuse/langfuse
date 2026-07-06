@@ -71,6 +71,25 @@ When using subagents for validation, treat that as an evaluation surface. The go
 
 Prefer raw artifacts such as example prompts, outputs, diffs, logs, or traces. Give the minimum task-local context needed to perform the validation. Avoid passing the intended answer, suspected bug, intended fix, or your prior conclusions unless the validation explicitly requires them.
 
+### Require Valid Markdown Output
+
+When a skill instructs Codex to return Markdown, require the final output to be
+valid Markdown, not just Markdown-like text.
+
+In the skill instructions, explicitly require Codex to:
+
+- use valid Markdown syntax for headings, lists, links, tables, and code fences;
+- include a space after list markers such as `-`, `*`, and `1.`;
+- close every Markdown link and parenthesis correctly;
+- avoid malformed tables, dangling backticks, or partially opened fenced code
+  blocks;
+- prefer plain paragraphs over complex formatting when the structure would be
+  fragile.
+
+If a skill produces structured reports, include a short output-format section
+that says the response must be valid Markdown and should be checked for basic
+syntax mistakes before returning it.
+
 ### Anatomy of a Skill
 
 Every skill consists of a required SKILL.md file and optional bundled resources:
@@ -376,6 +395,9 @@ Do not include any other fields in YAML frontmatter.
 ##### Body
 
 Write instructions for using the skill and its bundled resources.
+
+If the skill expects Markdown output, add an explicit output-format section that
+requires valid Markdown syntax in the final response.
 
 ### Step 5: Validate the Skill
 

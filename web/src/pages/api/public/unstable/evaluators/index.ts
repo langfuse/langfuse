@@ -1,13 +1,11 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import {
   createPublicEvaluator,
   listPublicEvaluators,
 } from "@/src/features/evals/server/unstable-public-api";
 import {
-  createUnstablePublicEvalsRoute,
-  withUnstablePublicEvalsMiddlewares,
-} from "@/src/features/public-api/server/unstable-public-evals-route";
+  createUnstablePublicApiRoute,
+  withUnstablePublicApiMiddlewares,
+} from "@/src/features/public-api/server/unstable-public-api-route";
 import {
   GetUnstableEvaluatorsQuery,
   GetUnstableEvaluatorsResponse,
@@ -15,8 +13,8 @@ import {
   PostUnstableEvaluatorResponse,
 } from "@/src/features/public-api/types/unstable-evaluators";
 
-export default withUnstablePublicEvalsMiddlewares({
-  GET: createUnstablePublicEvalsRoute({
+export default withUnstablePublicApiMiddlewares({
+  GET: createUnstablePublicApiRoute({
     name: "List Unstable Evaluators",
     querySchema: GetUnstableEvaluatorsQuery,
     responseSchema: GetUnstableEvaluatorsResponse,
@@ -27,27 +25,15 @@ export default withUnstablePublicEvalsMiddlewares({
         limit: query.limit,
       }),
   }),
-  POST: createUnstablePublicEvalsRoute({
+  POST: createUnstablePublicApiRoute({
     name: "Create Unstable Evaluator",
     bodySchema: PostUnstableEvaluatorBody,
     responseSchema: PostUnstableEvaluatorResponse,
-    fn: async ({ body, auth }) => {
-      const evaluator = await createPublicEvaluator({
+    fn: async ({ body, auth }) =>
+      createPublicEvaluator({
         projectId: auth.scope.projectId,
         input: body,
-      });
-
-      await auditLog({
-        action: "create",
-        resourceType: EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE,
-        resourceId: evaluator.id,
-        projectId: auth.scope.projectId,
-        orgId: auth.scope.orgId,
-        apiKeyId: auth.scope.apiKeyId,
-        after: evaluator,
-      });
-
-      return evaluator;
-    },
+        auditScope: auth.scope,
+      }),
   }),
 });

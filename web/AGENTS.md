@@ -62,6 +62,8 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 
 - Shared browser-review workflow for user-visible frontend changes:
   [`../.agents/skills/frontend-browser-review/SKILL.md`](../.agents/skills/frontend-browser-review/SKILL.md)
+- Large frontend feature, virtualized-list, and local state architecture:
+  [`../.agents/skills/frontend-large-feature-architecture/SKILL.md`](../.agents/skills/frontend-large-feature-architecture/SKILL.md)
 - React composition and component API design:
   [`web/.agents/skills/vercel-composition-patterns/SKILL.md`](.agents/skills/vercel-composition-patterns/SKILL.md)
 - React/Next.js performance and rendering best practices:
@@ -69,11 +71,17 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 
 Read these package-local skills before substantial frontend refactors when the
 task involves component composition, reusable component APIs, rendering
-performance, bundle size, React/Next.js performance patterns, or browser-based
-signoff of user-visible changes.
+performance, virtualized lists, local feature stores, bundle size,
+React/Next.js performance patterns, or browser-based signoff of user-visible
+changes.
 
 ## Web Conventions
 
+- **Before adding or modifying a chart, dashboard, or chart formatter, read
+  `src/features/widgets/chart-library/ARCHITECTURE.md` first** — the charts
+  manifesto. It owns the data → preparer → visualiser contract: presentation
+  decisions (formatting, colors, axis scale, overload) live in the preparer,
+  not the chart components.
 - Put net-new feature code under `src/features/<feature>/*`; put broadly reusable
   components under `src/components/*`.
 - We use tRPC for full-stack web features; register routers in
@@ -111,6 +119,33 @@ signoff of user-visible changes.
   `top-banner-offset`, `pt-banner-offset`, `h-screen-with-banner`, or
   `min-h-screen-with-banner` instead of raw `top-0` so banners do not overlap
   the UI.
+- **Z-index / layers — key idea: we are migrating from z-indexes to a layer
+  system** (start of a developing design system; extend it, don't work around
+  it). **To put something on top of something else, use a layer, not a
+  z-index.** The app renders inside `#__next`, isolated into one stacking
+  context (`globals.css`), so its z-indexes can't escape; overlays go in layers
+  that sit outside it and always win. `LAYER_ORDER` is
+  `["agent", "modal", "popover", "tooltip", "toast"]` — containers declared in
+  `_document.tsx`, ordered by that array (later = on top), carrying NO z-index.
+  **THE RULE (see `src/components/ui/layer.tsx` JSDoc — source of truth): every
+  overlay portals through a layer container; never let a Radix/Vaul `*.Portal`
+  fall back to `<body>`.** Radix/Vaul primitives route via their `*.Portal`'s
+  `container` (the `ui/*` wrappers do this with `useLayerContainer`); bespoke
+  imperatively-positioned content renders via `<Layer name="…">`. z-index stays
+  local to a layer or component (1–2 max), never to escape the app — the
+  `@repo/no-overlay-zindex` lint rule enforces it.
+- **Overlay lifecycle — a dropdown that opens a modal should close first**, not
+  linger under it (a lifecycle bug, not z-order — don't fix it by re-ranking
+  layers). Radix unmounts a Select/DropdownMenu's content on close, so render the
+  Dialog as a SIBLING (trigger inside, dialog outside), as
+  `useAddLlmConnectionSelect` in `src/components/ModelParameters/index.tsx` does
+  (LFE-10615).
+- Never import `prettier/plugins/typescript` in client code — it embeds the
+  TypeScript compiler, which the SWC minifier miscompiles (dropped bindings →
+  production-only `ReferenceError`; caught by the CI client-bundle scan,
+  LFE-10645). Format TypeScript with `parser: "babel-ts"` +
+  `prettier/plugins/babel` instead, as the eval-template editor does
+  (`src/features/evals/components/code-eval-template-form-body.tsx`).
 - Public API routes should use
   `src/features/public-api/server/withMiddlewares.ts`, define strict request and
   response types in `src/features/public-api/types/*`, add server tests, and
@@ -162,7 +197,7 @@ signoff of user-visible changes.
 
 ### Error handling (tRPC + REST)
 
-1. Throw `BaseError` subclasses (eg `LangfuseNotFoundError`) from handlers and services. 
+1. Throw `BaseError` subclasses (eg `LangfuseNotFoundError`) from handlers and services.
 2. Let `BaseError`s bubble up to the tRPC and REST middlewares (eg. don't `try/catch` and rethrow in to `TRPCError` the handler)
 3. Extend the `BaseError` or its subclasses in [`packages/shared/src/errors/`](../packages/shared/src/errors/) as needed.
 

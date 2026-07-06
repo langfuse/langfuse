@@ -1,6 +1,10 @@
 import { useMemo } from "react";
 import { validateFieldAgainstSchema } from "@langfuse/shared";
 import type { Prisma } from "@langfuse/shared";
+import {
+  isDatasetJsonParseFailure,
+  parseDatasetJson,
+} from "../utils/parseDatasetJson";
 
 type Dataset = {
   id: string;
@@ -46,19 +50,23 @@ export const useDatasetItemValidation = (
     let inputData: unknown = null;
     let outputData: unknown = null;
 
-    try {
-      inputData = inputString ? JSON.parse(inputString) : null;
-    } catch (_e) {
-      // Invalid JSON - skip validation (Zod will catch this)
-      return { isValid: true, errors: [], hasSchemas: false };
+    if (inputString) {
+      inputData = parseDatasetJson(inputString);
+      if (isDatasetJsonParseFailure(inputString, inputData)) {
+        // Invalid JSON - skip schema validation (Zod will catch this)
+        return { isValid: true, errors: [], hasSchemas: false };
+      }
     }
 
-    try {
-      outputData = expectedOutputString
-        ? JSON.parse(expectedOutputString)
-        : null;
-    } catch (_e) {
-      // Invalid JSON - skip validation (Zod will catch this)
+    if (expectedOutputString) {
+      outputData = parseDatasetJson(expectedOutputString);
+      if (isDatasetJsonParseFailure(expectedOutputString, outputData)) {
+        // Invalid JSON - skip schema validation (Zod will catch this)
+        return { isValid: true, errors: [], hasSchemas: false };
+      }
+    }
+
+    if (inputData === undefined || outputData === undefined) {
       return { isValid: true, errors: [], hasSchemas: false };
     }
 

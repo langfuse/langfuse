@@ -5,6 +5,7 @@ import TagList from "@/src/features/tag/components/TagList";
 import { useTagManager } from "@/src/features/tag/hooks/useTagManager";
 import {
   Popover,
+  PopoverAnchor,
   PopoverTrigger,
   PopoverContent,
 } from "@/src/components/ui/popover";
@@ -14,7 +15,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { Label } from "@/src/components/ui/label";
 
 type TagManagerProps = {
-  itemName: "prompt" | "trace";
+  itemName: "prompt" | "trace" | "monitor";
   tags: string[];
   allTags: string[];
   hasAccess: boolean;
@@ -23,6 +24,8 @@ type TagManagerProps = {
   className?: string;
   isTableCell?: boolean;
   allowTagRemoval?: boolean;
+  triggerButton?: React.ReactNode;
+  alignPopover?: "start" | "center" | "end";
 };
 
 const TagManager = ({
@@ -35,6 +38,8 @@ const TagManager = ({
   className,
   isTableCell = false,
   allowTagRemoval = true,
+  triggerButton,
+  alignPopover,
 }: TagManagerProps) => {
   const {
     selectedTags,
@@ -82,31 +87,51 @@ const TagManager = ({
 
   return (
     <Popover onOpenChange={(open) => handlePopoverChange(open)}>
-      <PopoverTrigger
-        className="select-none"
-        asChild
-        onClick={(e) => {
-          if (isTableCell) {
-            e.stopPropagation();
-          }
-        }}
-      >
-        <div
-          className={cn(
-            "flex gap-x-1 gap-y-1",
-            !isTableCell && "flex-wrap",
-            className,
-          )}
+      {triggerButton ? (
+        <PopoverTrigger className="select-none" asChild>
+          <div
+            className={cn("flex cursor-pointer items-start gap-1", className)}
+          >
+            <PopoverAnchor asChild>{triggerButton}</PopoverAnchor>
+            {selectedTags.length > 0 && (
+              <div className="flex flex-1 flex-wrap gap-1">
+                <TagList
+                  selectedTags={selectedTags}
+                  isLoading={isLoading}
+                  isTableCell={isTableCell}
+                />
+              </div>
+            )}
+          </div>
+        </PopoverTrigger>
+      ) : (
+        <PopoverTrigger
+          className="select-none"
+          asChild
+          onClick={(e) => {
+            if (isTableCell) {
+              e.stopPropagation();
+            }
+          }}
         >
-          <TagList
-            selectedTags={selectedTags}
-            isLoading={isLoading}
-            isTableCell={isTableCell}
-          />
-        </div>
-      </PopoverTrigger>
+          <div
+            className={cn(
+              "flex gap-x-1 gap-y-1",
+              !isTableCell && "flex-wrap",
+              className,
+            )}
+          >
+            <TagList
+              selectedTags={selectedTags}
+              isLoading={isLoading}
+              isTableCell={isTableCell}
+            />
+          </div>
+        </PopoverTrigger>
+      )}
       <PopoverContent
-        className="space-y-2"
+        align={alignPopover}
+        className="w-72 space-y-2"
         onClick={(e) => {
           if (isTableCell) {
             e.stopPropagation();

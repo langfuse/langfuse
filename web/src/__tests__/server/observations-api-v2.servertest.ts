@@ -28,7 +28,7 @@ const getObservations = (url: string) =>
 const getRaw = (url: string) => makeAPICall("GET", url, undefined, auth);
 
 const maybe =
-  env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
     ? describe
     : describe.skip;
 

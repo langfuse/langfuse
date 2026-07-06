@@ -15,9 +15,9 @@ import {
   Tailwind,
   Text,
 } from "@react-email/components";
-import { createTransport } from "nodemailer";
 import { render } from "@react-email/render";
 import { type SendVerificationRequestParams } from "next-auth/providers/email";
+import { createMailTransport } from "../transport";
 
 interface ResetPasswordTemplateProps {
   token: string;
@@ -84,7 +84,7 @@ export async function sendResetPasswordVerificationRequest(
 ) {
   const { identifier, token, provider, url } =
     params as SendVerificationRequestParams & { token: string };
-  const transport = createTransport(provider.server);
+  const transport = createMailTransport(provider.server as string);
 
   // Detect if this is a setup-password flow (signup email verification)
   const isSetupMode = url?.includes("/auth/setup-password") ?? false;

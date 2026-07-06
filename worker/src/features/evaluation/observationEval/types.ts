@@ -59,6 +59,7 @@ export interface ObservationEvalSchedulerDeps {
   /** Upload observation data to S3 for later retrieval */
   uploadObservationToS3: (params: {
     projectId: string;
+    traceId: string;
     observationId: string;
     data: Record<string, unknown>;
   }) => Promise<string>;

@@ -158,3 +158,81 @@ describe("enrichObservationStream field group filtering", () => {
     expect(results[0]).toHaveProperty("total_price");
   });
 });
+
+describe("enrichObservationStream skipEnrichment", () => {
+  it("is byte-for-byte unchanged when skipEnrichment is false (default)", async () => {
+    const rows = [
+      { id: "obs-1", model_id: "gpt-4", latency: 2000, metadata: {} },
+    ];
+    const baseline = await collect(
+      enrichObservationStream(rowStream(rows), "project-1", "model_id", true, [
+        "core" as ObservationFieldGroupFull,
+        "model" as ObservationFieldGroupFull,
+        "metrics" as ObservationFieldGroupFull,
+      ]),
+    );
+    const explicitFalse = await collect(
+      enrichObservationStream(
+        rowStream(rows),
+        "project-1",
+        "model_id",
+        true,
+        [
+          "core" as ObservationFieldGroupFull,
+          "model" as ObservationFieldGroupFull,
+          "metrics" as ObservationFieldGroupFull,
+        ],
+        false,
+      ),
+    );
+    expect(explicitFalse).toEqual(baseline);
+    // Pricing fields present (as null from the mock).
+    expect(explicitFalse[0]).toHaveProperty("input_price");
+    expect(explicitFalse[0]).toHaveProperty("output_price");
+    expect(explicitFalse[0]).toHaveProperty("total_price");
+  });
+
+  it("drops only the three price fields when skipEnrichment is true", async () => {
+    const rows = [
+      { id: "obs-1", model_id: "gpt-4", latency: 2000, metadata: {} },
+    ];
+    const results = await collect(
+      enrichObservationStream(
+        rowStream(rows),
+        "project-1",
+        "model_id",
+        true,
+        [
+          "core" as ObservationFieldGroupFull,
+          "model" as ObservationFieldGroupFull,
+          "metrics" as ObservationFieldGroupFull,
+        ],
+        true,
+      ),
+    );
+
+    // Price fields dropped...
+    expect(results[0]).not.toHaveProperty("input_price");
+    expect(results[0]).not.toHaveProperty("output_price");
+    expect(results[0]).not.toHaveProperty("total_price");
+    // ...but model_id is preserved (it is a source column, not enrichment)...
+    expect(results[0]).toHaveProperty("model_id");
+    // ...and latency conversion (ms→s) still happens.
+    expect(results[0].latency).toBe(2);
+  });
+
+  it("still cleans up the metadata map when skipEnrichment is true", async () => {
+    const rows = [{ id: "obs-1", metadata: {} }];
+    const results = await collect(
+      enrichObservationStream(
+        rowStream(rows),
+        "project-1",
+        "model_id",
+        false,
+        ["core" as ObservationFieldGroupFull],
+        true,
+      ),
+    );
+    expect(results[0]).not.toHaveProperty("metadata");
+  });
+});

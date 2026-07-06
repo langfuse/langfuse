@@ -2,9 +2,13 @@ import { describe, it, expect } from "vitest";
 
 import {
   MonitorAlertSchema,
+  MonitorNoDataModeSchema,
   MonitorNoDataSchema,
   MonitorRenotifySchema,
   MonitorSchema,
+  MonitorSeveritySchema,
+  MonitorStatusSchema,
+  MonitorThresholdOperatorSchema,
   MonitorWindowSchema,
 } from "./types";
 
@@ -22,20 +26,21 @@ const validMonitorBase = {
   metric: { measure: "count", aggregation: "count" as const },
 
   window: "5m" as const,
-  thresholdOperator: "gt" as const,
+  thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
   alertThreshold: 100,
   warningThreshold: null,
 
-  severity: "unknown" as const,
+  severity: MonitorSeveritySchema.enum.UNKNOWN,
   severityChangedAt: null,
 
-  noData: { mode: "SILENT" as const },
+  noData: { mode: MonitorNoDataModeSchema.enum.SHOW_NO_DATA },
   renotify: { mode: "OFF" as const },
 
-  status: "active" as const,
+  status: MonitorStatusSchema.enum.ACTIVE,
   nextRunAt: new Date("2026-05-18T00:01:00.000Z"),
-  lastPublishedRunAt: null,
-  lastCompletedRunAt: null,
+  lastPublishedAt: null,
+  lastClaimedAt: null,
+  lastCompletedAt: null,
 
   name: "High error rate",
   tags: [],
@@ -100,37 +105,49 @@ describe("MonitorRenotifySchema", () => {
 });
 
 describe("MonitorNoDataSchema", () => {
-  it("accepts the SILENT variant", () => {
-    expect(MonitorNoDataSchema.safeParse({ mode: "SILENT" }).success).toBe(
-      true,
-    );
+  it.each([
+    MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO,
+    MonitorNoDataModeSchema.enum.LAST_SEVERITY,
+    MonitorNoDataModeSchema.enum.SHOW_NO_DATA,
+  ])("accepts the %s variant", (mode) => {
+    expect(MonitorNoDataSchema.safeParse({ mode }).success).toBe(true);
   });
 
-  it("accepts the NOTIFY variant with a valid interval", () => {
+  it("accepts the NOTIFY_NO_DATA variant with a valid interval", () => {
     const result = MonitorNoDataSchema.safeParse({
-      mode: "NOTIFY",
+      mode: MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA,
       intervalMinutes: 5,
     });
     expect(result.success).toBe(true);
   });
 
-  it("rejects NOTIFY without intervalMinutes", () => {
-    expect(MonitorNoDataSchema.safeParse({ mode: "NOTIFY" }).success).toBe(
+  it("rejects NOTIFY_NO_DATA without intervalMinutes", () => {
+    expect(
+      MonitorNoDataSchema.safeParse({
+        mode: MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects the legacy SILENT variant", () => {
+    expect(MonitorNoDataSchema.safeParse({ mode: "SILENT" }).success).toBe(
       false,
     );
   });
 
   it("rejects intervalMinutes below 1", () => {
     expect(
-      MonitorNoDataSchema.safeParse({ mode: "NOTIFY", intervalMinutes: 0 })
-        .success,
+      MonitorNoDataSchema.safeParse({
+        mode: MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA,
+        intervalMinutes: 0,
+      }).success,
     ).toBe(false);
   });
 
   it("rejects intervalMinutes above one day", () => {
     expect(
       MonitorNoDataSchema.safeParse({
-        mode: "NOTIFY",
+        mode: MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA,
         intervalMinutes: 60 * 24 + 1,
       }).success,
     ).toBe(false);
@@ -153,13 +170,33 @@ describe("MonitorSchema", () => {
   });
 });
 
+describe("MonitorSchema.triggerIds", () => {
+  it("defaults to [] when omitted", () => {
+    const result = MonitorSchema.safeParse(validMonitorBase);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.triggerIds).toEqual([]);
+  });
+
+  it("accepts a list of trigger IDs", () => {
+    const result = MonitorSchema.safeParse({
+      ...validMonitorBase,
+      triggerIds: ["trig-a", "trig-b"],
+    });
+    expect(result.success).toBe(true);
+    if (result.success)
+      expect(result.data.triggerIds).toEqual(["trig-a", "trig-b"]);
+  });
+});
+
 describe("MonitorAlertSchema", () => {
   const validAlert = {
     monitorId: "mon_01",
     projectId: "proj_01",
-    severity: "alert" as const,
+    severity: MonitorSeveritySchema.enum.ALERT,
     permalink: "https://cloud.langfuse.com/project/proj_01/monitors/mon_01",
     timestamp: new Date("2026-05-18T12:01:00.000Z"),
+    fromTimestamp: new Date("2026-05-18T11:55:30.000Z"),
+    toTimestamp: new Date("2026-05-18T12:00:30.000Z"),
     message: { title: "High error rate", body: "errors > 100" },
     view: "observations" as const,
     filters: [],
@@ -170,10 +207,17 @@ describe("MonitorAlertSchema", () => {
     expect(MonitorAlertSchema.safeParse(validAlert).success).toBe(true);
   });
 
-  it("rejects a non-URL permalink", () => {
+  it("accepts an omitted permalink (self-hosted without NEXTAUTH_URL)", () => {
+    const { permalink: _permalink, ...withoutPermalink } = validAlert;
+    expect(MonitorAlertSchema.safeParse(withoutPermalink).success).toBe(true);
+  });
+
+  it("rejects a relative (path-only) permalink", () => {
     expect(
-      MonitorAlertSchema.safeParse({ ...validAlert, permalink: "not-a-url" })
-        .success,
+      MonitorAlertSchema.safeParse({
+        ...validAlert,
+        permalink: "/project/proj_01/monitors/mon_01",
+      }).success,
     ).toBe(false);
   });
 
@@ -197,5 +241,28 @@ describe("MonitorAlertSchema", () => {
     });
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.timestamp).toBeInstanceOf(Date);
+  });
+
+  it("rejects an alert missing fromTimestamp", () => {
+    const { fromTimestamp: _unused, ...withoutFrom } = validAlert;
+    expect(MonitorAlertSchema.safeParse(withoutFrom).success).toBe(false);
+  });
+
+  it("rejects an alert missing toTimestamp", () => {
+    const { toTimestamp: _unused, ...withoutTo } = validAlert;
+    expect(MonitorAlertSchema.safeParse(withoutTo).success).toBe(false);
+  });
+
+  it("coerces fromTimestamp/toTimestamp strings to Dates", () => {
+    const result = MonitorAlertSchema.safeParse({
+      ...validAlert,
+      fromTimestamp: "2026-05-18T11:55:30.000Z",
+      toTimestamp: "2026-05-18T12:00:30.000Z",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.fromTimestamp).toBeInstanceOf(Date);
+      expect(result.data.toTimestamp).toBeInstanceOf(Date);
+    }
   });
 });

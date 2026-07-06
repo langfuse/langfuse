@@ -21,36 +21,32 @@ import {
 } from "./tools/listObservations";
 import { env } from "@/src/env.mjs";
 
-export const observationsFeature: McpFeatureModule = {
+export const observationsFeature = {
   name: "observations",
   description:
-    "Inspect generations, spans, events, and other observations in Langfuse",
+    "Inspect traces, generations, spans, events, and other observations in Langfuse",
   tools: [
     {
       definition: listObservationsTool,
       handler: handleListObservations,
-      allowInAppAgentKey: true,
     },
     {
       definition: getObservationTool,
       handler: handleGetObservation,
-      allowInAppAgentKey: true,
     },
     {
       definition: getObservationFieldSchemaTool,
       handler: handleGetObservationFieldSchema,
-      allowInAppAgentKey: true,
     },
     {
       definition: getObservationFilterSchemaTool,
       handler: handleGetObservationFilterSchema,
-      allowInAppAgentKey: true,
     },
     {
       definition: getObservationFilterValuesTool,
       handler: handleGetObservationFilterValues,
-      allowInAppAgentKey: true,
     },
   ],
-  isEnabled: async () => env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true",
-};
+  isEnabled: async () =>
+    env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true",
+} as const satisfies McpFeatureModule;

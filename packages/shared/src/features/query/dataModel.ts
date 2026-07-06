@@ -690,6 +690,16 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
     description: "Identifier of the session.",
     highCardinality: true,
   },
+  // Run-level scores (dataset_run_id on scores table). Used by experiment
+  // widgets via entityDimension + filters.
+  datasetRunId: {
+    sql: "nullIf(scores.dataset_run_id, '')",
+    alias: "datasetRunId",
+    type: "string",
+    description: "Identifier of the dataset run (experiment) for the score.",
+    highCardinality: true,
+    uiHidden: true,
+  },
   // Trace metadata on events table (accessed via events_traces JOIN)
   traceName: {
     sql: "COALESCE(nullIf(events_traces.trace_name, ''), nullIf(events_traces.name, ''))",
@@ -756,12 +766,33 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
     relationTable: "events_observations",
     description: "Version of the prompt used for the observation.",
   },
+  // Experiment fields for observation-attached scores. These stay hidden from
+  // the custom dashboard builder for now and are used by internal experiment
+  // widgets via entityDimension + filters.
+  experimentName: {
+    sql: "nullIf(events_observations.experiment_name, '')",
+    alias: "experimentName",
+    type: "string",
+    relationTable: "events_observations",
+    description: "Name of the experiment associated with the score.",
+    highCardinality: true,
+    uiHidden: true,
+  },
+  experimentId: {
+    sql: "nullIf(events_observations.experiment_id, '')",
+    alias: "experimentId",
+    type: "string",
+    relationTable: "events_observations",
+    description: "ID of the experiment associated with the score.",
+    highCardinality: true,
+    uiHidden: true,
+  },
 };
 
 // Factory for shared score-specific dimensions (both numeric and categorical)
 const createScoreSpecificDimensions = (
   tableAlias: string,
-  isV2: boolean = false,
+  isV2 = false,
 ): DimensionsDeclarationType => ({
   id: {
     sql: `${tableAlias}.id`,
@@ -856,24 +887,24 @@ const createScoreTableRelations = (
         timeDimension: "start_time",
       },
     };
-  } else {
-    return {
-      events_traces: {
-        name: "events_core",
-        joinConditionSql:
-          "ON scores.trace_id = events_traces.trace_id AND scores.project_id = events_traces.project_id AND events_traces.parent_span_id = ''",
-        timeDimension: "start_time",
-        useFinal: false,
-      },
-      events_observations: {
-        name: "events_core",
-        joinConditionSql:
-          "ON scores.project_id = events_observations.project_id AND scores.trace_id = events_observations.trace_id AND scores.observation_id = events_observations.span_id",
-        timeDimension: "start_time",
-        useFinal: false,
-      },
-    };
   }
+
+  return {
+    events_traces: {
+      name: "events_core",
+      joinConditionSql:
+        "ON scores.trace_id = events_traces.trace_id AND scores.project_id = events_traces.project_id AND events_traces.parent_span_id = ''",
+      timeDimension: "start_time",
+      useFinal: false,
+    },
+    events_observations: {
+      name: "events_core",
+      joinConditionSql:
+        "ON scores.project_id = events_observations.project_id AND scores.trace_id = events_observations.trace_id AND scores.observation_id = events_observations.span_id",
+      timeDimension: "start_time",
+      useFinal: false,
+    },
+  };
 };
 
 function scoresNumericViewBase(version: "v1" | "v2"): ViewDeclarationType {

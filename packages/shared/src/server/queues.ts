@@ -11,6 +11,13 @@ import { PromptDomainSchema } from "../domain/prompts";
 import { ObservationAddToDatasetConfigSchema } from "../features/batchAction/addToDatasetTypes";
 import { EvalTargetObjectSchema } from "../features/evals/types";
 import { JobConfigExecutionMode } from "../features/evals/evalConfigBlocking";
+import {
+  type MonitorQueueEvent,
+  type MonitorQueueEventInput,
+  MonitorWebhookQueueEventSchema,
+} from "../features/monitors/scheduler/types";
+
+export type { MonitorQueueEvent, MonitorQueueEventInput };
 
 export const IngestionEvent = z.object({
   data: z.object({
@@ -19,6 +26,17 @@ export const IngestionEvent = z.object({
     fileKey: z.string().optional(),
     skipS3List: z.boolean().optional(),
     forwardToEventsTable: z.boolean().optional(),
+    // Optional for rolling deploy compatibility with in-flight jobs created
+    // before ingestion attribution was added to the queue payload.
+    ingestionApiKey: z.string().optional(),
+    ingestionSdkName: z.string().optional(),
+    ingestionSdkVersion: z.string().optional(),
+    // Absolute S3 key prefix the producer used (ends with "/"). Set so the
+    // consumer never reconstructs the path and therefore can't drift from
+    // the producer when env values differ across containers. Optional for
+    // backward compatibility with in-flight jobs enqueued before this field
+    // existed — the consumer falls back to local reconstruction when absent.
+    bucketPrefix: z.string().optional(),
   }),
   authCheck: z.object({
     validKey: z.literal(true),
@@ -31,6 +49,8 @@ export const IngestionEvent = z.object({
 export const OtelIngestionEvent = z.object({
   data: z.object({
     fileKey: z.string(),
+    // Optional for compatibility with queued/replayed payloads that do not
+    // carry API-key attribution.
     publicKey: z.string().optional(),
   }),
   authCheck: z.object({
@@ -42,6 +62,8 @@ export const OtelIngestionEvent = z.object({
     }),
   }),
   propagatedHeaders: z.record(z.string(), z.string()).optional(),
+  // Optional for rolling deploy compatibility with in-flight jobs created
+  // before SDK attribution was added to the queue payload.
   sdkName: z.string().optional(),
   sdkVersion: z.string().optional(),
   ingestionVersion: z.string().optional(),
@@ -131,6 +153,15 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
   [
     z.object({
       actionId: z.literal("score-delete"),
+      projectId: z.string(),
+      query: BatchActionQuerySchema,
+      tableName: z.enum(BatchTableNames),
+      cutoffCreatedAt: z.date(),
+      targetId: z.string().optional(),
+      type: z.enum(BatchActionType),
+    }),
+    z.object({
+      actionId: z.literal("dataset-delete"),
       projectId: z.string(),
       query: BatchActionQuerySchema,
       tableName: z.enum(BatchTableNames),
@@ -232,10 +263,10 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
   // Future notification types can be added here
 ]);
 
-export const WebhookOutboundEnvelopeSchema = z.object({
+export const promptVersionWebhookEnvelopeSchema = z.object({
+  type: z.literal("prompt-version"),
   prompt: PromptDomainSchema,
   action: EventActionSchema,
-  type: z.literal("prompt-version"),
   user: z
     .object({
       id: z.string(),
@@ -244,6 +275,12 @@ export const WebhookOutboundEnvelopeSchema = z.object({
     })
     .optional(),
 });
+
+/** WebhookOutboundEnvelopeSchema is the WebhookInput.payload contract: a discriminated union over `type`. The monitor-alert variant is the unified envelope (queue payload = HTTP outbound body); the prompt-version variant keeps its original dispatch-time wrap. */
+export const WebhookOutboundEnvelopeSchema = z.discriminatedUnion("type", [
+  promptVersionWebhookEnvelopeSchema,
+  MonitorWebhookQueueEventSchema,
+]);
 
 export const WebhookInputSchema = z.object({
   projectId: z.string(),
@@ -358,6 +395,7 @@ export enum QueueName {
   EntityChangeQueue = "entity-change-queue",
   EventPropagationQueue = "event-propagation-queue",
   NotificationQueue = "notification-queue",
+  MonitorQueue = "monitor-queue",
 }
 
 export enum QueueJobs {
@@ -394,6 +432,7 @@ export enum QueueJobs {
   EntityChangeJob = "entity-change-job",
   EventPropagationJob = "event-propagation-job",
   NotificationJob = "notification-job",
+  MonitorJob = "monitor-job",
 }
 
 export type TQueueJobTypes = {
@@ -574,5 +613,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: NotificationEventType;
     name: QueueJobs.NotificationJob;
+  };
+  [QueueName.MonitorQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: MonitorQueueEventInput;
+    name: QueueJobs.MonitorJob;
   };
 };

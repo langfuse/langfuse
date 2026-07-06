@@ -7,7 +7,7 @@ import {
   createTracesCh,
   createTraceScore,
   createScoresCh,
-  getTraceById,
+  getTraceByIdFromTracesTable,
   createEventsCh,
   createEvent,
   getTraceByIdFromEventsTable,
@@ -722,7 +722,8 @@ describe("traces trpc", () => {
   });
 
   describe("traces flags", () => {
-    const useEventsTable = env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS === "true";
+    const useEventsTable =
+      env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
     it("should bookmark a trace", async () => {
       // Create a trace that is not bookmarked
       const trace = createTrace({
@@ -745,10 +746,9 @@ describe("traces trpc", () => {
         ]);
       }
 
-      const cleanTrace = await getTraceById({
+      const cleanTrace = await getTraceByIdFromTracesTable({
         traceId: trace.id,
         projectId,
-        clickhouseFeatureTag: "tracing-test",
       });
 
       expect(cleanTrace).toBeDefined();
@@ -766,10 +766,9 @@ describe("traces trpc", () => {
       expect(result?.bookmarked).toBe(true);
 
       // Verify the trace is bookmarked in the database
-      const updatedTrace = await getTraceById({
+      const updatedTrace = await getTraceByIdFromTracesTable({
         traceId: trace.id,
         projectId,
-        clickhouseFeatureTag: "tracing-test",
       });
 
       expect(updatedTrace).toBeDefined();
@@ -826,10 +825,9 @@ describe("traces trpc", () => {
         ]);
       }
 
-      const cleanTrace = await getTraceById({
+      const cleanTrace = await getTraceByIdFromTracesTable({
         traceId: trace.id,
         projectId,
-        clickhouseFeatureTag: "tracing-test",
       });
 
       expect(cleanTrace).toBeDefined();
@@ -847,10 +845,9 @@ describe("traces trpc", () => {
       expect(result?.public).toBe(true);
 
       // Verify the trace is public in the database
-      const updatedTrace = await getTraceById({
+      const updatedTrace = await getTraceByIdFromTracesTable({
         traceId: trace.id,
         projectId,
-        clickhouseFeatureTag: "tracing-test",
       });
 
       expect(updatedTrace).toBeDefined();

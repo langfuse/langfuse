@@ -86,6 +86,19 @@ function quoteClickhouseIdentifier(value: string, label: string): string {
   return `\`${value.replace(/\\/g, "\\\\").replace(/`/g, "\\`")}\``;
 }
 
+function buildMutationSource(
+  useClusterAllReplicas: boolean,
+  clusterName: string,
+): string {
+  if (useClusterAllReplicas) {
+    assertClickHouseName(clusterName, "cluster");
+  }
+
+  return useClusterAllReplicas
+    ? `clusterAllReplicas(${quoteClickhouseString(clusterName)}, 'system.mutations')`
+    : "system.mutations";
+}
+
 export function isAbortError(error: unknown): boolean {
   if (!(error instanceof Error)) {
     return false;
@@ -134,6 +147,16 @@ export function normalizeMutationCounts(
   return mutationCounts;
 }
 
+export function shouldUseDeletedMaskCleanerClusterMode({
+  clusterEnabled,
+  cleanerClusterModeEnabled,
+}: {
+  clusterEnabled: boolean;
+  cleanerClusterModeEnabled: boolean;
+}): boolean {
+  return clusterEnabled && cleanerClusterModeEnabled;
+}
+
 export function buildApplyDeletedMaskQuery(
   candidate: WorkCandidateRow,
   config: ClickHouseDdlConfig,
@@ -158,23 +181,15 @@ export function buildApplyDeletedMaskQuery(
 }
 
 export function buildMutationCountQuery(
-  clusterEnabled: boolean,
+  useClusterAllReplicas: boolean,
   clusterName: string,
 ): string {
-  if (clusterEnabled) {
-    assertClickHouseName(clusterName, "cluster");
-  }
-
-  const mutationSource = clusterEnabled
-    ? `clusterAllReplicas(${quoteClickhouseString(clusterName)}, 'system.mutations')`
-    : "system.mutations";
-
   return `
     SELECT
       database,
       table,
       count() AS mutation_count
-    FROM ${mutationSource}
+    FROM ${buildMutationSource(useClusterAllReplicas, clusterName)}
     WHERE database = {database: String}
       AND table IN ({tables: Array(String)})
       AND is_done = 0

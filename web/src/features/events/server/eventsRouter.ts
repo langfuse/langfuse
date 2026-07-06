@@ -3,6 +3,7 @@ import { z as zodSchema } from "zod";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
+  protectedGetTraceProcedure,
 } from "@/src/server/api/trpc";
 import {
   type OrderByState,
@@ -10,6 +11,7 @@ import {
   paginationZod,
   timeFilter,
 } from "@langfuse/shared";
+import { MonitorWindowSchema } from "@langfuse/shared/monitors";
 import {
   toDomainArrayWithStringifiedMetadata,
   toDomainWithStringifiedMetadata,
@@ -21,6 +23,7 @@ import {
   getEventCount,
   getEventFilterOptions,
   getEventBatchIO,
+  EVENT_FILTER_OPTIONS_COLUMNS,
 } from "./eventsService";
 import {
   instrumentAsync,
@@ -55,6 +58,12 @@ export type GetAllEventsInput = z.infer<typeof GetAllEventsInput>;
 const GetEventFilterOptionsInput = zodSchema.object({
   projectId: zodSchema.string(),
   startTimeFilter: zodSchema.array(timeFilter).optional(),
+  monitorWindow: MonitorWindowSchema.optional(),
+  isRootObservation: zodSchema.boolean().optional(),
+  hasParentObservation: zodSchema.boolean().optional(),
+  columns: zodSchema
+    .array(zodSchema.enum(EVENT_FILTER_OPTIONS_COLUMNS))
+    .optional(),
 });
 
 export type GetEventFilterOptionsInput = z.infer<
@@ -88,7 +97,7 @@ export const eventsRouter = createTRPCRouter({
       });
 
       if (hasNoMatches) {
-        return { observations: [] };
+        return { observations: [], hasMore: false };
       }
 
       return instrumentAsync(
@@ -149,14 +158,7 @@ export const eventsRouter = createTRPCRouter({
       );
     }),
   filterOptions: protectedProjectProcedure
-    .input(
-      zodSchema.object({
-        projectId: zodSchema.string(),
-        startTimeFilter: zodSchema.array(timeFilter).optional(),
-        isRootObservation: zodSchema.boolean().optional(),
-        hasParentObservation: zodSchema.boolean().optional(),
-      }),
-    )
+    .input(GetEventFilterOptionsInput)
     .query(async ({ input }) => {
       return instrumentAsync(
         {
@@ -168,11 +170,13 @@ export const eventsRouter = createTRPCRouter({
           return getEventFilterOptions({
             projectId: input.projectId,
             startTimeFilter: input.startTimeFilter,
+            monitorWindow: input.monitorWindow,
             isRootObservation:
               input.isRootObservation ??
               (input.hasParentObservation !== undefined
                 ? !input.hasParentObservation
                 : undefined), // backward compat for legacy hasParentObservation filterOption
+            columns: input.columns,
           });
         },
       );
@@ -224,7 +228,7 @@ export const eventsRouter = createTRPCRouter({
    * Fetch scores and corrections for a trace.
    * Used by the v4 trace detail view where trace data comes from events table.
    */
-  scoresForTrace: protectedProjectProcedure
+  scoresForTrace: protectedGetTraceProcedure
     .input(
       zodSchema.object({
         projectId: zodSchema.string(),
@@ -232,7 +236,7 @@ export const eventsRouter = createTRPCRouter({
         timestamp: zodSchema.date().optional(),
       }),
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       return instrumentAsync(
         { name: "get-events-scores-for-trace-trpc" },
         async (span) => {
@@ -240,7 +244,7 @@ export const eventsRouter = createTRPCRouter({
           span.setAttribute("trace_id", input.traceId);
 
           return getScoresAndCorrectionsForTraces({
-            projectId: ctx.session.projectId,
+            projectId: input.projectId,
             traceIds: [input.traceId],
             timestamp: input.timestamp,
           });
@@ -252,7 +256,7 @@ export const eventsRouter = createTRPCRouter({
    * Returns up to MAX_OBSERVATIONS_PER_TRACE observations.
    * Sets cutoffObservationsAfterMaxCount=true if trace exceeds the cap.
    */
-  byTraceId: protectedProjectProcedure
+  byTraceId: protectedGetTraceProcedure
     .input(
       zodSchema.object({
         projectId: zodSchema.string(),
@@ -260,16 +264,16 @@ export const eventsRouter = createTRPCRouter({
         timestamp: zodSchema.date().optional(),
       }),
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       return instrumentAsync(
         { name: "get-events-by-trace-id-trpc" },
         async (span) => {
-          span.setAttribute("project_id", ctx.session.projectId);
+          span.setAttribute("project_id", input.projectId);
           span.setAttribute("trace_id", input.traceId);
 
           const { observations, totalCount } =
             await getObservationsForTraceFromEventsTable({
-              projectId: ctx.session.projectId,
+              projectId: input.projectId,
               traceId: input.traceId,
               timestamp: input.timestamp,
             });
@@ -287,7 +291,7 @@ export const eventsRouter = createTRPCRouter({
    * Used by v4 events-based trace detail view for graph visualization.
    * Returns same shape as traces.getAgentGraphData for frontend compatibility.
    */
-  getAgentGraphData: protectedProjectProcedure
+  getAgentGraphData: protectedGetTraceProcedure
     .input(
       zodSchema.object({
         projectId: zodSchema.string(),
@@ -296,77 +300,75 @@ export const eventsRouter = createTRPCRouter({
         maxStartTime: zodSchema.string(),
       }),
     )
-    .query(
-      async ({ input, ctx }): Promise<Required<AgentGraphDataResponse>[]> => {
-        return instrumentAsync(
-          { name: "get-events-agent-graph-data-trpc" },
-          async (span) => {
-            span.setAttribute("project_id", input.projectId);
-            span.setAttribute("trace_id", input.traceId);
+    .query(async ({ input }): Promise<Required<AgentGraphDataResponse>[]> => {
+      return instrumentAsync(
+        { name: "get-events-agent-graph-data-trpc" },
+        async (span) => {
+          span.setAttribute("project_id", input.projectId);
+          span.setAttribute("trace_id", input.traceId);
 
-            const { traceId, minStartTime, maxStartTime } = input;
+          const { traceId, minStartTime, maxStartTime } = input;
 
-            const chMinStartTime = convertDateToClickhouseDateTime(
-              new Date(minStartTime),
-            );
-            const chMaxStartTime = convertDateToClickhouseDateTime(
-              new Date(maxStartTime),
-            );
+          const chMinStartTime = convertDateToClickhouseDateTime(
+            new Date(minStartTime),
+          );
+          const chMaxStartTime = convertDateToClickhouseDateTime(
+            new Date(maxStartTime),
+          );
 
-            const records = await getAgentGraphDataFromEventsTable({
-              projectId: ctx.session.projectId,
-              traceId,
-              chMinStartTime,
-              chMaxStartTime,
-            });
+          const records = await getAgentGraphDataFromEventsTable({
+            projectId: input.projectId,
+            traceId,
+            chMinStartTime,
+            chMaxStartTime,
+          });
 
-            // Transform to AgentGraphDataResponse format
-            // TODO: Extract this transformation logic into a shared utility
-            // (duplicated from traces.getAgentGraphData in traces.ts)
-            const result = records
-              .map((r) => {
-                const parsed = AgentGraphDataSchema.safeParse(r);
-                if (!parsed.success) {
-                  return null;
-                }
-
-                const data = parsed.data;
-                const hasLangGraphData = data.step != null && data.node != null;
-                const hasAgentData = data.type !== "EVENT";
-
-                if (hasLangGraphData) {
-                  return {
-                    id: data.id,
-                    node: data.node,
-                    step: data.step,
-                    parentObservationId: data.parent_observation_id || null,
-                    name: data.name,
-                    startTime: data.start_time,
-                    endTime: data.end_time || undefined,
-                    observationType: data.type,
-                  };
-                } else if (hasAgentData) {
-                  return {
-                    id: data.id,
-                    node: data.name,
-                    step: 0,
-                    parentObservationId: data.parent_observation_id || null,
-                    name: data.name,
-                    startTime: data.start_time,
-                    endTime: data.end_time || undefined,
-                    observationType: data.type,
-                  };
-                }
-
+          // Transform to AgentGraphDataResponse format
+          // TODO: Extract this transformation logic into a shared utility
+          // (duplicated from traces.getAgentGraphData in traces.ts)
+          const result = records
+            .map((r) => {
+              const parsed = AgentGraphDataSchema.safeParse(r);
+              if (!parsed.success) {
                 return null;
-              })
-              .filter((r): r is Required<AgentGraphDataResponse> => Boolean(r));
+              }
 
-            return result;
-          },
-        );
-      },
-    ),
+              const data = parsed.data;
+              const hasLangGraphData = data.step != null && data.node != null;
+              const hasAgentData = data.type !== "EVENT";
+
+              if (hasLangGraphData) {
+                return {
+                  id: data.id,
+                  node: data.node,
+                  step: data.step,
+                  parentObservationId: data.parent_observation_id || null,
+                  name: data.name,
+                  startTime: data.start_time,
+                  endTime: data.end_time || undefined,
+                  observationType: data.type,
+                };
+              } else if (hasAgentData) {
+                return {
+                  id: data.id,
+                  node: data.name,
+                  step: 0,
+                  parentObservationId: data.parent_observation_id || null,
+                  name: data.name,
+                  startTime: data.start_time,
+                  endTime: data.end_time || undefined,
+                  observationType: data.type,
+                };
+              }
+
+              return null;
+            })
+            .filter((r): r is Required<AgentGraphDataResponse> => Boolean(r));
+
+          return result;
+        },
+      );
+    }),
   /**
    * Get SDK metadata for a project.
    * Returns info about the SDK being used (name, version, language).

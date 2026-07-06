@@ -339,20 +339,17 @@ export const scoresRouter = createTRPCRouter({
         );
       }
 
-      const scoredTracesScope =
-        "e.trace_id IN (SELECT DISTINCT trace_id FROM scores WHERE project_id = {projectId: String})";
-
       const [names, tags, traceNames, userIds, stringValues] =
         await Promise.all([
           getScoreNames(input.projectId, timestampFilter ?? []),
           getEventsGroupedByTraceTags(input.projectId, eventsFilter, {
-            extraWhereRaw: scoredTracesScope,
+            scope: "scoredTraces",
           }),
           getEventsGroupedByTraceName(input.projectId, eventsFilter, {
-            extraWhereRaw: scoredTracesScope,
+            scope: "scoredTraces",
           }),
           getEventsGroupedByUserId(input.projectId, eventsFilter, {
-            extraWhereRaw: scoredTracesScope,
+            scope: "scoredTraces",
           }),
           getScoreStringValues(input.projectId, timestampFilter ?? []),
         ]);
@@ -507,10 +504,10 @@ export const scoresRouter = createTRPCRouter({
           };
 
       if (inflatedParams.traceId) {
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
         const clickhouseTrace = await getTraceById({
           traceId: inflatedParams.traceId,
           projectId: input.projectId,
-          clickhouseFeatureTag: "annotations-trpc",
         });
 
         if (!clickhouseTrace) {
@@ -523,6 +520,7 @@ export const scoresRouter = createTRPCRouter({
         }
       } else if (inflatedParams.sessionId) {
         // We consider no longer writing all sessions into postgres, hence we should search for traces with the session id
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
         const traceIdentifiers = await getTracesIdentifierForSession(
           input.projectId,
           inflatedParams.sessionId,
@@ -675,10 +673,10 @@ export const scoresRouter = createTRPCRouter({
             };
 
         if (inflatedParams.traceId) {
+          // eslint-disable-next-line @typescript-eslint/no-deprecated
           const clickhouseTrace = await getTraceById({
             traceId: inflatedParams.traceId,
             projectId: input.projectId,
-            clickhouseFeatureTag: "annotations-trpc",
           });
 
           if (!clickhouseTrace) {
@@ -691,6 +689,7 @@ export const scoresRouter = createTRPCRouter({
           }
         } else if (inflatedParams.sessionId) {
           // We consider no longer writing all sessions into postgres, hence we should search for traces with the session id
+          // eslint-disable-next-line @typescript-eslint/no-deprecated
           const traceIdentifiers = await getTracesIdentifierForSession(
             input.projectId,
             inflatedParams.sessionId,
@@ -932,10 +931,10 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
       const clickhouseTrace = await getTraceById({
         traceId: input.traceId,
         projectId: input.projectId,
-        clickhouseFeatureTag: "annotations-trpc",
       });
 
       if (!clickhouseTrace) {

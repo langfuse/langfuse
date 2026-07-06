@@ -2,8 +2,8 @@ import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
+  HoverCardPortal,
 } from "@/src/components/ui/hover-card";
-import { HoverCardPortal } from "@radix-ui/react-hover-card";
 import { SelectItem } from "@/src/components/ui/select";
 import * as React from "react";
 

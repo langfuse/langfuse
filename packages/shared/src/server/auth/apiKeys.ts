@@ -44,6 +44,10 @@ export async function createAndAddApiKeysToDb(p: {
   scope: ApiKeyScope;
   note?: string;
   isInAppAgentKey?: boolean;
+  /** User who created the key, e.g. via the UI. */
+  createdByUserId?: string;
+  /** API key that created the key, e.g. an org-scoped key using the public API. */
+  createdByApiKeyId?: string;
   predefinedKeys?: {
     secretKey: string;
     publicKey: string;
@@ -76,6 +80,8 @@ export async function createAndAddApiKeysToDb(p: {
       note: p.note,
       scope: p.scope,
       isInAppAgentKey: p.isInAppAgentKey ?? false,
+      createdByUserId: p.createdByUserId,
+      createdByApiKeyId: p.createdByApiKeyId,
     },
   });
 

@@ -15,6 +15,7 @@ import {
   isAbortError,
   normalizeMutationCounts,
   selectCandidateToProcess,
+  shouldUseDeletedMaskCleanerClusterMode,
   type MutationCountRow,
   type WorkCandidateRow,
 } from "./helpers";
@@ -25,6 +26,12 @@ export const DELETED_MASK_CLEANER_LOCK_KEY =
   "langfuse:clickhouse-deleted-mask-cleaner";
 
 const METRIC_PREFIX = "langfuse.clickhouse_deleted_mask_cleaner";
+const MUTATION_VISIBILITY_WAIT_TIMEOUT_MS = 30_000;
+const MUTATION_VISIBILITY_POLL_INTERVAL_MS = 500;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 /**
  * DeletedMaskCleaner physically applies ClickHouse lightweight delete masks for
@@ -124,10 +131,6 @@ export class DeletedMaskCleaner extends PeriodicExclusiveRunner {
         database: env.CLICKHOUSE_DB,
         tables: Array.from(DELETED_MASK_CLEANER_TABLES),
       },
-      tags: {
-        feature: "deleted-mask-cleaner",
-        operation: "get-candidates",
-      },
     });
 
     return rows;
@@ -142,24 +145,29 @@ export class DeletedMaskCleaner extends PeriodicExclusiveRunner {
 
     return queryClickhouse<MutationCountRow>({
       query: buildMutationCountQuery(
-        env.CLICKHOUSE_CLUSTER_ENABLED === "true",
+        this.useCleanerClusterMode(),
         env.CLICKHOUSE_CLUSTER_NAME,
       ),
       params: {
         database: env.CLICKHOUSE_DB,
         tables,
       },
-      tags: {
-        feature: "deleted-mask-cleaner",
-        operation: "get-mutation-counts",
-      },
+    });
+  }
+
+  private useCleanerClusterMode(): boolean {
+    return shouldUseDeletedMaskCleanerClusterMode({
+      clusterEnabled: env.CLICKHOUSE_CLUSTER_ENABLED === "true",
+      cleanerClusterModeEnabled:
+        env.LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_CLUSTER_MODE_ENABLED ===
+        "true",
     });
   }
 
   private async applyDeletedMask(candidate: WorkCandidateRow): Promise<void> {
     const query = buildApplyDeletedMaskQuery(candidate, {
       database: env.CLICKHOUSE_DB,
-      clusterEnabled: env.CLICKHOUSE_CLUSTER_ENABLED === "true",
+      clusterEnabled: this.useCleanerClusterMode(),
       clusterName: env.CLICKHOUSE_CLUSTER_NAME,
     });
 
@@ -183,12 +191,6 @@ export class DeletedMaskCleaner extends PeriodicExclusiveRunner {
           mutations_sync: "0",
         },
         abortSignal: abortController.signal,
-        tags: {
-          feature: "deleted-mask-cleaner",
-          table: candidate.table,
-          partition: candidate.partition_to_clean,
-          operation: "apply-deleted-mask",
-        },
       });
 
       recordIncrement(`${METRIC_PREFIX}.commands_submitted`, 1, {
@@ -215,5 +217,33 @@ export class DeletedMaskCleaner extends PeriodicExclusiveRunner {
     } finally {
       clearTimeout(timeoutId);
     }
+
+    await this.waitForSubmittedMutationVisibility(candidate.table);
+  }
+
+  private async waitForSubmittedMutationVisibility(
+    table: string,
+  ): Promise<void> {
+    const deadline = Date.now() + MUTATION_VISIBILITY_WAIT_TIMEOUT_MS;
+
+    // This is a best-effort lock hold after async DDL submission. Tiny mutations
+    // may complete before system.mutations ever exposes them as unfinished, which
+    // is fine because the lock was still held through the duplicate-submit window.
+    while (Date.now() < deadline) {
+      if ((await this.getActiveMutationCount(table)) > 0) {
+        return;
+      }
+
+      await sleep(MUTATION_VISIBILITY_POLL_INTERVAL_MS);
+    }
+  }
+
+  private async getActiveMutationCount(table: string): Promise<number> {
+    const mutationCounts = normalizeMutationCounts(
+      [table],
+      await this.getMutationCountRows([table]),
+    );
+
+    return mutationCounts.get(table) ?? 0;
   }
 }

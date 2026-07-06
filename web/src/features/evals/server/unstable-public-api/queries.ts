@@ -3,13 +3,14 @@ import {
   JobConfigState,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
-import { EvalTemplateType, Prisma, prisma } from "@langfuse/shared/src/db";
+import { Prisma, prisma } from "@langfuse/shared/src/db";
 import type {
   EvaluationRuleEvaluatorFamilyReference,
   PrismaClientLike,
   StoredPublicEvaluationRuleConfig,
   StoredPublicEvaluatorTemplate,
 } from "./types";
+import { toStoredEvaluatorType } from "./adapters";
 
 export function getPrismaClient(client?: PrismaClientLike) {
   return client ?? prisma;
@@ -22,10 +23,9 @@ export async function findPublicEvaluatorTemplateOrThrow(params: {
 }) {
   const client = getPrismaClient(params.client);
 
-  const template = await client.evalTemplate.findUnique({
+  const template = await client.evalTemplate.findFirst({
     where: {
       id: params.evaluatorId,
-      type: EvalTemplateType.LLM_AS_JUDGE,
     },
   });
 
@@ -51,7 +51,7 @@ export async function findLatestPublicEvaluatorTemplateInFamilyOrThrow(params: {
     where: {
       name: params.evaluator.name,
       projectId: params.evaluator.scope === "project" ? params.projectId : null,
-      type: EvalTemplateType.LLM_AS_JUDGE,
+      type: toStoredEvaluatorType(params.evaluator.type),
     },
     orderBy: {
       version: "desc",
@@ -131,15 +131,15 @@ export async function listPublicEvaluatorTemplates(params: {
     prisma.$queryRaw<Array<{ id: string }>>(
       Prisma.sql`
         WITH latest_templates AS (
-          SELECT DISTINCT ON (project_id, name)
+          SELECT DISTINCT ON (project_id, name, type)
             id,
             project_id,
             name,
+            type,
             updated_at
           FROM eval_templates
           WHERE (project_id = ${params.projectId} OR project_id IS NULL)
-            AND type = ${EvalTemplateType.LLM_AS_JUDGE}::"EvalTemplateType"
-          ORDER BY project_id, name, version DESC
+          ORDER BY project_id, name, type, version DESC
         )
         SELECT id
         FROM latest_templates
@@ -156,10 +156,9 @@ export async function listPublicEvaluatorTemplates(params: {
       Prisma.sql`
         SELECT COUNT(*) as count
         FROM (
-          SELECT DISTINCT project_id, name
+          SELECT DISTINCT project_id, name, type
           FROM eval_templates
           WHERE (project_id = ${params.projectId} OR project_id IS NULL)
-            AND type = ${EvalTemplateType.LLM_AS_JUDGE}::"EvalTemplateType"
         ) latest_template_families
       `,
     ),
@@ -218,7 +217,6 @@ export async function findPublicEvaluationRuleOrThrow(params: {
       },
       evalTemplate: {
         is: {
-          type: EvalTemplateType.LLM_AS_JUDGE,
           OR: [{ projectId: params.projectId }, { projectId: null }],
         },
       },
@@ -229,6 +227,7 @@ export async function findPublicEvaluationRuleOrThrow(params: {
           id: true,
           projectId: true,
           name: true,
+          type: true,
         },
       },
     },
@@ -272,7 +271,6 @@ export async function countActiveEvaluationRules(params: {
       blockedAt: null,
       evalTemplate: {
         is: {
-          type: EvalTemplateType.LLM_AS_JUDGE,
           OR: [{ projectId: params.projectId }, { projectId: null }],
         },
       },
@@ -294,7 +292,6 @@ export async function listPublicEvaluationRuleConfigs(params: {
         },
         evalTemplate: {
           is: {
-            type: EvalTemplateType.LLM_AS_JUDGE,
             OR: [{ projectId: params.projectId }, { projectId: null }],
           },
         },
@@ -305,6 +302,7 @@ export async function listPublicEvaluationRuleConfigs(params: {
             id: true,
             projectId: true,
             name: true,
+            type: true,
           },
         },
       },
@@ -322,7 +320,6 @@ export async function listPublicEvaluationRuleConfigs(params: {
         },
         evalTemplate: {
           is: {
-            type: EvalTemplateType.LLM_AS_JUDGE,
             OR: [{ projectId: params.projectId }, { projectId: null }],
           },
         },

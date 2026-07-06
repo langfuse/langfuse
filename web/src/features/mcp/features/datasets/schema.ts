@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { type JSONValue } from "@langfuse/shared";
+import { publicApiIdSchema } from "@/src/features/public-api/types/datasets";
 
 const paginationSchema = {
   page: z.number().int().positive().default(1),
@@ -76,7 +77,7 @@ export const PostDatasetItemMcpInput = z.object({
   input: z.any().optional(),
   expectedOutput: z.any().optional(),
   metadata: z.any().optional(),
-  id: z.string().optional(),
+  id: publicApiIdSchema.optional(),
   sourceTraceId: z.string().optional(),
   sourceObservationId: z.string().optional(),
   status: z.enum(["ACTIVE", "ARCHIVED"]).optional(),
