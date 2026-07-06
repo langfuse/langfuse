@@ -216,7 +216,6 @@ model ApiKey {
 
   @@index(orgId)
   @@index(projectId)
-  @@index(createdByUserId)
   @@index(createdByApiKeyId)
   @@index(publicKey)
   @@index(hashedSecretKey)
