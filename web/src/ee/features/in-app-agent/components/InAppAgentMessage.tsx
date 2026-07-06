@@ -382,6 +382,8 @@ function MessageFeedbackControls({
       .catch(() => undefined);
   };
 
+  const commentButtonText = `Comment: ${committedComment}`;
+
   return (
     <Popover
       open={!isFeedbackDisabled && isCommentPopoverOpen}
@@ -423,10 +425,11 @@ function MessageFeedbackControls({
         <button
           type="button"
           className="text-muted-foreground hover:text-foreground ml-1 min-w-0 flex-1 truncate text-left text-xs disabled:cursor-not-allowed disabled:opacity-60"
+          title={commentButtonText}
           disabled={isDisabled}
           onClick={() => setIsCommentPopoverOpen(true)}
         >
-          Comment: {committedComment}
+          {commentButtonText}
         </button>
       ) : null}
       {selectedValue ? (
@@ -500,7 +503,10 @@ function SourcesPopover({
                 className="bg-muted size-3.5 shrink-0 rounded-sm bg-cover bg-center"
                 style={{ backgroundImage: `url("${source.faviconUrl}")` }}
               />
-              <span className="text-foreground min-w-0 flex-1 truncate text-xs">
+              <span
+                className="text-foreground min-w-0 flex-1 truncate text-xs"
+                title={source.title}
+              >
                 {source.title}
               </span>
             </a>
@@ -616,7 +622,9 @@ function ToolCallGroup({
         ) : (
           <Wrench className={cn("text-muted-foreground shrink-0", iconSize)} />
         )}
-        <span className="min-w-0 flex-1 truncate py-0.5">{label}</span>
+        <span className="min-w-0 flex-1 truncate py-0.5" title={label}>
+          {label}
+        </span>
         <span className="text-muted-foreground text-xs group-open/tool-group:hidden">
           Show
         </span>
@@ -629,14 +637,18 @@ function ToolCallGroup({
       >
         {tools.map((tool, index) => {
           const resultLabel = tool.error ? "Error" : "Result";
+          const toolLabel = `Used ${tool.name}`;
 
           return (
             <div key={`${tool.name}-${index}`} className="rounded-lg">
               <details className="group/tool min-w-0">
                 <summary className="flex cursor-pointer list-none items-center gap-2 text-xs leading-none font-medium [&::-webkit-details-marker]:hidden">
                   <Wrench className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-                  <span className="min-w-0 flex-1 truncate py-0.5">
-                    Used {tool.name}
+                  <span
+                    className="min-w-0 flex-1 truncate py-0.5"
+                    title={toolLabel}
+                  >
+                    {toolLabel}
                   </span>
                   <span className="text-muted-foreground text-xs group-open/tool:hidden">
                     Show

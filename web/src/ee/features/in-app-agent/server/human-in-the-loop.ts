@@ -156,6 +156,10 @@ export type ManualToolApprovalRunInput = {
   input: AgUiRunAgentInput;
   syntheticEvents: AgUiEvent[];
   shouldContinue: boolean;
+  toolCallApproval?: {
+    toolCallId: string;
+    status: "approved" | "rejected";
+  };
 };
 
 export async function createManualToolApprovalRunInput(params: {
@@ -184,6 +188,10 @@ export async function createManualToolApprovalRunInput(params: {
         toolError: MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE,
       }),
       shouldContinue: false,
+      toolCallApproval: {
+        toolCallId: approvalRequest.toolCallId,
+        status: "rejected",
+      },
     };
   }
 
@@ -228,6 +236,10 @@ export async function createManualToolApprovalRunInput(params: {
     },
     syntheticEvents,
     shouldContinue: true,
+    toolCallApproval: {
+      toolCallId: approvalRequest.toolCallId,
+      status: "approved",
+    },
   };
 }
 

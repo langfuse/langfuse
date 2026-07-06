@@ -41,6 +41,14 @@ export function VirtualizedList<T>({
     count: items.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => estimatedItemSize,
+    // Key the measurement cache by item id, matching the React key on each row.
+    // Rows have dynamic heights (SpanContent wraps a node's score badges over
+    // several lines) and the list filters/reorders as the search query changes.
+    // Without this the cache is keyed by index, so a reordered row reuses the
+    // previous occupant's measured height and the translateY offsets drift into
+    // overlap (same failure as the tree — LFE-10591). Keying by id keeps each
+    // measurement with its item.
+    getItemKey: (index) => getItemId(items[index]!),
     overscan,
   });
 

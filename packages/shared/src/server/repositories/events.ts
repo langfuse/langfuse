@@ -2140,6 +2140,11 @@ export const deleteEventsByTraceIds = async (
   ]);
 };
 
+/**
+ * This method is used by deleteEventsByProjectId and therefore
+ * should NOT be using EventsReadOnly to prevent lagging replicas
+ * from changing the outcome.
+ */
 export const hasAnyEvent = async (projectId: string) => {
   const query = `
     SELECT 1
@@ -2232,6 +2237,11 @@ export async function getAgentGraphDataFromEventsTable(params: {
   });
 }
 
+/**
+ * This method is used by deleteEventsByProjectId and therefore
+ * should NOT be using EventsReadOnly to prevent lagging replicas
+ * from changing the outcome.
+ */
 export const hasAnyEventOlderThan = async (
   projectId: string,
   beforeDate: Date,
@@ -2648,6 +2658,7 @@ export const hasAnyUserFromEventsTable = async (
     query,
     params: { projectId },
     tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return rows.length > 0;
@@ -2893,6 +2904,7 @@ export const hasAnySessionFromEventsTable = async (
         query,
         params: input.params,
         tags: { projectId },
+        preferredClickhouseService: "EventsReadOnly",
       });
     },
   });

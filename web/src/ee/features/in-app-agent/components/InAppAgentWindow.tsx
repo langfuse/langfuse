@@ -101,6 +101,7 @@ export type InAppAgentWindowProps = {
   onNewConversation: () => void;
   onApproveToolCall: (approvalId: string) => Promise<void>;
   onRejectToolCall: (approvalId: string) => Promise<void>;
+  onOpenConversationHistory: () => void;
   onSelectConversation: (conversationId: string) => void;
   onSubmit: (input: string) => boolean | Promise<boolean>;
   onSubmitFeedback: (params: {
@@ -128,6 +129,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onNewConversation,
     onApproveToolCall,
     onRejectToolCall,
+    onOpenConversationHistory,
     onSelectConversation,
     onSubmit,
     onSubmitFeedback,
@@ -137,6 +139,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const isAutoScrollAttachedRef = useRef(true);
   const previousScrollTopRef = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const previousIsInputDisabledRef = useRef(isInputDisabled);
   const [input, setInput] = useState("");
   const [isConversationHistoryOpen, setIsConversationHistoryOpen] =
     useState(false);
@@ -210,6 +213,17 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   }, [selectedConversationId]);
 
   useEffect(() => {
+    const wasInputDisabled = previousIsInputDisabledRef.current;
+    previousIsInputDisabledRef.current = isInputDisabled;
+
+    if (!wasInputDisabled || isInputDisabled) {
+      return;
+    }
+
+    inputRef.current?.focus();
+  }, [isInputDisabled]);
+
+  useEffect(() => {
     const input = inputRef.current;
 
     if (!input) {
@@ -235,7 +249,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         )}
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <p className="shrink-0 truncate text-sm font-semibold">Assistant</p>
+          <p
+            className="shrink-0 truncate text-sm font-semibold"
+            title="Assistant"
+          >
+            Assistant
+          </p>
           <span className="text-muted-foreground rounded border px-1.5 py-1 text-xs leading-none font-medium">
             Beta
           </span>
@@ -262,7 +281,13 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           </Tooltip>
           <DropdownMenu
             open={isConversationHistoryOpen}
-            onOpenChange={setIsConversationHistoryOpen}
+            onOpenChange={(nextOpen) => {
+              setIsConversationHistoryOpen(nextOpen);
+
+              if (nextOpen) {
+                onOpenConversationHistory();
+              }
+            }}
           >
             <Tooltip delayDuration={100} disableHoverableContent>
               <TooltipTrigger asChild>
@@ -292,37 +317,45 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   No conversations yet
                 </DropdownMenuItem>
               ) : (
-                conversations.map((conversation) => (
-                  <DropdownMenuItem
-                    key={conversation.id}
-                    className={cn(
-                      "flex items-center gap-1",
-                      conversation.id === selectedConversationId &&
-                        "bg-accent text-accent-foreground",
-                    )}
-                    onSelect={() => onSelectConversation(conversation.id)}
-                  >
-                    <span className="min-w-0 flex-1 truncate">
-                      {conversation.title?.trim() || "Untitled conversation"}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-xs"
-                      className="text-muted-foreground hover:text-destructive -mr-1.5 shrink-0"
-                      disabled={isInputDisabled}
-                      aria-label="Delete conversation"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        setIsConversationHistoryOpen(false);
-                        onDeleteConversation(conversation);
-                      }}
+                conversations.map((conversation) => {
+                  const conversationTitle =
+                    conversation.title?.trim() || "Untitled conversation";
+
+                  return (
+                    <DropdownMenuItem
+                      key={conversation.id}
+                      className={cn(
+                        "flex items-center gap-1",
+                        conversation.id === selectedConversationId &&
+                          "bg-accent text-accent-foreground",
+                      )}
+                      onSelect={() => onSelectConversation(conversation.id)}
                     >
-                      <Trash2 className="size-3" />
-                    </Button>
-                  </DropdownMenuItem>
-                ))
+                      <span
+                        className="min-w-0 flex-1 truncate"
+                        title={conversationTitle}
+                      >
+                        {conversationTitle}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        className="text-muted-foreground hover:text-destructive -mr-1.5 shrink-0"
+                        disabled={isInputDisabled}
+                        aria-label="Delete conversation"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setIsConversationHistoryOpen(false);
+                          onDeleteConversation(conversation);
+                        }}
+                      >
+                        <Trash2 className="size-3" />
+                      </Button>
+                    </DropdownMenuItem>
+                  );
+                })
               )}
               {hasMoreConversations ? (
                 <>

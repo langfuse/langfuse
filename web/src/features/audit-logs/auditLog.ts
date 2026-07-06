@@ -42,6 +42,7 @@ export type AuditableResource =
   | "batchAction"
   | "automation"
   | "action"
+  | "dashboardWidget"
   | "slackIntegration"
   | "cloudSpendAlert"
   | "verifiedDomain"

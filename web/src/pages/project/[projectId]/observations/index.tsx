@@ -10,6 +10,7 @@ import {
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
 import { useQueryProject } from "@/src/features/projects/hooks";
+import { TableTimeRangeHeaderPicker } from "@/src/components/table/table-time-range-header-picker";
 
 export default function Generations() {
   const router = useRouter();
@@ -46,6 +47,9 @@ export default function Generations() {
             "An observation captures a single function call in an application. See docs to learn more.",
           href: "https://langfuse.com/docs/observability/data-model",
         },
+        actionButtonsLeft: showOnboarding ? undefined : (
+          <TableTimeRangeHeaderPicker projectId={projectId} />
+        ),
         tabsProps:
           isBetaEnabled || isInitializing
             ? undefined
@@ -67,9 +71,9 @@ export default function Generations() {
               resolves. */}
         </>
       ) : isBetaEnabled ? (
-        <ObservationsEventsTable projectId={projectId} />
+        <ObservationsEventsTable projectId={projectId} hideTimeRangePicker />
       ) : (
-        <ObservationsTable projectId={projectId} />
+        <ObservationsTable projectId={projectId} hideTimeRangePicker />
       )}
     </Page>
   );

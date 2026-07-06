@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import { type Row } from "@tanstack/react-table";
 import { urlRegex } from "@langfuse/shared";
 import { type JsonTableRow } from "@/src/components/table/utils/jsonExpansionUtils";
-import { classifyMediaLeaf } from "@/src/components/ui/media/classifyMediaLeaf";
+import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
 import { JsonMediaTag } from "@/src/components/ui/media/JsonMediaTag";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Button } from "@/src/components/ui/button";
@@ -270,6 +270,9 @@ function ValueCellActionsMenu({
     );
   };
 
+  const includeFilterText = `metadata.${metadataKey} ${includeOperator} ${displayValue}`;
+  const excludeFilterText = `metadata.${metadataKey} ${excludeOperator} ${displayValue}`;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -307,8 +310,11 @@ function ValueCellActionsMenu({
               <Filter className="mr-2 h-3.5 w-3.5 shrink-0" />
               <span className="flex min-w-0 flex-col">
                 <span>Include in filter</span>
-                <span className="text-muted-foreground truncate font-mono">
-                  metadata.{metadataKey} {includeOperator} {displayValue}
+                <span
+                  className="text-muted-foreground truncate font-mono"
+                  title={includeFilterText}
+                >
+                  {includeFilterText}
                 </span>
               </span>
             </DropdownMenuItem>
@@ -319,8 +325,11 @@ function ValueCellActionsMenu({
               <FilterX className="mr-2 h-3.5 w-3.5 shrink-0" />
               <span className="flex min-w-0 flex-col">
                 <span>Exclude from filter</span>
-                <span className="text-muted-foreground truncate font-mono">
-                  metadata.{metadataKey} {excludeOperator} {displayValue}
+                <span
+                  className="text-muted-foreground truncate font-mono"
+                  title={excludeFilterText}
+                >
+                  {excludeFilterText}
                 </span>
               </span>
             </DropdownMenuItem>
@@ -370,7 +379,7 @@ export const ValueCell = memo(
 
           // Render previewable media (Langfuse refs, data URIs, media URLs) as a
           // hover-to-peek chip instead of the raw string.
-          const mediaDescriptor = classifyMediaLeaf(stringValue);
+          const mediaDescriptor = classifyMediaValue(stringValue);
           if (mediaDescriptor) {
             return {
               content: <JsonMediaTag descriptor={mediaDescriptor} />,

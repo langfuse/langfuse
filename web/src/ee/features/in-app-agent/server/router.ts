@@ -15,6 +15,10 @@ import {
   upsertScore,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
+import {
+  getInAppAgentInstrumentationObservationId,
+  getInAppAgentInstrumentationTraceId,
+} from "@/src/ee/features/in-app-agent/constants";
 import { InAppAgentMessageFeedbackValueSchema } from "@/src/ee/features/in-app-agent/schema";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
@@ -39,6 +43,10 @@ const ConversationListCursorSchema = z.object({
 const ConversationIdInput = z.object({
   projectId: z.string(),
   conversationId: z.string(),
+});
+
+const RenameConversationInput = ConversationIdInput.extend({
+  title: z.string().trim().min(1).max(80),
 });
 
 const SubmitFeedbackInput = ConversationIdInput.extend({
@@ -155,6 +163,36 @@ export const inAppAgentRouter = createTRPCRouter({
       return { success: true };
     }),
 
+  renameConversation: protectedProjectProcedureWithoutTracing
+    .input(RenameConversationInput)
+    .mutation(async ({ ctx, input }) => {
+      await assertInAppAgentAvailable({ ctx, projectId: input.projectId });
+
+      await getOwnedConversationOrThrow({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        conversationId: input.conversationId,
+        userId: ctx.session.user.id,
+      });
+
+      const conversation = await ctx.prisma.inAppAgentConversation.update({
+        where: {
+          id_projectId: {
+            id: input.conversationId,
+            projectId: input.projectId,
+          },
+          createdByUserId: ctx.session.user.id,
+          deletedAt: null,
+        },
+        data: {
+          title: input.title,
+          renamedByUserAt: new Date(),
+        },
+      });
+
+      return { conversation: serializeConversation(conversation) };
+    }),
+
   submitFeedback: protectedProjectProcedureWithoutTracing
     .input(SubmitFeedbackInput)
     .mutation(async ({ ctx, input }) => {
@@ -210,8 +248,10 @@ export const inAppAgentRouter = createTRPCRouter({
           timestamp: convertDateToClickhouseDateTime(now),
           project_id: scoreProjectId,
           environment: IN_APP_AGENT_FEEDBACK_ENVIRONMENT,
-          trace_id: input.conversationId,
-          observation_id: input.runId,
+          trace_id: getInAppAgentInstrumentationTraceId(input.runId),
+          observation_id: getInAppAgentInstrumentationObservationId(
+            input.runId,
+          ),
           session_id: input.conversationId,
           name: IN_APP_AGENT_FEEDBACK_SCORE_NAME,
           value: input.value === "thumbs_up" ? 1 : 0,

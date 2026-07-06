@@ -22,6 +22,20 @@ export const BlobStorageIntegrationType = z.enum([
 
 export const BlobStorageIntegrationFileType = z.enum(["JSON", "CSV", "JSONL"]);
 
+// Response-only file type. Parquet is a first-class fileType that the public API
+// cannot yet *create* (the request enum above intentionally omits it, gating it
+// behind an in-code project whitelist on the web side), but a project that
+// enabled Parquet through the UI persists `PARQUET`, so the API must be able to
+// *report* it. Adding a value to the response enum is additive/backwards
+// compatible. Promote PARQUET into the request enum once it is generally
+// available.
+export const BlobStorageIntegrationFileTypeResponse = z.enum([
+  "JSON",
+  "CSV",
+  "JSONL",
+  "PARQUET",
+]);
+
 export const BlobStorageExportMode = z.enum([
   "FULL_HISTORY",
   "FROM_TODAY",
@@ -159,7 +173,7 @@ export const BlobStorageIntegrationResponse = z
     exportFrequency: z.string(),
     enabled: z.boolean(),
     forcePathStyle: z.boolean(),
-    fileType: BlobStorageIntegrationFileType,
+    fileType: BlobStorageIntegrationFileTypeResponse,
     exportMode: BlobStorageExportMode,
     exportStartDate: z.coerce.date().nullable(),
     compressed: z.boolean(),

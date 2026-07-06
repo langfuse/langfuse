@@ -134,6 +134,18 @@ changes.
   imperatively-positioned content renders via `<Layer name="…">`. z-index stays
   local to a layer or component (1–2 max), never to escape the app — the
   `@repo/no-overlay-zindex` lint rule enforces it.
+- **Overlay lifecycle — a dropdown that opens a modal should close first**, not
+  linger under it (a lifecycle bug, not z-order — don't fix it by re-ranking
+  layers). Radix unmounts a Select/DropdownMenu's content on close, so render the
+  Dialog as a SIBLING (trigger inside, dialog outside), as
+  `useAddLlmConnectionSelect` in `src/components/ModelParameters/index.tsx` does
+  (LFE-10615).
+- Never import `prettier/plugins/typescript` in client code — it embeds the
+  TypeScript compiler, which the SWC minifier miscompiles (dropped bindings →
+  production-only `ReferenceError`; caught by the CI client-bundle scan,
+  LFE-10645). Format TypeScript with `parser: "babel-ts"` +
+  `prettier/plugins/babel` instead, as the eval-template editor does
+  (`src/features/evals/components/code-eval-template-form-body.tsx`).
 - Public API routes should use
   `src/features/public-api/server/withMiddlewares.ts`, define strict request and
   response types in `src/features/public-api/types/*`, add server tests, and

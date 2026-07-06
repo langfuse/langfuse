@@ -195,6 +195,10 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
           <button
             ref={ref}
             type="button"
+            // Marker for containers to detect chip hover via event delegation
+            // (`closest("[data-media-tag]")`): IOTableCell suppresses its
+            // expand-on-hover card and native title while over a chip.
+            data-media-tag=""
             aria-label={`${chipLabel} media`}
             aria-expanded={isOpen}
             className="hover:bg-accent focus-visible:ring-ring bg-background inline-flex h-3.5 max-w-full items-center gap-1 rounded-sm border px-1 py-0 align-middle text-xs leading-none transition-colors focus-visible:ring-2 focus-visible:outline-hidden"
@@ -207,7 +211,13 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
             }}
           >
             <KindIcon kind={kind} className="h-2.5 w-2.5 shrink-0" />
-            <span className="relative top-0.25 truncate align-baseline font-mono leading-none">
+            <span
+              className="relative top-0.25 truncate align-baseline font-mono leading-none"
+              // Empty while the peek is open: a native tooltip would render on
+              // top of the peek. Ancestors with a title still tooltip over the
+              // peek — containers must suppress theirs too (see IOTableCell).
+              title={isOpen ? "" : chipLabel}
+            >
               {chipLabel}
             </span>
           </button>
@@ -219,7 +229,10 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
           <div className="flex items-center justify-between gap-4">
             <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
               <KindIcon kind={kind} className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate font-mono leading-none">
+              <span
+                className="truncate font-mono leading-none"
+                title={contentType}
+              >
                 {contentType}
               </span>
             </div>
