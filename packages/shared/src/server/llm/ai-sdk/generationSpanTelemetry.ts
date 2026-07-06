@@ -1,6 +1,5 @@
 import {
   context,
-  SpanKind,
   SpanStatusCode,
   trace,
   type Attributes,
@@ -11,21 +10,6 @@ import type { Telemetry } from "ai";
 
 /**
  * Minimal AI SDK telemetry integration for Langfuse-internal LLM completions.
- *
- * Emits exactly ONE GenAI-semconv generation span per language-model call,
- * parented to the active context (the internal root span). This replaces
- * `@ai-sdk/otel`'s hardcoded operation → step → model-call span cascade,
- * which tripled the span count per completion and set `gen_ai.usage.*` on
- * both the operation and the model-call span — double-costing every internal
- * trace once the OTel ingestion pipeline classified both as generations.
- *
- * Only `onLanguageModelCallStart`/`onLanguageModelCallEnd` are handled: the
- * start event carries model, provider, call settings, messages, and tool
- * definitions; the end event carries content, finish reason, and usage.
- * Client-side tool execution and multi-step loops are not instrumented — the
- * internal executor never passes tool `execute` functions, so every
- * completion is a single model call (plus SDK-internal retries, which reuse
- * the call id sequentially and therefore each get their own span).
  */
 export function createGenerationSpanTelemetry(params: {
   tracer: Tracer;
@@ -45,6 +29,7 @@ export function createGenerationSpanTelemetry(params: {
           code: SpanStatusCode.ERROR,
           message: error instanceof Error ? error.message : String(error),
         });
+
         if (error instanceof Error) span.recordException(error);
       }
       span.end();
@@ -61,9 +46,7 @@ export function createGenerationSpanTelemetry(params: {
       const span = tracer.startSpan(
         `chat ${event.modelId}`,
         {
-          kind: SpanKind.CLIENT,
           attributes: {
-            "gen_ai.operation.name": "chat",
             "gen_ai.provider.name": event.provider,
             "gen_ai.request.model": event.modelId,
             ...definedNumberAttributes({
@@ -88,7 +71,9 @@ export function createGenerationSpanTelemetry(params: {
 
     onLanguageModelCallEnd(event) {
       const span = openSpans.get(event.callId);
+
       if (!span) return;
+
       openSpans.delete(event.callId);
 
       span.setAttributes({
@@ -122,6 +107,7 @@ export function createGenerationSpanTelemetry(params: {
     executeLanguageModelCall({ callId, execute }) {
       const span = openSpans.get(callId);
       if (!span) return execute();
+
       return context.with(trace.setSpan(context.active(), span), execute);
     },
   };
