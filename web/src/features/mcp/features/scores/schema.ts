@@ -5,8 +5,7 @@ import {
 import { z } from "zod";
 
 // Deliberately not reusing ScoreConfigNameSchema: its Unicode-aware regex is
-// not representable in MCP JSON Schema. The length bounds are shared so this
-// advertised schema can't drift from the shared schema; character rules are
+// not representable in MCP JSON Schema, character rules are
 // still enforced at runtime via the strict input schemas.
 const McpScoreConfigNameSchema = z
   .string()
