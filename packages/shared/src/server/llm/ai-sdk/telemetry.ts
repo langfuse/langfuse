@@ -195,6 +195,13 @@ export function createAiSdkTelemetryCapture(params: {
       // where buildInternalTraceEventInputs tags all event records.
       ...(experimentAttributes ?? {}),
       ...(promptAttributes ?? {}),
+      [LangfuseOtelSpanAttributes.TRACE_NAME]: traceSinkParams.traceName,
+      [LangfuseOtelSpanAttributes.ENVIRONMENT]: traceSinkParams.environment,
+      ...(traceSinkParams.userId
+        ? {
+            [LangfuseOtelSpanAttributes.TRACE_USER_ID]: traceSinkParams.userId,
+          }
+        : {}),
     },
   });
 
