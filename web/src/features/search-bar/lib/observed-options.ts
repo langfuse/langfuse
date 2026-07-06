@@ -90,6 +90,56 @@ export function scoreTypeContextFromObserved(
   };
 }
 
+// Caps mirrored by the `searchBar.generateFilter` input schema (server/router.ts).
+// A set that exceeds them is sent as undefined — enforcement is skipped for it,
+// rather than an oversized payload failing the whole request with a Zod 400 or
+// a truncated set making a real (but un-sent) score name look unknown.
+export const MAX_SCORE_NAMES_PER_TYPE = 200;
+export const MAX_SCORE_NAME_LENGTH = 256;
+
+/**
+ * Observed score names by column type, threaded to `searchBar.generateFilter`
+ * so the server can validate/correct the score names the model returns (a
+ * misspelled name round-trips cleanly and would apply as a dead filter).
+ */
+export type ObservedScoreNames = {
+  numeric?: string[];
+  categorical?: string[];
+  traceNumeric?: string[];
+  traceCategorical?: string[];
+};
+
+/**
+ * Unlike `scoreTypeContextFromObserved` (which folds an absent column into an
+ * empty set — fine for routing), each set here stays undefined until its
+ * filter-options column has actually LOADED: the server skips validation for
+ * an undefined set, so an in-flight fetch or an errored column can never make
+ * a real score name look unknown and get its filter dropped.
+ */
+export function observedScoreNamesFromOptions(
+  observed: ObservedOptions | undefined,
+): ObservedScoreNames | undefined {
+  if (observed === undefined) return undefined;
+  const names = (column: string): string[] | undefined => {
+    const values = observed[column];
+    if (values === undefined) return undefined;
+    const out = values.map((o) => o.value);
+    if (
+      out.length > MAX_SCORE_NAMES_PER_TYPE ||
+      out.some((n) => n.length > MAX_SCORE_NAME_LENGTH)
+    ) {
+      return undefined;
+    }
+    return out;
+  };
+  return {
+    numeric: names("scores_avg"),
+    categorical: names("score_categories"),
+    traceNumeric: names("trace_scores_avg"),
+    traceCategorical: names("trace_score_categories"),
+  };
+}
+
 function nameSetsEqual(
   a: ReadonlySet<string> | undefined,
   b: ReadonlySet<string> | undefined,

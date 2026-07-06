@@ -18,7 +18,10 @@ import * as React from "react";
 import { type FilterState } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
-import type { ObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import type {
+  ObservedOptions,
+  ObservedScoreNames,
+} from "@/src/features/search-bar/lib/observed-options";
 import { AI_GROUNDING_COLUMNS } from "@/src/features/search-bar/lib/ai-context";
 import { SearchComposer } from "@/src/features/search-bar/components/SearchComposer";
 import { SearchBarAiPrompt } from "@/src/features/search-bar/components/SearchBarAiPrompt";
@@ -34,6 +37,7 @@ export function EventsSearchBarRow({
   onApplyFilters,
   onRequestColumns,
   aiDataContext,
+  aiScoreNames,
 }: {
   projectId: string;
   store: SearchBarStore;
@@ -58,6 +62,9 @@ export function EventsSearchBarRow({
   /** Project data context (observed values + metadata keys + result count) for
    *  the AI prompt — built by EventsTable from filterOptions + visible rows. */
   aiDataContext?: string;
+  /** Observed score names by column type, for the server's score-name
+   *  validation of the generated filters (undefined sets are not enforced). */
+  aiScoreNames?: ObservedScoreNames;
 }) {
   const [aiOpen, setAiOpen] = React.useState(false);
   const { isLangfuseCloud } = useLangfuseCloudRegion();
@@ -81,6 +88,7 @@ export function EventsSearchBarRow({
           projectId={projectId}
           store={store}
           dataContext={aiDataContext}
+          scoreNames={aiScoreNames}
           onApply={onApplyFilters}
           onExit={() => setAiOpen(false)}
         />
