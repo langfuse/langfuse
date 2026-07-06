@@ -267,6 +267,14 @@ export function createAiSdkTelemetryCapture(params: {
         publicKey: "", // internal ingestion has no API key; mirrors internal event writes
         sdkName: INTERNAL_SDK_NAME,
         sdkVersion: "unknown",
+        // Opt into the v4-native direct events write like a modern SDK batch:
+        // only that path runs processToEvent -> createEventRecord, which is
+        // the sole extractor of langfuse.experiment.* into experiment_*
+        // columns. Without it, dual-write mode routes internal batches
+        // (unknown SDK, no scope version) through legacy forwarding and
+        // experiment run items lose their linkage in events_full/v4 views.
+        // Legacy tables are still dual-written per v4WritesToLegacyTables.
+        ingestionVersion: "4",
         // The consumer must parse these events with the internal ingestion
         // schema; the public schema strips the "langfuse-" environment prefix,
         // exposing internal traces as user environments and bypassing the

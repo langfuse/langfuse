@@ -73,6 +73,9 @@ describe("createAiSdkTelemetryCapture", () => {
         // ingestion schema; the public schema strips the "langfuse-"
         // environment prefix and would bypass the eval-loop guard.
         isLangfuseInternal: true,
+        // Ensures the direct events write runs, which is the only path that
+        // materializes langfuse.experiment.* into experiment_* columns.
+        ingestionVersion: "4",
       }),
     );
     expect(publishToOtelIngestionQueue).toHaveBeenCalledTimes(1);

@@ -149,12 +149,19 @@ describe("AI SDK telemetry integration", () => {
     const { OtelIngestionProcessor } = await vi.importActual<
       typeof import("../../otel/OtelIngestionProcessor")
     >("../../otel/OtelIngestionProcessor");
-    const events = await new OtelIngestionProcessor({
+    const processor = new OtelIngestionProcessor({
       projectId: "project-1",
       publicKey: "",
       sdkName: "langfuse-internal-ai-sdk",
       sdkVersion: "unknown",
-    }).processToIngestionEvents(resourceSpans);
+    });
+    // The seen-traces dedup cache is Redis-backed; CI runs shared tests
+    // without a Redis service, so the lookup would hang until test timeout.
+    vi.spyOn(
+      processor as unknown as { getSeenTracesSet: () => Promise<Set<string>> },
+      "getSeenTracesSet",
+    ).mockResolvedValue(new Set());
+    const events = await processor.processToIngestionEvents(resourceSpans);
 
     expect(events.length).toBeGreaterThan(0);
 
