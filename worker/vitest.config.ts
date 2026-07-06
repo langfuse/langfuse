@@ -12,6 +12,10 @@ export default defineConfig({
       : ["default"],
     silent: process.env.CI ? "passed-only" : false,
     retry: process.env.CI ? 3 : 0,
+    // Worker tests are DB-roundtrip bound, so many cross the default 300ms
+    // slow threshold on CI and the default reporter prints a line for each.
+    // VitestCiReporter's top-10 slowest summary is unaffected (own accounting).
+    slowTestThreshold: process.env.CI ? 2_000 : 300,
     dir: "./src",
     pool: "forks",
     server: {
