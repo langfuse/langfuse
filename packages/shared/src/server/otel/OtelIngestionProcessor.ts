@@ -142,16 +142,6 @@ export class OtelIngestionProcessor {
   private static readonly OTEL_CONVERSION_FAILURE_METRIC =
     "langfuse.ingestion.otel.conversion_failure";
 
-  /**
-   * AI SDK (@ai-sdk/otel) agent-level operation names whose spans carry
-   * AGGREGATE `gen_ai.usage.*` token counts that duplicate the per-call usage
-   * on their child model-call spans (`gen_ai.operation.name: "chat"`).
-   */
-  private static readonly AI_SDK_AGENT_OPERATION_NAMES = new Set([
-    "invoke_agent",
-    "agent_step",
-  ]);
-
   private seenTraces: Set<string> = new Set();
   private isInitialized = false;
   private traceEventCounts = {
@@ -2296,9 +2286,10 @@ export class OtelIngestionProcessor {
    */
   private isAiSdkAgentOperation(attributes: Record<string, unknown>): boolean {
     const operationName = attributes["gen_ai.operation.name"];
+
     return (
       typeof operationName === "string" &&
-      OtelIngestionProcessor.AI_SDK_AGENT_OPERATION_NAMES.has(operationName)
+      ["invoke_agent", "agent_step"].includes(operationName)
     );
   }
 
