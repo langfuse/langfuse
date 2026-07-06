@@ -119,22 +119,20 @@ describe("AI SDK telemetry integration", () => {
       rs.scopeSpans.flatMap((ss: any) => ss.spans),
     );
 
-    // Root span + AI SDK operation/step/model-call spans, all on the trace.
-    expect(spans.length).toBeGreaterThan(1);
+    // Exactly two spans: the internal root and one generation per model call
+    // (the minimal telemetry integration emits no operation/step spans).
+    expect(spans).toHaveLength(2);
     for (const span of spans) {
       expect(span.traceId.toLowerCase()).toBe(VALID_TRACE_ID);
     }
 
-    // Every non-root span parents to another captured span (a single tree).
-    const spanIds = new Set(spans.map((span: any) => span.spanId));
     const rootSpans = spans.filter((span: any) => !span.parentSpanId);
     expect(rootSpans).toHaveLength(1);
     expect(rootSpans[0].name).toBe("Execute evaluator: helpfulness");
-    for (const span of spans) {
-      if (span.parentSpanId) {
-        expect(spanIds.has(span.parentSpanId)).toBe(true);
-      }
-    }
+
+    const generationSpan = spans.find((span: any) => span.parentSpanId);
+    expect(generationSpan.name).toBe("chat gpt-4o");
+    expect(generationSpan.parentSpanId).toBe(rootSpans[0].spanId);
 
     // The captured spans convert through the real OTel ingestion processor —
     // the same code path the public /api/public/otel/v1/traces endpoint uses.
@@ -164,19 +162,32 @@ describe("AI SDK telemetry integration", () => {
       environment: "langfuse-llm-judge",
     });
 
-    // The model call span materializes as a generation with usage.
+    // The model call span materializes as a generation with usage — and it is
+    // the ONLY costed observation. This is the double-costing regression
+    // guard: @ai-sdk/otel put gen_ai.usage on both the operation and the
+    // model-call span, doubling every internal trace's cost.
     const observationEvents = events.filter(
       (event) => !event.type.startsWith("trace-"),
     );
-    const generation = observationEvents.find(
-      (event) =>
-        (event.body as { model?: string }).model === "gpt-4o" ||
-        (event.body as { usageDetails?: unknown }).usageDetails !== undefined,
-    );
-    expect(generation).toBeDefined();
-    expect((generation!.body as { environment?: string }).environment).toBe(
-      "langfuse-llm-judge",
-    );
+    const costedObservations = observationEvents.filter((event) => {
+      const body = event.body as {
+        model?: string;
+        usageDetails?: Record<string, unknown>;
+      };
+      return (
+        body.model !== undefined ||
+        Object.keys(body.usageDetails ?? {}).length > 0
+      );
+    });
+    expect(costedObservations).toHaveLength(1);
+    const generation = costedObservations[0];
+    expect(generation.type).toBe("generation-create");
+    expect(generation.body).toMatchObject({
+      name: "chat gpt-4o",
+      model: "gpt-4o",
+      usageDetails: { input: 3, output: 5 },
+      environment: "langfuse-llm-judge",
+    });
   });
 
   it("tags experiment run items so the ingestion pipeline can schedule experiment evals", async () => {
@@ -248,9 +259,10 @@ describe("AI SDK telemetry integration", () => {
     expect(String(root.output)).toContain("Hello there");
 
     // Child spans point at the root and never at themselves, so only the
-    // run-item root can pass the queue-side eval guard.
+    // run-item root can pass the queue-side eval guard. With the minimal
+    // telemetry integration there is exactly one child: the generation.
     const children = eventInputs.filter((input: any) => input.parentSpanId);
-    expect(children.length).toBeGreaterThan(0);
+    expect(children).toHaveLength(1);
     for (const child of children) {
       expect(child.environment).toBe("langfuse-prompt-experiment");
       expect(child.experimentItemRootSpanId).toBe(root.spanId);

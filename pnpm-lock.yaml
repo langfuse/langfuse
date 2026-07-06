@@ -154,9 +154,6 @@ importers:
       '@ai-sdk/openai':
         specifier: ^4.0.0
         version: 4.0.4(zod@4.3.6)
-      '@ai-sdk/otel':
-        specifier: ^1.0.0
-        version: 1.0.8(zod@4.3.6)
       '@anthropic-ai/tokenizer':
         specifier: ^0.0.4
         version: 0.0.4
@@ -1264,10 +1261,6 @@ packages:
     engines: {node: '>=22'}
     peerDependencies:
       zod: 4.3.6
-
-  '@ai-sdk/otel@1.0.8':
-    resolution: {integrity: sha512-hyYUBZo0JceclAkMy6NLsk+rdVGNneoGWK34GhkLq7OJ3P8dKG11XMib4lx5j6yraEZzqyFibAZM34SE7kHsAw==}
-    engines: {node: '>=22'}
 
   '@ai-sdk/provider-utils@4.0.27':
     resolution: {integrity: sha512-ubkAJ+xODouwtmN1tYlvTPphH1hPOBfZaEQe8U7skGvFAnIRs9PPpsq57bC2+Ky/MB4yzhd6YOsxTAx9sGpazw==}
@@ -12012,14 +12005,6 @@ snapshots:
       '@ai-sdk/provider': 4.0.1
       '@ai-sdk/provider-utils': 5.0.2(zod@4.3.6)
       zod: 4.3.6
-
-  '@ai-sdk/otel@1.0.8(zod@4.3.6)':
-    dependencies:
-      '@ai-sdk/provider': 4.0.1
-      '@opentelemetry/api': 1.9.1
-      ai: 7.0.8(zod@4.3.6)
-    transitivePeerDependencies:
-      - zod
 
   '@ai-sdk/provider-utils@4.0.27(zod@4.3.6)':
     dependencies:

@@ -8,7 +8,7 @@ import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
-import { OpenTelemetry } from "@ai-sdk/otel";
+import { createGenerationSpanTelemetry } from "./generationSpanTelemetry";
 import type { TelemetryOptions } from "ai";
 
 import { stringifyValue } from "../../../utils/stringChecks";
@@ -173,20 +173,14 @@ export function createAiSdkTelemetryCapture(params: {
       }
     : undefined;
 
-  const enrichSpan =
-    experimentAttributes || promptAttributes
-      ? ({ spanType }: { spanType: string }) => ({
-          // Experiment linkage goes on every span, matching the LangChain
-          // path where buildInternalTraceEventInputs tags all event records.
-          ...(experimentAttributes ?? {}),
-          ...(spanType === "languageModel" ? (promptAttributes ?? {}) : {}),
-        })
-      : undefined;
-
-  const otelIntegration = new OpenTelemetry({
+  const otelIntegration = createGenerationSpanTelemetry({
     tracer,
-    usage: true,
-    ...(enrichSpan ? { enrichSpan } : {}),
+    attributes: {
+      // Experiment linkage goes on every span, matching the LangChain path
+      // where buildInternalTraceEventInputs tags all event records.
+      ...(experimentAttributes ?? {}),
+      ...(promptAttributes ?? {}),
+    },
   });
 
   let flushed = false;
