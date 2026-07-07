@@ -21,7 +21,7 @@ const build = (config: Partial<ChartViewConfig>) =>
   });
 
 describe("buildChartQuery", () => {
-  it("builds a time-series count-by-model query honoring the granularity", () => {
+  it("builds a time-series count-by-model query with auto granularity", () => {
     const q = build({
       metric: "count",
       aggregation: "count",
@@ -31,15 +31,19 @@ describe("buildChartQuery", () => {
     expect(q.view).toBe("observations");
     expect(q.dimensions).toEqual([{ field: "providedModelName" }]);
     expect(q.metrics).toEqual([{ measure: "count", aggregation: "count" }]);
-    expect(q.timeDimension).toEqual({ granularity: "hour" });
+    expect(q.timeDimension).toEqual({ granularity: "auto" });
     expect(q.orderBy).toBeNull();
     expect(q.fromTimestamp).toBe("2026-06-25T00:00:00.000Z");
+  });
 
+  it("always uses auto granularity, ignoring config.timeGranularity", () => {
+    // Production has no granularity control — the chart (and any widget it
+    // becomes) always renders auto buckets, so a stale config value is ignored.
     const daily = build({
       chartType: "LINE_TIME_SERIES",
       timeGranularity: "day",
     });
-    expect(daily.timeDimension).toEqual({ granularity: "day" });
+    expect(daily.timeDimension).toEqual({ granularity: "auto" });
   });
 
   it("builds a categorical query with top-N ordering and a row limit", () => {
@@ -70,7 +74,7 @@ describe("buildChartQuery", () => {
   it("omits dimensions for a no-breakdown time series", () => {
     const q = build({ breakdown: "none", chartType: "AREA_TIME_SERIES" });
     expect(q.dimensions).toEqual([]);
-    expect(q.timeDimension).toEqual({ granularity: "hour" });
+    expect(q.timeDimension).toEqual({ granularity: "auto" });
   });
 
   it("names the metric column as aggregation_measure", () => {

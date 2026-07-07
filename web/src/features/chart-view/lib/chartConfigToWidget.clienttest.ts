@@ -22,7 +22,8 @@ describe("chartConfigToWidgetInput", () => {
     expect(w.chartType).toBe("LINE_TIME_SERIES");
     expect(w.chartConfig).toEqual({ type: "LINE_TIME_SERIES" });
     expect(w.name).toBe("Count of events by model over time");
-    expect([1, 2]).toContain(w.minVersion);
+    // Always v2: the chart reads the v2 events path, so the widget must too.
+    expect(w.minVersion).toBe(2);
   });
 
   it("maps a ranked cost-by-model chart with a row limit", () => {

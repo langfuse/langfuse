@@ -6,7 +6,6 @@ import {
   type ChartViewConfig,
   type DimensionKey,
   type MetricKey,
-  type TimeGranularity,
   type ViewMode,
 } from "../types";
 import { coerceConfig, DEFAULT_CONFIG } from "../vocab";
@@ -42,7 +41,6 @@ export function useChartViewState(): {
     chartAgg: withDefault(StringParam, DEFAULT_CONFIG.aggregation),
     chartBreakdown: withDefault(StringParam, DEFAULT_CONFIG.breakdown),
     chartType: withDefault(StringParam, DEFAULT_CONFIG.chartType),
-    chartGranularity: withDefault(StringParam, DEFAULT_CONFIG.timeGranularity),
   });
 
   const viewMode: ViewMode = params.eventsView === "chart" ? "chart" : "table";
@@ -54,14 +52,16 @@ export function useChartViewState(): {
         aggregation: params.chartAgg as AggregationFn,
         breakdown: params.chartBreakdown as DimensionKey,
         chartType: params.chartType as DashboardWidgetChartType,
-        timeGranularity: params.chartGranularity as TimeGranularity,
+        // Granularity is not user-controllable in production — the chart (and
+        // any widget it becomes) always renders auto buckets. Keep the default
+        // so `coerceConfig` yields a complete config.
+        timeGranularity: DEFAULT_CONFIG.timeGranularity,
       }),
     [
       params.chartMetric,
       params.chartAgg,
       params.chartBreakdown,
       params.chartType,
-      params.chartGranularity,
     ],
   );
 
@@ -78,10 +78,6 @@ export function useChartViewState(): {
         chartAgg: orUndefined(next.aggregation, DEFAULT_CONFIG.aggregation),
         chartBreakdown: orUndefined(next.breakdown, DEFAULT_CONFIG.breakdown),
         chartType: orUndefined(next.chartType, DEFAULT_CONFIG.chartType),
-        chartGranularity: orUndefined(
-          next.timeGranularity,
-          DEFAULT_CONFIG.timeGranularity,
-        ),
       });
     },
     [config, setParams],

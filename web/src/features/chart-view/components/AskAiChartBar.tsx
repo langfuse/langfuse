@@ -5,7 +5,7 @@ import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import { api } from "@/src/utils/api";
 import { type ChartViewConfig } from "../types";
-import { ASK_AI_SUGGESTIONS, coerceConfig } from "../vocab";
+import { ASK_AI_SUGGESTIONS, coerceConfig, DEFAULT_CONFIG } from "../vocab";
 
 /**
  * "Ask AI → chart" for the production events view: natural language → a chart
@@ -26,7 +26,9 @@ export const AskAiChartBar = React.memo(function AskAiChartBar({
 
   const mutation = api.chartView.generateChartConfig.useMutation({
     onSuccess: (data) => {
-      onApply(coerceConfig(data.config as ChartViewConfig));
+      // The AI spec omits granularity (production pins auto); fill the rest of
+      // the config from defaults so `coerceConfig` gets a complete spec.
+      onApply(coerceConfig({ ...DEFAULT_CONFIG, ...data.config }));
     },
     onError: (e) => {
       setError(

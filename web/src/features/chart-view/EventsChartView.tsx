@@ -4,15 +4,13 @@ import { api } from "@/src/utils/api";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { type ChartViewConfig, type TimeGranularity } from "./types";
-import { isTimeSeriesChartType } from "./vocab";
+import { type ChartViewConfig } from "./types";
 import {
   buildChartQuery,
   rowsToDataPoints,
   toChartFilters,
 } from "./lib/buildChartQuery";
 import { ChartViewPanel } from "./components/ChartViewPanel";
-import { GranularitySelect } from "./components/ConfigControls";
 import { AskAiChartBar } from "./components/AskAiChartBar";
 import { AddToDashboardButton } from "./components/AddToDashboardButton";
 
@@ -85,10 +83,6 @@ export function EventsChartView({
     (next: ChartViewConfig) => onConfigChange(next),
     [onConfigChange],
   );
-  const onGranularity = useCallback(
-    (timeGranularity: TimeGranularity) => onConfigChange({ timeGranularity }),
-    [onConfigChange],
-  );
 
   return (
     <ChartViewPanel
@@ -108,13 +102,6 @@ export function EventsChartView({
         aiAvailable ? (
           <AskAiChartBar projectId={projectId} onApply={applyAiConfig} />
         ) : undefined
-      }
-      granularitySlot={
-        <GranularitySelect
-          value={config.timeGranularity}
-          onChange={onGranularity}
-          disabled={!isTimeSeriesChartType(config.chartType)}
-        />
       }
     />
   );

@@ -1,5 +1,4 @@
 import { type FilterState } from "@langfuse/shared";
-import { requiresV2 } from "@langfuse/shared/query";
 import { type RouterInputs } from "@/src/utils/api";
 import { type ChartViewConfig } from "../types";
 import {
@@ -22,9 +21,8 @@ export type ChartWidgetInput = Omit<
  * Maps a chart-view config (+ the filters the chart is showing) to the input of
  * the EXISTING `dashboardWidgets.create` mutation — the bridge that lets "Add to
  * dashboard" reuse the widget-creation flow instead of duplicating it. The
- * dimension/metric/chartConfig shaping mirrors `buildChartQuery`, and the
- * `minVersion` is derived exactly as `WidgetForm` does (`requiresV2`), so a
- * chart added this way is indistinguishable from a hand-built widget.
+ * dimension/metric/chartConfig shaping mirrors `buildChartQuery`, so a chart
+ * added this way is indistinguishable from a hand-built widget.
  *
  * The widget does not own a time range — the host dashboard supplies one — so
  * the chart's from/to are intentionally dropped here.
@@ -57,14 +55,12 @@ export function chartConfigToWidgetInput({
       : { type: config.chartType }
   ) as ChartWidgetInput["chartConfig"];
 
-  const minVersion = requiresV2({
-    view: "observations",
-    dimensions,
-    measures: metrics.map((m) => ({ measure: m.measure })),
-    filters,
-  })
-    ? 2
-    : 1;
+  // Pin v2. The chart-view always queries the v2 events read path
+  // (`EventsChartView` runs `dashboard.executeQuery` with version "v2"), so the
+  // saved widget must read the same source — otherwise a non-beta viewer's
+  // dashboard would fall back to the legacy observations table and show
+  // different numbers than the chart the user just saved. "Save what I see."
+  const minVersion = 2;
 
   return {
     name: describeConfig(config),

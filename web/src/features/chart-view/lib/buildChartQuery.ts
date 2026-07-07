@@ -90,9 +90,10 @@ export function buildChartQuery({
     dimensions,
     metrics: [{ measure: metric.measure, aggregation: config.aggregation }],
     filters,
-    timeDimension: isTimeSeries
-      ? { granularity: config.timeGranularity }
-      : null,
+    // Auto-granularity, exactly like dashboard widgets (which have no
+    // granularity control) — so a chart added to a dashboard renders the same
+    // buckets there as here. See `chartConfigToWidgetInput`.
+    timeDimension: isTimeSeries ? { granularity: "auto" } : null,
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
     orderBy: isCategoricalBreakdown

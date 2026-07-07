@@ -4,12 +4,15 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { fetchLLMCompletion, logger } from "@langfuse/shared/src/server";
+import {
+  fetchLLMCompletion,
+  LLMAdapter,
+  logger,
+} from "@langfuse/shared/src/server";
 import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { env } from "@/src/env.mjs";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { getDefaultModelParams } from "@/src/features/natural-language-filters/server/utils";
 import {
   buildChartCompletionMessages,
   chartCompletionSchema,
@@ -82,7 +85,15 @@ export const chartViewRouter = createTRPCRouter({
             prompt: input.prompt,
             currentDatetime,
           }),
-          modelParams: getDefaultModelParams(),
+          // Omit temperature/top_p: newer Bedrock models (e.g. Claude Opus)
+          // reject them with a ValidationException; model defaults are fine for
+          // structured chart-spec generation. Only cap output length.
+          modelParams: {
+            provider: "bedrock",
+            adapter: LLMAdapter.Bedrock,
+            model: env.LANGFUSE_AWS_BEDROCK_MODEL ?? "",
+            max_tokens: 1000,
+          },
           llmConnection: {
             secretKey: encrypt(BEDROCK_USE_DEFAULT_CREDENTIALS),
           },
