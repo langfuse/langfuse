@@ -547,19 +547,33 @@ export default function ObservationsEventsTable({
 
   // Non-destructive preview: while hovering a category preset chip, show the
   // filters it would apply in the search bar's draft; on leave, restore the
-  // draft to the committed source of truth. Clicking still applies for real via
-  // applyViewState. No-op outside search-bar mode.
+  // draft the user had when the preview began — which may hold uncommitted
+  // typing, so the committed baseline is not a safe restore point. Clicking
+  // still applies for real via applyViewState. No-op outside search-bar mode.
+  const previewRestoreDraftRef = useRef<string | null>(null);
+  useEffect(() => {
+    // A committed-baseline change (chip apply, commit, sidebar edit) re-seeds
+    // the draft via the hook's resetTo sync; a pre-preview snapshot taken
+    // before that change is stale, and restoring it would fight the re-seed.
+    previewRestoreDraftRef.current = null;
+  }, [searchBarCommittedText]);
   const previewViewInSearchBar = useCallback(
     (state: TableViewPresetState | null) => {
       if (!searchBarMode) return;
-      const { actions } = searchBarStore.getState();
+      const { draft, actions } = searchBarStore.getState();
       if (state) {
+        // Focus + hover can both begin the same preview; keep the first
+        // snapshot (the second `draft` is already the preview text).
+        previewRestoreDraftRef.current ??= draft;
         actions.setDraft(filterStateToQueryText(state.filters).text);
       } else {
-        actions.resetTo(searchBarCommittedText);
+        if (previewRestoreDraftRef.current === null) return;
+        const restore = previewRestoreDraftRef.current;
+        previewRestoreDraftRef.current = null;
+        actions.resetTo(restore);
       }
     },
-    [searchBarMode, searchBarStore, searchBarCommittedText],
+    [searchBarMode, searchBarStore],
   );
 
   // Disabled for now because perhaps confusing

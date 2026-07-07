@@ -436,7 +436,7 @@ export function TableViewPresetsDrawer({
               <ChevronDown className="ml-1 h-4 w-4" />
             ) : (
               <div className="bg-input ml-1 rounded-sm px-1 text-xs">
-                {TableViewPresetsList?.length ?? 0}
+                {drawerPresetList?.length ?? 0}
               </div>
             )}
           </Button>

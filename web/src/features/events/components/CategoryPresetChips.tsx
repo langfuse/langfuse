@@ -93,8 +93,12 @@ export function CategoryPresetChips({
   });
 
   const presetsByCategory = useMemo(() => {
+    // While the preset list is loading, render no chips at all (null below)
+    // rather than a lone Quality chip holding just the coming-soon placeholder
+    // — the other chips popping in on response would shift the toolbar row.
+    if (!TableViewPresetsList) return null;
     const grouped = new Map<SystemTableViewPresetCategory, PresetItem[]>();
-    for (const view of TableViewPresetsList ?? []) {
+    for (const view of TableViewPresetsList) {
       if (!view.category) continue;
       const list = grouped.get(view.category) ?? [];
       list.push({
@@ -112,20 +116,25 @@ export function CategoryPresetChips({
       grouped.set(view.category, list);
     }
     // Quality lives under the Errors ("Quality & Errors") chip as a
-    // coming-soon placeholder for now.
-    const errorsList = grouped.get(SystemTableViewPresetCategory.Errors) ?? [];
-    grouped.set(SystemTableViewPresetCategory.Errors, [
-      ...errorsList,
-      LOW_QUALITY_COMING_SOON,
-    ]);
+    // coming-soon placeholder for now — but only alongside real presets, so a
+    // catalog without categorized presets renders no chips (guard below).
+    const errorsList = grouped.get(SystemTableViewPresetCategory.Errors);
+    if (errorsList) {
+      grouped.set(SystemTableViewPresetCategory.Errors, [
+        ...errorsList,
+        LOW_QUALITY_COMING_SOON,
+      ]);
+    }
     return grouped;
   }, [TableViewPresetsList]);
 
-  const categories = SYSTEM_TABLE_VIEW_PRESET_CATEGORIES_ORDERED.filter(
-    (category) => (presetsByCategory.get(category)?.length ?? 0) > 0,
-  );
+  const categories = presetsByCategory
+    ? SYSTEM_TABLE_VIEW_PRESET_CATEGORIES_ORDERED.filter(
+        (category) => (presetsByCategory.get(category)?.length ?? 0) > 0,
+      )
+    : [];
 
-  if (categories.length === 0) return null;
+  if (!presetsByCategory || categories.length === 0) return null;
 
   return (
     <div className="flex flex-wrap items-center gap-2">

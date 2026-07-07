@@ -173,6 +173,7 @@ const OBSERVATIONS_EVENTS_SYSTEM_TABLE_VIEW_PRESETS: SystemTableViewPreset[] = [
         value: 50000,
       },
     ],
+    orderBy: { column: "totalTokens", order: "DESC" },
   }),
 ];
 
