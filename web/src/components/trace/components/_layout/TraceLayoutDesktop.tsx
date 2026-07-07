@@ -198,8 +198,18 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
   // of resetting per tab (the peek's old sessionStorage behavior, fixed in
   // LFE-10601; the full-page's in LFE-10729). Guarded so SSR / DOM-less tests
   // fall back to a no-op store instead of throwing on the bare global.
+  //
+  // Annotation mode is an opinionated workspace — nav on its rail, detail
+  // full-width — that never SAVES a layout (onLayoutChanged below), so it must
+  // not INHERIT one either: it shares the full-page group id, and a full-page
+  // session that parked the detail panel on its 40px rail would otherwise open
+  // annotation with BOTH panels collapsed (trace-level queue items have no
+  // selection to auto-expand the detail panel). No-op storage keeps it on the
+  // computed default.
   const storage =
-    typeof window === "undefined" ? NOOP_LAYOUT_STORAGE : window.localStorage;
+    typeof window === "undefined" || isAnnotationMode
+      ? NOOP_LAYOUT_STORAGE
+      : window.localStorage;
 
   // The width the trace container actually opens at, driving the computed
   // default split. Peek: the drawer width — when expanded (a shared/reloaded
