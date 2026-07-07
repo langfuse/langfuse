@@ -182,6 +182,44 @@ This run was triggered by the `${{ github.event_name }}` event.
   loop" section for the matching PR. If no open ledger PR matches, emit
   noop and finish immediately.
 
+## Run checklists (analysis mode)
+
+Work through the matching checklist top to bottom. Each item names the
+section holding the full rules — follow those, the checklist is only the
+spine.
+
+**First run ever** (the memory branch is empty or missing):
+
+- [ ] This run only establishes the baseline — plan for noop, not a PR.
+- [ ] Compute the week's timing metrics from successful merge-group runs
+      ("Metric definitions").
+- [ ] Parse vitest logs for slowest/retried/flaky tests
+      ("Vitest output analysis").
+- [ ] Initialize memory: `history/<week>.json`, empty `prs.json`,
+      `notes.md` with initial observations, `charts/<week>.svg` ("Memory").
+- [ ] Write the full report with the filled-in chart template to the job
+      summary ("Report and graph").
+- [ ] Emit noop carrying the report.
+
+**Every subsequent analysis run:**
+
+- [ ] Read memory first: history, `prs.json` ledger, `notes.md` ("Memory").
+- [ ] Refresh every non-closed ledger entry; run the "Assessment loop" for
+      any open agent PR whose CI has completed; judge merged entries against
+      post-merge numbers.
+- [ ] Compute this week's timing metrics (merge-group only) and compare
+      against history ("Metric definitions", "Judging and acting").
+- [ ] Parse vitest logs; update week-over-week flaky-test tracking
+      ("Vitest output analysis").
+- [ ] Decide the outcome: verified in-surface improvement → PR ("Judging
+      and acting", "Verify changes before requesting a PR");
+      pipeline.yml-only proposal → comment on this run's PR or a single
+      issue; nothing actionable → noop.
+- [ ] Update all memory files, including `charts/<week>.svg` and pruned
+      `notes.md`.
+- [ ] Write the report with the filled-in chart template to the job summary
+      and into any PR/issue body ("Report and graph").
+
 ## Metric definitions (use these exactly)
 
 For every completed run, using the GitHub Actions API
@@ -393,18 +431,34 @@ Every PR (or issue) body must contain:
 - A "Verification" section listing every check you ran (exact command +
   quoted summary line) and, separately, what could not run in the sandbox
   and is covered by this PR's own CI run.
-- A **Mermaid chart** (GitHub renders `mermaid` fenced blocks natively) —
-  use `xychart-beta` with the days of the week on the x-axis and four line
-  series, all daily medians from merge-group runs in seconds:
-  1. `run tests` step (tests-web matrix median)
-  2. `Build` step (tests-web matrix median)
-  3. `e2e-tests` job duration
-  4. runner wait (perceived minus execution)
-  State the line order in the title, since xychart has no legend, and list
-  the day's numeric values in a small table below the chart so lines close
-  in magnitude stay distinguishable. Add a second `xychart-beta` with the
-  week-over-week trend from `history/*.json` once at least two weeks of
-  history exist.
+- The **weekly chart** (GitHub renders `mermaid` fenced blocks natively).
+  Copy this template verbatim and only fill in the data: the x-axis days
+  (every day that has merge-group runs), the four value lists (daily
+  merge-group medians in seconds, same day order), and the y-axis maximum
+  (largest value rounded up to the next 100). Do not change the structure
+  or the series order.
+
+  ```mermaid
+  xychart-beta
+      title "Daily merge-group medians (s) — line 1: run tests, 2: Build, 3: e2e-tests, 4: runner wait"
+      x-axis [MM-DD, MM-DD, MM-DD]
+      y-axis "seconds" 0 --> 600
+      line [0, 0, 0]
+      line [0, 0, 0]
+      line [0, 0, 0]
+      line [0, 0, 0]
+  ```
+
+  Since xychart has no legend, follow the chart with this table carrying
+  the same numbers:
+
+  | Day | run tests | Build | e2e-tests | runner wait |
+  |---|---|---|---|---|
+  | MM-DD | … | … | … | … |
+
+  Once `history/*.json` holds at least two weeks, add a second chart using
+  the same template shape with ISO weeks on the x-axis (weekly medians,
+  same four series).
 - A markdown table of the top slow tests and the retried/flaky tests.
 - A "Previously opened PRs" section from `prs.json`, oldest first: status
   and whether the change moved the following week's numbers.
