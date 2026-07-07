@@ -79,9 +79,12 @@ type PlaygroundContextType = {
   // owns the row/editor registry and registers its scroll helper here; append
   // sites outside AddMessageButton (e.g. GenerationOutput's "Add to messages")
   // call scrollToMessage so the new row lands in view rather than below the
-  // fold.
-  scrollToMessage: (id: string) => void;
-  registerScrollToMessage: (fn: ((id: string) => void) | null) => void;
+  // fold. Pass focus=false to scroll without stealing focus into the new
+  // editor (the default true keeps the Add-message button focusing behavior).
+  scrollToMessage: (id: string, focus?: boolean) => void;
+  registerScrollToMessage: (
+    fn: ((id: string, focus?: boolean) => void) | null,
+  ) => void;
 } & ModelParamsContext &
   MessagesContext;
 
@@ -149,15 +152,17 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   // ChatMessages registers its scroll-into-view helper here so sibling append
   // sites (e.g. GenerationOutput) can scroll a newly added message into view
   // (LFE-6864).
-  const scrollToMessageRef = useRef<((id: string) => void) | null>(null);
+  const scrollToMessageRef = useRef<
+    ((id: string, focus?: boolean) => void) | null
+  >(null);
   const registerScrollToMessage = useCallback(
-    (fn: ((id: string) => void) | null) => {
+    (fn: ((id: string, focus?: boolean) => void) | null) => {
       scrollToMessageRef.current = fn;
     },
     [],
   );
-  const scrollToMessage = useCallback((id: string) => {
-    scrollToMessageRef.current?.(id);
+  const scrollToMessage = useCallback((id: string, focus = true) => {
+    scrollToMessageRef.current?.(id, focus);
   }, []);
 
   const toolCallIds = messages.reduce((acc, m) => {
@@ -291,7 +296,12 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
           ...toolResultMessages,
         ]);
 
-        return toolCallMessage;
+        // Return the last appended row so callers scroll to the newest content:
+        // for a tool-call add we append the tool-call row plus one ToolResult
+        // placeholder per tool call, and the final placeholder is what should
+        // land in view (LFE-6864). Falls back to the tool-call row when there
+        // are no tool calls.
+        return toolResultMessages.at(-1) ?? toolCallMessage;
       } else if (message.type === ChatMessageType.Placeholder) {
         const placeholderMessage = {
           ...message,

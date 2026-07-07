@@ -43,9 +43,12 @@ export const GenerationOutput = () => {
             role: ChatMessageRole.Assistant,
             content: output,
           });
-    // Scroll the appended assistant message into view; unlike the button path
-    // we don't steal focus for a programmatic add (LFE-6864).
-    scrollToMessage(newMessage.id);
+    // Scroll the appended row into view without stealing focus: this is a
+    // programmatic add from the Output panel, so unlike the Add-message button
+    // path (focus=true) we shouldn't yank the caret into the new editor. For a
+    // tool-call add, addMessage returns the last appended row (the final
+    // ToolResult placeholder), so we reveal the newest content (LFE-6864).
+    scrollToMessage(newMessage.id, false);
     setTimeout(() => setIsAdded(false), 1000);
   };
 

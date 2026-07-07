@@ -64,13 +64,17 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
     }
   }, []);
 
-  // Scroll the newly added message into view and focus its editor so the user
-  // can type immediately (LFE-6864). Both the row and its CodeMirror editor
-  // mount asynchronously, and when the message is added from the dropdown menu
-  // the menu's own focus teardown competes with ours over several frames. So
-  // rather than guess a fixed delay, retry over a short bounded window until
+  // Scroll the newly added message into view and (by default) focus its editor
+  // so the user can type immediately (LFE-6864). Both the row and its CodeMirror
+  // editor mount asynchronously, and when the message is added from the dropdown
+  // menu the menu's own focus teardown competes with ours over several frames.
+  // So rather than guess a fixed delay, retry over a short bounded window until
   // the editor is mounted and actually holds focus (or we give up).
-  const scrollToMessage = useCallback((id: string) => {
+  //
+  // Pass focus=false to scroll only, without stealing focus into the new editor
+  // — used by programmatic append sites (e.g. GenerationOutput's "Add to
+  // messages") where yanking the caret into a fresh editor would be jarring.
+  const scrollToMessage = useCallback((id: string, focus = true) => {
     let attempts = 0;
     const maxAttempts = 20; // ~20 animation frames (< ~350ms)
 
@@ -83,6 +87,7 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
           behavior: "smooth",
           block: "nearest",
         });
+        if (!focus) return;
         view.focus();
         // The dropdown menu can pull focus back for a frame after closing, so
         // keep retrying until the editor is the active element.
