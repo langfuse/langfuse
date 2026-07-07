@@ -3,6 +3,7 @@ import {
   observationEvalFilterColumns,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { env } from "@langfuse/shared/src/env";
 import { JSONPath } from "jsonpath-plus";
 import type {
   PublicEvaluationRuleFilterType,
@@ -284,7 +285,15 @@ function validateJsonPath(params: {
     JSONPath({
       path: jsonPath,
       json: {},
-      eval: false,
+      // Keep validation in lockstep with extraction (see
+      // packages/shared/src/features/evals/utilities.ts): filter/script
+      // expressions are only accepted when opted in, using jsonpath-plus'
+      // sandboxed `'safe'` engine. Otherwise they are rejected here so invalid
+      // mappings fail fast, and valid ones are not rejected at validation time.
+      eval:
+        env.LANGFUSE_ENABLE_JSONPATH_FILTER_EXPRESSIONS === "true"
+          ? "safe"
+          : false,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";

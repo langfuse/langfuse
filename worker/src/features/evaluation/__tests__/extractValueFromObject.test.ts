@@ -1,8 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
+// Import from source (not the built `@langfuse/shared` entry) so the `env`
+// singleton mutated below is the same instance the extraction reads, mirroring
+// the env-override pattern in secureLlmFetch.test.ts / fetchLLMCompletionTimeout.test.ts.
 import {
   extractValueFromObjectAsString,
   extractValueFromObject,
-} from "@langfuse/shared";
+} from "../../../../../packages/shared/src/features/evals/utilities";
+import { env } from "../../../../../packages/shared/src/env";
 
 describe("extractValueFromObject", () => {
   describe("JSONPath slice expressions returning multiple elements", () => {
@@ -179,6 +183,96 @@ describe("extractValueFromObject", () => {
       const result = extractValueFromObject(obj, "data", "$.id");
       expect(result.value).toBe("107505301260286111");
       expect(result.error).toBeNull();
+    });
+  });
+
+  describe("JSONPath filter/script expressions (LANGFUSE_ENABLE_JSONPATH_FILTER_EXPRESSIONS)", () => {
+    const originalFlag = env.LANGFUSE_ENABLE_JSONPATH_FILTER_EXPRESSIONS;
+
+    afterEach(() => {
+      env.LANGFUSE_ENABLE_JSONPATH_FILTER_EXPRESSIONS = originalFlag;
+    });
+
+    const conversation = () =>
+      JSON.stringify([
+        { role: "user", content: "first question" },
+        { role: "assistant", content: "answer" },
+        { role: "user", content: "follow-up question" },
+      ]);
+
+    describe("flag enabled", () => {
+      it("selects array elements by content for $[?(@.role=='user')]", () => {
+        env.LANGFUSE_ENABLE_JSONPATH_FILTER_EXPRESSIONS = "true";
+
+        const result = extractValueFromObject(
+          { data: conversation() },
+          "data",
+          "$[?(@.role=='user')]",
+        );
+
+        expect(result.error).toBeNull();
+        expect(result.value).toEqual([
+          { role: "user", content: "first question" },
+          { role: "user", content: "follow-up question" },
+        ]);
+      });
+
+      it("unwraps a single filtered match", () => {
+        env.LANGFUSE_ENABLE_JSONPATH_FILTER_EXPRESSIONS = "true";
+
+        const result = extractValueFromObject(
+          { data: conversation() },
+          "data",
+          "$[?(@.role=='assistant')]",
+        );
+
+        expect(result.error).toBeNull();
+        expect(result.value).toEqual({ role: "assistant", content: "answer" });
+      });
+
+      it("still resolves plain selectors unchanged when enabled", () => {
+        env.LANGFUSE_ENABLE_JSONPATH_FILTER_EXPRESSIONS = "true";
+
+        const result = extractValueFromObject(
+          { data: JSON.stringify({ name: "Alice" }) },
+          "data",
+          "$.name",
+        );
+
+        expect(result.error).toBeNull();
+        expect(result.value).toBe("Alice");
+      });
+    });
+
+    describe("flag disabled (default)", () => {
+      it("rejects $[?(@.role=='user')] and leaves the raw value untouched", () => {
+        env.LANGFUSE_ENABLE_JSONPATH_FILTER_EXPRESSIONS = "false";
+
+        const data = conversation();
+        const result = extractValueFromObject(
+          { data },
+          "data",
+          "$[?(@.role=='user')]",
+        );
+
+        expect(result.error).not.toBeNull();
+        expect(result.error?.message).toMatch(/[Ee]val/);
+        // Extraction falls back to the raw original value on error.
+        expect(result.value).toBe(data);
+      });
+
+      it("keeps plain selectors working when disabled", () => {
+        env.LANGFUSE_ENABLE_JSONPATH_FILTER_EXPRESSIONS = "false";
+
+        const result = extractValueFromObject(
+          { data: JSON.stringify({ name: "Alice" }) },
+          "data",
+          "$.name",
+        );
+
+        expect(result.error).toBeNull();
+        expect(result.value).toBe("Alice");
+      });
     });
   });
 
