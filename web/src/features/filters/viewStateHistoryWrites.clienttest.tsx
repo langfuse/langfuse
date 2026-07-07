@@ -285,6 +285,37 @@ describe("view-state URL writes and browser history (LFE-10715)", () => {
     });
   });
 
+  it("sanitizes a non-canonical URL filter with a replace, not a push", async () => {
+    // A bookmarked/shared URL can carry a filter that decodes to a different
+    // canonical form (display-name column, alias, migrated legacy shape). The
+    // sanitize effect rewrites the URL on mount — a programmatic correction
+    // that must not mint a history entry, or Back bounces off it re-firing
+    // the sanitize (same LFE-10715 class as the viewId writes).
+    const { encodeFiltersGeneric } =
+      await import("./lib/filter-query-encoding");
+    const canonical = encodeFiltersGeneric(TEST_FILTERS);
+    expect(canonical.startsWith("name;")).toBe(true);
+    const nonCanonical = canonical.replace(/^name;/, "Name;");
+    queryParamStore.set("filter", nonCanonical);
+    mockUseRouter.mockReturnValue({
+      isReady: true,
+      query: { filter: nonCanonical },
+    });
+
+    render(<FilterStateHarness />);
+
+    await waitFor(() => {
+      const filterWrites = urlParamWrites.filter(
+        (write) => write.key === "filter",
+      );
+      expect(filterWrites.length).toBeGreaterThan(0);
+      expect(filterWrites.at(-1)).toMatchObject({
+        value: canonical,
+        updateType: "replaceIn",
+      });
+    });
+  });
+
   it("keeps user-initiated filter edits on the default (push) updateType", async () => {
     render(<FilterStateHarness />);
 

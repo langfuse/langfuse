@@ -745,7 +745,10 @@ export function useSidebarFilterState(
     if (typeof urlFiltersQuery === "string") {
       if (urlFiltersQuery !== canonicalFiltersQuery) {
         setPendingFiltersQuery(canonicalFiltersQuery);
-        setUrlFiltersQuery(canonicalFiltersQuery || null);
+        // replaceIn: sanitizing is a programmatic correction of the current
+        // URL — pushing would mint a history entry holding the non-canonical
+        // filter, which Back lands on and this effect re-fires (LFE-10715).
+        setUrlFiltersQuery(canonicalFiltersQuery || null, "replaceIn");
       }
 
       if (
