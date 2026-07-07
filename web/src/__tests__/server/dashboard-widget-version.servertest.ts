@@ -3,6 +3,10 @@ import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { DashboardService } from "@langfuse/shared/src/server";
 import { DashboardWidgetViews } from "@langfuse/shared/src/db";
 import { prisma } from "@langfuse/shared/src/db";
+import {
+  LANGFUSE_HOME_DASHBOARD_DEFINITION,
+  LANGFUSE_HOME_DASHBOARD_ID,
+} from "@langfuse/shared";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import type { Session } from "next-auth";
@@ -375,6 +379,129 @@ describe("dashboard widget minVersion", () => {
 
       expect(fetched).not.toBeNull();
       expect(fetched!.definition.widgets).toEqual(definition.widgets);
+    });
+  });
+
+  describe("home dashboard pointer", () => {
+    beforeAll(async () => {
+      // The worker upserts the curated Home dashboard at startup; ensure it
+      // exists in this test database.
+      await prisma.dashboard.upsert({
+        where: { id: LANGFUSE_HOME_DASHBOARD_ID },
+        update: {},
+        create: {
+          id: LANGFUSE_HOME_DASHBOARD_ID,
+          projectId: null,
+          name: "Langfuse Home",
+          description: "Curated home dashboard",
+          definition: LANGFUSE_HOME_DASHBOARD_DEFINITION,
+        },
+      });
+    });
+
+    afterEach(async () => {
+      // Pointer state is project-level; reset so tests stay independent.
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { homeDashboardId: null },
+      });
+    });
+
+    it("falls back to the curated default when no pointer is set", async () => {
+      const caller = makeCaller();
+
+      const res = await caller.dashboard.getHomeDashboard({ projectId });
+
+      expect(res.homeDashboardId).toBeNull();
+      expect(res.dashboard?.id).toBe(LANGFUSE_HOME_DASHBOARD_ID);
+      expect(res.dashboard?.owner).toBe("LANGFUSE");
+    });
+
+    it("resolves a set pointer and clears back to the default", async () => {
+      const caller = makeCaller();
+      const dashboard = await DashboardService.createDashboard(
+        projectId,
+        "My Home",
+        "Project home dashboard",
+        userId,
+      );
+
+      await caller.dashboard.setHomeDashboard({
+        projectId,
+        dashboardId: dashboard.id,
+      });
+      const res = await caller.dashboard.getHomeDashboard({ projectId });
+      expect(res.homeDashboardId).toBe(dashboard.id);
+      expect(res.dashboard?.id).toBe(dashboard.id);
+      expect(res.dashboard?.owner).toBe("PROJECT");
+
+      await caller.dashboard.setHomeDashboard({ projectId, dashboardId: null });
+      const cleared = await caller.dashboard.getHomeDashboard({ projectId });
+      expect(cleared.homeDashboardId).toBeNull();
+      expect(cleared.dashboard?.id).toBe(LANGFUSE_HOME_DASHBOARD_ID);
+    });
+
+    it("rejects pointing at a nonexistent dashboard", async () => {
+      const caller = makeCaller();
+
+      await expect(
+        caller.dashboard.setHomeDashboard({
+          projectId,
+          dashboardId: uuidv4(),
+        }),
+      ).rejects.toThrow("Dashboard not found");
+    });
+
+    it("falls back to the curated default when the pointed dashboard is deleted", async () => {
+      const caller = makeCaller();
+      const dashboard = await DashboardService.createDashboard(
+        projectId,
+        "Doomed Home",
+        "Will be deleted",
+        userId,
+      );
+      await caller.dashboard.setHomeDashboard({
+        projectId,
+        dashboardId: dashboard.id,
+      });
+
+      await DashboardService.deleteDashboard(dashboard.id, projectId);
+
+      // The FK is ON DELETE SET NULL, so the pointer clears at the DB level.
+      const res = await caller.dashboard.getHomeDashboard({ projectId });
+      expect(res.homeDashboardId).toBeNull();
+      expect(res.dashboard?.id).toBe(LANGFUSE_HOME_DASHBOARD_ID);
+    });
+
+    it("clones with a definition override and sets the clone as home", async () => {
+      const caller = makeCaller();
+      const overrideDefinition = {
+        widgets: [
+          {
+            type: "preset" as const,
+            id: "home-traces",
+            presetId: "home-traces",
+            x: 0,
+            y: 0,
+            x_size: 6,
+            y_size: 4,
+          },
+        ],
+      };
+
+      const clone = await caller.dashboard.cloneDashboard({
+        projectId,
+        dashboardId: LANGFUSE_HOME_DASHBOARD_ID,
+        definition: overrideDefinition,
+        setAsHome: true,
+      });
+
+      expect(clone.owner).toBe("PROJECT");
+      expect(clone.definition.widgets).toEqual(overrideDefinition.widgets);
+
+      const res = await caller.dashboard.getHomeDashboard({ projectId });
+      expect(res.homeDashboardId).toBe(clone.id);
+      expect(res.dashboard?.id).toBe(clone.id);
     });
   });
 

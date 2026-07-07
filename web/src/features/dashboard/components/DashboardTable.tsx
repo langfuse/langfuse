@@ -25,6 +25,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { DeleteDashboardButton } from "@/src/components/deleteButton";
 import { EditDashboardDialog } from "@/src/features/dashboard/components/EditDashboardDialog";
+import { CloneFirstDialog } from "@/src/features/dashboard/components/CloneFirstDialog";
 import { User as UserIcon } from "lucide-react";
 import { useRouter } from "next/router";
 
@@ -120,6 +121,41 @@ function EditDashboardButton({
         dashboardId={dashboardId}
         initialName={dashboardName}
         initialDescription={dashboardDescription}
+      />
+    </>
+  );
+}
+
+function LockedEditDashboardButton({
+  dashboardId,
+  projectId,
+  dashboardName,
+}: {
+  dashboardId: string;
+  projectId: string;
+  dashboardName: string;
+}) {
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const hasAccess = useHasProjectAccess({ projectId, scope: "dashboards:CUD" });
+
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="default"
+        disabled={!hasAccess}
+        onClick={() => setIsDialogOpen(true)}
+      >
+        <Edit className="mr-2 h-4 w-4" />
+        Edit
+      </Button>
+
+      <CloneFirstDialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        projectId={projectId}
+        dashboardId={dashboardId}
+        dashboardName={dashboardName}
       />
     </>
   );
@@ -248,13 +284,21 @@ export function DashboardTable() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
-                {owner === "PROJECT" && (
+                {owner === "PROJECT" ? (
                   <DropdownMenuItem asChild>
                     <EditDashboardButton
                       dashboardId={id}
                       projectId={projectId}
                       dashboardName={name}
                       dashboardDescription={description}
+                    />
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem asChild>
+                    <LockedEditDashboardButton
+                      dashboardId={id}
+                      projectId={projectId}
+                      dashboardName={name}
                     />
                   </DropdownMenuItem>
                 )}
