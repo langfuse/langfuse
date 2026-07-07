@@ -32,6 +32,11 @@ export const useOrganization = (organizationId: string | null) => {
     {
       enabled: Boolean(organizationId) && isAdmin && !fromSession,
       staleTime: 60_000,
+      // A stale/deleted org id is an expected miss for admins: resolve to
+      // null like the session-only lookup, without retries, error toast, or
+      // Sentry noise.
+      retry: false,
+      meta: { silentHttpCodes: [404] },
     },
   );
 

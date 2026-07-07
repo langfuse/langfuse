@@ -301,18 +301,25 @@ export const projectsRouter = createTRPCRouter({
   // Resolves the project and its parent organization for a single project, in
   // the same shape as session.user.organizations[number]. Used as a fallback by
   // useProject for Langfuse admins, whose session does not contain customer
-  // orgs/projects. Access (membership or admin) and the orgId are enforced
-  // server-side by protectedProjectProcedure — the orgId comes from
-  // ctx.session.orgId, never from the client, so this cannot read across orgs.
+  // orgs/projects. Admin-only: buildAdminOrgContext returns ALL projects of
+  // the org with role OWNER, which would bypass the session's per-project role
+  // filter for regular members. The orgId/projectId come from the
+  // server-resolved ctx.session, never from the client.
   byId: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
-    .query(async ({ ctx, input }) => {
+    .query(async ({ ctx }) => {
+      if (ctx.session.user.admin !== true) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only Langfuse admins can access this endpoint",
+        });
+      }
       const organization = await buildAdminOrgContext(
         ctx.prisma,
         ctx.session.orgId,
       );
       const project = organization?.projects.find(
-        (p) => p.id === input.projectId,
+        (p) => p.id === ctx.session.projectId,
       );
       if (!organization || !project) {
         throw new TRPCError({

@@ -37,6 +37,8 @@ export async function buildAdminOrgContext(
     include: {
       projects: {
         where: { deletedAt: null },
+        // Newest first, matching the session callback's project ordering
+        orderBy: { createdAt: "desc" },
       },
     },
   });
