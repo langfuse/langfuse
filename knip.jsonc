@@ -10,6 +10,10 @@
     "ee": {
       "project": ["src/**/*.ts"],
     },
+    "packages/in-app-agent-sandbox-server": {
+      "entry": ["src/server.ts", "src/toolRunner.ts"],
+      "project": ["src/**/*.ts"],
+    },
     "packages/config-eslint": {
       "project": ["*.js"],
     },

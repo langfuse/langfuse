@@ -5,20 +5,20 @@ export const SandboxFileSchema = z.object({
   content: z.string(),
 });
 
-export const ReadSandboxOperationSchema = z.object({
+const ReadSandboxOperationSchema = z.object({
   operation: z.literal("read"),
   path: z.string(),
   toolCallFiles: z.array(SandboxFileSchema).optional(),
 });
 
-export const WriteSandboxOperationSchema = z.object({
+const WriteSandboxOperationSchema = z.object({
   operation: z.literal("write"),
   path: z.string(),
   content: z.string(),
   toolCallFiles: z.array(SandboxFileSchema).optional(),
 });
 
-export const EditSandboxOperationSchema = z.object({
+const EditSandboxOperationSchema = z.object({
   operation: z.literal("edit"),
   path: z.string(),
   oldText: z.string(),
@@ -26,7 +26,7 @@ export const EditSandboxOperationSchema = z.object({
   toolCallFiles: z.array(SandboxFileSchema).optional(),
 });
 
-export const BashSandboxOperationSchema = z.object({
+const BashSandboxOperationSchema = z.object({
   operation: z.literal("bash"),
   command: z.string(),
   timeoutMs: z.number().finite().optional(),
