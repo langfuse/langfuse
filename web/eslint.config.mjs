@@ -99,6 +99,9 @@ export default [
         "warn",
         { classNameFunctions: ["cn", "clsx"] },
       ],
+
+      // TODO: Expand to more of the codebase
+      "no-nested-ternary": "error",
     },
   },
 
