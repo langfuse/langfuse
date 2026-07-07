@@ -202,16 +202,24 @@ with `created=<from>..<to>`, then `GET /repos/{owner}/{repo}/actions/runs/{id}/j
   `run tests` step. Also record the total duration of the `e2e-tests` job,
   which is typically on the critical path.
 
-Primary population: runs with `event == "merge_group"` — these actually carry
-code changes into main and are the population that matters. Compute the same
-aggregates for `pull_request` and `push` runs only as a comparison baseline.
-Analyze successful runs for timing statistics; count failed/cancelled runs
-separately as context (do not mix their timings into medians).
+Population rules:
+
+- **Timing statistics** (perceived/wall, execution, runner wait, segment
+  medians) come exclusively from successful `merge_group` runs — they carry
+  the code changes into main and are directly comparable. Do not mix
+  `pull_request` or `push` timings into these aggregates.
+- **Everything else** (vitest output analysis, slowest tests,
+  retried/flaky tests) draws on all successful runs of the week regardless
+  of event, EXCEPT runs on `main` (`push` events) — i.e. `merge_group` plus
+  `pull_request` runs.
+- Exclude failed and cancelled runs from every analysis; count them
+  separately as context only.
 
 ## Vitest output analysis
 
-For a sample of merge-group runs spread across the week (at least 5 runs, or
-all runs if fewer), download the log of the `run tests` step of the
+For a sample of successful runs spread across the week — `merge_group` and
+`pull_request` events, never `push`/main runs (at least 5 runs, or all runs
+if fewer), download the log of the `run tests` step of the
 `tests-web (…)` matrix jobs and of the `tests-worker (…)` matrix jobs (job
 logs API / `get_job_logs`; the interesting part is the end of the step). Our
 CI reporter (`scripts/vitest/ci-reporter.ts`) prints at the end of every run:
@@ -234,9 +242,10 @@ Read the memory folder before analyzing; update it before finishing. Keep
 this layout:
 
 - `history/<ISO-week, e.g. 2026-W28>.json` — one file per analyzed week:
-  per-event-type aggregates (run count, p50/p90 perceived, p50/p90
-  execution, p50/p90 runner wait, median Build step, median `run tests`
-  step, median e2e-tests job), plus the week's flaky-test list.
+  merge-group timing aggregates (run count, p50/p90 perceived, p50/p90
+  execution, p50/p90 runner wait, daily and weekly medians for the Build
+  step, `run tests` step, and e2e-tests job), plus the week's slowest and
+  flaky tests (from merge-group + pull-request runs).
 - `prs.json` — ledger of every PR and issue this workflow has opened, oldest
   first, entries: `{number, url, openedAt, title, branch, proposals: [..],
   expectedImpact: {metric, baseline, expected}, baselineStats: {..},
@@ -385,11 +394,17 @@ Every PR (or issue) body must contain:
   quoted summary line) and, separately, what could not run in the sandbox
   and is covered by this PR's own CI run.
 - A **Mermaid chart** (GitHub renders `mermaid` fenced blocks natively) —
-  use `xychart-beta` with the days of the week on the x-axis and two line
-  series: daily median perceived time and daily median execution time
-  (merge-group runs, seconds). State in the title which line is which, since
-  xychart has no legend. Add a second `xychart-beta` with the week-over-week
-  trend from `history/*.json` once at least two weeks of history exist.
+  use `xychart-beta` with the days of the week on the x-axis and four line
+  series, all daily medians from merge-group runs in seconds:
+  1. `run tests` step (tests-web matrix median)
+  2. `Build` step (tests-web matrix median)
+  3. `e2e-tests` job duration
+  4. runner wait (perceived minus execution)
+  State the line order in the title, since xychart has no legend, and list
+  the day's numeric values in a small table below the chart so lines close
+  in magnitude stay distinguishable. Add a second `xychart-beta` with the
+  week-over-week trend from `history/*.json` once at least two weeks of
+  history exist.
 - A markdown table of the top slow tests and the retried/flaky tests.
 - A "Previously opened PRs" section from `prs.json`, oldest first: status
   and whether the change moved the following week's numbers.
