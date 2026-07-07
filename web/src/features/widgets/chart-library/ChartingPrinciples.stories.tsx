@@ -306,7 +306,7 @@ export const HoverTimeline = meta.story({
         <LineChartTimeSeries
           data={fewSeries}
           syncId="charting-principles"
-          legendPosition="above"
+          legendPosition="below"
           showDataPointDots={false}
           metricFormatter={msFormatter}
         />
@@ -319,7 +319,7 @@ export const HoverTimeline = meta.story({
             { name: "gpt-4o-mini", base: 22_000, amp: 8_000 },
           ])}
           syncId="charting-principles"
-          legendPosition="above"
+          legendPosition="below"
           showDataPointDots={false}
         />
       </ChartFrame>
@@ -333,7 +333,7 @@ export const QuietChrome = meta.story({
     <ChartFrame title="High data-ink: faint grid, no axis spine, muted labels">
       <LineChartTimeSeries
         data={fewSeries}
-        legendPosition="above"
+        legendPosition="below"
         showDataPointDots={false}
         metricFormatter={msFormatter}
       />
@@ -347,7 +347,7 @@ export const BoundTheFrame = meta.story({
     <ChartFrame title="30 series in, 25 drawn — and it says so">
       <LineChartTimeSeries
         data={manySeries}
-        legendPosition="above"
+        legendPosition="below"
         showDataPointDots={false}
         metricFormatter={msFormatter}
       />
@@ -524,7 +524,7 @@ export const IsolatedPoints = meta.story({
         <LineChartTimeSeries
           data={buildGappedData(isolatedPointSeries)}
           missingValue="gap"
-          legendPosition="above"
+          legendPosition="below"
           metricFormatter={msFormatter}
         />
       </ExampleCard>
@@ -543,7 +543,7 @@ export const StaggeredSeriesGaps = meta.story({
         <LineChartTimeSeries
           data={buildGappedData(staggeredGapSeries)}
           missingValue="gap"
-          legendPosition="above"
+          legendPosition="below"
           metricFormatter={msFormatter}
         />
       </ExampleCard>
@@ -562,7 +562,7 @@ export const EmptyBucketsStayOnAxis = meta.story({
         <LineChartTimeSeries
           data={buildGappedData(twoEras)}
           missingValue="gap"
-          legendPosition="above"
+          legendPosition="below"
         />
       </ExampleCard>
       <ExampleCard
@@ -573,7 +573,7 @@ export const EmptyBucketsStayOnAxis = meta.story({
         <LineChartTimeSeries
           data={buildGappedData(twoEras)}
           missingValue="zero"
-          legendPosition="above"
+          legendPosition="below"
           legendSummary="sum"
         />
       </ExampleCard>
