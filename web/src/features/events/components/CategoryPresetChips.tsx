@@ -91,11 +91,16 @@ export function CategoryPresetChips({
     tableName: TableViewPresetTableName.ObservationsEvents,
     projectId,
   });
-  // True while a popover open was initiated by pointer (trigger pointerdown).
   // Pointer opens suppress Radix's focus-first-row so clicking a chip doesn't
   // instantly fire the first row's focus-preview; keyboard opens keep it, or
   // Tab would exit the (portaled) popover and rows would be unreachable.
-  const pointerOpenRef = useRef(false);
+  // Two refs because the pointerdown flag must survive until onOpenChange(true)
+  // consumes it: switching chip→chip, the OLD popover's close (an outside-
+  // pointerdown dismiss) happens between the new trigger's pointerdown and its
+  // open, so clearing on close would drop the flag. Shared across the chips —
+  // only one popover interaction happens at a time.
+  const pointerDownRef = useRef(false);
+  const openedByPointerRef = useRef(false);
 
   const presetsByCategory = useMemo(() => {
     // While the preset list is loading, render no chips at all (null below)
@@ -156,12 +161,13 @@ export function CategoryPresetChips({
             key={category}
             onOpenChange={(open) => {
               if (open) {
+                openedByPointerRef.current = pointerDownRef.current;
+                pointerDownRef.current = false;
                 capture("saved_views:category_chip_open", {
                   category,
                   tableName: TableViewPresetTableName.ObservationsEvents,
                 });
               } else {
-                pointerOpenRef.current = false;
                 // The popover can close without a row leave/blur firing
                 // (select a preset, click outside, Escape) — always end the
                 // preview so it can't outlive the popover.
@@ -173,7 +179,13 @@ export function CategoryPresetChips({
               <Button
                 variant="outline"
                 onPointerDown={() => {
-                  pointerOpenRef.current = true;
+                  pointerDownRef.current = true;
+                }}
+                onKeyDown={(event) => {
+                  // Keyboard activation explicitly marks a non-pointer open,
+                  // clearing a stale flag from a pointer toggle-close.
+                  if (event.key === "Enter" || event.key === " ")
+                    pointerDownRef.current = false;
                 }}
                 className={cn("gap-1.5", isCategoryActive && "bg-primary/5")}
               >
@@ -185,13 +197,12 @@ export function CategoryPresetChips({
               align="start"
               className="w-72 p-1"
               onOpenAutoFocus={(event) => {
-                // See pointerOpenRef: a pointer open keeps focus on the
+                // See openedByPointerRef: a pointer open keeps focus on the
                 // trigger (no instant first-row focus-preview); a keyboard
                 // open lets Radix focus the first row so the presets stay
                 // keyboard-reachable — previewing the row focus lands on is
                 // then the expected behavior.
-                if (pointerOpenRef.current) event.preventDefault();
-                pointerOpenRef.current = false;
+                if (openedByPointerRef.current) event.preventDefault();
               }}
             >
               <div className="text-muted-foreground px-2 py-1.5 text-xs font-medium">
