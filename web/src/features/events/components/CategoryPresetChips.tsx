@@ -1,5 +1,11 @@
-import { useMemo } from "react";
-import { DollarSign, ThumbsDown, Timer, type LucideIcon } from "lucide-react";
+import { useMemo, useState } from "react";
+import {
+  DollarSign,
+  Loader2,
+  ThumbsDown,
+  Timer,
+  type LucideIcon,
+} from "lucide-react";
 import {
   SYSTEM_TABLE_VIEW_PRESET_CATEGORIES_ORDERED,
   SYSTEM_TABLE_VIEW_PRESET_CATEGORY_META,
@@ -17,6 +23,8 @@ import {
 import { cn } from "@/src/utils/tailwind";
 import { useViewData } from "@/src/components/table/table-view-presets/hooks/useViewData";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useResolvePercentileThreshold } from "@/src/features/events/hooks/useResolvePercentileThreshold";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
 const CATEGORY_ICONS: Record<SystemTableViewPresetCategory, LucideIcon> = {
   [SystemTableViewPresetCategory.SlowCalls]: Timer,
@@ -29,12 +37,59 @@ type PresetItem = {
   name: string;
   description?: string;
   // The filters/orderBy this preset applies. Absent for the disabled
-  // coming-soon placeholder.
+  // coming-soon placeholder and for percentile presets (resolved on click).
   state?: TableViewPresetState;
   // A non-interactive "coming soon" placeholder (e.g. Low quality), rendered
   // greyed with a "Soon" badge and no apply behavior.
   disabled?: boolean;
+  // Percentile presets resolve their threshold at apply time (snapshot) via
+  // the metrics query engine, then apply a plain number filter — so the
+  // resulting filter state stays shareable and pagination-stable.
+  resolvePercentile?: {
+    /** Measure name on the v2 `observations` metrics view. */
+    measure: string;
+    percentile: "p50" | "p75" | "p90" | "p95" | "p99";
+    /** Events-table filter column the resolved threshold is written to. */
+    column: string;
+    /** Unit conversion measure → filter column (e.g. latency ms → s). */
+    toFilterValue?: (value: number) => number;
+    orderBy?: TableViewPresetState["orderBy"];
+  };
 };
+
+// Percentile presets: thresholds are computed over the table's current time
+// range (other filters deliberately ignored) and applied as plain filters.
+const PERCENTILE_PRESETS: Array<
+  PresetItem & { category: SystemTableViewPresetCategory }
+> = [
+  {
+    id: "__pctl_slowest_5pct",
+    name: "Slowest 5%",
+    description: "Latency above the 95th percentile of the selected range",
+    category: SystemTableViewPresetCategory.SlowCalls,
+    resolvePercentile: {
+      measure: "latency",
+      percentile: "p95",
+      column: "latency",
+      // The latency measure is milliseconds; the filter column is seconds.
+      toFilterValue: (ms) => Math.round(ms) / 1000,
+      orderBy: { column: "latency", order: "DESC" },
+    },
+  },
+  {
+    id: "__pctl_top_5pct_cost",
+    name: "Top 5% cost",
+    description: "Total cost above the 95th percentile of the selected range",
+    category: SystemTableViewPresetCategory.CostRegression,
+    resolvePercentile: {
+      measure: "totalCost",
+      percentile: "p95",
+      column: "totalCost",
+      toFilterValue: (usd) => Math.round(usd * 1e6) / 1e6,
+      orderBy: { column: "totalCost", order: "DESC" },
+    },
+  },
+];
 
 // Applied on toggle-off: clears the preset's filters and sort back to the
 // table's unfiltered default (mirrors an empty system preset).
@@ -59,6 +114,10 @@ const LOW_QUALITY_COMING_SOON: PresetItem = {
 
 type CategoryPresetChipsProps = {
   projectId: string;
+  /** Absolute time range of the table — the population percentile presets
+   *  resolve their thresholds over (an absent `to` means "until now").
+   *  Percentile presets hide when the range is absent. */
+  dateRange?: { from: Date; to?: Date };
   /** The currently applied view id, used to render the active chip/row state. */
   activeViewId: string | null;
   /** Sets `?viewId` (deep-link/provenance); pass null to deselect. */
@@ -81,12 +140,17 @@ type CategoryPresetChipsProps = {
  */
 export function CategoryPresetChips({
   projectId,
+  dateRange,
   activeViewId,
   onApplyView,
   applyViewState,
   onPreviewView,
 }: CategoryPresetChipsProps) {
   const capture = usePostHogClientCapture();
+  const resolvePercentileThreshold = useResolvePercentileThreshold(projectId);
+  const [resolvingPresetId, setResolvingPresetId] = useState<string | null>(
+    null,
+  );
   const { TableViewPresetsList } = useViewData({
     tableName: TableViewPresetTableName.ObservationsEvents,
     projectId,
@@ -118,8 +182,14 @@ export function CategoryPresetChips({
       ...errorsList,
       LOW_QUALITY_COMING_SOON,
     ]);
+    // Percentile presets need a time range to resolve their thresholds over.
+    if (dateRange) {
+      for (const { category, ...preset } of PERCENTILE_PRESETS) {
+        grouped.set(category, [...(grouped.get(category) ?? []), preset]);
+      }
+    }
     return grouped;
-  }, [TableViewPresetsList]);
+  }, [TableViewPresetsList, dateRange]);
 
   const categories = SYSTEM_TABLE_VIEW_PRESET_CATEGORIES_ORDERED.filter(
     (category) => (presetsByCategory.get(category)?.length ?? 0) > 0,
@@ -191,6 +261,65 @@ export function CategoryPresetChips({
                       }
                       onBlur={() => !preset.disabled && onPreviewView?.(null)}
                       onClick={() => {
+                        if (preset.resolvePercentile && dateRange) {
+                          // Resolve the percentile threshold over the current
+                          // time range (snapshot), then apply it as a plain
+                          // number filter — no ?viewId, the filter itself is
+                          // the shareable state.
+                          const spec = preset.resolvePercentile;
+                          setResolvingPresetId(preset.id);
+                          resolvePercentileThreshold({
+                            measure: spec.measure,
+                            percentile: spec.percentile,
+                            from: dateRange.from,
+                            to: dateRange.to ?? new Date(),
+                          })
+                            .then((raw) => {
+                              if (raw === null) {
+                                showErrorToast(
+                                  "No data in range",
+                                  `Could not compute ${spec.percentile} of ${spec.measure} for the selected time range.`,
+                                  "WARNING",
+                                );
+                                return;
+                              }
+                              const threshold =
+                                spec.toFilterValue?.(raw) ?? raw;
+                              onApplyView(null);
+                              applyViewState({
+                                filters: [
+                                  {
+                                    column: spec.column,
+                                    type: "number",
+                                    operator: ">=",
+                                    value: threshold,
+                                  },
+                                ],
+                                orderBy: spec.orderBy ?? null,
+                                columnOrder: [],
+                                columnVisibility: {},
+                                searchQuery: "",
+                              });
+                              capture("saved_views:category_chip_apply", {
+                                category,
+                                presetId: preset.id,
+                                presetName: preset.name,
+                                action: "apply",
+                                percentile: spec.percentile,
+                                tableName:
+                                  TableViewPresetTableName.ObservationsEvents,
+                              });
+                            })
+                            .catch(() => {
+                              showErrorToast(
+                                "Percentile unavailable",
+                                "Failed to compute the percentile threshold. Please try again.",
+                                "WARNING",
+                              );
+                            })
+                            .finally(() => setResolvingPresetId(null));
+                          return;
+                        }
                         if (!preset.state) {
                           capture(
                             "saved_views:category_preset_coming_soon_click",
@@ -230,6 +359,12 @@ export function CategoryPresetChips({
                       <span className="flex flex-col">
                         <span className="flex items-center gap-1.5 font-medium">
                           {preset.name}
+                          {resolvingPresetId === preset.id && (
+                            <Loader2
+                              className="h-3.5 w-3.5 animate-spin"
+                              aria-hidden
+                            />
+                          )}
                           {preset.disabled && (
                             <span className="text-muted-foreground rounded-sm border px-1 text-[10px] font-normal uppercase">
                               Soon
@@ -244,9 +379,11 @@ export function CategoryPresetChips({
                       </span>
                     </button>
                   );
-                  // The disabled placeholder never applies, so it isn't wrapped
-                  // in PopoverClose (clicking it should not close the popover).
-                  return preset.disabled ? (
+                  // The disabled placeholder never applies, and percentile
+                  // presets resolve asynchronously (the popover stays open so
+                  // the inline spinner is visible) — neither is wrapped in
+                  // PopoverClose. Plain presets close the popover on apply.
+                  return preset.disabled || preset.resolvePercentile ? (
                     <div key={preset.id}>{row}</div>
                   ) : (
                     <PopoverClose asChild key={preset.id}>
