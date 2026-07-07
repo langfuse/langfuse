@@ -111,6 +111,7 @@ export default [
     files: ["src/ee/features/in-app-agent/**/*.{ts,tsx}"],
     rules: {
       "@typescript-eslint/consistent-type-definitions": ["warn", "type"],
+      "@typescript-eslint/no-confusing-void-expression": "warn",
       curly: ["error", "all"],
       "@repo/no-switch-statements": "error",
     },

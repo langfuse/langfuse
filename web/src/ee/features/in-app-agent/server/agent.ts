@@ -298,7 +298,9 @@ export async function createAgUiStream(params: {
               encoder.encode(`data: ${JSON.stringify(agUiEvent)}\n\n`),
             );
           })
-          .catch((error) => failStream(error, String(agUiEvent.type)));
+          .catch((error) => {
+            failStream(error, String(agUiEvent.type));
+          });
       };
 
       const handleStreamedRunError = () => {
@@ -356,7 +358,9 @@ export async function createAgUiStream(params: {
             closed = true;
             controller.close();
           })
-          .catch((error) => failStream(error))
+          .catch((error) => {
+            failStream(error);
+          })
           .finally(finish);
       };
 
