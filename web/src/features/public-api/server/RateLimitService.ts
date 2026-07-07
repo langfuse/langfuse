@@ -283,6 +283,12 @@ const getPlanBasedRateLimitConfig = (
             points: null,
             durationInSec: null,
           };
+        case "skills":
+          return {
+            resource: "skills",
+            points: null,
+            durationInSec: null,
+          };
         case "public-api":
           return {
             resource: "public-api",
@@ -368,6 +374,12 @@ const getPlanBasedRateLimitConfig = (
         case "prompts":
           return {
             resource: "prompts",
+            points: null,
+            durationInSec: null,
+          };
+        case "skills":
+          return {
+            resource: "skills",
             points: null,
             durationInSec: null,
           };
@@ -458,6 +470,12 @@ const getPlanBasedRateLimitConfig = (
         case "prompts":
           return {
             resource: "prompts",
+            points: null,
+            durationInSec: null,
+          };
+        case "skills":
+          return {
+            resource: "skills",
             points: null,
             durationInSec: null,
           };
