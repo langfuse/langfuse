@@ -1,4 +1,8 @@
-import { UiColumnMappings } from "../../tableDefinitions";
+import type {
+  ColumnDefinition,
+  UiColumnMappings,
+} from "../../tableDefinitions";
+import type { ApiColumnMapping } from "../queries/public-api-filter-builder";
 
 /**
  * Pre-aggregation column mappings for experiments.
@@ -97,3 +101,114 @@ export const experimentCols: UiColumnMappings = [
   ...experimentPreAggCols,
   ...experimentScoreAggCols,
 ];
+
+const publicApiExperimentFilterColumns = [
+  {
+    id: "id",
+    uiTableName: "ID",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "experiment_id",
+    nullable: false,
+  },
+  {
+    id: "name",
+    uiTableName: "Name",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "experiment_name",
+    nullable: true,
+  },
+  {
+    id: "datasetId",
+    uiTableName: "Dataset ID",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "experiment_dataset_id",
+    nullable: true,
+  },
+] as const;
+
+export const publicApiExperimentSimpleFilterMappings: ApiColumnMapping[] =
+  publicApiExperimentFilterColumns.map((column) => ({
+    id: column.id,
+    clickhouseSelect: column.clickhouseSelect,
+    clickhouseTable: column.clickhouseTableName,
+    filterType: "StringOptionsFilter",
+    clickhousePrefix: "e",
+  }));
+
+export const publicApiExperimentColumnMappings: UiColumnMappings =
+  publicApiExperimentFilterColumns.map((column) => ({
+    uiTableName: column.uiTableName,
+    uiTableId: column.id,
+    clickhouseTableName: column.clickhouseTableName,
+    clickhouseSelect: column.clickhouseSelect,
+    queryPrefix: "e",
+  }));
+
+export const publicApiExperimentColumnDefinitions: ColumnDefinition[] =
+  publicApiExperimentFilterColumns.map((column) => ({
+    name: column.uiTableName,
+    id: column.id,
+    type: "stringOptions",
+    internal: column.clickhouseSelect,
+    options: [],
+    ...(column.nullable ? { nullable: true } : {}),
+  }));
+
+const publicApiExperimentItemFilterColumns = [
+  {
+    id: "experimentId",
+    uiTableName: "ID",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "experiment_id",
+    nullable: false,
+  },
+  {
+    id: "experimentName",
+    uiTableName: "Name",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "experiment_name",
+    nullable: true,
+  },
+  {
+    id: "experimentItemId",
+    uiTableName: "Experiment Item ID",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "experiment_item_id",
+    nullable: false,
+  },
+  {
+    id: "datasetId",
+    uiTableName: "Dataset ID",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "experiment_dataset_id",
+    nullable: true,
+  },
+] as const;
+
+export const publicApiExperimentItemSimpleFilterMappings: ApiColumnMapping[] =
+  publicApiExperimentItemFilterColumns.map((column) => ({
+    id: column.id,
+    clickhouseSelect: column.clickhouseSelect,
+    clickhouseTable: column.clickhouseTableName,
+    filterType: "StringOptionsFilter",
+    clickhousePrefix: "e",
+  }));
+
+export const publicApiExperimentItemColumnMappings: UiColumnMappings =
+  publicApiExperimentItemFilterColumns.map((column) => ({
+    uiTableName: column.uiTableName,
+    uiTableId: column.id,
+    clickhouseTableName: column.clickhouseTableName,
+    clickhouseSelect: column.clickhouseSelect,
+    queryPrefix: "e",
+  }));
+
+export const publicApiExperimentItemColumnDefinitions: ColumnDefinition[] =
+  publicApiExperimentItemFilterColumns.map((column) => ({
+    name: column.uiTableName,
+    id: column.id,
+    type: "stringOptions",
+    internal: column.clickhouseSelect,
+    options: [],
+    ...(column.nullable ? { nullable: true } : {}),
+  }));

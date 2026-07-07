@@ -159,6 +159,7 @@ export const events = {
     "new_from_trace_form_open",
     "upload_csv_button_click",
     "upload_csv_form_submit",
+    "select_observations_button_click",
     "delete",
   ],
   dataset_run: [
