@@ -232,7 +232,7 @@ export const skillRouter = createTRPCRouter({
       );
 
       return {
-        totalCount: count[0].totalCount,
+        totalCount: count.length > 0 ? Number(count[0]?.totalCount) : 0,
       };
     }),
   byId: protectedProjectProcedure

@@ -43,28 +43,32 @@ export const deleteSkill = async (params: DeleteSkillParams) => {
     v.labels.includes(LATEST_SKILL_LABEL),
   );
 
-  // reattach "latest" to highest remaining version
-  if (
-    deletingLatest &&
-    !latestRemainsAfterDeletion &&
-    remainingVersions.length > 0
-  ) {
-    const highestRemainingVersion = remainingVersions.reduce((max, v) =>
-      v.version > max.version ? v : max,
-    );
+  // Reattach "latest" to the highest remaining version and delete the target
+  // versions atomically, so a concurrent delete cannot interleave between the
+  // relabel and the delete and leave the skill without a "latest" label.
+  await prisma.$transaction(async (tx) => {
+    if (
+      deletingLatest &&
+      !latestRemainsAfterDeletion &&
+      remainingVersions.length > 0
+    ) {
+      const highestRemainingVersion = remainingVersions.reduce((max, v) =>
+        v.version > max.version ? v : max,
+      );
 
-    await prisma.skill.update({
-      where: { id: highestRemainingVersion.id },
-      data: {
-        labels: [
-          ...new Set([...highestRemainingVersion.labels, LATEST_SKILL_LABEL]),
-        ],
-      },
+      await tx.skill.update({
+        where: { id: highestRemainingVersion.id },
+        data: {
+          labels: [
+            ...new Set([...highestRemainingVersion.labels, LATEST_SKILL_LABEL]),
+          ],
+        },
+      });
+    }
+
+    await tx.skill.deleteMany({
+      where: { projectId, id: { in: skillVersions.map((s) => s.id) } },
     });
-  }
-
-  await prisma.skill.deleteMany({
-    where: { projectId, id: { in: skillVersions.map((s) => s.id) } },
   });
 
   // Rotate cache epoch only after successful commit.
