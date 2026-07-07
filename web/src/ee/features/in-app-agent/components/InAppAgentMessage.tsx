@@ -1,5 +1,4 @@
 "use client";
-
 import {
   ArrowRight,
   Check,
@@ -40,7 +39,14 @@ import { useElementSize } from "@/src/hooks/useElementSize";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import {
+  expandMarkdownSelection,
+  getMarkdownSourceRangeFromRenderedOffsets,
+  projectMarkdownToRenderedText,
+} from "./utils/markdown";
 import styles from "./InAppAgentMessage.module.css";
+import { InAppAgentToolPayload } from "./InAppAgentToolPayload";
+import { type InAppAgentToolCallContent } from "@/src/ee/features/in-app-agent/components/utils/utils";
 
 export type InAppAgentMessageRole = "assistant" | "user";
 
@@ -65,14 +71,6 @@ export type InAppAgentMessageContent =
       tools: InAppAgentToolCallContent[];
       isLoading?: boolean;
     };
-
-export type InAppAgentToolCallContent = {
-  type: "tool";
-  name: string;
-  args: string;
-  result?: string;
-  error?: string;
-};
 
 const parseAbsoluteUrl = (href: string): URL | null => {
   try {
@@ -384,6 +382,8 @@ function MessageFeedbackControls({
       .catch(() => undefined);
   };
 
+  const commentButtonText = `Comment: ${committedComment}`;
+
   return (
     <Popover
       open={!isFeedbackDisabled && isCommentPopoverOpen}
@@ -425,10 +425,11 @@ function MessageFeedbackControls({
         <button
           type="button"
           className="text-muted-foreground hover:text-foreground ml-1 min-w-0 flex-1 truncate text-left text-xs disabled:cursor-not-allowed disabled:opacity-60"
+          title={commentButtonText}
           disabled={isDisabled}
           onClick={() => setIsCommentPopoverOpen(true)}
         >
-          Comment: {committedComment}
+          {commentButtonText}
         </button>
       ) : null}
       {selectedValue ? (
@@ -502,7 +503,10 @@ function SourcesPopover({
                 className="bg-muted size-3.5 shrink-0 rounded-sm bg-cover bg-center"
                 style={{ backgroundImage: `url("${source.faviconUrl}")` }}
               />
-              <span className="text-foreground min-w-0 flex-1 truncate text-xs">
+              <span
+                className="text-foreground min-w-0 flex-1 truncate text-xs"
+                title={source.title}
+              >
                 {source.title}
               </span>
             </a>
@@ -593,7 +597,9 @@ function ToolCallGroup({
   isLoading?: boolean;
   isCompact?: boolean;
 }) {
-  const label = `${isLoading ? "Calling" : "Called"} ${tools.length} ${tools.length === 1 ? "tool" : "tools"}`;
+  const label = `${isLoading ? "Calling" : "Called"} ${tools.length} ${
+    tools.length === 1 ? "tool" : "tools"
+  }`;
 
   const paddingX = cn(isCompact ? "px-2.5" : "px-3");
   const iconSize = isCompact ? "size-3" : "size-4";
@@ -616,7 +622,9 @@ function ToolCallGroup({
         ) : (
           <Wrench className={cn("text-muted-foreground shrink-0", iconSize)} />
         )}
-        <span className="min-w-0 flex-1 truncate py-0.5">{label}</span>
+        <span className="min-w-0 flex-1 truncate py-0.5" title={label}>
+          {label}
+        </span>
         <span className="text-muted-foreground text-xs group-open/tool-group:hidden">
           Show
         </span>
@@ -627,80 +635,44 @@ function ToolCallGroup({
       <div
         className={cn("border-border mt-2 space-y-2 border-t pt-2", paddingX)}
       >
-        {tools.map((tool, index) => (
-          <div key={`${tool.name}-${index}`} className="rounded-lg">
-            <ToolCallDetails tool={tool} />
-          </div>
-        ))}
+        {tools.map((tool, index) => {
+          const resultLabel = tool.error ? "Error" : "Result";
+          const toolLabel = `Used ${tool.name}`;
+
+          return (
+            <div key={`${tool.name}-${index}`} className="rounded-lg">
+              <details className="group/tool min-w-0">
+                <summary className="flex cursor-pointer list-none items-center gap-2 text-xs leading-none font-medium [&::-webkit-details-marker]:hidden">
+                  <Wrench className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+                  <span
+                    className="min-w-0 flex-1 truncate py-0.5"
+                    title={toolLabel}
+                  >
+                    {toolLabel}
+                  </span>
+                  <span className="text-muted-foreground text-xs group-open/tool:hidden">
+                    Show
+                  </span>
+                  <span className="text-muted-foreground hidden text-xs group-open/tool:inline">
+                    Hide
+                  </span>
+                </summary>
+                <div className="mt-2 space-y-2">
+                  <InAppAgentToolPayload label="Arguments" value={tool.args} />
+                  {tool.result !== undefined || tool.error !== undefined ? (
+                    <InAppAgentToolPayload
+                      label={resultLabel}
+                      value={tool.error ?? tool.result ?? ""}
+                      isError={Boolean(tool.error)}
+                    />
+                  ) : null}
+                </div>
+              </details>
+            </div>
+          );
+        })}
       </div>
     </details>
-  );
-}
-
-function ToolCallDetails({ tool }: { tool: InAppAgentToolCallContent }) {
-  const resultLabel = tool.error ? "Error" : "Result";
-
-  return (
-    <details className="group/tool min-w-0">
-      <summary className="flex cursor-pointer list-none items-center gap-2 text-xs leading-none font-medium [&::-webkit-details-marker]:hidden">
-        <Wrench className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-        <span className="min-w-0 flex-1 truncate py-0.5">Used {tool.name}</span>
-        <span className="text-muted-foreground text-xs group-open/tool:hidden">
-          Show
-        </span>
-        <span className="text-muted-foreground hidden text-xs group-open/tool:inline">
-          Hide
-        </span>
-      </summary>
-      <div className="mt-2 space-y-2">
-        <ToolPayload label="Arguments" value={tool.args} />
-        {tool.result !== undefined || tool.error !== undefined ? (
-          <ToolPayload
-            label={resultLabel}
-            value={tool.error ?? tool.result ?? ""}
-            isError={Boolean(tool.error)}
-          />
-        ) : null}
-      </div>
-    </details>
-  );
-}
-
-function ToolPayload({
-  label,
-  value,
-  isError = false,
-}: {
-  label: string;
-  value: string;
-  isError?: boolean;
-}) {
-  const toolPayload = useMemo(() => {
-    const trimmedValue = value.trim();
-
-    if (!trimmedValue) {
-      return "{}";
-    }
-
-    try {
-      return JSON.stringify(JSON.parse(trimmedValue), null, 2);
-    } catch {
-      return value;
-    }
-  }, [value]);
-
-  return (
-    <div className="space-y-1">
-      <p className="text-muted-foreground text-xs font-medium">{label}</p>
-      <pre
-        className={cn(
-          "bg-muted text-muted-foreground max-h-64 overflow-auto rounded-md p-2 text-xs whitespace-pre-wrap",
-          isError && "text-destructive",
-        )}
-      >
-        {toolPayload}
-      </pre>
-    </div>
   );
 }
 
@@ -729,6 +701,24 @@ function MessageText({
   return (
     <div
       data-compact={isCompact}
+      onCopy={(event) => {
+        const browserSelection =
+          event.currentTarget.ownerDocument.getSelection();
+
+        const result = getSelectedMarkdownFromSource(
+          event.currentTarget,
+          browserSelection,
+          text,
+        );
+
+        if (!result) {
+          return;
+        }
+
+        event.preventDefault();
+        event.clipboardData.setData("text/plain", result.markdown);
+        event.clipboardData.setData("text/html", result.html);
+      }}
       className={cn(styles.Streamdown, isCompact && styles.compact)}
     >
       <Streamdown
@@ -773,6 +763,111 @@ function MessageText({
   );
 }
 
+function getSelectedMarkdownFromSource(
+  root: HTMLElement,
+  selection: Selection | null,
+  markdown: string,
+): { markdown: string; html: string } | null {
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+    return null;
+  }
+
+  const range = selection.getRangeAt(0);
+  if (
+    !(range.startContainer === root || root.contains(range.startContainer)) ||
+    !(range.endContainer === root || root.contains(range.endContainer))
+  ) {
+    return null;
+  }
+
+  const selectedText = selection.toString();
+  if (!selectedText.trim()) {
+    return null;
+  }
+
+  const projection = projectMarkdownToRenderedText(markdown);
+
+  const renderedStart = (() => {
+    const prefixRange = root.ownerDocument.createRange();
+    prefixRange.selectNodeContents(root);
+    prefixRange.setEnd(range.startContainer, range.startOffset);
+    return prefixRange.toString().length;
+  })();
+
+  const renderedEnd = (() => {
+    const prefixRange = root.ownerDocument.createRange();
+    prefixRange.selectNodeContents(root);
+    prefixRange.setEnd(range.endContainer, range.endOffset);
+    return prefixRange.toString().length;
+  })();
+
+  const fallbackStart = projection.plain.indexOf(selectedText, renderedStart);
+  const exactTextSelection =
+    fallbackStart === -1
+      ? null
+      : getMarkdownSourceRangeFromRenderedOffsets(
+          projection,
+          fallbackStart,
+          fallbackStart + selectedText.length,
+        );
+  const offsetSelection = getMarkdownSourceRangeFromRenderedOffsets(
+    projection,
+    renderedStart,
+    renderedEnd,
+  );
+
+  const sourceRange = exactTextSelection ?? offsetSelection;
+
+  if (!sourceRange) {
+    return null;
+  }
+
+  const { start, end } = expandMarkdownSelection(
+    markdown,
+    sourceRange.start,
+    sourceRange.end,
+  );
+  const selectedMarkdown = trimTrailingFenceNewline(markdown, start, end);
+
+  const htmlContainer = root.ownerDocument.createElement("div");
+  htmlContainer.append(range.cloneContents());
+  htmlContainer
+    .querySelectorAll("[data-in-app-agent-code-copy-button]")
+    .forEach((node) => node.remove());
+
+  return {
+    markdown: selectedMarkdown,
+    html: htmlContainer.innerHTML,
+  };
+}
+
+function trimTrailingFenceNewline(
+  markdown: string,
+  start: number,
+  end: number,
+) {
+  const selectedMarkdown = markdown.slice(start, end);
+
+  if (
+    !selectedMarkdown.endsWith("\n") ||
+    !markdown.slice(end).startsWith("```")
+  ) {
+    return selectedMarkdown;
+  }
+
+  const openingFenceIndex = markdown.lastIndexOf("```", start);
+  if (openingFenceIndex === -1) {
+    return selectedMarkdown;
+  }
+
+  const previousClosingFenceIndex = markdown.lastIndexOf("\n```", start);
+  if (previousClosingFenceIndex > openingFenceIndex) {
+    return selectedMarkdown;
+  }
+
+  return selectedMarkdown.slice(0, -1);
+}
+
 function CodeBlock({ children }: { children: ReactNode }) {
   const { copy, isCopied } = useCopyToClipboard({ successDuration: 1_500 });
 
@@ -795,13 +890,15 @@ function CodeBlock({ children }: { children: ReactNode }) {
     <pre className="group/code-block relative pr-10">
       <button
         type="button"
+        data-in-app-agent-code-copy-button="true"
         aria-label={isCopied ? "Copied code" : "Copy code"}
         title={isCopied ? "Copied" : "Copy code"}
+        contentEditable={false}
         disabled={!code}
         onClick={() => {
           copy(code).catch(() => undefined);
         }}
-        className="bg-background/90 text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute top-1.5 right-1.5 z-10 inline-flex size-6 items-center justify-center rounded-md border opacity-80 shadow-sm transition hover:opacity-100 focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+        className="bg-background/90 text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute top-1.5 right-1.5 z-10 inline-flex size-6 items-center justify-center rounded-md border opacity-80 shadow-sm transition select-none hover:opacity-100 focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
       >
         {isCopied ? (
           <Check className="size-3.5" />

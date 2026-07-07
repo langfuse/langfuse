@@ -7,6 +7,7 @@ import { ViewPreferencesProvider } from "./contexts/ViewPreferencesContext";
 import { SelectionProvider } from "./contexts/SelectionContext";
 import { SearchProvider } from "./contexts/SearchContext";
 import { JsonExpansionProvider } from "./contexts/JsonExpansionContext";
+import { PlayheadProvider } from "./contexts/PlayheadContext";
 import { TraceGraphDataProvider } from "./contexts/TraceGraphDataContext";
 import { TraceLayoutMobile } from "./components/_layout/TraceLayoutMobile";
 import { TraceLayoutDesktop } from "./components/_layout/TraceLayoutDesktop";
@@ -74,7 +75,9 @@ export function Trace({
           <SelectionProvider>
             <SearchProvider>
               <JsonExpansionProvider>
-                <TraceContent />
+                <PlayheadProvider>
+                  <TraceContent />
+                </PlayheadProvider>
               </JsonExpansionProvider>
             </SearchProvider>
           </SelectionProvider>

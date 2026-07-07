@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
@@ -417,9 +417,9 @@ export function CreateLLMApiKeyForm({
           </FormDescription>
           {currentAdapter === LLMAdapter.Azure && (
             <FormDescription className="text-dark-yellow">
-              {
-                "For Azure, the model name should be the same as the deployment name in Azure. For evals, choose a model with function calling capabilities."
-              }
+              For Azure, the model name should be the same as the deployment
+              name in Azure. For evals, choose a model with function calling
+              capabilities.
             </FormDescription>
           )}
 

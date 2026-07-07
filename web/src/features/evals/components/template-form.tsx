@@ -215,7 +215,7 @@ export const InnerEvalTemplateForm = (props: {
   // If existing template has no provider, it was using default model
   const shouldUseDefaultModel =
     props.preFilledFormValues?.shouldUseDefaultModel ??
-    (props.preFilledFormValues?.selectedModel ? false : true);
+    !props.preFilledFormValues?.selectedModel;
 
   const { data: defaultModel } = api.defaultLlmModel.fetchDefaultModel.useQuery(
     { projectId: props.projectId },
@@ -945,9 +945,7 @@ export const InnerEvalTemplateForm = (props: {
         </Button>
       )}
       {formError ? (
-        <p className="w-full text-center">
-          <span className="font-bold">Error:</span> {formError}
-        </p>
+        <p className="text-destructive text-sm">{formError}</p>
       ) : null}
     </div>
   );
@@ -961,7 +959,7 @@ export const InnerEvalTemplateForm = (props: {
         {props.useDialog ? <DialogBody>{formBody}</DialogBody> : formBody}
 
         {props.useDialog ? (
-          <DialogFooter>{formFooter}</DialogFooter>
+          <DialogFooter variant="action">{formFooter}</DialogFooter>
         ) : (
           formFooter
         )}

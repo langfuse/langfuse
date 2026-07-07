@@ -46,6 +46,21 @@ const TRACE_SCORE_SCOPE_FILTER: FilterCondition[] = [
   },
 ];
 
+// Observation-level scores: written against a specific observation
+// (observation_id set). These are the scores the observation `scores_avg` /
+// `score_categories` columns aggregate and filter on (joined by span_id).
+// Trace-level scores (observation_id NULL) live under `trace_scores_avg` /
+// `trace_score_categories` instead, so they must NOT be offered here — filtering
+// a trace-level score name via the observation column can never match (LFE-10596).
+const OBSERVATION_SCORE_SCOPE_FILTER: FilterCondition[] = [
+  {
+    type: "null",
+    column: "observationId",
+    operator: "is not null",
+    value: "",
+  },
+];
+
 interface GetObservationsListParams {
   projectId: string;
   filter: any[];
@@ -71,6 +86,7 @@ interface GetObservationsFilterOptionsParams {
   isRootObservation?: boolean;
   hasParentObservation?: boolean;
   observationType?: string;
+  columns?: readonly EventFilterOptionsColumn[];
 }
 
 type EventFilterValueOption = {
@@ -99,6 +115,20 @@ const EVENT_FILTER_OPTION_COLUMNS = [
   "toolNames",
   "calledToolNames",
 ] as const satisfies readonly EventFilterOptionColumn[];
+
+const EVENT_SCORE_FILTER_OPTION_COLUMNS = [
+  "scores_avg",
+  "score_categories",
+  "trace_scores_avg",
+  "trace_score_categories",
+] as const;
+
+export const EVENT_FILTER_OPTIONS_COLUMNS = [
+  ...EVENT_FILTER_OPTION_COLUMNS,
+  ...EVENT_SCORE_FILTER_OPTION_COLUMNS,
+] as const;
+
+type EventFilterOptionsColumn = (typeof EVENT_FILTER_OPTIONS_COLUMNS)[number];
 
 const OBSERVATIONS_TO_TRACE_INTERVAL_MS = 2 * 24 * 60 * 60 * 1000;
 const SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_MS = 60 * 60 * 1000;
@@ -385,13 +415,18 @@ const toEventFilterValueOptions = (
     : options;
 };
 
+// Only emit the columns that were actually requested. Returning every column
+// (with `[]` for the unrequested ones) would make a lazily-loaded facet
+// indistinguishable from a loaded-but-empty one on the client, defeating
+// on-demand loading — the FE keys "needs loading" on a column key being absent.
 const toEventFilterOptionsByColumn = (
   items: EventFilterOptionRow[],
-): EventFilterOptionsByColumn =>
-  EVENT_FILTER_OPTION_COLUMNS.reduce((acc, column) => {
+  columns: readonly (keyof EventFilterOptionsByColumn)[],
+): Partial<EventFilterOptionsByColumn> =>
+  columns.reduce((acc, column) => {
     acc[column] = toEventFilterValueOptions(items, column);
     return acc;
-  }, {} as EventFilterOptionsByColumn);
+  }, {} as Partial<EventFilterOptionsByColumn>);
 
 const getEventFilterOptionsScope = (
   params: GetObservationsFilterOptionsParams,
@@ -527,27 +562,60 @@ export async function getEventFilterOptions(
   params: GetObservationsFilterOptionsParams,
 ) {
   const scopedParams = ensureStartTimeFilterForEventFilterOptions(params);
-  const { projectId } = scopedParams;
+  const { projectId, columns = EVENT_FILTER_OPTIONS_COLUMNS } = scopedParams;
   const { eventsFilter, traceTimestampFilters, traceScoreTimestampFilters } =
     getEventFilterOptionsScope(scopedParams);
+  const requestedColumns = new Set<EventFilterOptionsColumn>(columns);
+  const eventColumns = EVENT_FILTER_OPTION_COLUMNS.filter((column) =>
+    requestedColumns.has(column),
+  );
+  const shouldLoadScoresAvg = requestedColumns.has("scores_avg");
+  const shouldLoadScoreCategories = requestedColumns.has("score_categories");
+  const shouldLoadTraceScores = requestedColumns.has("trace_scores_avg");
+  const shouldLoadTraceScoreCategories = requestedColumns.has(
+    "trace_score_categories",
+  );
 
+  // Observation-scoped and trace-scoped discovery are kept separate so each
+  // score column only offers names its filter/join can actually match.
   const [
     numericScoreNames,
     categoricalScoreNames,
     traceScoreColumns,
+    traceCategoricalScoreColumns,
     eventFilterOptions,
   ] = await Promise.all([
-    getNumericScoresGroupedByName(projectId, traceTimestampFilters),
-    getCategoricalScoresGroupedByName(projectId, traceTimestampFilters),
-    getScoresGroupedByNameSourceType({
-      projectId,
-      filter: [...TRACE_SCORE_SCOPE_FILTER, ...traceScoreTimestampFilters],
-    }),
-    getEventsFilterOptionsForColumns({
-      projectId,
-      filter: eventsFilter,
-      columns: EVENT_FILTER_OPTION_COLUMNS,
-    }),
+    shouldLoadScoresAvg
+      ? getNumericScoresGroupedByName(projectId, [
+          ...OBSERVATION_SCORE_SCOPE_FILTER,
+          ...traceTimestampFilters,
+        ])
+      : Promise.resolve([]),
+    shouldLoadScoreCategories
+      ? getCategoricalScoresGroupedByName(projectId, [
+          ...OBSERVATION_SCORE_SCOPE_FILTER,
+          ...traceTimestampFilters,
+        ])
+      : Promise.resolve([]),
+    shouldLoadTraceScores
+      ? getScoresGroupedByNameSourceType({
+          projectId,
+          filter: [...TRACE_SCORE_SCOPE_FILTER, ...traceScoreTimestampFilters],
+        })
+      : Promise.resolve([]),
+    shouldLoadTraceScoreCategories
+      ? getCategoricalScoresGroupedByName(projectId, [
+          ...TRACE_SCORE_SCOPE_FILTER,
+          ...traceTimestampFilters,
+        ])
+      : Promise.resolve([]),
+    eventColumns.length > 0
+      ? getEventsFilterOptionsForColumns({
+          projectId,
+          filter: eventsFilter,
+          columns: eventColumns,
+        })
+      : Promise.resolve([]),
   ]);
   const traceNumericScoreNames = Array.from(
     new Set(
@@ -559,22 +627,31 @@ export async function getEventFilterOptions(
         .map((score) => score.name),
     ),
   );
-  const traceCategoricalScoreNames = new Set(
-    traceScoreColumns
-      .filter((score) => score.dataType === "CATEGORICAL")
-      .map((score) => score.name),
+  const eventFilterOptionsByColumn = toEventFilterOptionsByColumn(
+    eventFilterOptions,
+    eventColumns,
   );
-  const eventFilterOptionsByColumn =
-    toEventFilterOptionsByColumn(eventFilterOptions);
 
+  // Only include a score key when its column was requested, so an unrequested
+  // (lazily-loadable) score facet stays absent from the payload rather than
+  // arriving as an empty list (which the client cannot tell from "loaded, no
+  // values"). When everything is requested (the default), all keys are present.
+  // Score names come from the observation-/trace-scoped discovery above so each
+  // column only offers names its filter can match (LFE-10596).
   return {
     ...eventFilterOptionsByColumn,
-    scores_avg: numericScoreNames.map((score) => score.name),
-    score_categories: categoricalScoreNames,
-    trace_scores_avg: traceNumericScoreNames,
-    trace_score_categories: categoricalScoreNames.filter((score) =>
-      traceCategoricalScoreNames.has(score.label),
-    ),
+    ...(shouldLoadScoresAvg
+      ? { scores_avg: numericScoreNames.map((score) => score.name) }
+      : {}),
+    ...(shouldLoadScoreCategories
+      ? { score_categories: categoricalScoreNames }
+      : {}),
+    ...(shouldLoadTraceScores
+      ? { trace_scores_avg: traceNumericScoreNames }
+      : {}),
+    ...(shouldLoadTraceScoreCategories
+      ? { trace_score_categories: traceCategoricalScoreColumns }
+      : {}),
   };
 }
 

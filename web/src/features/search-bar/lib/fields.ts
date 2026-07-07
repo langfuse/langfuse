@@ -74,6 +74,8 @@ export const FIELDS: FieldDef[] = [
   { id: "traceTags", aliases: ["tracetags", "trace_tags", "tags", "tag"], kind: "text", syncMode: "arrayOption", description: "Trace tags" },
   { id: "isRootObservation", aliases: ["isrootobservation", "is_root_observation", "root"], kind: "boolean", syncMode: "textSearch", description: "Whether the observation is a trace root" },
   { id: "hasParentObservation", aliases: ["hasparentobservation", "has_parent_observation"], kind: "boolean", syncMode: "textSearch", description: "Whether the observation has a parent (inverse of root)" },
+  { id: "hasInput", aliases: ["hasinput", "has_input"], kind: "boolean", syncMode: "textSearch", description: "Whether the observation has input" },
+  { id: "hasOutput", aliases: ["hasoutput", "has_output"], kind: "boolean", syncMode: "textSearch", description: "Whether the observation has output" },
   { id: "toolNames", aliases: ["toolnames", "tool_names"], kind: "text", syncMode: "arrayOption", description: "Available tool names", nullable: true },
   { id: "calledToolNames", aliases: ["calledtoolnames", "called_tool_names", "calledtools", "called_tools"], kind: "text", syncMode: "arrayOption", description: "Called tool names", nullable: true },
   { id: "toolDefinitions", aliases: ["tooldefinitions", "tool_definitions"], kind: "number", syncMode: "textSearch", description: "Available tool count", nullable: true },

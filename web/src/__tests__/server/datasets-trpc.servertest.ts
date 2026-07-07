@@ -127,6 +127,54 @@ describe("datasets trpc", () => {
     });
   });
 
+  describe("datasets.deleteMany", () => {
+    it("deletes explicitly selected datasets and folder subtrees", async () => {
+      const { project, caller } = await prepare();
+      const selectedDatasetId = v4();
+
+      await prisma.dataset.createMany({
+        data: [
+          {
+            id: selectedDatasetId,
+            name: "selected",
+            projectId: project.id,
+          },
+          {
+            id: v4(),
+            name: "folder/child",
+            projectId: project.id,
+          },
+          {
+            id: v4(),
+            name: "folder/nested/child",
+            projectId: project.id,
+          },
+          {
+            id: v4(),
+            name: "folder-sibling/child",
+            projectId: project.id,
+          },
+        ],
+      });
+
+      await expect(
+        caller.datasets.deleteMany({
+          projectId: project.id,
+          datasetIds: [selectedDatasetId],
+          folderPaths: ["folder"],
+        }),
+      ).resolves.toEqual({ deletedCount: 3 });
+
+      await expect(
+        prisma.dataset.findMany({
+          where: { projectId: project.id },
+          select: { name: true },
+          orderBy: { name: "asc" },
+        }),
+      ).resolves.toEqual([{ name: "folder-sibling/child" }]);
+    });
+  });
+
   describe("datasets.triggerRemoteExperiment", () => {
     it("should execute remote experiments through the secure webhook fetch helper", async () => {
       const { project, caller } = await prepare();

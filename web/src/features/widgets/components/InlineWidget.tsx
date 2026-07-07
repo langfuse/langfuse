@@ -384,9 +384,7 @@ export function WidgetContent({
 
   if (isExternalLoading) {
     return (
-      <div
-        className={`bg-background flex items-center justify-center rounded-lg border p-4`}
-      >
+      <div className="bg-background flex items-center justify-center rounded-lg border p-4">
         <div className="text-muted-foreground">Loading...</div>
       </div>
     );

@@ -13,6 +13,7 @@ import {
   Implementation,
   OperationType,
 } from "../datasets/executeWithDatasetServiceStrategy";
+import { addTagsToCurrentSpan } from "../instrumentation";
 import { v4 } from "uuid";
 import {
   deleteDatasetItemMediaLinks,
@@ -319,6 +320,9 @@ export async function upsertDatasetItem(
       );
     }
   }
+  addTagsToCurrentSpan({
+    "langfuse.dataset_item.upsert.existing_item_count": existingItem ? 1 : 0,
+  });
 
   // 3. Merge incoming data with existing data
   // For fields where props value is undefined, use existing value
@@ -411,6 +415,10 @@ export async function upsertDatasetItem(
                 projectId: props.projectId,
               },
             });
+        addTagsToCurrentSpan({
+          "langfuse.dataset_item.upsert.updated_count": existingItem ? 1 : 0,
+          "langfuse.dataset_item.upsert.created_count": existingItem ? 0 : 1,
+        });
         item = res;
         await linkWrittenItemMedia(tx, res);
       });
@@ -454,6 +462,10 @@ export async function upsertDatasetItem(
             },
           });
         }
+        addTagsToCurrentSpan({
+          "langfuse.dataset_item.upsert.updated_count": current ? 1 : 0,
+          "langfuse.dataset_item.upsert.created_count": current ? 0 : 1,
+        });
 
         // 2. Create new version
         const res = await tx.datasetItem.create({
@@ -606,6 +618,10 @@ export async function createManyDatasetItems(props: {
       failedCount: number;
     }
 > {
+  addTagsToCurrentSpan({
+    "langfuse.dataset_items.create.input_count": props.items.length,
+  });
+
   let successCount = 0;
   let failedCount = 0;
 
@@ -765,6 +781,14 @@ export async function createManyDatasetItems(props: {
     preparedItems = preparedItems.filter((_, i) => !failedItemIndices.has(i));
   }
 
+  addTagsToCurrentSpan({
+    "langfuse.dataset_items.create.prepared_count": preparedItems.length,
+    "langfuse.dataset_items.create.validation_error_count":
+      validationErrors.length,
+    "langfuse.dataset_items.create.success_count": successCount,
+    "langfuse.dataset_items.create.failed_count": failedCount,
+  });
+
   // 4. If any validation errors and partial success not allowed, return early
   if (validationErrors.length > 0 && !props.allowPartialSuccess) {
     return {
@@ -791,15 +815,21 @@ export async function createManyDatasetItems(props: {
       expectedOutput: item.expectedOutput,
       metadata: item.metadata,
     }));
+    addTagsToCurrentSpan({
+      "langfuse.dataset_items.create.media_item_count": mediaItems.length,
+    });
 
     await executeWithDatasetServiceStrategy(OperationType.WRITE, {
       [Implementation.STATEFUL]: async () => {
         await prisma.$transaction(async (tx) => {
-          await tx.datasetItem.createMany({
+          const createResult = await tx.datasetItem.createMany({
             data: preparedItems.map((item) => ({
               ...item,
               validFrom: newValidFrom,
             })),
+          });
+          addTagsToCurrentSpan({
+            "langfuse.dataset_items.create.created_count": createResult.count,
           });
           await linkDatasetItemMedia(tx, {
             projectId: props.projectId,
@@ -820,9 +850,13 @@ export async function createManyDatasetItems(props: {
         await prisma.$transaction(async (tx) => {
           // 1. Get unique IDs from preparedItems
           const itemIds = [...new Set(preparedItems.map((item) => item.id))];
+          addTagsToCurrentSpan({
+            "langfuse.dataset_items.create.unique_item_id_count":
+              itemIds.length,
+          });
 
           // 2. Invalidate current versions if IDs already exist (no-op for new IDs)
-          await tx.datasetItem.updateMany({
+          const updateResult = await tx.datasetItem.updateMany({
             where: {
               id: { in: itemIds },
               projectId: props.projectId,
@@ -832,13 +866,19 @@ export async function createManyDatasetItems(props: {
               validTo: newValidFrom,
             },
           });
+          addTagsToCurrentSpan({
+            "langfuse.dataset_items.create.updated_count": updateResult.count,
+          });
 
           // 3. Create all new versions with the same validFrom timestamp
-          await tx.datasetItem.createMany({
+          const createResult = await tx.datasetItem.createMany({
             data: preparedItems.map((item) => ({
               ...item,
               validFrom: newValidFrom,
             })),
+          });
+          addTagsToCurrentSpan({
+            "langfuse.dataset_items.create.created_count": createResult.count,
           });
 
           // 4. Link media in the same transaction as the write
@@ -1875,10 +1915,6 @@ export async function getDatasetVersionForRun(params: {
           projectId: params.projectId,
           datasetId: params.datasetId,
           runId: params.runId,
-        },
-        tags: {
-          feature: "datasets",
-          operation: "getDatasetVersionForRun",
         },
       });
 

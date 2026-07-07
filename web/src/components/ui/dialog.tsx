@@ -38,7 +38,7 @@ const DialogOverlay = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay> & {
     overlayMode?: DialogOverlayMode;
   }
->(({ className, overlayMode = "subtle", ...props }, ref) => (
+>(({ className, overlayMode = "subtle", onClick, ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
@@ -47,6 +47,13 @@ const DialogOverlay = React.forwardRef<
       dialogOverlayClasses[overlayMode],
       className,
     )}
+    // The dialog portals its DOM out of the app tree, but React synthetic
+    // events still bubble through the REACT tree — into whatever rendered the
+    // dialog (e.g. a clickable table row). Backdrop clicks must not leak there.
+    onClick={(e) => {
+      onClick?.(e);
+      e.stopPropagation();
+    }}
     {...props}
   />
 ));
@@ -87,6 +94,7 @@ const DialogContent = React.forwardRef<
       overlayMode = "subtle",
       stopPropagationOnEnterSpace = true,
       onEscapeKeyDown,
+      onClick,
       size,
       ...props
     },
@@ -125,6 +133,12 @@ const DialogContent = React.forwardRef<
           aria-describedby={undefined}
           onKeyDown={handleKeyDown}
           onEscapeKeyDown={handleEscapeKeyDown}
+          // See DialogOverlay: clicks inside the dialog must not bubble
+          // through the React tree into the component that rendered it.
+          onClick={(e) => {
+            onClick?.(e);
+            e.stopPropagation();
+          }}
           onPointerDownOutside={(e) => {
             if (!closeOnInteractionOutside) {
               e.preventDefault();
@@ -151,15 +165,34 @@ const DialogContent = React.forwardRef<
 );
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
+const dialogHeaderVariants = cva(
+  "bg-background sticky top-0 z-30 flex shrink-0 flex-col space-y-1.5 rounded-t-lg p-4",
+  {
+    variants: {
+      variant: {
+        default: "border-b",
+        // Borderless confirm dialogs drop the divider, so trim the bottom
+        // padding to keep title and body from drifting apart.
+        action: "pb-2",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  },
+);
+
 const DialogHeader = ({
   className,
   children,
+  variant,
   ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
+}: React.HTMLAttributes<HTMLDivElement> &
+  VariantProps<typeof dialogHeaderVariants>) => (
   <div
     className={cn(
-      "dialog-header bg-background sticky top-0 z-30 flex shrink-0 flex-col space-y-1.5 rounded-t-lg border-b p-4",
-      className,
+      "dialog-header",
+      dialogHeaderVariants({ variant, className }),
     )}
     {...props}
   >
@@ -189,14 +222,33 @@ const DialogBody = React.forwardRef<
 ));
 DialogBody.displayName = "DialogBody";
 
+const dialogFooterVariants = cva(
+  "bg-background sticky bottom-0 z-10 flex shrink-0 flex-col-reverse rounded-b-lg p-6 px-6 sm:flex-row sm:justify-end sm:space-x-2",
+  {
+    variants: {
+      variant: {
+        default: "border-t",
+        // Borderless confirm dialogs drop the divider, so trim the top padding
+        // to pull the buttons closer to the content.
+        action: "pt-2",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  },
+);
+
 const DialogFooter = ({
   className,
+  variant,
   ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
+}: React.HTMLAttributes<HTMLDivElement> &
+  VariantProps<typeof dialogFooterVariants>) => (
   <div
     className={cn(
-      "dialog-footer bg-background sticky bottom-0 z-10 flex shrink-0 flex-col-reverse rounded-b-lg border-t p-6 px-6 sm:flex-row sm:justify-end sm:space-x-2",
-      className,
+      "dialog-footer",
+      dialogFooterVariants({ variant, className }),
     )}
     {...props}
   />
