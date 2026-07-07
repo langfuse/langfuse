@@ -44,6 +44,7 @@ export function DashboardGrid({
   dashboardOwner,
   getWidgetSchedulerId,
   onLockedEditAttempt,
+  readOnly,
 }: {
   widgets: DashboardPlacement[];
   onChange: (widgets: DashboardPlacement[]) => void;
@@ -62,6 +63,8 @@ export function DashboardGrid({
    * or route them through the same flow.
    */
   onLockedEditAttempt?: () => void;
+  /** Pure viewing surface (e.g. Home): tiles render no edit affordances. */
+  readOnly?: boolean;
 }) {
   const [rowHeight, setRowHeight] = useState(150);
 
@@ -130,6 +133,7 @@ export function DashboardGrid({
         dashboardOwner={dashboardOwner || "PROJECT"}
         schedulerId={getWidgetSchedulerId?.(widget.id)}
         onLockedEditAttempt={onLockedEditAttempt}
+        readOnly={readOnly}
       />
     ) : (
       <DashboardWidget
@@ -142,6 +146,7 @@ export function DashboardGrid({
         dashboardOwner={dashboardOwner || "PROJECT"}
         schedulerId={getWidgetSchedulerId?.(widget.id)}
         onLockedEditAttempt={onLockedEditAttempt}
+        readOnly={readOnly}
       />
     );
 

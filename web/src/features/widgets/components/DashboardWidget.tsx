@@ -62,6 +62,7 @@ export function DashboardWidget({
   dashboardOwner,
   schedulerId,
   onLockedEditAttempt,
+  readOnly,
 }: {
   projectId: string;
   dashboardId: string;
@@ -77,6 +78,8 @@ export function DashboardWidget({
    * mutating.
    */
   onLockedEditAttempt?: () => void;
+  /** Pure viewing surface (e.g. Home): render no edit affordances. */
+  readOnly?: boolean;
 }) {
   const router = useRouter();
   const utils = api.useUtils();
@@ -469,7 +472,7 @@ export function DashboardWidget({
             : null}
         </span>
         <div className="flex space-x-2">
-          {(hasCUDAccess || isLockedEditable) && (
+          {!readOnly && (hasCUDAccess || isLockedEditable) && (
             <>
               <GripVerticalIcon
                 size={16}

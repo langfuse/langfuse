@@ -11,7 +11,7 @@ import {
   type FilterState,
 } from "@langfuse/shared";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
   toAbsoluteTimeRange,
@@ -35,15 +35,8 @@ import {
   getDashboardQuerySchedulerMaxConcurrent,
   useDashboardQueryScheduler,
 } from "@/src/hooks/useDashboardQueryScheduler";
-import {
-  DashboardGrid,
-  type DashboardPlacement,
-} from "@/src/features/widgets/components/DashboardGrid";
-import { CloneFirstDialog } from "@/src/features/dashboard/components/CloneFirstDialog";
-import { HomeDashboardSelector } from "@/src/features/dashboard/components/HomeDashboardSelector";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
+import { CustomizeHomeButton } from "@/src/features/dashboard/components/CustomizeHomeDialog";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -146,106 +139,11 @@ export default function Dashboard() {
   const dashboardName = resolvedDashboard?.name ?? "Langfuse Home";
   const dashboardOwner = resolvedDashboard?.owner ?? "LANGFUSE";
 
-  const hasRbacCUDAccess = useHasProjectAccess({
-    projectId,
-    scope: "dashboards:CUD",
-  });
-  // Langfuse-managed home dashboards keep full edit affordances; edit
-  // attempts route through the clone-first flow (the clone becomes this
-  // project's Home). Project-owned home dashboards edit live, like the
-  // dashboard detail page.
-  const isLockedEditable = hasRbacCUDAccess && dashboardOwner === "LANGFUSE";
-
-  // Local definition so live edits (project-owned home dashboard) apply
-  // instantly; reset when the resolved dashboard changes.
-  const [localDefinition, setLocalDefinition] = useState<{
-    widgets: DashboardPlacement[];
-  } | null>(null);
-  useEffect(() => {
-    setLocalDefinition(null);
-  }, [dashboardId]);
+  // Home is a viewing surface: no in-place editing. The "Edit" button opens
+  // the Customize Home dialog (choose the dashboard shown here, or step into
+  // editing the current one).
   const definition =
-    localDefinition ??
-    resolvedDashboard?.definition ??
-    LANGFUSE_HOME_DASHBOARD_DEFINITION;
-
-  const [cloneFirstState, setCloneFirstState] = useState<{
-    open: boolean;
-    pendingDefinition: { widgets: DashboardPlacement[] } | null;
-  }>({ open: false, pendingDefinition: null });
-  const [gridResetKey, setGridResetKey] = useState(0);
-
-  const openCloneFirst = useCallback(
-    (pendingDefinition?: { widgets: DashboardPlacement[] }) => {
-      setCloneFirstState({
-        open: true,
-        pendingDefinition: pendingDefinition ?? null,
-      });
-    },
-    [],
-  );
-
-  const updateDashboardDefinition =
-    api.dashboard.updateDashboardDefinition.useMutation({
-      onSuccess: () => {
-        showSuccessToast({
-          title: "Dashboard updated",
-          description: "Your changes have been saved automatically",
-          duration: 2000,
-        });
-        homeDashboard.refetch();
-      },
-      onError: (error) => {
-        showErrorToast("Error updating dashboard", error.message);
-      },
-    });
-
-  const saveDashboardChanges = useDebounce(
-    (nextDefinition: { widgets: DashboardPlacement[] }) => {
-      if (!hasRbacCUDAccess || isLockedEditable) return;
-      updateDashboardDefinition.mutate({
-        projectId,
-        dashboardId,
-        definition: nextDefinition,
-      });
-    },
-    600,
-    false,
-  );
-
-  const handleGridChange = useCallback(
-    (updatedWidgets: DashboardPlacement[]) => {
-      const nextDefinition = { widgets: updatedWidgets };
-      if (isLockedEditable) {
-        // Carry the attempted layout change into the clone.
-        openCloneFirst(nextDefinition);
-        return;
-      }
-      setLocalDefinition(nextDefinition);
-      saveDashboardChanges(nextDefinition);
-    },
-    [isLockedEditable, openCloneFirst, saveDashboardChanges],
-  );
-
-  const handleDeleteWidget = useCallback(
-    (tileId: string) => {
-      const nextDefinition = {
-        widgets: definition.widgets.filter((widget) => widget.id !== tileId),
-      };
-      if (isLockedEditable) {
-        openCloneFirst(nextDefinition);
-        return;
-      }
-      setLocalDefinition(nextDefinition);
-      saveDashboardChanges(nextDefinition);
-    },
-    [
-      definition.widgets,
-      isLockedEditable,
-      openCloneFirst,
-      saveDashboardChanges,
-    ],
-  );
+    resolvedDashboard?.definition ?? LANGFUSE_HOME_DASHBOARD_DEFINITION;
 
   const getWidgetSchedulerId = useCallback(
     (widgetPlacementId: string) =>
@@ -309,10 +207,14 @@ export default function Dashboard() {
           ),
           actionButtonsRight: (
             <>
-              <HomeDashboardSelector
+              <CustomizeHomeButton
                 projectId={projectId}
                 homeDashboardId={homeDashboard.data?.homeDashboardId ?? null}
-                currentDashboardName={dashboardName}
+                currentDashboard={{
+                  id: dashboardId,
+                  name: dashboardName,
+                  owner: dashboardOwner,
+                }}
               />
               <SetupTracingButton />
             </>
@@ -338,41 +240,21 @@ export default function Dashboard() {
             }
           />
         </PageHeaderControlsPortal>
-        <CloneFirstDialog
-          open={cloneFirstState.open}
-          onOpenChange={(open) =>
-            setCloneFirstState((prev) => ({ ...prev, open }))
-          }
-          projectId={projectId}
-          dashboardId={dashboardId}
-          dashboardName={dashboardName}
-          setAsHome
-          pendingDefinition={cloneFirstState.pendingDefinition}
-          onCancel={() => {
-            // Revert the attempted drag/resize by remounting the grid with
-            // the unchanged definition.
-            setCloneFirstState({ open: false, pendingDefinition: null });
-            setGridResetKey((key) => key + 1);
-          }}
-        />
         {!isDashboardDataReady ? (
           <NoDataOrLoading isLoading />
         ) : (
           <DashboardGrid
-            key={gridResetKey}
             widgets={definition.widgets}
-            onChange={handleGridChange}
-            canEdit={hasRbacCUDAccess}
+            onChange={() => undefined}
+            canEdit={false}
             dashboardId={dashboardId}
             projectId={projectId}
             dateRange={absoluteTimeRange}
             filterState={gridFilterState}
-            onDeleteWidget={handleDeleteWidget}
+            onDeleteWidget={() => undefined}
             dashboardOwner={dashboardOwner}
             getWidgetSchedulerId={getWidgetSchedulerId}
-            onLockedEditAttempt={
-              isLockedEditable ? () => openCloneFirst() : undefined
-            }
+            readOnly
           />
         )}
       </Page>

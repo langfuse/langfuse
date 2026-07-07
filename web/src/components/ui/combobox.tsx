@@ -145,7 +145,12 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                           ? (option.value as { id: string }).id
                           : String(option.value)
                       }
-                      value={option.label ?? String(option.value)}
+                      value={
+                        typeof option.value === "object"
+                          ? (option.value as { id: string }).id
+                          : String(option.value)
+                      }
+                      keywords={[option.label ?? String(option.value)]}
                       disabled={option.disabled}
                       onSelect={() => {
                         if (!option.disabled && onValueChange) {
@@ -181,7 +186,12 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                         ? (option.value as { id: string }).id
                         : String(option.value)
                     }
-                    value={option.label ?? String(option.value)}
+                    value={
+                      typeof option.value === "object"
+                        ? (option.value as { id: string }).id
+                        : String(option.value)
+                    }
+                    keywords={[option.label ?? String(option.value)]}
                     disabled={option.disabled}
                     onSelect={() => {
                       if (!option.disabled && onValueChange) {

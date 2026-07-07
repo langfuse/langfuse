@@ -35,6 +35,7 @@ export function PresetDashboardWidget({
   dashboardOwner,
   schedulerId,
   onLockedEditAttempt,
+  readOnly,
 }: {
   projectId: string;
   dashboardId: string;
@@ -50,6 +51,8 @@ export function PresetDashboardWidget({
    * mutating.
    */
   onLockedEditAttempt?: () => void;
+  /** Pure viewing surface (e.g. Home): render no edit affordances. */
+  readOnly?: boolean;
 }) {
   const { isBetaEnabled } = useV4Beta();
   const metricsVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
@@ -143,7 +146,7 @@ export function PresetDashboardWidget({
   return (
     <div className="group relative h-full w-full">
       <div className="h-full w-full overflow-y-auto">{renderPreset(ctx)}</div>
-      {(hasCUDAccess || isLockedEditable) && (
+      {!readOnly && (hasCUDAccess || isLockedEditable) && (
         <div className="bg-background/95 absolute top-2 right-2 z-10 hidden items-center gap-2 rounded-md border px-1.5 py-1 shadow-sm group-hover:flex">
           <GripVerticalIcon
             size={16}
