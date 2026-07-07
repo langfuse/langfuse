@@ -43,6 +43,13 @@ permissions:
 # GH_AW_GITHUB_TOKEN), isolating them from ordinary CI jobs.
 environment: github-agent-workflows
 
+# workflow_run-triggered assessment runs check out the default branch only;
+# fetching the agent's own PR branches makes them available for diagnosing
+# failures and pushing iteration commits.
+checkout:
+  fetch-depth: 0
+  fetch: ["ci-perf/*"]
+
 engine:
   id: claude
   max-turns: 120
@@ -98,6 +105,21 @@ safe-outputs:
     # Branch prefix is load-bearing: the workflow_run trigger above only
     # fires for ci-perf/* head branches.
     allowed-branches: ["ci-perf/*"]
+    # Machine-enforced mirror of the prompt's allowed change surface; the
+    # write job rejects anything outside these globs.
+    allowed-files: &agent-change-surface
+      - web/vitest.config.mts
+      - worker/vitest.config.ts
+      - scripts/vitest/**
+      - turbo.json
+      - docker-compose.dev*.yml
+      - .github/ci-analysis/**
+      - web/**/*.test.ts
+      - web/**/*.test.tsx
+      - web/**/*.servertest.ts
+      - web/**/*.clienttest.ts
+      - worker/**/*.test.ts
+      - packages/shared/**/*.test.ts
   create-issue:
     title-prefix: "ci(perf): "
     labels: [ci-performance]
@@ -106,11 +128,14 @@ safe-outputs:
   add-comment:
     target: "*"
     max: 3
+    required-title-prefix: "ci(perf): "
+    required-labels: [ci-performance]
   push-to-pull-request-branch:
     target: "*"
     max: 1
     required-title-prefix: "ci(perf): "
     required-labels: [ci-performance]
+    allowed-files: *agent-change-surface
   close-pull-request:
     target: "*"
     required-title-prefix: "ci(perf): "
