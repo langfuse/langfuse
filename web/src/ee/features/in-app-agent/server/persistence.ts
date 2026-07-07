@@ -713,10 +713,8 @@ export function createConversationMessageAccumulator(
       return true;
     }
 
-    messages[existingIndex] = mergeMessages(
-      messages[existingIndex]!,
-      parsed.data,
-    );
+    const existingMessage = messages[existingIndex];
+    messages[existingIndex] = mergeMessages(existingMessage, parsed.data);
 
     return true;
   };
