@@ -123,9 +123,9 @@ server.listen(BRIDGE_PORT, () => {
 async function syncToolCallFiles(toolCallFiles: unknown, requestId: string) {
   await rm(TOOL_CALLS_ROOT, { recursive: true, force: true });
   await mkdir(TOOL_CALLS_ROOT, { recursive: true });
-  await chmod(TOOL_CALLS_ROOT, 0o555);
 
   if (!toolCallFiles) {
+    await chmod(TOOL_CALLS_ROOT, 0o555);
     logSandboxServer("toolCalls.sync", { requestId, fileCount: 0 });
     return;
   }
@@ -144,6 +144,8 @@ async function syncToolCallFiles(toolCallFiles: unknown, requestId: string) {
     await chmod(filePath, 0o444);
     await chmodToolCallsDirectories(path.dirname(filePath));
   }
+
+  await chmod(TOOL_CALLS_ROOT, 0o555);
 }
 
 async function readOperation(body: ReadSandboxOperation, requestId: string) {
