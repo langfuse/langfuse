@@ -14,7 +14,7 @@ export const showVersionUpdateToast = () => {
           </div>
           <Button
             variant="outline"
-            size={"sm"}
+            size="sm"
             className="text-foreground/50"
             onClick={() => {
               window.location.reload();

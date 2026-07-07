@@ -15,7 +15,7 @@ type ScoreBase = {
   metadata?: Record<string, unknown>;
 }
 
-A Langfuse score returned by a TypeScript evaluator. The contract is shown at the top of the editor and is locked.`;
+A Langfuse score returned by a TypeScript evaluator.`;
 
 const PYTHON_SCORE_DOC = `@dataclass
 class Score:
@@ -49,7 +49,7 @@ The TypeScript value Langfuse passes to evaluate.`,
     | undefined;
 }
 
-The data Langfuse passes to a TypeScript evaluator. The definition is locked at the top of the editor.`,
+The data Langfuse passes to a TypeScript evaluator.`,
   observation: `property EvaluationContext.observation: {
   input: any;
   output: any;

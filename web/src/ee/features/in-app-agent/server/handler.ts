@@ -8,6 +8,7 @@ import {
   createInAppAgentRunId,
 } from "@/src/ee/features/in-app-agent/ids";
 import { sanitizeInAppAgentContext } from "@/src/ee/features/in-app-agent/context";
+import { getInAppAgentInstrumentationTraceId } from "@/src/ee/features/in-app-agent/constants";
 import {
   AgUiRunAgentInputSchema,
   type AgUiRunAgentInput,
@@ -266,6 +267,7 @@ export default async function handler(request: Request) {
       {
         projectId,
         runId: sanitizedInput.runId,
+        userId,
         toolName: getInAppAgentMcpRegistryToolName(
           resumeApprovalRequest?.toolName,
         ),
@@ -460,8 +462,10 @@ export default async function handler(request: Request) {
                   environment: "langfuse-in-app-agent",
                   feature: "in-app-agent",
                   projectId,
-                  traceId: conversation.id,
-                  traceName: "in-app-agent",
+                  traceId: getInAppAgentInstrumentationTraceId(
+                    sanitizedInput.runId,
+                  ),
+                  traceName: "agent-turn",
                   userId,
                   metadata: {
                     langfuse_ai_feature: "in-app-agent",
@@ -482,13 +486,13 @@ export default async function handler(request: Request) {
                   ? {
                       targetProjectId: traceSinkParams.targetProjectId,
                       environment: traceSinkParams.environment,
+                      runId: sanitizedInput.runId,
                       user: {
                         id: userId,
                         email: user.email,
                         projectRole: userAccess.projectRole,
                         isAdmin: userAccess.isAdmin,
                       },
-                      traceId: traceSinkParams.traceId,
                       metadata: traceSinkParams.metadata ?? {},
                     }
                   : undefined;
@@ -640,18 +644,27 @@ function getLangfuseMcpUrl(): string {
   return baseUrl.toString();
 }
 
-async function createInAppAgentMcpApiKey(projectId: string) {
+async function createInAppAgentMcpApiKey(
+  projectId: string,
+  createdByUserId: string,
+) {
   return createAndAddApiKeysToDb({
     prisma,
     entityId: projectId,
     scope: "PROJECT",
     note: IN_APP_AGENT_API_KEY_NOTE,
     isInAppAgentKey: true,
+    createdByUserId,
   });
 }
 
 async function withInAppAgentMcpApiKeyCleanup<T>(
-  params: { projectId: string; runId: string; toolName?: McpToolName },
+  params: {
+    projectId: string;
+    runId: string;
+    userId: string;
+    toolName?: McpToolName;
+  },
   createResponse: (
     mcpApiKey: Awaited<ReturnType<typeof createInAppAgentMcpApiKey>>,
     runOverride: string | undefined,
@@ -660,7 +673,10 @@ async function withInAppAgentMcpApiKeyCleanup<T>(
 ): Promise<T> {
   // Each run gets a temporary in-app-agent API key. Approved MCP resumes also
   // get a tool-scoped run override for the single mutating registry tool.
-  const mcpApiKey = await createInAppAgentMcpApiKey(params.projectId);
+  const mcpApiKey = await createInAppAgentMcpApiKey(
+    params.projectId,
+    params.userId,
+  );
   let cleanupPromise: Promise<void> | undefined;
 
   const cleanupMcpApiKey = () => {

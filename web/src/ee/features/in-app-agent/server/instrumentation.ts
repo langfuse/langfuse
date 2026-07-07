@@ -1,6 +1,10 @@
 import { EventType } from "@ag-ui/core";
 import { getInternalTracingHandler, logger } from "@langfuse/shared/src/server";
 
+import {
+  getInAppAgentInstrumentationObservationId,
+  getInAppAgentInstrumentationTraceId,
+} from "@/src/ee/features/in-app-agent/constants";
 import type {
   AgUiEvent,
   AgUiMessage,
@@ -8,6 +12,7 @@ import type {
 } from "@/src/ee/features/in-app-agent/schema";
 import { compactTextMessageChunks } from "@/src/ee/features/in-app-agent/server/eventCompaction";
 import type { InAppAgentUserAccess } from "@/src/ee/features/in-app-agent/server/tools";
+import { assertUnreachable } from "@/src/utils/types";
 
 export type InAppAgentTracingConfig = {
   environment: string;
@@ -19,7 +24,7 @@ export type InAppAgentTracingConfig = {
     // Global Langfuse admin flag. This bypasses project membership checks.
     isAdmin: boolean;
   };
-  traceId: string;
+  runId: string;
   targetProjectId: string;
   prompt?: InAppAgentPromptMetadata;
 };
@@ -34,8 +39,7 @@ export type InAppAgentPromptMetadata = {
   version: number;
 };
 
-const IN_APP_AGENT_TRACE_NAME = "in-app-agent";
-const IN_APP_AGENT_RUN_NAME = "agent-run";
+const IN_APP_AGENT_TURN_NAME = "agent-turn";
 type InternalTracingHandler = ReturnType<typeof getInternalTracingHandler>;
 type InAppAgentTrace = ReturnType<
   InternalTracingHandler["handler"]["langfuse"]["trace"]
@@ -99,7 +103,7 @@ export function createInAppAgentInstrumentation({
       userEmail: tracing.user.email,
       userProjectRole: tracing.user.projectRole,
       userIsAdmin: tracing.user.isAdmin,
-      traceId: tracing.traceId,
+      runId: tracing.runId,
       targetProjectId: tracing.targetProjectId,
       environment: tracing.environment,
       prompt: tracing.prompt,
@@ -147,7 +151,7 @@ export class InAppAgentInstrumentation {
     userEmail?: string | null;
     userProjectRole?: InAppAgentUserAccess["projectRole"];
     userIsAdmin: boolean;
-    traceId: string;
+    runId: string;
     targetProjectId: string;
     environment: string;
     prompt?: InAppAgentPromptMetadata;
@@ -171,8 +175,8 @@ export class InAppAgentInstrumentation {
 
     const traceSinkParams = {
       targetProjectId: params.targetProjectId,
-      traceId: params.traceId,
-      traceName: IN_APP_AGENT_TRACE_NAME,
+      traceId: getInAppAgentInstrumentationTraceId(params.runId),
+      traceName: IN_APP_AGENT_TURN_NAME,
       environment: params.environment,
       userId: params.userId,
       metadata: this.metadata,
@@ -184,16 +188,17 @@ export class InAppAgentInstrumentation {
     this.langfuse = handler.langfuse;
 
     this.trace = this.langfuse.trace({
-      id: params.traceId,
-      name: IN_APP_AGENT_TRACE_NAME,
+      id: getInAppAgentInstrumentationTraceId(params.runId),
+      name: IN_APP_AGENT_TURN_NAME,
       userId: params.userId,
       sessionId: params.input.threadId,
+      input: this.agentRunInput,
       metadata: this.metadata,
       tags: ["in-app-agent"],
     });
     this.agentRun = this.trace.generation({
-      id: params.input.runId,
-      name: IN_APP_AGENT_RUN_NAME,
+      id: getInAppAgentInstrumentationObservationId(params.input.runId),
+      name: IN_APP_AGENT_TURN_NAME,
       input: this.agentRunInput,
       metadata: this.metadata,
       ...(params.prompt
@@ -270,7 +275,7 @@ export class InAppAgentInstrumentation {
     const message = error instanceof Error ? error.message : String(error);
     this.endOpenToolSpans({ error: message }, message);
     this.agentRun.update({
-      name: IN_APP_AGENT_RUN_NAME,
+      name: IN_APP_AGENT_TURN_NAME,
       input: this.agentRunInput,
       output: this.getAgentRunOutput(),
       ...(this.completionStartTime
@@ -291,6 +296,8 @@ export class InAppAgentInstrumentation {
         : {}),
     });
     this.trace.update({
+      input: this.agentRunInput,
+      output: this.getAgentRunOutput(),
       metadata: { ...this.metadata, error: message },
     });
     this.agentRun.end();
@@ -310,7 +317,7 @@ export class InAppAgentInstrumentation {
       ...(params?.result ? { result: params.result } : {}),
     };
     this.agentRun.update({
-      name: IN_APP_AGENT_RUN_NAME,
+      name: IN_APP_AGENT_TURN_NAME,
       input: this.agentRunInput,
       output: this.getAgentRunOutput(),
       ...(this.completionStartTime
@@ -324,7 +331,11 @@ export class InAppAgentInstrumentation {
           }
         : {}),
     });
-    this.trace.update({ metadata });
+    this.trace.update({
+      input: this.agentRunInput,
+      output: this.getAgentRunOutput(),
+      metadata,
+    });
     this.agentRun.end();
     this.ended = true;
   }
@@ -336,62 +347,94 @@ export class InAppAgentInstrumentation {
   }
 
   private recordEvent(event: AgUiEvent) {
-    switch (event.type) {
-      case EventType.TEXT_MESSAGE_CHUNK:
-      case EventType.TEXT_MESSAGE_CONTENT:
-        if (typeof event.delta === "string") {
-          this.recordAssistantText(event.delta);
-        }
-        return;
-      case EventType.REASONING_MESSAGE_CHUNK:
-      case EventType.REASONING_MESSAGE_CONTENT:
-        if (typeof event.delta === "string") {
-          this.reasoning += event.delta;
-        }
-        return;
-      case EventType.TOOL_CALL_START:
-        this.startToolSpan(event);
-        return;
-      case EventType.TOOL_CALL_ARGS:
-        this.appendToolArgs(event);
-        return;
-      case EventType.TOOL_CALL_RESULT:
-        this.recordToolResult(event);
-        return;
-      case EventType.TOOL_CALL_END:
-        this.endToolSpan(event);
-        return;
-      case EventType.RUN_ERROR:
-        this.endWithError(
-          typeof event.message === "string"
-            ? event.message
-            : "Unknown assistant error",
-        );
-        return;
-      case EventType.RUN_FINISHED:
-        this.end({ result: event.result });
-        return;
-      case EventType.RUN_STARTED:
-      case EventType.TEXT_MESSAGE_START:
-      case EventType.TEXT_MESSAGE_END:
-      case EventType.STATE_SNAPSHOT:
-      case EventType.STATE_DELTA:
-      case EventType.MESSAGES_SNAPSHOT:
-      case EventType.ACTIVITY_SNAPSHOT:
-      case EventType.ACTIVITY_DELTA:
-      case EventType.RAW:
-      case EventType.CUSTOM:
-      case EventType.STEP_STARTED:
-      case EventType.STEP_FINISHED:
-      case EventType.REASONING_START:
-      case EventType.REASONING_MESSAGE_START:
-      case EventType.REASONING_MESSAGE_END:
-      case EventType.REASONING_END:
-      case EventType.REASONING_ENCRYPTED_VALUE:
-        return;
-      default:
-        return;
+    if (
+      event.type === EventType.TEXT_MESSAGE_CHUNK ||
+      event.type === EventType.TEXT_MESSAGE_CONTENT
+    ) {
+      if (typeof event.delta === "string") {
+        this.recordAssistantText(event.delta);
+      }
+      return;
     }
+
+    if (
+      event.type === EventType.REASONING_MESSAGE_CHUNK ||
+      event.type === EventType.REASONING_MESSAGE_CONTENT
+    ) {
+      if (typeof event.delta === "string") {
+        this.reasoning += event.delta;
+      }
+      return;
+    }
+
+    if (event.type === EventType.TOOL_CALL_START) {
+      this.startToolSpan(event);
+      return;
+    }
+
+    if (event.type === EventType.TOOL_CALL_ARGS) {
+      this.appendToolArgs(event);
+      return;
+    }
+
+    if (event.type === EventType.TOOL_CALL_RESULT) {
+      this.recordToolResult(event);
+      return;
+    }
+
+    if (event.type === EventType.TOOL_CALL_END) {
+      this.endToolSpan(event);
+      return;
+    }
+
+    if (event.type === EventType.RUN_ERROR) {
+      this.endWithError(
+        typeof event.message === "string"
+          ? event.message
+          : "Unknown assistant error",
+      );
+      return;
+    }
+
+    if (event.type === EventType.RUN_FINISHED) {
+      this.end({ result: event.result });
+      return;
+    }
+
+    if (
+      event.type === EventType.RUN_STARTED ||
+      event.type === EventType.TEXT_MESSAGE_START ||
+      event.type === EventType.TEXT_MESSAGE_END ||
+      event.type === EventType.STATE_SNAPSHOT ||
+      event.type === EventType.STATE_DELTA ||
+      event.type === EventType.MESSAGES_SNAPSHOT ||
+      event.type === EventType.ACTIVITY_SNAPSHOT ||
+      event.type === EventType.ACTIVITY_DELTA ||
+      event.type === EventType.RAW ||
+      event.type === EventType.CUSTOM ||
+      event.type === EventType.STEP_STARTED ||
+      event.type === EventType.STEP_FINISHED ||
+      event.type === EventType.TOOL_CALL_CHUNK ||
+      event.type === EventType.REASONING_START ||
+      event.type === EventType.REASONING_MESSAGE_START ||
+      event.type === EventType.REASONING_MESSAGE_END ||
+      event.type === EventType.REASONING_END ||
+      event.type === EventType.REASONING_ENCRYPTED_VALUE ||
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      event.type === EventType.THINKING_START ||
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      event.type === EventType.THINKING_END ||
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      event.type === EventType.THINKING_TEXT_MESSAGE_START ||
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      event.type === EventType.THINKING_TEXT_MESSAGE_CONTENT ||
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      event.type === EventType.THINKING_TEXT_MESSAGE_END
+    ) {
+      return;
+    }
+
+    return assertUnreachable(event.type);
   }
 
   private startToolSpan(event: AgUiEvent) {
@@ -605,7 +648,7 @@ export class InAppAgentInstrumentation {
 }
 
 function getAgentRunInput(input: AgUiRunAgentInput): unknown {
-  const messages = getAgentRunMessages(input.messages);
+  const messages = getAgentRunMessages(getCurrentTurnMessages(input.messages));
   const context = getAgentRunContext(input);
 
   if (!context) {
@@ -616,6 +659,23 @@ function getAgentRunInput(input: AgUiRunAgentInput): unknown {
     messages,
     context,
   };
+}
+
+function getCurrentTurnMessages(messages: AgUiMessage[]): AgUiMessage[] {
+  const lastUserMessageIndex = messages.findLastIndex(
+    (message) => message.role === "user",
+  );
+
+  if (lastUserMessageIndex === -1) {
+    return messages;
+  }
+
+  return messages.filter(
+    (message, index) =>
+      message.role === "developer" ||
+      message.role === "system" ||
+      index >= lastUserMessageIndex,
+  );
 }
 
 function addAvailableToolsToAgentRunInput(
@@ -689,57 +749,63 @@ function getAgentRunAvailableSkills(
 
 function getAgentRunMessages(messages: AgUiMessage[]): AgentRunChatMessage[] {
   return messages.flatMap((message): AgentRunChatMessage[] => {
-    switch (message.role) {
-      case "developer":
-      case "system":
-        return [
-          {
-            role: message.role,
-            ...(message.name ? { name: message.name } : {}),
-            content: message.content,
-          },
-        ];
-      case "user":
-        return [
-          {
-            role: "user",
-            ...(message.name ? { name: message.name } : {}),
-            content: normalizeUserMessageContent(message.content),
-          },
-        ];
-      case "assistant": {
-        const toolCalls = message.toolCalls?.map((toolCall) => ({
-          id: toolCall.id,
-          name: toolCall.function.name,
-          arguments: toolCall.function.arguments,
-          type: "function" as const,
-        }));
-
-        if (!message.content && !toolCalls?.length) {
-          return [];
-        }
-
-        return [
-          {
-            role: "assistant",
-            ...(message.name ? { name: message.name } : {}),
-            content: message.content ?? "",
-            ...(toolCalls?.length ? { tool_calls: toolCalls } : {}),
-          },
-        ];
-      }
-      case "tool":
-        return [
-          {
-            role: "tool",
-            tool_call_id: message.toolCallId,
-            content: parseJsonOrString(message.content),
-          },
-        ];
-      case "activity":
-      case "reasoning":
-        return [];
+    if (message.role === "developer" || message.role === "system") {
+      return [
+        {
+          role: message.role,
+          ...(message.name ? { name: message.name } : {}),
+          content: message.content,
+        },
+      ];
     }
+
+    if (message.role === "user") {
+      return [
+        {
+          role: "user",
+          ...(message.name ? { name: message.name } : {}),
+          content: normalizeUserMessageContent(message.content),
+        },
+      ];
+    }
+
+    if (message.role === "assistant") {
+      const toolCalls = message.toolCalls?.map((toolCall) => ({
+        id: toolCall.id,
+        name: toolCall.function.name,
+        arguments: toolCall.function.arguments,
+        type: "function" as const,
+      }));
+
+      if (!message.content && !toolCalls?.length) {
+        return [];
+      }
+
+      return [
+        {
+          role: "assistant",
+          ...(message.name ? { name: message.name } : {}),
+          content: message.content ?? "",
+          ...(toolCalls?.length ? { tool_calls: toolCalls } : {}),
+        },
+      ];
+    }
+
+    if (message.role === "tool") {
+      return [
+        {
+          role: "tool",
+          tool_call_id: message.toolCallId,
+          content: parseJsonOrString(message.content),
+        },
+      ];
+    }
+
+    if (message.role === "activity" || message.role === "reasoning") {
+      return [];
+    }
+
+    return assertUnreachable(message);
   });
 }
 

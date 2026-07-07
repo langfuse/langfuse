@@ -44,6 +44,48 @@ export const BatchActionQuerySchema = z.object({
 
 export type BatchActionQuery = z.infer<typeof BatchActionQuerySchema>;
 
+const TraceDeleteUtcTimestampSchema = z.iso.datetime();
+
+export const TraceDeleteCursorSchema = z.object({
+  timestamp: TraceDeleteUtcTimestampSchema,
+  traceId: z.string(),
+  id: z.string().optional(),
+});
+
+const TraceDeleteInFlightBatchSchema = z.object({
+  traceIds: z.array(z.string()),
+  cursorAfter: TraceDeleteCursorSchema,
+  minTimestamp: TraceDeleteUtcTimestampSchema,
+  maxTimestamp: TraceDeleteUtcTimestampSchema,
+});
+
+export const TraceDeleteBatchActionConfigSchema = z.object({
+  version: z.literal(1),
+  source: z.enum(["traces", "events"]),
+  cutoffCreatedAt: TraceDeleteUtcTimestampSchema,
+  failureCount: z.number().int().nonnegative().default(0),
+  inFlightBatch: TraceDeleteInFlightBatchSchema.nullable(),
+});
+
+export type TraceDeleteBatchActionConfig = z.infer<
+  typeof TraceDeleteBatchActionConfigSchema
+>;
+
+export type TraceDeleteBatchActionCursor = z.infer<
+  typeof TraceDeleteCursorSchema
+>;
+
+export const createTraceDeleteBatchActionConfig = (opts: {
+  useEventsTable: boolean;
+  cutoffCreatedAt: Date;
+}): TraceDeleteBatchActionConfig => ({
+  version: 1,
+  source: opts.useEventsTable ? "events" : "traces",
+  cutoffCreatedAt: opts.cutoffCreatedAt.toISOString(),
+  failureCount: 0,
+  inFlightBatch: null,
+});
+
 export const CreateBatchActionSchema = z.object({
   projectId: z.string(),
   actionId: ActionIdSchema,

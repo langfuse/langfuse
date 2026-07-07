@@ -73,7 +73,11 @@ export default function Sessions() {
       {showOnboarding ? (
         <SessionsOnboarding />
       ) : (
-        <SessionsTable projectId={projectId} isBetaEnabled={isBetaEnabled} />
+        <SessionsTable
+          projectId={projectId}
+          isBetaEnabled={isBetaEnabled}
+          showControlsInPageHeader
+        />
       )}
     </Page>
   );

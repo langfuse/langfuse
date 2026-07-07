@@ -392,9 +392,7 @@ export function DashboardWidget({
 
   if (widget.isPending) {
     return (
-      <div
-        className={`bg-background flex items-center justify-center rounded-lg border p-4`}
-      >
+      <div className="bg-background flex items-center justify-center rounded-lg border p-4">
         <div className="text-muted-foreground">Loading...</div>
       </div>
     );
@@ -402,18 +400,14 @@ export function DashboardWidget({
 
   if (!widget.data) {
     return (
-      <div
-        className={`bg-background flex items-center justify-center rounded-lg border p-4`}
-      >
+      <div className="bg-background flex items-center justify-center rounded-lg border p-4">
         <div className="text-muted-foreground">Widget not found</div>
       </div>
     );
   }
 
   return (
-    <div
-      className={`bg-background group flex h-full w-full flex-col overflow-hidden rounded-lg border p-4`}
-    >
+    <div className="bg-background group flex h-full w-full flex-col overflow-hidden rounded-lg border p-4">
       <div className="flex items-center justify-between">
         <span className="truncate font-medium" title={widget.data.name}>
           {widget.data.name}{" "}

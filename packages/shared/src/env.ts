@@ -430,7 +430,7 @@ const EnvSchema = z.object({
     .number()
     .int()
     .positive()
-    .default(600_000), // 10 minutes
+    .default(3_600_000), // 60 minutes
 
   LANGFUSE_EVENT_PROPAGATION_WORKER_GLOBAL_CONCURRENCY: z.coerce
     .number()
@@ -442,6 +442,20 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(120_000), // 2 minutes
+
+  // Comma-separated list of LLM adapters (e.g. "openai") whose completions run
+  // on the AI SDK execution engine instead of LangChain
+  LANGFUSE_LLM_COMPLETION_AI_SDK_ADAPTERS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s
+        ? s
+            .split(",")
+            .map((v) => v.trim().toLowerCase())
+            .filter(Boolean)
+        : [],
+    ),
 
   LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
   LANGFUSE_AWS_BEDROCK_SMALL_MODEL: z.string().optional(),
