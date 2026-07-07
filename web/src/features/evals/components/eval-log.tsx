@@ -283,7 +283,7 @@ export default function EvalLogTable({
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable
-              tableName={"evalLogs"}
+              tableName="evalLogs"
               columns={columns}
               data={
                 logs.isLoading

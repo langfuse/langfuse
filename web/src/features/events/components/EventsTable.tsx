@@ -45,6 +45,7 @@ import {
   toAbsoluteTimeRange,
   type TableDateRange,
 } from "@/src/utils/date-range-utils";
+import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { type ScoreAggregate } from "@langfuse/shared";
 import TagList from "@/src/features/tag/components/TagList";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
@@ -106,6 +107,11 @@ import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSea
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { withMetadataPathOptions } from "@/src/features/search-bar/lib/metadata-paths";
+import {
+  useObservedMetadataPaths,
+  useObservedMetadataRecorder,
+} from "@/src/features/search-bar/hooks/useObservedMetadata";
 
 export type EventsTableRow = {
   // Identity fields
@@ -188,6 +194,13 @@ export type EventsTableProps = {
   externalDateRange?: TableDateRange;
   limitRows?: number;
   sessionId?: string;
+  /**
+   * When true, render the time-range picker and auto-refresh button in the
+   * page header (next to the title) via the header controls slot, instead of
+   * inside the table toolbar. Only used when the table is the primary content
+   * of a `Page`.
+   */
+  showControlsInPageHeader?: boolean;
 };
 
 // Build the start-time `FilterState` for an absolute date range (lower bound
@@ -224,6 +237,7 @@ export default function ObservationsEventsTable({
   externalDateRange,
   limitRows,
   sessionId,
+  showControlsInPageHeader = false,
 }: EventsTableProps) {
   const peekContext = usePeekTableState();
   const router = useRouter();
@@ -492,9 +506,22 @@ export default function ObservationsEventsTable({
     [],
   );
 
+  // Metadata key paths are not server-enumerated: merge the persisted
+  // per-project map of paths observed on previously loaded rows (recorded
+  // below, once the table data hook provides the rows) into the observed
+  // options, so `metadata.` completes with real keys and their types.
+  const observedMetadataPaths = useObservedMetadataPaths(
+    projectId,
+    searchBarMode,
+  );
+
   const observedOptions = useMemo(
-    () => toObservedOptions(filterOptions, isFilterOptionsPending),
-    [filterOptions, isFilterOptionsPending],
+    () =>
+      withMetadataPathOptions(
+        toObservedOptions(filterOptions, isFilterOptionsPending),
+        observedMetadataPaths,
+      ),
+    [filterOptions, isFilterOptionsPending, observedMetadataPaths],
   );
 
   const {
@@ -603,6 +630,15 @@ export default function ObservationsEventsTable({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [observations.status, observations.rows]);
+
+  // Record the visible rows' metadata paths into the persisted per-project
+  // suggestions map (read above into observedMetadataPaths). Same sampling as
+  // the AI context below; runs once per fetch (rows identity).
+  useObservedMetadataRecorder({
+    projectId,
+    rows: observations.rows,
+    enabled: searchBarMode,
+  });
 
   // Project data context for the AI filter prompt: observed values (from
   // filterOptions) + metadata keys sampled from the visible rows + the current
@@ -1526,9 +1562,23 @@ export default function ObservationsEventsTable({
     };
   }, [selectedObservationIds, observations.rows]);
 
+  const refreshConfig = {
+    onRefresh: handleRefresh,
+    isRefreshing: observations.status === "loading",
+    interval: refreshInterval,
+    setInterval: setRefreshInterval,
+  };
+
   return (
     <DataTableControlsProvider tableName={eventsFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
+        {showControlsInPageHeader && !hideControls && (
+          <TableHeaderControls
+            timeRange={timeRange}
+            setTimeRange={setTimeRange}
+            refresh={refreshConfig}
+          />
+        )}
         {!hideControls && (
           <div
             className={cn(
@@ -1541,9 +1591,11 @@ export default function ObservationsEventsTable({
           >
             {/* Search bar row: full-width query composer. In bar mode it sticks
                 together with the toolbar below, so the toolbar controls cannot
-                scroll underneath and render half-clipped. Time-range + refresh
-                live in the toolbar row below, next to the filter toggle and
-                views — not in the page header. */}
+                scroll underneath and render half-clipped. When
+                showControlsInPageHeader is set (the standalone traces/
+                observations pages), time-range + refresh are hoisted to the
+                page header via TableHeaderControls; otherwise they remain in
+                the toolbar row below. */}
             {searchBarMode && (
               <EventsSearchBarRow
                 projectId={projectId}
@@ -1604,8 +1656,8 @@ export default function ObservationsEventsTable({
               orderByState={orderByState}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
-              timeRange={timeRange}
-              setTimeRange={setTimeRange}
+              timeRange={showControlsInPageHeader ? undefined : timeRange}
+              setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
               // Disabled, for now moved to filter sidebar
               // TODO: remove this toggle once v4 looks good as is
               // viewModeToggle={
@@ -1614,12 +1666,9 @@ export default function ObservationsEventsTable({
               //     onViewModeChange={setViewMode}
               //   />
               // }
-              refreshConfig={{
-                onRefresh: handleRefresh,
-                isRefreshing: observations.status === "loading",
-                interval: refreshInterval,
-                setInterval: setRefreshInterval,
-              }}
+              refreshConfig={
+                showControlsInPageHeader ? undefined : refreshConfig
+              }
               actionButtons={[
                 <BatchExportTableButton
                   {...{
@@ -1687,7 +1736,7 @@ export default function ObservationsEventsTable({
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable
               key={`observations-table-${dataUpdatedAt}-${rows.length > 0 && rows[0]?.input ? "with-io" : "without-io"}`}
-              tableName={"observations"}
+              tableName="observations"
               columns={columns}
               peekView={peekConfig}
               data={

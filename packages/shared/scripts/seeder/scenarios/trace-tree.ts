@@ -11,7 +11,12 @@ import {
 } from "../../../src/server";
 import { ObservationType } from "../../../src/domain";
 import { observationToEvent, traceToEvent } from "./event-mirror";
-import { buildPayload, PayloadStyle, PAYLOAD_STYLES } from "./payload";
+import {
+  buildPayload,
+  generationUsageCost,
+  PayloadStyle,
+  PAYLOAD_STYLES,
+} from "./payload";
 import { jitter, Rng, utcDayStartMs } from "./rng";
 import {
   chunk,
@@ -34,6 +39,11 @@ const ALL_KINDS: ObservationType[] = [
   "SPAN",
   "EVENT",
 ];
+
+// The shape that historically had NO graph view: no agentic types, no
+// langgraph metadata — only qualifies via the >1-distinct-node rule (LFE-10665
+// collapsed-by-default graph panel).
+const PLAIN_KINDS: ObservationType[] = ["SPAN", "GENERATION", "EVENT"];
 
 const NAME_BY_KIND: Record<string, string[]> = {
   AGENT: ["router-agent", "support-agent", "planner-agent"],
@@ -123,6 +133,9 @@ const run = async (
   const payloadStyle = params["payload-style"] as PayloadStyle;
   const withV4 = params["v4"] as boolean;
   const asyncParents = params["async-parents"] as boolean;
+  // Type restriction is index-keyed (jitter), not rng-stream-keyed, so the
+  // default (--plain absent) output stays byte-identical.
+  const kinds = (params["plain"] as boolean) ? PLAIN_KINDS : ALL_KINDS;
   // Attach this many distinct scores to EVERY observation. The default 0 keeps
   // the historic handful of trace-level scores. A high value (e.g. 12) is the
   // "lots of scores" shape from LFE-10591 that overflows fixed/virtualized tree
@@ -204,7 +217,7 @@ const run = async (
     observationCount,
     depth,
     breadth,
-    ALL_KINDS,
+    kinds,
     ctx.seed,
   );
 
@@ -389,31 +402,17 @@ const run = async (
       model_parameters: isGeneration
         ? JSON.stringify({ temperature: 0.2, max_tokens: 1024 })
         : "{}",
-      provided_usage_details: isGeneration
-        ? {
-            input: usageInput,
-            output: usageOutput,
-            total: usageInput + usageOutput,
-          }
-        : {},
-      usage_details: isGeneration
-        ? {
-            input: usageInput,
-            output: usageOutput,
-            total: usageInput + usageOutput,
-          }
-        : {},
-      provided_cost_details: isGeneration
-        ? { input: usageInput * 2e-6, output: usageOutput * 6e-6 }
-        : {},
-      cost_details: isGeneration
-        ? {
-            input: usageInput * 2e-6,
-            output: usageOutput * 6e-6,
-            total: usageInput * 2e-6 + usageOutput * 6e-6,
-          }
-        : {},
-      total_cost: isGeneration ? usageInput * 2e-6 + usageOutput * 6e-6 : null,
+      // Empty fields stay explicit for non-generations: the createObservation
+      // factory would otherwise fill non-empty usage/cost defaults.
+      ...(isGeneration
+        ? generationUsageCost(usageInput, usageOutput)
+        : {
+            provided_usage_details: {},
+            usage_details: {},
+            provided_cost_details: {},
+            cost_details: {},
+            total_cost: null,
+          }),
       prompt_id: null,
       prompt_name: null,
       prompt_version: null,
@@ -605,7 +604,7 @@ const run = async (
       `Readback mismatch: expected ${observations.length} observations, found ${verified.observations}`,
     );
   }
-  const expectedKinds = Math.min(observations.length, ALL_KINDS.length);
+  const expectedKinds = Math.min(observations.length, kinds.length);
   if (verified.observationKinds < expectedKinds) {
     throw new SeedError(
       `Readback mismatch: expected ${expectedKinds} distinct observation kinds, found ${verified.observationKinds}`,
@@ -686,6 +685,13 @@ export const traceTreeScenario: ScenarioDefinition = {
       default: false,
       description:
         "root + hub nodes end immediately while their subtree keeps running (async/fire-and-forget shape; surfaces the subtree wall-clock duration badge)",
+    },
+    {
+      flag: "plain",
+      type: "boolean",
+      default: false,
+      description:
+        "restrict observation types to SPAN/GENERATION/EVENT (no agentic types) — the shape whose graph panel is collapsed by default (LFE-10665)",
     },
     {
       flag: "scores-per-node",

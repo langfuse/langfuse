@@ -32,7 +32,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
         with:
-          version: 11.4.0
+          version: 11.10.0
 
       # Keep this secret-bearing job cache-cold to avoid exposing Fern
       # credentials to potentially poisoned shared package-manager state.
@@ -133,7 +133,7 @@ jobs:
 
           # Install dependencies and format
           corepack enable
-          corepack prepare pnpm@11.4.0 --activate
+          corepack prepare pnpm@11.10.0 --activate
           pnpm install
           pnpm format
 
