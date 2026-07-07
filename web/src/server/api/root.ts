@@ -16,6 +16,7 @@ import { spendAlertRouter } from "@/src/ee/features/billing/server/spendAlertRou
 import { observationsRouter } from "@/src/server/api/routers/observations";
 import { sessionRouter } from "@/src/server/api/routers/sessions";
 import { promptRouter } from "@/src/features/prompts/server/routers/promptRouter";
+import { skillRouter } from "@/src/features/skills/server/routers/skillRouter";
 import { modelRouter } from "@/src/server/api/routers/models";
 import { evalRouter } from "@/src/features/evals/server/router";
 import { posthogIntegrationRouter } from "@/src/features/posthog-integration/posthog-integration-router";
@@ -94,6 +95,7 @@ export const appRouter = createTRPCRouter({
   spendAlerts: spendAlertRouter,
   observations: observationsRouter,
   prompts: promptRouter,
+  skills: skillRouter,
   models: modelRouter,
   evals: evalRouter,
   defaultLlmModel: defaultEvalModelRouter,

@@ -26,6 +26,8 @@ export type AuditableResource =
   | "notificationPreference"
   | "prompt"
   | "promptProtectedLabel"
+  | "skill"
+  | "skillProtectedLabel"
   | "session"
   | "apiKey"
   | "evalTemplate"

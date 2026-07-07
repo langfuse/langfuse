@@ -70,6 +70,11 @@ export * from "./features/prompts/parsePromptDependencyTags";
 export * from "./features/prompts/validation";
 export * from "./features/prompts/types";
 export * from "./features/prompts/constants";
+
+// skills
+export * from "./features/skills/validation";
+export * from "./features/skills/types";
+export * from "./features/skills/constants";
 export {
   compileChatMessages,
   compileChatMessagesWithIds,
