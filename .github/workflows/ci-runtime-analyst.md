@@ -10,7 +10,8 @@ on:
   workflow_run:
     workflows: ["CI/CD"]
     types: [completed]
-    branches: ["ci-perf/*"]
+    # ** because Actions branch-filter globs don't cross "/" with a single *.
+    branches: ["ci-perf/**"]
   workflow_dispatch:
   # Deterministic chain limiter (runs before the agent, no LLM involved):
   # every iteration the agent pushes re-runs CI, whose completion re-triggers
@@ -27,7 +28,10 @@ on:
         if [ "$GITHUB_EVENT_NAME" != "workflow_run" ]; then exit 0; fi
         branch=$(jq -r '.workflow_run.head_branch // empty' "$GITHUB_EVENT_PATH")
         if [ -z "$branch" ]; then exit 0; fi
-        ahead=$(gh api "repos/$GITHUB_REPOSITORY/compare/main...$branch" --jq '.ahead_by' || echo 0)
+        if ! ahead=$(gh api "repos/$GITHUB_REPOSITORY/compare/main...$branch" --jq '.ahead_by'); then
+          echo "::warning::Chain-depth check for $branch failed — failing closed; the agent will not run for this event."
+          exit 1
+        fi
         echo "Branch $branch is $ahead commit(s) ahead of main"
         if [ "$ahead" -ge 4 ]; then
           echo "::warning::Assessment chain limit reached for $branch ($ahead commits ahead) — not re-invoking the agent for this PR."
@@ -48,6 +52,8 @@ environment: github-agent-workflows
 # failures and pushing iteration commits.
 checkout:
   fetch-depth: 0
+  # Unlike the branch-filter globs above, this compiles to a git refspec,
+  # where a single * does cross "/" — ci-perf/* covers nested names too.
   fetch: ["ci-perf/*"]
 
 engine:
@@ -108,8 +114,8 @@ safe-outputs:
     reviewers: [wochinge]
     draft: false
     # Branch prefix is load-bearing: the workflow_run trigger above only
-    # fires for ci-perf/* head branches.
-    allowed-branches: ["ci-perf/*"]
+    # fires for ci-perf/** head branches.
+    allowed-branches: ["ci-perf/**"]
     # Machine-enforced mirror of the prompt's allowed change surface; the
     # write job rejects anything outside these globs.
     allowed-files: &agent-change-surface
@@ -118,7 +124,6 @@ safe-outputs:
       - scripts/vitest/**
       - turbo.json
       - docker-compose.dev*.yml
-      - .github/ci-analysis/**
       - web/**/*.test.ts
       - web/**/*.test.tsx
       - web/**/*.servertest.ts
@@ -162,9 +167,11 @@ actually delivered the expected impact — iterating or closing it if not.
 This run was triggered by the `${{ github.event_name }}` event.
 
 - **Analysis mode** (`schedule` or `workflow_dispatch`): do everything in
-  this prompt — full weekly analysis, memory update, and possibly a new PR
-  (its branch MUST start with `ci-perf/`). Also apply the assessment loop
-  below to any still-open ledger PRs whose CI already completed.
+  this prompt — full weekly analysis, memory update, and possibly a new PR.
+  Its branch MUST start with `ci-perf/` followed by a single flat slug with
+  no further slashes, e.g. `ci-perf/vitest-pool-tuning`. Also apply the
+  assessment loop below to any still-open ledger PRs whose CI already
+  completed.
 - **Assessment mode** (`workflow_run`): CI/CD just completed on one of your
   own PR branches. Do NOT run a new weekly analysis. Identify the branch and
   completed run from the ledger and the most recent CI/CD runs on
@@ -258,9 +265,9 @@ this layout:
    - `scripts/vitest/**`
    - individual slow/flaky test files (targeted fixes only)
    - `turbo.json`, `docker-compose.dev*.yml`
-   - `.github/ci-analysis/**` (analysis reports)
-   Never include changes to `.github/workflows/**` in the PR — the publish
-   token cannot push workflow files.
+   Never include changes to `.github/**` in the PR — analysis reports belong
+   in the job summary and repo memory, and the publish job rejects files
+   under top-level dot-folders.
 3. If your best recommendation is a change to `.github/workflows/pipeline.yml`
    itself, do NOT edit it. Instead, write the exact proposed diff in a fenced
    `diff` code block:
