@@ -18,8 +18,6 @@ import {
   queryExperimentSummariesForPublicApi,
 } from "@/src/features/experiments/server/public/repository";
 
-export type ListExperimentsPublicQuery = GetExperimentsV1QueryType;
-export type ListExperimentItemsPublicQuery = GetExperimentItemsV1QueryType;
 type ExperimentSummaryRow = Awaited<
   ReturnType<typeof queryExperimentSummariesForPublicApi>
 >[number];
@@ -139,7 +137,7 @@ export async function listExperimentsForPublicApi({
   query,
 }: {
   projectId: string;
-  query: ListExperimentsPublicQuery;
+  query: GetExperimentsV1QueryType;
 }) {
   const includeMetadata = query.fields.includes("metadata");
   const includeScores = query.fields.includes("scores");
@@ -209,7 +207,7 @@ export async function listExperimentItemsForPublicApi({
   query,
 }: {
   projectId: string;
-  query: ListExperimentItemsPublicQuery;
+  query: GetExperimentItemsV1QueryType;
 }) {
   const includeDataset = query.fields.includes("dataset");
   const includeIo = query.fields.includes("io");
