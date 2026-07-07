@@ -34,6 +34,7 @@ import {
   StringNoHTML,
   InvalidRequestError,
   singleFilter,
+  LANGFUSE_HOME_DASHBOARD_ID,
   type FilterState,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -77,6 +78,18 @@ const CreateDashboardInput = z.object({
 const CloneDashboardInput = z.object({
   projectId: z.string(),
   dashboardId: z.string(),
+  // Optional definition override so an edit attempted on a read-only
+  // dashboard (e.g. a tile moved on the curated Home) carries into the clone.
+  definition: DashboardDefinitionSchema.optional(),
+  // Set the clone as the project's home dashboard in the same gesture.
+  setAsHome: z.boolean().optional(),
+});
+
+// Set home dashboard input schema
+const SetHomeDashboardInput = z.object({
+  projectId: z.string(),
+  // null resets to the Langfuse-curated default
+  dashboardId: z.string().nullable(),
 });
 
 // Update dashboard filters input schema
@@ -581,10 +594,87 @@ export const dashboardRouter = createTRPCRouter({
         `${sourceDashboard.name} (Clone)`,
         sourceDashboard.description,
         ctx.session.user.id,
-        sourceDashboard.definition,
+        input.definition ?? sourceDashboard.definition,
       );
 
+      if (input.setAsHome) {
+        await ctx.prisma.project.update({
+          where: { id: input.projectId },
+          data: { homeDashboardId: clonedDashboard.id },
+        });
+      }
+
       return clonedDashboard;
+    }),
+
+  getHomeDashboard: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:read",
+      });
+
+      const project = await ctx.prisma.project.findUnique({
+        where: { id: input.projectId },
+        select: { homeDashboardId: true },
+      });
+
+      // Resolve the pointer; a missing/foreign target silently falls back to
+      // the Langfuse-curated default (like an unset pointer).
+      const pointedDashboard = project?.homeDashboardId
+        ? await DashboardService.getDashboard(
+            project.homeDashboardId,
+            input.projectId,
+          )
+        : null;
+
+      const dashboard =
+        pointedDashboard ??
+        (await DashboardService.getDashboard(
+          LANGFUSE_HOME_DASHBOARD_ID,
+          input.projectId,
+        ));
+
+      return {
+        // null only when the curated row is also absent — the client then
+        // renders from the shared constant.
+        dashboard,
+        homeDashboardId: pointedDashboard
+          ? (project?.homeDashboardId ?? null)
+          : null,
+      };
+    }),
+
+  setHomeDashboard: protectedProjectProcedure
+    .input(SetHomeDashboardInput)
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:CUD",
+      });
+
+      if (input.dashboardId) {
+        const dashboard = await DashboardService.getDashboard(
+          input.dashboardId,
+          input.projectId,
+        );
+        if (!dashboard) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Dashboard not found",
+          });
+        }
+      }
+
+      await ctx.prisma.project.update({
+        where: { id: input.projectId },
+        data: { homeDashboardId: input.dashboardId },
+      });
+
+      return { success: true };
     }),
 
   updateDashboardFilters: protectedProjectProcedure
