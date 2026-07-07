@@ -1384,7 +1384,13 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
-    notifyBlobStorageExportFailedInBackground(projectId, persistedDisable);
+    // Notify only after BullMQ exhausts its retries — an email on an earlier
+    // attempt fires even when a later retry succeeds, and would double up
+    // with the "disabled" email on customer faults. If a concurrent terminal
+    // failure won the disable claim, skip: the winner already notified.
+    if (isFinalAttempt && (persistedDisable || !disableForCustomerFault)) {
+      notifyBlobStorageExportFailedInBackground(projectId, persistedDisable);
+    }
 
     const chain = formatErrorChain(error);
     logger.error(
@@ -1407,11 +1413,12 @@ function notifyBlobStorageExportFailedInBackground(
 ): void {
   (async () => {
     try {
-      // The disable notification bypasses the cooldown: it is a one-time,
-      // terminal event (the integration won't run again until the customer
-      // re-enables it), and the per-run retries all land inside the cooldown
-      // window — so a cooldown claim here would silently drop the one email
-      // that tells the customer their export was turned off.
+      // Called once per exhausted run. The cooldown gates across scheduled
+      // runs (the scheduler re-enqueues every frequency period, and each
+      // failing run would otherwise email again). The disable notification
+      // bypasses it: it is a one-time, terminal event — the integration
+      // won't run again until the customer re-enables it — and a cooldown
+      // claim could silently drop the one email that says it was turned off.
       if (!disabled) {
         const cooldownMs =
           env.LANGFUSE_BLOB_STORAGE_FAILURE_NOTIFICATION_COOLDOWN_HOURS *

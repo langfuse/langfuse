@@ -235,7 +235,12 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         opts: { attempts: 5 },
       } as Job);
 
-    it("keeps the integration enabled on a non-final customer-fault attempt", async () => {
+    // The notification runs fire-and-forget after the handler rejects; give
+    // it time to land (or prove it never fires) before negative assertions.
+    const settleBackgroundTasks = () =>
+      new Promise((resolve) => setTimeout(resolve, 200));
+
+    it("keeps the integration enabled and does not notify on a non-final customer-fault attempt", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       s3Prefix = projectId;
       await createIntegration(projectId);
@@ -244,13 +249,16 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       );
 
       await expect(runAttempt(projectId, 0)).rejects.toThrow(/access denied/i);
+      await settleBackgroundTasks();
 
       const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
         where: { projectId },
       });
-      // BullMQ still has retries left, so we let it retry — no disable yet.
+      // BullMQ still has retries left, so we let it retry — no disable yet,
+      // and no email either: a later retry may still succeed.
       expect(row.enabled).toBe(true);
       expect(row.lastError).toMatch(/access denied/i);
+      expect(row.lastFailureNotificationSentAt).toBeNull();
     });
 
     it("disables the integration on the final exhausted customer-fault attempt", async () => {
@@ -262,6 +270,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       );
 
       await expect(runAttempt(projectId, 4)).rejects.toThrow(/access denied/i);
+      await settleBackgroundTasks();
 
       const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
         where: { projectId },
@@ -269,6 +278,8 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       expect(row.enabled).toBe(false);
       expect(row.lastError).toMatch(/access denied/i);
       expect(row.lastErrorAt).not.toBeNull();
+      // The "disabled" email bypasses the cooldown, so it must not claim it.
+      expect(row.lastFailureNotificationSentAt).toBeNull();
     });
 
     it("does not disable on the final attempt of a non-customer-fault ('other') error", async () => {
@@ -302,8 +313,16 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
         where: { projectId },
       });
-      // "other" errors must keep today's behavior: stay enabled, keep retrying.
+      // "other" errors stay enabled and keep retrying on the next scheduled
+      // run — but the run is exhausted, so the cooldown-gated informational
+      // notification fires (observable via its atomic cooldown claim).
       expect(row.enabled).toBe(true);
+      await vi.waitFor(async () => {
+        const notified = await prisma.blobStorageIntegration.findUniqueOrThrow({
+          where: { projectId },
+        });
+        expect(notified.lastFailureNotificationSentAt).not.toBeNull();
+      });
     });
   });
 

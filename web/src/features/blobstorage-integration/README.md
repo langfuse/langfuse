@@ -84,8 +84,9 @@ up_to_date  ← fallthrough
 | **running** | Worker: empty time window | `runStartedAt=null`, `nextSyncAt=now+frequency`, `lastError=null` | **up_to_date** (or **idle** if never synced) |
 | **running** | Worker: export succeeds, caught up | `lastSyncAt=max`, `nextSyncAt=max+freq`, `lastError=null`, `runStartedAt=null` | **up_to_date** |
 | **running** | Worker: export succeeds, not caught up | `lastSyncAt=max`, `nextSyncAt=now`, `lastError=null`, `runStartedAt=null` + re-enqueues job | **queued** (immediately) |
-| **running** | Worker: export fails | `lastError=msg`, `lastErrorAt=now`, `runStartedAt=null` | **error** |
-| **running** | Worker: final-attempt customer-config/credential failure | `lastError=msg`, `lastErrorAt=now`, `runStartedAt=null`, `enabled=false` (+ one-time "disabled" email) | **disabled** |
+| **running** | Worker: export fails (retries left) | `lastError=msg`, `lastErrorAt=now`, `runStartedAt=null` (no email — a later retry may succeed) | **error** |
+| **running** | Worker: export fails, retries exhausted | `lastError=msg`, `lastErrorAt=now`, `runStartedAt=null` (+ cooldown-gated "failed" email) | **error** |
+| **running** | Worker: retries exhausted on a customer-config/credential failure | `lastError=msg`, `lastErrorAt=now`, `runStartedAt=null`, `enabled=false` (+ one-time "disabled" email, no cooldown) | **disabled** |
 | **error** | User saves (enabled, same mode) | `runStartedAt=null`, `nextSyncAt=now` | stays **error** (`lastError` preserved; scheduler re-enqueues via `nextSyncAt`) |
 | **error** | User clicks Run Now | Enqueues manual job (no DB write) | stays **error** until worker clears `lastError` (success or empty-window) |
 | **running** | Stale `runStartedAt` > 2h | (no write — derived only) | falls through to **queued**, **idle**, or **up_to_date** |

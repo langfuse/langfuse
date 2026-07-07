@@ -65,8 +65,10 @@ export const BlobStorageExportFailedEmailTemplate = ({
                 ) : (
                   <>
                     The scheduled blob storage export for project &quot;
-                    {projectName}&quot; has failed. Review the integration
-                    settings to see the error details and resolve the issue.
+                    {projectName}&quot; has failed after multiple attempts. It
+                    will be retried automatically at the next scheduled export.
+                    If the issue persists, review the integration settings to
+                    see the error details.
                   </>
                 )}
               </Text>

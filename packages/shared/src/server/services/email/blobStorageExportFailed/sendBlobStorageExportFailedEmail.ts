@@ -46,7 +46,7 @@ export const sendBlobStorageExportFailedEmail = async ({
     const safeProjectName = sanitizeEmailSubject(projectName);
     const subject = disabled
       ? `Blob storage export disabled for "${safeProjectName}" – action required`
-      : `Blob storage export failed for "${safeProjectName}" – action required`;
+      : `Blob storage export failed for "${safeProjectName}"`;
     const html = await render(
       BlobStorageExportFailedEmailTemplate({
         projectName: safeProjectName,
