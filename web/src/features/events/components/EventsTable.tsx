@@ -1739,6 +1739,7 @@ export default function ObservationsEventsTable({
                 <div className="flex flex-wrap items-center gap-2">
                   <CategoryPresetChips
                     projectId={projectId}
+                    dateRange={dateRange}
                     activeViewId={
                       viewControllers.appliedViewId ??
                       viewControllers.selectedViewId
