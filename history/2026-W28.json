@@ -1,0 +1,59 @@
+{
+  "isoWeek": "2026-W28",
+  "analyzedAt": "2026-07-07",
+  "window": { "from": "2026-06-30T00:00:00Z", "to": "2026-07-07T19:00:00Z" },
+  "notes": "First run of the CI runtime analyst — this file establishes the baseline. No prior week to compare against. Perceived-time percentiles are over the full population of successful runs. Execution time, runner wait, and segment medians are from a 6-run sample (one merge-group run per active day, spread across the week) because the jobs API is per-run and heavy; treat them as directional, not population medians.",
+  "events": {
+    "merge_group": {
+      "runCount": { "total": 150, "success": 131, "failure": 18, "cancelled": 1 },
+      "perceived": { "p50": 396, "p90": 522, "unit": "s", "population": "all 131 successful" },
+      "perceivedByDay": {
+        "2026-06-30": { "n": 8, "p50": 348, "p90": 396 },
+        "2026-07-01": { "n": 26, "p50": 300, "p90": 392 },
+        "2026-07-02": { "n": 28, "p50": 362, "p90": 578 },
+        "2026-07-03": { "n": 33, "p50": 422, "p90": 497 },
+        "2026-07-05": { "n": 2, "p50": 495, "p90": 495 },
+        "2026-07-06": { "n": 15, "p50": 437, "p90": 499 },
+        "2026-07-07": { "n": 19, "p50": 431, "p90": 528 }
+      },
+      "executionSampled": { "p50": 401, "values": [327, 253, 403, 400, 427, 494], "unit": "s", "sampleSize": 6 },
+      "runnerWaitSampled": { "median": 22, "values": [19, 119, 175, 22, 22, 7], "unit": "s", "note": "usually 7-22s; spikes on 07-01 (119s) and 07-02 (175s)" },
+      "segmentsSampled": {
+        "sampleSize": 6,
+        "webBuildStepMed": { "median": 114, "values": [110, 5, 88, 118, 154, 124], "note": "07-01 value of 5s was a warm turbo-cache hit; excl. that, ~88-154s" },
+        "webRunTestsStepMed": { "median": 86, "values": [78, 66, 70, 95, 130, 151], "note": "clear intra-week rise from ~66-78s (early) to ~99-151s (late)" },
+        "workerRunTestsStepMed": { "median": 80, "values": [68, 53, 54, 93, 101, 99] },
+        "e2eTestsJobSec": { "median": 232, "values": [275, 144, 213, 239, 249, 225] }
+      }
+    },
+    "pull_request": {
+      "note": "Recent sample only (30 most recent runs, 2026-07-07 15:31-19:00 window); not full-week population.",
+      "runCount": { "sampled": 30, "success": 21, "failure": 3, "action_required": 5, "cancelled": 1 },
+      "perceived": { "p50": 417, "p90": 508, "unit": "s", "population": "21 successful in sample" }
+    },
+    "push": {
+      "note": "Recent sample only (30 most recent runs, 2026-07-06 15:00 - 2026-07-07 18:07 window). Push-to-main runs largely short-circuit because they reuse merge-group results, so p50 is dominated by skipped jobs.",
+      "runCount": { "sampled": 30, "success": 30 },
+      "perceived": { "p50": 63, "p90": 462, "unit": "s" }
+    }
+  },
+  "flakyTests": [],
+  "flakyNote": "No tests showed [retries=N] or [flaky] markers in the sampled run-tests logs (2026-07-07 tests-web client step + tests-worker step). Sample is limited; not a guarantee for the full week.",
+  "slowestTests": {
+    "webClient": [
+      { "test": "json-utils.clienttest.ts > Performance Comparison > Large Object Performance > 250K keys, depth 1 (~10MB)", "sec": 4.88 },
+      { "test": "json-utils.clienttest.ts > 125K keys, depth 1 (~5MB)", "sec": 2.40 },
+      { "file": "src/__tests__/json-utils.clienttest.ts", "summedSec": 8.91, "tests": 106 }
+    ],
+    "workerServer": [
+      { "test": "webhooks.test.ts > executeWebhook > reset failure count when webhook re-enabled", "sec": 7.20 },
+      { "file": "src/__tests__/webhooks.test.ts", "summedSec": 19.22, "tests": 20 },
+      { "test": "awsLambdaCodeEvalDispatcher.integration.test.ts > PYTHON runner", "sec": 6.62 },
+      { "test": "awsLambdaCodeEvalDispatcher.integration.test.ts > TYPESCRIPT runner", "sec": 6.30 },
+      { "file": "src/features/evaluation/codeBased/awsLambdaCodeEvalDispatcher.integration.test.ts", "summedSec": 12.95, "tests": 5 },
+      { "file": "src/__tests__/batchExport.test.ts", "summedSec": 10.07, "tests": 71 },
+      { "file": "src/services/IngestionService/tests/IngestionService.integration.test.ts", "summedSec": 10.00, "tests": 57 }
+    ]
+  },
+  "action": { "prOpened": false, "reason": "First run establishes baseline; no confirmable week-over-week regression, no clean sandbox-verifiable win, no flaky tests to fix." }
+}
