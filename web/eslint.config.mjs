@@ -112,6 +112,7 @@ export default [
     rules: {
       "@typescript-eslint/consistent-type-definitions": ["warn", "type"],
       "@typescript-eslint/no-confusing-void-expression": "warn",
+      "@typescript-eslint/no-meaningless-void-operator": "warn",
       "@typescript-eslint/no-invalid-void-type": "warn",
       "@typescript-eslint/no-unsafe-assignment": "warn",
       "@typescript-eslint/return-await": ["warn", "in-try-catch"],
