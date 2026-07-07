@@ -15,6 +15,7 @@ export const CloudPrivacyNotice = ({ action }: { action: string }) =>
       ,{" "}
       <a
         href="https://clickhouse.com/legal/langfuse-cloud-addendum"
+        target="_blank"
         rel="noopener noreferrer"
         className="italic"
       >
@@ -23,6 +24,7 @@ export const CloudPrivacyNotice = ({ action }: { action: string }) =>
       , and{" "}
       <a
         href="https://langfuse.com/privacy"
+        target="_blank"
         rel="noopener noreferrer"
         className="italic"
       >
