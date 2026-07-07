@@ -879,6 +879,44 @@ type MastraStreamChunk = {
   };
 };
 
+type MastraStreamChunkType = NonNullable<MastraStreamChunk["type"]>;
+
+const MASTRA_STREAM_CHUNK_TYPES = [
+  "tool-call-input-streaming-start",
+  "tool-call-delta",
+  "tool-call-input-streaming-end",
+  "tool-call",
+  "tool-call-approval",
+  "tool-call-suspended",
+] as const satisfies readonly MastraStreamChunkType[];
+
+function isMastraStreamChunkType(type: unknown): type is MastraStreamChunkType {
+  return (
+    typeof type === "string" &&
+    MASTRA_STREAM_CHUNK_TYPES.some((chunkType) => chunkType === type)
+  );
+}
+
+function isMastraStreamChunk(chunk: unknown): chunk is MastraStreamChunk {
+  if (typeof chunk !== "object" || chunk === null) {
+    return false;
+  }
+
+  if (!("type" in chunk) || chunk.type === undefined) {
+    return true;
+  }
+
+  if (!isMastraStreamChunkType(chunk.type)) {
+    return false;
+  }
+
+  if (!("payload" in chunk) || chunk.payload === undefined) {
+    return true;
+  }
+
+  return typeof chunk.payload === "object" && chunk.payload !== null;
+}
+
 type StreamingToolCall = {
   toolCallId: string;
   toolName: string;
@@ -911,7 +949,15 @@ export function patchMastraToolCallInputStreaming(adapter: MastraAgent) {
 
     return {
       handleChunk(chunk: unknown) {
-        const mastraChunk = chunk as MastraStreamChunk;
+        if (!isMastraStreamChunk(chunk)) {
+          logger.warn(
+            "Received unknown Mastra chunk while patching tool-call input streaming",
+            chunk,
+          );
+          return processor.handleChunk(chunk);
+        }
+
+        const mastraChunk = chunk;
 
         if (mastraChunk.type === "tool-call-input-streaming-start") {
           const { toolCallId, toolName } = mastraChunk.payload ?? {};
