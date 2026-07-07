@@ -35,6 +35,7 @@ import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/cons
 import { logger } from "@langfuse/shared/src/server";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
 import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@/src/ee/features/in-app-agent/constants";
+import { assertUnreachable } from "@/src/utils/types";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
 const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
@@ -861,7 +862,13 @@ type PatchableMastraAgent = {
 };
 
 type MastraStreamChunk = {
-  type?: string;
+  type?:
+    | "tool-call-input-streaming-start"
+    | "tool-call-delta"
+    | "tool-call-input-streaming-end"
+    | "tool-call"
+    | "tool-call-approval"
+    | "tool-call-suspended";
   payload?: {
     toolCallId?: string;
     toolName?: string;
@@ -906,125 +913,133 @@ export function patchMastraToolCallInputStreaming(adapter: MastraAgent) {
       handleChunk(chunk: unknown) {
         const mastraChunk = chunk as MastraStreamChunk;
 
-        switch (mastraChunk.type) {
-          case "tool-call-input-streaming-start": {
-            const { toolCallId, toolName } = mastraChunk.payload ?? {};
-            if (!toolCallId || !toolName) {
+        if (mastraChunk.type === "tool-call-input-streaming-start") {
+          const { toolCallId, toolName } = mastraChunk.payload ?? {};
+          if (!toolCallId || !toolName) {
+            callbacks.onError(
+              new Error(
+                "Malformed tool-call-input-streaming-start: missing toolCallId or toolName in payload",
+              ),
+            );
+            return true;
+          }
+
+          streamingToolCalls.set(toolCallId, {
+            toolCallId,
+            toolName,
+            argsText: "",
+          });
+          return false;
+        }
+
+        if (mastraChunk.type === "tool-call-delta") {
+          const { toolCallId, toolName, argsTextDelta } =
+            mastraChunk.payload ?? {};
+          if (!toolCallId) {
+            callbacks.onError(
+              new Error(
+                "Malformed tool-call-delta: missing toolCallId in payload",
+              ),
+            );
+            return true;
+          }
+
+          let streamingToolCall = streamingToolCalls.get(toolCallId);
+          if (!streamingToolCall) {
+            if (!toolName) {
               callbacks.onError(
                 new Error(
-                  "Malformed tool-call-input-streaming-start: missing toolCallId or toolName in payload",
+                  "Malformed tool-call-delta: missing toolName for unknown toolCallId in payload",
                 ),
               );
               return true;
             }
 
-            streamingToolCalls.set(toolCallId, {
+            streamingToolCall = { toolCallId, toolName, argsText: "" };
+            streamingToolCalls.set(toolCallId, streamingToolCall);
+          }
+
+          streamingToolCall.argsText += argsTextDelta ?? "";
+          return false;
+        }
+
+        if (mastraChunk.type === "tool-call-input-streaming-end") {
+          const { toolCallId } = mastraChunk.payload ?? {};
+          const streamingToolCall = toolCallId
+            ? streamingToolCalls.get(toolCallId)
+            : undefined;
+          if (streamingToolCall) {
+            synthesizedToolCallIds.add(streamingToolCall.toolCallId);
+            const shouldStop = processor.handleChunk({
+              type: "tool-call",
+              payload: {
+                toolCallId: streamingToolCall.toolCallId,
+                toolName: streamingToolCall.toolName,
+                args: parseStreamingToolCallArgs(streamingToolCall.argsText),
+              },
+            });
+            streamingToolCalls.delete(streamingToolCall.toolCallId);
+            return shouldStop;
+          }
+          return false;
+        }
+
+        if (mastraChunk.type === "tool-call") {
+          const { toolCallId } = mastraChunk.payload ?? {};
+          if (toolCallId && synthesizedToolCallIds.has(toolCallId)) {
+            synthesizedToolCallIds.delete(toolCallId);
+            return false;
+          }
+
+          return processor.handleChunk(chunk);
+        }
+
+        if (mastraChunk.type === "tool-call-approval") {
+          const { toolCallId, toolName, args, resumeSchema } =
+            mastraChunk.payload ?? {};
+          if (!toolCallId || !toolName) {
+            callbacks.onError(
+              new Error(
+                "Malformed tool-call-approval: missing toolCallId or toolName in payload",
+              ),
+            );
+            return true;
+          }
+
+          streamingToolCalls.delete(toolCallId);
+          synthesizedToolCallIds.delete(toolCallId);
+
+          return processor.handleChunk({
+            type: "tool-call-suspended",
+            payload: {
               toolCallId,
               toolName,
-              argsText: "",
-            });
-            return false;
-          }
-          case "tool-call-delta": {
-            const { toolCallId, toolName, argsTextDelta } =
-              mastraChunk.payload ?? {};
-            if (!toolCallId) {
-              callbacks.onError(
-                new Error(
-                  "Malformed tool-call-delta: missing toolCallId in payload",
-                ),
-              );
-              return true;
-            }
-
-            let streamingToolCall = streamingToolCalls.get(toolCallId);
-            if (!streamingToolCall) {
-              if (!toolName) {
-                callbacks.onError(
-                  new Error(
-                    "Malformed tool-call-delta: missing toolName for unknown toolCallId in payload",
-                  ),
-                );
-                return true;
-              }
-
-              streamingToolCall = { toolCallId, toolName, argsText: "" };
-              streamingToolCalls.set(toolCallId, streamingToolCall);
-            }
-
-            streamingToolCall.argsText += argsTextDelta ?? "";
-            return false;
-          }
-          case "tool-call-input-streaming-end": {
-            const { toolCallId } = mastraChunk.payload ?? {};
-            const streamingToolCall = toolCallId
-              ? streamingToolCalls.get(toolCallId)
-              : undefined;
-            if (streamingToolCall) {
-              synthesizedToolCallIds.add(streamingToolCall.toolCallId);
-              const shouldStop = processor.handleChunk({
-                type: "tool-call",
-                payload: {
-                  toolCallId: streamingToolCall.toolCallId,
-                  toolName: streamingToolCall.toolName,
-                  args: parseStreamingToolCallArgs(streamingToolCall.argsText),
-                },
-              });
-              streamingToolCalls.delete(streamingToolCall.toolCallId);
-              return shouldStop;
-            }
-            return false;
-          }
-          case "tool-call": {
-            const { toolCallId } = mastraChunk.payload ?? {};
-            if (toolCallId && synthesizedToolCallIds.has(toolCallId)) {
-              synthesizedToolCallIds.delete(toolCallId);
-              return false;
-            }
-            break;
-          }
-          case "tool-call-approval": {
-            const { toolCallId, toolName, args, resumeSchema } =
-              mastraChunk.payload ?? {};
-            if (!toolCallId || !toolName) {
-              callbacks.onError(
-                new Error(
-                  "Malformed tool-call-approval: missing toolCallId or toolName in payload",
-                ),
-              );
-              return true;
-            }
-
-            streamingToolCalls.delete(toolCallId);
-            synthesizedToolCallIds.delete(toolCallId);
-
-            return processor.handleChunk({
-              type: "tool-call-suspended",
-              payload: {
+              args,
+              resumeSchema,
+              suspendPayload: {
+                type: "approval",
                 toolCallId,
                 toolName,
                 args,
-                resumeSchema,
-                suspendPayload: {
-                  type: "approval",
-                  toolCallId,
-                  toolName,
-                  args,
-                },
               },
-            });
-          }
-          case "tool-call-suspended": {
-            const { toolCallId } = mastraChunk.payload ?? {};
-            if (toolCallId) {
-              streamingToolCalls.delete(toolCallId);
-              synthesizedToolCallIds.delete(toolCallId);
-            }
-            break;
-          }
+            },
+          });
         }
 
-        return processor.handleChunk(chunk);
+        if (mastraChunk.type === "tool-call-suspended") {
+          const { toolCallId } = mastraChunk.payload ?? {};
+          if (toolCallId) {
+            streamingToolCalls.delete(toolCallId);
+            synthesizedToolCallIds.delete(toolCallId);
+          }
+          return processor.handleChunk(chunk);
+        }
+
+        if (mastraChunk.type === undefined) {
+          return processor.handleChunk(chunk);
+        }
+
+        return assertUnreachable(mastraChunk.type);
       },
       flush() {
         processor.flush();
