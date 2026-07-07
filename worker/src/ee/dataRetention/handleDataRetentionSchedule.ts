@@ -2,12 +2,10 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   DataRetentionProcessingQueue,
   QueueJobs,
-  getSandboxCleanupWhere,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 
 export const handleDataRetentionSchedule = async () => {
-  const now = new Date();
   const projectsWithRetention = await prisma.project.findMany({
     select: {
       id: true,
@@ -19,22 +17,6 @@ export const handleDataRetentionSchedule = async () => {
       },
     },
   });
-  const projectsWithSandboxCleanup =
-    await prisma.inAppAgentConversation.findMany({
-      where: getSandboxCleanupWhere({ now }),
-      select: { projectId: true },
-      distinct: ["projectId"],
-    });
-  const queuedProjects = new Map(
-    projectsWithRetention.map((project) => [project.id, project.retentionDays]),
-  );
-
-  for (const project of projectsWithSandboxCleanup) {
-    queuedProjects.set(
-      project.projectId,
-      queuedProjects.get(project.projectId) ?? null,
-    );
-  }
 
   const dataRetentionProcessingQueue =
     DataRetentionProcessingQueue.getInstance();
@@ -43,15 +25,15 @@ export const handleDataRetentionSchedule = async () => {
   }
 
   await dataRetentionProcessingQueue.addBulk(
-    Array.from(queuedProjects.entries()).map(([projectId, retention]) => ({
+    projectsWithRetention.map((project) => ({
       name: QueueJobs.DataRetentionProcessingJob,
       data: {
         id: randomUUID(),
         name: QueueJobs.DataRetentionProcessingJob,
         timestamp: new Date(),
         payload: {
-          projectId,
-          retention,
+          projectId: project.id,
+          retention: project.retentionDays,
         },
       },
     })),

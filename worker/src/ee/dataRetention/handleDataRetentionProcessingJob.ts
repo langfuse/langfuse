@@ -1,5 +1,4 @@
 import {
-  clearExpiredInAppAgentProjectSandboxes,
   deleteEventsOlderThanDays,
   deleteMediaFiles,
   deleteObservationsOlderThanDays,
@@ -10,10 +9,9 @@ import {
   logger,
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
   getCurrentSpan,
-  deleteLambdaMicrovmInAppAgentSandboxSnapshot,
 } from "@langfuse/shared/src/server";
 import { Job } from "bullmq";
-import { InAppAgentSandboxProvider, prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { env, v4WritesToEventsTable } from "../../env";
 
 export const handleDataRetentionProcessingJob = async (job: Job) => {
@@ -33,43 +31,6 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
   });
 
   const currentRetention = project?.retentionDays ?? null;
-
-  const cleanedSandboxes = await clearExpiredInAppAgentProjectSandboxes({
-    prisma,
-    projectId,
-    deleteSnapshot: async (params) => {
-      if (params.sandboxProvider !== InAppAgentSandboxProvider.lambda_microvm) {
-        logger.warn(
-          `[Data Retention] Unsupported sandbox provider ${params.sandboxProvider} for project ${projectId}. Skipping snapshot deletion.`,
-        );
-        return { skipped: true };
-      }
-
-      await deleteLambdaMicrovmInAppAgentSandboxSnapshot({
-        endpoint: env.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_ENDPOINT,
-        sessionId: params.sessionId,
-        snapshotAccessKeyId:
-          env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_ACCESS_KEY_ID,
-        snapshotBucket: env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_BUCKET,
-        snapshotForcePathStyle:
-          env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_FORCE_PATH_STYLE ===
-          "true",
-        snapshotKey: params.snapshotKey,
-        snapshotPrefix: env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_PREFIX,
-        snapshotRegion: env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_REGION,
-        snapshotSecretAccessKey:
-          env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_SECRET_ACCESS_KEY,
-      });
-
-      return { skipped: false };
-    },
-  });
-
-  if (cleanedSandboxes.deleted > 0 || cleanedSandboxes.skipped > 0) {
-    logger.info(
-      `[Data Retention] Deleted ${cleanedSandboxes.deleted} and skipped ${cleanedSandboxes.skipped} snapshot(s) for project ${projectId}`,
-    );
-  }
 
   // Skip if project no longer exists, has no retention, or retention is set to 0 (indefinite)
   if (!project || !currentRetention || currentRetention === 0) {
