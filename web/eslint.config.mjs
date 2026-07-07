@@ -105,8 +105,9 @@ export default [
     },
   },
 
+  // We're using the in-app-agent directory as a testing ground for some new eslint-rules.
   {
-    name: "langfuse/web/in-app-agent-no-switch-statements",
+    name: "langfuse/web/in-app-agent",
     files: ["src/ee/features/in-app-agent/**/*.{ts,tsx}"],
     rules: {
       "@repo/no-switch-statements": "error",
