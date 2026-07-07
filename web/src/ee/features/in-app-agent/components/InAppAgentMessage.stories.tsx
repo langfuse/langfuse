@@ -1,5 +1,6 @@
 import preview from "../../../../../.storybook/preview";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { useEffect, useState } from "react";
 import { InAppAgentMessage } from "./InAppAgentMessage";
 
 const meta = preview.meta({
@@ -386,6 +387,92 @@ export const LoadingToolCallGroup = meta.story({
   },
 });
 
+const longReasoningText = [
+  "Reading the current trace context and the visible filters.",
+  "Checking whether the user is asking about latency, quality, or cost first.",
+  "Comparing recent observations with error levels and score names.",
+  "Looking for a small query that can answer the next step without changing project state.",
+  "Keeping this block constrained so long reasoning scrolls internally while the drawer keeps following the conversation bottom.",
+  "The last line should be visible after mount and after streamed updates.",
+].join("\n");
+
+async function expectReasoningViewportAtBottom(canvasElement: HTMLElement) {
+  const canvas = within(canvasElement);
+  const viewport = await canvas.findByTestId("in-app-agent-reasoning-content");
+
+  await waitFor(() => {
+    expect(viewport.scrollHeight).toBeGreaterThanOrEqual(viewport.clientHeight);
+    expect(viewport.scrollTop + viewport.clientHeight).toBeGreaterThanOrEqual(
+      viewport.scrollHeight - 1,
+    );
+  });
+}
+
+async function openReasoningDisclosure(canvasElement: HTMLElement) {
+  const canvas = within(canvasElement);
+  await userEvent.click(await canvas.findByText("Thinking"));
+}
+
+export const Reasoning = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "reasoning",
+      text: "Checking recent traces before querying metrics.",
+      isStreaming: false,
+    },
+  },
+});
+
+export const CompletedReasoning = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "reasoning",
+      text: longReasoningText,
+      isStreaming: false,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(
+      canvas.queryByTestId("in-app-agent-reasoning-content"),
+    ).not.toBeInTheDocument();
+    await openReasoningDisclosure(canvasElement);
+    await expectReasoningViewportAtBottom(canvasElement);
+  },
+});
+
+export const StreamingReasoning = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "reasoning",
+      text: longReasoningText,
+      isStreaming: true,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await expectReasoningViewportAtBottom(canvasElement);
+  },
+});
+
+export const CompactStreamingReasoning = meta.story({
+  args: {
+    role: "assistant",
+    isCompact: true,
+    content: {
+      type: "reasoning",
+      text: longReasoningText,
+      isStreaming: true,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await expectReasoningViewportAtBottom(canvasElement);
+  },
+});
+
 export const Loading = meta.story({
   args: {
     role: "assistant",
@@ -402,6 +489,52 @@ export const Connecting = meta.story({
       type: "loading",
       label: "Connecting...",
     },
+  },
+});
+
+export const StreamingThenCompletedReasoning = meta.story({
+  name: "(Test) Streaming Then Completed Reasoning",
+  args: {
+    role: "assistant",
+    content: {
+      type: "reasoning",
+      text: longReasoningText,
+      isStreaming: true,
+    },
+  },
+  render: (args) => {
+    const [isStreaming, setIsStreaming] = useState(true);
+
+    useEffect(() => {
+      const timeoutId = window.setTimeout(() => setIsStreaming(false), 1_500);
+      return () => window.clearTimeout(timeoutId);
+    }, []);
+
+    return (
+      <InAppAgentMessage
+        {...args}
+        content={{
+          type: "reasoning",
+          text: longReasoningText,
+          isStreaming,
+        }}
+      />
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expectReasoningViewportAtBottom(canvasElement);
+    await waitFor(
+      () => {
+        expect(
+          canvas.queryByTestId("in-app-agent-reasoning-content"),
+        ).not.toBeInTheDocument();
+      },
+      { timeout: 3_000 },
+    );
+    await userEvent.click(await canvas.findByText("Thinking"));
+    await expectReasoningViewportAtBottom(canvasElement);
   },
 });
 

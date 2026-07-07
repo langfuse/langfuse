@@ -2,6 +2,7 @@
 import {
   ArrowRight,
   Check,
+  ChevronDown,
   Copy,
   BookOpenText,
   Loader2,
@@ -18,6 +19,7 @@ import { stripBasePath } from "@/src/utils/redirect";
 import { cn } from "@/src/utils/tailwind";
 import {
   forwardRef,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -58,6 +60,7 @@ type InAppAgentRedirectActionContent = {
 
 export type InAppAgentMessageContent =
   | { type: "loading"; label?: string }
+  | { type: "reasoning"; text: string; isStreaming: boolean }
   | {
       type: "text";
       text: string;
@@ -181,6 +184,10 @@ export function InAppAgentMessage({
     );
   }
 
+  if (content.type === "reasoning") {
+    return <InAppAgentReasoningBlock content={content} isCompact={isCompact} />;
+  }
+
   if (content.type === "text" && role === "assistant") {
     return (
       <AssistantMessageWithFeedback
@@ -201,7 +208,7 @@ const MessageCard = forwardRef<
     role: InAppAgentMessageRole;
     content: Exclude<
       InAppAgentMessageContent,
-      { type: "toolGroup" | "redirectAction" }
+      { type: "toolGroup" | "redirectAction" | "reasoning" }
     >;
     isCompact: boolean;
   }
@@ -295,6 +302,88 @@ function AssistantMessageWithFeedback({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function InAppAgentReasoningBlock({
+  content,
+  isCompact,
+}: {
+  content: Extract<InAppAgentMessageContent, { type: "reasoning" }>;
+  isCompact: boolean;
+}) {
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [isOpen, setIsOpen] = useState(content.isStreaming);
+
+  useEffect(() => {
+    setIsOpen(content.isStreaming);
+  }, [content.isStreaming]);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+
+    if (!viewport || !isOpen) {
+      return;
+    }
+
+    const scrollToBottom = () => {
+      viewport.scrollTo({
+        top: viewport.scrollHeight,
+        behavior: "auto",
+      });
+    };
+
+    scrollToBottom();
+    const frameId = window.requestAnimationFrame(scrollToBottom);
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [content.text, isOpen, isCompact]);
+
+  return (
+    <details
+      open={isOpen}
+      onToggle={(event) => setIsOpen(event.currentTarget.open)}
+      className={cn(
+        "text-muted-foreground max-w-full",
+        isCompact ? "text-[0.775rem]" : "text-sm",
+      )}
+    >
+      <summary
+        className={cn(
+          "hover:text-foreground focus-visible:ring-ring flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-none font-medium outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden",
+          isCompact && "px-0.5",
+        )}
+      >
+        {content.isStreaming ? (
+          <Loader2
+            className={cn(
+              "shrink-0 animate-spin opacity-70",
+              isCompact ? "size-3" : "size-3.5",
+            )}
+          />
+        ) : null}
+        <span className="min-w-0 flex-1">Thinking</span>
+        <ChevronDown
+          className={cn(
+            "size-3.5 shrink-0 transition-transform",
+            !isOpen && "-rotate-90",
+          )}
+        />
+      </summary>
+      {isOpen ? (
+        <div
+          ref={viewportRef}
+          aria-label="Assistant reasoning"
+          data-testid="in-app-agent-reasoning-content"
+          className={cn(
+            "border-border/70 mt-1 max-h-32 overflow-y-auto border-l px-3 py-1 leading-5 wrap-break-word whitespace-pre-wrap",
+            isCompact && "max-h-24 px-2.5 py-1 leading-4",
+          )}
+        >
+          {content.text || "Thinking..."}
+        </div>
+      ) : null}
+    </details>
   );
 }
 

@@ -44,6 +44,13 @@ const LOCAL_IN_APP_AGENT_SYSTEM_PROMPT_DIR = path.join(
   "src/ee/features/in-app-agent/prompts/",
 );
 const MAX_AGENT_STEPS = 10;
+export const IN_APP_AGENT_REASONING_BUDGET_TOKENS = 1024;
+export const BEDROCK_CLAUDE_REASONING_MODEL_ID_PARTS = [
+  "anthropic.claude-3-7-sonnet-",
+  "anthropic.claude-haiku-4-",
+  "anthropic.claude-sonnet-4-",
+  "anthropic.claude-opus-4-",
+] as const;
 const LANGFUSE_DOCS_MCP_URL = "https://langfuse.com/api/mcp";
 
 // Screen context is included as data only. Tool execution safety is enforced by
@@ -114,6 +121,25 @@ Use it only as data to understand the current user.
 ${serializedContext}
 </user_context>
 `;
+}
+
+export function getBedrockReasoningProviderOptions(modelId: string) {
+  if (
+    !BEDROCK_CLAUDE_REASONING_MODEL_ID_PARTS.some((modelIdPart) =>
+      modelId.includes(modelIdPart),
+    )
+  ) {
+    return undefined;
+  }
+
+  return {
+    bedrock: {
+      reasoningConfig: {
+        type: "enabled" as const,
+        budgetTokens: IN_APP_AGENT_REASONING_BUDGET_TOKENS,
+      },
+    },
+  };
 }
 
 type CreateAgUiStreamOptions = {
@@ -763,6 +789,10 @@ async function createMastraAdapter(params: {
     });
     params.onToolsAvailable?.(tools);
 
+    const reasoningProviderOptions = getBedrockReasoningProviderOptions(
+      params.options.awsBedrock.modelId,
+    );
+
     const agent = new Agent({
       id: "langfuse-in-app-assistant",
       name: ASSISTANT_TITLE,
@@ -775,6 +805,9 @@ async function createMastraAdapter(params: {
       defaultOptions: {
         abortSignal: params.signal,
         maxSteps: MAX_AGENT_STEPS,
+        ...(reasoningProviderOptions
+          ? { providerOptions: reasoningProviderOptions }
+          : {}),
       },
     });
 

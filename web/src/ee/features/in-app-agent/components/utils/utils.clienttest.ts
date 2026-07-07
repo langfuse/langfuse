@@ -223,6 +223,276 @@ describe("getDrawerMessages", () => {
     expect(mappedMessages[1]?.content).not.toHaveProperty("sources");
   });
 
+  it("shows live reasoning messages while the run is active", () => {
+    const mappedMessages = getDrawerMessages({
+      error: null,
+      isRunning: true,
+      messages: [
+        {
+          id: "user-1",
+          role: "user",
+          content: "Investigate latency spikes",
+        },
+        {
+          id: "reasoning-1",
+          role: "reasoning",
+          content: "Checking recent traces before querying metrics.",
+        },
+      ] satisfies AgUiMessage[],
+    });
+
+    expect(mappedMessages).toMatchObject([
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Investigate latency spikes",
+        },
+      },
+      {
+        id: "reasoning-1",
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "Checking recent traces before querying metrics.",
+          isStreaming: true,
+        },
+      },
+    ]);
+    expect(mappedMessages).toHaveLength(2);
+  });
+
+  it("keeps completed live reasoning messages when the run is no longer active", () => {
+    const mappedMessages = getDrawerMessages({
+      error: null,
+      isRunning: false,
+      messages: [
+        {
+          id: "user-1",
+          role: "user",
+          content: "Investigate latency spikes",
+        },
+        {
+          id: "reasoning-1",
+          role: "reasoning",
+          content: "This should stay visible until the drawer is reloaded.",
+        },
+        {
+          id: "assistant-1",
+          role: "assistant",
+          content: "Here is the final answer.",
+        },
+      ] satisfies AgUiMessage[],
+    });
+
+    expect(mappedMessages).toMatchObject([
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Investigate latency spikes",
+        },
+      },
+      {
+        id: "reasoning-1",
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "This should stay visible until the drawer is reloaded.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "Here is the final answer.",
+        },
+      },
+    ]);
+    expect(mappedMessages).toHaveLength(3);
+  });
+
+  it("marks reasoning complete when a run stops before assistant text arrives", () => {
+    const mappedMessages = getDrawerMessages({
+      error: "The run was interrupted before an answer was generated.",
+      isRunning: false,
+      messages: [
+        {
+          id: "user-1",
+          role: "user",
+          content: "Investigate latency spikes",
+        },
+        {
+          id: "reasoning-1",
+          role: "reasoning",
+          content: "Checking recent traces before querying metrics.",
+        },
+      ] satisfies AgUiMessage[],
+    });
+
+    expect(mappedMessages).toMatchObject([
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Investigate latency spikes",
+        },
+      },
+      {
+        id: "reasoning-1",
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "Checking recent traces before querying metrics.",
+          isStreaming: false,
+        },
+      },
+    ]);
+    expect(mappedMessages).toHaveLength(2);
+  });
+
+  it("keeps reasoning alongside later assistant and tool messages during an active run", () => {
+    const mappedMessages = getDrawerMessages({
+      error: null,
+      isRunning: true,
+      messages: [
+        {
+          id: "user-1",
+          role: "user",
+          content: "Find failed traces",
+        },
+        {
+          id: "reasoning-1",
+          role: "reasoning",
+          content: "Looking for error-level traces first.",
+        },
+        {
+          id: "assistant-1",
+          role: "assistant",
+          content: "",
+          toolCalls: [
+            {
+              id: "tool-call-1",
+              type: "function",
+              function: {
+                name: "langfuse_queryMetrics",
+                arguments: JSON.stringify({ view: "traces" }),
+              },
+            },
+          ],
+        },
+        {
+          id: "tool-result-1",
+          role: "tool",
+          toolCallId: "tool-call-1",
+          content: JSON.stringify({ data: [{ count_count: 12 }] }),
+        },
+        {
+          id: "assistant-2",
+          role: "assistant",
+          content: "I found 12 failed traces in the selected window.",
+        },
+      ] satisfies AgUiMessage[],
+    });
+
+    expect(mappedMessages).toMatchObject([
+      {
+        id: "user-1",
+        content: { type: "text" },
+      },
+      {
+        id: "reasoning-1",
+        content: {
+          type: "reasoning",
+          text: "Looking for error-level traces first.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "tools-assistant-1",
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              type: "tool",
+              name: "langfuse_queryMetrics",
+              result: JSON.stringify({ data: [{ count_count: 12 }] }),
+            },
+          ],
+        },
+      },
+      {
+        id: "assistant-2",
+        content: {
+          type: "text",
+          text: "I found 12 failed traces in the selected window.",
+        },
+      },
+    ]);
+    expect(mappedMessages).toHaveLength(4);
+  });
+
+  it("keeps reasoning open while later tool calls run before the assistant response", () => {
+    const mappedMessages = getDrawerMessages({
+      error: null,
+      isRunning: true,
+      messages: [
+        {
+          id: "user-1",
+          role: "user",
+          content: "Find failed traces",
+        },
+        {
+          id: "reasoning-1",
+          role: "reasoning",
+          content: "Looking for error-level traces first.",
+        },
+        {
+          id: "assistant-1",
+          role: "assistant",
+          content: "",
+          toolCalls: [
+            {
+              id: "tool-call-1",
+              type: "function",
+              function: {
+                name: "langfuse_queryMetrics",
+                arguments: JSON.stringify({ view: "traces" }),
+              },
+            },
+          ],
+        },
+      ] satisfies AgUiMessage[],
+    });
+
+    expect(mappedMessages).toMatchObject([
+      {
+        id: "user-1",
+        content: { type: "text" },
+      },
+      {
+        id: "reasoning-1",
+        content: {
+          type: "reasoning",
+          text: "Looking for error-level traces first.",
+          isStreaming: true,
+        },
+      },
+      {
+        id: "tools-assistant-1",
+        content: {
+          type: "toolGroup",
+          isLoading: true,
+        },
+      },
+    ]);
+  });
+
   it("adds pending tool approvals as approval tool groups", () => {
     const mappedMessages = getDrawerMessages({
       error: null,

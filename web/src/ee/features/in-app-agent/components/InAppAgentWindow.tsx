@@ -480,7 +480,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               {visibleMessages.map((message, index) => {
                 const hasFullWidthContent =
                   message.content.type === "toolGroup" ||
-                  message.content.type === "redirectAction";
+                  message.content.type === "redirectAction" ||
+                  message.content.type === "reasoning";
 
                 const nextUserMessageIndex = visibleMessages.findIndex(
                   (nextMessage, nextIndex) =>

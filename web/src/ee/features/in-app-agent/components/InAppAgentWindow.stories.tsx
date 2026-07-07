@@ -409,6 +409,112 @@ const conversations = [
 
 const longUnbrokenWord = `trace-${"0123456789abcdef".repeat(18)}`;
 const longUnbrokenTableValue = `observation-${"abcdefghijklmnopqrstuvwxyz".repeat(10)}`;
+const longReasoningText = [
+  "Reading the current drawer context and selected project state.",
+  "Checking active filters before choosing the smallest safe query.",
+  "Comparing recent traces, observations, and score names for a matching latency signal.",
+  "Waiting for the first tool call result before drafting a final answer.",
+  "Keeping this text intentionally long so the reasoning viewport scrolls internally instead of growing the whole drawer.",
+  "The final streamed line should remain visible inside the reasoning block.",
+].join("\n");
+
+const reasoningWindowMessages: InAppAgentWindowMessage[] = [
+  ...streamingSeedMessages,
+  {
+    id: "user-reasoning-1",
+    role: "user",
+    content: {
+      type: "text",
+      text: "Why did checkout latency spike this morning?",
+    },
+  },
+  {
+    id: "assistant-reasoning-1",
+    role: "assistant",
+    content: {
+      type: "reasoning",
+      text: longReasoningText,
+      isStreaming: true,
+    },
+  },
+  {
+    id: "assistant-tool-reasoning-1",
+    role: "assistant",
+    content: {
+      type: "toolGroup",
+      isLoading: true,
+      tools: [
+        {
+          type: "tool",
+          name: "langfuse_queryMetrics",
+          args: JSON.stringify({
+            view: "observations",
+            metrics: [{ measure: "latency", aggregation: "p95" }],
+          }),
+        },
+      ],
+    },
+  },
+];
+
+const completedReasoningWindowMessages: InAppAgentWindowMessage[] = [
+  ...streamingSeedMessages,
+  {
+    id: "user-reasoning-1",
+    role: "user",
+    content: {
+      type: "text",
+      text: "Why did checkout latency spike this morning?",
+    },
+  },
+  {
+    id: "assistant-reasoning-1",
+    role: "assistant",
+    content: {
+      type: "reasoning",
+      text: longReasoningText,
+      isStreaming: false,
+    },
+  },
+  {
+    id: "assistant-tool-reasoning-1",
+    role: "assistant",
+    content: {
+      type: "toolGroup",
+      tools: [
+        {
+          type: "tool",
+          name: "langfuse_queryMetrics",
+          args: JSON.stringify({
+            view: "observations",
+            metrics: [{ measure: "latency", aggregation: "p95" }],
+          }),
+          result: JSON.stringify({ data: [{ p95_latency: 4.82 }] }),
+        },
+      ],
+    },
+  },
+  {
+    id: "assistant-reasoning-answer-1",
+    role: "assistant",
+    content: {
+      type: "text",
+      text: "Checkout latency is concentrated in retrieval-heavy traces. The next step is to compare reranking latency against the baseline deployment.",
+    },
+  },
+];
+
+async function expectReasoningViewportAtBottom(canvasElement: HTMLElement) {
+  const canvas = within(canvasElement);
+  const viewport = await canvas.findByTestId("in-app-agent-reasoning-content");
+
+  await waitFor(() => {
+    expect(viewport.scrollHeight).toBeGreaterThanOrEqual(viewport.clientHeight);
+    expect(viewport.scrollTop + viewport.clientHeight).toBeGreaterThanOrEqual(
+      viewport.scrollHeight - 1,
+    );
+  });
+}
 
 const meta = preview.meta({
   component: InAppAgentWindow,
@@ -656,6 +762,37 @@ export const Streaming = meta.story({
     messages: streamingSeedMessages,
   },
   render: (args) => <StreamingInAppAgentWindow {...args} />,
+});
+
+export const StreamingReasoning = meta.story({
+  args: {
+    selectedConversationId: "conversation-1",
+    isInputDisabled: true,
+    messages: reasoningWindowMessages,
+  },
+  play: async ({ canvasElement }) => {
+    await expectReasoningViewportAtBottom(canvasElement);
+  },
+});
+
+export const ExpandedStreamingReasoning = meta.story({
+  args: {
+    selectedConversationId: "conversation-1",
+    isExpanded: true,
+    isInputDisabled: true,
+    messages: reasoningWindowMessages,
+  },
+  play: async ({ canvasElement }) => {
+    await expectReasoningViewportAtBottom(canvasElement);
+  },
+});
+
+export const CompletedReasoning = meta.story({
+  args: {
+    selectedConversationId: "conversation-1",
+    isInputDisabled: false,
+    messages: completedReasoningWindowMessages,
+  },
 });
 
 export const LoadingResponse = meta.story({

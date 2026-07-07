@@ -158,24 +158,23 @@ export function getDrawerMessages({
     }
 
     const role = message.role === "user" ? "user" : "assistant";
-    const isLoading = message.role === "reasoning";
 
-    if (isLoading) {
+    if (message.role === "reasoning") {
       flushPendingTools();
 
-      const hasLaterAssistantMessage = parsedMessages.some(
-        (message, messageIndex) =>
-          messageIndex > index && message.role === "assistant",
+      const hasLaterAssistantText = hasLaterAssistantTextMessage(
+        parsedMessages,
+        index,
       );
-
-      if (!isRunning || hasLaterAssistantMessage) {
-        return;
-      }
 
       mappedMessages.push({
         id: message.id,
         role,
-        content: { type: "loading" },
+        content: {
+          type: "reasoning",
+          text: message.content,
+          isStreaming: isRunning && !error && !hasLaterAssistantText,
+        },
       });
       return;
     }
@@ -341,6 +340,7 @@ export function getDrawerMessages({
     latestUserMessageIndex >= 0 &&
     latestAssistantMessage?.content.type !== "text" &&
     latestAssistantMessage?.content.type !== "loading" &&
+    latestAssistantMessage?.content.type !== "reasoning" &&
     latestAssistantMessage?.content.type !== "redirectAction"
   ) {
     if (latestAssistantMessage?.content.type === "toolGroup") {
@@ -372,6 +372,23 @@ export function getDrawerMessages({
   }
 
   return mappedMessages;
+}
+
+function hasLaterAssistantTextMessage(
+  messages: readonly AgUiMessage[],
+  currentIndex: number,
+) {
+  return messages.some((message, messageIndex) => {
+    if (messageIndex <= currentIndex) {
+      return false;
+    }
+
+    return (
+      message.role === "assistant" &&
+      typeof message.content === "string" &&
+      message.content.trim().length > 0
+    );
+  });
 }
 
 function stringifyToolArgs(args: unknown) {
