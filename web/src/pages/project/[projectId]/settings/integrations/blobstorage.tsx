@@ -875,11 +875,19 @@ const BlobStorageIntegrationSettingsForm = ({
                 size, or privacy-sensitive groups (e.g. Metadata) to avoid
                 storing user data.
                 {includesLegacyExport
-                  ? " Traces and scores are always exported in full. Fields that only exist on the enriched observations (e.g. Trace Context) are omitted from the legacy observations export."
+                  ? isLegacyOnlyExport
+                    ? " Traces and scores are always exported in full. Field groups that only exist on the enriched observations (e.g. Trace Context) are not available for this export source."
+                    : " Traces and scores are always exported in full. Fields that only exist on the enriched observations (e.g. Trace Context) are omitted from the legacy observations export."
                   : " Scores are always exported in full."}
               </FormDescription>
               <div className="mt-2 space-y-2">
-                {EXPORT_FIELD_GROUP_OPTIONS.map((option) => {
+                {EXPORT_FIELD_GROUP_OPTIONS.filter(
+                  // Hide no-op groups (no legacy columns) for legacy-only
+                  // exports; a saved selection is kept and applies again if
+                  // the source is migrated to enriched observations.
+                  (option) =>
+                    !isLegacyOnlyExport || option.includedInLegacyExport,
+                ).map((option) => {
                   const isCore = option.value === "core";
                   return (
                     <div key={option.value} className="flex items-start gap-2">
