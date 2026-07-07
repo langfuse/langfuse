@@ -269,11 +269,22 @@ For a sample of successful runs spread across the week — `merge_group` and
 if fewer), download the log of the `run tests` step of the
 `tests-web (…)` matrix jobs and of the `tests-worker (…)` matrix jobs (job
 logs API / `get_job_logs`; the interesting part is the end of the step). Our
-CI reporter (`scripts/vitest/ci-reporter.ts`) prints at the end of every run:
+CI reporter (`scripts/vitest/ci-reporter.ts`) prints up to three blocks at
+the end of every run:
 
-- `Slowest tests (top 10):` — ranked list with durations, and per-test
-  markers `[retries=N]` and `[flaky]` for tests that needed vitest retries.
-- A slowest-files section aggregating per-file durations.
+- `Slowest tests (top 10):` — ranked list with durations; a test that
+  needed vitest retries additionally carries ` [retries=N]` and possibly
+  ` [flaky]` suffixes.
+- `Slowest test files (top 10, summed test durations):` — per-file
+  aggregation.
+- `Retried tests (N):` — the authoritative, complete list of every test
+  that retried in the run (lines look like
+  `1. retries=2 <file> > <name> [flaky]` — note: no brackets around
+  `retries=` here). This block is printed ONLY when at least one test
+  retried, so its absence means zero retries in that run. Use this block,
+  not the slowest-tests markers, as the source of truth for flaky
+  tracking — a flaky test that isn't among the 10 slowest appears only
+  here.
 
 Aggregate across the sampled runs:
 
