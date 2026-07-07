@@ -110,6 +110,7 @@ export default [
     name: "langfuse/web/in-app-agent",
     files: ["src/ee/features/in-app-agent/**/*.{ts,tsx}"],
     rules: {
+      curly: ["error", "all"],
       "@repo/no-switch-statements": "error",
     },
   },
