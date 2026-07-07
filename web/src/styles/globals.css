@@ -15,6 +15,9 @@
 
   --color-primary-accent: hsl(var(--primary-accent));
   --color-hover-primary-accent: hsl(var(--hover-primary-accent));
+  --color-primary-accent-fill: hsl(var(--primary-accent-fill));
+  --color-foreground-tertiary: hsl(var(--foreground-tertiary));
+  --color-surface-code: hsl(var(--surface-code));
   --color-muted-magenta: hsl(var(--muted-magenta));
   --color-muted-blue: hsl(var(--muted-blue));
   --color-muted-green: hsl(var(--muted-green));
@@ -166,6 +169,12 @@
 
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
+    /* Faintest text tier: placeholders, disabled, hints — one step below
+       muted-foreground (langfuse.com/docs has the same 4th step). */
+    --foreground-tertiary: 215 12% 62%;
+    /* Code blocks sit a step BELOW their surrounding surface ("code is a
+       well"), matching the docs site's --surface-code convention. */
+    --surface-code: 0 0% 98%;
 
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
@@ -198,6 +207,9 @@
 
     --primary-accent: 243 75.4% 58.6%;
     --hover-primary-accent: 239 83.5% 66.7%;
+    /* Fill-strength accent for selection controls (checkbox/switch): deep
+       enough to carry a light glyph, unlike the text accent. */
+    --primary-accent-fill: 243 75.4% 58.6%;
 
     --muted-green: 84 81% 44%;
     --muted-magenta: 330 90% 70%;
@@ -274,37 +286,44 @@
     /* Linear-style surface ladder: elevation is carried by lightness steps
        (background < header/sidebar < card < popover) plus hairline borders —
        not shadows. Values from linear.app's [data-theme=dark] tokens. */
-    /* Text follows Linear's ink ramp: emphasized #f7f8f8 (accent-foreground,
-       active nav) > body #d0d6e0 (foreground) > meta #8a8f98 (muted-fg). */
-    --background: 210 11.1% 3.5%;
-    --foreground: 218 20.5% 84.7%;
+    /* Neutral (zero-saturation) surface ladder — lightness steps carry the
+       elevation (Linear's structure, de-tinted per Trang's call after a
+       cool/neutral/warm A-B). Text hierarchy comes from the WIDE GAP between
+       tiers: emphasis 91% > body 88% > meta 54% > faint 40%, with sidebar nav
+       dimmer than content until active. Bright tiers cap near 91% (the docs
+       site caps at 90%) — never near-white. Don't compress the ramp — the
+       gap is the hierarchy. */
+    --background: 0 0% 3.5%;
+    --foreground: 0 0% 88%;
 
-    --muted: 240 5.1% 11.6%;
-    --muted-foreground: 219 6.4% 56.9%;
+    --muted: 0 0% 11.6%;
+    --muted-foreground: 0 0% 54%;
+    --foreground-tertiary: 0 0% 40%;
+    --surface-code: 0 0% 2.3%;
 
-    --popover: 210 3.8% 10.2%;
-    --popover-foreground: 218 20.5% 84.7%;
+    --popover: 0 0% 10.2%;
+    --popover-foreground: 0 0% 88%;
 
-    --card: 210 4.8% 8.2%;
-    --card-foreground: 218 20.5% 84.7%;
+    --card: 0 0% 8.2%;
+    --card-foreground: 0 0% 88%;
 
-    --header: 210 6.3% 6.3%;
+    --header: 0 0% 6.3%;
     --header-foreground: var(--foreground);
 
-    --border: 223 9.1% 15.1%;
-    --input: 240 5.5% 21.6%;
+    --border: 0 0% 12.9%;
+    --input: 0 0% 18%;
 
-    --primary: 240 2% 90%;
-    --primary-foreground: 210 11.1% 3.5%;
+    --primary: 0 0% 90%;
+    --primary-foreground: 0 0% 3.5%;
 
-    --secondary: 240 5.1% 11.6%;
-    --secondary-foreground: 218 20.5% 84.7%;
+    --secondary: 0 0% 11.6%;
+    --secondary-foreground: 0 0% 88%;
 
-    --tertiary: 240 4.8% 16.5%;
-    --tertiary-foreground: 218 20.5% 84.7%;
+    --tertiary: 0 0% 16.5%;
+    --tertiary-foreground: 0 0% 88%;
 
-    --accent: 240 4.1% 14.3%;
-    --accent-foreground: 180 6.7% 97.1%;
+    --accent: 0 0% 14.3%;
+    --accent-foreground: 0 0% 91%;
 
     --destructive: 0 78.7% 63.1%;
     --destructive-foreground: 0 0% 100%;
@@ -313,11 +332,12 @@
 
     --primary-accent: 246 55% 70%;
     --hover-primary-accent: 246 70% 78%;
+    --primary-accent-fill: 246 30% 52%;
 
     --muted-blue: 215 95% 73.1%;
     --muted-green: 142 76.7% 73.1%;
     --muted-magenta: 330 76.7% 73.1%;
-    --muted-gray: 223 9.1% 15.1%;
+    --muted-gray: 0 0% 12.9%;
 
     /* Status pairs on Linear's hues: light-* are dark tinted backgrounds,
        dark-* the readable text/icon color on them. */
@@ -350,13 +370,13 @@
 
     --radius: 0.5rem;
 
-    --sidebar-background: 210 6.3% 6.3%;
-    --sidebar-foreground: 218 20.5% 84.7%;
-    --sidebar-primary: 240 2% 90%;
-    --sidebar-primary-foreground: 210 11.1% 3.5%;
-    --sidebar-accent: 240 5.1% 11.6%;
-    --sidebar-accent-foreground: 180 6.7% 97.1%;
-    --sidebar-border: 223 9.1% 15.1%;
+    --sidebar-background: 0 0% 6.3%;
+    --sidebar-foreground: 0 0% 60%;
+    --sidebar-primary: 0 0% 90%;
+    --sidebar-primary-foreground: 0 0% 3.5%;
+    --sidebar-accent: 0 0% 11.6%;
+    --sidebar-accent-foreground: 0 0% 91%;
+    --sidebar-border: 0 0% 12.9%;
     --sidebar-ring: 246 55% 70%;
 
     --find-match-background: 60 100% 20%;
