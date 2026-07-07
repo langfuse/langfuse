@@ -43,14 +43,10 @@ import {
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
 } from "@/src/ee/features/in-app-agent/server/persistence";
+import { createInAppAgentSandbox } from "@/src/ee/features/in-app-agent/server/sandbox";
 import {
-  createDockerSandboxProvider,
-  createInAppAgentSandbox,
-  createLambdaMicrovmSandboxProvider,
-} from "@/src/ee/features/in-app-agent/server/sandbox";
-import {
+  createInAppAgentSandboxProvider,
   getDefaultInAppAgentSandboxProviderType,
-  getInAppAgentSandboxSnapshotStore,
 } from "@/src/ee/features/in-app-agent/server/sandbox/config";
 import { getLangfuseClient } from "@/src/features/natural-language-filters/server/utils";
 import { getAuthOptions } from "@/src/server/auth";
@@ -85,14 +81,6 @@ import {
 const IN_APP_AGENT_API_KEY_NOTE = "In-app agent MCP session";
 const MAX_IN_APP_AGENT_INPUT_BYTES = 1024 * 1024;
 const IN_APP_AGENT_SANDBOX_TTL_MS = 15 * 60 * 1000;
-const LOCAL_SANDBOX_IMAGE = "langfuse-in-app-agent-sandbox:latest";
-
-let sharedDockerSandboxProvider:
-  | ReturnType<typeof createDockerSandboxProvider>
-  | undefined;
-let sharedLambdaSandboxProvider:
-  | ReturnType<typeof createLambdaMicrovmSandboxProvider>
-  | undefined;
 
 export default async function handler(request: Request) {
   try {
@@ -283,7 +271,7 @@ export default async function handler(request: Request) {
       ? sanitizedInput.forwardedProps.command.resume.approvalRequest
       : undefined;
     const sandboxProviderType = getDefaultInAppAgentSandboxProviderType();
-    const sandboxProvider = getInAppAgentSandboxProvider();
+    const sandboxProvider = getInAppAgentSandboxProvider(sandboxProviderType);
     const sandboxState = sandboxProvider
       ? await createInAppAgentSandbox({
           conversationId: conversation.id,
@@ -489,8 +477,10 @@ export default async function handler(request: Request) {
                     }),
                   ),
               sandbox: sandboxState?.sandbox,
-              onSandboxTurnEnded: sandboxState?.onTurnEnded,
-              onFinish: cleanupMcpApiKey,
+              onFinish: async () => {
+                await cleanupMcpApiKey();
+                await sandboxState?.onTurnEnded();
+              },
               awsBedrock: {
                 region: env.LANGFUSE_AWS_BEDROCK_REGION,
                 modelId: bedrockModelId,
@@ -597,12 +587,12 @@ export default async function handler(request: Request) {
   }
 }
 
-function getInAppAgentSandboxProvider() {
+function getInAppAgentSandboxProvider(
+  providerType: ReturnType<typeof getDefaultInAppAgentSandboxProviderType>,
+) {
   if (env.NODE_ENV === "test") {
     return undefined;
   }
-
-  const providerType = getDefaultInAppAgentSandboxProviderType();
 
   if (providerType === "dangerous-docker") {
     logger.warn(
@@ -611,33 +601,9 @@ function getInAppAgentSandboxProvider() {
     logger.warn(
       "The dangerous-docker sandbox provider executes commands in a local Docker container and should not be enabled in production.",
     );
-    sharedDockerSandboxProvider ??= createDockerSandboxProvider({
-      image: LOCAL_SANDBOX_IMAGE,
-      snapshotStore: getInAppAgentSandboxSnapshotStore(providerType),
-    });
-    return sharedDockerSandboxProvider;
   }
 
-  if (providerType === "lambda-microvm") {
-    if (
-      !env.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER
-    ) {
-      throw new Error(
-        "LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER is required for lambda-microvm sandboxes.",
-      );
-    }
-
-    sharedLambdaSandboxProvider ??= createLambdaMicrovmSandboxProvider({
-      endpoint: env.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_ENDPOINT,
-      imageIdentifier:
-        env.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER,
-      executionRoleArn:
-        env.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN,
-    });
-    return sharedLambdaSandboxProvider;
-  }
-
-  assertUnreachable(providerType);
+  return createInAppAgentSandboxProvider(providerType);
 }
 
 type SessionUser = NonNullable<Session["user"]>;

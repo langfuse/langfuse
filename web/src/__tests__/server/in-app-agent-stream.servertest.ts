@@ -750,7 +750,7 @@ describe("createAgUiStream", () => {
         },
         langfuseClient,
         sandbox: sandboxState.sandbox,
-        onSandboxTurnEnded: sandboxState.onTurnEnded,
+        onFinish: sandboxState.onTurnEnded,
         useLocalPrompt: false,
         langfuseTracing: {
           environment: "langfuse-in-app-agent",

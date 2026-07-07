@@ -1,63 +1,14 @@
-type SandboxConversationRecord = {
-  id: string;
-  projectId: string;
-  providerSessionId: string | null;
-  sandboxSnapshotKey: string | null;
-  sandboxExpiresAt?: Date | null;
-  sandboxProvider: string | null;
-};
+import type { PrismaClient } from "../db";
 
 type SandboxConversationPrisma = {
-  inAppAgentConversation: {
-    findUnique: (params: {
-      where: {
-        id_projectId: {
-          id: string;
-          projectId: string;
-        };
-      };
-      select: {
-        id: true;
-        projectId: true;
-        providerSessionId: true;
-        sandboxSnapshotKey: true;
-        sandboxExpiresAt: true;
-        sandboxProvider: true;
-      };
-    }) => Promise<SandboxConversationRecord | null>;
-    findMany: (params: {
-      where: ReturnType<typeof getSandboxCleanupWhere>;
-      select: {
-        id: true;
-        projectId: true;
-        providerSessionId: true;
-        sandboxSnapshotKey: true;
-        sandboxProvider: true;
-      };
-    }) => Promise<Array<Omit<SandboxConversationRecord, "sandboxExpiresAt">>>;
-    update: (params: {
-      where: {
-        id_projectId: {
-          id: string;
-          projectId: string;
-        };
-      };
-      data: typeof clearedSandboxState;
-    }) => Promise<unknown>;
-    updateMany: (params: {
-      where: {
-        projectId: string;
-        id: { in: string[] };
-      };
-      data: typeof clearedSandboxState;
-    }) => Promise<unknown>;
-  };
+  inAppAgentConversation: Pick<
+    PrismaClient["inAppAgentConversation"],
+    "findUnique" | "findMany" | "update" | "updateMany"
+  >;
 };
 
-type InAppAgentSandboxProviderType = "dangerous-docker" | "lambda-microvm";
-
 type DeleteSandboxSnapshot = (params: {
-  providerType: InAppAgentSandboxProviderType;
+  sandboxProvider: string | null;
   snapshotKey: string;
   sessionId?: string | null;
 }) => Promise<void>;
@@ -142,9 +93,7 @@ export async function clearInAppAgentConversationSandbox(params: {
     conversation.sandboxProvider
   ) {
     await params.deleteSnapshot({
-      providerType: toInAppAgentSandboxProviderType(
-        conversation.sandboxProvider,
-      ),
+      sandboxProvider: conversation.sandboxProvider,
       sessionId: conversation.providerSessionId,
       snapshotKey:
         conversation.sandboxSnapshotKey ??
@@ -196,9 +145,7 @@ export async function clearExpiredInAppAgentProjectSandboxes(params: {
   await Promise.all(
     conversations.map((conversation) =>
       params.deleteSnapshot({
-        providerType: toInAppAgentSandboxProviderType(
-          conversation.sandboxProvider,
-        ),
+        sandboxProvider: conversation.sandboxProvider,
         sessionId: conversation.providerSessionId,
         snapshotKey:
           conversation.sandboxSnapshotKey ??
@@ -219,17 +166,4 @@ export async function clearExpiredInAppAgentProjectSandboxes(params: {
   });
 
   return conversations.length;
-}
-
-function toInAppAgentSandboxProviderType(
-  providerType: string | null | undefined,
-): InAppAgentSandboxProviderType {
-  if (
-    providerType === "dangerous-docker" ||
-    providerType === "lambda-microvm"
-  ) {
-    return providerType;
-  }
-
-  throw new Error("Missing in-app agent sandbox provider type");
 }

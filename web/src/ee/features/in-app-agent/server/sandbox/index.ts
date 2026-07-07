@@ -9,6 +9,7 @@ export {
 export type { SandboxFile } from "@repo/in-app-agent-sandbox-server";
 export type {
   InAppAgentSandbox,
+  InAppAgentSandboxProviderType,
   SandboxProvider,
   SandboxSession,
 } from "./types";

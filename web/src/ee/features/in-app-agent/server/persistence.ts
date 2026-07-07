@@ -300,6 +300,10 @@ export async function getConversationEvents(params: {
   }));
 }
 
+/**
+ * Returns `tool_calls` file payloads reconstructed from prior non-sandbox tool
+ * calls so each sandbox session can mount the same context.
+ */
 export function getSandboxToolCallFiles(
   events: readonly PersistedConversationEvent[],
 ) {

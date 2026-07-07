@@ -1,5 +1,9 @@
 import type { SandboxFile } from "@repo/in-app-agent-sandbox-server";
 
+export type InAppAgentSandboxProviderType =
+  | "dangerous-docker"
+  | "lambda-microvm";
+
 /**
  * Session-bound sandbox execution handle returned by a provider.
  * Implementations close over the backing runtime session so callers only pass

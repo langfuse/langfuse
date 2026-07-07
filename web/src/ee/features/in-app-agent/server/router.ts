@@ -21,6 +21,7 @@ import {
   getInAppAgentInstrumentationTraceId,
 } from "@/src/ee/features/in-app-agent/constants";
 import { InAppAgentMessageFeedbackValueSchema } from "@/src/ee/features/in-app-agent/schema";
+import type { InAppAgentSandboxProviderType } from "@/src/ee/features/in-app-agent/server/sandbox";
 import { deleteInAppAgentSandboxSnapshot } from "@/src/ee/features/in-app-agent/server/sandbox";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
@@ -36,6 +37,19 @@ import {
 } from "@/src/ee/features/in-app-agent/server/persistence";
 
 const CONVERSATION_LIST_LIMIT = 50;
+
+function toInAppAgentSandboxProviderType(
+  providerType: string | null,
+): InAppAgentSandboxProviderType {
+  if (
+    providerType === "dangerous-docker" ||
+    providerType === "lambda-microvm"
+  ) {
+    return providerType;
+  }
+
+  throw new Error("Missing in-app agent sandbox provider type");
+}
 
 const ConversationListCursorSchema = z.object({
   updatedAt: z.date(),
@@ -154,7 +168,12 @@ export const inAppAgentRouter = createTRPCRouter({
         prisma: ctx.prisma,
         projectId: input.projectId,
         conversationId: input.conversationId,
-        deleteSnapshot: deleteInAppAgentSandboxSnapshot,
+        deleteSnapshot: async ({ sandboxProvider, sessionId, snapshotKey }) =>
+          deleteInAppAgentSandboxSnapshot({
+            providerType: toInAppAgentSandboxProviderType(sandboxProvider),
+            sessionId,
+            snapshotKey,
+          }),
       });
 
       await ctx.prisma.inAppAgentConversation.update({

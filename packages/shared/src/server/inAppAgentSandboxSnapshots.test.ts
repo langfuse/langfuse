@@ -38,7 +38,7 @@ describe("inAppAgentSandboxSnapshots", () => {
     });
 
     expect(deleteSnapshot).toHaveBeenCalledWith({
-      providerType: "dangerous-docker",
+      sandboxProvider: "dangerous-docker",
       sessionId: "session-1",
       snapshotKey: "snapshot-1",
     });
@@ -90,7 +90,7 @@ describe("inAppAgentSandboxSnapshots", () => {
       }),
     );
     expect(deleteSnapshot).toHaveBeenCalledWith({
-      providerType: "lambda-microvm",
+      sandboxProvider: "lambda-microvm",
       sessionId: "session-1",
       snapshotKey: "snapshot-1",
     });

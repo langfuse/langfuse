@@ -4,14 +4,10 @@ import {
 } from "./snapshots";
 import { createDockerSandboxProvider } from "./providers/docker";
 import { createLambdaMicrovmSandboxProvider } from "./providers/lambdaMicrovm";
+import type { InAppAgentSandboxProviderType } from "./types";
 import { env } from "@/src/env.mjs";
+import { IN_APP_AGENT_LOCAL_SANDBOX_IMAGE } from "@/src/ee/features/in-app-agent/constants";
 import { assertUnreachable } from "@/src/utils/types";
-
-const LOCAL_SANDBOX_IMAGE = "langfuse-in-app-agent-sandbox:latest";
-
-export type InAppAgentSandboxProviderType =
-  | "dangerous-docker"
-  | "lambda-microvm";
 
 export function getDefaultInAppAgentSandboxProviderType(): InAppAgentSandboxProviderType {
   return (
@@ -21,36 +17,37 @@ export function getDefaultInAppAgentSandboxProviderType(): InAppAgentSandboxProv
 }
 
 export function getInAppAgentSandboxSnapshotStore(
-  providerType?: InAppAgentSandboxProviderType | null,
+  providerType: InAppAgentSandboxProviderType,
 ) {
-  if (
-    (providerType ?? getDefaultInAppAgentSandboxProviderType()) ===
-    "dangerous-docker"
-  ) {
+  if (providerType === "dangerous-docker") {
     return createLocalSandboxSnapshotStore({
       baseDir: env.LANGFUSE_IN_APP_AGENT_SANDBOX_LOCAL_SNAPSHOT_DIR,
     });
   }
 
-  if (!env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_BUCKET) {
-    return {
-      deleteSnapshot: async () => undefined,
-      getSnapshot: async () => null,
-      putSnapshot: async () => undefined,
-    };
+  if (providerType === "lambda-microvm") {
+    if (!env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_BUCKET) {
+      return {
+        deleteSnapshot: async () => undefined,
+        getSnapshot: async () => null,
+        putSnapshot: async () => undefined,
+      };
+    }
+
+    return createS3SandboxSnapshotStore({
+      accessKeyId: env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_ACCESS_KEY_ID,
+      bucket: env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_BUCKET,
+      endpoint: env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_ENDPOINT,
+      forcePathStyle:
+        env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_FORCE_PATH_STYLE === "true",
+      prefix: env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_PREFIX,
+      region: env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_REGION,
+      secretAccessKey:
+        env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_SECRET_ACCESS_KEY,
+    });
   }
 
-  return createS3SandboxSnapshotStore({
-    accessKeyId: env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_ACCESS_KEY_ID,
-    bucket: env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_BUCKET,
-    endpoint: env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_ENDPOINT,
-    forcePathStyle:
-      env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_FORCE_PATH_STYLE === "true",
-    prefix: env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_PREFIX,
-    region: env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_REGION,
-    secretAccessKey:
-      env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_SECRET_ACCESS_KEY,
-  });
+  assertUnreachable(providerType);
 }
 
 export async function deleteInAppAgentSandboxSnapshot(params: {
@@ -58,7 +55,7 @@ export async function deleteInAppAgentSandboxSnapshot(params: {
   snapshotKey: string;
   sessionId?: string | null;
 }) {
-  const provider = getInAppAgentSandboxProvider(params.providerType);
+  const provider = createInAppAgentSandboxProvider(params.providerType);
 
   if (params.sessionId && provider?.terminateSession) {
     await provider.terminateSession({ sessionId: params.sessionId });
@@ -68,12 +65,12 @@ export async function deleteInAppAgentSandboxSnapshot(params: {
   await store.deleteSnapshot(params.snapshotKey);
 }
 
-function getInAppAgentSandboxProvider(
+export function createInAppAgentSandboxProvider(
   providerType: InAppAgentSandboxProviderType,
 ) {
   if (providerType === "dangerous-docker") {
     return createDockerSandboxProvider({
-      image: LOCAL_SANDBOX_IMAGE,
+      image: IN_APP_AGENT_LOCAL_SANDBOX_IMAGE,
       snapshotStore: getInAppAgentSandboxSnapshotStore(providerType),
     });
   }

@@ -1,8 +1,11 @@
 import type { SandboxFile } from "@repo/in-app-agent-sandbox-server";
 import { getInAppAgentSandboxSnapshotKey } from "@langfuse/shared/src/server";
 
-import type { InAppAgentSandboxProviderType } from "./config";
-import type { InAppAgentSandbox, SandboxProvider } from "./types";
+import type {
+  InAppAgentSandbox,
+  InAppAgentSandboxProviderType,
+  SandboxProvider,
+} from "./types";
 
 export async function createInAppAgentSandbox(params: {
   conversationId: string;
@@ -53,7 +56,7 @@ export async function createInAppAgentSandbox(params: {
     persistedSnapshotKey = snapshotKey;
   };
 
-  const ensureSession = async () => {
+  const maybeSuspendExpiredSession = async () => {
     if (
       sessionId !== null &&
       params.provider.suspendSession &&
@@ -70,6 +73,10 @@ export async function createInAppAgentSandbox(params: {
       sessionIsKnownActive = false;
       await persistState();
     }
+  };
+
+  const ensureSession = async () => {
+    await maybeSuspendExpiredSession();
 
     const session = await params.provider.ensureSession({
       conversationId: params.conversationId,
@@ -97,26 +104,28 @@ export async function createInAppAgentSandbox(params: {
     return session.sandbox;
   };
 
+  const createExecutionSandbox = (): InAppAgentSandbox => ({
+    read: async ({ path }) => (await ensureSession()).read({ path }),
+    write: async ({ path, content }) =>
+      (await ensureSession()).write({
+        path,
+        content,
+      }),
+    edit: async ({ path, oldText, newText }) =>
+      (await ensureSession()).edit({
+        path,
+        oldText,
+        newText,
+      }),
+    bash: async ({ command, timeoutMs }) =>
+      (await ensureSession()).bash({
+        command,
+        timeoutMs,
+      }),
+  });
+
   return {
-    sandbox: {
-      read: async ({ path }) => (await ensureSession()).read({ path }),
-      write: async ({ path, content }) =>
-        (await ensureSession()).write({
-          path,
-          content,
-        }),
-      edit: async ({ path, oldText, newText }) =>
-        (await ensureSession()).edit({
-          path,
-          oldText,
-          newText,
-        }),
-      bash: async ({ command, timeoutMs }) =>
-        (await ensureSession()).bash({
-          command,
-          timeoutMs,
-        }),
-    },
+    sandbox: createExecutionSandbox(),
     onTurnEnded: async () => {
       if (!sessionId) {
         return;

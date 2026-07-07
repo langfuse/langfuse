@@ -71,14 +71,14 @@ flowchart TB
 5. `server/handler.ts` creates a temporary in-app-agent MCP API key and passes the signed-in user's project role/admin state plus optional sandbox access into the agent runtime.
 6. `server/agent.ts` filters Langfuse MCP tools through RBAC, exposes sandbox tools (`read`, `write`, `edit`, `bash`) when available, and for approved Langfuse MCP resumes adds a tool-scoped override payload.
 7. `server/agent.ts` connects Mastra to Langfuse MCP with the temporary API key and sends the override in `x-langfuse-in-app-agent-tool-override` when a single approved mutating MCP tool may run.
-8. `server/agent.ts` streams normalized AG-UI events, calls telemetry hooks, and asks the sandbox to persist/suspend at turn end.
+8. `server/agent.ts` streams normalized AG-UI events, calls telemetry hooks, and lets the request `onFinish` cleanup persist/suspend the sandbox at turn end.
 9. `server/instrumentation.ts` records prompt metadata, stream events, completion, aborts, and errors.
 10. `server/persistence.ts` stores compacted events and reconstructs replay messages.
 11. `InAppAiAgentProvider.tsx` renders live AG-UI state and hydrates selected conversations through `server/router.ts`.
 
 ## Sandbox Runtime
 
-`server/sandbox/service.ts` gives the agent a conversation-scoped sandbox interface with `read`, `write`, `edit`, `bash`, and `onTurnEnded`. It reuses an existing provider session when the stored provider/session/TTL still match, otherwise it boots a fresh session and persists the new state on the conversation.
+`server/sandbox/service.ts` gives the agent a conversation-scoped sandbox interface with `read`, `write`, and `edit` plus a separate turn-end callback. It reuses an existing provider session when the stored provider/session/TTL still match, otherwise it boots a fresh session and persists the new state on the conversation.
 
 Both sandbox providers target the same runtime contract from `packages/in-app-agent-sandbox-server`.
 
@@ -104,6 +104,8 @@ Runtime HTTP surface:
 Sandbox state is stored on the conversation row as `providerSessionId`, `sandboxProvider`, `sandboxSnapshotKey`, and `sandboxExpiresAt`.
 
 `server/router.ts` clears sandbox state before soft-deleting a conversation. Shared cleanup helpers in `packages/shared/src/server/inAppAgentSandboxSnapshots.ts` also support project-wide expired sandbox cleanup and default snapshot key generation at `in-app-agent-sandboxes/<projectId>/<conversationId>.snapshot`.
+
+`dangerous-docker` is development-only. Worker data-retention cleanup only tears down `lambda-microvm` sandboxes; local Docker sandbox cleanup stays in the web process where that provider is used.
 
 ## MCP Tool Authorization
 

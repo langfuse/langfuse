@@ -1,39 +1,16 @@
-import { rm } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
-
 import {
   LambdaMicrovmsClient,
   SuspendMicrovmCommand,
 } from "@aws-sdk/client-lambda-microvms";
 import { DeleteObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import Docker from "dockerode";
-
 import { env } from "../../env";
 
-type InAppAgentSandboxProviderType = "dangerous-docker" | "lambda-microvm";
-
 export async function deleteInAppAgentSandboxSnapshot(params: {
-  providerType: InAppAgentSandboxProviderType;
+  sandboxProvider: string | null;
   snapshotKey: string;
   sessionId?: string | null;
 }) {
-  const providerType = params.providerType;
-
-  if (providerType === "dangerous-docker") {
-    if (params.sessionId) {
-      await new Docker()
-        .getContainer(params.sessionId)
-        .remove({ force: true, v: true })
-        .catch(() => undefined);
-    }
-
-    const baseDir =
-      env.LANGFUSE_IN_APP_AGENT_SANDBOX_LOCAL_SNAPSHOT_DIR ??
-      path.join(os.tmpdir(), "langfuse-sandboxes");
-    await rm(path.join(baseDir, params.snapshotKey), { force: true }).catch(
-      () => undefined,
-    );
+  if (params.sandboxProvider !== "lambda-microvm") {
     return;
   }
 
