@@ -271,35 +271,38 @@
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 83%;
+    /* Linear-style surface ladder: elevation is carried by lightness steps
+       (background < header/sidebar < card < popover) plus hairline borders —
+       not shadows. Values from linear.app's [data-theme=dark] tokens. */
+    --background: 210 11.1% 3.5%;
+    --foreground: 180 6.7% 97.1%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 240 5.1% 11.6%;
+    --muted-foreground: 219 6.4% 56.9%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 88%;
+    --popover: 210 3.8% 10.2%;
+    --popover-foreground: 180 6.7% 97.1%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 88%;
+    --card: 210 4.8% 8.2%;
+    --card-foreground: 180 6.7% 97.1%;
 
-    --header: 217.2 32.6% 15%;
+    --header: 210 6.3% 6.3%;
     --header-foreground: var(--foreground);
 
-    --border: 217.2 32.6% 27.5%;
-    --input: 217.2 32.6% 27.5%;
+    --border: 223 9.1% 15.1%;
+    --input: 240 5.5% 21.6%;
 
-    --primary: 210 40% 83%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 240 2% 90%;
+    --primary-foreground: 210 11.1% 3.5%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 88%;
+    --secondary: 240 5.1% 11.6%;
+    --secondary-foreground: 180 6.7% 97.1%;
 
-    --tertiary: 217.2 32.6% 30%;
-    --tertiary-foreground: 210 40% 88%;
+    --tertiary: 240 4.8% 16.5%;
+    --tertiary-foreground: 180 6.7% 97.1%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 20% 98%;
+    --accent: 240 4.1% 14.3%;
+    --accent-foreground: 180 6.7% 97.1%;
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 85.7% 97.3%;
@@ -311,7 +314,7 @@
     --muted-blue: 215 95% 73.1%;
     --muted-green: 142 76.7% 73.1%;
     --muted-magenta: 330 76.7% 73.1%;
-    --muted-gray: 210 50% 25%;
+    --muted-gray: 223 9.1% 15.1%;
 
     --light-red: 0 62.8% 30.6%;
     --dark-red: 0 90.6% 70.8%;
@@ -340,13 +343,13 @@
 
     --radius: 0.5rem;
 
-    --sidebar-background: 222.2 84% 4.9%;
-    --sidebar-foreground: 210 40% 83%;
-    --sidebar-primary: 210 40% 81%;
-    --sidebar-primary-foreground: 222.2 47.4% 10.2%;
-    --sidebar-accent: 217.2 32.6% 16.5%;
-    --sidebar-accent-foreground: 210 40% 86%;
-    --sidebar-border: 217.2 32.6% 26.5%;
+    --sidebar-background: 210 6.3% 6.3%;
+    --sidebar-foreground: 218 20.5% 84.7%;
+    --sidebar-primary: 240 2% 90%;
+    --sidebar-primary-foreground: 210 11.1% 3.5%;
+    --sidebar-accent: 240 5.1% 11.6%;
+    --sidebar-accent-foreground: 180 6.7% 97.1%;
+    --sidebar-border: 223 9.1% 15.1%;
     --sidebar-ring: 224.3 76.3% 46%;
 
     --find-match-background: 60 100% 20%;
