@@ -222,7 +222,7 @@ export function CorrectedOutputField({
                       variant="ghost"
                       onClick={() => setIsDiffDialogOpen(true)}
                       className="hover:bg-border"
-                      title={"View diff between original and corrected output"}
+                      title="View diff between original and corrected output"
                     >
                       <FileDiff className="h-3 w-3" />
                     </Button>

@@ -34,7 +34,6 @@ import {
   DATASET_TABS,
 } from "@/src/features/navigation/utils/dataset-tabs";
 import { TemplateSelector } from "@/src/features/evals/components/template-selector";
-import { TableTimeRangeHeaderPicker } from "@/src/components/table/table-time-range-header-picker";
 import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
@@ -160,9 +159,6 @@ export default function Dataset() {
           title: dataset.data?.name ?? "",
           itemType: "DATASET",
           breadcrumb,
-          actionButtonsLeft: (
-            <TableTimeRangeHeaderPicker projectId={projectId} />
-          ),
           tabsProps: {
             tabs: getDatasetTabs(projectId, datasetId),
             activeTab: DATASET_TABS.EXPERIMENTS,
@@ -226,7 +222,7 @@ export default function Dataset() {
             },
           ]}
           sessionFilterContextId={`dataset-${datasetId}`}
-          hideTimeRangePicker
+          showControlsInPageHeader
         />
       </Page>
     );
