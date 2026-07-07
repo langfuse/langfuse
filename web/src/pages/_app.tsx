@@ -148,6 +148,10 @@ const MyApp: AppType<{ session: Session | null }> = ({
                     attribute="class"
                     enableSystem
                     disableTransitionOnChange
+                    // "dark-legacy" is a TEMPORARY test theme (pre-Linear
+                    // dark) — remove with its ThemeToggle option and the
+                    // .dark-legacy block in globals.css before merge.
+                    themes={["light", "dark", "dark-legacy", "system"]}
                   >
                     <ScoreCacheProvider>
                       <CorrectionCacheProvider>
