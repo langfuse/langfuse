@@ -63,6 +63,7 @@ import {
   getExportSourceFormValue,
   getExportSourceOptions,
   isExportSourceSelectable,
+  shouldHideExportSourceSelector,
 } from "@/src/features/blobstorage-integration/exportSource";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
@@ -387,7 +388,10 @@ const BlobStorageIntegrationSettingsForm = ({
     state?.exportSource,
     availability,
   );
-  // Visible but locked when there is only one selectable option.
+  // No decision to make → no selector. Only the degenerate single-option
+  // state (stale persisted source) stays visible, locked, so the
+  // unavailable-source alert below has something to refer to.
+  const hideExportSource = shouldHideExportSourceSelector(exportSourceOptions);
   const exportSourceLocked = exportSourceOptions.length === 1;
   const exportSourceUnavailable =
     watchedExportSource != null &&
@@ -778,75 +782,77 @@ const BlobStorageIntegrationSettingsForm = ({
           )}
         />
 
-        <FormField
-          control={blobStorageForm.control}
-          name="exportSource"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel className="flex items-center gap-1.5 pt-2">
-                Export Source
-                <Tooltip>
-                  <TooltipTrigger>
-                    <Info className="text-muted-foreground h-3.5 w-3.5" />
-                  </TooltipTrigger>
-                  <TooltipContent
-                    side="bottom"
-                    className="max-w-[350px] space-y-2 p-3"
-                  >
-                    {exportSourceOptions.map((option) => (
-                      <div key={option.value} className="space-y-0.5">
-                        <div className="font-medium">{option.label}</div>
-                        <div className="text-muted-foreground text-xs">
-                          {option.description}
-                        </div>
-                      </div>
-                    ))}
-                    <div className="border-t pt-2">
-                      <a
-                        href="https://langfuse.com/docs/integrations/export-sources"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
-                      >
-                        For further information see
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              </FormLabel>
-              <Select
-                onValueChange={field.onChange}
-                value={field.value}
-                disabled={exportSourceLocked}
-              >
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select data to export" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {exportSourceOptions.map((option) => (
-                    <SelectItem
-                      key={option.value}
-                      value={option.value}
-                      disabled={option.unavailable}
+        {!hideExportSource && (
+          <FormField
+            control={blobStorageForm.control}
+            name="exportSource"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="flex items-center gap-1.5 pt-2">
+                  Export Source
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <Info className="text-muted-foreground h-3.5 w-3.5" />
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="bottom"
+                      className="max-w-[350px] space-y-2 p-3"
                     >
-                      {option.unavailable
-                        ? `${option.label} (not available on this deployment)`
-                        : option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormDescription>
-                Choose which data sources to export to blob storage. Scores are
-                always included.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+                      {exportSourceOptions.map((option) => (
+                        <div key={option.value} className="space-y-0.5">
+                          <div className="font-medium">{option.label}</div>
+                          <div className="text-muted-foreground text-xs">
+                            {option.description}
+                          </div>
+                        </div>
+                      ))}
+                      <div className="border-t pt-2">
+                        <a
+                          href="https://langfuse.com/docs/integrations/export-sources"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
+                        >
+                          For further information see
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </FormLabel>
+                <Select
+                  onValueChange={field.onChange}
+                  value={field.value}
+                  disabled={exportSourceLocked}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select data to export" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {exportSourceOptions.map((option) => (
+                      <SelectItem
+                        key={option.value}
+                        value={option.value}
+                        disabled={option.unavailable}
+                      >
+                        {option.unavailable
+                          ? `${option.label} (not available on this deployment)`
+                          : option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormDescription>
+                  Choose which data sources to export to blob storage. Scores
+                  are always included.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         {exportSourceUnavailable && (
           <Alert variant="destructive">
