@@ -304,8 +304,8 @@
     --accent: 240 4.1% 14.3%;
     --accent-foreground: 180 6.7% 97.1%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 85.7% 97.3%;
+    --destructive: 0 78.7% 63.1%;
+    --destructive-foreground: 0 0% 100%;
 
     --ring: 217.2 32.6% 17.5%;
 
@@ -316,23 +316,27 @@
     --muted-magenta: 330 76.7% 73.1%;
     --muted-gray: 223 9.1% 15.1%;
 
-    --light-red: 0 62.8% 30.6%;
-    --dark-red: 0 90.6% 70.8%;
+    /* Status pairs on Linear's hues: light-* are dark tinted backgrounds,
+       dark-* the readable text/icon color on them. */
+    --light-red: 0 35% 14%;
+    --dark-red: 0 78.7% 63.1%;
 
-    --light-yellow: 32 81% 28.8%;
-    --dark-yellow: 53 98.3% 76.9%;
+    --light-yellow: 48 45% 13%;
+    --dark-yellow: 48 100% 47.1%;
 
-    --light-green: 144 61.2% 20.2%;
-    --dark-green: 142 76.7% 73.1%;
+    --light-green: 134 35% 13%;
+    --dark-green: 134 62% 40.2%;
 
-    --light-blue: 224 64.3% 32.9%;
-    --dark-blue: 212 96.4% 78.4%;
+    --light-blue: 209 45% 15%;
+    --dark-blue: 209 96.7% 64.7%;
 
-    --accent-light-green: 192 21% 9%;
-    --accent-dark-green: 124 21.8% 30.6%;
+    /* accent-light-green doubles as a full-height output/diff surface
+       (PrettyJsonView), so it stays a whisper above --card, not chip-strength. */
+    --accent-light-green: 134 15% 9%;
+    --accent-dark-green: 134 50% 55%;
 
-    --accent-light-blue: 263 60% 50.4%;
-    --accent-dark-blue: 224 50% 90%;
+    --accent-light-blue: 240 32.4% 13.9%;
+    --accent-dark-blue: 234 100% 75.5%;
 
     /* Search-bar query syntax highlighting (dark). Brighter than light so the
        key/value read against the dark surface. See :root for the contract. */
