@@ -133,6 +133,23 @@ const OBSERVATIONS_EVENTS_SYSTEM_TABLE_VIEW_PRESETS: SystemTableViewPreset[] = [
       },
     ],
   }),
+  buildSystemPreset({
+    id: `${SYSTEM_TABLE_VIEW_PRESET_ID_PREFIX}missed_tool_calls`,
+    name: "Missed tool calls",
+    description: "LLM calls that had tools available but didn't call any",
+    tableName: TableViewPresetTableName.ObservationsEvents,
+    category: SystemTableViewPresetCategory.Errors,
+    filters: [
+      {
+        column: "type",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["GENERATION"],
+      },
+      { column: "toolDefinitions", type: "number", operator: ">", value: 0 },
+      { column: "toolCalls", type: "number", operator: "=", value: 0 },
+    ],
+  }),
 
   // --- Cost regression ------------------------------------------------------
   buildSystemPreset({

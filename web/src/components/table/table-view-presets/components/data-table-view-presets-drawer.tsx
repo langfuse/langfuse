@@ -158,9 +158,6 @@ interface TableViewPresetsDrawerProps {
   systemFilterPresets?: SystemFilterPreset[];
   /** Optional DOM id on the trigger button so other UI can open the drawer. */
   triggerId?: string;
-  /** Render the trigger as a pill/chip (rounded, small) to sit inline with the
-   *  category preset chips. */
-  chipStyle?: boolean;
 }
 
 function formatOrderBy(orderBy?: OrderByState) {
@@ -184,7 +181,6 @@ export function TableViewPresetsDrawer({
   currentState,
   systemFilterPresets,
   triggerId,
-  chipStyle = false,
 }: TableViewPresetsDrawerProps) {
   const [searchQuery, setSearchQueryLocal] = useState("");
   const { tableName, projectId, controllers } = viewConfig;
@@ -434,13 +430,7 @@ export function TableViewPresetsDrawer({
         }}
       >
         <DrawerTrigger asChild>
-          <Button
-            variant="outline"
-            size={chipStyle ? "sm" : "default"}
-            id={triggerId}
-            title="My Views"
-            className={cn(chipStyle && "gap-1.5 rounded-full")}
-          >
+          <Button variant="outline" id={triggerId} title="My Views">
             <span>My Views</span>
             {selectedViewId ? (
               <ChevronDown className="ml-1 h-4 w-4" />

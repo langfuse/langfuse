@@ -1732,37 +1732,38 @@ export default function ObservationsEventsTable({
               // In bar mode AI filtering lives in the search bar ("Ask AI"),
               // so the legacy wand is only offered when the bar is absent.
               filterWithAI={!searchBarMode}
+              // Category-preset chips + "My Views" pill share the toolbar row,
+              // left-aligned, so they sit on the same line as the right-aligned
+              // Columns/Export controls.
+              leadingControls={
+                <div className="flex flex-wrap items-center gap-2">
+                  <CategoryPresetChips
+                    projectId={projectId}
+                    activeViewId={
+                      viewControllers.appliedViewId ??
+                      viewControllers.selectedViewId
+                    }
+                    onApplyView={viewControllers.handleSetViewId}
+                    applyViewState={viewControllers.applyViewState}
+                    onPreviewView={previewViewInSearchBar}
+                  />
+                  <TableViewPresetsDrawer
+                    viewConfig={{
+                      tableName: TableViewPresetTableName.ObservationsEvents,
+                      projectId,
+                      controllers: viewControllers,
+                    }}
+                    currentState={{
+                      orderBy: orderByState ?? null,
+                      filters: queryFilter.explicitFilterState ?? [],
+                      columnOrder,
+                      columnVisibility,
+                      searchQuery: searchQuery ?? "",
+                    }}
+                  />
+                </div>
+              }
             />
-            {/* px-2 matches the DataTableToolbar's horizontal inset so the
-                chips align with the filter/search controls above. The "My
-                Views" drawer trigger sits inline with the chips as a pill. */}
-            <div className="mt-1.5 flex flex-wrap items-center gap-2 px-2">
-              <CategoryPresetChips
-                projectId={projectId}
-                activeViewId={
-                  viewControllers.appliedViewId ??
-                  viewControllers.selectedViewId
-                }
-                onApplyView={viewControllers.handleSetViewId}
-                applyViewState={viewControllers.applyViewState}
-                onPreviewView={previewViewInSearchBar}
-              />
-              <TableViewPresetsDrawer
-                chipStyle
-                viewConfig={{
-                  tableName: TableViewPresetTableName.ObservationsEvents,
-                  projectId,
-                  controllers: viewControllers,
-                }}
-                currentState={{
-                  orderBy: orderByState ?? null,
-                  filters: queryFilter.explicitFilterState ?? [],
-                  columnOrder,
-                  columnVisibility,
-                  searchQuery: searchQuery ?? "",
-                }}
-              />
-            </div>
           </div>
         )}
 

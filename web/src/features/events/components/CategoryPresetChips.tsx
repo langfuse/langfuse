@@ -142,13 +142,9 @@ export function CategoryPresetChips({
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
-                size="sm"
-                className={cn(
-                  "gap-1.5 rounded-full",
-                  isCategoryActive && "bg-primary/5",
-                )}
+                className={cn("gap-1.5", isCategoryActive && "bg-primary/5")}
               >
-                <Icon className="h-3.5 w-3.5" aria-hidden />
+                <Icon className="h-4 w-4" aria-hidden />
                 {label}
               </Button>
             </PopoverTrigger>

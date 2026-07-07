@@ -147,6 +147,10 @@ interface DataTableToolbarProps<TData, TValue> {
   className?: string;
   rowClassName?: string;
   viewModeToggle?: React.ReactNode;
+  /** Rendered at the start of the toolbar's control row (left-aligned), before
+   *  the filter toggle — e.g. the v4 events category-preset chips, so they
+   *  share the row with the right-aligned Columns/Export controls. */
+  leadingControls?: React.ReactNode;
 }
 
 // Helper function to get the description for DocPopup
@@ -213,6 +217,7 @@ export function DataTableToolbar<TData, TValue>({
   viewConfig,
   filterWithAI = false,
   viewModeToggle,
+  leadingControls,
 }: DataTableToolbarProps<TData, TValue>) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
@@ -260,6 +265,7 @@ export function DataTableToolbar<TData, TValue>({
           rowClassName,
         )}
       >
+        {leadingControls}
         {/* Desktop uses the sidebar's own header toggle + collapsed rail; this
             toolbar toggle only remains for the mobile stacked layout. */}
         {hasNewSidebar && (

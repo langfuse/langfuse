@@ -30,10 +30,10 @@ export const SYSTEM_TABLE_VIEW_PRESET_CATEGORY_META: Record<
   SystemTableViewPresetCategory,
   { label: string; order: number }
 > = {
-  // "Quality" here is the home of the (coming-soon) eval-score / feedback
-  // presets; errors and quality are grouped into one chip.
+  // The Errors category is surfaced to users as "Quality" — it groups error,
+  // output-review, and (coming-soon) eval-score / feedback presets.
   [SystemTableViewPresetCategory.Errors]: {
-    label: "Quality & Errors",
+    label: "Quality",
     order: 1,
   },
   [SystemTableViewPresetCategory.SlowCalls]: { label: "Slow", order: 2 },
