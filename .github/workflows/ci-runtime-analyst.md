@@ -2,8 +2,9 @@
 description: Weekly CI runtime analysis for pipeline.yml (merge-group focused) with trend memory
 on:
   schedule:
-    # Monday: full weekly analysis (may open a PR).
-    - cron: "0 6 * * 1"
+    # Monday morning: full weekly analysis (may open a PR). Fuzzy syntax so
+    # gh-aw scatters the exact minute deterministically (avoids load spikes).
+    - cron: "weekly on monday around 06:00"
   # Fires the moment CI/CD finishes on one of this agent's own PR branches
   # (all agent PRs use the ci-perf/ branch prefix): assess the measured
   # impact, then push a fix, comment the results, or close the PR.
@@ -448,21 +449,25 @@ Every PR (or issue) body must contain:
 
   ```mermaid
   xychart-beta
-      title "Daily merge-group medians (s) — line 1: run tests, 2: Build, 3: e2e-tests, 4: runner wait"
+      title "Daily merge-group medians (s) — 1: run tests, 2: Build, 3: e2e-tests, 4: runner wait, 5: overall incl. wait, 6: overall excl. wait"
       x-axis [MM-DD, MM-DD, MM-DD]
       y-axis "seconds" 0 --> 600
       line [0, 0, 0]
       line [0, 0, 0]
       line [0, 0, 0]
       line [0, 0, 0]
+      line [0, 0, 0]
+      line [0, 0, 0]
   ```
 
-  Since xychart has no legend, follow the chart with this table carrying
-  the same numbers:
+  Line 5 is the perceived/wall time (includes runner wait), line 6 the
+  execution time (excludes it); their gap visualizes the wait share. Since
+  xychart has no legend, follow the chart with this table carrying the same
+  numbers:
 
-  | Day | run tests | Build | e2e-tests | runner wait |
-  |---|---|---|---|---|
-  | MM-DD | … | … | … | … |
+  | Day | run tests | Build | e2e-tests | runner wait | overall incl. wait | overall excl. wait |
+  |---|---|---|---|---|---|---|
+  | MM-DD | … | … | … | … | … | … |
 
   Once `history/*.json` holds at least two weeks, add a second chart using
   the same template shape with ISO weeks on the x-axis (weekly medians,
