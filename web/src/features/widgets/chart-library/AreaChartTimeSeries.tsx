@@ -14,7 +14,12 @@ import {
   groupDataByTimeDimension,
   toFullMetricString,
 } from "@/src/features/widgets/chart-library/utils";
+import { isolatedPointDot } from "@/src/features/widgets/chart-library/IsolatedPointDot";
 import { useChartTickBudget } from "@/src/features/widgets/chart-library/useChartTickBudget";
+import {
+  prepareDenseSeries,
+  prepareIsolatedPoints,
+} from "@/src/features/widgets/chart-library/prepareDenseSeries";
 import { prepareTimeAxis } from "@/src/features/widgets/chart-library/prepareTimeAxis";
 import { prepareVisibleSeries } from "@/src/features/widgets/chart-library/prepareVisibleSeries";
 import {
@@ -42,10 +47,28 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
   maxVisibleSeries,
   syncId,
   subtleFill = false,
+  missingValue = "gap",
+  connectNulls = false,
 }) => {
   const [selfHovered, setSelfHovered] = useState(false);
-  const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const allDimensions = useMemo(() => getUniqueDimensions(data), [data]);
+  // Make every (bucket, series) cell explicit — 0 for additive metrics, null
+  // (a real gap) otherwise — so areas never draw across no-data buckets. (LFE-10694)
+  const groupedData = useMemo(
+    () =>
+      prepareDenseSeries(
+        groupDataByTimeDimension(data),
+        allDimensions,
+        missingValue,
+      ),
+    [data, allDimensions, missingValue],
+  );
+  // A real value with gaps on both sides spans no area segment — mark it with
+  // a dot so honest gaps never hide real data. (LFE-10694)
+  const isolatedPoints = useMemo(
+    () => prepareIsolatedPoints(groupedData, allDimensions),
+    [groupedData, allDimensions],
+  );
   // Cap how many series we draw (data -> preparer seam): a high-cardinality
   // breakdown of hundreds of series is both unreadable and slow to hover. (LFE-10549)
   const series = useMemo(
@@ -139,17 +162,25 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
           {dimensions.map((dimension, index) => {
             if (!isRendered(dimension)) return null;
             const muted = isDimmed(dimension);
+            const isolated = isolatedPoints.get(dimension);
             return (
               <Area
                 key={dimension}
-                type="monotone"
+                type="linear"
                 dataKey={dimension}
+                // Neighborless points span no area segment; a dot is the only
+                // thing that keeps them visible. (LFE-10694)
+                dot={
+                  isolated
+                    ? isolatedPointDot(isolated, seriesColor(index), muted)
+                    : false
+                }
                 stroke={seriesColor(index)}
                 fill={seriesColor(index)}
                 fillOpacity={muted ? 0.15 : subtleFill ? 0.3 : 0.75}
                 strokeWidth={2.5}
                 strokeOpacity={muted ? 0.2 : 1}
-                connectNulls
+                connectNulls={connectNulls}
                 isAnimationActive={false}
               />
             );
