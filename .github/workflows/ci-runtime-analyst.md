@@ -96,6 +96,11 @@ tools:
     max-file-count: 300
 
 safe-outputs:
+  # Fine-grained PAT (contents RW, pull-requests RW, issues RW on this repo
+  # only) from the github-agent-workflows environment. A PAT rather than the
+  # default GITHUB_TOKEN is required so agent-created PRs trigger CI/CD,
+  # which the assessment loop depends on.
+  github-token: ${{ secrets.GH_AW_CI_ANALYST_TOKEN }}
   create-pull-request:
     title-prefix: "ci(perf): "
     labels: [ci-performance]
