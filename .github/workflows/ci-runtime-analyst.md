@@ -182,28 +182,17 @@ This run was triggered by the `${{ github.event_name }}` event.
   loop" section for the matching PR. If no open ledger PR matches, emit
   noop and finish immediately.
 
-## Run checklists (analysis mode)
+## Run checklists
 
-Work through the matching checklist top to bottom. Each item names the
-section holding the full rules — follow those, the checklist is only the
-spine.
+Work through the checklist matching this run's trigger, top to bottom. Each
+item names the section holding the full rules — follow those, the checklist
+is only the spine.
 
-**First run ever** (the memory branch is empty or missing):
-
-- [ ] This run only establishes the baseline — plan for noop, not a PR.
-- [ ] Compute the week's timing metrics from successful merge-group runs
-      ("Metric definitions").
-- [ ] Parse vitest logs for slowest/retried/flaky tests
-      ("Vitest output analysis").
-- [ ] Initialize memory: `history/<week>.json`, empty `prs.json`,
-      `notes.md` with initial observations, `charts/<week>.svg` ("Memory").
-- [ ] Write the full report with the filled-in chart template to the job
-      summary ("Report and graph").
-- [ ] Emit noop carrying the report.
-
-**Every subsequent analysis run:**
+**Weekly analysis run** (`schedule` or `workflow_dispatch` — may create a PR):
 
 - [ ] Read memory first: history, `prs.json` ledger, `notes.md` ("Memory").
+      If memory is empty this is the baseline week: still do everything
+      below, but plan for noop instead of a PR.
 - [ ] Refresh every non-closed ledger entry; run the "Assessment loop" for
       any open agent PR whose CI has completed; judge merged entries against
       post-merge numbers.
@@ -211,14 +200,33 @@ spine.
       against history ("Metric definitions", "Judging and acting").
 - [ ] Parse vitest logs; update week-over-week flaky-test tracking
       ("Vitest output analysis").
-- [ ] Decide the outcome: verified in-surface improvement → PR ("Judging
-      and acting", "Verify changes before requesting a PR");
+- [ ] Decide the outcome: verified in-surface improvement → PR on a
+      `ci-perf/` branch with `expectedImpact` recorded in the ledger
+      ("Judging and acting", "Verify changes before requesting a PR");
       pipeline.yml-only proposal → comment on this run's PR or a single
       issue; nothing actionable → noop.
 - [ ] Update all memory files, including `charts/<week>.svg` and pruned
       `notes.md`.
 - [ ] Write the report with the filled-in chart template to the job summary
       and into any PR/issue body ("Report and graph").
+
+**Assessment run** (`workflow_run` — CI/CD just finished on one of your PRs):
+
+- [ ] Match the completed CI run to an open ledger PR via the ledger and
+      the actions API. No match → noop and stop.
+- [ ] CI failed → diagnose from the failing job's logs; clear in-surface
+      fix → verify it, push it (one commit), comment the explanation; wrong
+      approach → close the PR with what was learned, record it in
+      `notes.md` ("Assessment loop" step 2).
+- [ ] CI green → extract the PR run's timing metrics and compare against
+      the ledger's `expectedImpact` baseline ("Assessment loop" step 3).
+- [ ] Verdict: impact confirmed → comment measured before/after numbers;
+      inconclusive → comment and leave open for post-merge confirmation;
+      no impact/regression → iterate (max 2 per PR) or close with the
+      numbers.
+- [ ] Update the ledger entry (`ciStatus`, `followUps`) and summarize the
+      action in the job summary.
+- [ ] Never touch PRs that are not in the ledger, and never merge.
 
 ## Metric definitions (use these exactly)
 
