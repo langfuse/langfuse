@@ -104,6 +104,7 @@
     "@anthropic-ai/vertex-sdk": "^0.17.1",
     "@aws-sdk/client-cloudwatch": "^3.1013.0",
     "@aws-sdk/client-lambda": "^3.1046.0",
+    "@aws-sdk/client-lambda-microvms": "3.1074.0",
     "@aws-sdk/client-s3": "^3.1013.0",
     "@aws-sdk/client-sesv2": "^3.1013.0",
     "@aws-sdk/credential-providers": "^3.1056.0",

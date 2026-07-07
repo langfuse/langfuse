@@ -153,6 +153,7 @@ export * from "./otel";
 export * from "./datasets/executeWithDatasetServiceStrategy";
 
 export * from "./data-deletion/ingestionFileDeletion";
+export * from "./inAppAgentSandboxSnapshotDeletion";
 export * from "./inAppAgentSandboxSnapshots";
 export * from "./media-deletion";
 export * from "./s3";
