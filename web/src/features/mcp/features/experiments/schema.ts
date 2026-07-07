@@ -10,7 +10,9 @@ import { z } from "zod";
 import { McpAdvancedFilterBaseSchema } from "../../core/filter-schema";
 
 export const ListExperimentsBaseSchema = GetExperimentsV1ParsedQuery.extend({
+  // MCP callers pass the encoded cursor string; runtime validation decodes it.
   cursor: EncodedExperimentsCursorString.optional(),
+  // MCP JSON Schema generation cannot represent the public filter union/intersection.
   filter: z
     .array(McpAdvancedFilterBaseSchema)
     .optional()
@@ -23,7 +25,9 @@ export const ListExperimentsInputSchema = GetExperimentsV1ParsedQuery;
 
 export const ListExperimentItemsBaseSchema =
   GetExperimentItemsV1ParsedQueryBase.extend({
+    // MCP callers pass the encoded cursor string; runtime validation decodes it.
     cursor: EncodedExperimentsCursorString.optional(),
+    // MCP JSON Schema generation cannot represent the public filter union/intersection.
     filter: z
       .array(McpAdvancedFilterBaseSchema)
       .optional()
