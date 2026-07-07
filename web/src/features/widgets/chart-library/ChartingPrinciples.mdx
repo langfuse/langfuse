@@ -31,6 +31,35 @@ a value, not a synonym for absence.
 
 <Canvas of={Principles.NullHandling} sourceState="none" />
 
+In production the choice is not made per chart — **the metric's aggregation
+decides it**. Counts and sums have an honest zero (nothing happened), so a
+missing bucket fills with a real `0` and the line stays continuous. Averages
+and percentiles have no honest value there, so the cell becomes `null` and the
+line breaks. The same missing buckets, two truthful renderings:
+
+<Canvas of={Principles.GapVersusZero} sourceState="none" />
+
+Bridging (`connectNulls`) exists, but as an explicit opt-in — never the
+default:
+
+<Canvas of={Principles.HonestVersusBridged} sourceState="none" />
+
+Each series breaks over its own missing buckets while the others keep drawing,
+and a bucket in which nothing measured anything **stays on the axis** — the
+empty era is visible instead of time silently compressing away:
+
+<Canvas of={Principles.StaggeredSeriesGaps} sourceState="none" />
+
+<Canvas of={Principles.EmptyBucketsStayOnAxis} sourceState="none" />
+
+Honest gaps must never hide real data. A value with no drawable neighbor spans
+no line segment, so it gets a dot — the only mark that keeps it visible. Areas
+follow the same grammar:
+
+<Canvas of={Principles.IsolatedPoints} sourceState="none" />
+
+<Canvas of={Principles.AreaGaps} sourceState="none" />
+
 ## 3. Show certainty in the ink
 
 A still-aggregating final bucket and a previous-period comparison are real, but
