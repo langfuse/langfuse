@@ -3,6 +3,7 @@ import type { LanguageModel } from "ai";
 
 import type { ModelParams } from "../../types";
 import { processOpenAIBaseURL } from "../../utils";
+import type { TranslatedProviderOptions } from "./types";
 
 export type OpenAIApiMode = "responses" | "chat-completions";
 
@@ -66,10 +67,6 @@ const OPENAI_PROVIDER_OPTION_KEY_MAP: Record<string, string> = {
   maxCompletionTokens: "maxCompletionTokens",
   textVerbosity: "textVerbosity",
 };
-
-export type TranslatedProviderOptions =
-  | { ok: true; value: Record<string, unknown> | undefined }
-  | { ok: false; unknownKeys: string[] };
 
 export function translateOpenAIProviderOptions(
   providerOptions: Record<string, unknown> | undefined,

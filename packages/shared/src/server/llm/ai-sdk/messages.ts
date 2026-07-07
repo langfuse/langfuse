@@ -5,7 +5,9 @@ import {
   ChatMessage,
   ChatMessageRole,
   ChatMessageType,
+  LLMAdapter,
   LLMToolCall,
+  PROVIDERS_WITH_REQUIRED_USER_MESSAGE,
 } from "../types";
 
 // Helper function to safely stringify content
@@ -29,10 +31,25 @@ const toSafeContent = (content: unknown): string =>
  * - tool results resolve their `toolName` from the preceding assistant
  *   tool-call messages; orphan tool results fail fast as a non-retryable
  *   error instead of a provider-side 400
+ * - for providers that require at least one user message, a lone message
+ *   becomes a user message regardless of its role (LangChain-parity:
+ *   `transformSystemMessageToUserMessage`)
  */
 export function mapChatMessagesToModelMessages(
   messages: ChatMessage[],
+  options?: { adapter?: LLMAdapter },
 ): ModelMessage[] {
+  if (
+    messages.length === 1 &&
+    options?.adapter !== undefined &&
+    PROVIDERS_WITH_REQUIRED_USER_MESSAGE.includes(options.adapter)
+  ) {
+    const safeContent = toSafeContent(messages[0].content);
+    return safeContent.length > 0
+      ? [{ role: "user", content: safeContent }]
+      : [];
+  }
+
   const toolCallIdToName = new Map<string, string>();
   for (const message of messages) {
     if (message.type === ChatMessageType.AssistantToolCall) {
