@@ -127,6 +127,12 @@ committedText ──resetTo──▶ store.draft ──(type/pick/remove)──�
   changes) and it never writes back, so the cycle cannot loop. No
   reconciliation signature, no two-way sync — a commit's own echo settles
   because `resetTo` no-ops when the draft already matches.
+- **Previews are an overlay, not a draft write.** `previewText` (store) is
+  display-only state for "show the query this preset would apply" affordances
+  (the events-table category-preset chips). The composer renders it instead of
+  the draft while active, but it never merges into the draft, never commits,
+  and any real draft write clears it — so ending a preview can never lose
+  in-progress typing, by construction rather than by restore logic.
 - This mirrors the prototype's ADR-006 ("URL is canonical; everything derives
   from it") and "no write loops".
 

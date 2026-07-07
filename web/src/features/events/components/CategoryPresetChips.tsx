@@ -150,11 +150,17 @@ export function CategoryPresetChips({
           <Popover
             key={category}
             onOpenChange={(open) => {
-              if (open)
+              if (open) {
                 capture("saved_views:category_chip_open", {
                   category,
                   tableName: TableViewPresetTableName.ObservationsEvents,
                 });
+              } else {
+                // The popover can close without a row leave/blur firing
+                // (select a preset, click outside, Escape) — always end the
+                // preview so it can't outlive the popover.
+                onPreviewView?.(null);
+              }
             }}
           >
             <PopoverTrigger asChild>
@@ -166,7 +172,15 @@ export function CategoryPresetChips({
                 {label}
               </Button>
             </PopoverTrigger>
-            <PopoverContent align="start" className="w-72 p-1">
+            <PopoverContent
+              align="start"
+              className="w-72 p-1"
+              // Radix focuses the first focusable row on open, which would
+              // fire that row's onFocus preview the moment the chip is
+              // clicked. Previews should only follow a deliberate hover or
+              // Tab, so keep focus on the trigger instead.
+              onOpenAutoFocus={(event) => event.preventDefault()}
+            >
               <div className="text-muted-foreground px-2 py-1.5 text-xs font-medium">
                 {label}
               </div>

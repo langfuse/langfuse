@@ -532,7 +532,6 @@ export default function ObservationsEventsTable({
     store: searchBarStore,
     commit: searchBarCommit,
     applyFilters: searchBarApplyFilters,
-    committedText: searchBarCommittedText,
   } = useEventsSearchBar({
     projectId,
     enabled: searchBarMode,
@@ -545,32 +544,19 @@ export default function ObservationsEventsTable({
     setSearchType,
   });
 
-  // Non-destructive preview: while hovering a category preset chip, show the
-  // filters it would apply in the search bar's draft; on leave, restore the
-  // draft the user had when the preview began — which may hold uncommitted
-  // typing, so the committed baseline is not a safe restore point. Clicking
-  // still applies for real via applyViewState. No-op outside search-bar mode.
-  const previewRestoreDraftRef = useRef<string | null>(null);
-  useEffect(() => {
-    // A committed-baseline change (chip apply, commit, sidebar edit) re-seeds
-    // the draft via the hook's resetTo sync; a pre-preview snapshot taken
-    // before that change is stale, and restoring it would fight the re-seed.
-    previewRestoreDraftRef.current = null;
-  }, [searchBarCommittedText]);
+  // Non-destructive preview: while a category-chip preset row is hovered or
+  // focused, show the query it would apply as the store's preview overlay. The
+  // draft is never touched, so ending the preview cannot lose in-progress
+  // typing. Clicking still applies for real via applyViewState. No-op outside
+  // search-bar mode.
   const previewViewInSearchBar = useCallback(
     (state: TableViewPresetState | null) => {
       if (!searchBarMode) return;
-      const { draft, actions } = searchBarStore.getState();
+      const { actions } = searchBarStore.getState();
       if (state) {
-        // Focus + hover can both begin the same preview; keep the first
-        // snapshot (the second `draft` is already the preview text).
-        previewRestoreDraftRef.current ??= draft;
-        actions.setDraft(filterStateToQueryText(state.filters).text);
+        actions.setPreview(filterStateToQueryText(state.filters).text);
       } else {
-        if (previewRestoreDraftRef.current === null) return;
-        const restore = previewRestoreDraftRef.current;
-        previewRestoreDraftRef.current = null;
-        actions.resetTo(restore);
+        actions.clearPreview();
       }
     },
     [searchBarMode, searchBarStore],
