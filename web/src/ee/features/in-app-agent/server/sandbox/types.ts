@@ -78,9 +78,4 @@ export type InAppAgentSandbox = {
     newText: string;
   }) => Promise<unknown>;
   bash: (params: { command: string; timeoutMs?: number }) => Promise<unknown>;
-  /**
-   * Flushes end-of-turn sandbox lifecycle work such as suspending or cleaning
-   * up the current session.
-   */
-  onTurnEnded: () => Promise<void>;
 };

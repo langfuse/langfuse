@@ -196,19 +196,7 @@ describe("in-app agent sandbox", () => {
     let snapshot = new Map<string, string>();
     let activeSessionId: string | null = null;
     let sessionCounter = 0;
-    const provider: SandboxProvider = {
-      async ensureSession({ sessionId }) {
-        if (sessionId && activeSessionId === sessionId) {
-          return { sessionId };
-        }
-
-        activeSessionId = `session-${sessionCounter++}`;
-        files.clear();
-        for (const [path, content] of snapshot.entries()) {
-          files.set(path, content);
-        }
-        return { sessionId: activeSessionId };
-      },
+    const sandboxSession = {
       async syncReadonlyFiles({ files: readonlyFiles }) {
         for (const key of Array.from(files.keys())) {
           if (key.startsWith("tool_calls/")) files.delete(key);
@@ -232,6 +220,20 @@ describe("in-app agent sandbox", () => {
       },
       async bash() {
         return { stdout: "", stderr: "", exitCode: 0 };
+      },
+    };
+    const provider: SandboxProvider = {
+      async ensureSession({ sessionId }) {
+        if (sessionId && activeSessionId === sessionId) {
+          return { sessionId, sandbox: sandboxSession };
+        }
+
+        activeSessionId = `session-${sessionCounter++}`;
+        files.clear();
+        for (const [path, content] of snapshot.entries()) {
+          files.set(path, content);
+        }
+        return { sessionId: activeSessionId, sandbox: sandboxSession };
       },
       async suspendSession({ sessionId }) {
         if (sessionId !== activeSessionId) {
@@ -283,11 +285,13 @@ describe("in-app agent sandbox", () => {
       });
 
     const firstSandbox = await createSandbox();
-    await firstSandbox.write({ path: "notes.txt", content: "hello" });
+    await firstSandbox.sandbox.write({ path: "notes.txt", content: "hello" });
     const firstSessionId = sandboxState.providerSessionId;
 
     const secondSandbox = await createSandbox();
-    await expect(secondSandbox.read({ path: "notes.txt" })).resolves.toEqual({
+    await expect(
+      secondSandbox.sandbox.read({ path: "notes.txt" }),
+    ).resolves.toEqual({
       path: "notes.txt",
       content: "hello",
     });
@@ -297,7 +301,9 @@ describe("in-app agent sandbox", () => {
     await vi.advanceTimersByTimeAsync(1_001);
 
     const restoredSandbox = await createSandbox();
-    await expect(restoredSandbox.read({ path: "notes.txt" })).resolves.toEqual({
+    await expect(
+      restoredSandbox.sandbox.read({ path: "notes.txt" }),
+    ).resolves.toEqual({
       path: "notes.txt",
       content: "hello",
     });
@@ -309,10 +315,7 @@ describe("in-app agent sandbox", () => {
   });
 
   it("persists sandbox ttl metadata when a turn ends", async () => {
-    const provider: SandboxProvider = {
-      async ensureSession() {
-        return { sessionId: "session-1" };
-      },
+    const sandboxSession = {
       async syncReadonlyFiles() {},
       async read() {
         return { path: "notes.txt", content: null };
@@ -325,6 +328,11 @@ describe("in-app agent sandbox", () => {
       },
       async bash() {
         return { stdout: "", stderr: "", exitCode: 0 };
+      },
+    };
+    const provider: SandboxProvider = {
+      async ensureSession() {
+        return { sessionId: "session-1", sandbox: sandboxSession };
       },
       async scheduleSuspension() {
         return;
@@ -344,7 +352,7 @@ describe("in-app agent sandbox", () => {
       now: () => new Date("2026-07-02T12:00:00.000Z"),
     });
 
-    await sandbox.write({ path: "notes.txt", content: "hello" });
+    await sandbox.sandbox.write({ path: "notes.txt", content: "hello" });
     await sandbox.onTurnEnded();
 
     expect(savedStates[0]).toMatchObject({
@@ -542,8 +550,7 @@ describe("in-app agent sandbox", () => {
       sessionId: null,
       snapshotKey: "snapshots/conversation-1.tar",
     });
-    await provider.write({
-      sessionId: firstSession.sessionId,
+    await firstSession.sandbox.write({
       path: "notes.txt",
       content: "hello",
     });
@@ -560,11 +567,11 @@ describe("in-app agent sandbox", () => {
     });
 
     await expect(
-      provider.read({
-        sessionId: restoredSession.sessionId,
-        path: "notes.txt",
-      }),
-    ).resolves.toEqual({ path: "notes.txt", content: "hello" });
+      restoredSession.sandbox.read({ path: "notes.txt" }),
+    ).resolves.toEqual({
+      path: "notes.txt",
+      content: "hello",
+    });
     expect(restoredSession.sessionId).toBe(firstSession.sessionId);
     expect(lambdaMicrovmsSendMock).toHaveBeenCalled();
   });

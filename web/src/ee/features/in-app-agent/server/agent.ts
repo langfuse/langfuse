@@ -169,6 +169,7 @@ type CreateAgUiStreamOptions = {
   useLocalPrompt: boolean;
   langfuseTracing?: InAppAgentTracingConfig;
   sandbox?: InAppAgentSandbox;
+  onSandboxTurnEnded?: () => Promise<void>;
 };
 
 export async function createAgUiStream(params: {
@@ -233,7 +234,7 @@ export async function createAgUiStream(params: {
       .then(async () => {
         const results = await Promise.allSettled([
           cleanupAdapter?.(),
-          params.options.sandbox?.onTurnEnded(),
+          params.options.onSandboxTurnEnded?.(),
           params.options.onFinish?.(),
         ]);
 

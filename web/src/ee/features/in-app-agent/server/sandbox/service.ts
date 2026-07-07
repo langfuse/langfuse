@@ -22,7 +22,10 @@ export async function createInAppAgentSandbox(params: {
     sandboxSnapshotKey?: string | null;
   }) => Promise<void>;
   now?: () => Date;
-}): Promise<InAppAgentSandbox> {
+}): Promise<{
+  sandbox: InAppAgentSandbox;
+  onTurnEnded: () => Promise<void>;
+}> {
   const now = params.now ?? (() => new Date());
   const snapshotKey =
     params.sandboxSnapshotKey ??
@@ -95,23 +98,25 @@ export async function createInAppAgentSandbox(params: {
   };
 
   return {
-    read: async ({ path }) => (await ensureSession()).read({ path }),
-    write: async ({ path, content }) =>
-      (await ensureSession()).write({
-        path,
-        content,
-      }),
-    edit: async ({ path, oldText, newText }) =>
-      (await ensureSession()).edit({
-        path,
-        oldText,
-        newText,
-      }),
-    bash: async ({ command, timeoutMs }) =>
-      (await ensureSession()).bash({
-        command,
-        timeoutMs,
-      }),
+    sandbox: {
+      read: async ({ path }) => (await ensureSession()).read({ path }),
+      write: async ({ path, content }) =>
+        (await ensureSession()).write({
+          path,
+          content,
+        }),
+      edit: async ({ path, oldText, newText }) =>
+        (await ensureSession()).edit({
+          path,
+          oldText,
+          newText,
+        }),
+      bash: async ({ command, timeoutMs }) =>
+        (await ensureSession()).bash({
+          command,
+          timeoutMs,
+        }),
+    },
     onTurnEnded: async () => {
       if (!sessionId) {
         return;

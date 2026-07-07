@@ -77,24 +77,7 @@ async function createTestSandbox() {
   let suspendedFiles = new Map<string, string>();
   let activeSessionId: string | null = null;
   let suspensionTimer: ReturnType<typeof setTimeout> | null = null;
-
-  const provider: SandboxProvider = {
-    async ensureSession({ sessionId }) {
-      if (sessionId && activeSessionId === sessionId) {
-        if (suspensionTimer) {
-          clearTimeout(suspensionTimer);
-          suspensionTimer = null;
-        }
-        return { sessionId };
-      }
-
-      activeSessionId = `sandbox-session-${sessionCounter++}`;
-      files.clear();
-      for (const [path, content] of suspendedFiles.entries()) {
-        files.set(path, content);
-      }
-      return { sessionId: activeSessionId };
-    },
+  const sandboxSession = {
     async syncReadonlyFiles({ files: readonlyFiles }) {
       for (const key of Array.from(files.keys())) {
         if (key.startsWith("tool_calls/")) files.delete(key);
@@ -118,6 +101,25 @@ async function createTestSandbox() {
     },
     async bash() {
       return { stdout: "", stderr: "", exitCode: 0 };
+    },
+  };
+
+  const provider: SandboxProvider = {
+    async ensureSession({ sessionId }) {
+      if (sessionId && activeSessionId === sessionId) {
+        if (suspensionTimer) {
+          clearTimeout(suspensionTimer);
+          suspensionTimer = null;
+        }
+        return { sessionId, sandbox: sandboxSession };
+      }
+
+      activeSessionId = `sandbox-session-${sessionCounter++}`;
+      files.clear();
+      for (const [path, content] of suspendedFiles.entries()) {
+        files.set(path, content);
+      }
+      return { sessionId: activeSessionId, sandbox: sandboxSession };
     },
     scheduleSuspension({ expiresAt }) {
       if (suspensionTimer) clearTimeout(suspensionTimer);
@@ -669,7 +671,7 @@ describe("createAgUiStream", () => {
     const langfuseClient = {
       getPrompt: promptMocks.getPrompt,
     };
-    const sandbox = await createTestSandbox();
+    const sandboxState = await createTestSandbox();
     adapterEvents.inputs = [];
 
     adapterEvents.items = [
@@ -747,7 +749,8 @@ describe("createAgUiStream", () => {
           isV4Enabled: false,
         },
         langfuseClient,
-        sandbox,
+        sandbox: sandboxState.sandbox,
+        onSandboxTurnEnded: sandboxState.onTurnEnded,
         useLocalPrompt: false,
         langfuseTracing: {
           environment: "langfuse-in-app-agent",

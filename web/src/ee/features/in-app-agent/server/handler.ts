@@ -284,7 +284,7 @@ export default async function handler(request: Request) {
       : undefined;
     const sandboxProviderType = getDefaultInAppAgentSandboxProviderType();
     const sandboxProvider = getInAppAgentSandboxProvider();
-    const sandbox = sandboxProvider
+    const sandboxState = sandboxProvider
       ? await createInAppAgentSandbox({
           conversationId: conversation.id,
           projectId,
@@ -488,6 +488,8 @@ export default async function handler(request: Request) {
                           : "Unknown agent error",
                     }),
                   ),
+              sandbox: sandboxState?.sandbox,
+              onSandboxTurnEnded: sandboxState?.onTurnEnded,
               onFinish: cleanupMcpApiKey,
               awsBedrock: {
                 region: env.LANGFUSE_AWS_BEDROCK_REGION,
@@ -507,7 +509,6 @@ export default async function handler(request: Request) {
               },
               langfuseClient,
               useLocalPrompt,
-              sandbox,
               langfuseTracing: (() => {
                 if (!project.organization.aiTelemetryEnabled) {
                   return undefined;
