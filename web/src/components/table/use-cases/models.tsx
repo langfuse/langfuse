@@ -117,7 +117,10 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       },
       cell: ({ row }) => {
         return (
-          <span className="truncate font-mono text-xs font-semibold">
+          <span
+            className="truncate font-mono text-xs font-semibold"
+            title={row.original.modelName}
+          >
             {row.original.modelName}
           </span>
         );
@@ -164,7 +167,9 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         const value: string = row.getValue("matchPattern");
 
         return value ? (
-          <span className="truncate font-mono text-xs">{value}</span>
+          <span className="truncate font-mono text-xs" title={value}>
+            {value}
+          </span>
         ) : null;
       },
     },
@@ -329,7 +334,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       />
       <SettingsTableCard className="max-h-[75dvh]">
         <DataTable
-          tableName={"models"}
+          tableName="models"
           columns={columns}
           data={
             models.isPending

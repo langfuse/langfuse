@@ -75,6 +75,14 @@ export default [
         },
       ],
       "@typescript-eslint/no-deprecated": "warn",
+      "react/jsx-curly-brace-presence": [
+        "warn",
+        {
+          props: "never",
+          children: "ignore",
+          propElementValues: "always",
+        },
+      ],
       "react/jsx-key": ["error", { warnOnDuplicates: true }],
       "react/no-unused-prop-types": "warn",
     },

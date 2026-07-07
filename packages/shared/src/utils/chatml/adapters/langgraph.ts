@@ -33,6 +33,14 @@ const LangGraphMessageSchema = z
   )
   .refine(
     (data) => {
+      const hasLangGraphMessageShape = data.every(
+        (msg) =>
+          typeof msg === "object" &&
+          msg !== null &&
+          ("role" in msg || "additional_kwargs" in msg),
+      );
+      if (!hasLangGraphMessageShape) return false;
+
       // Reject if any message has top-level parts (Microsoft Agent/Gemini format)
       return !data.some(
         (msg) =>

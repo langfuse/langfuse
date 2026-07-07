@@ -576,9 +576,13 @@ declare class URLSearchParams {
 const IGNORED_DIAGNOSTIC_CODES = new Set([2318]);
 const PYTHON_RUFF_SETTINGS = {
   "line-length": 88,
-  "indent-width": 4,
+  "indent-width": 2,
   lint: {
     select: ["E4", "E7", "E9", "F"],
+    // The contract is prepended to the user's source before linting (and at
+    // execution time), so user imports are never at the literal top of the
+    // file — E402 would flag every import.
+    ignore: ["E402"],
   },
 };
 const PYTHON_ERROR_DIAGNOSTIC_CODES = new Set([
@@ -587,7 +591,6 @@ const PYTHON_ERROR_DIAGNOSTIC_CODES = new Set([
   "F822",
   "F823",
 ]);
-const PYTHON_CONTRACT_PREFIX = "from dataclasses import dataclass";
 const PYTHON_EVALUATE_SIGNATURE_PATTERN =
   /(?:^|\n)\s*def\s+evaluate\s*\(\s*ctx\s*:\s*EvaluationContext\s*\)\s*->\s*EvaluationResult\s*:/;
 let ruffWorkspacePromise: Promise<RuffWorkspace> | null = null;
@@ -618,7 +621,7 @@ export async function validateCodeEvalSourceWithPython(
 ): Promise<CodeEvalValidationResult> {
   const sourceBytes = getUtf8ByteLength(source);
   const diagnostics: CodeEvalDiagnostic[] = [];
-  const validationSource = source.trimStart().startsWith(PYTHON_CONTRACT_PREFIX)
+  const validationSource = hasPythonContractDeclarations(source)
     ? source
     : `${PYTHON_CODE_EVAL_CONTRACT}\n\n${source}`;
 
@@ -828,6 +831,17 @@ function hasTypeScriptContractDeclarations(source: string) {
   );
 }
 
+// Like hasTypeScriptContractDeclarations: detect the declarations themselves
+// instead of an exact contract prefix, so user code that happens to share the
+// contract's first line still gets the hidden contract injected.
+function hasPythonContractDeclarations(source: string) {
+  return (
+    /\bclass\s+EvaluationContext\b/.test(source) &&
+    /\bclass\s+Score\b/.test(source) &&
+    /\bclass\s+EvaluationResult\b/.test(source)
+  );
+}
+
 function mapValidationOffsetToSourceOffset({
   offset,
   contractOffset,
@@ -1000,15 +1014,6 @@ function collectPythonContractDiagnostics(
   diagnostics: CodeEvalDiagnostic[],
 ) {
   if (source.trim().length === 0) return;
-
-  if (!source.trimStart().startsWith(PYTHON_CONTRACT_PREFIX)) {
-    diagnostics.push({
-      from: 0,
-      to: Math.min(source.length, PYTHON_CONTRACT_PREFIX.length),
-      severity: "warning",
-      message: `Python evaluators should start with \`${PYTHON_CONTRACT_PREFIX}\`.`,
-    });
-  }
 
   if (
     hasPythonEvaluateFunction(source) &&

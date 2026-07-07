@@ -417,9 +417,9 @@ export function CreateLLMApiKeyForm({
           </FormDescription>
           {currentAdapter === LLMAdapter.Azure && (
             <FormDescription className="text-dark-yellow">
-              {
-                "For Azure, the model name should be the same as the deployment name in Azure. For evals, choose a model with function calling capabilities."
-              }
+              For Azure, the model name should be the same as the deployment
+              name in Azure. For evals, choose a model with function calling
+              capabilities.
             </FormDescription>
           )}
 

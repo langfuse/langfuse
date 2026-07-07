@@ -117,6 +117,7 @@ import {
   eventsTableCols,
   type NumericEventsTableColumnId,
 } from "../../eventsTable";
+import type { TraceDeleteBatchActionCursor } from "../../features/batchAction/types";
 import {
   findUiColumnMapping,
   type UiColumnMappings,
@@ -497,10 +498,68 @@ export const getObservationsWithModelDataFromEventsTable = async (
   return enrichObservationsWithTraceFields(withModelData);
 };
 
+export const getTraceDeleteCursorPageFromEvents = async (props: {
+  projectId: string;
+  filter: FilterState;
+  cutoffCreatedAt: Date;
+  cursor?: TraceDeleteBatchActionCursor | null;
+  searchQuery?: string;
+  searchType?: TracingSearchType[];
+  limit: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
+}): Promise<TraceDeleteBatchActionCursor[]> => {
+  // Trace-delete cursoring intentionally reuses observation pagination where
+  // span_id is the final tuple element, while this scanner deduplicates by
+  // trace_id. If a deleted multi-span trace is still visible on a lagging
+  // replica, a later span for the same trace can be emitted again. That is
+  // acceptable because trace deletion is idempotent and only retries the same
+  // trace id; the processor keeps its durable in-flight traceIds boundary.
+  const rows = await getObservationsFromEventsTableInternal<{
+    id: string;
+    trace_id: string;
+    start_time: string;
+  }>({
+    projectId: props.projectId,
+    filter: [
+      ...props.filter,
+      {
+        column: "startTime",
+        operator: "<" as const,
+        value: props.cutoffCreatedAt,
+        type: "datetime" as const,
+      },
+    ],
+    searchQuery: props.searchQuery,
+    searchType: props.searchType,
+    limit: props.limit,
+    cursor: props.cursor?.id
+      ? {
+          lastStartTimeTo: new Date(props.cursor.timestamp),
+          lastTraceId: props.cursor.traceId,
+          lastId: props.cursor.id,
+        }
+      : undefined,
+    clickhouseConfigs: props.clickhouseConfigs,
+    // This scanner runs interleaved with DELETE mutations. Use the writable
+    // pool so the next page is read from the same side as the mutation path
+    // instead of a potentially lagging EventsReadOnly replica.
+    preferredClickhouseService: "ReadWrite",
+    select: "trace-delete-cursor",
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    traceId: row.trace_id,
+    timestamp: parseClickhouseUTCDateTimeFormat(row.start_time).toISOString(),
+  }));
+};
+
 async function getObservationsFromEventsTableInternal<T>(
   opts: ObservationTableQuery & {
-    select: "count" | "rows";
+    select: "count" | "rows" | "trace-delete-cursor";
     selectToolData?: boolean;
+    cursor?: PublicApiObservationsQuery["cursor"];
+    preferredClickhouseService?: PreferredClickhouseService;
   },
 ): Promise<Array<T>> {
   const {
@@ -513,6 +572,7 @@ async function getObservationsFromEventsTableInternal<T>(
     offset,
     orderBy,
     clickhouseConfigs,
+    preferredClickhouseService,
   } = opts;
 
   // Extract positionInTrace filter and build baseFilter without it
@@ -560,6 +620,12 @@ async function getObservationsFromEventsTableInternal<T>(
 
   if (opts.select === "count") {
     queryBuilder.selectFieldSet("count");
+  } else if (opts.select === "trace-delete-cursor") {
+    queryBuilder.selectRaw(
+      "e.span_id AS id",
+      "e.trace_id AS trace_id",
+      "e.start_time AS start_time",
+    );
   } else {
     queryBuilder.selectFieldSet(
       selectToolData ? "base" : "baseWithoutTools",
@@ -579,6 +645,7 @@ async function getObservationsFromEventsTableInternal<T>(
     query: opts.searchQuery,
     searchType: opts.searchType,
   });
+  const isTraceDeleteCursorSelect = opts.select === "trace-delete-cursor";
 
   // Handle positionInTrace via CTE with ROW_NUMBER()
   // All modes use the same pattern: rank observations per trace, pick rn = N.
@@ -653,8 +720,16 @@ async function getObservationsFromEventsTableInternal<T>(
     .when(search.requiresEventsFull, (b) => b.forceFullTable())
     .applyFilters(observationsFilter)
     .where(search)
-    .when(orderByEntries.length > 0, (b) => b.orderByColumns(orderByEntries))
-    .limit(limit, offset);
+    .when(isTraceDeleteCursorSelect, (b) =>
+      applyObservationsCursorFilter(opts.cursor, b),
+    )
+    .when(isTraceDeleteCursorSelect, (b) =>
+      applyOrderByForObservationsQuery(b).limitBy("e.trace_id", "e.project_id"),
+    )
+    .when(!isTraceDeleteCursorSelect && orderByEntries.length > 0, (b) =>
+      b.orderByColumns(orderByEntries),
+    )
+    .limit(limit, isTraceDeleteCursorSelect ? undefined : offset);
 
   const { query, params } = queryBuilder.buildWithParams();
 
@@ -671,7 +746,8 @@ async function getObservationsFromEventsTableInternal<T>(
         params: input.params,
         tags: input.tags,
         clickhouseConfigs,
-        preferredClickhouseService: "EventsReadOnly",
+        preferredClickhouseService:
+          preferredClickhouseService ?? "EventsReadOnly",
       });
     },
   });
@@ -1315,22 +1391,34 @@ function applyOffsetPagination(
   return queryBuilder.limit(opts.limit, offset);
 }
 
+function applyObservationsCursorFilter(
+  cursor: PublicApiObservationsQuery["cursor"] | undefined,
+  queryBuilder: EventsQueryBuilder,
+): EventsQueryBuilder {
+  return queryBuilder.when(Boolean(cursor), (b) => {
+    const currentCursor = cursor;
+    if (!currentCursor) {
+      return b;
+    }
+
+    return b.whereRaw(
+      "e.start_time <= {lastStartTime: DateTime64(6)} AND (e.start_time, xxHash32(e.trace_id), e.span_id) < ({lastStartTime: DateTime64(6)}, xxHash32({lastTraceId: String}), {lastId: String})",
+      {
+        lastStartTime: convertDateToClickhouseDateTime(
+          currentCursor.lastStartTimeTo,
+        ),
+        lastTraceId: currentCursor.lastTraceId,
+        lastId: currentCursor.lastId,
+      },
+    );
+  });
+}
+
 function applyCursorPagination(
   opts: PublicApiObservationsQuery,
   queryBuilder: EventsQueryBuilder,
 ): EventsQueryBuilder {
-  // Apply cursor filter if provided
-  queryBuilder = queryBuilder.when(Boolean(opts.cursor), (b) => {
-    const cursor = opts.cursor!;
-    return b.whereRaw(
-      "e.start_time <= {lastStartTime: DateTime64(6)} AND (e.start_time, xxHash32(e.trace_id), e.span_id) < ({lastStartTime: DateTime64(6)}, xxHash32({lastTraceId: String}), {lastId: String})",
-      {
-        lastStartTime: convertDateToClickhouseDateTime(cursor.lastStartTimeTo),
-        lastTraceId: cursor.lastTraceId,
-        lastId: cursor.lastId,
-      },
-    );
-  });
+  queryBuilder = applyObservationsCursorFilter(opts.cursor, queryBuilder);
 
   // Always apply limit (fetch limit+1 to detect if there are more results)
   return queryBuilder.limit(opts.limit + 1, undefined);
@@ -2132,6 +2220,11 @@ export const deleteEventsByTraceIds = async (
   ]);
 };
 
+/**
+ * This method is used by deleteEventsByProjectId and therefore
+ * should NOT be using EventsReadOnly to prevent lagging replicas
+ * from changing the outcome.
+ */
 export const hasAnyEvent = async (projectId: string) => {
   const query = `
     SELECT 1
@@ -2224,6 +2317,11 @@ export async function getAgentGraphDataFromEventsTable(params: {
   });
 }
 
+/**
+ * This method is used by deleteEventsByProjectId and therefore
+ * should NOT be using EventsReadOnly to prevent lagging replicas
+ * from changing the outcome.
+ */
 export const hasAnyEventOlderThan = async (
   projectId: string,
   beforeDate: Date,
@@ -2640,6 +2738,7 @@ export const hasAnyUserFromEventsTable = async (
     query,
     params: { projectId },
     tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return rows.length > 0;
@@ -2885,6 +2984,7 @@ export const hasAnySessionFromEventsTable = async (
         query,
         params: input.params,
         tags: { projectId },
+        preferredClickhouseService: "EventsReadOnly",
       });
     },
   });

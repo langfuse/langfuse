@@ -1544,6 +1544,258 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+  /api/public/experiments:
+    get:
+      description: |-
+        List experiments with cursor-based pagination. Results are ordered by
+        latest experiment activity descending.
+      operationId: experiments_list
+      tags:
+        - Experiments
+      parameters:
+        - name: fields
+          in: query
+          description: |-
+            Comma-separated list of field groups to include. Available groups:
+            `core`, `metadata`, `scores`. If omitted, `core` is returned.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: limit
+          in: query
+          description: Number of experiments to return per page. Maximum 100, default 50.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: scoreLimit
+          in: query
+          description: >-
+            Number of scores to return per experiment when `fields=scores` is
+            requested. Maximum 50, default 50.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: cursor
+          in: query
+          description: Versioned base64url cursor from the previous response page.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: fromStartTime
+          in: query
+          description: Retrieve only experiments on or after this datetime.
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: toStartTime
+          in: query
+          description: Retrieve only experiments before this datetime.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: id
+          in: query
+          description: Comma-separated list of experiment IDs.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: name
+          in: query
+          description: Comma-separated list of experiment names.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: datasetId
+          in: query
+          description: Comma-separated list of dataset IDs.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: filter
+          in: query
+          description: |-
+            JSON string containing an array of structured filter conditions.
+            Supported columns are `id`, `name`, and `datasetId`.
+          required: false
+          schema:
+            type: string
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExperimentsResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+  /api/public/experiment-items:
+    get:
+      description: |-
+        List experiment items with cursor-based pagination. Use this endpoint
+        to export experiment item inputs, outputs, expected outputs, metadata,
+        and optionally item/trace scores. Results are ordered by time
+        descending.
+      operationId: experiments_listItems
+      tags:
+        - Experiments
+      parameters:
+        - name: fields
+          in: query
+          description: |-
+            Comma-separated list of field groups to include. Available groups:
+            `core`, `dataset`, `io`, `metadata`, `itemMetadata`,
+            `experimentMetadata`, `scores`. If omitted, `core,dataset` is
+            returned.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: limit
+          in: query
+          description: >-
+            Number of experiment items to return per page. Maximum 100, default
+            50.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: scoreLimit
+          in: query
+          description: >-
+            Number of scores to return per experiment item when `fields=scores`
+            is requested. Maximum 50, default 50.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: cursor
+          in: query
+          description: Versioned base64url cursor from the previous response page.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: fromStartTime
+          in: query
+          description: Retrieve only experiment items started on or after this datetime.
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: toStartTime
+          in: query
+          description: Retrieve only experiment items started before this datetime.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: experimentId
+          in: query
+          description: Comma-separated list of experiment IDs.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: experimentName
+          in: query
+          description: Comma-separated list of experiment names.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: experimentItemId
+          in: query
+          description: Comma-separated list of experiment item IDs.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: datasetId
+          in: query
+          description: Comma-separated list of dataset IDs.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: filter
+          in: query
+          description: |-
+            JSON string containing an array of structured filter conditions.
+            Supported columns are `experimentId`, `experimentName`,
+            `experimentItemId`, and `datasetId`.
+          required: false
+          schema:
+            type: string
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExperimentItemsResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
   /api/public/health:
     get:
       description: Check health of API and database
@@ -6274,6 +6526,82 @@ paths:
                   description: List of trace IDs to delete
               required:
                 - traceIds
+  /api/public/unstable/dashboard-widgets:
+    post:
+      description: >-
+        Create a reusable dashboard widget.
+
+
+        This endpoint creates the widget. It does not place the widget on a
+        dashboard grid, this has to be done in the UI.
+
+
+        Supported views are `observations`, `scores-numeric`, and
+        `scores-categorical`.
+
+        The legacy `traces` view is not supported by this unstable API,
+        `minVersion` defaults to `2`; values below `2` are rejected.
+
+
+        Unstable API note:
+
+        - This surface may evolve while dashboard/widget APIs are being
+        finalized.
+      operationId: unstable_dashboardWidgets_create
+      tags:
+        - UnstableDashboardWidgets
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDashboardWidget'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/unstableCreateDashboardWidgetRequest'
   /api/public/unstable/evaluation-rules:
     post:
       description: >-
@@ -7302,6 +7630,18 @@ components:
         - JSON
         - CSV
         - JSONL
+    BlobStorageIntegrationFileTypeResponse:
+      title: BlobStorageIntegrationFileTypeResponse
+      type: string
+      enum:
+        - JSON
+        - CSV
+        - JSONL
+        - PARQUET
+      description: >-
+        File type reported for an existing integration. Includes `PARQUET`,
+        which a project may enable through the Langfuse UI but cannot yet be set
+        via this API (the request `fileType` omits it).
     BlobStorageExportMode:
       title: BlobStorageExportMode
       type: string
@@ -7507,7 +7847,7 @@ components:
         forcePathStyle:
           type: boolean
         fileType:
-          $ref: '#/components/schemas/BlobStorageIntegrationFileType'
+          $ref: '#/components/schemas/BlobStorageIntegrationFileTypeResponse'
         exportMode:
           $ref: '#/components/schemas/BlobStorageExportMode'
         exportStartDate:
@@ -8891,6 +9231,13 @@ components:
         updatedAt:
           type: string
           format: date-time
+        mediaReferences:
+          type: array
+          items:
+            $ref: '#/components/schemas/DatasetItemMediaReference'
+          description: >-
+            Resolved Langfuse media references found in input, expectedOutput,
+            and metadata.
       required:
         - id
         - status
@@ -8903,6 +9250,64 @@ components:
         - datasetName
         - createdAt
         - updatedAt
+        - mediaReferences
+    DatasetItemMediaReference:
+      title: DatasetItemMediaReference
+      type: object
+      properties:
+        field:
+          $ref: '#/components/schemas/DatasetItemMediaReferenceField'
+          description: The dataset item field containing the reference
+        referenceString:
+          type: string
+          description: >-
+            The Langfuse media reference string, e.g.
+            `@@@langfuseMedia:type=image/png|id=...|source=bytes@@@`
+        jsonPath:
+          type: string
+          description: >-
+            JSONPath of the string holding the reference within the field, e.g.
+            `$['image']`
+        media:
+          $ref: '#/components/schemas/DatasetItemMediaReferenceMedia'
+          description: The resolved media record.
+      required:
+        - field
+        - referenceString
+        - jsonPath
+        - media
+    DatasetItemMediaReferenceField:
+      title: DatasetItemMediaReferenceField
+      type: string
+      enum:
+        - input
+        - expectedOutput
+        - metadata
+    DatasetItemMediaReferenceMedia:
+      title: DatasetItemMediaReferenceMedia
+      type: object
+      properties:
+        mediaId:
+          type: string
+          description: The unique langfuse identifier of the media record
+        contentType:
+          type: string
+          description: The MIME type of the media record
+        contentLength:
+          type: integer
+          description: The size of the media record in bytes
+        url:
+          type: string
+          description: The signed download URL of the media record
+        urlExpiry:
+          type: string
+          description: The expiry date and time of the download URL
+      required:
+        - mediaId
+        - contentType
+        - contentLength
+        - url
+        - urlExpiry
     DatasetRunItem:
       title: DatasetRunItem
       type: object
@@ -9702,6 +10107,175 @@ components:
           type: string
       required:
         - message
+    ExperimentsResponse:
+      title: ExperimentsResponse
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Experiment'
+        meta:
+          $ref: '#/components/schemas/ExperimentsResponseMeta'
+      required:
+        - data
+        - meta
+    ExperimentsResponseMeta:
+      title: ExperimentsResponseMeta
+      type: object
+      properties:
+        cursor:
+          type: string
+          nullable: true
+          description: >-
+            Versioned base64url cursor for retrieving the next page. Absent when
+            there are no more results.
+    Experiment:
+      title: Experiment
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        startTime:
+          type: string
+          format: date-time
+          description: |-
+            Start of the experiment, i.e. the earliest event within the
+            requested time range. Clipped to `fromStartTime` when the
+            experiment started before the requested range.
+        endTime:
+          type: string
+          format: date-time
+          description: |-
+            End of the experiment, i.e. the latest event end within the
+            requested time range.
+        itemCount:
+          type: integer
+          description: Number of experiment items within the requested time range.
+        datasetId:
+          type: string
+          nullable: true
+          description: Null when the experiment is not associated with a dataset.
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Included only when `fields=metadata` is requested.
+        scores:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScoreV3'
+          nullable: true
+          description: >-
+            Included only when `fields=scores` is requested. Contains scores
+            directly attached to the experiment.
+      required:
+        - id
+        - name
+        - description
+        - startTime
+        - endTime
+        - itemCount
+        - datasetId
+    ExperimentItemsResponse:
+      title: ExperimentItemsResponse
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExperimentItem'
+        meta:
+          $ref: '#/components/schemas/ExperimentsResponseMeta'
+      required:
+        - data
+        - meta
+    ExperimentItem:
+      title: ExperimentItem
+      type: object
+      properties:
+        id:
+          type: string
+        traceId:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+          nullable: true
+        level:
+          $ref: '#/components/schemas/ObservationLevel'
+        environment:
+          type: string
+        experimentId:
+          type: string
+        experimentName:
+          type: string
+        experimentItemId:
+          type: string
+        experimentDatasetId:
+          type: string
+          nullable: true
+          description: Included when `fields=dataset` is requested.
+        experimentItemVersion:
+          type: string
+          format: date-time
+          nullable: true
+          description: Included when `fields=dataset` is requested.
+        input:
+          nullable: true
+          description: Included when `fields=io` is requested.
+        output:
+          nullable: true
+          description: Included when `fields=io` is requested.
+        expectedOutput:
+          nullable: true
+          description: Included when `fields=io` is requested.
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Included when `fields=metadata` is requested.
+        experimentItemMetadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Included when `fields=itemMetadata` is requested.
+        experimentMetadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Included when `fields=experimentMetadata` is requested.
+        experimentDescription:
+          type: string
+          nullable: true
+          description: Included when `fields=experimentMetadata` is requested.
+        scores:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScoreV3'
+          nullable: true
+          description: >-
+            Included only when `fields=scores` is requested. Contains item and
+            trace scores only; experiment-level scores are returned by the
+            experiments endpoint.
+      required:
+        - id
+        - traceId
+        - startTime
+        - endTime
+        - level
+        - environment
+        - experimentId
+        - experimentName
+        - experimentItemId
     HealthResponse:
       title: HealthResponse
       type: object
@@ -10743,16 +11317,35 @@ components:
     GetMediaUploadUrlRequest:
       title: GetMediaUploadUrlRequest
       type: object
+      description: >-
+        Request a presigned media upload URL. Provide exactly one context: a
+        trace (traceId, optionally observationId) or a dataset item (datasetId +
+        datasetItemId). field is required and must match the chosen context.
       properties:
         traceId:
           type: string
-          description: The trace ID associated with the media record
+          nullable: true
+          description: >-
+            The trace the media is associated with. Null for dataset item media
+            uploads.
         observationId:
           type: string
           nullable: true
           description: >-
             The observation ID associated with the media record. If the media
             record is associated directly with a trace, this will be null.
+        datasetId:
+          type: string
+          nullable: true
+          description: >-
+            The dataset the media belongs to. Null for trace/observation media
+            uploads.
+        datasetItemId:
+          type: string
+          nullable: true
+          description: >-
+            The dataset item the media is associated with (need not exist yet).
+            Null for trace/observation media uploads.
         contentType:
           $ref: '#/components/schemas/MediaContentType'
         contentLength:
@@ -10764,10 +11357,9 @@ components:
         field:
           type: string
           description: >-
-            The trace / observation field the media record is associated with.
-            This can be one of `input`, `output`, `metadata`
+            The item field the media is in: `input`/`output`/`metadata` (trace)
+            or `input`/`expectedOutput`/`metadata` (dataset item).
       required:
-        - traceId
         - contentType
         - contentLength
         - sha256Hash
@@ -13411,6 +14003,219 @@ components:
         - `invalid_filter_value` for `column=datasetId`: call `GET
         /api/public/v2/datasets`, then retry with dataset `id` values from that
         response.
+    unstableDashboardWidgetView:
+      title: unstableDashboardWidgetView
+      type: string
+      enum:
+        - observations
+        - scores-numeric
+        - scores-categorical
+    unstableDashboardWidgetChartType:
+      title: unstableDashboardWidgetChartType
+      type: string
+      enum:
+        - LINE_TIME_SERIES
+        - AREA_TIME_SERIES
+        - BAR_TIME_SERIES
+        - HORIZONTAL_BAR
+        - VERTICAL_BAR
+        - PIE
+        - NUMBER
+        - HISTOGRAM
+        - PIVOT_TABLE
+    unstableDashboardWidgetMetricAggregation:
+      title: unstableDashboardWidgetMetricAggregation
+      type: string
+      enum:
+        - sum
+        - avg
+        - count
+        - max
+        - min
+        - p50
+        - p75
+        - p90
+        - p95
+        - p99
+        - histogram
+        - uniq
+    unstableDashboardWidgetDimension:
+      title: unstableDashboardWidgetDimension
+      type: object
+      properties:
+        field:
+          type: string
+      required:
+        - field
+    unstableDashboardWidgetMetric:
+      title: unstableDashboardWidgetMetric
+      type: object
+      properties:
+        measure:
+          type: string
+        agg:
+          $ref: '#/components/schemas/unstableDashboardWidgetMetricAggregation'
+      required:
+        - measure
+        - agg
+    unstableDashboardWidgetFilter:
+      title: unstableDashboardWidgetFilter
+      type: object
+      description: >-
+        A dashboard widget filter in Langfuse filter-state shape.
+
+
+        Filter shapes depend on `type`, for example string filters use a string
+        `value`,
+
+        option filters use a list of strings, and object filters include `key`.
+      properties:
+        column:
+          type: string
+        operator:
+          type: string
+        type:
+          type: string
+        value:
+          nullable: true
+        key:
+          type: string
+          nullable: true
+      required:
+        - column
+        - operator
+        - type
+    unstableDashboardWidgetChartConfig:
+      title: unstableDashboardWidgetChartConfig
+      type: object
+      description: |-
+        Chart-specific widget configuration.
+
+        `type` must match the top-level `chartType`.
+        `row_limit` applies to total-value charts and pivot tables.
+        `bins` applies to histograms.
+        `defaultSort` applies to pivot tables.
+      properties:
+        type:
+          $ref: '#/components/schemas/unstableDashboardWidgetChartType'
+        row_limit:
+          type: integer
+          nullable: true
+        show_value_labels:
+          type: boolean
+          nullable: true
+        bins:
+          type: integer
+          nullable: true
+        defaultSort:
+          $ref: '#/components/schemas/unstableDashboardWidgetDefaultSort'
+          nullable: true
+      required:
+        - type
+    unstableDashboardWidgetDefaultSort:
+      title: unstableDashboardWidgetDefaultSort
+      type: object
+      properties:
+        column:
+          type: string
+        order:
+          $ref: '#/components/schemas/unstableDashboardWidgetSortOrder'
+      required:
+        - column
+        - order
+    unstableDashboardWidgetSortOrder:
+      title: unstableDashboardWidgetSortOrder
+      type: string
+      enum:
+        - ASC
+        - DESC
+    unstableCreateDashboardWidgetRequest:
+      title: unstableCreateDashboardWidgetRequest
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        view:
+          $ref: '#/components/schemas/unstableDashboardWidgetView'
+        dimensions:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetDimension'
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetMetric'
+        filters:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetFilter'
+        chartType:
+          $ref: '#/components/schemas/unstableDashboardWidgetChartType'
+        chartConfig:
+          $ref: '#/components/schemas/unstableDashboardWidgetChartConfig'
+        minVersion:
+          type: integer
+          nullable: true
+      required:
+        - name
+        - description
+        - view
+        - dimensions
+        - metrics
+        - filters
+        - chartType
+        - chartConfig
+    unstableDashboardWidget:
+      title: unstableDashboardWidget
+      type: object
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        name:
+          type: string
+        description:
+          type: string
+        view:
+          $ref: '#/components/schemas/unstableDashboardWidgetView'
+        dimensions:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetDimension'
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetMetric'
+        filters:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetFilter'
+        chartType:
+          $ref: '#/components/schemas/unstableDashboardWidgetChartType'
+        chartConfig:
+          $ref: '#/components/schemas/unstableDashboardWidgetChartConfig'
+        minVersion:
+          type: integer
+      required:
+        - id
+        - createdAt
+        - updatedAt
+        - name
+        - description
+        - view
+        - dimensions
+        - metrics
+        - filters
+        - chartType
+        - chartConfig
+        - minVersion
     unstablePublicApiErrorCode:
       title: unstablePublicApiErrorCode
       type: string

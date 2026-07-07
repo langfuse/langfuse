@@ -4,6 +4,7 @@ import {
   CTEQueryBuilder,
   EventsAggregationQueryBuilder,
   EventsQueryBuilder,
+  ExperimentsAggregationQueryBuilder,
 } from "@langfuse/shared/src/server";
 
 describe("buildEventsFilterOptionsForColumnsQuery", () => {
@@ -286,6 +287,33 @@ describe("CTEQueryBuilder", () => {
     expect(query).toContain("c2.col3");
   });
 
+  it("builds event-table optimized order by columns for a CTE alias", () => {
+    const builder = new CTEQueryBuilder()
+      .withCTE("base", {
+        query:
+          "SELECT project_id, start_time, trace_id, id, experiment_id FROM events_core",
+        params: {},
+        schema: ["project_id", "start_time", "trace_id", "id", "experiment_id"],
+      })
+      .from("base", "b")
+      .select("b.id")
+      .orderByColumns(
+        [
+          { column: "b.start_time", direction: "DESC" },
+          { column: "xxHash32(b.trace_id)", direction: "DESC" },
+          { column: "b.id", direction: "DESC" },
+          { column: "b.experiment_id", direction: "DESC" },
+        ],
+        { eventTableAlias: "b", matchTablePrimaryKey: true },
+      );
+
+    const { query } = builder.buildWithParams();
+
+    expect(query).toContain(
+      "ORDER BY b.project_id DESC, toStartOfMinute(b.start_time) DESC, b.start_time DESC, xxHash32(b.trace_id) DESC, b.id DESC, b.experiment_id DESC",
+    );
+  });
+
   it("should throw error for unregistered CTE in from()", () => {
     const builder = new CTEQueryBuilder() as any;
     expect(() => builder.from("nonexistent", "t")).toThrow(
@@ -419,5 +447,26 @@ describe("EventsQueryBuilder", () => {
     expect(query).toContain(
       "mapFromArrays(e.experiment_item_metadata_names, e.experiment_item_metadata_values) as experiment_item_metadata",
     );
+  });
+});
+
+describe("ExperimentsAggregationQueryBuilder", () => {
+  it("keeps the existing lookback start time bound", () => {
+    const { query, params } = new ExperimentsAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("base")
+      .withStartTimeFrom("2026-01-01 00:00:00.000")
+      .whereRaw("e.experiment_id != ''")
+      .buildWithParams();
+
+    expect(query).toContain(
+      "e.start_time >= {startTimeFrom: DateTime64(3)} - INTERVAL 2 DAY",
+    );
+    expect(query).toContain("e.experiment_id != ''");
+    expect(params).toMatchObject({
+      projectId: "test-project",
+      startTimeFrom: "2026-01-01 00:00:00.000",
+    });
   });
 });

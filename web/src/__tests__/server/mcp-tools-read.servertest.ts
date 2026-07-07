@@ -336,7 +336,9 @@ describe("MCP Read Tools", () => {
     });
 
     it("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({ isInAppAgentKey: true });
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
 
       await expect(
         toolRegistry.getEnabledTool(listEvaluatorsTool.name, context),
@@ -371,7 +373,9 @@ describe("MCP Read Tools", () => {
     });
 
     it("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({ isInAppAgentKey: true });
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
 
       await expect(
         toolRegistry.getEnabledTool(getEvaluatorTool.name, context),
@@ -403,7 +407,9 @@ describe("MCP Read Tools", () => {
     });
 
     it("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({ isInAppAgentKey: true });
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
 
       await expect(
         toolRegistry.getEnabledTool(listEvaluationRulesTool.name, context),
@@ -433,7 +439,9 @@ describe("MCP Read Tools", () => {
     });
 
     it("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({ isInAppAgentKey: true });
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
 
       await expect(
         toolRegistry.getEnabledTool(getEvaluationRuleTool.name, context),
@@ -506,7 +514,9 @@ describe("MCP Read Tools", () => {
     });
 
     maybeEventsTableIt("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({ isInAppAgentKey: true });
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
 
       await expect(
         toolRegistry.getEnabledTool(
@@ -575,7 +585,9 @@ describe("MCP Read Tools", () => {
     });
 
     maybeEventsTableIt("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({ isInAppAgentKey: true });
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
 
       await expect(
         toolRegistry.getEnabledTool(
@@ -596,6 +608,12 @@ describe("MCP Read Tools", () => {
       expect(result.resource).toBe("observation");
       expect(result.columns.providedModelName.type).toBe("stringOptions");
       expect(result.columns.tags.type).toBe("arrayOptions");
+      expect(result.columns.metadata).toEqual(
+        expect.objectContaining({
+          type: "stringObject",
+          requiresKey: true,
+        }),
+      );
       expect(result.columns.traceTags).toBeUndefined();
       expect(result.columns.comments).toBeUndefined();
       expect(result.columns.scores).toBeUndefined();
@@ -649,7 +667,9 @@ describe("MCP Read Tools", () => {
     });
 
     it("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({ isInAppAgentKey: true });
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
 
       await expect(
         toolRegistry.getEnabledTool(listObservationsTool.name, context),
@@ -704,8 +724,63 @@ describe("MCP Read Tools", () => {
           operator: expect.objectContaining({ type: "string" }),
           value: expect.any(Object),
           type: expect.objectContaining({ type: "string" }),
+          key: expect.objectContaining({ type: "string" }),
         }),
       );
+    });
+
+    it("should filter by metadata advanced filters", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const matchingObservation = createObservationEvent({
+        projectId,
+        traceId,
+        name: `mcp-filter-metadata-match-${nanoid()}`,
+        metadata: { region: "us-east", tenant: "acme" },
+      });
+      const nonMatchingObservation = createObservationEvent({
+        projectId,
+        traceId,
+        name: `mcp-filter-metadata-miss-${nanoid()}`,
+        metadata: { region: "eu-west", tenant: "acme" },
+      });
+
+      await createEventsCh([matchingObservation, nonMatchingObservation]);
+
+      const result = (await handleListObservations(
+        {
+          filter: [
+            {
+              type: "stringOptions",
+              column: "id",
+              operator: "any of",
+              value: [matchingObservation.id, nonMatchingObservation.id],
+            },
+            {
+              type: "stringObject",
+              column: "metadata",
+              key: "region",
+              operator: "contains",
+              value: "us-",
+            },
+          ],
+          fields: ["id", "name"],
+          limit: 100,
+        },
+        context,
+      )) as { data: Array<{ id: string; name: string; url: string }> };
+
+      expect(result.data).toEqual([
+        {
+          id: matchingObservation.id,
+          name: matchingObservation.name,
+          url: buildObservationUrl({
+            projectId,
+            traceId,
+            observationId: matchingObservation.id,
+          }),
+        },
+      ]);
     });
 
     it("should list observations with compact default projection", async () => {
@@ -767,7 +842,7 @@ describe("MCP Read Tools", () => {
 
       const result = (await handleListObservations(
         { traceId, fields: ["id"], limit: 100 },
-        { ...context, isInAppAgentKey: true },
+        { ...context, inAppAgent: { permissions: "read" } },
       )) as { data: Array<{ id: string; url: string }> };
 
       expect(result.data.map((item) => item.id)).toContain(observation.id);
@@ -1641,7 +1716,7 @@ describe("MCP Read Tools", () => {
 
       const result = (await handleGetObservation(
         { observationId: observation.id, fields: ["id"] },
-        { ...context, isInAppAgentKey: true },
+        { ...context, inAppAgent: { permissions: "read" } },
       )) as Record<string, unknown>;
 
       expect(result).toEqual({

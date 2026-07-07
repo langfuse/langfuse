@@ -10,9 +10,19 @@ import {
   MonitorThresholdOperatorSchema,
 } from "@langfuse/shared/monitors";
 
+import {
+  getWidgetColumnsWithCustomSelect,
+  getWidgetFilterColumns,
+} from "@/src/features/widgets/components/widgetFilterColumns";
+
 import { __test } from "./MonitorForm";
 
-const { createDefaults, monitorToDefaults, nameOrPlaceholder } = __test;
+const {
+  createDefaults,
+  monitorToDefaults,
+  nameOrPlaceholder,
+  buildFilterColumnsParams,
+} = __test;
 
 describe("createDefaults", () => {
   it("only surfaces name + alertThreshold as missing base fields (no hidden missing fields)", () => {
@@ -86,6 +96,61 @@ describe("nameOrPlaceholder", () => {
 
   it("non-blank name: wins over the placeholder", () => {
     expect(nameOrPlaceholder("My Monitor", placeholder)).toBe("My Monitor");
+  });
+});
+
+describe("buildFilterColumnsParams", () => {
+  // A monitor's filter-option discovery is scoped to its (default 5m) evaluation
+  // window, so it is often empty — the whole point of an alert like
+  // "type=TOOL AND level=ERROR" is to catch events that have NOT happened yet.
+  // Type and Level are closed enums and their value pickers are not searchable
+  // (no free-text fallback), so they must list every domain value regardless of
+  // what the discovery window returned, otherwise they dead-end on
+  // "No results found" (LFE-10616).
+  const getColumn = (view: "observations", id: string) => {
+    const params = buildFilterColumnsParams({
+      view,
+      filterOptions: undefined, // empty discovery window
+      datasets: undefined,
+    });
+    return getWidgetFilterColumns(params).find((c) => c.id === id);
+  };
+
+  it("offers every Observation Type value even when discovery data is empty", () => {
+    const typeColumn = getColumn("observations", "type");
+    expect(typeColumn?.type).toBe("stringOptions");
+    const values =
+      typeColumn?.type === "stringOptions"
+        ? typeColumn.options.map((o) => o.value)
+        : [];
+    expect(values).toContain("TOOL");
+    expect(values).toContain("GENERATION");
+    expect(values.length).toBeGreaterThan(0);
+  });
+
+  it("offers every Observation Level value even when discovery data is empty", () => {
+    const levelColumn = getColumn("observations", "level");
+    expect(levelColumn?.type).toBe("stringOptions");
+    const values =
+      levelColumn?.type === "stringOptions"
+        ? levelColumn.options.map((o) => o.value)
+        : [];
+    expect(values).toContain("ERROR");
+    expect(values).toContain("WARNING");
+    expect(values.length).toBeGreaterThan(0);
+  });
+
+  it("keeps Type/Level as non-searchable columns (they rely on complete option lists)", () => {
+    // Confirms the fix must be complete enum lists: Type/Level are NOT custom
+    // (searchable/free-text) selects, so an empty option list is a hard dead-end.
+    const params = buildFilterColumnsParams({
+      view: "observations",
+      filterOptions: undefined,
+      datasets: undefined,
+    });
+    const custom = getWidgetColumnsWithCustomSelect(params);
+    expect(custom).not.toContain("type");
+    expect(custom).not.toContain("level");
   });
 });
 

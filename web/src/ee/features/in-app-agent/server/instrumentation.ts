@@ -1,12 +1,17 @@
 import { EventType } from "@ag-ui/core";
 import { getInternalTracingHandler, logger } from "@langfuse/shared/src/server";
 
+import {
+  getInAppAgentInstrumentationObservationId,
+  getInAppAgentInstrumentationTraceId,
+} from "@/src/ee/features/in-app-agent/constants";
 import type {
   AgUiEvent,
   AgUiMessage,
   AgUiRunAgentInput,
 } from "@/src/ee/features/in-app-agent/schema";
 import { compactTextMessageChunks } from "@/src/ee/features/in-app-agent/server/eventCompaction";
+import type { InAppAgentUserAccess } from "@/src/ee/features/in-app-agent/server/tools";
 
 export type InAppAgentTracingConfig = {
   environment: string;
@@ -14,8 +19,11 @@ export type InAppAgentTracingConfig = {
   user: {
     id: string;
     email?: string | null;
+    projectRole?: InAppAgentUserAccess["projectRole"];
+    // Global Langfuse admin flag. This bypasses project membership checks.
+    isAdmin: boolean;
   };
-  traceId: string;
+  runId: string;
   targetProjectId: string;
   prompt?: InAppAgentPromptMetadata;
 };
@@ -30,8 +38,7 @@ export type InAppAgentPromptMetadata = {
   version: number;
 };
 
-const IN_APP_AGENT_TRACE_NAME = "in-app-agent";
-const IN_APP_AGENT_RUN_NAME = "agent-run";
+const IN_APP_AGENT_TURN_NAME = "agent-turn";
 type InternalTracingHandler = ReturnType<typeof getInternalTracingHandler>;
 type InAppAgentTrace = ReturnType<
   InternalTracingHandler["handler"]["langfuse"]["trace"]
@@ -51,6 +58,10 @@ type AgentRunToolDefinition = {
     description?: string;
     parameters?: unknown;
   };
+};
+type AgentRunSkillDefinition = {
+  name: string;
+  description?: string;
 };
 type AgentRunChatMessage = {
   role: string;
@@ -73,6 +84,7 @@ type ToolObservationBody = {
   statusMessage?: string;
   metadata?: Record<string, unknown>;
 };
+type ToolCallApprovalStatus = "approved" | "rejected";
 
 export function createInAppAgentInstrumentation({
   input,
@@ -88,7 +100,9 @@ export function createInAppAgentInstrumentation({
       metadata: tracing.metadata,
       userId: tracing.user.id,
       userEmail: tracing.user.email,
-      traceId: tracing.traceId,
+      userProjectRole: tracing.user.projectRole,
+      userIsAdmin: tracing.user.isAdmin,
+      runId: tracing.runId,
       targetProjectId: tracing.targetProjectId,
       environment: tracing.environment,
       prompt: tracing.prompt,
@@ -117,6 +131,10 @@ export class InAppAgentInstrumentation {
       parentMessageId?: string;
     }
   >();
+  private readonly toolCallApprovals = new Map<
+    string,
+    ToolCallApprovalStatus
+  >();
   private readonly metadata: Record<string, unknown>;
   private readonly agentRunOutputMessages: AgentRunChatMessage[] = [];
   private readonly agentRunToolCalls: AgentRunToolCall[] = [];
@@ -130,7 +148,9 @@ export class InAppAgentInstrumentation {
     metadata: Record<string, unknown>;
     userId: string;
     userEmail?: string | null;
-    traceId: string;
+    userProjectRole?: InAppAgentUserAccess["projectRole"];
+    userIsAdmin: boolean;
+    runId: string;
     targetProjectId: string;
     environment: string;
     prompt?: InAppAgentPromptMetadata;
@@ -138,6 +158,10 @@ export class InAppAgentInstrumentation {
     this.metadata = {
       ...params.metadata,
       ...(params.userEmail ? { langfuse_user_email: params.userEmail } : {}),
+      ...(params.userProjectRole
+        ? { langfuse_user_project_role: params.userProjectRole }
+        : {}),
+      langfuse_user_is_admin: params.userIsAdmin,
       ...(params.prompt
         ? {
             prompt_name: params.prompt.name,
@@ -150,8 +174,8 @@ export class InAppAgentInstrumentation {
 
     const traceSinkParams = {
       targetProjectId: params.targetProjectId,
-      traceId: params.traceId,
-      traceName: IN_APP_AGENT_TRACE_NAME,
+      traceId: getInAppAgentInstrumentationTraceId(params.runId),
+      traceName: IN_APP_AGENT_TURN_NAME,
       environment: params.environment,
       userId: params.userId,
       metadata: this.metadata,
@@ -163,16 +187,17 @@ export class InAppAgentInstrumentation {
     this.langfuse = handler.langfuse;
 
     this.trace = this.langfuse.trace({
-      id: params.traceId,
-      name: IN_APP_AGENT_TRACE_NAME,
+      id: getInAppAgentInstrumentationTraceId(params.runId),
+      name: IN_APP_AGENT_TURN_NAME,
       userId: params.userId,
       sessionId: params.input.threadId,
+      input: this.agentRunInput,
       metadata: this.metadata,
       tags: ["in-app-agent"],
     });
     this.agentRun = this.trace.generation({
-      id: params.input.runId,
-      name: IN_APP_AGENT_RUN_NAME,
+      id: getInAppAgentInstrumentationObservationId(params.input.runId),
+      name: IN_APP_AGENT_TURN_NAME,
       input: this.agentRunInput,
       metadata: this.metadata,
       ...(params.prompt
@@ -213,6 +238,34 @@ export class InAppAgentInstrumentation {
     );
   }
 
+  recordToolCallApproval(approval?: {
+    toolCallId: string;
+    status: ToolCallApprovalStatus;
+  }) {
+    if (this.ended || !approval) {
+      return;
+    }
+
+    this.toolCallApprovals.set(approval.toolCallId, approval.status);
+  }
+
+  recordAvailableSkills(skills: unknown[]) {
+    if (this.ended) {
+      return;
+    }
+
+    const availableSkills = getAgentRunAvailableSkills(skills);
+
+    if (availableSkills.length === 0) {
+      return;
+    }
+
+    this.agentRunInput = addAvailableSkillsToAgentRunInput(
+      this.agentRunInput,
+      availableSkills,
+    );
+  }
+
   endWithError(error: unknown) {
     if (this.ended) {
       return;
@@ -221,7 +274,7 @@ export class InAppAgentInstrumentation {
     const message = error instanceof Error ? error.message : String(error);
     this.endOpenToolSpans({ error: message }, message);
     this.agentRun.update({
-      name: IN_APP_AGENT_RUN_NAME,
+      name: IN_APP_AGENT_TURN_NAME,
       input: this.agentRunInput,
       output: this.getAgentRunOutput(),
       ...(this.completionStartTime
@@ -242,6 +295,8 @@ export class InAppAgentInstrumentation {
         : {}),
     });
     this.trace.update({
+      input: this.agentRunInput,
+      output: this.getAgentRunOutput(),
       metadata: { ...this.metadata, error: message },
     });
     this.agentRun.end();
@@ -261,7 +316,7 @@ export class InAppAgentInstrumentation {
       ...(params?.result ? { result: params.result } : {}),
     };
     this.agentRun.update({
-      name: IN_APP_AGENT_RUN_NAME,
+      name: IN_APP_AGENT_TURN_NAME,
       input: this.agentRunInput,
       output: this.getAgentRunOutput(),
       ...(this.completionStartTime
@@ -275,7 +330,11 @@ export class InAppAgentInstrumentation {
           }
         : {}),
     });
-    this.trace.update({ metadata });
+    this.trace.update({
+      input: this.agentRunInput,
+      output: this.getAgentRunOutput(),
+      metadata,
+    });
     this.agentRun.end();
     this.ended = true;
   }
@@ -441,6 +500,7 @@ export class InAppAgentInstrumentation {
     const output =
       tool.output === undefined ? undefined : normalizeToolOutput(tool.output);
     const isError = options?.statusMessage !== undefined || isToolError(output);
+    const toolCallApproval = this.toolCallApprovals.get(toolCallId);
     const body: ToolObservationBody = {
       id: toolCallId,
       traceId: this.agentRun.traceId,
@@ -458,6 +518,7 @@ export class InAppAgentInstrumentation {
       metadata: {
         ...(options?.metadata ?? {}),
         toolCallId,
+        ...(toolCallApproval ? { toolCallApproval } : {}),
         ...(tool.argsComplete ? {} : { argsComplete: false }),
         ...(tool.parentMessageId
           ? { parentMessageId: tool.parentMessageId }
@@ -466,6 +527,7 @@ export class InAppAgentInstrumentation {
     };
 
     this.recordToolCall(toolCallId, tool, output);
+    this.toolCallApprovals.delete(toolCallId);
 
     (
       this.langfuse as unknown as {
@@ -553,7 +615,7 @@ export class InAppAgentInstrumentation {
 }
 
 function getAgentRunInput(input: AgUiRunAgentInput): unknown {
-  const messages = getAgentRunMessages(input.messages);
+  const messages = getAgentRunMessages(getCurrentTurnMessages(input.messages));
   const context = getAgentRunContext(input);
 
   if (!context) {
@@ -564,6 +626,23 @@ function getAgentRunInput(input: AgUiRunAgentInput): unknown {
     messages,
     context,
   };
+}
+
+function getCurrentTurnMessages(messages: AgUiMessage[]): AgUiMessage[] {
+  const lastUserMessageIndex = messages.findLastIndex(
+    (message) => message.role === "user",
+  );
+
+  if (lastUserMessageIndex === -1) {
+    return messages;
+  }
+
+  return messages.filter(
+    (message, index) =>
+      message.role === "developer" ||
+      message.role === "system" ||
+      index >= lastUserMessageIndex,
+  );
 }
 
 function addAvailableToolsToAgentRunInput(
@@ -577,6 +656,20 @@ function addAvailableToolsToAgentRunInput(
   return {
     ...input,
     tools,
+  };
+}
+
+function addAvailableSkillsToAgentRunInput(
+  input: unknown,
+  skills: AgentRunSkillDefinition[],
+) {
+  if (!isRecord(input)) {
+    return input;
+  }
+
+  return {
+    ...input,
+    skills,
   };
 }
 
@@ -596,6 +689,28 @@ function getAgentRunAvailableTools(
         ...(parameters ? { parameters } : {}),
       },
     };
+  });
+}
+
+function getAgentRunAvailableSkills(
+  skills: unknown[],
+): AgentRunSkillDefinition[] {
+  return skills.flatMap((skill) => {
+    const skillRecord = isRecord(skill) ? skill : {};
+    const name = getStringValue(skillRecord.name);
+
+    if (!name) {
+      return [];
+    }
+
+    const description = getStringValue(skillRecord.description);
+
+    return [
+      {
+        name,
+        ...(description ? { description } : {}),
+      },
+    ];
   });
 }
 

@@ -111,7 +111,10 @@ export const ScoreRow = ({
   if (!aggregate) {
     return (
       <div className="flex h-6 w-full items-center gap-2">
-        <span className="text-muted-foreground w-32 shrink-0 truncate">
+        <span
+          className="text-muted-foreground w-32 shrink-0 truncate"
+          title={name}
+        >
           {name}
         </span>
         <ScoreValueSection aggregate={aggregate} diff={diff} />
@@ -122,7 +125,9 @@ export const ScoreRow = ({
   return (
     <HoverCard openDelay={700} closeDelay={100} onOpenChange={setIsHovered}>
       <div className="flex h-6 w-full items-center gap-2">
-        <span className="w-32 shrink-0 truncate font-medium">{name}</span>
+        <span className="w-32 shrink-0 truncate font-medium" title={name}>
+          {name}
+        </span>
         <HoverCardTrigger asChild>
           <div className="cursor-pointer">
             <ScoreValueSection aggregate={aggregate} diff={diff} />

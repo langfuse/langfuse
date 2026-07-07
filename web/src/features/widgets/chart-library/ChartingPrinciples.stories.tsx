@@ -30,7 +30,7 @@ const sparse = [
   { x: "6", y: 68 },
 ];
 
-const Mini = ({
+const ExampleCard = ({
   label,
   caption,
   children,
@@ -39,17 +39,13 @@ const Mini = ({
   caption: string;
   children: React.ReactNode;
 }) => (
-  <div className="flex flex-col gap-1">
+  <div className="flex min-w-[210px] flex-1 flex-col gap-1">
     <div className="text-xs font-bold tracking-wide uppercase">{label}</div>
-    <div className="bg-background h-[150px] w-[210px] rounded-md border p-2">
+    <div className="bg-background h-[150px] w-full rounded-md border p-2">
       {children}
     </div>
-    <div className="text-muted-foreground w-[210px] text-xs">{caption}</div>
+    <div className="text-muted-foreground w-full text-xs">{caption}</div>
   </div>
-);
-
-const Row = ({ children }: { children: React.ReactNode }) => (
-  <div className="flex flex-wrap gap-5">{children}</div>
 );
 
 const axes = (
@@ -75,19 +71,12 @@ const axes = (
 const meta = preview.meta({
   title: "Design System/Charts/Illustrations",
   component: LineChartTimeSeries,
-  decorators: [
-    (Story) => (
-      <div className="max-w-[720px] p-1">
-        <Story />
-      </div>
-    ),
-  ],
 });
 
 // ── V1 · Draw what was measured ──────────────────────────────────────────────
 export const Interpolation = meta.story({
   render: () => (
-    <Row>
+    <div className="flex flex-wrap gap-5 p-1">
       {(
         [
           ["Straight", "linear", "What we measured. The honest default."],
@@ -99,7 +88,7 @@ export const Interpolation = meta.story({
           ],
         ] as const
       ).map(([label, type, caption]) => (
-        <Mini key={type} label={label} caption={caption}>
+        <ExampleCard key={type} label={label} caption={caption}>
           <ResponsiveContainer>
             <LineChart data={sparse} margin={{ top: 8, right: 8, bottom: 0 }}>
               {axes}
@@ -113,9 +102,9 @@ export const Interpolation = meta.story({
               />
             </LineChart>
           </ResponsiveContainer>
-        </Mini>
+        </ExampleCard>
       ))}
-    </Row>
+    </div>
   ),
 });
 
@@ -132,8 +121,8 @@ const zeroFilled = withHole.map((d) => ({ ...d, y: d.y ?? 0 }));
 
 export const NullHandling = meta.story({
   render: () => (
-    <Row>
-      <Mini
+    <div className="flex flex-wrap gap-5 p-1">
+      <ExampleCard
         label="Gap ✓"
         caption="Null breaks the line. The truth: no data here."
       >
@@ -151,8 +140,8 @@ export const NullHandling = meta.story({
             />
           </LineChart>
         </ResponsiveContainer>
-      </Mini>
-      <Mini
+      </ExampleCard>
+      <ExampleCard
         label="Bridge"
         caption="Only when the series truly continues across the gap."
       >
@@ -171,8 +160,8 @@ export const NullHandling = meta.story({
             />
           </LineChart>
         </ResponsiveContainer>
-      </Mini>
-      <Mini
+      </ExampleCard>
+      <ExampleCard
         label="Zero-fill ✗"
         caption="Invents a measurement of 0. A lie, unless stacking demands it."
       >
@@ -189,8 +178,8 @@ export const NullHandling = meta.story({
             />
           </LineChart>
         </ResponsiveContainer>
-      </Mini>
-    </Row>
+      </ExampleCard>
+    </div>
   ),
 });
 
@@ -208,7 +197,7 @@ const certainty = [
 
 export const Certainty = meta.story({
   render: () => (
-    <Mini
+    <ExampleCard
       label="Confirmed vs. forming"
       caption="The still-aggregating tail is dotted + pale — present, but visibly less certain."
     >
@@ -237,7 +226,7 @@ export const Certainty = meta.story({
           />
         </LineChart>
       </ResponsiveContainer>
-    </Mini>
+    </ExampleCard>
   ),
 });
 
@@ -280,14 +269,14 @@ const manySeries = buildSeries(
   })),
 );
 
-const Frame = ({
+const ChartFrame = ({
   title,
   children,
 }: {
   title: string;
   children: React.ReactNode;
 }) => (
-  <div className="bg-background w-[680px] rounded-md border p-3">
+  <div className="bg-background rounded-md border p-3">
     <div className="mb-1 text-sm font-medium">{title}</div>
     <div className="h-[280px] w-full">{children}</div>
   </div>
@@ -296,8 +285,8 @@ const Frame = ({
 // V4/V5 — hover snaps to a real sample; one synced crosshair, one tooltip.
 export const HoverTimeline = meta.story({
   render: () => (
-    <div className="flex flex-col gap-3">
-      <Frame title="p95 latency by model">
+    <div className="flex flex-col gap-3 p-1">
+      <ChartFrame title="p95 latency by model">
         <LineChartTimeSeries
           data={fewSeries}
           syncId="charting-principles"
@@ -305,8 +294,8 @@ export const HoverTimeline = meta.story({
           showDataPointDots={false}
           metricFormatter={msFormatter}
         />
-      </Frame>
-      <Frame title="requests by model (same timeline)">
+      </ChartFrame>
+      <ChartFrame title="requests by model (same timeline)">
         <LineChartTimeSeries
           data={buildSeries([
             { name: "gpt-4o", base: 14_000, amp: 6_000 },
@@ -317,7 +306,7 @@ export const HoverTimeline = meta.story({
           legendPosition="above"
           showDataPointDots={false}
         />
-      </Frame>
+      </ChartFrame>
     </div>
   ),
 });
@@ -325,27 +314,27 @@ export const HoverTimeline = meta.story({
 // V6/V7 — quiet chrome, identity color, adaptive labels (production component).
 export const QuietChrome = meta.story({
   render: () => (
-    <Frame title="High data-ink: faint grid, no axis spine, muted labels">
+    <ChartFrame title="High data-ink: faint grid, no axis spine, muted labels">
       <LineChartTimeSeries
         data={fewSeries}
         legendPosition="above"
         showDataPointDots={false}
         metricFormatter={msFormatter}
       />
-    </Frame>
+    </ChartFrame>
   ),
 });
 
 // V8 — bound the frame, not the data: top-N + an honest "N of M" note.
 export const BoundTheFrame = meta.story({
   render: () => (
-    <Frame title="30 series in, 25 drawn — and it says so">
+    <ChartFrame title="30 series in, 25 drawn — and it says so">
       <LineChartTimeSeries
         data={manySeries}
         legendPosition="above"
         showDataPointDots={false}
         metricFormatter={msFormatter}
       />
-    </Frame>
+    </ChartFrame>
   ),
 });
