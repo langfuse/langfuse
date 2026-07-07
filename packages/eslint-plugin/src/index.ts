@@ -4,6 +4,7 @@ import { default as noMarginOnRootElements } from "./rules/no-margin-on-root-ele
 import { default as noOverlayZindex } from "./rules/no-overlay-zindex.js";
 import { default as requireTitleWithTruncate } from "./rules/require-title-with-truncate.js";
 import { default as noStyleProps } from "./rules/no-style-props.js";
+import { default as noSwitchStatements } from "./rules/no-switch-statements.js";
 import { default as noUnnecessaryCn } from "./rules/no-unnecessary-cn.js";
 
 const plugin = {
@@ -12,6 +13,7 @@ const plugin = {
     "no-margin-on-root-elements": noMarginOnRootElements,
     "no-overlay-zindex": noOverlayZindex,
     "no-style-props": noStyleProps,
+    "no-switch-statements": noSwitchStatements,
     "no-tailwind-overflow-scroll": noTailwindOverflowScroll,
     "no-unnecessary-cn": noUnnecessaryCn,
     "require-title-with-truncate": requireTitleWithTruncate,

@@ -105,6 +105,15 @@ export default [
     },
   },
 
+  // We're using the in-app-agent directory as a testing ground for some new eslint-rules.
+  {
+    name: "langfuse/web/in-app-agent",
+    files: ["src/ee/features/in-app-agent/**/*.{ts,tsx}"],
+    rules: {
+      "@repo/no-switch-statements": "error",
+    },
+  },
+
   // App-wide guard ("overlay-content" mode): a consumer must not re-introduce a
   // z-index escape on an overlay it imports (e.g. nav-user's old `z-60` on
   // DropdownMenuContent, or `z-50` on a HoverCardContent). This mode flags a
