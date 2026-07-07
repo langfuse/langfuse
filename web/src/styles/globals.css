@@ -307,9 +307,10 @@
     --destructive: 0 78.7% 63.1%;
     --destructive-foreground: 0 0% 100%;
 
-    --ring: 217.2 32.6% 17.5%;
+    --ring: 246 55% 70%;
 
     --primary-accent: 246 55% 70%;
+    --hover-primary-accent: 246 70% 78%;
 
     --muted-blue: 215 95% 73.1%;
     --muted-green: 142 76.7% 73.1%;
@@ -336,7 +337,7 @@
     --accent-dark-green: 134 50% 55%;
 
     --accent-light-blue: 240 32.4% 13.9%;
-    --accent-dark-blue: 234 100% 75.5%;
+    --accent-dark-blue: 246 70% 76%;
 
     /* Search-bar query syntax highlighting (dark). Brighter than light so the
        key/value read against the dark surface. See :root for the contract. */
@@ -354,7 +355,7 @@
     --sidebar-accent: 240 5.1% 11.6%;
     --sidebar-accent-foreground: 180 6.7% 97.1%;
     --sidebar-border: 223 9.1% 15.1%;
-    --sidebar-ring: 224.3 76.3% 46%;
+    --sidebar-ring: 246 55% 70%;
 
     --find-match-background: 60 100% 20%;
     --find-match-selected-background: 60 100% 50%;
