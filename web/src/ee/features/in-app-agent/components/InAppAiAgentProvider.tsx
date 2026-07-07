@@ -139,9 +139,9 @@ type InAppAiAgentContextType = {
 
 const InAppAiAgentContext = createContext<InAppAiAgentContextType | null>(null);
 
-export interface InAppAiAgentProviderProps extends PropsWithChildren {
+export type InAppAiAgentProviderProps = PropsWithChildren<{
   defaultOpen?: boolean;
-}
+}>;
 
 export function InAppAiAgentProvider({
   children,
