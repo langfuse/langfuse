@@ -64,6 +64,21 @@ engine:
   env:
     ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
 
+# claude-fable-5 is not in the AWF firewall's built-in AI-credits pricing
+# table yet; without a pricing entry the api-proxy rejects every request
+# with a 400. Costs are USD per token ($10/$50 per MTok, cache read $1,
+# cache write $12.50).
+models:
+  providers:
+    anthropic:
+      models:
+        claude-fable-5:
+          cost:
+            input: 0.00001
+            output: 0.00005
+            cache_read: 0.000001
+            cache_write: 0.0000125
+
 timeout-minutes: 60
 
 network:
