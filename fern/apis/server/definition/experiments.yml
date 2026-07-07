@@ -1,0 +1,193 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  commons: ./commons.yml
+  scoresV3: ./scores-v3.yml
+
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    list:
+      method: GET
+      path: /experiments
+      docs: |
+        List experiments with cursor-based pagination. Results are ordered by
+        latest experiment activity descending.
+      request:
+        name: ListExperimentsRequest
+        query-parameters:
+          fields:
+            type: optional<string>
+            docs: |
+              Comma-separated list of field groups to include. Available groups:
+              `core`, `metadata`, `scores`. If omitted, `core` is returned.
+          limit:
+            type: optional<integer>
+            docs: Number of experiments to return per page. Maximum 100, default 50.
+          scoreLimit:
+            type: optional<integer>
+            docs: Number of scores to return per experiment when `fields=scores` is requested. Maximum 50, default 50.
+          cursor:
+            type: optional<string>
+            docs: Versioned base64url cursor from the previous response page.
+          fromStartTime:
+            type: datetime
+            docs: Retrieve only experiments on or after this datetime.
+          toStartTime:
+            type: optional<datetime>
+            docs: Retrieve only experiments before this datetime.
+          id:
+            type: optional<string>
+            docs: Comma-separated list of experiment IDs.
+          name:
+            type: optional<string>
+            docs: Comma-separated list of experiment names.
+          datasetId:
+            type: optional<string>
+            docs: Comma-separated list of dataset IDs.
+          filter:
+            type: optional<string>
+            docs: |
+              JSON string containing an array of structured filter conditions.
+              Supported columns are `id`, `name`, and `datasetId`.
+      response: ExperimentsResponse
+    listItems:
+      method: GET
+      path: /experiment-items
+      docs: |
+        List experiment items with cursor-based pagination. Use this endpoint
+        to export experiment item inputs, outputs, expected outputs, metadata,
+        and optionally item/trace scores. Results are ordered by time
+        descending.
+      request:
+        name: ListExperimentItemsRequest
+        query-parameters:
+          fields:
+            type: optional<string>
+            docs: |
+              Comma-separated list of field groups to include. Available groups:
+              `core`, `dataset`, `io`, `metadata`, `itemMetadata`,
+              `experimentMetadata`, `scores`. If omitted, `core,dataset` is
+              returned.
+          limit:
+            type: optional<integer>
+            docs: Number of experiment items to return per page. Maximum 100, default 50.
+          scoreLimit:
+            type: optional<integer>
+            docs: Number of scores to return per experiment item when `fields=scores` is requested. Maximum 50, default 50.
+          cursor:
+            type: optional<string>
+            docs: Versioned base64url cursor from the previous response page.
+          fromStartTime:
+            type: datetime
+            docs: Retrieve only experiment items started on or after this datetime.
+          toStartTime:
+            type: optional<datetime>
+            docs: Retrieve only experiment items started before this datetime.
+          experimentId:
+            type: optional<string>
+            docs: Comma-separated list of experiment IDs.
+          experimentName:
+            type: optional<string>
+            docs: Comma-separated list of experiment names.
+          experimentItemId:
+            type: optional<string>
+            docs: Comma-separated list of experiment item IDs.
+          datasetId:
+            type: optional<string>
+            docs: Comma-separated list of dataset IDs.
+          filter:
+            type: optional<string>
+            docs: |
+              JSON string containing an array of structured filter conditions.
+              Supported columns are `experimentId`, `experimentName`,
+              `experimentItemId`, and `datasetId`.
+      response: ExperimentItemsResponse
+
+types:
+  ExperimentsResponse:
+    properties:
+      data: list<Experiment>
+      meta: ExperimentsResponseMeta
+
+  ExperimentsResponseMeta:
+    properties:
+      cursor:
+        type: optional<string>
+        docs: Versioned base64url cursor for retrieving the next page. Absent when there are no more results.
+
+  Experiment:
+    properties:
+      id: string
+      name: string
+      description: nullable<string>
+      startTime:
+        type: datetime
+        docs: |
+          Start of the experiment, i.e. the earliest event within the
+          requested time range. Clipped to `fromStartTime` when the
+          experiment started before the requested range.
+      endTime:
+        type: datetime
+        docs: |
+          End of the experiment, i.e. the latest event end within the
+          requested time range.
+      itemCount:
+        type: integer
+        docs: Number of experiment items within the requested time range.
+      datasetId:
+        type: nullable<string>
+        docs: Null when the experiment is not associated with a dataset.
+      metadata:
+        type: optional<nullable<map<string, unknown>>>
+        docs: Included only when `fields=metadata` is requested.
+      scores:
+        type: optional<list<scoresV3.ScoreV3>>
+        docs: Included only when `fields=scores` is requested. Contains scores directly attached to the experiment.
+
+  ExperimentItemsResponse:
+    properties:
+      data: list<ExperimentItem>
+      meta: ExperimentsResponseMeta
+
+  ExperimentItem:
+    properties:
+      id: string
+      traceId: string
+      startTime: datetime
+      endTime: nullable<datetime>
+      level: commons.ObservationLevel
+      environment: string
+      experimentId: string
+      experimentName: string
+      experimentItemId: string
+      experimentDatasetId:
+        type: optional<nullable<string>>
+        docs: Included when `fields=dataset` is requested.
+      experimentItemVersion:
+        type: optional<nullable<datetime>>
+        docs: Included when `fields=dataset` is requested.
+      input:
+        type: optional<unknown>
+        docs: Included when `fields=io` is requested.
+      output:
+        type: optional<unknown>
+        docs: Included when `fields=io` is requested.
+      expectedOutput:
+        type: optional<unknown>
+        docs: Included when `fields=io` is requested.
+      metadata:
+        type: optional<nullable<map<string, unknown>>>
+        docs: Included when `fields=metadata` is requested.
+      experimentItemMetadata:
+        type: optional<nullable<map<string, unknown>>>
+        docs: Included when `fields=itemMetadata` is requested.
+      experimentMetadata:
+        type: optional<nullable<map<string, unknown>>>
+        docs: Included when `fields=experimentMetadata` is requested.
+      experimentDescription:
+        type: optional<nullable<string>>
+        docs: Included when `fields=experimentMetadata` is requested.
+      scores:
+        type: optional<list<scoresV3.ScoreV3>>
+        docs: Included only when `fields=scores` is requested. Contains item and trace scores only; experiment-level scores are returned by the experiments endpoint.
