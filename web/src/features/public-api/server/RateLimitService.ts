@@ -401,8 +401,8 @@ const getPlanBasedRateLimitConfig = (
         case "public-api-metrics-v2":
           return {
             resource: "public-api-metrics-v2",
-            points: 2000,
-            durationInSec: 86400, // 2000 requests per day
+            points: 100,
+            durationInSec: 3600, // 100 requests per hour
           };
         case "public-api-daily-metrics-legacy":
           return {
@@ -488,8 +488,8 @@ const getPlanBasedRateLimitConfig = (
         case "public-api-metrics-v2":
           return {
             resource: "public-api-metrics-v2",
-            points: 10_000,
-            durationInSec: 86400, // 10000 requests per day
+            points: 500,
+            durationInSec: 3600, // 500 requests per hour
           };
         case "public-api-daily-metrics-legacy":
           return {

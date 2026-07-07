@@ -389,11 +389,11 @@ describe("RateLimitService", () => {
 
   it("should apply public-api-metrics-v2 rate limits by cloud plan", async () => {
     const cases = [
-      { plan: "cloud:hobby" as const, points: 100 },
-      { plan: "cloud:core" as const, points: 2000 },
-      { plan: "cloud:pro" as const, points: 10_000 },
-      { plan: "cloud:team" as const, points: 10_000 },
-      { plan: "cloud:enterprise" as const, points: 10_000 },
+      { plan: "cloud:hobby" as const, points: 100, durationInSec: 86400 },
+      { plan: "cloud:core" as const, points: 100, durationInSec: 3600 },
+      { plan: "cloud:pro" as const, points: 500, durationInSec: 3600 },
+      { plan: "cloud:team" as const, points: 500, durationInSec: 3600 },
+      { plan: "cloud:enterprise" as const, points: 500, durationInSec: 3600 },
     ];
 
     const rateLimitService = RateLimitService.getInstance(redis);
@@ -426,6 +426,14 @@ describe("RateLimitService", () => {
         isFirstInDuration: true,
       });
       expect(result?.isRateLimited()).toBe(false);
+
+      const ttlInSec = await redis.ttl(
+        `${RATE_LIMIT_REDIS_KEY_PREFIX}:public-api-metrics-v2:${orgId}`,
+      );
+
+      expect(ttlInSec).toBeGreaterThan(0);
+      expect(ttlInSec).toBeLessThanOrEqual(testCase.durationInSec);
+      expect(ttlInSec).toBeGreaterThan(testCase.durationInSec - 60);
     }
   });
 
