@@ -2,8 +2,9 @@
 description: Weekly CI runtime analysis for pipeline.yml (merge-group focused) with trend memory
 on:
   schedule:
-    # Monday: full weekly analysis (may open a PR).
-    - cron: "0 6 * * 1"
+    # Monday morning: full weekly analysis (may open a PR). Fuzzy syntax so
+    # gh-aw scatters the exact minute deterministically (avoids load spikes).
+    - cron: "weekly on monday around 06:00"
   # Fires the moment CI/CD finishes on one of this agent's own PR branches
   # (all agent PRs use the ci-perf/ branch prefix): assess the measured
   # impact, then push a fix, comment the results, or close the PR.
@@ -58,6 +59,7 @@ checkout:
 
 engine:
   id: claude
+  model: claude-fable-5
   max-turns: 120
   env:
     ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
@@ -181,6 +183,52 @@ This run was triggered by the `${{ github.event_name }}` event.
   loop" section for the matching PR. If no open ledger PR matches, emit
   noop and finish immediately.
 
+## Run checklists
+
+Work through the checklist matching this run's trigger, top to bottom. Each
+item names the section holding the full rules — follow those, the checklist
+is only the spine.
+
+**Weekly analysis run** (`schedule` or `workflow_dispatch` — may create a PR):
+
+- [ ] Read memory first: history, `prs.json` ledger, `notes.md` ("Memory").
+      If memory is empty this is the baseline week: still do everything
+      below, but plan for noop instead of a PR.
+- [ ] Refresh every non-closed ledger entry; run the "Assessment loop" for
+      any open agent PR whose CI has completed; judge merged entries against
+      post-merge numbers.
+- [ ] Compute this week's timing metrics (merge-group only) and compare
+      against history ("Metric definitions", "Judging and acting").
+- [ ] Parse vitest logs; update week-over-week flaky-test tracking
+      ("Vitest output analysis").
+- [ ] Decide the outcome: verified in-surface improvement → PR on a
+      `ci-perf/` branch with `expectedImpact` recorded in the ledger
+      ("Judging and acting", "Verify changes before requesting a PR");
+      pipeline.yml-only proposal → comment on this run's PR or a single
+      issue; nothing actionable → noop.
+- [ ] Update all memory files, including `charts/<week>.svg` and pruned
+      `notes.md`.
+- [ ] Write the report with the filled-in chart template to the job summary
+      and into any PR/issue body ("Report and graph").
+
+**Assessment run** (`workflow_run` — CI/CD just finished on one of your PRs):
+
+- [ ] Match the completed CI run to an open ledger PR via the ledger and
+      the actions API. No match → noop and stop.
+- [ ] CI failed → diagnose from the failing job's logs; clear in-surface
+      fix → verify it, push it (one commit), comment the explanation; wrong
+      approach → close the PR with what was learned, record it in
+      `notes.md` ("Assessment loop" step 2).
+- [ ] CI green → extract the PR run's timing metrics and compare against
+      the ledger's `expectedImpact` baseline ("Assessment loop" step 3).
+- [ ] Verdict: impact confirmed → comment measured before/after numbers;
+      inconclusive → comment and leave open for post-merge confirmation;
+      no impact/regression → iterate (max 2 per PR) or close with the
+      numbers.
+- [ ] Update the ledger entry (`ciStatus`, `followUps`) and summarize the
+      action in the job summary.
+- [ ] Never touch PRs that are not in the ledger, and never merge.
+
 ## Metric definitions (use these exactly)
 
 For every completed run, using the GitHub Actions API
@@ -201,23 +249,42 @@ with `created=<from>..<to>`, then `GET /repos/{owner}/{repo}/actions/runs/{id}/j
   `run tests` step. Also record the total duration of the `e2e-tests` job,
   which is typically on the critical path.
 
-Primary population: runs with `event == "merge_group"` — these actually carry
-code changes into main and are the population that matters. Compute the same
-aggregates for `pull_request` and `push` runs only as a comparison baseline.
-Analyze successful runs for timing statistics; count failed/cancelled runs
-separately as context (do not mix their timings into medians).
+Population rules:
+
+- **Timing statistics** (perceived/wall, execution, runner wait, segment
+  medians) come exclusively from successful `merge_group` runs — they carry
+  the code changes into main and are directly comparable. Do not mix
+  `pull_request` or `push` timings into these aggregates.
+- **Everything else** (vitest output analysis, slowest tests,
+  retried/flaky tests) draws on all successful runs of the week regardless
+  of event, EXCEPT runs on `main` (`push` events) — i.e. `merge_group` plus
+  `pull_request` runs.
+- Exclude failed and cancelled runs from every analysis; count them
+  separately as context only.
 
 ## Vitest output analysis
 
-For a sample of merge-group runs spread across the week (at least 5 runs, or
-all runs if fewer), download the log of the `run tests` step of the
+For a sample of successful runs spread across the week — `merge_group` and
+`pull_request` events, never `push`/main runs (at least 5 runs, or all runs
+if fewer), download the log of the `run tests` step of the
 `tests-web (…)` matrix jobs and of the `tests-worker (…)` matrix jobs (job
 logs API / `get_job_logs`; the interesting part is the end of the step). Our
-CI reporter (`scripts/vitest/ci-reporter.ts`) prints at the end of every run:
+CI reporter (`scripts/vitest/ci-reporter.ts`) prints up to three blocks at
+the end of every run:
 
-- `Slowest tests (top 10):` — ranked list with durations, and per-test
-  markers `[retries=N]` and `[flaky]` for tests that needed vitest retries.
-- A slowest-files section aggregating per-file durations.
+- `Slowest tests (top 10):` — ranked list with durations; a test that
+  needed vitest retries additionally carries ` [retries=N]` and possibly
+  ` [flaky]` suffixes.
+- `Slowest test files (top 10, summed test durations):` — per-file
+  aggregation.
+- `Retried tests (N):` — the authoritative, complete list of every test
+  that retried in the run (lines look like
+  `1. retries=2 <file> > <name> [flaky]` — note: no brackets around
+  `retries=` here). This block is printed ONLY when at least one test
+  retried, so its absence means zero retries in that run. Use this block,
+  not the slowest-tests markers, as the source of truth for flaky
+  tracking — a flaky test that isn't among the 10 slowest appears only
+  here.
 
 Aggregate across the sampled runs:
 
@@ -233,9 +300,10 @@ Read the memory folder before analyzing; update it before finishing. Keep
 this layout:
 
 - `history/<ISO-week, e.g. 2026-W28>.json` — one file per analyzed week:
-  per-event-type aggregates (run count, p50/p90 perceived, p50/p90
-  execution, p50/p90 runner wait, median Build step, median `run tests`
-  step, median e2e-tests job), plus the week's flaky-test list.
+  merge-group timing aggregates (run count, p50/p90 perceived, p50/p90
+  execution, p50/p90 runner wait, daily and weekly medians for the Build
+  step, `run tests` step, and e2e-tests job), plus the week's slowest and
+  flaky tests (from merge-group + pull-request runs).
 - `prs.json` — ledger of every PR and issue this workflow has opened, oldest
   first, entries: `{number, url, openedAt, title, branch, proposals: [..],
   expectedImpact: {metric, baseline, expected}, baselineStats: {..},
@@ -383,12 +451,38 @@ Every PR (or issue) body must contain:
 - A "Verification" section listing every check you ran (exact command +
   quoted summary line) and, separately, what could not run in the sandbox
   and is covered by this PR's own CI run.
-- A **Mermaid chart** (GitHub renders `mermaid` fenced blocks natively) —
-  use `xychart-beta` with the days of the week on the x-axis and two line
-  series: daily median perceived time and daily median execution time
-  (merge-group runs, seconds). State in the title which line is which, since
-  xychart has no legend. Add a second `xychart-beta` with the week-over-week
-  trend from `history/*.json` once at least two weeks of history exist.
+- The **weekly chart** (GitHub renders `mermaid` fenced blocks natively).
+  Copy this template verbatim and only fill in the data: the x-axis days
+  (every day that has merge-group runs), the four value lists (daily
+  merge-group medians in seconds, same day order), and the y-axis maximum
+  (largest value rounded up to the next 100). Do not change the structure
+  or the series order.
+
+  ```mermaid
+  xychart-beta
+      title "Daily merge-group medians (s) — 1: run tests, 2: Build, 3: e2e-tests, 4: runner wait, 5: overall incl. wait, 6: overall excl. wait"
+      x-axis [MM-DD, MM-DD, MM-DD]
+      y-axis "seconds" 0 --> 600
+      line [0, 0, 0]
+      line [0, 0, 0]
+      line [0, 0, 0]
+      line [0, 0, 0]
+      line [0, 0, 0]
+      line [0, 0, 0]
+  ```
+
+  Line 5 is the perceived/wall time (includes runner wait), line 6 the
+  execution time (excludes it); their gap visualizes the wait share. Since
+  xychart has no legend, follow the chart with this table carrying the same
+  numbers:
+
+  | Day | run tests | Build | e2e-tests | runner wait | overall incl. wait | overall excl. wait |
+  |---|---|---|---|---|---|---|
+  | MM-DD | … | … | … | … | … | … |
+
+  Once `history/*.json` holds at least two weeks, add a second chart using
+  the same template shape with ISO weeks on the x-axis (weekly medians,
+  same four series).
 - A markdown table of the top slow tests and the retried/flaky tests.
 - A "Previously opened PRs" section from `prs.json`, oldest first: status
   and whether the change moved the following week's numbers.
