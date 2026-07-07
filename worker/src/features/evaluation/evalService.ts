@@ -79,6 +79,7 @@ import {
   completeEvalExecution,
   type EvalExecutionResult,
 } from "./evalCompletion";
+import { isEvalTargetEnvironmentAllowed } from "./isEvalTargetEnvironmentAllowed";
 import {
   type EvalExecutionDeps,
   createProductionEvalExecutionDeps,
@@ -1135,6 +1136,41 @@ export const evaluate = async ({
     `Extracted ${extractedVariables.length} variables for job ${event.jobExecutionId}`,
   );
 
+  const environment =
+    getEnvironmentFromVariables(extractedVariables) ??
+    DEFAULT_TRACE_ENVIRONMENT;
+
+  // Final fail-closed loop safeguard: never execute an eval whose target
+  // lives in an internal Langfuse environment, regardless of which scheduling
+  // path created the job. See isEvalTargetEnvironmentAllowed. The environment
+  // is derived from the extracted trace/observation variables; mappings
+  // without any tracing-data variable fall back to the default environment
+  // and rely on the scheduling-time guards.
+  if (!isEvalTargetEnvironmentAllowed(environment)) {
+    logger.warn(
+      "Cancelling eval job targeting an internal Langfuse environment",
+      {
+        jobExecutionId: event.jobExecutionId,
+        projectId: event.projectId,
+        environment,
+        traceId: job.jobInputTraceId,
+      },
+    );
+    recordIncrement(
+      "langfuse.evaluation-execution.internal_target_blocked",
+      1,
+      {
+        source: "trace-eval",
+      },
+    );
+    await prisma.jobExecution.update({
+      where: { id: job.id, projectId: event.projectId },
+      data: { status: JobExecutionStatus.CANCELLED, endTime: new Date() },
+    });
+
+    return;
+  }
+
   // Execute the shared LLM-as-a-judge evaluation
   await executeLLMAsJudgeEvaluation({
     projectId: event.projectId,
@@ -1143,9 +1179,7 @@ export const evaluate = async ({
     config,
     template: template as EvalTemplateLlmAsAJudge,
     extractedVariables,
-    environment:
-      getEnvironmentFromVariables(extractedVariables) ??
-      DEFAULT_TRACE_ENVIRONMENT,
+    environment,
   });
 };
 
