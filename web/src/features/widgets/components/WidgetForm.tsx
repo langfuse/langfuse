@@ -754,6 +754,10 @@ export function WidgetForm({
     viewVersion === "v2"
       ? normalizeSingleValueOptions(eventsFilterOptions.data?.traceName)
       : normalizeSingleValueOptions(traceFilterOptions.data?.name);
+  const observationNameOptions =
+    viewVersion === "v2"
+      ? normalizeSingleValueOptions(eventsFilterOptions.data?.name)
+      : normalizeSingleValueOptions(generationsFilterOptions.data?.name);
   const tagsOptions =
     viewVersion === "v2"
       ? eventsFilterOptions.data?.traceTags || []
@@ -789,6 +793,7 @@ export function WidgetForm({
     viewVersion,
     environmentOptions,
     nameOptions,
+    observationNameOptions,
     tagsOptions,
     modelOptions,
     toolNamesOptions,
@@ -803,6 +808,7 @@ export function WidgetForm({
     viewVersion,
     environmentOptions,
     nameOptions,
+    observationNameOptions,
     tagsOptions,
     modelOptions,
     toolNamesOptions,
@@ -822,6 +828,7 @@ export function WidgetForm({
       viewVersion,
       environmentOptions,
       nameOptions,
+      observationNameOptions,
       tagsOptions,
       modelOptions,
       toolNamesOptions,
