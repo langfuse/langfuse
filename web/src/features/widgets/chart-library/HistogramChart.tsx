@@ -1,10 +1,14 @@
-import React from "react";
+import React, { useCallback } from "react";
 import {
+  type ChartDrilldown,
+  type ChartDrilldownClickHandler,
+  type ChartDrilldownClickEvent,
   type DataPoint,
   type MetricFormatterFunction,
 } from "@/src/features/widgets/chart-library/chart-props";
 import {
   formatMetric,
+  getDrilldownFromPayload,
   toFullMetricString,
 } from "@/src/features/widgets/chart-library/utils";
 import { BarChart, Bar, XAxis, YAxis } from "recharts";
@@ -21,6 +25,7 @@ interface HistogramDataPoint {
   lower?: number;
   upper?: number;
   height?: number;
+  drilldown?: ChartDrilldown;
 }
 
 const HistogramChart = ({
@@ -33,11 +38,13 @@ const HistogramChart = ({
   },
   subtleFill = false,
   metricFormatter = (value, options) => formatMetric(value, options),
+  onDrilldown,
 }: {
   data: DataPoint[];
   config?: ChartConfig;
   subtleFill?: boolean;
   metricFormatter?: MetricFormatterFunction;
+  onDrilldown?: ChartDrilldownClickHandler;
 }) => {
   const formatBinEdge = (value: number) =>
     toFullMetricString(metricFormatter(value, { style: "compact" }));
@@ -50,12 +57,13 @@ const HistogramChart = ({
     if (firstDataPoint?.metric && Array.isArray(firstDataPoint.metric)) {
       // ClickHouse histogram format: [(lower, upper, height), ...]
       return (firstDataPoint.metric as [number, number, number][]).map(
-        ([lower, upper, height]) => ({
+        ([lower, upper, height], index) => ({
           binLabel: `[${formatBinEdge(lower)}, ${formatBinEdge(upper)}]`,
           count: height,
           lower,
           upper,
           height,
+          drilldown: firstDataPoint.histogramBinDrilldowns?.[index],
         }),
       );
     }
@@ -64,10 +72,22 @@ const HistogramChart = ({
     return data.map((item) => ({
       binLabel: item.dimension || `Bin ${data.indexOf(item) + 1}`,
       count: (item.metric as number) || 0,
+      drilldown: item.drilldown,
     }));
   };
 
   const histogramData = transformHistogramData(data);
+  const hasDrilldowns = Boolean(
+    onDrilldown && histogramData.some((point) => point.drilldown),
+  );
+
+  const handleBarClick = useCallback(
+    (payload: unknown, _index?: unknown, event?: ChartDrilldownClickEvent) => {
+      const drilldown = getDrilldownFromPayload(payload);
+      if (drilldown) onDrilldown?.(drilldown.href, event);
+    },
+    [onDrilldown],
+  );
 
   if (!histogramData.length) {
     return (
@@ -80,7 +100,7 @@ const HistogramChart = ({
   return (
     <ChartContainer
       config={config}
-      className="[&_.recharts-bar-rectangle:hover]:opacity-30 dark:[&_.recharts-bar-rectangle:hover]:opacity-100 dark:[&_.recharts-bar-rectangle:hover]:brightness-[3]"
+      className={`[&_.recharts-bar-rectangle:hover]:opacity-30 dark:[&_.recharts-bar-rectangle:hover]:opacity-100 dark:[&_.recharts-bar-rectangle:hover]:brightness-[3] ${hasDrilldowns ? "[&_.recharts-bar-rectangle]:cursor-pointer" : ""}`}
     >
       <BarChart
         data={histogramData}
@@ -109,6 +129,7 @@ const HistogramChart = ({
           radius={[2, 2, 0, 0]}
           fillOpacity={subtleFill ? 0.3 : 1}
           isAnimationActive={false}
+          onClick={handleBarClick}
         />
         <ChartTooltip
           cursor={false}

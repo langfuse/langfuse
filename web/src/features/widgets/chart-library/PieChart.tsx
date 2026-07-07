@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useCallback, useMemo } from "react";
 import {
   ChartContainer,
   ChartTooltip,
@@ -11,9 +11,13 @@ import {
   Sector,
   type PieSectorShapeProps,
 } from "recharts";
-import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import {
+  type ChartDrilldownClickEvent,
+  type ChartProps,
+} from "@/src/features/widgets/chart-library/chart-props";
 import {
   formatMetric,
+  getDrilldownFromPayload,
   toFullMetricString,
 } from "@/src/features/widgets/chart-library/utils";
 
@@ -36,6 +40,7 @@ export const PieChart: React.FC<ChartProps> = ({
   accessibilityLayer = true,
   metricFormatter = (value, options) => formatMetric(value, options),
   subtleFill = false,
+  onDrilldown,
 }) => {
   const formatValue = (value: number) =>
     toFullMetricString(metricFormatter(value, { style: "compact" }));
@@ -51,8 +56,21 @@ export const PieChart: React.FC<ChartProps> = ({
       name: item.dimension || "Unknown",
       value: item.metric,
       fill: `hsl(var(--chart-${(index % 8) + 1}))`,
+      drilldown: item.drilldown,
     }));
   }, [data]);
+
+  const hasDrilldowns = Boolean(
+    onDrilldown && data.some((point) => point.drilldown),
+  );
+
+  const handleSliceClick = useCallback(
+    (payload: unknown, _index?: unknown, event?: ChartDrilldownClickEvent) => {
+      const drilldown = getDrilldownFromPayload(payload);
+      if (drilldown) onDrilldown?.(drilldown.href, event);
+    },
+    [onDrilldown],
+  );
 
   const renderSector = (props: PieSectorShapeProps) => {
     const outerRadius =
@@ -98,6 +116,8 @@ export const PieChart: React.FC<ChartProps> = ({
           strokeWidth={5}
           shape={renderSector}
           isAnimationActive={false}
+          className={hasDrilldowns ? "cursor-pointer" : undefined}
+          onClick={handleSliceClick}
         >
           {/* Label in the center of the donut */}
           {data.length > 0 && (

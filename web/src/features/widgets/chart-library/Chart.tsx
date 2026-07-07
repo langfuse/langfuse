@@ -1,4 +1,10 @@
-import React, { useState, useMemo } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   type FormatMetricOptions,
   type MetricFormatterFunction,
@@ -6,6 +12,8 @@ import {
   type ChartThreshold,
   type LegendSummaryMode,
   type LegendInteraction,
+  type ChartDrilldownClickEvent,
+  type ChartDrilldownClickHandler,
 } from "@/src/features/widgets/chart-library/chart-props";
 import { formatMetric } from "@/src/features/widgets/chart-library/utils";
 import { CardContent } from "@/src/components/ui/card";
@@ -18,16 +26,94 @@ import PieChart from "@/src/features/widgets/chart-library/PieChart";
 import HistogramChart from "@/src/features/widgets/chart-library/HistogramChart";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { Button } from "@/src/components/ui/button";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, GitBranch } from "lucide-react";
 import { BigNumber } from "@/src/features/widgets/chart-library/BigNumber";
 import { PivotTable } from "@/src/features/widgets/chart-library/PivotTable";
 import { type OrderByState } from "@langfuse/shared";
 import { type ChartConfig } from "@/src/components/ui/chart";
+import { Layer } from "@/src/components/ui/layer";
 
 const DEFAULT_METRIC_THEME = {
   light: "hsl(var(--chart-1))",
   dark: "hsl(var(--chart-1))",
 } as const;
+
+type DrilldownMenuState = {
+  href: string;
+  x: number;
+  y: number;
+};
+
+const clampMenuPosition = (event: ChartDrilldownClickEvent | undefined) => {
+  if (event && typeof window !== "undefined") {
+    return {
+      x: Math.min(Math.max(8, event.clientX), window.innerWidth - 188),
+      y: Math.min(Math.max(8, event.clientY), window.innerHeight - 48),
+    };
+  }
+
+  if (typeof window !== "undefined") {
+    return {
+      x: Math.max(8, window.innerWidth / 2 - 90),
+      y: Math.max(8, window.innerHeight / 2 - 24),
+    };
+  }
+
+  return { x: 8, y: 8 };
+};
+
+const DrilldownMenu = ({
+  state,
+  onClose,
+  onViewTraces,
+}: {
+  state: DrilldownMenuState | null;
+  onClose: () => void;
+  onViewTraces: () => void;
+}) => {
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!state) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (menuRef.current?.contains(event.target as Node)) return;
+      onClose();
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose, state]);
+
+  if (!state) return null;
+
+  return (
+    <Layer name="popover">
+      <div
+        ref={menuRef}
+        className="bg-popover text-popover-foreground fixed min-w-44 rounded-md border p-1 shadow-md"
+        style={{ left: state.x, top: state.y }}
+      >
+        <button
+          type="button"
+          className="focus:bg-accent focus:text-accent-foreground hover:bg-accent flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-hidden transition-colors"
+          onClick={onViewTraces}
+        >
+          <GitBranch className="h-4 w-4" aria-hidden="true" />
+          <span>View traces</span>
+        </button>
+      </div>
+    </Layer>
+  );
+};
 
 const ChartComponent = ({
   chartType,
@@ -46,6 +132,7 @@ const ChartComponent = ({
   overrideWarning = false,
   metricFormatter: metricFormatterOverride,
   thresholds,
+  onDrilldown,
 }: {
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
@@ -75,9 +162,33 @@ const ChartComponent = ({
   overrideWarning?: boolean;
   metricFormatter?: MetricFormatterFunction;
   thresholds?: ChartThreshold[];
+  onDrilldown?: (href: string) => void;
 }) => {
   const [forceRender, setForceRender] = useState(overrideWarning);
+  const [drilldownMenu, setDrilldownMenu] = useState<DrilldownMenuState | null>(
+    null,
+  );
   const shouldWarn = data.length > 2000 && !forceRender;
+
+  const closeDrilldownMenu = useCallback(() => {
+    setDrilldownMenu(null);
+  }, []);
+
+  const openDrilldownMenu = useCallback<ChartDrilldownClickHandler>(
+    (href, event) => {
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
+      setDrilldownMenu({ href, ...clampMenuPosition(event) });
+    },
+    [],
+  );
+
+  const handleViewTraces = useCallback(() => {
+    if (!drilldownMenu) return;
+    const href = drilldownMenu.href;
+    setDrilldownMenu(null);
+    onDrilldown?.(href);
+  }, [drilldownMenu, onDrilldown]);
 
   const metricFormatter = useMemo(
     () =>
@@ -128,6 +239,7 @@ const ChartComponent = ({
             syncId={syncId}
             showDataPointDots={chartConfig?.show_data_point_dots ?? false}
             thresholds={thresholds}
+            onDrilldown={openDrilldownMenu}
           />
         );
       case "AREA_TIME_SERIES":
@@ -142,6 +254,7 @@ const ChartComponent = ({
             maxVisibleSeries={maxVisibleSeries}
             syncId={syncId}
             subtleFill={chartConfig?.subtle_fill}
+            onDrilldown={openDrilldownMenu}
           />
         );
       case "BAR_TIME_SERIES":
@@ -156,6 +269,7 @@ const ChartComponent = ({
             maxVisibleSeries={maxVisibleSeries}
             syncId={syncId}
             subtleFill={chartConfig?.subtle_fill}
+            onDrilldown={openDrilldownMenu}
           />
         );
       case "HORIZONTAL_BAR":
@@ -166,6 +280,7 @@ const ChartComponent = ({
             showValueLabels={chartConfig?.show_value_labels}
             metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
+            onDrilldown={openDrilldownMenu}
           />
         );
       case "VERTICAL_BAR":
@@ -175,6 +290,7 @@ const ChartComponent = ({
             config={resolvedConfig}
             metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
+            onDrilldown={openDrilldownMenu}
           />
         );
       case "PIE":
@@ -184,6 +300,7 @@ const ChartComponent = ({
             config={resolvedConfig}
             metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
+            onDrilldown={openDrilldownMenu}
           />
         );
       case "HISTOGRAM":
@@ -193,6 +310,7 @@ const ChartComponent = ({
             config={resolvedConfig}
             metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
+            onDrilldown={openDrilldownMenu}
           />
         );
       case "NUMBER": {
@@ -201,6 +319,7 @@ const ChartComponent = ({
             data={renderedData}
             config={resolvedConfig}
             metricFormatter={metricFormatter}
+            onDrilldown={openDrilldownMenu}
           />
         );
       }
@@ -220,6 +339,7 @@ const ChartComponent = ({
             sortState={sortState}
             onSortChange={onSortChange}
             isLoading={isLoading}
+            onDrilldown={openDrilldownMenu}
           />
         );
       }
@@ -229,6 +349,7 @@ const ChartComponent = ({
             data={renderedData.slice(0, rowLimit)}
             showValueLabels={chartConfig?.show_value_labels}
             metricFormatter={metricFormatter}
+            onDrilldown={openDrilldownMenu}
           />
         );
     }
@@ -257,6 +378,11 @@ const ChartComponent = ({
   return (
     <CardContent className="h-full p-0">
       {shouldWarn ? renderWarning() : renderChart()}
+      <DrilldownMenu
+        state={drilldownMenu}
+        onClose={closeDrilldownMenu}
+        onViewTraces={handleViewTraces}
+      />
     </CardContent>
   );
 };

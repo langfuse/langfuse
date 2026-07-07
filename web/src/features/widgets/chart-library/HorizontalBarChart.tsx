@@ -12,10 +12,14 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import {
+  type ChartDrilldownClickEvent,
+  type ChartProps,
+} from "@/src/features/widgets/chart-library/chart-props";
 import {
   formatAxisLabel,
   formatMetric,
+  getDrilldownFromPayload,
   toFullMetricString,
 } from "@/src/features/widgets/chart-library/utils";
 
@@ -42,6 +46,7 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
   showValueLabels = false,
   metricFormatter = (value, options) => formatMetric(value, options),
   subtleFill = false,
+  onDrilldown,
 }) => {
   const formatValue = useCallback(
     (value: number) =>
@@ -64,10 +69,22 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
     );
   }, [showValueLabels, data, formatValue]);
 
+  const hasDrilldowns = Boolean(
+    onDrilldown && data.some((point) => point.drilldown),
+  );
+
+  const handleBarClick = useCallback(
+    (payload: unknown, _index?: unknown, event?: ChartDrilldownClickEvent) => {
+      const drilldown = getDrilldownFromPayload(payload);
+      if (drilldown) onDrilldown?.(drilldown.href, event);
+    },
+    [onDrilldown],
+  );
+
   return (
     <ChartContainer
       config={config}
-      className="min-h-0 w-full [&_.recharts-bar-rectangle:hover]:opacity-30 dark:[&_.recharts-bar-rectangle:hover]:opacity-100 dark:[&_.recharts-bar-rectangle:hover]:brightness-[3]"
+      className={`min-h-0 w-full [&_.recharts-bar-rectangle:hover]:opacity-30 dark:[&_.recharts-bar-rectangle:hover]:opacity-100 dark:[&_.recharts-bar-rectangle:hover]:brightness-[3] ${hasDrilldowns ? "[&_.recharts-bar-rectangle]:cursor-pointer" : ""}`}
     >
       <BarChart
         accessibilityLayer={accessibilityLayer}
@@ -128,6 +145,7 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
           className="fill-(--color-metric)"
           fillOpacity={subtleFill ? 0.3 : 1}
           isAnimationActive={false}
+          onClick={handleBarClick}
         >
           {showValueLabels ? (
             <LabelList
