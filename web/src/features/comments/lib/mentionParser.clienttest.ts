@@ -101,6 +101,30 @@ describe("mentionParser", () => {
 
         expect(result).toEqual(["AlIcE123"]);
       });
+
+      it("should handle display names containing square brackets", () => {
+        // Regression test for #14836: SSO display names like
+        // "John Doe[ Platform Team ]" were silently dropped
+        const content = "@[John Doe[ Platform Team ]](user:alice123) ping";
+        const result = extractUniqueMentionedUserIds(content);
+
+        expect(result).toEqual(["alice123"]);
+      });
+
+      it("should handle display names with nested brackets", () => {
+        const content = "@[Alice [Admin]](user:alice123)";
+        const result = extractUniqueMentionedUserIds(content);
+
+        expect(result).toEqual(["alice123"]);
+      });
+
+      it("should handle multiple mentions where names contain brackets", () => {
+        const content =
+          "@[John[ Team A ]](user:john1) and @[Jane[ Team B ]](user:jane2)";
+        const result = extractUniqueMentionedUserIds(content);
+
+        expect(result).toEqual(["john1", "jane2"]);
+      });
     });
 
     describe("invalid patterns", () => {
@@ -127,13 +151,6 @@ describe("mentionParser", () => {
 
       it("should not match mentions without user ID", () => {
         const content = "@[Alice](user:)";
-        const result = extractUniqueMentionedUserIds(content);
-
-        expect(result).toEqual([]);
-      });
-
-      it("should not match mentions with nested brackets", () => {
-        const content = "@[Alice [Admin]](user:alice123)";
         const result = extractUniqueMentionedUserIds(content);
 
         expect(result).toEqual([]);
@@ -266,7 +283,8 @@ describe("mentionParser", () => {
         const duration = Date.now() - startTime;
 
         expect(duration).toBeLessThan(100);
-        expect(result).toEqual([]);
+        // Brackets are allowed in display names; the token is well-formed
+        expect(result).toEqual(["alice123"]);
       });
 
       it("should handle pathological regex patterns efficiently", () => {
@@ -341,6 +359,39 @@ describe("mentionParser", () => {
         const result = sanitizeMentions(content, mockMembers);
 
         expect(result.sanitizedContent).toBe("@[User](user:minimal111) review");
+      });
+
+      it("should normalize mentions whose typed display name contains brackets", () => {
+        // Regression test for #14836
+        const content = "Hey @[Alice[ Platform Team ]](user:alice123)!";
+        const result = sanitizeMentions(content, mockMembers);
+
+        expect(result.sanitizedContent).toBe(
+          "Hey @[Alice Smith](user:alice123)!",
+        );
+        expect(result.validMentionedUserIds).toEqual(["alice123"]);
+      });
+
+      it("should preserve bracketed canonical names from the database", () => {
+        const members: ProjectMember[] = [
+          {
+            id: "sso1",
+            name: "John Doe[ Platform Team ]",
+            email: "john@example.com",
+          },
+        ];
+        const content = "@[whatever](user:sso1) ping";
+        const result = sanitizeMentions(content, members);
+
+        expect(result.sanitizedContent).toBe(
+          "@[John Doe[ Platform Team ]](user:sso1) ping",
+        );
+        expect(result.validMentionedUserIds).toEqual(["sso1"]);
+
+        // Round-trip: the rewritten token must itself be parseable
+        expect(extractUniqueMentionedUserIds(result.sanitizedContent)).toEqual([
+          "sso1",
+        ]);
       });
     });
 

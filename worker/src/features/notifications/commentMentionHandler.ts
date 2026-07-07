@@ -134,7 +134,12 @@ export async function handleCommentMentionNotification(
           ? comment.content.substring(0, 497) + "..."
           : comment.content;
       // Convert @[DisplayName](user:userId) to @DisplayName
-      return truncated.replace(/@\[([^\]]+)\]\(user:[^)]+\)/g, "@$1");
+      // Display name ends at the first `](user:` suffix so names containing
+      // brackets are stripped correctly (matches MENTION_REGEX in web)
+      return truncated.replace(
+        /@\[((?:[^\]]|\](?!\(user:)){1,100})\]\(user:[a-z0-9_-]{1,30}\)/gi,
+        "@$1",
+      );
     })();
 
     // Process each mentioned user
