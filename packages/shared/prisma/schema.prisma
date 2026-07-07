@@ -228,6 +228,11 @@ enum InAppAgentConversationVisibilityScope {
   PROJECT
 }
 
+enum InAppAgentSandboxProvider {
+  dangerous_docker @map("dangerous-docker")
+  lambda_microvm  @map("lambda-microvm")
+}
+
 model InAppAgentConversation {
   id                String
   projectId         String                                @map("project_id")
@@ -240,7 +245,7 @@ model InAppAgentConversation {
   providerSessionId String?                               @map("provider_session_id")
   sandboxSnapshotKey String?                              @map("sandbox_snapshot_key")
   sandboxExpiresAt   DateTime?                            @map("sandbox_expires_at")
-  sandboxProvider    String?                              @map("sandbox_provider")
+  sandboxProvider    InAppAgentSandboxProvider?           @map("sandbox_provider")
   deletedAt         DateTime?                             @map("deleted_at")
   createdAt         DateTime                              @default(now()) @map("created_at")
   updatedAt         DateTime                              @default(now()) @updatedAt @map("updated_at")

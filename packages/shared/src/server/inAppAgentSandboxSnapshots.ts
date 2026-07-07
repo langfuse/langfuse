@@ -1,4 +1,4 @@
-import type { PrismaClient } from "../db";
+import { type InAppAgentSandboxProvider, type PrismaClient } from "../db";
 
 type SandboxConversationPrisma = {
   inAppAgentConversation: Pick<
@@ -8,10 +8,10 @@ type SandboxConversationPrisma = {
 };
 
 type DeleteSandboxSnapshot = (params: {
-  sandboxProvider: string | null;
+  sandboxProvider: InAppAgentSandboxProvider;
   snapshotKey: string;
   sessionId?: string | null;
-}) => Promise<void>;
+}) => Promise<{ skipped: boolean }>;
 
 const sandboxStatePresenceFilter = {
   OR: [
@@ -64,7 +64,7 @@ export async function clearInAppAgentConversationSandbox(params: {
   projectId: string;
   conversationId: string;
   deleteSnapshot: DeleteSandboxSnapshot;
-}) {
+}): Promise<{ skipped: boolean }> {
   const conversation = await params.prisma.inAppAgentConversation.findUnique({
     where: {
       id_projectId: {
@@ -83,16 +83,18 @@ export async function clearInAppAgentConversationSandbox(params: {
   });
 
   if (!conversation) {
-    return;
+    return { skipped: true };
   }
 
+  let skipped = true;
+
   if (
-    conversation.providerSessionId ||
-    conversation.sandboxSnapshotKey ||
-    conversation.sandboxExpiresAt ||
-    conversation.sandboxProvider
+    conversation.sandboxProvider &&
+    (conversation.providerSessionId ||
+      conversation.sandboxSnapshotKey ||
+      conversation.sandboxExpiresAt)
   ) {
-    await params.deleteSnapshot({
+    const result = await params.deleteSnapshot({
       sandboxProvider: conversation.sandboxProvider,
       sessionId: conversation.providerSessionId,
       snapshotKey:
@@ -102,6 +104,8 @@ export async function clearInAppAgentConversationSandbox(params: {
           conversation.id,
         ),
     });
+
+    skipped = result.skipped;
   }
 
   await params.prisma.inAppAgentConversation.update({
@@ -113,6 +117,8 @@ export async function clearInAppAgentConversationSandbox(params: {
     },
     data: clearedSandboxState,
   });
+
+  return { skipped };
 }
 
 export async function clearExpiredInAppAgentProjectSandboxes(params: {
@@ -121,7 +127,7 @@ export async function clearExpiredInAppAgentProjectSandboxes(params: {
   cutoffDate?: Date;
   now?: Date;
   deleteSnapshot: DeleteSandboxSnapshot;
-}) {
+}): Promise<{ deleted: number; skipped: number }> {
   const now = params.now ?? new Date();
   const conversations = await params.prisma.inAppAgentConversation.findMany({
     where: getSandboxCleanupWhere({
@@ -139,22 +145,30 @@ export async function clearExpiredInAppAgentProjectSandboxes(params: {
   });
 
   if (conversations.length === 0) {
-    return 0;
+    return { deleted: 0, skipped: 0 };
   }
 
-  await Promise.all(
-    conversations.map((conversation) =>
-      params.deleteSnapshot({
-        sandboxProvider: conversation.sandboxProvider,
-        sessionId: conversation.providerSessionId,
-        snapshotKey:
-          conversation.sandboxSnapshotKey ??
-          getInAppAgentSandboxSnapshotKey(
-            conversation.projectId,
-            conversation.id,
-          ),
-      }),
-    ),
+  const results = await Promise.all(
+    conversations
+      .filter(
+        (
+          conversation,
+        ): conversation is typeof conversation & {
+          sandboxProvider: InAppAgentSandboxProvider;
+        } => Boolean(conversation.sandboxProvider),
+      )
+      .map((conversation) =>
+        params.deleteSnapshot({
+          sandboxProvider: conversation.sandboxProvider,
+          sessionId: conversation.providerSessionId,
+          snapshotKey:
+            conversation.sandboxSnapshotKey ??
+            getInAppAgentSandboxSnapshotKey(
+              conversation.projectId,
+              conversation.id,
+            ),
+        }),
+      ),
   );
 
   await params.prisma.inAppAgentConversation.updateMany({
@@ -165,5 +179,8 @@ export async function clearExpiredInAppAgentProjectSandboxes(params: {
     data: clearedSandboxState,
   });
 
-  return conversations.length;
+  const deleted = results.filter((result) => !result.skipped).length;
+  const skipped = results.filter((result) => result.skipped).length;
+
+  return { deleted, skipped };
 }

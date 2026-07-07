@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import type { Session } from "next-auth";
 import { describe, expect, it } from "vitest";
 
-import { prisma } from "@langfuse/shared/src/db";
+import { InAppAgentSandboxProvider, prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
@@ -12,7 +12,7 @@ describe("in-app agent router", () => {
     const conversation = await createConversation({
       projectId,
       userId,
-      sandboxProvider: "dangerous-docker",
+      sandboxProvider: InAppAgentSandboxProvider.dangerous_docker,
       sandboxSnapshotKey: "custom.snapshot",
     });
 
@@ -219,7 +219,7 @@ async function createConversation({
   projectId: string;
   userId: string;
   title?: string;
-  sandboxProvider?: string;
+  sandboxProvider?: InAppAgentSandboxProvider;
   sandboxSnapshotKey?: string;
 }) {
   return prisma.inAppAgentConversation.create({

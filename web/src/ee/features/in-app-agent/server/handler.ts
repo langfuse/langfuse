@@ -47,6 +47,7 @@ import { createInAppAgentSandbox } from "@/src/ee/features/in-app-agent/server/s
 import {
   createInAppAgentSandboxProvider,
   getDefaultInAppAgentSandboxProviderType,
+  parseInAppAgentSandboxProviderType,
 } from "@/src/ee/features/in-app-agent/server/sandbox/config";
 import { getLangfuseClient } from "@/src/features/natural-language-filters/server/utils";
 import { getAuthOptions } from "@/src/server/auth";
@@ -67,7 +68,7 @@ import {
   UnauthorizedError,
   CloudConfigSchema,
 } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { InAppAgentSandboxProvider, prisma } from "@langfuse/shared/src/db";
 import {
   logger,
   redis,
@@ -279,7 +280,9 @@ export default async function handler(request: Request) {
           projectId,
           providerSessionId: conversation.providerSessionId,
           sandboxExpiresAt: conversation.sandboxExpiresAt,
-          sandboxProvider: conversation.sandboxProvider,
+          sandboxProvider: parseInAppAgentSandboxProviderType(
+            conversation.sandboxProvider,
+          ),
           sandboxSnapshotKey: conversation.sandboxSnapshotKey,
           ttlMs: IN_APP_AGENT_SANDBOX_TTL_MS,
           providerType: sandboxProviderType,
@@ -300,7 +303,15 @@ export default async function handler(request: Request) {
                   projectId,
                 },
               },
-              data: state,
+              data: {
+                ...state,
+                sandboxProvider:
+                  state.sandboxProvider === "dangerous-docker"
+                    ? InAppAgentSandboxProvider.dangerous_docker
+                    : state.sandboxProvider === "lambda-microvm"
+                      ? InAppAgentSandboxProvider.lambda_microvm
+                      : null,
+              },
             });
           },
         })
