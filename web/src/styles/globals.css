@@ -274,17 +274,19 @@
     /* Linear-style surface ladder: elevation is carried by lightness steps
        (background < header/sidebar < card < popover) plus hairline borders —
        not shadows. Values from linear.app's [data-theme=dark] tokens. */
+    /* Text follows Linear's ink ramp: emphasized #f7f8f8 (accent-foreground,
+       active nav) > body #d0d6e0 (foreground) > meta #8a8f98 (muted-fg). */
     --background: 210 11.1% 3.5%;
-    --foreground: 180 6.7% 97.1%;
+    --foreground: 218 20.5% 84.7%;
 
     --muted: 240 5.1% 11.6%;
     --muted-foreground: 219 6.4% 56.9%;
 
     --popover: 210 3.8% 10.2%;
-    --popover-foreground: 180 6.7% 97.1%;
+    --popover-foreground: 218 20.5% 84.7%;
 
     --card: 210 4.8% 8.2%;
-    --card-foreground: 180 6.7% 97.1%;
+    --card-foreground: 218 20.5% 84.7%;
 
     --header: 210 6.3% 6.3%;
     --header-foreground: var(--foreground);
@@ -296,10 +298,10 @@
     --primary-foreground: 210 11.1% 3.5%;
 
     --secondary: 240 5.1% 11.6%;
-    --secondary-foreground: 180 6.7% 97.1%;
+    --secondary-foreground: 218 20.5% 84.7%;
 
     --tertiary: 240 4.8% 16.5%;
-    --tertiary-foreground: 180 6.7% 97.1%;
+    --tertiary-foreground: 218 20.5% 84.7%;
 
     --accent: 240 4.1% 14.3%;
     --accent-foreground: 180 6.7% 97.1%;
