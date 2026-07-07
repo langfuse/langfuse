@@ -138,7 +138,16 @@ export function CategoryPresetChips({
         );
 
         return (
-          <Popover key={category}>
+          <Popover
+            key={category}
+            onOpenChange={(open) => {
+              if (open)
+                capture("saved_views:category_chip_open", {
+                  category,
+                  tableName: TableViewPresetTableName.ObservationsEvents,
+                });
+            }}
+          >
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
@@ -159,10 +168,21 @@ export function CategoryPresetChips({
                   const row = (
                     <button
                       type="button"
-                      disabled={preset.disabled}
-                      onMouseEnter={() =>
-                        preset.state && onPreviewView?.(preset.state)
-                      }
+                      // aria-disabled (not disabled) so the coming-soon row
+                      // still receives clicks — captured below as a demand
+                      // signal for the follow-up quality presets.
+                      aria-disabled={preset.disabled || undefined}
+                      onMouseEnter={() => {
+                        if (!preset.state) return;
+                        onPreviewView?.(preset.state);
+                        capture("saved_views:category_preset_preview", {
+                          category,
+                          presetId: preset.id,
+                          presetName: preset.name,
+                          tableName:
+                            TableViewPresetTableName.ObservationsEvents,
+                        });
+                      }}
                       onMouseLeave={() =>
                         !preset.disabled && onPreviewView?.(null)
                       }
@@ -171,15 +191,33 @@ export function CategoryPresetChips({
                       }
                       onBlur={() => !preset.disabled && onPreviewView?.(null)}
                       onClick={() => {
-                        if (!preset.state) return;
+                        if (!preset.state) {
+                          capture(
+                            "saved_views:category_preset_coming_soon_click",
+                            {
+                              category,
+                              presetId: preset.id,
+                              presetName: preset.name,
+                              tableName:
+                                TableViewPresetTableName.ObservationsEvents,
+                            },
+                          );
+                          return;
+                        }
                         // Set ?viewId for deep-link/provenance, then apply the
                         // preset's filters/orderBy (or clear on toggle-off).
                         const next = isPresetActive ? null : preset.id;
                         onApplyView(next);
-                        applyViewState(next ? preset.state : CLEARED_VIEW_STATE);
+                        applyViewState(
+                          next ? preset.state : CLEARED_VIEW_STATE,
+                        );
                         capture("saved_views:category_chip_apply", {
                           category,
-                          presetId: next,
+                          presetId: preset.id,
+                          presetName: preset.name,
+                          action: next ? "apply" : "clear",
+                          tableName:
+                            TableViewPresetTableName.ObservationsEvents,
                         });
                       }}
                       className={cn(

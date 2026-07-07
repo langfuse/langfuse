@@ -524,8 +524,7 @@ export function TableViewPresetsDrawer({
                   ))}
 
                   {/* Separator between system and user presets */}
-                  {systemFilterPresets?.length &&
-                  drawerPresetList?.length ? (
+                  {systemFilterPresets?.length && drawerPresetList?.length ? (
                     <Separator className="my-2" />
                   ) : null}
 

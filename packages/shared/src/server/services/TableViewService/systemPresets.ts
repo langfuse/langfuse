@@ -79,9 +79,7 @@ const OBSERVATIONS_EVENTS_SYSTEM_TABLE_VIEW_PRESETS: SystemTableViewPreset[] = [
     description: "Observations taking longer than 10 seconds",
     tableName: TableViewPresetTableName.ObservationsEvents,
     category: SystemTableViewPresetCategory.SlowCalls,
-    filters: [
-      { column: "latency", type: "number", operator: ">", value: 10 },
-    ],
+    filters: [{ column: "latency", type: "number", operator: ">", value: 10 }],
     orderBy: { column: "latency", order: "DESC" },
   }),
   buildSystemPreset({
@@ -158,9 +156,7 @@ const OBSERVATIONS_EVENTS_SYSTEM_TABLE_VIEW_PRESETS: SystemTableViewPreset[] = [
     description: "Observations costing more than $1",
     tableName: TableViewPresetTableName.ObservationsEvents,
     category: SystemTableViewPresetCategory.CostRegression,
-    filters: [
-      { column: "totalCost", type: "number", operator: ">", value: 1 },
-    ],
+    filters: [{ column: "totalCost", type: "number", operator: ">", value: 1 }],
     orderBy: { column: "totalCost", order: "DESC" },
   }),
   buildSystemPreset({
