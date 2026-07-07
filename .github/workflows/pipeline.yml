@@ -1,3 +1,7 @@
+# The "Weekly CI runtime analyst" agentic workflow subscribes to this
+# workflow by its display name (on.workflow_run.workflows: ["CI/CD"] in
+# ci-runtime-analyst.md). Renaming it silently breaks that trigger — update
+# the analyst workflow in the same PR.
 name: CI/CD
 
 on:
