@@ -6,8 +6,8 @@ import type Docker from "dockerode";
 import type * as SharedServerModule from "@langfuse/shared/src/server";
 
 import { getSandboxToolCallFiles } from "@/src/ee/features/in-app-agent/server/persistence";
+import { createDockerSandboxProvider } from "@/src/ee/features/in-app-agent/server/sandbox/providers/docker";
 import {
-  createDockerSandboxProvider,
   createInAppAgentSandbox,
   createLambdaMicrovmSandboxProvider,
   type SandboxProvider,

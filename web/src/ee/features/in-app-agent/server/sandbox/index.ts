@@ -1,4 +1,3 @@
-export { createDockerSandboxProvider } from "./providers/docker";
 export { createLambdaMicrovmSandboxProvider } from "./providers/lambdaMicrovm";
 export { deleteInAppAgentSandboxSnapshot } from "./config";
 export { createInAppAgentSandbox } from "./service";

@@ -271,7 +271,8 @@ export default async function handler(request: Request) {
       ? sanitizedInput.forwardedProps.command.resume.approvalRequest
       : undefined;
     const sandboxProviderType = getDefaultInAppAgentSandboxProviderType();
-    const sandboxProvider = getInAppAgentSandboxProvider(sandboxProviderType);
+    const sandboxProvider =
+      await getInAppAgentSandboxProvider(sandboxProviderType);
     const sandboxState = sandboxProvider
       ? await createInAppAgentSandbox({
           conversationId: conversation.id,
@@ -587,7 +588,7 @@ export default async function handler(request: Request) {
   }
 }
 
-function getInAppAgentSandboxProvider(
+async function getInAppAgentSandboxProvider(
   providerType: ReturnType<typeof getDefaultInAppAgentSandboxProviderType>,
 ) {
   if (env.NODE_ENV === "test") {
@@ -603,7 +604,7 @@ function getInAppAgentSandboxProvider(
     );
   }
 
-  return createInAppAgentSandboxProvider(providerType);
+  return await createInAppAgentSandboxProvider(providerType);
 }
 
 type SessionUser = NonNullable<Session["user"]>;

@@ -718,9 +718,6 @@ importers:
       diff:
         specifier: ^8.0.4
         version: 8.0.4
-      dockerode:
-        specifier: ^4.0.9
-        version: 4.0.12
       dompurify:
         specifier: ^3.4.11
         version: 3.4.11
@@ -956,6 +953,9 @@ importers:
       '@vitest/browser-playwright':
         specifier: 4.1.8
         version: 4.1.8(msw@2.6.5(@types/node@24.3.0)(typescript@5.9.2))(playwright@1.57.0)(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))(vitest@4.1.8)
+      dockerode:
+        specifier: ^4.0.9
+        version: 4.0.12
       dotenv:
         specifier: ^16.6.1
         version: 16.6.1

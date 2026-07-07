@@ -2,7 +2,6 @@ import {
   createLocalSandboxSnapshotStore,
   createS3SandboxSnapshotStore,
 } from "./snapshots";
-import { createDockerSandboxProvider } from "./providers/docker";
 import { createLambdaMicrovmSandboxProvider } from "./providers/lambdaMicrovm";
 import type { InAppAgentSandboxProviderType } from "./types";
 import { env } from "@/src/env.mjs";
@@ -10,10 +9,17 @@ import { IN_APP_AGENT_LOCAL_SANDBOX_IMAGE } from "@/src/ee/features/in-app-agent
 import { assertUnreachable } from "@/src/utils/types";
 
 export function getDefaultInAppAgentSandboxProviderType(): InAppAgentSandboxProviderType {
-  return (
+  const providerType =
     env.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER ??
-    (env.NODE_ENV === "development" ? "dangerous-docker" : "lambda-microvm")
-  );
+    (env.NODE_ENV === "development" ? "dangerous-docker" : "lambda-microvm");
+
+  if (providerType === "dangerous-docker" && env.NODE_ENV !== "development") {
+    throw new Error(
+      "The dangerous-docker in-app agent sandbox provider is only supported in development.",
+    );
+  }
+
+  return providerType;
 }
 
 export function getInAppAgentSandboxSnapshotStore(
@@ -55,7 +61,7 @@ export async function deleteInAppAgentSandboxSnapshot(params: {
   snapshotKey: string;
   sessionId?: string | null;
 }) {
-  const provider = createInAppAgentSandboxProvider(params.providerType);
+  const provider = await createInAppAgentSandboxProvider(params.providerType);
 
   if (params.sessionId && provider?.terminateSession) {
     await provider.terminateSession({ sessionId: params.sessionId });
@@ -65,10 +71,17 @@ export async function deleteInAppAgentSandboxSnapshot(params: {
   await store.deleteSnapshot(params.snapshotKey);
 }
 
-export function createInAppAgentSandboxProvider(
+export async function createInAppAgentSandboxProvider(
   providerType: InAppAgentSandboxProviderType,
 ) {
   if (providerType === "dangerous-docker") {
+    if (env.NODE_ENV !== "development") {
+      throw new Error(
+        "The dangerous-docker in-app agent sandbox provider is only supported in development.",
+      );
+    }
+
+    const { createDockerSandboxProvider } = await import("./providers/docker");
     return createDockerSandboxProvider({
       image: IN_APP_AGENT_LOCAL_SANDBOX_IMAGE,
       snapshotStore: getInAppAgentSandboxSnapshotStore(providerType),
