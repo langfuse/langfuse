@@ -27,6 +27,7 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
+import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { GitCompareArrows, LightbulbIcon } from "lucide-react";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
@@ -241,7 +242,7 @@ export default function ExperimentsTable({
   defaultFilter,
   fixedFilter = [],
   sessionFilterContextId,
-  hideTimeRangePicker = false,
+  showControlsInPageHeader = false,
 }: ExperimentsTableProps) {
   const router = useRouter();
   const filterConfig = useMemo(
@@ -732,6 +733,12 @@ export default function ExperimentsTable({
     <>
       <DataTableControlsProvider>
         <div className="flex h-full w-full flex-col">
+          {showControlsInPageHeader && (
+            <TableHeaderControls
+              timeRange={timeRange}
+              setTimeRange={setTimeRange}
+            />
+          )}
           {/* Toolbar spanning full width */}
           <DataTableToolbar
             columns={columns}
@@ -749,8 +756,8 @@ export default function ExperimentsTable({
             orderByState={orderByState}
             rowHeight={rowHeight}
             setRowHeight={setRowHeight}
-            timeRange={hideTimeRangePicker ? undefined : timeRange}
-            setTimeRange={hideTimeRangePicker ? undefined : setTimeRange}
+            timeRange={showControlsInPageHeader ? undefined : timeRange}
+            setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
             actionButtons={[
               <ExperimentsMultiSelectActionMenu
                 key="experiments-multi-select-actions"

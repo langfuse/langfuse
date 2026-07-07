@@ -1,0 +1,108 @@
+name: Warm CI caches
+
+# Cross-branch cache reuse flows exclusively through caches saved on the
+# default branch: Actions caches are scoped per ref, and PR / merge-queue /
+# branch runs may only restore their own ref's caches plus main's. Full
+# pipeline runs on main are sparse (pre-job skips pushes whose tree the merge
+# queue already tested; none happen on weekends), which was fine while cache
+# retention was days — but since the Blacksmith cache-store resets of
+# 2026-07-02/03, saved caches have been observed to vanish within ~a day
+# (contradicting their documented 7-day LRU eviction), so most branch runs
+# find nothing and pay a cold pnpm install plus a cold turbo build (~+2min on
+# the tests-web critical path). This workflow re-saves the pnpm store and the
+# mode-scoped turbo caches from main every few hours so branch runs keep
+# hitting them. Once Blacksmith retention is back to days, drop the schedule
+# to daily or delete the workflow — it is purely compensatory.
+on:
+  schedule:
+    # Every 3 hours, offset from the top of the hour to dodge runner-pool
+    # congestion. Frequency chosen to stay under the observed hours-scale
+    # cache lifetime.
+    - cron: "23 */3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: warm-caches
+
+env:
+  # Keep in sync with NODE_VERSION in pipeline.yml.
+  NODE_VERSION: 24
+
+jobs:
+  warm:
+    # Must run on Blacksmith runners: their runners store Actions caches in
+    # Blacksmith's own cache backend, which is the store the pipeline jobs
+    # restore from. A GitHub-hosted warmer would write to GitHub's store and
+    # warm nothing.
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 20
+    name: warm (mode${{ matrix.deploy-mode }})
+    env:
+      # Mirror the tests-web job env so turbo task hashes match.
+      NODE_ENV: test
+    strategy:
+      # One mode failing must not cancel the other warmers — a partially
+      # warmed pool still helps.
+      fail-fast: false
+      matrix:
+        deploy-mode: ["", "-azure", "-redis-cluster"]
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      # No pinned version on purpose: the action reads "packageManager" from
+      # package.json, so pnpm bumps that update pipeline.yml cannot strand
+      # this satellite workflow on a mismatched pin (which hard-fails the
+      # action, as the 2026-07-06 11.4.0→11.10.0 bump did).
+      - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
+      - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] scheduled cache warmer for test-job dependency caches only; runs on main, no released artifacts are built or published from this cached state
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+      - name: install dependencies
+        run: |
+          pnpm install
+      - name: Load default env
+        # Must stay byte-identical to the tests-web "Load default env" step in
+        # pipeline.yml: turbo hashes the whole .env (turbo.json
+        # globalDependencies), so any drift makes the warmed build hashes
+        # useless to tests-web.
+        run: |
+          cp .env.dev${{ matrix.deploy-mode }}.example .env
+          grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev${{ matrix.deploy-mode }}.example > .env
+          echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1" >> .env
+          echo "LANGFUSE_CACHE_PROMPT_ENABLED=false" >> .env
+          echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1" >> .env
+          echo "LANGFUSE_TRACE_DELETE_DELAY_MS=1" >> .env
+          echo "LANGFUSE_TRACE_DELETE_CONCURRENCY=100" >> .env
+          echo "ADMIN_API_KEY=admin-api-key" >> .env
+          echo "LANGFUSE_EE_LICENSE_KEY=langfuse_ee_test" >> .env
+          echo "LANGFUSE_SKIP_EVALUATOR_MODEL_CALL_VALIDATION=true" >> .env
+          echo "LANGFUSE_ENABLE_SCORES_V3_API=true" >> .env
+      - name: Setup Turbo cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # zizmor: ignore[cache-poisoning] scheduled cache warmer for test-job turbo caches only; runs on main, publish jobs rebuild artifacts and do not restore this cache
+        with:
+          path: .turbo
+          # Same key shape as the tests-web "Setup Turbo cache" step so branch
+          # runs restore these archives via their restore-keys prefix.
+          key: ${{ runner.os }}-turbo-mode${{ matrix.deploy-mode == '' && '-default' || matrix.deploy-mode }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-mode${{ matrix.deploy-mode == '' && '-default' || matrix.deploy-mode }}-
+      - name: Build
+        # dev containers / Postgres are not needed: the build task only
+        # depends on db:generate, which is offline.
+        run: pnpm run build
+        env:
+          NODE_OPTIONS: --max_old_space_size=8192
+          # TypeScript is checked explicitly in the lint job; skip duplicate
+          # Next.js type checks to keep the warmer cheap (mirrors tests-web).
+          NEXT_IGNORE_BUILD_ERRORS: "true"
+      - name: Prune stale turbo cache entries
+        # Each run saves the restored archive plus new entries, so the cache
+        # grows without bound unless old entries are dropped before the save.
+        run: find .turbo/cache -type f -mtime +3 -delete 2>/dev/null || true
