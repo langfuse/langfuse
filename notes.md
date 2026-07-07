@@ -45,6 +45,16 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
   the sample was small (2 job logs). Keep sampling more `run tests` logs next
   week to build a reliable flaky-tracking baseline.
 
+## 2026-07-07 (second run, same-day manual re-trigger — noop)
+
+- `workflow_dispatch` fired ~21:43Z, 2.7h after the W28 baseline window closed
+  (07-07T19:00Z). Only **1** new successful merge-group run existed in that gap
+  (07-07T19:55Z). Ledger `prs.json` is empty → no PRs to assess. No new ISO week
+  elapsed and 1 new run is far below the 10-run threshold, so re-running the
+  full W28 analysis would only reproduce `history/2026-W28.json`. Emitted noop;
+  left the baseline files untouched. Next scheduled run should pick up a full
+  new week (W29+).
+
 ## Tooling notes (for future runs)
 
 - The GitHub Actions MCP `list_workflow_runs` caps at ~30 runs/page regardless
