@@ -19,6 +19,15 @@ interface ProjectWorkload {
   pendingCount: number;
 }
 
+type TraceDeletionBackend = "postgres" | "clickhouse";
+type TraceDeletionFailure = {
+  backend: TraceDeletionBackend;
+  errorName: string;
+};
+
+const getErrorName = (error: unknown) =>
+  error instanceof Error ? error.name : typeof error;
+
 /**
  * BatchTraceDeletionCleaner handles periodic deletion of traces from pending_deletions.
  *
@@ -80,8 +89,10 @@ export class BatchTraceDeletionCleaner extends PeriodicExclusiveRunner {
             pendingCount: workload.pendingCount,
           });
 
-          await this.processProject(workload.projectId);
-          recordIncrement(`${METRIC_PREFIX}.projects_processed`, 1);
+          const processed = await this.processProject(workload.projectId);
+          if (processed) {
+            recordIncrement(`${METRIC_PREFIX}.projects_processed`, 1);
+          }
         } else {
           logger.info(`${this.name}: No pending trace deletions to process`);
         }
@@ -125,7 +136,7 @@ export class BatchTraceDeletionCleaner extends PeriodicExclusiveRunner {
     };
   }
 
-  private async processProject(projectId: string): Promise<void> {
+  private async processProject(projectId: string): Promise<boolean> {
     // Get trace IDs to delete (no orderBy for faster query)
     const pendingDeletions = await prisma.pendingDeletion.findMany({
       where: {
@@ -141,7 +152,7 @@ export class BatchTraceDeletionCleaner extends PeriodicExclusiveRunner {
       logger.info(`${this.name}: No traces to delete for project`, {
         projectId,
       });
-      return;
+      return true;
     }
 
     const traceIdsToDelete = pendingDeletions.map((d) => d.objectId);
@@ -151,11 +162,38 @@ export class BatchTraceDeletionCleaner extends PeriodicExclusiveRunner {
       count: traceIdsToDelete.length,
     });
 
-    // Delete from both Postgres and ClickHouse in parallel
-    await Promise.all([
+    const [postgresDeletion, clickhouseDeletion] = await Promise.allSettled([
       processPostgresTraceDelete(projectId, traceIdsToDelete),
       processClickhouseTraceDelete(projectId, traceIdsToDelete),
     ]);
+
+    const failures: TraceDeletionFailure[] = [
+      { backend: "postgres" as const, result: postgresDeletion },
+      { backend: "clickhouse" as const, result: clickhouseDeletion },
+    ].flatMap(({ backend, result }) => {
+      if (result.status === "rejected") {
+        traceException(result.reason);
+        return [
+          {
+            backend,
+            errorName: getErrorName(result.reason),
+          },
+        ];
+      }
+
+      return [];
+    });
+
+    if (failures.length > 0) {
+      recordIncrement(`${METRIC_PREFIX}.deletion_failures`, 1);
+      logger.warn(`${this.name}: Trace deletion failed, will retry later`, {
+        projectId,
+        count: traceIdsToDelete.length,
+        retryDelayMs: env.LANGFUSE_BATCH_TRACE_DELETION_CLEANER_INTERVAL_MS,
+        failures,
+      });
+      return false;
+    }
 
     // Mark traces as deleted
     await prisma.pendingDeletion.updateMany({
@@ -182,5 +220,7 @@ export class BatchTraceDeletionCleaner extends PeriodicExclusiveRunner {
       projectId,
       tracesDeleted: traceIdsToDelete.length,
     });
+
+    return true;
   }
 }

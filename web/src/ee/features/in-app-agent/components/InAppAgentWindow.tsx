@@ -436,7 +436,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         >
           <div
             className={cn(
-              "flex h-full w-full flex-col py-4",
+              "flex min-h-full w-full flex-col py-4",
               isExpanded && "mx-auto max-w-3xl",
               isExpanded ? "px-0" : "px-3",
             )}
