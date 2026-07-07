@@ -252,6 +252,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
   } = useSeriesLegend({
     data,
     dimensions,
+    config,
     legendSummary,
     legendInteraction,
     maxVisibleSeries,
@@ -292,7 +293,8 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
           setSelfHovered(false);
       }}
     >
-      {legendPosition === "above" && (
+      {(legendPosition === "above" ||
+        (legendPosition === "auto" && legendItems.length > 1)) && (
         <TimeSeriesLegend
           items={legendItems}
           interaction={legendInteraction}
@@ -315,7 +317,14 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
           syncId={syncId}
           syncMethod="value"
         >
-          <CartesianGrid stroke="hsl(var(--chart-grid))" vertical={false} />
+          {/* syncWithTicks: grid lines sit exactly on the budget-thinned axis
+              ticks (a line per shown day/hour), instead of recharts' default
+              every-bucket grid — density follows the tick budget. (LFE-10576) */}
+          <CartesianGrid
+            stroke="hsl(var(--chart-grid))"
+            vertical={timeAxis.showVerticalGrid}
+            syncWithTicks
+          />
           <XAxis
             dataKey="time_dimension"
             stroke="hsl(var(--chart-grid))"

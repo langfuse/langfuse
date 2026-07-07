@@ -73,6 +73,7 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
   const { legendItems, onLegendClick, isRendered, isDimmed } = useSeriesLegend({
     data,
     dimensions,
+    config,
     legendSummary,
     legendInteraction,
     maxVisibleSeries,
@@ -101,7 +102,8 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
           setSelfHovered(false);
       }}
     >
-      {legendPosition === "above" && (
+      {(legendPosition === "above" ||
+        (legendPosition === "auto" && legendItems.length > 1)) && (
         <TimeSeriesLegend
           items={legendItems}
           interaction={legendInteraction}

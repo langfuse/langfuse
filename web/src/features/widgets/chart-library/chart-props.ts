@@ -29,7 +29,15 @@ export interface DataPoint {
  */
 export type MissingBucketValue = "zero" | "gap";
 
-export type LegendPosition = "above" | "none";
+/**
+ * Where a time-series chart shows its legend:
+ * - `"above"`: always render the legend row.
+ * - `"none"`: never (default).
+ * - `"auto"`: render it only when the chart draws more than one series — a
+ *   multi-series chart is unreadable without one, while a single-series legend
+ *   just echoes the card title. (LFE-10576)
+ */
+export type LegendPosition = "above" | "none" | "auto";
 
 /**
  * Whether a chart legend shows a per-series summary across its time buckets:

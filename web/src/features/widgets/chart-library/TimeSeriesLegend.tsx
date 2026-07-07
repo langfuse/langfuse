@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { type ChartConfig } from "@/src/components/ui/chart";
 import {
   type DataPoint,
   type LegendInteraction,
   type LegendSummaryMode,
 } from "@/src/features/widgets/chart-library/chart-props";
 import { getDimensionSummaries } from "@/src/features/widgets/chart-library/utils";
+import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 import { cn } from "@/src/utils/tailwind";
 
 /** The 8-slot chart palette, cycled by series index (matches the series fills). */
@@ -13,6 +15,13 @@ export const seriesColor = (index: number): string =>
 
 export type LegendItem = {
   dimension: string;
+  /**
+   * Display label — the chart config's label for this series, falling back to
+   * the raw dimension: the same chain the tooltip resolves a row name through
+   * (`ChartTooltipContent`), so legend and tooltip can never disagree about
+   * what a series is called. (LFE-10576)
+   */
+  label: React.ReactNode;
   /** Position in the dimension list — pins the swatch color to the series fill. */
   colorIndex: number;
   color: string;
@@ -35,12 +44,15 @@ export type LegendItem = {
 export function useSeriesLegend({
   data,
   dimensions,
+  config,
   legendSummary = "none",
   legendInteraction = "highlight",
   maxVisibleSeries,
 }: {
   data: DataPoint[];
   dimensions: string[];
+  /** Resolves display labels (see {@link LegendItem.label}). */
+  config?: ChartConfig;
   legendSummary?: LegendSummaryMode;
   legendInteraction?: LegendInteraction;
   maxVisibleSeries?: number;
@@ -114,6 +126,7 @@ export function useSeriesLegend({
 
   const legendItems: LegendItem[] = dimensions.map((dimension, index) => ({
     dimension,
+    label: config?.[dimension]?.label ?? dimension,
     colorIndex: index,
     color: seriesColor(index),
     summary: summaries?.get(dimension) ?? null,
@@ -178,6 +191,7 @@ export function TimeSeriesLegend({
     <div className="[max-height:8rem] min-w-0 shrink-0 overflow-y-auto pb-3">
       <div className="flex flex-wrap justify-end gap-x-4 gap-y-1">
         {items.map((item) => {
+          const labelText = getPlainTextFromReactNode(item.label);
           // Labels must describe the NEXT action, not the current state.
           // - toggle: click flips visibility → "Show"/"Hide".
           // - highlight: clicking the focused series clears focus ("Show all
@@ -186,11 +200,11 @@ export function TimeSeriesLegend({
           const ariaLabel =
             interaction === "toggle"
               ? item.dimmed
-                ? `Show ${item.dimension}`
-                : `Hide ${item.dimension}`
+                ? `Show ${labelText}`
+                : `Hide ${labelText}`
               : item.focused
                 ? "Show all series"
-                : `Show only ${item.dimension}`;
+                : `Show only ${labelText}`;
           // aria-pressed reflects state: visible (toggle) / focused (highlight).
           const ariaPressed =
             interaction === "toggle" ? !item.dimmed : item.focused;
@@ -211,7 +225,7 @@ export function TimeSeriesLegend({
                 className="h-2 w-2 shrink-0 rounded-[2px]"
                 style={{ backgroundColor: item.color }}
               />
-              <span className="text-muted-foreground">{item.dimension}</span>
+              <span className="text-muted-foreground">{item.label}</span>
               {item.summary !== null && (
                 <span className="text-foreground font-medium">
                   {formatSummary(item.summary)}

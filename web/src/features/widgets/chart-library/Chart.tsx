@@ -4,6 +4,7 @@ import {
   type MetricFormatterFunction,
   type DataPoint,
   type ChartThreshold,
+  type LegendPosition,
   type LegendSummaryMode,
   type LegendInteraction,
   type MissingBucketValue,
@@ -69,7 +70,7 @@ const ChartComponent = ({
   sortState?: OrderByState | null;
   onSortChange?: (sortState: OrderByState | null) => void;
   isLoading?: boolean;
-  legendPosition?: "above" | "none";
+  legendPosition?: LegendPosition;
   legendSummary?: LegendSummaryMode;
   legendInteraction?: LegendInteraction;
   maxVisibleSeries?: number;
