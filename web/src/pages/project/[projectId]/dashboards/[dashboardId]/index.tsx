@@ -24,6 +24,7 @@ import {
   DashboardGrid,
   type DashboardPlacement,
 } from "@/src/features/widgets/components/DashboardGrid";
+import { CloneFirstDialog } from "@/src/features/dashboard/components/CloneFirstDialog";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
@@ -57,18 +58,38 @@ export default function DashboardDetail() {
     dashboardId,
   });
 
-  const hasCUDAccess =
-    useHasProjectAccess({
-      projectId,
-      scope: "dashboards:CUD",
-    }) && dashboard.data?.owner !== "LANGFUSE";
+  const hasRbacCUDAccess = useHasProjectAccess({
+    projectId,
+    scope: "dashboards:CUD",
+  });
+  const isLockedDashboard = dashboard.data?.owner === "LANGFUSE";
+  const hasCUDAccess = hasRbacCUDAccess && !isLockedDashboard;
+
+  // Langfuse-managed dashboards keep full edit affordances; edit attempts
+  // route through the clone-first flow instead of mutating.
+  const isLockedEditable = hasRbacCUDAccess && isLockedDashboard;
 
   // Access for cloning (independent of dashboard owner)
-  const hasCloneAccess =
-    useHasProjectAccess({
-      projectId,
-      scope: "dashboards:CUD",
-    }) && dashboard.data?.owner === "LANGFUSE";
+  const hasCloneAccess = hasRbacCUDAccess && isLockedDashboard;
+
+  // Clone-first dialog state: open + the attempted change (if any) to carry
+  // into the clone. gridResetKey remounts the grid to revert an attempted
+  // drag/resize when the user cancels.
+  const [cloneFirstState, setCloneFirstState] = useState<{
+    open: boolean;
+    pendingDefinition: { widgets: DashboardPlacement[] } | null;
+  }>({ open: false, pendingDefinition: null });
+  const [gridResetKey, setGridResetKey] = useState(0);
+
+  const openCloneFirst = useCallback(
+    (pendingDefinition?: { widgets: DashboardPlacement[] }) => {
+      setCloneFirstState({
+        open: true,
+        pendingDefinition: pendingDefinition ?? null,
+      });
+    },
+    [],
+  );
 
   // Filter state - use persistent filters from dashboard
   const [savedFilters, setSavedFilters] = useState<FilterState>([]);
@@ -331,6 +352,13 @@ export default function DashboardDetail() {
         ...localDashboardDefinition,
         widgets: updatedWidgets,
       };
+
+      if (isLockedEditable) {
+        // Carry the removal into the clone instead of mutating.
+        openCloneFirst(updatedDefinition);
+        return;
+      }
+
       setLocalDashboardDefinition(updatedDefinition);
       saveDashboardChanges(updatedDefinition);
     }
@@ -338,6 +366,10 @@ export default function DashboardDetail() {
 
   // Handle adding a widget
   const handleAddWidget = () => {
+    if (isLockedEditable) {
+      openCloneFirst();
+      return;
+    }
     setIsWidgetDialogOpen(true);
   };
 
@@ -440,7 +472,7 @@ export default function DashboardDetail() {
                     : "Save Filters"}
                 </Button>
               )}
-              {hasCUDAccess && (
+              {hasRbacCUDAccess && (
                 <Button onClick={handleAddWidget}>
                   <PlusIcon size={16} className="mr-1 h-4 w-4" />
                   Add Widget
@@ -448,6 +480,7 @@ export default function DashboardDetail() {
               )}
               {hasCloneAccess && (
                 <Button
+                  variant="outline"
                   onClick={handleCloneDashboard}
                   disabled={mutateCloneDashboard.isPending}
                 >
@@ -465,6 +498,22 @@ export default function DashboardDetail() {
           projectId={projectId}
           onSelectWidget={handleSelectWidget}
           dashboardId={dashboardId}
+        />
+        <CloneFirstDialog
+          open={cloneFirstState.open}
+          onOpenChange={(open) =>
+            setCloneFirstState((prev) => ({ ...prev, open }))
+          }
+          projectId={projectId}
+          dashboardId={dashboardId}
+          dashboardName={dashboard.data?.name ?? "Dashboard"}
+          pendingDefinition={cloneFirstState.pendingDefinition}
+          onCancel={() => {
+            // Revert the attempted drag/resize by remounting the grid with
+            // the unchanged definition.
+            setCloneFirstState({ open: false, pendingDefinition: null });
+            setGridResetKey((key) => key + 1);
+          }}
         />
         {dashboard.isPending || !localDashboardDefinition ? (
           <NoDataOrLoading isLoading={true} />
@@ -502,8 +551,17 @@ export default function DashboardDetail() {
               </div>
             </div>
             <DashboardGrid
+              key={gridResetKey}
               widgets={localDashboardDefinition.widgets}
               onChange={(updatedWidgets) => {
+                if (isLockedEditable) {
+                  // Carry the attempted layout change into the clone.
+                  openCloneFirst({
+                    ...localDashboardDefinition,
+                    widgets: updatedWidgets,
+                  });
+                  return;
+                }
                 setLocalDashboardDefinition({
                   ...localDashboardDefinition,
                   widgets: updatedWidgets,
@@ -513,7 +571,7 @@ export default function DashboardDetail() {
                   widgets: updatedWidgets,
                 });
               }}
-              canEdit={hasCUDAccess}
+              canEdit={hasRbacCUDAccess}
               dashboardId={dashboardId}
               projectId={projectId}
               dateRange={absoluteTimeRange}
@@ -521,6 +579,9 @@ export default function DashboardDetail() {
               onDeleteWidget={handleDeleteWidget}
               dashboardOwner={dashboard.data?.owner}
               getWidgetSchedulerId={getWidgetSchedulerId}
+              onLockedEditAttempt={
+                isLockedEditable ? () => openCloneFirst() : undefined
+              }
             />
           </div>
         )}

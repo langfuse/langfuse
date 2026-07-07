@@ -61,6 +61,7 @@ export function DashboardWidget({
   onDeleteWidget,
   dashboardOwner,
   schedulerId,
+  onLockedEditAttempt,
 }: {
   projectId: string;
   dashboardId: string;
@@ -70,6 +71,12 @@ export function DashboardWidget({
   onDeleteWidget: (tileId: string) => void;
   dashboardOwner: "LANGFUSE" | "PROJECT";
   schedulerId?: string;
+  /**
+   * Present on Langfuse-managed (read-only) dashboards: edit affordances stay
+   * visible and any edit attempt routes here (clone-first flow) instead of
+   * mutating.
+   */
+  onLockedEditAttempt?: () => void;
 }) {
   const router = useRouter();
   const utils = api.useUtils();
@@ -98,9 +105,17 @@ export function DashboardWidget({
       : isBetaEnabled && (widget.data?.view ?? "traces") !== "traces"
         ? "v2"
         : "v1";
-  const hasCUDAccess =
-    useHasProjectAccess({ projectId, scope: "dashboards:CUD" }) &&
-    dashboardOwner !== "LANGFUSE";
+  const hasRbacCUDAccess = useHasProjectAccess({
+    projectId,
+    scope: "dashboards:CUD",
+  });
+  const hasCUDAccess = hasRbacCUDAccess && dashboardOwner !== "LANGFUSE";
+  // Langfuse-managed dashboard, but the user could edit a clone: show the
+  // same edit affordances and route attempts through the clone-first flow.
+  const isLockedEditable =
+    hasRbacCUDAccess &&
+    dashboardOwner === "LANGFUSE" &&
+    Boolean(onLockedEditAttempt);
 
   // Initialize sort state for pivot tables
   const defaultSort =
@@ -418,6 +433,11 @@ export function DashboardWidget({
   };
 
   const handleDelete = () => {
+    if (isLockedEditable) {
+      // The clone-first dialog is the confirmation on locked dashboards.
+      onDeleteWidget(placement.id);
+      return;
+    }
     if (onDeleteWidget && confirm("Please confirm deletion")) {
       onDeleteWidget(placement.id);
     }
@@ -449,13 +469,21 @@ export function DashboardWidget({
             : null}
         </span>
         <div className="flex space-x-2">
-          {hasCUDAccess && (
+          {(hasCUDAccess || isLockedEditable) && (
             <>
               <GripVerticalIcon
                 size={16}
                 className="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:group-hover:block"
               />
-              {widget.data.owner === "PROJECT" ? (
+              {isLockedEditable ? (
+                <button
+                  onClick={onLockedEditAttempt}
+                  className="text-muted-foreground hover:text-foreground hidden group-hover:block"
+                  aria-label="Edit widget"
+                >
+                  <PencilIcon size={16} />
+                </button>
+              ) : widget.data.owner === "PROJECT" ? (
                 <button
                   onClick={handleEdit}
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"

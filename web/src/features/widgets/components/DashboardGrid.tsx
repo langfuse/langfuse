@@ -43,6 +43,7 @@ export function DashboardGrid({
   onDeleteWidget,
   dashboardOwner,
   getWidgetSchedulerId,
+  onLockedEditAttempt,
 }: {
   widgets: DashboardPlacement[];
   onChange: (widgets: DashboardPlacement[]) => void;
@@ -54,6 +55,13 @@ export function DashboardGrid({
   onDeleteWidget: (tileId: string) => void;
   dashboardOwner: "LANGFUSE" | "PROJECT" | undefined;
   getWidgetSchedulerId?: (widgetPlacementId: string) => string;
+  /**
+   * Present on Langfuse-managed (read-only) dashboards: tiles keep their edit
+   * affordances and route edit attempts here (clone-first flow). Layout
+   * changes still arrive via onChange — the caller decides whether to persist
+   * or route them through the same flow.
+   */
+  onLockedEditAttempt?: () => void;
 }) {
   const [rowHeight, setRowHeight] = useState(150);
 
@@ -121,6 +129,7 @@ export function DashboardGrid({
         onDeleteWidget={onDeleteWidget}
         dashboardOwner={dashboardOwner || "PROJECT"}
         schedulerId={getWidgetSchedulerId?.(widget.id)}
+        onLockedEditAttempt={onLockedEditAttempt}
       />
     ) : (
       <DashboardWidget
@@ -132,6 +141,7 @@ export function DashboardGrid({
         onDeleteWidget={onDeleteWidget}
         dashboardOwner={dashboardOwner || "PROJECT"}
         schedulerId={getWidgetSchedulerId?.(widget.id)}
+        onLockedEditAttempt={onLockedEditAttempt}
       />
     );
 
