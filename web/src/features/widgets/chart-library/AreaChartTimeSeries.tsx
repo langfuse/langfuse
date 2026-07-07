@@ -41,7 +41,7 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
   },
   accessibilityLayer = true,
   metricFormatter = (value, options) => formatMetric(value, options),
-  legendPosition = "none",
+  legendPosition = "auto",
   legendSummary = "none",
   legendInteraction = "highlight",
   maxVisibleSeries,
@@ -117,15 +117,6 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
           setSelfHovered(false);
       }}
     >
-      {(legendPosition === "above" ||
-        (legendPosition === "auto" && legendItems.length > 1)) && (
-        <TimeSeriesLegend
-          items={legendItems}
-          interaction={legendInteraction}
-          onItemClick={onLegendClick}
-          formatSummary={tooltipFormatter}
-        />
-      )}
       <SeriesOverflowNote
         visibleCount={dimensions.length}
         totalCount={series.total}
@@ -220,6 +211,15 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
           />
         </AreaChart>
       </ChartContainer>
+      {(legendPosition === "below" ||
+        (legendPosition === "auto" && legendItems.length > 1)) && (
+        <TimeSeriesLegend
+          items={legendItems}
+          interaction={legendInteraction}
+          onItemClick={onLegendClick}
+          formatSummary={tooltipFormatter}
+        />
+      )}
     </div>
   );
 };

@@ -198,9 +198,9 @@ const meta = preview.meta({
 // ── ⑤ Vertical grid lines ────────────────────────────────────────────────────
 
 /**
- * Vertical grid lines now land on the shown x ticks (`syncWithTicks`), so
- * density follows the tick budget. The call: keep them on ALL temporal axes
- * (hour ticks too) or only day-scale ones?
+ * DECIDED (Nikita, 2026-07-07): vertical lines on ALL temporal scales. They
+ * land on the shown x ticks (`syncWithTicks`), so density follows the tick
+ * budget; categorical axes stay clean.
  */
 export const GridVerticalLines = meta.story({
   render: () => (
@@ -213,7 +213,7 @@ export const GridVerticalLines = meta.story({
       </OptionCard>
       <OptionCard
         label="Time scale (hours)"
-        caption="Same rule zoomed into a day: a line per shown hour tick. Too busy?"
+        caption="Same rule zoomed into a day: a line per shown hour tick."
       >
         <LineChartTimeSeries data={hourlyData} legendPosition="none" />
       </OptionCard>
@@ -221,26 +221,27 @@ export const GridVerticalLines = meta.story({
   ),
 });
 
-// ── ⑤b Bar chart grid (currently: none at all) ───────────────────────────────
+// ── ⑤b Bar chart grid ────────────────────────────────────────────────────────
 
+/** DECIDED (Nikita, 2026-07-07): horizontal only — first card is the real component. */
 export const BarChartGrid = meta.story({
   render: () => (
     <div className="flex flex-wrap gap-5 p-1">
       <OptionCard
-        label="Status quo"
-        caption="The real bar time series draws no grid at all — values are hard to gauge."
+        label="Adopted: horizontal only"
+        caption="y-gridlines make bar heights gaugeable; the bars themselves mark the x-rhythm."
       >
         <VerticalBarChartTimeSeries data={dailyData} legendPosition="none" />
       </OptionCard>
       <OptionCard
-        label="Horizontal only"
-        caption="y-gridlines like the line/area charts; bars themselves mark the x-rhythm."
+        label="Rejected: no grid"
+        caption="The old bar time series — values were hard to gauge."
       >
-        <BarGridVariant data={dailyData} grid="horizontal" />
+        <BarGridVariant data={dailyData} grid="none" />
       </OptionCard>
       <OptionCard
-        label="Horizontal + vertical"
-        caption="Full parity with line/area. Vertical lines fall between bars."
+        label="Rejected: horizontal + vertical"
+        caption="Vertical lines fall between bars and only add noise."
       >
         <BarGridVariant data={dailyData} grid="both" />
       </OptionCard>
@@ -251,10 +252,11 @@ export const BarChartGrid = meta.story({
 // ── ④ Default legend visibility ──────────────────────────────────────────────
 
 /**
- * Dashboard widgets never pass `legendPosition`, so today they NEVER show a
- * legend (default "none") while the built-in home charts pass "above" — the
- * reported inconsistency. The proposed default is "auto": legend when the
- * chart draws >1 series, none when a lone series would just echo the title.
+ * DECIDED (Nikita, 2026-07-07): default is "auto" — a legend only when the
+ * chart draws >1 series (a single-series legend just echoes the card title) —
+ * and a rendered legend sits BELOW the plot. Dashboard widgets used to never
+ * show a legend (old default "none") while the built-in home charts forced
+ * one; "auto" heals that inconsistency without call-site changes.
  */
 export const LegendDefaultVisibility = meta.story({
   render: () => (
@@ -262,36 +264,31 @@ export const LegendDefaultVisibility = meta.story({
       <div className="flex flex-wrap gap-4">
         <WidgetCard
           title="Total tokens"
-          description="single series — legend would echo the title"
-          legendPosition="none"
+          description="auto, single series → no legend"
+          legendPosition="auto"
           data={dailySingle}
         />
         <WidgetCard
           title="Total tokens"
-          description="single series, legend forced on"
-          legendPosition="above"
+          description='single series, legend forced on ("below")'
+          legendPosition="below"
           data={dailySingle}
         />
       </div>
       <div className="flex flex-wrap gap-4">
         <WidgetCard
           title="Total tokens by model"
-          description="4 series, no legend — today's widget default"
+          description='4 series, legend opted out ("none")'
           legendPosition="none"
           data={dailyData}
         />
         <WidgetCard
           title="Total tokens by model"
-          description="4 series with legend — what 'auto' would show"
-          legendPosition="above"
+          description="auto, 4 series → legend below the plot"
+          legendPosition="auto"
           data={dailyData}
         />
       </div>
-      <p className="text-muted-foreground max-w-[600px] text-xs">
-        “auto” = the right column for multi-series, the left for single-series
-        (top-left + bottom-right). “above” everywhere = the right column. Status
-        quo = the left column.
-      </p>
     </div>
   ),
 });
@@ -312,7 +309,7 @@ export const TooltipEdgePlacement = meta.story({
         Hover near the right edge — long names, viewport-wide chart
       </div>
       <div className="h-[300px] w-full">
-        <LineChartTimeSeries data={longNameData} legendPosition="above" />
+        <LineChartTimeSeries data={longNameData} legendPosition="below" />
       </div>
     </div>
   ),

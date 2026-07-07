@@ -6,7 +6,7 @@ import {
   ChartTooltipContent,
   ChartTooltipPortal,
 } from "@/src/components/ui/chart";
-import { Bar, BarChart, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
   formatMetric,
@@ -42,7 +42,7 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
   },
   accessibilityLayer = true,
   metricFormatter = (value, options) => formatMetric(value, options),
-  legendPosition = "none",
+  legendPosition = "auto",
   legendSummary = "none",
   legendInteraction = "highlight",
   maxVisibleSeries,
@@ -102,15 +102,6 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
           setSelfHovered(false);
       }}
     >
-      {(legendPosition === "above" ||
-        (legendPosition === "auto" && legendItems.length > 1)) && (
-        <TimeSeriesLegend
-          items={legendItems}
-          interaction={legendInteraction}
-          onItemClick={onLegendClick}
-          formatSummary={formatValue}
-        />
-      )}
       <SeriesOverflowNote
         visibleCount={dimensions.length}
         totalCount={series.total}
@@ -126,6 +117,14 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
           syncId={syncId}
           syncMethod="value"
         >
+          {/* Horizontal only: y-gridlines make bar heights gaugeable like the
+              line/area charts; the bars themselves already mark the x-rhythm,
+              so vertical lines would only add noise between them. (LFE-10576) */}
+          <CartesianGrid
+            stroke="hsl(var(--chart-grid))"
+            vertical={false}
+            syncWithTicks
+          />
           <XAxis
             dataKey="time_dimension"
             stroke="hsl(var(--chart-grid))"
@@ -187,6 +186,15 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
           />
         </BarChart>
       </ChartContainer>
+      {(legendPosition === "below" ||
+        (legendPosition === "auto" && legendItems.length > 1)) && (
+        <TimeSeriesLegend
+          items={legendItems}
+          interaction={legendInteraction}
+          onItemClick={onLegendClick}
+          formatSummary={formatValue}
+        />
+      )}
     </div>
   );
 };

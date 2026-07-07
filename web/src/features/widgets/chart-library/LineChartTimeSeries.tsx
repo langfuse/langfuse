@@ -192,7 +192,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
   },
   accessibilityLayer = true,
   metricFormatter = (value, options) => formatMetric(value, options),
-  legendPosition = "none",
+  legendPosition = "auto",
   legendSummary = "none",
   legendInteraction = "highlight",
   maxVisibleSeries,
@@ -293,15 +293,6 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
           setSelfHovered(false);
       }}
     >
-      {(legendPosition === "above" ||
-        (legendPosition === "auto" && legendItems.length > 1)) && (
-        <TimeSeriesLegend
-          items={legendItems}
-          interaction={legendInteraction}
-          onItemClick={onLegendClick}
-          formatSummary={tooltipFormatter}
-        />
-      )}
       <SeriesOverflowNote
         visibleCount={dimensions.length}
         totalCount={series.total}
@@ -418,6 +409,15 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
           />
         </LineChart>
       </ChartContainer>
+      {(legendPosition === "below" ||
+        (legendPosition === "auto" && legendItems.length > 1)) && (
+        <TimeSeriesLegend
+          items={legendItems}
+          interaction={legendInteraction}
+          onItemClick={onLegendClick}
+          formatSummary={tooltipFormatter}
+        />
+      )}
     </div>
   );
 };

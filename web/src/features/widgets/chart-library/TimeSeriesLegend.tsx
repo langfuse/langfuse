@@ -188,8 +188,10 @@ export function TimeSeriesLegend({
     // Wrap onto multiple rows so every series stays visible, but cap the
     // legend's height and scroll inside it — a chart with hundreds of series
     // must never let the legend crowd the plot out entirely. (LFE-10549)
-    <div className="[max-height:8rem] min-w-0 shrink-0 overflow-y-auto pb-3">
-      <div className="flex flex-wrap justify-end gap-x-4 gap-y-1">
+    // Sits BELOW the plot (classic bottom-legend placement), so it pads
+    // against the x-axis above it. (LFE-10576)
+    <div className="[max-height:8rem] min-w-0 shrink-0 overflow-y-auto pt-2">
+      <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
         {items.map((item) => {
           const labelText = getPlainTextFromReactNode(item.label);
           // Labels must describe the NEXT action, not the current state.
