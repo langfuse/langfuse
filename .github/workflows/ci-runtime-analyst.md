@@ -127,7 +127,9 @@ safe-outputs:
       - web/**/*.test.ts
       - web/**/*.test.tsx
       - web/**/*.servertest.ts
+      - web/**/*.servertest.tsx
       - web/**/*.clienttest.ts
+      - web/**/*.clienttest.tsx
       - worker/**/*.test.ts
       - packages/shared/**/*.test.ts
   create-issue:
