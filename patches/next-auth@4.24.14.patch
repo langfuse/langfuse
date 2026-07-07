@@ -4,7 +4,8 @@ index 52c51eb6ff422dc0899ccec31baf3fa39e42eeae..cb46651ecc4ed8000e57377de378a5d8
 +++ b/core/lib/oauth/client.js
 @@ -1,5 +1,7 @@
  "use strict";
-
+-
++
 +var HttpsProxyAgent = require('https-proxy-agent').HttpsProxyAgent;
 +
  Object.defineProperty(exports, "__esModule", {

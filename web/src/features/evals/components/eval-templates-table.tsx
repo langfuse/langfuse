@@ -560,7 +560,7 @@ export default function EvalsTemplateTable({
         />
         <div className="flex flex-1 flex-col overflow-hidden">
           <DataTable
-            tableName={"evalTemplates"}
+            tableName="evalTemplates"
             columns={columns}
             peekView={peekConfig}
             // "s" vertically centers cell content; the custom heights keep the

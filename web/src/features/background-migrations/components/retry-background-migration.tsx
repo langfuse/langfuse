@@ -96,7 +96,7 @@ export function RetryBackgroundMigration({
             >
               Docs
             </a>
-            {")."}
+            ).
           </p>
         </div>
 

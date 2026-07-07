@@ -67,6 +67,8 @@ async function processActionChunk(
   try {
     switch (actionId) {
       case "trace-delete":
+        // Legacy queue path. Durable trace-delete BatchActions are processed
+        // by TraceDeleteBatchActionRunner.
         await traceDeletionProcessor(projectId, chunkIds, { delayMs: 0 });
         break;
 

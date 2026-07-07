@@ -10,7 +10,7 @@ export const FolderBreadcrumbLink = ({
 }) => {
   return (
     <TableLink
-      path={""}
+      path=""
       value={name} // To satisfy table-link, fallback
       icon={
         <div className="flex flex-row items-center gap-1">

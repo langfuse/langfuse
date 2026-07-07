@@ -8,6 +8,23 @@ import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server";
 describe("organization API keys trpc", () => {
   const organizationId = "seed-org-id";
 
+  // The session user is persisted as the API key creator, so it must exist
+  // in the database (CI does not run the seeder that creates user-1).
+  // createMany + skipDuplicates is atomic, so concurrently running test
+  // files can ensure the user without racing each other.
+  beforeAll(async () => {
+    await prisma.user.createMany({
+      data: [
+        {
+          id: "user-1",
+          name: "Demo User",
+          email: "demo-user-1@langfuse.com",
+        },
+      ],
+      skipDuplicates: true,
+    });
+  });
+
   const ownerSession: Session = {
     expires: "1",
     user: {
@@ -177,6 +194,26 @@ describe("organization API keys trpc", () => {
       expect(apiKeyResult.secretKey).toBeDefined();
       expect(apiKeyResult.publicKey).toBeDefined();
       expect(apiKeyResult.note).toBe("Test API Key");
+    });
+
+    it("stores the creating user and returns it in the list", async () => {
+      const apiKeyResult = await ownerCaller.organizationApiKeys.create({
+        orgId: organizationId,
+        note: "Key for creator attribution test",
+      });
+
+      const dbKey = await prisma.apiKey.findUniqueOrThrow({
+        where: { id: apiKeyResult.id },
+      });
+      expect(dbKey.createdByUserId).toBe("user-1");
+      expect(dbKey.createdByApiKeyId).toBeNull();
+
+      const apiKeys = await ownerCaller.organizationApiKeys.byOrganizationId({
+        orgId: organizationId,
+      });
+      const listedKey = apiKeys.find((key) => key.id === apiKeyResult.id);
+      expect(listedKey?.createdByUser?.id).toBe("user-1");
+      expect(listedKey?.createdByApiKey).toBeNull();
     });
 
     it("regular member cannot create organization API keys", async () => {

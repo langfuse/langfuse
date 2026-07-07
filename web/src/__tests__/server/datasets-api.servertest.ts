@@ -1325,23 +1325,10 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
     expect(dbRunAfterDelete).toBeNull();
 
-    // Verify run items are also deleted. Deletion propagates asynchronously
-    // through the worker queue and a ClickHouse mutation, which can take well
-    // over 30s on a loaded CI runner.
-    await waitForExpect(async () => {
-      const dbRunItems = await getDatasetRunItemsByDatasetIdCh({
-        projectId: dataset.body.projectId,
-        datasetId: dataset.body.id,
-        filter: [],
-        orderBy: {
-          column: "createdAt",
-          order: "DESC",
-        },
-        limit: 10,
-      });
-      expect(dbRunItems).toHaveLength(0);
-    }, 90000);
-  }, 120000);
+    // ClickHouse run-item deletion propagates asynchronously via the worker
+    // queue; it is covered deterministically in
+    // worker/src/__tests__/datasetDelete.test.ts.
+  });
 
   it("dataset-run-items should fail when neither trace nor observation provided", async () => {
     const response = await makeAPICall(

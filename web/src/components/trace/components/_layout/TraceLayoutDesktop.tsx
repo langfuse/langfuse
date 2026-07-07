@@ -11,6 +11,7 @@ import {
 import {
   useState,
   useEffect,
+  useMemo,
   createContext,
   useContext,
   type ReactNode,
@@ -20,13 +21,54 @@ import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import { useViewPreferences } from "@/src/components/trace/contexts/ViewPreferencesContext";
 import { useSelection } from "@/src/components/trace/contexts/SelectionContext";
+import { resolveEffectiveWidthFraction } from "@/src/components/table/peek/store/peekPanelStore";
 
-// v2: the default split now gives the trace (tree/timeline) the central space
-// with a slimmer detail panel. Bumped so a stale saved layout doesn't mask it.
+// v2: the default split gives the trace (tree/timeline) the central space with a
+// slimmer detail panel. Bumped so a stale saved layout doesn't mask it. Used by
+// the full-page trace view; the peek uses its own id/storage/default (below).
 const RESIZABLE_PANEL_GROUP_ID = "trace-layout-v2";
+// Peek gets a distinct group so its computed-percentage default and localStorage
+// persistence don't leak into the full-page view (which stays share-based, per
+// tab). Same panels, different layout scope (LFE-10601).
+const PEEK_RESIZABLE_PANEL_GROUP_ID = "trace-layout-peek-v1";
 const RESIZABLE_PANEL_HANDLE_ID = "trace-layout-handle";
 const RESIZABLE_PANEL_NAVIGATION_ID = "trace-layout-panel-navigation";
 const RESIZABLE_PANEL_PREVIEW_ID = "trace-layout-panel-preview";
+
+// Full-page default (unchanged): a share-based split — tree gets the majority.
+const FULL_NAVIGATION_DEFAULT_SIZE = "60%";
+const FULL_DETAIL_DEFAULT_SIZE = "40%";
+
+// Peek default split (LFE-10601). We size the tree/timeline (the index) to a
+// comfortable band and give the *rest* to the detail panel (the content), so on
+// a wide peek the extra width flows to info, not the tree — killing the old
+// "very wide tree, cramped info" that the 60/40 share produced on big screens.
+//
+// We express this as an explicit *percentage* layout computed from the known
+// peek width, NOT as a px `defaultSize`. The library converts a px defaultSize
+// to a percentage against whatever group width it happens to measure first,
+// which on a peek is a transient mid-open value — so the resolved ratio (and
+// thus what gets persisted) was non-deterministic. A percentage is
+// width-independent, so the default is stable across opens.
+const PEEK_INFO_COMFORTABLE_TARGET_PX = 560; // info wants ~this to read JSON/scores
+const PEEK_NAV_COMFORTABLE_MIN_PX = 340; // tree's comfortable floor (> the 260 hard min)
+const PEEK_NAV_COMFORTABLE_MAX_PX = 460; // never default the tree wider than this
+
+// Tree/info split (as a nav-panel percentage) for a peek of `peekWidthPx`: give
+// info its comfortable target, hand the remainder to the tree clamped to its
+// comfortable band. Returns undefined when the width is unknown (SSR).
+function computePeekNavPercent(peekWidthPx: number): number | undefined {
+  if (!(peekWidthPx > 0)) return undefined;
+  const navPx = Math.min(
+    PEEK_NAV_COMFORTABLE_MAX_PX,
+    Math.max(
+      PEEK_NAV_COMFORTABLE_MIN_PX,
+      peekWidthPx - PEEK_INFO_COMFORTABLE_TARGET_PX,
+    ),
+  );
+  // Keep it a sane share; the panels' own min/collapse constraints do the rest.
+  return Math.min(90, Math.max(10, (navPx / peekWidthPx) * 100));
+}
 
 // Min widths of the two collapsible panels (kept here so the Panel props and the
 // toggle/scroll logic below can't drift apart).
@@ -54,29 +96,51 @@ const COLLAPSED_PANEL_PX = 40;
 const BOTH_PANELS_MIN_WIDTH_PX =
   NAVIGATION_PANEL_MIN_PX + DETAIL_PANEL_MIN_PX + RESIZE_HANDLE_PX;
 
+// A no-op layout storage so `useDefaultLayout` never touches a real Storage
+// during SSR / DOM-less tests (its default `= localStorage` is a bare global
+// that would throw). Mirrors the pattern in `ui/resizable-split-layout.tsx`.
+const NOOP_LAYOUT_STORAGE = {
+  getItem: () => null,
+  setItem: () => {},
+};
+
 // Detect whether a panel is sitting on its collapsed rail in a RESTORED layout.
 // `useDefaultLayout` returns a `{ [panelId]: number }` map of flexGrow shares
 // that sum to ~100 (percentages of the group). A collapsed panel is exactly its
 // `collapsedSize` (40px) wide, while an open panel is always at least its
-// `minSize` (260/360px). For any peek width those two ranges never overlap: at
-// the narrowest both-panels-open width (~621px) the 40px rail is ~6% while the
-// smaller open min (nav 260px) is ~42%, and the gap only widens as the group
-// grows. We therefore treat a panel as collapsed-in-layout when its restored
-// share is at most the share its rail would occupy at the narrowest open width,
-// with a margin — comfortably below any open-min share. Used only to seed the
-// collapse flags on mount so `bothPanelsOpen` (and thus the min-width pin)
-// matches the layout the library is about to restore, avoiding a one-frame
-// scrollbar flash (see the useState initializers below).
-const COLLAPSED_LAYOUT_SHARE_MAX_PCT =
-  ((COLLAPSED_PANEL_PX / BOTH_PANELS_MIN_WIDTH_PX) * 100 +
-    (NAVIGATION_PANEL_MIN_PX / BOTH_PANELS_MIN_WIDTH_PX) * 100) /
-  2;
+// `minSize` (260/360px) — or, for the peek's width-capped nav default, ~460px.
+// The rail share and the open share never overlap, but WHERE the boundary sits
+// depends on the group's actual pixel width: a 460px open nav is ~42% at a 621px
+// peek but only ~15% at a 3000px one. So the threshold must be computed against
+// the real width, not a fixed percent — otherwise a legitimately-open (but
+// small-share) nav on a wide peek is mis-seeded as collapsed and its content
+// unmounts for a frame until `onResize` corrects it. Boundary = midpoint between
+// the 40px rail and the smallest open min (nav 260px), as a share of the width.
+// The boundary is kept LOCAL (not a module const, the #14735 pattern): as a
+// single-use top-level const it tripped the SWC prod minifier's dropped-binding
+// bug — the declaration was deleted while this function's inlined body kept the
+// reference, throwing `ReferenceError` on peek open (LFE-10640; the CI
+// client-bundle scan now guards the class, LFE-10645). Delete this workaround
+// once swc-project/swc#11983 is fixed in the Next-vendored swc_core.
+function collapsedShareMaxForWidth(groupWidthPx: number): number {
+  const boundaryPx = (COLLAPSED_PANEL_PX + NAVIGATION_PANEL_MIN_PX) / 2;
+  return (boundaryPx / groupWidthPx) * 100;
+}
+// Full-page fallback (its container width isn't known at seed time): the boundary
+// as a share of the narrowest both-open width, matching the prior heuristic.
+const COLLAPSED_LAYOUT_SHARE_MAX_PCT = collapsedShareMaxForWidth(
+  BOTH_PANELS_MIN_WIDTH_PX,
+);
+// Used only to seed the collapse flags on mount so `bothPanelsOpen` (and thus
+// the min-width pin) matches the layout the library is about to restore,
+// avoiding a one-frame scrollbar flash (see the useState initializers below).
 function isPanelCollapsedInLayout(
   layout: Record<string, number> | undefined,
   panelId: string,
+  maxSharePct: number,
 ): boolean {
   const share = layout?.[panelId];
-  return typeof share === "number" && share <= COLLAPSED_LAYOUT_SHARE_MAX_PCT;
+  return typeof share === "number" && share <= maxSharePct;
 }
 
 // Context for sharing panel state with compound components
@@ -91,6 +155,12 @@ interface TraceLayoutDesktopContext {
   isDetailPanelCollapsed: boolean;
   setIsDetailPanelCollapsed: (collapsed: boolean) => void;
   expandDetailPanel: () => void;
+  // Fallback panel sizes (peek is driven by the computed-percentage
+  // `defaultLayout`; these apply only when it's absent, e.g. the full-page view
+  // or SSR). Detail is `undefined` when nav carries the sole default so it
+  // auto-fills the remainder.
+  navigationDefaultSize: string;
+  detailDefaultSize: string | undefined;
 }
 
 const LayoutContext = createContext<TraceLayoutDesktopContext | null>(null);
@@ -121,26 +191,89 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
   const [viewMode] = useQueryParam("view", StringParam);
   const isTimelineView = viewMode === "timeline";
 
-  // Get annotation mode from context to determine initial collapse state
-  const { isAnnotationMode } = useViewPreferences();
+  // Get annotation mode + peek mode from context. Peek scopes the layout to its
+  // own group so its px-anchored default + cross-session persistence stay out of
+  // the full-page view (LFE-10601).
+  const { isAnnotationMode, isPeekMode } = useViewPreferences();
 
-  // Restored (sessionStorage) layout for this group. Read before the collapse
-  // flags so we can seed them from what the library is about to restore on
-  // mount — otherwise the first render derives `bothPanelsOpen` purely from the
-  // useState defaults (open), pins the group to 621px even when a persisted
-  // layout has a panel on its 40px rail, and a narrow peek flashes a useless
-  // horizontal scrollbar until the Panel's onResize corrects the flag a frame
-  // later.
+  const groupId = isPeekMode
+    ? PEEK_RESIZABLE_PANEL_GROUP_ID
+    : RESIZABLE_PANEL_GROUP_ID;
+  // Unify the peek's persistence with its outer width: both live in
+  // localStorage, so a resized tree/info ratio sticks across tabs and reloads
+  // instead of resetting per tab (the old sessionStorage behavior). The
+  // full-page view keeps its per-tab sessionStorage. Guarded so SSR / DOM-less
+  // tests fall back to a no-op store instead of throwing on the bare global.
+  const storage =
+    typeof window === "undefined"
+      ? NOOP_LAYOUT_STORAGE
+      : isPeekMode
+        ? window.localStorage
+        : window.sessionStorage;
+
+  // Peek drives its split via an explicit percentage `defaultLayout` (below);
+  // the panel `defaultSize`s are the SSR/fallback only. Full-page keeps its
+  // share-based 60/40. Detail has no default so it fills the remainder there.
+  const navigationDefaultSize = FULL_NAVIGATION_DEFAULT_SIZE;
+  const detailDefaultSize = isPeekMode ? undefined : FULL_DETAIL_DEFAULT_SIZE;
+
+  // The width the peek actually opens at. When expanded (a shared/reloaded
+  // `?peekView=expanded` link) the panel renders at ~viewport width, NOT the
+  // widget fraction — so we must size the split against that, or a first-open
+  // expanded peek on a big screen re-creates the wide-tree bug. The sidebar
+  // offset is ignored (the nav is width-capped at these sizes, so the small
+  // difference doesn't move the split). 0 outside peek / during SSR. Mount-time
+  // default only (a saved layout wins after first open), so it doesn't track
+  // viewport changes.
+  const [peekView] = useQueryParam("peekView", StringParam);
+  const isPeekExpanded = isPeekMode && peekView === "expanded";
+  const peekWidthPx = useMemo(() => {
+    if (!isPeekMode || typeof window === "undefined") return 0;
+    return isPeekExpanded
+      ? window.innerWidth
+      : resolveEffectiveWidthFraction() * window.innerWidth;
+  }, [isPeekMode, isPeekExpanded]);
+
+  // Deterministic peek default split, computed from `peekWidthPx`. Only used on
+  // first open (no saved layout); memoized so the Group sees a stable prop.
+  // Undefined for the full-page view and during SSR.
+  const peekDefaultLayout = useMemo(() => {
+    const navPercent = computePeekNavPercent(peekWidthPx);
+    if (navPercent === undefined) return undefined;
+    return {
+      [RESIZABLE_PANEL_NAVIGATION_ID]: navPercent,
+      [RESIZABLE_PANEL_PREVIEW_ID]: 100 - navPercent,
+    };
+  }, [peekWidthPx]);
+
+  // Restored layout for this group. Read before the collapse flags so we can
+  // seed them from what the library is about to restore on mount — otherwise the
+  // first render derives `bothPanelsOpen` purely from the useState defaults
+  // (open), pins the group to 621px even when a persisted layout has a panel on
+  // its 40px rail, and a narrow peek flashes a useless horizontal scrollbar
+  // until the Panel's onResize corrects the flag a frame later.
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
-    id: RESIZABLE_PANEL_GROUP_ID,
+    id: groupId,
     panelIds: [RESIZABLE_PANEL_NAVIGATION_ID, RESIZABLE_PANEL_PREVIEW_ID],
-    storage: sessionStorage,
+    storage,
   });
+
+  // Collapse-seed threshold: width-aware for the peek (whose width we know), so
+  // a small-share-but-open nav on a wide peek isn't mis-seeded as collapsed;
+  // fixed fallback for the full-page view (its width isn't known here).
+  const collapseSeedMaxSharePct =
+    isPeekMode && peekWidthPx > 0
+      ? collapsedShareMaxForWidth(peekWidthPx)
+      : COLLAPSED_LAYOUT_SHARE_MAX_PCT;
 
   const [isNavigationPanelCollapsed, setIsNavigationPanelCollapsed] = useState(
     () =>
       isAnnotationMode ||
-      isPanelCollapsedInLayout(defaultLayout, RESIZABLE_PANEL_NAVIGATION_ID),
+      isPanelCollapsedInLayout(
+        defaultLayout,
+        RESIZABLE_PANEL_NAVIGATION_ID,
+        collapseSeedMaxSharePct,
+      ),
   );
 
   // Ref to programmatically control the panel
@@ -149,7 +282,11 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
   // Detail (info/preview) panel collapse state + control.
   const detailPanelRef = usePanelRef();
   const [isDetailPanelCollapsed, setIsDetailPanelCollapsed] = useState(() =>
-    isPanelCollapsedInLayout(defaultLayout, RESIZABLE_PANEL_PREVIEW_ID),
+    isPanelCollapsedInLayout(
+      defaultLayout,
+      RESIZABLE_PANEL_PREVIEW_ID,
+      collapseSeedMaxSharePct,
+    ),
   );
 
   // Group ref — drives the whole layout atomically (setLayout) when reopening a
@@ -209,8 +346,7 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
           target === "navigation" ? panelRef.current : detailPanelRef.current;
         const siblingPanel =
           target === "navigation" ? detailPanelRef.current : panelRef.current;
-        const groupWidthPx =
-          document.getElementById(RESIZABLE_PANEL_GROUP_ID)?.offsetWidth ?? 0;
+        const groupWidthPx = document.getElementById(groupId)?.offsetWidth ?? 0;
         if (group && panel && groupWidthPx > 0) {
           // Whether the sibling was deliberately collapsed (header toggle, rail
           // button, or dragged onto its 40px rail). If so we keep it there:
@@ -345,6 +481,8 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
     isDetailPanelCollapsed,
     setIsDetailPanelCollapsed,
     expandDetailPanel,
+    navigationDefaultSize,
+    detailDefaultSize,
   };
 
   return (
@@ -359,9 +497,9 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
       <div className="relative h-full w-full overflow-x-auto overflow-y-hidden">
         <Group
           orientation="horizontal"
-          id={RESIZABLE_PANEL_GROUP_ID}
+          id={groupId}
           groupRef={groupRef}
-          defaultLayout={defaultLayout}
+          defaultLayout={defaultLayout ?? peekDefaultLayout}
           onLayoutChanged={isAnnotationMode ? undefined : onLayoutChanged}
           className={bothPanelsOpen ? undefined : "min-w-0"}
           style={
@@ -387,7 +525,8 @@ TraceLayoutDesktop.NavigationPanel = function Navigation({
 }: {
   children: ReactNode;
 }) {
-  const { setIsNavigationPanelCollapsed, panelRef } = useLayoutContext();
+  const { setIsNavigationPanelCollapsed, panelRef, navigationDefaultSize } =
+    useLayoutContext();
 
   return (
     <Panel
@@ -396,7 +535,7 @@ TraceLayoutDesktop.NavigationPanel = function Navigation({
       collapsible={true}
       collapsedSize="40px"
       minSize={`${NAVIGATION_PANEL_MIN_PX}px`}
-      defaultSize="60%"
+      defaultSize={navigationDefaultSize}
       onResize={() => {
         setIsNavigationPanelCollapsed(panelRef.current?.isCollapsed() ?? false);
       }}
@@ -430,6 +569,7 @@ TraceLayoutDesktop.DetailPanel = function Detail({
     setIsDetailPanelCollapsed,
     isDetailPanelCollapsed,
     expandDetailPanel,
+    detailDefaultSize,
   } = useLayoutContext();
 
   return (
@@ -441,7 +581,7 @@ TraceLayoutDesktop.DetailPanel = function Detail({
     <Panel
       id={RESIZABLE_PANEL_PREVIEW_ID}
       panelRef={detailPanelRef}
-      defaultSize="40%"
+      defaultSize={detailDefaultSize}
       collapsible={true}
       collapsedSize="40px"
       minSize={`${DETAIL_PANEL_MIN_PX}px`}

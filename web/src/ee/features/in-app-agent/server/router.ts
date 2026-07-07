@@ -15,6 +15,10 @@ import {
   upsertScore,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
+import {
+  getInAppAgentInstrumentationObservationId,
+  getInAppAgentInstrumentationTraceId,
+} from "@/src/ee/features/in-app-agent/constants";
 import { InAppAgentMessageFeedbackValueSchema } from "@/src/ee/features/in-app-agent/schema";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
@@ -244,8 +248,10 @@ export const inAppAgentRouter = createTRPCRouter({
           timestamp: convertDateToClickhouseDateTime(now),
           project_id: scoreProjectId,
           environment: IN_APP_AGENT_FEEDBACK_ENVIRONMENT,
-          trace_id: input.conversationId,
-          observation_id: input.runId,
+          trace_id: getInAppAgentInstrumentationTraceId(input.runId),
+          observation_id: getInAppAgentInstrumentationObservationId(
+            input.runId,
+          ),
           session_id: input.conversationId,
           name: IN_APP_AGENT_FEEDBACK_SCORE_NAME,
           value: input.value === "thumbs_up" ? 1 : 0,

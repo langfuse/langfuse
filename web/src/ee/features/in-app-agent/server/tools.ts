@@ -4,6 +4,7 @@ import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { assertUnreachable } from "@/src/utils/types";
 import {
   buildDashboardsPath,
+  buildDashboardWidgetPath,
   buildDatasetsPath,
   buildEvalsPath,
   buildExperimentsPath,
@@ -292,6 +293,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES: Record<
     approval: "approval",
     availability: { scope: "scoreConfigs:CUD" },
   },
+  createDashboardWidget: {
+    approval: "approval",
+    availability: { scope: "dashboards:CUD" },
+  },
 };
 
 export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES = new Set<McpToolName>(
@@ -384,6 +389,7 @@ function isInAppAgentAutoApprovedToolName(toolName: string): boolean {
 }
 
 const InAppAgentRedirectDestinationSchema = z.enum([
+  "dashboardWidget",
   "dashboards",
   "datasets",
   "evals",
@@ -489,6 +495,10 @@ const InAppAgentRedirectToolInputStrictSchema = z.discriminatedUnion(
   "destination",
   [
     InAppAgentRedirectBaseSchema.extend({
+      destination: z.literal("dashboardWidget"),
+      params: z.object({ widgetId: z.string().min(1).max(200) }),
+    }),
+    InAppAgentRedirectBaseSchema.extend({
       destination: z.literal("dashboards"),
     }),
     InAppAgentRedirectBaseSchema.extend({
@@ -547,6 +557,7 @@ const InAppAgentRedirectParamsSchema = z.object({
   sessionId: z.string().min(1).max(200).optional(),
   timestamp: z.iso.datetime().optional(),
   traceId: z.string().min(1).max(200).optional(),
+  widgetId: z.string().min(1).max(200).optional(),
   filters: InAppAgentTracingFiltersSchema.optional(),
   orderBy: InAppAgentTracesParamsSchema.shape.orderBy,
   search: InAppAgentTracesParamsSchema.shape.search,
@@ -617,6 +628,13 @@ function getRedirectHref(
   projectId: string,
   isV4Enabled: boolean,
 ): string {
+  if (input.destination === "dashboardWidget") {
+    return buildDashboardWidgetPath({
+      projectId,
+      widgetId: input.params.widgetId,
+    });
+  }
+
   if (input.destination === "dashboards") {
     return buildDashboardsPath({ projectId });
   }
