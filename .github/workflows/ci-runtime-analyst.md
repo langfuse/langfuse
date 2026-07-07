@@ -58,6 +58,7 @@ checkout:
 
 engine:
   id: claude
+  model: claude-fable-5
   max-turns: 120
   env:
     ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
