@@ -618,11 +618,14 @@ export class IngestionService {
       });
     }
 
-    if (
-      scoreRecords.length === 0 &&
-      !clickhouseScoreRecord &&
-      unexpectedScoreValidationErrors.length === 0
-    ) {
+    if (unexpectedScoreValidationErrors.length > 0) {
+      throw new AggregateError(
+        unexpectedScoreValidationErrors,
+        `Unexpected error(s) validating score batch for project: ${projectId} and score: ${entityId}`,
+      );
+    }
+
+    if (scoreRecords.length === 0 && !clickhouseScoreRecord) {
       logger.warn(
         `No valid score records found for project: ${projectId} and score: ${entityId}`,
       );

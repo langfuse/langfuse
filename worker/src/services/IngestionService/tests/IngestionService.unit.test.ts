@@ -2,6 +2,7 @@ import { expect, describe, it, vi } from "vitest";
 import { IngestionService } from "../../IngestionService";
 import {
   convertDateToClickhouseDateTime,
+  createTraceScore,
   type ObservationEvent,
   type ScoreEventType,
 } from "@langfuse/shared/src/server";
@@ -186,7 +187,65 @@ describe("IngestionService unit tests", () => {
           ingestionSdkVersion: "0.0.0",
         },
       }),
-    ).rejects.toThrow("No records to merge");
+    ).rejects.toThrow("Unexpected error(s) validating score batch");
+
+    expect(addToQueue).not.toHaveBeenCalled();
+  });
+
+  it("propagates unexpected score errors even when a ClickHouse score exists", async () => {
+    const addToQueue = vi.fn();
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue } as any,
+      {} as any,
+    );
+    const timestamp = "2024-10-12T12:13:14.123Z";
+    const scoreEventList: ScoreEventType[] = [
+      {
+        id: "event-id",
+        timestamp,
+        type: "score-update",
+        body: {
+          id: "score-id",
+          dataType: "NUMERIC",
+          name: "valid-score",
+          value: 1,
+          source: "API",
+          traceId: "trace-id",
+          environment: "default",
+        },
+      },
+    ];
+
+    vi.spyOn(ingestionService as any, "getClickhouseRecord").mockResolvedValue(
+      createTraceScore({
+        id: "score-id",
+        project_id: "project-id",
+        trace_id: "trace-id",
+        timestamp: new Date(timestamp).getTime(),
+      }),
+    );
+    vi.spyOn(
+      ingestionService as any,
+      "getMillisecondTimestamp",
+    ).mockImplementation(() => {
+      throw new Error("unexpected timestamp failure");
+    });
+
+    await expect(
+      (ingestionService as any).processScoreEventList({
+        projectId: "project-id",
+        entityId: "score-id",
+        createdAtTimestamp: new Date(timestamp),
+        scoreEventList,
+        attribution: {
+          ingestionApiKey: "pk-lf-unit-test",
+          ingestionSdkName: "langfuse-test",
+          ingestionSdkVersion: "0.0.0",
+        },
+      }),
+    ).rejects.toThrow("Unexpected error(s) validating score batch");
 
     expect(addToQueue).not.toHaveBeenCalled();
   });
