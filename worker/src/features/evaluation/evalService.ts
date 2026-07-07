@@ -861,7 +861,6 @@ export async function runLLMAsJudgeEvaluation({
         projectId,
         templateId: template.id,
         templateVersion: template.version,
-        templatePrompt: template.prompt,
         provider: modelConfig.config.provider,
         model: modelConfig.config.model,
       });

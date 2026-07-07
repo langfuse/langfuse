@@ -1,5 +1,4 @@
 import { createHash } from "crypto";
-import stableStringify from "fast-json-stable-stringify";
 import {
   ChatMessageRole,
   ChatMessageType,
@@ -21,23 +20,21 @@ export function buildEvalPromptCacheKey(params: {
   projectId: string;
   templateId: string;
   templateVersion: number;
-  templatePrompt: string;
   provider: string;
   model: string;
 }): string {
   // Versioned cache bucket for requests that share the same reusable evaluator
   // prompt prefix on the same model endpoint. Per-run variables and output
   // definitions are intentionally excluded to avoid fragmenting prompt caches.
-  const payload = {
-    projectId: params.projectId,
-    templateId: params.templateId,
-    templateVersion: params.templateVersion,
-    templatePromptHash: sha256Base64Url(params.templatePrompt),
-    provider: params.provider,
-    model: params.model,
-  };
+  const payload = [
+    params.projectId,
+    params.templateId,
+    String(params.templateVersion),
+    params.provider,
+    params.model,
+  ].join("\x00");
 
-  return `lf-eval-v1-${sha256Base64Url(stableStringify(payload))}`;
+  return `lf-eval-v1-${sha256Base64Url(payload)}`;
 }
 
 export function compileEvalPrompt(params: CompileEvalPromptParams): string {

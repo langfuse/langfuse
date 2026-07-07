@@ -31,7 +31,6 @@ describe("evaluation helpers", () => {
       projectId: "project-123",
       templateId: "template-123",
       templateVersion: 1,
-      templatePrompt: "Judge {{input}} against {{output}}",
       provider: "fireworks",
       model: "accounts/fireworks/models/kimi-k2-instruct",
     };
@@ -41,7 +40,6 @@ describe("evaluation helpers", () => {
       const secondKey = buildEvalPromptCacheKey({
         model: baseParams.model,
         provider: baseParams.provider,
-        templatePrompt: baseParams.templatePrompt,
         templateVersion: baseParams.templateVersion,
         templateId: baseParams.templateId,
         projectId: baseParams.projectId,
@@ -55,7 +53,6 @@ describe("evaluation helpers", () => {
       ["project", { projectId: "project-456" }],
       ["template id", { templateId: "template-456" }],
       ["template version", { templateVersion: 2 }],
-      ["template prompt", { templatePrompt: "Judge {{output}}" }],
       ["provider", { provider: "openai" }],
       ["model", { model: "gpt-4.1" }],
     ])("should change when %s changes", (_field, override) => {
