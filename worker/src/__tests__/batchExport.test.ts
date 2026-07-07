@@ -2594,6 +2594,69 @@ describe("batch export test suite", () => {
       expect(generationRow?.totalUsage).toBeGreaterThan(0);
     });
 
+    it("matches a trace-level score via the observation-scoped score filter on export (LFE-10596)", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      const scoredTraceId = randomUUID();
+      const now = Date.now() * 1000;
+
+      const events = [
+        createEvent({
+          project_id: projectId,
+          trace_id: scoredTraceId,
+          type: "SPAN",
+          name: "help-assistant",
+          start_time: now,
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name: "unscored-trace",
+          start_time: now,
+        }),
+      ];
+      await createEventsCh(events);
+
+      // Trace-level score (observation_id NULL) on the first trace only.
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          trace_id: scoredTraceId,
+          observation_id: null,
+          name: "CSAT",
+          value: 1,
+          data_type: "NUMERIC",
+        }),
+      ]);
+
+      const stream = await getObservationStream({
+        projectId,
+        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+        // The observation-scoped `scores_avg` filter is level-agnostic on export
+        // too: it must match the trace-level CSAT (pre-fix this returned empty,
+        // diverging from the UI — LFE-10596).
+        filter: [
+          {
+            type: "numberObject",
+            column: "scores_avg",
+            key: "CSAT",
+            operator: ">",
+            value: 0,
+          },
+        ],
+        useEventsTable: true,
+      });
+
+      const rows: any[] = [];
+      for await (const chunk of stream) {
+        rows.push(chunk);
+      }
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0].name).toBe("help-assistant");
+    });
+
     it("should apply observation-level score filters and ignore trace-level score filters when useEventsTable is true", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
 
@@ -2653,9 +2716,11 @@ describe("batch export test suite", () => {
       ];
       await createScoresCh(scores);
 
-      // Observation-level score filter applies (accuracy >= 0.7); the
-      // trace-level score filter references the trace_scores_agg CTE that the
-      // export does not join, so it is dropped rather than failing the export.
+      // Observation-scoped score filter applies (accuracy >= 0.7). The explicit
+      // trace-only "Trace Scores (numeric)" filter is dropped before the query
+      // (the `traceScores.` escape hatch is not wired on this export path), so
+      // it is ignored rather than failing the export. Here `accuracy` exists
+      // only at observation level, so the level-agnostic union adds nothing.
       const stream = await getObservationStream({
         projectId,
         cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),

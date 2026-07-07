@@ -46,6 +46,21 @@ const TRACE_SCORE_SCOPE_FILTER: FilterCondition[] = [
   },
 ];
 
+// The level-agnostic "Scores" groups (`scores_avg` / `score_categories`) match a
+// score whether it sits at observation or trace level, but only if it rolls up
+// into a trace — i.e. `trace_id IS NOT NULL`. Session-level and dataset-run
+// scores (`trace_id IS NULL`) can never match the events union, so scope
+// discovery to trace-attached scores to keep offered-set == matchable-set
+// (LFE-10596). Mirrors `scoreFilters.forTraceScopedAggregates`.
+const TRACE_SCOPED_SCORE_FILTER: FilterCondition[] = [
+  {
+    type: "null",
+    column: "traceId",
+    operator: "is not null",
+    value: "",
+  },
+];
+
 interface GetObservationsListParams {
   projectId: string;
   filter: any[];
@@ -568,9 +583,11 @@ export async function getEventFilterOptions(
 
   // The `scores_avg` / `score_categories` groups are level-agnostic (their
   // filter matches observation- OR trace-level scores; see
-  // `toLevelAgnosticScoreFilter` in events.ts), so they offer ALL score names —
-  // matchable-set == offered-set (LFE-10596). The trace-scoped discovery below
-  // stays trace-only to back the search bar's `traceScores.` escape hatch.
+  // `toLevelAgnosticScoreFilter` in events.ts), so they offer every score that
+  // rolls up into a trace — matchable-set == offered-set (LFE-10596). Scoping to
+  // trace-attached scores (`trace_id IS NOT NULL`) excludes session-/dataset-run
+  // scores the union can never match. The trace-scoped discovery below stays
+  // trace-only to back the search bar's `traceScores.` escape hatch.
   const [
     numericScoreNames,
     categoricalScoreNames,
@@ -579,10 +596,16 @@ export async function getEventFilterOptions(
     eventFilterOptions,
   ] = await Promise.all([
     shouldLoadScoresAvg
-      ? getNumericScoresGroupedByName(projectId, traceTimestampFilters)
+      ? getNumericScoresGroupedByName(projectId, [
+          ...TRACE_SCOPED_SCORE_FILTER,
+          ...traceTimestampFilters,
+        ])
       : Promise.resolve([]),
     shouldLoadScoreCategories
-      ? getCategoricalScoresGroupedByName(projectId, traceTimestampFilters)
+      ? getCategoricalScoresGroupedByName(projectId, [
+          ...TRACE_SCOPED_SCORE_FILTER,
+          ...traceTimestampFilters,
+        ])
       : Promise.resolve([]),
     shouldLoadTraceScores
       ? getScoresGroupedByNameSourceType({

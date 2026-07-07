@@ -539,7 +539,7 @@ const unionFilter = (filters: Filter[], junction: "AND" | "OR"): Filter => ({
  * union must be `NOT-obs AND NOT-trace` (De Morgan), not `NOT(obs OR trace)`,
  * so it uses AND.
  */
-const toLevelAgnosticScoreFilter = (filter: Filter): Filter => {
+export const toLevelAgnosticScoreFilter = (filter: Filter): Filter => {
   if (filter instanceof NumberObjectFilter && filter.field === "s.scores_avg") {
     const traceFilter = new NumberObjectFilter({
       clickhouseTable: filter.clickhouseTable,
@@ -572,6 +572,41 @@ const toLevelAgnosticScoreFilter = (filter: Filter): Filter => {
 
   return filter;
 };
+
+/**
+ * True when the FilterState carries an observation-scoped score filter
+ * (`scores_avg` / `score_categories`, incl. legacy aliases). These are rewritten
+ * into the level-agnostic union by `toLevelAgnosticScoreFilter`, so both the obs
+ * (`s.`) and trace (`ts.`) score CTEs must be joined (LFE-10596). Shared so the
+ * events list and the batch export/action stream stay in sync.
+ */
+export const filterHasObservationScores = (
+  filter: Array<{ column: string }>,
+): boolean =>
+  filter.some((f) => {
+    const column = f.column.toLowerCase();
+    return (
+      column === "scores" ||
+      column === "scores_avg" ||
+      column === "score_categories" ||
+      column === "scores (numeric)" ||
+      column === "scores (categorical)"
+    );
+  });
+
+/** True when the FilterState carries an explicit trace-only score filter. */
+export const filterHasTraceScores = (
+  filter: Array<{ column: string }>,
+): boolean =>
+  filter.some((f) => {
+    const column = f.column.toLowerCase();
+    return (
+      column === "trace_scores_avg" ||
+      column === "trace_score_categories" ||
+      column === "trace scores (numeric)" ||
+      column === "trace scores (categorical)"
+    );
+  });
 
 async function getObservationsFromEventsTableInternal<T>(
   opts: ObservationTableQuery & {
@@ -610,25 +645,8 @@ async function getObservationsFromEventsTableInternal<T>(
   );
 
   const startTimeFrom = extractTimeFilter(observationsFilter);
-  const hasObservationScoresFilter = baseFilter.some((f) => {
-    const column = f.column.toLowerCase();
-    return (
-      column === "scores" ||
-      column === "scores_avg" ||
-      column === "score_categories" ||
-      column === "scores (numeric)" ||
-      column === "scores (categorical)"
-    );
-  });
-  const hasTraceScoresFilter = baseFilter.some((f) => {
-    const column = f.column.toLowerCase();
-    return (
-      column === "trace_scores_avg" ||
-      column === "trace_score_categories" ||
-      column === "trace scores (numeric)" ||
-      column === "trace scores (categorical)"
-    );
-  });
+  const hasObservationScoresFilter = filterHasObservationScores(baseFilter);
+  const hasTraceScoresFilter = filterHasTraceScores(baseFilter);
   // The level-agnostic `scores_avg` / `score_categories` union references the
   // trace score CTE too, so join it whenever an observation-scoped score filter
   // is present, not only for explicit `trace_scores_avg` filters.

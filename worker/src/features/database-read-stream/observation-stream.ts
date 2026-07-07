@@ -25,6 +25,9 @@ import {
   shouldSkipObservationsFinal,
   EventsQueryBuilder,
   eventsScoresAggregation,
+  eventsTracesScoresAggregation,
+  toLevelAgnosticScoreFilter,
+  filterHasObservationScores,
 } from "@langfuse/shared/src/server";
 import { Readable } from "stream";
 import { env } from "../../env";
@@ -447,24 +450,31 @@ const getObservationStreamFromEvents = async (
   };
 
   // Trace-level filters are kept: the events table carries trace fields
-  // denormalized, so they apply directly. Observation-level score filters are
-  // kept too — they map to the scores_agg CTE (s.*) joined below, matching the
-  // legacy export. Dropped are trace-level score filters (they reference a
-  // trace_scores_agg CTE this query does not join) and comment filters
-  // (comments live in Postgres and are resolved before the stream via
-  // applyCommentFilters).
+  // denormalized, so they apply directly. Observation-scoped score filters
+  // (`scores_avg` / `score_categories`, the "s." alias) are kept too — they are
+  // rewritten below into a level-agnostic union across the obs (`s.`) and trace
+  // (`ts.`) score CTEs so a trace-level score matches on export exactly as it
+  // does in the UI (LFE-10596). Dropped are the explicit trace-only score
+  // filters (the "ts." alias — the `traceScores.` escape hatch, not wired on
+  // this export path) and comment filters (comments live in Postgres and are
+  // resolved before the stream via applyCommentFilters).
   const exportableFilters = (filter ?? []).filter((f) => {
     const columnDef = eventsTableUiColumnDefinitions.find(
       (col) => col.uiTableName === f.column || col.uiTableId === f.column,
     );
     if (columnDef?.clickhouseTableName === "comments") return false;
     if (columnDef?.clickhouseTableName === "scores") {
-      // Observation-level score columns select from the "s." alias,
-      // trace-level ones from "ts.".
+      // Observation-scoped score columns select from the "s." alias,
+      // trace-only ones from "ts.".
       return columnDef.clickhouseSelect.startsWith("s.");
     }
     return true;
   });
+
+  // Observation-scoped score filters become a union across the obs and trace
+  // score columns, which references `ts.*`, so the trace-score CTE must be
+  // joined too — mirroring `getObservationsFromEventsTableInternal`.
+  const needsTraceScoresJoin = filterHasObservationScores(exportableFilters);
 
   const distinctScoreNames = await getDistinctScoreNames({
     projectId,
@@ -495,7 +505,7 @@ const getObservationStreamFromEvents = async (
       ],
       eventsTableUiColumnDefinitions,
       eventsTableCols,
-    ),
+    ).map(toLevelAgnosticScoreFilter),
   );
 
   const appliedEventsFilter = eventsFilter.apply();
@@ -521,6 +531,21 @@ const getObservationStreamFromEvents = async (
     .leftJoin(
       "scores_agg s",
       "ON s.trace_id = e.trace_id AND s.observation_id = e.span_id",
+    )
+    // Level-agnostic score union references the trace-score CTE (LFE-10596).
+    .when(needsTraceScoresJoin, (b) =>
+      b
+        .withCTE(
+          "trace_scores_agg",
+          eventsTracesScoresAggregation({
+            projectId,
+            hasScoreAggregationFilters: true,
+          }),
+        )
+        .leftJoin(
+          "trace_scores_agg AS ts",
+          "ON ts.trace_id = e.trace_id AND ts.project_id = e.project_id",
+        ),
     )
     .when(search.requiresEventsFull, (b) => b.forceFullTable())
     .where(appliedEventsFilter)
