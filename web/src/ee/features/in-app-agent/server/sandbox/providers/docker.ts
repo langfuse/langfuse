@@ -5,7 +5,7 @@ import type { SandboxFile } from "@repo/in-app-agent-sandbox-server";
 import { logger } from "@langfuse/shared/src/server";
 
 import type { SandboxSnapshotStore } from "../snapshots";
-import type { SandboxProvider } from "../types";
+import type { SandboxProvider, SandboxSession } from "../types";
 
 type DockerExecResult = {
   exitCode: number;
@@ -134,6 +134,53 @@ export function createDockerSandboxProvider(params: {
     }
   };
 
+  const createSessionSandbox = (sessionId: string): SandboxSession => ({
+    async syncReadonlyFiles({ files }) {
+      getSession(sessions, sessionId).toolCallFiles = files;
+      logger.debug("In-app agent docker sandbox synced readonly files", {
+        sessionId,
+        fileCount: files.length,
+        paths: files.map((file) => file.path),
+      });
+    },
+    async read({ path }) {
+      const container = await ensureContainer(sessionId);
+      return await callSandboxServer(container, {
+        operation: "read",
+        path,
+        toolCallFiles: getSession(sessions, sessionId).toolCallFiles,
+      });
+    },
+    async write({ path, content }) {
+      const container = await ensureContainer(sessionId);
+      return await callSandboxServer(container, {
+        operation: "write",
+        path,
+        content,
+        toolCallFiles: getSession(sessions, sessionId).toolCallFiles,
+      });
+    },
+    async edit({ path, oldText, newText }) {
+      const container = await ensureContainer(sessionId);
+      return await callSandboxServer(container, {
+        operation: "edit",
+        path,
+        oldText,
+        newText,
+        toolCallFiles: getSession(sessions, sessionId).toolCallFiles,
+      });
+    },
+    async bash({ command, timeoutMs }) {
+      const container = await ensureContainer(sessionId);
+      return await callSandboxServer(container, {
+        operation: "bash",
+        command,
+        ...(timeoutMs ? { timeoutMs } : {}),
+        toolCallFiles: getSession(sessions, sessionId).toolCallFiles,
+      });
+    },
+  });
+
   return {
     async ensureSession({ conversationId, sessionId, snapshotKey }) {
       logger.debug("In-app agent docker sandbox ensureSession", {
@@ -148,7 +195,10 @@ export function createDockerSandboxProvider(params: {
           logger.debug("In-app agent docker sandbox reused existing session", {
             sessionId,
           });
-          return { sessionId };
+          return {
+            sessionId,
+            sandbox: createSessionSandbox(sessionId),
+          };
         } catch (error) {
           logger.debug("In-app agent docker sandbox failed to reuse session", {
             sessionId,
@@ -166,51 +216,10 @@ export function createDockerSandboxProvider(params: {
         sessionId: container.id,
         snapshotKey,
       });
-      return { sessionId: container.id };
-    },
-    async syncReadonlyFiles({ sessionId, files }) {
-      getSession(sessions, sessionId).toolCallFiles = files;
-      logger.debug("In-app agent docker sandbox synced readonly files", {
-        sessionId,
-        fileCount: files.length,
-        paths: files.map((file) => file.path),
-      });
-    },
-    async read({ sessionId, path }) {
-      const container = await ensureContainer(sessionId);
-      return await callSandboxServer(container, {
-        operation: "read",
-        path,
-        toolCallFiles: getSession(sessions, sessionId).toolCallFiles,
-      });
-    },
-    async write({ sessionId, path, content }) {
-      const container = await ensureContainer(sessionId);
-      return await callSandboxServer(container, {
-        operation: "write",
-        path,
-        content,
-        toolCallFiles: getSession(sessions, sessionId).toolCallFiles,
-      });
-    },
-    async edit({ sessionId, path, oldText, newText }) {
-      const container = await ensureContainer(sessionId);
-      return await callSandboxServer(container, {
-        operation: "edit",
-        path,
-        oldText,
-        newText,
-        toolCallFiles: getSession(sessions, sessionId).toolCallFiles,
-      });
-    },
-    async bash({ sessionId, command, timeoutMs }) {
-      const container = await ensureContainer(sessionId);
-      return await callSandboxServer(container, {
-        operation: "bash",
-        command,
-        ...(timeoutMs ? { timeoutMs } : {}),
-        toolCallFiles: getSession(sessions, sessionId).toolCallFiles,
-      });
+      return {
+        sessionId: container.id,
+        sandbox: createSessionSandbox(container.id),
+      };
     },
     async suspendSession({ sessionId, snapshotKey }) {
       await suspendSession(sessionId, snapshotKey);

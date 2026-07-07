@@ -87,33 +87,28 @@ export async function createInAppAgentSandbox(params: {
 
     sessionIsKnownActive = true;
 
-    await params.provider.syncReadonlyFiles({
-      sessionId: session.sessionId,
+    await session.sandbox.syncReadonlyFiles({
       files: await params.getToolCallFiles(),
     });
 
-    return session.sessionId;
+    return session.sandbox;
   };
 
   return {
-    read: async ({ path }) =>
-      params.provider.read({ sessionId: await ensureSession(), path }),
+    read: async ({ path }) => (await ensureSession()).read({ path }),
     write: async ({ path, content }) =>
-      params.provider.write({
-        sessionId: await ensureSession(),
+      (await ensureSession()).write({
         path,
         content,
       }),
     edit: async ({ path, oldText, newText }) =>
-      params.provider.edit({
-        sessionId: await ensureSession(),
+      (await ensureSession()).edit({
         path,
         oldText,
         newText,
       }),
     bash: async ({ command, timeoutMs }) =>
-      params.provider.bash({
-        sessionId: await ensureSession(),
+      (await ensureSession()).bash({
         command,
         timeoutMs,
       }),

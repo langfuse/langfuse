@@ -12,7 +12,7 @@ import {
 import type { SandboxFile } from "@repo/in-app-agent-sandbox-server";
 import { z } from "zod";
 
-import type { SandboxProvider } from "../types";
+import type { SandboxProvider, SandboxSession } from "../types";
 
 const DEFAULT_AUTH_TOKEN_EXPIRATION_MINUTES = 30;
 const DEFAULT_BRIDGE_PORT = 5000;
@@ -157,25 +157,21 @@ export function createLambdaMicrovmSandboxProvider(params: {
     return result;
   };
 
-  return {
-    async ensureSession({ sessionId }) {
-      const session = await ensureSession(sessionId);
-      return { sessionId: session.sessionId };
-    },
-    async syncReadonlyFiles({ sessionId, files }) {
+  const createSessionSandbox = (sessionId: string): SandboxSession => ({
+    async syncReadonlyFiles({ files }) {
       getSession(sessions, sessionId).toolCallFiles = files;
     },
-    async read({ sessionId, path }) {
+    async read({ path }) {
       return await executeOperation(sessionId, { operation: "read", path });
     },
-    async write({ sessionId, path, content }) {
+    async write({ path, content }) {
       return await executeOperation(sessionId, {
         operation: "write",
         path,
         content,
       });
     },
-    async edit({ sessionId, path, oldText, newText }) {
+    async edit({ path, oldText, newText }) {
       return await executeOperation(sessionId, {
         operation: "edit",
         path,
@@ -183,12 +179,22 @@ export function createLambdaMicrovmSandboxProvider(params: {
         newText,
       });
     },
-    async bash({ sessionId, command, timeoutMs }) {
+    async bash({ command, timeoutMs }) {
       return await executeOperation(sessionId, {
         operation: "bash",
         command,
         ...(timeoutMs ? { timeoutMs } : {}),
       });
+    },
+  });
+
+  return {
+    async ensureSession({ sessionId }) {
+      const session = await ensureSession(sessionId);
+      return {
+        sessionId: session.sessionId,
+        sandbox: createSessionSandbox(session.sessionId),
+      };
     },
     async suspendSession({ sessionId }) {
       sessions.delete(sessionId);
