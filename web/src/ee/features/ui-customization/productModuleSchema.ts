@@ -8,6 +8,7 @@ export const PRODUCT_MODULES = [
   "tracing",
   "evaluation",
   "prompt-management",
+  "skill-management",
   "playground",
   "datasets",
 ] as const;

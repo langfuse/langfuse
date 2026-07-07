@@ -20,6 +20,7 @@ import {
   ClipboardPen,
   Clock,
   Beaker,
+  Wrench,
 } from "lucide-react";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
@@ -143,6 +144,15 @@ export const ROUTES: Route[] = [
     icon: FileJson,
     projectRbacScopes: ["prompts:read"],
     productModule: "prompt-management",
+    group: RouteGroup.PromptManagement,
+    section: RouteSection.Main,
+  },
+  {
+    title: "Skills",
+    pathname: "/project/[projectId]/skills",
+    icon: Wrench,
+    projectRbacScopes: ["skills:read"],
+    productModule: "skill-management",
     group: RouteGroup.PromptManagement,
     section: RouteSection.Main,
   },
