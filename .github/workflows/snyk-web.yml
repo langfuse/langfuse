@@ -16,7 +16,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Set up Snyk CLI
-        uses: snyk/actions/setup@9adf32b1121593767fc3c057af55b55db032dc04 # master
+        uses: snyk/actions/setup@9adf32b1121593767fc3c057af55b55db032dc04 # v1.0.0
         with:
           snyk-version: v1.1304.0
       - name: Run Snyk to check Docker image for vulnerabilities

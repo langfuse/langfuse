@@ -28,10 +28,11 @@ jobs:
           node-version: 18
 
       - name: Install license-checker
-        run: npm install -g license-checker
+        # Deliberate ad-hoc install: the license-check tooling is not part of the workspace lockfile.
+        run: npm install -g license-checker # zizmor: ignore[adhoc-packages]
 
       - name: Install yui-lint
-        run: npm install yui-lint
+        run: npm install yui-lint # zizmor: ignore[adhoc-packages]
 
       - name: Generate license-checker CSV file
         run: license-checker --production --csv > npm-license-checker.csv
