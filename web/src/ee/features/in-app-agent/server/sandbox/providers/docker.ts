@@ -1,11 +1,11 @@
 import { PassThrough } from "node:stream";
 
-import Docker from "dockerode";
 import type { SandboxFile } from "@repo/in-app-agent-sandbox-server";
+import type Docker from "dockerode";
 import { logger } from "@langfuse/shared/src/server";
 
 import type { SandboxSnapshotStore } from "../snapshots";
-import type { SandboxProvider, SandboxSession } from "../types";
+import type { SandboxSession } from "../types";
 
 type DockerExecResult = {
   exitCode: number;
@@ -13,7 +13,7 @@ type DockerExecResult = {
   stdout: string;
 };
 
-type DockerContainerInspect = Awaited<ReturnType<Docker.Container["inspect"]>>;
+type DockerContainer = Docker.Container;
 
 type DockerSandboxSession = {
   toolCallFiles: ReadonlyArray<SandboxFile>;
@@ -27,10 +27,11 @@ type DockerExecContext = {
 
 const DOCKER_SANDBOX_SERVER_PORT = 5000;
 
-export function createDockerSandboxProvider(params: {
+export async function createDockerSandboxProvider(params: {
   image: string;
   snapshotStore: SandboxSnapshotStore;
-}): SandboxProvider {
+}) {
+  const { default: Docker } = await import("dockerode");
   const docker = new Docker();
   const sessions = new Map<string, DockerSandboxSession>();
 
@@ -60,7 +61,7 @@ export function createDockerSandboxProvider(params: {
     conversationId: string;
     snapshotKey: string;
   }) => {
-    let container: Docker.Container;
+    let container: DockerContainer;
     const containerName = getDockerSandboxContainerName(
       createParams.conversationId,
     );
@@ -182,7 +183,15 @@ export function createDockerSandboxProvider(params: {
   });
 
   return {
-    async ensureSession({ conversationId, sessionId, snapshotKey }) {
+    async ensureSession({
+      conversationId,
+      sessionId,
+      snapshotKey,
+    }: {
+      conversationId: string;
+      sessionId?: string | null;
+      snapshotKey: string;
+    }) {
       logger.debug("In-app agent docker sandbox ensureSession", {
         conversationId,
         requestedSessionId: sessionId,
@@ -221,10 +230,16 @@ export function createDockerSandboxProvider(params: {
         sandbox: createSessionSandbox(container.id),
       };
     },
-    async suspendSession({ sessionId, snapshotKey }) {
+    async suspendSession({
+      sessionId,
+      snapshotKey,
+    }: {
+      sessionId: string;
+      snapshotKey: string;
+    }) {
       await suspendSession(sessionId, snapshotKey);
     },
-    async terminateSession({ sessionId }) {
+    async terminateSession({ sessionId }: { sessionId: string }) {
       sessions.delete(sessionId);
 
       await docker
@@ -235,7 +250,7 @@ export function createDockerSandboxProvider(params: {
   };
 }
 
-async function waitForSandboxServer(container: Docker.Container) {
+async function waitForSandboxServer(container: DockerContainer) {
   const startedAt = Date.now();
   let lastError: unknown;
   let attempt = 0;
@@ -302,7 +317,7 @@ async function waitForSandboxServer(container: Docker.Container) {
 }
 
 async function createSandboxServerNotReadyError(params: {
-  container: Docker.Container;
+  container: DockerContainer;
   lastError: unknown;
 }) {
   const details = ["Sandbox server did not become ready within 30000ms."];
@@ -325,7 +340,7 @@ async function createSandboxServerNotReadyError(params: {
 }
 
 async function callSandboxServer(
-  container: Docker.Container,
+  container: DockerContainer,
   payload: Record<string, unknown>,
 ) {
   logger.debug("In-app agent docker sandbox tool call start", {
@@ -391,7 +406,7 @@ function getSession(
 }
 
 async function execJsonInContainer(
-  container: Docker.Container,
+  container: DockerContainer,
   cmd: string[],
   timeoutMs?: number,
   context?: DockerExecContext,
@@ -406,7 +421,7 @@ async function execJsonInContainer(
 }
 
 async function execInContainer(
-  container: Docker.Container,
+  container: DockerContainer,
   cmd: string[],
   timeoutMs?: number,
   context?: DockerExecContext,
@@ -619,7 +634,7 @@ async function waitForStreamEnd(stream: NodeJS.ReadableStream) {
   });
 }
 
-async function readContainerLogs(container: Docker.Container) {
+async function readContainerLogs(container: DockerContainer) {
   const logs = await container.logs({
     stdout: true,
     stderr: true,
@@ -638,7 +653,9 @@ async function readContainerLogs(container: Docker.Container) {
   return trimmed.split(/\r?\n/).slice(-10).join(" | ");
 }
 
-function formatContainerState(inspect: DockerContainerInspect) {
+function formatContainerState(
+  inspect: Awaited<ReturnType<DockerContainer["inspect"]>>,
+) {
   const state = inspect.State;
   if (!state) {
     return "state unavailable";
