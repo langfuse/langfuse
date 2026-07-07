@@ -1,17 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  clearExpiredInAppAgentProjectSandboxes,
-  clearInAppAgentConversationSandbox,
-} from "./inAppAgentSandboxSnapshots";
+import { clearInAppAgentConversationSandbox } from "./inAppAgentSandboxSnapshots";
 
 function createConversationPrismaMocks() {
   return {
     inAppAgentConversation: {
       findUnique: vi.fn(),
-      findMany: vi.fn(),
       update: vi.fn(),
-      updateMany: vi.fn(),
     },
   };
 }
@@ -28,7 +23,7 @@ describe("inAppAgentSandboxSnapshots", () => {
       sandboxProvider: "dangerous-docker",
     });
     prisma.inAppAgentConversation.update.mockResolvedValue(undefined);
-    const deleteSnapshot = vi.fn().mockResolvedValue(undefined);
+    const deleteSnapshot = vi.fn().mockResolvedValue({ skipped: false });
 
     await clearInAppAgentConversationSandbox({
       prisma,
@@ -52,48 +47,5 @@ describe("inAppAgentSandboxSnapshots", () => {
         },
       }),
     );
-  });
-
-  it("reaps expired sandbox sessions even without retention cutoff cleanup", async () => {
-    const prisma = createConversationPrismaMocks();
-    prisma.inAppAgentConversation.findMany.mockResolvedValue([
-      {
-        id: "conversation-1",
-        projectId: "project-1",
-        providerSessionId: "session-1",
-        sandboxSnapshotKey: "snapshot-1",
-        sandboxProvider: "lambda-microvm",
-      },
-    ]);
-    prisma.inAppAgentConversation.updateMany.mockResolvedValue(undefined);
-    const deleteSnapshot = vi.fn().mockResolvedValue(undefined);
-    const now = new Date("2026-07-06T12:00:00.000Z");
-
-    const clearedCount = await clearExpiredInAppAgentProjectSandboxes({
-      prisma,
-      projectId: "project-1",
-      now,
-      deleteSnapshot,
-    });
-
-    expect(clearedCount).toBe(1);
-    expect(prisma.inAppAgentConversation.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          projectId: "project-1",
-          AND: expect.arrayContaining([
-            expect.objectContaining({
-              OR: expect.arrayContaining([{ sandboxExpiresAt: { lt: now } }]),
-            }),
-          ]),
-        }),
-      }),
-    );
-    expect(deleteSnapshot).toHaveBeenCalledWith({
-      sandboxProvider: "lambda-microvm",
-      sessionId: "session-1",
-      snapshotKey: "snapshot-1",
-    });
-    expect(prisma.inAppAgentConversation.updateMany).toHaveBeenCalled();
   });
 });
