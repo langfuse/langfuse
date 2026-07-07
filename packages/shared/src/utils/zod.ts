@@ -90,8 +90,7 @@ export const optionalJsonParam = <T extends z.ZodType>(
       if (!str) return undefined;
       try {
         return JSON.parse(str);
-      } catch (error) {
-        if (error instanceof InvalidRequestError) throw error;
+      } catch {
         throw new InvalidRequestError(`Invalid JSON in ${paramName} parameter`);
       }
     })

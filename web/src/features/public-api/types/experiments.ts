@@ -50,7 +50,7 @@ const experimentItemFilterState = z
   )
   .transform((filters) => filters as EventsTableFilterState);
 
-const encodedCursorString = z
+export const EncodedExperimentsCursorString = z
   .string()
   .describe("Base64url-encoded cursor for pagination");
 
@@ -76,8 +76,6 @@ const ExperimentCursorV1 = z.discriminatedUnion("v", [
 ]);
 
 type ExperimentCursorV1Type = z.infer<typeof ExperimentCursorV1>;
-
-export const EncodedExperimentsCursorString = encodedCursorString;
 
 const EncodedExperimentCursorV1 = z
   .string()
@@ -135,7 +133,7 @@ export const GetExperimentsV1Query = z
     fields: experimentFieldsZod,
     limit: publicApiPaginationLimitZod,
     scoreLimit: experimentScoreLimitZod,
-    cursor: EncodedExperimentCursorV1.optional(),
+    cursor: EncodedExperimentsCursorString.optional(),
     fromStartTime: z.iso.datetime({ offset: true }),
     toStartTime: z.iso.datetime({ offset: true }).optional(),
     id: optionalCommaSeparatedStringArray,
@@ -171,7 +169,7 @@ export const GetExperimentItemsV1Query = z
     fields: experimentItemFieldsZod,
     limit: publicApiPaginationLimitZod,
     scoreLimit: experimentScoreLimitZod,
-    cursor: EncodedExperimentCursorV1.optional(),
+    cursor: EncodedExperimentsCursorString.optional(),
     fromStartTime: z.iso.datetime({ offset: true }),
     toStartTime: z.iso.datetime({ offset: true }).optional(),
     experimentId: optionalCommaSeparatedStringArray,
