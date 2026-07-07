@@ -42,7 +42,10 @@ export async function deleteLambdaMicrovmInAppAgentSandboxSnapshot(params: {
         }
       : {}),
   });
-  const prefix = params.snapshotPrefix.replace(/\/+$/u, "");
+  let prefix = params.snapshotPrefix;
+  while (prefix.endsWith("/")) {
+    prefix = prefix.slice(0, -1);
+  }
   const objectKey = prefix
     ? `${prefix}/${params.snapshotKey}`
     : params.snapshotKey;
