@@ -12,6 +12,7 @@ import type {
 } from "@/src/ee/features/in-app-agent/schema";
 import { compactTextMessageChunks } from "@/src/ee/features/in-app-agent/server/eventCompaction";
 import type { InAppAgentUserAccess } from "@/src/ee/features/in-app-agent/server/tools";
+import { assertUnreachable } from "@/src/utils/types";
 
 export type InAppAgentTracingConfig = {
   environment: string;
@@ -346,62 +347,94 @@ export class InAppAgentInstrumentation {
   }
 
   private recordEvent(event: AgUiEvent) {
-    switch (event.type) {
-      case EventType.TEXT_MESSAGE_CHUNK:
-      case EventType.TEXT_MESSAGE_CONTENT:
-        if (typeof event.delta === "string") {
-          this.recordAssistantText(event.delta);
-        }
-        return;
-      case EventType.REASONING_MESSAGE_CHUNK:
-      case EventType.REASONING_MESSAGE_CONTENT:
-        if (typeof event.delta === "string") {
-          this.reasoning += event.delta;
-        }
-        return;
-      case EventType.TOOL_CALL_START:
-        this.startToolSpan(event);
-        return;
-      case EventType.TOOL_CALL_ARGS:
-        this.appendToolArgs(event);
-        return;
-      case EventType.TOOL_CALL_RESULT:
-        this.recordToolResult(event);
-        return;
-      case EventType.TOOL_CALL_END:
-        this.endToolSpan(event);
-        return;
-      case EventType.RUN_ERROR:
-        this.endWithError(
-          typeof event.message === "string"
-            ? event.message
-            : "Unknown assistant error",
-        );
-        return;
-      case EventType.RUN_FINISHED:
-        this.end({ result: event.result });
-        return;
-      case EventType.RUN_STARTED:
-      case EventType.TEXT_MESSAGE_START:
-      case EventType.TEXT_MESSAGE_END:
-      case EventType.STATE_SNAPSHOT:
-      case EventType.STATE_DELTA:
-      case EventType.MESSAGES_SNAPSHOT:
-      case EventType.ACTIVITY_SNAPSHOT:
-      case EventType.ACTIVITY_DELTA:
-      case EventType.RAW:
-      case EventType.CUSTOM:
-      case EventType.STEP_STARTED:
-      case EventType.STEP_FINISHED:
-      case EventType.REASONING_START:
-      case EventType.REASONING_MESSAGE_START:
-      case EventType.REASONING_MESSAGE_END:
-      case EventType.REASONING_END:
-      case EventType.REASONING_ENCRYPTED_VALUE:
-        return;
-      default:
-        return;
+    if (
+      event.type === EventType.TEXT_MESSAGE_CHUNK ||
+      event.type === EventType.TEXT_MESSAGE_CONTENT
+    ) {
+      if (typeof event.delta === "string") {
+        this.recordAssistantText(event.delta);
+      }
+      return;
     }
+
+    if (
+      event.type === EventType.REASONING_MESSAGE_CHUNK ||
+      event.type === EventType.REASONING_MESSAGE_CONTENT
+    ) {
+      if (typeof event.delta === "string") {
+        this.reasoning += event.delta;
+      }
+      return;
+    }
+
+    if (event.type === EventType.TOOL_CALL_START) {
+      this.startToolSpan(event);
+      return;
+    }
+
+    if (event.type === EventType.TOOL_CALL_ARGS) {
+      this.appendToolArgs(event);
+      return;
+    }
+
+    if (event.type === EventType.TOOL_CALL_RESULT) {
+      this.recordToolResult(event);
+      return;
+    }
+
+    if (event.type === EventType.TOOL_CALL_END) {
+      this.endToolSpan(event);
+      return;
+    }
+
+    if (event.type === EventType.RUN_ERROR) {
+      this.endWithError(
+        typeof event.message === "string"
+          ? event.message
+          : "Unknown assistant error",
+      );
+      return;
+    }
+
+    if (event.type === EventType.RUN_FINISHED) {
+      this.end({ result: event.result });
+      return;
+    }
+
+    if (
+      event.type === EventType.RUN_STARTED ||
+      event.type === EventType.TEXT_MESSAGE_START ||
+      event.type === EventType.TEXT_MESSAGE_END ||
+      event.type === EventType.STATE_SNAPSHOT ||
+      event.type === EventType.STATE_DELTA ||
+      event.type === EventType.MESSAGES_SNAPSHOT ||
+      event.type === EventType.ACTIVITY_SNAPSHOT ||
+      event.type === EventType.ACTIVITY_DELTA ||
+      event.type === EventType.RAW ||
+      event.type === EventType.CUSTOM ||
+      event.type === EventType.STEP_STARTED ||
+      event.type === EventType.STEP_FINISHED ||
+      event.type === EventType.TOOL_CALL_CHUNK ||
+      event.type === EventType.REASONING_START ||
+      event.type === EventType.REASONING_MESSAGE_START ||
+      event.type === EventType.REASONING_MESSAGE_END ||
+      event.type === EventType.REASONING_END ||
+      event.type === EventType.REASONING_ENCRYPTED_VALUE ||
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      event.type === EventType.THINKING_START ||
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      event.type === EventType.THINKING_END ||
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      event.type === EventType.THINKING_TEXT_MESSAGE_START ||
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      event.type === EventType.THINKING_TEXT_MESSAGE_CONTENT ||
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      event.type === EventType.THINKING_TEXT_MESSAGE_END
+    ) {
+      return;
+    }
+
+    return assertUnreachable(event.type);
   }
 
   private startToolSpan(event: AgUiEvent) {
@@ -716,57 +749,63 @@ function getAgentRunAvailableSkills(
 
 function getAgentRunMessages(messages: AgUiMessage[]): AgentRunChatMessage[] {
   return messages.flatMap((message): AgentRunChatMessage[] => {
-    switch (message.role) {
-      case "developer":
-      case "system":
-        return [
-          {
-            role: message.role,
-            ...(message.name ? { name: message.name } : {}),
-            content: message.content,
-          },
-        ];
-      case "user":
-        return [
-          {
-            role: "user",
-            ...(message.name ? { name: message.name } : {}),
-            content: normalizeUserMessageContent(message.content),
-          },
-        ];
-      case "assistant": {
-        const toolCalls = message.toolCalls?.map((toolCall) => ({
-          id: toolCall.id,
-          name: toolCall.function.name,
-          arguments: toolCall.function.arguments,
-          type: "function" as const,
-        }));
-
-        if (!message.content && !toolCalls?.length) {
-          return [];
-        }
-
-        return [
-          {
-            role: "assistant",
-            ...(message.name ? { name: message.name } : {}),
-            content: message.content ?? "",
-            ...(toolCalls?.length ? { tool_calls: toolCalls } : {}),
-          },
-        ];
-      }
-      case "tool":
-        return [
-          {
-            role: "tool",
-            tool_call_id: message.toolCallId,
-            content: parseJsonOrString(message.content),
-          },
-        ];
-      case "activity":
-      case "reasoning":
-        return [];
+    if (message.role === "developer" || message.role === "system") {
+      return [
+        {
+          role: message.role,
+          ...(message.name ? { name: message.name } : {}),
+          content: message.content,
+        },
+      ];
     }
+
+    if (message.role === "user") {
+      return [
+        {
+          role: "user",
+          ...(message.name ? { name: message.name } : {}),
+          content: normalizeUserMessageContent(message.content),
+        },
+      ];
+    }
+
+    if (message.role === "assistant") {
+      const toolCalls = message.toolCalls?.map((toolCall) => ({
+        id: toolCall.id,
+        name: toolCall.function.name,
+        arguments: toolCall.function.arguments,
+        type: "function" as const,
+      }));
+
+      if (!message.content && !toolCalls?.length) {
+        return [];
+      }
+
+      return [
+        {
+          role: "assistant",
+          ...(message.name ? { name: message.name } : {}),
+          content: message.content ?? "",
+          ...(toolCalls?.length ? { tool_calls: toolCalls } : {}),
+        },
+      ];
+    }
+
+    if (message.role === "tool") {
+      return [
+        {
+          role: "tool",
+          tool_call_id: message.toolCallId,
+          content: parseJsonOrString(message.content),
+        },
+      ];
+    }
+
+    if (message.role === "activity" || message.role === "reasoning") {
+      return [];
+    }
+
+    return assertUnreachable(message);
   });
 }
 

@@ -44,15 +44,20 @@ jobs:
       # Mirror the tests-web job env so turbo task hashes match.
       NODE_ENV: test
     strategy:
+      # One mode failing must not cancel the other warmers — a partially
+      # warmed pool still helps.
+      fail-fast: false
       matrix:
         deploy-mode: ["", "-azure", "-redis-cluster"]
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
+      # No pinned version on purpose: the action reads "packageManager" from
+      # package.json, so pnpm bumps that update pipeline.yml cannot strand
+      # this satellite workflow on a mismatched pin (which hard-fails the
+      # action, as the 2026-07-06 11.4.0→11.10.0 bump did).
       - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
-        with:
-          version: 11.4.0
       - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] scheduled cache warmer for test-job dependency caches only; runs on main, no released artifacts are built or published from this cached state
         with:
