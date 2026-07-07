@@ -197,7 +197,7 @@ export async function finishRun(params: {
         errorMessage: params.errorMessage ?? null,
       },
     })
-    .catch((error) =>
+    .catch((error: unknown) =>
       logger.error("Failed to finish in-app agent run", {
         error,
         runId: params.runId,
