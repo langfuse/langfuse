@@ -17,7 +17,7 @@ import {
   DialogHeader,
 } from "@/src/components/ui/dialog";
 
-const commandDialogSurfaceClass = "bg-background dark:bg-[rgb(15_23_42)]";
+const commandDialogSurfaceClass = "bg-popover";
 
 const Command = React.forwardRef<
   React.ComponentRef<typeof CommandPrimitive>,
