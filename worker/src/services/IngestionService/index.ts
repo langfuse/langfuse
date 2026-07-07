@@ -2,6 +2,8 @@ import { Cluster, Redis } from "ioredis";
 import { v4 } from "uuid";
 import { Decimal } from "decimal.js";
 import {
+  InvalidRequestError,
+  LangfuseNotFoundError,
   Model,
   ObservationLevel,
   PrismaClient,
@@ -534,6 +536,7 @@ export class IngestionService {
       minTimestamp === Infinity
         ? undefined
         : convertDateToClickhouseDateTime(new Date(minTimestamp));
+    const unexpectedScoreValidationErrors: unknown[] = [];
     const [clickhouseScoreRecord, scoreRecords] = await Promise.all([
       this.getClickhouseRecord({
         projectId,
@@ -587,6 +590,13 @@ export class IngestionService {
             };
             // Gracefully handle any score schema validation errors, skip the score insert and reject silently.
           } catch (error) {
+            if (
+              !(error instanceof InvalidRequestError) &&
+              !(error instanceof LangfuseNotFoundError)
+            ) {
+              unexpectedScoreValidationErrors.push(error);
+            }
+
             logger.info(
               `Failed to validate and enrich score body for project: ${projectId} and score: ${entityId}`,
               error,
@@ -606,6 +616,17 @@ export class IngestionService {
         store: "clickhouse",
         object: "score",
       });
+    }
+
+    if (
+      scoreRecords.length === 0 &&
+      !clickhouseScoreRecord &&
+      unexpectedScoreValidationErrors.length === 0
+    ) {
+      logger.warn(
+        `No valid score records found for project: ${projectId} and score: ${entityId}`,
+      );
+      return;
     }
 
     const finalScoreRecord: ScoreRecordInsertType =
