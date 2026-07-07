@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { DollarSign, ThumbsDown, Timer, type LucideIcon } from "lucide-react";
 import {
   SYSTEM_TABLE_VIEW_PRESET_CATEGORIES_ORDERED,
@@ -91,6 +91,11 @@ export function CategoryPresetChips({
     tableName: TableViewPresetTableName.ObservationsEvents,
     projectId,
   });
+  // True while a popover open was initiated by pointer (trigger pointerdown).
+  // Pointer opens suppress Radix's focus-first-row so clicking a chip doesn't
+  // instantly fire the first row's focus-preview; keyboard opens keep it, or
+  // Tab would exit the (portaled) popover and rows would be unreachable.
+  const pointerOpenRef = useRef(false);
 
   const presetsByCategory = useMemo(() => {
     // While the preset list is loading, render no chips at all (null below)
@@ -156,6 +161,7 @@ export function CategoryPresetChips({
                   tableName: TableViewPresetTableName.ObservationsEvents,
                 });
               } else {
+                pointerOpenRef.current = false;
                 // The popover can close without a row leave/blur firing
                 // (select a preset, click outside, Escape) — always end the
                 // preview so it can't outlive the popover.
@@ -166,6 +172,9 @@ export function CategoryPresetChips({
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
+                onPointerDown={() => {
+                  pointerOpenRef.current = true;
+                }}
                 className={cn("gap-1.5", isCategoryActive && "bg-primary/5")}
               >
                 <Icon className="h-4 w-4" aria-hidden />
@@ -175,11 +184,15 @@ export function CategoryPresetChips({
             <PopoverContent
               align="start"
               className="w-72 p-1"
-              // Radix focuses the first focusable row on open, which would
-              // fire that row's onFocus preview the moment the chip is
-              // clicked. Previews should only follow a deliberate hover or
-              // Tab, so keep focus on the trigger instead.
-              onOpenAutoFocus={(event) => event.preventDefault()}
+              onOpenAutoFocus={(event) => {
+                // See pointerOpenRef: a pointer open keeps focus on the
+                // trigger (no instant first-row focus-preview); a keyboard
+                // open lets Radix focus the first row so the presets stay
+                // keyboard-reachable — previewing the row focus lands on is
+                // then the expected behavior.
+                if (pointerOpenRef.current) event.preventDefault();
+                pointerOpenRef.current = false;
+              }}
             >
               <div className="text-muted-foreground px-2 py-1.5 text-xs font-medium">
                 {label}
