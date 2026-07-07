@@ -16,6 +16,7 @@ type DockerExecResult = {
 type DockerContainer = Docker.Container;
 
 type DockerSandboxSession = {
+  snapshotKey: string;
   toolCallFiles: ReadonlyArray<SandboxFile>;
 };
 
@@ -35,26 +36,41 @@ export async function createDockerSandboxProvider(params: {
   const docker = new Docker();
   const sessions = new Map<string, DockerSandboxSession>();
 
-  const ensureContainer = async (containerId: string) => {
-    logger.debug("In-app agent docker sandbox inspecting existing container", {
-      containerId,
-    });
-    const container = docker.getContainer(containerId);
-    const inspect = await container.inspect();
-    if (!inspect.State?.Running) {
-      throw new Error(
-        `Sandbox container ${containerId} is not running (${formatContainerState(inspect)}).`,
-      );
+  const ensureSessionState = (conversationId: string, snapshotKey: string) => {
+    const session = sessions.get(conversationId) ?? {
+      snapshotKey,
+      toolCallFiles: [],
+    };
+
+    if (session.snapshotKey !== snapshotKey) {
+      session.snapshotKey = snapshotKey;
     }
-    sessions.set(
-      containerId,
-      sessions.get(containerId) ?? { toolCallFiles: [] },
+
+    sessions.set(conversationId, session);
+    return session;
+  };
+
+  const getContainerByIdentifier = async (identifier: string) => {
+    const container = docker.getContainer(identifier);
+
+    try {
+      return {
+        container,
+        inspect: await container.inspect(),
+      };
+    } catch (error) {
+      if (isMissingDockerContainerError(error)) {
+        return null;
+      }
+
+      throw error;
+    }
+  };
+
+  const getContainerByConversationId = async (conversationId: string) => {
+    return await getContainerByIdentifier(
+      getDockerSandboxContainerName(conversationId),
     );
-    logger.debug("In-app agent docker sandbox reusing running container", {
-      containerId,
-      state: formatContainerState(inspect),
-    });
-    return container;
   };
 
   const createContainer = async (createParams: {
@@ -93,10 +109,12 @@ export async function createDockerSandboxProvider(params: {
 
     logger.debug("In-app agent docker sandbox starting container", {
       containerId: container.id,
+      conversationId: createParams.conversationId,
     });
     await container.start();
     logger.debug("In-app agent docker sandbox started container", {
       containerId: container.id,
+      conversationId: createParams.conversationId,
     });
 
     const snapshot = await params.snapshotStore.getSnapshot(
@@ -116,14 +134,60 @@ export async function createDockerSandboxProvider(params: {
       });
     }
 
-    sessions.set(container.id, { toolCallFiles: [] });
+    ensureSessionState(createParams.conversationId, createParams.snapshotKey);
     await waitForSandboxServer(container);
     return container;
   };
 
+  const ensureContainer = async (params: {
+    conversationId: string;
+    snapshotKey: string;
+  }) => {
+    logger.debug("In-app agent docker sandbox inspecting existing container", {
+      conversationId: params.conversationId,
+      containerName: getDockerSandboxContainerName(params.conversationId),
+    });
+
+    const existing = await getContainerByConversationId(params.conversationId);
+    if (!existing) {
+      logger.debug("In-app agent docker sandbox missing container", {
+        conversationId: params.conversationId,
+      });
+      return await createContainer(params);
+    }
+
+    if (!existing.inspect.State?.Running) {
+      logger.debug("In-app agent docker sandbox removing stale container", {
+        conversationId: params.conversationId,
+        containerId: existing.container.id,
+        state: formatContainerState(existing.inspect),
+      });
+      await existing.container
+        .remove({ force: true, v: true })
+        .catch(() => undefined);
+      return await createContainer(params);
+    }
+
+    ensureSessionState(params.conversationId, params.snapshotKey);
+    logger.debug("In-app agent docker sandbox reusing running container", {
+      conversationId: params.conversationId,
+      containerId: existing.container.id,
+      state: formatContainerState(existing.inspect),
+    });
+    return existing.container;
+  };
+
   const suspendSession = async (sessionId: string, snapshotKey: string) => {
     try {
-      const container = await ensureContainer(sessionId);
+      const existing =
+        (await getContainerByIdentifier(sessionId)) ??
+        (await getContainerByConversationId(sessionId));
+
+      if (!existing) {
+        return;
+      }
+
+      const container = existing.container;
       const archive = await container.getArchive({ path: "/workspace" });
       await params.snapshotStore.putSnapshot(
         snapshotKey,
@@ -135,49 +199,52 @@ export async function createDockerSandboxProvider(params: {
     }
   };
 
-  const createSessionSandbox = (sessionId: string): SandboxSession => ({
+  const createSessionSandbox = (
+    conversationId: string,
+    snapshotKey: string,
+  ): SandboxSession => ({
     async syncReadonlyFiles({ files }) {
-      getSession(sessions, sessionId).toolCallFiles = files;
+      ensureSessionState(conversationId, snapshotKey).toolCallFiles = files;
       logger.debug("In-app agent docker sandbox synced readonly files", {
-        sessionId,
+        conversationId,
         fileCount: files.length,
         paths: files.map((file) => file.path),
       });
     },
     async read({ path }) {
-      const container = await ensureContainer(sessionId);
+      const container = await ensureContainer({ conversationId, snapshotKey });
       return await callSandboxServer(container, {
         operation: "read",
         path,
-        toolCallFiles: getSession(sessions, sessionId).toolCallFiles,
+        toolCallFiles: getSession(sessions, conversationId).toolCallFiles,
       });
     },
     async write({ path, content }) {
-      const container = await ensureContainer(sessionId);
+      const container = await ensureContainer({ conversationId, snapshotKey });
       return await callSandboxServer(container, {
         operation: "write",
         path,
         content,
-        toolCallFiles: getSession(sessions, sessionId).toolCallFiles,
+        toolCallFiles: getSession(sessions, conversationId).toolCallFiles,
       });
     },
     async edit({ path, oldText, newText }) {
-      const container = await ensureContainer(sessionId);
+      const container = await ensureContainer({ conversationId, snapshotKey });
       return await callSandboxServer(container, {
         operation: "edit",
         path,
         oldText,
         newText,
-        toolCallFiles: getSession(sessions, sessionId).toolCallFiles,
+        toolCallFiles: getSession(sessions, conversationId).toolCallFiles,
       });
     },
     async bash({ command, timeoutMs }) {
-      const container = await ensureContainer(sessionId);
+      const container = await ensureContainer({ conversationId, snapshotKey });
       return await callSandboxServer(container, {
         operation: "bash",
         command,
         ...(timeoutMs ? { timeoutMs } : {}),
-        toolCallFiles: getSession(sessions, sessionId).toolCallFiles,
+        toolCallFiles: getSession(sessions, conversationId).toolCallFiles,
       });
     },
   });
@@ -197,37 +264,18 @@ export async function createDockerSandboxProvider(params: {
         requestedSessionId: sessionId,
         snapshotKey,
       });
-      if (sessionId) {
-        try {
-          await ensureContainer(sessionId);
-          await waitForSandboxServer(docker.getContainer(sessionId));
-          logger.debug("In-app agent docker sandbox reused existing session", {
-            sessionId,
-          });
-          return {
-            sessionId,
-            sandbox: createSessionSandbox(sessionId),
-          };
-        } catch (error) {
-          logger.debug("In-app agent docker sandbox failed to reuse session", {
-            sessionId,
-            error: error instanceof Error ? error.message : String(error),
-          });
-          sessions.delete(sessionId);
-        }
-      }
-
-      const container = await createContainer({
+      const container = await ensureContainer({
         conversationId,
         snapshotKey,
       });
-      logger.debug("In-app agent docker sandbox created new session", {
+      logger.debug("In-app agent docker sandbox ready session", {
+        conversationId,
         sessionId: container.id,
         snapshotKey,
       });
       return {
-        sessionId: container.id,
-        sandbox: createSessionSandbox(container.id),
+        sessionId: conversationId,
+        sandbox: createSessionSandbox(conversationId, snapshotKey),
       };
     },
     async suspendSession({
@@ -241,9 +289,11 @@ export async function createDockerSandboxProvider(params: {
     },
     async terminateSession({ sessionId }: { sessionId: string }) {
       sessions.delete(sessionId);
+      const existing =
+        (await getContainerByIdentifier(sessionId)) ??
+        (await getContainerByConversationId(sessionId));
 
-      await docker
-        .getContainer(sessionId)
+      await existing?.container
         .remove({ force: true, v: true })
         .catch(() => undefined);
     },
@@ -678,6 +728,18 @@ function isMissingDockerImageError(error: unknown) {
     "message" in error &&
     typeof error.message === "string" &&
     error.message.includes("No such image")
+  );
+}
+
+function isMissingDockerContainerError(error: unknown) {
+  return (
+    error !== null &&
+    typeof error === "object" &&
+    "statusCode" in error &&
+    error.statusCode === 404 &&
+    "message" in error &&
+    typeof error.message === "string" &&
+    error.message.toLowerCase().includes("no such container")
   );
 }
 
