@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { CheckIcon, CopyIcon } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -10,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
+import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 
@@ -17,6 +19,14 @@ const SDK_UPGRADE_DISMISSED_STORAGE_PREFIX =
   "langfuse-sdk-upgrade-modal-dismissed";
 const SDK_UPGRADE_DOCS_URL =
   "https://langfuse.com/docs/observability/sdk/upgrade-path";
+const LANGFUSE_SKILL_URL =
+  "https://github.com/langfuse/skills/tree/main/skills/langfuse";
+const SDK_UPGRADE_DOC_URLS = [
+  "https://langfuse.com/docs/observability/sdk/upgrade-path/python-v2-to-v3",
+  "https://langfuse.com/docs/observability/sdk/upgrade-path/python-v3-to-v4",
+  "https://langfuse.com/docs/observability/sdk/upgrade-path/js-v3-to-v4",
+  "https://langfuse.com/docs/observability/sdk/upgrade-path/js-v4-to-v5",
+] as const;
 const SDK_UPGRADE_DISMISS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const UNKNOWN_SDK_VALUE = "unknown";
 const DIRECT_EVENTS_TABLE_SOURCE_VALUES = ["otel"] as const;
@@ -36,9 +46,18 @@ const SDK_UPGRADE_MINIMUM_VERSIONS = [
   },
 ] as const;
 
+type SdkVersionSummary = {
+  sdkName: string;
+  sdkVersion: string;
+  source: string;
+  count: number;
+};
+
 export function SdkUpgradeModal({ userId }: { userId: string }) {
   const projectId = useProjectIdFromURL();
   const [open, setOpen] = useState(false);
+  const { copy: copyAiUpgradePrompt, isCopied: isAiUpgradePromptCopied } =
+    useCopyToClipboard({ successDuration: 2_000 });
 
   const storageKey = useMemo(() => {
     if (!projectId) return null;
@@ -125,6 +144,21 @@ export function SdkUpgradeModal({ userId }: { userId: string }) {
           <Button variant="outline" onClick={dismiss}>
             Remind me later
           </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              copyAiUpgradePrompt(
+                buildAiSdkUpgradePrompt(sdkVersionsToUpgrade),
+              ).catch(() => undefined);
+            }}
+          >
+            {isAiUpgradePromptCopied ? (
+              <CheckIcon className="mr-1 size-4" />
+            ) : (
+              <CopyIcon className="mr-1 size-4" />
+            )}
+            {isAiUpgradePromptCopied ? "Copied" : "Copy AI upgrade prompt"}
+          </Button>
           <Button asChild onClick={dismiss}>
             <a
               href={SDK_UPGRADE_DOCS_URL}
@@ -140,11 +174,7 @@ export function SdkUpgradeModal({ userId }: { userId: string }) {
   );
 }
 
-function SdkVersionRow(sdkVersion: {
-  sdkName: string;
-  sdkVersion: string;
-  count: number;
-}) {
+function SdkVersionRow({ sdkVersion }: { sdkVersion: SdkVersionSummary }) {
   const formattedSdkVersion = formatSdkVersion(sdkVersion);
 
   return (
@@ -187,11 +217,7 @@ function markDismissed(storageKey: string) {
   }
 }
 
-function shouldUpgradeSdkVersion(sdk: {
-  sdkName: string;
-  sdkVersion: string;
-  source: string;
-}) {
+function shouldUpgradeSdkVersion(sdk: SdkVersionSummary) {
   if (isBackfillEventsTableSource(sdk.source)) {
     return false;
   }
@@ -210,7 +236,7 @@ function shouldUpgradeSdkVersion(sdk: {
 
   const baseVersion = extractBaseSdkVersion(sdkVersion);
   const sdkThreshold = SDK_UPGRADE_MINIMUM_VERSIONS.find((threshold) =>
-    threshold.sdkNames.includes(sdkName as (typeof threshold.sdkNames)[number]),
+    threshold.sdkNames.some((thresholdSdkName) => thresholdSdkName === sdkName),
   );
 
   if (sdkThreshold) {
@@ -292,4 +318,36 @@ function formatSdkVersion(sdk: { sdkName: string; sdkVersion: string }) {
   const sdkVersion = sdk.sdkVersion.trim() || UNKNOWN_SDK_VALUE;
 
   return `${sdkName}@${sdkVersion}`;
+}
+
+function buildAiSdkUpgradePrompt(sdkVersions: SdkVersionSummary[]) {
+  const detectedVersions =
+    sdkVersions.length > 0
+      ? sdkVersions
+          .slice(0, 10)
+          .map(
+            (sdkVersion) =>
+              `- ${formatSdkVersion(sdkVersion)} (${sdkVersion.count.toLocaleString()} traces in the last 24 hours)`,
+          )
+          .join("\n")
+      : "- Unknown Langfuse SDK version";
+
+  return `Use the Langfuse skill to upgrade this codebase to the latest Langfuse SDK.
+
+Detected Langfuse SDK usage:
+${detectedVersions}
+
+Before editing, fetch the current Langfuse migration docs:
+${SDK_UPGRADE_DOC_URLS.map((url) => `- ${url}`).join("\n")}
+
+If the coding agent does not have the Langfuse skill installed, install or reference it first:
+- ${LANGFUSE_SKILL_URL}
+
+Upgrade task:
+1. Inspect the codebase for Langfuse SDK dependencies, imports, initialization, tracing calls, LangChain/OpenAI wrappers, and dataset/score API usage.
+2. Upgrade Python SDK usage to v4+ and JS/TS SDK usage to v5+ where present.
+3. Apply the documented migration changes, especially attribute propagation, observation creation APIs, metadata string limits, release/environment configuration, and span export filtering.
+4. Preserve existing trace hierarchy, user/session/tags/metadata propagation, input/output capture, scores, and dataset experiment behavior.
+5. Enable Langfuse debug logging while validating locally.
+6. Run the relevant tests, lint, and type checks, then summarize the exact files changed and any remaining manual steps.`;
 }
