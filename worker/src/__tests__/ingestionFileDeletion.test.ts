@@ -196,6 +196,62 @@ describe("ingestion file deletion pipeline", () => {
     expect(visible.size).toBe(7);
   });
 
+  it("checkpoints already-deleted chunks on failure even when the flush threshold was never reached", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    await seedRefs(projectId, 13);
+
+    const eventStorageClient = getS3EventStorageClient(
+      env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+    );
+    const realDeleteFiles =
+      eventStorageClient.deleteFiles.bind(eventStorageClient);
+
+    let callIndex = 0;
+    const succeededPaths: string[] = [];
+    let failedPaths: string[] = [];
+    vi.spyOn(eventStorageClient, "deleteFiles").mockImplementation(
+      async (paths: string[]) => {
+        const idx = callIndex++;
+        if (idx === 2) {
+          failedPaths = [...paths];
+          throw new Error("Simulated S3 delete failure");
+        }
+        await realDeleteFiles(paths);
+        succeededPaths.push(...paths);
+      },
+    );
+
+    await expect(
+      removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject(
+        projectId,
+        undefined,
+        // tombstoneFlushSize (100) far exceeds the 6 refs the succeeding chunks
+        // produce, so the in-loop flush never fires: the ONLY thing that can
+        // tombstone them before the error propagates is the finally-flush. This
+        // pins that fail-path checkpoint against regressing back to "no error
+        // handling", which would leave all 6 visible and redone on retry.
+        { s3ChunkSize: 3, s3Concurrency: 1, tombstoneFlushSize: 100 },
+      ),
+    ).rejects.toThrow("Simulated S3 delete failure");
+
+    expect(succeededPaths).toHaveLength(6);
+    expect(failedPaths).toHaveLength(3);
+
+    const visible = new Set(await visibleBucketPaths(projectId));
+
+    // The finally-flush checkpointed the succeeded chunks despite never hitting
+    // the flush threshold, so a retry does not redo their S3 deletes.
+    for (const path of succeededPaths) {
+      expect(visible.has(path)).toBe(false);
+    }
+    // The failed chunk was never tombstoned -- it stays retry-able.
+    for (const path of failedPaths) {
+      expect(visible.has(path)).toBe(true);
+    }
+    // 6 checkpointed => 7 still visible (3 failed + 4 never dispatched).
+    expect(visible.size).toBe(7);
+  });
+
   it("never exceeds the configured concurrency while dispatching, and resumes as deletes settle", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
     // No S3 objects needed: deleteFiles is fully mocked with deferred promises.

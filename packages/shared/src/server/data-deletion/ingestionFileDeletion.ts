@@ -125,7 +125,13 @@ async function removeIngestionEventsFromS3AndDeleteClickhouseRefs(
   } & BlobCleanupPipelineOptions,
 ) {
   const { projectId, stream } = p;
-  const s3ChunkSize = p.s3ChunkSize ?? DEFAULT_S3_CHUNK_SIZE;
+  // Cap at the S3 DeleteObjects chunk size: deleteFiles re-chunks internally at
+  // that limit, so a larger value would turn one dispatch into several S3
+  // requests and inflate the real in-flight request count past s3Concurrency.
+  const s3ChunkSize = Math.min(
+    p.s3ChunkSize ?? DEFAULT_S3_CHUNK_SIZE,
+    S3_DELETE_OBJECTS_CHUNK_SIZE,
+  );
   const s3Concurrency =
     p.s3Concurrency ?? env.LANGFUSE_BLOB_STORAGE_DELETE_S3_CONCURRENCY;
   const tombstoneFlushSize =
@@ -155,13 +161,10 @@ async function removeIngestionEventsFromS3AndDeleteClickhouseRefs(
   // Cleanup is at-least-once: a ref reaches `pendingTombstones` only when the
   // `.map` stage yields it, i.e. strictly after its chunk's `deleteFiles` call
   // resolved -- so a ref can never be hidden from retry discovery while its S3
-  // object still exists (the one direction that would leak permanently). If a
-  // delete or a flush throws, the error propagates straight out of the loop and
-  // any refs deleted-but-not-yet-tombstoned simply stay FINAL-visible for the
-  // next retry to rediscover and re-delete idempotently -- no failure-path
-  // bookkeeping needed. (`Readable.map`'s typings report `Readable`/`any` for
-  // the mapped async iterator; the cast only restores the loop variable's real
-  // type, it doesn't relax the function's signature.)
+  // object still exists (the one direction that would leak permanently).
+  // (`Readable.map`'s typings report `Readable`/`any` for the mapped async
+  // iterator; the cast only restores the loop variable's real type, it doesn't
+  // relax the function's signature.)
   const mapped = Readable.from(chunk(stream, s3ChunkSize)).map(
     async (refs: BlobStorageFileRefRecordReadType[]) => {
       dispatchedBatches++;
@@ -175,16 +178,27 @@ async function removeIngestionEventsFromS3AndDeleteClickhouseRefs(
     { concurrency: s3Concurrency },
   );
 
-  for await (const deletedRefs of mapped as AsyncIterable<
-    BlobStorageFileRefRecordReadType[]
-  >) {
-    pendingTombstones.push(...deletedRefs);
-    if (pendingTombstones.length >= tombstoneFlushSize) {
-      await flushTombstones();
+  try {
+    for await (const deletedRefs of mapped as AsyncIterable<
+      BlobStorageFileRefRecordReadType[]
+    >) {
+      pendingTombstones.push(...deletedRefs);
+      if (pendingTombstones.length >= tombstoneFlushSize) {
+        await flushTombstones();
+      }
     }
+  } finally {
+    // Tombstone whatever has been deleted but not yet flushed -- the final
+    // partial batch on success, or the already-succeeded chunks on error --
+    // so a retry resumes past them instead of redoing their deletes. Runs on
+    // both paths; flushTombstones() no-ops when the buffer is empty, so it
+    // never double-inserts. A throw here on the error path replaces the
+    // original error, which is acceptable: both outcomes just mean "retry",
+    // and every un-tombstoned ref stays FINAL-visible and idempotently
+    // re-deletable regardless.
+    await flushTombstones();
   }
 
-  await flushTombstones();
   logger.info(
     `Completed blob storage cleanup for project ${projectId}: ${dispatchedBatches} S3 delete batches, ${flushes} tombstone flushes`,
   );
