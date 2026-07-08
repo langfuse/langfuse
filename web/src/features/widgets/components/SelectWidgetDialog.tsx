@@ -11,6 +11,12 @@ import {
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
 import { Badge } from "@/src/components/ui/badge";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/src/components/ui/tabs";
 import startCase from "lodash/startCase";
 import { getChartTypeDisplayName } from "@/src/features/widgets/chart-library/utils";
 import { ChartTypeIllustration } from "@/src/features/widgets/components/ChartTypeIllustration";
@@ -34,14 +40,6 @@ export type WidgetItem = {
 
 const rowClassName =
   "flex w-full items-center gap-4 rounded-lg border p-3 text-left hover:bg-accent/50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring";
-
-function SectionHeading({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="text-muted-foreground px-1 pt-3 text-xs font-medium first:pt-0">
-      {children}
-    </div>
-  );
-}
 
 function RowIllustration({ type }: { type: string }) {
   return (
@@ -159,7 +157,7 @@ export function SelectWidgetDialog({
               Error: {widgets.error.message}
             </div>
           ) : (
-            <div className="flex max-h-[440px] flex-col gap-2 overflow-y-auto p-1">
+            <div className="flex flex-col gap-3 p-1">
               <button
                 type="button"
                 onClick={() =>
@@ -178,70 +176,93 @@ export function SelectWidgetDialog({
                 </div>
               </button>
 
-              {projectWidgets.length > 0 && (
-                <>
-                  <SectionHeading>Your widgets</SectionHeading>
-                  {projectWidgets.map((widget) => (
-                    <WidgetRow
-                      key={widget.id}
-                      widget={widget as WidgetItem}
-                      onClick={() => selectWidget(widget as WidgetItem)}
-                    />
-                  ))}
-                </>
-              )}
-
-              {onSelectPreset && (
-                <>
-                  <SectionHeading>Langfuse Home cards</SectionHeading>
-                  {HOME_DASHBOARD_PRESET_IDS.map((presetId) => {
-                    const meta = HOME_PRESET_METADATA[presetId];
-                    return (
-                      <button
-                        key={presetId}
-                        type="button"
-                        onClick={() => {
-                          onSelectPreset(presetId);
-                          onOpenChange(false);
-                        }}
-                        className={rowClassName}
-                      >
-                        <RowIllustration type={meta.illustration} />
-                        <div className="min-w-0 flex-1">
-                          <div
-                            className="truncate font-medium"
-                            title={meta.name}
+              <Tabs
+                defaultValue={
+                  projectWidgets.length > 0 ? "project" : "home-cards"
+                }
+              >
+                <TabsList>
+                  <TabsTrigger value="project">
+                    Your widgets ({projectWidgets.length})
+                  </TabsTrigger>
+                  {onSelectPreset && (
+                    <TabsTrigger value="home-cards">
+                      Home cards ({HOME_DASHBOARD_PRESET_IDS.length})
+                    </TabsTrigger>
+                  )}
+                  <TabsTrigger value="curated">
+                    Langfuse widgets ({curatedWidgets.length})
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="project">
+                  <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto p-1">
+                    {projectWidgets.length === 0 ? (
+                      <div className="text-muted-foreground py-8 text-center text-sm">
+                        No saved widgets in this project yet — build one with
+                        Custom Chart.
+                      </div>
+                    ) : (
+                      projectWidgets.map((widget) => (
+                        <WidgetRow
+                          key={widget.id}
+                          widget={widget as WidgetItem}
+                          onClick={() => selectWidget(widget as WidgetItem)}
+                        />
+                      ))
+                    )}
+                  </div>
+                </TabsContent>
+                {onSelectPreset && (
+                  <TabsContent value="home-cards">
+                    <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto p-1">
+                      {HOME_DASHBOARD_PRESET_IDS.map((presetId) => {
+                        const meta = HOME_PRESET_METADATA[presetId];
+                        return (
+                          <button
+                            key={presetId}
+                            type="button"
+                            onClick={() => {
+                              onSelectPreset(presetId);
+                              onOpenChange(false);
+                            }}
+                            className={rowClassName}
                           >
-                            {meta.name}
-                          </div>
-                          <div
-                            className="text-muted-foreground truncate text-xs"
-                            title={meta.description}
-                          >
-                            {meta.description}
-                          </div>
-                          <div className="text-muted-foreground/80 mt-0.5 text-xs">
-                            Home card · fixed configuration
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </>
-              )}
-
-              {curatedWidgets.length > 0 && (
-                <>
-                  <SectionHeading>Langfuse-maintained widgets</SectionHeading>
-                  {curatedWidgets.map((widget) => (
-                    <WidgetRow
-                      key={widget.id}
-                      widget={widget as WidgetItem}
-                      onClick={() => selectWidget(widget as WidgetItem)}
-                    />
-                  ))}
-                </>
-              )}
+                            <RowIllustration type={meta.illustration} />
+                            <div className="min-w-0 flex-1">
+                              <div
+                                className="truncate font-medium"
+                                title={meta.name}
+                              >
+                                {meta.name}
+                              </div>
+                              <div
+                                className="text-muted-foreground truncate text-xs"
+                                title={meta.description}
+                              >
+                                {meta.description}
+                              </div>
+                              <div className="text-muted-foreground/80 mt-0.5 text-xs">
+                                Home card · fixed configuration
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </TabsContent>
+                )}
+                <TabsContent value="curated">
+                  <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto p-1">
+                    {curatedWidgets.map((widget) => (
+                      <WidgetRow
+                        key={widget.id}
+                        widget={widget as WidgetItem}
+                        onClick={() => selectWidget(widget as WidgetItem)}
+                      />
+                    ))}
+                  </div>
+                </TabsContent>
+              </Tabs>
             </div>
           )}
         </DialogBody>
