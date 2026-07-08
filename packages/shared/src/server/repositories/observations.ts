@@ -677,9 +677,15 @@ const getObservationsTableInternal = async <T>(
     ? `${select}, o.input, o.output, o.metadata`
     : select;
 
+  // Accept both the display name ("Start Time") and the column id ("startTime").
+  // The UI date-range picker sends the column id, while worker batch export sends
+  // the display name; matching only the display name silently disabled the
+  // traces-join time pruning and the scores CTE timestamp lower bound below for
+  // all standard UI traffic.
   const timeFilter = filter.find(
     (f) =>
-      f.column === "Start Time" && (f.operator === ">=" || f.operator === ">"),
+      (f.column === "Start Time" || f.column === "startTime") &&
+      (f.operator === ">=" || f.operator === ">"),
   );
 
   const scoresFilter = new FilterList([
