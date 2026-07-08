@@ -337,15 +337,14 @@ function InAppAgentReasoningBlock({
           isCompact && "px-0.5",
         )}
       >
-        {content.isStreaming ? (
-          <Loader2
-            className={cn(
-              "shrink-0 animate-spin opacity-70",
-              isCompact ? "size-3" : "size-3.5",
-            )}
-          />
-        ) : null}
-        <span className="min-w-0 flex-1">Thinking</span>
+        <span
+          className={cn(
+            "min-w-0 flex-1",
+            content.isStreaming && styles.thinkingShimmer,
+          )}
+        >
+          {content.isStreaming ? "Thinking" : "Thought"}
+        </span>
         <ChevronDown
           className={cn(
             "size-3.5 shrink-0 transition-transform",

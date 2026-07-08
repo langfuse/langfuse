@@ -415,7 +415,8 @@ async function expectReasoningViewportAtBottom(canvasElement: HTMLElement) {
 
 async function openReasoningDisclosure(canvasElement: HTMLElement) {
   const canvas = within(canvasElement);
-  await userEvent.click(await canvas.findByText("Thinking"));
+  // Completed reasoning blocks are labeled "Thought"; live ones "Thinking".
+  await userEvent.click(await canvas.findByText("Thought"));
 }
 
 export const Reasoning = meta.story({
@@ -511,8 +512,12 @@ export const StreamingThenCompletedReasoning = meta.story({
     const [isStreaming, setIsStreaming] = useState(true);
 
     useEffect(() => {
-      const timeoutId = window.setTimeout(() => setIsStreaming(false), 1_500);
-      return () => window.clearTimeout(timeoutId);
+      const timeoutId = window.setTimeout(() => {
+        setIsStreaming(false);
+      }, 1_500);
+      return () => {
+        window.clearTimeout(timeoutId);
+      };
     }, []);
 
     return (
@@ -538,7 +543,7 @@ export const StreamingThenCompletedReasoning = meta.story({
       },
       { timeout: 3_000 },
     );
-    await userEvent.click(await canvas.findByText("Thinking"));
+    await userEvent.click(await canvas.findByText("Thought"));
     await expectReasoningViewportAtBottom(canvasElement);
   },
 });
