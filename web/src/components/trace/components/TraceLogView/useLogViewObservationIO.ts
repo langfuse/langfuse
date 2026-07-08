@@ -54,8 +54,6 @@ export function useLogViewObservationIO({
   const eventsQuery = api.events.batchIO.useQuery(
     {
       projectId,
-      // Top-level traceId enables trace-level auth (public traces) in the
-      // protectedGetTraceProcedure middleware.
       traceId,
       observations: [{ id: observationId, traceId }],
       minStartTime: startTime,

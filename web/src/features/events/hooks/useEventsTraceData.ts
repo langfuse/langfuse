@@ -105,8 +105,6 @@ export function useEventsTraceData(
   const rootIOQuery = api.events.batchIO.useQuery(
     {
       projectId,
-      // Top-level traceId enables trace-level auth (public traces) in the
-      // protectedGetTraceProcedure middleware.
       traceId,
       observations: primaryObservation
         ? [{ id: primaryObservation.id, traceId }]

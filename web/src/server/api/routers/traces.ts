@@ -356,6 +356,12 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx }) => {
+      if (!ctx.trace) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Trace not found",
+        });
+      }
       return {
         ...ctx.trace,
         input: ctx.trace.input as string,
