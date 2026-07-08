@@ -201,11 +201,15 @@ is only the spine.
 - [ ] Refresh every non-closed ledger entry; run the "Assessment loop" for
       any open agent PR whose CI has completed; judge merged entries against
       post-merge numbers.
-- [ ] Compute this week's timing metrics (merge-group only) and compare
-      against history ("Metric definitions", "Judging and acting").
-- [ ] Parse vitest logs; update week-over-week flaky-test tracking
-      ("Vitest output analysis").
-- [ ] Decide the outcome: verified in-surface improvement → PR on a
+- [ ] Compute this week's timing metrics (merge-group only, ≥5 runs per
+      day for daily medians) and compare against history; investigate any
+      sustained intra-week shift in this same run ("Metric definitions",
+      "Judging and acting").
+- [ ] Parse vitest logs; update week-over-week flaky-test tracking, and
+      mine the slowest tests for optimization candidates even when nothing
+      regressed ("Vitest output analysis", "Judging and acting").
+- [ ] Decide the outcome: verified in-surface improvement (regression fix
+      or proactive slow-test optimization) → PR on a
       `ci-perf/` branch with `expectedImpact` recorded in the ledger
       ("Judging and acting", "Verify changes before requesting a PR");
       pipeline.yml-only proposal → comment on this run's PR or a single
@@ -256,6 +260,10 @@ with `created=<from>..<to>`, then `GET /repos/{owner}/{repo}/actions/runs/{id}/j
   run, from the job `steps` array): duration of the `Build` step and of the
   `run tests` step. Also record the total duration of the `e2e-tests` job,
   which is typically on the critical path.
+- **Per-day medians** (chart + trend detection) must be computed from at
+  least 5 merge-group runs per day, or all of that day's runs when fewer
+  exist. Never base a day's median on a single sampled run — that is what
+  makes real intra-week shifts dismissible as "noise".
 
 Population rules:
 
@@ -335,7 +343,23 @@ this layout:
    trend, runner-wait share, Build / `run tests` step drift, new or
    persistent flaky tests. Call out regressions larger than ~10% on medians
    with links to the first run(s) exhibiting them.
-2. Only when you have a concrete improvement whose expected effect you can
+2. **Sustained intra-week shifts are actionable on their own** — a step
+   median moving ≥50% across three or more consecutive days (e.g.
+   `run tests` doubling within the week) must be investigated in the same
+   run, not parked as "noisy" or deferred for lack of week-over-week
+   history. Locate the day the shift started, list the PRs merged that day
+   (head commits of the day's merge-group runs), compare the vitest
+   slowest-tests output from runs before vs after, and name the suspect
+   tests/PRs in the report. If the culprit is an in-surface test or config,
+   that is a PR candidate this week.
+3. **You are not only a regression watchdog.** Every week, also mine the
+   vitest slowest-tests/files output for optimization potential: serial
+   awaits that could run concurrently, expensive setup repeated per-test
+   that could be hoisted, oversized fixtures, unnecessary sleeps/timeouts,
+   redundant DB round-trips. A quiet week with no regressions is the best
+   time to land one such improvement. Missing baseline history blocks
+   regression *claims* — it never blocks optimizing a measurably slow test.
+4. Only when you have a concrete improvement whose expected effect you can
    justify from the measured data — and that passed the verification
    described below — request a pull request with the change.
    Allowed change surface for PRs:
@@ -346,13 +370,13 @@ this layout:
    Never include changes to `.github/**` in the PR — analysis reports belong
    in the job summary and repo memory, and the publish job rejects files
    under top-level dot-folders.
-3. If your best recommendation is a change to `.github/workflows/pipeline.yml`
+5. If your best recommendation is a change to `.github/workflows/pipeline.yml`
    itself, do NOT edit it. Instead, write the exact proposed diff in a fenced
    `diff` code block:
    - as an additional comment on the PR you are creating in the same run, or
    - if you are not creating a PR this week, as a single GitHub issue
      (assigned via safe outputs) containing the analysis and the diff.
-4. If nothing is actionable: update memory, write the report to the job
+6. If nothing is actionable: update memory, write the report to the job
    summary, and finish without creating a PR, issue, or comment. A quiet week
    is a successful run.
 
@@ -484,11 +508,15 @@ Chart template (GitHub renders `mermaid` fenced blocks natively). Copy it
 verbatim and only fill in the data: the x-axis days (every day that has
 merge-group runs), the six value lists (daily merge-group medians in
 seconds, same day order), and the y-axis maximum (largest value rounded up
-to the next 100). Do not change the structure or the series order.
+to the next 100). Do not change the structure or the series order, and do
+not move the legend into the chart title — long xychart titles get clipped
+when rendered, so the legend line above the chart is the readable one.
+
+  Lines: 1 run tests · 2 Build · 3 e2e-tests · 4 runner wait · 5 overall incl. wait · 6 overall excl. wait
 
   ```mermaid
   xychart-beta
-      title "Daily merge-group medians (s) — 1: run tests, 2: Build, 3: e2e-tests, 4: runner wait, 5: overall incl. wait, 6: overall excl. wait"
+      title "Daily merge-group medians (seconds), lines 1-6"
       x-axis [MM-DD, MM-DD, MM-DD]
       y-axis "seconds" 0 --> 600
       line [0, 0, 0]
