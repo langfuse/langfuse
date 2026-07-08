@@ -43,6 +43,9 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 const ListDashboardsInput = z.object({
   projectId: z.string(),
   ...paginationZod,
+  // The Home-dashboard picker and clone detection fetch the whole list in one
+  // page, so allow a higher ceiling than the default table pagination.
+  limit: z.coerce.number().int().positive().lte(500).default(50),
   orderBy: orderBy,
 });
 
