@@ -74,6 +74,57 @@ export const observationForEvalSchema = z.object({
 
 export type ObservationForEval = z.infer<typeof observationForEvalSchema>;
 
+/**
+ * Self-contained tool call shape handed to evaluators. Rebuilt from the
+ * ClickHouse storage layout, which keeps names in a parallel array
+ * (`tool_call_names`) so ClickHouse can filter without JSON parsing.
+ */
+export const toolCallForEvalSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  arguments: z.unknown(),
+  type: z.string(),
+  index: z.number(),
+});
+
+export type ToolCallForEval = z.infer<typeof toolCallForEvalSchema>;
+
+function parseJsonStringShallow(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+/**
+ * Zips the parallel arrays back into named tool call objects.
+ * `tool_call_names` is authoritative for count and order: ingestion writes
+ * both arrays in lockstep (`convertCallsToArrays`), and stored entries carry
+ * no name. `arguments` arrives double-encoded (a JSON string inside the entry
+ * JSON) and is parsed to an object; unparseable values stay raw strings.
+ */
+export function zipObservationToolCalls(
+  observation: Pick<ObservationForEval, "tool_calls" | "tool_call_names">,
+): ToolCallForEval[] {
+  return observation.tool_call_names.map((name, i) => {
+    const parsed = parseJsonStringShallow(observation.tool_calls[i]);
+    const entry =
+      typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : {};
+
+    return {
+      id: typeof entry.id === "string" ? entry.id : "",
+      name,
+      arguments: parseJsonStringShallow(entry.arguments) ?? {},
+      type: typeof entry.type === "string" ? entry.type : "",
+      index: typeof entry.index === "number" ? entry.index : 0,
+    };
+  });
+}
+
 export function convertEventRecordToObservationForEval(
   record: EventRecordBaseType,
 ): ObservationForEval {

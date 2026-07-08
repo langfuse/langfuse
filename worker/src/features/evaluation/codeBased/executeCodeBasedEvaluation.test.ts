@@ -48,6 +48,11 @@ vi.mock("../../internal-tracing/createInternalEventsWriter", () => ({
 
 import { executeCodeBasedEvaluation } from "./executeCodeBasedEvaluation";
 
+const emptyObservationToolCalls = {
+  tool_calls: [],
+  tool_call_names: [],
+};
+
 describe("executeCodeBasedEvaluation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -96,6 +101,14 @@ describe("executeCodeBasedEvaluation", () => {
         { var: "output", value: "4" },
         { var: "experimentItemExpectedOutput", value: "4" },
       ],
+      observation: {
+        // ClickHouse stores entries as name-less JSON strings; names live in
+        // the parallel tool_call_names array.
+        tool_calls: [
+          '{"id":"call_1","arguments":"{\\"query\\":\\"weather\\"}","type":"function","index":0}',
+        ],
+        tool_call_names: ["search"],
+      },
       hasExperimentContext: true,
       executionMetadata: { job_execution_id: "job-1" },
     });
@@ -115,6 +128,16 @@ describe("executeCodeBasedEvaluation", () => {
         input: { question: "2+2" },
         output: "4",
         metadata: null,
+        toolCalls: [
+          {
+            id: "call_1",
+            name: "search",
+            arguments: { query: "weather" },
+            type: "function",
+            index: 0,
+          },
+        ],
+        toolCallNames: ["search"],
       },
       experiment: {
         itemExpectedOutput: "4",
@@ -178,6 +201,7 @@ describe("executeCodeBasedEvaluation", () => {
         outputDefinition: null,
       } as any,
       extractedVariables: [],
+      observation: emptyObservationToolCalls,
       executionMetadata: { job_execution_id: "job-1" },
     });
 
@@ -188,7 +212,13 @@ describe("executeCodeBasedEvaluation", () => {
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
         payload: {
-          observation: { input: null, output: null, metadata: null },
+          observation: {
+            input: null,
+            output: null,
+            metadata: null,
+            toolCalls: [],
+            toolCallNames: [],
+          },
         },
       }),
     );
@@ -220,6 +250,7 @@ describe("executeCodeBasedEvaluation", () => {
         outputDefinition: null,
       } as any,
       extractedVariables: [],
+      observation: emptyObservationToolCalls,
       hasExperimentContext: true,
       executionMetadata: { job_execution_id: "job-1" },
     });
@@ -227,7 +258,13 @@ describe("executeCodeBasedEvaluation", () => {
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
         payload: {
-          observation: { input: null, output: null, metadata: null },
+          observation: {
+            input: null,
+            output: null,
+            metadata: null,
+            toolCalls: [],
+            toolCallNames: [],
+          },
           experiment: {
             itemExpectedOutput: null,
             itemMetadata: null,
@@ -263,6 +300,7 @@ describe("executeCodeBasedEvaluation", () => {
         outputDefinition: null,
       } as any,
       extractedVariables: [{ var: "experimentItemExpectedOutput", value: "4" }],
+      observation: emptyObservationToolCalls,
       hasExperimentContext: false,
       executionMetadata: { job_execution_id: "job-1" },
     });
@@ -270,7 +308,13 @@ describe("executeCodeBasedEvaluation", () => {
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
         payload: {
-          observation: { input: null, output: null, metadata: null },
+          observation: {
+            input: null,
+            output: null,
+            metadata: null,
+            toolCalls: [],
+            toolCallNames: [],
+          },
         },
       }),
     );
@@ -306,6 +350,7 @@ describe("executeCodeBasedEvaluation", () => {
         { var: "metadata", value: "42" },
         { var: "experimentItemExpectedOutput", value: "null" },
       ],
+      observation: emptyObservationToolCalls,
       hasExperimentContext: true,
       executionMetadata: { job_execution_id: "job-1" },
     });
@@ -317,6 +362,8 @@ describe("executeCodeBasedEvaluation", () => {
             input: null,
             output: "true",
             metadata: "42",
+            toolCalls: [],
+            toolCallNames: [],
           },
           experiment: {
             itemExpectedOutput: "null",
@@ -358,6 +405,7 @@ describe("executeCodeBasedEvaluation", () => {
           value: { difficulty: "easy", source: "dataset" },
         },
       ],
+      observation: emptyObservationToolCalls,
       hasExperimentContext: true,
       executionMetadata: { job_execution_id: "job-1" },
     });
@@ -369,6 +417,8 @@ describe("executeCodeBasedEvaluation", () => {
             input: null,
             output: null,
             metadata: null,
+            toolCalls: [],
+            toolCallNames: [],
           },
           experiment: {
             itemExpectedOutput: null,
@@ -408,6 +458,7 @@ describe("executeCodeBasedEvaluation", () => {
           outputDefinition: null,
         } as any,
         extractedVariables: [{ var: "input", value: "prompt" }],
+        observation: emptyObservationToolCalls,
         executionMetadata: { job_execution_id: "job-1" },
       }),
     ).resolves.toMatchObject({
@@ -445,6 +496,7 @@ describe("executeCodeBasedEvaluation", () => {
         outputDefinition: null,
       } as any,
       extractedVariables: [{ var: "input", value: "prompt" }],
+      observation: emptyObservationToolCalls,
       executionMetadata: { job_execution_id: "job-1" },
     });
 
@@ -464,7 +516,13 @@ describe("executeCodeBasedEvaluation", () => {
             level: "ERROR",
             statusMessage: "Code eval execution failed: runner exploded",
             input: JSON.stringify({
-              observation: { input: "prompt", output: null, metadata: null },
+              observation: {
+                input: "prompt",
+                output: null,
+                metadata: null,
+                toolCalls: [],
+                toolCallNames: [],
+              },
             }),
             output: expect.stringContaining("runner exploded"),
             metadata: expect.objectContaining({
@@ -510,6 +568,7 @@ describe("executeCodeBasedEvaluation", () => {
         outputDefinition: null,
       } as any,
       extractedVariables: [{ var: "input", value: "prompt" }],
+      observation: emptyObservationToolCalls,
       executionMetadata: { job_execution_id: "job-1" },
     });
 
@@ -568,6 +627,7 @@ describe("executeCodeBasedEvaluation", () => {
         outputDefinition: null,
       } as any,
       extractedVariables: [{ var: "input", value: "prompt" }],
+      observation: emptyObservationToolCalls,
       executionMetadata: { job_execution_id: "job-1" },
     });
 
@@ -619,6 +679,7 @@ describe("executeCodeBasedEvaluation", () => {
         outputDefinition: null,
       } as any,
       extractedVariables: [{ var: "input", value: "prompt" }],
+      observation: emptyObservationToolCalls,
       executionMetadata: { job_execution_id: "job-1" },
     });
 

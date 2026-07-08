@@ -20,6 +20,8 @@ const baseInput: Omit<DispatchInput, "runtime" | "code"> = {
       input: { question: "2+2" },
       output: "4",
       metadata: { source: "test" },
+      toolCalls: [],
+      toolCallNames: [],
     },
     experiment: {
       itemExpectedOutput: "4",

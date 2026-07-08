@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ScoreDataTypeEnum, TEXT_SCORE_MAX_LENGTH } from "../../domain/scores";
+import type { ToolCallForEval } from "../../features/evals/observationForEval";
 
 export const CODE_EVAL_SOURCE_MAX_BYTES = 256 * 1024;
 export const CODE_EVAL_DISPATCH_PAYLOAD_MAX_BYTES = 5.5 * 1024 * 1024;
@@ -30,6 +31,8 @@ export type CodeEvalPayload = {
     input: unknown;
     output: unknown;
     metadata: unknown;
+    toolCalls: ToolCallForEval[];
+    toolCallNames: string[];
   };
   experiment?: {
     itemExpectedOutput: unknown;

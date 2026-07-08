@@ -28,6 +28,17 @@ class Score:
 
 A Langfuse score returned by a Python evaluator.`;
 
+const TYPESCRIPT_TOOL_CALL_DOC = `type ToolCall = {
+  id: string;
+  name: string;
+  arguments: unknown;
+  type: string;
+  index: number;
+}
+
+A tool call recorded on the observation. arguments is the parsed
+argument object when the recorded value was valid JSON.`;
+
 export const TYPESCRIPT_CODE_EVAL_HOVER_DOCS = {
   evaluate: `function evaluate(ctx: EvaluationContext): EvaluationResult
 
@@ -40,6 +51,8 @@ The TypeScript value Langfuse passes to evaluate.`,
     input: any;
     output: any;
     metadata: any;
+    toolCalls: ToolCall[];
+    toolCallNames: string[];
   };
   experiment:
     | {
@@ -54,9 +67,18 @@ The data Langfuse passes to a TypeScript evaluator.`,
   input: any;
   output: any;
   metadata: any;
+  toolCalls: ToolCall[];
+  toolCallNames: string[];
 }
 
 The observation selected by the evaluator target.`,
+  ToolCall: TYPESCRIPT_TOOL_CALL_DOC,
+  toolCalls: `property observation.toolCalls: ToolCall[]
+
+The tool calls recorded on the observation, in the order the model emitted them.`,
+  toolCallNames: `property observation.toolCallNames: string[]
+
+The called tool names, index-aligned with toolCalls.`,
   experiment: `property EvaluationContext.experiment?: {
   itemExpectedOutput: any;
   itemMetadata: any;
@@ -123,8 +145,18 @@ class ObservationContext:
     input: Any = None
     output: Any = None
     metadata: Any = None
+    tool_calls: list[Any] = field(default_factory=list)
+    tool_call_names: list[str] = field(default_factory=list)
 
 The observation selected by the evaluator target.`,
+  tool_calls: `property observation.tool_calls: list[Any]
+
+The tool calls recorded on the observation, in the order the model emitted
+them. Each entry is a dict with id, name, arguments, type, and index;
+arguments is the parsed argument object when the recorded value was valid JSON.`,
+  tool_call_names: `property observation.tool_call_names: list[str]
+
+The called tool names, index-aligned with tool_calls.`,
   ExperimentContext: `@dataclass
 class ExperimentContext:
     item_expected_output: Any = None

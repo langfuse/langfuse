@@ -189,6 +189,7 @@ async function runCodeEvalTestForObservation(params: {
     jobExecutionId: executionTraceId,
     template: codeTemplate,
     extractedVariables,
+    observation: params.observation,
     hasExperimentContext: Boolean(params.observation.experiment_id),
     traceName,
     metadata: executionMetadata,

@@ -1,8 +1,18 @@
-export const TYPESCRIPT_CODE_EVAL_CONTRACT = `type EvaluationContext = {
+export const TYPESCRIPT_CODE_EVAL_CONTRACT = `type ToolCall = {
+  id: string;
+  name: string;
+  arguments: unknown;
+  type: string;
+  index: number;
+};
+
+type EvaluationContext = {
   observation: {
     input: any;
     output: any;
     metadata: any;
+    toolCalls: ToolCall[];
+    toolCallNames: string[];
   };
   experiment:
     | {
@@ -51,7 +61,7 @@ export const DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE = `function evaluate(ctx: Evalu
   };
 }`;
 
-export const PYTHON_CODE_EVAL_CONTRACT = `from dataclasses import dataclass
+export const PYTHON_CODE_EVAL_CONTRACT = `from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -60,6 +70,8 @@ class ObservationContext:
     input: Any = None
     output: Any = None
     metadata: Any = None
+    tool_calls: list[Any] = field(default_factory=list)
+    tool_call_names: list[str] = field(default_factory=list)
 
 
 @dataclass
