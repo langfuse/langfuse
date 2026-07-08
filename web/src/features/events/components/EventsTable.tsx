@@ -1709,6 +1709,10 @@ export default function ObservationsEventsTable({
                 selectedRowIds: selectedObservationIds,
                 setRowSelection: setSelectedRows,
                 totalCount,
+                // totalCount stays null until select-all triggers the lazy
+                // count query; hasNextPage lets the select-all banner show
+                // without an eager count over the events table.
+                hasNextPage: hasMore,
                 pageSize: paginationState.limit,
                 pageIndex: paginationState.page - 1,
               }}

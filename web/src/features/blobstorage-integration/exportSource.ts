@@ -41,6 +41,16 @@ export type SelectableExportSourceOption = ExportSourceOption & {
   unavailable: boolean;
 };
 
+// A single selectable option carries no decision, so the selector is hidden
+// (post-cutoff Cloud projects never see it). When the sole option is the
+// stale persisted source, keep the selector: the unavailable-source alert
+// refers to it and hiding it would strand the user with a blocked save.
+export function shouldHideExportSourceSelector(
+  options: SelectableExportSourceOption[],
+): boolean {
+  return options.length === 1 && !options[0].unavailable;
+}
+
 // Selectable sources, plus the persisted one (marked unavailable) when it is
 // no longer selectable, so the conflict is visible rather than silently rewritten.
 export function getExportSourceOptions(

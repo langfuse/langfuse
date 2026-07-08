@@ -120,6 +120,14 @@ export const buildEvalsPath = (params: { projectId: string }) =>
 export const buildExperimentsPath = (params: { projectId: string }) =>
   `${buildProjectPath(params)}/experiments`;
 
+export const buildExperimentPath = (params: {
+  projectId: string;
+  experimentId: string;
+}) =>
+  appendProductPathQuery(`${buildExperimentsPath(params)}/results`, {
+    baseline: params.experimentId,
+  });
+
 export const buildModelsPath = (params: { projectId: string }) =>
   `${buildProjectPath(params)}/models`;
 
@@ -438,6 +446,11 @@ export const buildDatasetRunUrl = (params: {
   buildProductUrl(
     `/project/${encodeURIComponent(params.projectId)}/datasets/${encodeURIComponent(params.datasetId)}/runs/${encodeURIComponent(params.datasetRunId)}`,
   );
+
+export const buildExperimentUrl = (params: {
+  projectId: string;
+  experimentId: string;
+}) => buildProductUrl(buildExperimentPath(params));
 
 export const buildAnnotationQueueUrl = (params: {
   projectId: string;
