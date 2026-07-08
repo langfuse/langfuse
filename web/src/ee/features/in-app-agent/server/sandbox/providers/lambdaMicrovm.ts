@@ -16,8 +16,9 @@ import type { SandboxFile, SandboxProvider, SandboxSession } from "../types";
 
 const DEFAULT_AUTH_TOKEN_EXPIRATION_MINUTES = 30;
 const DEFAULT_SANDBOX_SERVER_PORT = 5000;
-const DEFAULT_IDLE_TIMEOUT_SECONDS = 900;
-const DEFAULT_SUSPENDED_DURATION_SECONDS = 300;
+const DEFAULT_SUSPEND_AFTER_IDLE_SECONDS = 60;
+const DEFAULT_TERMINATE_AFTER_SUSPEND_SECONDS = 500;
+const DEFAULT_MAXIMUM_DURATION_SECONDS = 3_600;
 const BRIDGE_READY_TIMEOUT_MS = 30_000;
 
 const LambdaMicrovmErrorSchema = z.object({
@@ -137,9 +138,10 @@ export function createLambdaMicrovmSandboxProvider(params: {
           executionRoleArn: params.executionRoleArn,
           idlePolicy: {
             autoResumeEnabled: true,
-            maxIdleDurationSeconds: DEFAULT_IDLE_TIMEOUT_SECONDS,
-            suspendedDurationSeconds: DEFAULT_SUSPENDED_DURATION_SECONDS,
+            maxIdleDurationSeconds: DEFAULT_SUSPEND_AFTER_IDLE_SECONDS,
+            suspendedDurationSeconds: DEFAULT_TERMINATE_AFTER_SUSPEND_SECONDS,
           },
+          maximumDurationInSeconds: DEFAULT_MAXIMUM_DURATION_SECONDS,
           runHookPayload: JSON.stringify({
             snapshotBucket: params.snapshotConfig.bucket,
             snapshotKey: request.snapshotKey,
