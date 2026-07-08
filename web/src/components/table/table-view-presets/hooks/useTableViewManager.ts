@@ -388,6 +388,12 @@ export function useTableViewManager({
         // mutation on a link open) — so there is nothing to fetch.
         !hasExplicitTableStateInUrl(router.query) &&
         (!isSystemPresetId(selectedViewId) || allowBackendSystemPresets),
+      // A 404 is an expected outcome, not an incident: system presets are
+      // code-defined and a catalog iteration can retire an id that still
+      // lives in bookmarks/session storage. Silence the GLOBAL query-cache
+      // error toast for it — the error effect below owns the messaging
+      // (friendly retirement notice vs. real error).
+      meta: { silentHttpCodes: [404] },
     },
   );
 
@@ -452,7 +458,30 @@ export function useTableViewManager({
     setIsInitialized(true);
     setIsLoading(false);
     handleSetViewId(null);
-    showErrorToast("Error applying view", selectedViewError.message, "WARNING");
+    // A 404 on a system-preset id means the catalog retired it (system
+    // presets are code-defined); stale references live on in bookmarks and
+    // session storage. Stale DEFAULTS never reach here (getDefault
+    // self-heals them server-side), so this is an explicit-ish reference —
+    // tell the user once why they landed on the default table (a dead
+    // bookmark is fixable), in a friendlier voice than the real error kept
+    // for dangling user views and for transient failures (which must stay
+    // loud — a network blip is not a retirement).
+    if (
+      isSystemPresetId(requestedViewId) &&
+      selectedViewError.data?.httpStatus === 404
+    ) {
+      showErrorToast(
+        "View no longer available",
+        "This suggested view was retired — showing the default view instead.",
+        "WARNING",
+      );
+    } else {
+      showErrorToast(
+        "Error applying view",
+        selectedViewError.message,
+        "WARNING",
+      );
+    }
   }, [
     disabled,
     isSelectedViewError,

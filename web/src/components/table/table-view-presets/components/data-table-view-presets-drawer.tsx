@@ -232,7 +232,13 @@ export function TableViewPresetsDrawer({
   // the same preset in two places. Name lookups and uniqueness checks above
   // still use the full list.
   const drawerPresetList = useMemo(
-    () => TableViewPresetsList?.filter((view) => !view.category),
+    // Only SYSTEM categorized presets leave the drawer (they live in the
+    // category chips). A user view can also carry a category — the name-dedup
+    // lets a same-named user view displace a system preset into the chips —
+    // but a personal view must never vanish from "My Views": the drawer is
+    // its only management surface (rename, delete, defaults, permalink).
+    () =>
+      TableViewPresetsList?.filter((view) => !view.category || !view.isSystem),
     [TableViewPresetsList],
   );
 

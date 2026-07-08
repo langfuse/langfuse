@@ -117,7 +117,16 @@ const OBSERVATIONS_EVENTS_SYSTEM_TABLE_VIEW_PRESETS: SystemTableViewPreset[] = [
     ],
   }),
   buildSystemPreset({
-    id: `${SYSTEM_TABLE_VIEW_PRESET_ID_PREFIX}review_output_generations`,
+    // Shipped-id stability: this is the pre-chips "Generations Only" preset
+    // (identical filters) renamed and categorized. Its id already lives in
+    // bookmarked `?viewId=` URLs and `default_views` rows (view_id has no FK
+    // on purpose), so the rename keeps the id — retiring it would strand
+    // those references. Never mint a new id for a preset whose meaning
+    // survives a catalog iteration — and conversely, the FILTER SEMANTICS
+    // under this id are frozen: tightening this preset (e.g. adding score or
+    // output filters) would silently morph every old bookmark/default, so a
+    // preset with a different meaning must get a new id.
+    id: `${SYSTEM_TABLE_VIEW_PRESET_ID_PREFIX}generations_only`,
     name: "Review output (generations)",
     description: "LLM generation outputs, for reviewing response quality",
     tableName: TableViewPresetTableName.ObservationsEvents,
