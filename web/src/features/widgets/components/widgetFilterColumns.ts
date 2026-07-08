@@ -13,6 +13,8 @@ type GetWidgetFilterColumnsParams = {
   nameOptions: SingleValueOption[];
   tagsOptions: SingleValueOption[];
   modelOptions: SingleValueOption[];
+  modelIdOptions: SingleValueOption[];
+  promptNameOptions: SingleValueOption[];
   toolNamesOptions: SingleValueOption[];
   calledToolNamesOptions: SingleValueOption[];
   observationLevelOptions: SingleValueOption[];
@@ -33,6 +35,8 @@ const getWidgetFilterColumnSpecs = ({
   nameOptions,
   tagsOptions,
   modelOptions,
+  modelIdOptions,
+  promptNameOptions,
   toolNamesOptions,
   calledToolNamesOptions,
   observationLevelOptions,
@@ -163,7 +167,7 @@ const getWidgetFilterColumnSpecs = ({
     filterColumns.push(
       // v2-only filter columns (experiment data only exists in events table)
       ...(viewVersion === "v2"
-        ? [
+        ? ([
             {
               column: {
                 name: "Observation Release",
@@ -200,7 +204,132 @@ const getWidgetFilterColumnSpecs = ({
                 internal: "internalValue",
               },
             } satisfies WidgetFilterColumnSpec,
-          ]
+            // Observations-page filters exposed on the v2 form (LFE-10751).
+            {
+              column: {
+                name: "Prompt Name",
+                id: "promptName",
+                type: "stringOptions",
+                options: promptNameOptions,
+                internal: "internalValue",
+              },
+              customSelect: true,
+            } satisfies WidgetFilterColumnSpec,
+            {
+              column: {
+                name: "Trace ID",
+                id: "traceId",
+                type: "string",
+                internal: "internalValue",
+              },
+            } satisfies WidgetFilterColumnSpec,
+            {
+              column: {
+                name: "Model ID",
+                id: "modelId",
+                type: "stringOptions",
+                options: modelIdOptions,
+                internal: "internalValue",
+              },
+              customSelect: true,
+            } satisfies WidgetFilterColumnSpec,
+            {
+              column: {
+                name: "Status Message",
+                id: "statusMessage",
+                type: "string",
+                internal: "internalValue",
+              },
+            } satisfies WidgetFilterColumnSpec,
+            {
+              column: {
+                name: "Is Root Observation",
+                id: "isRootObservation",
+                type: "boolean",
+                internal: "internalValue",
+              },
+            } satisfies WidgetFilterColumnSpec,
+            {
+              column: {
+                name: "Latency (s)",
+                id: "latency",
+                type: "number",
+                internal: "internalValue",
+              },
+            } satisfies WidgetFilterColumnSpec,
+            {
+              column: {
+                name: "Time To First Token (s)",
+                id: "timeToFirstToken",
+                type: "number",
+                internal: "internalValue",
+              },
+            } satisfies WidgetFilterColumnSpec,
+            {
+              column: {
+                name: "Input Tokens",
+                id: "inputTokens",
+                type: "number",
+                internal: "internalValue",
+              },
+            } satisfies WidgetFilterColumnSpec,
+            {
+              column: {
+                name: "Output Tokens",
+                id: "outputTokens",
+                type: "number",
+                internal: "internalValue",
+              },
+            } satisfies WidgetFilterColumnSpec,
+            {
+              column: {
+                name: "Total Tokens",
+                id: "totalTokens",
+                type: "number",
+                internal: "internalValue",
+              },
+            } satisfies WidgetFilterColumnSpec,
+            {
+              column: {
+                name: "Input Cost ($)",
+                id: "inputCost",
+                type: "number",
+                internal: "internalValue",
+              },
+            } satisfies WidgetFilterColumnSpec,
+            {
+              column: {
+                name: "Output Cost ($)",
+                id: "outputCost",
+                type: "number",
+                internal: "internalValue",
+              },
+            } satisfies WidgetFilterColumnSpec,
+            {
+              column: {
+                name: "Total Cost ($)",
+                id: "totalCost",
+                type: "number",
+                internal: "internalValue",
+              },
+            } satisfies WidgetFilterColumnSpec,
+            {
+              column: {
+                name: "Available Tools",
+                id: "toolDefinitions",
+                type: "number",
+                internal: "internalValue",
+              },
+            },
+            {
+              column: {
+                name: "Tool Calls",
+                id: "toolCalls",
+                type: "number",
+                internal: "internalValue",
+              },
+            },
+          ] satisfies WidgetFilterColumnSpec[])
         : []),
       {
         column: {

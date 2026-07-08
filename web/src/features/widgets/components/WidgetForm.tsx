@@ -762,6 +762,12 @@ export function WidgetForm({
     viewVersion === "v2"
       ? eventsFilterOptions.data?.providedModelName || []
       : generationsFilterOptions.data?.model || [];
+  const modelIdOptions =
+    viewVersion === "v2" ? eventsFilterOptions.data?.modelId || [] : [];
+  const promptNameOptions =
+    viewVersion === "v2"
+      ? normalizeSingleValueOptions(eventsFilterOptions.data?.promptName)
+      : [];
   const toolNamesOptions =
     viewVersion === "v2"
       ? eventsFilterOptions.data?.toolNames || []
@@ -791,6 +797,8 @@ export function WidgetForm({
     nameOptions,
     tagsOptions,
     modelOptions,
+    modelIdOptions,
+    promptNameOptions,
     toolNamesOptions,
     calledToolNamesOptions,
     observationLevelOptions,
@@ -805,6 +813,8 @@ export function WidgetForm({
     nameOptions,
     tagsOptions,
     modelOptions,
+    modelIdOptions,
+    promptNameOptions,
     toolNamesOptions,
     calledToolNamesOptions,
     observationLevelOptions,
@@ -824,6 +834,8 @@ export function WidgetForm({
       nameOptions,
       tagsOptions,
       modelOptions,
+      modelIdOptions,
+      promptNameOptions,
       toolNamesOptions,
       calledToolNamesOptions,
       observationLevelOptions,

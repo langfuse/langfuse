@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   CreateMonitorSchema,
   ErrorAtLeastOneTrigger,
+  getValidMonitorFilterColumns,
   type Monitor,
   MonitorNoDataModeSchema,
   MonitorSeveritySchema,
@@ -151,6 +152,56 @@ describe("buildFilterColumnsParams", () => {
     const custom = getWidgetColumnsWithCustomSelect(params);
     expect(custom).not.toContain("type");
     expect(custom).not.toContain("level");
+  });
+});
+
+describe("observations filter columns (LFE-10751)", () => {
+  // The observations-page filters newly exposed on the v2 observations form,
+  // keyed to their expected filter-builder column type.
+  const expectedColumns: Record<string, string> = {
+    promptName: "stringOptions",
+    traceId: "string",
+    modelId: "stringOptions",
+    statusMessage: "string",
+    isRootObservation: "boolean",
+    latency: "number",
+    timeToFirstToken: "number",
+    inputTokens: "number",
+    outputTokens: "number",
+    totalTokens: "number",
+    inputCost: "number",
+    outputCost: "number",
+    totalCost: "number",
+    toolDefinitions: "number",
+    toolCalls: "number",
+  };
+
+  const params = buildFilterColumnsParams({
+    view: "observations",
+    filterOptions: undefined,
+    datasets: undefined,
+  });
+  const widgetColumns = getWidgetFilterColumns(params);
+  const monitorColumns = getValidMonitorFilterColumns(widgetColumns);
+
+  it.each(Object.entries(expectedColumns))(
+    "exposes %s with the correct type in the widget form",
+    (id, type) => {
+      expect(widgetColumns.find((c) => c.id === id)?.type).toBe(type);
+    },
+  );
+
+  it.each(Object.entries(expectedColumns))(
+    "exposes %s with the correct type in the monitor form",
+    (id, type) => {
+      expect(monitorColumns.find((c) => c.id === id)?.type).toBe(type);
+    },
+  );
+
+  it("marks modelId and promptName as custom (searchable) selects", () => {
+    const custom = getWidgetColumnsWithCustomSelect(params);
+    expect(custom).toContain("modelId");
+    expect(custom).toContain("promptName");
   });
 });
 

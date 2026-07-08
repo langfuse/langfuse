@@ -162,6 +162,62 @@ const viewFilterDefinitions: Record<
       "experimentId",
       sourceSpec("Experiment ID", { uiTableId: "experimentId" }),
     ),
+    // Observations-page filters exposed on the v2 form (LFE-10751). Each maps
+    // its widget label back to the events_observations dimension so saved
+    // widgets round-trip.
+    defineField(
+      "promptName",
+      sourceSpec("Prompt Name", { uiTableId: "promptName" }),
+    ),
+    defineField("traceId", sourceSpec("Trace ID", { uiTableId: "traceId" })),
+    defineField("modelId", sourceSpec("Model ID", { uiTableId: "modelId" })),
+    defineField(
+      "statusMessage",
+      sourceSpec("Status Message", { uiTableId: "statusMessage" }),
+    ),
+    defineField(
+      "isRootObservation",
+      sourceSpec("Is Root Observation", { uiTableId: "isRootObservation" }),
+    ),
+    defineField("latency", sourceSpec("Latency (s)", { uiTableId: "latency" })),
+    defineField(
+      "timeToFirstToken",
+      sourceSpec("Time To First Token (s)", {
+        uiTableId: "timeToFirstToken",
+      }),
+    ),
+    defineField(
+      "inputTokens",
+      sourceSpec("Input Tokens", { uiTableId: "inputTokens" }),
+    ),
+    defineField(
+      "outputTokens",
+      sourceSpec("Output Tokens", { uiTableId: "outputTokens" }),
+    ),
+    defineField(
+      "totalTokens",
+      sourceSpec("Total Tokens", { uiTableId: "totalTokens" }),
+    ),
+    defineField(
+      "inputCost",
+      sourceSpec("Input Cost ($)", { uiTableId: "inputCost" }),
+    ),
+    defineField(
+      "outputCost",
+      sourceSpec("Output Cost ($)", { uiTableId: "outputCost" }),
+    ),
+    defineField(
+      "totalCost",
+      sourceSpec("Total Cost ($)", { uiTableId: "totalCost" }),
+    ),
+    defineField(
+      "toolDefinitions",
+      sourceSpec("Available Tools", { uiTableId: "toolDefinitions" }),
+    ),
+    defineField(
+      "toolCalls",
+      sourceSpec("Tool Calls", { uiTableId: "toolCalls" }),
+    ),
   ],
   "scores-numeric": [
     defineField("name", sourceSpec("Score Name", { uiTableId: "scoreName" })),

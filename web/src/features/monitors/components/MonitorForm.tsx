@@ -183,6 +183,8 @@ const buildFilterColumnsParams = ({
     nameOptions: normalizeSingleValueOptions(filterOptions?.traceName),
     tagsOptions: filterOptions?.traceTags ?? [],
     modelOptions: filterOptions?.providedModelName ?? [],
+    modelIdOptions: filterOptions?.modelId ?? [],
+    promptNameOptions: normalizeSingleValueOptions(filterOptions?.promptName),
     toolNamesOptions: filterOptions?.toolNames ?? [],
     calledToolNamesOptions: filterOptions?.calledToolNames ?? [],
     observationLevelOptions,

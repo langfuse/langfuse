@@ -5095,4 +5095,145 @@ describe("query builder measure-aggregation validation", () => {
       expect(sql).toContain("IN (SELECT trace_id");
     });
   });
+
+  // LFE-10751: observations-page filters added to the widget/monitor form as
+  // uiHidden filter-only dimensions on eventsObservationsView.
+  describe("observations view v2 filter dimensions (LFE-10751)", () => {
+    const hasEventsCore = async (): Promise<boolean> => {
+      try {
+        const result = await clickhouseClient().query({
+          query: "EXISTS TABLE default.events_core",
+          format: "TabSeparated",
+        });
+        return (await result.text()).trim() === "1";
+      } catch {
+        return false;
+      }
+    };
+
+    const filterQuery = (filter: QueryType["filters"][number]): QueryType => ({
+      view: "observations",
+      dimensions: [],
+      metrics: [{ measure: "count", aggregation: "count" }],
+      filters: [filter],
+      timeDimension: null,
+      fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+      toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+      orderBy: null,
+    });
+
+    it("compiles a numeric latency filter into the row-level latency SQL", async () => {
+      const builder = new QueryBuilder(undefined, "v2");
+      const { query: sql } = await builder.build(
+        filterQuery({
+          column: "latency",
+          operator: ">",
+          value: 5,
+          type: "number",
+        }),
+        randomUUID(),
+      );
+      expect(sql).toContain(
+        "date_diff('millisecond', events_observations.start_time, events_observations.end_time) / 1000.0",
+      );
+      // A pure numeric filter must not fan out through the scores relation.
+      expect(sql).not.toMatch(/JOIN\s+scores/i);
+    });
+
+    it("compiles a boolean isRootObservation filter into the root-span SQL", async () => {
+      const builder = new QueryBuilder(undefined, "v2");
+      const { query: sql } = await builder.build(
+        filterQuery({
+          column: "isRootObservation",
+          operator: "=",
+          value: true,
+          type: "boolean",
+        }),
+        randomUUID(),
+      );
+      expect(sql).toContain(
+        "(events_observations.parent_span_id = '' OR events_observations.is_app_root = true)",
+      );
+    });
+
+    it("compiles a string statusMessage filter into the status_message SQL", async () => {
+      const builder = new QueryBuilder(undefined, "v2");
+      const { query: sql } = await builder.build(
+        filterQuery({
+          column: "statusMessage",
+          operator: "=",
+          value: "OK",
+          type: "string",
+        }),
+        randomUUID(),
+      );
+      expect(sql).toContain("events_observations.status_message");
+    });
+
+    it("executes number, boolean, and string filters against events_core", async () => {
+      if (!(await hasEventsCore())) return;
+
+      const projectId = randomUUID();
+      const marker = `lfe10751-${randomUUID()}`;
+      const base = Date.now() * 1000;
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          parent_span_id: "",
+          is_app_root: false,
+          status_message: marker,
+          start_time: base,
+          end_time: base,
+        }),
+        createEvent({
+          project_id: projectId,
+          parent_span_id: "parent-span",
+          is_app_root: false,
+          status_message: "other",
+          start_time: base,
+          end_time: base + 15_000_000,
+        }),
+      ]);
+
+      const countMatching = async (
+        filter: QueryType["filters"][number],
+      ): Promise<number> => {
+        const result = await executeQuery(
+          projectId,
+          filterQuery(filter),
+          "v2",
+          true,
+        );
+        return result.reduce(
+          (acc, r) => acc + Number(r["count_count"] ?? 0),
+          0,
+        );
+      };
+
+      expect(
+        await countMatching({
+          column: "latency",
+          operator: ">",
+          value: 10,
+          type: "number",
+        }),
+      ).toBe(1);
+      expect(
+        await countMatching({
+          column: "isRootObservation",
+          operator: "=",
+          value: true,
+          type: "boolean",
+        }),
+      ).toBe(1);
+      expect(
+        await countMatching({
+          column: "statusMessage",
+          operator: "=",
+          value: marker,
+          type: "string",
+        }),
+      ).toBe(1);
+    });
+  });
 });
