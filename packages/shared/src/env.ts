@@ -281,6 +281,13 @@ const EnvSchema = z.object({
   LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG: z
     .enum(["true", "false"])
     .default("true"),
+  // Max concurrent S3 deleteFiles requests the blob-storage cleanup consumer
+  // keeps in flight. Bounds memory and backpressures the ClickHouse ref stream.
+  LANGFUSE_BLOB_STORAGE_DELETE_S3_CONCURRENCY: z.coerce
+    .number()
+    .min(1)
+    .max(20)
+    .default(5),
 
   // V4 write mode. Mirrors worker/src/env.ts so the web package can gate
   // public API routes that rely on the legacy traces/observations tables.
