@@ -17,7 +17,7 @@ service:
         ## Field Selection
         Use the `fields` parameter to control which observation fields are returned:
         - `core` - Always included: id, traceId, startTime, endTime, projectId, parentObservationId, type
-        - `basic` - name, level, statusMessage, version, environment, bookmarked, public, userId, sessionId
+        - `basic` - name, level, statusMessage, version, environment, bookmarked, public, userId, sessionId, isRootObservation
         - `time` - completionStartTime, createdAt, updatedAt
         - `io` - input, output
         - `metadata` - metadata (truncated to 200 chars by default, use `expandMetadata` to get full values)
@@ -130,6 +130,10 @@ service:
               - `version` (string) - Version tag
               - `userId` (string) - User ID
               - `sessionId` (string) - Session ID
+
+              ### Trace-Tree Position
+              - `isRootObservation` (boolean) - True for trace roots: observations without a parent, plus app roots whose OpenTelemetry parent span was never ingested (e.g. filtered out by the SDK span processor). Use this to list one root per trace even when `parentObservationId` is a dangling reference.
+              - `hasParentObservation` (boolean) - True when the observation carries a non-empty `parentObservationId`. Note: an app root can have both `hasParentObservation = true` (dangling parent) and `isRootObservation = true`.
 
               ### Trace-Related Fields
               - `traceName` (string) - Name of the parent trace

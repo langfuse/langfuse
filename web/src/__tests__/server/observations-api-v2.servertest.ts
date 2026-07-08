@@ -532,6 +532,102 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(traceNameResponse.body.data.length).toBeGreaterThanOrEqual(1);
     });
 
+    it("should expose app-root observations as roots via isRootObservation filter and field (#14868)", async () => {
+      const traceId = randomUUID();
+      const trueRootId = randomUUID();
+      const appRootId = randomUUID();
+      const childId = randomUUID();
+      // Parent span that was never ingested (e.g. filtered out by LangfuseSpanProcessor)
+      const danglingParentId = randomUUID();
+      const timestamp = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: trueRootId,
+          span_id: trueRootId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "true-root",
+          parent_span_id: null,
+          is_app_root: false,
+          start_time: timestamp,
+        }),
+        createEvent({
+          id: appRootId,
+          span_id: appRootId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "app-root",
+          parent_span_id: danglingParentId,
+          is_app_root: true,
+          start_time: timestamp + 1,
+        }),
+        createEvent({
+          id: childId,
+          span_id: childId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "child",
+          parent_span_id: trueRootId,
+          is_app_root: false,
+          start_time: timestamp + 2,
+        }),
+      ]);
+
+      // Filter isRootObservation = true must return both the true root and
+      // the app root (dangling parent), but not the child.
+      const rootFilterParam = JSON.stringify([
+        {
+          type: "boolean",
+          column: "isRootObservation",
+          operator: "=",
+          value: true,
+        },
+      ]);
+      const rootResponse = await getObservations(
+        `/api/public/v2/observations?traceId=${traceId}&fields=basic&filter=${encodeURIComponent(rootFilterParam)}`,
+      );
+
+      expect(rootResponse.status).toBe(200);
+      const rootIds = rootResponse.body.data.map((obs: any) => obs.id);
+      expect(rootIds).toHaveLength(2);
+      expect(rootIds).toContain(trueRootId);
+      expect(rootIds).toContain(appRootId);
+
+      // The app root keeps its raw parentObservationId (no data loss).
+      const appRootObs = rootResponse.body.data.find(
+        (obs: any) => obs.id === appRootId,
+      );
+      expect(appRootObs?.parentObservationId).toBe(danglingParentId);
+
+      // Response exposes isRootObservation so consumers can distinguish
+      // app roots without relying on parentObservationId nullness.
+      expect(appRootObs?.isRootObservation).toBe(true);
+      const trueRootObs = rootResponse.body.data.find(
+        (obs: any) => obs.id === trueRootId,
+      );
+      expect(trueRootObs?.isRootObservation).toBe(true);
+
+      // Filter isRootObservation = false returns only the child.
+      const nonRootFilterParam = JSON.stringify([
+        {
+          type: "boolean",
+          column: "isRootObservation",
+          operator: "=",
+          value: false,
+        },
+      ]);
+      const nonRootResponse = await getObservations(
+        `/api/public/v2/observations?traceId=${traceId}&fields=basic&filter=${encodeURIComponent(nonRootFilterParam)}`,
+      );
+
+      expect(nonRootResponse.status).toBe(200);
+      expect(nonRootResponse.body.data.map((obs: any) => obs.id)).toEqual([
+        childId,
+      ]);
+      expect(nonRootResponse.body.data[0]?.isRootObservation).toBe(false);
+    });
+
     it("should support nested metadata field filtering with stringObject", async () => {
       const traceId = randomUUID();
       const observationId1 = randomUUID();
@@ -1054,6 +1150,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       "public",
       "userId",
       "sessionId",
+      "isRootObservation",
       // time
       "completionStartTime",
       "createdAt",
@@ -1154,6 +1251,8 @@ describe("/api/public/v2/observations API Endpoint", () => {
       tags: ["tag-a", "tag-b"],
       release: "1.2.3",
       usagePricingTierName: "contract-tier",
+      // Fixture has no parent_span_id, so it is a trace root.
+      isRootObservation: true,
     };
 
     const fieldsForGroup: Record<string, readonly string[]> = {
@@ -1167,6 +1266,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
         "public",
         "userId",
         "sessionId",
+        "isRootObservation",
       ],
       time: ["completionStartTime", "createdAt", "updatedAt"],
       io: ["input", "output"],

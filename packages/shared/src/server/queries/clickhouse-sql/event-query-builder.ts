@@ -2,6 +2,7 @@ import {
   OBSERVATION_FIELD_GROUPS_PUBLIC_API,
   ObservationFieldGroupPublicApi,
 } from "../../../domain/observation-field-groups";
+import { eventsTableIsRootObservationSql } from "../../../eventsTable";
 import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
 import { FilterList, StringFilter } from "./clickhouse-filter";
 
@@ -113,6 +114,8 @@ const EVENTS_FIELDS = {
   environment: 'e.environment as "environment"',
   type: "e.type as type",
   parentObservationId: 'e.parent_span_id as "parent_observation_id"',
+  // App-root observations (dangling parent, is_app_root=true) count as roots
+  isRootObservation: `toBool(${eventsTableIsRootObservationSql}) as "is_root_observation"`,
   name: "e.name as name",
   level: "e.level as level",
   statusMessage: 'e.status_message as "status_message"',
@@ -375,6 +378,7 @@ const FIELD_SETS = {
     "public",
     "userId",
     "sessionId",
+    "isRootObservation",
   ],
   time: ["completionStartTime", "createdAt", "updatedAt"],
   model: ["providedModelName", "internalModelId", "modelParameters"],

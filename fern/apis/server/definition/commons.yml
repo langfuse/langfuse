@@ -252,6 +252,13 @@ types:
       sessionId:
         type: optional<nullable<string>>
         docs: The session ID associated with the observation
+      isRootObservation:
+        type: optional<boolean>
+        docs: |
+          Whether the observation is a root of its trace. True when the observation has no parent,
+          or when it is an app root whose OpenTelemetry parent span was never ingested into Langfuse
+          (e.g. filtered out by the SDK span processor). Use this instead of relying on
+          `parentObservationId` being null to discover trace roots.
 
       # Time fields (field group: time)
       completionStartTime:
