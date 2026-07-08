@@ -197,7 +197,7 @@ export async function finishRun(params: {
         errorMessage: params.errorMessage ?? null,
       },
     })
-    .catch((error) =>
+    .catch((error: unknown) =>
       logger.error("Failed to finish in-app agent run", {
         error,
         runId: params.runId,
@@ -715,10 +715,8 @@ export function createConversationMessageAccumulator(
       return true;
     }
 
-    messages[existingIndex] = mergeMessages(
-      messages[existingIndex]!,
-      parsed.data,
-    );
+    const existingMessage = messages[existingIndex];
+    messages[existingIndex] = mergeMessages(existingMessage, parsed.data);
 
     return true;
   };
