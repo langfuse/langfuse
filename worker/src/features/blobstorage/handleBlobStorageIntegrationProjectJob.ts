@@ -1357,8 +1357,10 @@ export const handleBlobStorageIntegrationProjectJob = async (
     // Now across pods, which have distinct jobIds and so aren't queue-deduped.
     let persistedDisable = false;
     let disableClaimRan = false;
+    // Assume enabled when the read-back fails; worst case is today's email.
+    let enabledAfterPersist = true;
     try {
-      await prisma.blobStorageIntegration.update({
+      const updated = await prisma.blobStorageIntegration.update({
         where: { projectId },
         data: {
           lastError: errorMessage,
@@ -1366,6 +1368,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
           runStartedAt: null,
         },
       });
+      enabledAfterPersist = updated.enabled;
       if (disableForCustomerFault) {
         const { count } = await prisma.blobStorageIntegration.updateMany({
           where: { projectId, enabled: true },
@@ -1394,7 +1397,16 @@ export const handleBlobStorageIntegrationProjectJob = async (
     // to the informational email so the failure isn't silent.
     const lostDisableRaceToConcurrentRun =
       disableForCustomerFault && disableClaimRan && !persistedDisable;
-    if (isFinalAttempt && !lostDisableRaceToConcurrentRun) {
+    // The informational email promises a retry at the next scheduled run,
+    // which is false once the integration is disabled (a concurrent run's
+    // customer-fault disable or a user toggle mid-run) — skip it then.
+    const disabledOutFromUnderUs =
+      !disableForCustomerFault && !enabledAfterPersist;
+    if (
+      isFinalAttempt &&
+      !lostDisableRaceToConcurrentRun &&
+      !disabledOutFromUnderUs
+    ) {
       notifyBlobStorageExportFailedInBackground(projectId, persistedDisable);
     }
 

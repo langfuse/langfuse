@@ -324,6 +324,34 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         expect(notified.lastFailureNotificationSentAt).not.toBeNull();
       });
     });
+
+    it("suppresses the informational email when the integration was disabled mid-run", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      await createIntegration(projectId);
+      // Simulate a concurrent worker's customer-fault disable (or a user
+      // toggle) landing mid-run, followed by a non-customer-fault failure:
+      // "will retry at the next scheduled export" would be false.
+      mockValidateBlobStorageEndpoint.mockImplementationOnce(async () => {
+        await prisma.blobStorageIntegration.updateMany({
+          where: { projectId },
+          data: { enabled: false },
+        });
+        throw new Error("connection refused");
+      });
+
+      await expect(runAttempt(projectId, 4)).rejects.toThrow(
+        /connection refused/i,
+      );
+      await settleBackgroundTasks();
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.enabled).toBe(false);
+      expect(row.lastError).toMatch(/connection refused/i);
+      expect(row.lastFailureNotificationSentAt).toBeNull();
+    });
   });
 
   it("should not process when blob storage integration is disabled", async () => {
