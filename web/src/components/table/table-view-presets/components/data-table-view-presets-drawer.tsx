@@ -230,16 +230,27 @@ export function TableViewPresetsDrawer({
   // Categorized system presets are surfaced by the category chip row beneath
   // the search bar, so they are excluded from the drawer list to avoid showing
   // the same preset in two places. Name lookups and uniqueness checks above
-  // still use the full list.
+  // still use the full list. Two exceptions stay in the drawer:
+  // - a categorized USER view (the name-dedup lets a same-named user view
+  //   displace a system preset into the chips) — a personal view must never
+  //   vanish from "My Views", it is its only management surface (rename,
+  //   delete, defaults, permalink);
+  // - a categorized system preset that IS the current user/project default
+  //   (assignable pre-chips; the row still exists in default_views) — this
+  //   row is the only place carrying the default badge and the "Remove as
+  //   my/project default" menu, so hiding it would leave the assignment
+  //   auto-applying on every load with no UI to inspect or clear it. Once
+  //   the default is removed, the row leaves the drawer again.
   const drawerPresetList = useMemo(
-    // Only SYSTEM categorized presets leave the drawer (they live in the
-    // category chips). A user view can also carry a category — the name-dedup
-    // lets a same-named user view displace a system preset into the chips —
-    // but a personal view must never vanish from "My Views": the drawer is
-    // its only management surface (rename, delete, defaults, permalink).
     () =>
-      TableViewPresetsList?.filter((view) => !view.category || !view.isSystem),
-    [TableViewPresetsList],
+      TableViewPresetsList?.filter(
+        (view) =>
+          !view.category ||
+          !view.isSystem ||
+          view.id === defaultAssignments?.userDefaultViewId ||
+          view.id === defaultAssignments?.projectDefaultViewId,
+      ),
+    [TableViewPresetsList, defaultAssignments],
   );
 
   useUniqueNameValidation({
