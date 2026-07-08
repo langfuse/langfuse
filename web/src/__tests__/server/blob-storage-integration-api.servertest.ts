@@ -1887,6 +1887,9 @@ describe("Blob Storage Integrations API", () => {
           forcePathStyle: false,
           fileType: "PARQUET",
           exportMode: "FULL_HISTORY",
+          // Non-legacy source so updates aren't rejected by the Cloud
+          // legacy-export-source cutoff gate (orthogonal to fileType here).
+          exportSource: "EVENTS",
         },
       });
 
@@ -1927,7 +1930,11 @@ describe("Blob Storage Integrations API", () => {
       const result = await makeAPICall(
         "PUT",
         "/api/public/integrations/blob-storage",
-        { ...validBlobStorageConfig, projectId: testProject1Id },
+        {
+          ...validBlobStorageConfig,
+          projectId: testProject1Id,
+          exportSource: "OBSERVATIONS_V2",
+        },
         createBasicAuthHeader(testApiKey, testApiSecretKey),
       );
       expect(result.status).toBe(200);
