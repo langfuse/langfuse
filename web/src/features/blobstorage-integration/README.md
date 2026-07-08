@@ -13,6 +13,7 @@ computed at read time by `deriveSyncStatus.ts`.
 | `lastSyncAt` | Date \| null | Worker (success) |
 | `nextSyncAt` | Date \| null | Worker (success / empty-window), Web (save) |
 | `runStartedAt` | Date \| null | Worker (start / end), Web (save clears it) |
+| `lastFailureNotificationSentAt` | Date \| null | Worker (cooldown claim before the "failed" email), Web (save with enabled clears it) |
 
 ## Derived states (precedence top-to-bottom)
 
