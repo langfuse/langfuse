@@ -59,8 +59,9 @@ export const BlobStorageExportFailedEmailTemplate = ({
                     The blob storage export for project &quot;{projectName}
                     &quot; has been disabled after repeated failures. This
                     usually means the destination configuration or credentials
-                    are no longer valid. Fix the configuration and re-enable the
-                    export in the integration settings.
+                    are no longer valid. Once you have updated them, simply
+                    re-enable the export in the integration settings and it will
+                    pick up right where it left off.
                   </>
                 ) : (
                   <>
