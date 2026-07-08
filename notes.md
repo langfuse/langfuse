@@ -55,6 +55,18 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
   left the baseline files untouched. Next scheduled run should pick up a full
   new week (W29+).
 
+## 2026-07-08 (third run, manual re-trigger — noop, data reused)
+
+- `workflow_dispatch` on 2026-07-08. Newest merge-group run is still
+  07-07T19:55:03Z (same as the 07-07 second-run noop) — **zero new
+  merge-group runs on 07-08**, only the single 07-07T19:55Z run exists past
+  the W28 window close (07-07T19:00Z). Well below the 10-run threshold; no new
+  ISO week elapsed. Ledger `prs.json` still empty → nothing to assess.
+- Recomputing would byte-for-byte reproduce `history/2026-W28.json`, so I
+  reused the W28 numbers for the report and emitted noop. Left all memory
+  files (history, chart, ledger) untouched except this note. Next scheduled
+  run should pick up a full new week.
+
 ## Tooling notes (for future runs)
 
 - The GitHub Actions MCP `list_workflow_runs` caps at ~30 runs/page regardless
