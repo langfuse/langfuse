@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="400" viewBox="0 0 760 400" font-family="system-ui,Segoe UI,Helvetica,Arial,sans-serif">
+  <rect width="760" height="400" fill="#ffffff"/>
+  <text x="30" y="26" font-size="16" font-weight="600" fill="#111">CI/CD merge-group runtime — trailing 7 days ending 2026-07-08 (seconds)</text>
+  <text x="30" y="44" font-size="11" fill="#666">Daily merge-group medians. Blue = perceived (wall), Orange = execution (excl. runner wait), Purple = runner wait.</text>
+
+  <!-- Y gridlines and labels (max 500) -->
+  <g stroke="#e5e7eb" stroke-width="1">
+    <line x1="70" y1="320" x2="720" y2="320"/>
+    <line x1="70" y1="250" x2="720" y2="250"/>
+    <line x1="70" y1="180" x2="720" y2="180"/>
+    <line x1="70" y1="110" x2="720" y2="110"/>
+    <line x1="70" y1="40"  x2="720" y2="40"/>
+  </g>
+  <g font-size="10" fill="#666" text-anchor="end">
+    <text x="62" y="324">0</text>
+    <text x="62" y="254">125</text>
+    <text x="62" y="184">250</text>
+    <text x="62" y="114">375</text>
+    <text x="62" y="44">500</text>
+  </g>
+
+  <!-- Axes -->
+  <line x1="70" y1="40" x2="70" y2="320" stroke="#9ca3af" stroke-width="1.5"/>
+  <line x1="70" y1="320" x2="720" y2="320" stroke="#9ca3af" stroke-width="1.5"/>
+
+  <!-- X labels -->
+  <g font-size="10" fill="#666" text-anchor="middle">
+    <text x="70"  y="338">07-02</text>
+    <text x="200" y="338">07-03</text>
+    <text x="330" y="338">07-05</text>
+    <text x="460" y="338">07-06</text>
+    <text x="590" y="338">07-07</text>
+    <text x="720" y="338">07-08</text>
+  </g>
+
+  <!-- Perceived incl wait (blue #3987e5) -->
+  <polyline fill="none" stroke="#3987e5" stroke-width="2"
+    points="70,117.8 200,83.7 330,82.6 460,75.3 590,89.3 720,85.9"/>
+  <g fill="#3987e5">
+    <circle cx="70"  cy="117.8" r="3"/>
+    <circle cx="200" cy="83.7"  r="3"/>
+    <circle cx="330" cy="82.6"  r="3"/>
+    <circle cx="460" cy="75.3"  r="3"/>
+    <circle cx="590" cy="89.3"  r="3"/>
+    <circle cx="720" cy="85.9"  r="3"/>
+  </g>
+
+  <!-- Execution excl wait (orange #de5a20) -->
+  <polyline fill="none" stroke="#de5a20" stroke-width="2"
+    points="70,131.8 200,96.0 330,94.3 460,88.2 590,98.8 720,98.2"/>
+  <g fill="#de5a20">
+    <circle cx="70"  cy="131.8" r="3"/>
+    <circle cx="200" cy="96.0"  r="3"/>
+    <circle cx="330" cy="94.3"  r="3"/>
+    <circle cx="460" cy="88.2"  r="3"/>
+    <circle cx="590" cy="98.8"  r="3"/>
+    <circle cx="720" cy="98.2"  r="3"/>
+  </g>
+
+  <!-- Runner wait (purple #8875e0) -->
+  <polyline fill="none" stroke="#8875e0" stroke-width="2"
+    points="70,306.0 200,307.7 330,308.2 460,307.1 590,310.5 720,307.7"/>
+  <g fill="#8875e0">
+    <circle cx="70"  cy="306.0" r="3"/>
+    <circle cx="200" cy="307.7" r="3"/>
+    <circle cx="330" cy="308.2" r="3"/>
+    <circle cx="460" cy="307.1" r="3"/>
+    <circle cx="590" cy="310.5" r="3"/>
+    <circle cx="720" cy="307.7" r="3"/>
+  </g>
+
+  <!-- Legend -->
+  <g font-size="11">
+    <rect x="330" y="356" width="14" height="3" fill="#3987e5"/>
+    <text x="350" y="360" fill="#111">perceived (incl wait)</text>
+    <rect x="480" y="356" width="14" height="3" fill="#de5a20"/>
+    <text x="500" y="360" fill="#111">execution</text>
+    <rect x="600" y="356" width="14" height="3" fill="#8875e0"/>
+    <text x="620" y="360" fill="#111">runner wait</text>
+  </g>
+</svg>

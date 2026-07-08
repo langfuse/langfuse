@@ -45,42 +45,12 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
   the sample was small (2 job logs). Keep sampling more `run tests` logs next
   week to build a reliable flaky-tracking baseline.
 
-## 2026-07-07 (second run, same-day manual re-trigger — noop)
+## 2026-07-07/08 (runs 2-4, same-day manual re-triggers — noop, superseded)
 
-- `workflow_dispatch` fired ~21:43Z, 2.7h after the W28 baseline window closed
-  (07-07T19:00Z). Only **1** new successful merge-group run existed in that gap
-  (07-07T19:55Z). Ledger `prs.json` is empty → no PRs to assess. No new ISO week
-  elapsed and 1 new run is far below the 10-run threshold, so re-running the
-  full W28 analysis would only reproduce `history/2026-W28.json`. Emitted noop;
-  left the baseline files untouched. Next scheduled run should pick up a full
-  new week (W29+).
-
-## 2026-07-08 (third run, manual re-trigger — noop, data reused)
-
-- `workflow_dispatch` on 2026-07-08. Newest merge-group run is still
-  07-07T19:55:03Z (same as the 07-07 second-run noop) — **zero new
-  merge-group runs on 07-08**, only the single 07-07T19:55Z run exists past
-  the W28 window close (07-07T19:00Z). Well below the 10-run threshold; no new
-  ISO week elapsed. Ledger `prs.json` still empty → nothing to assess.
-- Recomputing would byte-for-byte reproduce `history/2026-W28.json`, so I
-  reused the W28 numbers for the report and emitted noop. Left all memory
-  files (history, chart, ledger) untouched except this note. Next scheduled
-  run should pick up a full new week.
-
-## 2026-07-08 (fourth run, manual re-trigger — noop, data reused)
-
-- `workflow_dispatch` on 2026-07-08, a few hours after the third-run noop.
-  Since the W28 window close (07-07T19:00Z) there are now **2** successful
-  merge-group runs, not 1: 07-07T19:55:03Z (pr-14861) and the newly-appeared
-  07-08T08:25:16Z (pr-14872). Still far below the 10-run threshold, and 07-08
-  holds only that single run so no day-median (≥5 runs) is computable.
-- No new ISO week has completed (W28 = 07-06..07-12 is only 3 days elapsed;
-  07-06/07-07 already fold into the baseline window). Ledger `prs.json` still
-  empty and zero `ci-performance`-labelled PRs exist → no assessment work.
-- Recomputing would reproduce `history/2026-W28.json`, so I reused the W28
-  numbers for the report and emitted noop. Left all memory files (history,
-  chart, ledger) untouched except this note. Next scheduled run should pick
-  up a full new week.
+- Three back-to-back re-triggers fired before enough post-baseline data existed
+  (1-2 new merge-group runs each, all <10 threshold; ledger empty). Each reused
+  the W28 baseline numbers and emitted noop without touching memory. Fully
+  superseded by the fifth/sixth-run analyses below; condensed to this line.
 
 ## 2026-07-08 (fifth run, manual re-trigger — noop, FIRST real analysis of true-W28 data)
 
@@ -121,6 +91,42 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
   semantics + borderline coverage); unchanged from baseline note above.
 - Ledger `prs.json` still empty; zero `ci-performance`-labelled PRs exist in the
   repo (confirmed via search) → no assessment work.
+
+## 2026-07-08 (sixth run, manual re-trigger — noop, first full trailing-7-day daily-median analysis)
+
+- `workflow_dispatch` at 07-08T15:48Z, ~50min after the fifth run. Unlike the
+  fifth run (which computed only the single 07-08 day), this run computed proper
+  daily segment medians (n=5 jobs sample per weekday) across the WHOLE trailing-7
+  window (07-02..07-08). Enriched history/2026-W28-partial-0708.json (superseded
+  the fifth run's single-day version) and wrote charts/2026-W28-partial-0708.svg
+  (did NOT touch the misnamed W27-baseline artifacts 2026-W28.json / .svg).
+- **Window: 115 successful merge-group runs (07-02..07-08), well over threshold.**
+  Perceived p50=422/p90=536; execution ~396.5; runner wait stable ~17-25s all
+  days; e2e ~233. Failures: 07-02×4, 07-03×8, 07-05×1, 07-07×1 (context only).
+- **No regression.** vs baseline (06-30..07-07): perceived p50 +6.6% (<10%),
+  execution flat (-1%), e2e flat, runner wait flat. The pipeline stayed
+  execution-bound with negligible queue wait, same as baseline.
+- **webRunTests step 114.5 vs baseline 86 (+33%), workerRunTests 102 vs 80
+  (+28%) — NOT actionable.** Three reasons, now on firm n=5 footing: (1) total
+  execution is flat, so the step rise is absorbed off the critical path; (2) the
+  baseline 86/80 came from a 6-run sample skewed to early-week-low singles; (3)
+  the step PLATEAUED on the 3 recent consecutive days (webRT 116/120/114 flat) —
+  no >=50%-across-3-days acceleration to trace to a day/PR. The baseline's scary
+  late-week singles (07-06=130, 07-07=151) were high outliers: true n=5 medians
+  are 116 and 120. Watch item continues but the rise is test-suite growth, not a
+  config regression.
+- **Zero flaky, three fresh samples.** tests-worker 07-03 + 07-07 and tests-web
+  client 07-07 all printed no 'Retried tests (N):' block. Zero-flaky now holds
+  across baseline + two checkpoints.
+- **No new optimization candidate.** Slowest tests unchanged from baseline
+  (json-utils client 8.35s; worker webhooks 19.4s, awsLambda 15.5s, evalService,
+  IngestionService, batchExport, bufferedStreamUploader). Each was already
+  investigated and found unfit for an autonomous coverage-preserving PR (see the
+  fifth-run and baseline notes: mutation semantics, real DB/Redis round-trips
+  that ENCODE the assertion, load-bearing timeouts, integration-inherent Lambda
+  dispatch). DB stack was ready this run (/tmp/gh-aw/db-stack-ready present) but
+  the webhooks blocker is semantic, not verifiability — nothing to re-verify.
+- Ledger prs.json still empty; zero `ci-performance` PRs → no assessment work.
 
 ## Tooling notes (for future runs)
 
