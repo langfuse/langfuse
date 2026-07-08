@@ -134,15 +134,13 @@ export const InAppAiAgentButton = () => {
     }
 
     setSupportDrawerOpen(false);
-    setOpen((currentOpen) => {
-      const nextOpen = !currentOpen;
+    const willOpen = !open;
 
-      if (nextOpen) {
-        floatingPanelHandle.resetGeometry();
-      }
+    if (willOpen) {
+      floatingPanelHandle.resetGeometry();
+    }
 
-      return nextOpen;
-    });
+    setOpen((currentOpen) => !currentOpen);
   };
 
   return (

@@ -16,6 +16,7 @@ const EnvSchema = z.object({
     .default(3030),
 
   NEXTAUTH_URL: z.string().optional(),
+  NEXT_PUBLIC_BASE_PATH: z.string().optional(),
 
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
     .enum(["US", "EU", "STAGING", "DEV", "HIPAA", "JP"])
@@ -465,6 +466,21 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(7200), // 2 hours to handle worst-case deletions
+  LANGFUSE_TRACE_DELETE_BATCH_ACTION_RUNNER_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  LANGFUSE_TRACE_DELETE_BATCH_ACTION_RUNNER_INTERVAL_MS: z.coerce
+    .number()
+    .positive()
+    .default(10_000),
+  LANGFUSE_TRACE_DELETE_BATCH_ACTION_RUNNER_LOCK_TTL_SECONDS: z.coerce
+    .number()
+    .positive()
+    .default(1_800),
+  LANGFUSE_TRACE_DELETE_BATCH_ACTION_RUNNER_MAX_BATCHES_PER_RUN: z.coerce
+    .number()
+    .positive()
+    .default(5),
 
   // V4 migration flags. See LFE-9778.
   LANGFUSE_MIGRATION_V4_WRITE_MODE: z
@@ -477,11 +493,42 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
 
+  // Background-migration env gates. Names share the LANGFUSE_BACKGROUND_MIGRATION_
+  // prefix so the BackgroundMigrationManager can discover them by scanning env
+  // keys; each gates one or more rows in the background_migrations table via
+  // `args.envGate`. Default to "false" so dormant migrations only run when the
+  // operator explicitly opts in.
+  LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES: z
+    .enum(["true", "false"])
+    .default("false"),
+
   LANGFUSE_EXPERIMENT_EVENT_PROPAGATION_PARTITION_DELAY_MINUTES: z.coerce
     .number()
     .positive()
     .int()
     .default(10),
+
+  // Health-check threshold for the event-propagation ("dual write") job. When a
+  // client opts in via /api/health?failIfEventPropagationStuck=true, the check
+  // returns 503 if the heartbeat has not been refreshed within this many minutes,
+  // letting k8s liveness probes restart a container whose global-concurrency
+  // slot is wedged. The heartbeat is refreshed at the top of every invocation and
+  // per-chunk during the experiment backfill, so the threshold only needs to
+  // exceed the longest un-heartbeated step — a single CH INSERT (request_timeout
+  // 10 min). 15 min leaves headroom.
+  //
+  // Probes using this flag MUST set initialDelaySeconds >= 60s (one cron cycle):
+  // the heartbeat is only refreshed when the minute-boundary cron next runs, so a
+  // just-restarted (or just-re-enabled) container can carry a stale value until
+  // then. A shorter delay can crash-loop the very restart this check triggers.
+  LANGFUSE_EVENT_PROPAGATION_STUCK_THRESHOLD_MINUTES: z.coerce
+    .number()
+    .positive()
+    .int()
+    .default(15),
 
   LANGFUSE_WEBHOOK_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()

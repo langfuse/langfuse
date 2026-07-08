@@ -82,6 +82,13 @@ export type CompletionPlan = {
   sections: CompletionSection[];
   /** Value stage waiting on observed values (popover shows a loading row). */
   loading: boolean;
+  /**
+   * Lazy filter-options: the option columns this stage needs but does not yet
+   * have in `observed`. The composer relays these to the table so it requests
+   * just those facets on demand (e.g. typing `userId:` loads the userId values).
+   * Always valid filter-options column ids; empty/absent when nothing is needed.
+   */
+  requestColumns?: readonly string[];
   /** Defaults to false; useful for incomplete grouped value entry. */
   keepOpenOnPick?: boolean;
   /**
@@ -464,7 +471,10 @@ function keyPathOptions(
       id: `key:metadata.${o.value}`,
       kind: "field" as const,
       label: `metadata.${o.value}`,
-      detail: o.count !== undefined ? String(o.count) : undefined,
+      // The observed JSON type of the path (display-only — metadata filters
+      // always lower to stringObject regardless). Paths seen with multiple
+      // types carry no type hint; counts stay the fallback like other lists.
+      detail: o.type ?? (o.count !== undefined ? String(o.count) : undefined),
       fieldId: keyText(o.value),
     }));
     return {
@@ -505,6 +515,9 @@ type ValueStageInput = {
   typed: string;
   valuePrefix: string;
   observed: ObservedOptions | undefined;
+  /** Columns whose lazy fetch terminally errored — settle those to empty (not
+   *  loading), per column, without blocking others. */
+  erroredColumns?: ReadonlySet<string>;
   /** Whole-token span, for rewrites that replace the entire `key:value`. */
   tokenSpan: { from: number; to: number };
   /** The token carries a leading `-` (a negated filter). Scope rewrites must be
@@ -514,10 +527,31 @@ type ValueStageInput = {
 };
 
 /** Sections for the caret-in-value context, or null when free-form entry. */
-function valueStageSections(
-  input: ValueStageInput,
-): { sections: CompletionSection[]; loading: boolean } | null {
-  const { ref, typed, valuePrefix, observed, tokenSpan, negated } = input;
+function valueStageSections(input: ValueStageInput): {
+  sections: CompletionSection[];
+  loading: boolean;
+  requestColumns?: readonly string[];
+} | null {
+  const {
+    ref,
+    typed,
+    valuePrefix,
+    observed,
+    erroredColumns,
+    tokenSpan,
+    negated,
+  } = input;
+
+  // A loadable option column is "pending" when its key is absent from the
+  // observed map (lazy mode: requested but not yet streamed in). An empty list
+  // ([]) means loaded-but-no-values, which is NOT loading. `observed` itself
+  // being undefined is the initial bulk-load — everything is pending.
+  // A column whose fetch terminally errored is never pending: it settles to the
+  // empty state (no loading row, no further request) exactly like the sidebar
+  // facet — but PER COLUMN, so a different column can still load on demand.
+  const columnPending = (column: string): boolean =>
+    !erroredColumns?.has(column) &&
+    (observed === undefined || !(column in observed));
 
   // An operator prefix was already typed: the rest is free-form entry.
   if (valuePrefix.length > 0) return null;
@@ -560,11 +594,19 @@ function valueStageSections(
     }
 
     case "scores": {
-      if (observed === undefined) return { sections: [], loading: true };
       const numericColumn =
         ref.level === "trace" ? "trace_scores_avg" : "scores_avg";
       const categoricalColumn =
         ref.level === "trace" ? "trace_score_categories" : "score_categories";
+      // Routing a `scores.<name>:` value needs both score-name columns; request
+      // and show a loading row while either is still streaming in.
+      if (columnPending(numericColumn) || columnPending(categoricalColumn)) {
+        return {
+          sections: [],
+          loading: true,
+          requestColumns: [numericColumn, categoricalColumn],
+        };
+      }
       // Quoted for the example shown in the compare-op tooltip — a spaced score
       // name must read as `scores."Rouge Score":>0.8`, not the unparsable bare
       // form. (The data lookups above use the unquoted column names.)
@@ -673,6 +715,16 @@ function valueStageSections(
       // Observed-value picker: exactOption/arrayOption fields, plus textSearch
       // fields flagged `suggestObservedValues` (id/name — they search as
       // substring but still suggest existing values).
+      // Lazy mode: an option-backed field (exactOption/arrayOption) whose values
+      // have not loaded yet shows a loading row and requests its column. Its `id`
+      // IS the filter-options column id. textSearch fields (id/name) are not
+      // lazily loaded — `name` is eager and `id` has no server option list — so
+      // they fall through to the picker, which is empty when nothing is observed.
+      const isOptionColumn =
+        f.syncMode === "exactOption" || f.syncMode === "arrayOption";
+      if (isOptionColumn && columnPending(f.id)) {
+        return { sections: [], loading: true, requestColumns: [f.id] };
+      }
       if (observed === undefined) return { sections: [], loading: true };
       const all = observedValues(observed, f.id).map((o) => ({
         id: `value:${o.value}`,
@@ -764,6 +816,14 @@ export type InputCompletionContext = {
   caret: number;
   /** Observed facet values; undefined = still loading. */
   observed: ObservedOptions | undefined;
+  /**
+   * Columns whose lazy filter-options fetch terminally errored. For those the
+   * planner suppresses the "Loading values…" row and the on-demand request, so a
+   * failed fetch settles to the empty state (matching the sidebar's per-column
+   * skeleton) instead of pinning loading forever with no auto-retry — but PER
+   * COLUMN, so an unrelated column can still load on demand.
+   */
+  erroredColumns?: ReadonlySet<string>;
   recents: string[];
   /** Full committed/draft query text (recents identical to it are hidden). */
   currentQueryText: string;
@@ -931,6 +991,31 @@ export function planInputCompletions(
     // Dot paths (metadata./scores./traceScores.) suggest observed keys.
     const path = pathKindOf(keyPart);
     if (path !== null) {
+      // Score-name suggestions need both score-name columns; request and show a
+      // loading row while they stream in (lazy mode). Metadata keys are not
+      // server-enumerated — they come from the client-side observed-metadata
+      // map (lib/metadata-paths.ts) — so there is nothing to request there.
+      if (path.kind.canonical !== "metadata.") {
+        const numericColumn =
+          path.kind.level === "trace" ? "trace_scores_avg" : "scores_avg";
+        const categoricalColumn =
+          path.kind.level === "trace"
+            ? "trace_score_categories"
+            : "score_categories";
+        const scorePending = (column: string): boolean =>
+          !ctx.erroredColumns?.has(column) &&
+          (ctx.observed === undefined || !(column in ctx.observed));
+        if (scorePending(numericColumn) || scorePending(categoricalColumn)) {
+          return {
+            stage: "field",
+            from: bodyStart,
+            to,
+            loading: true,
+            sections: [],
+            requestColumns: [numericColumn, categoricalColumn],
+          };
+        }
+      }
       const { title, options } = keyPathOptions(
         path.kind,
         path.typedKey,
@@ -1082,9 +1167,17 @@ export function planInputCompletions(
   // Drop quotes so the typed text matches observed values (both the grouped
   // and non-grouped value segments go through the same helper). For a glob
   // value the typed text is the bare core inside the `*`s.
-  const typed = stripValueQuotes(
+  const typedRaw = stripValueQuotes(
     glob !== null ? glob.core : activeValueText.slice(valuePrefix.length),
   );
+  // An empty OR whitespace-only value is "no value typed yet": normalize it to
+  // "" so the value stage stays a plain, unarmed list — no active value, no
+  // autoHighlight, no match-op refinements. Without this, a lone space typed
+  // between empty quotes (`traceName:" "`) ranked every observed value that
+  // CONTAINS a space and armed the first for Enter, committing an unwanted
+  // value (LFE-10501 BUG B). A value with real content plus surrounding spaces
+  // (`"foo "`) still counts as typed.
+  const typed = typedRaw.trim().length === 0 ? "" : typedRaw;
   const groupedPlanAttrs =
     grouped === null ? {} : { keepOpenOnPick: !grouped.completeGroup };
 
@@ -1093,6 +1186,7 @@ export function planInputCompletions(
     typed,
     valuePrefix,
     observed: ctx.observed,
+    erroredColumns: ctx.erroredColumns,
     tokenSpan: { from: start, to: term?.to ?? caret },
     negated,
   });
@@ -1104,6 +1198,9 @@ export function planInputCompletions(
       to: segTo,
       loading: true,
       sections: [],
+      ...(staged.requestColumns
+        ? { requestColumns: staged.requestColumns }
+        : {}),
       ...groupedPlanAttrs,
     };
   }
@@ -1124,6 +1221,94 @@ export function planInputCompletions(
     sections: staged.sections,
     ...groupedPlanAttrs,
   };
+}
+
+/**
+ * Apply a picked completion option to the draft — the pure text/caret half of
+ * the composer's `pickOption` (the composer keeps the DOM/selection side
+ * effects and the whole-query `recent` replacement, which is why `recent` is
+ * excluded here). Returns the rewritten draft, the caret offset to place inside
+ * it, and whether the popover should stay open.
+ *
+ * The classification is the crux: an option that INVITES MORE INPUT leaves the
+ * caret where it lands — a `field:` key awaiting a value, a `metadata.` prefix,
+ * an open `tags:(` group, and a comparison/logical OPERATOR awaiting its value.
+ * An option that COMPLETES a filter at the END of the draft appends a trailing
+ * space and drops the caret AFTER it (outside the finished pill), reopening
+ * field suggestions for the next filter.
+ */
+export function applyPick(
+  option: Exclude<CompletionOption, { kind: "recent" }>,
+  current: string,
+  plan: CompletionPlan,
+): { next: string; caret: number; keepOpen: boolean } {
+  let insert: string;
+  let keepOpen: boolean;
+  let replaceFrom = plan.from;
+  let replaceTo = plan.to;
+  if (option.kind === "field") {
+    // Replacing the key of an existing filter: the span ends AT the colon, so
+    // the insert must not bring its own.
+    const colonFollows = current.slice(plan.to).startsWith(":");
+    insert = option.fieldId.endsWith(".")
+      ? option.fieldId
+      : colonFollows
+        ? option.fieldId
+        : `${option.fieldId}:`;
+    keepOpen = true;
+    // A dot-prefix field (`metadata.`/`scores.`/`traceScores.`) is itself a
+    // partial key. When an existing `:value` follows, consume the whole term so
+    // the user re-picks the key from observed options instead.
+    if (option.fieldId.endsWith(".") && colonFollows) {
+      replaceTo = termAt(current, plan.from)?.to ?? plan.to;
+    }
+  } else if (option.kind === "value") {
+    insert = serializeValue(option.value);
+    keepOpen = plan.keepOpenOnPick ?? false;
+  } else {
+    insert = option.insert;
+    // A scope rewrite carries its own span (the whole coalesced free-text run),
+    // so it replaces that, not just the token under the caret.
+    if (option.kind === "pattern" && option.replaceSpan) {
+      replaceFrom = option.replaceSpan.from;
+      replaceTo = option.replaceSpan.to;
+    }
+    // A trailing `:`, ` `, or `(` drops the caret into an interactive context
+    // (value stage, next field, or an open `tags:(` group) — keep the popover
+    // open so the next pick is immediate.
+    keepOpen =
+      option.insert.endsWith(":") ||
+      option.insert.endsWith(" ") ||
+      option.insert.endsWith("(");
+  }
+
+  const grouped = plan.keepOpenOnPick ?? false;
+  const invitesMoreInput =
+    option.kind === "field" || // a `field:` key always needs a value next
+    // A comparison (`>`, `>=`, …) or logical (AND/NOT) OPERATOR awaits its
+    // value next, so keep the caret in the block instead of appending a space
+    // and jumping outside it. Without this, a `latency:` → `>` pick landed
+    // `latency:> ` with the caret after the space, so the number typed OUTSIDE
+    // the filter (LFE-10501 BUG A). AND/NOT already carry a trailing space, so
+    // this only changes the value-stage comparison operators.
+    option.kind === "operator" ||
+    insert.endsWith(":") ||
+    insert.endsWith(" ") ||
+    insert.endsWith("(");
+  const completesFilterAtEnd =
+    !grouped &&
+    !invitesMoreInput &&
+    current.slice(replaceTo).trim().length === 0;
+  if (completesFilterAtEnd) {
+    insert += " ";
+    // Consume any existing trailing whitespace so the space never doubles.
+    replaceTo = current.length;
+    keepOpen = true;
+  }
+
+  const next =
+    current.slice(0, replaceFrom) + insert + current.slice(replaceTo);
+  return { next, caret: replaceFrom + insert.length, keepOpen };
 }
 
 /** Flat option list in render order (keyboard navigation walks this). */

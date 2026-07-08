@@ -30,6 +30,7 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { useMemo } from "react";
+import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 
 export type PromptVersionTableRow = {
   version: number;
@@ -85,7 +86,11 @@ function joinPromptCoreAndMetricData(
 
 export default function PromptVersionTable({
   promptName: promptNameProp,
-}: { promptName?: string } = {}) {
+  // Defaults to true because this component always renders its own `Page`, so
+  // the header controls slot is available. Set false if ever embedded without
+  // a `Page` ancestor, to fall back to the toolbar.
+  showControlsInPageHeader = true,
+}: { promptName?: string; showControlsInPageHeader?: boolean } = {}) {
   const router = useRouter();
   const projectId = useProjectIdFromURL() ?? "";
   const promptNameFromQuery = router.query.promptName;
@@ -426,11 +431,17 @@ export default function PromptVersionTable({
         },
       }}
     >
+      {showControlsInPageHeader && (
+        <TableHeaderControls
+          timeRange={timeRange}
+          setTimeRange={setTimeRange}
+        />
+      )}
       <div className="gap-3">
         <DataTableToolbar
           columns={columns}
-          timeRange={timeRange}
-          setTimeRange={setTimeRange}
+          timeRange={showControlsInPageHeader ? undefined : timeRange}
+          setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
           columnVisibility={columnVisibility}
@@ -440,7 +451,7 @@ export default function PromptVersionTable({
         />
       </div>
       <DataTable
-        tableName={"promptVersions"}
+        tableName="promptVersions"
         columns={columns}
         data={
           promptVersions.isLoading

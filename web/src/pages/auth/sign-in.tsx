@@ -1,5 +1,5 @@
 import { type GetServerSideProps } from "next";
-import { LangfuseIcon } from "@/src/components/LangfuseLogo";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { Button } from "@/src/components/ui/button";
 import {
   Form,
@@ -726,7 +726,9 @@ export default function SignIn({
       </Head>
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <LangfuseIcon className="mx-auto" />
+          <div className="mx-auto w-fit">
+            <LangfuseIcon />
+          </div>
           <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
             Sign in to your account
           </h2>

@@ -6,21 +6,18 @@ import { TRPCError } from "@trpc/server";
 import {
   type ChatMessage,
   ChatMessageType,
-  fetchLLMCompletion,
   LangfuseInternalTraceEnvironment,
   logger,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { CreateNaturalLanguageFilterCompletion } from "./validation";
-import {
-  getDefaultModelParams,
-  parseFiltersFromCompletion,
-  getLangfuseClient,
-} from "./utils";
-import { randomBytes } from "crypto";
+import { parseFiltersFromCompletion, getLangfuseClient } from "./utils";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "@langfuse/shared";
-import { encrypt } from "@langfuse/shared/encryption";
+import {
+  fetchLangfuseAICompletion,
+  getLangfuseAITraceSinkParams,
+  isLangfuseAITracingConfigured,
+} from "@/src/features/ai-features/server/bedrockCompletion";
 
 export const naturalLanguageFilterRouter = createTRPCRouter({
   createCompletion: protectedProjectProcedure
@@ -104,33 +101,13 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
         );
 
         const aiTelemetryEnabled = project.organization.aiTelemetryEnabled;
-        const targetProjectId = aiTelemetryEnabled
-          ? env.LANGFUSE_AI_FEATURES_PROJECT_ID
-          : undefined;
 
-        if (aiTelemetryEnabled && !targetProjectId) {
+        if (aiTelemetryEnabled && !isLangfuseAITracingConfigured()) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: "Langfuse AI Features not configured.",
           });
         }
-
-        const traceSinkParams = targetProjectId
-          ? {
-              environment:
-                LangfuseInternalTraceEnvironment.NaturalLanguageFilter,
-              traceName: "natural-language-filter",
-              traceId: randomBytes(16).toString("hex"),
-              targetProjectId,
-              userId: ctx.session.user.id,
-              metadata: {
-                langfuse_ai_feature: "natural-language-filter",
-                langfuse_user_id: ctx.session.user.id,
-                langfuse_project_id: ctx.session.projectId,
-              },
-              prompt: promptResponse,
-            }
-          : undefined;
 
         // Get current datetime in ISO format with day of week for AI context
         const now = new Date();
@@ -141,20 +118,31 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           userPrompt: input.prompt,
           currentDatetime,
         });
-        const modelParams = getDefaultModelParams();
-
-        const llmCompletion = await fetchLLMCompletion({
+        const llmCompletion = await fetchLangfuseAICompletion({
           messages: messages.map((m: ChatMessage) => ({
             ...m,
             type: ChatMessageType.PublicAPICreated,
           })),
-          modelParams,
-          llmConnection: {
-            secretKey: encrypt(BEDROCK_USE_DEFAULT_CREDENTIALS),
-          },
-          streaming: false,
-          traceSinkParams,
-          shouldUseLangfuseAPIKey: true,
+          maxTokens: 1000,
+          traceSinkParams: aiTelemetryEnabled
+            ? getLangfuseAITraceSinkParams({
+                environment:
+                  LangfuseInternalTraceEnvironment.NaturalLanguageFilter,
+                feature: "natural-language-filter",
+                projectId: ctx.session.projectId,
+                traceName: "natural-language-filter",
+                userId: ctx.session.user.id,
+                metadata: {
+                  langfuse_user_id: ctx.session.user.id,
+                  ...(ctx.session.user.email
+                    ? { langfuse_user_email: ctx.session.user.email }
+                    : {}),
+                  langfuse_user_project_role: ctx.session.projectRole,
+                  langfuse_cloud_region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+                },
+                prompt: promptResponse,
+              })
+            : undefined,
         });
 
         logger.info(

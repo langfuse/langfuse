@@ -1,5 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type TestContext,
+} from "vitest";
 import { uuid, z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -16,15 +24,34 @@ import {
   TraceRecordReadType,
   createOrgProjectAndApiKey,
   createIngestionEventSchema,
+  getObservationsV2FromEventsTableForPublicApi,
+  queryClickhouse,
   setNoEvalConfigsCache,
 } from "@langfuse/shared/src/server";
 import waitForExpect from "wait-for-expect";
 import { ClickhouseWriter, TableName } from "../../ClickhouseWriter";
 import { IngestionService } from "../../IngestionService";
 import { ModelUsageUnit, ScoreSourceEnum } from "@langfuse/shared";
+import {
+  clickhouseTableExists,
+  skipUnlessClickhouseTablesExist,
+} from "../../../__tests__/helpers/clickhouseTables";
 
 let projectId = "";
 const environment = "default";
+const testIngestionAttribution = {
+  ingestionApiKey: "pk-lf-ingestion-service-test",
+  ingestionSdkName: "langfuse-test",
+  ingestionSdkVersion: "0.0.0",
+};
+
+async function skipUnlessEventsTablesExist(ctx: TestContext): Promise<void> {
+  await skipUnlessClickhouseTablesExist(
+    ctx,
+    [TableName.EventsFull],
+    "events ClickHouse tables are not enabled",
+  );
+}
 
 describe("Ingestion end-to-end tests", () => {
   let ingestionService: IngestionService;
@@ -102,6 +129,158 @@ describe("Ingestion end-to-end tests", () => {
     expect(trace.output).toBe("bar");
     expect(trace.session_id).toBeNull();
     expect(trace.timestamp).toBe(timestamp);
+  });
+
+  it("should paginate events with sub-millisecond wire timestamps after ingestion normalization", async (ctx) => {
+    await skipUnlessEventsTablesExist(ctx);
+
+    const traceId = randomUUID();
+    const firstSpanId = randomUUID();
+    const secondSpanId = randomUUID();
+    const wireStartTimeA = "2026-01-01T12:00:00.123456Z";
+    const wireStartTimeB = "2026-01-01T12:00:00.123789Z";
+    const normalizedStartTime = Date.parse(wireStartTimeA) * 1000;
+
+    const eventRecords = await Promise.all(
+      [
+        { spanId: firstSpanId, startTimeISO: wireStartTimeA },
+        { spanId: secondSpanId, startTimeISO: wireStartTimeB },
+      ].map((event) =>
+        ingestionService.createEventRecord(
+          {
+            projectId,
+            traceId,
+            spanId: event.spanId,
+            parentSpanId: "",
+            name: `sub-ms-cursor-${event.spanId}`,
+            type: "SPAN",
+            environment,
+            startTimeISO: event.startTimeISO,
+            endTimeISO: "2026-01-01T12:00:00.124000Z",
+            metadata: {},
+            source: "test",
+          },
+          `sub-ms-cursor/${event.spanId}.json`,
+        ),
+      ),
+    );
+
+    expect(eventRecords.map((record) => record.start_time)).toEqual([
+      normalizedStartTime,
+      normalizedStartTime,
+    ]);
+    expect(eventRecords.every((record) => record.start_time % 1000 === 0)).toBe(
+      true,
+    );
+
+    eventRecords.forEach((record) => ingestionService.writeEventRecord(record));
+    await clickhouseWriter.flushAll(true);
+
+    await waitForExpect(async () => {
+      const rows = await queryClickhouse<{ count: string }>({
+        query: `
+          SELECT count() AS count
+          FROM events_core
+          WHERE project_id = {projectId: String}
+            AND trace_id = {traceId: String}
+            AND span_id IN ({spanIds: Array(String)})
+        `,
+        params: {
+          projectId,
+          traceId,
+          spanIds: [firstSpanId, secondSpanId],
+        },
+      });
+
+      expect(Number(rows[0]?.count ?? 0)).toBe(2);
+    }, 5_000);
+
+    const firstPageItems = await getObservationsV2FromEventsTableForPublicApi({
+      projectId,
+      traceId,
+      page: 1,
+      limit: 1,
+      fields: ["core"],
+    });
+    const firstPage = firstPageItems.slice(0, 1);
+    expect(firstPage).toHaveLength(1);
+
+    const firstItem = firstPage[0]!;
+    expect(firstItem.startTime.getTime()).toBe(Date.parse(wireStartTimeA));
+
+    const secondPageItems = await getObservationsV2FromEventsTableForPublicApi({
+      projectId,
+      traceId,
+      page: 1,
+      limit: 1,
+      fields: ["core"],
+      cursor: {
+        lastStartTimeTo: firstItem.startTime,
+        lastTraceId: firstItem.traceId!,
+        lastId: firstItem.id,
+      },
+    });
+    const secondPage = secondPageItems.slice(0, 1);
+    expect(secondPage).toHaveLength(1);
+
+    expect(secondPage[0]!.id).not.toBe(firstItem.id);
+    expect(new Set([firstItem.id, secondPage[0]!.id])).toEqual(
+      new Set([firstSpanId, secondSpanId]),
+    );
+  });
+
+  it("should write ingestion attribution to observation staging records", async (ctx) => {
+    await skipUnlessObservationsBatchStagingEnabled(ctx);
+
+    const traceId = randomUUID();
+    const generationId = randomUUID();
+    const timestamp = new Date().toISOString();
+    const attribution = {
+      ingestionApiKey: "pk-lf-ingestion-service-integration",
+      ingestionSdkName: "langfuse-js",
+      ingestionSdkVersion: "4.2.0",
+    };
+
+    const generationEventList: ObservationEvent[] = [
+      {
+        id: randomUUID(),
+        type: "generation-create",
+        timestamp,
+        body: {
+          id: generationId,
+          traceId,
+          startTime: timestamp,
+          name: "generation-with-attribution",
+          environment,
+        },
+      },
+    ];
+
+    await ingestionService.mergeAndWrite({
+      projectId,
+      entityId: generationId,
+      createdAtTimestamp: new Date(timestamp),
+      eventType: "observation",
+      events: generationEventList,
+      forwardToEventsTable: true,
+      attribution,
+    });
+
+    await clickhouseWriter.flushAll(true);
+
+    const generation = await getClickhouseRecord(
+      TableName.Observations,
+      generationId,
+    );
+    const stagingAttribution =
+      await getClickhouseObservationBatchStagingAttribution(generationId);
+
+    expect(generation.id).toBe(generationId);
+    expect(stagingAttribution).toEqual({
+      ingestion_api_key: attribution.ingestionApiKey,
+      ingestion_sdk_name: attribution.ingestionSdkName,
+      ingestion_sdk_version: attribution.ingestionSdkVersion,
+    });
   });
 
   [
@@ -554,6 +733,7 @@ describe("Ingestion end-to-end tests", () => {
           entityId: scoreId,
           createdAtTimestamp: new Date(),
           scoreEventList,
+          attribution: testIngestionAttribution,
         }),
       ]);
 
@@ -664,6 +844,7 @@ describe("Ingestion end-to-end tests", () => {
         entityId: scoreId,
         createdAtTimestamp: new Date(),
         scoreEventList,
+        attribution: testIngestionAttribution,
       }),
     ]);
 
@@ -1139,6 +1320,7 @@ describe("Ingestion end-to-end tests", () => {
         entityId: scoreId,
         createdAtTimestamp: new Date(),
         scoreEventList,
+        attribution: testIngestionAttribution,
       }),
     ]);
 
@@ -1251,6 +1433,7 @@ describe("Ingestion end-to-end tests", () => {
         projectId,
         entityId: validScoreId1,
         createdAtTimestamp: new Date(),
+        attribution: testIngestionAttribution,
         scoreEventList: [
           {
             id: validScoreId1,
@@ -1274,6 +1457,7 @@ describe("Ingestion end-to-end tests", () => {
         projectId,
         entityId: validScoreId2,
         createdAtTimestamp: new Date(),
+        attribution: testIngestionAttribution,
         scoreEventList: [
           // invalid score 1
           {
@@ -2947,6 +3131,43 @@ async function getClickhouseRecord<T extends TableName>(
   ) as RecordReadType<T>;
 }
 
+async function getClickhouseObservationBatchStagingAttribution(
+  entityId: string,
+): Promise<{
+  ingestion_api_key: string;
+  ingestion_sdk_name: string;
+  ingestion_sdk_version: string;
+}> {
+  let result: unknown;
+
+  const loadResult = async () => {
+    const query = await clickhouseClient().query({
+      query: `
+        SELECT
+          ingestion_api_key,
+          ingestion_sdk_name,
+          ingestion_sdk_version
+        FROM ${TableName.ObservationsBatchStaging} FINAL
+        WHERE project_id = '${projectId}' AND id = '${entityId}'
+      `,
+      format: "JSONEachRow",
+    });
+
+    result = (await query.json())[0];
+  };
+
+  await waitForExpect(async () => {
+    await loadResult();
+    expect(result).toBeDefined();
+  }, 1_500);
+
+  return result as {
+    ingestion_api_key: string;
+    ingestion_sdk_name: string;
+    ingestion_sdk_version: string;
+  };
+}
+
 type RecordReadType<T extends TableName> = T extends TableName.Scores
   ? ScoreRecordReadType
   : T extends TableName.Observations
@@ -2954,3 +3175,15 @@ type RecordReadType<T extends TableName> = T extends TableName.Scores
     : T extends TableName.Traces
       ? TraceRecordReadType
       : never;
+
+async function isObservationsBatchStagingEnabled(): Promise<boolean> {
+  return clickhouseTableExists(TableName.ObservationsBatchStaging);
+}
+
+async function skipUnlessObservationsBatchStagingEnabled(
+  ctx: TestContext,
+): Promise<void> {
+  if (!(await isObservationsBatchStagingEnabled())) {
+    ctx.skip("observations_batch_staging is not enabled in this ClickHouse");
+  }
+}

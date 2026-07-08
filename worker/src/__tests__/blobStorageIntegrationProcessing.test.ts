@@ -267,7 +267,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     expect(mockRecordIncrement).toHaveBeenCalledWith(
       "langfuse.blobstorage.table_export.count",
       1,
-      expect.objectContaining({ outcome: "failure", projectId }),
+      expect.objectContaining({ outcome: "failure" }),
     );
 
     // All four stage timers emitted with outcome=failure...
@@ -449,7 +449,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           expect(mockRecordIncrement).toHaveBeenCalledWith(
             "langfuse.blobstorage.table_export.count",
             1,
-            { outcome, table, projectId },
+            { outcome, table },
           );
         }
       }

@@ -30,45 +30,17 @@ import {
   type MutationCountRow,
   type WorkCandidateRow,
 } from "../features/deleted-mask-cleaner/helpers";
+import { skipUnlessClickhouseTablesExist } from "./helpers/clickhouseTables";
 
 const TEST_TABLE = "events_full" as const;
 const PATCH_WAIT_TIMEOUT_MS = 30_000;
 
-interface TableExistsRow {
-  count: number | string;
-}
-
-let eventsTableEnabled: boolean | undefined;
-
-async function isEventsTableEnabled(): Promise<boolean> {
-  if (eventsTableEnabled !== undefined) {
-    return eventsTableEnabled;
-  }
-  try {
-    const rows = await queryClickhouse<TableExistsRow>({
-      query: `
-        SELECT count() AS count
-        FROM system.tables
-        WHERE database = {database: String}
-          AND name = {table: String}
-      `,
-      params: {
-        database: env.CLICKHOUSE_DB,
-        table: TEST_TABLE,
-      },
-    });
-    eventsTableEnabled = Number(rows[0]?.count ?? 0) > 0;
-  } catch {
-    eventsTableEnabled = false;
-  }
-
-  return eventsTableEnabled;
-}
-
 async function skipUnlessEventsTableEnabled(ctx: TestContext): Promise<void> {
-  if (!(await isEventsTableEnabled())) {
-    ctx.skip("events table is not enabled in this ClickHouse");
-  }
+  await skipUnlessClickhouseTablesExist(
+    ctx,
+    [TEST_TABLE],
+    "events table is not enabled in this ClickHouse",
+  );
 
   if (!redis) {
     ctx.skip(

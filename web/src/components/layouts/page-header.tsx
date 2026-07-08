@@ -1,6 +1,7 @@
 import { EnvLabel } from "@/src/components/EnvLabel";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
+import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { SidebarTrigger } from "@/src/components/ui/sidebar";
 import {
@@ -84,23 +85,38 @@ const PageHeader = ({
         <div className="border-b">
           <div
             className={cn(
-              "flex min-h-11 items-center gap-3 px-3 py-2",
+              // py-1.5 (not py-2) so a 32px control in the right-aligned slot
+              // fits inside the 44px (min-h-11) row without growing it; the
+              // min-height keeps rows without controls at the same height.
+              // justify-between (not ml-auto on the slot) so the controls sit
+              // right when the row fits on one line but fall back to the LEFT
+              // edge when they wrap to their own line on narrow viewports (a
+              // line with a single flex item renders as flex-start).
+              "flex min-h-11 flex-wrap items-center justify-between gap-3 px-3 py-1.5",
               container && containerLayoutClassName,
             )}
           >
-            {showSidebarTrigger ? (
-              <SidebarTrigger />
-            ) : (
-              leadingControl && (
-                <div className="flex items-center">{leadingControl}</div>
-              )
-            )}
-            <div>
-              <EnvLabel />
+            <div className="flex min-w-0 flex-wrap items-center gap-3">
+              {showSidebarTrigger ? (
+                <SidebarTrigger />
+              ) : (
+                leadingControl && (
+                  <div className="flex items-center">{leadingControl}</div>
+                )
+              )}
+              <div>
+                <EnvLabel />
+              </div>
+              <div className="flex items-center gap-2">
+                <BreadcrumbComponent items={breadcrumb} />
+                {breadcrumbBadges}
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <BreadcrumbComponent items={breadcrumb} />
-              {breadcrumbBadges}
+            {/* Slot for page-level controls (time range, auto-refresh)
+                hoisted from a list table via PageHeaderControlsPortal.
+                Empty on pages that don't use it. */}
+            <div className="flex flex-wrap items-center gap-2">
+              <PageHeaderControlsSlotTarget />
             </div>
           </div>
         </div>
@@ -173,8 +189,10 @@ const PageHeader = ({
               )}
             </div>
 
-            {/* Right side content */}
-            <div className="ml-auto flex grow flex-wrap items-center justify-end gap-1">
+            {/* Right side content — right-aligned by the row's
+                justify-between while it shares the line with the title;
+                left-aligned once it wraps to its own line. */}
+            <div className="flex flex-wrap items-center gap-1">
               {actionButtonsRight}
             </div>
           </div>

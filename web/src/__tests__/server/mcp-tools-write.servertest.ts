@@ -81,6 +81,10 @@ import {
   handleDeleteEvaluator,
 } from "@/src/features/mcp/features/evals/tools/deleteEvaluator";
 import { handleGetEvaluationRule } from "@/src/features/mcp/features/evals/tools/getEvaluationRule";
+import {
+  createDashboardWidgetTool,
+  handleCreateDashboardWidget,
+} from "@/src/features/mcp/features/dashboardWidgets/tools/createDashboardWidget";
 
 const createScoreConfig = async (projectId: string) =>
   prisma.scoreConfig.create({
@@ -413,6 +417,60 @@ describe("MCP Write Tools", () => {
         name: queueName,
         scoreConfigIds: [scoreConfig.id],
       });
+    });
+  });
+
+  describe("createDashboardWidget tool", () => {
+    it("should have destructiveHint annotation", () => {
+      verifyToolAnnotations(createDashboardWidgetTool, {
+        destructiveHint: true,
+      });
+    });
+
+    it("should create a dashboard widget and audit the write", async () => {
+      const setup = await createMcpTestSetup();
+      const { projectId, apiKeyId } = setup;
+
+      const result = (await handleCreateDashboardWidget(
+        {
+          name: `mcp-widget-${nanoid()}`,
+          description: "Created by MCP",
+          view: "observations",
+          dimensions: [],
+          metrics: [{ measure: "count", agg: "count" }],
+          filters: [],
+          chartType: "NUMBER",
+          chartConfig: { type: "NUMBER" },
+          minVersion: 2,
+        },
+        setup.context,
+      )) as { id: string; name: string; url: string };
+
+      expect(result).toMatchObject({
+        id: expect.any(String),
+        name: expect.stringContaining("mcp-widget-"),
+        url: expect.stringContaining(`/project/${projectId}/widgets/`),
+      });
+
+      await expect(
+        prisma.dashboardWidget.findFirst({
+          where: { id: result.id, projectId },
+        }),
+      ).resolves.toMatchObject({
+        id: result.id,
+        projectId,
+        view: "OBSERVATIONS",
+      });
+
+      await expect(
+        verifyAuditLog({
+          projectId,
+          apiKeyId,
+          resourceType: "dashboardWidget",
+          resourceId: result.id,
+          action: "create",
+        }),
+      ).resolves.toMatchObject({ resourceId: result.id, action: "create" });
     });
   });
 

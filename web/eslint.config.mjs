@@ -73,6 +73,18 @@ export default [
   },
 
   {
+    name: "langfuse/web/require-title-with-truncate",
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/**/*.stories.{ts,tsx}"],
+    rules: {
+      "@repo/require-title-with-truncate": [
+        "error",
+        { classNameFunctions: ["cn", "clsx"] },
+      ],
+    },
+  },
+
+  {
     name: "langfuse/web/design-system-rules",
     files: ["src/components/design-system/**/*.{ts,tsx}"],
     ignores: ["src/components/design-system/**/*.stories.tsx"],
@@ -87,6 +99,18 @@ export default [
         "warn",
         { classNameFunctions: ["cn", "clsx"] },
       ],
+
+      // TODO: Expand to more of the codebase
+      "no-nested-ternary": "error",
+    },
+  },
+
+  // We're using the in-app-agent directory as a testing ground for some new eslint-rules.
+  {
+    name: "langfuse/web/in-app-agent",
+    files: ["src/ee/features/in-app-agent/**/*.{ts,tsx}"],
+    rules: {
+      "@repo/no-switch-statements": "error",
     },
   },
 

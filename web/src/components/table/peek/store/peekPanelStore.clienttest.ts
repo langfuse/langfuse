@@ -3,14 +3,36 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   createPeekPanelStore,
   PEEK_DEFAULT_WIDTH_FRACTION,
+  PEEK_MAX_DEFAULT_WIDTH_PX,
   PEEK_MAX_WIDGET_WIDTH_FRACTION,
   PEEK_MIN_WIDTH_FRACTION,
+  resolveDefaultWidthFraction,
   selectDraftExpanded,
   selectWidgetWidth,
 } from "@/src/components/table/peek/store/peekPanelStore";
 
 const STORAGE_KEY = "peekViewWidthFraction";
 const pct = (fraction: number) => `${fraction * 100}vw`;
+
+// jsdom's default innerWidth is 1024; override per-test to exercise the
+// viewport-aware default, then restore.
+function withViewportWidth(width: number, run: () => void) {
+  const original = window.innerWidth;
+  Object.defineProperty(window, "innerWidth", {
+    value: width,
+    configurable: true,
+    writable: true,
+  });
+  try {
+    run();
+  } finally {
+    Object.defineProperty(window, "innerWidth", {
+      value: original,
+      configurable: true,
+      writable: true,
+    });
+  }
+}
 
 describe("peekPanelStore", () => {
   beforeEach(() => window.localStorage.clear());
@@ -23,6 +45,48 @@ describe("peekPanelStore", () => {
     expect(state.draftExpanded).toBe(false);
     expect(state.widthFraction).toBeCloseTo(PEEK_DEFAULT_WIDTH_FRACTION);
     expect(selectWidgetWidth(state)).toBe(pct(PEEK_DEFAULT_WIDTH_FRACTION));
+  });
+
+  describe("default width caps px growth on wide screens (LFE-10601)", () => {
+    it("keeps 50vw on a normal laptop where 50vw is under the px cap", () => {
+      withViewportWidth(1440, () => {
+        expect(resolveDefaultWidthFraction()).toBeCloseTo(
+          PEEK_DEFAULT_WIDTH_FRACTION,
+        );
+        expect(createPeekPanelStore().getState().widthFraction).toBeCloseTo(
+          PEEK_DEFAULT_WIDTH_FRACTION,
+        );
+      });
+    });
+
+    it("trims the fraction on a wide screen so the peek stays near the px cap", () => {
+      // 3000px: 50vw = 1500px > cap → fraction shrinks so width ≈ cap.
+      withViewportWidth(3000, () => {
+        const fraction = resolveDefaultWidthFraction();
+        expect(fraction).toBeLessThan(PEEK_DEFAULT_WIDTH_FRACTION);
+        expect(fraction * 3000).toBeCloseTo(PEEK_MAX_DEFAULT_WIDTH_PX, 0);
+        expect(createPeekPanelStore().getState().widthFraction).toBeCloseTo(
+          fraction,
+        );
+      });
+    });
+
+    it("never falls below the drag minimum, even on an ultra-wide screen", () => {
+      withViewportWidth(6000, () => {
+        expect(resolveDefaultWidthFraction()).toBeCloseTo(
+          PEEK_MIN_WIDTH_FRACTION,
+        );
+      });
+    });
+
+    it("a saved preference always wins over the viewport-aware default", () => {
+      withViewportWidth(3000, () => {
+        window.localStorage.setItem(STORAGE_KEY, "0.5");
+        expect(createPeekPanelStore().getState().widthFraction).toBeCloseTo(
+          0.5,
+        );
+      });
+    });
   });
 
   it("reads and clamps the persisted width on creation", () => {

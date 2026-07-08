@@ -4,7 +4,10 @@ import {
   type MetricFormatterFunction,
   type DataPoint,
   type ChartThreshold,
+  type LegendPosition,
   type LegendSummaryMode,
+  type LegendInteraction,
+  type MissingBucketValue,
 } from "@/src/features/widgets/chart-library/chart-props";
 import { formatMetric } from "@/src/features/widgets/chart-library/utils";
 import { CardContent } from "@/src/components/ui/card";
@@ -28,7 +31,7 @@ const DEFAULT_METRIC_THEME = {
   dark: "hsl(var(--chart-1))",
 } as const;
 
-export const Chart = ({
+const ChartComponent = ({
   chartType,
   data,
   rowLimit,
@@ -39,9 +42,13 @@ export const Chart = ({
   isLoading = false,
   legendPosition,
   legendSummary,
+  legendInteraction,
+  maxVisibleSeries,
+  syncId,
   overrideWarning = false,
   metricFormatter: metricFormatterOverride,
   thresholds,
+  missingValue,
 }: {
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
@@ -63,11 +70,16 @@ export const Chart = ({
   sortState?: OrderByState | null;
   onSortChange?: (sortState: OrderByState | null) => void;
   isLoading?: boolean;
-  legendPosition?: "above" | "none";
+  legendPosition?: LegendPosition;
   legendSummary?: LegendSummaryMode;
+  legendInteraction?: LegendInteraction;
+  maxVisibleSeries?: number;
+  syncId?: string;
   overrideWarning?: boolean;
   metricFormatter?: MetricFormatterFunction;
   thresholds?: ChartThreshold[];
+  /** See {@link MissingBucketValue}; consumed by line/area time series. */
+  missingValue?: MissingBucketValue;
 }) => {
   const [forceRender, setForceRender] = useState(overrideWarning);
   const shouldWarn = data.length > 2000 && !forceRender;
@@ -80,38 +92,11 @@ export const Chart = ({
     [metricFormatterOverride, chartConfig?.unit],
   );
 
-  const renderedData = useMemo(() => {
-    return data.map((item) => {
-      if (!item.time_dimension) return { ...item, time_dimension: undefined };
-      const value = item.time_dimension;
-      const looksLikeIso =
-        value.includes("T") || /^\d{4}-\d{2}-\d{2}$/.test(value);
-      if (!looksLikeIso) {
-        return { ...item, time_dimension: value };
-      }
-      const parsed = new Date(value);
-      if (Number.isNaN(parsed.getTime())) return { ...item };
-      const isMidnight =
-        parsed.getUTCHours() === 0 &&
-        parsed.getUTCMinutes() === 0 &&
-        parsed.getUTCSeconds() === 0 &&
-        parsed.getUTCMilliseconds() === 0;
-      const time_dimension = isMidnight
-        ? parsed.toLocaleDateString("en-US", {
-            year: "2-digit",
-            month: "numeric",
-            day: "numeric",
-          })
-        : parsed.toLocaleTimeString("en-US", {
-            year: "2-digit",
-            month: "numeric",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          });
-      return { ...item, time_dimension };
-    });
-  }, [data]);
+  // Time-axis formatting is NOT decided here. Raw time_dimension values flow
+  // straight to the visualiser, which formats them via the prepareTimeAxis
+  // preparer — one source of truth, so every chart formats time the same way.
+  // (LFE-10549)
+  const renderedData = data;
 
   const resolvedConfig = useMemo(() => {
     if (!config) return undefined;
@@ -143,8 +128,12 @@ export const Chart = ({
             metricFormatter={metricFormatter}
             legendPosition={legendPosition}
             legendSummary={legendSummary}
-            showDataPointDots={chartConfig?.show_data_point_dots ?? true}
+            legendInteraction={legendInteraction}
+            maxVisibleSeries={maxVisibleSeries}
+            syncId={syncId}
+            showDataPointDots={chartConfig?.show_data_point_dots ?? false}
             thresholds={thresholds}
+            missingValue={missingValue}
           />
         );
       case "AREA_TIME_SERIES":
@@ -155,7 +144,11 @@ export const Chart = ({
             metricFormatter={metricFormatter}
             legendPosition={legendPosition}
             legendSummary={legendSummary}
+            legendInteraction={legendInteraction}
+            maxVisibleSeries={maxVisibleSeries}
+            syncId={syncId}
             subtleFill={chartConfig?.subtle_fill}
+            missingValue={missingValue}
           />
         );
       case "BAR_TIME_SERIES":
@@ -164,6 +157,11 @@ export const Chart = ({
             data={renderedData}
             config={resolvedConfig}
             metricFormatter={metricFormatter}
+            legendPosition={legendPosition}
+            legendSummary={legendSummary}
+            legendInteraction={legendInteraction}
+            maxVisibleSeries={maxVisibleSeries}
+            syncId={syncId}
             subtleFill={chartConfig?.subtle_fill}
           />
         );
@@ -269,3 +267,11 @@ export const Chart = ({
     </CardContent>
   );
 };
+
+/**
+ * Memoized so a parent re-render (e.g. the dashboard query scheduler bumping its
+ * version during load) doesn't reconcile the recharts subtree when the chart's
+ * inputs are unchanged. Effective only when callers pass stable `data`/`config`
+ * references — the dashboard time-series consumers memoize those. (LFE-10549)
+ */
+export const Chart = React.memo(ChartComponent);

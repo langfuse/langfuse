@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { Checkbox } from "@/src/components/ui/checkbox";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   Card,
   CardContent,

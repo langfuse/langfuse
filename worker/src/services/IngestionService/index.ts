@@ -2,6 +2,8 @@ import { Cluster, Redis } from "ioredis";
 import { v4 } from "uuid";
 import { Decimal } from "decimal.js";
 import {
+  InvalidRequestError,
+  LangfuseNotFoundError,
   Model,
   ObservationLevel,
   PrismaClient,
@@ -50,6 +52,7 @@ import {
   normalizeToolsForObservation,
   hasNoEvalConfigsCache,
   buildClickHouseLogComment,
+  type IngestionAttribution,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -76,12 +79,21 @@ function parseUInt16(value: string | null | undefined): number | undefined {
   return num;
 }
 
+export type EventInput = InternalTraceEventInput;
 type InsertRecord =
   | TraceRecordInsertType
   | ScoreRecordInsertType
   | ObservationRecordInsertType
   | DatasetRunItemRecordInsertType;
-export type EventInput = InternalTraceEventInput;
+type MergeAndWriteParams = {
+  eventType: IngestionEntityTypes;
+  projectId: string;
+  entityId: string;
+  createdAtTimestamp: Date;
+  events: IngestionEventType[];
+  forwardToEventsTable: boolean;
+  attribution: IngestionAttribution;
+};
 
 const immutableEntityKeys: {
   [TableName.Traces]: (keyof TraceRecordInsertType)[];
@@ -146,14 +158,17 @@ export class IngestionService {
     this.promptService = new PromptService(prisma, redis);
   }
 
-  public async mergeAndWrite(
-    eventType: IngestionEntityTypes,
-    projectId: string,
-    entityId: string,
-    createdAtTimestamp: Date,
-    events: IngestionEventType[],
-    forwardToEventsTable: boolean,
-  ): Promise<void> {
+  public async mergeAndWrite(params: MergeAndWriteParams): Promise<void> {
+    const {
+      eventType,
+      projectId,
+      entityId,
+      createdAtTimestamp,
+      events,
+      forwardToEventsTable,
+      attribution,
+    } = params;
+
     logger.debug(
       `Merging ingestion ${eventType} event for project ${projectId} and event ${entityId}`,
     );
@@ -166,6 +181,7 @@ export class IngestionService {
           createdAtTimestamp,
           traceEventList: events as TraceEventType[],
           createEventTraceRecord: forwardToEventsTable,
+          attribution,
         });
       case "observation":
         return await this.processObservationEventList({
@@ -174,6 +190,7 @@ export class IngestionService {
           createdAtTimestamp,
           observationEventList: events as ObservationEvent[],
           writeToStagingTables: forwardToEventsTable,
+          attribution,
         });
       case "score": {
         return await this.processScoreEventList({
@@ -181,6 +198,7 @@ export class IngestionService {
           entityId,
           createdAtTimestamp,
           scoreEventList: events as ScoreEventType[],
+          attribution,
         });
       }
       case "dataset_run_item": {
@@ -344,6 +362,9 @@ export class IngestionService {
 
       // Source/instrumentation metadata
       source: eventData.source,
+      ingestion_api_key: eventData.ingestionApiKey ?? "",
+      ingestion_sdk_name: eventData.ingestionSdkName ?? "",
+      ingestion_sdk_version: eventData.ingestionSdkVersion ?? "",
       service_name: eventData.serviceName,
       service_version: eventData.serviceVersion,
       scope_name: eventData.scopeName,
@@ -492,8 +513,15 @@ export class IngestionService {
     entityId: string;
     createdAtTimestamp: Date;
     scoreEventList: ScoreEventType[];
+    attribution: IngestionAttribution;
   }) {
-    const { projectId, entityId, createdAtTimestamp, scoreEventList } = params;
+    const {
+      projectId,
+      entityId,
+      createdAtTimestamp,
+      scoreEventList,
+      attribution,
+    } = params;
     if (scoreEventList.length === 0) return;
 
     const timeSortedEvents =
@@ -508,6 +536,7 @@ export class IngestionService {
       minTimestamp === Infinity
         ? undefined
         : convertDateToClickhouseDateTime(new Date(minTimestamp));
+    const unexpectedScoreValidationErrors: unknown[] = [];
     const [clickhouseScoreRecord, scoreRecords] = await Promise.all([
       this.getClickhouseRecord({
         projectId,
@@ -551,6 +580,9 @@ export class IngestionService {
               long_string_value: validatedScore.longStringValue,
               execution_trace_id: validatedScore.executionTraceId,
               queue_id: validatedScore.queueId ?? null,
+              ingestion_api_key: attribution.ingestionApiKey,
+              ingestion_sdk_name: attribution.ingestionSdkName,
+              ingestion_sdk_version: attribution.ingestionSdkVersion,
               created_at: Date.now(),
               updated_at: Date.now(),
               event_ts: new Date(scoreEvent.timestamp).getTime(),
@@ -558,6 +590,13 @@ export class IngestionService {
             };
             // Gracefully handle any score schema validation errors, skip the score insert and reject silently.
           } catch (error) {
+            if (
+              !(error instanceof InvalidRequestError) &&
+              !(error instanceof LangfuseNotFoundError)
+            ) {
+              unexpectedScoreValidationErrors.push(error);
+            }
+
             logger.info(
               `Failed to validate and enrich score body for project: ${projectId} and score: ${entityId}`,
               error,
@@ -579,6 +618,20 @@ export class IngestionService {
       });
     }
 
+    if (unexpectedScoreValidationErrors.length > 0) {
+      throw new AggregateError(
+        unexpectedScoreValidationErrors,
+        `Unexpected error(s) validating score batch for project: ${projectId} and score: ${entityId}`,
+      );
+    }
+
+    if (scoreRecords.length === 0 && !clickhouseScoreRecord) {
+      logger.warn(
+        `No valid score records found for project: ${projectId} and score: ${entityId}`,
+      );
+      return;
+    }
+
     const finalScoreRecord: ScoreRecordInsertType =
       await this.mergeScoreRecords({
         clickhouseScoreRecord,
@@ -596,6 +649,7 @@ export class IngestionService {
     createdAtTimestamp: Date;
     traceEventList: TraceEventType[];
     createEventTraceRecord: boolean;
+    attribution: IngestionAttribution;
   }) {
     const {
       projectId,
@@ -603,6 +657,7 @@ export class IngestionService {
       createdAtTimestamp,
       traceEventList,
       createEventTraceRecord,
+      attribution,
     } = params;
     if (traceEventList.length === 0) return;
 
@@ -695,6 +750,7 @@ export class IngestionService {
       const traceAsStagingObservation = convertTraceToStagingObservation(
         finalTraceRecord,
         this.getPartitionAwareTimestamp(createdAtTimestamp),
+        attribution,
       );
       this.clickHouseWriter.addToQueue(
         TableName.ObservationsBatchStaging,
@@ -741,6 +797,7 @@ export class IngestionService {
     createdAtTimestamp: Date;
     observationEventList: ObservationEvent[];
     writeToStagingTables: boolean;
+    attribution: IngestionAttribution;
   }) {
     const {
       projectId,
@@ -748,6 +805,7 @@ export class IngestionService {
       createdAtTimestamp,
       observationEventList,
       writeToStagingTables,
+      attribution,
     } = params;
     if (observationEventList.length === 0) return;
 
@@ -886,6 +944,9 @@ export class IngestionService {
     if (writeToStagingTables) {
       const stagingRecord = {
         ...finalObservationRecord,
+        ingestion_api_key: attribution.ingestionApiKey,
+        ingestion_sdk_name: attribution.ingestionSdkName,
+        ingestion_sdk_version: attribution.ingestionSdkVersion,
         s3_first_seen_timestamp:
           this.getPartitionAwareTimestamp(createdAtTimestamp),
       };

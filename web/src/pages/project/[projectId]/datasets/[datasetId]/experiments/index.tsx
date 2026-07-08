@@ -222,6 +222,7 @@ export default function Dataset() {
             },
           ]}
           sessionFilterContextId={`dataset-${datasetId}`}
+          showControlsInPageHeader
         />
       </Page>
     );
