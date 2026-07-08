@@ -76,7 +76,6 @@ export const ParamCommitMessage = z
  */
 export const ParamCreatePromptLabels = z
   .array(PromptLabelSchema)
-  // TODO: Move production promotion into a dedicated promotePrompt MCP tool.
   .refine((labels) => !labels.includes(PRODUCTION_LABEL), {
     message:
       "The 'production' label cannot be assigned when creating prompts through MCP. Create the prompt first, then use updatePromptLabels only when the user explicitly requests promotion to production.",
