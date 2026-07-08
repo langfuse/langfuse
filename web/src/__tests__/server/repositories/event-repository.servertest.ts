@@ -746,48 +746,6 @@ describe("Clickhouse Events Repository Test", () => {
         expect(Number(range?.max)).toBeCloseTo(1, 3);
       });
     });
-
-    it("uses the monitor window to scope monitor filter option queries", async () => {
-      const uniqueProjectId = randomUUID();
-      const traceId = randomUUID();
-      const now = Date.now();
-      const recentLevel = "WARNING";
-      const oldLevel = "ERROR";
-
-      await createEventsCh([
-        createEvent({
-          id: randomUUID(),
-          span_id: randomUUID(),
-          project_id: uniqueProjectId,
-          trace_id: traceId,
-          type: "SPAN",
-          name: "recent-monitor-filter-option-event",
-          level: recentLevel,
-          start_time: (now - 60 * 1000) * 1000,
-        }),
-        createEvent({
-          id: randomUUID(),
-          span_id: randomUUID(),
-          project_id: uniqueProjectId,
-          trace_id: traceId,
-          type: "SPAN",
-          name: "old-monitor-filter-option-event",
-          level: oldLevel,
-          start_time: (now - 10 * 60 * 1000) * 1000,
-        }),
-      ]);
-
-      await waitForExpect(async () => {
-        const options = await getEventFilterOptions({
-          projectId: uniqueProjectId,
-          monitorWindow: "5m",
-        });
-        const levels = options.level.map((level) => level.value);
-
-        expect(levels).toContain(recentLevel);
-        expect(levels).not.toContain(oldLevel);
-      });
-    });
   });
 
   maybe("events filter option repository helpers", () => {

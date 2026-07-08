@@ -321,6 +321,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           enabled: true,
           exportFrequency: "hourly",
           exportSource: "TRACES_OBSERVATIONS_EVENTS",
+          // Explicit CSV: this test asserts on text content, and the column
+          // default is now PARQUET (binary).
+          fileType: BlobStorageIntegrationFileType.CSV,
           nextSyncAt: twoHoursAgo,
           lastSyncAt: twoHoursAgo,
           compressed: false,

@@ -491,4 +491,67 @@ describe("secure LLM fetch", () => {
       expect(forwarded.headers["x-non-sensitive"]).toBe("keep-me");
     });
   });
+
+  describe("abort signal propagation", () => {
+    test("forwards the caller's signal instance to the underlying fetch", async () => {
+      // Identity matters, not just abort wiring: undici links init.signal to
+      // a derived request.signal through a WeakRef'd AbortController owned by
+      // the temporary Request used for input normalization. Once GC collects
+      // that Request, abort propagation silently stops and runtime timeouts
+      // (e.g. the AI SDK engine's native timeout) never cancel the HTTP
+      // request. Forwarding the caller's own signal is the only GC-safe wiring.
+      const receivedSignals: Array<AbortSignal | null | undefined> = [];
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockImplementation(async (_input, init) => {
+          receivedSignals.push(init?.signal);
+          return new Response("{}", {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        });
+
+      const controller = new AbortController();
+      const secureFetch = createSecureLlmFetch({
+        logContext: "Test LLM endpoint",
+      });
+
+      await secureFetch("http://127.0.0.1:65535/v1/chat/completions", {
+        method: "POST",
+        body: JSON.stringify({ messages: [] }),
+        signal: controller.signal,
+      });
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(receivedSignals[0]).toBe(controller.signal);
+    });
+
+    test("aborting the caller's signal cancels an in-flight body read", async () => {
+      const server = await spinUp((_req, _body, res) => {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.write('{"id":"chatcmpl-test","choices":[');
+        // Never end the body: only signal propagation can terminate the read.
+      });
+
+      const secureFetch = createSecureLlmFetch({
+        logContext: "Test LLM endpoint",
+      });
+
+      const start = Date.now();
+      await expect(async () => {
+        const response = await secureFetch(
+          `${server.url}/v1/chat/completions`,
+          {
+            method: "POST",
+            body: JSON.stringify({ messages: [] }),
+            signal: AbortSignal.timeout(1_000),
+          },
+        );
+        await response.text();
+      }).rejects.toThrow(/timeout|abort/i);
+      // Well below the 10s test timeout: proves the abort ended the read
+      // instead of the request running until the server gives up.
+      expect(Date.now() - start).toBeLessThan(5_000);
+    }, 10_000);
+  });
 });

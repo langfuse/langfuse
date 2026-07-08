@@ -9,7 +9,7 @@ import {
 import { type NextRouter, useRouter } from "next/router";
 import { useEffect, useCallback, useState, useRef } from "react";
 import { type VisibilityState } from "@tanstack/react-table";
-import { StringParam } from "use-query-params";
+import { StringParam, type UrlUpdateType } from "use-query-params";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useQueryParam } from "use-query-params";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -122,11 +122,16 @@ export function useTableViewManager({
       },
     );
 
-  // Keep track of the viewId in session storage and in the query params
+  // Keep track of the viewId in session storage and in the query params.
+  // `updateType` controls the browser-history semantics of the URL write:
+  // user-initiated selections keep the default (push — a Back-able step),
+  // while programmatic corrections pass `replaceIn` so the pre-write URL does
+  // not survive as a history entry that Back lands on and that re-triggers
+  // the write (LFE-10715).
   const handleSetViewId = useCallback(
-    (viewId: string | null) => {
+    (viewId: string | null, options?: { updateType?: UrlUpdateType }) => {
       setStoredViewId(viewId);
-      setSelectedViewId(viewId);
+      setSelectedViewId(viewId, options?.updateType);
 
       // Explicitly selecting "My view (default)" should stop bootstrap restore.
       // Otherwise an in-flight bootstrap can restore a previously selected view.
@@ -179,7 +184,7 @@ export function useTableViewManager({
       isSystemPresetId(selectedViewId) &&
       !allowBackendSystemPresets
     ) {
-      handleSetViewId(null);
+      handleSetViewId(null, { updateType: "replaceIn" });
       return;
     }
 
@@ -223,7 +228,7 @@ export function useTableViewManager({
 
     if (defaultViewId) {
       if (isSystemPresetId(defaultViewId) && !allowBackendSystemPresets) {
-        handleSetViewId(null);
+        handleSetViewId(null, { updateType: "replaceIn" });
         return;
       }
       setStoredViewId(defaultViewId);
@@ -398,7 +403,7 @@ export function useTableViewManager({
     if (selectedViewIdRef.current !== requestedViewId) return;
     if (selectedViewData.id !== requestedViewId) return;
     if (!isViewApplicableToTable(tableName, selectedViewData.tableName)) {
-      handleSetViewId(null);
+      handleSetViewId(null, { updateType: "replaceIn" });
       return;
     }
 
@@ -440,7 +445,7 @@ export function useTableViewManager({
     isInitializedRef.current = true;
     setIsInitialized(true);
     setIsLoading(false);
-    handleSetViewId(null);
+    handleSetViewId(null, { updateType: "replaceIn" });
     showErrorToast("Error applying view", selectedViewError.message, "WARNING");
   }, [
     disabled,

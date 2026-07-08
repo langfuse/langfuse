@@ -80,11 +80,13 @@ import {
   ObservationTypeDomain,
   viewDeclarations,
   type FilterState,
+  type TimeFilter,
 } from "@langfuse/shared";
 
 import TagManager from "@/src/features/tag/components/TagManager";
 
 import { MonitorChartPreview } from "./MonitorChartPreview";
+import { getMonitorFilterOptionsLookbackFrom } from "../helpers/monitorTimeRanges";
 import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";
 import { MonitorSeverityBadge } from "./MonitorSeverityBadge";
 import { Badge } from "@/src/components/ui/badge";
@@ -181,6 +183,7 @@ const buildFilterColumnsParams = ({
     viewVersion: "v2" as const,
     environmentOptions: filterOptions?.environment ?? [],
     nameOptions: normalizeSingleValueOptions(filterOptions?.traceName),
+    observationNameOptions: normalizeSingleValueOptions(filterOptions?.name),
     tagsOptions: filterOptions?.traceTags ?? [],
     modelOptions: filterOptions?.providedModelName ?? [],
     toolNamesOptions: filterOptions?.toolNames ?? [],
@@ -312,6 +315,19 @@ export const MonitorForm = ({
   const watched = useWatch({ control: form.control });
   const monitorWindow = (watched.window ?? "5m") as MonitorWindow;
 
+  /** filterOptionsStartTimeFilter lower-bounds discovery at max(20×window, 7d) so even a small monitor window still yields value suggestions. */
+  const filterOptionsStartTimeFilter = useMemo<TimeFilter[]>(
+    () => [
+      {
+        column: "startTime",
+        type: "datetime",
+        operator: ">=",
+        value: getMonitorFilterOptionsLookbackFrom(monitorWindow, Date.now()),
+      },
+    ],
+    [monitorWindow],
+  );
+
   // Push the live name up to the host (e.g. the edit page header) so the page
   // title can mirror it as the user types instead of waiting for save.
   useEffect(() => {
@@ -322,7 +338,7 @@ export const MonitorForm = ({
   const eventsFilterOptions = api.events.filterOptions.useQuery(
     {
       projectId,
-      monitorWindow,
+      startTimeFilter: filterOptionsStartTimeFilter,
     },
     {
       trpc: { context: { skipBatch: true } },
