@@ -1406,6 +1406,7 @@ describe("Token Cost Calculation", () => {
         observationId: generationId,
         providedTotal: 150,
         bucketSum: 230,
+        writePath: "events",
       });
 
       // Warn only — the provided values must be written unchanged
@@ -1464,6 +1465,140 @@ describe("Token Cost Calculation", () => {
         },
         "testfile.txt",
       );
+
+      const mismatchWarnings = warnSpy.mock.calls.filter(([message]) =>
+        String(message).includes("exceeds provided total"),
+      );
+      expect(mismatchWarnings).toHaveLength(0);
+    });
+
+    it("should warn on the direct event path even when no model is provided", async () => {
+      (IngestionService as any).lastUsageTotalMismatchLogAt = 0;
+      const warnSpy = vi.spyOn(logger, "warn");
+      const generationId = uuidv4();
+
+      await (mockIngestionService as any).createEventRecord(
+        {
+          projectId,
+          spanId: generationId,
+          startTime: new Date().toISOString(),
+          providedUsageDetails: {
+            input: 100,
+            cache_read_input_tokens: 80,
+            output: 50,
+            total: 150,
+          },
+        },
+        "testfile.txt",
+      );
+
+      const mismatchWarnings = warnSpy.mock.calls.filter(([message]) =>
+        String(message).includes("exceeds provided total"),
+      );
+      expect(mismatchWarnings).toHaveLength(1);
+      expect(mismatchWarnings[0][1]).toMatchObject({
+        projectId,
+        observationId: generationId,
+      });
+    });
+
+    it("should log the warning at most once per rate-limit interval", async () => {
+      (IngestionService as any).lastUsageTotalMismatchLogAt = 0;
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      for (const spanId of [uuidv4(), uuidv4()]) {
+        await (mockIngestionService as any).createEventRecord(
+          {
+            projectId,
+            spanId,
+            startTime: new Date().toISOString(),
+            modelName,
+            providedUsageDetails: {
+              input: 100,
+              cache_read_input_tokens: 80,
+              output: 50,
+              total: 150,
+            },
+          },
+          "testfile.txt",
+        );
+      }
+
+      const mismatchWarnings = warnSpy.mock.calls.filter(([message]) =>
+        String(message).includes("exceeds provided total"),
+      );
+      expect(mismatchWarnings).toHaveLength(1);
+    });
+
+    it("should warn on the legacy merge path when incoming events carry inconsistent usage", async () => {
+      (IngestionService as any).lastUsageTotalMismatchLogAt = 0;
+      const warnSpy = vi.spyOn(logger, "warn");
+      const generationId = uuidv4();
+
+      const events = [
+        {
+          id: uuidv4(),
+          type: "generation-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: generationId,
+            startTime: new Date().toISOString(),
+            model: modelName,
+            usageDetails: {
+              input: 100,
+              cache_read_input_tokens: 80,
+              output: 50,
+              total: 150,
+            },
+          },
+        },
+      ];
+
+      await (mockIngestionService as any).processObservationEventList({
+        projectId,
+        entityId: generationId,
+        createdAtTimestamp: new Date(),
+        observationEventList: events,
+      });
+
+      const mismatchWarnings = warnSpy.mock.calls.filter(([message]) =>
+        String(message).includes("exceeds provided total"),
+      );
+      expect(mismatchWarnings).toHaveLength(1);
+      expect(mismatchWarnings[0][1]).toMatchObject({
+        projectId,
+        observationId: generationId,
+        writePath: "legacy",
+      });
+    });
+
+    it("should not warn on the legacy merge path when incoming events carry no usage", async () => {
+      (IngestionService as any).lastUsageTotalMismatchLogAt = 0;
+      const warnSpy = vi.spyOn(logger, "warn");
+      const generationId = uuidv4();
+
+      // Partial update without usage: the guard must not fire even if merged
+      // state contains usage (here there is none, but the gate is on the
+      // incoming events).
+      const events = [
+        {
+          id: uuidv4(),
+          type: "generation-update",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: generationId,
+            startTime: new Date().toISOString(),
+            output: "updated output",
+          },
+        },
+      ];
+
+      await (mockIngestionService as any).processObservationEventList({
+        projectId,
+        entityId: generationId,
+        createdAtTimestamp: new Date(),
+        observationEventList: events,
+      });
 
       const mismatchWarnings = warnSpy.mock.calls.filter(([message]) =>
         String(message).includes("exceeds provided total"),
