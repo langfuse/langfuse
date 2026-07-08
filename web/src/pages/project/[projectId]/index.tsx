@@ -36,7 +36,7 @@ import {
   useDashboardQueryScheduler,
 } from "@/src/hooks/useDashboardQueryScheduler";
 import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
-import { CustomizeHomeButton } from "@/src/features/dashboard/components/CustomizeHomeDialog";
+import { HomeDashboardSelect } from "@/src/features/dashboard/components/HomeDashboardSelect";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -207,14 +207,10 @@ export default function Dashboard() {
           ),
           actionButtonsRight: (
             <>
-              <CustomizeHomeButton
+              <HomeDashboardSelect
                 projectId={projectId}
                 homeDashboardId={homeDashboard.data?.homeDashboardId ?? null}
-                currentDashboard={{
-                  id: dashboardId,
-                  name: dashboardName,
-                  owner: dashboardOwner,
-                }}
+                currentDashboardName={dashboardName}
               />
               <SetupTracingButton />
             </>
