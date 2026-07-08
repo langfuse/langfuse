@@ -1,0 +1,50 @@
+{
+  "isoWeek": "2026-W28",
+  "kind": "partial-checkpoint",
+  "analyzedAt": "2026-07-08",
+  "note": "Mid-week manual (workflow_dispatch) checkpoint. Real ISO week W28 is 2026-07-06..07-12; only Mon-Wed elapsed. The sibling history/2026-W28.json is the established BASELINE but its window (2026-06-30..07-07) is mostly W27 — it is misnamed. This file captures the first robust full-day of true-W28 merge-group data (07-08) without overwriting that baseline. The complete W28 file should be written on the next full-week run and the naming collision resolved then.",
+  "window": { "from": "2026-07-08T00:00:00Z", "to": "2026-07-08T15:00:00Z" },
+  "events": {
+    "merge_group": {
+      "day": "2026-07-08",
+      "runCount": { "success": 16, "note": "1 further run (14:56Z) still in-progress at analysis time, excluded" },
+      "perceived": { "p50": 433, "p90": 542, "unit": "s", "population": "all 16 successful 07-08 runs", "values": [294,329,349,351,377,392,411,418,433,453,453,460,468,474,542,743] },
+      "segmentsSampled": {
+        "sampleSize": 7,
+        "sampledRunIds": [28928561785,28930815055,28941767608,28943636675,28947468624,28949221068,28951510211],
+        "executionMed": { "median": 396, "values": [337,351,376,396,453,511,679], "unit": "s" },
+        "runnerWaitMed": { "median": 22, "values": [12,16,21,22,26,31,64], "unit": "s", "note": "per-run perceived minus exec on the same run; consistent low wait" },
+        "webBuildStepMed": { "median": 114, "values": [99,103,111,114,115,118,156] },
+        "webRunTestsStepMed": { "median": 114, "values": [103,104,114,114,119,126,188] },
+        "workerRunTestsStepMed": { "median": 99, "values": [94,97,98,99,105,107,111] },
+        "e2eTestsJobSec": { "median": 214, "values": [175,189,206,214,261,284,319] }
+      }
+    }
+  },
+  "comparisonToBaseline": {
+    "baselineFile": "history/2026-W28.json (window 06-30..07-07)",
+    "webRunTestsStep": "07-08 median 114s vs baseline week-median 86s (+33%), BUT baseline late-day single-samples were 07-06=130s, 07-07=151s; 07-08 (7-run) at 114s is BELOW the late-week single-samples. The intra-week rise flagged in the baseline did NOT worsen — it stabilized/receded. No confirmed regression.",
+    "execution": "07-08 median 396s vs baseline sampled 401s — flat.",
+    "e2e": "07-08 median 214s vs baseline sampled 232s — slightly down.",
+    "webBuild": "07-08 median 114s vs baseline 114s — flat.",
+    "worker": "07-08 median 99s vs baseline 80s — up ~24%, within single-day sample variance; watch."
+  },
+  "flakyTests": [],
+  "flakyNote": "Zero retries in sampled 07-08 logs: tests-worker (node24,pg12,mode) job 85899181216 and tests-web client project job 85899181223 both show cleanup immediately after the slowest-files block (the reporter prints 'Retried tests (N):' only when >=1 retry). Consistent with the baseline week's zero-flaky finding.",
+  "slowestTests": {
+    "webClient": [
+      { "test": "json-utils.clienttest.ts > 250K keys, depth 1 (~10MB)", "sec": 3.59 },
+      { "test": "json-utils.clienttest.ts > 125K keys, depth 1 (~5MB)", "sec": 1.72 },
+      { "file": "src/__tests__/json-utils.clienttest.ts", "summedSec": 6.63, "tests": 106 }
+    ],
+    "workerServer": [
+      { "file": "src/__tests__/webhooks.test.ts", "summedSec": 19.25, "tests": 20 },
+      { "file": "src/features/evaluation/codeBased/awsLambdaCodeEvalDispatcher.integration.test.ts", "summedSec": 11.96, "tests": 5 },
+      { "file": "src/__tests__/batchExport.test.ts", "summedSec": 9.40, "tests": 71 },
+      { "file": "src/__tests__/evalService.test.ts", "summedSec": 9.18, "tests": 102 },
+      { "file": "src/services/IngestionService/tests/IngestionService.integration.test.ts", "summedSec": 8.95, "tests": 57 },
+      { "file": "src/__tests__/bufferedStreamUploader.test.ts", "summedSec": 6.36, "tests": 40 }
+    ]
+  },
+  "action": { "prOpened": false, "reason": "Partial mid-week checkpoint: no regression (07-08 flat-to-down vs baseline), zero flaky, and the top deferred optimization candidate (webhooks.test.ts) was investigated and found unfit for an autonomous PR (see notes)." }
+}

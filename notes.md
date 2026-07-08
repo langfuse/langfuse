@@ -82,6 +82,46 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
   chart, ledger) untouched except this note. Next scheduled run should pick
   up a full new week.
 
+## 2026-07-08 (fifth run, manual re-trigger — noop, FIRST real analysis of true-W28 data)
+
+- `workflow_dispatch` at 07-08T14:59Z. Unlike the prior four noops, **07-08 now
+  has 16 successful merge-group runs** (>10 threshold, ≥5/day → daily median
+  computable). First run with enough true-W28 (07-06..07-12) data to actually
+  test the baseline's late-week `run tests` drift watch item. Wrote
+  `history/2026-W28-partial-0708.json` (checkpoint, does NOT overwrite baseline).
+- **07-08 daily medians (7-run segment sample + 16-run perceived):** perceived
+  p50=433s/p90=542s; execution=396s; runner wait=22s; web Build step=114s; web
+  `run tests` step=114s; worker `run tests` step=99s; e2e-tests job=214s.
+- **No regression; the flagged intra-week `run tests` rise did NOT persist.**
+  Baseline late-day single-samples were web run tests 130s (07-06) / 151s
+  (07-07); 07-08's 7-run median is 114s — BELOW those, i.e. the late-week bump
+  receded rather than becoming a sustained shift. Execution flat (396 vs 401),
+  e2e down (214 vs 232), Build flat (114 vs 114). Worker run tests 99 vs 80
+  (+24%) is the only up-mover — single-day sample, WATCH but not actionable.
+- **NAMING COLLISION to fix on the next full-week run:** `history/2026-W28.json`
+  is the established baseline but its window (06-30..07-07) is mostly W27. When
+  the real full W28 (07-06..07-12) completes, do NOT clobber the baseline — write
+  the complete-week file and rename/relabel the baseline to reflect its W27
+  window (or keep it as an explicitly-named baseline snapshot). Same for
+  `charts/2026-W28.svg`. This run left both baseline artifacts untouched.
+- **webhooks.test.ts `vi.useFakeTimers()` hypothesis DISPROVEN.** The baseline
+  note speculated the 19s webhooks suite was retry/backoff-timing-bound and a
+  fake-timers win. Read the file (worker/src/__tests__/webhooks.test.ts, 1827
+  lines): it uses `msw` for mocked HTTP (no real network) and has **no**
+  setTimeout/sleep/timer calls. The cost is real Postgres+Redis round-trips in
+  the `for (i<5)` failure-count-accumulation loops (tests at L536/650/710/1316
+  call `executeWebhook` 5× each). No safe autonomous win — reducing round-trips
+  would touch integration semantics. Do not retry the fake-timers idea.
+- **bufferedStreamUploader.test.ts setTimeout calls are load-bearing.** The
+  `setTimeout(r, 10/50/100)` at L271/297/326/429 live inside upload-latency
+  mocks that exercise buffering/concurrency ordering — not padding. Not safe to
+  strip. Skip as an optimization target.
+- **json-utils.clienttest.ts remains the top client slow file** (6.63s this run,
+  was 8.91s baseline — runner variance). Still flagged do-not-touch (mutation
+  semantics + borderline coverage); unchanged from baseline note above.
+- Ledger `prs.json` still empty; zero `ci-performance`-labelled PRs exist in the
+  repo (confirmed via search) → no assessment work.
+
 ## Tooling notes (for future runs)
 
 - The GitHub Actions MCP `list_workflow_runs` caps at ~30 runs/page regardless
