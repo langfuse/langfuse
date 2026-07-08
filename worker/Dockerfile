@@ -37,6 +37,13 @@ COPY --from=pruner /app/out/json/ .
 
 RUN pnpm install --frozen-lockfile
 
+# pnpm 11 defaults verify-deps-before-run to "install", so every `pnpm run`
+# spawned by turbo re-checks node_modules via file mtimes. Cached install
+# layers make those mtimes look stale, and the concurrent auto-installs race
+# in the hoisting step (ENOENT unlink in node_modules/.pnpm/node_modules).
+# The frozen-lockfile install above is authoritative; skip the check.
+ENV pnpm_config_verify_deps_before_run=false
+
 # pass public variables in build step
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
 ARG NEXT_PUBLIC_DEMO_ORG_ID

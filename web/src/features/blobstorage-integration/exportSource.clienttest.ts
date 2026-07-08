@@ -4,6 +4,7 @@ import {
   getExportSourceFormValue,
   getExportSourceOptions,
   isExportSourceSelectable,
+  shouldHideExportSourceSelector,
 } from "./exportSource";
 
 const cloudPreCutoff = {
@@ -175,5 +176,54 @@ describe("getExportSourceOptions", () => {
         (o) => o.value === AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
       )?.unavailable,
     ).toBe(false);
+  });
+});
+
+describe("shouldHideExportSourceSelector", () => {
+  it("hides the selector when there is exactly one selectable source", () => {
+    // Post-cutoff Cloud project: EVENTS only.
+    expect(
+      shouldHideExportSourceSelector(
+        getExportSourceOptions(undefined, cloudPostCutoff),
+      ),
+    ).toBe(true);
+    // Rolled-back self-hosted with a persisted legacy source: legacy only.
+    expect(
+      shouldHideExportSourceSelector(
+        getExportSourceOptions(
+          AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+          selfHostedRolledBack,
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps the selector when there is a real choice", () => {
+    expect(
+      shouldHideExportSourceSelector(
+        getExportSourceOptions(undefined, cloudPreCutoff),
+      ),
+    ).toBe(false);
+    // Stale persisted enriched source alongside the legacy fallback.
+    expect(
+      shouldHideExportSourceSelector(
+        getExportSourceOptions(
+          AnalyticsIntegrationExportSource.EVENTS,
+          selfHostedRolledBack,
+        ),
+      ),
+    ).toBe(false);
+  });
+
+  it("keeps the selector when the sole option is the stale persisted source", () => {
+    // The unavailable-source alert points at the selector; hiding it here
+    // would strand the user with a blocked save and nothing to change.
+    const options = getExportSourceOptions(
+      AnalyticsIntegrationExportSource.EVENTS,
+      { eventsExportAvailable: false, forceEventsExport: true },
+    );
+    expect(options).toHaveLength(1);
+    expect(options[0].unavailable).toBe(true);
+    expect(shouldHideExportSourceSelector(options)).toBe(false);
   });
 });

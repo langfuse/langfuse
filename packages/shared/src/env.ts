@@ -302,7 +302,7 @@ const EnvSchema = z.object({
     .number()
     .int()
     .gt(60)
-    .default(3600), // 1 hour
+    .default(600), // 10 minutes
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -442,6 +442,20 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(120_000), // 2 minutes
+
+  // Comma-separated list of LLM adapters (e.g. "openai") whose completions run
+  // on the AI SDK execution engine instead of LangChain
+  LANGFUSE_LLM_COMPLETION_AI_SDK_ADAPTERS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s
+        ? s
+            .split(",")
+            .map((v) => v.trim().toLowerCase())
+            .filter(Boolean)
+        : [],
+    ),
 
   LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
   LANGFUSE_AWS_BEDROCK_SMALL_MODEL: z.string().optional(),

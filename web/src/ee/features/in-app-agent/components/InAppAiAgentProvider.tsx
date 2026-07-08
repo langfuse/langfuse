@@ -139,9 +139,9 @@ type InAppAiAgentContextType = {
 
 const InAppAiAgentContext = createContext<InAppAiAgentContextType | null>(null);
 
-export interface InAppAiAgentProviderProps extends PropsWithChildren {
+export type InAppAiAgentProviderProps = PropsWithChildren<{
   defaultOpen?: boolean;
-}
+}>;
 
 export function InAppAiAgentProvider({
   children,
@@ -417,8 +417,15 @@ function InAppAiAgentProviderInner({
       }
 
       subscriptionRef.current = agent.subscribe({
-        onRunStartedEvent: ({ event }) => {
-          activeRunIdRef.current = event.runId;
+        onRunStartedEvent: (payload: { event: unknown }) => {
+          if (
+            typeof payload.event === "object" &&
+            payload.event !== null &&
+            "runId" in payload.event &&
+            typeof payload.event.runId === "string"
+          ) {
+            activeRunIdRef.current = payload.event.runId;
+          }
         },
         onCustomEvent: ({ event }) => {
           const approvalRequest = parseInAppAgentInterruptEvent(event);

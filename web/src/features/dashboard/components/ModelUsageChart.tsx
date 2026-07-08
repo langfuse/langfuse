@@ -397,6 +397,8 @@ export const ModelUsageChart = ({
                       // Token/cost totals are additive sums. (LFE-10498)
                       legendSummary="sum"
                       syncId={syncId}
+                      // Additive sums: a bucket without data honestly sums to 0. (LFE-10694)
+                      missingValue="zero"
                     />
                   </div>
                 )}

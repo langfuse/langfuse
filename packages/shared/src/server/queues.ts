@@ -67,6 +67,13 @@ export const OtelIngestionEvent = z.object({
   sdkName: z.string().optional(),
   sdkVersion: z.string().optional(),
   ingestionVersion: z.string().optional(),
+  // Langfuse-internal telemetry (e.g. LLM-as-a-judge / prompt-experiment
+  // executions published via fetchLLMCompletion's AI SDK engine). The
+  // consumer must parse these events with the INTERNAL ingestion schema:
+  // the public schema strips the reserved "langfuse-" environment prefix,
+  // which would expose internal traces as user environments and bypass the
+  // trace-upsert eval-loop guard. Optional for in-flight job compatibility.
+  isLangfuseInternal: z.boolean().optional(),
 });
 
 export const BatchExportJobSchema = z.object({

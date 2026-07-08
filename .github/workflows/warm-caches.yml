@@ -50,14 +50,14 @@ jobs:
       matrix:
         deploy-mode: ["", "-azure", "-redis-cluster"]
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       # No pinned version on purpose: the action reads "packageManager" from
       # package.json, so pnpm bumps that update pipeline.yml cannot strand
       # this satellite workflow on a mismatched pin (which hard-fails the
       # action, as the 2026-07-06 11.4.0→11.10.0 bump did).
-      - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
       - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] scheduled cache warmer for test-job dependency caches only; runs on main, no released artifacts are built or published from this cached state
         with:
@@ -85,7 +85,7 @@ jobs:
           echo "LANGFUSE_SKIP_EVALUATOR_MODEL_CALL_VALIDATION=true" >> .env
           echo "LANGFUSE_ENABLE_SCORES_V3_API=true" >> .env
       - name: Setup Turbo cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # zizmor: ignore[cache-poisoning] scheduled cache warmer for test-job turbo caches only; runs on main, publish jobs rebuild artifacts and do not restore this cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] scheduled cache warmer for test-job turbo caches only; runs on main, publish jobs rebuild artifacts and do not restore this cache
         with:
           path: .turbo
           # Same key shape as the tests-web "Setup Turbo cache" step so branch
