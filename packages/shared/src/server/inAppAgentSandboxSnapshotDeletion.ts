@@ -5,20 +5,14 @@ import {
 import { DeleteObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
 export async function deleteLambdaMicrovmInAppAgentSandboxSnapshot(params: {
-  endpoint?: string;
   snapshotBucket?: string;
   snapshotPrefix: string;
   snapshotRegion?: string;
-  snapshotAccessKeyId?: string;
-  snapshotSecretAccessKey?: string;
-  snapshotForcePathStyle?: boolean;
   sessionId?: string | null;
   snapshotKey: string;
 }) {
   if (params.sessionId) {
-    const client = new LambdaMicrovmsClient({
-      ...(params.endpoint ? { endpoint: params.endpoint } : {}),
-    });
+    const client = new LambdaMicrovmsClient({});
 
     await client
       .send(new SuspendMicrovmCommand({ microvmIdentifier: params.sessionId }))
@@ -31,16 +25,6 @@ export async function deleteLambdaMicrovmInAppAgentSandboxSnapshot(params: {
 
   const client = new S3Client({
     ...(params.snapshotRegion ? { region: params.snapshotRegion } : {}),
-    ...(params.endpoint ? { endpoint: params.endpoint } : {}),
-    ...(params.snapshotForcePathStyle ? { forcePathStyle: true } : {}),
-    ...(params.snapshotAccessKeyId && params.snapshotSecretAccessKey
-      ? {
-          credentials: {
-            accessKeyId: params.snapshotAccessKeyId,
-            secretAccessKey: params.snapshotSecretAccessKey,
-          },
-        }
-      : {}),
   });
   let prefix = params.snapshotPrefix;
   while (prefix.endsWith("/")) {

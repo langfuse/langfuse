@@ -3,7 +3,6 @@ import { PassThrough } from "node:stream";
 import type Docker from "dockerode";
 import { logger } from "@langfuse/shared/src/server";
 
-import type { SandboxSnapshotStore } from "../snapshots";
 import type { SandboxFile, SandboxSession } from "../types";
 
 type DockerExecResult = {
@@ -15,7 +14,6 @@ type DockerExecResult = {
 type DockerContainer = Docker.Container;
 
 type DockerSandboxSession = {
-  snapshotKey: string;
   toolCallFiles: ReadonlyArray<SandboxFile>;
 };
 
@@ -27,24 +25,15 @@ type DockerExecContext = {
 
 const DOCKER_SANDBOX_SERVER_PORT = 5000;
 
-export async function createDockerSandboxProvider(params: {
-  image: string;
-  snapshotStore: SandboxSnapshotStore;
-}) {
+export async function createDockerSandboxProvider(params: { image: string }) {
   const { default: Docker } = await import("dockerode");
   const docker = new Docker();
   const sessions = new Map<string, DockerSandboxSession>();
 
-  const ensureSessionState = (conversationId: string, snapshotKey: string) => {
+  const ensureSessionState = (conversationId: string) => {
     const session = sessions.get(conversationId) ?? {
-      snapshotKey,
       toolCallFiles: [],
     };
-
-    if (session.snapshotKey !== snapshotKey) {
-      session.snapshotKey = snapshotKey;
-    }
-
     sessions.set(conversationId, session);
     return session;
   };
@@ -72,10 +61,7 @@ export async function createDockerSandboxProvider(params: {
     );
   };
 
-  const createContainer = async (createParams: {
-    conversationId: string;
-    snapshotKey: string;
-  }) => {
+  const createContainer = async (createParams: { conversationId: string }) => {
     let container: DockerContainer;
     const containerName = getDockerSandboxContainerName(
       createParams.conversationId,
@@ -84,7 +70,6 @@ export async function createDockerSandboxProvider(params: {
     try {
       logger.debug("In-app agent docker sandbox creating container", {
         image: params.image,
-        snapshotKey: createParams.snapshotKey,
         containerName,
       });
       container = await docker.createContainer({
@@ -116,32 +101,12 @@ export async function createDockerSandboxProvider(params: {
       conversationId: createParams.conversationId,
     });
 
-    const snapshot = await params.snapshotStore.getSnapshot(
-      createParams.snapshotKey,
-    );
-    if (snapshot) {
-      logger.debug("In-app agent docker sandbox restoring snapshot", {
-        containerId: container.id,
-        snapshotKey: createParams.snapshotKey,
-        snapshotBytes: snapshot.length,
-      });
-      await container.putArchive(Buffer.from(snapshot), { path: "/" });
-    } else {
-      logger.debug("In-app agent docker sandbox has no snapshot to restore", {
-        containerId: container.id,
-        snapshotKey: createParams.snapshotKey,
-      });
-    }
-
-    ensureSessionState(createParams.conversationId, createParams.snapshotKey);
+    ensureSessionState(createParams.conversationId);
     await waitForSandboxServer(container);
     return container;
   };
 
-  const ensureContainer = async (params: {
-    conversationId: string;
-    snapshotKey: string;
-  }) => {
+  const ensureContainer = async (params: { conversationId: string }) => {
     logger.debug("In-app agent docker sandbox inspecting existing container", {
       conversationId: params.conversationId,
       containerName: getDockerSandboxContainerName(params.conversationId),
@@ -167,7 +132,7 @@ export async function createDockerSandboxProvider(params: {
       return await createContainer(params);
     }
 
-    ensureSessionState(params.conversationId, params.snapshotKey);
+    ensureSessionState(params.conversationId);
     logger.debug("In-app agent docker sandbox reusing running container", {
       conversationId: params.conversationId,
       containerId: existing.container.id,
@@ -176,34 +141,9 @@ export async function createDockerSandboxProvider(params: {
     return existing.container;
   };
 
-  const suspendSession = async (sessionId: string, snapshotKey: string) => {
-    try {
-      const existing =
-        (await getContainerByIdentifier(sessionId)) ??
-        (await getContainerByConversationId(sessionId));
-
-      if (!existing) {
-        return;
-      }
-
-      const container = existing.container;
-      const archive = await container.getArchive({ path: "/workspace" });
-      await params.snapshotStore.putSnapshot(
-        snapshotKey,
-        await readStreamToUint8Array(archive),
-      );
-      await container.remove({ force: true, v: true }).catch(() => undefined);
-    } finally {
-      sessions.delete(sessionId);
-    }
-  };
-
-  const createSessionSandbox = (
-    conversationId: string,
-    snapshotKey: string,
-  ): SandboxSession => ({
+  const createSessionSandbox = (conversationId: string): SandboxSession => ({
     async syncReadonlyFiles({ files }) {
-      ensureSessionState(conversationId, snapshotKey).toolCallFiles = files;
+      ensureSessionState(conversationId).toolCallFiles = files;
       logger.debug("In-app agent docker sandbox synced readonly files", {
         conversationId,
         fileCount: files.length,
@@ -211,7 +151,7 @@ export async function createDockerSandboxProvider(params: {
       });
     },
     async read({ path }) {
-      const container = await ensureContainer({ conversationId, snapshotKey });
+      const container = await ensureContainer({ conversationId });
       return await callSandboxServer(container, {
         operation: "read",
         path,
@@ -219,7 +159,7 @@ export async function createDockerSandboxProvider(params: {
       });
     },
     async write({ path, content }) {
-      const container = await ensureContainer({ conversationId, snapshotKey });
+      const container = await ensureContainer({ conversationId });
       return await callSandboxServer(container, {
         operation: "write",
         path,
@@ -228,7 +168,7 @@ export async function createDockerSandboxProvider(params: {
       });
     },
     async edit({ path, oldText, newText }) {
-      const container = await ensureContainer({ conversationId, snapshotKey });
+      const container = await ensureContainer({ conversationId });
       return await callSandboxServer(container, {
         operation: "edit",
         path,
@@ -238,7 +178,7 @@ export async function createDockerSandboxProvider(params: {
       });
     },
     async bash({ command, timeoutMs }) {
-      const container = await ensureContainer({ conversationId, snapshotKey });
+      const container = await ensureContainer({ conversationId });
       return await callSandboxServer(container, {
         operation: "bash",
         command,
@@ -265,7 +205,6 @@ export async function createDockerSandboxProvider(params: {
       });
       const container = await ensureContainer({
         conversationId,
-        snapshotKey,
       });
       logger.debug("In-app agent docker sandbox ready session", {
         conversationId,
@@ -274,7 +213,7 @@ export async function createDockerSandboxProvider(params: {
       });
       return {
         sessionId: conversationId,
-        sandbox: createSessionSandbox(conversationId, snapshotKey),
+        sandbox: createSessionSandbox(conversationId),
       };
     },
     async suspendSession({
@@ -284,7 +223,14 @@ export async function createDockerSandboxProvider(params: {
       sessionId: string;
       snapshotKey: string;
     }) {
-      await suspendSession(sessionId, snapshotKey);
+      sessions.delete(sessionId);
+      logger.debug(
+        "In-app agent docker sandbox leaving container running across local session suspend",
+        {
+          sessionId,
+          snapshotKey,
+        },
+      );
     },
     async terminateSession({ sessionId }: { sessionId: string }) {
       sessions.delete(sessionId);

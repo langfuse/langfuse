@@ -56,6 +56,23 @@ export async function createInAppAgentSandbox(params: {
     persistedSnapshotKey = snapshotKey;
   };
 
+  const updateSessionState = async (nextSessionId: string) => {
+    if (
+      nextSessionId === sessionId &&
+      sandboxProvider === params.providerType &&
+      persistedSnapshotKey === snapshotKey &&
+      sandboxExpiresAt === null
+    ) {
+      sessionIsKnownActive = true;
+      return;
+    }
+
+    sessionId = nextSessionId;
+    sandboxExpiresAt = null;
+    await persistState();
+    sessionIsKnownActive = true;
+  };
+
   const maybeSuspendExpiredSession = async () => {
     if (
       sessionId !== null &&
@@ -84,18 +101,7 @@ export async function createInAppAgentSandbox(params: {
       snapshotKey,
     });
 
-    if (
-      session.sessionId !== sessionId ||
-      sandboxProvider !== params.providerType ||
-      persistedSnapshotKey !== snapshotKey ||
-      (!sessionIsKnownActive && sandboxExpiresAt !== null)
-    ) {
-      sessionId = session.sessionId;
-      sandboxExpiresAt = null;
-      await persistState();
-    }
-
-    sessionIsKnownActive = true;
+    await updateSessionState(session.sessionId);
 
     await session.sandbox.syncReadonlyFiles({
       files: await params.getToolCallFiles(),

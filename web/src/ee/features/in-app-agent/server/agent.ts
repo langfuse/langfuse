@@ -213,6 +213,7 @@ export async function createAgUiStream(params: {
   let eventQueue = Promise.resolve();
   let cleanupAdapter: (() => Promise<void>) | undefined;
   let interruptAdapter: (() => void) | undefined;
+  let onFinishPromise: Promise<void> | undefined;
 
   const removeAbortHandler = () => {
     if (!abortHandler) {
@@ -231,10 +232,7 @@ export async function createAgUiStream(params: {
     finished = true;
     eventQueue
       .then(async () => {
-        const results = await Promise.allSettled([
-          cleanupAdapter?.(),
-          params.options.onFinish?.(),
-        ]);
+        const results = await Promise.allSettled([cleanupAdapter?.()]);
 
         for (const result of results) {
           if (result.status === "rejected") {
@@ -254,6 +252,11 @@ export async function createAgUiStream(params: {
           threadId: params.input.threadId,
         });
       });
+  };
+
+  const runOnFinish = () => {
+    onFinishPromise ??= Promise.resolve(params.options.onFinish?.());
+    return onFinishPromise;
   };
 
   const runTerminalCallback = async (
@@ -300,7 +303,14 @@ export async function createAgUiStream(params: {
         runTerminalCallback(
           () => params.options.onError?.(error),
           "Error while marking agent stream as failed",
-        ).finally(finish);
+        )
+          .then(() =>
+            runTerminalCallback(
+              runOnFinish,
+              "Error while running agent stream finish callback after failure",
+            ),
+          )
+          .finally(finish);
 
         controller.error(error);
       };
@@ -378,6 +388,7 @@ export async function createAgUiStream(params: {
             }
 
             await terminalCallback?.();
+            await runOnFinish();
 
             if (closed) {
               return;
@@ -409,6 +420,12 @@ export async function createAgUiStream(params: {
             runTerminalCallback(
               () => params.options.onAbort?.(),
               "Error while marking agent stream as aborted",
+            ),
+          )
+          .then(() =>
+            runTerminalCallback(
+              runOnFinish,
+              "Error while running agent stream finish callback after abort",
             ),
           )
           .then(() => {

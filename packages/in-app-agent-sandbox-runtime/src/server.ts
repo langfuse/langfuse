@@ -1,11 +1,24 @@
 import { spawn } from "node:child_process";
-import { chmod, mkdir, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import {
   createServer,
   type IncomingMessage,
   type ServerResponse,
 } from "node:http";
 import path from "node:path";
+import {
+  S3Client,
+  GetObjectCommand,
+  PutObjectCommand,
+} from "@aws-sdk/client-s3";
+import { z } from "zod";
 
 import {
   SandboxFileSchema,
@@ -21,10 +34,26 @@ import {
 const BRIDGE_PORT = Number(process.env.PORT ?? 5000);
 const WORKSPACE_ROOT = process.env.WORKSPACE_ROOT ?? "/workspace";
 const TOOL_CALLS_ROOT = path.join(WORKSPACE_ROOT, "tool_calls");
+const LIFECYCLE_STATE_PATH = path.join(
+  WORKSPACE_ROOT,
+  ".langfuse-microvm-lifecycle-state.json",
+);
 const TOOL_RUNNER_PATH = "/app/dist/toolRunner.js";
 const TOOL_RUNNER_USER = "sandbox-tool";
 const TOOL_RUNNER_GROUP = "sandbox-tool";
 let requestCounter = 0;
+
+const RunHookPayloadSchema = z.object({
+  bridgePort: z.number().int().positive().optional(),
+  snapshotBucket: z.string().optional(),
+  snapshotKey: z.string().optional(),
+  snapshotPrefix: z.string().optional(),
+  snapshotRegion: z.string().optional(),
+});
+
+const LifecycleStateSchema = RunHookPayloadSchema.omit({ bridgePort: true });
+
+type LifecycleState = z.infer<typeof LifecycleStateSchema>;
 
 const server = createServer(async (request, response) => {
   const requestId = `req-${++requestCounter}`;
@@ -40,6 +69,46 @@ const server = createServer(async (request, response) => {
     if (request.method === "GET" && request.url === "/health") {
       logSandboxServer("health.ok", { requestId });
       sendJson(response, 200, { status: "ok" });
+      logSandboxServer("request.end", {
+        requestId,
+        statusCode: 200,
+        durationMs: Date.now() - startedAt,
+      });
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/run") {
+      sendJson(response, 200, await runHook(requestId, request));
+      logSandboxServer("request.end", {
+        requestId,
+        statusCode: 200,
+        durationMs: Date.now() - startedAt,
+      });
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/suspend") {
+      sendJson(response, 200, await suspendHook(requestId));
+      logSandboxServer("request.end", {
+        requestId,
+        statusCode: 200,
+        durationMs: Date.now() - startedAt,
+      });
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/resume") {
+      sendJson(response, 200, await resumeHook(requestId));
+      logSandboxServer("request.end", {
+        requestId,
+        statusCode: 200,
+        durationMs: Date.now() - startedAt,
+      });
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/terminate") {
+      sendJson(response, 200, await terminateHook(requestId));
       logSandboxServer("request.end", {
         requestId,
         statusCode: 200,
@@ -187,6 +256,91 @@ async function bashOperation(body: BashSandboxOperation, requestId: string) {
   return { result };
 }
 
+async function runHook(requestId: string, request: IncomingMessage) {
+  const payload = RunHookPayloadSchema.parse(await readJsonBody(request));
+  logSandboxServer("hook.run.start", {
+    requestId,
+    snapshotBucket: payload.snapshotBucket,
+    snapshotKey: payload.snapshotKey,
+    snapshotPrefix: payload.snapshotPrefix,
+  });
+
+  await ensureWorkspaceRoots();
+
+  const snapshot = await readSnapshotFromS3(payload);
+  if (snapshot) {
+    await clearWorkspace();
+    await extractWorkspaceSnapshot(snapshot);
+    logSandboxServer("hook.run.restoredSnapshot", {
+      requestId,
+      snapshotBytes: snapshot.length,
+      snapshotKey: payload.snapshotKey,
+    });
+  } else {
+    logSandboxServer("hook.run.noSnapshot", {
+      requestId,
+      snapshotKey: payload.snapshotKey,
+    });
+  }
+
+  await ensureWorkspaceRoots();
+  await writeLifecycleState(payload);
+
+  return {
+    restoredSnapshot: Boolean(snapshot),
+    snapshotBytes: snapshot?.length ?? 0,
+  };
+}
+
+async function suspendHook(requestId: string) {
+  const state = await readLifecycleState();
+  logSandboxServer("hook.suspend.start", {
+    requestId,
+    snapshotBucket: state?.snapshotBucket,
+    snapshotKey: state?.snapshotKey,
+    snapshotPrefix: state?.snapshotPrefix,
+  });
+
+  await ensureWorkspaceRoots();
+
+  if (!state?.snapshotBucket || !state.snapshotKey) {
+    logSandboxServer("hook.suspend.noSnapshotConfig", { requestId });
+    return { uploadedSnapshot: false, snapshotBytes: 0 };
+  }
+
+  const snapshot = await createWorkspaceSnapshot();
+  await writeSnapshotToS3(state, snapshot);
+  logSandboxServer("hook.suspend.uploadedSnapshot", {
+    requestId,
+    snapshotBytes: snapshot.length,
+    snapshotKey: state.snapshotKey,
+  });
+
+  return {
+    uploadedSnapshot: true,
+    snapshotBytes: snapshot.length,
+  };
+}
+
+async function resumeHook(requestId: string) {
+  await ensureWorkspaceRoots();
+  const state = await readLifecycleState();
+  logSandboxServer("hook.resume", {
+    requestId,
+    snapshotKey: state?.snapshotKey,
+  });
+  return { resumed: true };
+}
+
+async function terminateHook(requestId: string) {
+  const state = await readLifecycleState();
+  logSandboxServer("hook.terminate", {
+    requestId,
+    snapshotKey: state?.snapshotKey,
+  });
+  return { terminated: true };
+}
+
 function runToolOperation(operation: SandboxOperation, requestId: string) {
   return new Promise<unknown>((resolve, reject) => {
     const child = spawn(
@@ -317,6 +471,174 @@ async function chmodToolCallsDirectories(startPath: string) {
   }
 }
 
+async function ensureWorkspaceRoots() {
+  await mkdir(WORKSPACE_ROOT, { recursive: true });
+  await mkdir(TOOL_CALLS_ROOT, { recursive: true });
+  await chmod(TOOL_CALLS_ROOT, 0o555).catch(() => undefined);
+}
+
+async function clearWorkspace() {
+  const entries = await readdir(WORKSPACE_ROOT, { withFileTypes: true }).catch(
+    () => [],
+  );
+
+  for (const entry of entries) {
+    if (entry.name === path.basename(TOOL_CALLS_ROOT)) {
+      continue;
+    }
+
+    await rm(path.join(WORKSPACE_ROOT, entry.name), {
+      recursive: true,
+      force: true,
+    });
+  }
+}
+
+async function createWorkspaceSnapshot() {
+  return await runBinaryCommand([
+    "tar",
+    "-C",
+    WORKSPACE_ROOT,
+    "--exclude=./tool_calls",
+    "-cf",
+    "-",
+    ".",
+  ]);
+}
+
+async function extractWorkspaceSnapshot(snapshot: Uint8Array) {
+  await runBinaryCommand(["tar", "-C", WORKSPACE_ROOT, "-xf", "-"], snapshot);
+}
+
+async function writeLifecycleState(
+  payload: z.infer<typeof RunHookPayloadSchema>,
+) {
+  const state = LifecycleStateSchema.parse({
+    snapshotBucket: payload.snapshotBucket,
+    snapshotKey: payload.snapshotKey,
+    snapshotPrefix: payload.snapshotPrefix,
+    snapshotRegion: payload.snapshotRegion,
+  });
+
+  await writeFile(LIFECYCLE_STATE_PATH, JSON.stringify(state), "utf8");
+}
+
+async function readLifecycleState() {
+  try {
+    return LifecycleStateSchema.parse(
+      JSON.parse(await readFile(LIFECYCLE_STATE_PATH, "utf8")) as unknown,
+    );
+  } catch (error) {
+    if (isMissingFileError(error)) {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+async function readSnapshotFromS3(
+  payload: z.infer<typeof RunHookPayloadSchema>,
+) {
+  if (!payload.snapshotBucket || !payload.snapshotKey) {
+    return null;
+  }
+
+  const response = await createSnapshotS3Client(payload)
+    .send(
+      new GetObjectCommand({
+        Bucket: payload.snapshotBucket,
+        Key: toSnapshotObjectKey(payload.snapshotPrefix, payload.snapshotKey),
+      }),
+    )
+    .catch((error: unknown) => {
+      if (
+        error instanceof Error &&
+        (error.name === "NoSuchKey" || error.name === "NotFound")
+      ) {
+        return null;
+      }
+
+      throw error;
+    });
+
+  if (!response?.Body) {
+    return null;
+  }
+
+  return await response.Body.transformToByteArray();
+}
+
+async function writeSnapshotToS3(state: LifecycleState, snapshot: Uint8Array) {
+  if (!state.snapshotBucket || !state.snapshotKey) {
+    throw new Error("Missing snapshot bucket or key for suspend hook upload");
+  }
+
+  await createSnapshotS3Client(state).send(
+    new PutObjectCommand({
+      Bucket: state.snapshotBucket,
+      Key: toSnapshotObjectKey(state.snapshotPrefix, state.snapshotKey),
+      Body: snapshot,
+      ContentType: "application/x-tar",
+    }),
+  );
+}
+
+function createSnapshotS3Client(
+  config: Pick<LifecycleState, "snapshotRegion">,
+) {
+  return new S3Client({
+    ...(config.snapshotRegion ? { region: config.snapshotRegion } : {}),
+  });
+}
+
+function toSnapshotObjectKey(prefix: string | undefined, key: string) {
+  const trimmedPrefix = prefix?.replace(/\/+$/u, "") ?? "";
+  return trimmedPrefix ? `${trimmedPrefix}/${key}` : key;
+}
+
+function runBinaryCommand(command: string[], stdin?: Uint8Array) {
+  return new Promise<Buffer>((resolve, reject) => {
+    const child = spawn(command[0] ?? "", command.slice(1), {
+      cwd: WORKSPACE_ROOT,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    const stdout: Buffer[] = [];
+    let stderr = "";
+    let settled = false;
+
+    child.stdout.on("data", (chunk: Buffer | string) => {
+      stdout.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    });
+    child.stderr.on("data", (chunk: Buffer | string) => {
+      stderr += chunk.toString("utf8");
+    });
+    child.on("error", (error) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      reject(error);
+    });
+    child.on("close", (code) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      if ((code ?? 1) !== 0) {
+        reject(new Error(stderr || `Command failed: ${command.join(" ")}`));
+        return;
+      }
+
+      resolve(Buffer.concat(stdout));
+    });
+
+    child.stdin.end(stdin ? Buffer.from(stdin) : undefined);
+  });
+}
+
 function logSandboxServer(event: string, details?: Record<string, unknown>) {
   const payload = details ? ` ${JSON.stringify(details)}` : "";
   console.log(`[sandbox] ${new Date().toISOString()} ${event}${payload}`);
@@ -409,4 +731,13 @@ function sendJson(
 ) {
   response.writeHead(statusCode, { "Content-Type": "application/json" });
   response.end(JSON.stringify(body));
+}
+
+function isMissingFileError(error: unknown) {
+  return (
+    error !== null &&
+    typeof error === "object" &&
+    "code" in error &&
+    error.code === "ENOENT"
+  );
 }

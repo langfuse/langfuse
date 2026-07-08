@@ -485,10 +485,6 @@ export const env = createEnv({
     LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
       .enum(["dangerous-docker", "lambda-microvm"])
       .optional(),
-    LANGFUSE_IN_APP_AGENT_SANDBOX_LOCAL_SNAPSHOT_DIR: z.string().optional(),
-    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_ENDPOINT: z
-      .string()
-      .optional(),
     LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER: z
       .string()
       .optional(),
@@ -496,18 +492,8 @@ export const env = createEnv({
       .string()
       .optional(),
     LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_BUCKET: z.string().optional(),
-    LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_PREFIX: z
-      .string()
-      .default("in-app-agent-sandboxes"),
+    LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_PREFIX: z.string().optional(),
     LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_REGION: z.string().optional(),
-    LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_ENDPOINT: z.string().optional(),
-    LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_ACCESS_KEY_ID: z.string().optional(),
-    LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_SECRET_ACCESS_KEY: z
-      .string()
-      .optional(),
-    LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_FORCE_PATH_STYLE: z
-      .enum(["true", "false"])
-      .default("false"),
   },
 
   /**
@@ -570,30 +556,18 @@ export const env = createEnv({
     LANGFUSE_AWS_BEDROCK_REGION: process.env.LANGFUSE_AWS_BEDROCK_REGION,
     LANGFUSE_IN_APP_AGENT_AWS_PROFILE:
       process.env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE,
-      LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER:
-        process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER,
-      LANGFUSE_IN_APP_AGENT_SANDBOX_LOCAL_SNAPSHOT_DIR:
-        process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_LOCAL_SNAPSHOT_DIR,
-    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_ENDPOINT:
-      process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_ENDPOINT,
+    LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER:
+      process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER,
     LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER:
       process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER,
     LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN:
       process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN,
-      LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_BUCKET:
-        process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_BUCKET,
+    LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_BUCKET:
+      process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_BUCKET,
     LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_PREFIX:
       process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_PREFIX,
     LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_REGION:
       process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_REGION,
-    LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_ENDPOINT:
-      process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_ENDPOINT,
-    LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_ACCESS_KEY_ID:
-      process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_ACCESS_KEY_ID,
-    LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_SECRET_ACCESS_KEY:
-      process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_SECRET_ACCESS_KEY,
-    LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_FORCE_PATH_STYLE:
-      process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_FORCE_PATH_STYLE,
     LANGFUSE_TEAM_SLACK_WEBHOOK: process.env.LANGFUSE_TEAM_SLACK_WEBHOOK,
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK:
       process.env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK,
@@ -947,3 +921,28 @@ export const env = createEnv({
   skipValidation: process.env.DOCKER_BUILD === "1",
   emptyStringAsUndefined: true, // https://env.t3.gg/docs/customization#treat-empty-strings-as-undefined
 });
+
+/**
+ * @param {typeof env} parsed
+ */
+const validateInAppAgentSandboxConfig = (parsed) => {
+  if (parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER !== "lambda-microvm") {
+    return;
+  }
+
+  if (
+    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER ||
+    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN ||
+    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_BUCKET ||
+    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_PREFIX ||
+    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_REGION
+  ) {
+    throw new Error(
+      "Invalid lambda-microvm sandbox config: image identifier, execution role ARN, snapshot bucket, snapshot prefix, and snapshot region are required.",
+    );
+  }
+};
+
+if (typeof window === "undefined") {
+  validateInAppAgentSandboxConfig(env);
+}

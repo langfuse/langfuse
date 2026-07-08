@@ -138,10 +138,6 @@ const EnvSchema = z.object({
   LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
     .enum(["dangerous-docker", "lambda-microvm"])
     .optional(),
-  LANGFUSE_IN_APP_AGENT_SANDBOX_LOCAL_SNAPSHOT_DIR: z.string().optional(),
-  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_ENDPOINT: z
-    .string()
-    .optional(),
   LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER: z
     .string()
     .optional(),
@@ -149,18 +145,8 @@ const EnvSchema = z.object({
     .string()
     .optional(),
   LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_BUCKET: z.string().optional(),
-  LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_PREFIX: z
-    .string()
-    .default("in-app-agent-sandboxes"),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_PREFIX: z.string().optional(),
   LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_REGION: z.string().optional(),
-  LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_ENDPOINT: z.string().optional(),
-  LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_ACCESS_KEY_ID: z.string().optional(),
-  LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_SECRET_ACCESS_KEY: z
-    .string()
-    .optional(),
-  LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_FORCE_PATH_STYLE: z
-    .enum(["true", "false"])
-    .default("false"),
   LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY: z.coerce
     .number()
     .positive()
@@ -628,9 +614,28 @@ const validateV4Flags = (parsed: ParsedEnv): void => {
   }
 };
 
+const validateInAppAgentSandboxConfig = (parsed: ParsedEnv): void => {
+  if (parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER !== "lambda-microvm") {
+    return;
+  }
+
+  if (
+    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER ||
+    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN ||
+    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_BUCKET ||
+    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_PREFIX ||
+    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_REGION
+  ) {
+    throw new Error(
+      "Invalid lambda-microvm sandbox config: image identifier, execution role ARN, snapshot bucket, snapshot prefix, and snapshot region are required.",
+    );
+  }
+};
+
 const parseEnv = (): ParsedEnv => {
   const parsed = EnvSchema.parse(removeEmptyEnvVariables(process.env));
   validateV4Flags(parsed);
+  validateInAppAgentSandboxConfig(parsed);
   return parsed;
 };
 

@@ -9,6 +9,7 @@ import {
   SuspendMicrovmCommand,
   type RunMicrovmCommandInput,
 } from "@aws-sdk/client-lambda-microvms";
+import { logger } from "@langfuse/shared/src/server";
 import { z } from "zod";
 
 import type { SandboxFile, SandboxProvider, SandboxSession } from "../types";
@@ -42,47 +43,93 @@ type LambdaMicrovmInfo = {
   microvmId: string;
   endpoint: string;
   state: string;
+  stateReason?: string;
 };
 
 export function createLambdaMicrovmSandboxProvider(params: {
-  endpoint?: string;
   imageIdentifier: string;
   executionRoleArn?: string;
   bridgePort?: number;
+  snapshotConfig: {
+    bucket?: string;
+    prefix?: string;
+    region?: string;
+  };
 }): SandboxProvider {
-  const client = new LambdaMicrovmsClient({
-    ...(params.endpoint ? { endpoint: params.endpoint } : {}),
-  });
+  const client = new LambdaMicrovmsClient({});
   const sessions = new Map<string, LambdaMicrovmSession>();
   const bridgePort = params.bridgePort ?? DEFAULT_BRIDGE_PORT;
 
-  const ensureSession = async (sessionId?: string | null) => {
-    if (sessionId) {
-      const existing = await getMicrovm(client, sessionId);
+  const ensureSession = async (request: {
+    conversationId: string;
+    sessionId?: string | null;
+    snapshotKey: string;
+  }) => {
+    logger.debug("[Lambda MicroVM Sandbox] ensureSession", {
+      conversationId: request.conversationId,
+      requestedSessionId: request.sessionId,
+      snapshotKey: request.snapshotKey,
+    });
+
+    if (request.sessionId) {
+      logger.debug(
+        "[Lambda MicroVM Sandbox] checking existing session before restore",
+        {
+          conversationId: request.conversationId,
+          sessionId: request.sessionId,
+          snapshotKey: request.snapshotKey,
+        },
+      );
+    }
+
+    if (request.sessionId) {
+      const existing = await getMicrovm(client, request.sessionId);
       if (existing) {
         if (existing.state === "SUSPENDED") {
+          logger.debug("[Lambda MicroVM Sandbox] resuming suspended session", {
+            conversationId: request.conversationId,
+            sessionId: request.sessionId,
+            snapshotKey: request.snapshotKey,
+          });
           await client.send(
-            new ResumeMicrovmCommand({ microvmIdentifier: sessionId }),
+            new ResumeMicrovmCommand({ microvmIdentifier: request.sessionId }),
           );
         }
 
         await waitForBridge({
           client,
-          microvmId: sessionId,
+          microvmId: request.sessionId,
           endpoint: existing.endpoint,
           bridgePort,
         });
 
         sessions.set(
-          sessionId,
-          sessions.get(sessionId) ?? { toolCallFiles: [] },
+          request.sessionId,
+          sessions.get(request.sessionId) ?? { toolCallFiles: [] },
         );
-        return { sessionId, endpoint: existing.endpoint };
+        logger.debug("[Lambda MicroVM Sandbox] reusing existing session", {
+          conversationId: request.conversationId,
+          sessionId: request.sessionId,
+          snapshotKey: request.snapshotKey,
+          state: existing.state,
+        });
+        return { sessionId: request.sessionId, endpoint: existing.endpoint };
       }
 
-      sessions.delete(sessionId);
+      logger.debug("[Lambda MicroVM Sandbox] existing session not found", {
+        conversationId: request.conversationId,
+        sessionId: request.sessionId,
+        snapshotKey: request.snapshotKey,
+      });
+      sessions.delete(request.sessionId);
     }
 
+    logger.debug("[Lambda MicroVM Sandbox] creating new session", {
+      conversationId: request.conversationId,
+      snapshotKey: request.snapshotKey,
+      imageIdentifier: params.imageIdentifier,
+      hasExecutionRoleArn: Boolean(params.executionRoleArn),
+    });
     const microvm = readMicrovmInfo(
       await client.send(
         new RunMicrovmCommand({
@@ -95,7 +142,13 @@ export function createLambdaMicrovmSandboxProvider(params: {
             maxIdleDurationSeconds: DEFAULT_IDLE_TIMEOUT_SECONDS,
             suspendedDurationSeconds: DEFAULT_SUSPENDED_DURATION_SECONDS,
           },
-          runHookPayload: JSON.stringify({ bridgePort }),
+          runHookPayload: JSON.stringify({
+            bridgePort,
+            snapshotBucket: params.snapshotConfig.bucket,
+            snapshotKey: request.snapshotKey,
+            snapshotPrefix: params.snapshotConfig.prefix,
+            snapshotRegion: params.snapshotConfig.region,
+          }),
           clientToken: randomUUID(),
         } satisfies RunMicrovmCommandInput),
       ),
@@ -107,6 +160,13 @@ export function createLambdaMicrovmSandboxProvider(params: {
       microvmId: microvm.microvmId,
       endpoint: microvm.endpoint,
       bridgePort,
+    });
+
+    logger.debug("[Lambda MicroVM Sandbox] created new session", {
+      conversationId: request.conversationId,
+      sessionId: microvm.microvmId,
+      snapshotKey: request.snapshotKey,
+      state: microvm.state,
     });
 
     return { sessionId: microvm.microvmId, endpoint: microvm.endpoint };
@@ -188,37 +248,69 @@ export function createLambdaMicrovmSandboxProvider(params: {
   });
 
   return {
-    async ensureSession({ sessionId }) {
-      const session = await ensureSession(sessionId);
+    async ensureSession({ conversationId, sessionId, snapshotKey }) {
+      const session = await ensureSession({
+        conversationId,
+        sessionId,
+        snapshotKey,
+      });
       return {
         sessionId: session.sessionId,
         sandbox: createSessionSandbox(session.sessionId),
       };
     },
-    async suspendSession({ sessionId }) {
-      sessions.delete(sessionId);
-
+    async suspendSession({ sessionId, snapshotKey }) {
       try {
         await client.send(
           new SuspendMicrovmCommand({ microvmIdentifier: sessionId }),
         );
+        logger.debug("[Lambda MicroVM Sandbox] suspended session", {
+          sessionId,
+          snapshotKey,
+        });
       } catch (error) {
         if (!isMissingMicrovmError(error)) {
           throw error;
         }
+
+        logger.debug(
+          "[Lambda MicroVM Sandbox] suspend skipped missing session",
+          {
+            sessionId,
+            snapshotKey,
+          },
+        );
+      } finally {
+        sessions.delete(sessionId);
       }
     },
     async terminateSession({ sessionId }) {
+      logger.debug("[Lambda MicroVM Sandbox] terminating session", {
+        sessionId,
+      });
       sessions.delete(sessionId);
 
       try {
         await client.send(
           new SuspendMicrovmCommand({ microvmIdentifier: sessionId }),
         );
+        logger.debug(
+          "[Lambda MicroVM Sandbox] terminated session via suspend",
+          {
+            sessionId,
+          },
+        );
       } catch (error) {
         if (!isMissingMicrovmError(error)) {
           throw error;
         }
+
+        logger.debug(
+          "[Lambda MicroVM Sandbox] terminate skipped missing session",
+          {
+            sessionId,
+          },
+        );
       }
     },
   };
@@ -234,6 +326,19 @@ async function waitForBridge(params: {
   let lastError: unknown;
 
   while (Date.now() - startedAt < BRIDGE_READY_TIMEOUT_MS) {
+    const microvm = await getMicrovm(params.client, params.microvmId);
+    if (!microvm) {
+      throw new Error(
+        `[Lambda MicroVM Sandbox] startup failed before bridge became ready: session ${params.microvmId} no longer exists`,
+      );
+    }
+
+    if (microvm.state === "TERMINATING" || microvm.state === "TERMINATED") {
+      throw new Error(
+        `[Lambda MicroVM Sandbox] startup failed before bridge became ready: state=${microvm.state}${microvm.stateReason ? ` stateReason=${microvm.stateReason}` : ""}`,
+      );
+    }
+
     try {
       const response = await fetch(
         `${normalizeEndpoint(params.endpoint)}/health`,
@@ -248,7 +353,10 @@ async function waitForBridge(params: {
         return;
       }
 
-      lastError = new Error(await response.text());
+      lastError = new Error(
+        (await response.text()) ||
+          `[Lambda MicroVM Sandbox] health probe failed with ${response.status}`,
+      );
     } catch (error) {
       lastError = error;
     }
@@ -258,7 +366,7 @@ async function waitForBridge(params: {
 
   throw lastError instanceof Error
     ? lastError
-    : new Error("Lambda MicroVM sandbox bridge did not become ready");
+    : new Error("[Lambda MicroVM Sandbox] bridge did not become ready");
 }
 
 async function createMicrovmAuthToken(params: {
@@ -319,6 +427,7 @@ function readMicrovmInfo(value: {
   microvmId?: string;
   endpoint?: string;
   state?: string;
+  stateReason?: string;
 }) {
   if (!value.microvmId || !value.endpoint || !value.state) {
     throw new Error("Lambda MicroVM response did not include required fields");
@@ -328,6 +437,7 @@ function readMicrovmInfo(value: {
     microvmId: value.microvmId,
     endpoint: value.endpoint,
     state: value.state,
+    ...(value.stateReason ? { stateReason: value.stateReason } : {}),
   } satisfies LambdaMicrovmInfo;
 }
 
