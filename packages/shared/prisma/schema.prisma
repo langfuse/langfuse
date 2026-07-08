@@ -1244,7 +1244,7 @@ model BlobStorageIntegration {
   lastSyncAt        DateTime?                        @map("last_sync_at")
   enabled           Boolean
   exportFrequency   String                           @map("export_frequency")
-  fileType          BlobStorageIntegrationFileType   @default(CSV) @map("file_type")
+  fileType          BlobStorageIntegrationFileType   @default(PARQUET) @map("file_type")
   exportMode        BlobStorageExportMode            @default(FULL_HISTORY) @map("export_mode")
   exportStartDate   DateTime?                        @map("export_start_date")
   exportSource      AnalyticsIntegrationExportSource @default(TRACES_OBSERVATIONS) @map("export_source")

@@ -34,7 +34,6 @@ import {
   type BlobStorageIntegrationFormSchema,
   type BlobStorageSyncStatus,
 } from "@/src/features/blobstorage-integration/types";
-import { isParquetFileTypeAllowed } from "@/src/features/blobstorage-integration/parquetFileType";
 import { deriveSyncStatus } from "@/src/features/blobstorage-integration/deriveSyncStatus";
 import { Alert, AlertTitle, AlertDescription } from "@/src/components/ui/alert";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -354,7 +353,7 @@ const BlobStorageIntegrationSettingsForm = ({
           | "hourly",
         enabled: state?.enabled || false,
         forcePathStyle: state?.forcePathStyle || false,
-        fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
+        fileType: state?.fileType || BlobStorageIntegrationFileType.PARQUET,
         exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
         exportStartDate: state?.exportStartDate || null,
         exportSource: getExportSourceFormValue(
@@ -378,7 +377,6 @@ const BlobStorageIntegrationSettingsForm = ({
   // Internal `exportTuning.parquet` override (no write path); reflected read-only
   // below since the worker forces Parquet over the persisted fileType + gzip.
   const isParquetOverride = parquetEnabledFromTuning(state?.exportTuning);
-  const isParquetWhitelisted = isParquetFileTypeAllowed(projectId);
   const watchedFileType = blobStorageForm.watch("fileType");
   const isParquetExport =
     isParquetOverride ||
@@ -720,15 +718,10 @@ const BlobStorageIntegrationSettingsForm = ({
                     <SelectValue placeholder="Select file type" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="PARQUET">Parquet</SelectItem>
                     <SelectItem value="JSONL">JSONL</SelectItem>
                     <SelectItem value="CSV">CSV</SelectItem>
                     <SelectItem value="JSON">JSON</SelectItem>
-                    {(isParquetWhitelisted ||
-                      isParquetOverride ||
-                      watchedFileType ===
-                        BlobStorageIntegrationFileType.PARQUET) && (
-                      <SelectItem value="PARQUET">Parquet</SelectItem>
-                    )}
                   </SelectContent>
                 </Select>
               </FormControl>
