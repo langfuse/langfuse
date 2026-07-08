@@ -28,10 +28,10 @@ pnpm install --frozen-lockfile
 
 if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   if ! docker image inspect "langfuse-in-app-agent-sandbox:latest" >/dev/null 2>&1; then
-    rm -f "packages/in-app-agent-sandbox-server/.local-image-built"
+    rm -f "packages/in-app-agent-sandbox-runtime/.local-image-built"
   fi
 
-  pnpm turbo run build:docker-image --filter @repo/in-app-agent-sandbox-server --output-logs errors-only
+  pnpm turbo run build:docker-image --filter @repo/in-app-agent-sandbox-runtime --output-logs errors-only
 else
   echo "Skipping local in-app agent sandbox image build because Docker is not available."
 fi

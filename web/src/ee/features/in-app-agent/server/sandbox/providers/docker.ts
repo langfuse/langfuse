@@ -1,6 +1,6 @@
 import { PassThrough } from "node:stream";
 
-import type { SandboxFile } from "@repo/in-app-agent-sandbox-server";
+import type { SandboxFile } from "@repo/in-app-agent-sandbox-runtime";
 import type Docker from "dockerode";
 import { logger } from "@langfuse/shared/src/server";
 
@@ -100,7 +100,7 @@ export async function createDockerSandboxProvider(params: {
     } catch (error) {
       if (isMissingDockerImageError(error)) {
         throw new Error(
-          `Missing local sandbox image ${params.image}. Re-run \`bash scripts/codex/setup.sh\` or run \`pnpm turbo run build:image-docker-image --filter @repo/in-app-agent-sandbox-server --force\`.`,
+          `Missing local sandbox image ${params.image}. Re-run \`bash scripts/codex/setup.sh\` or run \`pnpm turbo run build:image-docker-image --filter @repo/in-app-agent-sandbox-runtime --force\`.`,
         );
       }
 

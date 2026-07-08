@@ -1,4 +1,4 @@
-# In-App Agent Sandbox Server
+# In-App Agent Sandbox Runtime
 
 Minimal HTTP control server for the in-app agent sandbox runtime.
 
@@ -20,7 +20,7 @@ The runtime uses two Unix privilege levels inside the container:
 
 To rebuild it manually:
 
-`pnpm turbo run build:docker-image --filter @repo/in-app-agent-sandbox-server --force`
+`pnpm turbo run build:docker-image --filter @repo/in-app-agent-sandbox-runtime --force`
 
 ## Build And Publish An AWS Lambda MicroVM Image
 
@@ -42,7 +42,7 @@ This package builds the sandbox runtime image used by both local Docker sandboxe
 From the repo root:
 
 ```bash
-pnpm turbo run build:docker-image --filter @repo/in-app-agent-sandbox-server --force
+pnpm turbo run build:docker-image --filter @repo/in-app-agent-sandbox-runtime --force
 ```
 
 That produces the local image:

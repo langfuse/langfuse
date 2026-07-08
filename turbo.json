@@ -99,7 +99,7 @@
       "cache": true,
       "outputLogs": "errors-only"
     },
-    "@repo/in-app-agent-sandbox-server#build:docker-image": {
+    "@repo/in-app-agent-sandbox-runtime#build:docker-image": {
       "dependsOn": ["build"],
       "inputs": ["Dockerfile", "package.json", "tsconfig.json"],
       "outputs": [".local-image-built"],

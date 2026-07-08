@@ -1,5 +1,5 @@
 {
-  "name": "@repo/in-app-agent-sandbox-server",
+  "name": "@repo/in-app-agent-sandbox-runtime",
   "version": "0.0.0",
   "private": true,
   "type": "module",

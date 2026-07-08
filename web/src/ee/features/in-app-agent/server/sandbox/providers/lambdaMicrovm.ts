@@ -9,7 +9,7 @@ import {
   SuspendMicrovmCommand,
   type RunMicrovmCommandInput,
 } from "@aws-sdk/client-lambda-microvms";
-import type { SandboxFile } from "@repo/in-app-agent-sandbox-server";
+import type { SandboxFile } from "@repo/in-app-agent-sandbox-runtime";
 import { z } from "zod";
 
 import type { SandboxProvider, SandboxSession } from "../types";

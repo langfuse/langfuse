@@ -28,7 +28,7 @@ Runs are foreground-only. A conversation can have one active run; stale unfinish
 - `constants.ts`: stable names shared across prompts, tools, persistence, and rendering.
 - `components/*`: client controller and prop-driven render components.
 
-Outside this feature folder, `packages/in-app-agent-sandbox-server/src/*` provides the shared sandbox runtime and contract types used by both the local Docker provider and the Lambda MicroVM image.
+Outside this feature folder, `packages/in-app-agent-sandbox-runtime/src/*` provides the shared sandbox runtime and contract types used by both the local Docker provider and the Lambda MicroVM image.
 `packages/shared/src/server/inAppAgentSandboxSnapshots.ts` owns shared sandbox snapshot keying and cleanup helpers.
 
 ## File Relationships
@@ -80,7 +80,7 @@ flowchart TB
 
 `server/sandbox/service.ts` gives the agent a conversation-scoped sandbox interface with `read`, `write`, and `edit` plus a separate turn-end callback. It reuses an existing provider session when the stored provider/session/TTL still match, otherwise it boots a fresh session and persists the new state on the conversation.
 
-Both sandbox providers target the same runtime contract from `packages/in-app-agent-sandbox-server`.
+Both sandbox providers target the same runtime contract from `packages/in-app-agent-sandbox-runtime`.
 
 - The local `dangerous-docker` provider starts a container from that package's Docker image and calls the runtime over `http://127.0.0.1:5000` using `docker exec`.
 - The Lambda MicroVM provider starts a MicroVM image built from the same package and calls the runtime through the AWS-assigned HTTPS endpoint plus `X-aws-proxy-auth`.

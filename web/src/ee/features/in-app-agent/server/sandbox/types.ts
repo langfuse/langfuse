@@ -1,4 +1,4 @@
-import type { SandboxFile } from "@repo/in-app-agent-sandbox-server";
+import type { SandboxFile } from "@repo/in-app-agent-sandbox-runtime";
 
 export type InAppAgentSandboxProviderType =
   | "dangerous-docker"
