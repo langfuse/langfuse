@@ -2581,13 +2581,15 @@ export class OtelIngestionProcessor {
       rawUsageDetails["cache_read_tokens"] ??
       rawUsageDetails["details.cache_read_tokens"] ??
       rawUsageDetails["details.cache_read_input_tokens"] ??
-      rawUsageDetails["prompt_details.cache_read"];
+      rawUsageDetails["prompt_details.cache_read"] ??
+      rawUsageDetails["input_cached_tokens"];
     const cacheCreationTokens =
       rawUsageDetails["cache_creation.input_tokens"] ??
       rawUsageDetails["cache_write_tokens"] ??
       rawUsageDetails["details.cache_write_tokens"] ??
       rawUsageDetails["details.cache_creation_input_tokens"] ??
-      rawUsageDetails["prompt_details.cache_write"];
+      rawUsageDetails["prompt_details.cache_write"] ??
+      rawUsageDetails["input_cache_creation"];
 
     const normalizedUsageDetails = Object.entries(rawUsageDetails).reduce(
       (acc: Record<string, number>, [key, value]) => {
@@ -2606,11 +2608,13 @@ export class OtelIngestionProcessor {
             "details.cache_read_tokens",
             "details.cache_read_input_tokens",
             "prompt_details.cache_read",
+            "input_cached_tokens",
             "cache_creation.input_tokens",
             "cache_write_tokens",
             "details.cache_write_tokens",
             "details.cache_creation_input_tokens",
             "prompt_details.cache_write",
+            "input_cache_creation",
           ].includes(key)
         ) {
           return acc;
