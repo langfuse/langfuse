@@ -178,6 +178,56 @@ async function main() {
     },
   });
 
+  // Enterprise org to exercise Enterprise-gated flows locally (e.g. Sev-1 /
+  // Sev-2 support requests are Enterprise-only).
+  const enterpriseOrgId = "seed-enterprise-org-id";
+  const enterpriseProjectId = "3b1f5a62-7c4e-4d09-9c8b-1f2a3d4e5f6a";
+  await prisma.organization.upsert({
+    where: { id: enterpriseOrgId },
+    update: {
+      name: "Seed Enterprise Org",
+      cloudConfig: {
+        plan: "Enterprise",
+      },
+    },
+    create: {
+      id: enterpriseOrgId,
+      name: "Seed Enterprise Org",
+      aiFeaturesEnabled: true,
+      cloudConfig: {
+        plan: "Enterprise",
+      },
+    },
+  });
+
+  await prisma.project.upsert({
+    where: { id: enterpriseProjectId },
+    update: {
+      name: "enterprise-app",
+      orgId: enterpriseOrgId,
+    },
+    create: {
+      id: enterpriseProjectId,
+      name: "enterprise-app",
+      orgId: enterpriseOrgId,
+    },
+  });
+
+  await prisma.organizationMembership.upsert({
+    where: {
+      orgId_userId: {
+        userId: user.id,
+        orgId: enterpriseOrgId,
+      },
+    },
+    create: {
+      userId: user.id,
+      orgId: enterpriseOrgId,
+      role: "OWNER",
+    },
+    update: {},
+  });
+
   const summaryPrompt = await prisma.prompt.upsert({
     where: {
       projectId_name_version: {
