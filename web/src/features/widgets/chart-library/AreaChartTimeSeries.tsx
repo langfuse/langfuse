@@ -41,7 +41,7 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
   },
   accessibilityLayer = true,
   metricFormatter = (value, options) => formatMetric(value, options),
-  legendPosition = "none",
+  legendPosition = "auto",
   legendSummary = "none",
   legendInteraction = "highlight",
   maxVisibleSeries,
@@ -90,6 +90,7 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
   const { legendItems, onLegendClick, isRendered, isDimmed } = useSeriesLegend({
     data,
     dimensions,
+    config,
     legendSummary,
     legendInteraction,
     maxVisibleSeries,
@@ -116,14 +117,6 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
           setSelfHovered(false);
       }}
     >
-      {legendPosition === "above" && (
-        <TimeSeriesLegend
-          items={legendItems}
-          interaction={legendInteraction}
-          onItemClick={onLegendClick}
-          formatSummary={tooltipFormatter}
-        />
-      )}
       <SeriesOverflowNote
         visibleCount={dimensions.length}
         totalCount={series.total}
@@ -139,7 +132,14 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
           syncId={syncId}
           syncMethod="value"
         >
-          <CartesianGrid stroke="hsl(var(--chart-grid))" vertical={false} />
+          {/* syncWithTicks: grid lines sit exactly on the budget-thinned axis
+              ticks (a line per shown day/hour), instead of recharts' default
+              every-bucket grid — density follows the tick budget. (LFE-10576) */}
+          <CartesianGrid
+            stroke="hsl(var(--chart-grid))"
+            vertical={timeAxis.showVerticalGrid}
+            syncWithTicks
+          />
           <XAxis
             dataKey="time_dimension"
             stroke="hsl(var(--chart-grid))"
@@ -211,6 +211,15 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
           />
         </AreaChart>
       </ChartContainer>
+      {(legendPosition === "below" ||
+        (legendPosition === "auto" && legendItems.length > 1)) && (
+        <TimeSeriesLegend
+          items={legendItems}
+          interaction={legendInteraction}
+          onItemClick={onLegendClick}
+          formatSummary={tooltipFormatter}
+        />
+      )}
     </div>
   );
 };
