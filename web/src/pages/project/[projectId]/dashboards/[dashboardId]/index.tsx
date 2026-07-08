@@ -33,7 +33,10 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { EditDashboardDialog } from "@/src/features/dashboard/components/EditDashboardDialog";
-import { LANGFUSE_HOME_DASHBOARD_ID } from "@langfuse/shared";
+import {
+  LANGFUSE_HOME_DASHBOARD_ID,
+  type HomeDashboardPresetId,
+} from "@langfuse/shared";
 import { HomeIcon, Loader2, MoreVertical, PencilIcon } from "lucide-react";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {
@@ -255,6 +258,44 @@ export default function DashboardDetail() {
       setLocalDashboardDefinition,
       saveDashboardChanges,
     ],
+  );
+
+  // Add a Langfuse Home card as a preset placement (no widget row involved)
+  const addPresetToDashboard = useCallback(
+    (presetId: HomeDashboardPresetId) => {
+      if (!localDashboardDefinition) return;
+
+      const maxY =
+        localDashboardDefinition.widgets.length > 0
+          ? Math.max(
+              ...localDashboardDefinition.widgets.map((w) => w.y + w.y_size),
+            )
+          : 0;
+
+      const newPresetPlacement: DashboardPlacement = {
+        id: uuidv4(),
+        presetId,
+        type: "preset",
+        x: 0,
+        y: maxY,
+        x_size: 6,
+        y_size: 6,
+      };
+
+      const updatedDefinition = {
+        ...localDashboardDefinition,
+        widgets: [...localDashboardDefinition.widgets, newPresetPlacement],
+      };
+      setLocalDashboardDefinition(updatedDefinition);
+      saveDashboardChanges(updatedDefinition);
+
+      setTimeout(() => {
+        document
+          .querySelector(`[data-placement-id="${newPresetPlacement.id}"]`)
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 150);
+    },
+    [localDashboardDefinition, saveDashboardChanges],
   );
 
   const { nameOptions, tagsOptions } = useDashboardFilterOptions({
@@ -665,6 +706,7 @@ export default function DashboardDetail() {
           onOpenChange={setIsWidgetDialogOpen}
           projectId={projectId}
           onSelectWidget={handleSelectWidget}
+          onSelectPreset={addPresetToDashboard}
           dashboardId={dashboardId}
         />
         {isEditDialogOpen && dashboard.data && (

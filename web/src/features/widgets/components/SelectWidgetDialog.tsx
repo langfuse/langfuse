@@ -10,9 +10,15 @@ import {
   DialogBody,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
+import { Badge } from "@/src/components/ui/badge";
 import startCase from "lodash/startCase";
 import { getChartTypeDisplayName } from "@/src/features/widgets/chart-library/utils";
 import { ChartTypeIllustration } from "@/src/features/widgets/components/ChartTypeIllustration";
+import {
+  HOME_DASHBOARD_PRESET_IDS,
+  type HomeDashboardPresetId,
+} from "@langfuse/shared";
+import { HOME_PRESET_METADATA } from "@/src/features/dashboard/components/home-preset-registry";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 
 export type WidgetItem = {
@@ -23,13 +29,82 @@ export type WidgetItem = {
   chartType: string;
   createdAt: Date;
   updatedAt: Date;
+  owner?: "PROJECT" | "LANGFUSE";
 };
+
+const rowClassName =
+  "flex w-full items-center gap-4 rounded-lg border p-3 text-left hover:bg-accent/50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring";
+
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="text-muted-foreground px-1 pt-3 text-xs font-medium first:pt-0">
+      {children}
+    </div>
+  );
+}
+
+function RowIllustration({ type }: { type: string }) {
+  return (
+    <div className="bg-muted/40 flex h-14 w-[5.5rem] shrink-0 items-center justify-center rounded-md">
+      <ChartTypeIllustration
+        type={type as DashboardWidgetChartType | "CUSTOM"}
+        className="h-11 w-16"
+      />
+    </div>
+  );
+}
+
+function WidgetRow({
+  widget,
+  onClick,
+}: {
+  widget: WidgetItem;
+  onClick: () => void;
+}) {
+  return (
+    <button type="button" onClick={onClick} className={rowClassName}>
+      <RowIllustration type={widget.chartType} />
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="truncate font-medium" title={widget.name}>
+            {widget.name}
+          </span>
+          {widget.owner === "LANGFUSE" && (
+            <Badge
+              variant="secondary"
+              className="shrink-0"
+              title="Maintained by Langfuse — editing creates your own copy"
+            >
+              Langfuse
+            </Badge>
+          )}
+        </div>
+        {widget.description ? (
+          <div
+            className="text-muted-foreground truncate text-xs"
+            title={widget.description}
+          >
+            {widget.description}
+          </div>
+        ) : null}
+        <div className="text-muted-foreground/80 mt-0.5 text-xs">
+          {getChartTypeDisplayName(
+            widget.chartType as DashboardWidgetChartType,
+          )}{" "}
+          · {startCase(widget.view.toLowerCase())}
+        </div>
+      </div>
+    </button>
+  );
+}
 
 interface SelectWidgetDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: string;
   onSelectWidget: (widget: WidgetItem) => void;
+  /** Adds a Langfuse Home card as a preset placement. */
+  onSelectPreset?: (presetId: HomeDashboardPresetId) => void;
   dashboardId: string;
 }
 
@@ -38,11 +113,12 @@ export function SelectWidgetDialog({
   onOpenChange,
   projectId,
   onSelectWidget,
+  onSelectPreset,
   dashboardId,
 }: SelectWidgetDialogProps) {
   const router = useRouter();
 
-  // Fetch widgets
+  // Fetch widgets (project-owned and Langfuse-maintained)
   const widgets = api.dashboardWidgets.all.useQuery(
     {
       projectId,
@@ -56,8 +132,17 @@ export function SelectWidgetDialog({
     },
   );
 
-  const rowClassName =
-    "flex w-full items-center gap-4 rounded-lg border p-3 text-left hover:bg-accent/50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring";
+  const projectWidgets = (widgets.data?.widgets ?? []).filter(
+    (w) => w.owner === "PROJECT",
+  );
+  const curatedWidgets = (widgets.data?.widgets ?? []).filter(
+    (w) => w.owner === "LANGFUSE",
+  );
+
+  const selectWidget = (widget: WidgetItem) => {
+    onSelectWidget(widget);
+    onOpenChange(false);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -84,9 +169,7 @@ export function SelectWidgetDialog({
                 }
                 className={`${rowClassName} border-dashed`}
               >
-                <div className="bg-muted/40 flex h-14 w-[5.5rem] shrink-0 items-center justify-center rounded-md">
-                  <ChartTypeIllustration type="CUSTOM" className="h-11 w-16" />
-                </div>
+                <RowIllustration type="CUSTOM" />
                 <div className="min-w-0 flex-1">
                   <div className="font-medium">Custom Chart</div>
                   <div className="text-muted-foreground text-xs">
@@ -94,43 +177,71 @@ export function SelectWidgetDialog({
                   </div>
                 </div>
               </button>
-              {widgets.data.widgets.map((widget) => (
-                <button
-                  key={widget.id}
-                  type="button"
-                  onClick={() => {
-                    onSelectWidget(widget as WidgetItem);
-                    onOpenChange(false);
-                  }}
-                  className={rowClassName}
-                >
-                  <div className="bg-muted/40 flex h-14 w-[5.5rem] shrink-0 items-center justify-center rounded-md">
-                    <ChartTypeIllustration
-                      type={widget.chartType as DashboardWidgetChartType}
-                      className="h-11 w-16"
+
+              {projectWidgets.length > 0 && (
+                <>
+                  <SectionHeading>Your widgets</SectionHeading>
+                  {projectWidgets.map((widget) => (
+                    <WidgetRow
+                      key={widget.id}
+                      widget={widget as WidgetItem}
+                      onClick={() => selectWidget(widget as WidgetItem)}
                     />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium" title={widget.name}>
-                      {widget.name}
-                    </div>
-                    {widget.description ? (
-                      <div
-                        className="text-muted-foreground truncate text-xs"
-                        title={widget.description}
+                  ))}
+                </>
+              )}
+
+              {onSelectPreset && (
+                <>
+                  <SectionHeading>Langfuse Home cards</SectionHeading>
+                  {HOME_DASHBOARD_PRESET_IDS.map((presetId) => {
+                    const meta = HOME_PRESET_METADATA[presetId];
+                    return (
+                      <button
+                        key={presetId}
+                        type="button"
+                        onClick={() => {
+                          onSelectPreset(presetId);
+                          onOpenChange(false);
+                        }}
+                        className={rowClassName}
                       >
-                        {widget.description}
-                      </div>
-                    ) : null}
-                    <div className="text-muted-foreground/80 mt-0.5 text-xs">
-                      {getChartTypeDisplayName(
-                        widget.chartType as DashboardWidgetChartType,
-                      )}{" "}
-                      · {startCase(widget.view.toLowerCase())}
-                    </div>
-                  </div>
-                </button>
-              ))}
+                        <RowIllustration type={meta.illustration} />
+                        <div className="min-w-0 flex-1">
+                          <div
+                            className="truncate font-medium"
+                            title={meta.name}
+                          >
+                            {meta.name}
+                          </div>
+                          <div
+                            className="text-muted-foreground truncate text-xs"
+                            title={meta.description}
+                          >
+                            {meta.description}
+                          </div>
+                          <div className="text-muted-foreground/80 mt-0.5 text-xs">
+                            Home card · fixed configuration
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </>
+              )}
+
+              {curatedWidgets.length > 0 && (
+                <>
+                  <SectionHeading>Langfuse-maintained widgets</SectionHeading>
+                  {curatedWidgets.map((widget) => (
+                    <WidgetRow
+                      key={widget.id}
+                      widget={widget as WidgetItem}
+                      onClick={() => selectWidget(widget as WidgetItem)}
+                    />
+                  ))}
+                </>
+              )}
             </div>
           )}
         </DialogBody>

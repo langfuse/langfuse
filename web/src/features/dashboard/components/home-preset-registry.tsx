@@ -203,6 +203,76 @@ const HOME_PRESETS: Record<
   ),
 };
 
+/**
+ * Display metadata for the preset picker (Add Widget dialog). `illustration`
+ * keys into ChartTypeIllustration.
+ */
+export const HOME_PRESET_METADATA: Record<
+  HomeDashboardPresetId,
+  { name: string; description: string; illustration: string }
+> = {
+  "home-traces": {
+    name: "Traces",
+    description: "Total traces with the top trace names",
+    illustration: "HORIZONTAL_BAR",
+  },
+  "home-model-costs": {
+    name: "Model Costs",
+    description: "Cost and token usage per model",
+    illustration: "PIVOT_TABLE",
+  },
+  "home-scores-table": {
+    name: "Scores",
+    description: "Score counts and averages by name",
+    illustration: "PIVOT_TABLE",
+  },
+  "home-traces-obs-time-series": {
+    name: "Traces & Observations over time",
+    description: "Traffic volume with tabbed trace/observation views",
+    illustration: "BAR_TIME_SERIES",
+  },
+  "home-model-usage": {
+    name: "Model Usage",
+    description: "Cost and usage over time, by model or by type",
+    illustration: "AREA_TIME_SERIES",
+  },
+  "home-users": {
+    name: "User Consumption",
+    description: "Token cost and trace counts per user",
+    illustration: "HORIZONTAL_BAR",
+  },
+  "home-chart-scores": {
+    name: "Scores over time",
+    description: "Moving average per score",
+    illustration: "LINE_TIME_SERIES",
+  },
+  "home-latency-table-traces": {
+    name: "Trace Latency Percentiles",
+    description: "p50–p99 latencies per trace name",
+    illustration: "PIVOT_TABLE",
+  },
+  "home-latency-table-generations": {
+    name: "Generation Latency Percentiles",
+    description: "p50–p99 latencies per generation name",
+    illustration: "PIVOT_TABLE",
+  },
+  "home-latency-table-observations": {
+    name: "Observation Latency Percentiles",
+    description: "p50–p99 latencies per observation type and name",
+    illustration: "PIVOT_TABLE",
+  },
+  "home-generation-latency": {
+    name: "Model Latencies",
+    description: "Latency percentiles per LLM, tabbed by percentile",
+    illustration: "LINE_TIME_SERIES",
+  },
+  "home-score-analytics": {
+    name: "Score Analytics",
+    description: "Per-score charts and distributions for selected scores",
+    illustration: "HISTOGRAM",
+  },
+};
+
 export function getHomePreset(
   presetId: string,
 ): ((ctx: PresetWidgetContext) => ReactNode) | undefined {
