@@ -135,7 +135,9 @@ export async function handleCommentMentionNotification(
           : comment.content;
       // Convert @[DisplayName](user:userId) to @DisplayName
       // Display name ends at the first `](user:` suffix so names containing
-      // brackets are stripped correctly (matches MENTION_REGEX in web)
+      // brackets are stripped correctly (matches MENTION_REGEX in web).
+      // The `user:` literal must stay in sync with MENTION_USER_PREFIX in
+      // web/.../mentionParser.ts (shared package cannot be imported here).
       return truncated.replace(
         /@\[((?:[^\]]|\](?!\(user:)){1,100})\]\(user:[a-z0-9_-]{1,30}\)/gi,
         "@$1",
