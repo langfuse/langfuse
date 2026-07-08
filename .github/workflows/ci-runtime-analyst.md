@@ -70,6 +70,26 @@ engine:
 
 timeout-minutes: 60
 
+# strict: false is required ONLY because sandbox.agent.args below is an
+# internal field. Strict mode is compile-time linting, not runtime
+# protection — everything it checks we keep manually: permissions stay
+# read-only, network stays explicit (no wildcards), the sandbox stays
+# enabled, no deprecated/XPIA fields. Re-verify that list when editing
+# this frontmatter, since the compiler no longer enforces it.
+strict: false
+
+# The compiler hardcodes AWF's `--allow-host-ports 80,443,8080` (80/443
+# web, 8080 MCP gateway); there is no declarative knob for extra ports.
+# This x-internal args passthrough appends a second --allow-host-ports,
+# and AWF's CLI parser takes the last occurrence — so this REPLACES the
+# list and must re-include 80,443,8080. Extra ports are the dev stack:
+# floci 4566, postgres 5432, redis 6379, clickhouse 8123+9000, minio 9090.
+# Schema-validated at compile; a gh-aw upgrade that drops it fails loudly.
+sandbox:
+  agent:
+    id: awf
+    args: ["--allow-host-ports", "80,443,8080,4566,5432,6379,8123,9000,9090"]
+
 network:
   allowed:
     - defaults
@@ -77,6 +97,106 @@ network:
     # prisma postinstall/generate downloads query engines from here; needed
     # so `pnpm install` + shared-package tests work inside the sandbox.
     - "binaries.prisma.sh"
+    # Loopback (localhost/127.0.0.1): the dev docker-compose stack is started
+    # on the host by the custom step below; the sandboxed agent reaches it on
+    # its published localhost ports to run DB-backed test suites.
+    - local
+
+# Custom steps run in the agent job on the HOST, before the AWF sandbox
+# starts — docker/sudo are available here but not inside the sandbox (the
+# socket is hidden, system paths read-only). They provision the same test
+# environment as pipeline.yml's tests-web/tests-worker jobs so the agent
+# can run DB-backed suites against 127.0.0.1 without any setup of its own.
+# Runs for assessment mode too: diagnosing a failing DB-backed test on a
+# PR branch is exactly when the stack is needed.
+# KEEP IN SYNC with pipeline.yml (env recipe, migrate version, commands).
+# No setup-node here: gh-aw's built-in "Setup Node.js" step already
+# installs node 24, and adding one with `cache: pnpm` gets merged BEFORE
+# pnpm/action-setup runs, where only the runner-image pnpm exists — a
+# wrong-store-path trap. Uncached pnpm install costs ~1 min on this
+# weekly job; determinism wins.
+steps:
+  - name: Setup pnpm (mirrors pipeline.yml)
+    uses: pnpm/action-setup@v6.0.9
+    with:
+      version: 11.10.0
+  - name: Login to Docker Hub (avoids anonymous pull rate limits; mirrors pipeline.yml)
+    # continue-on-error: if the secrets are unavailable in this environment,
+    # degrade to anonymous pulls instead of failing the run.
+    continue-on-error: true
+    uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+    with:
+      username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
+      password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
+  - name: Provision DB test stack (best effort, mirrors pipeline.yml test jobs)
+    # continue-on-error: an infra flake degrades the run to DB-less
+    # verification instead of killing the whole analysis. The agent must
+    # check for /tmp/gh-aw/db-stack-ready before relying on DB suites.
+    continue-on-error: true
+    run: |
+      set -euo pipefail
+      # Overlap the two slow downloads with pnpm install (like pipeline.yml).
+      # worker-tests profile adds floci (lambda endpoint for awsLambda tests).
+      # HOST_IP=0.0.0.0: publish beyond host-loopback so the sandboxed agent
+      # can reach the services through the AWF host gateway as well.
+      (set +e; COMPOSE_PROFILES=worker-tests HOST_IP=0.0.0.0 docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
+      (
+        set -e
+        curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+          --output /tmp/migrate.linux-amd64.tar.gz \
+          https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+        echo "2ac648fbd1b127b69ab5a7b33cf96212178f71e22379fc50573630c6f4c7ce18  /tmp/migrate.linux-amd64.tar.gz" | sha256sum -c -
+        tar xzf /tmp/migrate.linux-amd64.tar.gz -C /tmp
+        sudo mv /tmp/migrate /usr/bin/migrate
+      ) > /tmp/migrate-install.log 2>&1 &
+      migrate_pid=$!
+      pnpm install
+      # tests-web "Load default env" recipe (default deploy mode), then
+      # copies for worker-job parity (tests-worker reads worker/.env).
+      grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev.example > .env
+      {
+        echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1"
+        echo "LANGFUSE_CACHE_PROMPT_ENABLED=false"
+        echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1"
+        echo "LANGFUSE_TRACE_DELETE_DELAY_MS=1"
+        echo "LANGFUSE_TRACE_DELETE_CONCURRENCY=100"
+        echo "ADMIN_API_KEY=admin-api-key"
+        echo "LANGFUSE_EE_LICENSE_KEY=langfuse_ee_test"
+        echo "LANGFUSE_SKIP_EVALUATOR_MODEL_CALL_VALIDATION=true"
+        echo "LANGFUSE_ENABLE_SCORES_V3_API=true"
+      } >> .env
+      # pipeline.yml passes this as a step env var; baked into the ROOT .env
+      # (which worker/vitest.config.ts loads via ../.env — worker/.env is
+      # never read by vitest) so the agent needs no env prefixes.
+      echo "LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT=http://localhost:4566" >> .env
+      cp .env web/.env
+      cp .env worker/.env
+      pnpm --filter=shared run db:generate
+      # @langfuse/shared exports point at dist/ — web and worker vitest
+      # import the BUILT package, so this build is load-bearing.
+      pnpm --filter=worker... run build
+      timeout 300 bash -c 'until [ -f /tmp/compose-up.exit ]; do sleep 1; done'
+      cat /tmp/compose-up.log
+      [ "$(cat /tmp/compose-up.exit)" = "0" ]
+      wait "$migrate_pid"
+      pnpm run db:migrate
+      pnpm --filter=shared run db:seed
+      pnpm --filter=shared ch:up
+      # ClickHouse client shim via the dev container (pipeline.yml trick,
+      # avoids the ~300MB client download) for dev-tables setup.
+      sudo tee /usr/local/bin/clickhouse > /dev/null <<'CLICKHOUSE_SHIM'
+      #!/bin/bash
+      exec docker exec -i langfuse-clickhouse clickhouse "$@"
+      CLICKHOUSE_SHIM
+      sudo chmod +x /usr/local/bin/clickhouse
+      pnpm --filter=shared ch:dev-tables
+      mkdir -p /tmp/gh-aw && touch /tmp/gh-aw/db-stack-ready
+  - name: Docker logout (drop registry credentials before the agent starts)
+    # docker login stores the token in ~/.docker/config.json, which the AWF
+    # sandbox mounts read-write into the agent container. Nothing after
+    # provisioning pulls images, so drop the credentials unconditionally.
+    if: always()
+    run: docker logout || true
 
 tools:
   github:
@@ -97,6 +217,9 @@ tools:
       "cat",
       "ls",
       "cp",
+      # Waiting on migrations/app startup when exercising DB-backed suites.
+      "sleep",
+      "timeout",
     ]
   edit:
   repo-memory:
@@ -382,20 +505,46 @@ this layout:
 
 ## Verify changes before requesting a PR
 
-You are working in a full checkout of the repository and may run `pnpm`,
-`npx`, and `node` to test your changes before proposing them. Docker is NOT
-available in your sandbox, so anything needing the docker-compose dev stack
-(Postgres/ClickHouse/Redis/Minio) — the web `server`/`server-isolated`
-projects, worker tests, e2e tests — cannot be run here; everything else can.
+You are working in a full checkout of the repository, provisioned on the
+host before your sandbox started to mirror `pipeline.yml`'s test jobs:
+dependencies are installed (`pnpm install` already ran), `.env` (plus
+`web/.env`, `worker/.env`) carries the CI env recipe, the prisma client is
+generated, `@langfuse/shared` and `worker` are built, and the dev
+docker-compose stack (Postgres, ClickHouse, Redis, Minio, plus floci for
+the worker awsLambda tests) is up on its usual localhost ports — migrated,
+seeded, ClickHouse dev tables included. DB-backed suites (the web
+`server`/`server-isolated` projects, worker tests) are therefore runnable
+directly, with no setup of your own.
 
-Standard setup (mirrors `pipeline.yml`):
+Three boundaries:
 
-1. `pnpm install`
-2. `cp .env.dev.example .env`
-3. For anything importing `@langfuse/shared`: `pnpm --filter=shared run db:generate`
-   (schema-only; needs no database).
+- Provisioning is best-effort: it succeeded if and only if
+  `/tmp/gh-aw/db-stack-ready` exists. Check it once before relying on
+  DB-backed suites; if absent, say so in the report and fall back to
+  DB-less verification (the DB-less commands below still work — deps and
+  builds may then be missing too, so run `pnpm install` +
+  `pnpm --filter=shared run db:generate` yourself first).
+- Connectivity: the services run on the host; your sandbox reaches them
+  because their ports are explicitly firewall-allowed. Use the `localhost`
+  endpoints from `.env` as-is. If a connection to a provisioned service is
+  refused, retry once against `host.docker.internal:<same port>` (copy
+  `.env` and swap only the DB/Redis/ClickHouse/S3 hostnames). If that also
+  fails, this run's infrastructure is broken: report it in the job summary
+  and fall back to DB-less verification. NEVER interpret
+  connection-refused errors against provisioned services as a test
+  regression or flaky test — they are an infra signal, not a code signal.
+- You cannot control docker itself (the socket is hidden): no restarting
+  or inspecting containers, nothing beyond the dev-stack services. The
+  e2e-tests job (Playwright browsers against the built app) stays out of
+  scope — the PR's own CI run covers it.
 
-Then run the narrowest check that actually exercises your change, e.g.:
+CRITICAL rebuild rule: web and worker vitest import `@langfuse/shared`
+(and worker code paths) from `dist/`, not source. After editing any file
+under `packages/shared/` or `worker/src/`, run
+`pnpm --filter=worker... run build` before re-running tests — otherwise
+you are measuring the OLD code.
+
+Run the narrowest check that actually exercises your change, e.g.:
 
 - vitest config changes (`web/vitest.config.mts`, `worker/vitest.config.ts`,
   `scripts/vitest/**`): run a DB-less project against the new config, e.g.
@@ -407,8 +556,23 @@ Then run the narrowest check that actually exercises your change, e.g.:
   `pnpm --filter @repo/eslint-plugin run test`.
 - `turbo.json` changes: `npx turbo run build --dry-run` (or the affected
   task) to prove the pipeline graph still resolves as intended.
-- targeted flaky-test fixes: run that test file's project if it is DB-less;
-  if it needs the dev stack, say so and rely on the PR's CI run.
+- targeted slow/flaky-test fixes and other DB-backed checks: run exactly
+  that test file, with the same invocation CI uses, e.g.
+  `cd web && npx dotenv -e ../.env.test -e ../.env -- vitest run --project server <file>`
+  (pipeline.yml's exact flags) or `pnpm --filter worker run test <file>`.
+  Prefer single files over full DB suites — the latter take tens of
+  minutes for little extra signal. Time the file before and after your
+  change (the vitest summary prints durations); a claimed speedup needs
+  both numbers, and the after-run needs the rebuild rule above.
+- exception: some web servertests call the running app over HTTP
+  (localhost:3000). Starting it costs a full `pnpm run build` +
+  `pnpm run start` (~10 min) — do this only when the change under
+  verification genuinely requires it; otherwise state that this specific
+  file is covered by the PR's CI run.
+
+Optimization candidates that earlier weeks deferred as "DB-backed — not
+sandbox-verifiable" (check `notes.md`) are now verifiable; re-evaluate them
+before hunting for new ones.
 
 Rules:
 
@@ -420,7 +584,8 @@ Rules:
   proving check could not run in the sandbox — mark it
   "not verifiable in sandbox; validated by this PR's CI run" instead. The
   pull request itself triggers the full CI/CD pipeline, which is the
-  authoritative verification for DB-backed suites.
+  authoritative verification for what still cannot run here (e2e, tests
+  needing the running app).
 
 ## Assessment loop (assess CI results, iterate or close)
 
@@ -504,46 +669,65 @@ A PR body additionally contains:
   quoted summary line) and, separately, what could not run in the sandbox
   and is covered by this PR's own CI run.
 
-Chart template (GitHub renders `mermaid` fenced blocks natively). Copy it
+Chart templates (GitHub renders `mermaid` fenced blocks natively). Copy them
 verbatim and only fill in the data: the x-axis days (every day that has
-merge-group runs), the six value lists (daily merge-group medians in
-seconds, same day order), and the y-axis maximum (largest value rounded up
-to the next 100). Do not change the structure or the series order, and do
-not move the legend into the chart title — long xychart titles get clipped
-when rendered, so the legend line above the chart is the readable one.
+merge-group runs), the value lists (daily merge-group medians in seconds,
+same day order), and each y-axis maximum (largest value in that chart
+rounded up to the next 100). Everything else is load-bearing — do NOT
+change it: the `init` line pins the series colors so that the emoji legend
+line above each chart identifies the lines (xychart has no built-in legend,
+and colors are otherwise theme-dependent). Palette order = series order =
+legend order: 🔵 `#3987e5`, 🟠 `#de5a20`, 🟣 `#8875e0`. Never put more than
+three series in one chart, and never move the legend into the chart title
+(long titles get clipped).
 
-  Lines: 1 run tests · 2 Build · 3 e2e-tests · 4 runner wait · 5 overall incl. wait · 6 overall excl. wait
+**Chart 1 — pipeline totals:**
+
+  🔵 overall incl. wait · 🟠 overall excl. wait · 🟣 runner wait
 
   ```mermaid
+  %%{init: {"themeVariables": {"xyChart": {"plotColorPalette": "#3987e5,#de5a20,#8875e0"}}}}%%
   xychart-beta
-      title "Daily merge-group medians (seconds), lines 1-6"
+      title "Daily merge-group medians: pipeline totals (seconds)"
       x-axis [MM-DD, MM-DD, MM-DD]
       y-axis "seconds" 0 --> 600
       line [0, 0, 0]
       line [0, 0, 0]
       line [0, 0, 0]
+  ```
+
+  The gap between 🔵 and 🟠 is the runner-wait share, plotted directly
+  as 🟣.
+
+**Chart 2 — critical-path segments:**
+
+  🔵 run tests · 🟠 Build · 🟣 e2e-tests
+
+  ```mermaid
+  %%{init: {"themeVariables": {"xyChart": {"plotColorPalette": "#3987e5,#de5a20,#8875e0"}}}}%%
+  xychart-beta
+      title "Daily merge-group medians: segments (seconds)"
+      x-axis [MM-DD, MM-DD, MM-DD]
+      y-axis "seconds" 0 --> 600
       line [0, 0, 0]
       line [0, 0, 0]
       line [0, 0, 0]
   ```
 
-  Line 5 is the perceived/wall time (includes runner wait), line 6 the
-  execution time (excludes it); their gap visualizes the wait share. Since
-  xychart has no legend, follow the chart with this table carrying the same
-  numbers:
+  Follow the charts with one table carrying the same numbers:
 
-  | Day | run tests | Build | e2e-tests | runner wait | overall incl. wait | overall excl. wait |
+  | Day | overall incl. wait | overall excl. wait | runner wait | run tests | Build | e2e-tests |
   |---|---|---|---|---|---|---|
   | MM-DD | … | … | … | … | … | … |
 
-  Once `history/*.json` holds at least two weeks, add a second chart using
-  the same template shape with ISO weeks on the x-axis (weekly medians,
-  same six series).
+  Once `history/*.json` holds at least two weeks, add the same two charts
+  with ISO weeks on the x-axis (weekly medians, same series and legends).
 
 Additionally, render the same weekly data as a standalone SVG chart
 (hand-write the SVG: time on x, seconds on y, one polyline per series with
-axis labels — similar to a typical CI timings explorer) and save it to
-`charts/<ISO-week>.svg` in repo memory. Link to it from the PR body as a
+axis labels, using the same palette as the mermaid charts, and an in-SVG
+legend — a colored swatch plus series name per line, placed in a corner
+clear of the data) and save it to `charts/<ISO-week>.svg` in repo memory. Link to it from the PR body as a
 `https://github.com/langfuse/langfuse/blob/memory/ci-runtime-analysis/...`
 URL; determine the exact in-branch path by listing the branch contents via
 the GitHub API (previous weeks' charts show the layout). On the very first
