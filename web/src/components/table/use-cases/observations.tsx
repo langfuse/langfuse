@@ -100,6 +100,7 @@ import {
   type RefreshInterval,
   REFRESH_INTERVALS,
 } from "@/src/components/table/data-table-refresh-button";
+import { useStore } from "zustand";
 import {
   ObservationsTableStoreProvider,
   useObservationsTableStore,
@@ -562,10 +563,28 @@ export default function ObservationsTable({
   const generations = api.generations.all.useQuery(getAllPayload, {
     refetchOnWindowFocus: true,
   });
+  const selectAll = useStore(
+    observationsTableStore,
+    (state) => state.selectAll,
+  );
+  // Fetch the exact count only after the user selects all matching rows.
+  // The count query cannot early-stop in ClickHouse and is expensive,
+  // especially with full-text search filters.
   const totalCountQuery = api.generations.countAll.useQuery(getCountPayload, {
+    enabled: selectAll,
     refetchOnWindowFocus: true,
   });
-  const totalCount = totalCountQuery.data?.totalCount ?? null;
+  const totalCount = selectAll
+    ? (totalCountQuery.data?.totalCount ?? null)
+    : null;
+  const isTotalCountLoading =
+    selectAll && totalCount === null && totalCountQuery.isFetching;
+  const isTotalCountError =
+    selectAll &&
+    totalCount === null &&
+    totalCountQuery.isError &&
+    !totalCountQuery.isFetching;
+  const hasMore = generations.data?.hasMore ?? false;
 
   const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
     onSuccess: (data) => {
@@ -642,6 +661,12 @@ export default function ObservationsTable({
     actions.clearSelection();
   };
 
+  const isSelectAllCountUnavailable = isTotalCountLoading || isTotalCountError;
+  const selectAllCountUnavailableReason = isTotalCountLoading
+    ? "Counting selected observations."
+    : isTotalCountError
+      ? "Could not count selected observations. Clear selection and try again."
+      : undefined;
   const tableActions: TableAction[] = [
     {
       id: ActionId.ObservationAddToAnnotationQueue,
@@ -660,6 +685,10 @@ export default function ObservationsTable({
       label: "Add to Dataset",
       description: "Add selected observations to a dataset",
       customDialog: true,
+      // The dialog needs the exact count, which only loads lazily once
+      // select-all is active.
+      disabled: isSelectAllCountUnavailable,
+      disabledReason: selectAllCountUnavailableReason,
       accessCheck: {
         scope: "datasets:CUD",
       },
@@ -1444,6 +1473,7 @@ export default function ObservationsTable({
             searchType={searchType}
             tableActions={tableActions}
             totalCount={totalCount}
+            hasNextPage={hasMore}
             paginationState={paginationState}
           />
         )}
@@ -1484,6 +1514,9 @@ export default function ObservationsTable({
                   ? undefined
                   : {
                       totalCount,
+                      hasNextPage: hasMore,
+                      hideTotalCount: true,
+                      canJumpPages: false,
                       onChange: setPaginationState,
                       state: paginationState,
                     }
@@ -1570,6 +1603,7 @@ type ObservationsDataTableToolbarProps = Omit<
   searchType: TracingSearchType[];
   tableActions: TableAction[];
   totalCount: number | null;
+  hasNextPage: boolean;
 };
 
 function ObservationsDataTableToolbar({
@@ -1581,6 +1615,7 @@ function ObservationsDataTableToolbar({
   searchType,
   tableActions,
   totalCount,
+  hasNextPage,
   ...toolbarProps
 }: ObservationsDataTableToolbarProps) {
   const selectedObservationIds = useObservationsTableStore(
@@ -1630,6 +1665,10 @@ function ObservationsDataTableToolbar({
         selectedRowIds: selectedObservationIds,
         setRowSelection: actions.setRowSelection,
         totalCount,
+        // totalCount stays null until select-all triggers the lazy count
+        // query; hasNextPage lets the select-all banner show without an
+        // eager count over the observations table.
+        hasNextPage,
         ...paginationState,
       }}
     />

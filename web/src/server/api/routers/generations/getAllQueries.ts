@@ -31,10 +31,10 @@ export const getAllQueries = {
       });
 
       if (hasNoMatches) {
-        return { generations: [] };
+        return { generations: [], hasMore: false };
       }
 
-      const { generations } = await getAllGenerations({
+      const { generations, hasMore } = await getAllGenerations({
         input: {
           ...input,
           filter: filterState,
@@ -43,7 +43,7 @@ export const getAllQueries = {
         },
         selectIOAndMetadata: false,
       });
-      return { generations };
+      return { generations, hasMore };
     }),
   countAll: protectedProjectProcedure
     .input(GenerationTableOptions)

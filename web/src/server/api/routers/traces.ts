@@ -143,10 +143,12 @@ export const traceRouter = createTRPCRouter({
       });
 
       if (hasNoMatches) {
-        return { traces: [] };
+        return { traces: [], hasMore: false };
       }
 
-      const traces = await getTracesTable({
+      // Fetch one extra row to derive hasMore so the UI can paginate without
+      // an eager countAll query (which cannot early-stop in ClickHouse).
+      const fetchedTraces = await getTracesTable({
         projectId: ctx.session.projectId,
         filter: filterState,
         searchQuery: search.searchQuery,
@@ -155,10 +157,14 @@ export const traceRouter = createTRPCRouter({
           orderBy: input.orderBy,
           expectedTimeColumn: "timestamp",
         }),
-        limit: input.limit,
-        page: input.page,
+        limit: input.limit + 1,
+        offset: input.page * input.limit,
       });
-      return { traces };
+      const hasMore = fetchedTraces.length > input.limit;
+      const traces = hasMore
+        ? fetchedTraces.slice(0, input.limit)
+        : fetchedTraces;
+      return { traces, hasMore };
     }),
   countAll: protectedProjectProcedure
     .input(TraceCountOptions)

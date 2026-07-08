@@ -25,9 +25,15 @@ export async function getAllGenerations({
     searchType: input.searchType,
     selectIOAndMetadata: selectIOAndMetadata,
     offset: input.page * input.limit,
-    limit: input.limit,
+    // Fetch one extra row to derive hasMore so the UI can paginate without
+    // an eager countAll query (which cannot early-stop in ClickHouse).
+    limit: input.limit + 1,
   };
-  let generations = await getObservationsTableWithModelData(queryOpts);
+  const fetchedGenerations = await getObservationsTableWithModelData(queryOpts);
+  const hasMore = fetchedGenerations.length > input.limit;
+  const generations = hasMore
+    ? fetchedGenerations.slice(0, input.limit)
+    : fetchedGenerations;
 
   const scores = await getScoresForObservations({
     projectId: input.projectId,
@@ -55,5 +61,6 @@ export async function getAllGenerations({
 
   return {
     generations: fullGenerations,
+    hasMore,
   };
 }

@@ -426,8 +426,11 @@ export default function TracesTable({
     orderBy: null,
   };
 
+  // Fetch the exact count only after the user selects all matching rows.
+  // The count query cannot early-stop in ClickHouse and is expensive,
+  // especially with full-text search filters.
   const totalCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter, {
-    enabled: environmentFilterOptions.data !== undefined,
+    enabled: selectAll && environmentFilterOptions.data !== undefined,
   });
 
   const tracesAllQueryFilter = {
@@ -469,7 +472,10 @@ export default function TracesTable({
     [traces.data?.traces, traceMetrics.data],
   );
 
-  const totalCount = totalCountQuery.data?.totalCount ?? null;
+  const totalCount = selectAll
+    ? (totalCountQuery.data?.totalCount ?? null)
+    : null;
+  const hasMore = traces.data?.hasMore ?? false;
 
   useEffect(() => {
     if (traces.isSuccess) {
@@ -583,12 +589,12 @@ export default function TracesTable({
     setSelectedRows({});
   };
 
-  const displayCount = totalCountQuery.isPending ? (
-    <span className="inline-block font-mono">...</span>
-  ) : selectAll ? (
-    compactNumberFormatter(totalCountQuery.data?.totalCount)
-  ) : (
+  const displayCount = !selectAll ? (
     compactNumberFormatter(Object.keys(selectedRows).length)
+  ) : totalCount === null ? (
+    <span className="inline-block font-mono">...</span>
+  ) : (
+    compactNumberFormatter(totalCount)
   );
 
   const tableActions: TableAction[] = [
@@ -1495,6 +1501,10 @@ export default function TracesTable({
               selectedRowIds: selectedTraceIds,
               setRowSelection: setSelectedRows,
               totalCount,
+              // totalCount stays null until select-all triggers the lazy
+              // count query; hasNextPage lets the select-all banner show
+              // without an eager count over the traces table.
+              hasNextPage: hasMore,
               ...paginationState,
             }}
           />
@@ -1535,6 +1545,9 @@ export default function TracesTable({
                   ? undefined
                   : {
                       totalCount,
+                      hasNextPage: hasMore,
+                      hideTotalCount: true,
+                      canJumpPages: false,
                       onChange: setPaginationState,
                       state: paginationState,
                     }
