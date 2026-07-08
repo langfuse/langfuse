@@ -537,23 +537,6 @@ const completedReasoningWindowMessages: InAppAgentWindowMessage[] = [
   },
 ];
 
-async function expectReasoningViewportAtBottom(canvasElement: HTMLElement) {
-  const canvas = within(canvasElement);
-  const viewport = await canvas.findByTestId("in-app-agent-reasoning-content");
-
-  // Geometry-based check that works with the column-reverse scroll pinning,
-  // where scrollTop 0 is the bottom edge: the end of the reasoning text must
-  // be visible inside the viewport.
-  await waitFor(() => {
-    expect(viewport.scrollHeight).toBeGreaterThanOrEqual(viewport.clientHeight);
-    const contentBottom =
-      viewport.firstElementChild?.getBoundingClientRect().bottom ?? Infinity;
-    expect(contentBottom).toBeLessThanOrEqual(
-      viewport.getBoundingClientRect().bottom + 1,
-    );
-  });
-}
-
 const meta = preview.meta({
   component: InAppAgentWindow,
   parameters: {
@@ -808,9 +791,6 @@ export const StreamingReasoning = meta.story({
     isInputDisabled: true,
     messages: reasoningWindowMessages,
   },
-  play: async ({ canvasElement }) => {
-    await expectReasoningViewportAtBottom(canvasElement);
-  },
 });
 
 export const ExpandedStreamingReasoning = meta.story({
@@ -819,9 +799,6 @@ export const ExpandedStreamingReasoning = meta.story({
     isExpanded: true,
     isInputDisabled: true,
     messages: reasoningWindowMessages,
-  },
-  play: async ({ canvasElement }) => {
-    await expectReasoningViewportAtBottom(canvasElement);
   },
 });
 

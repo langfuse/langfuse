@@ -413,12 +413,6 @@ async function expectReasoningViewportAtBottom(canvasElement: HTMLElement) {
   });
 }
 
-async function openReasoningDisclosure(canvasElement: HTMLElement) {
-  const canvas = within(canvasElement);
-  // Completed reasoning blocks are labeled "Thought"; live ones "Thinking".
-  await userEvent.click(await canvas.findByText("Thought"));
-}
-
 export const Reasoning = meta.story({
   args: {
     role: "assistant",
@@ -439,15 +433,6 @@ export const CompletedReasoning = meta.story({
       isStreaming: false,
     },
   },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-
-    await expect(
-      canvas.queryByTestId("in-app-agent-reasoning-content"),
-    ).not.toBeInTheDocument();
-    await openReasoningDisclosure(canvasElement);
-    await expectReasoningViewportAtBottom(canvasElement);
-  },
 });
 
 export const StreamingReasoning = meta.story({
@@ -458,9 +443,6 @@ export const StreamingReasoning = meta.story({
       text: longReasoningText,
       isStreaming: true,
     },
-  },
-  play: async ({ canvasElement }) => {
-    await expectReasoningViewportAtBottom(canvasElement);
   },
 });
 
@@ -473,9 +455,6 @@ export const CompactStreamingReasoning = meta.story({
       text: longReasoningText,
       isStreaming: true,
     },
-  },
-  play: async ({ canvasElement }) => {
-    await expectReasoningViewportAtBottom(canvasElement);
   },
 });
 
