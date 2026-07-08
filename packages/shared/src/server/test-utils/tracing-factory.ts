@@ -6,6 +6,7 @@ import {
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
 } from "../repositories/definitions";
+import { UNKNOWN_INGESTION_SDK_VALUE } from "../ingestion/ingestionAttribution";
 
 export const createTrace = (
   trace: Partial<TraceRecordInsertType>,
@@ -126,6 +127,9 @@ export const createTraceScore = (
     created_at: Date.now(),
     updated_at: Date.now(),
     event_ts: Date.now(),
+    ingestion_api_key: "",
+    ingestion_sdk_name: UNKNOWN_INGESTION_SDK_VALUE,
+    ingestion_sdk_version: UNKNOWN_INGESTION_SDK_VALUE,
     is_deleted: 0,
     ...score,
     session_id: null,
@@ -152,6 +156,9 @@ export const createSessionScore = (
     created_at: Date.now(),
     updated_at: Date.now(),
     event_ts: Date.now(),
+    ingestion_api_key: "",
+    ingestion_sdk_name: UNKNOWN_INGESTION_SDK_VALUE,
+    ingestion_sdk_version: UNKNOWN_INGESTION_SDK_VALUE,
     is_deleted: 0,
     ...score,
     observation_id: null,
@@ -179,6 +186,9 @@ export const createDatasetRunScore = (
     created_at: Date.now(),
     updated_at: Date.now(),
     event_ts: Date.now(),
+    ingestion_api_key: "",
+    ingestion_sdk_name: UNKNOWN_INGESTION_SDK_VALUE,
+    ingestion_sdk_version: UNKNOWN_INGESTION_SDK_VALUE,
     is_deleted: 0,
     ...score,
     observation_id: null,
@@ -289,6 +299,9 @@ export const createEvent = (
     telemetry_sdk_language: null,
     telemetry_sdk_name: null,
     telemetry_sdk_version: null,
+    ingestion_api_key: "pk-lf-1234567890",
+    ingestion_sdk_name: "langfuse-js",
+    ingestion_sdk_version: "5.0.1",
 
     // Generic props
     blob_storage_file_path: "",

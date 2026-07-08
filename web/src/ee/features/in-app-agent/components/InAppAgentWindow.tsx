@@ -101,6 +101,7 @@ export type InAppAgentWindowProps = {
   onNewConversation: () => void;
   onApproveToolCall: (approvalId: string) => Promise<void>;
   onRejectToolCall: (approvalId: string) => Promise<void>;
+  onOpenConversationHistory: () => void;
   onSelectConversation: (conversationId: string) => void;
   onSubmit: (input: string) => boolean | Promise<boolean>;
   onSubmitFeedback: (params: {
@@ -128,6 +129,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onNewConversation,
     onApproveToolCall,
     onRejectToolCall,
+    onOpenConversationHistory,
     onSelectConversation,
     onSubmit,
     onSubmitFeedback,
@@ -137,6 +139,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const isAutoScrollAttachedRef = useRef(true);
   const previousScrollTopRef = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const previousIsInputDisabledRef = useRef(isInputDisabled);
   const [input, setInput] = useState("");
   const [isConversationHistoryOpen, setIsConversationHistoryOpen] =
     useState(false);
@@ -186,9 +189,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             currentInput.trim() === trimmedContent ? "" : currentInput,
           );
 
-          window.requestAnimationFrame(() =>
-            scrollViewportToBottom(viewportRef.current),
-          );
+          window.requestAnimationFrame(() => {
+            scrollViewportToBottom(viewportRef.current);
+          });
         }
       })
       .catch(() => undefined);
@@ -208,6 +211,17 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
 
     scrollViewportToBottom(viewportRef.current);
   }, [selectedConversationId]);
+
+  useEffect(() => {
+    const wasInputDisabled = previousIsInputDisabledRef.current;
+    previousIsInputDisabledRef.current = isInputDisabled;
+
+    if (!wasInputDisabled || isInputDisabled) {
+      return;
+    }
+
+    inputRef.current?.focus();
+  }, [isInputDisabled]);
 
   useEffect(() => {
     const input = inputRef.current;
@@ -267,7 +281,13 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           </Tooltip>
           <DropdownMenu
             open={isConversationHistoryOpen}
-            onOpenChange={setIsConversationHistoryOpen}
+            onOpenChange={(nextOpen) => {
+              setIsConversationHistoryOpen(nextOpen);
+
+              if (nextOpen) {
+                onOpenConversationHistory();
+              }
+            }}
           >
             <Tooltip delayDuration={100} disableHoverableContent>
               <TooltipTrigger asChild>
@@ -309,7 +329,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                         conversation.id === selectedConversationId &&
                           "bg-accent text-accent-foreground",
                       )}
-                      onSelect={() => onSelectConversation(conversation.id)}
+                      onSelect={() => {
+                        onSelectConversation(conversation.id);
+                      }}
                     >
                       <span
                         className="min-w-0 flex-1 truncate"
@@ -358,7 +380,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 size="icon"
                 className="size-6"
                 aria-label={isExpanded ? "Collapse window" : "Expand window"}
-                onClick={() => onExpandedChange(!isExpanded)}
+                onClick={() => {
+                  onExpandedChange(!isExpanded);
+                }}
               >
                 {isExpanded ? (
                   <Minimize2 className="size-3" />
@@ -416,7 +440,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         >
           <div
             className={cn(
-              "flex h-full w-full flex-col py-4",
+              "flex min-h-full w-full flex-col py-4",
               isExpanded && "mx-auto max-w-3xl",
               isExpanded ? "px-0" : "px-3",
             )}
@@ -447,7 +471,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                           : "rounded-xl px-2 py-1.5",
                       )}
                       disabled={isInputDisabled}
-                      onClick={() => submitInput(message)}
+                      onClick={() => {
+                        submitInput(message);
+                      }}
                     >
                       {label}
                     </button>
@@ -575,7 +601,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               autoFocus={!isExpanded}
               ref={inputRef}
               value={input}
-              onChange={(event) => setInput(event.target.value)}
+              onChange={(event) => {
+                setInput(event.target.value);
+              }}
               onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
                 if (
                   event.key === "Enter" &&

@@ -1,6 +1,10 @@
 import type React from "react";
 import { useCallback, useMemo, useEffect, useState } from "react";
-import { StringParam, useQueryParam } from "use-query-params";
+import {
+  StringParam,
+  useQueryParam,
+  type UrlUpdateType,
+} from "use-query-params";
 import {
   type FilterState,
   singleFilter,
@@ -345,6 +349,14 @@ type UpdateFilter = (
 type BaseUseSidebarFilterStateOptions = {
   loading?: boolean;
   implicitDefaultConfig?: ManagedEnvironmentPolicyInput;
+  /**
+   * Precise per-facet loading set (lazy filter-options): exactly the columns
+   * whose options have been requested but not yet arrived. When provided it
+   * drives the facet skeleton instead of the coarse `loading` flag, so a facet
+   * shows a skeleton only while its own options stream in — and never for
+   * columns that are not server-enumerated (e.g. metadata).
+   */
+  loadingColumns?: ReadonlySet<string>;
 };
 
 export type UseSidebarFilterStateOptions =
@@ -432,7 +444,7 @@ export function useSidebarFilterState(
   >,
   hookOptions: UseSidebarFilterStateOptions = DEFAULT_HOOK_OPTIONS,
 ) {
-  const { loading, implicitDefaultConfig } = hookOptions;
+  const { loading, loadingColumns, implicitDefaultConfig } = hookOptions;
   const stateLocationType = hookOptions.stateLocation;
   const peekContext =
     stateLocationType === "peekContext" ? hookOptions.context : undefined;
@@ -657,8 +669,13 @@ export function useSidebarFilterState(
     ],
   );
 
+  // `options.updateType` controls the history semantics of the URL write:
+  // user-initiated filter edits keep the default (push — a Back-able step);
+  // programmatic writes (e.g. the session default-view auto-apply) pass
+  // `replaceIn` so they don't mint a history entry Back would bounce off
+  // (LFE-10715). Ignored for non-URL state locations.
   const setFilterState = useCallback(
-    (newFilters: FilterState) => {
+    (newFilters: FilterState, options?: { updateType?: UrlUpdateType }) => {
       const explicitFilters = stripImplicitEnvironmentFilterFromExplicitState({
         explicitFilters: newFilters,
         config: managedEnvironmentPolicyConfig,
@@ -679,7 +696,7 @@ export function useSidebarFilterState(
 
       const encoded = encodeFiltersGeneric(explicitFilters);
       setPendingFiltersQuery(encoded);
-      setUrlFiltersQuery(encoded || null);
+      setUrlFiltersQuery(encoded || null, options?.updateType);
       if (stateLocationType === "urlAndSessionStorage") {
         setStoredFiltersQuery(encoded);
       }
@@ -728,7 +745,10 @@ export function useSidebarFilterState(
     if (typeof urlFiltersQuery === "string") {
       if (urlFiltersQuery !== canonicalFiltersQuery) {
         setPendingFiltersQuery(canonicalFiltersQuery);
-        setUrlFiltersQuery(canonicalFiltersQuery || null);
+        // replaceIn: sanitizing is a programmatic correction of the current
+        // URL — pushing would mint a history entry holding the non-canonical
+        // filter, which Back lands on and this effect re-fires (LFE-10715).
+        setUrlFiltersQuery(canonicalFiltersQuery || null, "replaceIn");
       }
 
       if (
@@ -1158,6 +1178,11 @@ export function useSidebarFilterState(
     // Helper to determine if a filter should show loading state
     // Only filters that depend on options from the query should show loading
     const shouldShowLoading = (facetColumn: string): boolean => {
+      // Lazy filter-options: a precise per-facet set is supplied, so a facet
+      // shows a skeleton iff its own column is still in flight. This avoids the
+      // coarse-flag false positive where a never-enumerated facet (metadata,
+      // whose options are always undefined) would skeleton on every refetch.
+      if (loadingColumns) return loadingColumns.has(facetColumn);
       if (!loading) return false;
       // Only show loading if the filter depends on options and options are not yet available
       // Filters that use options: categorical, keyValue, numericKeyValue, stringKeyValue
@@ -1788,6 +1813,7 @@ export function useSidebarFilterState(
     config,
     options,
     loading,
+    loadingColumns,
     filterState,
     explicitFilterState,
     updateFilter,

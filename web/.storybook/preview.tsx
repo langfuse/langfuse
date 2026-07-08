@@ -41,6 +41,30 @@ function StorybookThemeProvider({
     };
   }, [theme]);
 
+  // Overlay layer containers, declared exactly like _document.tsx: a
+  // <div data-overlay-root> holding one <div data-layer={name}/> per
+  // LAYER_ORDER. This is what the layer system (components/ui/layer.tsx)
+  // portals toasts / tooltips / peek into; without it those overlays are
+  // absent in Storybook. Positioning/isolation comes from globals.css.
+  //
+  // Mounted imperatively ON <body>, ONCE — not rendered per decorator:
+  // the docs view runs this decorator for every story block on the page, and
+  // Storybook's preview block carries a CSS transform, which would make it the
+  // containing block for the layers' `position: fixed` — a portaled chart
+  // tooltip would paint relative to the first story block instead of the
+  // viewport (i.e. offscreen). On <body> it behaves exactly like the app.
+  useEffect(() => {
+    if (document.querySelector("[data-overlay-root]")) return;
+    const root = document.createElement("div");
+    root.setAttribute("data-overlay-root", "");
+    for (const name of LAYER_ORDER) {
+      const layer = document.createElement("div");
+      layer.setAttribute("data-layer", name);
+      root.appendChild(layer);
+    }
+    document.body.appendChild(root);
+  }, []);
+
   // Reproduce the app's DOM scaffold so the layout rules in globals.css that are
   // scoped to `div#__next` / `div#__next > div` (height: 100%) and
   // `div#__next { isolation: isolate }` actually apply — the app's tables live
@@ -49,26 +73,13 @@ function StorybookThemeProvider({
   // _app.tsx). `#__next` is given a real viewport height so the `height: 100%`
   // chain has something to resolve against.
   return (
-    <>
-      <div
-        id="__next"
-        className="bg-background text-foreground"
-        style={{ height: fullHeight ? "100vh" : "auto" }}
-      >
-        <div>{children}</div>
-      </div>
-      {/* Overlay layer containers, declared exactly like _document.tsx: a
-          <div data-overlay-root> sibling AFTER #__next (so it paints on top by
-          DOM order), holding one <div data-layer={name}/> per LAYER_ORDER. This
-          is what the layer system (components/ui/layer.tsx) portals toasts /
-          tooltips / peek into; without it those overlays are absent in
-          Storybook. Positioning/isolation comes from globals.css. */}
-      <div data-overlay-root>
-        {LAYER_ORDER.map((name) => (
-          <div key={name} data-layer={name} />
-        ))}
-      </div>
-    </>
+    <div
+      id="__next"
+      className="bg-background text-foreground"
+      style={{ height: fullHeight ? "100vh" : "auto" }}
+    >
+      <div>{children}</div>
+    </div>
   );
 }
 
@@ -101,8 +112,56 @@ function ThemedDocsContainer({
   return (
     <DocsContainer context={context} theme={dark ? themes.dark : themes.light}>
       <style>{`
-        .sbdocs-content { font-size: 16px; }
-        .sbdocs-content p, .sbdocs-content li { font-size: 1.0625rem; line-height: 1.7; }
+        .sbdocs-wrapper {
+          background: hsl(var(--background));
+          color: hsl(var(--foreground));
+          padding: 0;
+        }
+
+        .sbdocs-content {
+          max-width: 56rem;
+          padding: 3.5rem 2rem;
+          color: hsl(var(--foreground));
+        }
+
+        .sbdocs-content a {
+          color: hsl(var(--primary));
+        }
+
+        .sbdocs-content code {
+          background: hsl(var(--muted));
+          border-radius: 0.25rem;
+          padding: 0.125rem 0.375rem;
+        }
+
+        .sbdocs-content pre {
+          background: hsl(var(--muted));
+          border: 1px solid hsl(var(--border));
+          border-radius: 0.5rem;
+          color: hsl(var(--foreground));
+        }
+
+        .sbdocs-content pre code {
+          background: transparent;
+          padding: 0;
+        }
+
+        .sbdocs-content blockquote {
+          border-left: 3px solid hsl(var(--border));
+          color: hsl(var(--muted-foreground));
+          margin-left: 0;
+          padding-left: 1rem;
+        }
+
+        .sbdocs-content hr {
+          border-color: hsl(var(--border));
+        }
+
+        .sbdocs-content .sbdocs.sbdocs-preview {
+          background: transparent;
+          border: 1px solid hsl(var(--border));
+          box-shadow: none;
+        }
       `}</style>
       {children}
     </DocsContainer>

@@ -61,6 +61,7 @@ import {
   toAbsoluteTimeRange,
   type TableDateRange,
 } from "@/src/utils/date-range-utils";
+import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { type ScoreAggregate } from "@langfuse/shared";
 import TagList from "@/src/features/tag/components/TagList";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
@@ -161,6 +162,13 @@ export type ObservationsTableProps = {
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
   limitRows?: number;
+  /**
+   * When true, render the time-range picker and auto-refresh button in the
+   * page header (next to the title) via the header controls slot, instead of
+   * inside the table toolbar. Only used when the table is the primary content
+   * of a `Page`.
+   */
+  showControlsInPageHeader?: boolean;
 };
 
 export default function ObservationsTable({
@@ -173,6 +181,7 @@ export default function ObservationsTable({
   externalFilterState,
   externalDateRange,
   limitRows,
+  showControlsInPageHeader = false,
 }: ObservationsTableProps) {
   const peekContext = usePeekTableState();
 
@@ -1378,8 +1387,22 @@ export default function ObservationsTable({
     });
   }, [observationsTableStore, pageRowIds, totalCount]);
 
+  const refreshConfig = {
+    onRefresh: handleRefresh,
+    isRefreshing: generations.isFetching || totalCountQuery.isFetching,
+    interval: refreshInterval,
+    setInterval: setRefreshInterval,
+  };
+
   const content = (
     <>
+      {showControlsInPageHeader && !hideControls && (
+        <TableHeaderControls
+          timeRange={timeRange}
+          setTimeRange={setTimeRange}
+          refresh={refreshConfig}
+        />
+      )}
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         {!hideControls && (
@@ -1412,15 +1435,9 @@ export default function ObservationsTable({
             orderByState={orderByState}
             rowHeight={rowHeight}
             setRowHeight={setRowHeight}
-            timeRange={timeRange}
-            setTimeRange={setTimeRange}
-            refreshConfig={{
-              onRefresh: handleRefresh,
-              isRefreshing:
-                generations.isFetching || totalCountQuery.isFetching,
-              interval: refreshInterval,
-              setInterval: setRefreshInterval,
-            }}
+            timeRange={showControlsInPageHeader ? undefined : timeRange}
+            setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
+            refreshConfig={showControlsInPageHeader ? undefined : refreshConfig}
             projectId={projectId}
             backendFilterState={backendFilterState}
             searchQuery={searchQuery}
@@ -1443,7 +1460,7 @@ export default function ObservationsTable({
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable
-              tableName={"observations"}
+              tableName="observations"
               columns={columns}
               peekView={peekConfig}
               selectionStore={observationsTableStore}

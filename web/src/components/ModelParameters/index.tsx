@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -11,6 +11,7 @@ import {
 } from "@/src/components/ui/select";
 import { Slider } from "@/src/components/ui/slider";
 import { CreateLLMApiKeyDialog } from "@/src/features/public-api/components/CreateLLMApiKeyDialog";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -20,7 +21,7 @@ import {
   type supportedModels,
   type UIModelParams,
 } from "@langfuse/shared";
-import { InfoIcon, Settings2 } from "lucide-react";
+import { InfoIcon, PlusIcon, Settings2 } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -71,8 +72,13 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
   const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
   const [modelSettingsUsed, setModelSettingsUsed] = useState(false);
 
+  // Standalone dialog for the "no providers yet" empty state (renders its own
+  // trigger button, not inside a dropdown).
   const [createLlmApiKeyDialogOpen, setCreateLlmApiKeyDialogOpen] =
     useState(false);
+  // Coordinates the inline "Add LLM Connection" action inside the combined
+  // provider/model Select (compact layout) — see useAddLlmConnectionSelect.
+  const providerSelect = useAddLlmConnectionSelect();
 
   useEffect(() => {
     const hasEnabledModelSetting = Object.keys(modelParams).some(
@@ -229,8 +235,13 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
         <div className="flex items-center gap-2">
           <div className="min-w-0 flex-1 space-y-1">
             <Select
+              open={providerSelect.selectOpen}
+              onOpenChange={providerSelect.setSelectOpen}
               disabled={formDisabled}
-              onValueChange={handleCombinedSelection}
+              onValueChange={(value) => {
+                providerSelect.notifySelection();
+                handleCombinedSelection(value);
+              }}
               value={currentCombinedValue}
             >
               <SelectTrigger className="h-8">
@@ -242,13 +253,18 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
                     {option}
                   </SelectItem>
                 ))}
-                <SelectSeparator />
-                <CreateLLMApiKeyDialog
-                  open={createLlmApiKeyDialogOpen}
-                  setOpen={setCreateLlmApiKeyDialogOpen}
+                <AddLlmConnectionSelectAction
+                  onOpen={providerSelect.openConnectionDialog}
                 />
               </SelectContent>
             </Select>
+            {/* Dialog lives OUTSIDE the SelectContent so closing the Select does
+                not unmount it (see useAddLlmConnectionSelect). */}
+            <CreateLLMApiKeyDialog
+              hideTrigger
+              open={providerSelect.dialogOpen}
+              setOpen={providerSelect.handleDialogOpenChange}
+            />
             {modelParamsDescription ? (
               <FormDescription className="mt-1 text-xs">
                 {modelParamsDescription}
@@ -337,21 +353,35 @@ const ModelParamsSelect = ({
   modelParamsDescription,
   layout = "vertical",
 }: ModelParamsSelectProps) => {
-  const [createLlmApiKeyDialogOpen, setCreateLlmApiKeyDialogOpen] =
-    useState(false);
+  const providerSelect = useAddLlmConnectionSelect();
+
+  const handleValueChange = (next: string) => {
+    providerSelect.notifySelection();
+    updateModelParam(
+      modelParamsKey,
+      next as (typeof supportedModels)[LLMAdapter][number],
+    );
+  };
+
+  // Dialog lives OUTSIDE the SelectContent so closing the Select does not
+  // unmount it (see useAddLlmConnectionSelect).
+  const connectionDialog = (
+    <CreateLLMApiKeyDialog
+      hideTrigger
+      open={providerSelect.dialogOpen}
+      setOpen={providerSelect.handleDialogOpenChange}
+    />
+  );
 
   // Compact layout - simplified, space-efficient (no individual labels)
   if (layout === "compact") {
     return (
       <div className="space-y-1">
         <Select
+          open={providerSelect.selectOpen}
+          onOpenChange={providerSelect.setSelectOpen}
           disabled={disabled}
-          onValueChange={(value) =>
-            updateModelParam(
-              modelParamsKey,
-              value as (typeof supportedModels)[LLMAdapter][number],
-            )
-          }
+          onValueChange={handleValueChange}
           value={value}
         >
           <SelectTrigger className="h-8">
@@ -363,13 +393,12 @@ const ModelParamsSelect = ({
                 {option}
               </SelectItem>
             ))}
-            <SelectSeparator />
-            <CreateLLMApiKeyDialog
-              open={createLlmApiKeyDialogOpen}
-              setOpen={setCreateLlmApiKeyDialogOpen}
+            <AddLlmConnectionSelectAction
+              onOpen={providerSelect.openConnectionDialog}
             />
           </SelectContent>
         </Select>
+        {connectionDialog}
         {modelParamsDescription ? (
           <FormDescription className="mt-1 text-xs">
             {modelParamsDescription}
@@ -394,13 +423,10 @@ const ModelParamsSelect = ({
       </div>
       <div className="flex-1">
         <Select
+          open={providerSelect.selectOpen}
+          onOpenChange={providerSelect.setSelectOpen}
           disabled={disabled}
-          onValueChange={(value) =>
-            updateModelParam(
-              modelParamsKey,
-              value as (typeof supportedModels)[LLMAdapter][number],
-            )
-          }
+          onValueChange={handleValueChange}
           value={value}
         >
           <SelectTrigger>
@@ -412,13 +438,12 @@ const ModelParamsSelect = ({
                 {option}
               </SelectItem>
             ))}
-            <SelectSeparator />
-            <CreateLLMApiKeyDialog
-              open={createLlmApiKeyDialogOpen}
-              setOpen={setCreateLlmApiKeyDialogOpen}
+            <AddLlmConnectionSelectAction
+              onOpen={providerSelect.openConnectionDialog}
             />
           </SelectContent>
         </Select>
+        {connectionDialog}
         {modelParamsDescription ? (
           <FormDescription className="mt-1 text-xs">
             {modelParamsDescription}
@@ -553,7 +578,7 @@ const ProviderOptionsInput = ({
         <div className="flex flex-row space-x-3">
           {setModelParamEnabled ? (
             <Switch
-              title={`Control sending the additional options parameter`}
+              title="Control sending the additional options parameter"
               disabled={formDisabled}
               checked={enabled}
               onCheckedChange={(checked) => {
@@ -593,3 +618,78 @@ const ProviderOptionsInput = ({
     </div>
   );
 };
+
+/**
+ * Coordinates a provider/model `Select` that offers an inline "Add LLM
+ * Connection" action which opens the {@link CreateLLMApiKeyDialog}.
+ *
+ * A dropdown should not stay open while it spawns a modal (see the overlay
+ * lifecycle note in web/AGENTS.md): the still-open Radix Select content sits in
+ * the `popover` layer, above the `modal` layer, so it would paint over the
+ * dialog and the two focus/dismiss scopes would fight. We therefore control the
+ * Select's open state, close it as the dialog opens, and — because a Radix
+ * Select unmounts its content when it closes (which would tear down a dialog
+ * nested inside it) — the dialog is rendered as a SIBLING of the Select, not a
+ * child of its content.
+ *
+ * When the dialog closes we reopen the dropdown, but only if the user hasn't
+ * committed a selection in the meantime, so they can finish the pick they came
+ * for (e.g. choose the connection they just added).
+ */
+function useAddLlmConnectionSelect() {
+  const [selectOpen, setSelectOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const madeSelectionRef = useRef(false);
+
+  const openConnectionDialog = useCallback(() => {
+    madeSelectionRef.current = false;
+    setSelectOpen(false);
+    setDialogOpen(true);
+  }, []);
+
+  const handleDialogOpenChange = useCallback((open: boolean) => {
+    setDialogOpen(open);
+    if (!open && !madeSelectionRef.current) {
+      setSelectOpen(true);
+    }
+  }, []);
+
+  const notifySelection = useCallback(() => {
+    madeSelectionRef.current = true;
+  }, []);
+
+  return {
+    selectOpen,
+    setSelectOpen,
+    dialogOpen,
+    openConnectionDialog,
+    handleDialogOpenChange,
+    notifySelection,
+  };
+}
+
+/**
+ * The inline "Add LLM Connection" action rendered at the bottom of a provider
+ * Select. Gated by `llmApiKeys:create` so we don't show a dead button (and so we
+ * don't leave a dangling separator) for users without access. On click it hands
+ * off to the coordinator, which closes the dropdown before opening the dialog.
+ */
+function AddLlmConnectionSelectAction({ onOpen }: { onOpen: () => void }) {
+  const projectId = useProjectIdFromURL();
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "llmApiKeys:create",
+  });
+
+  if (!hasAccess) return null;
+
+  return (
+    <>
+      <SelectSeparator />
+      <Button type="button" variant="secondary" onClick={onOpen}>
+        <PlusIcon className="mr-1.5 -ml-0.5 h-5 w-5" aria-hidden="true" />
+        Add LLM Connection
+      </Button>
+    </>
+  );
+}

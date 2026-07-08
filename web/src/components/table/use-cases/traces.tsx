@@ -98,6 +98,7 @@ import {
   type RefreshInterval,
   REFRESH_INTERVALS,
 } from "@/src/components/table/data-table-refresh-button";
+import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
@@ -153,6 +154,13 @@ export type TracesTableProps = {
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
   limitRows?: number;
+  /**
+   * When true, render the time-range picker and auto-refresh button in the
+   * page header (next to the title) via the header controls slot, instead of
+   * inside the table toolbar. Only used when the table is the primary content
+   * of a `Page`.
+   */
+  showControlsInPageHeader?: boolean;
 };
 
 export default function TracesTable({
@@ -163,6 +171,7 @@ export default function TracesTable({
   externalFilterState,
   externalDateRange,
   limitRows,
+  showControlsInPageHeader = false,
 }: TracesTableProps) {
   const peekContext = usePeekTableState();
   const tracesFilterConfig = useMemo(
@@ -1404,9 +1413,26 @@ export default function TracesTable({
 
   const selectedTraceCount = selectAll ? totalCount : selectedTraceIds.length;
 
+  const refreshConfig = {
+    onRefresh: handleRefresh,
+    isRefreshing:
+      traces.isFetching ||
+      traceMetrics.isFetching ||
+      totalCountQuery.isFetching,
+    interval: refreshInterval,
+    setInterval: setRefreshInterval,
+  };
+
   return (
     <DataTableControlsProvider tableName={tracesFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
+        {showControlsInPageHeader && !hideControls && (
+          <TableHeaderControls
+            timeRange={timeRange}
+            setTimeRange={setTimeRange}
+            refresh={refreshConfig}
+          />
+        )}
         {/* Toolbar spanning full width */}
         {!hideControls && (
           <DataTableToolbar
@@ -1460,17 +1486,9 @@ export default function TracesTable({
             setColumnOrder={setColumnOrder}
             rowHeight={rowHeight}
             setRowHeight={setRowHeight}
-            timeRange={timeRange}
-            setTimeRange={setTimeRange}
-            refreshConfig={{
-              onRefresh: handleRefresh,
-              isRefreshing:
-                traces.isFetching ||
-                traceMetrics.isFetching ||
-                totalCountQuery.isFetching,
-              interval: refreshInterval,
-              setInterval: setRefreshInterval,
-            }}
+            timeRange={showControlsInPageHeader ? undefined : timeRange}
+            setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
+            refreshConfig={showControlsInPageHeader ? undefined : refreshConfig}
             multiSelect={{
               selectAll,
               setSelectAll,
@@ -1532,7 +1550,7 @@ export default function TracesTable({
               onColumnOrderChange={setColumnOrder}
               rowHeight={rowHeight}
               peekView={peekConfig}
-              tableName={"traces"}
+              tableName="traces"
             />
           </div>
         </ResizableFilterLayout>

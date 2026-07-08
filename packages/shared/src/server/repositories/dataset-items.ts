@@ -5,6 +5,7 @@ import { datasetItemsFilterCols } from "./dataset-items-columns";
 import {
   InternalServerError,
   InvalidRequestError,
+  LangfuseConflictError,
   LangfuseNotFoundError,
 } from "../../errors";
 import { DatasetItemValidator } from "../services/DatasetService";
@@ -76,10 +77,13 @@ async function getDatasets(props: {
     },
   });
 
-  if (datasets.length !== props.datasetIds.length)
+  if (datasets.length !== props.datasetIds.length) {
+    const foundIds = new Set(datasets.map((dataset) => dataset.id));
+    const missingIds = props.datasetIds.filter((id) => !foundIds.has(id));
     throw new LangfuseNotFoundError(
-      `One or more datasets not found for project ${props.projectId}`,
+      `Dataset(s) not found for project ${props.projectId}: ${missingIds.join(", ")}. \`datasetId\` must be a dataset id, not a dataset name; if you have a name, list datasets to resolve it to an id first.`,
     );
+  }
 
   return datasets;
 }
@@ -315,8 +319,8 @@ export async function upsertDatasetItem(
       datasetItemId: props.datasetItemId,
     });
     if (!!existingItem && existingItem.datasetId !== dataset.id) {
-      throw new LangfuseNotFoundError(
-        `Dataset item with id ${props.datasetItemId} not found for project ${props.projectId}`,
+      throw new LangfuseConflictError(
+        `Dataset item id ${props.datasetItemId} already exists in another dataset (id ${existingItem.datasetId}) in this project; item ids are unique per project across datasets. Use a different id or target dataset ${existingItem.datasetId}.`,
       );
     }
   }
@@ -439,8 +443,8 @@ export async function upsertDatasetItem(
         });
 
         if (current && current.datasetId !== dataset.id) {
-          throw new LangfuseNotFoundError(
-            `Dataset item with id ${itemId} not found for project ${props.projectId}`,
+          throw new LangfuseConflictError(
+            `Dataset item id ${itemId} already exists in another dataset (id ${current.datasetId}) in this project; item ids are unique per project across datasets. Use a different id or target dataset ${current.datasetId}.`,
           );
         }
 

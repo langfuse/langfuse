@@ -72,11 +72,29 @@ langfuse/
 - Dev worker only: `pnpm run dev:worker`
 - Lint all: `pnpm run lint`
 - Typecheck all: `pnpm run typecheck` / `pnpm tc`
+- Run a single test file (vitest filters on the filename argument):
+  - web server tests: `pnpm --filter web run test <file>`
+    (client tests: `pnpm --filter web run test-client <file>`)
+  - worker: `pnpm --filter worker run test <file>`
+  - shared: `pnpm --filter @langfuse/shared run test <file>`
 - Build check: `pnpm run build:check`
 - Full build: `pnpm run build`
 - Worktree bootstrap: `bash scripts/codex/setup.sh`
 - Worktree maintenance: `bash scripts/codex/maintenance.sh`
 - Install Playwright Chromium: `pnpm run playwright:install`
+
+## Local Data Inspection
+
+- For feature testing and debugging, inspect the local databases directly when
+  it helps you understand the existing test data. Prefer read-only queries, and
+  continue to use the seed CLI to create frontend test state rather than
+  ad-hoc inserts.
+- Dev Docker Compose exposes these clients on `${HOST_IP:-127.0.0.1}`:
+  - Postgres: `PGPASSWORD="${POSTGRES_PASSWORD:-postgres}" psql -h "${HOST_IP:-127.0.0.1}" -p "${POSTGRES_HOST_PORT:-5432}" -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-postgres}"`
+  - ClickHouse: `clickhouse client --host "${HOST_IP:-127.0.0.1}" --port "${CLICKHOUSE_NATIVE_PORT:-9000}" --user "${CLICKHOUSE_USER:-clickhouse}" --password "${CLICKHOUSE_PASSWORD:-clickhouse}" --database default`
+  - Redis: `REDISCLI_AUTH="${REDIS_AUTH:-myredissecret}" redis-cli -h "${HOST_IP:-127.0.0.1}" -p "${REDIS_HOST_PORT:-6379}"`
+- If any connection fails, check `docker-compose.dev.yml` for local override
+  variables and confirm the services are running.
 
 ## Verification
 
@@ -92,6 +110,17 @@ langfuse/
   targeted server API tests, and Fern update/regeneration.
 - Cross-package refactors: `pnpm run lint`, `pnpm run typecheck`, and targeted
   tests for impacted packages.
+- Client-bundle soundness: CI scans every prod web build
+  (`pnpm run scan:client-bundle`) for minifier-dropped bindings and Node-only
+  globals leaking into browser chunks — the SWC dropped-binding class ships
+  runtime-only `ReferenceError`s that dev builds and type checks cannot see
+  (LFE-10645). On failure, `scripts/scan-client-bundle.mjs`'s header explains
+  the canonical fix.
+
+End your turn with evidence, not claims: quote each check's summary line —
+e.g. `Tasks: 8 successful, 8 total` (turbo lint/typecheck) or
+`Tests  12 passed (12)` (vitest) — say which checks you skipped and why,
+never report unverified work as done, and never end with work pending.
 
 ## Generated Files
 

@@ -17,19 +17,19 @@ import { TRPCError } from "@trpc/server";
 import {
   ChatMessageRole,
   ChatMessageType,
-  fetchLLMCompletion,
   LangfuseInternalTraceEnvironment,
-  LLMAdapter,
   logger,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { z } from "zod";
-import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "@langfuse/shared";
-import { encrypt } from "@langfuse/shared/encryption";
-import { randomBytes } from "crypto";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { buildFilterSystemPrompt } from "./buildFilterPrompt";
 import { parseGeneratedFilters } from "./parseFilterCompletion";
+import {
+  fetchLangfuseAICompletion,
+  getLangfuseAITraceSinkParams,
+  isLangfuseAITracingConfigured,
+} from "@/src/features/ai-features/server/bedrockCompletion";
 
 const GenerateFilterInput = z.object({
   projectId: z.string(),
@@ -102,44 +102,15 @@ export const searchBarRouter = createTRPCRouter({
         );
 
         const aiTelemetryEnabled = project.organization.aiTelemetryEnabled;
-        const targetProjectId = aiTelemetryEnabled
-          ? env.LANGFUSE_AI_FEATURES_PROJECT_ID
-          : undefined;
 
-        if (aiTelemetryEnabled && !targetProjectId) {
+        if (aiTelemetryEnabled && !isLangfuseAITracingConfigured()) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: "Langfuse AI Features not configured.",
           });
         }
 
-        const traceSinkParams = targetProjectId
-          ? {
-              environment:
-                LangfuseInternalTraceEnvironment.NaturalLanguageFilter,
-              traceName: "search-bar-filter",
-              traceId: randomBytes(16).toString("hex"),
-              targetProjectId,
-              userId: ctx.session.user.id,
-              metadata: {
-                langfuse_ai_feature: "search-bar-filter",
-                langfuse_user_id: ctx.session.user.id,
-                langfuse_project_id: ctx.session.projectId,
-                // Debugging context for prompt iteration: a trace alone should
-                // explain WHY the model produced what it did. refine_mode marks
-                // refine vs. from-scratch; current_query is the filters being
-                // refined (the #1 thing to inspect when refine misbehaves);
-                // data_context_chars is how much observed-project context we
-                // injected. (Model + token usage are auto-captured on the
-                // generation.)
-                langfuse_refine_mode: Boolean(input.currentQuery?.trim()),
-                langfuse_current_query: input.currentQuery?.trim() || null,
-                langfuse_data_context_chars: input.dataContext?.length ?? 0,
-              },
-            }
-          : undefined;
-
-        const llmCompletion = await fetchLLMCompletion({
+        const llmCompletion = await fetchLangfuseAICompletion({
           messages: [
             {
               role: ChatMessageRole.System,
@@ -152,23 +123,35 @@ export const searchBarRouter = createTRPCRouter({
               type: ChatMessageType.PublicAPICreated,
             },
           ],
-          modelParams: {
-            provider: "bedrock",
-            adapter: LLMAdapter.Bedrock,
-            model: env.LANGFUSE_AWS_BEDROCK_MODEL,
-            // Intentionally NO temperature/top_p: newer Bedrock models (e.g.
-            // Claude Opus 4.8, the prod AI-features model) reject them with
-            // `ValidationException: '<param>' is deprecated for this model`,
-            // which 500s the whole request. Filter generation is fine at model
-            // defaults, and omitting them is robust across model changes.
-            max_tokens: 2048,
-          },
-          llmConnection: {
-            secretKey: encrypt(BEDROCK_USE_DEFAULT_CREDENTIALS),
-          },
-          streaming: false,
-          traceSinkParams,
-          shouldUseLangfuseAPIKey: true,
+          maxTokens: 2048,
+          traceSinkParams: aiTelemetryEnabled
+            ? getLangfuseAITraceSinkParams({
+                environment:
+                  LangfuseInternalTraceEnvironment.NaturalLanguageFilter,
+                feature: "search-bar-filter",
+                projectId: ctx.session.projectId,
+                traceName: "search-bar-filter",
+                userId: ctx.session.user.id,
+                metadata: {
+                  langfuse_user_id: ctx.session.user.id,
+                  ...(ctx.session.user.email
+                    ? { langfuse_user_email: ctx.session.user.email }
+                    : {}),
+                  langfuse_user_project_role: ctx.session.projectRole,
+                  langfuse_cloud_region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+                  // Debugging context for prompt iteration: a trace alone should
+                  // explain WHY the model produced what it did. refine_mode marks
+                  // refine vs. from-scratch; current_query is the filters being
+                  // refined (the #1 thing to inspect when refine misbehaves);
+                  // data_context_chars is how much observed-project context we
+                  // injected. (Model + token usage are auto-captured on the
+                  // generation.)
+                  langfuse_refine_mode: Boolean(input.currentQuery?.trim()),
+                  langfuse_current_query: input.currentQuery?.trim() || null,
+                  langfuse_data_context_chars: input.dataContext?.length ?? 0,
+                },
+              })
+            : undefined,
         });
 
         if (typeof llmCompletion !== "string") {

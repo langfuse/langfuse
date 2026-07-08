@@ -30,10 +30,12 @@ import {
   type InAppAgentUserAccess,
   withInAppAgentToolApproval,
 } from "@/src/ee/features/in-app-agent/server/tools";
+import { LANGFUSE_IN_APP_AGENT_SKILLS } from "@/src/ee/features/in-app-agent/server/skills";
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
 import { logger } from "@langfuse/shared/src/server";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
 import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@/src/ee/features/in-app-agent/constants";
+import { assertUnreachable } from "@/src/utils/types";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
 const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
@@ -173,6 +175,7 @@ export async function createAgUiStream(params: {
       ? { ...params.options.langfuseTracing, prompt }
       : undefined,
   });
+  instrumentation?.recordAvailableSkills?.(LANGFUSE_IN_APP_AGENT_SKILLS);
 
   let subscription: { unsubscribe: () => void } | undefined;
   let ending = false;
@@ -208,15 +211,16 @@ export async function createAgUiStream(params: {
 
         for (const result of results) {
           if (result.status === "rejected") {
+            const error: unknown = result.reason;
             logger.error("Error in agent stream cleanup", {
-              error: result.reason,
+              error,
               runId: params.input.runId,
               threadId: params.input.threadId,
             });
           }
         }
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
         logger.error("Error in agent stream cleanup", {
           error,
           runId: params.input.runId,
@@ -231,7 +235,7 @@ export async function createAgUiStream(params: {
   ) => {
     try {
       await callback?.();
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(errorContext, {
         error,
         runId: params.input.runId,
@@ -295,7 +299,9 @@ export async function createAgUiStream(params: {
               encoder.encode(`data: ${JSON.stringify(agUiEvent)}\n\n`),
             );
           })
-          .catch((error) => failStream(error, String(agUiEvent.type)));
+          .catch((error: unknown) => {
+            failStream(error, String(agUiEvent.type));
+          });
       };
 
       const handleStreamedRunError = () => {
@@ -315,6 +321,7 @@ export async function createAgUiStream(params: {
           ...runInput.syntheticEvents,
         ];
 
+        instrumentation?.recordToolCallApproval(runInput.toolCallApproval);
         instrumentation?.recordEvents(terminalEvents);
         for (const syntheticEvent of terminalEvents) {
           enqueueEvent(syntheticEvent);
@@ -352,7 +359,9 @@ export async function createAgUiStream(params: {
             closed = true;
             controller.close();
           })
-          .catch((error) => failStream(error))
+          .catch((error: unknown) => {
+            failStream(error);
+          })
           .finally(finish);
       };
 
@@ -383,7 +392,7 @@ export async function createAgUiStream(params: {
             closed = true;
             controller.close();
           })
-          .catch((error) => {
+          .catch((error: unknown) => {
             closed = true;
             logger.error("Error while aborting agent stream", {
               error,
@@ -441,12 +450,12 @@ export async function createAgUiStream(params: {
         awsProfile,
         instructions,
         onToolsAvailable: (tools) =>
-          instrumentation?.recordAvailableTools(tools),
+          instrumentation?.recordAvailableTools?.(tools),
       })
         .then(async (initialAdapter) => {
           if (ending || closed || params.signal.aborted) {
             initialAdapter.interrupt();
-            initialAdapter.cleanup().catch((error) => {
+            initialAdapter.cleanup().catch((error: unknown) => {
               logger.error("Error in agent stream cleanup", {
                 error,
                 runId: params.input.runId,
@@ -502,7 +511,7 @@ export async function createAgUiStream(params: {
 
             if (ending || closed || params.signal.aborted) {
               currentAdapter.interrupt();
-              currentAdapter.cleanup().catch((error) => {
+              currentAdapter.cleanup().catch((error: unknown) => {
                 logger.error("Error in agent stream cleanup", {
                   error,
                   runId: params.input.runId,
@@ -554,6 +563,9 @@ export async function createAgUiStream(params: {
                   agUiEvent.type === EventType.RUN_STARTED &&
                   pendingSyntheticEvents.length > 0
                 ) {
+                  instrumentation?.recordToolCallApproval(
+                    runInput.toolCallApproval,
+                  );
                   instrumentation?.recordEvents(pendingSyntheticEvents);
                   for (const syntheticEvent of pendingSyntheticEvents) {
                     enqueueEvent(syntheticEvent);
@@ -562,7 +574,7 @@ export async function createAgUiStream(params: {
                 }
               }
             },
-            error(error) {
+            error(error: unknown) {
               if (ending || closed) {
                 return;
               }
@@ -618,7 +630,7 @@ export async function createAgUiStream(params: {
             },
           });
         })
-        .catch((error) => {
+        .catch((error: unknown) => {
           if (ending || closed) {
             return;
           }
@@ -662,7 +674,7 @@ export async function createAgUiStream(params: {
         .then(() => {
           closed = true;
         })
-        .catch((error) => {
+        .catch((error: unknown) => {
           closed = true;
           logger.error("Error while cancelling agent stream", {
             error,
@@ -763,6 +775,7 @@ async function createMastraAdapter(params: {
       model: bedrock(
         params.options.awsBedrock.modelId as Parameters<typeof bedrock>[0],
       ),
+      skills: LANGFUSE_IN_APP_AGENT_SKILLS,
       tools,
       defaultOptions: {
         abortSignal: params.signal,
@@ -814,8 +827,8 @@ async function createMastraAdapter(params: {
       interrupt: () => agent.abortRunStream(params.input.runId),
       cleanup: () => mcpClient.disconnect(),
     };
-  } catch (error) {
-    await mcpClient.disconnect().catch((disconnectError) => {
+  } catch (error: unknown) {
+    await mcpClient.disconnect().catch((disconnectError: unknown) => {
       logger.error("Error cleaning up failed agent initialization", {
         error: disconnectError,
         runId: params.input.runId,
@@ -854,7 +867,13 @@ type PatchableMastraAgent = {
 };
 
 type MastraStreamChunk = {
-  type?: string;
+  type?:
+    | "tool-call-input-streaming-start"
+    | "tool-call-delta"
+    | "tool-call-input-streaming-end"
+    | "tool-call"
+    | "tool-call-approval"
+    | "tool-call-suspended";
   payload?: {
     toolCallId?: string;
     toolName?: string;
@@ -864,6 +883,44 @@ type MastraStreamChunk = {
     suspendPayload?: unknown;
   };
 };
+
+type MastraStreamChunkType = NonNullable<MastraStreamChunk["type"]>;
+
+const MASTRA_STREAM_CHUNK_TYPES = [
+  "tool-call-input-streaming-start",
+  "tool-call-delta",
+  "tool-call-input-streaming-end",
+  "tool-call",
+  "tool-call-approval",
+  "tool-call-suspended",
+] as const satisfies readonly MastraStreamChunkType[];
+
+function isMastraStreamChunkType(type: unknown): type is MastraStreamChunkType {
+  return (
+    typeof type === "string" &&
+    MASTRA_STREAM_CHUNK_TYPES.some((chunkType) => chunkType === type)
+  );
+}
+
+function isMastraStreamChunk(chunk: unknown): chunk is MastraStreamChunk {
+  if (typeof chunk !== "object" || chunk === null) {
+    return false;
+  }
+
+  if (!("type" in chunk) || chunk.type === undefined) {
+    return true;
+  }
+
+  if (!isMastraStreamChunkType(chunk.type)) {
+    return false;
+  }
+
+  if (!("payload" in chunk) || chunk.payload === undefined) {
+    return true;
+  }
+
+  return typeof chunk.payload === "object" && chunk.payload !== null;
+}
 
 type StreamingToolCall = {
   toolCallId: string;
@@ -897,127 +954,143 @@ export function patchMastraToolCallInputStreaming(adapter: MastraAgent) {
 
     return {
       handleChunk(chunk: unknown) {
-        const mastraChunk = chunk as MastraStreamChunk;
+        if (!isMastraStreamChunk(chunk)) {
+          logger.warn(
+            "Received unknown Mastra chunk while patching tool-call input streaming",
+            chunk,
+          );
+          return processor.handleChunk(chunk);
+        }
 
-        switch (mastraChunk.type) {
-          case "tool-call-input-streaming-start": {
-            const { toolCallId, toolName } = mastraChunk.payload ?? {};
-            if (!toolCallId || !toolName) {
+        const mastraChunk = chunk;
+
+        if (mastraChunk.type === "tool-call-input-streaming-start") {
+          const { toolCallId, toolName } = mastraChunk.payload ?? {};
+          if (!toolCallId || !toolName) {
+            callbacks.onError(
+              new Error(
+                "Malformed tool-call-input-streaming-start: missing toolCallId or toolName in payload",
+              ),
+            );
+            return true;
+          }
+
+          streamingToolCalls.set(toolCallId, {
+            toolCallId,
+            toolName,
+            argsText: "",
+          });
+          return false;
+        }
+
+        if (mastraChunk.type === "tool-call-delta") {
+          const { toolCallId, toolName, argsTextDelta } =
+            mastraChunk.payload ?? {};
+          if (!toolCallId) {
+            callbacks.onError(
+              new Error(
+                "Malformed tool-call-delta: missing toolCallId in payload",
+              ),
+            );
+            return true;
+          }
+
+          let streamingToolCall = streamingToolCalls.get(toolCallId);
+          if (!streamingToolCall) {
+            if (!toolName) {
               callbacks.onError(
                 new Error(
-                  "Malformed tool-call-input-streaming-start: missing toolCallId or toolName in payload",
+                  "Malformed tool-call-delta: missing toolName for unknown toolCallId in payload",
                 ),
               );
               return true;
             }
 
-            streamingToolCalls.set(toolCallId, {
+            streamingToolCall = { toolCallId, toolName, argsText: "" };
+            streamingToolCalls.set(toolCallId, streamingToolCall);
+          }
+
+          streamingToolCall.argsText += argsTextDelta ?? "";
+          return false;
+        }
+
+        if (mastraChunk.type === "tool-call-input-streaming-end") {
+          const { toolCallId } = mastraChunk.payload ?? {};
+          const streamingToolCall = toolCallId
+            ? streamingToolCalls.get(toolCallId)
+            : undefined;
+          if (streamingToolCall) {
+            synthesizedToolCallIds.add(streamingToolCall.toolCallId);
+            const shouldStop = processor.handleChunk({
+              type: "tool-call",
+              payload: {
+                toolCallId: streamingToolCall.toolCallId,
+                toolName: streamingToolCall.toolName,
+                args: parseStreamingToolCallArgs(streamingToolCall.argsText),
+              },
+            });
+            streamingToolCalls.delete(streamingToolCall.toolCallId);
+            return shouldStop;
+          }
+          return false;
+        }
+
+        if (mastraChunk.type === "tool-call") {
+          const { toolCallId } = mastraChunk.payload ?? {};
+          if (toolCallId && synthesizedToolCallIds.has(toolCallId)) {
+            synthesizedToolCallIds.delete(toolCallId);
+            return false;
+          }
+
+          return processor.handleChunk(chunk);
+        }
+
+        if (mastraChunk.type === "tool-call-approval") {
+          const { toolCallId, toolName, args, resumeSchema } =
+            mastraChunk.payload ?? {};
+          if (!toolCallId || !toolName) {
+            callbacks.onError(
+              new Error(
+                "Malformed tool-call-approval: missing toolCallId or toolName in payload",
+              ),
+            );
+            return true;
+          }
+
+          streamingToolCalls.delete(toolCallId);
+          synthesizedToolCallIds.delete(toolCallId);
+
+          return processor.handleChunk({
+            type: "tool-call-suspended",
+            payload: {
               toolCallId,
               toolName,
-              argsText: "",
-            });
-            return false;
-          }
-          case "tool-call-delta": {
-            const { toolCallId, toolName, argsTextDelta } =
-              mastraChunk.payload ?? {};
-            if (!toolCallId) {
-              callbacks.onError(
-                new Error(
-                  "Malformed tool-call-delta: missing toolCallId in payload",
-                ),
-              );
-              return true;
-            }
-
-            let streamingToolCall = streamingToolCalls.get(toolCallId);
-            if (!streamingToolCall) {
-              if (!toolName) {
-                callbacks.onError(
-                  new Error(
-                    "Malformed tool-call-delta: missing toolName for unknown toolCallId in payload",
-                  ),
-                );
-                return true;
-              }
-
-              streamingToolCall = { toolCallId, toolName, argsText: "" };
-              streamingToolCalls.set(toolCallId, streamingToolCall);
-            }
-
-            streamingToolCall.argsText += argsTextDelta ?? "";
-            return false;
-          }
-          case "tool-call-input-streaming-end": {
-            const { toolCallId } = mastraChunk.payload ?? {};
-            const streamingToolCall = toolCallId
-              ? streamingToolCalls.get(toolCallId)
-              : undefined;
-            if (streamingToolCall) {
-              synthesizedToolCallIds.add(streamingToolCall.toolCallId);
-              const shouldStop = processor.handleChunk({
-                type: "tool-call",
-                payload: {
-                  toolCallId: streamingToolCall.toolCallId,
-                  toolName: streamingToolCall.toolName,
-                  args: parseStreamingToolCallArgs(streamingToolCall.argsText),
-                },
-              });
-              streamingToolCalls.delete(streamingToolCall.toolCallId);
-              return shouldStop;
-            }
-            return false;
-          }
-          case "tool-call": {
-            const { toolCallId } = mastraChunk.payload ?? {};
-            if (toolCallId && synthesizedToolCallIds.has(toolCallId)) {
-              synthesizedToolCallIds.delete(toolCallId);
-              return false;
-            }
-            break;
-          }
-          case "tool-call-approval": {
-            const { toolCallId, toolName, args, resumeSchema } =
-              mastraChunk.payload ?? {};
-            if (!toolCallId || !toolName) {
-              callbacks.onError(
-                new Error(
-                  "Malformed tool-call-approval: missing toolCallId or toolName in payload",
-                ),
-              );
-              return true;
-            }
-
-            streamingToolCalls.delete(toolCallId);
-            synthesizedToolCallIds.delete(toolCallId);
-
-            return processor.handleChunk({
-              type: "tool-call-suspended",
-              payload: {
+              args,
+              resumeSchema,
+              suspendPayload: {
+                type: "approval",
                 toolCallId,
                 toolName,
                 args,
-                resumeSchema,
-                suspendPayload: {
-                  type: "approval",
-                  toolCallId,
-                  toolName,
-                  args,
-                },
               },
-            });
-          }
-          case "tool-call-suspended": {
-            const { toolCallId } = mastraChunk.payload ?? {};
-            if (toolCallId) {
-              streamingToolCalls.delete(toolCallId);
-              synthesizedToolCallIds.delete(toolCallId);
-            }
-            break;
-          }
+            },
+          });
         }
 
-        return processor.handleChunk(chunk);
+        if (mastraChunk.type === "tool-call-suspended") {
+          const { toolCallId } = mastraChunk.payload ?? {};
+          if (toolCallId) {
+            streamingToolCalls.delete(toolCallId);
+            synthesizedToolCallIds.delete(toolCallId);
+          }
+          return processor.handleChunk(chunk);
+        }
+
+        if (mastraChunk.type === undefined) {
+          return processor.handleChunk(chunk);
+        }
+
+        return assertUnreachable(mastraChunk.type);
       },
       flush() {
         processor.flush();

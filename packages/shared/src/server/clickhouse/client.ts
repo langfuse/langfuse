@@ -12,7 +12,7 @@ import { propagation, context, trace } from "@opentelemetry/api";
 import { ClickHouseLogger, mapLogLevel } from "./clickhouse-logger";
 import { getClickHouseCompatibilitySettings } from "./compatibility";
 
-export { EXCEPTION_TAG_HEADER_NAME } from "@clickhouse/client/dist/common";
+export { EXCEPTION_TAG_HEADER_NAME } from "@clickhouse/client";
 
 export type ClickhouseClientType = ReturnType<typeof createClient>;
 
@@ -24,6 +24,14 @@ export type PreferredClickhouseService =
 type ServiceClickhouseSettings = ClickHouseSettings & {
   enable_full_text_index?: 1;
 };
+
+type RequestTimeoutClickHouseSettings = ClickHouseSettings & {
+  max_execution_time?: number;
+  timeout_before_checking_execution_speed?: number;
+};
+
+const CLICKHOUSE_CLIENT_DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+const CLICKHOUSE_SERVER_TIMEOUT_GRACE_SECONDS = 5;
 
 /**
  * Remove these once we remove corresponding variables
@@ -146,6 +154,19 @@ export class ClickHouseClientManager {
     );
   }
 
+  private getRequestTimeoutClickHouseSettings(
+    requestTimeout?: number,
+  ): RequestTimeoutClickHouseSettings {
+    if (!requestTimeout) return {};
+
+    return {
+      timeout_before_checking_execution_speed: 0,
+      max_execution_time:
+        Math.ceil(requestTimeout / 1000) +
+        CLICKHOUSE_SERVER_TIMEOUT_GRACE_SECONDS,
+    };
+  }
+
   private generateClientSettingsKey(
     settings: NodeClickHouseClientConfigOptions,
   ): string {
@@ -204,6 +225,12 @@ export class ClickHouseClientManager {
         cloudOptions.input_format_json_throw_on_bad_escape_sequence = 0;
       }
 
+      const clickHouseRequestTimeout =
+        opts.request_timeout ?? CLICKHOUSE_CLIENT_DEFAULT_REQUEST_TIMEOUT_MS;
+      const shouldSendProgressInHttpHeaders =
+        opts.request_timeout !== undefined &&
+        opts.request_timeout > CLICKHOUSE_CLIENT_DEFAULT_REQUEST_TIMEOUT_MS;
+
       const client = createClient({
         ...opts,
         ...settings,
@@ -245,10 +272,11 @@ export class ClickHouseClientManager {
             : {}),
           ...cloudOptions,
           ...serviceClickhouseSettings,
+          ...this.getRequestTimeoutClickHouseSettings(clickHouseRequestTimeout),
           ...opts.clickhouse_settings,
           async_insert: 1,
           wait_for_async_insert: 1, // if disabled, we won't get errors from clickhouse
-          ...(opts.request_timeout && opts.request_timeout > 30000
+          ...(shouldSendProgressInHttpHeaders
             ? {
                 send_progress_in_http_headers: 1,
                 http_headers_progress_interval_ms: "10000", // UInt64, should be passed as a string
