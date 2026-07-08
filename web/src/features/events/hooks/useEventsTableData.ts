@@ -124,7 +124,6 @@ export function useEventsTableData({
     enabled: observations.isSuccess && batchIOPayload !== null,
     refetchOnWindowFocus: false,
     staleTime: 0,
-    traceId: batchIOPayload?.traceId,
   });
 
   // Extract error information for display (only from observations.all, not batchIO)
