@@ -10,7 +10,6 @@ import {
   DialogBody,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import { Badge } from "@/src/components/ui/badge";
 import {
   Tabs,
   TabsContent,
@@ -35,7 +34,6 @@ export type WidgetItem = {
   chartType: string;
   createdAt: Date;
   updatedAt: Date;
-  owner?: "PROJECT" | "LANGFUSE";
 };
 
 const rowClassName =
@@ -63,19 +61,8 @@ function WidgetRow({
     <button type="button" onClick={onClick} className={rowClassName}>
       <RowIllustration type={widget.chartType} />
       <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <span className="truncate font-medium" title={widget.name}>
-            {widget.name}
-          </span>
-          {widget.owner === "LANGFUSE" && (
-            <Badge
-              variant="secondary"
-              className="shrink-0"
-              title="Maintained by Langfuse — editing creates your own copy"
-            >
-              Langfuse
-            </Badge>
-          )}
+        <div className="truncate font-medium" title={widget.name}>
+          {widget.name}
         </div>
         {widget.description ? (
           <div
@@ -130,12 +117,7 @@ export function SelectWidgetDialog({
     },
   );
 
-  const projectWidgets = (widgets.data?.widgets ?? []).filter(
-    (w) => w.owner === "PROJECT",
-  );
-  const curatedWidgets = (widgets.data?.widgets ?? []).filter(
-    (w) => w.owner === "LANGFUSE",
-  );
+  const projectWidgets = widgets.data?.widgets ?? [];
 
   const selectWidget = (widget: WidgetItem) => {
     onSelectWidget(widget);
@@ -190,9 +172,6 @@ export function SelectWidgetDialog({
                       Home cards ({HOME_DASHBOARD_PRESET_IDS.length})
                     </TabsTrigger>
                   )}
-                  <TabsTrigger value="curated">
-                    Langfuse widgets ({curatedWidgets.length})
-                  </TabsTrigger>
                 </TabsList>
                 <TabsContent value="project">
                   <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto p-1">
@@ -251,17 +230,6 @@ export function SelectWidgetDialog({
                     </div>
                   </TabsContent>
                 )}
-                <TabsContent value="curated">
-                  <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto p-1">
-                    {curatedWidgets.map((widget) => (
-                      <WidgetRow
-                        key={widget.id}
-                        widget={widget as WidgetItem}
-                        onClick={() => selectWidget(widget as WidgetItem)}
-                      />
-                    ))}
-                  </div>
-                </TabsContent>
               </Tabs>
             </div>
           )}
