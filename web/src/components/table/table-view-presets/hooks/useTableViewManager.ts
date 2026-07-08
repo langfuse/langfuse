@@ -330,13 +330,24 @@ export function useTableViewManager({
       // has run (the migration is one-shot and this is a separate persistence path).
       // Run the table's opt-in columnOrder migration on the payload first so the
       // same "only reposition a stale default" rule applies here too.
-      if (viewData.columnOrder) {
+      //
+      // EMPTY payloads carry no column opinion and must not touch the user's
+      // layout: system presets (and the chips' cleared state) ship
+      // `columnOrder: []` / `columnVisibility: {}`, and writing those through
+      // would reconcile the table back to default columns and PERSIST that to
+      // localStorage — silently wiping per-user reordering/visibility on every
+      // preset apply. User-saved views always persist a full non-empty
+      // snapshot, so gating on non-empty only skips the no-opinion payloads.
+      if (viewData.columnOrder && viewData.columnOrder.length > 0) {
         const migratedColumnOrder = validationContext.migrateColumnOrder
           ? validationContext.migrateColumnOrder(viewData.columnOrder)
           : viewData.columnOrder;
         setColumnOrder(migratedColumnOrder);
       }
-      if (viewData.columnVisibility)
+      if (
+        viewData.columnVisibility &&
+        Object.keys(viewData.columnVisibility).length > 0
+      )
         setColumnVisibility(viewData.columnVisibility);
 
       // Unlock as soon as the view is applied. Earlier versions kept the table
