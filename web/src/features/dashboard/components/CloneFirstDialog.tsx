@@ -102,7 +102,11 @@ export function CloneFirstDialog({
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen && !cloneDashboard.isPending) {
+    // Keep the dialog open while the clone is in flight (it navigates on
+    // success); closing mid-flight would revert the grid and then surprise-
+    // navigate.
+    if (!nextOpen && cloneDashboard.isPending) return;
+    if (!nextOpen) {
       onCancel?.();
     }
     onOpenChange(nextOpen);
@@ -137,6 +141,9 @@ export function CloneFirstDialog({
                   <span className="text-foreground font-medium">
                     &ldquo;{existingClone.name}&rdquo;
                   </span>
+                  {pendingDefinition
+                    ? " — opening it will discard your attempted change"
+                    : ""}
                 </span>
                 <Button
                   variant="outline"
@@ -163,6 +170,7 @@ export function CloneFirstDialog({
               onClick={() => handleOpenChange(false)}
               variant="outline"
               type="button"
+              disabled={cloneDashboard.isPending}
             >
               Cancel
             </Button>

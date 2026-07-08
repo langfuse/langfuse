@@ -127,10 +127,6 @@ export default function Dashboard() {
     [selectedEnvironments],
   );
 
-  const gridFilterState: FilterState = useMemo(
-    () => [...userFilterState, ...environmentFilter],
-    [userFilterState, environmentFilter],
-  );
   const isDashboardDataReady = environmentOptionsState.isReady;
 
   // Home renders the project's selected dashboard (Project.homeDashboardId);
@@ -190,6 +186,17 @@ export default function Dashboard() {
   // Dashboards section, one pencil click away).
   const definition =
     displayedDashboard?.definition ?? LANGFUSE_HOME_DASHBOARD_DEFINITION;
+
+  // The dashboard's saved filters apply as the base (like the detail page),
+  // with Home's own user/environment filters on top.
+  const gridFilterState: FilterState = useMemo(
+    () => [
+      ...(displayedDashboard?.filters ?? []),
+      ...userFilterState,
+      ...environmentFilter,
+    ],
+    [displayedDashboard?.filters, userFilterState, environmentFilter],
+  );
 
   const getWidgetSchedulerId = useCallback(
     (widgetPlacementId: string) =>

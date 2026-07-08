@@ -28,7 +28,15 @@ export function CopyWidgetDialog({
   isPending: boolean;
 }) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        // Keep the dialog open while the copy is in flight (it navigates on
+        // success).
+        if (!nextOpen && isPending) return;
+        onOpenChange(nextOpen);
+      }}
+    >
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle>Edit your copy of this widget</DialogTitle>
@@ -49,6 +57,7 @@ export function CopyWidgetDialog({
               onClick={() => onOpenChange(false)}
               variant="outline"
               type="button"
+              disabled={isPending}
             >
               Cancel
             </Button>
