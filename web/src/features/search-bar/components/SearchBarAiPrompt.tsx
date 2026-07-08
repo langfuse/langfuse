@@ -130,7 +130,7 @@ export function SearchBarAiPrompt({
     <div className="relative w-full">
       <div
         className={cn(
-          "border-input bg-background rounded-md border px-2 py-1.5",
+          "border-border-contrast bg-background rounded-md border px-2 py-1.5",
           "focus-within:ring-ring focus-within:ring-1",
           error && "border-destructive focus-within:ring-destructive/40",
         )}

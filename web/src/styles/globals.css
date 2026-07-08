@@ -323,7 +323,7 @@
     --header: 0 0% 6.3%;
     --header-foreground: var(--foreground);
 
-    --border: 0 0% 12.9%;
+    --border: 0 0% 10.5%;
     --border-contrast: 0 0% 26%;
     --input: 0 0% 18%;
 
@@ -391,7 +391,7 @@
     --sidebar-primary-foreground: 0 0% 3.5%;
     --sidebar-accent: 0 0% 11.6%;
     --sidebar-accent-foreground: 0 0% 91%;
-    --sidebar-border: 0 0% 12.9%;
+    --sidebar-border: 0 0% 10.5%;
     --sidebar-ring: 246 55% 70%;
 
     --find-match-background: 60 100% 20%;

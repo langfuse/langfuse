@@ -1303,7 +1303,7 @@ export function SearchComposer({
           // centers a single line near min-h-9 and the box grows when wrapped.
           // Right gutter keeps the last token clear of the top-right control:
           // the "Ask AI" button (pr-20), or the error icon (pr-8).
-          "border-input bg-background relative min-h-9 rounded-md border px-2 py-1.5",
+          "border-border-contrast bg-background relative min-h-9 rounded-md border px-2 py-1.5",
           onActivateAi !== undefined && !showGlobalDiagnostics
             ? "pr-20"
             : "pr-8",
