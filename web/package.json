@@ -75,7 +75,6 @@
     "@opentelemetry/resource-detector-aws": "^2.19.0",
     "@opentelemetry/resource-detector-container": "^0.8.10",
     "@opentelemetry/resources": "^2.8.0",
-    "@repo/in-app-agent-sandbox-runtime": "workspace:*",
     "@opentelemetry/sdk-node": "^0.219.0",
     "@opentelemetry/sdk-trace-base": "^2.8.0",
     "@opentelemetry/sdk-trace-node": "^2.8.0",

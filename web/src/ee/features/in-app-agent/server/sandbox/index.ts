@@ -8,10 +8,10 @@ export {
   createLocalSandboxSnapshotStore,
   createS3SandboxSnapshotStore,
 } from "./snapshots";
-export type { SandboxFile } from "@repo/in-app-agent-sandbox-runtime";
 export type {
   InAppAgentSandbox,
   InAppAgentSandboxProviderType,
+  SandboxFile,
   SandboxProvider,
   SandboxSession,
 } from "./types";

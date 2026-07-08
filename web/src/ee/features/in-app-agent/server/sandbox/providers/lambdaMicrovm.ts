@@ -9,10 +9,9 @@ import {
   SuspendMicrovmCommand,
   type RunMicrovmCommandInput,
 } from "@aws-sdk/client-lambda-microvms";
-import type { SandboxFile } from "@repo/in-app-agent-sandbox-runtime";
 import { z } from "zod";
 
-import type { SandboxProvider, SandboxSession } from "../types";
+import type { SandboxFile, SandboxProvider, SandboxSession } from "../types";
 
 const DEFAULT_AUTH_TOKEN_EXPIRATION_MINUTES = 30;
 const DEFAULT_BRIDGE_PORT = 5000;

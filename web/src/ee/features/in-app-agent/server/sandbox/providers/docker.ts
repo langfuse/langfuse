@@ -1,11 +1,10 @@
 import { PassThrough } from "node:stream";
 
-import type { SandboxFile } from "@repo/in-app-agent-sandbox-runtime";
 import type Docker from "dockerode";
 import { logger } from "@langfuse/shared/src/server";
 
 import type { SandboxSnapshotStore } from "../snapshots";
-import type { SandboxSession } from "../types";
+import type { SandboxFile, SandboxSession } from "../types";
 
 type DockerExecResult = {
   exitCode: number;

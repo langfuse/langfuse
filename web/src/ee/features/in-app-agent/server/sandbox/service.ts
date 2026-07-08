@@ -1,9 +1,9 @@
-import type { SandboxFile } from "@repo/in-app-agent-sandbox-runtime";
 import { getInAppAgentSandboxSnapshotKey } from "@langfuse/shared/src/server";
 
 import type {
   InAppAgentSandbox,
   InAppAgentSandboxProviderType,
+  SandboxFile,
   SandboxProvider,
 } from "./types";
 
