@@ -1,4 +1,4 @@
-import { Responsive, WidthProvider } from "react-grid-layout";
+import { Responsive } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import { type WidgetPlacement } from "../components/DashboardWidget";
@@ -8,11 +8,43 @@ import {
 } from "../components/PresetDashboardWidget";
 import { DashboardWidget } from "@/src/features/widgets";
 import { type FilterState } from "@langfuse/shared";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export type DashboardPlacement = WidgetPlacement | PresetPlacement;
 
-const ResponsiveGridLayout = WidthProvider(Responsive);
+/**
+ * Container width, measured once immediately and then with a trailing
+ * debounce. WidthProvider re-renders the whole grid (and every chart in it)
+ * on each resize frame; measuring ourselves keeps continuous window resizes
+ * from burning CPU — the layout snaps once, when the resize settles.
+ */
+function useDebouncedContainerWidth(delayMs: number) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState<number | null>(null);
+
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
+
+    setWidth(element.getBoundingClientRect().width);
+
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const observer = new ResizeObserver(() => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        setWidth(element.getBoundingClientRect().width);
+      }, delayMs);
+    });
+    observer.observe(element);
+
+    return () => {
+      clearTimeout(timeout);
+      observer.disconnect();
+    };
+  }, [delayMs]);
+
+  return { containerRef, width };
+}
 
 // Hook to detect screen size
 function useMediaQuery(query: string) {
@@ -66,29 +98,12 @@ export function DashboardGrid({
   /** Pure viewing surface (e.g. Home): tiles render no edit affordances. */
   readOnly?: boolean;
 }) {
-  const [rowHeight, setRowHeight] = useState(150);
-
-  // Tiles snap into place on initial mount and when switching dashboards;
-  // transitions turn on shortly after so only user drag/resize animates.
-  const [animationEnabled, setAnimationEnabled] = useState(false);
-  useEffect(() => {
-    setAnimationEnabled(false);
-    const timeout = setTimeout(() => setAnimationEnabled(true), 400);
-    return () => clearTimeout(timeout);
-  }, [dashboardId]);
+  const { containerRef, width } = useDebouncedContainerWidth(200);
+  // Rows stay 16:9-proportional to column width
+  const rowHeight = width !== null ? ((width / 12) * 9) / 16 : 150;
 
   // Detect if screen is medium or smaller (1024px and below)
   const isSmallScreen = useMediaQuery("(max-width: 1024px)");
-
-  const handleWidthChange = useCallback(
-    (containerWidth: number) => {
-      const calculatedRowHeight = ((containerWidth / 12) * 9) / 16;
-      if (calculatedRowHeight !== rowHeight) {
-        setRowHeight(calculatedRowHeight);
-      }
-    },
-    [rowHeight],
-  );
 
   // Convert WidgetPlacement to react-grid-layout format
   const layout = widgets.map((w) => ({
@@ -187,31 +202,33 @@ export function DashboardGrid({
 
   // Render grid layout for larger screens
   return (
-    <div data-grid-animation={animationEnabled ? "on" : "off"}>
-      <ResponsiveGridLayout
-        className="layout"
-        layouts={{ lg: layout }}
-        cols={{ lg: 12, md: 12, sm: 12, xs: 12, xxs: 12 }}
-        margin={[16, 16]}
-        rowHeight={rowHeight}
-        isDraggable={canEdit}
-        isResizable={canEdit}
-        onDragStop={handleLayoutChange} // Save immediately when drag stops
-        onResizeStop={handleLayoutChange} // Save immediately when resize stops
-        onWidthChange={handleWidthChange}
-        draggableHandle=".drag-handle"
-        useCSSTransforms
-      >
-        {widgets.map((widget) => (
-          <div
-            key={widget.id}
-            data-placement-id={widget.id}
-            className="max-h-full max-w-full"
-          >
-            {renderPlacement(widget)}
-          </div>
-        ))}
-      </ResponsiveGridLayout>
+    <div ref={containerRef}>
+      {width !== null && (
+        <Responsive
+          className="layout"
+          width={width}
+          layouts={{ lg: layout }}
+          cols={{ lg: 12, md: 12, sm: 12, xs: 12, xxs: 12 }}
+          margin={[16, 16]}
+          rowHeight={rowHeight}
+          isDraggable={canEdit}
+          isResizable={canEdit}
+          onDragStop={handleLayoutChange} // Save immediately when drag stops
+          onResizeStop={handleLayoutChange} // Save immediately when resize stops
+          draggableHandle=".drag-handle"
+          useCSSTransforms
+        >
+          {widgets.map((widget) => (
+            <div
+              key={widget.id}
+              data-placement-id={widget.id}
+              className="max-h-full max-w-full"
+            >
+              {renderPlacement(widget)}
+            </div>
+          ))}
+        </Responsive>
+      )}
     </div>
   );
 }

@@ -455,10 +455,11 @@
 }
 
 @layer utilities {
-  /* react-grid-layout: suppress tile transitions during initial mount and
-     dashboard switches — only user drag/resize should animate. The attribute
-     is toggled by DashboardGrid. */
-  [data-grid-animation="off"] .react-grid-item {
+  /* react-grid-layout: no tile/container transitions at all — layout
+     changes snap into place. The animations added no value and burned CPU
+     on window resizes and dashboard switches. */
+  .react-grid-layout,
+  .react-grid-item {
     transition: none !important;
   }
 
