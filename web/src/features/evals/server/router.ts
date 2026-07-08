@@ -1224,15 +1224,22 @@ export const evalRouter = createTRPCRouter({
         const existingProjectTemplates = existingProjectTemplatesByName.filter(
           (template) => template.type === input.type,
         );
+        // "open it to create a new version" is a dead end when the name is
+        // taken by a template of a different type (type cannot change)
+        const throwTemplateNameConflict = () => {
+          throw new LangfuseConflictError(
+            existingProjectTemplates.length > 0
+              ? `An evaluator named "${input.name}" already exists in this project. Open it to create a new version.`
+              : `An evaluator named "${input.name}" already exists in this project with a different type. Use a different name.`,
+          );
+        };
 
         let templateIdsWhoseConfigsShouldMove: string[] = [];
 
         switch (input.intent) {
           case "new": {
             if (existingProjectTemplatesByName.length > 0) {
-              throw new LangfuseConflictError(
-                `An evaluator named "${input.name}" already exists in this project. Open it to create a new version.`,
-              );
+              throwTemplateNameConflict();
             }
             break;
           }
@@ -1269,9 +1276,7 @@ export const evalRouter = createTRPCRouter({
               );
             }
             if (existingProjectTemplatesByName.length > 0) {
-              throw new LangfuseConflictError(
-                `An evaluator named "${input.name}" already exists in this project. Open it to create a new version.`,
-              );
+              throwTemplateNameConflict();
             }
 
             if (input.retargetUsingJobConfigs) {
