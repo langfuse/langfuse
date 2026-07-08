@@ -150,8 +150,8 @@ export default function UserPage() {
                     key={tab}
                     className={cn(
                       tab === currentTab
-                        ? "border-primary-accent text-primary-accent"
-                        : "text-muted-foreground hover:border-border hover:text-primary border-transparent",
+                        ? "border-primary-accent text-foreground"
+                        : "text-muted-foreground hover:border-border hover:text-foreground border-transparent",
                       "border-b-2 px-4 py-3 text-sm font-medium whitespace-nowrap",
                     )}
                     aria-current={tab === currentTab ? "page" : undefined}

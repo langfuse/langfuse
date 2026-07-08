@@ -189,9 +189,9 @@ const PageHeader = ({
               >
                 {tabsProps.tabs.map((tab) => {
                   const tabClassName = cn(
-                    "hover:bg-muted/50 focus-visible:ring-ring inline-flex h-full items-center justify-center rounded-none border-b-4 border-transparent px-2 py-0.5 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
+                    "hover:bg-muted/50 focus-visible:ring-ring text-muted-foreground inline-flex h-full items-center justify-center rounded-none border-b-4 border-transparent px-2 py-0.5 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
                     tab.value === tabsProps.activeTab
-                      ? "border-primary-accent bg-transparent shadow-none"
+                      ? "border-primary-accent text-foreground bg-transparent shadow-none"
                       : "",
                     tab.disabled && "pointer-events-none opacity-50",
                     tab.className,
