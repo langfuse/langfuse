@@ -540,7 +540,9 @@ export const getTraceByIdFromTracesTable = async ({
         : renderingProps.truncated
           ? `leftUTF8(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`
           : "output";
-      const metadataColumn = excludeMetadata ? "'{}'" : "metadata";
+      // map() (not a '{}' string literal) so the excluded column keeps the
+      // Map type and converts to an empty object in the domain model.
+      const metadataColumn = excludeMetadata ? "map()" : "metadata";
 
       const query = `
         SELECT
