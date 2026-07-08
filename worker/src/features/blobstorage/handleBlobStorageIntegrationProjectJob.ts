@@ -1356,6 +1356,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
     // concurrent terminal failures — e.g. a scheduled run racing a manual Run
     // Now across pods, which have distinct jobIds and so aren't queue-deduped.
     let persistedDisable = false;
+    let disableClaimRan = false;
     try {
       await prisma.blobStorageIntegration.update({
         where: { projectId },
@@ -1370,6 +1371,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
           where: { projectId, enabled: true },
           data: { enabled: false },
         });
+        disableClaimRan = true;
         persistedDisable = count === 1;
         if (persistedDisable) {
           logger.warn(
@@ -1386,9 +1388,13 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
     // Notify only after BullMQ exhausts its retries — an email on an earlier
     // attempt fires even when a later retry succeeds, and would double up
-    // with the "disabled" email on customer faults. If a concurrent terminal
-    // failure won the disable claim, skip: the winner already notified.
-    if (isFinalAttempt && (persistedDisable || !disableForCustomerFault)) {
+    // with the "disabled" email on customer faults. Skip only when a
+    // concurrent terminal failure won the disable claim (the winner already
+    // notified); if the claim never ran because persistence threw, fall back
+    // to the informational email so the failure isn't silent.
+    const lostDisableRaceToConcurrentRun =
+      disableForCustomerFault && disableClaimRan && !persistedDisable;
+    if (isFinalAttempt && !lostDisableRaceToConcurrentRun) {
       notifyBlobStorageExportFailedInBackground(projectId, persistedDisable);
     }
 
