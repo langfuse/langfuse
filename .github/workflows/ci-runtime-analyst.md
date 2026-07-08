@@ -78,17 +78,21 @@ timeout-minutes: 60
 # this frontmatter, since the compiler no longer enforces it.
 strict: false
 
-# The compiler hardcodes AWF's `--allow-host-ports 80,443,8080` (80/443
-# web, 8080 MCP gateway); there is no declarative knob for extra ports.
-# This x-internal args passthrough appends a second --allow-host-ports,
-# and AWF's CLI parser takes the last occurrence — so this REPLACES the
-# list and must re-include 80,443,8080. Extra ports are the dev stack:
-# floci 4566, postgres 5432, redis 6379, clickhouse 8123+9000, minio 9090.
-# Schema-validated at compile; a gh-aw upgrade that drops it fails loudly.
+# Open the dev-stack ports to the sandbox via this x-internal args
+# passthrough — gh-aw has no declarative knob for extra host ports (it
+# only auto-generates this flag from Actions `services:`, which our
+# compose services can't be expressed as). --allow-host-service-ports is
+# the right flag for databases: unlike --allow-host-ports it permits
+# "dangerous" ports (5432 etc.) BY DESIGN because it routes them to the
+# host gateway ONLY — so the agent must connect via host.docker.internal,
+# never localhost (provisioning rewrites the .env endpoints accordingly).
+# Ports: floci 4566, postgres 5432, redis 6379, clickhouse 8123+9000,
+# minio 9090. Schema-validated at compile; a gh-aw upgrade that drops the
+# passthrough fails loudly.
 sandbox:
   agent:
     id: awf
-    args: ["--allow-host-ports", "80,443,8080,4566,5432,6379,8123,9000,9090"]
+    args: ["--allow-host-service-ports", "4566,5432,6379,8123,9000,9090"]
 
 network:
   allowed:
@@ -190,6 +194,12 @@ steps:
       CLICKHOUSE_SHIM
       sudo chmod +x /usr/local/bin/clickhouse
       pnpm --filter=shared ch:dev-tables
+      # The sandbox reaches these services only via the host gateway
+      # (host.docker.internal) — see the sandbox.agent.args comment. The
+      # host-side steps above needed localhost, so rewrite the service
+      # endpoints (port-scoped: app URLs like :3000 must stay localhost)
+      # as the LAST provisioning action.
+      sed -E -i 's#(localhost|127\.0\.0\.1):(4566|5432|6379|8123|9000|9090)#host.docker.internal:\2#g; s#^REDIS_HOST=.*#REDIS_HOST="host.docker.internal"#' .env web/.env worker/.env
       mkdir -p /tmp/gh-aw && touch /tmp/gh-aw/db-stack-ready
   - name: Docker logout (drop registry credentials before the agent starts)
     # docker login stores the token in ~/.docker/config.json, which the AWF
@@ -524,15 +534,16 @@ Three boundaries:
   DB-less verification (the DB-less commands below still work — deps and
   builds may then be missing too, so run `pnpm install` +
   `pnpm --filter=shared run db:generate` yourself first).
-- Connectivity: the services run on the host; your sandbox reaches them
-  because their ports are explicitly firewall-allowed. Use the `localhost`
-  endpoints from `.env` as-is. If a connection to a provisioned service is
-  refused, retry once against `host.docker.internal:<same port>` (copy
-  `.env` and swap only the DB/Redis/ClickHouse/S3 hostnames). If that also
-  fails, this run's infrastructure is broken: report it in the job summary
-  and fall back to DB-less verification. NEVER interpret
-  connection-refused errors against provisioned services as a test
-  regression or flaky test — they are an infra signal, not a code signal.
+- Connectivity: the services run on the host, and your sandbox reaches
+  them ONLY via `host.docker.internal` — the `.env` files are already
+  rewritten to those endpoints, so use them as-is and never "fix" them
+  back to `localhost` (in-sandbox localhost has no services; only an app
+  you start yourself listens there, e.g. localhost:3000). If a connection
+  to a provisioned `host.docker.internal` endpoint fails, this run's
+  infrastructure is broken: report it in the job summary and fall back to
+  DB-less verification. NEVER interpret connection-refused errors against
+  provisioned services as a test regression or flaky test — they are an
+  infra signal, not a code signal.
 - You cannot control docker itself (the socket is hidden): no restarting
   or inspecting containers, nothing beyond the dev-stack services. The
   e2e-tests job (Playwright browsers against the built app) stays out of
