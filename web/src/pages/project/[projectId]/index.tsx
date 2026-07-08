@@ -11,7 +11,7 @@ import {
   type FilterState,
 } from "@langfuse/shared";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
   toAbsoluteTimeRange,
@@ -37,12 +37,15 @@ import {
 } from "@/src/hooks/useDashboardQueryScheduler";
 import Link from "next/link";
 import { PencilIcon } from "lucide-react";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
 import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
 import { HomeDashboardSelect } from "@/src/features/dashboard/components/HomeDashboardSelect";
 
 export default function Dashboard() {
   const router = useRouter();
+  const utils = api.useUtils();
   const projectId = router.query.projectId as string;
   const { timeRange, setTimeRange } = useDashboardDateRange();
   const { isBetaEnabled } = useV4Beta();
@@ -137,16 +140,46 @@ export default function Dashboard() {
     { projectId },
     { enabled: Boolean(projectId), retry: false },
   );
-  const resolvedDashboard = homeDashboard.data?.dashboard ?? null;
-  const dashboardId = resolvedDashboard?.id ?? LANGFUSE_HOME_DASHBOARD_ID;
-  const dashboardName = resolvedDashboard?.name ?? "Langfuse Home";
-  const dashboardOwner = resolvedDashboard?.owner ?? "LANGFUSE";
+  const appliedDefaultId =
+    homeDashboard.data?.homeDashboardId ?? LANGFUSE_HOME_DASHBOARD_ID;
 
-  // Home is a viewing surface: no in-place editing. The "Edit" button opens
-  // the Customize Home dialog (choose the dashboard shown here, or step into
-  // editing the current one).
+  // Selecting in the picker "peeks" a dashboard on Home for this user only;
+  // "Set default" persists it for the project.
+  const [peekId, setPeekId] = useState<string | null>(null);
+  const peekQuery = api.dashboard.getDashboard.useQuery(
+    { projectId, dashboardId: peekId ?? "" },
+    { enabled: Boolean(projectId) && Boolean(peekId), retry: false },
+  );
+
+  const displayedDashboard = peekId
+    ? (peekQuery.data ?? null)
+    : (homeDashboard.data?.dashboard ?? null);
+  const dashboardId =
+    displayedDashboard?.id ?? peekId ?? LANGFUSE_HOME_DASHBOARD_ID;
+  const dashboardName = displayedDashboard?.name ?? "Langfuse Home";
+  const dashboardOwner = displayedDashboard?.owner ?? "LANGFUSE";
+  const isPeekLoading = Boolean(peekId) && peekQuery.isPending;
+
+  const hasRbacCUDAccess = useHasProjectAccess({
+    projectId,
+    scope: "dashboards:CUD",
+  });
+
+  // Silent on success: the "Set default" button disappearing is the feedback.
+  const setHomeDashboard = api.dashboard.setHomeDashboard.useMutation({
+    onSuccess: () => {
+      utils.dashboard.getHomeDashboard.invalidate();
+      setPeekId(null);
+    },
+    onError: (e) => {
+      showErrorToast("Failed to set the default Home dashboard", e.message);
+    },
+  });
+
+  // Home is a viewing surface: no in-place editing (that lives in the
+  // Dashboards section, one pencil click away).
   const definition =
-    resolvedDashboard?.definition ?? LANGFUSE_HOME_DASHBOARD_DEFINITION;
+    displayedDashboard?.definition ?? LANGFUSE_HOME_DASHBOARD_DEFINITION;
 
   const getWidgetSchedulerId = useCallback(
     (widgetPlacementId: string) =>
@@ -212,9 +245,30 @@ export default function Dashboard() {
             <>
               <HomeDashboardSelect
                 projectId={projectId}
-                homeDashboardId={homeDashboard.data?.homeDashboardId ?? null}
+                value={dashboardId}
+                onValueChange={(id) =>
+                  setPeekId(id === appliedDefaultId ? null : id)
+                }
                 currentDashboardName={dashboardName}
               />
+              {Boolean(peekId) && hasRbacCUDAccess && (
+                <Button
+                  variant="outline"
+                  loading={setHomeDashboard.isPending}
+                  title="Show this dashboard on Home for everyone in this project"
+                  onClick={() =>
+                    setHomeDashboard.mutate({
+                      projectId,
+                      dashboardId:
+                        dashboardId === LANGFUSE_HOME_DASHBOARD_ID
+                          ? null
+                          : dashboardId,
+                    })
+                  }
+                >
+                  Set default
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="icon"
@@ -254,7 +308,7 @@ export default function Dashboard() {
             }
           />
         </PageHeaderControlsPortal>
-        {!isDashboardDataReady ? (
+        {!isDashboardDataReady || isPeekLoading ? (
           <NoDataOrLoading isLoading />
         ) : (
           <DashboardGrid

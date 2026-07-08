@@ -160,6 +160,7 @@ export function DashboardGrid({
           .map((widget) => (
             <div
               key={widget.id}
+              data-placement-id={widget.id}
               className="w-full"
               // Fixed height for query widgets (their charts fill whatever
               // space they get); presets size to their content like the
@@ -192,7 +193,11 @@ export function DashboardGrid({
       useCSSTransforms
     >
       {widgets.map((widget) => (
-        <div key={widget.id} className="max-h-full max-w-full">
+        <div
+          key={widget.id}
+          data-placement-id={widget.id}
+          className="max-h-full max-w-full"
+        >
           {renderPlacement(widget)}
         </div>
       ))}

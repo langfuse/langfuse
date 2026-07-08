@@ -18,12 +18,15 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
+import { Badge } from "@/src/components/ui/badge";
 
 export interface ComboboxOption<
   T extends string | number | boolean | { id: string },
 > {
   value: T;
   label?: string;
+  /** Small tag rendered after the label (e.g. "Default"). */
+  badge?: string;
   disabled?: boolean;
 }
 
@@ -126,6 +129,11 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
           <span className="truncate" title={buttonText}>
             {buttonText}
           </span>
+          {selectedOption?.badge && (
+            <Badge variant="secondary" className="ml-1.5 shrink-0">
+              {selectedOption.badge}
+            </Badge>
+          )}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -172,6 +180,11 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                         )}
                       />
                       {option.label ?? String(option.value)}
+                      {option.badge && (
+                        <Badge variant="secondary" className="ml-auto">
+                          {option.badge}
+                        </Badge>
+                      )}
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -213,6 +226,11 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                       )}
                     />
                     {option.label ?? String(option.value)}
+                    {option.badge && (
+                      <Badge variant="secondary" className="ml-auto">
+                        {option.badge}
+                      </Badge>
+                    )}
                   </CommandItem>
                 ))}
               </CommandGroup>

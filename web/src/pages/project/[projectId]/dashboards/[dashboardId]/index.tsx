@@ -10,7 +10,6 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import type { ColumnDefinition, FilterState } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { PlusIcon, Copy } from "lucide-react";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import {
   SelectWidgetDialog,
@@ -35,7 +34,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { EditDashboardDialog } from "@/src/features/dashboard/components/EditDashboardDialog";
 import { LANGFUSE_HOME_DASHBOARD_ID } from "@langfuse/shared";
-import { HomeIcon, MoreVertical, PencilIcon } from "lucide-react";
+import { HomeIcon, Loader2, MoreVertical, PencilIcon } from "lucide-react";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
@@ -43,6 +42,11 @@ import {
 } from "@/src/utils/date-range-utils";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
+import { MultiSelect } from "@/src/features/filters/components/multi-select";
+import {
+  convertSelectedEnvironmentsToFilter,
+  useEnvironmentFilter,
+} from "@/src/hooks/useEnvironmentFilter";
 import {
   DashboardQuerySchedulerProvider,
   getDashboardQuerySchedulerMaxConcurrent,
@@ -129,12 +133,8 @@ export default function DashboardDetail() {
   // Mutation for updating dashboard definition
   const updateDashboardDefinition =
     api.dashboard.updateDashboardDefinition.useMutation({
+      // Saves are silent; the header shows a spinner while in flight.
       onSuccess: () => {
-        showSuccessToast({
-          title: "Dashboard updated",
-          description: "Your changes have been saved automatically",
-          duration: 2000,
-        });
         // Invalidate the dashboard query to refetch the data
         dashboard.refetch();
       },
@@ -155,11 +155,6 @@ export default function DashboardDetail() {
   const setHomeDashboard = api.dashboard.setHomeDashboard.useMutation({
     onSuccess: () => {
       utils.dashboard.getHomeDashboard.invalidate();
-      showSuccessToast({
-        title: "Home dashboard updated",
-        description: "This dashboard is now shown on the project home page",
-        duration: 2000,
-      });
     },
     onError: (error) => {
       showErrorToast("Failed to update home dashboard", error.message);
@@ -174,11 +169,6 @@ export default function DashboardDetail() {
     api.dashboard.updateDashboardMetadata.useMutation({
       onSuccess: () => {
         utils.dashboard.invalidate();
-        showSuccessToast({
-          title: "Dashboard renamed",
-          description: "The new name has been saved",
-          duration: 2000,
-        });
       },
       onError: (error) => {
         showErrorToast("Error renaming dashboard", error.message);
@@ -189,11 +179,6 @@ export default function DashboardDetail() {
   const updateDashboardFilters =
     api.dashboard.updateDashboardFilters.useMutation({
       onSuccess: () => {
-        showSuccessToast({
-          title: "Filters saved",
-          description: "Dashboard filters have been saved successfully",
-          duration: 2000,
-        });
         // Update saved state to match current state
         setSavedFilters(currentFilters);
       },
@@ -257,6 +242,13 @@ export default function DashboardDetail() {
       };
       setLocalDashboardDefinition(updatedDefinition);
       saveDashboardChanges(updatedDefinition);
+
+      // The new widget lands at the bottom of the grid — bring it into view.
+      setTimeout(() => {
+        document
+          .querySelector(`[data-placement-id="${newWidgetPlacement.id}"]`)
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 150);
     },
     [
       localDashboardDefinition,
@@ -279,6 +271,24 @@ export default function DashboardDetail() {
     (value) => ({
       value,
     }),
+  );
+
+  // Dedicated environment selector, same as Home. The selection is a view
+  // setting (persisted per project for this user), merged into the widget
+  // filters but never written into the dashboard's saved filters.
+  const { selectedEnvironments, setSelectedEnvironments } =
+    useEnvironmentFilter(environmentOptionsState.environmentOptions, projectId);
+  const environmentFilter = useMemo(
+    () =>
+      convertSelectedEnvironmentsToFilter(
+        ["environment"],
+        selectedEnvironments,
+      ),
+    [selectedEnvironments],
+  );
+  const gridFilterState: FilterState = useMemo(
+    () => [...currentFilters, ...environmentFilter],
+    [currentFilters, environmentFilter],
   );
   // Filter columns for PopoverFilterBuilder
   const filterColumns: ColumnDefinition[] = [
@@ -472,6 +482,7 @@ export default function DashboardDetail() {
       absoluteTimeRange?.from?.toISOString() ?? "",
       absoluteTimeRange?.to?.toISOString() ?? "",
       JSON.stringify(currentFilters),
+      selectedEnvironments.join(","),
       widgetPlacements.map((widget) => widget.id).join(","),
     ].join("|");
   }, [
@@ -480,6 +491,7 @@ export default function DashboardDetail() {
     currentFilters,
     dashboardId,
     projectId,
+    selectedEnvironments,
     widgetPlacements,
   ]);
 
@@ -529,14 +541,37 @@ export default function DashboardDetail() {
               dashboard.data?.description || "No description available",
           },
           actionButtonsLeft: (
-            <PopoverFilterBuilder
-              columns={filterColumns}
-              filterState={currentFilters}
-              onChange={setCurrentFilters}
-            />
+            <>
+              <MultiSelect
+                title="Environment"
+                label="Env"
+                values={selectedEnvironments}
+                onValueChange={useDebounce(setSelectedEnvironments)}
+                options={environmentOptions}
+                className="my-0 w-auto overflow-hidden"
+              />
+              <PopoverFilterBuilder
+                columns={filterColumns}
+                filterState={currentFilters}
+                onChange={setCurrentFilters}
+              />
+            </>
           ),
           actionButtonsRight: (
             <>
+              {(updateDashboardDefinition.isPending ||
+                updateDashboardMetadata.isPending ||
+                updateDashboardFilters.isPending ||
+                setHomeDashboard.isPending) && (
+                <span
+                  className="flex items-center"
+                  title="Saving..."
+                  role="status"
+                  aria-label="Saving"
+                >
+                  <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
+                </span>
+              )}
               {hasCUDAccess && hasUnsavedFilterChanges && (
                 <Button
                   onClick={handleSaveFilters}
@@ -693,7 +728,7 @@ export default function DashboardDetail() {
               dashboardId={dashboardId}
               projectId={projectId}
               dateRange={absoluteTimeRange}
-              filterState={currentFilters}
+              filterState={gridFilterState}
               onDeleteWidget={handleDeleteWidget}
               dashboardOwner={dashboard.data?.owner}
               getWidgetSchedulerId={getWidgetSchedulerId}
