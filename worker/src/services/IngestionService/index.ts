@@ -1182,7 +1182,12 @@ export class IngestionService {
   private async getUsageUnits(
     observationRecord: Pick<
       ObservationRecordInsertType,
-      "provided_usage_details" | "level" | "input" | "output" | "id"
+      | "provided_usage_details"
+      | "level"
+      | "input"
+      | "output"
+      | "id"
+      | "project_id"
     >,
     model: Model | null | undefined,
   ): Promise<
@@ -1204,6 +1209,8 @@ export class IngestionService {
         }
       }
     }
+
+    this.warnOnUsageTotalMismatch(providedUsageDetails, observationRecord);
 
     if (
       // Manual tokenisation when no user provided usage and generation has not status ERROR
@@ -1315,6 +1322,55 @@ export class IngestionService {
       usage_details: usageDetails,
       provided_usage_details: providedUsageDetails,
     };
+  }
+
+  private static lastUsageTotalMismatchLogAt = 0;
+  private static readonly USAGE_TOTAL_MISMATCH_TOLERANCE = 0.01;
+  private static readonly USAGE_TOTAL_MISMATCH_LOG_INTERVAL_MS = 60_000;
+
+  /**
+   * Detects the double-count class from
+   * https://github.com/langfuse/langfuse/issues/10592: instrumentors that send
+   * an inclusive `input` alongside cache buckets while providing a smaller
+   * `total`. Warn only — buckets can be genuinely additive (e.g. Bedrock cache
+   * writes), so auto-correcting could corrupt valid payloads.
+   */
+  private warnOnUsageTotalMismatch(
+    providedUsageDetails: Record<string, number>,
+    observationRecord: Pick<ObservationRecordInsertType, "id" | "project_id">,
+  ): void {
+    const providedTotal = providedUsageDetails.total;
+    if (providedTotal == null) return;
+
+    const bucketSum = Object.entries(providedUsageDetails)
+      .filter(([key]) => key !== "total")
+      .reduce((sum, [, value]) => sum + value, 0);
+    const tolerance = Math.max(
+      1,
+      providedTotal * IngestionService.USAGE_TOTAL_MISMATCH_TOLERANCE,
+    );
+    if (bucketSum <= providedTotal + tolerance) return;
+
+    recordIncrement("langfuse.ingestion.usage_details.total_mismatch");
+
+    const now = Date.now();
+    if (
+      now - IngestionService.lastUsageTotalMismatchLogAt <
+      IngestionService.USAGE_TOTAL_MISMATCH_LOG_INTERVAL_MS
+    ) {
+      return;
+    }
+    IngestionService.lastUsageTotalMismatchLogAt = now;
+    logger.warn(
+      "Sum of provided non-total usage_details buckets exceeds provided total; the instrumentor may be sending an inclusive input alongside cache buckets",
+      {
+        projectId: observationRecord.project_id,
+        observationId: observationRecord.id,
+        providedTotal,
+        bucketSum,
+        providedUsageDetails,
+      },
+    );
   }
 
   static calculateUsageCosts(
