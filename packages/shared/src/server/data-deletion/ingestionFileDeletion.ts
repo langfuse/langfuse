@@ -28,10 +28,15 @@ export const deleteIngestionEventsFromS3AndClickhouseForScores = async (p: {
 };
 
 export const removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces =
-  async (p: { projectId: string; traceIds: string[] }) => {
+  async (p: {
+    projectId: string;
+    traceIds: string[];
+    includeEventsTable?: boolean;
+  }) => {
     const stream = getBlobStorageByProjectIdAndTraceIds(
       p.projectId,
       p.traceIds,
+      { includeEventsTable: p.includeEventsTable ?? false },
     );
 
     return removeIngestionEventsFromS3AndDeleteClickhouseRefs({
