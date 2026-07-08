@@ -319,7 +319,7 @@ const BlobStorageIntegrationSettingsForm = ({
         | "hourly",
       enabled: state?.enabled || false,
       forcePathStyle: state?.forcePathStyle || false,
-      fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
+      fileType: state?.fileType || BlobStorageIntegrationFileType.PARQUET,
       exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
       exportStartDate: state?.exportStartDate || null,
       exportSource: getExportSourceFormValue(state?.exportSource, availability),
