@@ -54,7 +54,7 @@ export default function NewEvaluatorPage() {
     scope: "evalTemplate:CUD",
   });
 
-  const evalTemplates = api.evals.allTemplates.useQuery(
+  const evalTemplates = api.evals.latestTemplates.useQuery(
     {
       projectId,
       limit: 500,
