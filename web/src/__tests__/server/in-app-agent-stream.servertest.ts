@@ -885,6 +885,7 @@ describe("createAgUiStream", () => {
       expect.objectContaining({
         currentDate: expect.any(String),
         redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
+        sandboxFilesystem: expect.stringContaining("<sandbox_filesystem>"),
         screenContext: expect.stringContaining("<screen_context>"),
         userContext: expect.stringContaining("<user_context>"),
         sidebarHiddenEnvironments: DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS.map(
@@ -1698,6 +1699,75 @@ describe("createAgUiStream", () => {
     } finally {
       fetchMock.mockRestore();
     }
+  });
+
+  it("does not expose sandbox tools when sandboxing is disabled", async () => {
+    const { createAgUiStream } =
+      await import("@/src/ee/features/in-app-agent/server/agent");
+    const input = {
+      threadId: "conversation-1",
+      runId: "run-1",
+      messages: [
+        {
+          id: "user-message-1",
+          role: "user" as const,
+          content: "hello",
+        },
+      ],
+      tools: [],
+      context: [],
+      state: null,
+      forwardedProps: {},
+    };
+
+    adapterEvents.items = [
+      {
+        type: EventType.RUN_STARTED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+    ];
+
+    const stream = await createAgUiStream({
+      input,
+      signal: new AbortController().signal,
+      options: {
+        awsBedrock: { modelId: "test-model" },
+        langfuseMcp: {
+          url: "https://example.com/api/public/mcp",
+          publicKey: "pk",
+          secretKey: "sk",
+          userAccess: defaultInAppAgentUserAccess,
+        },
+        redirectAction: {
+          projectId: "project-1",
+          isV4Enabled: false,
+        },
+        langfuseClient: {
+          getPrompt: promptMocks.getPrompt,
+        },
+        useLocalPrompt: false,
+      },
+    });
+
+    await readStream(stream);
+
+    const agentConfig = vi.mocked(Agent).mock.calls.at(-1)?.[0];
+
+    expect(agentConfig?.tools).not.toHaveProperty("read");
+    expect(agentConfig?.tools).not.toHaveProperty("write");
+    expect(agentConfig?.tools).not.toHaveProperty("edit");
+    expect(agentConfig?.tools).not.toHaveProperty("bash");
+    expect(promptMocks.compile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sandboxFilesystem: "",
+      }),
+    );
   });
 });
 

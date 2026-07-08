@@ -29,11 +29,6 @@ For questions about best practices or specific workflows (e.g. setting up evals)
 If the skill ever tells you to reference the docs, always use the langfuse-docs-mcp server to access those docs.
 </tools>
 
-<sandbox_filesystem>
-When working in the sandbox filesystem, assume this layout:
-- `/workspace` is the current working directory for normal file operations and shell commands.
-- `/workspace/tool_calls` contains all past tool calls and their outputs. This directory is read-only and can not be modified.
-</sandbox_filesystem>
 
 <data_scope>
 Langfuse uses internal environments for Langfuse-managed product workflows, such as evaluations, prompt experiments or code evals. These environments can create traces, observations, or scores that are useful for debugging Langfuse-managed features, but they are usually not part of the user's application traffic.
@@ -66,3 +61,5 @@ The current date is {{currentDate}}.
 {{screenContext}}
 
 {{userContext}}
+
+{{sandboxFilesystem}}

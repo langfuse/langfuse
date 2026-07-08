@@ -602,7 +602,7 @@ export default async function handler(request: Request) {
 async function getInAppAgentSandboxProvider(
   providerType: ReturnType<typeof getDefaultInAppAgentSandboxProviderType>,
 ) {
-  if (env.NODE_ENV === "test") {
+  if (providerType === null || env.NODE_ENV === "test") {
     return undefined;
   }
 

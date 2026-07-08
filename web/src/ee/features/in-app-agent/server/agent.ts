@@ -119,6 +119,20 @@ ${serializedContext}
 `;
 }
 
+function formatSandboxContext(sandbox?: InAppAgentSandbox): string {
+  if (!sandbox) {
+    return "";
+  }
+
+  return `
+<sandbox_filesystem>
+When working in the sandbox filesystem, assume this layout:
+- "/workspace" is the current working directory for normal file operations and shell commands.
+- "/workspace/tool_calls" contains all past tool calls and their outputs. This directory is read-only and can not be modified.
+</sandbox_filesystem>
+`;
+}
+
 // Adaptive thinking is the default for every Claude model so new generations
 // work without maintaining a model list. Older models that only support
 // thinking.type.enabled (e.g. haiku 4.5) reject adaptive with a 400 — the
@@ -189,6 +203,7 @@ export async function createAgUiStream(params: {
     variables: {
       currentDate: new Date().toISOString(),
       redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
+      sandboxFilesystem: formatSandboxContext(params.options.sandbox),
       screenContext: formatScreenContext(params.input.context),
       userContext: formatUserContext(params.input.context),
       sidebarHiddenEnvironments: DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS.map(
@@ -1159,6 +1174,7 @@ async function getSystemPromptInstructions(params: {
   variables: {
     currentDate: string;
     redirectToolName: string;
+    sandboxFilesystem: string;
     screenContext: string;
     userContext: string;
     sidebarHiddenEnvironments: string;

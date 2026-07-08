@@ -1,6 +1,7 @@
 export { createLambdaMicrovmSandboxProvider } from "./providers/lambdaMicrovm";
 export {
   deleteInAppAgentSandboxSnapshot,
+  getDefaultInAppAgentSandboxProviderType,
   parseInAppAgentSandboxProviderType,
 } from "./config";
 export { createInAppAgentSandbox } from "./service";

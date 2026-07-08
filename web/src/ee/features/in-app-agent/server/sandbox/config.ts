@@ -22,10 +22,12 @@ export function parseInAppAgentSandboxProviderType(
   return null;
 }
 
-export function getDefaultInAppAgentSandboxProviderType(): InAppAgentSandboxProviderType {
-  const providerType =
-    env.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER ??
-    (env.NODE_ENV === "development" ? "dangerous-docker" : "lambda-microvm");
+export function getDefaultInAppAgentSandboxProviderType(): InAppAgentSandboxProviderType | null {
+  const providerType = env.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER ?? null;
+
+  if (providerType === null) {
+    return null;
+  }
 
   if (providerType === "dangerous-docker" && env.NODE_ENV !== "development") {
     throw new Error(
