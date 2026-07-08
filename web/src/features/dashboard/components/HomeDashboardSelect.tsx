@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { LayoutDashboard } from "lucide-react";
 import { api } from "@/src/utils/api";
-import { LANGFUSE_HOME_DASHBOARD_ID } from "@langfuse/shared";
 import { Combobox } from "@/src/components/ui/combobox";
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -15,12 +14,15 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 export function HomeDashboardSelect({
   projectId,
   value,
+  defaultDashboardId,
   onValueChange,
   currentDashboardName,
 }: {
   projectId: string;
   /** Id of the dashboard currently displayed on Home. */
   value: string;
+  /** The project's persisted default (pointer or the curated fallback). */
+  defaultDashboardId: string;
   onValueChange: (dashboardId: string) => void;
   currentDashboardName: string;
 }) {
@@ -41,6 +43,11 @@ export function HomeDashboardSelect({
 
   const options = useMemo(() => {
     const items = dashboards.data?.dashboards ?? [];
+    const toOption = (d: { id: string; name: string }) => ({
+      value: d.id,
+      label: d.name,
+      ...(d.id === defaultDashboardId ? { badge: "Default" } : {}),
+    });
     const curated = items.filter((d) => d.owner === "LANGFUSE");
     const project = items.filter((d) => d.owner === "PROJECT");
     return [
@@ -48,20 +55,16 @@ export function HomeDashboardSelect({
         ? [
             {
               heading: "This project",
-              options: project.map((d) => ({ value: d.id, label: d.name })),
+              options: project.map(toOption),
             },
           ]
         : []),
       {
         heading: "Langfuse-maintained",
-        options: curated.map((d) => ({
-          value: d.id,
-          label: d.name,
-          ...(d.id === LANGFUSE_HOME_DASHBOARD_ID ? { badge: "Default" } : {}),
-        })),
+        options: curated.map(toOption),
       },
     ];
-  }, [dashboards.data?.dashboards]);
+  }, [dashboards.data?.dashboards, defaultDashboardId]);
 
   if (!hasCUDAccess) {
     return (

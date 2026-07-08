@@ -11,7 +11,8 @@ import {
   type FilterState,
 } from "@langfuse/shared";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
+import { StringParam, useQueryParam } from "use-query-params";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
   toAbsoluteTimeRange,
@@ -143,9 +144,18 @@ export default function Dashboard() {
   const appliedDefaultId =
     homeDashboard.data?.homeDashboardId ?? LANGFUSE_HOME_DASHBOARD_ID;
 
-  // Selecting in the picker "peeks" a dashboard on Home for this user only;
-  // "Set default" persists it for the project.
-  const [peekId, setPeekId] = useState<string | null>(null);
+  // Selecting in the picker "peeks" a dashboard on Home — tracked in the URL
+  // (?dashboard=...) so the state is explicit and linkable; the bare URL
+  // always shows the project default. "Set default" persists for the project.
+  const [peekParam, setPeekParam] = useQueryParam("dashboard", StringParam);
+  const peekId = peekParam && peekParam !== appliedDefaultId ? peekParam : null;
+  const setPeekId = useCallback(
+    (id: string | null) => {
+      // replaceIn: peeking is view state, not a navigation history entry
+      setPeekParam(id ?? undefined, "replaceIn");
+    },
+    [setPeekParam],
+  );
   const peekQuery = api.dashboard.getDashboard.useQuery(
     { projectId, dashboardId: peekId ?? "" },
     { enabled: Boolean(projectId) && Boolean(peekId), retry: false },
@@ -246,6 +256,7 @@ export default function Dashboard() {
               <HomeDashboardSelect
                 projectId={projectId}
                 value={dashboardId}
+                defaultDashboardId={appliedDefaultId}
                 onValueChange={(id) =>
                   setPeekId(id === appliedDefaultId ? null : id)
                 }
