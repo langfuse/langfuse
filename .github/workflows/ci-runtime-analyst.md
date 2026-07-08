@@ -70,6 +70,26 @@ engine:
 
 timeout-minutes: 60
 
+# strict: false is required ONLY because sandbox.agent.args below is an
+# internal field. Strict mode is compile-time linting, not runtime
+# protection — everything it checks we keep manually: permissions stay
+# read-only, network stays explicit (no wildcards), the sandbox stays
+# enabled, no deprecated/XPIA fields. Re-verify that list when editing
+# this frontmatter, since the compiler no longer enforces it.
+strict: false
+
+# The compiler hardcodes AWF's `--allow-host-ports 80,443,8080` (80/443
+# web, 8080 MCP gateway); there is no declarative knob for extra ports.
+# This x-internal args passthrough appends a second --allow-host-ports,
+# and AWF's CLI parser takes the last occurrence — so this REPLACES the
+# list and must re-include 80,443,8080. Extra ports are the dev stack:
+# floci 4566, postgres 5432, redis 6379, clickhouse 8123+9000, minio 9090.
+# Schema-validated at compile; a gh-aw upgrade that drops it fails loudly.
+sandbox:
+  agent:
+    id: awf
+    args: ["--allow-host-ports", "80,443,8080,4566,5432,6379,8123,9000,9090"]
+
 network:
   allowed:
     - defaults
@@ -100,6 +120,14 @@ steps:
     uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
     with:
       version: 11.10.0
+  - name: Login to Docker Hub (avoids anonymous pull rate limits; mirrors pipeline.yml)
+    # continue-on-error: if the secrets are unavailable in this environment,
+    # degrade to anonymous pulls instead of failing the run.
+    continue-on-error: true
+    uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+    with:
+      username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
+      password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
   - name: Provision DB test stack (best effort, mirrors pipeline.yml test jobs)
     # continue-on-error: an infra flake degrades the run to DB-less
     # verification instead of killing the whole analysis. The agent must
@@ -109,12 +137,15 @@ steps:
       set -euo pipefail
       # Overlap the two slow downloads with pnpm install (like pipeline.yml).
       # worker-tests profile adds floci (lambda endpoint for awsLambda tests).
-      (set +e; COMPOSE_PROFILES=worker-tests docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
+      # HOST_IP=0.0.0.0: publish beyond host-loopback so the sandboxed agent
+      # can reach the services through the AWF host gateway as well.
+      (set +e; COMPOSE_PROFILES=worker-tests HOST_IP=0.0.0.0 docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
       (
         set -e
         curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
           --output /tmp/migrate.linux-amd64.tar.gz \
           https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+        echo "2ac648fbd1b127b69ab5a7b33cf96212178f71e22379fc50573630c6f4c7ce18  /tmp/migrate.linux-amd64.tar.gz" | sha256sum -c -
         tar xzf /tmp/migrate.linux-amd64.tar.gz -C /tmp
         sudo mv /tmp/migrate /usr/bin/migrate
       ) > /tmp/migrate-install.log 2>&1 &
@@ -134,11 +165,12 @@ steps:
         echo "LANGFUSE_SKIP_EVALUATOR_MODEL_CALL_VALIDATION=true"
         echo "LANGFUSE_ENABLE_SCORES_V3_API=true"
       } >> .env
+      # pipeline.yml passes this as a step env var; baked into the ROOT .env
+      # (which worker/vitest.config.ts loads via ../.env — worker/.env is
+      # never read by vitest) so the agent needs no env prefixes.
+      echo "LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT=http://localhost:4566" >> .env
       cp .env web/.env
       cp .env worker/.env
-      # pipeline.yml passes this as a step env var; baked into worker/.env
-      # here so the agent needs no env prefixes on test commands.
-      echo "LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT=http://localhost:4566" >> worker/.env
       pnpm --filter=shared run db:generate
       # @langfuse/shared exports point at dist/ — web and worker vitest
       # import the BUILT package, so this build is load-bearing.
@@ -159,6 +191,12 @@ steps:
       sudo chmod +x /usr/local/bin/clickhouse
       pnpm --filter=shared ch:dev-tables
       mkdir -p /tmp/gh-aw && touch /tmp/gh-aw/db-stack-ready
+  - name: Docker logout (drop registry credentials before the agent starts)
+    # docker login stores the token in ~/.docker/config.json, which the AWF
+    # sandbox mounts read-write into the agent container. Nothing after
+    # provisioning pulls images, so drop the credentials unconditionally.
+    if: always()
+    run: docker logout || true
 
 tools:
   github:
@@ -478,7 +516,7 @@ seeded, ClickHouse dev tables included. DB-backed suites (the web
 `server`/`server-isolated` projects, worker tests) are therefore runnable
 directly, with no setup of your own.
 
-Two boundaries:
+Three boundaries:
 
 - Provisioning is best-effort: it succeeded if and only if
   `/tmp/gh-aw/db-stack-ready` exists. Check it once before relying on
@@ -486,6 +524,15 @@ Two boundaries:
   DB-less verification (the DB-less commands below still work — deps and
   builds may then be missing too, so run `pnpm install` +
   `pnpm --filter=shared run db:generate` yourself first).
+- Connectivity: the services run on the host; your sandbox reaches them
+  because their ports are explicitly firewall-allowed. Use the `localhost`
+  endpoints from `.env` as-is. If a connection to a provisioned service is
+  refused, retry once against `host.docker.internal:<same port>` (copy
+  `.env` and swap only the DB/Redis/ClickHouse/S3 hostnames). If that also
+  fails, this run's infrastructure is broken: report it in the job summary
+  and fall back to DB-less verification. NEVER interpret
+  connection-refused errors against provisioned services as a test
+  regression or flaky test — they are an infra signal, not a code signal.
 - You cannot control docker itself (the socket is hidden): no restarting
   or inspecting containers, nothing beyond the dev-stack services. The
   e2e-tests job (Playwright browsers against the built app) stays out of
