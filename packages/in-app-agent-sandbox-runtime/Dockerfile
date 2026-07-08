@@ -1,10 +1,9 @@
 FROM node:24-alpine
 
-RUN apk add --no-cache jq python3 sudo
-# `sandbox-server` owns the HTTP control plane and the readonly tool_calls tree.
-# `sandbox-tool` runs every tool operation via a tightly scoped sudo rule.
-RUN addgroup -S sandbox-server && adduser -S sandbox-server -G sandbox-server \
-  && addgroup -S sandbox-tool && adduser -S sandbox-tool -G sandbox-tool
+RUN apk add --no-cache jq python3
+# The entire runtime runs as a single unprivileged user. Lambda MicroVMs set
+# `no new privileges`, which prevents `sudo`-based user switching at runtime.
+RUN addgroup -S sandbox-server && adduser -S sandbox-server -G sandbox-server
 
 WORKDIR /app
 
@@ -14,12 +13,10 @@ RUN node -e 'const fs = require("node:fs"); const pkg = JSON.parse(fs.readFileSy
 
 COPY dist ./dist
 
-# Keep `/app` immutable to the runtime users; the server only needs read/execute.
-# `/workspace` stays sticky-writable for the tool user, while `/workspace/tool_calls`
-# is precreated as a server-owned readonly subtree that the tool user cannot claim.
+# Keep `/app` immutable to the runtime user. `/workspace` stays sticky-writable,
+# while `/workspace/tool_calls` is precreated as a readonly subtree the runtime
+# cannot overwrite during tool execution.
 RUN chown -R root:root /app \
-  && printf 'sandbox-server ALL=(sandbox-tool:sandbox-tool) NOPASSWD: /usr/local/bin/node /app/dist/toolRunner.js\n' > /etc/sudoers.d/sandbox-tool-runner \
-  && chmod 0440 /etc/sudoers.d/sandbox-tool-runner \
   && mkdir -p /workspace \
   && chown sandbox-server:sandbox-server /workspace \
   && chmod 1777 /workspace \

@@ -31,27 +31,24 @@ import {
   type WriteSandboxOperation,
 } from "./contracts.js";
 
-const BRIDGE_PORT = Number(process.env.PORT ?? 5000);
+const SERVER_PORT = Number(process.env.PORT ?? 5000);
 const WORKSPACE_ROOT = process.env.WORKSPACE_ROOT ?? "/workspace";
 const TOOL_CALLS_ROOT = path.join(WORKSPACE_ROOT, "tool_calls");
 const LIFECYCLE_STATE_PATH = path.join(
   WORKSPACE_ROOT,
   ".langfuse-microvm-lifecycle-state.json",
 );
-const TOOL_RUNNER_PATH = "/app/dist/toolRunner.js";
-const TOOL_RUNNER_USER = "sandbox-tool";
-const TOOL_RUNNER_GROUP = "sandbox-tool";
+const MICROVM_RUNTIME_HOOKS_ROOT = "/aws/lambda-microvms/runtime/v1";
 let requestCounter = 0;
 
 const RunHookPayloadSchema = z.object({
-  bridgePort: z.number().int().positive().optional(),
   snapshotBucket: z.string().optional(),
   snapshotKey: z.string().optional(),
   snapshotPrefix: z.string().optional(),
   snapshotRegion: z.string().optional(),
 });
 
-const LifecycleStateSchema = RunHookPayloadSchema.omit({ bridgePort: true });
+const LifecycleStateSchema = RunHookPayloadSchema;
 
 type LifecycleState = z.infer<typeof LifecycleStateSchema>;
 
@@ -77,7 +74,23 @@ const server = createServer(async (request, response) => {
       return;
     }
 
-    if (request.method === "POST" && request.url === "/run") {
+    if (
+      request.method === "POST" &&
+      request.url === `${MICROVM_RUNTIME_HOOKS_ROOT}/ready`
+    ) {
+      sendJson(response, 200, await readyHook(requestId));
+      logSandboxServer("request.end", {
+        requestId,
+        statusCode: 200,
+        durationMs: Date.now() - startedAt,
+      });
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      request.url === `${MICROVM_RUNTIME_HOOKS_ROOT}/run`
+    ) {
       sendJson(response, 200, await runHook(requestId, request));
       logSandboxServer("request.end", {
         requestId,
@@ -87,7 +100,10 @@ const server = createServer(async (request, response) => {
       return;
     }
 
-    if (request.method === "POST" && request.url === "/suspend") {
+    if (
+      request.method === "POST" &&
+      request.url === `${MICROVM_RUNTIME_HOOKS_ROOT}/suspend`
+    ) {
       sendJson(response, 200, await suspendHook(requestId));
       logSandboxServer("request.end", {
         requestId,
@@ -97,7 +113,10 @@ const server = createServer(async (request, response) => {
       return;
     }
 
-    if (request.method === "POST" && request.url === "/resume") {
+    if (
+      request.method === "POST" &&
+      request.url === `${MICROVM_RUNTIME_HOOKS_ROOT}/resume`
+    ) {
       sendJson(response, 200, await resumeHook(requestId));
       logSandboxServer("request.end", {
         requestId,
@@ -107,7 +126,10 @@ const server = createServer(async (request, response) => {
       return;
     }
 
-    if (request.method === "POST" && request.url === "/terminate") {
+    if (
+      request.method === "POST" &&
+      request.url === `${MICROVM_RUNTIME_HOOKS_ROOT}/terminate`
+    ) {
       sendJson(response, 200, await terminateHook(requestId));
       logSandboxServer("request.end", {
         requestId,
@@ -180,12 +202,10 @@ const server = createServer(async (request, response) => {
   }
 });
 
-server.listen(BRIDGE_PORT, () => {
+server.listen(SERVER_PORT, () => {
   logSandboxServer("server.listening", {
-    port: BRIDGE_PORT,
+    port: SERVER_PORT,
     workspaceRoot: WORKSPACE_ROOT,
-    toolRunnerPath: TOOL_RUNNER_PATH,
-    toolRunnerUser: TOOL_RUNNER_USER,
   });
 });
 
@@ -218,7 +238,20 @@ async function syncToolCallFiles(toolCallFiles: unknown, requestId: string) {
 }
 
 async function readOperation(body: ReadSandboxOperation, requestId: string) {
-  const result = await runToolOperation(body, requestId);
+  const filePath = resolveSandboxPath(body.path);
+  let content: string | null;
+
+  try {
+    content = await readFile(filePath, "utf8");
+  } catch (error) {
+    if (!isMissingFileError(error)) {
+      throw error;
+    }
+
+    content = null;
+  }
+
+  const result = { path: filePath, content };
   logSandboxServer("read.complete", {
     requestId,
     path: body.path,
@@ -228,7 +261,14 @@ async function readOperation(body: ReadSandboxOperation, requestId: string) {
 }
 
 async function writeOperation(body: WriteSandboxOperation, requestId: string) {
-  const result = await runToolOperation(body, requestId);
+  const filePath = resolveSandboxPath(body.path);
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, body.content, "utf8");
+
+  const result = {
+    path: filePath,
+    bytesWritten: Buffer.byteLength(body.content, "utf8"),
+  };
   logSandboxServer("write.complete", {
     requestId,
     path: body.path,
@@ -238,7 +278,27 @@ async function writeOperation(body: WriteSandboxOperation, requestId: string) {
 }
 
 async function editOperation(body: EditSandboxOperation, requestId: string) {
-  const result = await runToolOperation(body, requestId);
+  const filePath = resolveSandboxPath(body.path);
+  let current = "";
+
+  try {
+    current = await readFile(filePath, "utf8");
+  } catch (error) {
+    if (!isMissingFileError(error)) {
+      throw error;
+    }
+  }
+
+  const replaced = current.includes(body.oldText);
+  if (replaced) {
+    await writeFile(
+      filePath,
+      current.replace(body.oldText, body.newText),
+      "utf8",
+    );
+  }
+
+  const result = { path: filePath, replaced };
   logSandboxServer("edit.complete", {
     requestId,
     path: body.path,
@@ -248,7 +308,7 @@ async function editOperation(body: EditSandboxOperation, requestId: string) {
 }
 
 async function bashOperation(body: BashSandboxOperation, requestId: string) {
-  const result = await runToolOperation(body, requestId);
+  const result = await runCommand(body.command, body.timeoutMs, requestId);
   logSandboxServer("bash.complete", {
     requestId,
     result: summarizeResult(result),
@@ -290,6 +350,12 @@ async function runHook(requestId: string, request: IncomingMessage) {
     restoredSnapshot: Boolean(snapshot),
     snapshotBytes: snapshot?.length ?? 0,
   };
+}
+
+async function readyHook(requestId: string) {
+  await ensureWorkspaceRoots();
+  logSandboxServer("hook.ready", { requestId });
+  return { ready: true };
 }
 
 async function suspendHook(requestId: string) {
@@ -339,119 +405,6 @@ async function terminateHook(requestId: string) {
     snapshotKey: state?.snapshotKey,
   });
   return { terminated: true };
-}
-
-function runToolOperation(operation: SandboxOperation, requestId: string) {
-  return new Promise<unknown>((resolve, reject) => {
-    const child = spawn(
-      "sudo",
-      [
-        "-n",
-        "-u",
-        TOOL_RUNNER_USER,
-        "-g",
-        TOOL_RUNNER_GROUP,
-        "node",
-        TOOL_RUNNER_PATH,
-      ],
-      { cwd: WORKSPACE_ROOT },
-    );
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
-    let stdinError: Error | null = null;
-    const startedAt = Date.now();
-
-    const fail = (error: Error, logEvent: string) => {
-      if (settled) {
-        return;
-      }
-
-      settled = true;
-      logSandboxServer(logEvent, {
-        requestId,
-        pid: child.pid ?? null,
-        operation: summarizeOperation(operation),
-        durationMs: Date.now() - startedAt,
-        error: error.message,
-      });
-      reject(error);
-    };
-
-    logSandboxServer("toolRunner.start", {
-      requestId,
-      pid: child.pid ?? null,
-      operation: summarizeOperation(operation),
-    });
-
-    child.stdout.on("data", (chunk: Buffer | string) => {
-      stdout += chunk.toString("utf8");
-    });
-    child.stderr.on("data", (chunk: Buffer | string) => {
-      stderr += chunk.toString("utf8");
-    });
-    child.on("error", (error) => {
-      fail(error, "toolRunner.error");
-    });
-    child.stdin.on("error", (error) => {
-      stdinError = error;
-      const errorCode = "code" in error ? error.code : undefined;
-
-      if (errorCode === "EPIPE") {
-        logSandboxServer("toolRunner.stdinClosed", {
-          requestId,
-          pid: child.pid ?? null,
-          operation: summarizeOperation(operation),
-          durationMs: Date.now() - startedAt,
-          error: error.message,
-        });
-        return;
-      }
-
-      fail(error, "toolRunner.stdinError");
-    });
-    child.on("close", (code) => {
-      if (settled) {
-        return;
-      }
-
-      settled = true;
-      logSandboxServer("toolRunner.complete", {
-        requestId,
-        pid: child.pid ?? null,
-        operation: summarizeOperation(operation),
-        exitCode: code ?? 1,
-        durationMs: Date.now() - startedAt,
-        stdoutBytes: Buffer.byteLength(stdout, "utf8"),
-        stderrBytes: Buffer.byteLength(stderr, "utf8"),
-      });
-
-      if (stdinError !== null && (code ?? 1) === 0) {
-        reject(stdinError);
-        return;
-      }
-
-      if ((code ?? 1) !== 0) {
-        reject(
-          new Error(
-            stderr ||
-              stdout ||
-              stdinError?.message ||
-              "Sandbox tool runner failed",
-          ),
-        );
-        return;
-      }
-
-      try {
-        resolve(stdout ? (JSON.parse(stdout) as unknown) : null);
-      } catch (error) {
-        reject(error);
-      }
-    });
-
-    child.stdin.end(JSON.stringify(operation));
-  });
 }
 
 async function chmodToolCallsDirectories(startPath: string) {
@@ -636,6 +589,102 @@ function runBinaryCommand(command: string[], stdin?: Uint8Array) {
     });
 
     child.stdin.end(stdin ? Buffer.from(stdin) : undefined);
+  });
+}
+
+function runCommand(
+  command: string,
+  timeoutMs: number | undefined,
+  requestId: string,
+) {
+  return new Promise<{
+    stdout: string;
+    stderr: string;
+    exitCode: number;
+    startedAt: string;
+    completedAt: string;
+  }>((resolve, reject) => {
+    const child = spawn("sh", ["-lc", command], { cwd: WORKSPACE_ROOT });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    const startedAt = new Date().toISOString();
+    const startedAtMs = Date.now();
+
+    logSandboxServer("bash.start", {
+      requestId,
+      pid: child.pid ?? null,
+      command: summarizeText(command),
+      timeoutMs: timeoutMs ?? null,
+    });
+
+    child.stdout.on("data", (chunk: Buffer | string) => {
+      stdout += chunk.toString("utf8");
+    });
+    child.stderr.on("data", (chunk: Buffer | string) => {
+      stderr += chunk.toString("utf8");
+    });
+    child.on("error", (error) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      logSandboxServer("bash.error", {
+        requestId,
+        pid: child.pid ?? null,
+        durationMs: Date.now() - startedAtMs,
+        error: error.message,
+      });
+      reject(error);
+    });
+
+    const timeoutId =
+      timeoutMs === undefined
+        ? undefined
+        : setTimeout(() => {
+            if (settled) {
+              return;
+            }
+
+            settled = true;
+            child.kill("SIGKILL");
+            resolve({
+              stdout,
+              stderr: `${stderr}Sandbox command timed out after ${timeoutMs}ms`,
+              exitCode: 124,
+              startedAt,
+              completedAt: new Date().toISOString(),
+            });
+          }, timeoutMs);
+
+    child.on("close", (code) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+
+      logSandboxServer("bash.processComplete", {
+        requestId,
+        pid: child.pid ?? null,
+        exitCode: code ?? 1,
+        durationMs: Date.now() - startedAtMs,
+        stdoutBytes: Buffer.byteLength(stdout, "utf8"),
+        stderrBytes: Buffer.byteLength(stderr, "utf8"),
+      });
+
+      resolve({
+        stdout,
+        stderr,
+        exitCode: code ?? 1,
+        startedAt,
+        completedAt: new Date().toISOString(),
+      });
+    });
   });
 }
 

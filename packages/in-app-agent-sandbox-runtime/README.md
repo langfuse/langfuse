@@ -6,15 +6,23 @@ See `web/src/ee/features/in-app-agent/README.md` for how this package fits into 
 
 ## Privileges
 
-The runtime uses two Unix privilege levels inside the container:
+The runtime runs as a single unprivileged `sandbox-server` user inside the container.
+This keeps the setup compatible with Lambda MicroVMs, which set `no new privileges`
+and prevent `sudo`-based user switching at runtime.
 
-- The HTTP sandbox server runs as the dedicated `sandbox-server` user. It owns and refreshes `/workspace/tool_calls`.
-- All tool operations (`read`, `write`, `edit`, `bash`) run as the less-privileged `sandbox-tool` user via a tightly scoped `sudo` rule and only have read access to `/workspace/tool_calls`.
+- The HTTP sandbox server runs as `sandbox-server`.
+- Tool operations (`read`, `write`, `edit`, `bash`) also run as `sandbox-server`.
+- `/workspace/tool_calls` remains a readonly subtree, so tool execution cannot overwrite reconstructed prior tool output files.
 
 ## Endpoints:
 
 - `GET /health`
 - `POST /sandbox`
+- `POST /aws/lambda-microvms/runtime/v1/ready`
+- `POST /aws/lambda-microvms/runtime/v1/run`
+- `POST /aws/lambda-microvms/runtime/v1/resume`
+- `POST /aws/lambda-microvms/runtime/v1/suspend`
+- `POST /aws/lambda-microvms/runtime/v1/terminate`
 
 # Development
 
@@ -28,6 +36,36 @@ This package builds the sandbox runtime image used by both local Docker sandboxe
 
 - Local Docker development uses the image tag `langfuse-in-app-agent-sandbox:latest`.
 - The Lambda MicroVM provider should use an AWS MicroVM image ARN via `LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER`.
+
+### One-Command Helper
+
+From the repo root, you can run:
+
+```bash
+bash packages/in-app-agent-sandbox-runtime/build-microvm-image.sh
+```
+
+The script optionally loads `packages/in-app-agent-sandbox-runtime/.env` before validating
+required variables, so you can keep local defaults there.
+
+Required environment variables:
+
+- `AWS_PROFILE`
+- `AWS_REGION`
+- `S3_BUCKET`
+- `MICROVM_IMAGE_NAME`
+- `LAMBDA_MICROVM_BUILD_ROLE_ARN`
+- `BASE_IMAGE_ARN`
+- `BASE_IMAGE_VERSION`
+
+The script will:
+
+- build the local Docker image
+- build the package `dist`
+- create and upload the zip artifact to S3
+- create the MicroVM image if it does not exist yet, otherwise update it to build a new image version
+- wait for the image build to finish
+- print the resulting `IMAGE_ARN=...` and `IMAGE_VERSION=...` to stdout
 
 ### Prerequisites
 
@@ -56,6 +94,7 @@ langfuse-in-app-agent-sandbox:latest
 Set your AWS region, bucket, and MicroVM image name:
 
 ```bash
+export AWS_ACCOUNT_ID=123456789012
 export AWS_PROFILE=
 export AWS_REGION=eu-west-1
 export S3_BUCKET=langfuse-lambda-microvms
@@ -144,7 +183,6 @@ Only add ECR permissions if the `Dockerfile` pulls private images from ECR durin
 Set the Lambda MicroVM build role and base image metadata:
 
 ```bash
-export AWS_ACCOUNT_ID=123456789012
 export LAMBDA_MICROVM_BUILD_ROLE_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:role/LambdaMicrovmBuildRole"
 export BASE_IMAGE_ARN=""
 export BASE_IMAGE_VERSION=""
@@ -161,9 +199,43 @@ aws lambda-microvms create-microvm-image \
   --base-image-version "$BASE_IMAGE_VERSION" \
   --build-role-arn "$LAMBDA_MICROVM_BUILD_ROLE_ARN" \
   --code-artifact "uri=s3://$S3_BUCKET/$MICROVM_IMAGE_NAME.zip" \
+  --hooks '{
+    "port": 5000,
+    "microvmImageHooks": {
+      "ready": "ENABLED",
+      "readyTimeoutInSeconds": 60
+    },
+    "microvmHooks": {
+      "run": "ENABLED",
+      "runTimeoutInSeconds": 30,
+      "resume": "ENABLED",
+      "resumeTimeoutInSeconds": 30,
+      "suspend": "ENABLED",
+      "suspendTimeoutInSeconds": 60,
+      "terminate": "ENABLED",
+      "terminateTimeoutInSeconds": 30
+    }
+  }' \
   --cpu-configurations architecture=ARM_64 \
-  --resources minimumMemoryInMiB=1024
+  --resources minimumMemoryInMiB=512
 ```
+
+These hooks must be enabled on the MicroVM image. The in-app agent Lambda MicroVM
+provider passes `runHookPayload` to initialize snapshot restore state, and AWS rejects
+that payload unless the image was built with a `run` hook. AWS invokes the fixed runtime
+paths below, which this sandbox server implements directly:
+
+- `POST /aws/lambda-microvms/runtime/v1/ready`
+- `POST /aws/lambda-microvms/runtime/v1/run`
+- `POST /aws/lambda-microvms/runtime/v1/resume`
+- `POST /aws/lambda-microvms/runtime/v1/suspend`
+- `POST /aws/lambda-microvms/runtime/v1/terminate`
+
+AWS currently models the MicroVM hook settings as `ENABLED` / `DISABLED` flags rather
+than custom per-hook paths. This runtime listens on port `5000` and serves the expected
+lifecycle endpoints internally. AWS also requires the MicroVM image-level `ready` hook
+to be enabled whenever any MicroVM lifecycle hook is enabled so the initial snapshot is
+taken only after the runtime is ready.
 
 The response includes:
 

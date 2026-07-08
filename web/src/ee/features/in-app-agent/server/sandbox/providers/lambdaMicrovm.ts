@@ -15,7 +15,7 @@ import { z } from "zod";
 import type { SandboxFile, SandboxProvider, SandboxSession } from "../types";
 
 const DEFAULT_AUTH_TOKEN_EXPIRATION_MINUTES = 30;
-const DEFAULT_BRIDGE_PORT = 5000;
+const DEFAULT_SANDBOX_SERVER_PORT = 5000;
 const DEFAULT_IDLE_TIMEOUT_SECONDS = 900;
 const DEFAULT_SUSPENDED_DURATION_SECONDS = 300;
 const BRIDGE_READY_TIMEOUT_MS = 30_000;
@@ -60,7 +60,6 @@ export function createLambdaMicrovmSandboxProvider(params: {
     region: params.region,
   });
   const sessions = new Map<string, LambdaMicrovmSession>();
-  const bridgePort = DEFAULT_BRIDGE_PORT;
 
   const ensureSession = async (request: {
     conversationId: string;
@@ -102,7 +101,6 @@ export function createLambdaMicrovmSandboxProvider(params: {
           client,
           microvmId: request.sessionId,
           endpoint: existing.endpoint,
-          bridgePort,
         });
 
         sessions.set(
@@ -143,7 +141,6 @@ export function createLambdaMicrovmSandboxProvider(params: {
             suspendedDurationSeconds: DEFAULT_SUSPENDED_DURATION_SECONDS,
           },
           runHookPayload: JSON.stringify({
-            bridgePort,
             snapshotBucket: params.snapshotConfig.bucket,
             snapshotKey: request.snapshotKey,
             snapshotPrefix: params.snapshotConfig.prefix,
@@ -159,7 +156,6 @@ export function createLambdaMicrovmSandboxProvider(params: {
       client,
       microvmId: microvm.microvmId,
       endpoint: microvm.endpoint,
-      bridgePort,
     });
 
     logger.debug("[Lambda MicroVM Sandbox] created new session", {
@@ -182,16 +178,26 @@ export function createLambdaMicrovmSandboxProvider(params: {
       throw new Error(`Missing sandbox session: ${sessionId}`);
     }
 
+    logger.debug("[Lambda MicroVM Sandbox] executing operation", {
+      sessionId,
+      operation: operation.operation,
+      endpoint: microvm.endpoint,
+      normalizedEndpoint: normalizeEndpoint(microvm.endpoint),
+      endpointPort: getEndpointPort(microvm.endpoint),
+      sandboxServerPort: DEFAULT_SANDBOX_SERVER_PORT,
+    });
+
     const response = await fetch(
       `${normalizeEndpoint(microvm.endpoint)}/sandbox`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-aws-proxy-port": String(DEFAULT_SANDBOX_SERVER_PORT),
           "X-aws-proxy-auth": await createMicrovmAuthToken({
             client,
             microvmId: sessionId,
-            bridgePort,
+            endpoint: microvm.endpoint,
           }),
         },
         body: JSON.stringify({
@@ -202,9 +208,20 @@ export function createLambdaMicrovmSandboxProvider(params: {
     );
 
     if (!response.ok) {
+      const errorText = await response.text();
+      logger.debug("[Lambda MicroVM Sandbox] operation request failed", {
+        sessionId,
+        operation: operation.operation,
+        endpoint: microvm.endpoint,
+        normalizedEndpoint: normalizeEndpoint(microvm.endpoint),
+        endpointPort: getEndpointPort(microvm.endpoint),
+        sandboxServerPort: DEFAULT_SANDBOX_SERVER_PORT,
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText,
+      });
       throw new Error(
-        (await response.text()) ||
-          `Lambda MicroVM bridge request failed: ${response.status}`,
+        errorText || `Lambda MicroVM bridge request failed: ${response.status}`,
       );
     }
 
@@ -321,7 +338,6 @@ async function waitForBridge(params: {
   client: LambdaMicrovmsClient;
   microvmId: string;
   endpoint: string;
-  bridgePort: number;
 }) {
   const startedAt = Date.now();
   let lastError: unknown;
@@ -341,10 +357,18 @@ async function waitForBridge(params: {
     }
 
     try {
+      logger.debug("[Lambda MicroVM Sandbox] bridge health probe", {
+        microvmId: params.microvmId,
+        endpoint: params.endpoint,
+        normalizedEndpoint: normalizeEndpoint(params.endpoint),
+        endpointPort: getEndpointPort(params.endpoint),
+        sandboxServerPort: DEFAULT_SANDBOX_SERVER_PORT,
+      });
       const response = await fetch(
         `${normalizeEndpoint(params.endpoint)}/health`,
         {
           headers: {
+            "X-aws-proxy-port": String(DEFAULT_SANDBOX_SERVER_PORT),
             "X-aws-proxy-auth": await createMicrovmAuthToken(params),
           },
         },
@@ -373,13 +397,22 @@ async function waitForBridge(params: {
 async function createMicrovmAuthToken(params: {
   client: LambdaMicrovmsClient;
   microvmId: string;
-  bridgePort: number;
+  endpoint: string;
 }) {
+  const endpointPort = getEndpointPort(params.endpoint);
+  logger.debug("[Lambda MicroVM Sandbox] creating auth token", {
+    microvmId: params.microvmId,
+    endpoint: params.endpoint,
+    normalizedEndpoint: normalizeEndpoint(params.endpoint),
+    endpointPort,
+    sandboxServerPort: DEFAULT_SANDBOX_SERVER_PORT,
+  });
+
   const response = await params.client.send(
     new CreateMicrovmAuthTokenCommand({
       microvmIdentifier: params.microvmId,
       expirationInMinutes: DEFAULT_AUTH_TOKEN_EXPIRATION_MINUTES,
-      allowedPorts: [{ port: params.bridgePort }],
+      allowedPorts: [{ allPorts: {} }],
     }),
   );
 
@@ -393,6 +426,13 @@ async function createMicrovmAuthToken(params: {
       "Lambda MicroVM auth token response did not include X-aws-proxy-auth",
     );
   }
+
+  logger.debug("[Lambda MicroVM Sandbox] created auth token", {
+    microvmId: params.microvmId,
+    endpointPort,
+    sandboxServerPort: DEFAULT_SANDBOX_SERVER_PORT,
+    authTokenKeys: Object.keys(response.authToken ?? {}),
+  });
 
   return token;
 }
@@ -445,6 +485,17 @@ function readMicrovmInfo(value: {
 function normalizeEndpoint(endpoint: string) {
   const trimmed = endpoint.replace(/\/$/, "");
   return /^https?:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
+function getEndpointPort(endpoint: string) {
+  const normalizedEndpoint = normalizeEndpoint(endpoint);
+  const parsedEndpoint = new URL(normalizedEndpoint);
+
+  if (parsedEndpoint.port) {
+    return Number(parsedEndpoint.port);
+  }
+
+  return parsedEndpoint.protocol === "http:" ? 80 : 443;
 }
 
 function isMissingMicrovmError(error: unknown) {
