@@ -106,8 +106,7 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      // Check if there is any tracing data in the database (routed to the
-      // events tables when the write mode no longer populates legacy traces)
+      // Check if there is any tracing data in the database
       const hasTraces = await hasAnyTracingData(input.projectId);
 
       if (hasTraces) {

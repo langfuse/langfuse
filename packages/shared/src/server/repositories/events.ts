@@ -1198,9 +1198,7 @@ export const getTracesIdentifierForSession = async (
 };
 
 /**
- * Check if any tracing data exists in the events table. Backs the tracing
- * onboarding gate — a UI read, so it may be served from a lagging read
- * replica (unlike hasAnyEvent, which gates deletions).
+ * Check if any tracing data exists in the events table.
  */
 export const hasAnyTraceFromEventsTable = async (
   projectId: string,
