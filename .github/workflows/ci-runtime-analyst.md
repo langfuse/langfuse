@@ -659,8 +659,10 @@ full report to the GitHub job summary AND use it verbatim as the body of
 whatever you emit (PR, issue, or the noop message — the noop body is what
 makes a no-action run's summary readable, so never reduce it to a one-liner).
 If you decided not to recompute (e.g. a manual re-trigger shortly after the
-previous analysis), fill the chart and tables from the latest
-`history/*.json` and state that the data is reused.
+previous analysis), you may fill individual days from the latest
+`history/*.json` and state that those days are reused — but reuse never
+shrinks the chart window (see below): days the history does not cover are
+computed fresh from the API in this run.
 
 The report always contains, in order:
 
@@ -680,11 +682,17 @@ A PR body additionally contains:
   quoted summary line) and, separately, what could not run in the sandbox
   and is covered by this PR's own CI run.
 
-Chart templates (GitHub renders `mermaid` fenced blocks natively). Copy them
-verbatim and only fill in the data: the x-axis days (every day that has
-merge-group runs), the value lists (daily merge-group medians in seconds,
-same day order), and each y-axis maximum (largest value in that chart
-rounded up to the next 100). Everything else is load-bearing — do NOT
+Chart templates (GitHub renders `mermaid` fenced blocks natively). The
+chart window is ALWAYS the trailing 7 calendar days ending today (UTC) —
+an invariant, independent of the trigger, of ISO-week boundaries, and of
+what any earlier run already computed. Include every day in that window
+with at least one successful merge-group run (omit zero-run days, e.g.
+weekends); take a day's medians from history when available and compute
+the missing days from the API in this run. A chart that covers fewer days
+than the window has data for is wrong. Copy the templates verbatim and
+only fill in the data: the x-axis days, the value lists (daily merge-group
+medians in seconds, same day order), and each y-axis maximum (largest
+value in that chart rounded up to the next 100). Everything else is load-bearing — do NOT
 change it: the `init` line pins the series colors so that the emoji legend
 line above each chart identifies the lines (xychart has no built-in legend,
 and colors are otherwise theme-dependent). Palette order = series order =
