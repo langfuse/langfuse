@@ -1,5 +1,6 @@
 import { InputJsonValue } from "@prisma/client/runtime/library";
 import { z } from "zod";
+import { InvalidRequestError } from "../errors";
 
 // to be used for Prisma JSON type
 // @see: https://github.com/colinhacks/zod#json-type
@@ -77,6 +78,23 @@ export const optionalCommaSeparatedStringArray = z
     const values = splitCommaSeparatedQueryParam(value);
     return values.length > 0 ? values : undefined;
   });
+
+export const optionalJsonParam = <T extends z.ZodType>(
+  schema: T,
+  paramName: string,
+) =>
+  z
+    .string()
+    .optional()
+    .transform((str) => {
+      if (!str) return undefined;
+      try {
+        return JSON.parse(str);
+      } catch {
+        throw new InvalidRequestError(`Invalid JSON in ${paramName} parameter`);
+      }
+    })
+    .pipe(schema.optional());
 
 type CommaSeparatedEnumArrayOptions = {
   unknownValues?: "reject" | "filter";

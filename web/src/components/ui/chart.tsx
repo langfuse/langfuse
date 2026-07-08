@@ -262,7 +262,12 @@ const ChartTooltipContent = React.forwardRef<
                 key={String(item.dataKey ?? item.name ?? index)}
                 className={cn(
                   "[&>svg]:text-muted-foreground flex w-full items-center gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5",
-                  highlighted && "bg-muted -mx-1.5 rounded px-1.5",
+                  // Emphasis must be layout-neutral: the row keeps its exact box
+                  // and the highlight paints around it (a box-shadow halo adds
+                  // the breathing room margins/padding would), so rows never
+                  // shift or re-truncate when the hovered series changes. (LFE-10576)
+                  highlighted &&
+                    "bg-muted rounded-xs shadow-[0_0_0_3px_hsl(var(--muted))]",
                 )}
               >
                 {formatter && item?.value !== undefined && item.name != null ? (
@@ -298,7 +303,11 @@ const ChartTooltipContent = React.forwardRef<
                     )}
                     <div
                       className={cn(
-                        "flex min-w-0 flex-1 justify-between gap-x-3 leading-none",
+                        // leading-tight, not leading-none: `truncate` clips at
+                        // the line box, and a 1.0 line-height leaves no room
+                        // below the baseline — g/y/p descenders lost their
+                        // bottom pixel. (LFE-10576)
+                        "flex min-w-0 flex-1 justify-between gap-x-3 leading-tight",
                         nestLabel ? "items-end" : "items-center",
                       )}
                     >
@@ -307,7 +316,10 @@ const ChartTooltipContent = React.forwardRef<
                         <span
                           className={cn(
                             "text-muted-foreground truncate",
-                            highlighted && "text-foreground font-medium",
+                            // Color-only emphasis: a weight change alters text
+                            // metrics, so the highlighted name would truncate
+                            // differently than its neighbors. (LFE-10576)
+                            highlighted && "text-foreground",
                           )}
                           title={itemDisplayTitle}
                         >
@@ -334,13 +346,34 @@ const ChartTooltipContent = React.forwardRef<
 );
 ChartTooltipContent.displayName = "ChartTooltip";
 
+/** Horizontal gap between the hovered point and the tooltip's near edge. */
+const TOOLTIP_GAP_PX = 14;
+/**
+ * Upper bound on the tooltip's width. Coordinates the two decisions that used
+ * to fight each other: the side choice below guarantees the chosen side has
+ * this much room whenever any side does, and the box never asks for more — so
+ * hovering across a chart can't hit the "placed left but sized by the space on
+ * the right" squeeze. Long series names past this truncate (full name in the
+ * row's `title`). (LFE-10576)
+ */
+const TOOLTIP_MAX_WIDTH_PX = 448;
+
 /**
  * Renders a chart tooltip into the app's `tooltip` overlay layer (see
  * `ui/layer.tsx`) so it escapes the chart card's `overflow` clipping and always
  * paints on top — never cut off at the chart frame. Positioned at the hovered
  * point (recharts' `coordinate`, relative to the chart box) translated to screen
- * coordinates, and flipped to the left near the right edge of the viewport.
- * (LFE-10549)
+ * coordinates. (LFE-10549)
+ *
+ * Side placement and sizing are ONE decision: the tooltip goes right of the
+ * point unless a full-width tooltip no longer fits there and the left side is
+ * larger. Crucially the box is anchored by the edge NEAREST the point (`left`
+ * when placed right, `right` when placed left) — never positioned at the point
+ * and then translated across it. A translate happens after layout, so a
+ * left-flipped tooltip laid out at `left: x` would still shrink-to-fit against
+ * the RIGHT viewport edge and ellipsize every row at exactly the x-positions
+ * where it flips. Anchoring by the near edge makes the browser size it against
+ * the side it actually occupies. (LFE-10576)
  */
 function ChartTooltipPortal({
   active,
@@ -367,10 +400,12 @@ function ChartTooltipPortal({
   const rect = anchor.getBoundingClientRect();
   const x = rect.left + coordinate.x;
   const y = rect.top + coordinate.y;
-  // Flip past the cursor near the right edge; anchor the tooltip's bottom/top to
-  // the point near the viewport's bottom/top so a tall multi-series tooltip can't
-  // spill its rows out of view (the overlay layer no longer clips it). (LFE-10549)
-  const flipLeft = x > window.innerWidth * 0.6;
+  const spaceRight = window.innerWidth - x - TOOLTIP_GAP_PX;
+  const spaceLeft = x - TOOLTIP_GAP_PX;
+  const flipLeft = spaceRight < TOOLTIP_MAX_WIDTH_PX && spaceLeft > spaceRight;
+  // Anchor the tooltip's bottom/top to the point near the viewport's
+  // bottom/top so a tall multi-series tooltip can't spill its rows out of view
+  // (the overlay layer no longer clips it). (LFE-10549)
   const translateY =
     y > window.innerHeight * 0.65
       ? "-100%"
@@ -383,9 +418,12 @@ function ChartTooltipPortal({
       <div
         style={{
           position: "fixed",
-          left: x,
+          ...(flipLeft
+            ? { right: window.innerWidth - x + TOOLTIP_GAP_PX }
+            : { left: x + TOOLTIP_GAP_PX }),
           top: y,
-          transform: `translate(${flipLeft ? "calc(-100% - 14px)" : "14px"}, ${translateY})`,
+          maxWidth: TOOLTIP_MAX_WIDTH_PX,
+          transform: `translateY(${translateY})`,
           pointerEvents: "none",
         }}
       >
