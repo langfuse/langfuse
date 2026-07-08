@@ -52,7 +52,7 @@ import {
 } from "@/src/components/ui/select";
 import { Textarea } from "@/src/components/ui/textarea";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   Dropzone,
@@ -220,6 +220,20 @@ export function SupportFormSection({
     selectedTopic as any,
   );
 
+  // The drawer is globally mounted, so a severity selected under one org's
+  // plan can survive navigation to an org (or no-org page) that no longer
+  // allows it. Snap back to Severity 3 so the visible selection, the Sev-1
+  // confirm dialog, and the submitted value stay consistent with the plan.
+  const selectedSeverity = form.watch("severity");
+  useEffect(() => {
+    if (
+      selectedSeverity &&
+      !isSeverityAllowedForPlan(selectedSeverity, effectivePlan)
+    ) {
+      form.setValue("severity", SEVERITY_3);
+    }
+  }, [selectedSeverity, effectivePlan, form]);
+
   const createSupportThread = api.supportRouter.createSupportThread.useMutation(
     {
       onSuccess: (data) => {
@@ -299,9 +313,12 @@ export function SupportFormSection({
   };
 
   const submitForm = async (values: SupportFormInput) => {
-    const parsed: SupportFormValues = SupportFormSchema.parse(values);
-
     try {
+      // Parse inside the try so a failure surfaces via form.setError below
+      // instead of escaping as an unhandled rejection (the confirm dialog
+      // calls this outside react-hook-form's handleSubmit).
+      const parsed: SupportFormValues = SupportFormSchema.parse(values);
+
       setIsSubmittingLocal(true);
 
       // Validate files using centralized validation function
