@@ -428,8 +428,38 @@ const reasoningWindowMessages: InAppAgentWindowMessage[] = [
       text: "Why did checkout latency spike this morning?",
     },
   },
+  // A reasoning block stays open through the tool calls it triggered and only
+  // collapses once a newer reasoning block or an assistant text message
+  // arrives (mirrors getDrawerMessages output).
   {
     id: "assistant-reasoning-1",
+    role: "assistant",
+    content: {
+      type: "reasoning",
+      text: "Checking active filters before choosing the smallest safe query.",
+      isStreaming: false,
+    },
+  },
+  {
+    id: "assistant-tool-reasoning-1",
+    role: "assistant",
+    content: {
+      type: "toolGroup",
+      tools: [
+        {
+          type: "tool",
+          name: "langfuse_queryMetrics",
+          args: JSON.stringify({
+            view: "observations",
+            metrics: [{ measure: "latency", aggregation: "p95" }],
+          }),
+          result: JSON.stringify({ data: [{ p95_latency: 4.82 }] }),
+        },
+      ],
+    },
+  },
+  {
+    id: "assistant-reasoning-2",
     role: "assistant",
     content: {
       type: "reasoning",
@@ -438,7 +468,7 @@ const reasoningWindowMessages: InAppAgentWindowMessage[] = [
     },
   },
   {
-    id: "assistant-tool-reasoning-1",
+    id: "assistant-tool-reasoning-2",
     role: "assistant",
     content: {
       type: "toolGroup",
@@ -450,6 +480,7 @@ const reasoningWindowMessages: InAppAgentWindowMessage[] = [
           args: JSON.stringify({
             view: "observations",
             metrics: [{ measure: "latency", aggregation: "p95" }],
+            limit: 10,
           }),
         },
       ],

@@ -493,6 +493,95 @@ describe("getDrawerMessages", () => {
     ]);
   });
 
+  it("keeps only the latest reasoning block streaming in a multi-step tool loop", () => {
+    const mappedMessages = getDrawerMessages({
+      error: null,
+      isRunning: true,
+      messages: [
+        {
+          id: "user-1",
+          role: "user",
+          content: "Find failed traces",
+        },
+        {
+          id: "reasoning-1",
+          role: "reasoning",
+          content: "Looking for error-level traces first.",
+        },
+        {
+          id: "assistant-1",
+          role: "assistant",
+          content: "",
+          toolCalls: [
+            {
+              id: "tool-call-1",
+              type: "function",
+              function: {
+                name: "langfuse_queryMetrics",
+                arguments: JSON.stringify({ view: "traces" }),
+              },
+            },
+          ],
+        },
+        {
+          id: "tool-result-1",
+          role: "tool",
+          toolCallId: "tool-call-1",
+          content: JSON.stringify({ error: "Metrics API unavailable" }),
+        },
+        {
+          id: "reasoning-2",
+          role: "reasoning",
+          content: "The metrics query failed, retrying with a smaller window.",
+        },
+        {
+          id: "assistant-2",
+          role: "assistant",
+          content: "",
+          toolCalls: [
+            {
+              id: "tool-call-2",
+              type: "function",
+              function: {
+                name: "langfuse_queryMetrics",
+                arguments: JSON.stringify({ view: "traces", limit: 10 }),
+              },
+            },
+          ],
+        },
+      ] satisfies AgUiMessage[],
+    });
+
+    expect(mappedMessages).toMatchObject([
+      {
+        id: "user-1",
+        content: { type: "text" },
+      },
+      {
+        id: "reasoning-1",
+        content: {
+          type: "reasoning",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "tools-assistant-1",
+        content: { type: "toolGroup" },
+      },
+      {
+        id: "reasoning-2",
+        content: {
+          type: "reasoning",
+          isStreaming: true,
+        },
+      },
+      {
+        id: "tools-assistant-2",
+        content: { type: "toolGroup" },
+      },
+    ]);
+  });
+
   it("adds pending tool approvals as approval tool groups", () => {
     const mappedMessages = getDrawerMessages({
       error: null,

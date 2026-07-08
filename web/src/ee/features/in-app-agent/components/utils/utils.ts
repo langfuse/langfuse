@@ -162,7 +162,7 @@ export function getDrawerMessages({
     if (message.role === "reasoning") {
       flushPendingTools();
 
-      const hasLaterAssistantText = hasLaterAssistantTextMessage(
+      const hasLaterConversationMessage = hasLaterConversationMessageAfter(
         parsedMessages,
         index,
       );
@@ -173,7 +173,7 @@ export function getDrawerMessages({
         content: {
           type: "reasoning",
           text: message.content,
-          isStreaming: isRunning && !error && !hasLaterAssistantText,
+          isStreaming: isRunning && !error && !hasLaterConversationMessage,
         },
       });
       return;
@@ -374,13 +374,21 @@ export function getDrawerMessages({
   return mappedMessages;
 }
 
-function hasLaterAssistantTextMessage(
+// A reasoning block stays live while the model is still acting on it — the
+// tool calls and tool results it triggered keep it open. It only collapses
+// once the model has visibly moved on: a newer reasoning block, an assistant
+// message with text, or a new user turn.
+function hasLaterConversationMessageAfter(
   messages: readonly AgUiMessage[],
   currentIndex: number,
 ) {
   return messages.some((message, messageIndex) => {
     if (messageIndex <= currentIndex) {
       return false;
+    }
+
+    if (message.role === "reasoning" || message.role === "user") {
+      return true;
     }
 
     return (

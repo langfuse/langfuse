@@ -44,8 +44,17 @@ const LOCAL_IN_APP_AGENT_SYSTEM_PROMPT_DIR = path.join(
   "src/ee/features/in-app-agent/prompts/",
 );
 const MAX_AGENT_STEPS = 10;
-export const IN_APP_AGENT_REASONING_BUDGET_TOKENS = 1024;
-export const BEDROCK_CLAUDE_REASONING_MODEL_ID_PARTS = [
+const IN_APP_AGENT_REASONING_BUDGET_TOKENS = 1024;
+// Models that reject thinking.type.enabled (400: "use thinking.type.adaptive
+// and output_config.effort"). Checked before the budget list below because
+// e.g. "anthropic.claude-opus-4-8" also matches "anthropic.claude-opus-4-".
+const BEDROCK_CLAUDE_ADAPTIVE_REASONING_MODEL_ID_PARTS = [
+  "anthropic.claude-opus-4-7",
+  "anthropic.claude-opus-4-8",
+  "anthropic.claude-sonnet-5",
+  "anthropic.claude-fable-5",
+] as const;
+const BEDROCK_CLAUDE_REASONING_MODEL_ID_PARTS = [
   "anthropic.claude-3-7-sonnet-",
   "anthropic.claude-haiku-4-",
   "anthropic.claude-sonnet-4-",
@@ -124,6 +133,25 @@ ${serializedContext}
 }
 
 export function getBedrockReasoningProviderOptions(modelId: string) {
+  if (
+    BEDROCK_CLAUDE_ADAPTIVE_REASONING_MODEL_ID_PARTS.some((modelIdPart) =>
+      modelId.includes(modelIdPart),
+    )
+  ) {
+    return {
+      bedrock: {
+        // Passed as raw request fields instead of reasoningConfig because
+        // @ai-sdk/amazon-bedrock overwrites additionalModelRequestFields
+        // .thinking when reasoningConfig is set, and these models default
+        // display to "omitted" (empty thinking text) — without "summarized"
+        // the reasoning UI would render blank blocks.
+        additionalModelRequestFields: {
+          thinking: { type: "adaptive" as const, display: "summarized" },
+        },
+      },
+    };
+  }
+
   if (
     !BEDROCK_CLAUDE_REASONING_MODEL_ID_PARTS.some((modelIdPart) =>
       modelId.includes(modelIdPart),
