@@ -10,19 +10,9 @@ import {
   DialogBody,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import {
-  BarChart,
-  BarChart3,
-  BarChartHorizontal,
-  Hash,
-  LineChart,
-  PieChart,
-  PlusIcon,
-  Table as TableIcon,
-  AreaChart,
-} from "lucide-react";
 import startCase from "lodash/startCase";
 import { getChartTypeDisplayName } from "@/src/features/widgets/chart-library/utils";
+import { ChartTypeIllustration } from "@/src/features/widgets/components/ChartTypeIllustration";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 
 export type WidgetItem = {
@@ -33,20 +23,6 @@ export type WidgetItem = {
   chartType: string;
   createdAt: Date;
   updatedAt: Date;
-};
-
-const chartTypeIcons: Partial<
-  Record<DashboardWidgetChartType, React.ElementType>
-> = {
-  NUMBER: Hash,
-  LINE_TIME_SERIES: LineChart,
-  BAR_TIME_SERIES: BarChart,
-  AREA_TIME_SERIES: AreaChart,
-  HORIZONTAL_BAR: BarChartHorizontal,
-  VERTICAL_BAR: BarChart,
-  HISTOGRAM: BarChart3,
-  PIE: PieChart,
-  PIVOT_TABLE: TableIcon,
 };
 
 interface SelectWidgetDialogProps {
@@ -80,12 +56,12 @@ export function SelectWidgetDialog({
     },
   );
 
-  const tileClassName =
-    "flex h-32 flex-col items-center justify-center gap-1.5 rounded-lg border p-3 text-center hover:bg-accent/50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring";
+  const rowClassName =
+    "flex w-full items-center gap-4 rounded-lg border p-3 text-left hover:bg-accent/50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[800px]">
+      <DialogContent className="sm:max-w-[640px]">
         <DialogHeader>
           <DialogTitle>Add widget</DialogTitle>
         </DialogHeader>
@@ -98,7 +74,7 @@ export function SelectWidgetDialog({
               Error: {widgets.error.message}
             </div>
           ) : (
-            <div className="grid max-h-[420px] grid-cols-2 gap-3 overflow-y-auto p-1 md:grid-cols-3">
+            <div className="flex max-h-[440px] flex-col gap-2 overflow-y-auto p-1">
               <button
                 type="button"
                 onClick={() =>
@@ -106,46 +82,55 @@ export function SelectWidgetDialog({
                     `/project/${projectId}/widgets/new?dashboardId=${dashboardId}`,
                   )
                 }
-                className={`${tileClassName} border-dashed`}
+                className={`${rowClassName} border-dashed`}
               >
-                <PlusIcon className="text-muted-foreground h-8 w-8" />
-                <span className="font-medium">Custom Chart</span>
-                <span className="text-muted-foreground text-xs">
-                  Build a new widget from scratch
-                </span>
+                <div className="bg-muted/40 flex h-14 w-[5.5rem] shrink-0 items-center justify-center rounded-md">
+                  <ChartTypeIllustration type="CUSTOM" className="h-11 w-16" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium">Custom Chart</div>
+                  <div className="text-muted-foreground text-xs">
+                    Pick a data view, metrics, and chart type from scratch
+                  </div>
+                </div>
               </button>
-              {widgets.data.widgets.map((widget) => {
-                const Icon =
-                  chartTypeIcons[
-                    widget.chartType as DashboardWidgetChartType
-                  ] ?? LineChart;
-                return (
-                  <button
-                    key={widget.id}
-                    type="button"
-                    onClick={() => {
-                      onSelectWidget(widget as WidgetItem);
-                      onOpenChange(false);
-                    }}
-                    className={tileClassName}
-                    title={widget.description || widget.name}
-                  >
-                    <Icon className="text-muted-foreground h-8 w-8" />
-                    <span
-                      className="w-full truncate font-medium"
-                      title={widget.name}
-                    >
+              {widgets.data.widgets.map((widget) => (
+                <button
+                  key={widget.id}
+                  type="button"
+                  onClick={() => {
+                    onSelectWidget(widget as WidgetItem);
+                    onOpenChange(false);
+                  }}
+                  className={rowClassName}
+                >
+                  <div className="bg-muted/40 flex h-14 w-[5.5rem] shrink-0 items-center justify-center rounded-md">
+                    <ChartTypeIllustration
+                      type={widget.chartType as DashboardWidgetChartType}
+                      className="h-11 w-16"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium" title={widget.name}>
                       {widget.name}
-                    </span>
-                    <span className="text-muted-foreground text-xs">
+                    </div>
+                    {widget.description ? (
+                      <div
+                        className="text-muted-foreground truncate text-xs"
+                        title={widget.description}
+                      >
+                        {widget.description}
+                      </div>
+                    ) : null}
+                    <div className="text-muted-foreground/80 mt-0.5 text-xs">
                       {getChartTypeDisplayName(
                         widget.chartType as DashboardWidgetChartType,
                       )}{" "}
                       · {startCase(widget.view.toLowerCase())}
-                    </span>
-                  </button>
-                );
-              })}
+                    </div>
+                  </div>
+                </button>
+              ))}
             </div>
           )}
         </DialogBody>
