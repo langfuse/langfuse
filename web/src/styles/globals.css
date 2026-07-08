@@ -19,6 +19,7 @@
   --color-link-hover: hsl(var(--link-hover));
   --color-control-fill: hsl(var(--control-fill));
   --color-control-track: hsl(var(--control-track));
+  --color-control-border: hsl(var(--control-border));
   --color-foreground-tertiary: hsl(var(--foreground-tertiary));
   --color-surface-code: hsl(var(--surface-code));
   --color-muted-magenta: hsl(var(--muted-magenta));
@@ -227,6 +228,9 @@
        --control-track is the switch's off-state track. */
     --control-fill: 222.2 47.4% 11.2%;
     --control-track: 214.3 31.8% 91.4%;
+    /* Unchecked control boundary — quieter than the near-black fill in light,
+       a touch above --input in dark so the box still reads on the canvas. */
+    --control-border: 215 12% 60%;
 
     --muted-green: 84 81% 44%;
     --muted-magenta: 330 90% 70%;
@@ -354,6 +358,7 @@
     --link-hover: 246 95% 85%;
     --control-fill: 0 0% 78%;
     --control-track: 0 0% 24%;
+    --control-border: 0 0% 20%;
 
     --muted-blue: 215 95% 73.1%;
     --muted-green: 142 76.7% 73.1%;
