@@ -2266,6 +2266,101 @@ describe("OTel Resource Span Mapping", () => {
       ).toBeUndefined();
     });
 
+    it("should subtract gen_ai.usage.input_cached_tokens / input_cache_creation from inclusive input tokens", async () => {
+      // Integrators reading the Langfuse docs emit Langfuse's canonical usage
+      // keys through the gen_ai.usage.* namespace. They must be treated as
+      // cache aliases like gen_ai.usage.cache_read.input_tokens, otherwise the
+      // inclusive input stays unreduced and cached tokens count twice
+      // (github.com/langfuse/langfuse/issues/12306).
+      const traceId = "abcdef1234567890abcdef1234567892";
+
+      const langfuseKeysSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "telemetry.sdk.language",
+              value: { stringValue: "python" },
+            },
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "custom-instrumentation",
+              version: "1.0.0",
+              attributes: [],
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("80854cd6bd218bf7", "hex"),
+                name: "langfuse-usage-keys-cache-test",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: {
+                      intValue: { low: 50000, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: { intValue: { low: 200, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.input_cached_tokens",
+                    value: {
+                      intValue: { low: 40000, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.input_cache_creation",
+                    value: {
+                      intValue: { low: 5000, high: 0, unsigned: false },
+                    },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        langfuseKeysSpan,
+        new Set(),
+      );
+
+      const observationEvent = events.find((e) => e.type === "span-create");
+
+      expect(observationEvent).toBeDefined();
+      // input must be the uncached remainder: 50000 - 40000 - 5000 = 5000
+      expect(observationEvent?.body.usageDetails.input).toBe(5000);
+      expect(observationEvent?.body.usageDetails.output).toBe(200);
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(
+        40000,
+      );
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(
+        5000,
+      );
+    });
+
     it("should prepend gen_ai.system_instructions to pydantic_ai.all_messages input when system message is absent", async () => {
       const traceId = "9d7aa9a729def1eadc0b2063ca4ebeb4";
 
