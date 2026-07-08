@@ -236,7 +236,7 @@ function getContainerClasses(
   return cn(
     baseClasses,
     ASSISTANT_TITLES.includes(title || "")
-      ? "bg-accent-light-green dark:border-accent-dark-green"
+      ? "bg-accent-light-green dark:border-accent-dark-green/30"
       : "",
     SYSTEM_TITLES.includes(title || "") ? "bg-primary-foreground" : "",
     scrollable ? "" : "rounded-sm border",

@@ -30,7 +30,7 @@ export function TimelineScale({
           return (
             <div
               key={index}
-              className="absolute h-full border-l text-xs"
+              className="border-border-contrast absolute h-full border-l text-xs"
               style={{ left: `${index * STEP_SIZE}px` }}
             >
               <span

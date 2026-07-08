@@ -167,7 +167,7 @@ export function SpanContent({
                     : "Own span duration"
                 }
                 className={cn(
-                  "text-muted-foreground text-xs",
+                  "text-foreground-tertiary text-xs",
                   parentTotalDuration &&
                     colorCodeMetrics &&
                     heatMapTextColor({
@@ -187,7 +187,7 @@ export function SpanContent({
             {shouldRenderSubtreeDuration ? (
               <span
                 title="Subtree wall-clock duration (first start → last end)"
-                className="text-muted-foreground text-xs"
+                className="text-foreground-tertiary text-xs"
               >
                 {"∑ "}
                 {formatIntervalSeconds(subtreeWallClockOverflowMs / 1000)}
@@ -197,7 +197,7 @@ export function SpanContent({
             {/* Token counts */}
             {shouldRenderCostTokens &&
             (node.inputUsage || node.outputUsage || node.totalUsage) ? (
-              <span className="text-muted-foreground text-xs">
+              <span className="text-foreground-tertiary text-xs">
                 {formatTokenCounts(
                   node.inputUsage,
                   node.outputUsage,
@@ -215,7 +215,7 @@ export function SpanContent({
                     : undefined
                 }
                 className={cn(
-                  "text-muted-foreground text-xs",
+                  "text-foreground-tertiary text-xs",
                   parentTotalCost &&
                     colorCodeMetrics &&
                     heatMapTextColor({

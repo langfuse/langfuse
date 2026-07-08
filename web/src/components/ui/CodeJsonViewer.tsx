@@ -94,7 +94,7 @@ export function JSONView(props: {
           "io-message-content flex max-w-full min-w-0 gap-2 text-xs wrap-break-word whitespace-pre-wrap",
           props.borderless ? "" : "p-2",
           props.title === "assistant" || props.title === "Output"
-            ? "bg-accent-light-green dark:border-accent-dark-green"
+            ? "bg-accent-light-green dark:border-accent-dark-green/30"
             : "",
           props.title === "system" || props.title === "Input"
             ? "bg-primary-foreground"

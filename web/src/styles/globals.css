@@ -48,6 +48,7 @@
   --color-qlang-keyword: hsl(var(--qlang-keyword));
 
   --color-border: hsl(var(--border));
+  --color-border-contrast: hsl(var(--border-contrast));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
   --color-background: hsl(var(--background));
@@ -191,6 +192,9 @@
     --header-foreground: var(--foreground);
 
     --border: 214.3 31.8% 91.4%;
+    /* Structural/viz lines (tree connectors, timeline grid + bar outlines):
+       one clear step stronger than the hairline --border. */
+    --border-contrast: 214.3 20% 80%;
     --input: 214.3 31.8% 91.4%;
 
     --primary: 222.2 47.4% 11.2%;
@@ -320,6 +324,7 @@
     --header-foreground: var(--foreground);
 
     --border: 0 0% 12.9%;
+    --border-contrast: 0 0% 26%;
     --input: 0 0% 18%;
 
     --primary: 0 0% 90%;
@@ -430,6 +435,7 @@
     --header-foreground: var(--foreground);
 
     --border: 217.2 32.6% 27.5%;
+    --border-contrast: 217.2 32.6% 40%;
     --input: 217.2 32.6% 27.5%;
 
     --primary: 210 40% 83%;
