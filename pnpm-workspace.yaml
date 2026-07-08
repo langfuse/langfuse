@@ -79,6 +79,11 @@ overrides:
   # Remove once @langchain/anthropic allows the same SDK range.
   # Check: https://www.npmjs.com/package/@langchain/anthropic?activeTab=dependencies
   "@anthropic-ai/vertex-sdk>@anthropic-ai/sdk": 0.104.1
+  # next-auth 4.24.x caps its optional nodemailer peer at ^7 but contains no
+  # nodemailer imports (we pass a custom sendVerificationRequest); without this
+  # pnpm auto-installs a second, unused nodemailer@7 instance for web.
+  # Remove once next-auth allows nodemailer ^8.
+  "next-auth>nodemailer": "^8.0.11"
 patchedDependencies:
   next-auth@4.24.14: patches/next-auth@4.24.14.patch
 publicHoistPattern:
