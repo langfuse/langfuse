@@ -76,7 +76,9 @@ export const InlineEditText = ({
         }}
         // size is the fallback width where field-sizing is unsupported
         size={Math.max(draft.length, 4)}
-        className="ring-input focus:ring-ring field-sizing-content max-w-full min-w-16 rounded-sm bg-transparent px-1 ring-1 outline-hidden [font:inherit]"
+        // h-[1lh] + align-bottom keep the box exactly one text line tall in
+        // both modes so swapping display/edit never changes layout height.
+        className="ring-input focus:ring-ring field-sizing-content h-[1lh] max-w-full min-w-16 rounded-sm border-0 bg-transparent p-0 px-1 align-bottom ring-1 outline-hidden [font:inherit]"
       />
     );
   }
@@ -90,7 +92,7 @@ export const InlineEditText = ({
       }}
       aria-label={ariaLabel ?? "Edit text"}
       title="Click to edit"
-      className="group/inline-edit hover:bg-accent/50 focus-visible:ring-ring inline-flex max-w-full items-center gap-1.5 rounded-sm px-1 text-left [font:inherit] focus-visible:ring-2 focus-visible:outline-hidden"
+      className="group/inline-edit hover:bg-accent/50 focus-visible:ring-ring inline-flex h-[1lh] max-w-full items-center gap-1.5 rounded-sm px-1 text-left align-bottom [font:inherit] focus-visible:ring-2 focus-visible:outline-hidden"
     >
       <span
         title={value || placeholder}
