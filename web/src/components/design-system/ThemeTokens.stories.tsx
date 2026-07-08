@@ -118,9 +118,12 @@ function ThemeTokensDoc() {
         <PairChip bg="popover" fg="popover-foreground" />
         <PairChip bg="header" fg="header-foreground" />
         <PairChip bg="muted" fg="muted-foreground" />
+        <PairChip bg="background" fg="foreground-tertiary" label="faint text" />
         <Swatch token="border" />
+        <Swatch token="border-contrast" />
         <Swatch token="input" />
         <Swatch token="ring" />
+        <Swatch token="surface-code" />
       </Section>
 
       <Section
@@ -143,6 +146,10 @@ function ThemeTokensDoc() {
       >
         <Swatch token="primary-accent" />
         <Swatch token="hover-primary-accent" />
+        <Swatch token="link" />
+        <Swatch token="link-hover" />
+        <Swatch token="control-fill" />
+        <Swatch token="control-track" />
         <Swatch token="muted-blue" />
         <Swatch token="muted-green" />
         <Swatch token="muted-magenta" />
