@@ -67,6 +67,21 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
   files (history, chart, ledger) untouched except this note. Next scheduled
   run should pick up a full new week.
 
+## 2026-07-08 (fourth run, manual re-trigger — noop, data reused)
+
+- `workflow_dispatch` on 2026-07-08, a few hours after the third-run noop.
+  Since the W28 window close (07-07T19:00Z) there are now **2** successful
+  merge-group runs, not 1: 07-07T19:55:03Z (pr-14861) and the newly-appeared
+  07-08T08:25:16Z (pr-14872). Still far below the 10-run threshold, and 07-08
+  holds only that single run so no day-median (≥5 runs) is computable.
+- No new ISO week has completed (W28 = 07-06..07-12 is only 3 days elapsed;
+  07-06/07-07 already fold into the baseline window). Ledger `prs.json` still
+  empty and zero `ci-performance`-labelled PRs exist → no assessment work.
+- Recomputing would reproduce `history/2026-W28.json`, so I reused the W28
+  numbers for the report and emitted noop. Left all memory files (history,
+  chart, ledger) untouched except this note. Next scheduled run should pick
+  up a full new week.
+
 ## Tooling notes (for future runs)
 
 - The GitHub Actions MCP `list_workflow_runs` caps at ~30 runs/page regardless
