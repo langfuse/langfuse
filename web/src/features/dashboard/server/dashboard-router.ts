@@ -89,7 +89,7 @@ const CloneDashboardInput = z.object({
 const SetHomeDashboardInput = z.object({
   projectId: z.string(),
   // null resets to the Langfuse-curated default
-  dashboardId: z.string().nullable(),
+  dashboardId: z.string().min(1).nullable(),
 });
 
 // Update dashboard filters input schema

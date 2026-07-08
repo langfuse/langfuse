@@ -55,7 +55,7 @@ export function CloneFirstDialog({
     {
       projectId,
       page: 1,
-      limit: 100,
+      limit: 500,
       orderBy: { column: "updatedAt", order: "DESC" },
     },
     { enabled: open },
