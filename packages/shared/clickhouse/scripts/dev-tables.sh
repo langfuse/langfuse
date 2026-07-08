@@ -562,7 +562,8 @@ SELECT
   uniqIf(service_name, service_name != '') as count_service_names,
   sumMap(map(if(scope_name = '', '-', concat(scope_name, '-', scope_version)), toUInt64(1))) AS count_scopes,
   sumMap(map(if(telemetry_sdk_language = '', '-', telemetry_sdk_language), toUInt64(1))) AS count_telemetry_sdk_languages,
-  sumMap(map(if(telemetry_sdk_name = '', '-', concat(telemetry_sdk_language, '-', telemetry_sdk_name, '-', telemetry_sdk_version)), toUInt64(1))) AS count_sdk_telemetry_sdks
+  sumMap(map(if(telemetry_sdk_name = '', '-', concat(telemetry_sdk_language, '-', telemetry_sdk_name, '-', telemetry_sdk_version)), toUInt64(1))) AS count_sdk_telemetry_sdks,
+  sumMap(map(concat(if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name), '@', if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version)), toUInt64(1))) AS ingested_sdks
 FROM events_core
 WHERE toStartOfHour(start_time) <= toStartOfHour(subtractHours(now(), 1))
 GROUP BY project_id, hour;
