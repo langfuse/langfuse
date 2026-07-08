@@ -70,7 +70,7 @@ const meta = preview.meta({
   component: LineChartTimeSeriesDemo,
   args: {
     data: latencyData,
-    legendPosition: "above",
+    legendPosition: "below",
     metricFormatter: msFormatter,
   },
   // Host in a card-sized box so ResponsiveContainer has room (the widget shape).

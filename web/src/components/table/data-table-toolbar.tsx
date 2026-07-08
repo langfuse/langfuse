@@ -66,6 +66,10 @@ export interface MultiSelect {
   pageSize: number;
   pageIndex: number;
   totalCount: number | null;
+  // Tables that only compute totalCount lazily (e.g. v4 events, where counting
+  // is expensive and runs once select-all is active) pass this keyset-pagination
+  // signal instead, so the select-all banner can show while the count is unknown.
+  hasNextPage?: boolean;
   // When the displayed row count does not equal the number of affected entities
   // (e.g. datasets where a folder row expands to many datasets on delete), the
   // select-all banner drops the precise number and says "matching" instead.
@@ -229,12 +233,14 @@ export function DataTableToolbar<TData, TValue>({
   );
   const allVisibleRowsSelected = Boolean(
     multiSelect &&
-    multiSelect.totalCount !== null &&
-    multiSelect.totalCount > multiSelect.pageSize &&
     multiSelect.pageIndex === 0 &&
     multiSelect.selectedRowIds.length > 0 &&
-    multiSelect.selectedRowIds.length ===
-      Math.min(multiSelect.pageSize, multiSelect.totalCount),
+    (multiSelect.totalCount !== null
+      ? multiSelect.totalCount > multiSelect.pageSize &&
+        multiSelect.selectedRowIds.length ===
+          Math.min(multiSelect.pageSize, multiSelect.totalCount)
+      : multiSelect.hasNextPage === true &&
+        multiSelect.selectedRowIds.length === multiSelect.pageSize),
   );
 
   const submitSearch = (query: string) => {

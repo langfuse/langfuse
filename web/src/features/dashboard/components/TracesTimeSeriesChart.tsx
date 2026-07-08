@@ -215,6 +215,8 @@ export const TracesAndObservationsTimeSeriesChart = ({
                       // the card headline. (LFE-10498)
                       legendSummary="sum"
                       syncId={syncId}
+                      // Additive counts: a bucket without data honestly counts 0. (LFE-10694)
+                      missingValue="zero"
                     />
                   </div>
                 ) : (

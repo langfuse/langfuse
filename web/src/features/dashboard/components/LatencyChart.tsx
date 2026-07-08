@@ -135,6 +135,9 @@ export const GenerationLatencyChart = ({
               ],
             ),
             selectedModels,
+            // A latency percentile has no honest value on a bucket without
+            // generations — gap the line, don't fabricate a 0. (LFE-10694)
+            "gap",
           )
         : [];
     return [
@@ -180,6 +183,7 @@ export const GenerationLatencyChart = ({
                       label="Latency"
                       unit="millisecond"
                       syncId={syncId}
+                      missingValue="gap"
                     />
                   </div>
                 ) : (
