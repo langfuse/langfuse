@@ -5,6 +5,7 @@ import {
   convertDateToClickhouseDateTime,
   flattenJsonToPathArrays,
   recordGauge,
+  UNKNOWN_INGESTION_SDK_VALUE,
   type EventRecordInsertType,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
@@ -623,6 +624,9 @@ export function convertEnrichedSpansToEventRecords(
       metadata_values: flattened.values.map((v) => v ?? ""),
 
       source: span.source,
+      ingestion_api_key: "",
+      ingestion_sdk_name: UNKNOWN_INGESTION_SDK_VALUE,
+      ingestion_sdk_version: UNKNOWN_INGESTION_SDK_VALUE,
 
       blob_storage_file_path: "",
       event_bytes: 0,

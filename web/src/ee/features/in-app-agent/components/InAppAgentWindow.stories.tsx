@@ -360,7 +360,9 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
       );
     }, 140);
 
-    return () => window.clearInterval(intervalId);
+    return () => {
+      window.clearInterval(intervalId);
+    };
   }, []);
 
   return (
@@ -432,6 +434,7 @@ const meta = preview.meta({
     selectedConversationId: undefined,
     onDeleteConversation: fn(),
     onLoadMoreConversations: fn(),
+    onOpenConversationHistory: fn(),
     onNewConversation: fn(),
     onApproveToolCall: fn(),
     onRejectToolCall: fn(),

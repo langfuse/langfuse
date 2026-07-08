@@ -124,7 +124,6 @@ export function ChartScores(props: {
             data={chartData}
             rowLimit={100}
             chartConfig={SCORES_CHART_CONFIG}
-            legendPosition="above"
             syncId={props.syncId}
           />
         </div>

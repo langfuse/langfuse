@@ -578,7 +578,7 @@ const ProviderOptionsInput = ({
         <div className="flex flex-row space-x-3">
           {setModelParamEnabled ? (
             <Switch
-              title={`Control sending the additional options parameter`}
+              title="Control sending the additional options parameter"
               disabled={formDisabled}
               checked={enabled}
               onCheckedChange={(checked) => {

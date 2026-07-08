@@ -78,6 +78,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   isLoadingMoreConversations: false,
   selectedConversationId: undefined,
   loadMoreConversations: () => undefined,
+  invalidateConversations: () => undefined,
   selectConversation: () => undefined,
   deleteConversation: async () => undefined,
   submit: async () => false,
@@ -122,6 +123,7 @@ type InAppAiAgentContextType = {
   isLoadingMoreConversations: boolean;
   selectedConversationId: string | undefined;
   loadMoreConversations: () => void;
+  invalidateConversations: () => void;
   selectConversation: (conversationId: string | null) => void;
   deleteConversation: (conversationId: string) => Promise<void>;
   submit: (content: string) => Promise<boolean>;
@@ -137,9 +139,9 @@ type InAppAiAgentContextType = {
 
 const InAppAiAgentContext = createContext<InAppAiAgentContextType | null>(null);
 
-export interface InAppAiAgentProviderProps extends PropsWithChildren {
+export type InAppAiAgentProviderProps = PropsWithChildren<{
   defaultOpen?: boolean;
-}
+}>;
 
 export function InAppAiAgentProvider({
   children,
@@ -284,6 +286,10 @@ function InAppAiAgentProviderInner({
     hasMoreConversations,
     isLoadingMoreConversations,
   ]);
+  const invalidateConversations = useCallback(
+    () => utils.inAppAgent.listConversations.invalidate({ projectId }),
+    [projectId, utils.inAppAgent.listConversations],
+  );
 
   useEffect(() => {
     if (!conversationListQuery.error) {
@@ -411,8 +417,15 @@ function InAppAiAgentProviderInner({
       }
 
       subscriptionRef.current = agent.subscribe({
-        onRunStartedEvent: ({ event }) => {
-          activeRunIdRef.current = event.runId;
+        onRunStartedEvent: (payload: { event: unknown }) => {
+          if (
+            typeof payload.event === "object" &&
+            payload.event !== null &&
+            "runId" in payload.event &&
+            typeof payload.event.runId === "string"
+          ) {
+            activeRunIdRef.current = payload.event.runId;
+          }
         },
         onCustomEvent: ({ event }) => {
           const approvalRequest = parseInAppAgentInterruptEvent(event);
@@ -910,6 +923,7 @@ function InAppAiAgentProviderInner({
       isLoadingMoreConversations,
       selectedConversationId: selectedConversationId ?? undefined,
       loadMoreConversations,
+      invalidateConversations,
       selectConversation,
       deleteConversation,
       submit,
@@ -933,6 +947,7 @@ function InAppAiAgentProviderInner({
       open,
       pendingToolApprovals,
       rejectToolCall,
+      invalidateConversations,
       selectConversation,
       selectedConversationId,
       setOpen,

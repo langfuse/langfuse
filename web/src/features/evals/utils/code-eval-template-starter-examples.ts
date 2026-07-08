@@ -31,12 +31,11 @@ type EvaluationResult = {
 };
 `;
 
-export const DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE = `${TYPESCRIPT_CODE_EVAL_CONTRACT}
-
-function evaluate(ctx: EvaluationContext): EvaluationResult {
+// Keep in sync with the Prettier output so the Format button is a no-op on
+// the untouched starter code.
+export const DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE = `function evaluate(ctx: EvaluationContext): EvaluationResult {
   const input = ctx.observation.input;
-  const matchesOutput =
-    input !== undefined && ctx.observation.output === input;
+  const matchesOutput = input !== undefined && ctx.observation.output === input;
 
   return {
     scores: [
@@ -50,8 +49,7 @@ function evaluate(ctx: EvaluationContext): EvaluationResult {
       },
     ],
   };
-}
-`;
+}`;
 
 export const PYTHON_CODE_EVAL_CONTRACT = `from dataclasses import dataclass
 from typing import Any
@@ -91,29 +89,25 @@ class EvaluationResult:
     scores: list[Score]
 `;
 
-export const DEFAULT_PYTHON_CODE_EVAL_SOURCE = `${PYTHON_CODE_EVAL_CONTRACT}
+export const DEFAULT_PYTHON_CODE_EVAL_SOURCE = `def evaluate(ctx: EvaluationContext) -> EvaluationResult:
+  """Evaluates one observation and returns one or more Langfuse scores."""
+  input = ctx.observation.input
+  matches_output = input is not None and ctx.observation.output == input
 
-
-def evaluate(ctx: EvaluationContext) -> EvaluationResult:
-    """Evaluates one observation and returns one or more Langfuse scores."""
-    input = ctx.observation.input
-    matches_output = input is not None and ctx.observation.output == input
-
-    return EvaluationResult(
-        scores=[
-            Score(
-                name="Exact match",
-                value=matches_output,
-                data_type="BOOLEAN",
-                comment=(
-                    "Output exactly matches the input."
-                    if matches_output
-                    else "Output does not match the input."
-                ),
-            )
-        ]
-    )
-`;
+  return EvaluationResult(
+    scores=[
+      Score(
+        name="Exact match",
+        value=matches_output,
+        data_type="BOOLEAN",
+        comment=(
+          "Output exactly matches the input."
+          if matches_output
+          else "Output does not match the input."
+        ),
+      )
+    ]
+  )`;
 
 export type CodeEvalSourceCodeLanguage = "PYTHON" | "TYPESCRIPT";
 
@@ -132,6 +126,33 @@ export function isDefaultCodeEvalSource(sourceCode: string) {
   );
 }
 
+// The contract type declarations are not shown in the editor; they are
+// documented at
+// https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators#function-contract
+// and only prepended behind the scenes for validation.
+//
+// Stripping is still required because sources can contain the contract via
+// two paths the UI does not control: templates created through the public
+// API (sourceCode is stored verbatim) and full docs examples pasted into the
+// editor.
+function stripCodeEvalContract({
+  sourceCode,
+  sourceCodeLanguage,
+}: {
+  sourceCode: string;
+  sourceCodeLanguage: CodeEvalSourceCodeLanguage;
+}) {
+  const contract =
+    sourceCodeLanguage === "PYTHON"
+      ? PYTHON_CODE_EVAL_CONTRACT
+      : TYPESCRIPT_CODE_EVAL_CONTRACT;
+  const source = sourceCode.trimStart();
+
+  return source.startsWith(contract)
+    ? source.slice(contract.length).trimStart()
+    : source;
+}
+
 export function getCodeEvalSourceForEditor({
   sourceCode,
   sourceCodeLanguage,
@@ -141,27 +162,22 @@ export function getCodeEvalSourceForEditor({
 }) {
   if (!sourceCode?.trim()) return getDefaultCodeEvalSource(sourceCodeLanguage);
 
-  if (sourceCodeLanguage === "PYTHON") {
-    return sourceCode.trimStart().startsWith(PYTHON_CODE_EVAL_CONTRACT)
-      ? sourceCode
-      : `${PYTHON_CODE_EVAL_CONTRACT}\n\n${sourceCode.trimStart()}`;
-  }
-
-  return sourceCode.startsWith(TYPESCRIPT_CODE_EVAL_CONTRACT)
-    ? sourceCode
-    : `${TYPESCRIPT_CODE_EVAL_CONTRACT}\n\n${sourceCode.trimStart()}`;
+  return stripCodeEvalContract({ sourceCode, sourceCodeLanguage });
 }
 
 async function formatTypeScriptSource(source: string): Promise<string> {
-  const [{ format }, typescriptPlugin, estreePlugin] = await Promise.all([
+  // babel-ts instead of the typescript plugin: the latter embeds the
+  // TypeScript compiler, which the SWC minifier miscompiles (dropped
+  // bindings — LFE-10645, caught by scripts/scan-client-bundle.mjs).
+  const [{ format }, babelPlugin, estreePlugin] = await Promise.all([
     import("prettier/standalone"),
-    import("prettier/plugins/typescript"),
+    import("prettier/plugins/babel"),
     import("prettier/plugins/estree"),
   ]);
 
   return format(source, {
-    parser: "typescript",
-    plugins: [typescriptPlugin, estreePlugin],
+    parser: "babel-ts",
+    plugins: [babelPlugin, estreePlugin],
   });
 }
 
@@ -172,7 +188,7 @@ async function formatPythonSource(source: string): Promise<string> {
   const workspace = new ruffModule.Workspace(
     {
       "line-length": 88,
-      "indent-width": 4,
+      "indent-width": 2,
     },
     ruffModule.PositionEncoding.Utf16,
   );
@@ -181,9 +197,8 @@ async function formatPythonSource(source: string): Promise<string> {
 }
 
 /**
- * Formats the source code and strips the contract types for submission.
- * For Python: Formats with Ruff, then extracts starting from `def evaluate(`.
- * For TypeScript: Strips contract types, formats with prettier, then returns.
+ * Formats the source code for submission and strips the contract types in
+ * case they were pasted into the editor.
  */
 export async function formatAndStripCodeEvalSourceForSubmit({
   sourceCode,
@@ -192,31 +207,18 @@ export async function formatAndStripCodeEvalSourceForSubmit({
   sourceCode: string;
   sourceCodeLanguage: CodeEvalSourceCodeLanguage;
 }): Promise<string> {
-  if (sourceCodeLanguage === "PYTHON") {
-    const evaluateMatch = sourceCode.match(/(?:^|\n)\s*def\s+evaluate\s*\(/);
-    if (!evaluateMatch || evaluateMatch.index === undefined) {
-      return sourceCode.trim();
-    }
-
-    const strippedSource = sourceCode
-      .slice(evaluateMatch.index)
-      .trimStart()
-      .trimEnd();
-
-    try {
-      return (await formatPythonSource(strippedSource)).trimEnd();
-    } catch {
-      return strippedSource;
-    }
-  }
-
-  // TypeScript: strip contract types first, then format
-  const strippedSource = sourceCode.startsWith(TYPESCRIPT_CODE_EVAL_CONTRACT)
-    ? sourceCode.slice(TYPESCRIPT_CODE_EVAL_CONTRACT.length).trim()
-    : sourceCode.trim();
+  const strippedSource = stripCodeEvalContract({
+    sourceCode,
+    sourceCodeLanguage,
+  }).trim();
 
   try {
-    return (await formatTypeScriptSource(strippedSource)).trimEnd();
+    const formattedSource =
+      sourceCodeLanguage === "PYTHON"
+        ? await formatPythonSource(strippedSource)
+        : await formatTypeScriptSource(strippedSource);
+
+    return formattedSource.trimEnd();
   } catch {
     return strippedSource;
   }

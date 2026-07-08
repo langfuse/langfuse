@@ -36,12 +36,20 @@ interface TraceState {
 
 export interface OtelIngestionProcessorConfig {
   projectId: string;
-  publicKey?: string;
+  publicKey: string;
   orgId?: string;
   propagatedHeaders?: Record<string, string>;
-  sdkName?: string;
-  sdkVersion?: string;
+  sdkName: string;
+  sdkVersion: string;
   ingestionVersion?: string;
+  /**
+   * Marks Langfuse-internal telemetry (e.g. LLM-as-a-judge /
+   * prompt-experiment executions). Propagated through the ingestion queue so
+   * the consumer parses these events with the internal ingestion schema,
+   * preserving the reserved "langfuse-" environment prefix that the public
+   * schema strips.
+   */
+  isLangfuseInternal?: boolean;
 }
 
 interface CreateTraceEventParams {
@@ -150,12 +158,13 @@ export class OtelIngestionProcessor {
     traceUpdated: 0,
   };
   private readonly projectId: string;
-  private readonly publicKey?: string;
+  private readonly publicKey: string;
   private readonly orgId?: string;
   private readonly propagatedHeaders?: Record<string, string>;
-  private readonly sdkName?: string;
-  private readonly sdkVersion?: string;
+  private readonly sdkName: string;
+  private readonly sdkVersion: string;
   private readonly ingestionVersion?: string;
+  private readonly isLangfuseInternal?: boolean;
 
   constructor(config: OtelIngestionProcessorConfig) {
     this.projectId = config.projectId;
@@ -163,8 +172,13 @@ export class OtelIngestionProcessor {
     this.orgId = config.orgId;
     this.propagatedHeaders = config.propagatedHeaders;
     this.sdkName = config.sdkName;
+    // Langfuse SDK version from x-langfuse-sdk-version. This is persisted as
+    // ingestionSdkVersion attribution on emitted events.
     this.sdkVersion = config.sdkVersion;
+    // Ingestion protocol version from x-langfuse-ingestion-version. This is
+    // only used as a write-path hint, not as SDK attribution.
     this.ingestionVersion = config.ingestionVersion;
+    this.isLangfuseInternal = config.isLangfuseInternal;
   }
 
   /**
@@ -213,6 +227,7 @@ export class OtelIngestionProcessor {
             sdkName: this.sdkName,
             sdkVersion: this.sdkVersion,
             ingestionVersion: this.ingestionVersion,
+            ...(this.isLangfuseInternal ? { isLangfuseInternal: true } : {}),
           },
         })
       : Promise.reject("Failed to instantiate otel ingestion queue");
@@ -352,12 +367,19 @@ export class OtelIngestionProcessor {
                   source: "event" as const,
                 };
 
+                // AI SDK agent spans carry aggregate usage duplicating their
+                // child model-call spans — skip model/usage/cost for them.
+                const isAiSdkAgentSpan =
+                  this.isAiSdkAgentOperation(spanAttributes);
+
                 const usageDetails = UsageDetails.safeParse(
-                  this.extractUsageDetails(
-                    spanAttributes,
-                    scopeSpan?.scope?.name ?? "",
-                    spanContext,
-                  ),
+                  isAiSdkAgentSpan
+                    ? {}
+                    : this.extractUsageDetails(
+                        spanAttributes,
+                        scopeSpan?.scope?.name ?? "",
+                        spanContext,
+                      ),
                 );
                 if (!usageDetails.success) {
                   logger.warn(
@@ -440,7 +462,9 @@ export class OtelIngestionProcessor {
                     spanAttributes,
                     scopeSpan?.scope?.name ?? "",
                   ),
-                  modelName: this.extractModelName(spanAttributes),
+                  modelName: isAiSdkAgentSpan
+                    ? undefined
+                    : this.extractModelName(spanAttributes),
                   completionStartTime: this.extractCompletionStartTime(
                     spanAttributes,
                     startTimeISO,
@@ -450,10 +474,9 @@ export class OtelIngestionProcessor {
                   providedUsageDetails: usageDetails.success
                     ? usageDetails.data
                     : undefined,
-                  providedCostDetails: this.extractCostDetails(
-                    spanAttributes,
-                    spanContext,
-                  ),
+                  providedCostDetails: isAiSdkAgentSpan
+                    ? {}
+                    : this.extractCostDetails(spanAttributes, spanContext),
 
                   // Properties
                   tags: this.extractTags(spanAttributes),
@@ -479,6 +502,9 @@ export class OtelIngestionProcessor {
 
                   // Instrumentation metadata
                   source: "otel",
+                  ingestionApiKey: this.publicKey,
+                  ingestionSdkName: this.sdkName,
+                  ingestionSdkVersion: this.sdkVersion,
                   serviceName,
                   serviceVersion,
                   scopeName,
@@ -996,6 +1022,10 @@ export class OtelIngestionProcessor {
       metadata,
     );
 
+    // AI SDK agent spans carry aggregate usage duplicating their child
+    // model-call spans — skip model/usage/cost for them.
+    const isAiSdkAgentSpan = this.isAiSdkAgentOperation(attributes);
+
     const observation = {
       id: this.parseId(span.spanId?.data ?? span.spanId),
       traceId,
@@ -1029,7 +1059,7 @@ export class OtelIngestionProcessor {
         attributes,
         instrumentationScopeName,
       ) as any,
-      model: this.extractModelName(attributes),
+      model: isAiSdkAgentSpan ? undefined : this.extractModelName(attributes),
       promptName:
         attributes?.[LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME] ??
         attributes["langfuse.prompt.name"] ??
@@ -1040,12 +1070,16 @@ export class OtelIngestionProcessor {
         attributes["langfuse.prompt.version"] ??
         this.parseLangfusePromptFromAISDK(attributes)?.version ??
         null,
-      usageDetails: this.extractUsageDetails(
-        attributes,
-        instrumentationScopeName,
-        observationContext,
-      ),
-      costDetails: this.extractCostDetails(attributes, observationContext),
+      usageDetails: isAiSdkAgentSpan
+        ? {}
+        : this.extractUsageDetails(
+            attributes,
+            instrumentationScopeName,
+            observationContext,
+          ),
+      costDetails: isAiSdkAgentSpan
+        ? {}
+        : this.extractCostDetails(attributes, observationContext),
       input: normalizedToolMetadata.input,
       output,
     };
@@ -2247,6 +2281,27 @@ export class OtelIngestionProcessor {
       );
 
     return params;
+  }
+
+  /**
+   * The Vercel AI SDK OTel integration (@ai-sdk/otel) emits an
+   * `invoke_agent` span (and `agent_step` child spans) that carry aggregate
+   * `gen_ai.usage.*` token counts duplicating the per-call usage on the
+   * grandchild model-call span (`gen_ai.operation.name: "chat"`). Populating
+   * model/usage/cost on the agent spans as well as the model-call span would
+   * classify both as generations and double every trace's cost, so model,
+   * usage, and cost extraction is skipped for these spans. Agent-type spans
+   * from other instrumentations (e.g. OpenInference `AGENT` spans) are not
+   * affected because the gate is on the operation name, not the observation
+   * type.
+   */
+  private isAiSdkAgentOperation(attributes: Record<string, unknown>): boolean {
+    const operationName = attributes["gen_ai.operation.name"];
+
+    return (
+      typeof operationName === "string" &&
+      ["invoke_agent", "agent_step"].includes(operationName)
+    );
   }
 
   private extractModelName(

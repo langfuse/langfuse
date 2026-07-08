@@ -20,7 +20,21 @@ export const BlobStorageIntegrationType = z.enum([
   "AZURE_BLOB_STORAGE",
 ]);
 
-export const BlobStorageIntegrationFileType = z.enum(["JSON", "CSV", "JSONL"]);
+export const BlobStorageIntegrationFileType = z.enum([
+  "JSON",
+  "CSV",
+  "JSONL",
+  "PARQUET",
+]);
+
+// Kept as a separate export for the response type. Now identical to the request
+// enum since Parquet is generally available and settable via the API.
+export const BlobStorageIntegrationFileTypeResponse = z.enum([
+  "JSON",
+  "CSV",
+  "JSONL",
+  "PARQUET",
+]);
 
 export const BlobStorageExportMode = z.enum([
   "FULL_HISTORY",
@@ -159,7 +173,7 @@ export const BlobStorageIntegrationResponse = z
     exportFrequency: z.string(),
     enabled: z.boolean(),
     forcePathStyle: z.boolean(),
-    fileType: BlobStorageIntegrationFileType,
+    fileType: BlobStorageIntegrationFileTypeResponse,
     exportMode: BlobStorageExportMode,
     exportStartDate: z.coerce.date().nullable(),
     compressed: z.boolean(),

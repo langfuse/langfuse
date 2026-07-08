@@ -78,31 +78,36 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
         : undefined,
   });
 
-  // Auto-scroll to selected node on initial load (URL-based navigation only)
-  const initialNodeIdRef = useRef(selectedNodeId);
-  const hasScrolledRef = useRef(false);
+  // Scroll the selected node into view whenever the selection changes — so
+  // selecting a node elsewhere (e.g. clicking it in the graph view) brings the
+  // matching tree row into view. `align: "auto"` scrolls the minimum needed and
+  // is a no-op when the row is already visible, so clicking a visible row never
+  // jumps the list.
+  const prevSelectedIdRef = useRef<string | null | undefined>(undefined);
 
   useLayoutEffect(() => {
-    if (
-      selectedNodeId &&
-      !hasScrolledRef.current &&
-      selectedNodeId === initialNodeIdRef.current
-    ) {
-      const index = flattenedItems.findIndex(
-        (item) => item.node.id === selectedNodeId,
-      );
-
-      if (index !== -1) {
-        // Use behavior: "auto" for instant scroll on initial load to prevent
-        // visible scroll animation after page render. The synchronous scroll
-        // completes within useLayoutEffect, before browser paint.
-        rowVirtualizer.scrollToIndex(index, {
-          align: "center",
-          behavior: "auto",
-        });
-        hasScrolledRef.current = true;
-      }
+    if (!selectedNodeId || selectedNodeId === prevSelectedIdRef.current) {
+      prevSelectedIdRef.current = selectedNodeId;
+      return;
     }
+
+    const index = flattenedItems.findIndex(
+      (item) => item.node.id === selectedNodeId,
+    );
+    // Keep the scroll PENDING when the row is missing (collapsed subtree,
+    // level filter) — the ref stays un-advanced, so this retries when
+    // flattenedItems changes and the row appears.
+    if (index === -1) return;
+
+    const isInitial = prevSelectedIdRef.current === undefined;
+    prevSelectedIdRef.current = selectedNodeId;
+
+    // Initial load: center it instantly (no post-paint animation). Later
+    // selection changes: minimal, smooth scroll only if it's off-screen.
+    rowVirtualizer.scrollToIndex(index, {
+      align: isInitial ? "center" : "auto",
+      behavior: isInitial ? "auto" : "smooth",
+    });
   }, [selectedNodeId, flattenedItems, rowVirtualizer]);
 
   return (

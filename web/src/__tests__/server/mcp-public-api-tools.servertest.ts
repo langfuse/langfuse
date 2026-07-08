@@ -154,6 +154,7 @@ describe("MCP public API tools", () => {
         "listEvaluationRules",
         "getEvaluationRule",
         "createEvaluationRule",
+        "createDashboardWidget",
         "listDatasets",
         "getHealth",
         "listScores",
@@ -189,6 +190,9 @@ describe("MCP public API tools", () => {
     await expect(
       toolRegistry.getEnabledTool("createModel", context),
     ).resolves.toBeUndefined();
+    await expect(
+      toolRegistry.getEnabledTool("createDashboardWidget", context),
+    ).resolves.toBeUndefined();
   });
 
   it("resolves only the overridden mutating tool for in-app agent keys", async () => {
@@ -210,6 +214,22 @@ describe("MCP public API tools", () => {
     ).resolves.toBeUndefined();
   });
 
+  it("resolves the dashboard widget creation override for in-app agent keys", async () => {
+    const context = mockServerContext({
+      inAppAgent: {
+        permissions: "single-tool-override",
+        allowedToolName: "createDashboardWidget",
+      },
+    });
+
+    await expect(
+      toolRegistry.getEnabledTool("createDashboardWidget", context),
+    ).resolves.toBeTruthy();
+    await expect(
+      toolRegistry.getEnabledTool("upsertDataset", context),
+    ).resolves.toBeUndefined();
+  });
+
   it("marks destructive public API tools", async () => {
     const toolNames = await getToolNames();
 
@@ -223,6 +243,7 @@ describe("MCP public API tools", () => {
     expect(destructiveToolNames).toEqual(
       [
         "createChatPrompt",
+        "createDashboardWidget",
         "createEvaluationRule",
         "upsertEvaluator",
         "createScore",
@@ -862,5 +883,59 @@ describe("MCP public API tools", () => {
       id: scoreConfig.id,
       description: "Updated through MCP",
     });
+  });
+});
+
+describe("MCP tool schema interoperability", () => {
+  /** Recursively collect all JSON Schema `pattern` values with their location. */
+  const collectPatterns = (
+    schema: unknown,
+    path: string[] = [],
+  ): { path: string; pattern: string }[] => {
+    if (typeof schema !== "object" || schema === null) return [];
+
+    if (Array.isArray(schema)) {
+      return schema.flatMap((item, index) =>
+        collectPatterns(item, [...path, String(index)]),
+      );
+    }
+
+    const obj = schema as Record<string, unknown>;
+    const ownPattern =
+      typeof obj.pattern === "string"
+        ? [{ path: path.join("."), pattern: obj.pattern }]
+        : [];
+
+    return [
+      ...ownPattern,
+      ...Object.entries(obj).flatMap(([key, value]) =>
+        collectPatterns(value, [...path, key]),
+      ),
+    ];
+  };
+
+  const getAllToolPatterns = () =>
+    toolRegistry.getFeatures().flatMap((feature) =>
+      feature.tools.flatMap((tool) =>
+        collectPatterns(tool.definition.inputSchema).map((entry) => ({
+          tool: tool.definition.name,
+          ...entry,
+        })),
+      ),
+    );
+
+  it("advertises no pattern that requires the ECMAScript `u` flag", () => {
+    // JSON Schema `pattern` is an ECMA-262 regex compiled WITHOUT the `u` flag.
+    // Unicode-only escapes (`\p{...}`, `\P{...}`, `\u{...}`) don't merely fail
+    // OpenAI/Vertex validation — without `u` they silently degrade instead of
+    // throwing: e.g. `^[\p{L}\p{N}_ .()-]+$` collapses to a literal class
+    // `[pLN{}...]` that REJECTS valid ASCII like "quality". Because those
+    // providers validate the whole tool catalog atomically, a single such
+    // pattern disables every Langfuse MCP tool.
+    const offending = getAllToolPatterns().filter(({ pattern }) =>
+      /\\[pP]\{|\\u\{/.test(pattern),
+    );
+
+    expect(offending).toEqual([]);
   });
 });

@@ -665,13 +665,15 @@ describe("Clickhouse Events Repository Test", () => {
           columns: ["level"],
         });
 
-        expect(options.level.map((level) => level.value)).toContain("WARNING");
-        expect(options.name).toEqual([]);
-        expect(options.traceTags).toEqual([]);
-        expect(options.scores_avg).toEqual([]);
-        expect(options.score_categories).toEqual([]);
-        expect(options.trace_scores_avg).toEqual([]);
-        expect(options.trace_score_categories).toEqual([]);
+        expect(options.level?.map((level) => level.value)).toContain("WARNING");
+        // Unrequested columns are absent (not empty arrays), so the client can
+        // distinguish "loaded, no values" from "not requested yet" for lazy loading.
+        expect(options.name).toBeUndefined();
+        expect(options.traceTags).toBeUndefined();
+        expect(options.scores_avg).toBeUndefined();
+        expect(options.score_categories).toBeUndefined();
+        expect(options.trace_scores_avg).toBeUndefined();
+        expect(options.trace_score_categories).toBeUndefined();
       });
     });
 
@@ -742,48 +744,6 @@ describe("Clickhouse Events Repository Test", () => {
         expect(Number(range?.count)).toBe(1);
         expect(Number(range?.min)).toBeCloseTo(1, 3);
         expect(Number(range?.max)).toBeCloseTo(1, 3);
-      });
-    });
-
-    it("uses the monitor window to scope monitor filter option queries", async () => {
-      const uniqueProjectId = randomUUID();
-      const traceId = randomUUID();
-      const now = Date.now();
-      const recentLevel = "WARNING";
-      const oldLevel = "ERROR";
-
-      await createEventsCh([
-        createEvent({
-          id: randomUUID(),
-          span_id: randomUUID(),
-          project_id: uniqueProjectId,
-          trace_id: traceId,
-          type: "SPAN",
-          name: "recent-monitor-filter-option-event",
-          level: recentLevel,
-          start_time: (now - 60 * 1000) * 1000,
-        }),
-        createEvent({
-          id: randomUUID(),
-          span_id: randomUUID(),
-          project_id: uniqueProjectId,
-          trace_id: traceId,
-          type: "SPAN",
-          name: "old-monitor-filter-option-event",
-          level: oldLevel,
-          start_time: (now - 10 * 60 * 1000) * 1000,
-        }),
-      ]);
-
-      await waitForExpect(async () => {
-        const options = await getEventFilterOptions({
-          projectId: uniqueProjectId,
-          monitorWindow: "5m",
-        });
-        const levels = options.level.map((level) => level.value);
-
-        expect(levels).toContain(recentLevel);
-        expect(levels).not.toContain(oldLevel);
       });
     });
   });

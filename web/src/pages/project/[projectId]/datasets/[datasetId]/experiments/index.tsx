@@ -115,7 +115,7 @@ export default function Dataset() {
     scope: "evalJob:CUD",
   });
 
-  const evalTemplates = api.evals.allTemplates.useQuery({
+  const evalTemplates = api.evals.latestTemplates.useQuery({
     projectId,
   });
 
@@ -129,9 +129,6 @@ export default function Dataset() {
   const { createDefaultEvaluator } = useEvaluatorDefaults();
 
   const {
-    activeEvaluators,
-    pausedEvaluators,
-    evaluatorTargetObjects,
     selectedEvaluatorData,
     showEvaluatorForm,
     handleConfigureEvaluator,
@@ -200,9 +197,6 @@ export default function Dataset() {
                     evalTemplates={evalTemplates.data?.templates ?? []}
                     onConfigureTemplate={handleConfigureEvaluator}
                     onSelectEvaluator={handleSelectEvaluator}
-                    activeTemplateIds={activeEvaluators}
-                    inactiveTemplateIds={pausedEvaluators}
-                    evaluatorTargetObjects={evaluatorTargetObjects}
                     disabled={!hasEvalWriteAccess}
                   />
                 </div>
@@ -222,6 +216,7 @@ export default function Dataset() {
             },
           ]}
           sessionFilterContextId={`dataset-${datasetId}`}
+          showControlsInPageHeader
         />
       </Page>
     );
@@ -279,9 +274,6 @@ export default function Dataset() {
                   evalTemplates={evalTemplates.data?.templates ?? []}
                   onConfigureTemplate={handleConfigureEvaluator}
                   onSelectEvaluator={handleSelectEvaluator}
-                  activeTemplateIds={activeEvaluators}
-                  inactiveTemplateIds={pausedEvaluators}
-                  evaluatorTargetObjects={evaluatorTargetObjects}
                   disabled={!hasEvalWriteAccess}
                 />
               </div>

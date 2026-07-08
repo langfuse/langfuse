@@ -26,6 +26,11 @@ export const IngestionEvent = z.object({
     fileKey: z.string().optional(),
     skipS3List: z.boolean().optional(),
     forwardToEventsTable: z.boolean().optional(),
+    // Optional for rolling deploy compatibility with in-flight jobs created
+    // before ingestion attribution was added to the queue payload.
+    ingestionApiKey: z.string().optional(),
+    ingestionSdkName: z.string().optional(),
+    ingestionSdkVersion: z.string().optional(),
     // Absolute S3 key prefix the producer used (ends with "/"). Set so the
     // consumer never reconstructs the path and therefore can't drift from
     // the producer when env values differ across containers. Optional for
@@ -44,6 +49,8 @@ export const IngestionEvent = z.object({
 export const OtelIngestionEvent = z.object({
   data: z.object({
     fileKey: z.string(),
+    // Optional for compatibility with queued/replayed payloads that do not
+    // carry API-key attribution.
     publicKey: z.string().optional(),
   }),
   authCheck: z.object({
@@ -55,9 +62,18 @@ export const OtelIngestionEvent = z.object({
     }),
   }),
   propagatedHeaders: z.record(z.string(), z.string()).optional(),
+  // Optional for rolling deploy compatibility with in-flight jobs created
+  // before SDK attribution was added to the queue payload.
   sdkName: z.string().optional(),
   sdkVersion: z.string().optional(),
   ingestionVersion: z.string().optional(),
+  // Langfuse-internal telemetry (e.g. LLM-as-a-judge / prompt-experiment
+  // executions published via fetchLLMCompletion's AI SDK engine). The
+  // consumer must parse these events with the INTERNAL ingestion schema:
+  // the public schema strips the reserved "langfuse-" environment prefix,
+  // which would expose internal traces as user environments and bypass the
+  // trace-upsert eval-loop guard. Optional for in-flight job compatibility.
+  isLangfuseInternal: z.boolean().optional(),
 });
 
 export const BatchExportJobSchema = z.object({

@@ -79,6 +79,7 @@ model User {
   defaultViews              DefaultView[]               @relation("DefaultViewUser")
   inAppAgentConversations   InAppAgentConversation[]    @relation("InAppAgentConversationCreatedByUser")
   inAppAgentRuns            InAppAgentRun[]             @relation("InAppAgentRunTriggeredByUser")
+  apiKeysCreated            ApiKey[]                    @relation("ApiKeyCreatedByUser")
 
   @@map("users")
 }
@@ -207,9 +208,15 @@ model ApiKey {
   orgId               String?       @map("organization_id")
   organization        Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
   scope               ApiKeyScope   @default(PROJECT) @map("scope")
+  createdByUserId     String?       @map("created_by_user_id")
+  createdByUser       User?         @relation("ApiKeyCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdByApiKeyId   String?       @map("created_by_api_key_id")
+  createdByApiKey     ApiKey?       @relation("ApiKeyCreatedByApiKey", fields: [createdByApiKeyId], references: [id], onDelete: SetNull)
+  apiKeysCreated      ApiKey[]      @relation("ApiKeyCreatedByApiKey")
 
   @@index(orgId)
   @@index(projectId)
+  @@index(createdByApiKeyId)
   @@index(publicKey)
   @@index(hashedSecretKey)
   @@index(fastHashedSecretKey)
@@ -228,6 +235,7 @@ model InAppAgentConversation {
   createdByUserId   String?                               @map("created_by_user_id")
   createdByUser     User?                                 @relation("InAppAgentConversationCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
   title             String?
+  renamedByUserAt   DateTime?                             @map("renamed_by_user_at")
   visibilityScope   InAppAgentConversationVisibilityScope @default(PERSONAL) @map("visibility_scope")
   providerSessionId String?                               @map("provider_session_id")
   deletedAt         DateTime?                             @map("deleted_at")
@@ -1295,6 +1303,7 @@ enum BlobStorageIntegrationFileType {
   JSON
   CSV
   JSONL
+  PARQUET
 
   @@map("BlobStorageIntegrationFileType")
 }

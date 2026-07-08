@@ -38,7 +38,7 @@ const DialogOverlay = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay> & {
     overlayMode?: DialogOverlayMode;
   }
->(({ className, overlayMode = "subtle", ...props }, ref) => (
+>(({ className, overlayMode = "subtle", onClick, ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
@@ -47,6 +47,13 @@ const DialogOverlay = React.forwardRef<
       dialogOverlayClasses[overlayMode],
       className,
     )}
+    // The dialog portals its DOM out of the app tree, but React synthetic
+    // events still bubble through the REACT tree — into whatever rendered the
+    // dialog (e.g. a clickable table row). Backdrop clicks must not leak there.
+    onClick={(e) => {
+      onClick?.(e);
+      e.stopPropagation();
+    }}
     {...props}
   />
 ));
@@ -87,6 +94,7 @@ const DialogContent = React.forwardRef<
       overlayMode = "subtle",
       stopPropagationOnEnterSpace = true,
       onEscapeKeyDown,
+      onClick,
       size,
       ...props
     },
@@ -125,6 +133,12 @@ const DialogContent = React.forwardRef<
           aria-describedby={undefined}
           onKeyDown={handleKeyDown}
           onEscapeKeyDown={handleEscapeKeyDown}
+          // See DialogOverlay: clicks inside the dialog must not bubble
+          // through the React tree into the component that rendered it.
+          onClick={(e) => {
+            onClick?.(e);
+            e.stopPropagation();
+          }}
           onPointerDownOutside={(e) => {
             if (!closeOnInteractionOutside) {
               e.preventDefault();
