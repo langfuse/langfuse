@@ -14,15 +14,14 @@ RUN node -e 'const fs = require("node:fs"); const pkg = JSON.parse(fs.readFileSy
 COPY dist ./dist
 
 # Keep `/app` immutable to the runtime user. `/workspace` stays sticky-writable,
-# while `/workspace/tool_calls` is precreated as a readonly subtree the runtime
-# cannot overwrite during tool execution.
+# and `/workspace/tool_calls` is recreated from prior tool outputs before each
+# tool invocation.
 RUN chown -R root:root /app \
   && mkdir -p /workspace \
   && chown sandbox-server:sandbox-server /workspace \
   && chmod 1777 /workspace \
   && mkdir -p /workspace/tool_calls \
-  && chown -R sandbox-server:sandbox-server /workspace/tool_calls \
-  && chmod 0555 /workspace/tool_calls
+  && chown -R sandbox-server:sandbox-server /workspace/tool_calls
 
 EXPOSE 5000
 

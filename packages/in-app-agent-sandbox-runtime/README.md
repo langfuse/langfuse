@@ -12,7 +12,7 @@ and prevent `sudo`-based user switching at runtime.
 
 - The HTTP sandbox server runs as `sandbox-server`.
 - Tool operations (`read`, `write`, `edit`, `bash`) also run as `sandbox-server`.
-- `/workspace/tool_calls` remains a readonly subtree, so tool execution cannot overwrite reconstructed prior tool output files.
+- `/workspace/tool_calls` is recreated from prior tool outputs before each tool invocation, so any modifications made during one tool call are discarded before the next one.
 
 ## Endpoints:
 

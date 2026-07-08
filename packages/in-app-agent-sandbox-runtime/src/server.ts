@@ -1,12 +1,5 @@
 import { spawn } from "node:child_process";
-import {
-  chmod,
-  mkdir,
-  readFile,
-  readdir,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import {
   createServer,
   type IncomingMessage,
@@ -214,7 +207,6 @@ async function syncToolCallFiles(toolCallFiles: unknown, requestId: string) {
   await mkdir(TOOL_CALLS_ROOT, { recursive: true });
 
   if (!toolCallFiles) {
-    await chmod(TOOL_CALLS_ROOT, 0o555);
     logSandboxServer("toolCalls.sync", { requestId, fileCount: 0 });
     return;
   }
@@ -230,11 +222,7 @@ async function syncToolCallFiles(toolCallFiles: unknown, requestId: string) {
     const filePath = resolveSandboxPath(file.path);
     await mkdir(path.dirname(filePath), { recursive: true });
     await writeFile(filePath, file.content, "utf8");
-    await chmod(filePath, 0o444);
-    await chmodToolCallsDirectories(path.dirname(filePath));
   }
-
-  await chmod(TOOL_CALLS_ROOT, 0o555);
 }
 
 async function readOperation(body: ReadSandboxOperation, requestId: string) {
@@ -407,27 +395,9 @@ async function terminateHook(requestId: string) {
   return { terminated: true };
 }
 
-async function chmodToolCallsDirectories(startPath: string) {
-  let currentPath = startPath;
-
-  while (
-    currentPath === TOOL_CALLS_ROOT ||
-    currentPath.startsWith(`${TOOL_CALLS_ROOT}${path.sep}`)
-  ) {
-    await chmod(currentPath, 0o555);
-
-    if (currentPath === TOOL_CALLS_ROOT) {
-      return;
-    }
-
-    currentPath = path.dirname(currentPath);
-  }
-}
-
 async function ensureWorkspaceRoots() {
   await mkdir(WORKSPACE_ROOT, { recursive: true });
   await mkdir(TOOL_CALLS_ROOT, { recursive: true });
-  await chmod(TOOL_CALLS_ROOT, 0o555).catch(() => undefined);
 }
 
 async function clearWorkspace() {

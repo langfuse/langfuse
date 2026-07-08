@@ -128,7 +128,7 @@ function formatSandboxContext(sandbox?: InAppAgentSandbox): string {
 <sandbox_filesystem>
 When working in the sandbox filesystem, assume this layout:
 - "/workspace" is the current working directory for normal file operations and shell commands.
-- "/workspace/tool_calls" contains all past tool calls and their outputs. This directory is read-only and can not be modified.
+- "/workspace/tool_calls" contains all past tool calls and their outputs. Treat this directory as read-only. Any changes to it will be discarded before the next tool call.
 </sandbox_filesystem>
 `;
 }
