@@ -25,7 +25,7 @@ Parameters:
     Description: Base domain for preview hostnames.
   InstanceType:
     Type: String
-    Default: t3.large
+    Default: t3.xlarge
     Description: EC2 instance type for the single-node preview.
   PreviewOwner:
     Type: String

@@ -39,10 +39,11 @@ Comment commands only work once the workflow exists on the default branch.
   whoever's command made the env run (`PreviewOwner` tag). The limit is
   best-effort; commands beyond it are rejected with a comment listing your
   running previews.
-- Running previews are never stopped automatically — stop or destroy your
-  envs when done (a running env costs ≈$67/month). A manual stop-all exists
-  as workflow dispatch for emergencies.
-- A daily reaper destroys previews that have been stopped for more than
+- Previews that show no activity (no CPU spike above baseline) for ~6 hours
+  are stopped automatically — data and URL survive, `/preview resume` brings
+  them back. Actively used envs, overnight soak tests, and demos keep
+  running. A manual stop-all exists as workflow dispatch for emergencies.
+- Housekeeping also destroys previews that have been stopped for more than
   7 days. Closing the PR destroys the preview and deletes its images. ECR
   images also expire 14 days after push, so a long-paused preview may need a
   fresh `/preview deploy`.
