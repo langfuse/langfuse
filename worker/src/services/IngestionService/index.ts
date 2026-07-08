@@ -632,6 +632,17 @@ export class IngestionService {
       return;
     }
 
+    // Update = merging new events with a pre-existing record, found either in
+    // ClickHouse or as earlier event-log files for the same score id.
+    if (
+      scoreRecords.length > 0 &&
+      (clickhouseScoreRecord || scoreRecords.length > 1)
+    ) {
+      recordIncrement("langfuse.ingestion.score_update", 1, {
+        store: clickhouseScoreRecord ? "clickhouse" : "event_log",
+      });
+    }
+
     const finalScoreRecord: ScoreRecordInsertType =
       await this.mergeScoreRecords({
         clickhouseScoreRecord,
