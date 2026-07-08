@@ -19,7 +19,6 @@ import { stripBasePath } from "@/src/utils/redirect";
 import { cn } from "@/src/utils/tailwind";
 import {
   forwardRef,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -312,37 +311,21 @@ function InAppAgentReasoningBlock({
   content: Extract<InAppAgentMessageContent, { type: "reasoning" }>;
   isCompact: boolean;
 }) {
-  const viewportRef = useRef<HTMLDivElement>(null);
-  const [isOpen, setIsOpen] = useState(content.isStreaming);
-
-  useEffect(() => {
-    setIsOpen(content.isStreaming);
-  }, [content.isStreaming]);
-
-  useEffect(() => {
-    const viewport = viewportRef.current;
-
-    if (!viewport || !isOpen) {
-      return;
-    }
-
-    const scrollToBottom = () => {
-      viewport.scrollTo({
-        top: viewport.scrollHeight,
-        behavior: "auto",
-      });
-    };
-
-    scrollToBottom();
-    const frameId = window.requestAnimationFrame(scrollToBottom);
-
-    return () => window.cancelAnimationFrame(frameId);
-  }, [content.text, isOpen, isCompact]);
+  // null until the user toggles manually; until then the disclosure follows
+  // the streaming state (open while streaming, collapsed when done).
+  const [userToggled, setUserToggled] = useState<boolean | null>(null);
+  const isOpen = userToggled ?? content.isStreaming;
 
   return (
     <details
       open={isOpen}
-      onToggle={(event) => setIsOpen(event.currentTarget.open)}
+      onToggle={(event) => {
+        // The browser also fires toggle when React flips `open` at stream
+        // start/end; only record toggles that diverge from the current state.
+        if (event.currentTarget.open !== isOpen) {
+          setUserToggled(event.currentTarget.open);
+        }
+      }}
       className={cn(
         "text-muted-foreground max-w-full",
         isCompact ? "text-[0.775rem]" : "text-sm",
@@ -371,16 +354,25 @@ function InAppAgentReasoningBlock({
         />
       </summary>
       {isOpen ? (
+        // column-reverse keeps the scroll position pinned to the newest text
+        // while streaming without JS, and holds the user's position if they
+        // scroll up to read.
         <div
-          ref={viewportRef}
           aria-label="Assistant reasoning"
           data-testid="in-app-agent-reasoning-content"
           className={cn(
-            "border-border/70 mt-1 max-h-32 overflow-y-auto border-l px-3 py-1 leading-5 wrap-break-word whitespace-pre-wrap",
-            isCompact && "max-h-24 px-2.5 py-1 leading-4",
+            "border-border/70 mt-1 flex max-h-32 flex-col-reverse overflow-y-auto border-l px-3 py-1",
+            isCompact && "max-h-24 px-2.5 py-1",
           )}
         >
-          {content.text || "Thinking..."}
+          <div
+            className={cn(
+              "leading-5 wrap-break-word whitespace-pre-wrap",
+              isCompact && "leading-4",
+            )}
+          >
+            {content.text || "Thinking..."}
+          </div>
         </div>
       ) : null}
     </details>

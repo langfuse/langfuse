@@ -400,10 +400,15 @@ async function expectReasoningViewportAtBottom(canvasElement: HTMLElement) {
   const canvas = within(canvasElement);
   const viewport = await canvas.findByTestId("in-app-agent-reasoning-content");
 
+  // Geometry-based check that works with the column-reverse scroll pinning,
+  // where scrollTop 0 is the bottom edge: the end of the reasoning text must
+  // be visible inside the viewport.
   await waitFor(() => {
     expect(viewport.scrollHeight).toBeGreaterThanOrEqual(viewport.clientHeight);
-    expect(viewport.scrollTop + viewport.clientHeight).toBeGreaterThanOrEqual(
-      viewport.scrollHeight - 1,
+    const contentBottom =
+      viewport.firstElementChild?.getBoundingClientRect().bottom ?? Infinity;
+    expect(contentBottom).toBeLessThanOrEqual(
+      viewport.getBoundingClientRect().bottom + 1,
     );
   });
 }
