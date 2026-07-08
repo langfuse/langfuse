@@ -681,6 +681,7 @@ export function WidgetForm({
     {
       projectId,
       startTimeFilter: getDateRangeFilter("startTime", dateRange),
+      observationType: "ALL",
     },
     {
       trpc: {
