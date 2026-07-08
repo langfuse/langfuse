@@ -582,6 +582,53 @@ describe("getDrawerMessages", () => {
     ]);
   });
 
+  it("drops completed reasoning messages without content but keeps streaming ones", () => {
+    const mappedMessages = getDrawerMessages({
+      error: null,
+      isRunning: true,
+      messages: [
+        {
+          id: "user-1",
+          role: "user",
+          content: "Find failed traces",
+        },
+        {
+          // Adaptive thinking can emit a reasoning start/end pair without any
+          // content; once completed there is nothing to disclose.
+          id: "reasoning-empty",
+          role: "reasoning",
+          content: "",
+        },
+        {
+          id: "assistant-1",
+          role: "assistant",
+          content: "I found 12 failed traces in the selected window.",
+        },
+        {
+          id: "user-2",
+          role: "user",
+          content: "And in the week before?",
+        },
+        {
+          id: "reasoning-live",
+          role: "reasoning",
+          content: "",
+        },
+      ] satisfies AgUiMessage[],
+    });
+
+    expect(mappedMessages).toMatchObject([
+      { id: "user-1" },
+      { id: "assistant-1" },
+      { id: "user-2" },
+      {
+        id: "reasoning-live",
+        content: { type: "reasoning", text: "", isStreaming: true },
+      },
+    ]);
+    expect(mappedMessages).toHaveLength(4);
+  });
+
   it("adds pending tool approvals as approval tool groups", () => {
     const mappedMessages = getDrawerMessages({
       error: null,

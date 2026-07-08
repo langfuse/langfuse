@@ -162,10 +162,17 @@ export function getDrawerMessages({
     if (message.role === "reasoning") {
       flushPendingTools();
 
-      const hasLaterConversationMessage = hasLaterConversationMessageAfter(
-        parsedMessages,
-        index,
-      );
+      const isStreaming =
+        isRunning &&
+        !error &&
+        !hasLaterConversationMessageAfter(parsedMessages, index);
+
+      // Adaptive thinking can emit a reasoning start/end pair without any
+      // content; a completed empty block has nothing to disclose, so only a
+      // still-streaming one is rendered (as its "Thinking..." placeholder).
+      if (!message.content.trim() && !isStreaming) {
+        return;
+      }
 
       mappedMessages.push({
         id: message.id,
@@ -173,7 +180,7 @@ export function getDrawerMessages({
         content: {
           type: "reasoning",
           text: message.content,
-          isStreaming: isRunning && !error && !hasLaterConversationMessage,
+          isStreaming,
         },
       });
       return;
