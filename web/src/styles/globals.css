@@ -174,10 +174,9 @@
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
     /* Faintest text tier: placeholders, disabled, hints — one step below
-       muted-foreground (langfuse.com/docs has the same 4th step). Light stays
-       ≥4:1 on white (62% was 2.8:1 — unreadable trace metrics/placeholders),
-       so the light tier gap is deliberately compressed. */
-    --foreground-tertiary: 215 13% 52%;
+       muted-foreground (langfuse.com/docs has the same 4th step). NOTE: ~2.8:1
+       on white — flagged in review, kept per design preference for now. */
+    --foreground-tertiary: 215 12% 62%;
     /* Code blocks sit a step BELOW their surrounding surface ("code is a
        well"), matching the docs site's --surface-code convention. */
     --surface-code: 0 0% 98%;
