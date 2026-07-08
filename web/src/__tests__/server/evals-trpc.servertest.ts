@@ -900,6 +900,98 @@ describe("evals trpc", () => {
     });
   });
 
+  describe("evals.updateAllDatasetEvalJobStatusByTemplateId", () => {
+    it("toggles experiment-target evaluator configs for the dataset", async () => {
+      const { project, caller } = await prepare();
+      const datasetId = `dataset-${project.id}`;
+      const otherDatasetId = `other-dataset-${project.id}`;
+      // CODE template so the reactivation preflight passes without an LLM connection
+      const template = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: `toggle-template-${project.id}`,
+          version: 1,
+          type: EvalTemplateType.CODE,
+          prompt: null,
+          outputDefinition: undefined,
+          sourceCode:
+            'function evaluate() { return { scores: [{ name: "toggle-score", value: 1 }] }; }',
+          sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        },
+      });
+      const experimentDatasetFilter = (id: string) => [
+        {
+          type: "stringOptions",
+          value: [id],
+          column: "experimentDatasetId",
+          operator: "any of",
+        },
+      ];
+      const experimentConfig = await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          evalTemplateId: template.id,
+          scoreName: "experiment-toggle-score",
+          filter: experimentDatasetFilter(datasetId),
+          targetObject: EvalTargetObject.EXPERIMENT,
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "ACTIVE",
+        },
+      });
+      const otherDatasetConfig = await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          evalTemplateId: template.id,
+          scoreName: "other-dataset-score",
+          filter: experimentDatasetFilter(otherDatasetId),
+          targetObject: EvalTargetObject.EXPERIMENT,
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "ACTIVE",
+        },
+      });
+
+      await caller.evals.updateAllDatasetEvalJobStatusByTemplateId({
+        projectId: project.id,
+        evalTemplateId: template.id,
+        datasetId,
+        newStatus: "INACTIVE",
+      });
+
+      await expect(
+        prisma.jobConfiguration.findUniqueOrThrow({
+          where: { id: experimentConfig.id },
+          select: { status: true },
+        }),
+      ).resolves.toEqual({ status: "INACTIVE" });
+      await expect(
+        prisma.jobConfiguration.findUniqueOrThrow({
+          where: { id: otherDatasetConfig.id },
+          select: { status: true },
+        }),
+      ).resolves.toEqual({ status: "ACTIVE" });
+
+      await caller.evals.updateAllDatasetEvalJobStatusByTemplateId({
+        projectId: project.id,
+        evalTemplateId: template.id,
+        datasetId,
+        newStatus: "ACTIVE",
+      });
+
+      await expect(
+        prisma.jobConfiguration.findUniqueOrThrow({
+          where: { id: experimentConfig.id },
+          select: { status: true },
+        }),
+      ).resolves.toEqual({ status: "ACTIVE" });
+    });
+  });
+
   describe("evals.updateConfig", () => {
     it("updates experiment code evaluator configs without a matching observation", async () => {
       const { project, caller } = await prepare();

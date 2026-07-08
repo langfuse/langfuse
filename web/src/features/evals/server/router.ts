@@ -1437,7 +1437,11 @@ export const evalRouter = createTRPCRouter({
           where: {
             projectId: projectId,
             evalTemplateId: evalTemplateId,
-            targetObject: EvalTargetObject.DATASET,
+            // the experiment selector creates EXPERIMENT-target configs; DATASET
+            // is the legacy shape — the toggle must reach both
+            targetObject: {
+              in: [EvalTargetObject.DATASET, EvalTargetObject.EXPERIMENT],
+            },
             ...(newStatus === JobConfigState.ACTIVE
               ? {
                   OR: [
