@@ -89,7 +89,11 @@ import {
   isCodeEvalEnabled,
   isCodeEvalSourceCodeLanguageSupported,
 } from "@/src/features/evals/server/isCodeEvalEnabled";
-import { prepareVariableMappingForEvaluatorUpgrade } from "@/src/features/evals/server/evaluatorUpgrade";
+import {
+  getEvalTemplateVariables,
+  prepareConfigsForTemplateUpgrade,
+  prepareVariableMappingForEvaluatorUpgrade,
+} from "@/src/features/evals/server/evaluatorUpgrade";
 export { CreateEvalTemplateInputSchema } from "@/src/features/evals/server/evalTemplateCreation";
 
 // Filter columns that used to be backed by the Postgres `traces` and
@@ -304,49 +308,6 @@ const validateVariableMappingForTarget = ({
 
   return result.data;
 };
-
-const getEvalTemplateInputVariables = (
-  input: z.infer<typeof CreateEvalTemplateInputSchema>,
-) =>
-  input.type === EvalTemplateType.CODE
-    ? [...CODE_EVAL_TEMPLATE_VARIABLES]
-    : input.vars;
-
-const getEvalTemplateVariables = (template: {
-  type: EvalTemplateType;
-  vars: string[];
-}) =>
-  template.type === EvalTemplateType.CODE
-    ? [...CODE_EVAL_TEMPLATE_VARIABLES]
-    : template.vars;
-
-const prepareConfigsForTemplateUpgrade = (params: {
-  configs: {
-    id: string;
-    scoreName: string;
-    targetObject: string;
-    variableMapping: unknown;
-  }[];
-  nextVariables: string[];
-}) =>
-  params.configs.map((config) => {
-    const preparedMapping = prepareVariableMappingForEvaluatorUpgrade({
-      targetObject: config.targetObject,
-      variableMapping: config.variableMapping,
-      nextVariables: params.nextVariables,
-    });
-
-    if (preparedMapping.missingVariables.length > 0) {
-      throw new LangfuseConflictError(
-        `Creating a new evaluator version would invalidate the evaluator "${config.scoreName}" because it is missing mappings for new evaluator variables: ${preparedMapping.missingVariables.join(", ")}. Remove the new variable(s) from the template, or delete the evaluator "${config.scoreName}" and recreate it with a complete mapping.`,
-      );
-    }
-
-    return {
-      id: config.id,
-      variableMapping: preparedMapping.variableMapping,
-    };
-  });
 
 const validateEvalTemplateCanRun = async ({
   prisma,
@@ -1246,7 +1207,7 @@ export const evalRouter = createTRPCRouter({
       await validateEvalTemplateCreation(input);
 
       const result = await ctx.prisma.$transaction(async (tx) => {
-        const nextVariables = getEvalTemplateInputVariables(input);
+        const nextVariables = getEvalTemplateVariables(input);
         const existingProjectTemplatesByName = await tx.evalTemplate.findMany({
           where: {
             projectId: input.projectId,
