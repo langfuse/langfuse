@@ -117,7 +117,7 @@ network:
 # weekly job; determinism wins.
 steps:
   - name: Setup pnpm (mirrors pipeline.yml)
-    uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+    uses: pnpm/action-setup@v6.0.9
     with:
       version: 11.10.0
   - name: Login to Docker Hub (avoids anonymous pull rate limits; mirrors pipeline.yml)
