@@ -528,7 +528,8 @@ describe("evals trpc", () => {
           sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
         }),
       ).rejects.toThrow(
-        `An evaluator named "${existingTemplate.name}" already exists in this project. Open it to create a new version.`,
+        // the existing template is LLM_AS_JUDGE while the attempt is CODE
+        `An evaluator named "${existingTemplate.name}" already exists in this project with a different type. Use a different name.`,
       );
 
       await expect(
