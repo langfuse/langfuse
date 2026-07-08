@@ -1,11 +1,6 @@
 import { getInAppAgentSandboxSnapshotKey } from "@langfuse/shared/src/server";
 
-import type {
-  InAppAgentSandbox,
-  InAppAgentSandboxProviderType,
-  SandboxFile,
-  SandboxProvider,
-} from "./types";
+import type { InAppAgentSandbox, SandboxFile, SandboxProvider } from "./types";
 
 export async function createInAppAgentSandbox(params: {
   conversationId: string;
@@ -15,7 +10,6 @@ export async function createInAppAgentSandbox(params: {
   sandboxProvider?: string | null;
   sandboxSnapshotKey?: string | null;
   ttlMs: number;
-  providerType: InAppAgentSandboxProviderType;
   provider: SandboxProvider;
   getToolCallFiles: () => Promise<ReadonlyArray<SandboxFile>>;
   saveState: (state: {
@@ -29,6 +23,7 @@ export async function createInAppAgentSandbox(params: {
   sandbox: InAppAgentSandbox;
   onTurnEnded: () => Promise<void>;
 }> {
+  const providerType = params.provider.type;
   const now = params.now ?? (() => new Date());
   const snapshotKey =
     params.sandboxSnapshotKey ??
@@ -36,30 +31,30 @@ export async function createInAppAgentSandbox(params: {
   let sandboxProvider = params.sandboxProvider ?? null;
   let persistedSnapshotKey = params.sandboxSnapshotKey ?? null;
   let sessionId =
-    params.sandboxProvider === params.providerType
+    params.sandboxProvider === providerType
       ? (params.providerSessionId ?? null)
       : null;
   let sandboxExpiresAt = params.sandboxExpiresAt ?? null;
   let sessionIsKnownActive =
     sessionId !== null &&
-    params.sandboxProvider === params.providerType &&
+    params.sandboxProvider === providerType &&
     (sandboxExpiresAt === null || sandboxExpiresAt.getTime() > now().getTime());
 
   const persistState = async () => {
     await params.saveState({
       providerSessionId: sessionId,
       sandboxExpiresAt,
-      sandboxProvider: params.providerType,
+      sandboxProvider: providerType,
       sandboxSnapshotKey: snapshotKey,
     });
-    sandboxProvider = params.providerType;
+    sandboxProvider = providerType;
     persistedSnapshotKey = snapshotKey;
   };
 
   const updateSessionState = async (nextSessionId: string) => {
     if (
       nextSessionId === sessionId &&
-      sandboxProvider === params.providerType &&
+      sandboxProvider === providerType &&
       persistedSnapshotKey === snapshotKey &&
       sandboxExpiresAt === null
     ) {
@@ -77,7 +72,7 @@ export async function createInAppAgentSandbox(params: {
     if (
       sessionId !== null &&
       params.provider.suspendSession &&
-      sandboxProvider === params.providerType &&
+      sandboxProvider === providerType &&
       sandboxExpiresAt !== null &&
       sandboxExpiresAt.getTime() <= now().getTime()
     ) {

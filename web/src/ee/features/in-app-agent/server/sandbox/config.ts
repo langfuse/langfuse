@@ -1,5 +1,5 @@
 import { createLambdaMicrovmSandboxProvider } from "./providers/lambdaMicrovm";
-import type { InAppAgentSandboxProviderType } from "./types";
+import type { InAppAgentSandboxProviderType, SandboxProvider } from "./types";
 import { env } from "@/src/env.mjs";
 import { IN_APP_AGENT_LOCAL_SANDBOX_IMAGE } from "@/src/ee/features/in-app-agent/constants";
 import { deleteLambdaMicrovmInAppAgentSandboxSnapshot } from "@langfuse/shared/src/server";
@@ -73,7 +73,7 @@ export async function deleteInAppAgentSandboxSnapshot(params: {
 
 export async function createInAppAgentSandboxProvider(
   providerType: InAppAgentSandboxProviderType,
-) {
+): Promise<SandboxProvider> {
   if (providerType === "dangerous-docker") {
     if (env.NODE_ENV !== "development") {
       throw new Error(
@@ -112,6 +112,7 @@ export async function createInAppAgentSandboxProvider(
     return createLambdaMicrovmSandboxProvider({
       imageIdentifier: microvmImageIdentifier,
       executionRoleArn: microvmExecutionRoleArn,
+      region: snapshotRegion,
       snapshotConfig: {
         bucket: snapshotBucket,
         prefix: snapshotPrefix,

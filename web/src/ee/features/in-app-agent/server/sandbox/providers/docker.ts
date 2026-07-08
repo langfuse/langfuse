@@ -3,7 +3,7 @@ import { PassThrough } from "node:stream";
 import type Docker from "dockerode";
 import { logger } from "@langfuse/shared/src/server";
 
-import type { SandboxFile, SandboxSession } from "../types";
+import type { SandboxFile, SandboxProvider, SandboxSession } from "../types";
 
 type DockerExecResult = {
   exitCode: number;
@@ -25,7 +25,9 @@ type DockerExecContext = {
 
 const DOCKER_SANDBOX_SERVER_PORT = 5000;
 
-export async function createDockerSandboxProvider(params: { image: string }) {
+export async function createDockerSandboxProvider(params: {
+  image: string;
+}): Promise<SandboxProvider> {
   const { default: Docker } = await import("dockerode");
   const docker = new Docker();
   const sessions = new Map<string, DockerSandboxSession>();
@@ -189,6 +191,7 @@ export async function createDockerSandboxProvider(params: { image: string }) {
   });
 
   return {
+    type: "dangerous-docker",
     async ensureSession({
       conversationId,
       sessionId,

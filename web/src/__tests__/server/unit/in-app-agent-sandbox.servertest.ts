@@ -45,6 +45,7 @@ describe("in-app agent sandbox", () => {
       },
     };
     const provider = {
+      type: "dangerous-docker" as const,
       async ensureSession() {
         return { sessionId: "session-1", sandbox: sandboxSession };
       },
@@ -54,7 +55,6 @@ describe("in-app agent sandbox", () => {
       conversationId: "conversation-1",
       projectId: "project-1",
       ttlMs: 1_000,
-      providerType: "dangerous-docker",
       provider,
       getToolCallFiles: async () => [],
       saveState: async (state) => {

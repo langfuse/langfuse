@@ -48,17 +48,19 @@ type LambdaMicrovmInfo = {
 
 export function createLambdaMicrovmSandboxProvider(params: {
   imageIdentifier: string;
-  executionRoleArn?: string;
-  bridgePort?: number;
+  executionRoleArn: string;
+  region: string;
   snapshotConfig: {
-    bucket?: string;
-    prefix?: string;
-    region?: string;
+    bucket: string;
+    prefix: string;
+    region: string;
   };
 }): SandboxProvider {
-  const client = new LambdaMicrovmsClient({});
+  const client = new LambdaMicrovmsClient({
+    region: params.region,
+  });
   const sessions = new Map<string, LambdaMicrovmSession>();
-  const bridgePort = params.bridgePort ?? DEFAULT_BRIDGE_PORT;
+  const bridgePort = DEFAULT_BRIDGE_PORT;
 
   const ensureSession = async (request: {
     conversationId: string;
@@ -134,9 +136,7 @@ export function createLambdaMicrovmSandboxProvider(params: {
       await client.send(
         new RunMicrovmCommand({
           imageIdentifier: params.imageIdentifier,
-          ...(params.executionRoleArn
-            ? { executionRoleArn: params.executionRoleArn }
-            : {}),
+          executionRoleArn: params.executionRoleArn,
           idlePolicy: {
             autoResumeEnabled: true,
             maxIdleDurationSeconds: DEFAULT_IDLE_TIMEOUT_SECONDS,
@@ -248,6 +248,7 @@ export function createLambdaMicrovmSandboxProvider(params: {
   });
 
   return {
+    type: "lambda-microvm",
     async ensureSession({ conversationId, sessionId, snapshotKey }) {
       const session = await ensureSession({
         conversationId,
