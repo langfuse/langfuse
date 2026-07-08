@@ -447,7 +447,6 @@ The background color of the following component will be `hsl(var(--primary))` an
 | --destructive-foreground         | Destructive action color for text                                  |                                  |
 | --ring                           | Focus ring color                                                   | MultiSelect                      |
 | --primary-accent                 | Primary accent color used for branding                             | Layout                           |
-| --hover-primary-accent           | Primary accent color used for hover effects for links              | SignIn and AuthCloudRegionSwitch |
 | --muted-green                    | Muted green for Event label                                        | ObservationTree                  |
 | --muted-magenta                  | Muted magenta for Generation label                                 | ObservationTree                  |
 | --muted-blue                     | Muted blue for Span label                                          | ObservationTree                  |

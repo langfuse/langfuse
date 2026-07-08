@@ -145,7 +145,6 @@ function ThemeTokensDoc() {
         note="Brand accent + the muted categorical set used across entity icons and charts."
       >
         <Swatch token="primary-accent" />
-        <Swatch token="hover-primary-accent" />
         <Swatch token="link" />
         <Swatch token="link-hover" />
         <Swatch token="control-fill" />

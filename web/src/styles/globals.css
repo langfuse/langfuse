@@ -14,7 +14,6 @@
   --spacing-screen-with-banner: calc(100svh - var(--banner-offset));
 
   --color-primary-accent: hsl(var(--primary-accent));
-  --color-hover-primary-accent: hsl(var(--hover-primary-accent));
   --color-link: hsl(var(--link));
   --color-link-hover: hsl(var(--link-hover));
   --color-control-fill: hsl(var(--control-fill));
@@ -215,7 +214,6 @@
     --ring: 215 20.2% 65.1%;
 
     --primary-accent: 243 75.4% 58.6%;
-    --hover-primary-accent: 239 83.5% 66.7%;
     /* Hyperlinks get their own pair (tabs/selection stay on primary-accent):
        same lavender family as dark, but muted — links shouldn't be the
        loudest thing on a light page — with a clearly darker hover step. */
@@ -353,7 +351,6 @@
     --ring: 246 55% 70%;
 
     --primary-accent: 246 55% 70%;
-    --hover-primary-accent: 246 70% 78%;
     --link: 246 55% 70%;
     --link-hover: 246 95% 85%;
     --control-fill: 0 0% 78%;

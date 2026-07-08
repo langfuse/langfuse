@@ -155,7 +155,7 @@ const DataRegionInfo = () => (
               href="https://langfuse.com/security/data-regions"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary-accent underline"
+              className="text-link hover:text-link-hover underline"
             >
               data regions
             </a>{" "}
@@ -164,7 +164,7 @@ const DataRegionInfo = () => (
               href="https://langfuse.com/docs/data-security-privacy"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary-accent underline"
+              className="text-link hover:text-link-hover underline"
             >
               data security & privacy
             </a>
