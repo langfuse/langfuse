@@ -17,12 +17,7 @@ import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
-import {
-  PencilIcon,
-  TrashIcon,
-  CopyIcon,
-  GripVerticalIcon,
-} from "lucide-react";
+import { PencilIcon, TrashIcon, GripVerticalIcon } from "lucide-react";
 import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
@@ -41,6 +36,8 @@ import {
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { CopyWidgetDialog } from "@/src/features/widgets/components/CopyWidgetDialog";
+import { Badge } from "@/src/components/ui/badge";
 
 export interface WidgetPlacement {
   id: string;
@@ -133,6 +130,7 @@ export function DashboardWidget({
     return defaultSort || null;
   });
   const [retryCount, setRetryCount] = useState(0);
+  const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
 
   // Apply defaultSort when it becomes available (after widget data loads)
   // but only if user hasn't interacted yet
@@ -464,12 +462,32 @@ export function DashboardWidget({
 
   return (
     <div className="bg-background group flex h-full w-full flex-col overflow-hidden rounded-lg border p-4">
+      {isCopyDialogOpen && (
+        <CopyWidgetDialog
+          open={isCopyDialogOpen}
+          onOpenChange={setIsCopyDialogOpen}
+          widgetName={widget.data.name}
+          onConfirm={handleCopy}
+          isPending={copyMutation.isPending}
+        />
+      )}
       <div className="flex items-center justify-between">
-        <span className="truncate font-medium" title={widget.data.name}>
-          {widget.data.name}{" "}
-          {dashboardOwner === "PROJECT" && widget.data.owner === "LANGFUSE"
-            ? " ( 🪢 )"
-            : null}
+        <span
+          className="flex min-w-0 items-center gap-1.5 truncate font-medium"
+          title={widget.data.name}
+        >
+          <span className="truncate" title={widget.data.name}>
+            {widget.data.name}
+          </span>
+          {dashboardOwner === "PROJECT" && widget.data.owner === "LANGFUSE" && (
+            <Badge
+              variant="secondary"
+              className="shrink-0"
+              title="Maintained by Langfuse — editing creates your own copy"
+            >
+              Langfuse
+            </Badge>
+          )}
         </span>
         <div className="flex space-x-2">
           {!readOnly && (hasCUDAccess || isLockedEditable) && (
@@ -496,11 +514,11 @@ export function DashboardWidget({
                 </button>
               ) : widget.data.owner === "LANGFUSE" ? (
                 <button
-                  onClick={handleCopy}
+                  onClick={() => setIsCopyDialogOpen(true)}
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
-                  aria-label="Copy widget"
+                  aria-label="Edit widget"
                 >
-                  <CopyIcon size={16} />
+                  <PencilIcon size={16} />
                 </button>
               ) : null}
               <button
