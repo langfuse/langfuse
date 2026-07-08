@@ -28,7 +28,7 @@ export default function TableLink({
   return (
     <Link
       className={cn(
-        "text-primary-accent hover:text-hover-primary-accent inline-block max-w-full text-xs leading-normal font-semibold",
+        "text-link hover:text-link-hover inline-block max-w-full text-xs leading-normal font-semibold",
         className,
       )}
       href={path}

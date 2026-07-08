@@ -738,7 +738,7 @@ export default function SignIn({
             page (CMD + SHIFT + R) or clear your browser cache.{" "}
             <a
               href="mailto:support@langfuse.com"
-              className="text-primary-accent hover:text-hover-primary-accent cursor-pointer text-xs font-medium whitespace-nowrap"
+              className="text-link hover:text-link-hover cursor-pointer text-xs font-medium whitespace-nowrap"
             >
               (contact us)
             </a>
@@ -795,7 +795,7 @@ export default function SignIn({
                               Password{" "}
                               <Link
                                 href="/auth/reset-password"
-                                className="text-primary-accent hover:text-hover-primary-accent ml-1 text-xs"
+                                className="text-link hover:text-link-hover ml-1 text-xs"
                                 tabIndex={-1}
                                 title="What is this?"
                               >
@@ -867,7 +867,7 @@ export default function SignIn({
               No account yet?{" "}
               <Link
                 href={`/auth/sign-up${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
-                className="text-primary-accent hover:text-hover-primary-accent leading-6 font-semibold"
+                className="text-link hover:text-link-hover leading-6 font-semibold"
               >
                 Sign up
               </Link>

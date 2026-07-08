@@ -209,7 +209,7 @@ const InlineLink = ({
   children: ReactNode;
 }) => {
   const className =
-    "text-primary-accent hover:text-hover-primary-accent inline-flex items-center gap-1 text-sm font-semibold whitespace-nowrap";
+    "text-link hover:text-link-hover inline-flex items-center gap-1 text-sm font-semibold whitespace-nowrap";
 
   return external ? (
     <a

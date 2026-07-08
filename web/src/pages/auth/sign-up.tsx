@@ -455,7 +455,7 @@ function VerifiedSignupFlow({
                 The code is valid for 3 minutes.{" "}
                 <button
                   type="button"
-                  className="text-primary-accent hover:text-hover-primary-accent font-medium"
+                  className="text-link hover:text-link-hover font-medium"
                   onClick={() => {
                     setPhase("form");
                     setOtpCode("");
@@ -581,7 +581,7 @@ function SignupFooter() {
       Already have an account?{" "}
       <Link
         href={`/auth/sign-in${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
-        className="text-primary-accent hover:text-hover-primary-accent leading-6 font-semibold"
+        className="text-link hover:text-link-hover leading-6 font-semibold"
       >
         Sign in
       </Link>
