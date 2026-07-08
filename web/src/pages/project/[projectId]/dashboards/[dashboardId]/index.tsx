@@ -27,6 +27,15 @@ import {
 import { CloneFirstDialog } from "@/src/features/dashboard/components/CloneFirstDialog";
 import { InlineEditText } from "@/src/components/design-system/InlineEditText/InlineEditText";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import { EditDashboardDialog } from "@/src/features/dashboard/components/EditDashboardDialog";
+import { LANGFUSE_HOME_DASHBOARD_ID } from "@langfuse/shared";
+import { HomeIcon, MoreVertical, PencilIcon } from "lucide-react";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
@@ -133,6 +142,32 @@ export default function DashboardDetail() {
         showErrorToast("Error updating dashboard", error.message);
       },
     });
+
+  // Which dashboard is shown on this project's Home (for the "Use as Home" action)
+  const homePointer = api.dashboard.getHomeDashboard.useQuery(
+    { projectId },
+    { enabled: Boolean(projectId), retry: false },
+  );
+  const isCurrentHome =
+    (homePointer.data?.homeDashboardId ?? LANGFUSE_HOME_DASHBOARD_ID) ===
+    dashboardId;
+
+  const setHomeDashboard = api.dashboard.setHomeDashboard.useMutation({
+    onSuccess: () => {
+      utils.dashboard.getHomeDashboard.invalidate();
+      showSuccessToast({
+        title: "Home dashboard updated",
+        description: "This dashboard is now shown on the project home page",
+        duration: 2000,
+      });
+    },
+    onError: (error) => {
+      showErrorToast("Failed to update home dashboard", error.message);
+    },
+  });
+
+  // Dialog for editing name + description from the ... menu
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   // Mutation for renaming the dashboard inline from the page header
   const updateDashboardMetadata =
@@ -529,6 +564,44 @@ export default function DashboardDetail() {
                   Clone
                 </Button>
               )}
+              {hasRbacCUDAccess && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="More actions"
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      disabled={isCurrentHome || setHomeDashboard.isPending}
+                      onClick={() =>
+                        setHomeDashboard.mutate({
+                          projectId,
+                          dashboardId:
+                            dashboardId === LANGFUSE_HOME_DASHBOARD_ID
+                              ? null
+                              : dashboardId,
+                        })
+                      }
+                    >
+                      <HomeIcon className="mr-2 h-4 w-4" />
+                      {isCurrentHome ? "Shown on Home" : "Use as Home"}
+                    </DropdownMenuItem>
+                    {hasCUDAccess && (
+                      <DropdownMenuItem
+                        onClick={() => setIsEditDialogOpen(true)}
+                      >
+                        <PencilIcon className="mr-2 h-4 w-4" />
+                        Edit name & description
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </>
           ),
         }}
@@ -559,6 +632,16 @@ export default function DashboardDetail() {
           onSelectWidget={handleSelectWidget}
           dashboardId={dashboardId}
         />
+        {isEditDialogOpen && dashboard.data && (
+          <EditDashboardDialog
+            open={isEditDialogOpen}
+            onOpenChange={setIsEditDialogOpen}
+            projectId={projectId}
+            dashboardId={dashboardId}
+            initialName={dashboard.data.name}
+            initialDescription={dashboard.data.description}
+          />
+        )}
         <CloneFirstDialog
           open={cloneFirstState.open}
           onOpenChange={(open) =>

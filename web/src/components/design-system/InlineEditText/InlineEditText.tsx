@@ -1,5 +1,4 @@
 import * as React from "react";
-import { PencilIcon } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 
 export interface InlineEditTextProps {
@@ -92,7 +91,7 @@ export const InlineEditText = ({
       }}
       aria-label={ariaLabel ?? "Edit text"}
       title="Click to edit"
-      className="group/inline-edit hover:bg-accent/50 focus-visible:ring-ring inline-flex h-[1lh] max-w-full items-center gap-1.5 rounded-sm px-1 text-left align-bottom [font:inherit] focus-visible:ring-2 focus-visible:outline-hidden"
+      className="hover:bg-accent/50 focus-visible:ring-ring inline-flex h-[1lh] max-w-full items-center rounded-sm px-1 text-left align-bottom [font:inherit] focus-visible:ring-2 focus-visible:outline-hidden"
     >
       <span
         title={value || placeholder}
@@ -100,10 +99,6 @@ export const InlineEditText = ({
       >
         {value || placeholder}
       </span>
-      <PencilIcon
-        aria-hidden
-        className="text-muted-foreground h-[0.85em] w-[0.85em] shrink-0 opacity-0 transition-opacity group-hover/inline-edit:opacity-100 group-focus-visible/inline-edit:opacity-100"
-      />
     </button>
   );
 };
