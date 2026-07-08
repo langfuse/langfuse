@@ -1,5 +1,3 @@
-import { getInAppAgentSandboxSnapshotKey } from "@langfuse/shared/src/server";
-
 import type { InAppAgentSandbox, SandboxFile, SandboxProvider } from "./types";
 
 export async function createInAppAgentSandbox(params: {
@@ -25,11 +23,7 @@ export async function createInAppAgentSandbox(params: {
 }> {
   const providerType = params.provider.type;
   const now = params.now ?? (() => new Date());
-  const snapshotKey =
-    params.sandboxSnapshotKey ??
-    getInAppAgentSandboxSnapshotKey(params.projectId, params.conversationId);
   let sandboxProvider = params.sandboxProvider ?? null;
-  let persistedSnapshotKey = params.sandboxSnapshotKey ?? null;
   let sessionId =
     params.sandboxProvider === providerType
       ? (params.providerSessionId ?? null)
@@ -45,17 +39,14 @@ export async function createInAppAgentSandbox(params: {
       providerSessionId: sessionId,
       sandboxExpiresAt,
       sandboxProvider: providerType,
-      sandboxSnapshotKey: snapshotKey,
     });
     sandboxProvider = providerType;
-    persistedSnapshotKey = snapshotKey;
   };
 
   const updateSessionState = async (nextSessionId: string) => {
     if (
       nextSessionId === sessionId &&
       sandboxProvider === providerType &&
-      persistedSnapshotKey === snapshotKey &&
       sandboxExpiresAt === null
     ) {
       sessionIsKnownActive = true;
@@ -76,10 +67,7 @@ export async function createInAppAgentSandbox(params: {
       sandboxExpiresAt !== null &&
       sandboxExpiresAt.getTime() <= now().getTime()
     ) {
-      await params.provider.suspendSession({
-        sessionId,
-        snapshotKey,
-      });
+      await params.provider.suspendSession({ sessionId });
       sessionId = null;
       sandboxExpiresAt = null;
       sessionIsKnownActive = false;
@@ -93,7 +81,6 @@ export async function createInAppAgentSandbox(params: {
     const session = await params.provider.ensureSession({
       conversationId: params.conversationId,
       sessionId: sessionIsKnownActive ? sessionId : null,
-      snapshotKey,
     });
 
     await updateSessionState(session.sessionId);

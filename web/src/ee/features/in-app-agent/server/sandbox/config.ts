@@ -2,7 +2,6 @@ import { createLambdaMicrovmSandboxProvider } from "./providers/lambdaMicrovm";
 import type { InAppAgentSandboxProviderType, SandboxProvider } from "./types";
 import { env } from "@/src/env.mjs";
 import { IN_APP_AGENT_LOCAL_SANDBOX_IMAGE } from "@/src/ee/features/in-app-agent/constants";
-import { deleteLambdaMicrovmInAppAgentSandboxSnapshot } from "@langfuse/shared/src/server";
 import { assertUnreachable } from "@/src/utils/types";
 
 export function parseInAppAgentSandboxProviderType(
@@ -40,30 +39,8 @@ export function getDefaultInAppAgentSandboxProviderType(): InAppAgentSandboxProv
 
 export async function deleteInAppAgentSandboxSnapshot(params: {
   providerType: InAppAgentSandboxProviderType;
-  snapshotKey: string;
   sessionId?: string | null;
 }) {
-  if (params.providerType === "lambda-microvm") {
-    const snapshotBucket = env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_BUCKET;
-    const snapshotPrefix = env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_PREFIX;
-    const snapshotRegion = env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_REGION;
-
-    if (!snapshotBucket || !snapshotPrefix || !snapshotRegion) {
-      throw new Error(
-        "Invalid lambda-microvm sandbox config: snapshot bucket, snapshot prefix, and snapshot region are required.",
-      );
-    }
-
-    await deleteLambdaMicrovmInAppAgentSandboxSnapshot({
-      sessionId: params.sessionId,
-      snapshotBucket,
-      snapshotKey: params.snapshotKey,
-      snapshotPrefix,
-      snapshotRegion,
-    });
-    return;
-  }
-
   const provider = await createInAppAgentSandboxProvider(params.providerType);
 
   if (params.sessionId && provider?.terminateSession) {
@@ -93,31 +70,19 @@ export async function createInAppAgentSandboxProvider(
       env.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER;
     const microvmExecutionRoleArn =
       env.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN;
-    const snapshotBucket = env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_BUCKET;
-    const snapshotPrefix = env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_PREFIX;
-    const snapshotRegion = env.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_REGION;
+    const microvmRegion =
+      env.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION;
 
-    if (
-      !microvmImageIdentifier ||
-      !microvmExecutionRoleArn ||
-      !snapshotBucket ||
-      !snapshotPrefix ||
-      !snapshotRegion
-    ) {
+    if (!microvmImageIdentifier || !microvmExecutionRoleArn || !microvmRegion) {
       throw new Error(
-        "Invalid lambda-microvm sandbox config: image identifier, execution role ARN, snapshot bucket, snapshot prefix, and snapshot region are required.",
+        "Invalid lambda-microvm sandbox config: image identifier, execution role ARN, and region are required.",
       );
     }
 
     return createLambdaMicrovmSandboxProvider({
       imageIdentifier: microvmImageIdentifier,
       executionRoleArn: microvmExecutionRoleArn,
-      region: snapshotRegion,
-      snapshotConfig: {
-        bucket: snapshotBucket,
-        prefix: snapshotPrefix,
-        region: snapshotRegion,
-      },
+      region: microvmRegion,
     });
   }
 

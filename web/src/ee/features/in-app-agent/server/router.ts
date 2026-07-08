@@ -171,7 +171,7 @@ export const inAppAgentRouter = createTRPCRouter({
         prisma: ctx.prisma,
         projectId: input.projectId,
         conversationId: input.conversationId,
-        deleteSnapshot: async ({ sandboxProvider, sessionId, snapshotKey }) => {
+        deleteSnapshot: async ({ sandboxProvider, sessionId }) => {
           const providerType = toInAppAgentSandboxProviderType(sandboxProvider);
 
           if (
@@ -184,7 +184,6 @@ export const inAppAgentRouter = createTRPCRouter({
           await deleteInAppAgentSandboxSnapshot({
             providerType,
             sessionId,
-            snapshotKey,
           });
 
           return { skipped: false };

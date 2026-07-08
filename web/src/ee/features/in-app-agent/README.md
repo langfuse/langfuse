@@ -84,6 +84,7 @@ Both sandbox providers target the same runtime contract from `packages/in-app-ag
 
 - The local `dangerous-docker` provider starts a container from that package's Docker image and calls the runtime over `http://127.0.0.1:5000` using `docker exec`.
 - The Lambda MicroVM provider starts a MicroVM image built from the same package and calls the runtime through the AWS-assigned HTTPS endpoint plus `X-aws-proxy-auth`.
+- Providers own runtime session lifecycle only: create/resume/suspend/terminate plus proxying sandbox operations.
 
 Provider contract:
 
@@ -102,6 +103,8 @@ Runtime HTTP surface:
 ## Sandbox Persistence And Cleanup
 
 Sandbox state is stored on the conversation row as `providerSessionId`, `sandboxProvider`, `sandboxSnapshotKey`, and `sandboxExpiresAt`.
+
+There is currently no sandbox snapshot persistence or restoration flow for `lambda-microvm`. Session reuse only relies on an existing live or suspended MicroVM instance identified by `providerSessionId`.
 
 `server/router.ts` clears sandbox state before soft-deleting a conversation. Shared cleanup helpers in `packages/shared/src/server/inAppAgentSandboxSnapshots.ts` also support project-wide expired sandbox cleanup and default snapshot key generation at `in-app-agent-sandboxes/<projectId>/<conversationId>.snapshot`.
 

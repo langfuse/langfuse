@@ -7,6 +7,7 @@ import {
   ResumeMicrovmCommand,
   RunMicrovmCommand,
   SuspendMicrovmCommand,
+  TerminateMicrovmCommand,
   type RunMicrovmCommandInput,
 } from "@aws-sdk/client-lambda-microvms";
 import { logger } from "@langfuse/shared/src/server";
@@ -51,11 +52,6 @@ export function createLambdaMicrovmSandboxProvider(params: {
   imageIdentifier: string;
   executionRoleArn: string;
   region: string;
-  snapshotConfig: {
-    bucket: string;
-    prefix: string;
-    region: string;
-  };
 }): SandboxProvider {
   const client = new LambdaMicrovmsClient({
     region: params.region,
@@ -65,12 +61,10 @@ export function createLambdaMicrovmSandboxProvider(params: {
   const ensureSession = async (request: {
     conversationId: string;
     sessionId?: string | null;
-    snapshotKey: string;
   }) => {
     logger.debug("[Lambda MicroVM Sandbox] ensureSession", {
       conversationId: request.conversationId,
       requestedSessionId: request.sessionId,
-      snapshotKey: request.snapshotKey,
     });
 
     if (request.sessionId) {
@@ -79,7 +73,6 @@ export function createLambdaMicrovmSandboxProvider(params: {
         {
           conversationId: request.conversationId,
           sessionId: request.sessionId,
-          snapshotKey: request.snapshotKey,
         },
       );
     }
@@ -91,7 +84,6 @@ export function createLambdaMicrovmSandboxProvider(params: {
           logger.debug("[Lambda MicroVM Sandbox] resuming suspended session", {
             conversationId: request.conversationId,
             sessionId: request.sessionId,
-            snapshotKey: request.snapshotKey,
           });
           await client.send(
             new ResumeMicrovmCommand({ microvmIdentifier: request.sessionId }),
@@ -111,7 +103,6 @@ export function createLambdaMicrovmSandboxProvider(params: {
         logger.debug("[Lambda MicroVM Sandbox] reusing existing session", {
           conversationId: request.conversationId,
           sessionId: request.sessionId,
-          snapshotKey: request.snapshotKey,
           state: existing.state,
         });
         return { sessionId: request.sessionId, endpoint: existing.endpoint };
@@ -120,14 +111,12 @@ export function createLambdaMicrovmSandboxProvider(params: {
       logger.debug("[Lambda MicroVM Sandbox] existing session not found", {
         conversationId: request.conversationId,
         sessionId: request.sessionId,
-        snapshotKey: request.snapshotKey,
       });
       sessions.delete(request.sessionId);
     }
 
     logger.debug("[Lambda MicroVM Sandbox] creating new session", {
       conversationId: request.conversationId,
-      snapshotKey: request.snapshotKey,
       imageIdentifier: params.imageIdentifier,
       hasExecutionRoleArn: Boolean(params.executionRoleArn),
     });
@@ -142,12 +131,6 @@ export function createLambdaMicrovmSandboxProvider(params: {
             suspendedDurationSeconds: DEFAULT_TERMINATE_AFTER_SUSPEND_SECONDS,
           },
           maximumDurationInSeconds: DEFAULT_MAXIMUM_DURATION_SECONDS,
-          runHookPayload: JSON.stringify({
-            snapshotBucket: params.snapshotConfig.bucket,
-            snapshotKey: request.snapshotKey,
-            snapshotPrefix: params.snapshotConfig.prefix,
-            snapshotRegion: params.snapshotConfig.region,
-          }),
           clientToken: randomUUID(),
         } satisfies RunMicrovmCommandInput),
       ),
@@ -163,7 +146,6 @@ export function createLambdaMicrovmSandboxProvider(params: {
     logger.debug("[Lambda MicroVM Sandbox] created new session", {
       conversationId: request.conversationId,
       sessionId: microvm.microvmId,
-      snapshotKey: request.snapshotKey,
       state: microvm.state,
     });
 
@@ -268,25 +250,23 @@ export function createLambdaMicrovmSandboxProvider(params: {
 
   return {
     type: "lambda-microvm",
-    async ensureSession({ conversationId, sessionId, snapshotKey }) {
+    async ensureSession({ conversationId, sessionId }) {
       const session = await ensureSession({
         conversationId,
         sessionId,
-        snapshotKey,
       });
       return {
         sessionId: session.sessionId,
         sandbox: createSessionSandbox(session.sessionId),
       };
     },
-    async suspendSession({ sessionId, snapshotKey }) {
+    async suspendSession({ sessionId }) {
       try {
         await client.send(
           new SuspendMicrovmCommand({ microvmIdentifier: sessionId }),
         );
         logger.debug("[Lambda MicroVM Sandbox] suspended session", {
           sessionId,
-          snapshotKey,
         });
       } catch (error) {
         if (!isMissingMicrovmError(error)) {
@@ -297,7 +277,6 @@ export function createLambdaMicrovmSandboxProvider(params: {
           "[Lambda MicroVM Sandbox] suspend skipped missing session",
           {
             sessionId,
-            snapshotKey,
           },
         );
       } finally {
@@ -312,14 +291,11 @@ export function createLambdaMicrovmSandboxProvider(params: {
 
       try {
         await client.send(
-          new SuspendMicrovmCommand({ microvmIdentifier: sessionId }),
+          new TerminateMicrovmCommand({ microvmIdentifier: sessionId }),
         );
-        logger.debug(
-          "[Lambda MicroVM Sandbox] terminated session via suspend",
-          {
-            sessionId,
-          },
-        );
+        logger.debug("[Lambda MicroVM Sandbox] terminated session", {
+          sessionId,
+        });
       } catch (error) {
         if (!isMissingMicrovmError(error)) {
           throw error;

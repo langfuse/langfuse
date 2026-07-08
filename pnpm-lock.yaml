@@ -152,9 +152,6 @@ importers:
 
   packages/in-app-agent-sandbox-runtime:
     dependencies:
-      '@aws-sdk/client-s3':
-        specifier: ^3.896.0
-        version: 3.1056.0
       zod:
         specifier: 4.3.6
         version: 4.3.6
@@ -1025,9 +1022,6 @@ importers:
       '@appsignal/opentelemetry-instrumentation-bullmq':
         specifier: ^0.8.0
         version: 0.8.0(bullmq@5.76.3)
-      '@aws-sdk/client-lambda-microvms':
-        specifier: 3.1074.0
-        version: 3.1074.0
       '@aws-sdk/client-s3':
         specifier: ^3.1013.0
         version: 3.1024.0

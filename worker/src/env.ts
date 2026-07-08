@@ -135,18 +135,6 @@ const EnvSchema = z.object({
   LANGFUSE_MIXPANEL_FLUSH_DELAY_MS: z.coerce.number().min(0).default(100),
   LANGFUSE_DATASET_DELETE_CONCURRENCY: z.coerce.number().positive().default(1),
   LANGFUSE_PROJECT_DELETE_CONCURRENCY: z.coerce.number().positive().default(1),
-  LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
-    .enum(["dangerous-docker", "lambda-microvm"])
-    .optional(),
-  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER: z
-    .string()
-    .optional(),
-  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN: z
-    .string()
-    .optional(),
-  LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_BUCKET: z.string().optional(),
-  LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_PREFIX: z.string().optional(),
-  LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_REGION: z.string().optional(),
   LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY: z.coerce
     .number()
     .positive()
@@ -614,28 +602,9 @@ const validateV4Flags = (parsed: ParsedEnv): void => {
   }
 };
 
-const validateInAppAgentSandboxConfig = (parsed: ParsedEnv): void => {
-  if (parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER !== "lambda-microvm") {
-    return;
-  }
-
-  if (
-    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER ||
-    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN ||
-    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_BUCKET ||
-    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_PREFIX ||
-    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_SNAPSHOT_REGION
-  ) {
-    throw new Error(
-      "Invalid lambda-microvm sandbox config: image identifier, execution role ARN, snapshot bucket, snapshot prefix, and snapshot region are required.",
-    );
-  }
-};
-
 const parseEnv = (): ParsedEnv => {
   const parsed = EnvSchema.parse(removeEmptyEnvVariables(process.env));
   validateV4Flags(parsed);
-  validateInAppAgentSandboxConfig(parsed);
   return parsed;
 };
 

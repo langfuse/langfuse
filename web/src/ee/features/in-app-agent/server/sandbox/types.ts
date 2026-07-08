@@ -43,30 +43,25 @@ export type SandboxSession = {
 
 /**
  * Low-level sandbox runtime contract backed by a concrete provider.
- * Implementations own sandbox creation, snapshot restore/suspend, and return
- * session-bound execution handles for isolated workspaces.
+ * Implementations own sandbox creation and return session-bound execution
+ * handles for isolated workspaces.
  */
 export type SandboxProvider = {
   type: InAppAgentSandboxProviderType;
 
   /**
    * Reuses an existing sandbox session when possible or creates a new one,
-   * restoring the workspace snapshot identified by `snapshotKey`, then returns
-   * a session-bound sandbox handle for tool execution.
+   * then returns a session-bound sandbox handle for tool execution.
    */
   ensureSession(params: {
     conversationId: string;
     sessionId?: string | null;
-    snapshotKey: string;
   }): Promise<{ sessionId: string; sandbox: SandboxSession }>;
   /**
    * Persists session state for later reuse and releases any live runtime
    * resources associated with the session.
    */
-  suspendSession?(params: {
-    sessionId: string;
-    snapshotKey: string;
-  }): Promise<void> | void;
+  suspendSession?(params: { sessionId: string }): Promise<void> | void;
   /**
    * Permanently tears down the backing runtime session without saving state.
    */

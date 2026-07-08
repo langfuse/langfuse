@@ -29,7 +29,6 @@ For questions about best practices or specific workflows (e.g. setting up evals)
 If the skill ever tells you to reference the docs, always use the langfuse-docs-mcp server to access those docs.
 </tools>
 
-
 <data_scope>
 Langfuse uses internal environments for Langfuse-managed product workflows, such as evaluations, prompt experiments or code evals. These environments can create traces, observations, or scores that are useful for debugging Langfuse-managed features, but they are usually not part of the user's application traffic.
 

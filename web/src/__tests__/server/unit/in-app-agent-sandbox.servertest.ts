@@ -1,23 +1,8 @@
 import { EventType } from "@ag-ui/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type * as SharedServerModule from "@langfuse/shared/src/server";
 
 import { getSandboxToolCallFiles } from "@/src/ee/features/in-app-agent/server/persistence";
 import { createInAppAgentSandbox } from "@/src/ee/features/in-app-agent/server/sandbox";
-
-vi.mock("@langfuse/shared/src/server", async () => {
-  const actual = (await vi.importActual(
-    "@langfuse/shared/src/server",
-  )) as typeof SharedServerModule;
-
-  return {
-    ...actual,
-    getInAppAgentSandboxSnapshotKey: (
-      projectId: string,
-      conversationId: string,
-    ) => `in-app-agent-sandboxes/${projectId}/${conversationId}.snapshot`,
-  };
-});
 
 describe("in-app agent sandbox", () => {
   beforeEach(() => {
@@ -69,15 +54,11 @@ describe("in-app agent sandbox", () => {
     expect(savedStates[0]).toMatchObject({
       providerSessionId: "session-1",
       sandboxProvider: "dangerous-docker",
-      sandboxSnapshotKey:
-        "in-app-agent-sandboxes/project-1/conversation-1.snapshot",
       sandboxExpiresAt: null,
     });
     expect(savedStates[1]).toMatchObject({
       providerSessionId: "session-1",
       sandboxProvider: "dangerous-docker",
-      sandboxSnapshotKey:
-        "in-app-agent-sandboxes/project-1/conversation-1.snapshot",
     });
     expect(savedStates[1]?.sandboxExpiresAt).toEqual(
       new Date("2026-07-02T12:00:01.000Z"),

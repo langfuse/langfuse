@@ -30,21 +30,16 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
     select: { retentionDays: true },
   });
 
-  const currentRetention = project?.retentionDays ?? null;
-
   // Skip if project no longer exists, has no retention, or retention is set to 0 (indefinite)
-  if (!project || !currentRetention || currentRetention === 0) {
+  if (!project || !project.retentionDays || project.retentionDays === 0) {
     logger.info(
       `[Data Retention] Skipping project ${projectId} - retention disabled or set to 0`,
     );
     return;
   }
 
-  const cutoffDate = new Date(
-    Date.now() - currentRetention * 24 * 60 * 60 * 1000,
-  );
-
   // Use the CURRENT retention value from database, not the queued value
+  const currentRetention = project.retentionDays;
 
   if (span) {
     span.setAttribute(
@@ -59,6 +54,10 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
       `[Data Retention] Retention changed for project ${projectId}: queued=${retention} days, current=${currentRetention} days. Using current value.`,
     );
   }
+
+  const cutoffDate = new Date(
+    Date.now() - currentRetention * 24 * 60 * 60 * 1000,
+  );
 
   // Delete media files if bucket is configured
   if (env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
