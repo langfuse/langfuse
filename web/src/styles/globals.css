@@ -19,7 +19,8 @@
 
   --color-primary-accent: hsl(var(--primary-accent));
   --color-hover-primary-accent: hsl(var(--hover-primary-accent));
-  --color-primary-accent-fill: hsl(var(--primary-accent-fill));
+  --color-control-fill: hsl(var(--control-fill));
+  --color-control-track: hsl(var(--control-track));
   --color-foreground-tertiary: hsl(var(--foreground-tertiary));
   --color-surface-code: hsl(var(--surface-code));
   --color-muted-magenta: hsl(var(--muted-magenta));
@@ -211,9 +212,13 @@
 
     --primary-accent: 243 75.4% 58.6%;
     --hover-primary-accent: 239 83.5% 66.7%;
-    /* Fill-strength accent for selection controls (checkbox/switch): deep
-       enough to carry a light glyph, unlike the text accent. */
-    --primary-accent-fill: 243 75.4% 58.6%;
+    /* Checked selection controls (checkbox/switch): monochrome in BOTH
+       modes — dark fill + light glyph in light, muted-white fill + dark
+       glyph in dark. Deliberately dimmer than --primary in dark so checked
+       controls don't outshine content (fills read louder than text).
+       --control-track is the switch's off-state track. */
+    --control-fill: 222.2 47.4% 11.2%;
+    --control-track: 214.3 31.8% 91.4%;
 
     --muted-green: 84 81% 44%;
     --muted-magenta: 330 90% 70%;
@@ -336,7 +341,8 @@
 
     --primary-accent: 246 55% 70%;
     --hover-primary-accent: 246 70% 78%;
-    --primary-accent-fill: 246 30% 52%;
+    --control-fill: 0 0% 78%;
+    --control-track: 0 0% 24%;
 
     --muted-blue: 215 95% 73.1%;
     --muted-green: 142 76.7% 73.1%;
@@ -406,7 +412,7 @@
   /* TEMPORARY test theme: the pre-Linear dark values, verbatim from
      3af13fcf5 (orphan --muted-primary-accent dropped). Selectable via the
      theme toggle for comparison; remove before merging this branch.
-     --primary-accent-fill maps to the old checked-control look. */
+     --control-fill maps to the old checked-control look (old --primary). */
   .dark-legacy {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 83%;
@@ -505,7 +511,8 @@
     --color-4: oklch(80.2% 0.134 225);
     --color-5: oklch(90.7% 0.231 133);
     --hover-primary-accent: 239 83.5% 66.7%;
-    --primary-accent-fill: 246 55% 70%;
+    --control-fill: 210 40% 83%;
+    --control-track: 215 20.2% 65.1%;
     --foreground-tertiary: 215 20.2% 65.1%;
     --surface-code: 240 10% 4%;
   }
