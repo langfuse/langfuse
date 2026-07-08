@@ -937,17 +937,39 @@ type PatchableMastraAgent = {
 
 type MastraStreamChunk = {
   type?:
+    | "start"
+    | "step-start"
+    | "step-finish"
+    | "text-start"
+    | "text-delta"
+    | "text-end"
     | "tool-call-input-streaming-start"
     | "tool-call-delta"
     | "tool-call-input-streaming-end"
     | "tool-call"
+    | "tool-result"
+    | "tool-error"
     | "tool-call-approval"
     | "tool-call-suspended";
   payload?: {
+    text?: string;
+    textDelta?: string;
+    textMessageId?: string;
+    error?: {
+      message?: string;
+      cause?: {
+        message?: string;
+      };
+      details?: {
+        errorMessage?: string;
+      };
+    };
     toolCallId?: string;
     toolName?: string;
     argsTextDelta?: string;
     args?: unknown;
+    result?: unknown;
+    isError?: boolean;
     resumeSchema?: unknown;
     suspendPayload?: unknown;
   };
@@ -956,10 +978,18 @@ type MastraStreamChunk = {
 type MastraStreamChunkType = NonNullable<MastraStreamChunk["type"]>;
 
 const MASTRA_STREAM_CHUNK_TYPES = [
+  "start",
+  "step-start",
+  "step-finish",
+  "text-start",
+  "text-delta",
+  "text-end",
   "tool-call-input-streaming-start",
   "tool-call-delta",
   "tool-call-input-streaming-end",
   "tool-call",
+  "tool-result",
+  "tool-error",
   "tool-call-approval",
   "tool-call-suspended",
 ] as const satisfies readonly MastraStreamChunkType[];
@@ -1028,10 +1058,28 @@ export function patchMastraToolCallInputStreaming(adapter: MastraAgent) {
             "Received unknown Mastra chunk while patching tool-call input streaming",
             chunk,
           );
+
           return processor.handleChunk(chunk);
         }
 
         const mastraChunk = chunk;
+
+        if (
+          mastraChunk.type === "start" ||
+          mastraChunk.type === "step-start" ||
+          mastraChunk.type === "step-finish" ||
+          mastraChunk.type === "text-start" ||
+          mastraChunk.type === "text-delta" ||
+          mastraChunk.type === "text-end"
+        ) {
+          return mastraChunk.type.startsWith("text-")
+            ? processor.handleChunk(chunk)
+            : false;
+        }
+
+        if (mastraChunk.type === undefined) {
+          return processor.handleChunk(chunk);
+        }
 
         if (mastraChunk.type === "tool-call-input-streaming-start") {
           const { toolCallId, toolName } = mastraChunk.payload ?? {};
@@ -1114,6 +1162,69 @@ export function patchMastraToolCallInputStreaming(adapter: MastraAgent) {
           return processor.handleChunk(chunk);
         }
 
+        if (mastraChunk.type === "tool-result") {
+          const { toolCallId } = mastraChunk.payload ?? {};
+          if (toolCallId) {
+            streamingToolCalls.delete(toolCallId);
+          }
+
+          return processor.handleChunk(chunk);
+        }
+
+        if (mastraChunk.type === "tool-error") {
+          const { toolCallId, toolName, args } = mastraChunk.payload ?? {};
+          if (!toolCallId || !toolName) {
+            callbacks.onError(
+              new Error(
+                "Malformed tool-error: missing toolCallId or toolName in payload",
+              ),
+            );
+            return true;
+          }
+
+          streamingToolCalls.delete(toolCallId);
+          synthesizedToolCallIds.delete(toolCallId);
+
+          return processor.handleChunk({
+            type: "tool-result",
+            payload: {
+              toolCallId,
+              toolName,
+              args,
+              isError: true,
+              result: JSON.stringify(
+                {
+                  error: ((): string => {
+                    if (
+                      typeof mastraChunk.payload?.error?.details
+                        ?.errorMessage === "string"
+                    ) {
+                      return mastraChunk.payload.error.details.errorMessage;
+                    }
+
+                    if (
+                      typeof mastraChunk.payload?.error?.cause?.message ===
+                      "string"
+                    ) {
+                      return mastraChunk.payload.error.cause.message;
+                    }
+
+                    if (
+                      typeof mastraChunk.payload?.error?.message === "string"
+                    ) {
+                      return mastraChunk.payload.error.message;
+                    }
+
+                    return "Unknown tool error";
+                  })(),
+                },
+                null,
+                2,
+              ),
+            },
+          });
+        }
+
         if (mastraChunk.type === "tool-call-approval") {
           const { toolCallId, toolName, args, resumeSchema } =
             mastraChunk.payload ?? {};
@@ -1152,10 +1263,6 @@ export function patchMastraToolCallInputStreaming(adapter: MastraAgent) {
             streamingToolCalls.delete(toolCallId);
             synthesizedToolCallIds.delete(toolCallId);
           }
-          return processor.handleChunk(chunk);
-        }
-
-        if (mastraChunk.type === undefined) {
           return processor.handleChunk(chunk);
         }
 

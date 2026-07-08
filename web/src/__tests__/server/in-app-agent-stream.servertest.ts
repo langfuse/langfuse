@@ -453,6 +453,66 @@ describe("patchMastraToolCallInputStreaming", () => {
     ]);
   });
 
+  it("keeps suppressing the duplicate native tool-call after a tool-result arrives", () => {
+    const { forwardedChunks, onError, processor } =
+      createPatchedChunkProcessor();
+
+    processor.handleChunk({
+      type: "tool-call-input-streaming-start",
+      payload: {
+        toolCallId: "tool-call-1",
+        toolName: "bash",
+      },
+    });
+    processor.handleChunk({
+      type: "tool-call-delta",
+      payload: {
+        toolCallId: "tool-call-1",
+        argsTextDelta: '{"command":"date"}',
+      },
+    });
+    processor.handleChunk({
+      type: "tool-call-input-streaming-end",
+      payload: { toolCallId: "tool-call-1" },
+    });
+    processor.handleChunk({
+      type: "tool-result",
+      payload: {
+        toolCallId: "tool-call-1",
+        toolName: "bash",
+        result: "Wed Jul 08 2026",
+      },
+    });
+    processor.handleChunk({
+      type: "tool-call",
+      payload: {
+        toolCallId: "tool-call-1",
+        toolName: "bash",
+        args: { command: "date" },
+      },
+    });
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(forwardedChunks).toEqual([
+      {
+        type: "tool-call",
+        payload: {
+          toolCallId: "tool-call-1",
+          toolName: "bash",
+          args: { command: "date" },
+        },
+      },
+      {
+        type: "tool-result",
+        payload: {
+          toolCallId: "tool-call-1",
+          toolName: "bash",
+          result: "Wed Jul 08 2026",
+        },
+      },
+    ]);
+  });
+
   it("converts tool-call approval chunks to suspended tool calls", () => {
     const { forwardedChunks, onError, processor } =
       createPatchedChunkProcessor();
@@ -594,6 +654,129 @@ describe("patchMastraToolCallInputStreaming", () => {
     expect(onError).toHaveBeenCalledWith(
       new Error(
         "Malformed tool-call-delta: missing toolName for unknown toolCallId in payload",
+      ),
+    );
+    expect(forwardedChunks).toEqual([]);
+  });
+
+  it("passes through text streaming chunks", () => {
+    const { forwardedChunks, onError, processor } =
+      createPatchedChunkProcessor();
+
+    processor.handleChunk({
+      type: "text-start",
+      payload: { textMessageId: "message-1" },
+    });
+    processor.handleChunk({
+      type: "text-delta",
+      payload: { textMessageId: "message-1", textDelta: "hello" },
+    });
+    processor.handleChunk({
+      type: "text-end",
+      payload: { textMessageId: "message-1" },
+    });
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(forwardedChunks).toEqual([
+      {
+        type: "text-start",
+        payload: { textMessageId: "message-1" },
+      },
+      {
+        type: "text-delta",
+        payload: { textMessageId: "message-1", textDelta: "hello" },
+      },
+      {
+        type: "text-end",
+        payload: { textMessageId: "message-1" },
+      },
+    ]);
+  });
+
+  it("swallows lifecycle chunks that the older adapter does not understand", () => {
+    const { forwardedChunks, onError, processor } =
+      createPatchedChunkProcessor();
+
+    processor.handleChunk({
+      type: "start",
+      runId: "run-1",
+      from: "AGENT",
+      payload: { id: "langfuse-in-app-assistant", messageId: "message-1" },
+    });
+    processor.handleChunk({
+      type: "step-start",
+      runId: "run-1",
+      from: "AGENT",
+      payload: { request: {}, warnings: [], messageId: "message-1" },
+    });
+    processor.handleChunk({
+      type: "step-finish",
+      runId: "run-1",
+      from: "AGENT",
+      payload: {
+        messageId: "message-1",
+        stepResult: { reason: "tool-calls", isContinued: true },
+      },
+    });
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(forwardedChunks).toEqual([]);
+  });
+
+  it("converts tool-error chunks to tool-result error chunks", () => {
+    const { forwardedChunks, onError, processor } =
+      createPatchedChunkProcessor();
+
+    processor.handleChunk({
+      type: "tool-error",
+      runId: "run-1",
+      from: "AGENT",
+      payload: {
+        toolCallId: "tool-call-1",
+        toolName: "bash",
+        args: { command: "date" },
+        error: {
+          details: { errorMessage: "Error: Region is missing" },
+        },
+      },
+    });
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(forwardedChunks).toEqual([
+      {
+        type: "tool-result",
+        payload: {
+          toolCallId: "tool-call-1",
+          toolName: "bash",
+          args: { command: "date" },
+          isError: true,
+          result: JSON.stringify(
+            {
+              error: "Error: Region is missing",
+            },
+            null,
+            2,
+          ),
+        },
+      },
+    ]);
+  });
+
+  it("reports malformed tool-error chunks", () => {
+    const { forwardedChunks, onError, processor } =
+      createPatchedChunkProcessor();
+
+    const shouldStop = processor.handleChunk({
+      type: "tool-error",
+      payload: {
+        error: { message: "boom" },
+      },
+    });
+
+    expect(shouldStop).toBe(true);
+    expect(onError).toHaveBeenCalledWith(
+      new Error(
+        "Malformed tool-error: missing toolCallId or toolName in payload",
       ),
     );
     expect(forwardedChunks).toEqual([]);
