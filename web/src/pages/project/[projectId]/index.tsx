@@ -35,6 +35,9 @@ import {
   getDashboardQuerySchedulerMaxConcurrent,
   useDashboardQueryScheduler,
 } from "@/src/hooks/useDashboardQueryScheduler";
+import Link from "next/link";
+import { PencilIcon } from "lucide-react";
+import { Button } from "@/src/components/ui/button";
 import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
 import { HomeDashboardSelect } from "@/src/features/dashboard/components/HomeDashboardSelect";
 
@@ -212,6 +215,21 @@ export default function Dashboard() {
                 homeDashboardId={homeDashboard.data?.homeDashboardId ?? null}
                 currentDashboardName={dashboardName}
               />
+              <Button
+                variant="outline"
+                size="icon"
+                title="Edit this dashboard in Dashboards"
+                asChild
+              >
+                <Link
+                  href={`/project/${projectId}/dashboards/${encodeURIComponent(dashboardId)}`}
+                >
+                  <PencilIcon className="h-4 w-4" />
+                  <span className="sr-only">
+                    Edit this dashboard in Dashboards
+                  </span>
+                </Link>
+              </Button>
               <SetupTracingButton />
             </>
           ),

@@ -25,6 +25,8 @@ import {
   type DashboardPlacement,
 } from "@/src/features/widgets/components/DashboardGrid";
 import { CloneFirstDialog } from "@/src/features/dashboard/components/CloneFirstDialog";
+import { InlineEditText } from "@/src/components/design-system/InlineEditText/InlineEditText";
+import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
@@ -129,6 +131,22 @@ export default function DashboardDetail() {
       },
       onError: (error) => {
         showErrorToast("Error updating dashboard", error.message);
+      },
+    });
+
+  // Mutation for renaming the dashboard inline from the page header
+  const updateDashboardMetadata =
+    api.dashboard.updateDashboardMetadata.useMutation({
+      onSuccess: () => {
+        utils.dashboard.invalidate();
+        showSuccessToast({
+          title: "Dashboard renamed",
+          description: "The new name has been saved",
+          duration: 2000,
+        });
+      },
+      onError: (error) => {
+        showErrorToast("Error renaming dashboard", error.message);
       },
     });
 
@@ -449,6 +467,22 @@ export default function DashboardDetail() {
             (dashboard.data?.owner === "LANGFUSE"
               ? " (Langfuse Maintained)"
               : ""),
+          titleContent:
+            hasCUDAccess && dashboard.data ? (
+              <InlineEditText
+                value={dashboard.data.name}
+                required
+                aria-label="Rename dashboard"
+                onSave={(name) =>
+                  updateDashboardMetadata.mutate({
+                    projectId,
+                    dashboardId,
+                    name,
+                    description: dashboard.data?.description ?? "",
+                  })
+                }
+              />
+            ) : undefined,
           breadcrumb: [
             {
               name: "Dashboards",
@@ -459,6 +493,13 @@ export default function DashboardDetail() {
             description:
               dashboard.data?.description || "No description available",
           },
+          actionButtonsLeft: (
+            <PopoverFilterBuilder
+              columns={filterColumns}
+              filterState={currentFilters}
+              onChange={setCurrentFilters}
+            />
+          ),
           actionButtonsRight: (
             <>
               {hasCUDAccess && hasUnsavedFilterChanges && (
@@ -492,6 +533,25 @@ export default function DashboardDetail() {
           ),
         }}
       >
+        <PageHeaderControlsPortal>
+          <TimeRangePicker
+            timeRange={timeRange}
+            onTimeRangeChange={setTimeRange}
+            timeRangePresets={dashboardTimeRangePresets}
+            className="my-0 max-w-full overflow-x-auto"
+            triggerClassName="px-2"
+            disabled={
+              lookbackLimit
+                ? {
+                    before: new Date(
+                      new Date().getTime() -
+                        lookbackLimit * 24 * 60 * 60 * 1000,
+                    ),
+                  }
+                : undefined
+            }
+          />
+        </PageHeaderControlsPortal>
         <SelectWidgetDialog
           open={isWidgetDialogOpen}
           onOpenChange={setIsWidgetDialogOpen}
@@ -525,31 +585,6 @@ export default function DashboardDetail() {
           </div>
         ) : (
           <div>
-            <div className="my-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-col gap-2 lg:flex-row lg:gap-3">
-                <TimeRangePicker
-                  timeRange={timeRange}
-                  onTimeRangeChange={setTimeRange}
-                  timeRangePresets={dashboardTimeRangePresets}
-                  className="my-0 max-w-full overflow-x-auto"
-                  disabled={
-                    lookbackLimit
-                      ? {
-                          before: new Date(
-                            new Date().getTime() -
-                              lookbackLimit * 24 * 60 * 60 * 1000,
-                          ),
-                        }
-                      : undefined
-                  }
-                />
-                <PopoverFilterBuilder
-                  columns={filterColumns}
-                  filterState={currentFilters}
-                  onChange={setCurrentFilters}
-                />
-              </div>
-            </div>
             <DashboardGrid
               key={gridResetKey}
               widgets={localDashboardDefinition.widgets}

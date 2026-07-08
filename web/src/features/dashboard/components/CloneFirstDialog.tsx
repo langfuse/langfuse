@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { useRouter } from "next/router";
+import { ExternalLinkIcon } from "lucide-react";
 import { api } from "@/src/utils/api";
 import {
   Dialog,
@@ -47,6 +48,26 @@ export function CloneFirstDialog({
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
+
+  // Detect existing copies of this dashboard so we can offer navigating to
+  // one instead of accumulating "(Clone)" duplicates.
+  const dashboards = api.dashboard.allDashboards.useQuery(
+    {
+      projectId,
+      page: 1,
+      limit: 100,
+      orderBy: { column: "updatedAt", order: "DESC" },
+    },
+    { enabled: open },
+  );
+  const existingClone = useMemo(() => {
+    const clonePattern = new RegExp(
+      `^${dashboardName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} \\(Clone( \\d+)?\\)$`,
+    );
+    return dashboards.data?.dashboards.find(
+      (d) => d.owner === "PROJECT" && clonePattern.test(d.name),
+    );
+  }, [dashboards.data?.dashboards, dashboardName]);
 
   const cloneDashboard = api.dashboard.cloneDashboard.useMutation({
     onSuccess: (data) => {
@@ -109,6 +130,31 @@ export function CloneFirstDialog({
               removed; editing their content will become available in a future
               release.
             </p>
+            {existingClone && (
+              <div className="bg-muted/50 flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
+                <span>
+                  You already have a copy:{" "}
+                  <span className="text-foreground font-medium">
+                    &ldquo;{existingClone.name}&rdquo;
+                  </span>
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  onClick={() => {
+                    onOpenChange(false);
+                    onCancel?.();
+                    router.push(
+                      `/project/${projectId}/dashboards/${encodeURIComponent(existingClone.id)}`,
+                    );
+                  }}
+                >
+                  <ExternalLinkIcon size={14} className="mr-1" />
+                  Open it instead
+                </Button>
+              </div>
+            )}
           </div>
         </DialogBody>
         <DialogFooter>

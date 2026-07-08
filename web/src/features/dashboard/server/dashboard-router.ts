@@ -99,6 +99,18 @@ const UpdateDashboardFiltersInput = z.object({
   filters: z.array(singleFilter),
 });
 
+/**
+ * First free clone name: "ABC (Clone)", then "ABC (Clone 2)", "ABC (Clone 3)", …
+ */
+function nextCloneName(sourceName: string, existingNames: string[]): string {
+  const taken = new Set(existingNames);
+  const base = `${sourceName} (Clone)`;
+  if (!taken.has(base)) return base;
+  let n = 2;
+  while (taken.has(`${sourceName} (Clone ${n})`)) n++;
+  return `${sourceName} (Clone ${n})`;
+}
+
 // Map camelCase legacy column names (used by scoreHistogram component)
 // to view-native field names before passing through the general mapper.
 const LEGACY_CAMEL_CASE_MAP: Record<string, string> = {
@@ -588,10 +600,21 @@ export const dashboardRouter = createTRPCRouter({
         });
       }
 
-      // Create a new dashboard with the same data but modified name
+      // Create a new dashboard with the same data but a numbered clone name
+      const existingClones = await ctx.prisma.dashboard.findMany({
+        where: {
+          projectId: input.projectId,
+          name: { startsWith: `${sourceDashboard.name} (Clone` },
+        },
+        select: { name: true },
+      });
+
       const clonedDashboard = await DashboardService.createDashboard(
         input.projectId,
-        `${sourceDashboard.name} (Clone)`,
+        nextCloneName(
+          sourceDashboard.name,
+          existingClones.map((d) => d.name),
+        ),
         sourceDashboard.description,
         ctx.session.user.id,
         input.definition ?? sourceDashboard.definition,

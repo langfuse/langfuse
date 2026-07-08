@@ -473,6 +473,33 @@ describe("dashboard widget minVersion", () => {
       expect(res.dashboard?.id).toBe(LANGFUSE_HOME_DASHBOARD_ID);
     });
 
+    it("numbers clone names when copies already exist", async () => {
+      const caller = makeCaller();
+      const source = await DashboardService.createDashboard(
+        projectId,
+        "Numbering Source",
+        "Clone naming test",
+        userId,
+      );
+
+      const first = await caller.dashboard.cloneDashboard({
+        projectId,
+        dashboardId: source.id,
+      });
+      const second = await caller.dashboard.cloneDashboard({
+        projectId,
+        dashboardId: source.id,
+      });
+      const third = await caller.dashboard.cloneDashboard({
+        projectId,
+        dashboardId: source.id,
+      });
+
+      expect(first.name).toBe("Numbering Source (Clone)");
+      expect(second.name).toBe("Numbering Source (Clone 2)");
+      expect(third.name).toBe("Numbering Source (Clone 3)");
+    });
+
     it("clones with a definition override and sets the clone as home", async () => {
       const caller = makeCaller();
       const overrideDefinition = {
