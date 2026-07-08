@@ -26,6 +26,9 @@ import {
 import {
   getTraceByIdFromTracesTable,
   getTracesIdentifierForSessionFromTracesTable,
+  hasAnyTrace,
+  persistProjectHasTracesFlag,
+  readProjectHasTracesFlag,
 } from "./traces";
 import {
   DateTimeFilter,
@@ -1192,6 +1195,66 @@ export const getTracesIdentifierForSession = async (
     return getTracesIdentifierForSessionFromTracesTable(projectId, sessionId);
   }
   return getTracesIdentifierForSessionFromEvents(projectId, sessionId);
+};
+
+/**
+ * Check if any tracing data exists in the events table. Backs the tracing
+ * onboarding gate — a UI read, so it may be served from a lagging read
+ * replica (unlike hasAnyEvent, which gates deletions).
+ */
+export const hasAnyTraceFromEventsTable = async (
+  projectId: string,
+): Promise<boolean> => {
+  const query = `
+    SELECT 1
+    FROM events_core
+    WHERE project_id = {projectId: String}
+    AND is_deleted = 0
+    LIMIT 1
+  `;
+
+  const rows = await measureAndReturn({
+    operationName: "hasAnyTraceFromEventsTable",
+    projectId,
+    input: { params: { projectId } },
+    fn: async (input) => {
+      return queryClickhouse<{ 1: number }>({
+        query,
+        params: input.params,
+        tags: { projectId },
+        preferredClickhouseService: "EventsReadOnly",
+        clickhouseSettings: {
+          max_threads: 1,
+        },
+      });
+    },
+  });
+
+  return rows.length > 0;
+};
+
+/**
+ * Routing wrapper for the tracing onboarding gate ("has this project ingested
+ * any tracing data yet?").
+ *
+ * If data is only written into the events tables, we look there and go to the
+ * legacy traces table otherwise. Both paths share the project's `hasTraces`
+ * flag as a read-through cache, so steady-state checks skip ClickHouse.
+ */
+export const hasAnyTracingData = async (projectId: string) => {
+  if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only") {
+    return hasAnyTrace(projectId);
+  }
+
+  if (await readProjectHasTracesFlag(projectId)) {
+    return true;
+  }
+
+  const result = await hasAnyTraceFromEventsTable(projectId);
+  if (result) {
+    await persistProjectHasTracesFlag(projectId);
+  }
+  return result;
 };
 
 type PublicApiObservationsQuery = {

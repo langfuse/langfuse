@@ -40,7 +40,7 @@ import {
   logger,
   upsertTrace,
   convertTraceDomainToClickhouse,
-  hasAnyTrace,
+  hasAnyTracingData,
   traceDeletionProcessor,
   getTracesTableMetrics,
   getCategoricalScoresGroupedByName,
@@ -106,8 +106,9 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      // Check if there are any traces in the database
-      const hasTraces = await hasAnyTrace(input.projectId);
+      // Check if there is any tracing data in the database (routed to the
+      // events tables when the write mode no longer populates legacy traces)
+      const hasTraces = await hasAnyTracingData(input.projectId);
 
       if (hasTraces) {
         return true;
