@@ -857,7 +857,7 @@ function normalizeToolOutput(output: unknown): unknown {
     return parsedOutput;
   }
 
-  const firstContent = parsedOutput.content[0];
+  const firstContent: unknown = parsedOutput.content[0];
 
   if (
     parsedOutput.content.length !== 1 ||
