@@ -159,7 +159,8 @@ export async function upsertBlobStorageIntegration(params: {
         ...writeData,
         exportSource: createExportSource,
         // Parquet is the default export format; apply it when the caller omits
-        // fileType on CREATE (matches the Prisma column default).
+        // fileType on CREATE. This app-level fallback (not the Prisma column
+        // default) is the source of truth for the default across every write path.
         fileType: data.fileType ?? BlobStorageIntegrationFileType.PARQUET,
         projectId,
         secretAccessKey: encryptedSecret,
