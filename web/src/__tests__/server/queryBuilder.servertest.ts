@@ -4517,7 +4517,7 @@ describe("getValidAggregationsForMeasureType", () => {
     expect(valid).toHaveLength(expectedLength);
   });
 
-  it("restricted set contains only count and uniq", () => {
+  it("restricted set contains only count and uniq for string measures", () => {
     expect(getValidAggregationsForMeasureType("string")).toEqual(restricted);
   });
 });

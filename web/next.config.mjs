@@ -10,6 +10,21 @@ import { env } from "./src/env.mjs";
  * CSP headers
  * img-src https to allow loading images from SSO providers
  */
+// Dataset attachments PUT media directly to presigned storage URLs, so
+// connect-src must allow AWS S3, Azure Blob Storage, GCS, and the configured
+// S3-compatible endpoint. The endpoint env var is only present at runtime in
+// official Docker images, so static wildcards cover the common providers too.
+const mediaUploadConnectSrc = (() => {
+  const endpoint = env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT;
+  if (!endpoint) return "";
+  try {
+    const url = new URL(endpoint);
+    const port = url.port ? `:${url.port}` : "";
+    return `${url.origin} ${url.protocol}//*.${url.hostname}${port} `;
+  } catch {
+    return "";
+  }
+})();
 const cspHeader = `
   default-src 'self' https://*.langfuse.com https://*.langfuse.dev https://*.posthog.com https://*.sentry.io;
   script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.langfuse.com https://*.langfuse.dev https://challenges.cloudflare.com https://*.sentry.io  https://static.cloudflareinsights.com https://*.stripe.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
@@ -22,7 +37,7 @@ const cspHeader = `
   base-uri 'self';
   form-action 'self' https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
   frame-ancestors 'none';
-  connect-src 'self' https://*.langfuse.com https://*.langfuse.dev https://*.ingest.us.sentry.io https://*.sentry.io https://chat.uk.plain.com https://*.s3.amazonaws.com https://prod-uk-services-attachm-attachmentsuploadbucket2-1l2e4906o2asm.s3.eu-west-2.amazonaws.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com https://graph.microsoft.com;
+  connect-src 'self' ${mediaUploadConnectSrc}https://*.langfuse.com https://*.langfuse.dev https://*.ingest.us.sentry.io https://*.sentry.io https://chat.uk.plain.com https://*.amazonaws.com https://*.blob.core.windows.net https://storage.googleapis.com https://prod-uk-services-attachm-attachmentsuploadbucket2-1l2e4906o2asm.s3.eu-west-2.amazonaws.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com https://graph.microsoft.com;
   media-src 'self' https: http://localhost:*;
   ${env.LANGFUSE_CSP_ENFORCE_HTTPS === "true" ? "upgrade-insecure-requests; block-all-mixed-content;" : ""}
   ${env.SENTRY_CSP_REPORT_URI ? `report-uri ${env.SENTRY_CSP_REPORT_URI}; report-to csp-endpoint;` : ""}
@@ -58,7 +73,7 @@ const nextConfig = {
   // Agent/browser tooling often targets 127.0.0.1 instead of localhost in dev.
   allowedDevOrigins: ["127.0.0.1"],
   staticPageGenerationTimeout: 500, // default is 60. Required for build process for amd
-  transpilePackages: ["@langfuse/shared", "vis-network/standalone"],
+  transpilePackages: ["@langfuse/shared"],
   reactStrictMode: true,
   serverExternalPackages: [
     "dd-trace",
@@ -79,6 +94,12 @@ const nextConfig = {
     resolveAlias: {
       "@langfuse/shared": "./packages/shared/src",
     },
+    rules: {
+      "*.md": {
+        loaders: ["raw-loader"],
+        as: "*.js",
+      },
+    },
   },
   logging: {
     browserToTerminal: true,
@@ -98,6 +119,15 @@ const nextConfig = {
     defaultLocale: "en",
   },
   output: "standalone",
+
+  async rewrites() {
+    return [
+      {
+        source: "/.well-known/mcp.json",
+        destination: "/api/well-known/mcp.json",
+      },
+    ];
+  },
 
   async headers() {
     return [
@@ -204,6 +234,11 @@ const nextConfig = {
     // see: https://docs.datadoghq.com/tracing/trace_collection/automatic_instrumentation/dd_libraries/nodejs/#bundling-with-nextjs
     config.externals.push("@datadog/pprof", "dd-trace");
 
+    config.module.rules.push({
+      test: /\.md$/i,
+      type: "asset/source",
+    });
+
     // Setup in-source testing: https://vitest.dev/guide/in-source.html#other-bundlers
     config.plugins.push(
       new webpack.DefinePlugin({
@@ -233,11 +268,6 @@ const sentryConfig = withSentryConfig(nextConfig, {
   // Upload a larger set of source maps for prettier stack traces (increases build time)
   widenClientFileUpload: true,
 
-  // Automatically annotate React components to show their full name in breadcrumbs and session replay
-  reactComponentAnnotation: {
-    enabled: true,
-  },
-
   // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
   // This can increase your server load as well as your hosting bill.
   // Note: Check that the configured route will not match with your Next.js middleware, otherwise reporting of client-
@@ -249,14 +279,23 @@ const sentryConfig = withSentryConfig(nextConfig, {
     disable: true,
   },
 
-  // Automatically tree-shake Sentry logger statements to reduce bundle size
-  disableLogger: true,
-
   // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)
   // See the following for more information:
   // https://docs.sentry.io/product/crons/
   // https://vercel.com/docs/cron-jobs
   automaticVercelMonitors: false,
-});
+
+  webpack: {
+    // Automatically annotate React components to show their full name in breadcrumbs and session replay.
+    reactComponentAnnotation: {
+      enabled: true,
+    },
+
+    // Automatically tree-shake Sentry logger statements to reduce bundle size.
+    treeshake: {
+      removeDebugLogging: true,
+    },
+  },
+  });
 
 export default sentryConfig;

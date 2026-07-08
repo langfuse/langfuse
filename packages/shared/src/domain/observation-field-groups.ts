@@ -54,3 +54,55 @@ export const OBSERVATION_FIELD_GROUPS_FULL = [
 
 export type ObservationFieldGroupFull =
   (typeof OBSERVATION_FIELD_GROUPS_FULL)[number];
+
+/**
+ * Blob export contract for the legacy observations table: every output field
+ * of the export and the field group it belongs to, in the column order of the
+ * full export (kept stable so exports with all groups selected are unchanged).
+ *
+ * Field names are the snake_case output columns of the export rows. Groups
+ * missing from this list (trace_context) have no counterpart in the legacy
+ * table: denormalized trace fields only exist on the events table. The SQL
+ * realization (computed expressions for latency, time_to_first_token,
+ * model_id) lives in the repository layer:
+ * packages/shared/src/server/repositories/observations.ts,
+ * `getObservationsForBlobStorageExport`.
+ */
+export const LEGACY_OBSERVATION_EXPORT_FIELDS: ReadonlyArray<{
+  field: string;
+  group: ObservationFieldGroupFull;
+}> = [
+  { field: "id", group: "core" },
+  { field: "trace_id", group: "core" },
+  { field: "project_id", group: "core" },
+  { field: "environment", group: "basic" },
+  { field: "type", group: "core" },
+  { field: "parent_observation_id", group: "core" },
+  { field: "start_time", group: "core" },
+  { field: "end_time", group: "core" },
+  { field: "name", group: "basic" },
+  { field: "metadata", group: "metadata" },
+  { field: "level", group: "basic" },
+  { field: "status_message", group: "basic" },
+  { field: "version", group: "basic" },
+  { field: "input", group: "io" },
+  { field: "output", group: "io" },
+  { field: "provided_model_name", group: "model" },
+  { field: "model_parameters", group: "model" },
+  { field: "usage_details", group: "usage" },
+  { field: "cost_details", group: "usage" },
+  { field: "completion_start_time", group: "time" },
+  { field: "prompt_name", group: "prompt" },
+  { field: "prompt_version", group: "prompt" },
+  { field: "total_cost", group: "usage" },
+  { field: "latency", group: "metrics" },
+  { field: "time_to_first_token", group: "metrics" },
+  { field: "model_id", group: "model" },
+  { field: "created_at", group: "time" },
+  { field: "updated_at", group: "time" },
+  { field: "prompt_id", group: "prompt" },
+  { field: "tool_calls", group: "tools" },
+  { field: "tool_call_names", group: "tools" },
+  { field: "tool_definitions", group: "tools" },
+  { field: "usage_pricing_tier_name", group: "usage" },
+];

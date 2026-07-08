@@ -51,12 +51,16 @@ import { automationsRouter } from "@/src/features/automations/server/router";
 import { monitorsRouter } from "@/src/server/api/routers/monitors";
 import { defaultEvalModelRouter } from "@/src/features/evals/server/defaultEvalModelRouter";
 import { slackRouter } from "@/src/features/slack/server/router";
-import { plainRouter } from "@/src/features/support-chat/trpc/plainRouter";
+import { supportRouter } from "@/src/features/support-chat/trpc/supportRouter";
 import { queueAssignmentRouter } from "@/src/features/annotation-queues/server/annotationQueueAssignmentsRouter";
 import { surveysRouter } from "@/src/server/api/routers/surveys";
 import { naturalLanguageFilterRouter } from "@/src/features/natural-language-filters/server/router";
+import { searchBarRouter } from "@/src/features/search-bar/server/router";
 import { notificationPreferencesRouter } from "@/src/server/api/routers/notificationPreferences";
-import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
+import { onboardingRouter } from "@/src/features/onboarding/server/onboardingRouter";
+import { webCalloutsRouter } from "@/src/features/web-callouts/server/router";
+import { inAppAgentRouter } from "@/src/ee/features/in-app-agent/server/router";
+import { v4TransitionRouter } from "@/src/features/v4/server/v4TransitionRouter";
 
 /**
  * This is the primary router for your server.
@@ -117,11 +121,15 @@ export const appRouter = createTRPCRouter({
   automations: automationsRouter,
   monitors: monitorsRouter,
   slack: slackRouter,
-  plainRouter: plainRouter,
+  supportRouter: supportRouter,
   surveys: surveysRouter,
+  onboarding: onboardingRouter,
   naturalLanguageFilters: naturalLanguageFilterRouter,
+  searchBar: searchBarRouter,
   notificationPreferences: notificationPreferencesRouter,
+  webCallouts: webCalloutsRouter,
   inAppAgent: inAppAgentRouter,
+  v4Transition: v4TransitionRouter,
 });
 
 // export type definition of API

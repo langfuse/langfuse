@@ -99,7 +99,9 @@ export function NavUser({ user, items }: UserNavigationProps) {
                 </AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">{user.name}</span>
+                <span className="truncate font-semibold" title={user.name}>
+                  {user.name}
+                </span>
                 <span className="truncate text-xs" title={user.email}>
                   {user.email}
                 </span>
@@ -108,6 +110,10 @@ export function NavUser({ user, items }: UserNavigationProps) {
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
+            // No z-index: this dropdown portals into the `popover` overlay
+            // layer, which sits above the `agent` layer (the assistant window)
+            // by layer ORDER — so it opens above the window with no magic
+            // number. See components/ui/layer.tsx.
             className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
             side={isMobile ? "bottom" : "right"}
             align="end"
@@ -122,7 +128,9 @@ export function NavUser({ user, items }: UserNavigationProps) {
                   </AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">{user.name}</span>
+                  <span className="truncate font-semibold" title={user.name}>
+                    {user.name}
+                  </span>
                   <span className="truncate text-xs" title={user.email}>
                     {user.email}
                   </span>

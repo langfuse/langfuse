@@ -30,15 +30,8 @@ export function DatasetRunItemsByRunTable(props: {
   datasetId: string;
   datasetRunId: string;
   datasetVersion?: Date | null;
-  onLoadingChange?: (isLoading: boolean) => void;
 }) {
-  const {
-    projectId,
-    datasetId,
-    datasetRunId,
-    datasetVersion,
-    onLoadingChange,
-  } = props;
+  const { projectId, datasetId, datasetRunId, datasetVersion } = props;
   const { setDetailPageList } = useDetailPageLists();
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -68,14 +61,6 @@ export function DatasetRunItemsByRunTable(props: {
     limit: paginationState.pageSize,
     filter: userFilterState,
   });
-
-  useEffect(() => {
-    onLoadingChange?.(runItems.isFetching);
-
-    return () => {
-      onLoadingChange?.(false);
-    };
-  }, [onLoadingChange, runItems.isFetching]);
 
   const datasetRunItemsFilterOptions =
     datasetRunItemsFilterOptionsResponse.data;
@@ -305,7 +290,7 @@ export function DatasetRunItemsByRunTable(props: {
         setRowHeight={setRowHeight}
       />
       <DataTable
-        tableName={"datasetRunItems"}
+        tableName="datasetRunItems"
         columns={columns}
         data={
           runItems.isLoading

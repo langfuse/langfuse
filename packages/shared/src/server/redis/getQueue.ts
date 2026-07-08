@@ -27,6 +27,7 @@ import { EntityChangeQueue } from "./entityChangeQueue";
 import { DatasetDeleteQueue } from "./datasetDelete";
 import { EventPropagationQueue } from "./eventPropagationQueue";
 import { NotificationQueue } from "./notificationQueue";
+import { MonitorQueue } from "./monitorQueue";
 
 // Sharded queues require a sharding key.
 // Use the queue class directly, for example IngestionQueue.getInstance({ shardingKey }).
@@ -99,6 +100,8 @@ export function getQueue(
       return EventPropagationQueue.getInstance();
     case QueueName.NotificationQueue:
       return NotificationQueue.getInstance();
+    case QueueName.MonitorQueue:
+      return MonitorQueue.getInstance();
     default: {
       const _exhaustiveCheckDefault: never = queueName;
       throw new Error(`Queue ${queueName} not found`);

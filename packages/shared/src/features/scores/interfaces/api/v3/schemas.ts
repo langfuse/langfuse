@@ -1,13 +1,6 @@
 import { z } from "zod";
 import { ScoreSourceDomain } from "../../../../../domain/scores";
 
-// Optional group schemas
-export const ScoreDetailsV3 = z.object({
-  comment: z.string().nullable(),
-  configId: z.string().nullable(),
-  metadata: z.record(z.string(), z.unknown()),
-});
-
 // Discriminated on `kind` so the type system enforces that `traceId` is
 // only ever present on the observation arm — matches the Fern union and
 // the deriveSubject runtime contract.
@@ -31,11 +24,6 @@ export const ScoreSubjectV3 = z.discriminatedUnion("kind", [
   }),
 ]);
 
-export const ScoreAnnotationV3 = z.object({
-  authorUserId: z.string().nullable(),
-  queueId: z.string().nullable(),
-});
-
 /**
  * Foundation schema for scores API v3.
  *
@@ -55,9 +43,12 @@ const ScoreFoundationSchemaV3 = z.object({
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
   // optional groups
-  details: ScoreDetailsV3.optional(),
+  comment: z.string().nullable().optional(),
+  configId: z.string().nullable().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  authorUserId: z.string().nullable().optional(),
+  queueId: z.string().nullable().optional(),
   subject: ScoreSubjectV3.optional(),
-  annotation: ScoreAnnotationV3.optional(),
 });
 
 export const APIScoreSchemaV3 = z.discriminatedUnion("dataType", [

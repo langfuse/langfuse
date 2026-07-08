@@ -13,6 +13,7 @@ import {
   experimentEvalFilterColumns,
   booleanFilter,
 } from "@langfuse/shared";
+import { CODE_EVAL_SOURCE_MAX_BYTES } from "@langfuse/shared/src/server";
 import { z } from "zod";
 export {
   UnstablePublicApiErrorCode,
@@ -24,8 +25,16 @@ import type {
   UnstablePublicApiErrorDetailsType,
 } from "@/src/features/public-api/shared/unstable-public-api-error-schema";
 
-export const PublicEvaluatorType = z.literal("llm_as_judge");
+export const PUBLIC_EVALUATOR_TYPES = ["llm_as_judge", "code"] as const;
+export const [PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE, PUBLIC_EVALUATOR_TYPE_CODE] =
+  PUBLIC_EVALUATOR_TYPES;
+
+export const PublicEvaluatorType = z.enum(PUBLIC_EVALUATOR_TYPES);
 export const PublicEvaluatorScope = z.enum(["project", "managed"]);
+export const PublicCodeEvaluatorSourceCodeLanguage = z.enum([
+  "PYTHON",
+  "TYPESCRIPT",
+]);
 
 export const PublicEvaluatorModelConfig = z.object({
   provider: z.string().min(1),
@@ -78,6 +87,17 @@ export const PublicEvaluationRuleStatus = z.enum([
 ]);
 
 export const PublicEvaluationRuleEvaluatorReference = z.object({
+  name: z.string().min(1),
+  scope: PublicEvaluatorScope,
+  type: PublicEvaluatorType.default(PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE),
+});
+
+// PATCH intentionally omits `type`: an evaluation rule's evaluator type cannot
+// be changed. The service always inherits the rule's current type, so a code
+// rule is never retargeted to an LLM evaluator family (which would otherwise
+// inherit the synthesized code mapping and fail validation against the LLM
+// evaluator's variables). To use a different evaluator type, create a new rule.
+export const PublicEvaluationRuleEvaluatorReferencePatch = z.object({
   name: z.string().min(1),
   scope: PublicEvaluatorScope,
 });
@@ -207,6 +227,7 @@ export type PublicEvaluatorModelConfigType = z.infer<
 export type PublicEvaluatorOutputDefinitionType = z.infer<
   typeof PublicEvaluatorOutputDefinition
 >;
+export type PublicEvaluatorTypeType = z.infer<typeof PublicEvaluatorType>;
 export type PublicEvaluatorScopeType = z.infer<typeof PublicEvaluatorScope>;
 export type PublicEvaluationRuleTargetType = z.infer<
   typeof PublicEvaluationRuleTarget
@@ -244,8 +265,26 @@ export const UnstablePublicApiPaginationQuery = z.object({
 
 export const UnstablePublicApiPaginationResponse = paginationMetaResponseZod;
 
-export const PublicEvaluatorDefinitionInput = z.object({
+export const PublicLlmAsJudgeEvaluatorDefinitionInput = z.object({
   prompt: z.string().min(1),
   outputDefinition: PublicEvaluatorOutputDefinition,
   modelConfig: PublicEvaluatorModelConfig.nullable().optional(),
 });
+
+export const PublicCodeEvaluatorDefinitionInput = z.object({
+  sourceCode: z
+    .string()
+    .min(1)
+    .refine(
+      (sourceCode) =>
+        Buffer.byteLength(sourceCode, "utf8") <= CODE_EVAL_SOURCE_MAX_BYTES,
+      {
+        message: `Source code must be ${CODE_EVAL_SOURCE_MAX_BYTES} bytes or less`,
+      },
+    ),
+  sourceCodeLanguage: PublicCodeEvaluatorSourceCodeLanguage,
+});
+
+export type PublicCodeEvaluatorSourceCodeLanguageType = z.infer<
+  typeof PublicCodeEvaluatorSourceCodeLanguage
+>;

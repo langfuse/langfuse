@@ -68,7 +68,7 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
       projectId,
       cutoffDate,
     });
-    await deleteMediaFiles({
+    const deletedMediaCount = await deleteMediaFiles({
       projectId,
       mediaFiles: mediaFilesToDelete,
       storageClient: getS3MediaStorageClient(
@@ -76,7 +76,7 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
       ),
     });
     logger.info(
-      `[Data Retention] Deleted ${mediaFilesToDelete.length} media files for project ${projectId}`,
+      `[Data Retention] Deleted ${deletedMediaCount} media files for project ${projectId}`,
     );
   }
 

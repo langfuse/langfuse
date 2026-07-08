@@ -3,6 +3,7 @@ import {
   normalizeToolDefinitionsForChatMl,
 } from "@langfuse/shared";
 import type { PlaygroundTool } from "@/src/features/playground/page/types";
+import { safeJsonParse } from "@/src/utils/json";
 
 const EMPTY_TOOL_PARAMETERS = {
   type: "object",
@@ -12,11 +13,8 @@ const EMPTY_TOOL_PARAMETERS = {
 function parseIfString(value: unknown): unknown {
   if (typeof value !== "string") return value;
 
-  try {
-    return JSON.parse(value);
-  } catch {
-    return value;
-  }
+  const parsed = safeJsonParse(value);
+  return parsed === undefined ? value : parsed;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -71,6 +69,11 @@ export function extractTools(
         attributes["gen_ai.tool.definitions"],
       );
       if (genAiTools.length > 0) return genAiTools;
+
+      // Some traces store OpenAI-style tool definitions in a plain metadata
+      // attributes.tools field instead of the canonical GenAI key.
+      const metadataTools = mapToolsToPlayground(attributes.tools);
+      if (metadataTools.length > 0) return metadataTools;
 
       // pydantic-ai: tools in model_request_parameters.function_tools
       const modelRequestParameters = asRecord(

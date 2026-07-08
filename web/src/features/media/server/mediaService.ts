@@ -10,9 +10,14 @@ import {
   type MediaContentType,
   type PatchMediaBody,
 } from "@/src/features/media/validation";
-import { InternalServerError, LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  type DatasetItemMediaField,
+  InternalServerError,
+  LangfuseNotFoundError,
+} from "@langfuse/shared";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
+  declarePendingDatasetItemMedia,
   getCurrentSpan,
   logger,
   recordHistogram,
@@ -30,8 +35,32 @@ export async function createMediaUploadUrl(params: {
     sha256Hash,
     traceId,
     observationId,
+    datasetId,
+    datasetItemId,
     field,
   } = body;
+
+  const linkUploadedMedia = (mediaId: string) => {
+    if (datasetId && datasetItemId) {
+      return declarePendingDatasetItemMedia({
+        projectId,
+        datasetId,
+        datasetItemId,
+        mediaId,
+        field: field as DatasetItemMediaField,
+      });
+    }
+    // Validation guarantees a trace context here (traceId + field).
+    if (traceId && field) {
+      return linkMediaToTraceOrObservation({
+        projectId,
+        traceId,
+        observationId,
+        mediaId,
+        field,
+      });
+    }
+  };
 
   try {
     const existingMedia = await prisma.media.findUnique({
@@ -51,13 +80,7 @@ export async function createMediaUploadUrl(params: {
       existingMedia.uploadHttpStatus === 200 &&
       existingMedia.contentType === contentType
     ) {
-      await linkMediaToTraceOrObservation({
-        projectId,
-        traceId,
-        observationId,
-        mediaId,
-        field,
-      });
+      await linkUploadedMedia(mediaId);
 
       return GetMediaUploadUrlResponseSchema.parse({
         mediaId,
@@ -94,13 +117,7 @@ export async function createMediaUploadUrl(params: {
       contentLength,
     });
 
-    await linkMediaToTraceOrObservation({
-      projectId,
-      traceId,
-      observationId,
-      mediaId,
-      field,
-    });
+    await linkUploadedMedia(mediaId);
 
     return GetMediaUploadUrlResponseSchema.parse({ mediaId, uploadUrl });
   } catch (error) {
@@ -218,12 +235,14 @@ async function upsertMediaRecord(params: {
     contentType,
     contentLength,
   } = params;
-  const maxRetries = 3;
-  const delayMs = 100;
 
-  for (let retryCount = 0; retryCount < maxRetries; retryCount += 1) {
-    try {
-      await prisma.$queryRaw`
+  // Media has two unique constraints: (project_id, id) for the public mediaId
+  // and (project_id, sha_256_hash) for content dedupe. Under concurrent uploads
+  // of the same file, either unique index can observe the speculative insert
+  // first. Omitting the conflict target makes DO NOTHING absorb conflicts from
+  // both constraints; the guarded Prisma update below then proves that the
+  // existing row has both the expected mediaId and full hash before reusing it.
+  await prisma.$executeRaw`
         INSERT INTO "media" (
             "id",
             "project_id",
@@ -242,22 +261,27 @@ async function upsertMediaRecord(params: {
             ${contentType},
             ${contentLength}
           )
-          ON CONFLICT ("project_id", "sha_256_hash")
-          DO UPDATE SET
-            "bucket_name" = ${uploadBucket},
-            "bucket_path" = ${bucketPath},
-            "content_type" = ${contentType},
-            "content_length" = ${contentLength}
+          ON CONFLICT DO NOTHING
         `;
-      return;
-    } catch (error) {
-      if (retryCount === maxRetries - 1) throw error;
 
-      logger.debug(
-        `Failed to create media record. Retrying (${retryCount + 1}/${maxRetries})...`,
-      );
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-    }
+  const result = await prisma.media.updateMany({
+    where: {
+      projectId,
+      id: mediaId,
+      sha256Hash,
+    },
+    data: {
+      bucketName: uploadBucket,
+      bucketPath,
+      contentType,
+      contentLength: BigInt(contentLength),
+    },
+  });
+
+  if (result.count === 0) {
+    throw new InternalServerError(
+      `Media ID collision detected for media ID ${mediaId} in project ${projectId}. The existing media row has a different id or sha_256_hash.`,
+    );
   }
 }
 
@@ -272,18 +296,18 @@ async function linkMediaToTraceOrObservation(params: {
 
   if (observationId) {
     await prisma.$queryRaw`
-      INSERT INTO "observation_media" ("id", "project_id", "trace_id", "observation_id", "media_id", "field")
-      VALUES (${randomUUID()}, ${projectId}, ${traceId}, ${observationId}, ${mediaId}, ${field})
-      ON CONFLICT DO NOTHING;
-    `;
+        INSERT INTO "observation_media" ("id", "project_id", "trace_id", "observation_id", "media_id", "field")
+        VALUES (${randomUUID()}, ${projectId}, ${traceId}, ${observationId}, ${mediaId}, ${field})
+        ON CONFLICT DO NOTHING;
+      `;
     return;
   }
 
   await prisma.$queryRaw`
-    INSERT INTO "trace_media" ("id", "project_id", "trace_id", "media_id", "field")
-    VALUES (${randomUUID()}, ${projectId}, ${traceId}, ${mediaId}, ${field})
-    ON CONFLICT DO NOTHING;
-  `;
+      INSERT INTO "trace_media" ("id", "project_id", "trace_id", "media_id", "field")
+      VALUES (${randomUUID()}, ${projectId}, ${traceId}, ${mediaId}, ${field})
+      ON CONFLICT DO NOTHING;
+    `;
 }
 
 function getBucketPath(params: {

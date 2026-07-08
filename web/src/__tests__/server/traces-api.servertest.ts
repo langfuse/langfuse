@@ -15,6 +15,7 @@ import {
   createEventsCh,
 } from "@langfuse/shared/src/server";
 import {
+  makeAPICall,
   makeZodVerifiedAPICall,
   makeZodVerifiedAPICallSilent,
 } from "@/src/__tests__/test-utils";
@@ -77,26 +78,25 @@ const createObservationOrEvent = (
             ? data.end_time * timeMultiplier
             : null,
     });
-  } else {
-    // For observations table: milliseconds
-    return createObservation({
-      id,
-      trace_id: data.trace_id,
-      project_id: data.project_id,
-      name: data.name,
-      type: data.type ?? "SPAN",
-      level: data.level ?? "DEFAULT",
-      start_time: data.start_time,
-      end_time: data.end_time === null ? null : data.end_time,
-      input: data.input,
-      output: data.output,
-      metadata: data.metadata,
-      provided_model_name: data.provided_model_name,
-      provided_usage_details: data.provided_usage_details,
-      provided_cost_details: data.provided_cost_details,
-      total_cost: data.total_cost,
-    });
   }
+  // For observations table: milliseconds
+  return createObservation({
+    id,
+    trace_id: data.trace_id,
+    project_id: data.project_id,
+    name: data.name,
+    type: data.type ?? "SPAN",
+    level: data.level ?? "DEFAULT",
+    start_time: data.start_time,
+    end_time: data.end_time === null ? null : data.end_time,
+    input: data.input,
+    output: data.output,
+    metadata: data.metadata,
+    provided_model_name: data.provided_model_name,
+    provided_usage_details: data.provided_usage_details,
+    provided_cost_details: data.provided_cost_details,
+    total_cost: data.total_cost,
+  });
 };
 
 const waitForEventsTable = async (useEventsTable: boolean) => {
@@ -833,7 +833,7 @@ describe("/api/public/traces API Endpoint", () => {
     });
   });
 
-  it("should return 5XX if observations are too large when fetching single trace", async () => {
+  it("should return 422 if observations are too large when fetching single trace", async () => {
     // See LFE-4882 for context
     const traceId = randomUUID();
     const trace = createTrace({
@@ -863,17 +863,20 @@ describe("/api/public/traces API Endpoint", () => {
       }),
     ]);
 
-    await expect(
-      makeZodVerifiedAPICall(
-        GetTraceV1Response,
-        "GET",
-        `/api/public/traces/${traceId}`,
-        undefined,
-        auth,
-      ),
-    ).rejects.toThrow(
-      /Observations in trace are too large: .* exceeds limit of 80\.00MB/,
+    const response = await makeAPICall(
+      "GET",
+      `/api/public/traces/${traceId}`,
+      undefined,
+      auth,
     );
+
+    expect(response.status).toBe(422);
+    expect(response.body).toMatchObject({
+      error: "PayloadTooLargeError",
+      message: expect.stringMatching(
+        /Observations in trace are too large: .* exceeds limit of 80\.00MB/,
+      ),
+    });
   });
 
   it("should delete a single trace via DELETE /traces/:traceId", async () => {

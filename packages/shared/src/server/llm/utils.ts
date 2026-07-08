@@ -5,10 +5,9 @@ import { LLMAdapter } from "./types";
 
 const ExtraHeaderSchema = z.record(z.string(), z.string());
 
-export const RUNTIME_TIMEOUT_ADAPTERS = new Set([
-  LLMAdapter.VertexAI,
-  LLMAdapter.GoogleAIStudio,
-]);
+export const RUNTIME_TIMEOUT_ADAPTERS = new Set<LLMAdapter>(
+  Object.values(LLMAdapter),
+);
 
 export async function executeWithRuntimeTimeout<T>({
   enabled,
@@ -50,4 +49,23 @@ export function decryptAndParseExtraHeaders(
   if (!extraHeaders) return;
 
   return ExtraHeaderSchema.parse(JSON.parse(decrypt(extraHeaders)));
+}
+
+/**
+ * Process baseURL template for OpenAI adapter only.
+ * Replaces {model} placeholder with actual model name.
+ * This is a workaround for proxies that require the model name in the URL azureOpenAIBasePath
+ * while having OpenAI compliance otherwise
+ */
+export function processOpenAIBaseURL(params: {
+  url: string | null | undefined;
+  modelName: string;
+}): string | null | undefined {
+  const { url, modelName } = params;
+
+  if (!url || !url.includes("{model}")) {
+    return url;
+  }
+
+  return url.replace("{model}", modelName);
 }

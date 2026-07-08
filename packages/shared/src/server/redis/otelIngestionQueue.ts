@@ -1,10 +1,6 @@
 import { Queue } from "bullmq";
 import { QueueName, TQueueJobTypes } from "../queues";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
 import { getShardIndex } from "./sharding";
 import { env } from "../../env";
@@ -65,16 +61,11 @@ export class OtelIngestionQueue {
       return OtelIngestionQueue.instances.get(shardIndex) || null;
     }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
     const name = `${QueueName.OtelIngestionQueue}${shardIndex > 0 ? `-${shardIndex}` : ""}`;
-    const queueInstance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(name);
+    const queueInstance = queueOptionsWithRedis
       ? new Queue<TQueueJobTypes[QueueName.OtelIngestionQueue]>(name, {
-          connection: newRedis,
-          prefix: getQueuePrefix(name),
+          ...queueOptionsWithRedis,
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100_000,
@@ -153,16 +144,11 @@ export class SecondaryOtelIngestionQueue {
       return SecondaryOtelIngestionQueue.instances.get(shardIndex) || null;
     }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
     const name = `${QueueName.OtelIngestionSecondaryQueue}${shardIndex > 0 ? `-${shardIndex}` : ""}`;
-    const queueInstance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(name);
+    const queueInstance = queueOptionsWithRedis
       ? new Queue<TQueueJobTypes[QueueName.OtelIngestionSecondaryQueue]>(name, {
-          connection: newRedis,
-          prefix: getQueuePrefix(name),
+          ...queueOptionsWithRedis,
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100_000,

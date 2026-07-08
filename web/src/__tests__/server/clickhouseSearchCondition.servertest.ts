@@ -14,6 +14,9 @@ const maybeEventsTable =
     ? describe
     : describe.skip;
 
+const alphabeticSearchToken = (index: number, prefix = "needle") =>
+  `${prefix}${String.fromCharCode(97 + Math.floor(index / 26))}${String.fromCharCode(97 + (index % 26))}`;
+
 const searchFixture = `
   SELECT *
   FROM values(
@@ -58,11 +61,6 @@ const matchingIds = async (opts: {
     `,
     params: search.params,
     preferredClickhouseService: "EventsReadOnly",
-    tags: {
-      feature: "clickhouse-search-condition-test",
-      type: "events",
-      kind: "test",
-    },
   });
 
   return rows.map((row) => row.id);
@@ -163,6 +161,35 @@ describe("clickhouseSearchCondition", () => {
       expect(ftsIds).toEqual(baseIds);
     });
 
+    it("handles FTS-prefiltered searches with more than 64 tokens", async () => {
+      const longQuery = Array.from({ length: 65 }, (_, index) =>
+        alphabeticSearchToken(index),
+      ).join(" ");
+      const search = clickhouseSearchCondition({
+        query: longQuery,
+        searchType: ["content"],
+        tablePrefix: "e",
+        searchColumns: ["id", "name"],
+        useEventsTablePath: true,
+      });
+
+      await expect(
+        queryClickhouse<{ count: number }>({
+          query: `
+            SELECT count() AS count
+            FROM events_full AS e
+            WHERE e.project_id = {projectId: String}
+            ${search.query}
+          `,
+          params: {
+            projectId: randomUUID(),
+            ...search.params,
+          },
+          preferredClickhouseService: "EventsReadOnly",
+        }),
+      ).resolves.toEqual([{ count: 0 }]);
+    });
+
     it("matches JSON-escaped Unicode content on events tables with the FTS prefilter", async () => {
       const search = clickhouseSearchCondition({
         query: "東京",
@@ -177,11 +204,15 @@ describe("clickhouseSearchCondition", () => {
         searchStringEscaped: "%\\u6771\\u4eac%",
       });
       expect(search.query).toContain("{searchStringEscaped: String}");
+      expect(search.query).toContain("arraySlice");
       expect(search.query).toContain(
-        "hasAllTokens(lower(e.input), lower({searchStringEscaped: String}))",
+        "hasAllTokens(lower(e.input), arraySlice(",
       );
       expect(search.query).toContain(
-        "hasAllTokens(lower(e.output), lower({searchStringEscaped: String}))",
+        "hasAllTokens(lower(e.output), arraySlice(",
+      );
+      expect(search.query).toContain(
+        "tokens(lower({searchStringEscaped: String}))",
       );
 
       await expect(
@@ -243,11 +274,6 @@ describe("clickhouseSearchCondition", () => {
           escapedSpanId,
         },
         preferredClickhouseService: "EventsReadOnly",
-        tags: {
-          feature: "clickhouse-search-condition-test",
-          type: "events",
-          kind: "test",
-        },
       });
 
       expect(stored).toHaveLength(2);

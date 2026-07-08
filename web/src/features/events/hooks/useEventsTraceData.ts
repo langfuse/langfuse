@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { api } from "@/src/utils/api";
+import { api, sendAsPostOption } from "@/src/utils/api";
 import {
   adaptEventsToTraceFormat,
   type AdaptedTraceData,
@@ -113,6 +113,7 @@ export function useEventsTraceData(
       truncated: false,
     },
     {
+      ...sendAsPostOption,
       enabled:
         enabled && !!primaryObservation && !!timeRange && !!eventsQuery.data,
       staleTime: 60 * 1000,

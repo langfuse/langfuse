@@ -17,6 +17,7 @@ import { createBillingServiceFromContext } from "@/src/ee/features/billing/serve
 import { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 
 import { env } from "@/src/env.mjs";
 
@@ -141,6 +142,20 @@ export const organizationsRouter = createTRPCRouter({
         orgRole: "OWNER",
         userId: ctx.session.user.id,
         after: organization,
+      });
+
+      await getSfdcService()?.upsertOrg({
+        orgId: organization.id,
+        orgName: organization.name,
+        userId: ctx.session.user.id,
+        email: ctx.session.user.email,
+        role: "OWNER",
+      });
+      await getSfdcService()?.setUserRole({
+        orgId: organization.id,
+        userId: ctx.session.user.id,
+        email: ctx.session.user.email,
+        role: "OWNER",
       });
 
       return {

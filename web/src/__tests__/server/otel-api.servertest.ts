@@ -1,13 +1,51 @@
 import { makeAPICall } from "@/src/__tests__/test-utils";
 import waitForExpect from "wait-for-expect";
 import {
+  clickhouseClient,
   getObservationById,
   getObservationByIdFromEventsTable,
   getTraceById,
 } from "@langfuse/shared/src/server";
 import { randomBytes } from "crypto";
+import { env } from "@/src/env.mjs";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+const eventsTableAvailable =
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
+const maybeEventsTable = eventsTableAvailable ? it : it.skip;
+
+type IngestionAttributionRow = {
+  ingestion_api_key: string;
+  ingestion_sdk_name: string;
+  ingestion_sdk_version: string;
+};
+
+const getEventsAttribution = async (
+  table: "events_full" | "events_core",
+  spanId: string,
+) => {
+  const result = await clickhouseClient().query({
+    query: `
+      SELECT
+        ingestion_api_key,
+        ingestion_sdk_name,
+        ingestion_sdk_version
+      FROM ${table}
+      WHERE project_id = {projectId: String}
+        AND span_id = {spanId: String}
+      ORDER BY event_ts DESC
+      LIMIT 1
+    `,
+    query_params: {
+      projectId,
+      spanId,
+    },
+    format: "JSONEachRow",
+  });
+
+  const rows = await result.json<IngestionAttributionRow>();
+  return rows[0];
+};
 
 describe("/api/public/otel/v1/traces API Endpoint", () => {
   it("should process a json payload correctly", async () => {
@@ -330,83 +368,121 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
     }, 25_000);
   }, 30_000);
 
-  it("should accept sdk headers in underscore format", async () => {
-    const traceId = randomBytes(16);
-    const spanId = randomBytes(8);
+  maybeEventsTable(
+    "should accept sdk headers in underscore format",
+    async () => {
+      const traceId = randomBytes(16);
+      const spanId = randomBytes(8);
 
-    const payload = {
-      resourceSpans: [
-        {
-          resource: {
-            attributes: [],
-          },
-          scopeSpans: [
-            {
-              scope: {
-                name: "langfuse-sdk",
-                version: "4.0.0",
-                attributes: [
+      const payload = {
+        resourceSpans: [
+          {
+            resource: {
+              attributes: [],
+            },
+            scopeSpans: [
+              {
+                scope: {
+                  name: "langfuse-sdk",
+                  version: "4.0.0",
+                  attributes: [
+                    {
+                      key: "public_key",
+                      value: { stringValue: "pk-lf-1234567890" },
+                    },
+                  ],
+                },
+                spans: [
                   {
-                    key: "public_key",
-                    value: { stringValue: "pk-lf-1234567890" },
+                    traceId,
+                    spanId,
+                    name: "underscore-header-span",
+                    kind: 1,
+                    startTimeUnixNano: {
+                      low: 466848096,
+                      high: 406528574,
+                      unsigned: true,
+                    },
+                    endTimeUnixNano: {
+                      low: 467248096,
+                      high: 406528574,
+                      unsigned: true,
+                    },
+                    attributes: [],
+                    status: {},
                   },
                 ],
               },
-              spans: [
-                {
-                  traceId,
-                  spanId,
-                  name: "underscore-header-span",
-                  kind: 1,
-                  startTimeUnixNano: {
-                    low: 466848096,
-                    high: 406528574,
-                    unsigned: true,
-                  },
-                  endTimeUnixNano: {
-                    low: 467248096,
-                    high: 406528574,
-                    unsigned: true,
-                  },
-                  attributes: [],
-                  status: {},
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    };
+            ],
+          },
+        ],
+      };
 
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/otel/v1/traces",
+        payload,
+        undefined,
+        {
+          x_langfuse_sdk_name: "python",
+          x_langfuse_sdk_version: "4.0.0",
+          x_langfuse_ingestion_version: "4",
+        },
+      );
+
+      expect(response.status).toBe(200);
+
+      await waitForExpect(async () => {
+        const observation = await getObservationByIdFromEventsTable({
+          projectId,
+          id: spanId.toString("hex"),
+        });
+        expect(observation).toBeDefined();
+        expect(observation!.name).toBe("underscore-header-span");
+
+        const expectedAttribution = {
+          ingestion_api_key: "pk-lf-1234567890",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "4.0.0",
+        };
+
+        expect(
+          await Promise.all([
+            getEventsAttribution("events_full", spanId.toString("hex")),
+            getEventsAttribution("events_core", spanId.toString("hex")),
+          ]),
+        ).toEqual([expectedAttribution, expectedAttribution]);
+      }, 25_000);
+    },
+    30_000,
+  );
+
+  it("should reject unsupported ingestion versions in underscore format", async () => {
     const response = await makeAPICall(
       "POST",
       "/api/public/otel/v1/traces",
-      payload,
+      {
+        resourceSpans: [
+          {
+            resource: {
+              attributes: [],
+            },
+            scopeSpans: [],
+          },
+        ],
+      },
       undefined,
       {
-        x_langfuse_sdk_name: "python",
-        x_langfuse_sdk_version: "4.0.0",
-        x_langfuse_ingestion_version: "4",
+        x_langfuse_ingestion_version: "5",
       },
     );
 
-    expect(response.status).toBe(200);
-
-    await waitForExpect(async () => {
-      const trace = await getTraceById({
-        projectId,
-        traceId: traceId.toString("hex"),
-      });
-      expect(trace).toBeDefined();
-
-      const observation = await getObservationById({
-        projectId,
-        id: spanId.toString("hex"),
-      });
-      expect(observation).toBeDefined();
-      expect(observation!.name).toBe("underscore-header-span");
-    }, 25_000);
-  }, 30_000);
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({
+      error:
+        'Unsupported x-langfuse-ingestion-version: "5". Maximum supported: "4".',
+    });
+  });
 
   it("should transform deployment.environment to lowercase", async () => {
     const traceId = randomBytes(16);

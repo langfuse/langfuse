@@ -2,7 +2,7 @@
  * TraceDetailViewHeader - Extracted header component for TraceDetailView
  *
  * Contains:
- * - Title row with ItemBadge, trace name, CopyIdsPopover
+ * - Title row with ItemBadge, trace name, options menu
  * - Action buttons (Dataset, Annotate, Queue, Comments)
  * - Metadata badges (timestamp, latency, session, user, environment, release, version, cost, usage)
  *
@@ -21,7 +21,7 @@ import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes"
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { CopyIdsPopover } from "@/src/components/trace/components/_shared/CopyIdsPopover";
+import { DetailHeaderActionsMenu } from "@/src/components/trace/components/_shared/DetailHeaderActionsMenu";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
@@ -93,7 +93,14 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
           <span className="line-clamp-2 min-w-0 font-medium break-all md:break-normal md:wrap-break-word">
             {trace.name || trace.id}
           </span>
-          <CopyIdsPopover idItems={[{ id: trace.id, name: "Trace ID" }]} />
+          <DetailHeaderActionsMenu
+            idItems={[{ id: trace.id, name: "Trace ID" }]}
+            projectId={projectId}
+            webCallout={{
+              traceId: trace.id,
+              sessionId: trace.sessionId ?? null,
+            }}
+          />
         </div>
         {/* Action buttons */}
         <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">

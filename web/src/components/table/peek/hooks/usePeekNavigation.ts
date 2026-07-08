@@ -5,6 +5,8 @@ import { useCallback } from "react";
 import { urlSearchParamsToQuery } from "@/src/utils/navigation";
 
 const PEEK_PARAM = "peek";
+// View-mode param shared with the peek component (cleared whenever the peek closes).
+const PEEK_VIEW_PARAM = "peekView";
 
 interface BasePeekConfig {
   /** Additional URL parameters to clear when closing peek view and persist when expanding peek view */
@@ -75,6 +77,7 @@ export function usePeekNavigation(config?: PeekConfig | PeekConfigWithExpand) {
       if (!id) {
         // Close peek view - clear all peek-related params
         params.delete(PEEK_PARAM);
+        params.delete(PEEK_VIEW_PARAM);
         config?.queryParams?.forEach((param) => params.delete(param));
       } else {
         // Clear all query params that are set in the config
@@ -116,6 +119,7 @@ export function usePeekNavigation(config?: PeekConfig | PeekConfigWithExpand) {
 
     // Close peek view - clear all peek-related params
     params.delete(PEEK_PARAM);
+    params.delete(PEEK_VIEW_PARAM);
     config?.queryParams?.forEach((param) => params.delete(param));
 
     router.push(

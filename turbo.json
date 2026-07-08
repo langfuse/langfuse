@@ -2,7 +2,10 @@
   "$schema": "https://turbo.build/schema.json",
   "noUpdateNotifier": true,
   "globalDependencies": [".env"],
-  "globalEnv": ["NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF"],
+  "globalEnv": [
+    "NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF",
+    "NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF"
+  ],
   "envMode": "loose",
   "tasks": {
     "build": {

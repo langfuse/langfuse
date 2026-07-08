@@ -10,6 +10,11 @@ export type WebhookValidationWhitelist = OutboundUrlValidationWhitelist;
 export { resolveHost };
 
 export const WEBHOOK_URL_VALIDATION_LOG_CONTEXT = "Webhook";
+const DEFAULT_WEBHOOK_ALLOWED_PORTS = ["443", "80"] as const;
+
+export type WebhookUrlValidationOptions = {
+  allowedPorts?: readonly string[] | "any";
+};
 
 export function whitelistFromEnv(): WebhookValidationWhitelist {
   return {
@@ -30,6 +35,7 @@ export function whitelistFromEnv(): WebhookValidationWhitelist {
 export async function validateWebhookURL(
   urlString: string,
   whitelist: WebhookValidationWhitelist = whitelistFromEnv(),
+  options: WebhookUrlValidationOptions = {},
 ): Promise<void> {
   const url = parseOutboundUrl(urlString);
 
@@ -37,7 +43,8 @@ export async function validateWebhookURL(
     throw new Error("Only HTTP and HTTPS protocols are allowed");
   }
 
-  if (url.port && !["443", "80"].includes(url.port)) {
+  const allowedPorts = options.allowedPorts ?? DEFAULT_WEBHOOK_ALLOWED_PORTS;
+  if (url.port && allowedPorts !== "any" && !allowedPorts.includes(url.port)) {
     throw new Error("Only ports 80 and 443 are allowed");
   }
 

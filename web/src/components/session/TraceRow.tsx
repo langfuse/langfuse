@@ -5,21 +5,14 @@ import { Card } from "@/src/components/ui/card";
 import { type RouterOutputs } from "@/src/utils/api";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 import Link from "next/link";
-import React, {
-  useEffect,
-  useState,
-  useCallback,
-  useRef,
-  useLayoutEffect,
-} from "react";
+import React, { useEffect, useCallback, useRef } from "react";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { NewDatasetItemFromTraceId } from "@/src/components/session/NewDatasetItemFromTrace";
-import { AnnotationQueueObjectType } from "@langfuse/shared";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
+import { useSessionDetailStore } from "@/src/components/session/SessionDetailStoreProvider";
 
-// Skeleton placeholder for trace cards
 const TraceSkeleton = () => {
   return (
     <Card className="border-border shadow-none">
@@ -30,7 +23,24 @@ const TraceSkeleton = () => {
   );
 };
 
-// Trace card with all the heavy content (memoized to prevent unnecessary re-renders)
+type LazyTraceRowProps = {
+  trace: RouterOutputs["sessions"]["byIdWithScores"]["traces"][number];
+  projectId: string;
+  openPeek: (id: string, row: any) => void;
+  index: number;
+  traceCommentCounts: Map<string, number> | undefined;
+};
+
+const areLazyTraceRowPropsEqual = (
+  previous: LazyTraceRowProps,
+  next: LazyTraceRowProps,
+) =>
+  previous.trace === next.trace &&
+  previous.projectId === next.projectId &&
+  previous.openPeek === next.openPeek &&
+  previous.index === next.index &&
+  previous.traceCommentCounts === next.traceCommentCounts;
+
 const TraceRow = React.memo(
   ({
     trace,
@@ -53,6 +63,7 @@ const TraceRow = React.memo(
               traceId={trace.id}
               projectId={projectId}
               timestamp={new Date(trace.timestamp)}
+              environment={trace.environment}
               showCorrections={showCorrections}
             />
           </div>
@@ -108,7 +119,7 @@ const TraceRow = React.memo(
                   <CreateNewAnnotationQueueItem
                     projectId={projectId}
                     objectId={trace.id}
-                    objectType={AnnotationQueueObjectType.TRACE}
+                    objectType="TRACE"
                     variant="outline"
                   />
                 </div>
@@ -135,24 +146,17 @@ const TraceRow = React.memo(
 );
 TraceRow.displayName = "TraceRow";
 
-/**
- * Progressive hydration wrapper for trace rows in virtualized lists.
- * Renders a cheap skeleton initially, then swaps to the full TraceRow when scrolled into view.
- * This prevents layout thrashing by decoupling virtualization (positioning) from heavy content rendering.
- * The virtualizer measures the skeleton first, then remeasures once after loading completes.
- */
 const listeners = new Map<Element, () => void>();
 let sharedObserver: IntersectionObserver;
 
 function observe(element: Element, callback: () => void) {
-  // Lazy-init the observer only once
   if (!sharedObserver) {
     sharedObserver = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             const cb = listeners.get(entry.target);
-            cb?.(); // Run the callback
+            cb?.();
           }
         });
       },
@@ -163,53 +167,36 @@ function observe(element: Element, callback: () => void) {
   listeners.set(element, callback);
   sharedObserver.observe(element);
 
-  // Return simple cleanup function
   return () => {
     listeners.delete(element);
     sharedObserver.unobserve(element);
   };
 }
 
-export const LazyTraceRow = React.forwardRef<
-  HTMLDivElement,
-  {
-    trace: RouterOutputs["sessions"]["byIdWithScores"]["traces"][number];
-    projectId: string;
-    openPeek: (id: string, row: any) => void;
-    index: number;
-    traceCommentCounts: Map<string, number> | undefined;
-    showCorrections: boolean;
-    onLoad?: (index: number) => void;
-  }
->((props, measureRef) => {
-  const { index, onLoad: onLoad, showCorrections, ...cardProps } = props;
-  const [shouldLoad, setShouldLoad] = useState(false);
+const LazyTraceRowInner = (props: LazyTraceRowProps) => {
+  const { index, ...cardProps } = props;
+  const shouldLoad = useSessionDetailStore((state) =>
+    Boolean(state.loadedTraceIds[props.trace.id]),
+  );
+  const showCorrections = useSessionDetailStore(
+    (state) => state.showCorrections,
+  );
+  const markTraceLoaded = useSessionDetailStore(
+    (state) => state.actions.markTraceLoaded,
+  );
   const internalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!internalRef.current || shouldLoad) return;
-    return observe(internalRef.current, () => setShouldLoad(true));
-  }, [shouldLoad]);
+    return observe(internalRef.current, () => markTraceLoaded(props.trace.id));
+  }, [markTraceLoaded, shouldLoad, props.trace.id]);
 
-  // Notify virtualizer when content changes (fixes height)
-  useLayoutEffect(() => {
-    if (shouldLoad && onLoad) {
-      onLoad(index);
-    }
-  }, [shouldLoad, onLoad, index]);
-
-  // Merge refs (Virtualizer + Local)
-  const combinedRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      internalRef.current = node;
-      if (typeof measureRef === "function") measureRef(node);
-      else if (measureRef) measureRef.current = node;
-    },
-    [measureRef],
-  );
+  const setRowRef = useCallback((node: HTMLDivElement | null) => {
+    internalRef.current = node;
+  }, []);
 
   return (
-    <div ref={combinedRef} className="pb-3">
+    <div ref={setRowRef} className="pb-3" data-session-row-index={index}>
       {shouldLoad ? (
         <TraceRow showCorrections={showCorrections} {...cardProps} />
       ) : (
@@ -217,6 +204,11 @@ export const LazyTraceRow = React.forwardRef<
       )}
     </div>
   );
-});
+};
 
+LazyTraceRowInner.displayName = "LazyTraceRowInner";
+export const LazyTraceRow = React.memo(
+  LazyTraceRowInner,
+  areLazyTraceRowPropsEqual,
+);
 LazyTraceRow.displayName = "LazyTraceRow";

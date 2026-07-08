@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { Bot } from "lucide-react";
+import { useLayoutEffect, useRef, useState } from "react";
+import { BotMessageSquare } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
+import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import {
   Dialog,
   DialogBody,
@@ -10,56 +11,190 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { SidebarMenuButton, useSidebar } from "@/src/components/ui/sidebar";
-import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { DialogController } from "@/src/components/ui/dialog-controller";
+import { Layer } from "@/src/components/ui/layer";
+import { SidebarMenuButton } from "@/src/components/ui/sidebar";
+import { ControlledInAppAgentWindow } from "@/src/ee/features/in-app-agent/components";
+import {
+  InAppAgentWindowShell,
+  useInAppAgentWindowShellPanelControl,
+} from "@/src/ee/features/in-app-agent/components/InAppAgentWindowShell";
+import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
+import type { InAppAgentWindowConversation } from "@/src/ee/features/in-app-agent/components/InAppAgentWindow";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { AIFeaturesDisabledNotice } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
+import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
+
+function DeleteConversationDialog({
+  close,
+  conversation,
+  onDeleteConversation,
+}: {
+  close: () => void;
+  conversation: InAppAgentWindowConversation | null;
+  onDeleteConversation: (conversationId: string) => Promise<void>;
+}) {
+  const [deleteConversation, isDeletingConversation] =
+    useWatchedPromiseCallback(async () => {
+      if (!conversation) {
+        return;
+      }
+
+      try {
+        await onDeleteConversation(conversation.id);
+        close();
+      } catch {
+        // Error is already surfaced by the provider; keep the dialog open for retry.
+      }
+    }, [close, conversation, onDeleteConversation]);
+
+  return (
+    <ConfirmDialog
+      open={conversation !== null}
+      onOpenChange={(open) => {
+        if (!open) {
+          close();
+        }
+      }}
+      title="Delete conversation"
+      description="This removes the conversation from your recent conversations. This action cannot be undone."
+      confirmLabel="Delete conversation"
+      loading={isDeletingConversation}
+      onConfirm={deleteConversation}
+    />
+  );
+}
 
 export const InAppAiAgentButton = () => {
   const { organization } = useQueryProjectOrOrganization();
-  const { isAvailable, setOpen } = useInAppAiAgent();
+  const {
+    deleteConversation,
+    isAvailable,
+    open,
+    setOpen,
+    isExpanded,
+    setIsExpanded,
+  } = useInAppAiAgent();
+  const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
   const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
-  const { isMobile, setOpenMobile: setOpenMobileSidebar } = useSidebar();
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const previousPanelRectRef = useRef<DOMRect | null>(null);
   const [enableDialogOpen, setEnableDialogOpen] = useState(false);
-  if (!isAvailable) {
+
+  const floatingPanelHandle = useInAppAgentWindowShellPanelControl({
+    anchorRef: buttonRef,
+  });
+
+  useLayoutEffect(() => {
+    const previousRect = previousPanelRectRef.current;
+    const panel = panelRef.current;
+
+    previousPanelRectRef.current = null;
+
+    if (!previousRect || !panel) {
+      return;
+    }
+
+    const nextRect = panel.getBoundingClientRect();
+
+    panel.animate(
+      [
+        {
+          transform: `translate(${previousRect.left - nextRect.left}px, ${previousRect.top - nextRect.top}px) scale(${nextRect.width > 0 ? previousRect.width / nextRect.width : 1}, ${nextRect.height > 0 ? previousRect.height / nextRect.height : 1})`,
+        },
+        { transform: "translate(0, 0) scale(1, 1)" },
+      ],
+      {
+        duration: 180,
+        easing: "cubic-bezier(0.2, 0, 0, 1)",
+      },
+    );
+  }, [isExpanded]);
+
+  useLayoutEffect(() => {
+    if (!open || isExpanded || floatingPanelHandle.geometry) {
+      return;
+    }
+
+    floatingPanelHandle.initializeGeometry();
+  }, [floatingPanelHandle, isExpanded, open]);
+
+  if (!isAvailable || !hasInAppAgentEntitlement) {
     return null;
   }
 
-  const toggleInAppAiAgent = () => {
-    setSupportDrawerOpen(false);
-    setOpen((currentOpen) => !currentOpen);
-  };
-
   const handleClick = () => {
-    if (isMobile) {
-      setOpenMobileSidebar(false);
-    }
-
     if (organization && !organization.aiFeaturesEnabled) {
       setSupportDrawerOpen(false);
       setEnableDialogOpen(true);
       return;
     }
 
-    if (isMobile) {
-      setTimeout(() => {
-        // push to next tick to avoid flickering when hiding sidebar on mobile
-        toggleInAppAiAgent();
-      }, 1);
-      return;
+    setSupportDrawerOpen(false);
+    const willOpen = !open;
+
+    if (willOpen) {
+      floatingPanelHandle.resetGeometry();
     }
 
-    toggleInAppAiAgent();
+    setOpen((currentOpen) => !currentOpen);
   };
 
   return (
     <>
-      <SidebarMenuButton isActive={false} onClick={handleClick}>
-        <Bot className="h-4 w-4" />
-        AI Assistant
+      <SidebarMenuButton ref={buttonRef} isActive={open} onClick={handleClick}>
+        <BotMessageSquare className="h-4 w-4" />
+        Assistant
       </SidebarMenuButton>
-
+      {open ? (
+        <DialogController<InAppAgentWindowConversation>
+          dialog={(close, conversation) => (
+            <DeleteConversationDialog
+              close={close}
+              conversation={conversation}
+              onDeleteConversation={deleteConversation}
+            />
+          )}
+        >
+          {(deleteConversationDialog) => (
+            // The assistant window lives in the `agent` overlay layer — a
+            // <body>-level layer container that floats above page content but below
+            // every transient overlay (dropdowns, dialogs, popovers, tooltips,
+            // toasts) by DOM order alone. No z-index: layer ORDER stacks it (see
+            // components/ui/layer.tsx). This replaces the old body portal + z-51,
+            // which fought the nav-user dropdown's z-60 at <body> level.
+            <Layer name="agent">
+              <InAppAgentWindowShell
+                floatingPanelHandle={floatingPanelHandle}
+                isExpanded={isExpanded}
+                panelRef={panelRef}
+              >
+                {({ isHeaderDragHandleEnabled }) => (
+                  <ControlledInAppAgentWindow
+                    isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
+                    isExpanded={isExpanded}
+                    onDeleteConversation={(conversation) =>
+                      deleteConversationDialog.open(conversation)
+                    }
+                    onExpandedChange={(nextIsExpanded) => {
+                      previousPanelRectRef.current =
+                        panelRef.current?.getBoundingClientRect() ?? null;
+                      setIsExpanded(nextIsExpanded);
+                    }}
+                    onClose={() => {
+                      floatingPanelHandle.clearGeometry();
+                      setOpen(false);
+                    }}
+                  />
+                )}
+              </InAppAgentWindowShell>
+            </Layer>
+          )}
+        </DialogController>
+      ) : null}
       <Dialog open={enableDialogOpen} onOpenChange={setEnableDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -67,7 +202,7 @@ export const InAppAiAgentButton = () => {
           </DialogHeader>
           <DialogBody>
             <AIFeaturesDisabledNotice organizationId={organization?.id}>
-              The AI assistant requires AI features to be enabled for this
+              The assistant requires AI features to be enabled for this
               organization.
             </AIFeaturesDisabledNotice>
           </DialogBody>
