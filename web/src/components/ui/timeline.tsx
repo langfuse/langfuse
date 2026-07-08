@@ -9,7 +9,7 @@ export function Timeline({ children, className }: TimelineProps) {
   return (
     <div className={cn("relative w-full", className)}>
       {/* Timeline line */}
-      <div className="bg-border absolute left-2 mt-4 h-[calc(100%-16px)] w-px" />
+      <div className="bg-border-contrast absolute left-2 mt-4 h-[calc(100%-16px)] w-px" />
 
       {/* Timeline items container */}
       <div className="pl-4">{children}</div>
@@ -51,7 +51,7 @@ export function TimelineItem({
       {/* Timeline dot */}
       <div
         className={cn(
-          "fill bg-border absolute top-3 -left-[11.5px] h-2 w-2 rounded-full",
+          "fill bg-border-contrast absolute top-3 -left-[11.5px] h-2 w-2 rounded-full",
           isActive ? "border-primary" : "border-muted-foreground",
         )}
       />

@@ -360,7 +360,10 @@
     --muted-blue: 215 95% 73.1%;
     --muted-green: 142 76.7% 73.1%;
     --muted-magenta: 330 76.7% 73.1%;
-    --muted-gray: 0 0% 12.9%;
+    /* Keeps ~4pp above --card so chart grids (--chart-grid) and disabled
+       badge fills stay discernible on elevated surfaces, without the harshness
+       of --border-contrast (26%). */
+    --muted-gray: 0 0% 16%;
 
     /* Status pairs on Linear's hues: light-* are dark tinted backgrounds,
        dark-* the readable text/icon color on them. */

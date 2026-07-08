@@ -140,7 +140,7 @@ export function MultiSelect({
         <Button
           variant="outline"
           className={cn(
-            "border-input ring-offset-background placeholder:text-muted-foreground focus:ring-ring flex h-8 w-full items-center justify-between gap-x-2 rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+            "border-input ring-offset-background placeholder:text-foreground-tertiary focus:ring-ring flex h-8 w-full items-center justify-between gap-x-2 rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
             className,
           )}
           disabled={disabled}
