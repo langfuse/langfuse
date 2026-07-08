@@ -27,15 +27,15 @@ To rebuild it manually:
 This package builds the sandbox runtime image used by both local Docker sandboxes and the AWS Lambda MicroVM provider.
 
 - Local Docker development uses the image tag `langfuse-in-app-agent-sandbox:latest`.
-- The Lambda MicroVM provider should uses an AWS MicroVM image ARN via `LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER`.
+- The Lambda MicroVM provider should use an AWS MicroVM image ARN via `LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER`.
 
 ### Prerequisites
 
 - Docker
 - AWS CLI with `lambda-microvms` support
 - An authenticated AWS profile, for example `aws login --sso playground`
-- An ECR repository to push the built image to
-- A Lambda MicroVM build role ARN with access to pull the code artifact and write build logs
+- An S3 bucket to upload the zip artifact to
+- A Lambda MicroVM build role ARN with access to read the S3 artifact and write build logs
 
 ### 1. Build The Local Docker Image
 
@@ -51,45 +51,29 @@ That produces the local image:
 langfuse-in-app-agent-sandbox:latest
 ```
 
-### 2. Tag And Push The Image To ECR
+### 2. Package And Upload The S3 Artifact
 
-Set your AWS account, region, and repository name:
+Set your AWS region, bucket, and MicroVM image name:
 
 ```bash
-export AWS_PROFILE=playground
-export AWS_REGION=us-east-1
-export AWS_ACCOUNT_ID=123456789012
-export ECR_REPOSITORY=langfuse-in-app-agent-sandbox
-export IMAGE_TAG=$(git rev-parse --short HEAD)
+export AWS_PROFILE=
+export AWS_REGION=eu-west-1
+export S3_BUCKET=langfuse-lambda-microvms
+export MICROVM_IMAGE_NAME=langfuse-in-app-agent-sandbox
 ```
 
-Create the repository once if needed:
+Create the zip artifact from this package directory with only the files referenced by the current `Dockerfile`:
 
 ```bash
-aws ecr create-repository \
+zip -r microvm-artifact.zip Dockerfile package.json dist
+```
+
+Upload the artifact to S3:
+
+```bash
+aws s3 cp microvm-artifact.zip "s3://$S3_BUCKET/$MICROVM_IMAGE_NAME.zip" \
   --profile "$AWS_PROFILE" \
-  --region "$AWS_REGION" \
-  --repository-name "$ECR_REPOSITORY"
-```
-
-Log Docker into ECR:
-
-```bash
-aws ecr get-login-password \
-  --profile "$AWS_PROFILE" \
-  --region "$AWS_REGION" \
-| docker login \
-  --username AWS \
-  --password-stdin "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
-```
-
-Tag and push the image:
-
-```bash
-export ECR_IMAGE_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY:$IMAGE_TAG"
-
-docker tag langfuse-in-app-agent-sandbox:latest "$ECR_IMAGE_URI"
-docker push "$ECR_IMAGE_URI"
+  --region "$AWS_REGION"
 ```
 
 ### 3. Pick A Lambda-Managed Base MicroVM Image
@@ -116,15 +100,54 @@ Record:
 - the managed base image ARN
 - the base image version
 
-### 4. Create A MicroVM Image From The ECR Artifact
+### 4. Create A Role If It Doesn't Exist Yet
+
+```bash
+aws iam create-role \
+  --profile "$AWS_PROFILE" \
+  --role-name LambdaMicrovmBuildRole \
+  --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"lambda.amazonaws.com"},"Action":"sts:AssumeRole"}]}'
+```
+
+```bash
+aws iam put-role-policy \
+  --profile "$AWS_PROFILE" \
+  --role-name LambdaMicrovmBuildRole \
+  --policy-name LambdaMicrovmBuildPolicy \
+  --policy-document "{
+    \"Version\": \"2012-10-17\",
+    \"Statement\": [
+      {
+        \"Sid\": \"CloudWatchLogs\",
+        \"Effect\": \"Allow\",
+        \"Action\": [
+          \"logs:CreateLogGroup\",
+          \"logs:CreateLogStream\",
+          \"logs:PutLogEvents\"
+        ],
+        \"Resource\": \"*\"
+      },
+      {
+        \"Sid\": \"ReadArtifactFromS3\",
+        \"Effect\": \"Allow\",
+        \"Action\": [\"s3:GetObject\"],
+        \"Resource\": \"arn:aws:s3:::$S3_BUCKET/$MICROVM_IMAGE_NAME.zip\"
+      }
+    ]
+  }"
+```
+
+Only add ECR permissions if the `Dockerfile` pulls private images from ECR during the MicroVM build.
+
+### 5. Create A MicroVM Image From The S3 Zip Artifact
 
 Set the Lambda MicroVM build role and base image metadata:
 
 ```bash
-export LAMBDA_MICROVM_BUILD_ROLE_ARN="arn:aws:iam::123456789012:role/langfuse-in-app-agent-sandbox-build"
-export BASE_IMAGE_ARN="<managed-base-image-arn>"
-export BASE_IMAGE_VERSION="<managed-base-image-version>"
-export MICROVM_IMAGE_NAME="langfuse-in-app-agent-sandbox"
+export AWS_ACCOUNT_ID=123456789012
+export LAMBDA_MICROVM_BUILD_ROLE_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:role/LambdaMicrovmBuildRole"
+export BASE_IMAGE_ARN=""
+export BASE_IMAGE_VERSION=""
 ```
 
 Start the asynchronous image build:
@@ -137,7 +160,7 @@ aws lambda-microvms create-microvm-image \
   --base-image-arn "$BASE_IMAGE_ARN" \
   --base-image-version "$BASE_IMAGE_VERSION" \
   --build-role-arn "$LAMBDA_MICROVM_BUILD_ROLE_ARN" \
-  --code-artifact "uri=$ECR_IMAGE_URI" \
+  --code-artifact "uri=s3://$S3_BUCKET/$MICROVM_IMAGE_NAME.zip" \
   --cpu-configurations architecture=ARM_64 \
   --resources minimumMemoryInMiB=1024
 ```
