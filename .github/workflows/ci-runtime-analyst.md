@@ -212,8 +212,12 @@ is only the spine.
       issue; nothing actionable → noop.
 - [ ] Update all memory files, including `charts/<week>.svg` and pruned
       `notes.md`.
-- [ ] Write the report with the filled-in chart template to the job summary
-      and into any PR/issue body ("Report and graph").
+- [ ] Write the FULL report — filled chart template, tables, `## Outcome`
+      section with the no-PR reasons — to the job summary, and use it as
+      the body of whatever you emit: PR, issue, or noop. This holds even
+      when you skip a fresh analysis (reuse the latest `history/*.json`
+      numbers and say so); never end an analysis run with a one-line noop
+      ("Report and graph").
 
 **Assessment run** (`workflow_run` — CI/CD just finished on one of your PRs):
 
@@ -448,19 +452,39 @@ PRs):
 
 ## Report and graph
 
-Every PR (or issue) body must contain:
+**The full report is unconditional for every analysis run — no exceptions.**
+A quiet week, an early exit, or a decision to skip recomputing changes the
+Outcome section, never the report's presence or completeness. Write the
+full report to the GitHub job summary AND use it verbatim as the body of
+whatever you emit (PR, issue, or the noop message — the noop body is what
+makes a no-action run's summary readable, so never reduce it to a one-liner).
+If you decided not to recompute (e.g. a manual re-trigger shortly after the
+previous analysis), fill the chart and tables from the latest
+`history/*.json` and state that the data is reused.
+
+The report always contains, in order:
+
+1. The **weekly chart** with its values table (template below).
+2. A markdown table of the top slow tests and the retried/flaky tests.
+3. An **`## Outcome` section — mandatory, always present**: which action
+   this run took (PR opened / comment / issue / noop), and whenever no PR
+   was opened, a numbered list of the concrete reasons why not.
+4. A "Previously opened PRs" section from `prs.json`, oldest first: status
+   and whether the change moved the following week's numbers.
+
+A PR body additionally contains:
 
 - A short "what changed and why" section with expected impact and the
   evidence (links to specific runs/jobs).
 - A "Verification" section listing every check you ran (exact command +
   quoted summary line) and, separately, what could not run in the sandbox
   and is covered by this PR's own CI run.
-- The **weekly chart** (GitHub renders `mermaid` fenced blocks natively).
-  Copy this template verbatim and only fill in the data: the x-axis days
-  (every day that has merge-group runs), the four value lists (daily
-  merge-group medians in seconds, same day order), and the y-axis maximum
-  (largest value rounded up to the next 100). Do not change the structure
-  or the series order.
+
+Chart template (GitHub renders `mermaid` fenced blocks natively). Copy it
+verbatim and only fill in the data: the x-axis days (every day that has
+merge-group runs), the six value lists (daily merge-group medians in
+seconds, same day order), and the y-axis maximum (largest value rounded up
+to the next 100). Do not change the structure or the series order.
 
   ```mermaid
   xychart-beta
@@ -486,10 +510,7 @@ Every PR (or issue) body must contain:
 
   Once `history/*.json` holds at least two weeks, add a second chart using
   the same template shape with ISO weeks on the x-axis (weekly medians,
-  same four series).
-- A markdown table of the top slow tests and the retried/flaky tests.
-- A "Previously opened PRs" section from `prs.json`, oldest first: status
-  and whether the change moved the following week's numbers.
+  same six series).
 
 Additionally, render the same weekly data as a standalone SVG chart
 (hand-write the SVG: time on x, seconds on y, one polyline per series with
@@ -500,10 +521,6 @@ URL; determine the exact in-branch path by listing the branch contents via
 the GitHub API (previous weeks' charts show the layout). On the very first
 run, when the branch does not exist yet, state that the chart will be
 available after the memory push and give the expected path.
-
-Always write the full analysis (including the tables and any unresolved
-observations) to the GitHub job summary as well, so no-PR weeks still leave a
-readable record.
 
 ## Hard constraints
 
