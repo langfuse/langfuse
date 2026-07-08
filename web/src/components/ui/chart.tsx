@@ -1,0 +1,538 @@
+"use client";
+
+import * as React from "react";
+import * as RechartsPrimitive from "recharts";
+import type {
+  TooltipContentProps,
+  TooltipPayloadEntry,
+  TooltipValueType,
+} from "recharts";
+
+import { cn } from "@/src/utils/tailwind";
+import { Layer } from "@/src/components/ui/layer";
+import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
+
+// Format: { THEME_NAME: CSS_SELECTOR }
+const THEMES = { light: "", dark: ".dark" } as const;
+
+export type ChartConfig = {
+  [k in string]: {
+    label?: React.ReactNode;
+    icon?: React.ComponentType;
+  } & (
+    | { color?: string; theme?: never }
+    | { color?: never; theme: Record<keyof typeof THEMES, string> }
+  );
+};
+
+type ChartContextProps = {
+  config: ChartConfig;
+};
+
+const ChartContext = React.createContext<ChartContextProps | null>(null);
+
+function useChart() {
+  const context = React.useContext(ChartContext);
+
+  if (!context) {
+    throw new Error("useChart must be used within a <ChartContainer />");
+  }
+
+  return context;
+}
+
+const ChartContainer = React.forwardRef<
+  HTMLDivElement,
+  React.ComponentProps<"div"> & {
+    config: ChartConfig;
+    children: React.ComponentProps<
+      typeof RechartsPrimitive.ResponsiveContainer
+    >["children"];
+  }
+>(({ id, className, children, config, ...props }, ref) => {
+  const uniqueId = React.useId();
+  const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`;
+
+  return (
+    <ChartContext.Provider value={{ config }}>
+      <div
+        data-chart={chartId}
+        ref={ref}
+        className={cn(
+          "[&_.recharts-cartesian-axis-tick-value]:fill-muted-foreground/90 [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground/90 [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50 [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border [&_.recharts-radial-bar-background-sector]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-reference-line_[stroke='#ccc']]:stroke-border relative h-full w-full flex-1 justify-center text-xs [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-hidden [&_.recharts-sector]:outline-hidden [&_.recharts-sector[stroke='#fff']]:stroke-transparent [&_.recharts-surface]:outline-hidden",
+          className,
+        )}
+        {...props}
+      >
+        <ChartStyle id={chartId} config={config} />
+        <RechartsPrimitive.ResponsiveContainer
+          width="100%"
+          height="100%"
+          minWidth={0}
+          minHeight={1}
+          initialDimension={{ width: 1, height: 1 }}
+        >
+          {children}
+        </RechartsPrimitive.ResponsiveContainer>
+      </div>
+    </ChartContext.Provider>
+  );
+});
+ChartContainer.displayName = "Chart";
+
+const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
+  const colorConfig = Object.entries(config).filter(
+    ([, config]) => config.theme || config.color,
+  );
+
+  if (!colorConfig.length) {
+    return null;
+  }
+
+  return (
+    <style
+      dangerouslySetInnerHTML={{
+        __html: Object.entries(THEMES)
+          .map(
+            ([theme, prefix]) => `
+${prefix} [data-chart=${id}] {
+${colorConfig
+  .map(([key, itemConfig]) => {
+    const color =
+      itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
+      itemConfig.color;
+    const safeKey = key.replace(/[^\p{L}\p{N}_ .()-]/gu, "_");
+    return color ? `  --color-${safeKey}: ${color};` : null;
+  })
+  .join("\n")}
+}
+`,
+          )
+          .join("\n"),
+      }}
+    />
+  );
+};
+
+type ChartTooltipProps = React.ComponentProps<typeof RechartsPrimitive.Tooltip>;
+
+function ChartTooltip({
+  allowEscapeViewBox = { x: false, y: false },
+  isAnimationActive = false,
+  offset = 12,
+  useTranslate3d = true,
+  wrapperStyle,
+  ...props
+}: ChartTooltipProps) {
+  return (
+    <RechartsPrimitive.Tooltip
+      allowEscapeViewBox={allowEscapeViewBox}
+      isAnimationActive={isAnimationActive}
+      offset={offset}
+      useTranslate3d={useTranslate3d}
+      wrapperStyle={{
+        pointerEvents: "none",
+        zIndex: 50,
+        ...wrapperStyle,
+      }}
+      {...props}
+    />
+  );
+}
+
+const ChartTooltipContent = React.forwardRef<
+  HTMLDivElement,
+  React.ComponentProps<"div"> &
+    Partial<TooltipContentProps<TooltipValueType, string | number>> & {
+      hideLabel?: boolean;
+      hideIndicator?: boolean;
+      indicator?: "line" | "dot" | "dashed";
+      nameKey?: string;
+      labelKey?: string;
+      valueFormatter?: (value: number) => string;
+      nameFormatter?: (name: string) => string;
+      sortPayloadByValue?: "asc" | "desc";
+      /** dataKeys to emphasize (e.g. the hover-proximity series); their rows are bolded. */
+      highlightedKeys?: ReadonlySet<string>;
+    }
+>(
+  (
+    {
+      active,
+      payload,
+      className,
+      indicator = "dot",
+      hideLabel = false,
+      hideIndicator = false,
+      label,
+      labelFormatter,
+      labelClassName,
+      formatter,
+      color,
+      nameKey,
+      labelKey,
+      valueFormatter,
+      nameFormatter,
+      sortPayloadByValue,
+      highlightedKeys,
+    },
+    ref,
+  ) => {
+    const { config } = useChart();
+
+    const displayPayload = React.useMemo(() => {
+      if (!payload?.length || !sortPayloadByValue) return payload ?? [];
+      return [...payload].sort((a, b) => {
+        const va = Number(a.value ?? 0);
+        const vb = Number(b.value ?? 0);
+        return sortPayloadByValue === "desc" ? vb - va : va - vb;
+      });
+    }, [payload, sortPayloadByValue]);
+
+    const tooltipLabel = React.useMemo(() => {
+      if (hideLabel || !payload?.length) {
+        return null;
+      }
+
+      const [item] = payload;
+      const key = `${labelKey || item?.dataKey || item?.name || "value"}`;
+      const itemConfig = getPayloadConfigFromPayload(config, item, key);
+      const value =
+        !labelKey && typeof label === "string"
+          ? config[label as keyof typeof config]?.label || label
+          : itemConfig?.label;
+
+      if (labelFormatter) {
+        return (
+          <div className={cn("font-medium", labelClassName)}>
+            {labelFormatter(value, payload)}
+          </div>
+        );
+      }
+
+      if (!value) {
+        return null;
+      }
+
+      return <div className={cn("font-medium", labelClassName)}>{value}</div>;
+    }, [
+      label,
+      labelFormatter,
+      payload,
+      hideLabel,
+      labelClassName,
+      config,
+      labelKey,
+    ]);
+
+    if (!active || !payload?.length) {
+      return null;
+    }
+
+    const nestLabel = displayPayload.length === 1 && indicator !== "dot";
+
+    return (
+      <div
+        ref={ref}
+        className={cn(
+          "border-border/50 bg-background grid min-w-32 items-start gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs shadow-xl",
+          className,
+        )}
+      >
+        {!nestLabel ? tooltipLabel : null}
+        <div className="grid gap-1.5">
+          {displayPayload.map((item, index) => {
+            const key = `${nameKey || item.name || item.dataKey || "value"}`;
+            const itemConfig = getPayloadConfigFromPayload(config, item, key);
+            const itemDisplayName = nameFormatter
+              ? nameFormatter(String(item.name ?? item.dataKey ?? ""))
+              : itemConfig?.label || item.name;
+            const itemDisplayTitle = getPlainTextFromReactNode(itemDisplayName);
+            const indicatorColor =
+              color ||
+              getFillColor(item.payload) ||
+              item.color ||
+              "currentColor";
+            const highlighted =
+              highlightedKeys?.has(String(item.dataKey ?? item.name ?? "")) ??
+              false;
+
+            return (
+              <div
+                key={String(item.dataKey ?? item.name ?? index)}
+                className={cn(
+                  "[&>svg]:text-muted-foreground flex w-full items-center gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5",
+                  // Emphasis must be layout-neutral: the row keeps its exact box
+                  // and the highlight paints around it (a box-shadow halo adds
+                  // the breathing room margins/padding would), so rows never
+                  // shift or re-truncate when the hovered series changes. (LFE-10576)
+                  highlighted &&
+                    "bg-muted rounded-xs shadow-[0_0_0_3px_hsl(var(--muted))]",
+                )}
+              >
+                {formatter && item?.value !== undefined && item.name != null ? (
+                  formatter(item.value, item.name, item, index, displayPayload)
+                ) : (
+                  <>
+                    {itemConfig?.icon ? (
+                      <itemConfig.icon />
+                    ) : (
+                      !hideIndicator && (
+                        <div
+                          className={cn(
+                            "border-border shrink-0 rounded-[2px] bg-(--color-bg)",
+                            {
+                              "h-2.5 w-2.5": indicator === "dot",
+                              // line/dashed need an explicit height: the row is
+                              // items-center, so a height-less swatch collapses
+                              // to 0px and the series color is invisible.
+                              "h-2.5 w-1": indicator === "line",
+                              "h-2.5 w-0 border-[1.5px] border-dashed bg-transparent":
+                                indicator === "dashed",
+                              "my-0.5": nestLabel && indicator === "dashed",
+                            },
+                          )}
+                          style={
+                            {
+                              "--color-bg": indicatorColor,
+                              "--color-border": indicatorColor,
+                            } as React.CSSProperties
+                          }
+                        />
+                      )
+                    )}
+                    <div
+                      className={cn(
+                        // leading-tight, not leading-none: `truncate` clips at
+                        // the line box, and a 1.0 line-height leaves no room
+                        // below the baseline — g/y/p descenders lost their
+                        // bottom pixel. (LFE-10576)
+                        "flex min-w-0 flex-1 justify-between gap-x-3 leading-tight",
+                        nestLabel ? "items-end" : "items-center",
+                      )}
+                    >
+                      <div className="grid min-w-0 gap-1.5">
+                        {nestLabel ? tooltipLabel : null}
+                        <span
+                          className={cn(
+                            "text-muted-foreground truncate",
+                            // Color-only emphasis: a weight change alters text
+                            // metrics, so the highlighted name would truncate
+                            // differently than its neighbors. (LFE-10576)
+                            highlighted && "text-foreground",
+                          )}
+                          title={itemDisplayTitle}
+                        >
+                          {itemDisplayName}
+                        </span>
+                      </div>
+                      {item.value !== undefined && item.value !== null && (
+                        <span className="text-foreground shrink-0 font-mono font-medium whitespace-nowrap tabular-nums">
+                          {valueFormatter
+                            ? valueFormatter(Number(item.value))
+                            : item.value.toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  },
+);
+ChartTooltipContent.displayName = "ChartTooltip";
+
+/** Horizontal gap between the hovered point and the tooltip's near edge. */
+const TOOLTIP_GAP_PX = 14;
+/**
+ * Upper bound on the tooltip's width. Coordinates the two decisions that used
+ * to fight each other: the side choice below guarantees the chosen side has
+ * this much room whenever any side does, and the box never asks for more — so
+ * hovering across a chart can't hit the "placed left but sized by the space on
+ * the right" squeeze. Long series names past this truncate (full name in the
+ * row's `title`). (LFE-10576)
+ */
+const TOOLTIP_MAX_WIDTH_PX = 448;
+
+/**
+ * Renders a chart tooltip into the app's `tooltip` overlay layer (see
+ * `ui/layer.tsx`) so it escapes the chart card's `overflow` clipping and always
+ * paints on top — never cut off at the chart frame. Positioned at the hovered
+ * point (recharts' `coordinate`, relative to the chart box) translated to screen
+ * coordinates. (LFE-10549)
+ *
+ * Side placement and sizing are ONE decision: the tooltip goes right of the
+ * point unless a full-width tooltip no longer fits there and the left side is
+ * larger. Crucially the box is anchored by the edge NEAREST the point (`left`
+ * when placed right, `right` when placed left) — never positioned at the point
+ * and then translated across it. A translate happens after layout, so a
+ * left-flipped tooltip laid out at `left: x` would still shrink-to-fit against
+ * the RIGHT viewport edge and ellipsize every row at exactly the x-positions
+ * where it flips. Anchoring by the near edge makes the browser size it against
+ * the side it actually occupies. (LFE-10576)
+ */
+function ChartTooltipPortal({
+  active,
+  coordinate,
+  anchorRef,
+  children,
+}: {
+  active?: boolean;
+  coordinate?: { x?: number; y?: number };
+  anchorRef: React.RefObject<HTMLElement | null>;
+  children: React.ReactNode;
+}) {
+  if (
+    !active ||
+    !coordinate ||
+    coordinate.x == null ||
+    coordinate.y == null ||
+    typeof window === "undefined"
+  ) {
+    return null;
+  }
+  const anchor = anchorRef.current;
+  if (!anchor) return null;
+  const rect = anchor.getBoundingClientRect();
+  const x = rect.left + coordinate.x;
+  const y = rect.top + coordinate.y;
+  const spaceRight = window.innerWidth - x - TOOLTIP_GAP_PX;
+  const spaceLeft = x - TOOLTIP_GAP_PX;
+  const flipLeft = spaceRight < TOOLTIP_MAX_WIDTH_PX && spaceLeft > spaceRight;
+  // Anchor the tooltip's bottom/top to the point near the viewport's
+  // bottom/top so a tall multi-series tooltip can't spill its rows out of view
+  // (the overlay layer no longer clips it). (LFE-10549)
+  const translateY =
+    y > window.innerHeight * 0.65
+      ? "-100%"
+      : y < window.innerHeight * 0.2
+        ? "0%"
+        : "-50%";
+
+  return (
+    <Layer name="tooltip">
+      <div
+        style={{
+          position: "fixed",
+          ...(flipLeft
+            ? { right: window.innerWidth - x + TOOLTIP_GAP_PX }
+            : { left: x + TOOLTIP_GAP_PX }),
+          top: y,
+          maxWidth: TOOLTIP_MAX_WIDTH_PX,
+          transform: `translateY(${translateY})`,
+          pointerEvents: "none",
+        }}
+      >
+        {children}
+      </div>
+    </Layer>
+  );
+}
+
+type ChartLegendProps = React.ComponentProps<typeof RechartsPrimitive.Legend>;
+
+function ChartLegend({ itemSorter = null, ...props }: ChartLegendProps) {
+  return <RechartsPrimitive.Legend itemSorter={itemSorter} {...props} />;
+}
+
+function ChartActiveReferenceLine({
+  stroke = "hsl(var(--border))",
+  strokeDasharray = "4 4",
+  strokeOpacity = 0.8,
+  zIndex = 350,
+}: {
+  stroke?: string;
+  strokeDasharray?: string;
+  strokeOpacity?: number;
+  zIndex?: number;
+}) {
+  const activeLabel = RechartsPrimitive.useActiveTooltipLabel();
+  const isTooltipActive = RechartsPrimitive.useIsTooltipActive();
+
+  if (!isTooltipActive || activeLabel === undefined || activeLabel === null) {
+    return null;
+  }
+
+  return (
+    <RechartsPrimitive.ReferenceLine
+      x={activeLabel}
+      stroke={stroke}
+      strokeDasharray={strokeDasharray}
+      strokeOpacity={strokeOpacity}
+      ifOverflow="extendDomain"
+      zIndex={zIndex}
+      // The crosshair must never intercept pointer events, otherwise it creates
+      // a dead "no-hover" strip down the middle of the hovered bar/point. (LFE-10549)
+      style={{ pointerEvents: "none" }}
+    />
+  );
+}
+
+// Helper to extract item config from a payload.
+function getPayloadConfigFromPayload(
+  config: ChartConfig,
+  payload: unknown,
+  key: string,
+) {
+  if (typeof payload !== "object" || payload === null) {
+    return undefined;
+  }
+
+  const payloadPayload =
+    "payload" in payload &&
+    typeof payload.payload === "object" &&
+    payload.payload !== null
+      ? payload.payload
+      : undefined;
+
+  let configLabelKey: string = key;
+
+  if (
+    key in payload &&
+    typeof payload[key as keyof typeof payload] === "string"
+  ) {
+    configLabelKey = payload[key as keyof typeof payload] as string;
+  } else if (
+    payloadPayload &&
+    key in payloadPayload &&
+    typeof payloadPayload[key as keyof typeof payloadPayload] === "string"
+  ) {
+    configLabelKey = payloadPayload[
+      key as keyof typeof payloadPayload
+    ] as string;
+  }
+
+  return configLabelKey in config
+    ? config[configLabelKey]
+    : config[key as keyof typeof config];
+}
+
+function getFillColor(
+  payload: TooltipPayloadEntry<TooltipValueType, string | number>["payload"],
+): string | undefined {
+  if (
+    typeof payload === "object" &&
+    payload !== null &&
+    "fill" in payload &&
+    typeof payload.fill === "string"
+  ) {
+    return payload.fill;
+  }
+
+  return undefined;
+}
+
+export {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartTooltipPortal,
+  ChartLegend,
+  ChartActiveReferenceLine,
+  useChart,
+  getPayloadConfigFromPayload,
+};

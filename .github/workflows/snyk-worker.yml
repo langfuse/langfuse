@@ -1,0 +1,57 @@
+name: Snyk Container - Worker
+on:
+  push:
+    branches: ["production", "main"]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  snyk:
+    runs-on: ubuntu-latest
+    environment: snyk
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Set up Snyk CLI
+        uses: snyk/actions/setup@9adf32b1121593767fc3c057af55b55db032dc04 # v1.0.0
+        with:
+          snyk-version: v1.1304.0
+      - name: Run Snyk to check Docker image for vulnerabilities
+        # Snyk can be used to break the build when it detects vulnerabilities.
+        # In this case we want to upload the issues to GitHub Code Scanning
+        continue-on-error: true
+        env:
+          # In order to use the Snyk Action you will need to have a Snyk API token.
+          # See https://docs.snyk.io/integrations/ci-cd-integrations/github-actions-integration#getting-your-snyk-token
+          # or you can sign up for free at https://snyk.io/login
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          snyk container test langfuse/langfuse-worker \
+            --file=worker/Dockerfile \
+            --sarif-file-output=snyk.sarif
+      - name: Normalize SARIF file
+        if: always()
+        run: |
+          if [ -f snyk.sarif ]; then
+            # Snyk emits invalid security-severity values. upload-sarif requires a numeric string.
+            sed -i \
+              -e 's/"security-severity": "undefined"/"security-severity": "0"/g' \
+              -e 's/"security-severity": "null"/"security-severity": "0"/g' \
+              -e 's/"security-severity": null/"security-severity": "0"/g' \
+              snyk.sarif
+            echo "SARIF file fixed"
+          else
+            echo "No SARIF file found"
+          fi
+      - name: Upload result to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        if: always()
+        with:
+          sarif_file: snyk.sarif
+          category: snyk-container-worker
+      - name: Echo SARIF file for debugging
+        if: failure() && hashFiles('snyk.sarif') != ''
+        run: cat snyk.sarif

@@ -1,0 +1,167 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    exportTraces:
+      docs: |
+        **OpenTelemetry Traces Ingestion Endpoint**
+
+        This endpoint implements the OTLP/HTTP specification for trace ingestion, providing native OpenTelemetry integration for Langfuse Observability.
+
+        **Supported Formats:**
+        - Binary Protobuf: `Content-Type: application/x-protobuf`
+        - JSON Protobuf: `Content-Type: application/json`
+        - Supports gzip compression via `Content-Encoding: gzip` header
+
+        **Specification Compliance:**
+        - Conforms to [OTLP/HTTP Trace Export](https://opentelemetry.io/docs/specs/otlp/#otlphttp)
+        - Implements `ExportTraceServiceRequest` message format
+
+        **Documentation:**
+        - Integration guide: https://langfuse.com/integrations/native/opentelemetry
+        - Data model: https://langfuse.com/docs/observability/data-model
+      method: POST
+      path: /otel/v1/traces
+      request:
+        name: OtelTraceRequest
+        body:
+          properties:
+            resourceSpans:
+              type: list<OtelResourceSpan>
+              docs: Array of resource spans containing trace data as defined in the OTLP specification
+        content-type: application/json
+      response: OtelTraceResponse
+      examples:
+        - name: BasicTraceExport
+          docs: Example JSON payload for exporting a simple trace with one span
+          request:
+            resourceSpans:
+              - resource:
+                  attributes:
+                    - key: service.name
+                      value:
+                        stringValue: "my-service"
+                    - key: service.version
+                      value:
+                        stringValue: "1.0.0"
+                scopeSpans:
+                  - scope:
+                      name: "langfuse-sdk"
+                      version: "2.60.3"
+                    spans:
+                      - traceId: "0123456789abcdef0123456789abcdef"
+                        spanId: "0123456789abcdef"
+                        name: "my-operation"
+                        kind: 1
+                        startTimeUnixNano: "1747872000000000000"
+                        endTimeUnixNano: "1747872001000000000"
+                        attributes:
+                          - key: "langfuse.observation.type"
+                            value:
+                              stringValue: "generation"
+                        status: {}
+          response:
+            body: {}
+
+types:
+  OtelResourceSpan:
+    docs: Represents a collection of spans from a single resource as per OTLP specification
+    properties:
+      resource:
+        type: optional<OtelResource>
+        docs: Resource information
+      scopeSpans:
+        type: optional<list<OtelScopeSpan>>
+        docs: Array of scope spans
+
+  OtelResource:
+    docs: Resource attributes identifying the source of telemetry
+    properties:
+      attributes:
+        type: optional<list<OtelAttribute>>
+        docs: Resource attributes like service.name, service.version, etc.
+
+  OtelScopeSpan:
+    docs: Collection of spans from a single instrumentation scope
+    properties:
+      scope:
+        type: optional<OtelScope>
+        docs: Instrumentation scope information
+      spans:
+        type: optional<list<OtelSpan>>
+        docs: Array of spans
+
+  OtelScope:
+    docs: Instrumentation scope information
+    properties:
+      name:
+        type: optional<string>
+        docs: Instrumentation scope name
+      version:
+        type: optional<string>
+        docs: Instrumentation scope version
+      attributes:
+        type: optional<list<OtelAttribute>>
+        docs: Additional scope attributes
+
+  OtelSpan:
+    docs: Individual span representing a unit of work or operation
+    properties:
+      traceId:
+        type: optional<unknown>
+        docs: Trace ID (16 bytes, hex-encoded string in JSON or Buffer in binary)
+      spanId:
+        type: optional<unknown>
+        docs: Span ID (8 bytes, hex-encoded string in JSON or Buffer in binary)
+      parentSpanId:
+        type: optional<unknown>
+        docs: Parent span ID if this is a child span
+      name:
+        type: optional<string>
+        docs: Span name describing the operation
+      kind:
+        type: optional<integer>
+        docs: Span kind (1=INTERNAL, 2=SERVER, 3=CLIENT, 4=PRODUCER, 5=CONSUMER)
+      startTimeUnixNano:
+        type: optional<unknown>
+        docs: Start time in nanoseconds since Unix epoch
+      endTimeUnixNano:
+        type: optional<unknown>
+        docs: End time in nanoseconds since Unix epoch
+      attributes:
+        type: optional<list<OtelAttribute>>
+        docs: Span attributes including Langfuse-specific attributes (langfuse.observation.*)
+      status:
+        type: optional<unknown>
+        docs: Span status object
+
+  OtelAttribute:
+    docs: Key-value attribute pair for resources, scopes, or spans
+    properties:
+      key:
+        type: optional<string>
+        docs: Attribute key (e.g., "service.name", "langfuse.observation.type")
+      value:
+        type: optional<OtelAttributeValue>
+        docs: Attribute value
+
+  OtelAttributeValue:
+    docs: Attribute value wrapper supporting different value types
+    properties:
+      stringValue:
+        type: optional<string>
+        docs: String value
+      intValue:
+        type: optional<integer>
+        docs: Integer value
+      doubleValue:
+        type: optional<double>
+        docs: Double value
+      boolValue:
+        type: optional<boolean>
+        docs: Boolean value
+
+  OtelTraceResponse:
+    docs: Response from trace export request. Empty object indicates success.
+    properties: {}

@@ -1,0 +1,41 @@
+on:
+  workflow_dispatch:
+  push:
+    # Pattern matched against refs/tags
+    tags:
+      - "v3.[0-9]+.[0-9]+" # Semantic version tags
+
+permissions: {}
+
+jobs:
+  release:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    environment: "protected branches"
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main # Always checkout main even for tagged releases
+          fetch-depth: 0
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          persist-credentials: false
+      - name: Push to production
+        run: git push "https://x-access-token:${GH_ACCESS_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" +main:production
+        env:
+          GH_ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+
+  notify-slack-on-failure:
+    needs: release
+    if: failure()
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Notify Slack
+        uses: ./.github/actions/notify-slack-failure
+        with:
+          title: "❌ Release Failed"
+          message: "❌ Release failed on ${{ github.ref_name }}"
+          webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}

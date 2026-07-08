@@ -1,0 +1,138 @@
+export type UiColumnMatchable = Readonly<{
+  uiTableName: string;
+  uiTableId: string;
+  aliases?: readonly string[];
+}>;
+
+export type UiColumnMappings = readonly UiColumnMapping[];
+
+export type UiColumnMapping = UiColumnMatchable &
+  Readonly<{
+    clickhouseTableName: string;
+    clickhouseSelect: string;
+    clickhouseTypeOverwrite?: string;
+    queryPrefix?: string;
+    emptyEqualsNull?: boolean;
+  }>;
+
+export const matchesUiColumnMapping = (
+  columnDef: UiColumnMatchable,
+  column: string | undefined,
+): boolean => {
+  if (column === undefined) {
+    return false;
+  }
+
+  return (
+    columnDef.uiTableId === column ||
+    columnDef.uiTableName === column ||
+    columnDef.aliases?.includes(column) === true
+  );
+};
+
+export const findUiColumnMapping = <T extends UiColumnMatchable>(
+  columnDefs: readonly T[],
+  column: string | undefined,
+): T | undefined => {
+  return columnDefs.find((columnDef) =>
+    matchesUiColumnMapping(columnDef, column),
+  );
+};
+
+export type SingleValueOption = {
+  value: string;
+  count?: number;
+  displayValue?: string; // FIX: Temporary workaround: Used to display a different value than the actual value since multiSelect doesn't support key-value pairs
+};
+
+export type MultiValueOption = {
+  label: string;
+  values: string[];
+};
+
+export type OptionsDefinition = SingleValueOption | MultiValueOption;
+
+export type ColumnDefinition =
+  | {
+      name: string;
+      id: string;
+      type: "number" | "string" | "datetime" | "boolean" | "null";
+      internal: string;
+      nullable?: boolean;
+      aliases?: string[];
+      /** Step for number inputs (e.g. 1 for integers). Defaults to 0.01 in UI. */
+      step?: number;
+      /** Minimum value for number inputs. */
+      min?: number;
+    }
+  | {
+      name: string;
+      id: string;
+      type: "positionInTrace";
+      internal: string;
+      nullable?: boolean;
+      aliases?: string[];
+    }
+  | {
+      name: string;
+      id: string;
+      type: "stringOptions";
+      options: Array<SingleValueOption>;
+      internal: string;
+      nullable?: boolean;
+      aliases?: string[]; // Used for backward compatibility with legacy column names, e.g. "traces.name" → "traces.traceName"
+    }
+  | {
+      name: string;
+      id: string;
+      type: "arrayOptions";
+      options: Array<SingleValueOption>;
+      internal: string;
+      nullable?: boolean;
+      aliases?: string[];
+    }
+  | {
+      name: string;
+      id: string;
+      type: "stringObject" | "numberObject";
+      internal: string;
+      keyOptions?: Array<string>;
+      nullable?: boolean;
+      aliases?: string[];
+    }
+  | {
+      name: string;
+      id: string;
+      type: "categoryOptions";
+      options: Array<MultiValueOption>;
+      internal: string;
+      nullable?: boolean;
+      aliases?: string[];
+    };
+
+export const tableNames = [
+  "traces",
+  "traces_observations",
+  "traces_observationsview",
+  "observations",
+  "traces_scores",
+  "traces_metrics",
+  "traces_parent_observation_scores",
+  "sessions",
+  "prompts",
+  "users",
+  "job_configurations",
+  "job_executions",
+  "dataset_items",
+  "annotation_queue_assignments",
+  "dataset_item_events",
+] as const;
+
+export type TableNames = (typeof tableNames)[number];
+
+export type TableDefinitions = {
+  [tableName: string]: {
+    table: string;
+    columns: ColumnDefinition[];
+  };
+};

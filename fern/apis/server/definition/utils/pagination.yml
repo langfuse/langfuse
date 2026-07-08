@@ -1,0 +1,24 @@
+types:
+  # to be used as copy/paste template for query strings
+  # PaginationRequest:
+  #   properties:
+  #     page:
+  #       type: optional<integer>
+  #       docs: page number, starts at 1
+  #     limit:
+  #       type: optional<integer>
+  #       docs: limit of items per page
+  MetaResponse:
+    properties:
+      page:
+        type: integer
+        docs: current page number
+      limit:
+        type: integer
+        docs: number of items per page
+      totalItems:
+        type: integer
+        docs: number of total items given the current filters/selection (if any)
+      totalPages:
+        type: integer
+        docs: number of total pages given the current limit

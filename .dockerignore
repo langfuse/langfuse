@@ -1,0 +1,15 @@
+Dockerfile
+.dockerignore
+node_modules
+npm-debug.log
+README.md
+.pnpm-store
+**/.pnpm-store
+.turbo
+**/.turbo
+**/.next
+**/.next-check
+**/dist
+**/*.tsbuildinfo
+.git
+**/node_modules

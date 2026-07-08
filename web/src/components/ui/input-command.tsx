@@ -1,0 +1,168 @@
+"use client";
+
+// Adapted command to be used as a form field with suggestions
+// Find original shadcn/ui command component in /components/ui/command.tsx
+
+import * as React from "react";
+import { type DialogProps } from "@radix-ui/react-dialog";
+import { Command as CommandPrimitive } from "cmdk";
+import { Search } from "lucide-react";
+
+import { Dialog, DialogBody, DialogContent } from "@/src/components/ui/dialog";
+import {
+  KeyboardShortcut,
+  type KeyboardShortcutProps,
+} from "@/src/components/ui/keyboard-shortcut";
+import { cn } from "@/src/utils/tailwind";
+
+const InputCommand = React.forwardRef<
+  React.ComponentRef<typeof CommandPrimitive>,
+  React.ComponentPropsWithoutRef<typeof CommandPrimitive>
+>(({ className, ...props }, ref) => (
+  <CommandPrimitive
+    ref={ref}
+    className={cn(
+      "flex h-full w-full flex-col overflow-hidden rounded-md bg-white text-slate-950 dark:bg-slate-950 dark:text-slate-50",
+      className,
+    )}
+    {...props}
+  />
+));
+InputCommand.displayName = CommandPrimitive.displayName;
+
+interface InputCommandDialogProps extends DialogProps {}
+
+const InputCommandDialog = ({
+  children,
+  ...props
+}: InputCommandDialogProps) => {
+  return (
+    <Dialog {...props}>
+      <DialogContent className="overflow-hidden p-0 shadow-lg">
+        <DialogBody>
+          <InputCommand className="[&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-item]_svg]:h-5 [&_[cmdk-item]_svg]:w-5 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group-heading]]:text-slate-500 dark:**:[[cmdk-group-heading]]:text-slate-400 **:[[cmdk-group]]:px-2 **:[[cmdk-input]]:h-12 **:[[cmdk-item]]:px-2 **:[[cmdk-item]]:py-3">
+            {children}
+          </InputCommand>
+        </DialogBody>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+const InputCommandInput = React.forwardRef<
+  React.ComponentRef<typeof CommandPrimitive.Input>,
+  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input> & {
+    variant?: "default" | "bottom";
+  }
+>(({ className, variant = "default", ...props }, ref) => (
+  <div
+    className={cn(
+      "flex items-center px-3",
+      variant === "default" && "rounded border",
+      variant === "bottom" && "border-b",
+      "cmdk-input-wrapper",
+    )}
+  >
+    <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+    <CommandPrimitive.Input
+      ref={ref}
+      className={cn(
+        "flex h-8 w-full rounded border-transparent bg-transparent py-3 text-sm outline-hidden placeholder:text-slate-500 focus:border-0 focus:border-none focus:border-transparent focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50 dark:placeholder:text-slate-400",
+        className,
+      )}
+      {...props}
+    />
+  </div>
+));
+
+InputCommandInput.displayName = CommandPrimitive.Input.displayName;
+
+const InputCommandList = React.forwardRef<
+  React.ComponentRef<typeof CommandPrimitive.List>,
+  React.ComponentPropsWithoutRef<typeof CommandPrimitive.List>
+>(({ className, ...props }, ref) => (
+  <CommandPrimitive.List
+    ref={ref}
+    className={cn("max-h-[300px] overflow-x-hidden overflow-y-auto", className)}
+    {...props}
+  />
+));
+
+InputCommandList.displayName = CommandPrimitive.List.displayName;
+
+const InputCommandEmpty = React.forwardRef<
+  React.ComponentRef<typeof CommandPrimitive.Empty>,
+  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Empty>
+>((props, ref) => (
+  <CommandPrimitive.Empty
+    ref={ref}
+    className="py-6 text-center text-sm"
+    {...props}
+  />
+));
+
+InputCommandEmpty.displayName = CommandPrimitive.Empty.displayName;
+
+const InputCommandGroup = React.forwardRef<
+  React.ComponentRef<typeof CommandPrimitive.Group>,
+  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Group>
+>(({ className, ...props }, ref) => (
+  <CommandPrimitive.Group
+    ref={ref}
+    className={cn(
+      "overflow-hidden p-1 text-slate-950 dark:text-slate-50 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:py-1.5 **:[[cmdk-group-heading]]:text-xs **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group-heading]]:text-slate-500 dark:**:[[cmdk-group-heading]]:text-slate-400",
+      className,
+    )}
+    {...props}
+  />
+));
+
+InputCommandGroup.displayName = CommandPrimitive.Group.displayName;
+
+const InputCommandSeparator = React.forwardRef<
+  React.ComponentRef<typeof CommandPrimitive.Separator>,
+  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Separator>
+>(({ className, ...props }, ref) => (
+  <CommandPrimitive.Separator
+    ref={ref}
+    className={cn("-mx-1 h-px bg-slate-200 dark:bg-slate-800", className)}
+    {...props}
+  />
+));
+InputCommandSeparator.displayName = CommandPrimitive.Separator.displayName;
+
+const InputCommandItem = React.forwardRef<
+  React.ComponentRef<typeof CommandPrimitive.Item>,
+  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Item>
+>(({ className, ...props }, ref) => (
+  <CommandPrimitive.Item
+    ref={ref}
+    className={cn(
+      "relative flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm outline-hidden select-none aria-selected:bg-slate-100 aria-selected:text-slate-900 dark:aria-selected:bg-slate-800 dark:aria-selected:text-slate-50",
+      className,
+    )}
+    {...props}
+  />
+));
+
+InputCommandItem.displayName = CommandPrimitive.Item.displayName;
+
+const InputCommandShortcut = ({
+  className,
+  ...props
+}: KeyboardShortcutProps) => {
+  return <KeyboardShortcut className={cn("ml-auto", className)} {...props} />;
+};
+InputCommandShortcut.displayName = "CommandShortcut";
+
+export {
+  InputCommand,
+  InputCommandDialog,
+  InputCommandInput,
+  InputCommandList,
+  InputCommandEmpty,
+  InputCommandGroup,
+  InputCommandItem,
+  InputCommandShortcut,
+  InputCommandSeparator,
+};

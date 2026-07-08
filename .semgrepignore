@@ -1,0 +1,6 @@
+# Code-eval runners are Lambda handler test fixtures (Node + Python). They
+# intentionally execute user-supplied evaluator source via `exec` / dynamic
+# `import` and talk to a locally-provisioned Floci endpoint from
+# `urllib.request.urlopen`. Both are by design and inherent to the runner
+# contract — scanning them produces noise, not signal.
+scripts/code-eval-runners/

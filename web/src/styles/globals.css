@@ -1,0 +1,491 @@
+@import "tailwindcss" source("..");
+@plugin "@tailwindcss/typography";
+
+@source "../../node_modules/@ferrucc-io/emoji-picker/dist";
+@source "../../node_modules/streamdown/dist/*.js";
+
+@plugin "@tailwindcss/forms";
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --spacing-banner-offset: var(--banner-offset);
+  --spacing-screen-with-banner: calc(100svh - var(--banner-offset));
+
+  --color-primary-accent: hsl(var(--primary-accent));
+  --color-hover-primary-accent: hsl(var(--hover-primary-accent));
+  --color-muted-magenta: hsl(var(--muted-magenta));
+  --color-muted-blue: hsl(var(--muted-blue));
+  --color-muted-green: hsl(var(--muted-green));
+  --color-muted-gray: hsl(var(--muted-gray));
+  --color-accent-light-green: hsl(var(--accent-light-green));
+  --color-accent-dark-green: hsl(var(--accent-dark-green));
+  --color-light-red: hsl(var(--light-red));
+  --color-dark-red: hsl(var(--dark-red));
+  --color-light-yellow: hsl(var(--light-yellow));
+  --color-dark-yellow: hsl(var(--dark-yellow));
+  --color-light-green: hsl(var(--light-green));
+  --color-dark-green: hsl(var(--dark-green));
+  --color-light-blue: hsl(var(--light-blue));
+  --color-dark-blue: hsl(var(--dark-blue));
+  --color-accent-light-blue: hsl(var(--accent-light-blue));
+  --color-accent-dark-blue: hsl(var(--accent-dark-blue));
+
+  /* Search-bar query syntax highlighting (key:value token parts). Operators
+     (`:` `-` `(` `)`) reuse muted-foreground, so no token for them here. */
+  --color-qlang-field: hsl(var(--qlang-field));
+  --color-qlang-value: hsl(var(--qlang-value));
+  --color-qlang-number: hsl(var(--qlang-number));
+  --color-qlang-keyword: hsl(var(--qlang-keyword));
+
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-tertiary: hsl(var(--tertiary));
+  --color-tertiary-foreground: hsl(var(--tertiary-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-header: hsl(var(--header));
+  --color-header-foreground: hsl(var(--header-foreground));
+  --color-sidebar: hsl(var(--sidebar-background));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  --color-find-match-background: hsl(var(--find-match-background));
+  --color-find-match-selected-background: hsl(
+    var(--find-match-selected-background)
+  );
+  --color-find-match-selected-foreground: hsl(
+    var(--find-match-selected-foreground)
+  );
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+
+  --text-xs: 0.7rem;
+  --text-sm: 0.825rem;
+  --text-base: 0.9rem;
+  --text-lg: 1.1rem;
+  --text-xl: 1.2rem;
+  --text-2xl: 1.3rem;
+  --text-3xl: 1.5rem;
+
+  --animate-rainbow: rainbow var(--speed, 2s) infinite linear;
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-appear: appear 0.2s ease-out forwards;
+
+  @keyframes rainbow {
+    0% {
+      background-position: 0%;
+    }
+
+    100% {
+      background-position: 200%;
+    }
+  }
+
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+
+    to {
+      height: var(--radix-accordion-content-height);
+    }
+  }
+
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+
+    to {
+      height: 0;
+    }
+  }
+
+  @keyframes appear {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --header: 210 40% 98%;
+    --header-foreground: var(--foreground);
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --tertiary: 214 32% 91%;
+    --tertiary-foreground: 222.2 47.4% 11.2%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 220 8.9% 46.1%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --ring: 215 20.2% 65.1%;
+
+    --primary-accent: 243 75.4% 58.6%;
+    --hover-primary-accent: 239 83.5% 66.7%;
+
+    --muted-green: 84 81% 44%;
+    --muted-magenta: 330 90% 70%;
+    --muted-blue: 239 84% 67%;
+    --muted-gray: 210 50% 91.1%;
+
+    --accent-light-green: 138 76.5% 96.7%;
+    --accent-dark-green: 112 100% 32%;
+
+    --light-red: 329 77.8% 94.7%;
+    --dark-red: 0 72.2% 50.6%;
+
+    --light-yellow: 55 91.7% 95.3%;
+    --dark-yellow: 43 96% 40%;
+
+    --light-green: 141 84.2% 92.5%;
+    --dark-green: 176 60.8% 19%;
+
+    --light-blue: 214 94.6% 92.7%;
+    --dark-blue: 217 91.2% 59.8%;
+
+    --accent-light-blue: 251 95.2% 91.8%;
+    --accent-dark-blue: 224 76.3% 38%;
+
+    /* Search-bar query syntax highlighting — a DELIBERATE editor-style syntax
+       theme (like a code editor's theme), intentionally its own thing rather
+       than the app palette: field=violet, value=green, number=orange,
+       keyword=blue. Scoped to the filter grammar (key:value pills); retune
+       freely, a designer can own these later. Operators reuse muted-foreground.
+       Values from the langfuse-search-bar prototype. */
+    --qlang-field: 262 60% 47%;
+    --qlang-value: 152 60% 30%;
+    --qlang-number: 24 75% 42%;
+    --qlang-keyword: 221 83% 53%;
+
+    --radius: 0.5rem;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 210 40% 96.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+
+    --find-match-background: 60 60% 85%;
+    --find-match-selected-background: 60 100% 50%;
+    --find-match-selected-foreground: 0 0% 0%;
+
+    --chart-1: 239 84% 58%;
+    --chart-2: 188 94% 43%;
+    --chart-3: 240 4% 46%;
+    --chart-4: 271 91% 65%;
+    --chart-5: 48 96% 47%;
+    --chart-6: 0 84% 60%;
+    --chart-7: 84 81% 44%;
+    --chart-8: 330 81% 60%;
+    --chart-grid: var(--muted-gray);
+    --color-1: oklch(66.2% 0.225 25.9);
+    --color-2: oklch(60.4% 0.26 302);
+    --color-3: oklch(69.6% 0.165 251);
+    --color-4: oklch(80.2% 0.134 225);
+    --color-5: oklch(90.7% 0.231 133);
+
+    /* Banner height system for fixed/sticky positioning
+       Banner components dynamically update --banner-height via JS */
+    --banner-height: 0px;
+    --banner-offset: calc(
+      env(safe-area-inset-top, 0px) + var(--banner-height, 0px)
+    );
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 83%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 88%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 88%;
+
+    --header: 217.2 32.6% 15%;
+    --header-foreground: var(--foreground);
+
+    --border: 217.2 32.6% 27.5%;
+    --input: 217.2 32.6% 27.5%;
+
+    --primary: 210 40% 83%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 88%;
+
+    --tertiary: 217.2 32.6% 30%;
+    --tertiary-foreground: 210 40% 88%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 20% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 85.7% 97.3%;
+
+    --ring: 217.2 32.6% 17.5%;
+
+    --primary-accent: 246 55% 70%;
+    --muted-primary-accent: 239 83.5% 66.7%;
+
+    --muted-blue: 215 95% 73.1%;
+    --muted-green: 142 76.7% 73.1%;
+    --muted-magenta: 330 76.7% 73.1%;
+    --muted-gray: 210 50% 25%;
+
+    --light-red: 0 62.8% 30.6%;
+    --dark-red: 0 90.6% 70.8%;
+
+    --light-yellow: 32 81% 28.8%;
+    --dark-yellow: 53 98.3% 76.9%;
+
+    --light-green: 144 61.2% 20.2%;
+    --dark-green: 142 76.7% 73.1%;
+
+    --light-blue: 224 64.3% 32.9%;
+    --dark-blue: 212 96.4% 78.4%;
+
+    --accent-light-green: 192 21% 9%;
+    --accent-dark-green: 124 21.8% 30.6%;
+
+    --accent-light-blue: 263 60% 50.4%;
+    --accent-dark-blue: 224 50% 90%;
+
+    /* Search-bar query syntax highlighting (dark). Brighter than light so the
+       key/value read against the dark surface. See :root for the contract. */
+    --qlang-field: 255 92% 76%;
+    --qlang-value: 158 64% 52%;
+    --qlang-number: 27 96% 61%;
+    --qlang-keyword: 213 94% 68%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 222.2 84% 4.9%;
+    --sidebar-foreground: 210 40% 83%;
+    --sidebar-primary: 210 40% 81%;
+    --sidebar-primary-foreground: 222.2 47.4% 10.2%;
+    --sidebar-accent: 217.2 32.6% 16.5%;
+    --sidebar-accent-foreground: 210 40% 86%;
+    --sidebar-border: 217.2 32.6% 26.5%;
+    --sidebar-ring: 224.3 76.3% 46%;
+
+    --find-match-background: 60 100% 20%;
+    --find-match-selected-background: 60 100% 50%;
+    --find-match-selected-foreground: 0 0% 0%;
+
+    --chart-1: 239 84% 58%;
+    --chart-2: 188 94% 43%;
+    --chart-3: 240 4% 46%;
+    --chart-4: 271 91% 65%;
+    --chart-5: 48 96% 47%;
+    --chart-6: 0 84% 60%;
+    --chart-7: 84 81% 44%;
+    --chart-8: 330 81% 60%;
+    --chart-grid: var(--muted-gray);
+    --color-1: oklch(66.2% 0.225 25.9);
+    --color-2: oklch(60.4% 0.26 302);
+    --color-3: oklch(69.6% 0.165 251);
+    --color-4: oklch(80.2% 0.134 225);
+    --color-5: oklch(90.7% 0.231 133);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  button:not(:disabled):not([aria-disabled="true"]),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  html,
+  body {
+    /* Prevent pull-to-refresh and rubber-banding on the page level only */
+    overscroll-behavior-y: none;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
+  }
+
+  html,
+  body,
+  div#__next,
+  div#__next > div {
+    height: 100%;
+  }
+
+  /* The whole app renders inside #__next. Isolating it into its own stacking
+     context caps every z-index in the app (page header, modals, popovers, …)
+     so none can escape it. The overlay layer containers (declared in
+     _document.tsx) are <body> siblings AFTER #__next and paint on top purely by
+     DOM order — see components/ui/layer.tsx. This is what lets layers carry no
+     z-index of their own; z-index stays a LOCAL tool for ordering within a
+     single layer. */
+  div#__next {
+    isolation: isolate;
+  }
+
+  /* Overlay layer roots (see _document.tsx + components/ui/layer.tsx). The
+     stack is click-through; each layer is its own isolated stacking context and
+     they order by DOM order (later = on top). The layer containers are
+     `pointer-events: none` so the EMPTY regions around an overlay pass clicks
+     through to the app behind (e.g. the non-modal table peek leaves the rest of
+     the page clickable). Each portaled overlay is appended as a DIRECT CHILD of
+     its layer container (Radix/Vaul `*.Portal` `container`, or `<Layer>`'s
+     `createPortal`), so we opt those overlay roots — and thus their subtrees —
+     back into pointer events here. This makes interactivity correct-by-
+     construction for EVERY overlay routed through a layer, including non-modal
+     ones (peek, Popover, HoverCard, Tooltip) where Radix does NOT manage
+     pointer-events itself (it only sets `auto` when it disables outside pointer
+     events, i.e. modal Dialog/Sheet/AlertDialog/Drawer and DropdownMenu/Select).
+     Without this, a non-modal overlay inherits the container's `none` and is
+     fully click-through — clicks fall to the app underneath. A specific child
+     can still opt back out with its own `pointer-events: none` (e.g. a
+     decorative arrow) — that wins by specificity/cascade. */
+  [data-overlay-root] {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+  }
+  [data-overlay-root] > [data-layer] {
+    position: absolute;
+    inset: 0;
+    isolation: isolate;
+    pointer-events: none;
+  }
+  [data-overlay-root] > [data-layer] > * {
+    pointer-events: auto;
+  }
+}
+
+@layer base {
+  input[type="number"].appearance-none::-webkit-inner-spin-button,
+  input[type="number"].appearance-none::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type="number"].appearance-none {
+    -moz-appearance: textfield;
+    appearance: none;
+  }
+}
+
+@layer utilities {
+  /* Custom styles for react-grid-layout resize handle */
+  .react-resizable-handle {
+    position: absolute;
+    bottom: 5px !important;
+    right: 5px !important;
+    background-image: none !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: hsl(var(--muted-foreground));
+  }
+
+  .react-resizable-handle::after {
+    content: "";
+    width: 10px !important;
+    height: 10px !important;
+    border-right: 2px solid currentColor !important;
+    border-bottom: 2px solid currentColor !important;
+  }
+}
+
+/* 
+ * Fix for Vaul drawer blocking text selection
+ * Vaul applies user-select: none to the entire drawer on desktop via CSS media query
+ * We override this for drawers that set blockTextSelection={false}
+ * See: node_modules/vaul/dist/index.js line 84
+ */
+[data-vaul-drawer][data-allow-text-selection="true"],
+[data-vaul-drawer][data-allow-text-selection="true"] * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+}

@@ -1,0 +1,215 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  commons: ./commons.yml
+  pagination: ./utils/pagination.yml
+  scim: ./scim.yml
+service:
+  auth: true
+  base-path: /api/public/v2
+  endpoints:
+    get:
+      docs: Get a prompt
+      method: GET
+      path: /prompts/{promptName}
+      path-parameters:
+        promptName:
+          type: string
+          docs: |
+            The name of the prompt. If the prompt is in a folder (e.g., "folder/subfolder/prompt-name"), 
+            the folder path must be URL encoded.
+      request:
+        name: GetPromptRequest
+        query-parameters:
+          version:
+            type: optional<integer>
+            docs: Version of the prompt to be retrieved.
+          label:
+            type: optional<string>
+            docs: Label of the prompt to be retrieved. Defaults to "production" if no label or version is set.
+          resolve:
+            type: optional<boolean>
+            docs: Resolve prompt dependencies before returning the prompt. Defaults to `true`. Set to `false` to return the raw stored prompt with dependency tags intact. This bypasses prompt caching and is intended for debugging or one-off jobs, not production runtime fetches.
+      response: Prompt
+
+    list:
+      docs: Get a list of prompt names with versions and labels
+      method: GET
+      path: /prompts
+      request:
+        name: ListPromptsMetaRequest
+        query-parameters:
+          name: optional<string>
+          label: optional<string>
+          tag: optional<string>
+          page:
+            type: optional<integer>
+            docs: page number, starts at 1
+          limit:
+            type: optional<integer>
+            docs: limit of items per page
+          fromUpdatedAt:
+            type: optional<datetime>
+            docs: Optional filter to only include prompt versions created/updated on or after a certain datetime (ISO 8601)
+          toUpdatedAt:
+            type: optional<datetime>
+            docs: Optional filter to only include prompt versions created/updated before a certain datetime (ISO 8601)
+
+      response: PromptMetaListResponse
+
+    create:
+      docs: Create a new version for the prompt with the given `name`
+      method: POST
+      path: /prompts
+      request: CreatePromptRequest
+      response: Prompt
+
+    delete:
+      docs: Delete prompt versions. If neither version nor label is specified, all versions of the prompt are deleted.
+      method: DELETE
+      path: /prompts/{promptName}
+      path-parameters:
+        promptName:
+          type: string
+          docs: The name of the prompt
+      request:
+        name: DeletePromptRequest
+        query-parameters:
+          label:
+            type: optional<string>
+            docs: Optional label to filter deletion. If specified, deletes all prompt versions that have this label.
+          version:
+            type: optional<integer>
+            docs: Optional version to filter deletion. If specified, deletes only this specific version of the prompt.
+
+types:
+  PromptMetaListResponse:
+    properties:
+      data: list<PromptMeta>
+      meta: pagination.MetaResponse
+
+  PromptMeta:
+    properties:
+      name: string
+      type:
+        type: PromptType
+        docs: Indicates whether the prompt is a text or chat prompt.
+      versions: list<integer>
+      labels: list<string>
+      tags: list<string>
+      lastUpdatedAt: datetime
+      lastConfig:
+        type: unknown
+        docs: Config object of the most recent prompt version that matches the filters (if any are provided)
+
+  CreatePromptRequest:
+    discriminated: false
+    union:
+      - CreateChatPromptRequest
+      - CreateTextPromptRequest
+
+  CreateChatPromptRequest:
+    properties:
+      name: string
+      prompt: list<ChatMessageWithPlaceholders>
+      config: optional<unknown>
+      type: CreateChatPromptType
+      labels:
+        type: optional<list<string>>
+        docs: List of deployment labels of this prompt version.
+      tags:
+        type: optional<list<string>>
+        docs: List of tags to apply to all versions of this prompt.
+      commitMessage:
+        type: optional<string>
+        docs: Commit message for this prompt version.
+
+  CreateTextPromptRequest:
+    properties:
+      name: string
+      prompt: string
+      config: optional<unknown>
+      type: optional<CreateTextPromptType>
+      labels:
+        type: optional<list<string>>
+        docs: List of deployment labels of this prompt version.
+      tags:
+        type: optional<list<string>>
+        docs: List of tags to apply to all versions of this prompt.
+      commitMessage:
+        type: optional<string>
+        docs: Commit message for this prompt version.
+
+  Prompt:
+    union:
+      chat: ChatPrompt
+      text: TextPrompt
+
+  PromptType:
+    enum:
+      - chat
+      - text
+
+  BasePrompt:
+    properties:
+      name: string
+      version: integer
+      config: unknown
+      labels:
+        type: list<string>
+        docs: List of deployment labels of this prompt version.
+      tags:
+        type: list<string>
+        docs: List of tags. Used to filter via UI and API. The same across versions of a prompt.
+      commitMessage:
+        type: optional<string>
+        docs: Commit message for this prompt version.
+      resolutionGraph:
+        type: optional<map<string, unknown>>
+        docs: The dependency resolution graph for the current prompt. Null if the prompt has no dependencies or if `resolve=false` was used.
+
+  ChatMessageWithPlaceholders:
+    discriminated: false
+    union:
+      - ChatMessage
+      - PlaceholderMessage
+
+  ChatMessage:
+    properties:
+      role:
+        type: string
+      content:
+        type: string
+      type:
+        type: optional<ChatMessageType>
+
+  ChatMessageType:
+    enum:
+      - chatmessage
+
+  PlaceholderMessage:
+    properties:
+      name:
+        type: string
+      type: optional<PlaceholderMessageType>
+
+  PlaceholderMessageType:
+    enum:
+      - placeholder
+
+  TextPrompt:
+    extends: BasePrompt
+    properties:
+      prompt: string
+
+  ChatPrompt:
+    extends: BasePrompt
+    properties:
+      prompt: list<ChatMessageWithPlaceholders>
+
+  CreateChatPromptType:
+    enum:
+      - chat
+
+  CreateTextPromptType:
+    enum:
+      - text

@@ -1,0 +1,119 @@
+import { EvalTemplateType, prisma } from "@langfuse/shared/src/db";
+import {
+  CodeEvalExecutionQueue,
+  LLMAsJudgeExecutionQueue,
+  QueueJobs,
+  QueueName,
+  safeBlobFilenameStem,
+  safeBlobKeySegment,
+} from "@langfuse/shared/src/server";
+import { env } from "../../../env";
+import { getEvalS3StorageClient } from "../s3StorageClient";
+import { type ObservationEvalSchedulerDeps } from "./types";
+
+/**
+ * Creates production dependencies for the observation eval scheduler.
+ * Wires up real implementations for Prisma, S3, and BullMQ.
+ */
+export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDeps {
+  return {
+    upsertJobExecution: async (params) => {
+      const {
+        id,
+        projectId,
+        jobConfigurationId,
+        jobInputTraceId,
+        jobInputObservationId,
+        jobTemplateId,
+        status,
+      } = params;
+
+      const jobExecution = await prisma.jobExecution.upsert({
+        where: {
+          id,
+          projectId,
+        },
+        create: {
+          id,
+          projectId,
+          jobConfigurationId,
+          jobInputTraceId,
+          jobInputObservationId,
+          jobTemplateId,
+          status,
+          startTime: new Date(),
+        },
+        update: {
+          status,
+        },
+      });
+
+      return { id: jobExecution.id };
+    },
+
+    uploadObservationToS3: async (params) => {
+      // traceId is a directory segment; observationId is a filename stem
+      // (`.json` reserved out of the budget). Both come from user-supplied
+      // ids and must be sanitized so the resulting key never overflows
+      // NAME_MAX or contains path-breaking characters.
+      const safeTraceId = safeBlobKeySegment(params.traceId);
+      const safeObservationId = safeBlobFilenameStem(
+        params.observationId,
+        ".json",
+      );
+      const path = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}evals/${params.projectId}/traces/${safeTraceId}/observations/${safeObservationId}.json`;
+      const s3Client = getEvalS3StorageClient();
+
+      await s3Client.uploadJson(path, params.data);
+
+      return path;
+    },
+
+    enqueueEvalJob: async (params) => {
+      const shardingKey = `${params.projectId}-${params.jobExecutionId}`;
+      const payload = {
+        projectId: params.projectId,
+        jobExecutionId: params.jobExecutionId,
+        observationS3Path: params.observationS3Path,
+        ...(params.executionMode
+          ? { executionMode: params.executionMode }
+          : {}),
+      };
+
+      if (params.evalTemplateType === EvalTemplateType.CODE) {
+        const queue = CodeEvalExecutionQueue.getInstance({ shardingKey });
+        if (!queue) {
+          throw new Error("CodeEvalExecutionQueue is not initialized");
+        }
+
+        await queue.add(
+          QueueName.CodeEvalExecution,
+          {
+            name: QueueJobs.CodeEvalExecution,
+            id: params.jobExecutionId,
+            timestamp: new Date(),
+            payload,
+          },
+          { delay: params.delay },
+        );
+        return;
+      }
+
+      const queue = LLMAsJudgeExecutionQueue.getInstance({ shardingKey });
+      if (!queue) {
+        throw new Error("LLMAsJudgeExecutionQueue is not initialized");
+      }
+
+      await queue.add(
+        QueueName.LLMAsJudgeExecution,
+        {
+          name: QueueJobs.LLMAsJudgeExecution,
+          id: params.jobExecutionId,
+          timestamp: new Date(),
+          payload,
+        },
+        { delay: params.delay },
+      );
+    },
+  };
+}

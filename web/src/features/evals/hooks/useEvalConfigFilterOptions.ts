@@ -1,0 +1,157 @@
+import { api } from "@/src/utils/api";
+import {
+  type ExperimentEvalOptions,
+  type ObservationEvalOptions,
+  type TimeFilter,
+} from "@langfuse/shared";
+import { useMemo } from "react";
+
+const EVAL_FILTER_OPTIONS_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000;
+const evalFilterOptionsQueryOptions = {
+  trpc: { context: { skipBatch: true } },
+  refetchOnMount: false,
+  refetchOnWindowFocus: false,
+  refetchOnReconnect: false,
+  staleTime: Infinity,
+} as const;
+
+const getBucketedEvalFilterOptionsFrom = () => {
+  const date = new Date(Date.now() - EVAL_FILTER_OPTIONS_LOOKBACK_MS);
+  date.setUTCHours(0, 0, 0, 0);
+  return date;
+};
+
+const getLowerBoundTimeFilter = (
+  column: "timestamp" | "startTime",
+  value: Date,
+): TimeFilter[] => [{ column, type: "datetime", operator: ">=", value }];
+
+export function useEvalConfigFilterOptions({
+  projectId,
+}: {
+  projectId: string;
+}) {
+  const filterOptionsFrom = useMemo(
+    () => getBucketedEvalFilterOptionsFrom(),
+    [],
+  );
+
+  const traceFilterOptionsResponse = api.traces.filterOptions.useQuery(
+    {
+      projectId,
+      timestampFilter: getLowerBoundTimeFilter("timestamp", filterOptionsFrom),
+    },
+    evalFilterOptionsQueryOptions,
+  );
+
+  const environmentFilterOptionsResponse =
+    api.projects.environmentFilterOptions.useQuery(
+      {
+        projectId,
+        fromTimestamp: filterOptionsFrom,
+      },
+      evalFilterOptionsQueryOptions,
+    );
+
+  const observationsFilterOptionsResponse =
+    api.generations.filterOptions.useQuery(
+      {
+        projectId,
+        observationType: "ALL",
+        startTimeFilter: getLowerBoundTimeFilter(
+          "startTime",
+          filterOptionsFrom,
+        ),
+      },
+      evalFilterOptionsQueryOptions,
+    );
+
+  const traceFilterOptions = useMemo(() => {
+    // Normalize API response to match TraceOptions type (count should be number, not string)
+    const normalized = traceFilterOptionsResponse.data
+      ? {
+          traceName: traceFilterOptionsResponse.data.name?.map((n) => ({
+            value: n.value,
+            count: Number(n.count),
+          })),
+          scores_avg: traceFilterOptionsResponse.data.scores_avg,
+          score_categories: traceFilterOptionsResponse.data.score_categories,
+          traceTags: traceFilterOptionsResponse.data.tags?.map((t) => ({
+            value: t.value,
+          })),
+        }
+      : {};
+
+    return {
+      ...normalized,
+      environment: environmentFilterOptionsResponse.data?.map((e) => ({
+        value: e.environment,
+      })),
+    };
+  }, [traceFilterOptionsResponse.data, environmentFilterOptionsResponse.data]);
+
+  const datasets = api.datasets.allDatasetMeta.useQuery(
+    {
+      projectId,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
+
+  const datasetFilterOptions = useMemo(() => {
+    if (!datasets.data) return undefined;
+    return {
+      datasetId: datasets.data?.map((d) => ({
+        value: d.id,
+        displayValue: d.name,
+      })),
+    };
+  }, [datasets.data]);
+
+  const observationEvalFilterOptions: ObservationEvalOptions = useMemo(() => {
+    return {
+      environment: environmentFilterOptionsResponse.data?.map((e) => ({
+        value: e.environment,
+      })),
+      tags: traceFilterOptionsResponse.data?.tags?.map((t) => ({
+        value: t.value,
+      })),
+      traceName: traceFilterOptionsResponse.data?.name?.map((n) => ({
+        value: n.value,
+      })),
+      name: observationsFilterOptionsResponse.data?.name?.map((n) => ({
+        value: n.value,
+      })),
+      calledToolNames:
+        observationsFilterOptionsResponse.data?.calledToolNames?.map((t) => ({
+          value: t.value,
+        })),
+    };
+  }, [
+    traceFilterOptionsResponse.data,
+    environmentFilterOptionsResponse.data,
+    observationsFilterOptionsResponse.data,
+  ]);
+
+  const experimentEvalFilterOptions: ExperimentEvalOptions = useMemo(() => {
+    return {
+      experimentDatasetId: datasetFilterOptions?.datasetId,
+    };
+  }, [datasetFilterOptions]);
+
+  return {
+    traceFilterOptions,
+    datasetFilterOptions,
+    observationEvalFilterOptions,
+    experimentEvalFilterOptions,
+  };
+}

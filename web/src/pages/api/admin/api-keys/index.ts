@@ -1,0 +1,135 @@
+import { type NextApiRequest, type NextApiResponse } from "next";
+import { z } from "zod";
+import { prisma } from "@langfuse/shared/src/db";
+import {
+  invalidateAllCachedApiKeys,
+  logger,
+  redis,
+} from "@langfuse/shared/src/server";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
+
+/* 
+This API route is used by Langfuse Cloud to delete API keys for a project.
+We will work on admin APIs in the future. See the discussion here: https://github.com/orgs/langfuse/discussions/3243
+*/
+
+const DeleteApiKeySchema = z.object({
+  action: z.literal("delete"),
+  projectIds: z.array(z.string()),
+});
+
+const InvalidateApiKeySchema = z.object({
+  action: z.literal("invalidate"),
+  projectIds: z.array(z.string()),
+});
+
+const InvalidateAllApiKeysSchema = z.object({
+  action: z.literal("invalidate-all"),
+});
+
+const ApiKeyAction = z.discriminatedUnion("action", [
+  DeleteApiKeySchema,
+  InvalidateApiKeySchema,
+  InvalidateAllApiKeysSchema,
+]);
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  try {
+    // allow only POST requests
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "Method Not Allowed" });
+      return;
+    }
+
+    if (
+      !AdminApiAuthService.handleAdminAuth(req, res, {
+        isAllowedOnLangfuseCloud: true,
+      })
+    ) {
+      return;
+    }
+
+    const body = ApiKeyAction.safeParse(req.body);
+
+    if (!body.success) {
+      res.status(400).json({ error: body.error });
+      return;
+    }
+
+    if (body.data.action === "delete") {
+      logger.info(
+        `trying to remove API keys for projects ${body.data.projectIds.join(", ")}`,
+      );
+
+      // delete the API keys in the database first
+      const apiKeysToBeDeleted = await prisma.apiKey.findMany({
+        where: {
+          projectId: {
+            in: body.data.projectIds,
+          },
+          scope: "PROJECT",
+        },
+      });
+
+      await prisma.apiKey.deleteMany({
+        where: {
+          projectId: {
+            in: body.data.projectIds,
+          },
+          scope: "PROJECT",
+        },
+      });
+
+      // then delete from the cache
+      await new ApiAuthService(prisma, redis).invalidateCachedApiKeys(
+        apiKeysToBeDeleted,
+        `projects ${body.data.projectIds.join(", ")}`,
+      );
+
+      logger.info(
+        `Removed API keys for projects ${body.data.projectIds.join(", ")}`,
+      );
+
+      return res.status(200).json({ message: "API keys deleted" });
+    } else if (body.data.action === "invalidate") {
+      // delete the API keys in the database first
+      const apiKeysToBeInvalidated = await prisma.apiKey.findMany({
+        where: {
+          projectId: {
+            in: body.data.projectIds,
+          },
+          scope: "PROJECT",
+        },
+      });
+
+      // then delete from the cache
+      await new ApiAuthService(prisma, redis).invalidateCachedApiKeys(
+        apiKeysToBeInvalidated,
+        `projects ${body.data.projectIds.join(", ")}`,
+      );
+
+      logger.info(
+        `Invalidated API keys for projects ${body.data.projectIds.join(", ")}`,
+      );
+      return res.status(200).json({ message: "API keys invalidated" });
+    } else if (body.data.action === "invalidate-all") {
+      const invalidatedCount = await invalidateAllCachedApiKeys(redis);
+
+      logger.info(`Invalidated all cached API keys (${invalidatedCount})`);
+      return res.status(200).json({
+        message: "All cached API keys invalidated",
+        invalidatedCount,
+      });
+    }
+
+    // return not implemented error
+    res.status(404).json({ error: "Action does not exist" });
+  } catch (e) {
+    logger.error("failed to remove API keys", e);
+    res.status(500).json({ error: e });
+  }
+}

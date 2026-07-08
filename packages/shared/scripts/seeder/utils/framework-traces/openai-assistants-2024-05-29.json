@@ -1,0 +1,338 @@
+{
+  "trace": {
+    "id": "b3b7b128-5664-4f42-9fab-31999da9e2f1",
+    "projectId": "cloramnkj0002jz088vzn1ja4",
+    "name": "run_math_tutor",
+    "timestamp": "2024-05-29T13:46:10.728Z",
+    "environment": "default",
+    "tags": [],
+    "bookmarked": false,
+    "release": null,
+    "version": null,
+    "userId": null,
+    "sessionId": null,
+    "public": true,
+    "input": "\"{\\\"args\\\":[\\\"I need to solve the equation `3x + 11 = 14`. Can you help me?\\\"],\\\"kwargs\\\":{}}\"",
+    "output": "\"\\\"Sure, first subtract 11 from both sides to get `3x = 3`, then divide both sides by 3 to solve for `x`. The solution is `x = 1`.\\\"\"",
+    "metadata": "{}",
+    "createdAt": "2024-05-29T13:46:11.304Z",
+    "updatedAt": "2024-05-29T13:46:34.171Z",
+    "latency": 9.236
+  },
+  "observations": [
+    {
+      "id": "0d8f5427-c91a-44c8-86c5-e12d806edd57",
+      "traceId": "b3b7b128-5664-4f42-9fab-31999da9e2f1",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "GENERATION",
+      "environment": "default",
+      "parentObservationId": "0d6c73e1-be16-436d-a905-b4108912fa93",
+      "startTime": "2024-05-29T13:46:19.963Z",
+      "endTime": null,
+      "name": "",
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2024-05-29T13:46:20.714Z",
+      "updatedAt": "2024-05-29T13:46:20.714Z",
+      "usageDetails": {
+        "input": 49,
+        "output": 40,
+        "total": 89
+      },
+      "costDetails": {
+        "input": 0.00147,
+        "output": 0.0024,
+        "total": 0.00387
+      },
+      "providedCostDetails": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "model": "gpt-4",
+      "internalModelId": "clrntkjgy000f08jx79v9g1xj",
+      "promptName": null,
+      "promptVersion": null,
+      "latency": null,
+      "timeToFirstToken": null,
+      "inputCost": 0.00147,
+      "outputCost": 0.0024,
+      "totalCost": 0.00387,
+      "inputUsage": 49,
+      "outputUsage": 40,
+      "totalUsage": 89,
+      "input": [
+        {
+          "role": "assistant",
+          "content": "I am a math tutor that likes to help math students, how can I help?"
+        },
+        {
+          "role": "user",
+          "content": "I need to solve the equation `3x + 11 = 14`. Can you help me?"
+        }
+      ],
+      "output": "Sure, first subtract 11 from both sides to get `3x = 3`, then divide both sides by 3 to solve for `x`. The solution is `x = 1`.",
+      "metadata": {}
+    },
+    {
+      "id": "0d6c73e1-be16-436d-a905-b4108912fa93",
+      "traceId": "b3b7b128-5664-4f42-9fab-31999da9e2f1",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": null,
+      "startTime": "2024-05-29T13:46:17.971Z",
+      "endTime": "2024-05-29T13:46:19.964Z",
+      "name": "get_response",
+      "metadata": "{}",
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2024-05-29T13:46:18.345Z",
+      "updatedAt": "2024-05-29T13:46:20.796Z",
+      "usageDetails": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "costDetails": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "providedCostDetails": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 1993,
+      "timeToFirstToken": null,
+      "inputCost": 0,
+      "outputCost": 0,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": {
+        "args": [
+          "thread_fbFB5caAj0sEpE1c5ICMDs7I",
+          "run_RsJmiMTrgkBzb3FvyCvRoqpd"
+        ],
+        "kwargs": {}
+      },
+      "output": [
+        "Sure, first subtract 11 from both sides to get `3x = 3`, then divide both sides by 3 to solve for `x`. The solution is `x = 1`.",
+        {
+          "id": "run_AherTwpS29w0GC8zlKDBhhlZ",
+          "model": "gpt-4",
+          "tools": [],
+          "top_p": 1,
+          "usage": null,
+          "object": "thread.run",
+          "status": "queued",
+          "metadata": {},
+          "failed_at": null,
+          "thread_id": "thread_DhsY59BBhtKWN8YYq44cULrH",
+          "created_at": 1716990330,
+          "expires_at": 1716990930,
+          "last_error": null,
+          "started_at": null,
+          "temperature": 1,
+          "tool_choice": "auto",
+          "assistant_id": "asst_tjgFtRASnPoQaWpks1ezPfSp",
+          "cancelled_at": null,
+          "completed_at": null,
+          "instructions": "You are a personal math tutor. Answer questions briefly, in a sentence or less.",
+          "tool_resources": {},
+          "required_action": null,
+          "response_format": "auto",
+          "max_prompt_tokens": null,
+          "incomplete_details": null,
+          "truncation_strategy": {
+            "type": "auto",
+            "last_messages": null
+          },
+          "max_completion_tokens": null
+        }
+      ]
+    },
+    {
+      "id": "e584f95b-e8ef-4d43-bcb1-fd296f57f94b",
+      "traceId": "b3b7b128-5664-4f42-9fab-31999da9e2f1",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": null,
+      "startTime": "2024-05-29T13:46:11.057Z",
+      "endTime": "2024-05-29T13:46:12.959Z",
+      "name": "run_assistant",
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2024-05-29T13:46:11.480Z",
+      "updatedAt": "2024-05-29T13:46:13.161Z",
+      "usageDetails": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "costDetails": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "providedCostDetails": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 1902,
+      "timeToFirstToken": null,
+      "inputCost": 0,
+      "outputCost": 0,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": {
+        "args": [
+          "asst_01wKwjx3rT7CNprPxzE8azMl",
+          "I need to solve the equation `3x + 11 = 14`. Can you help me?"
+        ],
+        "kwargs": {}
+      },
+      "output": [
+        {
+          "id": "run_RsJmiMTrgkBzb3FvyCvRoqpd",
+          "model": "gpt-4",
+          "tools": [],
+          "top_p": 1,
+          "usage": null,
+          "object": "thread.run",
+          "status": "queued",
+          "metadata": {},
+          "failed_at": null,
+          "thread_id": "thread_fbFB5caAj0sEpE1c5ICMDs7I",
+          "created_at": 1716990372,
+          "expires_at": 1716990972,
+          "last_error": null,
+          "started_at": null,
+          "temperature": 1,
+          "tool_choice": "auto",
+          "assistant_id": "asst_01wKwjx3rT7CNprPxzE8azMl",
+          "cancelled_at": null,
+          "completed_at": null,
+          "instructions": "You are a personal math tutor. Answer questions briefly, in a sentence or less.",
+          "tool_resources": {},
+          "required_action": null,
+          "response_format": "auto",
+          "max_prompt_tokens": null,
+          "incomplete_details": null,
+          "truncation_strategy": {
+            "type": "auto",
+            "last_messages": null
+          },
+          "max_completion_tokens": null
+        },
+        {
+          "id": "thread_fbFB5caAj0sEpE1c5ICMDs7I",
+          "object": "thread",
+          "metadata": {},
+          "created_at": 1716990371,
+          "tool_resources": {
+            "file_search": null,
+            "code_interpreter": null
+          }
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "id": "be59b862-98dd-4b0e-b92e-c150b9777c2f",
+      "traceId": "b3b7b128-5664-4f42-9fab-31999da9e2f1",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": null,
+      "startTime": "2024-05-29T13:46:10.728Z",
+      "endTime": "2024-05-29T13:46:11.056Z",
+      "name": "create_assistant",
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2024-05-29T13:46:11.350Z",
+      "updatedAt": "2024-05-29T13:46:11.405Z",
+      "usageDetails": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "costDetails": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "providedCostDetails": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 328,
+      "timeToFirstToken": null,
+      "inputCost": 0,
+      "outputCost": 0,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": {
+        "args": [],
+        "kwargs": {}
+      },
+      "output": {
+        "id": "asst_01wKwjx3rT7CNprPxzE8azMl",
+        "name": "Math Tutor",
+        "model": "gpt-4",
+        "tools": [],
+        "top_p": 1,
+        "object": "assistant",
+        "metadata": {},
+        "created_at": 1716990370,
+        "description": null,
+        "temperature": 1,
+        "instructions": "You are a personal math tutor. Answer questions briefly, in a sentence or less.",
+        "tool_resources": {
+          "file_search": null,
+          "code_interpreter": null
+        },
+        "response_format": "auto"
+      },
+      "metadata": {}
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Datadog Query Recipes"
+  short_description: "Langfuse production telemetry queries"
+  default_prompt: "Use $datadog-query-recipes to investigate Langfuse production telemetry for a tenant, endpoint, queue, or regression."

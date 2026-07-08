@@ -1,0 +1,315 @@
+import * as React from "react";
+import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
+import { api } from "@/src/utils/api";
+import { type EvalTemplate } from "@langfuse/shared";
+import { useRouter } from "next/router";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import Page from "@/src/components/layouts/page";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { Command } from "@/src/components/ui/command";
+import { Badge } from "@/src/components/ui/badge";
+import { StatusBadge } from "@/src/components/layouts/status-badge";
+import {
+  SidePanel,
+  SidePanelContent,
+  SidePanelHeader,
+  SidePanelTitle,
+} from "@/src/components/ui/side-panel";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
+import { DeleteEvalTemplateDialog } from "@/src/features/evals/components/delete-eval-template-dialog";
+import { IconOnlyButton } from "@/src/components/IconOnlyButton";
+import { TrashIcon } from "lucide-react";
+
+export const EvalTemplateDetail = () => {
+  const router = useRouter();
+  const projectId = router.query.projectId as string;
+  const templateId = router.query.id as string;
+  const mode = router.query.mode;
+  const isEditing = mode === "edit";
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
+  const capture = usePostHogClientCapture();
+  const hasDeleteAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalTemplate:CUD",
+  });
+
+  // get the current template by id
+  const template = api.evals.templateById.useQuery({
+    projectId: projectId,
+    id: templateId,
+  });
+
+  // get all templates for the current template name
+  const allTemplates = api.evals.allTemplatesForName.useQuery(
+    {
+      projectId: projectId,
+      name: template.data?.name ?? "",
+      isUserManaged: template.data?.projectId !== null,
+    },
+    {
+      enabled:
+        !template.isPending &&
+        !template.isError &&
+        template.data?.name !== undefined,
+    },
+  );
+
+  const handleTemplateSelect = (newTemplate: EvalTemplate) => {
+    // Update URL without full page reload
+    router.push(
+      `/project/${projectId}/evals/templates/${newTemplate.id}`,
+      undefined,
+      { shallow: true },
+    );
+  };
+
+  const setIsEditing = (nextIsEditing: boolean) => {
+    if (!router.isReady) {
+      return;
+    }
+
+    const nextQuery = { ...router.query };
+
+    if (nextIsEditing) {
+      nextQuery.mode = "edit";
+    } else {
+      delete nextQuery.mode;
+    }
+
+    router.replace(
+      {
+        pathname: router.pathname,
+        query: nextQuery,
+      },
+      undefined,
+      { shallow: true },
+    );
+  };
+
+  return (
+    <Page
+      headerProps={{
+        title: `${template.data?.name ?? ""}`,
+        itemType: "EVALUATOR",
+        breadcrumb: [
+          {
+            name: "Evaluator Library",
+            href: `/project/${router.query.projectId as string}/evals/templates`,
+          },
+        ],
+        actionButtonsRight: (
+          <>
+            <UpdateTemplate
+              projectId={projectId}
+              isEditing={isEditing}
+              setIsEditing={setIsEditing}
+              isCustom={!!template.data?.projectId}
+            />
+
+            {template.data?.projectId ? (
+              <>
+                <IconOnlyButton
+                  icon={<TrashIcon className="h-4 w-4" />}
+                  label="Delete"
+                  aria-label="delete"
+                  variant="outline-solid"
+                  size="icon"
+                  disabledReason={
+                    hasDeleteAccess
+                      ? undefined
+                      : "You don't have permission to delete this evaluator."
+                  }
+                  onClick={() => {
+                    capture("eval_templates:delete_form_open", {
+                      source: "template",
+                    });
+                    setIsDeleteDialogOpen(true);
+                  }}
+                />
+                <DeleteEvalTemplateDialog
+                  projectId={projectId}
+                  templateId={templateId}
+                  templateName={template.data.name}
+                  open={isDeleteDialogOpen}
+                  onOpenChange={setIsDeleteDialogOpen}
+                  onSuccess={() => {
+                    capture("eval_templates:delete_template_button_click", {
+                      source: "template",
+                    });
+                    router.push(`/project/${projectId}/evals/templates`);
+                  }}
+                />
+              </>
+            ) : null}
+          </>
+        ),
+      }}
+    >
+      {allTemplates.isLoading || !allTemplates.data || !template.data ? (
+        <div className="p-3">Loading...</div>
+      ) : isEditing ? (
+        <div className="overflow-y-auto p-3 pt-1">
+          <EvalTemplateForm
+            useDialog={false}
+            projectId={projectId}
+            existingEvalTemplate={template.data}
+            isEditing={isEditing}
+            setIsEditing={setIsEditing}
+          />
+        </div>
+      ) : (
+        <div className="grid flex-1 grid-cols-[1fr_auto] overflow-hidden contain-layout">
+          <div className="flex max-h-full min-h-0 flex-col overflow-y-auto px-3 pt-1">
+            <EvalTemplateForm
+              useDialog={false}
+              projectId={projectId}
+              existingEvalTemplate={template.data}
+              isEditing={isEditing}
+              setIsEditing={setIsEditing}
+            />
+          </div>
+          <SidePanel mobileTitle="Change history" id="change-history">
+            <SidePanelHeader>
+              <SidePanelTitle className="text-base font-semibold">
+                Change history
+              </SidePanelTitle>
+            </SidePanelHeader>
+            <SidePanelContent>
+              <Command className="flex flex-col gap-2 overflow-y-auto rounded-none font-medium focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-hidden data-focus:ring-0">
+                <div className="flex flex-col overflow-y-auto">
+                  {allTemplates.data.templates.map((template, index) => (
+                    <div
+                      key={template.id}
+                      className={`hover:bg-accent flex cursor-pointer flex-col rounded-md px-2 py-1.5 ${
+                        template.id === templateId ? "bg-accent" : ""
+                      }`}
+                      onClick={() => handleTemplateSelect(template)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1">
+                          <Badge
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                            variant="outline"
+                            className="bg-background/50 h-6 shrink-0"
+                            data-version-trigger="false"
+                          >
+                            # {template.version}
+                          </Badge>
+                          {index === 0 && (
+                            <StatusBadge
+                              type="active"
+                              key="active"
+                              className="break-all sm:break-normal"
+                            />
+                          )}
+                        </div>
+                        <span className="text-muted-foreground text-xs">
+                          {template.createdAt.toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Command>
+            </SidePanelContent>
+          </SidePanel>
+        </div>
+      )}
+    </Page>
+  );
+};
+
+export function EvalVersionDropdown(props: {
+  disabled: boolean;
+  options?: EvalTemplate[];
+  defaultOption?: EvalTemplate;
+  onSelect?: (template: EvalTemplate) => void;
+}) {
+  const capture = usePostHogClientCapture();
+  const handleSelect = (value: string) => {
+    const selectedTemplate = props.options?.find(
+      (template) => template.id === value,
+    );
+    if (selectedTemplate && props.onSelect) {
+      props.onSelect(selectedTemplate);
+      capture("eval_templates:view_version");
+    }
+  };
+
+  return (
+    <Select
+      disabled={props.disabled}
+      onValueChange={handleSelect}
+      defaultValue={props.defaultOption ? props.defaultOption.id : undefined}
+    >
+      <SelectTrigger className="w-[180px]">
+        <SelectValue placeholder="Version" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectGroup>
+          {props.options?.map((template) => (
+            <SelectItem key={template.id} value={template.id}>
+              v{template.version} - {template.createdAt.toLocaleDateString()}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
+  );
+}
+
+export function UpdateTemplate({
+  projectId,
+  isEditing,
+  setIsEditing,
+  isCustom,
+}: {
+  projectId: string;
+  isEditing: boolean;
+  setIsEditing: (isEditing: boolean) => void;
+  isCustom: boolean;
+}) {
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalTemplate:CUD",
+  });
+  const capture = usePostHogClientCapture();
+
+  const handlePromptEdit = (checked: boolean) => {
+    setIsEditing(checked);
+    if (checked) capture("eval_templates:update_form_open");
+  };
+
+  if (!isCustom) {
+    return (
+      <div className="flex items-center gap-2">
+        <LangfuseIcon size={16} />
+        <span className="text-muted-foreground text-sm font-medium">
+          View only
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-sm font-medium">Edit mode</span>
+      <Switch
+        checked={isEditing}
+        onCheckedChange={handlePromptEdit}
+        disabled={!hasAccess}
+      />
+    </div>
+  );
+}

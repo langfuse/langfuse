@@ -1,0 +1,15 @@
+{
+  "extends": "@repo/typescript-config/base.json",
+  "compilerOptions": {
+    "jsx": "react",
+    "moduleResolution": "NodeNext",
+    "module": "NodeNext",
+    "lib": ["es2023"],
+    "outDir": "./dist",
+    "types": ["node"],
+    "target": "es2024",
+    "rootDir": "."
+  },
+  "include": ["."],
+  "exclude": ["node_modules", "dist"]
+}

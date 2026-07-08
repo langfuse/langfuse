@@ -1,0 +1,196 @@
+import {
+  getObservationById as getObservationByIdRoutingWrapper,
+  getTraceById as getTraceByIdRoutingWrapper,
+  getTracesIdentifierForSession as getTracesIdentifierForSessionRoutingWrapper,
+} from "./repositories/events";
+
+export * from "./services/StorageService";
+export * from "./services/safeBlobKeySegment";
+export * from "./ingestion/eventBucketPath";
+export * from "./cache";
+export * from "./services/BufferedStreamUploader";
+export * from "./services/S3ChunkedUploadStrategy";
+export * from "./services/email/transport";
+export * from "./services/email/organizationInvitation/sendMembershipInvitationEmail";
+export * from "./services/email/batchExportSuccess/sendBatchExportSuccessEmail";
+export * from "./services/email/passwordReset/sendResetPasswordVerificationRequest";
+export * from "./services/email/cloudSpendAlert/sendCloudSpendAlertEmail";
+export * from "./services/email/usageThresholdWarning/sendUsageThresholdWarningEmail";
+export * from "./services/email/usageThresholdSuspension/sendUsageThresholdSuspensionEmail";
+export * from "./services/email/commentMention/sendCommentMentionEmail";
+export * from "./services/email/blobStorageExportFailed/sendBlobStorageExportFailedEmail";
+export * from "./services/PromptService";
+export * from "./services/PromptService/types";
+export * from "./services/traces-ui-table-service";
+export * from "./services/InMemoryFilterService";
+export * from "./automations";
+export * from "./services/DatasetService";
+export * from "./services/commentFilterService";
+export * from "./datasets/schemaValidation";
+export * from "./datasets/schemaTypes";
+export * from "./evalJobConfigCache";
+export * from "./evals/codeEvalDispatchers";
+export * from "./evals/codeEvalExecution";
+export * from "./evals/evalScoreIds";
+export * from "./evals/extractObservationVariables";
+export * from "./utils/traceId";
+export * from "./auth/apiKeyCache";
+export * from "./auth/apiKeys";
+export * from "./auth/credentials";
+export * from "./auth/invalidateApiKeys";
+export * from "./auth/customSsoProvider";
+export * from "./auth/gitHubEnterpriseProvider";
+export * from "./auth/jumpcloudProvider";
+export * from "./auth/userProjectRoleAuth";
+export * from "./llm/fetchLLMCompletion";
+export * from "./llm/errors";
+export * from "./llm/utils";
+export * from "./llm/types";
+export * from "./llm/internalTraceEvents";
+export * from "./llm/compileChatMessages";
+export * from "./llm/testModelCall";
+export * from "./llm/baseUrlValidation";
+export * from "./outbound-url";
+export * from "./services/blobStorageEndpointValidation";
+export * from "./llm/getInternalTracingHandler";
+export * from "./utils/DatabaseReadStream";
+export * from "./utils/transforms";
+export * from "./utils/billingCycleHelpers";
+export * from "./utils/compareVersions";
+export * from "./otel/utils";
+export * from "./clickhouse/client";
+export {
+  getClickHouseCompatibilitySettings,
+  initializeClickhouseCompatibility,
+} from "./clickhouse/compatibility";
+export * from "./clickhouse/schemaUtils";
+export * from "./clickhouse/schema";
+export * from "./clickhouse/queryTracking";
+export * from "./clickhouse/queryTags";
+export * from "./repositories/definitions";
+export * from "../utils/IORepresentation/chatML/types";
+export * from "../server/ingestion/types";
+export * from "../server/ingestion/modelMatch";
+export * from "./ingestion/ingestionAttribution";
+export * from "./ingestion/processEventBatch";
+export * from "../server/ingestion/validateAndInflateScore";
+export * from "./ingestion/extractToolsBackend";
+export * from "../server/queries/public-api-filter-builder";
+export * from "../server/pricing-tiers";
+export * from "./redis/redis";
+export * from "./redis/traceUpsert";
+export * from "./redis/createEvalQueue";
+export * from "./redis/cloudUsageMeteringQueue";
+export * from "./redis/cloudSpendAlertQueue";
+export * from "./redis/cloudFreeTierUsageThresholdQueue";
+export * from "./redis/getQueue";
+export * from "./redis/webhookQueue";
+export * from "./redis/monitorQueue";
+export * from "./redis/traceDelete";
+export * from "./redis/projectDelete";
+export * from "./redis/scoreDelete";
+export * from "./redis/datasetDelete";
+export * from "./redis/datasetRunItemUpsert";
+export * from "./redis/otelIngestionQueue";
+export * from "./redis/batchExport";
+export * from "./redis/batchActionQueue";
+export * from "./redis/ingestionQueue";
+export * from "./redis/postHogIntegrationQueue";
+export * from "./redis/postHogIntegrationProcessingQueue";
+export * from "./redis/mixpanelIntegrationQueue";
+export * from "./redis/mixpanelIntegrationProcessingQueue";
+export * from "./redis/blobStorageIntegrationQueue";
+export * from "./redis/blobStorageIntegrationProcessingQueue";
+export * from "./redis/dataRetentionQueue";
+export * from "./redis/dataRetentionProcessingQueue";
+export * from "./redis/coreDataS3ExportQueue";
+export * from "./redis/meteringDataPostgresExportQueue";
+export * from "./redis/notificationQueue";
+export * from "./webhooks/validation";
+export * from "./webhooks/ipBlocking";
+export * from "./redis/experimentCreateQueue";
+export * from "./redis/dlqRetryQueue";
+export * from "./redis/entityChangeQueue";
+export * from "./redis/eventPropagationQueue";
+export * from "./redis/otelProjectTracking";
+export * from "./redis/s3SlowdownTracking";
+export * from "./redis/ingestionFailureTracking";
+export * from "./auth/types";
+export * from "./queues";
+export * from "./orderByToPrisma";
+export * from "./filterToPrisma";
+export * from "./instrumentation";
+export * from "./logger";
+export * from "./headerPropagation";
+export * from "./queries";
+export * from "./queries/clickhouse-sql/orderby-factory";
+export * from "./queries/clickhouse-sql/query-options";
+export * from "./repositories";
+export { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./repositories/constants";
+export { scoreDomainToV3 } from "./repositories/scores";
+export * from "./repositories/observations";
+export * from "./repositories/traces";
+export * from "./repositories/dataset-items";
+export * from "./utils/metadata_conversion";
+export * from "./repositories/experiments";
+export * from "./utils/rendering";
+export * from "./utils/sqlLike";
+export * from "./redis/evalExecutionQueue";
+export * from "./redis/llmAsJudgeExecutionQueue";
+export * from "./redis/codeEvalExecutionQueue";
+export * from "./services/sessions-ui-table-service";
+export * from "./services/sessions-ui-table-events-service";
+export * from "./services/DashboardService";
+export * from "./services/TableViewService";
+export * from "./services/DefaultViewService";
+export * from "./services/DefaultEvaluationModelService";
+export * from "./services/blockEvaluatorConfigs";
+export * from "./services/getProjectAdminEmails";
+export * from "./clickhouse/measureAndReturn";
+export * from "./services/SlackService";
+export * from "./tableMappings";
+export * from "./otel";
+export * from "./datasets/executeWithDatasetServiceStrategy";
+
+export * from "./data-deletion/ingestionFileDeletion";
+export * from "./media-deletion";
+export * from "./s3";
+
+// dataset run items
+export * from "./dataset-run-items/addToDeleteQueue";
+
+// test utils
+export * from "./test-utils";
+export * from "./utils/headerUtils";
+export * from "./utils/formatAuthProvider";
+export * from "./traceDeletionProcessor";
+export * from "./deletionGuard";
+export * from "./analytics-integrations/types";
+
+// Re-annotate these deprecated routing wrappers at the public server barrel.
+// They are otherwise exposed through multiple `export *` hops, where consumers
+// and lint tooling can lose the original JSDoc deprecation metadata.
+/**
+ * @deprecated Please prefer `getTraceByIdFromEventsTable` for new use-cases.
+ * This should be exclusively used for backwards compatibility if the write mode
+ * is events_only.
+ */
+// eslint-disable-next-line @typescript-eslint/no-deprecated -- Intentional public alias for the deprecated routing wrapper.
+export const getTraceById = getTraceByIdRoutingWrapper;
+
+/**
+ * @deprecated Please prefer `getObservationByIdFromEventsTable` for new
+ * use-cases. This should be exclusively used for backwards compatibility if the
+ * write mode is events_only.
+ */
+// eslint-disable-next-line @typescript-eslint/no-deprecated -- Intentional public alias for the deprecated routing wrapper.
+export const getObservationById = getObservationByIdRoutingWrapper;
+
+/**
+ * @deprecated Please prefer `getTracesIdentifierForSessionFromEvents` for new
+ * use-cases. This should be exclusively used for backwards compatibility if the
+ * write mode is events_only.
+ */
+export const getTracesIdentifierForSession =
+  // eslint-disable-next-line @typescript-eslint/no-deprecated -- Intentional public alias for the deprecated routing wrapper.
+  getTracesIdentifierForSessionRoutingWrapper;

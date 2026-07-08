@@ -1,0 +1,20 @@
+import { z } from "zod";
+import { JobConfigState, type JobConfiguration } from "@langfuse/shared";
+
+export const EvaluatorStatus = JobConfigState;
+export const EvaluatorStatusSchema = z.enum(EvaluatorStatus);
+export type EvaluatorStatusType = z.infer<typeof EvaluatorStatusSchema>;
+
+export type PartialConfig = Pick<
+  JobConfiguration,
+  | "scoreName"
+  | "targetObject"
+  | "filter"
+  | "variableMapping"
+  | "sampling"
+  | "delay"
+  | "timeScope"
+  | "status"
+> & { id?: string };
+
+export const RAGAS_TEMPLATE_PREFIX = "__ragas__";

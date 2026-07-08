@@ -1,0 +1,130 @@
+import { type NextApiRequest, type NextApiResponse } from "next";
+import {
+  SlackService,
+  SLACK_BOT_SCOPES,
+  parseSlackInstallationMetadata,
+} from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/src/server";
+import { getServerAuthSession } from "@/src/server/auth";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { prisma } from "@langfuse/shared/src/db";
+import { getSafeRedirectPath } from "@/src/utils/redirect";
+import { getProductBaseUrl } from "@/src/utils/base-url";
+
+/**
+ * SlackOAuthHandlers
+ *
+ * Handles Next.js-specific OAuth flow for Slack integration.
+ * Uses the configured InstallProvider from SlackService to avoid duplication.
+ */
+/**
+ * Handle OAuth install path using the shared InstallProvider
+ */
+export async function handleInstallPath(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  projectId: string,
+) {
+  try {
+    // Use InstallProvider's handleInstallPath method to render the installation page
+    // This method will:
+    // 1. Generate the OAuth URL with proper state parameter
+    // 2. Set session cookies for state validation
+    // 3. Render the installation page with "Add to Slack" button
+    // Build an absolute redirect URI that respects a custom base path.
+    // getProductBaseUrl derives the product origin (incl. base path) from
+    // NEXTAUTH_URL and strips the /api/auth suffix.
+    const redirectUri = getProductBaseUrl();
+    redirectUri.pathname = `${redirectUri.pathname.replace(/\/$/, "")}/api/public/slack/oauth`;
+
+    const installOptions = {
+      scopes: [...SLACK_BOT_SCOPES],
+      metadata: JSON.stringify({ projectId: projectId }),
+      redirectUri: redirectUri.toString(),
+    };
+
+    return await SlackService.getInstance()
+      .getInstaller()
+      .handleInstallPath(req, res, undefined, installOptions);
+  } catch (error) {
+    logger.error("Install path handler failed", { error, projectId });
+    throw error;
+  }
+}
+
+/**
+ * Handle OAuth callback using the shared InstallProvider
+ */
+export async function handleCallback(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  try {
+    return await SlackService.getInstance()
+      .getInstaller()
+      .handleCallback(req, res, {
+        success: async (installation) => {
+          const metadata = parseSlackInstallationMetadata(
+            installation?.metadata,
+          );
+          const projectId = metadata.projectId;
+
+          logger.info("OAuth callback successful", {
+            projectId,
+            teamId: installation.team?.id,
+            teamName: installation.team?.name,
+          });
+
+          // Create audit log for the Slack integration
+          // The session should still be valid from when the user initiated the install
+          try {
+            const session = await getServerAuthSession({ req, res });
+            if (session?.user?.id) {
+              // Find the integration that was just created
+              const integration = await prisma.slackIntegration.findUnique({
+                where: { projectId },
+                select: {
+                  id: true,
+                  projectId: true,
+                  project: { select: { orgId: true } },
+                },
+              });
+
+              if (integration) {
+                await auditLog({
+                  userId: session.user.id,
+                  orgId: integration.project.orgId,
+                  projectId,
+                  resourceType: "slackIntegration",
+                  resourceId: integration.id,
+                  action: "create",
+                  after: {
+                    teamId: installation.team?.id,
+                    teamName: installation.team?.name,
+                  },
+                });
+              }
+            }
+          } catch (auditError) {
+            // Don't fail the callback if audit logging fails
+            logger.warn("Failed to create audit log for Slack installation", {
+              error: auditError,
+              projectId,
+            });
+          }
+
+          // Redirect to project-specific Slack settings page
+          const redirectUrl = `/project/${projectId}/settings/integrations/slack?success=true&team_name=${encodeURIComponent(installation.team?.name || "")}`;
+          res.redirect(getSafeRedirectPath(redirectUrl));
+        },
+
+        failure: async (error) => {
+          logger.error("OAuth callback failed", { error: error.message });
+          res.status(500).json({ message: "Internal server error" });
+        },
+      });
+  } catch (error) {
+    logger.error("OAuth callback handler failed", { error });
+    throw error;
+  }
+}

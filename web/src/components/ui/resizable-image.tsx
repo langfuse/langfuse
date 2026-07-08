@@ -1,0 +1,200 @@
+import { cn } from "@/src/utils/tailwind";
+import { useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { Button } from "@/src/components/ui/button";
+import { ImageOff, Maximize2, Minimize2 } from "lucide-react";
+import { api } from "@/src/utils/api";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { captureException } from "@sentry/nextjs";
+import { useSession } from "next-auth/react";
+import { buildResizableImageSrc } from "./resizable-image.utils";
+import { getSafeImageUrl } from "@/src/components/ui/safe-url";
+
+export const COMPACT_IMAGE_MAX_HEIGHT_REM = 16;
+
+/**
+ * Implemented customLoader as we cannot whitelist user provided image domains
+ * Security risks are taken care of by a validation in api.utilities.validateImgUrl
+ * Fetching image will fail if SSL/TLS certificate is invalid or expired, will be handled by onError
+ * Do not use this customLoader in production if you are not using the above mentioned security measures */
+const customLoader = ({
+  src,
+  width,
+  quality,
+}: {
+  src: string;
+  width: number;
+  quality?: number;
+}) => buildResizableImageSrc({ src, width, quality });
+
+const ImageErrorDisplay = ({
+  src,
+  displayError,
+}: {
+  src: string;
+  displayError: string;
+}) => {
+  const safeSrc = getSafeImageUrl(src);
+
+  return (
+    <div className="grid grid-cols-[auto_1fr] items-center gap-2">
+      <span title={displayError} className="h-4 w-4">
+        <ImageOff className="h-4 w-4" />
+      </span>
+      {safeSrc ? (
+        <Link
+          href={safeSrc}
+          className="truncate text-sm underline"
+          title={src}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {src}
+        </Link>
+      ) : (
+        <span className="truncate text-sm" title={src}>
+          {src}
+        </span>
+      )}
+    </div>
+  );
+};
+
+export const ResizableImage = ({
+  src,
+  alt,
+  isDefaultVisible = false,
+  shouldValidateImageSource = true,
+  fitContent = false,
+  compactWidth,
+}: {
+  src: string;
+  alt?: string;
+  isDefaultVisible?: boolean;
+  shouldValidateImageSource?: boolean;
+  fitContent?: boolean;
+  compactWidth?: string;
+}) => {
+  const safeSrc = getSafeImageUrl(src);
+  const [isZoomedIn, setIsZoomedIn] = useState(true);
+  const [hasFetchError, setHasFetchError] = useState(false);
+  const [isImageVisible, setIsImageVisible] = useState(isDefaultVisible);
+  const session = useSession();
+  const isValidImage = api.utilities.validateImgUrl.useQuery(safeSrc ?? "", {
+    enabled:
+      session.status === "authenticated" &&
+      Boolean(safeSrc) &&
+      isImageVisible &&
+      shouldValidateImageSource,
+    initialData: shouldValidateImageSource ? undefined : { isValid: true },
+  });
+
+  if (session.status !== "authenticated") {
+    return (
+      <ImageErrorDisplay
+        src={src}
+        displayError="Images not rendered on public traces and observations"
+      />
+    );
+  }
+
+  if (isValidImage.isLoading && isImageVisible) {
+    return (
+      <Skeleton className="h-8 w-1/2 items-center p-2 text-xs">
+        <span className="opacity-80">Loading image...</span>
+      </Skeleton>
+    );
+  }
+
+  const displayError = `Cannot load image. ${src.includes("http") ? "Http images are not rendered in Langfuse for security reasons" : "Invalid image URL"}`;
+
+  return (
+    <div
+      className={cn(fitContent && (isZoomedIn ? "w-1/2" : "w-full"))}
+      style={
+        fitContent && isZoomedIn && compactWidth
+          ? { width: `min(50%, ${compactWidth})` }
+          : undefined
+      }
+    >
+      {hasFetchError ? (
+        <ImageErrorDisplay src={src} displayError={displayError} />
+      ) : (
+        <div
+          className={cn(
+            "group relative overflow-hidden",
+            fitContent
+              ? "w-full"
+              : cn("w-full", isZoomedIn ? "h-1/2 w-1/2" : "h-full w-full"),
+          )}
+        >
+          {isImageVisible && safeSrc && isValidImage.data?.isValid ? (
+            <>
+              <Image
+                loader={customLoader}
+                src={safeSrc}
+                alt={alt ?? `Markdown Image-${Math.random()}`}
+                loading="lazy"
+                width={0}
+                height={0}
+                title={safeSrc ?? src}
+                className={cn(
+                  "rounded border",
+                  fitContent ? "h-auto w-full" : "h-full w-full object-contain",
+                )}
+                onError={(error) => {
+                  setHasFetchError(true);
+                  captureException(error);
+                }}
+              />
+              <Button
+                type="button"
+                className="group-hover:bg-accent/30! absolute top-0 right-0 mt-1 mr-1 h-8 w-8 opacity-0 group-hover:opacity-100"
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsZoomedIn(!isZoomedIn)}
+              >
+                {isZoomedIn ? (
+                  <Maximize2 className="h-4 w-4"></Maximize2>
+                ) : (
+                  <Minimize2 className="h-4 w-4"></Minimize2>
+                )}
+              </Button>
+            </>
+          ) : (
+            <div className="bg-muted/30 text-muted-foreground/60 flex w-full items-center gap-2 rounded border border-dashed p-2 text-xs">
+              <Button
+                title="Render image"
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => setIsImageVisible(!isImageVisible)}
+                disabled={!safeSrc}
+              >
+                Load Image
+              </Button>
+              <div className="flex min-w-0 flex-1 items-center overflow-hidden">
+                {safeSrc ? (
+                  <Link
+                    href={safeSrc}
+                    title={src}
+                    className="truncate underline"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {src}
+                  </Link>
+                ) : (
+                  <span title={src} className="truncate">
+                    {src}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};

@@ -1,0 +1,91 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  commons: ./commons.yml
+  pagination: ./utils/pagination.yml
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    list:
+      method: GET
+      docs: Get all datasets
+      path: /v2/datasets
+      request:
+        name: GetDatasetsRequest
+        query-parameters:
+          page:
+            type: optional<integer>
+            docs: page number, starts at 1
+          limit:
+            type: optional<integer>
+            docs: limit of items per page
+      response: PaginatedDatasets
+    get:
+      method: GET
+      docs: Get a dataset
+      path: /v2/datasets/{datasetName}
+      path-parameters:
+        datasetName: string
+      response: commons.Dataset
+    create:
+      method: POST
+      docs: Create a dataset
+      path: /v2/datasets
+      request: CreateDatasetRequest
+      response: commons.Dataset
+    getRun:
+      method: GET
+      docs: Get a dataset run and its items
+      path: /datasets/{datasetName}/runs/{runName}
+      path-parameters:
+        datasetName: string
+        runName: string
+      response: commons.DatasetRunWithItems
+    deleteRun:
+      method: DELETE
+      docs: Delete a dataset run and all its run items. This action is irreversible.
+      path: /datasets/{datasetName}/runs/{runName}
+      path-parameters:
+        datasetName: string
+        runName: string
+      response: DeleteDatasetRunResponse
+    getRuns:
+      method: GET
+      docs: Get dataset runs
+      path: /datasets/{datasetName}/runs
+      path-parameters:
+        datasetName: string
+      request:
+        name: GetDatasetRunsRequest
+        query-parameters:
+          page:
+            type: optional<integer>
+            docs: page number, starts at 1
+          limit:
+            type: optional<integer>
+            docs: limit of items per page
+      response: PaginatedDatasetRuns
+
+types:
+  PaginatedDatasets:
+    properties:
+      data: list<commons.Dataset>
+      meta: pagination.MetaResponse
+  CreateDatasetRequest:
+    properties:
+      name: string
+      description: optional<string>
+      metadata: optional<unknown>
+      inputSchema:
+        type: optional<unknown>
+        docs: JSON Schema for validating dataset item inputs. When set, all new and existing dataset items will be validated against this schema.
+      expectedOutputSchema:
+        type: optional<unknown>
+        docs: JSON Schema for validating dataset item expected outputs. When set, all new and existing dataset items will be validated against this schema.
+  PaginatedDatasetRuns:
+    properties:
+      data: list<commons.DatasetRun>
+      meta: pagination.MetaResponse
+  DeleteDatasetRunResponse:
+    properties:
+      message: string

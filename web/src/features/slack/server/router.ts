@@ -1,0 +1,389 @@
+import {
+  createTRPCRouter,
+  protectedProjectProcedure,
+} from "@/src/server/api/trpc";
+import { z } from "zod";
+import { SlackService, SlackApiError } from "@langfuse/shared/src/server";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { logger } from "@langfuse/shared/src/server";
+import { TRPCError } from "@trpc/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { env } from "@/src/env.mjs";
+import { getProductBaseUrl } from "@/src/utils/base-url";
+
+export const slackRouter = createTRPCRouter({
+  /**
+   * Get Slack integration status for a project
+   */
+  getIntegrationStatus: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:read",
+      });
+
+      const integration = await ctx.prisma.slackIntegration.findUnique({
+        where: { projectId: input.projectId },
+      });
+
+      if (!integration) {
+        return {
+          isConnected: false,
+          teamId: null,
+          teamName: null,
+          installUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/public/slack/install?projectId=${input.projectId}`,
+        };
+      }
+
+      try {
+        const slackService = SlackService.getInstance();
+        const client = await slackService.getWebClientForProject(
+          input.projectId,
+        );
+        const isValid = await slackService.validateClient(client);
+
+        if (!isValid) {
+          logger.warn("Invalid Slack integration found", {
+            projectId: input.projectId,
+            teamId: integration.teamId,
+          });
+
+          return {
+            isConnected: false,
+            teamId: integration.teamId,
+            teamName: integration.teamName,
+            installUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/public/slack/install?projectId=${input.projectId}`,
+            error:
+              "Integration is invalid. Please reconnect your Slack workspace.",
+          };
+        }
+
+        return {
+          isConnected: true,
+          teamId: integration.teamId,
+          teamName: integration.teamName,
+          botUserId: integration.botUserId,
+          installUrl: null,
+        };
+      } catch (error) {
+        logger.warn("Failed to validate Slack integration", {
+          projectId: input.projectId,
+          teamId: integration.teamId,
+          error,
+        });
+
+        return {
+          isConnected: false,
+          teamId: integration.teamId,
+          teamName: integration.teamName,
+          installUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/public/slack/install?projectId=${input.projectId}`,
+          error:
+            "Failed to validate integration. Please reconnect your Slack workspace.",
+        };
+      }
+    }),
+
+  /**
+   * Get channels for a project's Slack integration
+   */
+  getChannels: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), cursor: z.string().optional() }))
+    .query(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:read",
+      });
+
+      const integration = await ctx.prisma.slackIntegration.findUnique({
+        where: { projectId: input.projectId },
+      });
+
+      if (!integration) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Slack integration not found for this project",
+        });
+      }
+
+      try {
+        const slackService = SlackService.getInstance();
+        const client = await slackService.getWebClientForProject(
+          input.projectId,
+        );
+        const { channels, hasPrivateChannelAccess, nextCursor } =
+          await slackService.getChannels(client, input.cursor);
+
+        if (!input.cursor) {
+          await auditLog({
+            session: ctx.session,
+            resourceType: "slackIntegration",
+            resourceId: integration.id,
+            action: "read",
+            after: {
+              action: "channels_fetched",
+              channelCount: channels.length,
+              hasNextPage: Boolean(nextCursor),
+            },
+          });
+        }
+
+        return {
+          channels,
+          hasPrivateChannelAccess,
+          nextCursor,
+          teamId: integration.teamId,
+          teamName: integration.teamName,
+        };
+      } catch (error) {
+        logger.error("Failed to fetch channels", {
+          error,
+          projectId: input.projectId,
+        });
+
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "Failed to fetch channels. Please check your Slack connection and try again.",
+        });
+      }
+    }),
+
+  /**
+   * Disconnect Slack integration for a project
+   */
+  disconnect: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:CUD",
+      });
+
+      const integration = await ctx.prisma.slackIntegration.findUnique({
+        where: { projectId: input.projectId },
+      });
+
+      if (!integration) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Slack integration not found for this project",
+        });
+      }
+
+      try {
+        await SlackService.getInstance().deleteIntegration(input.projectId);
+
+        await auditLog({
+          session: ctx.session,
+          resourceType: "slackIntegration",
+          resourceId: integration.id,
+          action: "delete",
+          before: integration,
+        });
+
+        logger.info("Slack integration disconnected", {
+          projectId: input.projectId,
+          teamId: integration.teamId,
+        });
+
+        return { success: true };
+      } catch (error) {
+        logger.error("Failed to disconnect Slack integration", {
+          error,
+          projectId: input.projectId,
+        });
+
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Failed to disconnect Slack integration. Please try again.",
+        });
+      }
+    }),
+
+  /**
+   * Send a test message to a Slack channel
+   */
+  sendTestMessage: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        // Slack resolves both channel IDs (C1234) and names (#general)
+        channelId: z.string(),
+        channelName: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:CUD",
+      });
+
+      const integration = await ctx.prisma.slackIntegration.findUnique({
+        where: { projectId: input.projectId },
+      });
+
+      if (!integration) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Slack integration not found for this project",
+        });
+      }
+
+      try {
+        const client = await SlackService.getInstance().getWebClientForProject(
+          input.projectId,
+        );
+        const projectUrl = new URL(
+          `project/${input.projectId}`,
+          getProductBaseUrl(),
+        );
+
+        const testBlocks = [
+          {
+            type: "header",
+            text: {
+              type: "plain_text",
+              text: "🎉 Test Message from Langfuse",
+              emoji: true,
+            },
+          },
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: "Hello from Langfuse! This is a test message to verify your Slack integration is working properly.",
+            },
+          },
+          {
+            type: "section",
+            fields: [
+              {
+                type: "mrkdwn",
+                text: `*Project:*\n${input.projectId}`,
+              },
+              {
+                type: "mrkdwn",
+                text: `*Channel:*\n#${input.channelName ?? input.channelId.replace(/^#/, "")}`,
+              },
+              {
+                type: "mrkdwn",
+                text: `*User:*\n${ctx.session.user.name || ctx.session.user.email}`,
+              },
+              {
+                type: "mrkdwn",
+                text: `*Time:*\n${new Date().toISOString()}`,
+              },
+            ],
+          },
+          {
+            type: "actions",
+            elements: [
+              {
+                type: "button",
+                text: {
+                  type: "plain_text",
+                  text: "Open Langfuse",
+                  emoji: true,
+                },
+                url: projectUrl.toString(),
+                style: "primary",
+              },
+            ],
+          },
+        ];
+
+        const result = await SlackService.getInstance().sendMessage({
+          client,
+          channelId: input.channelId,
+          blocks: testBlocks,
+          text: "Test message from Langfuse",
+        });
+
+        // For manually-typed channel names (id starts with #), resolve
+        // channel metadata via conversations.info so the UI can show
+        // accurate type/ID info. Skip for channels already selected from
+        // the list since we already have their metadata.
+        let channelInfo: {
+          id: string;
+          name?: string;
+          isPrivate?: boolean;
+        } = { id: result.channel };
+
+        if (input.channelId.startsWith("#")) {
+          const resolved = await SlackService.getInstance().getChannelInfo(
+            client,
+            result.channel,
+          );
+          if (resolved) {
+            channelInfo = {
+              id: resolved.id,
+              name: resolved.name,
+              isPrivate: resolved.isPrivate,
+            };
+          }
+        }
+
+        await auditLog({
+          session: ctx.session,
+          resourceType: "slackIntegration",
+          resourceId: integration.id,
+          action: "create",
+          after: {
+            action: "test_message_sent",
+            channelId: result.channel,
+            channelName: input.channelName,
+            messageTs: result.messageTs,
+          },
+        });
+
+        logger.info("Test message sent successfully", {
+          projectId: input.projectId,
+          channelId: result.channel,
+          channelName: input.channelName,
+          messageTs: result.messageTs,
+        });
+
+        return {
+          success: true,
+          messageTs: result.messageTs,
+          channel: result.channel,
+          channelInfo,
+        };
+      } catch (error) {
+        logger.error("Failed to send test message", {
+          error,
+          projectId: input.projectId,
+          channelId: input.channelId,
+        });
+
+        const slackError =
+          error instanceof SlackApiError ? error.slackErrorCode : undefined;
+
+        const userMessage = (() => {
+          switch (slackError) {
+            case "channel_not_found":
+              return 'Channel not found. The channel may not exist or is a private channel the bot has not been invited to. For private channels, invite the app with "/invite @Langfuse" in that channel.';
+            case "not_in_channel":
+              return "The bot is not a member of this channel. Please invite the bot to the channel first.";
+            case "is_archived":
+              return "This channel has been archived and cannot receive messages.";
+            case "invalid_auth":
+            case "token_revoked":
+              return "Slack authentication failed. Please reconnect your Slack workspace.";
+            default:
+              return "Failed to send test message. Please check your Slack connection and channel permissions.";
+          }
+        })();
+
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: userMessage,
+        });
+      }
+    }),
+});

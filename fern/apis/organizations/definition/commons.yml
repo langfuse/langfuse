@@ -1,0 +1,13 @@
+errors:
+  Error:
+    status-code: 400
+    type: string
+  UnauthorizedError:
+    status-code: 401
+    type: string
+  AccessDeniedError:
+    status-code: 403
+    type: string
+  MethodNotAllowedError:
+    status-code: 405
+    type: string

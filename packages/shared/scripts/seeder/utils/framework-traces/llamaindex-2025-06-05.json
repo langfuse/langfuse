@@ -1,0 +1,182 @@
+{
+  "trace": {
+    "id": "12ea412956f99347b0503c1144acd0ec",
+    "projectId": "cloramnkj0002jz088vzn1ja4",
+    "name": "llama-index-trace",
+    "timestamp": "2025-06-05T15:45:52.971Z",
+    "environment": "default",
+    "tags": [
+      "llama-index",
+      "rag"
+    ],
+    "bookmarked": false,
+    "release": null,
+    "version": "1.0.0",
+    "userId": "user_123",
+    "sessionId": "session_abc",
+    "public": true,
+    "input": "\"What is Langfuse?\"",
+    "output": "\"Langfuse is a tool designed to help developers monitor and debug applications that utilize large language models (LLMs). It provides features for tracking and analyzing the performance of LLMs, enabling developers to gain insights into how these models are functioning within their applications. Langfuse can be particularly useful for identifying issues, optimizing performance, and ensuring that the integration of language models into applications is smooth and effective.\"",
+    "metadata": "{\"email\":\"user@langfuse.com\",\"resourceAttributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.33.1\",\"service.name\":\"unknown_service\"},\"scope\":{\"name\":\"langfuse-sdk\",\"version\":\"3.0.0\",\"attributes\":{\"public_key\":\"pk-lf-5855d85e-3943-497e-bd10-f50ad414bcba\"}}}",
+    "createdAt": "2025-06-05T15:45:56.000Z",
+    "updatedAt": "2025-06-05T15:45:56.029Z",
+    "scores": [],
+    "latency": 2.779
+  },
+  "observations": [
+    {
+      "id": "3344aabdd4e66110",
+      "traceId": "12ea412956f99347b0503c1144acd0ec",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": null,
+      "startTime": "2025-06-05T15:45:52.971Z",
+      "endTime": "2025-06-05T15:45:55.750Z",
+      "name": "llama-index-trace",
+      "metadata": {
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.33.1",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "langfuse-sdk",
+          "version": "3.0.0",
+          "attributes": {
+            "public_key": "pk-lf-5855d85e-3943-497e-bd10-f50ad414bcba"
+          }
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": "1.0.0",
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-06-05T15:45:55.996Z",
+      "updatedAt": "2025-06-05T15:45:56.027Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 2779,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": null,
+      "output": null
+    },
+    {
+      "id": "7ca8b22f6628d0c7",
+      "traceId": "12ea412956f99347b0503c1144acd0ec",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "GENERATION",
+      "environment": "default",
+      "parentObservationId": "3344aabdd4e66110",
+      "startTime": "2025-06-05T15:45:52.971Z",
+      "endTime": "2025-06-05T15:45:55.747Z",
+      "name": "OpenAI.complete",
+      "metadata": {
+        "attributes": {
+          "llm.model_name": "gpt-4o",
+          "llm.invocation_parameters": {
+            "context_window": 128000,
+            "num_output": -1,
+            "is_chat_model": true,
+            "is_function_calling_model": true,
+            "model_name": "gpt-4o",
+            "system_role": "system"
+          },
+          "llm.provider": "openai",
+          "llm.system": "openai",
+          "input.value": {
+            "args": [
+              "What is Langfuse?"
+            ]
+          },
+          "input.mime_type": "application/json",
+          "llm.prompts": [
+            "What is Langfuse?"
+          ],
+          "output.value": "Langfuse is a tool designed to help developers monitor and debug applications that utilize large language models (LLMs). It provides features for tracking and analyzing the performance of LLMs, enabling developers to gain insights into how these models are functioning within their applications. Langfuse can be particularly useful for identifying issues, optimizing performance, and ensuring that the integration of language models into applications is smooth and effective.",
+          "llm.token_count.prompt": "13",
+          "llm.token_count.prompt_details.cache_read": "0",
+          "llm.token_count.prompt_details.audio": "0",
+          "llm.token_count.completion": "81",
+          "llm.token_count.completion_details.reasoning": "0",
+          "llm.token_count.completion_details.audio": "0",
+          "llm.token_count.total": "94",
+          "openinference.span.kind": "LLM"
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.33.1",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "openinference.instrumentation.llama_index",
+          "version": "4.3.0",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": {
+        "context_window": 128000,
+        "num_output": -1,
+        "is_chat_model": true,
+        "is_function_calling_model": true,
+        "model_name": "gpt-4o",
+        "system_role": "system"
+      },
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-06-05T15:45:55.866Z",
+      "updatedAt": "2025-06-05T15:45:56.021Z",
+      "usageDetails": {
+        "input": 13,
+        "prompt_details.cache_read": 0,
+        "prompt_details.audio": 0,
+        "output": 81,
+        "completion_details.reasoning": 0,
+        "completion_details.audio": 0,
+        "total": 94
+      },
+      "costDetails": {
+        "input": 0.0000325,
+        "output": 0.00081,
+        "total": 0.000842499999
+      },
+      "providedCostDetails": {},
+      "model": "gpt-4o",
+      "internalModelId": "b9854a5c92dc496b997d99d20",
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 2776,
+      "timeToFirstToken": null,
+      "inputCost": 0.0000325,
+      "outputCost": 0.00081,
+      "totalCost": 0.000842499999,
+      "inputUsage": 13,
+      "outputUsage": 81,
+      "totalUsage": 94,
+      "input": {
+        "args": [
+          "What is Langfuse?"
+        ]
+      },
+      "output": "Langfuse is a tool designed to help developers monitor and debug applications that utilize large language models (LLMs). It provides features for tracking and analyzing the performance of LLMs, enabling developers to gain insights into how these models are functioning within their applications. Langfuse can be particularly useful for identifying issues, optimizing performance, and ensuring that the integration of language models into applications is smooth and effective."
+    }
+  ]
+}

@@ -1,0 +1,1525 @@
+{
+  "trace": {
+    "id": "080130871f53145aecf7c29d5dfb6e4c",
+    "projectId": "cloramnkj0002jz088vzn1ja4",
+    "name": "Agent.run",
+    "timestamp": "2025-06-11T14:01:32.598Z",
+    "environment": "default",
+    "tags": [],
+    "bookmarked": false,
+    "release": null,
+    "version": null,
+    "userId": null,
+    "sessionId": "35cc6c90-b657-4819-b66c-c931c03ad569",
+    "public": true,
+    "input": "\"{\\\"run_response\\\":\\\"RunResponse(content=None, content_type='str', thinking=None, reasoning_content=None, event='RunResponse', messages=None, metrics=None, model='gpt-4o-mini', model_provider='OpenAI', run_id='625aa1b6-dc11-4804-8f4b-e2f5b604c07f', agent_id='007f4340-d3b3-4e4e-bf94-bdb22a16d8d5', session_id='35cc6c90-b657-4819-b66c-c931c03ad569', workflow_id=None, tools=None, formatted_tool_calls=None, images=None, videos=None, audio=None, response_audio=None, citations=None, extra_data=None, created_at=1749650492)\\\",\\\"run_messages\\\":\\\"RunMessages(messages=[Message(role='system', content='<additional_information>\\\\\\\\n- Use markdown to format your answers.\\\\\\\\n</additional_information>', name=None, tool_call_id=None, tool_calls=None, audio=None, images=None, videos=None, files=None, audio_output=None, image_output=None, thinking=None, redacted_thinking=None, provider_data=None, citations=None, reasoning_content=None, tool_name=None, tool_args=None, tool_call_error=None, stop_after_tool_call=False, add_to_agent_memory=True, from_history=False, metrics=MessageMetrics(input_tokens=0, output_tokens=0, total_tokens=0, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=0, completion_tokens=0, prompt_tokens_details=None, completion_tokens_details=None, additional_metrics=None, time=None, time_to_first_token=None, timer=None), references=None, created_at=1749650492), Message(role='user', content='What is currently trending on Twitter?', name=None, tool_call_id=None, tool_calls=None, audio=None, images=None, videos=None, files=None, audio_output=None, image_output=None, thinking=None, redacted_thinking=None, provider_data=None, citations=None, reasoning_content=None, tool_name=None, tool_args=None, tool_call_error=None, stop_after_tool_call=False, add_to_agent_memory=True, from_history=False, metrics=MessageMetrics(input_tokens=0, output_tokens=0, total_tokens=0, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=0, completion_tokens=0, prompt_tokens_details=None, completion_tokens_details=None, additional_metrics=None, time=None, time_to_first_token=None, timer=None), references=None, created_at=1749650492)], system_message=Message(role='system', content='<additional_information>\\\\\\\\n- Use markdown to format your answers.\\\\\\\\n</additional_information>', name=None, tool_call_id=None, tool_calls=None, audio=None, images=None, videos=None, files=None, audio_output=None, image_output=None, thinking=None, redacted_thinking=None, provider_data=None, citations=None, reasoning_content=None, tool_name=None, tool_args=None, tool_call_error=None, stop_after_tool_call=False, add_to_agent_memory=True, from_history=False, metrics=MessageMetrics(input_tokens=0, output_tokens=0, total_tokens=0, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=0, completion_tokens=0, prompt_tokens_details=None, completion_tokens_details=None, additional_metrics=None, time=None, time_to_first_token=None, timer=None), references=None, created_at=1749650492), user_message=Message(role='user', content='What is currently trending on Twitter?', name=None, tool_call_id=None, tool_calls=None, audio=None, images=None, videos=None, files=None, audio_output=None, image_output=None, thinking=None, redacted_thinking=None, provider_data=None, citations=None, reasoning_content=None, tool_name=None, tool_args=None, tool_call_error=None, stop_after_tool_call=False, add_to_agent_memory=True, from_history=False, metrics=MessageMetrics(input_tokens=0, output_tokens=0, total_tokens=0, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=0, completion_tokens=0, prompt_tokens_details=None, completion_tokens_details=None, additional_metrics=None, time=None, time_to_first_token=None, timer=None), references=None, created_at=1749650492), extra_messages=None)\\\",\\\"session_id\\\":\\\"35cc6c90-b657-4819-b66c-c931c03ad569\\\",\\\"message\\\":\\\"What is currently trending on Twitter?\\\"}\"",
+    "output": "\"{\\\"content\\\":\\\"To find out what's currently trending on Twitter, you can visit the following resources:\\\\n\\\\n1. **[Twitter Explore](https://twitter.com/explore/tabs/trending/)**: Explore trending topics, hashtags, and conversations directly on Twitter.\\\\n\\\\n2. **[Trends24](https://trends24.in/united-states/)**: This site lists today's top X (Twitter) trends and hashtags in the United States, including topics like National Guard, Los Angeles, and more.\\\\n\\\\n3. **[Get Day Trends](https://getdaytrends.com/top/tweeted/day/)**: This platform analyzes Twitter data to provide insights on current trending topics and hashtags.\\\\n\\\\n4. **[91 Trends](https://91trends.com/twitter/united-states/)**: Get real-time updates on what's trending on Twitter in the United States.\\\\n\\\\n5. **[Global Twitter Trends](https://globaltwittertrends.com/united-states/)**: Check out what's trending specifically in the United States and view tweets based on those trends.\\\\n\\\\nFeel free to explore these links for the most up-to-date trending topics!\\\",\\\"content_type\\\":\\\"str\\\",\\\"event\\\":\\\"RunResponse\\\",\\\"metrics\\\":{\\\"input_tokens\\\":[163,663],\\\"output_tokens\\\":[20,225],\\\"total_tokens\\\":[183,888],\\\"audio_tokens\\\":[0,0],\\\"input_audio_tokens\\\":[0,0],\\\"output_audio_tokens\\\":[0,0],\\\"cached_tokens\\\":[0,0],\\\"reasoning_tokens\\\":[0,0],\\\"prompt_tokens\\\":[163,663],\\\"completion_tokens\\\":[20,225],\\\"prompt_tokens_details\\\":[{\\\"audio_tokens\\\":0,\\\"cached_tokens\\\":0},{\\\"audio_tokens\\\":0,\\\"cached_tokens\\\":0}],\\\"completion_tokens_details\\\":[{\\\"accepted_prediction_tokens\\\":0,\\\"audio_tokens\\\":0,\\\"reasoning_tokens\\\":0,\\\"rejected_prediction_tokens\\\":0},{\\\"accepted_prediction_tokens\\\":0,\\\"audio_tokens\\\":0,\\\"reasoning_tokens\\\":0,\\\"rejected_prediction_tokens\\\":0}],\\\"time\\\":[0.9596867079999356,4.799381209000785]},\\\"model\\\":\\\"gpt-4o-mini\\\",\\\"model_provider\\\":\\\"OpenAI\\\",\\\"run_id\\\":\\\"625aa1b6-dc11-4804-8f4b-e2f5b604c07f\\\",\\\"agent_id\\\":\\\"007f4340-d3b3-4e4e-bf94-bdb22a16d8d5\\\",\\\"session_id\\\":\\\"35cc6c90-b657-4819-b66c-c931c03ad569\\\",\\\"formatted_tool_calls\\\":[\\\"duckduckgo_search(query=currently trending on Twitter)\\\"],\\\"created_at\\\":1749650243,\\\"messages\\\":[{\\\"content\\\":\\\"<additional_information>\\\\n- Use markdown to format your answers.\\\\n</additional_information>\\\",\\\"from_history\\\":false,\\\"stop_after_tool_call\\\":false,\\\"role\\\":\\\"system\\\",\\\"created_at\\\":1749650492},{\\\"content\\\":\\\"What is currently trending on Twitter?\\\",\\\"from_history\\\":false,\\\"stop_after_tool_call\\\":false,\\\"role\\\":\\\"user\\\",\\\"created_at\\\":1749650492},{\\\"from_history\\\":false,\\\"stop_after_tool_call\\\":false,\\\"role\\\":\\\"assistant\\\",\\\"tool_calls\\\":[{\\\"id\\\":\\\"call_VybxG748CQId8Xxo6wb2pWy1\\\",\\\"function\\\":{\\\"arguments\\\":\\\"{\\\\\\\"query\\\\\\\":\\\\\\\"currently trending on Twitter\\\\\\\"}\\\",\\\"name\\\":\\\"duckduckgo_search\\\"},\\\"type\\\":\\\"function\\\"}],\\\"metrics\\\":{\\\"input_tokens\\\":163,\\\"output_tokens\\\":20,\\\"total_tokens\\\":183,\\\"prompt_tokens\\\":163,\\\"completion_tokens\\\":20,\\\"prompt_tokens_details\\\":{\\\"audio_tokens\\\":0,\\\"cached_tokens\\\":0},\\\"completion_tokens_details\\\":{\\\"accepted_prediction_tokens\\\":0,\\\"audio_tokens\\\":0,\\\"reasoning_tokens\\\":0,\\\"rejected_prediction_tokens\\\":0},\\\"time\\\":0.9596867079999356},\\\"created_at\\\":1749650492},{\\\"content\\\":\\\"[\\\\n  {\\\\n    \\\\\\\"title\\\\\\\": \\\\\\\"Twitter. It's what's happening / Twitter\\\\\\\",\\\\n    \\\\\\\"href\\\\\\\": \\\\\\\"https://twitter.com/explore/tabs/trending/\\\\\\\",\\\\n    \\\\\\\"body\\\\\\\": \\\\\\\"Explore trending topics, hashtags, and conversations on Twitter.\\\\\\\"\\\\n  },\\\\n  {\\\\n    \\\\\\\"title\\\\\\\": \\\\\\\"United States \\\\\\\\u2014 X (Twitter) trending topics and hashtags today ...\\\\\\\",\\\\n    \\\\\\\"href\\\\\\\": \\\\\\\"https://trends24.in/united-states/\\\\\\\",\\\\n    \\\\\\\"body\\\\\\\": \\\\\\\"Today's top X (Twitter) trends and hashtags in United States: National Guard, Los Angeles, California, Peaceful, Marines. Explore more locations and trending topics on trends24.in\\\\\\\"\\\\n  },\\\\n  {\\\\n    \\\\\\\"title\\\\\\\": \\\\\\\"Worldwide \\\\\\\\u2022 Top Hashtags \\\\\\\\u2022 Most Tweeted \\\\\\\\u2022 Day - getdaytrends\\\\\\\",\\\\n    \\\\\\\"href\\\\\\\": \\\\\\\"https://getdaytrends.com/top/tweeted/day/\\\\\\\",\\\\n    \\\\\\\"body\\\\\\\": \\\\\\\"About Us. We store and analyze Twitter data to bring you insights on what's currently trending and help you keep up with the audience. Find out hot trends, review trend history and browse long-term popular hashtags and topics.\\\\\\\"\\\\n  },\\\\n  {\\\\n    \\\\\\\"title\\\\\\\": \\\\\\\"United States Latest Trending X (Twitter) hashtag and topics\\\\\\\",\\\\n    \\\\\\\"href\\\\\\\": \\\\\\\"https://91trends.com/twitter/united-states/\\\\\\\",\\\\n    \\\\\\\"body\\\\\\\": \\\\\\\"United States X (Twitter) Trends Now | Top X (Twitter) Trending Topics & Hashtags Today. Get real-time updates on the hottest trending hashtags and topics on X (Twitter) United States with our automated page. Our page utilizes the official X (Twitter) API to refresh the most talked-about hashtags and topics every 30 minutes, ensuring you always have access to the most current trends on the ...\\\\\\\"\\\\n  },\\\\n  {\\\\n    \\\\\\\"title\\\\\\\": \\\\\\\"Trending on Twitter United States today - Global Twitter Trends\\\\\\\",\\\\n    \\\\\\\"href\\\\\\\": \\\\\\\"https://globaltwittertrends.com/united-states/\\\\\\\",\\\\n    \\\\\\\"body\\\\\\\": \\\\\\\"Above is the table to show what's trending in United States twitter right now . You can click on any one of the trends to tweet it or view all tweets based on that trend. You can also view the twitter trends of all towns in United States by just searching on the search bar above or by choosing from the provided list of countries and towns.\\\\\\\"\\\\n  }\\\\n]\\\",\\\"from_history\\\":false,\\\"stop_after_tool_call\\\":false,\\\"role\\\":\\\"tool\\\",\\\"tool_call_id\\\":\\\"call_VybxG748CQId8Xxo6wb2pWy1\\\",\\\"tool_name\\\":\\\"duckduckgo_search\\\",\\\"tool_args\\\":{\\\"query\\\":\\\"currently trending on Twitter\\\"},\\\"tool_call_error\\\":false,\\\"metrics\\\":{\\\"time\\\":0.7176052920003713},\\\"created_at\\\":1749650494},{\\\"content\\\":\\\"To find out what's currently trending on Twitter, you can visit the following resources:\\\\n\\\\n1. **[Twitter Explore](https://twitter.com/explore/tabs/trending/)**: Explore trending topics, hashtags, and conversations directly on Twitter.\\\\n\\\\n2. **[Trends24](https://trends24.in/united-states/)**: This site lists today's top X (Twitter) trends and hashtags in the United States, including topics like National Guard, Los Angeles, and more.\\\\n\\\\n3. **[Get Day Trends](https://getdaytrends.com/top/tweeted/day/)**: This platform analyzes Twitter data to provide insights on current trending topics and hashtags.\\\\n\\\\n4. **[91 Trends](https://91trends.com/twitter/united-states/)**: Get real-time updates on what's trending on Twitter in the United States.\\\\n\\\\n5. **[Global Twitter Trends](https://globaltwittertrends.com/united-states/)**: Check out what's trending specifically in the United States and view tweets based on those trends.\\\\n\\\\nFeel free to explore these links for the most up-to-date trending topics!\\\",\\\"from_history\\\":false,\\\"stop_after_tool_call\\\":false,\\\"role\\\":\\\"assistant\\\",\\\"metrics\\\":{\\\"input_tokens\\\":663,\\\"output_tokens\\\":225,\\\"total_tokens\\\":888,\\\"prompt_tokens\\\":663,\\\"completion_tokens\\\":225,\\\"prompt_tokens_details\\\":{\\\"audio_tokens\\\":0,\\\"cached_tokens\\\":0},\\\"completion_tokens_details\\\":{\\\"accepted_prediction_tokens\\\":0,\\\"audio_tokens\\\":0,\\\"reasoning_tokens\\\":0,\\\"rejected_prediction_tokens\\\":0},\\\"time\\\":4.799381209000785},\\\"created_at\\\":1749650494}],\\\"tools\\\":[{\\\"tool_call_id\\\":\\\"call_VybxG748CQId8Xxo6wb2pWy1\\\",\\\"tool_name\\\":\\\"duckduckgo_search\\\",\\\"tool_args\\\":{\\\"query\\\":\\\"currently trending on Twitter\\\"},\\\"tool_call_error\\\":false,\\\"result\\\":\\\"[\\\\n  {\\\\n    \\\\\\\"title\\\\\\\": \\\\\\\"Twitter. It's what's happening / Twitter\\\\\\\",\\\\n    \\\\\\\"href\\\\\\\": \\\\\\\"https://twitter.com/explore/tabs/trending/\\\\\\\",\\\\n    \\\\\\\"body\\\\\\\": \\\\\\\"Explore trending topics, hashtags, and conversations on Twitter.\\\\\\\"\\\\n  },\\\\n  {\\\\n    \\\\\\\"title\\\\\\\": \\\\\\\"United States \\\\\\\\u2014 X (Twitter) trending topics and hashtags today ...\\\\\\\",\\\\n    \\\\\\\"href\\\\\\\": \\\\\\\"https://trends24.in/united-states/\\\\\\\",\\\\n    \\\\\\\"body\\\\\\\": \\\\\\\"Today's top X (Twitter) trends and hashtags in United States: National Guard, Los Angeles, California, Peaceful, Marines. Explore more locations and trending topics on trends24.in\\\\\\\"\\\\n  },\\\\n  {\\\\n    \\\\\\\"title\\\\\\\": \\\\\\\"Worldwide \\\\\\\\u2022 Top Hashtags \\\\\\\\u2022 Most Tweeted \\\\\\\\u2022 Day - getdaytrends\\\\\\\",\\\\n    \\\\\\\"href\\\\\\\": \\\\\\\"https://getdaytrends.com/top/tweeted/day/\\\\\\\",\\\\n    \\\\\\\"body\\\\\\\": \\\\\\\"About Us. We store and analyze Twitter data to bring you insights on what's currently trending and help you keep up with the audience. Find out hot trends, review trend history and browse long-term popular hashtags and topics.\\\\\\\"\\\\n  },\\\\n  {\\\\n    \\\\\\\"title\\\\\\\": \\\\\\\"United States Latest Trending X (Twitter) hashtag and topics\\\\\\\",\\\\n    \\\\\\\"href\\\\\\\": \\\\\\\"https://91trends.com/twitter/united-states/\\\\\\\",\\\\n    \\\\\\\"body\\\\\\\": \\\\\\\"United States X (Twitter) Trends Now | Top X (Twitter) Trending Topics & Hashtags Today. Get real-time updates on the hottest trending hashtags and topics on X (Twitter) United States with our automated page. Our page utilizes the official X (Twitter) API to refresh the most talked-about hashtags and topics every 30 minutes, ensuring you always have access to the most current trends on the ...\\\\\\\"\\\\n  },\\\\n  {\\\\n    \\\\\\\"title\\\\\\\": \\\\\\\"Trending on Twitter United States today - Global Twitter Trends\\\\\\\",\\\\n    \\\\\\\"href\\\\\\\": \\\\\\\"https://globaltwittertrends.com/united-states/\\\\\\\",\\\\n    \\\\\\\"body\\\\\\\": \\\\\\\"Above is the table to show what's trending in United States twitter right now . You can click on any one of the trends to tweet it or view all tweets based on that trend. You can also view the twitter trends of all towns in United States by just searching on the search bar above or by choosing from the provided list of countries and towns.\\\\\\\"\\\\n  }\\\\n]\\\",\\\"metrics\\\":{\\\"time\\\":0.7176052920003713},\\\"stop_after_tool_call\\\":false,\\\"created_at\\\":1749650243,\\\"requires_confirmation\\\":null,\\\"confirmed\\\":null,\\\"confirmation_note\\\":null,\\\"requires_user_input\\\":null,\\\"user_input_schema\\\":null,\\\"external_execution_required\\\":null}]}\"",
+    "metadata": "{\"attributes\":{\"input.value\":\"{\\\"run_response\\\": \\\"RunResponse(content=None, content_type='str', thinking=None, reasoning_content=None, event='RunResponse', messages=None, metrics=None, model='gpt-4o-mini', model_provider='OpenAI', run_id='625aa1b6-dc11-4804-8f4b-e2f5b604c07f', agent_id='007f4340-d3b3-4e4e-bf94-bdb22a16d8d5', session_id='35cc6c90-b657-4819-b66c-c931c03ad569', workflow_id=None, tools=None, formatted_tool_calls=None, images=None, videos=None, audio=None, response_audio=None, citations=None, extra_data=None, created_at=1749650492)\\\", \\\"run_messages\\\": \\\"RunMessages(messages=[Message(role='system', content='<additional_information>\\\\\\\\n- Use markdown to format your answers.\\\\\\\\n</additional_information>', name=None, tool_call_id=None, tool_calls=None, audio=None, images=None, videos=None, files=None, audio_output=None, image_output=None, thinking=None, redacted_thinking=None, provider_data=None, citations=None, reasoning_content=None, tool_name=None, tool_args=None, tool_call_error=None, stop_after_tool_call=False, add_to_agent_memory=True, from_history=False, metrics=MessageMetrics(input_tokens=0, output_tokens=0, total_tokens=0, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=0, completion_tokens=0, prompt_tokens_details=None, completion_tokens_details=None, additional_metrics=None, time=None, time_to_first_token=None, timer=None), references=None, created_at=1749650492), Message(role='user', content='What is currently trending on Twitter?', name=None, tool_call_id=None, tool_calls=None, audio=None, images=None, videos=None, files=None, audio_output=None, image_output=None, thinking=None, redacted_thinking=None, provider_data=None, citations=None, reasoning_content=None, tool_name=None, tool_args=None, tool_call_error=None, stop_after_tool_call=False, add_to_agent_memory=True, from_history=False, metrics=MessageMetrics(input_tokens=0, output_tokens=0, total_tokens=0, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=0, completion_tokens=0, prompt_tokens_details=None, completion_tokens_details=None, additional_metrics=None, time=None, time_to_first_token=None, timer=None), references=None, created_at=1749650492)], system_message=Message(role='system', content='<additional_information>\\\\\\\\n- Use markdown to format your answers.\\\\\\\\n</additional_information>', name=None, tool_call_id=None, tool_calls=None, audio=None, images=None, videos=None, files=None, audio_output=None, image_output=None, thinking=None, redacted_thinking=None, provider_data=None, citations=None, reasoning_content=None, tool_name=None, tool_args=None, tool_call_error=None, stop_after_tool_call=False, add_to_agent_memory=True, from_history=False, metrics=MessageMetrics(input_tokens=0, output_tokens=0, total_tokens=0, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=0, completion_tokens=0, prompt_tokens_details=None, completion_tokens_details=None, additional_metrics=None, time=None, time_to_first_token=None, timer=None), references=None, created_at=1749650492), user_message=Message(role='user', content='What is currently trending on Twitter?', name=None, tool_call_id=None, tool_calls=None, audio=None, images=None, videos=None, files=None, audio_output=None, image_output=None, thinking=None, redacted_thinking=None, provider_data=None, citations=None, reasoning_content=None, tool_name=None, tool_args=None, tool_call_error=None, stop_after_tool_call=False, add_to_agent_memory=True, from_history=False, metrics=MessageMetrics(input_tokens=0, output_tokens=0, total_tokens=0, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=0, completion_tokens=0, prompt_tokens_details=None, completion_tokens_details=None, additional_metrics=None, time=None, time_to_first_token=None, timer=None), references=None, created_at=1749650492), extra_messages=None)\\\", \\\"session_id\\\": \\\"35cc6c90-b657-4819-b66c-c931c03ad569\\\", \\\"message\\\": \\\"What is currently trending on Twitter?\\\"}\",\"session.id\":\"35cc6c90-b657-4819-b66c-c931c03ad569\",\"agno{key_suffix}.tools\":\"[\\\"duckduckgo_search\\\",\\\"duckduckgo_news\\\"]\",\"output.value\":\"{\\n  \\\"content\\\": \\\"To find out what's currently trending on Twitter, you can visit the following resources:\\\\n\\\\n1. **[Twitter Explore](https://twitter.com/explore/tabs/trending/)**: Explore trending topics, hashtags, and conversations directly on Twitter.\\\\n\\\\n2. **[Trends24](https://trends24.in/united-states/)**: This site lists today's top X (Twitter) trends and hashtags in the United States, including topics like National Guard, Los Angeles, and more.\\\\n\\\\n3. **[Get Day Trends](https://getdaytrends.com/top/tweeted/day/)**: This platform analyzes Twitter data to provide insights on current trending topics and hashtags.\\\\n\\\\n4. **[91 Trends](https://91trends.com/twitter/united-states/)**: Get real-time updates on what's trending on Twitter in the United States.\\\\n\\\\n5. **[Global Twitter Trends](https://globaltwittertrends.com/united-states/)**: Check out what's trending specifically in the United States and view tweets based on those trends.\\\\n\\\\nFeel free to explore these links for the most up-to-date trending topics!\\\",\\n  \\\"content_type\\\": \\\"str\\\",\\n  \\\"event\\\": \\\"RunResponse\\\",\\n  \\\"metrics\\\": {\\n    \\\"input_tokens\\\": [\\n      163,\\n      663\\n    ],\\n    \\\"output_tokens\\\": [\\n      20,\\n      225\\n    ],\\n    \\\"total_tokens\\\": [\\n      183,\\n      888\\n    ],\\n    \\\"audio_tokens\\\": [\\n      0,\\n      0\\n    ],\\n    \\\"input_audio_tokens\\\": [\\n      0,\\n      0\\n    ],\\n    \\\"output_audio_tokens\\\": [\\n      0,\\n      0\\n    ],\\n    \\\"cached_tokens\\\": [\\n      0,\\n      0\\n    ],\\n    \\\"reasoning_tokens\\\": [\\n      0,\\n      0\\n    ],\\n    \\\"prompt_tokens\\\": [\\n      163,\\n      663\\n    ],\\n    \\\"completion_tokens\\\": [\\n      20,\\n      225\\n    ],\\n    \\\"prompt_tokens_details\\\": [\\n      {\\n        \\\"audio_tokens\\\": 0,\\n        \\\"cached_tokens\\\": 0\\n      },\\n      {\\n        \\\"audio_tokens\\\": 0,\\n        \\\"cached_tokens\\\": 0\\n      }\\n    ],\\n    \\\"completion_tokens_details\\\": [\\n      {\\n        \\\"accepted_prediction_tokens\\\": 0,\\n        \\\"audio_tokens\\\": 0,\\n        \\\"reasoning_tokens\\\": 0,\\n        \\\"rejected_prediction_tokens\\\": 0\\n      },\\n      {\\n        \\\"accepted_prediction_tokens\\\": 0,\\n        \\\"audio_tokens\\\": 0,\\n        \\\"reasoning_tokens\\\": 0,\\n        \\\"rejected_prediction_tokens\\\": 0\\n      }\\n    ],\\n    \\\"time\\\": [\\n      0.9596867079999356,\\n      4.799381209000785\\n    ]\\n  },\\n  \\\"model\\\": \\\"gpt-4o-mini\\\",\\n  \\\"model_provider\\\": \\\"OpenAI\\\",\\n  \\\"run_id\\\": \\\"625aa1b6-dc11-4804-8f4b-e2f5b604c07f\\\",\\n  \\\"agent_id\\\": \\\"007f4340-d3b3-4e4e-bf94-bdb22a16d8d5\\\",\\n  \\\"session_id\\\": \\\"35cc6c90-b657-4819-b66c-c931c03ad569\\\",\\n  \\\"formatted_tool_calls\\\": [\\n    \\\"duckduckgo_search(query=currently trending on Twitter)\\\"\\n  ],\\n  \\\"created_at\\\": 1749650243,\\n  \\\"messages\\\": [\\n    {\\n      \\\"content\\\": \\\"<additional_information>\\\\n- Use markdown to format your answers.\\\\n</additional_information>\\\",\\n      \\\"from_history\\\": false,\\n      \\\"stop_after_tool_call\\\": false,\\n      \\\"role\\\": \\\"system\\\",\\n      \\\"created_at\\\": 1749650492\\n    },\\n    {\\n      \\\"content\\\": \\\"What is currently trending on Twitter?\\\",\\n      \\\"from_history\\\": false,\\n      \\\"stop_after_tool_call\\\": false,\\n      \\\"role\\\": \\\"user\\\",\\n      \\\"created_at\\\": 1749650492\\n    },\\n    {\\n      \\\"from_history\\\": false,\\n      \\\"stop_after_tool_call\\\": false,\\n      \\\"role\\\": \\\"assistant\\\",\\n      \\\"tool_calls\\\": [\\n        {\\n          \\\"id\\\": \\\"call_VybxG748CQId8Xxo6wb2pWy1\\\",\\n          \\\"function\\\": {\\n            \\\"arguments\\\": \\\"{\\\\\\\"query\\\\\\\":\\\\\\\"currently trending on Twitter\\\\\\\"}\\\",\\n            \\\"name\\\": \\\"duckduckgo_search\\\"\\n          },\\n          \\\"type\\\": \\\"function\\\"\\n        }\\n      ],\\n      \\\"metrics\\\": {\\n        \\\"input_tokens\\\": 163,\\n        \\\"output_tokens\\\": 20,\\n        \\\"total_tokens\\\": 183,\\n        \\\"prompt_tokens\\\": 163,\\n        \\\"completion_tokens\\\": 20,\\n        \\\"prompt_tokens_details\\\": {\\n          \\\"audio_tokens\\\": 0,\\n          \\\"cached_tokens\\\": 0\\n        },\\n        \\\"completion_tokens_details\\\": {\\n          \\\"accepted_prediction_tokens\\\": 0,\\n          \\\"audio_tokens\\\": 0,\\n          \\\"reasoning_tokens\\\": 0,\\n          \\\"rejected_prediction_tokens\\\": 0\\n        },\\n        \\\"time\\\": 0.9596867079999356\\n      },\\n      \\\"created_at\\\": 1749650492\\n    },\\n    {\\n      \\\"content\\\": \\\"[\\\\n  {\\\\n    \\\\\\\"title\\\\\\\": \\\\\\\"Twitter. It's what's happening / Twitter\\\\\\\",\\\\n    \\\\\\\"href\\\\\\\": \\\\\\\"https://twitter.com/explore/tabs/trending/\\\\\\\",\\\\n    \\\\\\\"body\\\\\\\": \\\\\\\"Explore trending topics, hashtags, and conversations on Twitter.\\\\\\\"\\\\n  },\\\\n  {\\\\n    \\\\\\\"title\\\\\\\": \\\\\\\"United States \\\\\\\\u2014 X (Twitter) trending topics and hashtags today ...\\\\\\\",\\\\n    \\\\\\\"href\\\\\\\": \\\\\\\"https://trends24.in/united-states/\\\\\\\",\\\\n    \\\\\\\"body\\\\\\\": \\\\\\\"Today's top X (Twitter) trends and hashtags in United States: National Guard, Los Angeles, California, Peaceful, Marines. Explore more locations and trending topics on trends24.in\\\\\\\"\\\\n  },\\\\n  {\\\\n    \\\\\\\"title\\\\\\\": \\\\\\\"Worldwide \\\\\\\\u2022 Top Hashtags \\\\\\\\u2022 Most Tweeted \\\\\\\\u2022 Day - getdaytrends\\\\\\\",\\\\n    \\\\\\\"href\\\\\\\": \\\\\\\"https://getdaytrends.com/top/tweeted/day/\\\\\\\",\\\\n    \\\\\\\"body\\\\\\\": \\\\\\\"About Us. We store and analyze Twitter data to bring you insights on what's currently trending and help you keep up with the audience. Find out hot trends, review trend history and browse long-term popular hashtags and topics.\\\\\\\"\\\\n  },\\\\n  {\\\\n    \\\\\\\"title\\\\\\\": \\\\\\\"United States Latest Trending X (Twitter) hashtag and topics\\\\\\\",\\\\n    \\\\\\\"href\\\\\\\": \\\\\\\"https://91trends.com/twitter/united-states/\\\\\\\",\\\\n    \\\\\\\"body\\\\\\\": \\\\\\\"United States X (Twitter) Trends Now | Top X (Twitter) Trending Topics & Hashtags Today. Get real-time updates on the hottest trending hashtags and topics on X (Twitter) United States with our automated page. Our page utilizes the official X (Twitter) API to refresh the most talked-about hashtags and topics every 30 minutes, ensuring you always have access to the most current trends on the ...\\\\\\\"\\\\n  },\\\\n  {\\\\n    \\\\\\\"title\\\\\\\": \\\\\\\"Trending on Twitter United States today - Global Twitter Trends\\\\\\\",\\\\n    \\\\\\\"href\\\\\\\": \\\\\\\"https://globaltwittertrends.com/united-states/\\\\\\\",\\\\n    \\\\\\\"body\\\\\\\": \\\\\\\"Above is the table to show what's trending in United States twitter right now . You can click on any one of the trends to tweet it or view all tweets based on that trend. You can also view the twitter trends of all towns in United States by just searching on the search bar above or by choosing from the provided list of countries and towns.\\\\\\\"\\\\n  }\\\\n]\\\",\\n      \\\"from_history\\\": false,\\n      \\\"stop_after_tool_call\\\": false,\\n      \\\"role\\\": \\\"tool\\\",\\n      \\\"tool_call_id\\\": \\\"call_VybxG748CQId8Xxo6wb2pWy1\\\",\\n      \\\"tool_name\\\": \\\"duckduckgo_search\\\",\\n      \\\"tool_args\\\": {\\n        \\\"query\\\": \\\"currently trending on Twitter\\\"\\n      },\\n      \\\"tool_call_error\\\": false,\\n      \\\"metrics\\\": {\\n        \\\"time\\\": 0.7176052920003713\\n      },\\n      \\\"created_at\\\": 1749650494\\n    },\\n    {\\n      \\\"content\\\": \\\"To find out what's currently trending on Twitter, you can visit the following resources:\\\\n\\\\n1. **[Twitter Explore](https://twitter.com/explore/tabs/trending/)**: Explore trending topics, hashtags, and conversations directly on Twitter.\\\\n\\\\n2. **[Trends24](https://trends24.in/united-states/)**: This site lists today's top X (Twitter) trends and hashtags in the United States, including topics like National Guard, Los Angeles, and more.\\\\n\\\\n3. **[Get Day Trends](https://getdaytrends.com/top/tweeted/day/)**: This platform analyzes Twitter data to provide insights on current trending topics and hashtags.\\\\n\\\\n4. **[91 Trends](https://91trends.com/twitter/united-states/)**: Get real-time updates on what's trending on Twitter in the United States.\\\\n\\\\n5. **[Global Twitter Trends](https://globaltwittertrends.com/united-states/)**: Check out what's trending specifically in the United States and view tweets based on those trends.\\\\n\\\\nFeel free to explore these links for the most up-to-date trending topics!\\\",\\n      \\\"from_history\\\": false,\\n      \\\"stop_after_tool_call\\\": false,\\n      \\\"role\\\": \\\"assistant\\\",\\n      \\\"metrics\\\": {\\n        \\\"input_tokens\\\": 663,\\n        \\\"output_tokens\\\": 225,\\n        \\\"total_tokens\\\": 888,\\n        \\\"prompt_tokens\\\": 663,\\n        \\\"completion_tokens\\\": 225,\\n        \\\"prompt_tokens_details\\\": {\\n          \\\"audio_tokens\\\": 0,\\n          \\\"cached_tokens\\\": 0\\n        },\\n        \\\"completion_tokens_details\\\": {\\n          \\\"accepted_prediction_tokens\\\": 0,\\n          \\\"audio_tokens\\\": 0,\\n          \\\"reasoning_tokens\\\": 0,\\n          \\\"rejected_prediction_tokens\\\": 0\\n        },\\n        \\\"time\\\": 4.799381209000785\\n      },\\n      \\\"created_at\\\": 1749650494\\n    }\\n  ],\\n  \\\"tools\\\": [\\n    {\\n      \\\"tool_call_id\\\": \\\"call_VybxG748CQId8Xxo6wb2pWy1\\\",\\n      \\\"tool_name\\\": \\\"duckduckgo_search\\\",\\n      \\\"tool_args\\\": {\\n        \\\"query\\\": \\\"currently trending on Twitter\\\"\\n      },\\n      \\\"tool_call_error\\\": false,\\n      \\\"result\\\": \\\"[\\\\n  {\\\\n    \\\\\\\"title\\\\\\\": \\\\\\\"Twitter. It's what's happening / Twitter\\\\\\\",\\\\n    \\\\\\\"href\\\\\\\": \\\\\\\"https://twitter.com/explore/tabs/trending/\\\\\\\",\\\\n    \\\\\\\"body\\\\\\\": \\\\\\\"Explore trending topics, hashtags, and conversations on Twitter.\\\\\\\"\\\\n  },\\\\n  {\\\\n    \\\\\\\"title\\\\\\\": \\\\\\\"United States \\\\\\\\u2014 X (Twitter) trending topics and hashtags today ...\\\\\\\",\\\\n    \\\\\\\"href\\\\\\\": \\\\\\\"https://trends24.in/united-states/\\\\\\\",\\\\n    \\\\\\\"body\\\\\\\": \\\\\\\"Today's top X (Twitter) trends and hashtags in United States: National Guard, Los Angeles, California, Peaceful, Marines. Explore more locations and trending topics on trends24.in\\\\\\\"\\\\n  },\\\\n  {\\\\n    \\\\\\\"title\\\\\\\": \\\\\\\"Worldwide \\\\\\\\u2022 Top Hashtags \\\\\\\\u2022 Most Tweeted \\\\\\\\u2022 Day - getdaytrends\\\\\\\",\\\\n    \\\\\\\"href\\\\\\\": \\\\\\\"https://getdaytrends.com/top/tweeted/day/\\\\\\\",\\\\n    \\\\\\\"body\\\\\\\": \\\\\\\"About Us. We store and analyze Twitter data to bring you insights on what's currently trending and help you keep up with the audience. Find out hot trends, review trend history and browse long-term popular hashtags and topics.\\\\\\\"\\\\n  },\\\\n  {\\\\n    \\\\\\\"title\\\\\\\": \\\\\\\"United States Latest Trending X (Twitter) hashtag and topics\\\\\\\",\\\\n    \\\\\\\"href\\\\\\\": \\\\\\\"https://91trends.com/twitter/united-states/\\\\\\\",\\\\n    \\\\\\\"body\\\\\\\": \\\\\\\"United States X (Twitter) Trends Now | Top X (Twitter) Trending Topics & Hashtags Today. Get real-time updates on the hottest trending hashtags and topics on X (Twitter) United States with our automated page. Our page utilizes the official X (Twitter) API to refresh the most talked-about hashtags and topics every 30 minutes, ensuring you always have access to the most current trends on the ...\\\\\\\"\\\\n  },\\\\n  {\\\\n    \\\\\\\"title\\\\\\\": \\\\\\\"Trending on Twitter United States today - Global Twitter Trends\\\\\\\",\\\\n    \\\\\\\"href\\\\\\\": \\\\\\\"https://globaltwittertrends.com/united-states/\\\\\\\",\\\\n    \\\\\\\"body\\\\\\\": \\\\\\\"Above is the table to show what's trending in United States twitter right now . You can click on any one of the trends to tweet it or view all tweets based on that trend. You can also view the twitter trends of all towns in United States by just searching on the search bar above or by choosing from the provided list of countries and towns.\\\\\\\"\\\\n  }\\\\n]\\\",\\n      \\\"metrics\\\": {\\n        \\\"time\\\": 0.7176052920003713\\n      },\\n      \\\"stop_after_tool_call\\\": false,\\n      \\\"created_at\\\": 1749650243,\\n      \\\"requires_confirmation\\\": null,\\n      \\\"confirmed\\\": null,\\n      \\\"confirmation_note\\\": null,\\n      \\\"requires_user_input\\\": null,\\n      \\\"user_input_schema\\\": null,\\n      \\\"external_execution_required\\\": null\\n    }\\n  ]\\n}\",\"output.mime_type\":\"application/json\",\"openinference.span.kind\":\"AGENT\"},\"resourceAttributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.33.1\",\"service.name\":\"unknown_service\"},\"scope\":{\"name\":\"openinference.instrumentation.agno\",\"version\":\"0.1.4\",\"attributes\":{}}}",
+    "createdAt": "2025-06-11T14:01:40.000Z",
+    "updatedAt": "2025-06-11T14:01:39.791Z",
+    "scores": [],
+    "latency": 6.991
+  },
+  "observations": [
+    {
+      "id": "1cffdfa6fe3412e6",
+      "traceId": "080130871f53145aecf7c29d5dfb6e4c",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": null,
+      "startTime": "2025-06-11T14:01:32.598Z",
+      "endTime": "2025-06-11T14:01:39.589Z",
+      "name": "Agent.run",
+      "metadata": {
+        "attributes": {
+          "input.value": {
+            "run_response": "RunResponse(content=None, content_type='str', thinking=None, reasoning_content=None, event='RunResponse', messages=None, metrics=None, model='gpt-4o-mini', model_provider='OpenAI', run_id='625aa1b6-dc11-4804-8f4b-e2f5b604c07f', agent_id='007f4340-d3b3-4e4e-bf94-bdb22a16d8d5', session_id='35cc6c90-b657-4819-b66c-c931c03ad569', workflow_id=None, tools=None, formatted_tool_calls=None, images=None, videos=None, audio=None, response_audio=None, citations=None, extra_data=None, created_at=1749650492)",
+            "run_messages": "RunMessages(messages=[Message(role='system', content='<additional_information>\\n- Use markdown to format your answers.\\n</additional_information>', name=None, tool_call_id=None, tool_calls=None, audio=None, images=None, videos=None, files=None, audio_output=None, image_output=None, thinking=None, redacted_thinking=None, provider_data=None, citations=None, reasoning_content=None, tool_name=None, tool_args=None, tool_call_error=None, stop_after_tool_call=False, add_to_agent_memory=True, from_history=False, metrics=MessageMetrics(input_tokens=0, output_tokens=0, total_tokens=0, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=0, completion_tokens=0, prompt_tokens_details=None, completion_tokens_details=None, additional_metrics=None, time=None, time_to_first_token=None, timer=None), references=None, created_at=1749650492), Message(role='user', content='What is currently trending on Twitter?', name=None, tool_call_id=None, tool_calls=None, audio=None, images=None, videos=None, files=None, audio_output=None, image_output=None, thinking=None, redacted_thinking=None, provider_data=None, citations=None, reasoning_content=None, tool_name=None, tool_args=None, tool_call_error=None, stop_after_tool_call=False, add_to_agent_memory=True, from_history=False, metrics=MessageMetrics(input_tokens=0, output_tokens=0, total_tokens=0, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=0, completion_tokens=0, prompt_tokens_details=None, completion_tokens_details=None, additional_metrics=None, time=None, time_to_first_token=None, timer=None), references=None, created_at=1749650492)], system_message=Message(role='system', content='<additional_information>\\n- Use markdown to format your answers.\\n</additional_information>', name=None, tool_call_id=None, tool_calls=None, audio=None, images=None, videos=None, files=None, audio_output=None, image_output=None, thinking=None, redacted_thinking=None, provider_data=None, citations=None, reasoning_content=None, tool_name=None, tool_args=None, tool_call_error=None, stop_after_tool_call=False, add_to_agent_memory=True, from_history=False, metrics=MessageMetrics(input_tokens=0, output_tokens=0, total_tokens=0, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=0, completion_tokens=0, prompt_tokens_details=None, completion_tokens_details=None, additional_metrics=None, time=None, time_to_first_token=None, timer=None), references=None, created_at=1749650492), user_message=Message(role='user', content='What is currently trending on Twitter?', name=None, tool_call_id=None, tool_calls=None, audio=None, images=None, videos=None, files=None, audio_output=None, image_output=None, thinking=None, redacted_thinking=None, provider_data=None, citations=None, reasoning_content=None, tool_name=None, tool_args=None, tool_call_error=None, stop_after_tool_call=False, add_to_agent_memory=True, from_history=False, metrics=MessageMetrics(input_tokens=0, output_tokens=0, total_tokens=0, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=0, completion_tokens=0, prompt_tokens_details=None, completion_tokens_details=None, additional_metrics=None, time=None, time_to_first_token=None, timer=None), references=None, created_at=1749650492), extra_messages=None)",
+            "session_id": "35cc6c90-b657-4819-b66c-c931c03ad569",
+            "message": "What is currently trending on Twitter?"
+          },
+          "session.id": "35cc6c90-b657-4819-b66c-c931c03ad569",
+          "agno{key_suffix}.tools": [
+            "duckduckgo_search",
+            "duckduckgo_news"
+          ],
+          "output.value": {
+            "content": "To find out what's currently trending on Twitter, you can visit the following resources:\n\n1. **[Twitter Explore](https://twitter.com/explore/tabs/trending/)**: Explore trending topics, hashtags, and conversations directly on Twitter.\n\n2. **[Trends24](https://trends24.in/united-states/)**: This site lists today's top X (Twitter) trends and hashtags in the United States, including topics like National Guard, Los Angeles, and more.\n\n3. **[Get Day Trends](https://getdaytrends.com/top/tweeted/day/)**: This platform analyzes Twitter data to provide insights on current trending topics and hashtags.\n\n4. **[91 Trends](https://91trends.com/twitter/united-states/)**: Get real-time updates on what's trending on Twitter in the United States.\n\n5. **[Global Twitter Trends](https://globaltwittertrends.com/united-states/)**: Check out what's trending specifically in the United States and view tweets based on those trends.\n\nFeel free to explore these links for the most up-to-date trending topics!",
+            "content_type": "str",
+            "event": "RunResponse",
+            "metrics": {
+              "input_tokens": [
+                163,
+                663
+              ],
+              "output_tokens": [
+                20,
+                225
+              ],
+              "total_tokens": [
+                183,
+                888
+              ],
+              "audio_tokens": [
+                0,
+                0
+              ],
+              "input_audio_tokens": [
+                0,
+                0
+              ],
+              "output_audio_tokens": [
+                0,
+                0
+              ],
+              "cached_tokens": [
+                0,
+                0
+              ],
+              "reasoning_tokens": [
+                0,
+                0
+              ],
+              "prompt_tokens": [
+                163,
+                663
+              ],
+              "completion_tokens": [
+                20,
+                225
+              ],
+              "prompt_tokens_details": [
+                {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                },
+                {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              ],
+              "completion_tokens_details": [
+                {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                }
+              ],
+              "time": [
+                0.9596867079999356,
+                4.799381209000785
+              ]
+            },
+            "model": "gpt-4o-mini",
+            "model_provider": "OpenAI",
+            "run_id": "625aa1b6-dc11-4804-8f4b-e2f5b604c07f",
+            "agent_id": "007f4340-d3b3-4e4e-bf94-bdb22a16d8d5",
+            "session_id": "35cc6c90-b657-4819-b66c-c931c03ad569",
+            "formatted_tool_calls": [
+              "duckduckgo_search(query=currently trending on Twitter)"
+            ],
+            "created_at": 1749650243,
+            "messages": [
+              {
+                "content": "<additional_information>\n- Use markdown to format your answers.\n</additional_information>",
+                "from_history": false,
+                "stop_after_tool_call": false,
+                "role": "system",
+                "created_at": 1749650492
+              },
+              {
+                "content": "What is currently trending on Twitter?",
+                "from_history": false,
+                "stop_after_tool_call": false,
+                "role": "user",
+                "created_at": 1749650492
+              },
+              {
+                "from_history": false,
+                "stop_after_tool_call": false,
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "call_VybxG748CQId8Xxo6wb2pWy1",
+                    "function": {
+                      "arguments": {
+                        "query": "currently trending on Twitter"
+                      },
+                      "name": "duckduckgo_search"
+                    },
+                    "type": "function"
+                  }
+                ],
+                "metrics": {
+                  "input_tokens": 163,
+                  "output_tokens": 20,
+                  "total_tokens": 183,
+                  "prompt_tokens": 163,
+                  "completion_tokens": 20,
+                  "prompt_tokens_details": {
+                    "audio_tokens": 0,
+                    "cached_tokens": 0
+                  },
+                  "completion_tokens_details": {
+                    "accepted_prediction_tokens": 0,
+                    "audio_tokens": 0,
+                    "reasoning_tokens": 0,
+                    "rejected_prediction_tokens": 0
+                  },
+                  "time": 0.9596867079999356
+                },
+                "created_at": 1749650492
+              },
+              {
+                "content": [
+                  {
+                    "title": "Twitter. It's what's happening / Twitter",
+                    "href": "https://twitter.com/explore/tabs/trending/",
+                    "body": "Explore trending topics, hashtags, and conversations on Twitter."
+                  },
+                  {
+                    "title": "United States — X (Twitter) trending topics and hashtags today ...",
+                    "href": "https://trends24.in/united-states/",
+                    "body": "Today's top X (Twitter) trends and hashtags in United States: National Guard, Los Angeles, California, Peaceful, Marines. Explore more locations and trending topics on trends24.in"
+                  },
+                  {
+                    "title": "Worldwide • Top Hashtags • Most Tweeted • Day - getdaytrends",
+                    "href": "https://getdaytrends.com/top/tweeted/day/",
+                    "body": "About Us. We store and analyze Twitter data to bring you insights on what's currently trending and help you keep up with the audience. Find out hot trends, review trend history and browse long-term popular hashtags and topics."
+                  },
+                  {
+                    "title": "United States Latest Trending X (Twitter) hashtag and topics",
+                    "href": "https://91trends.com/twitter/united-states/",
+                    "body": "United States X (Twitter) Trends Now | Top X (Twitter) Trending Topics & Hashtags Today. Get real-time updates on the hottest trending hashtags and topics on X (Twitter) United States with our automated page. Our page utilizes the official X (Twitter) API to refresh the most talked-about hashtags and topics every 30 minutes, ensuring you always have access to the most current trends on the ..."
+                  },
+                  {
+                    "title": "Trending on Twitter United States today - Global Twitter Trends",
+                    "href": "https://globaltwittertrends.com/united-states/",
+                    "body": "Above is the table to show what's trending in United States twitter right now . You can click on any one of the trends to tweet it or view all tweets based on that trend. You can also view the twitter trends of all towns in United States by just searching on the search bar above or by choosing from the provided list of countries and towns."
+                  }
+                ],
+                "from_history": false,
+                "stop_after_tool_call": false,
+                "role": "tool",
+                "tool_call_id": "call_VybxG748CQId8Xxo6wb2pWy1",
+                "tool_name": "duckduckgo_search",
+                "tool_args": {
+                  "query": "currently trending on Twitter"
+                },
+                "tool_call_error": false,
+                "metrics": {
+                  "time": 0.7176052920003713
+                },
+                "created_at": 1749650494
+              },
+              {
+                "content": "To find out what's currently trending on Twitter, you can visit the following resources:\n\n1. **[Twitter Explore](https://twitter.com/explore/tabs/trending/)**: Explore trending topics, hashtags, and conversations directly on Twitter.\n\n2. **[Trends24](https://trends24.in/united-states/)**: This site lists today's top X (Twitter) trends and hashtags in the United States, including topics like National Guard, Los Angeles, and more.\n\n3. **[Get Day Trends](https://getdaytrends.com/top/tweeted/day/)**: This platform analyzes Twitter data to provide insights on current trending topics and hashtags.\n\n4. **[91 Trends](https://91trends.com/twitter/united-states/)**: Get real-time updates on what's trending on Twitter in the United States.\n\n5. **[Global Twitter Trends](https://globaltwittertrends.com/united-states/)**: Check out what's trending specifically in the United States and view tweets based on those trends.\n\nFeel free to explore these links for the most up-to-date trending topics!",
+                "from_history": false,
+                "stop_after_tool_call": false,
+                "role": "assistant",
+                "metrics": {
+                  "input_tokens": 663,
+                  "output_tokens": 225,
+                  "total_tokens": 888,
+                  "prompt_tokens": 663,
+                  "completion_tokens": 225,
+                  "prompt_tokens_details": {
+                    "audio_tokens": 0,
+                    "cached_tokens": 0
+                  },
+                  "completion_tokens_details": {
+                    "accepted_prediction_tokens": 0,
+                    "audio_tokens": 0,
+                    "reasoning_tokens": 0,
+                    "rejected_prediction_tokens": 0
+                  },
+                  "time": 4.799381209000785
+                },
+                "created_at": 1749650494
+              }
+            ],
+            "tools": [
+              {
+                "tool_call_id": "call_VybxG748CQId8Xxo6wb2pWy1",
+                "tool_name": "duckduckgo_search",
+                "tool_args": {
+                  "query": "currently trending on Twitter"
+                },
+                "tool_call_error": false,
+                "result": [
+                  {
+                    "title": "Twitter. It's what's happening / Twitter",
+                    "href": "https://twitter.com/explore/tabs/trending/",
+                    "body": "Explore trending topics, hashtags, and conversations on Twitter."
+                  },
+                  {
+                    "title": "United States — X (Twitter) trending topics and hashtags today ...",
+                    "href": "https://trends24.in/united-states/",
+                    "body": "Today's top X (Twitter) trends and hashtags in United States: National Guard, Los Angeles, California, Peaceful, Marines. Explore more locations and trending topics on trends24.in"
+                  },
+                  {
+                    "title": "Worldwide • Top Hashtags • Most Tweeted • Day - getdaytrends",
+                    "href": "https://getdaytrends.com/top/tweeted/day/",
+                    "body": "About Us. We store and analyze Twitter data to bring you insights on what's currently trending and help you keep up with the audience. Find out hot trends, review trend history and browse long-term popular hashtags and topics."
+                  },
+                  {
+                    "title": "United States Latest Trending X (Twitter) hashtag and topics",
+                    "href": "https://91trends.com/twitter/united-states/",
+                    "body": "United States X (Twitter) Trends Now | Top X (Twitter) Trending Topics & Hashtags Today. Get real-time updates on the hottest trending hashtags and topics on X (Twitter) United States with our automated page. Our page utilizes the official X (Twitter) API to refresh the most talked-about hashtags and topics every 30 minutes, ensuring you always have access to the most current trends on the ..."
+                  },
+                  {
+                    "title": "Trending on Twitter United States today - Global Twitter Trends",
+                    "href": "https://globaltwittertrends.com/united-states/",
+                    "body": "Above is the table to show what's trending in United States twitter right now . You can click on any one of the trends to tweet it or view all tweets based on that trend. You can also view the twitter trends of all towns in United States by just searching on the search bar above or by choosing from the provided list of countries and towns."
+                  }
+                ],
+                "metrics": {
+                  "time": 0.7176052920003713
+                },
+                "stop_after_tool_call": false,
+                "created_at": 1749650243,
+                "requires_confirmation": null,
+                "confirmed": null,
+                "confirmation_note": null,
+                "requires_user_input": null,
+                "user_input_schema": null,
+                "external_execution_required": null
+              }
+            ]
+          },
+          "output.mime_type": "application/json",
+          "openinference.span.kind": "AGENT"
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.33.1",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "openinference.instrumentation.agno",
+          "version": "0.1.4",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-06-11T14:01:39.781Z",
+      "updatedAt": "2025-06-11T14:01:39.875Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 6991,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": {
+        "run_response": "RunResponse(content=None, content_type='str', thinking=None, reasoning_content=None, event='RunResponse', messages=None, metrics=None, model='gpt-4o-mini', model_provider='OpenAI', run_id='625aa1b6-dc11-4804-8f4b-e2f5b604c07f', agent_id='007f4340-d3b3-4e4e-bf94-bdb22a16d8d5', session_id='35cc6c90-b657-4819-b66c-c931c03ad569', workflow_id=None, tools=None, formatted_tool_calls=None, images=None, videos=None, audio=None, response_audio=None, citations=None, extra_data=None, created_at=1749650492)",
+        "run_messages": "RunMessages(messages=[Message(role='system', content='<additional_information>\\n- Use markdown to format your answers.\\n</additional_information>', name=None, tool_call_id=None, tool_calls=None, audio=None, images=None, videos=None, files=None, audio_output=None, image_output=None, thinking=None, redacted_thinking=None, provider_data=None, citations=None, reasoning_content=None, tool_name=None, tool_args=None, tool_call_error=None, stop_after_tool_call=False, add_to_agent_memory=True, from_history=False, metrics=MessageMetrics(input_tokens=0, output_tokens=0, total_tokens=0, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=0, completion_tokens=0, prompt_tokens_details=None, completion_tokens_details=None, additional_metrics=None, time=None, time_to_first_token=None, timer=None), references=None, created_at=1749650492), Message(role='user', content='What is currently trending on Twitter?', name=None, tool_call_id=None, tool_calls=None, audio=None, images=None, videos=None, files=None, audio_output=None, image_output=None, thinking=None, redacted_thinking=None, provider_data=None, citations=None, reasoning_content=None, tool_name=None, tool_args=None, tool_call_error=None, stop_after_tool_call=False, add_to_agent_memory=True, from_history=False, metrics=MessageMetrics(input_tokens=0, output_tokens=0, total_tokens=0, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=0, completion_tokens=0, prompt_tokens_details=None, completion_tokens_details=None, additional_metrics=None, time=None, time_to_first_token=None, timer=None), references=None, created_at=1749650492)], system_message=Message(role='system', content='<additional_information>\\n- Use markdown to format your answers.\\n</additional_information>', name=None, tool_call_id=None, tool_calls=None, audio=None, images=None, videos=None, files=None, audio_output=None, image_output=None, thinking=None, redacted_thinking=None, provider_data=None, citations=None, reasoning_content=None, tool_name=None, tool_args=None, tool_call_error=None, stop_after_tool_call=False, add_to_agent_memory=True, from_history=False, metrics=MessageMetrics(input_tokens=0, output_tokens=0, total_tokens=0, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=0, completion_tokens=0, prompt_tokens_details=None, completion_tokens_details=None, additional_metrics=None, time=None, time_to_first_token=None, timer=None), references=None, created_at=1749650492), user_message=Message(role='user', content='What is currently trending on Twitter?', name=None, tool_call_id=None, tool_calls=None, audio=None, images=None, videos=None, files=None, audio_output=None, image_output=None, thinking=None, redacted_thinking=None, provider_data=None, citations=None, reasoning_content=None, tool_name=None, tool_args=None, tool_call_error=None, stop_after_tool_call=False, add_to_agent_memory=True, from_history=False, metrics=MessageMetrics(input_tokens=0, output_tokens=0, total_tokens=0, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=0, completion_tokens=0, prompt_tokens_details=None, completion_tokens_details=None, additional_metrics=None, time=None, time_to_first_token=None, timer=None), references=None, created_at=1749650492), extra_messages=None)",
+        "session_id": "35cc6c90-b657-4819-b66c-c931c03ad569",
+        "message": "What is currently trending on Twitter?"
+      },
+      "output": {
+        "content": "To find out what's currently trending on Twitter, you can visit the following resources:\n\n1. **[Twitter Explore](https://twitter.com/explore/tabs/trending/)**: Explore trending topics, hashtags, and conversations directly on Twitter.\n\n2. **[Trends24](https://trends24.in/united-states/)**: This site lists today's top X (Twitter) trends and hashtags in the United States, including topics like National Guard, Los Angeles, and more.\n\n3. **[Get Day Trends](https://getdaytrends.com/top/tweeted/day/)**: This platform analyzes Twitter data to provide insights on current trending topics and hashtags.\n\n4. **[91 Trends](https://91trends.com/twitter/united-states/)**: Get real-time updates on what's trending on Twitter in the United States.\n\n5. **[Global Twitter Trends](https://globaltwittertrends.com/united-states/)**: Check out what's trending specifically in the United States and view tweets based on those trends.\n\nFeel free to explore these links for the most up-to-date trending topics!",
+        "content_type": "str",
+        "event": "RunResponse",
+        "metrics": {
+          "input_tokens": [
+            163,
+            663
+          ],
+          "output_tokens": [
+            20,
+            225
+          ],
+          "total_tokens": [
+            183,
+            888
+          ],
+          "audio_tokens": [
+            0,
+            0
+          ],
+          "input_audio_tokens": [
+            0,
+            0
+          ],
+          "output_audio_tokens": [
+            0,
+            0
+          ],
+          "cached_tokens": [
+            0,
+            0
+          ],
+          "reasoning_tokens": [
+            0,
+            0
+          ],
+          "prompt_tokens": [
+            163,
+            663
+          ],
+          "completion_tokens": [
+            20,
+            225
+          ],
+          "prompt_tokens_details": [
+            {
+              "audio_tokens": 0,
+              "cached_tokens": 0
+            },
+            {
+              "audio_tokens": 0,
+              "cached_tokens": 0
+            }
+          ],
+          "completion_tokens_details": [
+            {
+              "accepted_prediction_tokens": 0,
+              "audio_tokens": 0,
+              "reasoning_tokens": 0,
+              "rejected_prediction_tokens": 0
+            },
+            {
+              "accepted_prediction_tokens": 0,
+              "audio_tokens": 0,
+              "reasoning_tokens": 0,
+              "rejected_prediction_tokens": 0
+            }
+          ],
+          "time": [
+            0.9596867079999356,
+            4.799381209000785
+          ]
+        },
+        "model": "gpt-4o-mini",
+        "model_provider": "OpenAI",
+        "run_id": "625aa1b6-dc11-4804-8f4b-e2f5b604c07f",
+        "agent_id": "007f4340-d3b3-4e4e-bf94-bdb22a16d8d5",
+        "session_id": "35cc6c90-b657-4819-b66c-c931c03ad569",
+        "formatted_tool_calls": [
+          "duckduckgo_search(query=currently trending on Twitter)"
+        ],
+        "created_at": 1749650243,
+        "messages": [
+          {
+            "content": "<additional_information>\n- Use markdown to format your answers.\n</additional_information>",
+            "from_history": false,
+            "stop_after_tool_call": false,
+            "role": "system",
+            "created_at": 1749650492
+          },
+          {
+            "content": "What is currently trending on Twitter?",
+            "from_history": false,
+            "stop_after_tool_call": false,
+            "role": "user",
+            "created_at": 1749650492
+          },
+          {
+            "from_history": false,
+            "stop_after_tool_call": false,
+            "role": "assistant",
+            "tool_calls": [
+              {
+                "id": "call_VybxG748CQId8Xxo6wb2pWy1",
+                "function": {
+                  "arguments": {
+                    "query": "currently trending on Twitter"
+                  },
+                  "name": "duckduckgo_search"
+                },
+                "type": "function"
+              }
+            ],
+            "metrics": {
+              "input_tokens": 163,
+              "output_tokens": 20,
+              "total_tokens": 183,
+              "prompt_tokens": 163,
+              "completion_tokens": 20,
+              "prompt_tokens_details": {
+                "audio_tokens": 0,
+                "cached_tokens": 0
+              },
+              "completion_tokens_details": {
+                "accepted_prediction_tokens": 0,
+                "audio_tokens": 0,
+                "reasoning_tokens": 0,
+                "rejected_prediction_tokens": 0
+              },
+              "time": 0.9596867079999356
+            },
+            "created_at": 1749650492
+          },
+          {
+            "content": [
+              {
+                "title": "Twitter. It's what's happening / Twitter",
+                "href": "https://twitter.com/explore/tabs/trending/",
+                "body": "Explore trending topics, hashtags, and conversations on Twitter."
+              },
+              {
+                "title": "United States — X (Twitter) trending topics and hashtags today ...",
+                "href": "https://trends24.in/united-states/",
+                "body": "Today's top X (Twitter) trends and hashtags in United States: National Guard, Los Angeles, California, Peaceful, Marines. Explore more locations and trending topics on trends24.in"
+              },
+              {
+                "title": "Worldwide • Top Hashtags • Most Tweeted • Day - getdaytrends",
+                "href": "https://getdaytrends.com/top/tweeted/day/",
+                "body": "About Us. We store and analyze Twitter data to bring you insights on what's currently trending and help you keep up with the audience. Find out hot trends, review trend history and browse long-term popular hashtags and topics."
+              },
+              {
+                "title": "United States Latest Trending X (Twitter) hashtag and topics",
+                "href": "https://91trends.com/twitter/united-states/",
+                "body": "United States X (Twitter) Trends Now | Top X (Twitter) Trending Topics & Hashtags Today. Get real-time updates on the hottest trending hashtags and topics on X (Twitter) United States with our automated page. Our page utilizes the official X (Twitter) API to refresh the most talked-about hashtags and topics every 30 minutes, ensuring you always have access to the most current trends on the ..."
+              },
+              {
+                "title": "Trending on Twitter United States today - Global Twitter Trends",
+                "href": "https://globaltwittertrends.com/united-states/",
+                "body": "Above is the table to show what's trending in United States twitter right now . You can click on any one of the trends to tweet it or view all tweets based on that trend. You can also view the twitter trends of all towns in United States by just searching on the search bar above or by choosing from the provided list of countries and towns."
+              }
+            ],
+            "from_history": false,
+            "stop_after_tool_call": false,
+            "role": "tool",
+            "tool_call_id": "call_VybxG748CQId8Xxo6wb2pWy1",
+            "tool_name": "duckduckgo_search",
+            "tool_args": {
+              "query": "currently trending on Twitter"
+            },
+            "tool_call_error": false,
+            "metrics": {
+              "time": 0.7176052920003713
+            },
+            "created_at": 1749650494
+          },
+          {
+            "content": "To find out what's currently trending on Twitter, you can visit the following resources:\n\n1. **[Twitter Explore](https://twitter.com/explore/tabs/trending/)**: Explore trending topics, hashtags, and conversations directly on Twitter.\n\n2. **[Trends24](https://trends24.in/united-states/)**: This site lists today's top X (Twitter) trends and hashtags in the United States, including topics like National Guard, Los Angeles, and more.\n\n3. **[Get Day Trends](https://getdaytrends.com/top/tweeted/day/)**: This platform analyzes Twitter data to provide insights on current trending topics and hashtags.\n\n4. **[91 Trends](https://91trends.com/twitter/united-states/)**: Get real-time updates on what's trending on Twitter in the United States.\n\n5. **[Global Twitter Trends](https://globaltwittertrends.com/united-states/)**: Check out what's trending specifically in the United States and view tweets based on those trends.\n\nFeel free to explore these links for the most up-to-date trending topics!",
+            "from_history": false,
+            "stop_after_tool_call": false,
+            "role": "assistant",
+            "metrics": {
+              "input_tokens": 663,
+              "output_tokens": 225,
+              "total_tokens": 888,
+              "prompt_tokens": 663,
+              "completion_tokens": 225,
+              "prompt_tokens_details": {
+                "audio_tokens": 0,
+                "cached_tokens": 0
+              },
+              "completion_tokens_details": {
+                "accepted_prediction_tokens": 0,
+                "audio_tokens": 0,
+                "reasoning_tokens": 0,
+                "rejected_prediction_tokens": 0
+              },
+              "time": 4.799381209000785
+            },
+            "created_at": 1749650494
+          }
+        ],
+        "tools": [
+          {
+            "tool_call_id": "call_VybxG748CQId8Xxo6wb2pWy1",
+            "tool_name": "duckduckgo_search",
+            "tool_args": {
+              "query": "currently trending on Twitter"
+            },
+            "tool_call_error": false,
+            "result": [
+              {
+                "title": "Twitter. It's what's happening / Twitter",
+                "href": "https://twitter.com/explore/tabs/trending/",
+                "body": "Explore trending topics, hashtags, and conversations on Twitter."
+              },
+              {
+                "title": "United States — X (Twitter) trending topics and hashtags today ...",
+                "href": "https://trends24.in/united-states/",
+                "body": "Today's top X (Twitter) trends and hashtags in United States: National Guard, Los Angeles, California, Peaceful, Marines. Explore more locations and trending topics on trends24.in"
+              },
+              {
+                "title": "Worldwide • Top Hashtags • Most Tweeted • Day - getdaytrends",
+                "href": "https://getdaytrends.com/top/tweeted/day/",
+                "body": "About Us. We store and analyze Twitter data to bring you insights on what's currently trending and help you keep up with the audience. Find out hot trends, review trend history and browse long-term popular hashtags and topics."
+              },
+              {
+                "title": "United States Latest Trending X (Twitter) hashtag and topics",
+                "href": "https://91trends.com/twitter/united-states/",
+                "body": "United States X (Twitter) Trends Now | Top X (Twitter) Trending Topics & Hashtags Today. Get real-time updates on the hottest trending hashtags and topics on X (Twitter) United States with our automated page. Our page utilizes the official X (Twitter) API to refresh the most talked-about hashtags and topics every 30 minutes, ensuring you always have access to the most current trends on the ..."
+              },
+              {
+                "title": "Trending on Twitter United States today - Global Twitter Trends",
+                "href": "https://globaltwittertrends.com/united-states/",
+                "body": "Above is the table to show what's trending in United States twitter right now . You can click on any one of the trends to tweet it or view all tweets based on that trend. You can also view the twitter trends of all towns in United States by just searching on the search bar above or by choosing from the provided list of countries and towns."
+              }
+            ],
+            "metrics": {
+              "time": 0.7176052920003713
+            },
+            "stop_after_tool_call": false,
+            "created_at": 1749650243,
+            "requires_confirmation": null,
+            "confirmed": null,
+            "confirmation_note": null,
+            "requires_user_input": null,
+            "user_input_schema": null,
+            "external_execution_required": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "b38a82eaa62b551e",
+      "traceId": "080130871f53145aecf7c29d5dfb6e4c",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "GENERATION",
+      "environment": "default",
+      "parentObservationId": "1cffdfa6fe3412e6",
+      "startTime": "2025-06-11T14:01:34.290Z",
+      "endTime": "2025-06-11T14:01:39.089Z",
+      "name": "OpenAIChat.invoke",
+      "metadata": {
+        "attributes": {
+          "input.mime_type": "application/json",
+          "input.value": {
+            "messages": [
+              "role='system' content='<additional_information>\\n- Use markdown to format your answers.\\n</additional_information>' name=None tool_call_id=None tool_calls=None audio=None images=None videos=None files=None audio_output=None image_output=None thinking=None redacted_thinking=None provider_data=None citations=None reasoning_content=None tool_name=None tool_args=None tool_call_error=None stop_after_tool_call=False add_to_agent_memory=True from_history=False metrics=MessageMetrics(input_tokens=0, output_tokens=0, total_tokens=0, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=0, completion_tokens=0, prompt_tokens_details=None, completion_tokens_details=None, additional_metrics=None, time=None, time_to_first_token=None, timer=None) references=None created_at=1749650492",
+              "role='user' content='What is currently trending on Twitter?' name=None tool_call_id=None tool_calls=None audio=None images=None videos=None files=None audio_output=None image_output=None thinking=None redacted_thinking=None provider_data=None citations=None reasoning_content=None tool_name=None tool_args=None tool_call_error=None stop_after_tool_call=False add_to_agent_memory=True from_history=False metrics=MessageMetrics(input_tokens=0, output_tokens=0, total_tokens=0, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=0, completion_tokens=0, prompt_tokens_details=None, completion_tokens_details=None, additional_metrics=None, time=None, time_to_first_token=None, timer=None) references=None created_at=1749650492",
+              "role='assistant' content=None name=None tool_call_id=None tool_calls=[{'id': 'call_VybxG748CQId8Xxo6wb2pWy1', 'function': {'arguments': '{\"query\":\"currently trending on Twitter\"}', 'name': 'duckduckgo_search'}, 'type': 'function'}] audio=None images=None videos=None files=None audio_output=None image_output=None thinking=None redacted_thinking=None provider_data=None citations=None reasoning_content=None tool_name=None tool_args=None tool_call_error=None stop_after_tool_call=False add_to_agent_memory=True from_history=False metrics=MessageMetrics(input_tokens=163, output_tokens=20, total_tokens=183, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=163, completion_tokens=20, prompt_tokens_details={'audio_tokens': 0, 'cached_tokens': 0}, completion_tokens_details={'accepted_prediction_tokens': 0, 'audio_tokens': 0, 'reasoning_tokens': 0, 'rejected_prediction_tokens': 0}, additional_metrics=None, time=0.9596867079999356, time_to_first_token=None, timer=<agno.utils.timer.Timer object at 0x309c55a90>) references=None created_at=1749650492",
+              "role='tool' content='[\\n  {\\n    \"title\": \"Twitter. It\\'s what\\'s happening / Twitter\",\\n    \"href\": \"https://twitter.com/explore/tabs/trending/\",\\n    \"body\": \"Explore trending topics, hashtags, and conversations on Twitter.\"\\n  },\\n  {\\n    \"title\": \"United States \\\\u2014 X (Twitter) trending topics and hashtags today ...\",\\n    \"href\": \"https://trends24.in/united-states/\",\\n    \"body\": \"Today\\'s top X (Twitter) trends and hashtags in United States: National Guard, Los Angeles, California, Peaceful, Marines. Explore more locations and trending topics on trends24.in\"\\n  },\\n  {\\n    \"title\": \"Worldwide \\\\u2022 Top Hashtags \\\\u2022 Most Tweeted \\\\u2022 Day - getdaytrends\",\\n    \"href\": \"https://getdaytrends.com/top/tweeted/day/\",\\n    \"body\": \"About Us. We store and analyze Twitter data to bring you insights on what\\'s currently trending and help you keep up with the audience. Find out hot trends, review trend history and browse long-term popular hashtags and topics.\"\\n  },\\n  {\\n    \"title\": \"United States Latest Trending X (Twitter) hashtag and topics\",\\n    \"href\": \"https://91trends.com/twitter/united-states/\",\\n    \"body\": \"United States X (Twitter) Trends Now | Top X (Twitter) Trending Topics & Hashtags Today. Get real-time updates on the hottest trending hashtags and topics on X (Twitter) United States with our automated page. Our page utilizes the official X (Twitter) API to refresh the most talked-about hashtags and topics every 30 minutes, ensuring you always have access to the most current trends on the ...\"\\n  },\\n  {\\n    \"title\": \"Trending on Twitter United States today - Global Twitter Trends\",\\n    \"href\": \"https://globaltwittertrends.com/united-states/\",\\n    \"body\": \"Above is the table to show what\\'s trending in United States twitter right now . You can click on any one of the trends to tweet it or view all tweets based on that trend. You can also view the twitter trends of all towns in United States by just searching on the search bar above or by choosing from the provided list of countries and towns.\"\\n  }\\n]' name=None tool_call_id='call_VybxG748CQId8Xxo6wb2pWy1' tool_calls=None audio=None images=None videos=None files=None audio_output=None image_output=None thinking=None redacted_thinking=None provider_data=None citations=None reasoning_content=None tool_name='duckduckgo_search' tool_args={'query': 'currently trending on Twitter'} tool_call_error=False stop_after_tool_call=False add_to_agent_memory=True from_history=False metrics=MessageMetrics(input_tokens=0, output_tokens=0, total_tokens=0, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=0, completion_tokens=0, prompt_tokens_details=None, completion_tokens_details=None, additional_metrics=None, time=0.7176052920003713, time_to_first_token=None, timer=None) references=None created_at=1749650494"
+            ],
+            "tools": [
+              {
+                "type": "function",
+                "function": {
+                  "name": "duckduckgo_search",
+                  "description": "Use this function to search DuckDuckGo for a query.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "query": {
+                        "type": "string",
+                        "description": "(str) The query to search for."
+                      },
+                      "max_results": {
+                        "type": "number",
+                        "description": "(optional, default=5) The maximum number of results to return."
+                      }
+                    },
+                    "required": [
+                      "query"
+                    ]
+                  },
+                  "requires_confirmation": false,
+                  "external_execution": false
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "duckduckgo_news",
+                  "description": "Use this function to get the latest news from DuckDuckGo.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "query": {
+                        "type": "string",
+                        "description": "(str) The query to search for."
+                      },
+                      "max_results": {
+                        "type": "number",
+                        "description": "(optional, default=5) The maximum number of results to return."
+                      }
+                    },
+                    "required": [
+                      "query"
+                    ]
+                  },
+                  "requires_confirmation": false,
+                  "external_execution": false
+                }
+              }
+            ]
+          },
+          "llm.input_messages.0.message.role": "system",
+          "llm.input_messages.0.message.content": "<additional_information>\n- Use markdown to format your answers.\n</additional_information>",
+          "llm.input_messages.1.message.role": "user",
+          "llm.input_messages.1.message.content": "What is currently trending on Twitter?",
+          "llm.input_messages.3.message.role": "tool",
+          "llm.input_messages.3.message.content": [
+            {
+              "title": "Twitter. It's what's happening / Twitter",
+              "href": "https://twitter.com/explore/tabs/trending/",
+              "body": "Explore trending topics, hashtags, and conversations on Twitter."
+            },
+            {
+              "title": "United States — X (Twitter) trending topics and hashtags today ...",
+              "href": "https://trends24.in/united-states/",
+              "body": "Today's top X (Twitter) trends and hashtags in United States: National Guard, Los Angeles, California, Peaceful, Marines. Explore more locations and trending topics on trends24.in"
+            },
+            {
+              "title": "Worldwide • Top Hashtags • Most Tweeted • Day - getdaytrends",
+              "href": "https://getdaytrends.com/top/tweeted/day/",
+              "body": "About Us. We store and analyze Twitter data to bring you insights on what's currently trending and help you keep up with the audience. Find out hot trends, review trend history and browse long-term popular hashtags and topics."
+            },
+            {
+              "title": "United States Latest Trending X (Twitter) hashtag and topics",
+              "href": "https://91trends.com/twitter/united-states/",
+              "body": "United States X (Twitter) Trends Now | Top X (Twitter) Trending Topics & Hashtags Today. Get real-time updates on the hottest trending hashtags and topics on X (Twitter) United States with our automated page. Our page utilizes the official X (Twitter) API to refresh the most talked-about hashtags and topics every 30 minutes, ensuring you always have access to the most current trends on the ..."
+            },
+            {
+              "title": "Trending on Twitter United States today - Global Twitter Trends",
+              "href": "https://globaltwittertrends.com/united-states/",
+              "body": "Above is the table to show what's trending in United States twitter right now . You can click on any one of the trends to tweet it or view all tweets based on that trend. You can also view the twitter trends of all towns in United States by just searching on the search bar above or by choosing from the provided list of countries and towns."
+            }
+          ],
+          "llm.tools.0.tool.json_schema": {
+            "type": "function",
+            "function": {
+              "name": "duckduckgo_search",
+              "description": "Use this function to search DuckDuckGo for a query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "(str) The query to search for."
+                  },
+                  "max_results": {
+                    "type": "number",
+                    "description": "(optional, default=5) The maximum number of results to return."
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              },
+              "requires_confirmation": false,
+              "external_execution": false
+            }
+          },
+          "llm.tools.1.tool.json_schema": {
+            "type": "function",
+            "function": {
+              "name": "duckduckgo_news",
+              "description": "Use this function to get the latest news from DuckDuckGo.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "(str) The query to search for."
+                  },
+                  "max_results": {
+                    "type": "number",
+                    "description": "(optional, default=5) The maximum number of results to return."
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              },
+              "requires_confirmation": false,
+              "external_execution": false
+            }
+          },
+          "llm.model_name": "gpt-4o-mini",
+          "llm.provider": "OpenAI",
+          "output.mime_type": "application/json",
+          "output.value": {
+            "id": "chatcmpl-BhGJDsZlpk55owZCjMyJl8TOGqk0H",
+            "choices": [
+              {
+                "finish_reason": "stop",
+                "index": 0,
+                "logprobs": null,
+                "message": {
+                  "content": "To find out what's currently trending on Twitter, you can visit the following resources:\n\n1. **[Twitter Explore](https://twitter.com/explore/tabs/trending/)**: Explore trending topics, hashtags, and conversations directly on Twitter.\n\n2. **[Trends24](https://trends24.in/united-states/)**: This site lists today's top X (Twitter) trends and hashtags in the United States, including topics like National Guard, Los Angeles, and more.\n\n3. **[Get Day Trends](https://getdaytrends.com/top/tweeted/day/)**: This platform analyzes Twitter data to provide insights on current trending topics and hashtags.\n\n4. **[91 Trends](https://91trends.com/twitter/united-states/)**: Get real-time updates on what's trending on Twitter in the United States.\n\n5. **[Global Twitter Trends](https://globaltwittertrends.com/united-states/)**: Check out what's trending specifically in the United States and view tweets based on those trends.\n\nFeel free to explore these links for the most up-to-date trending topics!",
+                  "refusal": null,
+                  "role": "assistant",
+                  "annotations": [],
+                  "audio": null,
+                  "function_call": null,
+                  "tool_calls": null
+                }
+              }
+            ],
+            "created": 1749650495,
+            "model": "gpt-4o-mini-2024-07-18",
+            "object": "chat.completion",
+            "service_tier": "default",
+            "system_fingerprint": "fp_34a54ae93c",
+            "usage": {
+              "completion_tokens": 225,
+              "prompt_tokens": 663,
+              "total_tokens": 888,
+              "completion_tokens_details": {
+                "accepted_prediction_tokens": 0,
+                "audio_tokens": 0,
+                "reasoning_tokens": 0,
+                "rejected_prediction_tokens": 0
+              },
+              "prompt_tokens_details": {
+                "audio_tokens": 0,
+                "cached_tokens": 0
+              }
+            }
+          },
+          "openinference.span.kind": "LLM"
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.33.1",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "openinference.instrumentation.agno",
+          "version": "0.1.4",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": {},
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-06-11T14:01:39.249Z",
+      "updatedAt": "2025-06-11T14:01:39.331Z",
+      "usageDetails": {
+        "input": 1568,
+        "output": 423,
+        "total": 1991
+      },
+      "costDetails": {
+        "input": 0.0002352,
+        "output": 0.0002538,
+        "total": 0.000489
+      },
+      "providedCostDetails": {},
+      "model": "gpt-4o-mini",
+      "internalModelId": "clyrjp56f0000t0mzapoocd7u",
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 4799,
+      "timeToFirstToken": null,
+      "inputCost": 0.0002352,
+      "outputCost": 0.0002538,
+      "totalCost": 0.000489,
+      "inputUsage": 1568,
+      "outputUsage": 423,
+      "totalUsage": 1991,
+      "input": {
+        "messages": [
+          "role='system' content='<additional_information>\\n- Use markdown to format your answers.\\n</additional_information>' name=None tool_call_id=None tool_calls=None audio=None images=None videos=None files=None audio_output=None image_output=None thinking=None redacted_thinking=None provider_data=None citations=None reasoning_content=None tool_name=None tool_args=None tool_call_error=None stop_after_tool_call=False add_to_agent_memory=True from_history=False metrics=MessageMetrics(input_tokens=0, output_tokens=0, total_tokens=0, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=0, completion_tokens=0, prompt_tokens_details=None, completion_tokens_details=None, additional_metrics=None, time=None, time_to_first_token=None, timer=None) references=None created_at=1749650492",
+          "role='user' content='What is currently trending on Twitter?' name=None tool_call_id=None tool_calls=None audio=None images=None videos=None files=None audio_output=None image_output=None thinking=None redacted_thinking=None provider_data=None citations=None reasoning_content=None tool_name=None tool_args=None tool_call_error=None stop_after_tool_call=False add_to_agent_memory=True from_history=False metrics=MessageMetrics(input_tokens=0, output_tokens=0, total_tokens=0, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=0, completion_tokens=0, prompt_tokens_details=None, completion_tokens_details=None, additional_metrics=None, time=None, time_to_first_token=None, timer=None) references=None created_at=1749650492",
+          "role='assistant' content=None name=None tool_call_id=None tool_calls=[{'id': 'call_VybxG748CQId8Xxo6wb2pWy1', 'function': {'arguments': '{\"query\":\"currently trending on Twitter\"}', 'name': 'duckduckgo_search'}, 'type': 'function'}] audio=None images=None videos=None files=None audio_output=None image_output=None thinking=None redacted_thinking=None provider_data=None citations=None reasoning_content=None tool_name=None tool_args=None tool_call_error=None stop_after_tool_call=False add_to_agent_memory=True from_history=False metrics=MessageMetrics(input_tokens=163, output_tokens=20, total_tokens=183, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=163, completion_tokens=20, prompt_tokens_details={'audio_tokens': 0, 'cached_tokens': 0}, completion_tokens_details={'accepted_prediction_tokens': 0, 'audio_tokens': 0, 'reasoning_tokens': 0, 'rejected_prediction_tokens': 0}, additional_metrics=None, time=0.9596867079999356, time_to_first_token=None, timer=<agno.utils.timer.Timer object at 0x309c55a90>) references=None created_at=1749650492",
+          "role='tool' content='[\\n  {\\n    \"title\": \"Twitter. It\\'s what\\'s happening / Twitter\",\\n    \"href\": \"https://twitter.com/explore/tabs/trending/\",\\n    \"body\": \"Explore trending topics, hashtags, and conversations on Twitter.\"\\n  },\\n  {\\n    \"title\": \"United States \\\\u2014 X (Twitter) trending topics and hashtags today ...\",\\n    \"href\": \"https://trends24.in/united-states/\",\\n    \"body\": \"Today\\'s top X (Twitter) trends and hashtags in United States: National Guard, Los Angeles, California, Peaceful, Marines. Explore more locations and trending topics on trends24.in\"\\n  },\\n  {\\n    \"title\": \"Worldwide \\\\u2022 Top Hashtags \\\\u2022 Most Tweeted \\\\u2022 Day - getdaytrends\",\\n    \"href\": \"https://getdaytrends.com/top/tweeted/day/\",\\n    \"body\": \"About Us. We store and analyze Twitter data to bring you insights on what\\'s currently trending and help you keep up with the audience. Find out hot trends, review trend history and browse long-term popular hashtags and topics.\"\\n  },\\n  {\\n    \"title\": \"United States Latest Trending X (Twitter) hashtag and topics\",\\n    \"href\": \"https://91trends.com/twitter/united-states/\",\\n    \"body\": \"United States X (Twitter) Trends Now | Top X (Twitter) Trending Topics & Hashtags Today. Get real-time updates on the hottest trending hashtags and topics on X (Twitter) United States with our automated page. Our page utilizes the official X (Twitter) API to refresh the most talked-about hashtags and topics every 30 minutes, ensuring you always have access to the most current trends on the ...\"\\n  },\\n  {\\n    \"title\": \"Trending on Twitter United States today - Global Twitter Trends\",\\n    \"href\": \"https://globaltwittertrends.com/united-states/\",\\n    \"body\": \"Above is the table to show what\\'s trending in United States twitter right now . You can click on any one of the trends to tweet it or view all tweets based on that trend. You can also view the twitter trends of all towns in United States by just searching on the search bar above or by choosing from the provided list of countries and towns.\"\\n  }\\n]' name=None tool_call_id='call_VybxG748CQId8Xxo6wb2pWy1' tool_calls=None audio=None images=None videos=None files=None audio_output=None image_output=None thinking=None redacted_thinking=None provider_data=None citations=None reasoning_content=None tool_name='duckduckgo_search' tool_args={'query': 'currently trending on Twitter'} tool_call_error=False stop_after_tool_call=False add_to_agent_memory=True from_history=False metrics=MessageMetrics(input_tokens=0, output_tokens=0, total_tokens=0, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=0, completion_tokens=0, prompt_tokens_details=None, completion_tokens_details=None, additional_metrics=None, time=0.7176052920003713, time_to_first_token=None, timer=None) references=None created_at=1749650494"
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "duckduckgo_search",
+              "description": "Use this function to search DuckDuckGo for a query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "(str) The query to search for."
+                  },
+                  "max_results": {
+                    "type": "number",
+                    "description": "(optional, default=5) The maximum number of results to return."
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              },
+              "requires_confirmation": false,
+              "external_execution": false
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "duckduckgo_news",
+              "description": "Use this function to get the latest news from DuckDuckGo.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "(str) The query to search for."
+                  },
+                  "max_results": {
+                    "type": "number",
+                    "description": "(optional, default=5) The maximum number of results to return."
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              },
+              "requires_confirmation": false,
+              "external_execution": false
+            }
+          }
+        ]
+      },
+      "output": {
+        "id": "chatcmpl-BhGJDsZlpk55owZCjMyJl8TOGqk0H",
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "index": 0,
+            "logprobs": null,
+            "message": {
+              "content": "To find out what's currently trending on Twitter, you can visit the following resources:\n\n1. **[Twitter Explore](https://twitter.com/explore/tabs/trending/)**: Explore trending topics, hashtags, and conversations directly on Twitter.\n\n2. **[Trends24](https://trends24.in/united-states/)**: This site lists today's top X (Twitter) trends and hashtags in the United States, including topics like National Guard, Los Angeles, and more.\n\n3. **[Get Day Trends](https://getdaytrends.com/top/tweeted/day/)**: This platform analyzes Twitter data to provide insights on current trending topics and hashtags.\n\n4. **[91 Trends](https://91trends.com/twitter/united-states/)**: Get real-time updates on what's trending on Twitter in the United States.\n\n5. **[Global Twitter Trends](https://globaltwittertrends.com/united-states/)**: Check out what's trending specifically in the United States and view tweets based on those trends.\n\nFeel free to explore these links for the most up-to-date trending topics!",
+              "refusal": null,
+              "role": "assistant",
+              "annotations": [],
+              "audio": null,
+              "function_call": null,
+              "tool_calls": null
+            }
+          }
+        ],
+        "created": 1749650495,
+        "model": "gpt-4o-mini-2024-07-18",
+        "object": "chat.completion",
+        "service_tier": "default",
+        "system_fingerprint": "fp_34a54ae93c",
+        "usage": {
+          "completion_tokens": 225,
+          "prompt_tokens": 663,
+          "total_tokens": 888,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": 0,
+            "audio_tokens": 0,
+            "reasoning_tokens": 0,
+            "rejected_prediction_tokens": 0
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": 0,
+            "cached_tokens": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "fc7f61b57ecebbaf",
+      "traceId": "080130871f53145aecf7c29d5dfb6e4c",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "GENERATION",
+      "environment": "default",
+      "parentObservationId": "b38a82eaa62b551e",
+      "startTime": "2025-06-11T14:01:34.296Z",
+      "endTime": "2025-06-11T14:01:39.089Z",
+      "name": "chat gpt-4o-mini",
+      "metadata": {
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.33.1",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "langfuse-sdk",
+          "version": "3.0.1",
+          "attributes": {
+            "public_key": "pk-lf-5855d85e-3943-497e-bd10-f50ad414bcba"
+          }
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": {
+        "seed": "",
+        "frequency_penalty": 0,
+        "max_tokens": -1,
+        "presence_penalty": 0,
+        "stop_sequences": "{\"arrayValue\":{}}",
+        "temperature": 1,
+        "top_p": 1,
+        "service_tier": "auto",
+        "user": "",
+        "is_stream": false
+      },
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-06-11T14:01:39.245Z",
+      "updatedAt": "2025-06-11T14:01:39.285Z",
+      "usageDetails": {
+        "input": 663,
+        "output": 225,
+        "total": 888
+      },
+      "costDetails": {
+        "total": 0.000234449999
+      },
+      "providedCostDetails": {
+        "total": 0.000234449999
+      },
+      "model": "gpt-4o-mini",
+      "internalModelId": "clyrjp56f0000t0mzapoocd7u",
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 4793,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0.000234449999,
+      "inputUsage": 663,
+      "outputUsage": 225,
+      "totalUsage": 888,
+      "input": "developer: <additional_information>\n- Use markdown to format your answers.\n</additional_information>\nuser: What is currently trending on Twitter?\nassistant: None\ntool: [\n  {\n    \"title\": \"Twitter. It's what's happening / Twitter\",\n    \"href\": \"https://twitter.com/explore/tabs/trending/\",\n    \"body\": \"Explore trending topics, hashtags, and conversations on Twitter.\"\n  },\n  {\n    \"title\": \"United States \\u2014 X (Twitter) trending topics and hashtags today ...\",\n    \"href\": \"https://trends24.in/united-states/\",\n    \"body\": \"Today's top X (Twitter) trends and hashtags in United States: National Guard, Los Angeles, California, Peaceful, Marines. Explore more locations and trending topics on trends24.in\"\n  },\n  {\n    \"title\": \"Worldwide \\u2022 Top Hashtags \\u2022 Most Tweeted \\u2022 Day - getdaytrends\",\n    \"href\": \"https://getdaytrends.com/top/tweeted/day/\",\n    \"body\": \"About Us. We store and analyze Twitter data to bring you insights on what's currently trending and help you keep up with the audience. Find out hot trends, review trend history and browse long-term popular hashtags and topics.\"\n  },\n  {\n    \"title\": \"United States Latest Trending X (Twitter) hashtag and topics\",\n    \"href\": \"https://91trends.com/twitter/united-states/\",\n    \"body\": \"United States X (Twitter) Trends Now | Top X (Twitter) Trending Topics & Hashtags Today. Get real-time updates on the hottest trending hashtags and topics on X (Twitter) United States with our automated page. Our page utilizes the official X (Twitter) API to refresh the most talked-about hashtags and topics every 30 minutes, ensuring you always have access to the most current trends on the ...\"\n  },\n  {\n    \"title\": \"Trending on Twitter United States today - Global Twitter Trends\",\n    \"href\": \"https://globaltwittertrends.com/united-states/\",\n    \"body\": \"Above is the table to show what's trending in United States twitter right now . You can click on any one of the trends to tweet it or view all tweets based on that trend. You can also view the twitter trends of all towns in United States by just searching on the search bar above or by choosing from the provided list of countries and towns.\"\n  }\n]",
+      "output": "To find out what's currently trending on Twitter, you can visit the following resources:\n\n1. **[Twitter Explore](https://twitter.com/explore/tabs/trending/)**: Explore trending topics, hashtags, and conversations directly on Twitter.\n\n2. **[Trends24](https://trends24.in/united-states/)**: This site lists today's top X (Twitter) trends and hashtags in the United States, including topics like National Guard, Los Angeles, and more.\n\n3. **[Get Day Trends](https://getdaytrends.com/top/tweeted/day/)**: This platform analyzes Twitter data to provide insights on current trending topics and hashtags.\n\n4. **[91 Trends](https://91trends.com/twitter/united-states/)**: Get real-time updates on what's trending on Twitter in the United States.\n\n5. **[Global Twitter Trends](https://globaltwittertrends.com/united-states/)**: Check out what's trending specifically in the United States and view tweets based on those trends.\n\nFeel free to explore these links for the most up-to-date trending topics!"
+    },
+    {
+      "id": "6581e147aec6793a",
+      "traceId": "080130871f53145aecf7c29d5dfb6e4c",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": "1cffdfa6fe3412e6",
+      "startTime": "2025-06-11T14:01:33.564Z",
+      "endTime": "2025-06-11T14:01:34.281Z",
+      "name": "duckduckgo_search",
+      "metadata": {
+        "attributes": {
+          "input.value": {
+            "query": "currently trending on Twitter"
+          },
+          "tool.name": "duckduckgo_search",
+          "tool.description": "Use this function to search DuckDuckGo for a query.",
+          "tool.parameters": {
+            "query": "currently trending on Twitter"
+          },
+          "output.value": [
+            {
+              "title": "Twitter. It's what's happening / Twitter",
+              "href": "https://twitter.com/explore/tabs/trending/",
+              "body": "Explore trending topics, hashtags, and conversations on Twitter."
+            },
+            {
+              "title": "United States — X (Twitter) trending topics and hashtags today ...",
+              "href": "https://trends24.in/united-states/",
+              "body": "Today's top X (Twitter) trends and hashtags in United States: National Guard, Los Angeles, California, Peaceful, Marines. Explore more locations and trending topics on trends24.in"
+            },
+            {
+              "title": "Worldwide • Top Hashtags • Most Tweeted • Day - getdaytrends",
+              "href": "https://getdaytrends.com/top/tweeted/day/",
+              "body": "About Us. We store and analyze Twitter data to bring you insights on what's currently trending and help you keep up with the audience. Find out hot trends, review trend history and browse long-term popular hashtags and topics."
+            },
+            {
+              "title": "United States Latest Trending X (Twitter) hashtag and topics",
+              "href": "https://91trends.com/twitter/united-states/",
+              "body": "United States X (Twitter) Trends Now | Top X (Twitter) Trending Topics & Hashtags Today. Get real-time updates on the hottest trending hashtags and topics on X (Twitter) United States with our automated page. Our page utilizes the official X (Twitter) API to refresh the most talked-about hashtags and topics every 30 minutes, ensuring you always have access to the most current trends on the ..."
+            },
+            {
+              "title": "Trending on Twitter United States today - Global Twitter Trends",
+              "href": "https://globaltwittertrends.com/united-states/",
+              "body": "Above is the table to show what's trending in United States twitter right now . You can click on any one of the trends to tweet it or view all tweets based on that trend. You can also view the twitter trends of all towns in United States by just searching on the search bar above or by choosing from the provided list of countries and towns."
+            }
+          ],
+          "output.mime_type": "text/plain",
+          "openinference.span.kind": "TOOL"
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.33.1",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "openinference.instrumentation.agno",
+          "version": "0.1.4",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-06-11T14:01:34.476Z",
+      "updatedAt": "2025-06-11T14:01:34.529Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 717,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": {
+        "query": "currently trending on Twitter"
+      },
+      "output": [
+        {
+          "title": "Twitter. It's what's happening / Twitter",
+          "href": "https://twitter.com/explore/tabs/trending/",
+          "body": "Explore trending topics, hashtags, and conversations on Twitter."
+        },
+        {
+          "title": "United States — X (Twitter) trending topics and hashtags today ...",
+          "href": "https://trends24.in/united-states/",
+          "body": "Today's top X (Twitter) trends and hashtags in United States: National Guard, Los Angeles, California, Peaceful, Marines. Explore more locations and trending topics on trends24.in"
+        },
+        {
+          "title": "Worldwide • Top Hashtags • Most Tweeted • Day - getdaytrends",
+          "href": "https://getdaytrends.com/top/tweeted/day/",
+          "body": "About Us. We store and analyze Twitter data to bring you insights on what's currently trending and help you keep up with the audience. Find out hot trends, review trend history and browse long-term popular hashtags and topics."
+        },
+        {
+          "title": "United States Latest Trending X (Twitter) hashtag and topics",
+          "href": "https://91trends.com/twitter/united-states/",
+          "body": "United States X (Twitter) Trends Now | Top X (Twitter) Trending Topics & Hashtags Today. Get real-time updates on the hottest trending hashtags and topics on X (Twitter) United States with our automated page. Our page utilizes the official X (Twitter) API to refresh the most talked-about hashtags and topics every 30 minutes, ensuring you always have access to the most current trends on the ..."
+        },
+        {
+          "title": "Trending on Twitter United States today - Global Twitter Trends",
+          "href": "https://globaltwittertrends.com/united-states/",
+          "body": "Above is the table to show what's trending in United States twitter right now . You can click on any one of the trends to tweet it or view all tweets based on that trend. You can also view the twitter trends of all towns in United States by just searching on the search bar above or by choosing from the provided list of countries and towns."
+        }
+      ]
+    },
+    {
+      "id": "1f883bb9668167c0",
+      "traceId": "080130871f53145aecf7c29d5dfb6e4c",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "GENERATION",
+      "environment": "default",
+      "parentObservationId": "ca136de468e156c9",
+      "startTime": "2025-06-11T14:01:32.606Z",
+      "endTime": "2025-06-11T14:01:33.559Z",
+      "name": "chat gpt-4o-mini",
+      "metadata": {
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.33.1",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "langfuse-sdk",
+          "version": "3.0.1",
+          "attributes": {
+            "public_key": "pk-lf-5855d85e-3943-497e-bd10-f50ad414bcba"
+          }
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": {
+        "seed": "",
+        "frequency_penalty": 0,
+        "max_tokens": -1,
+        "presence_penalty": 0,
+        "stop_sequences": "{\"arrayValue\":{}}",
+        "temperature": 1,
+        "top_p": 1,
+        "service_tier": "auto",
+        "user": "",
+        "is_stream": false
+      },
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-06-11T14:01:33.719Z",
+      "updatedAt": "2025-06-11T14:01:33.768Z",
+      "usageDetails": {
+        "input": 163,
+        "output": 20,
+        "total": 183
+      },
+      "costDetails": {
+        "total": 0.00003645
+      },
+      "providedCostDetails": {
+        "total": 0.00003645
+      },
+      "model": "gpt-4o-mini",
+      "internalModelId": "clyrjp56f0000t0mzapoocd7u",
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 953,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0.00003645,
+      "inputUsage": 163,
+      "outputUsage": 20,
+      "totalUsage": 183,
+      "input": "developer: <additional_information>\n- Use markdown to format your answers.\n</additional_information>\nuser: What is currently trending on Twitter?",
+      "output": "None"
+    },
+    {
+      "id": "ca136de468e156c9",
+      "traceId": "080130871f53145aecf7c29d5dfb6e4c",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "GENERATION",
+      "environment": "default",
+      "parentObservationId": "1cffdfa6fe3412e6",
+      "startTime": "2025-06-11T14:01:32.600Z",
+      "endTime": "2025-06-11T14:01:33.560Z",
+      "name": "OpenAIChat.invoke",
+      "metadata": {
+        "attributes": {
+          "input.mime_type": "application/json",
+          "input.value": {
+            "messages": [
+              "role='system' content='<additional_information>\\n- Use markdown to format your answers.\\n</additional_information>' name=None tool_call_id=None tool_calls=None audio=None images=None videos=None files=None audio_output=None image_output=None thinking=None redacted_thinking=None provider_data=None citations=None reasoning_content=None tool_name=None tool_args=None tool_call_error=None stop_after_tool_call=False add_to_agent_memory=True from_history=False metrics=MessageMetrics(input_tokens=0, output_tokens=0, total_tokens=0, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=0, completion_tokens=0, prompt_tokens_details=None, completion_tokens_details=None, additional_metrics=None, time=None, time_to_first_token=None, timer=None) references=None created_at=1749650492",
+              "role='user' content='What is currently trending on Twitter?' name=None tool_call_id=None tool_calls=None audio=None images=None videos=None files=None audio_output=None image_output=None thinking=None redacted_thinking=None provider_data=None citations=None reasoning_content=None tool_name=None tool_args=None tool_call_error=None stop_after_tool_call=False add_to_agent_memory=True from_history=False metrics=MessageMetrics(input_tokens=0, output_tokens=0, total_tokens=0, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=0, completion_tokens=0, prompt_tokens_details=None, completion_tokens_details=None, additional_metrics=None, time=None, time_to_first_token=None, timer=None) references=None created_at=1749650492"
+            ],
+            "tools": [
+              {
+                "type": "function",
+                "function": {
+                  "name": "duckduckgo_search",
+                  "description": "Use this function to search DuckDuckGo for a query.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "query": {
+                        "type": "string",
+                        "description": "(str) The query to search for."
+                      },
+                      "max_results": {
+                        "type": "number",
+                        "description": "(optional, default=5) The maximum number of results to return."
+                      }
+                    },
+                    "required": [
+                      "query"
+                    ]
+                  },
+                  "requires_confirmation": false,
+                  "external_execution": false
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "duckduckgo_news",
+                  "description": "Use this function to get the latest news from DuckDuckGo.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "query": {
+                        "type": "string",
+                        "description": "(str) The query to search for."
+                      },
+                      "max_results": {
+                        "type": "number",
+                        "description": "(optional, default=5) The maximum number of results to return."
+                      }
+                    },
+                    "required": [
+                      "query"
+                    ]
+                  },
+                  "requires_confirmation": false,
+                  "external_execution": false
+                }
+              }
+            ]
+          },
+          "llm.input_messages.0.message.role": "system",
+          "llm.input_messages.0.message.content": "<additional_information>\n- Use markdown to format your answers.\n</additional_information>",
+          "llm.input_messages.1.message.role": "user",
+          "llm.input_messages.1.message.content": "What is currently trending on Twitter?",
+          "llm.tools.0.tool.json_schema": {
+            "type": "function",
+            "function": {
+              "name": "duckduckgo_search",
+              "description": "Use this function to search DuckDuckGo for a query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "(str) The query to search for."
+                  },
+                  "max_results": {
+                    "type": "number",
+                    "description": "(optional, default=5) The maximum number of results to return."
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              },
+              "requires_confirmation": false,
+              "external_execution": false
+            }
+          },
+          "llm.tools.1.tool.json_schema": {
+            "type": "function",
+            "function": {
+              "name": "duckduckgo_news",
+              "description": "Use this function to get the latest news from DuckDuckGo.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "(str) The query to search for."
+                  },
+                  "max_results": {
+                    "type": "number",
+                    "description": "(optional, default=5) The maximum number of results to return."
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              },
+              "requires_confirmation": false,
+              "external_execution": false
+            }
+          },
+          "llm.model_name": "gpt-4o-mini",
+          "llm.provider": "OpenAI",
+          "output.mime_type": "application/json",
+          "output.value": {
+            "id": "chatcmpl-BhGJAW79iSsHO7ES5wgoTga4hQFyn",
+            "choices": [
+              {
+                "finish_reason": "tool_calls",
+                "index": 0,
+                "logprobs": null,
+                "message": {
+                  "content": null,
+                  "refusal": null,
+                  "role": "assistant",
+                  "annotations": [],
+                  "audio": null,
+                  "function_call": null,
+                  "tool_calls": [
+                    {
+                      "id": "call_VybxG748CQId8Xxo6wb2pWy1",
+                      "function": {
+                        "arguments": {
+                          "query": "currently trending on Twitter"
+                        },
+                        "name": "duckduckgo_search"
+                      },
+                      "type": "function"
+                    }
+                  ]
+                }
+              }
+            ],
+            "created": 1749650492,
+            "model": "gpt-4o-mini-2024-07-18",
+            "object": "chat.completion",
+            "service_tier": "default",
+            "system_fingerprint": "fp_34a54ae93c",
+            "usage": {
+              "completion_tokens": 20,
+              "prompt_tokens": 163,
+              "total_tokens": 183,
+              "completion_tokens_details": {
+                "accepted_prediction_tokens": 0,
+                "audio_tokens": 0,
+                "reasoning_tokens": 0,
+                "rejected_prediction_tokens": 0
+              },
+              "prompt_tokens_details": {
+                "audio_tokens": 0,
+                "cached_tokens": 0
+              }
+            }
+          },
+          "openinference.span.kind": "LLM"
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.33.1",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "openinference.instrumentation.agno",
+          "version": "0.1.4",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": {},
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-06-11T14:01:33.719Z",
+      "updatedAt": "2025-06-11T14:01:33.752Z",
+      "usageDetails": {
+        "input": 542,
+        "output": 235,
+        "total": 777
+      },
+      "costDetails": {
+        "input": 0.0000813,
+        "output": 0.000141,
+        "total": 0.0002223
+      },
+      "providedCostDetails": {},
+      "model": "gpt-4o-mini",
+      "internalModelId": "clyrjp56f0000t0mzapoocd7u",
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 960,
+      "timeToFirstToken": null,
+      "inputCost": 0.0000813,
+      "outputCost": 0.000141,
+      "totalCost": 0.0002223,
+      "inputUsage": 542,
+      "outputUsage": 235,
+      "totalUsage": 777,
+      "input": {
+        "messages": [
+          "role='system' content='<additional_information>\\n- Use markdown to format your answers.\\n</additional_information>' name=None tool_call_id=None tool_calls=None audio=None images=None videos=None files=None audio_output=None image_output=None thinking=None redacted_thinking=None provider_data=None citations=None reasoning_content=None tool_name=None tool_args=None tool_call_error=None stop_after_tool_call=False add_to_agent_memory=True from_history=False metrics=MessageMetrics(input_tokens=0, output_tokens=0, total_tokens=0, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=0, completion_tokens=0, prompt_tokens_details=None, completion_tokens_details=None, additional_metrics=None, time=None, time_to_first_token=None, timer=None) references=None created_at=1749650492",
+          "role='user' content='What is currently trending on Twitter?' name=None tool_call_id=None tool_calls=None audio=None images=None videos=None files=None audio_output=None image_output=None thinking=None redacted_thinking=None provider_data=None citations=None reasoning_content=None tool_name=None tool_args=None tool_call_error=None stop_after_tool_call=False add_to_agent_memory=True from_history=False metrics=MessageMetrics(input_tokens=0, output_tokens=0, total_tokens=0, audio_tokens=0, input_audio_tokens=0, output_audio_tokens=0, cached_tokens=0, reasoning_tokens=0, prompt_tokens=0, completion_tokens=0, prompt_tokens_details=None, completion_tokens_details=None, additional_metrics=None, time=None, time_to_first_token=None, timer=None) references=None created_at=1749650492"
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "duckduckgo_search",
+              "description": "Use this function to search DuckDuckGo for a query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "(str) The query to search for."
+                  },
+                  "max_results": {
+                    "type": "number",
+                    "description": "(optional, default=5) The maximum number of results to return."
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              },
+              "requires_confirmation": false,
+              "external_execution": false
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "duckduckgo_news",
+              "description": "Use this function to get the latest news from DuckDuckGo.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "(str) The query to search for."
+                  },
+                  "max_results": {
+                    "type": "number",
+                    "description": "(optional, default=5) The maximum number of results to return."
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              },
+              "requires_confirmation": false,
+              "external_execution": false
+            }
+          }
+        ]
+      },
+      "output": {
+        "id": "chatcmpl-BhGJAW79iSsHO7ES5wgoTga4hQFyn",
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "logprobs": null,
+            "message": {
+              "content": null,
+              "refusal": null,
+              "role": "assistant",
+              "annotations": [],
+              "audio": null,
+              "function_call": null,
+              "tool_calls": [
+                {
+                  "id": "call_VybxG748CQId8Xxo6wb2pWy1",
+                  "function": {
+                    "arguments": {
+                      "query": "currently trending on Twitter"
+                    },
+                    "name": "duckduckgo_search"
+                  },
+                  "type": "function"
+                }
+              ]
+            }
+          }
+        ],
+        "created": 1749650492,
+        "model": "gpt-4o-mini-2024-07-18",
+        "object": "chat.completion",
+        "service_tier": "default",
+        "system_fingerprint": "fp_34a54ae93c",
+        "usage": {
+          "completion_tokens": 20,
+          "prompt_tokens": 163,
+          "total_tokens": 183,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": 0,
+            "audio_tokens": 0,
+            "reasoning_tokens": 0,
+            "rejected_prediction_tokens": 0
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": 0,
+            "cached_tokens": 0
+          }
+        }
+      }
+    }
+  ]
+}

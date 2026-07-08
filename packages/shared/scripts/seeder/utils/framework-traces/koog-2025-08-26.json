@@ -1,0 +1,863 @@
+{
+  "trace": {
+    "id": "dff173a675b759ce1b70e522b27d6846",
+    "projectId": "cmcmdwcag00c2ad077xp1qnyc",
+    "name": "agent.f9f77d1a-437f-4ba6-890e-b592a50cbd21",
+    "timestamp": "2025-08-26T19:40:59.145Z",
+    "environment": "default",
+    "tags": [],
+    "bookmarked": false,
+    "release": null,
+    "version": "0.3.0",
+    "userId": null,
+    "sessionId": null,
+    "public": true,
+    "input": null,
+    "output": null,
+    "metadata": "{\"attributes\":{\"gen_ai.request.model\":\"gpt-4o\",\"gen_ai.system\":\"openai\",\"gen_ai.agent.id\":\"f9f77d1a-437f-4ba6-890e-b592a50cbd21\",\"gen_ai.operation.name\":\"create_agent\"},\"resourceAttributes\":{\"os.arch\":\"aarch64\",\"os.type\":\"Mac OS X\",\"os.version\":\"15.4.1\",\"service.instance.time\":\"2025-08-26T19:40:59.130398Z\",\"service.name\":\"ai.koog\",\"service.version\":\"0.3.0\"},\"scope\":{\"name\":\"ai.koog\",\"version\":\"0.3.0\",\"attributes\":{}}}",
+    "createdAt": "2025-08-26T19:40:59.145Z",
+    "updatedAt": "2025-08-26T19:41:05.434Z",
+    "scores": [],
+    "latency": 5.843
+  },
+  "observations": [
+    {
+      "id": "1b7200380e3316e7",
+      "traceId": "dff173a675b759ce1b70e522b27d6846",
+      "projectId": "cmcmdwcag00c2ad077xp1qnyc",
+      "type": "AGENT",
+      "environment": "default",
+      "parentObservationId": null,
+      "startTime": "2025-08-26T19:40:59.145Z",
+      "endTime": "2025-08-26T19:41:04.988Z",
+      "name": "agent.f9f77d1a-437f-4ba6-890e-b592a50cbd21",
+      "metadata": {
+        "attributes": {
+          "gen_ai.request.model": "gpt-4o",
+          "gen_ai.system": "openai",
+          "gen_ai.agent.id": "f9f77d1a-437f-4ba6-890e-b592a50cbd21",
+          "gen_ai.operation.name": "create_agent"
+        },
+        "resourceAttributes": {
+          "os.arch": "aarch64",
+          "os.type": "Mac OS X",
+          "os.version": "15.4.1",
+          "service.instance.time": "2025-08-26T19:40:59.130398Z",
+          "service.name": "ai.koog",
+          "service.version": "0.3.0"
+        },
+        "scope": {
+          "name": "ai.koog",
+          "version": "0.3.0",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": "0.3.0",
+      "modelParameters": {},
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-08-26T19:41:05.401Z",
+      "updatedAt": "2025-08-26T19:41:05.420Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": "gpt-4o",
+      "internalModelId": "b9854a5c92dc496b997d99d20",
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 5843,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": null,
+      "output": null
+    },
+    {
+      "id": "bb189bc3771ff83d",
+      "traceId": "dff173a675b759ce1b70e522b27d6846",
+      "projectId": "cmcmdwcag00c2ad077xp1qnyc",
+      "type": "AGENT",
+      "environment": "default",
+      "parentObservationId": "1b7200380e3316e7",
+      "startTime": "2025-08-26T19:40:59.150Z",
+      "endTime": "2025-08-26T19:41:04.988Z",
+      "name": "run.6f8d2449-33ed-4c7c-82e7-5410e34ee4e6",
+      "metadata": {
+        "attributes": {
+          "koog.agent.strategy.name": "single_run_sequential",
+          "gen_ai.conversation.id": "6f8d2449-33ed-4c7c-82e7-5410e34ee4e6",
+          "gen_ai.system": "openai",
+          "gen_ai.agent.id": "f9f77d1a-437f-4ba6-890e-b592a50cbd21",
+          "gen_ai.operation.name": "invoke_agent"
+        },
+        "resourceAttributes": {
+          "os.arch": "aarch64",
+          "os.type": "Mac OS X",
+          "os.version": "15.4.1",
+          "service.instance.time": "2025-08-26T19:40:59.130398Z",
+          "service.name": "ai.koog",
+          "service.version": "0.3.0"
+        },
+        "scope": {
+          "name": "ai.koog",
+          "version": "0.3.0",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": "0.3.0",
+      "modelParameters": {},
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-08-26T19:41:05.330Z",
+      "updatedAt": "2025-08-26T19:41:05.354Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 5838,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": null,
+      "output": null
+    },
+    {
+      "id": "7578374e12a7faa5",
+      "traceId": "dff173a675b759ce1b70e522b27d6846",
+      "projectId": "cmcmdwcag00c2ad077xp1qnyc",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": "bb189bc3771ff83d",
+      "startTime": "2025-08-26T19:41:04.984Z",
+      "endTime": "2025-08-26T19:41:04.985Z",
+      "name": "node.__finish__",
+      "metadata": {
+        "langgraph_node": "__finish__",
+        "langgraph_step": 4,
+        "attributes": {
+          "gen_ai.conversation.id": "6f8d2449-33ed-4c7c-82e7-5410e34ee4e6",
+          "koog.node.name": "__finish__",
+          "langfuse.observation.metadata.langgraph_node": "__finish__",
+          "langfuse.observation.metadata.langgraph_step": "4"
+        },
+        "resourceAttributes": {
+          "os.arch": "aarch64",
+          "os.type": "Mac OS X",
+          "os.version": "15.4.1",
+          "service.instance.time": "2025-08-26T19:40:59.130398Z",
+          "service.name": "ai.koog",
+          "service.version": "0.3.0"
+        },
+        "scope": {
+          "name": "ai.koog",
+          "version": "0.3.0",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": "0.3.0",
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-08-26T19:41:05.313Z",
+      "updatedAt": "2025-08-26T19:41:05.340Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 1,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": null,
+      "output": null
+    },
+    {
+      "id": "e44e72cf2d221781",
+      "traceId": "dff173a675b759ce1b70e522b27d6846",
+      "projectId": "cmcmdwcag00c2ad077xp1qnyc",
+      "type": "GENERATION",
+      "environment": "default",
+      "parentObservationId": "6021df46275ad2d8",
+      "startTime": "2025-08-26T19:41:03.041Z",
+      "endTime": "2025-08-26T19:41:04.983Z",
+      "name": "llm.chat",
+      "metadata": {
+        "attributes": {
+          "gen_ai.prompt.4.content": [
+            {
+              "function": {
+                "name": "ByeTool",
+                "arguments": {
+                  "name": "Bob"
+                }
+              },
+              "id": "call_dOeEHJDI0liHrCdFWTpkTsuO",
+              "type": "function"
+            }
+          ],
+          "gen_ai.prompt.5.role": "tool",
+          "gen_ai.completion.0.content": "Hello my darling Bob! And, bye my dear Bob!",
+          "gen_ai.request.temperature": "1",
+          "gen_ai.prompt.3.role": "tool",
+          "gen_ai.prompt.0.role": "system",
+          "gen_ai.prompt.5.content": "Bye my dear Bob!",
+          "gen_ai.completion.0.role": "assistant",
+          "gen_ai.prompt.4.role": "tool",
+          "gen_ai.request.model": "gpt-4o",
+          "gen_ai.conversation.id": "6f8d2449-33ed-4c7c-82e7-5410e34ee4e6",
+          "gen_ai.prompt.0.content": "You are a nice and polite assistant.",
+          "gen_ai.prompt.1.role": "user",
+          "gen_ai.response.finish_reasons": [
+            "stop"
+          ],
+          "gen_ai.prompt.1.content": "Greet and say goodbye to the user in the same message. Use provided tools to generate a proper greeting. The user name is Bob.",
+          "gen_ai.system": "openai",
+          "gen_ai.prompt.2.content": [
+            {
+              "function": {
+                "name": "HelloTool",
+                "arguments": {
+                  "name": "Bob"
+                }
+              },
+              "id": "call_n2HaWg9KFP0BZDqXv6G4b3nJ",
+              "type": "function"
+            }
+          ],
+          "gen_ai.operation.name": "chat",
+          "gen_ai.prompt.2.role": "tool",
+          "gen_ai.prompt.3.content": "Hello my darling Bob!"
+        },
+        "resourceAttributes": {
+          "os.arch": "aarch64",
+          "os.type": "Mac OS X",
+          "os.version": "15.4.1",
+          "service.instance.time": "2025-08-26T19:40:59.130398Z",
+          "service.name": "ai.koog",
+          "service.version": "0.3.0"
+        },
+        "scope": {
+          "name": "ai.koog",
+          "version": "0.3.0",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": "0.3.0",
+      "modelParameters": {
+        "temperature": 1
+      },
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-08-26T19:41:05.314Z",
+      "updatedAt": "2025-08-26T19:41:05.333Z",
+      "usageDetails": {
+        "input": 168,
+        "output": 19,
+        "total": 187
+      },
+      "costDetails": {
+        "input": 0.00042,
+        "output": 0.00019,
+        "total": 0.00061
+      },
+      "providedCostDetails": {},
+      "model": "gpt-4o",
+      "internalModelId": "b9854a5c92dc496b997d99d20",
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 1942,
+      "timeToFirstToken": null,
+      "inputCost": 0.00042,
+      "outputCost": 0.00019,
+      "totalCost": 0.00061,
+      "inputUsage": 168,
+      "outputUsage": 19,
+      "totalUsage": 187,
+      "input": [
+        {
+          "role": "system",
+          "content": "You are a nice and polite assistant."
+        },
+        {
+          "role": "user",
+          "content": "Greet and say goodbye to the user in the same message. Use provided tools to generate a proper greeting. The user name is Bob."
+        },
+        {
+          "content": [
+            {
+              "function": {
+                "name": "HelloTool",
+                "arguments": {
+                  "name": "Bob"
+                }
+              },
+              "id": "call_n2HaWg9KFP0BZDqXv6G4b3nJ",
+              "type": "function"
+            }
+          ],
+          "role": "tool"
+        },
+        {
+          "role": "tool",
+          "content": "Hello my darling Bob!"
+        },
+        {
+          "content": [
+            {
+              "function": {
+                "name": "ByeTool",
+                "arguments": {
+                  "name": "Bob"
+                }
+              },
+              "id": "call_dOeEHJDI0liHrCdFWTpkTsuO",
+              "type": "function"
+            }
+          ],
+          "role": "tool"
+        },
+        {
+          "role": "tool",
+          "content": "Bye my dear Bob!"
+        }
+      ],
+      "output": [
+        {
+          "content": "Hello my darling Bob! And, bye my dear Bob!",
+          "role": "assistant"
+        }
+      ]
+    },
+    {
+      "id": "6021df46275ad2d8",
+      "traceId": "dff173a675b759ce1b70e522b27d6846",
+      "projectId": "cmcmdwcag00c2ad077xp1qnyc",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": "bb189bc3771ff83d",
+      "startTime": "2025-08-26T19:41:03.038Z",
+      "endTime": "2025-08-26T19:41:04.984Z",
+      "name": "node.nodeSendToolResult",
+      "metadata": {
+        "langgraph_node": "nodeSendToolResult",
+        "langgraph_step": 3,
+        "attributes": {
+          "gen_ai.conversation.id": "6f8d2449-33ed-4c7c-82e7-5410e34ee4e6",
+          "koog.node.name": "nodeSendToolResult",
+          "langfuse.observation.metadata.langgraph_node": "nodeSendToolResult",
+          "langfuse.observation.metadata.langgraph_step": "3"
+        },
+        "resourceAttributes": {
+          "os.arch": "aarch64",
+          "os.type": "Mac OS X",
+          "os.version": "15.4.1",
+          "service.instance.time": "2025-08-26T19:40:59.130398Z",
+          "service.name": "ai.koog",
+          "service.version": "0.3.0"
+        },
+        "scope": {
+          "name": "ai.koog",
+          "version": "0.3.0",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": "0.3.0",
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-08-26T19:41:05.305Z",
+      "updatedAt": "2025-08-26T19:41:05.324Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 1946,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": null,
+      "output": null
+    },
+    {
+      "id": "33188493784a060d",
+      "traceId": "dff173a675b759ce1b70e522b27d6846",
+      "projectId": "cmcmdwcag00c2ad077xp1qnyc",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": "5555afb6655e4d44",
+      "startTime": "2025-08-26T19:41:02.023Z",
+      "endTime": "2025-08-26T19:41:03.037Z",
+      "name": "tool.ByeTool",
+      "metadata": {
+        "attributes": {
+          "input.value": {
+            "name": "Bob"
+          },
+          "output.value": "Bye my dear Bob!",
+          "gen_ai.tool.description": "A tool that says bye to the user",
+          "gen_ai.tool.call.id": "call_dOeEHJDI0liHrCdFWTpkTsuO",
+          "gen_ai.tool.name": "ByeTool"
+        },
+        "resourceAttributes": {
+          "os.arch": "aarch64",
+          "os.type": "Mac OS X",
+          "os.version": "15.4.1",
+          "service.instance.time": "2025-08-26T19:40:59.130398Z",
+          "service.name": "ai.koog",
+          "service.version": "0.3.0"
+        },
+        "scope": {
+          "name": "ai.koog",
+          "version": "0.3.0",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": "0.3.0",
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-08-26T19:41:03.511Z",
+      "updatedAt": "2025-08-26T19:41:03.531Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 1014,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": {
+        "name": "Bob"
+      },
+      "output": "Bye my dear Bob!"
+    },
+    {
+      "id": "66f269083a2fff81",
+      "traceId": "dff173a675b759ce1b70e522b27d6846",
+      "projectId": "cmcmdwcag00c2ad077xp1qnyc",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": "5555afb6655e4d44",
+      "startTime": "2025-08-26T19:41:02.023Z",
+      "endTime": "2025-08-26T19:41:03.034Z",
+      "name": "tool.HelloTool",
+      "metadata": {
+        "attributes": {
+          "input.value": {
+            "name": "Bob"
+          },
+          "output.value": "Hello my darling Bob!",
+          "gen_ai.tool.description": "A tool greets the user",
+          "gen_ai.tool.call.id": "call_n2HaWg9KFP0BZDqXv6G4b3nJ",
+          "gen_ai.tool.name": "HelloTool"
+        },
+        "resourceAttributes": {
+          "os.arch": "aarch64",
+          "os.type": "Mac OS X",
+          "os.version": "15.4.1",
+          "service.instance.time": "2025-08-26T19:40:59.130398Z",
+          "service.name": "ai.koog",
+          "service.version": "0.3.0"
+        },
+        "scope": {
+          "name": "ai.koog",
+          "version": "0.3.0",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": "0.3.0",
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-08-26T19:41:03.431Z",
+      "updatedAt": "2025-08-26T19:41:03.479Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 1011,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": {
+        "name": "Bob"
+      },
+      "output": "Hello my darling Bob!"
+    },
+    {
+      "id": "5555afb6655e4d44",
+      "traceId": "dff173a675b759ce1b70e522b27d6846",
+      "projectId": "cmcmdwcag00c2ad077xp1qnyc",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": "bb189bc3771ff83d",
+      "startTime": "2025-08-26T19:41:02.017Z",
+      "endTime": "2025-08-26T19:41:03.038Z",
+      "name": "node.nodeExecuteTool",
+      "metadata": {
+        "langgraph_node": "nodeExecuteTool",
+        "langgraph_step": 2,
+        "attributes": {
+          "gen_ai.conversation.id": "6f8d2449-33ed-4c7c-82e7-5410e34ee4e6",
+          "koog.node.name": "nodeExecuteTool",
+          "langfuse.observation.metadata.langgraph_node": "nodeExecuteTool",
+          "langfuse.observation.metadata.langgraph_step": "2"
+        },
+        "resourceAttributes": {
+          "os.arch": "aarch64",
+          "os.type": "Mac OS X",
+          "os.version": "15.4.1",
+          "service.instance.time": "2025-08-26T19:40:59.130398Z",
+          "service.name": "ai.koog",
+          "service.version": "0.3.0"
+        },
+        "scope": {
+          "name": "ai.koog",
+          "version": "0.3.0",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": "0.3.0",
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-08-26T19:41:03.432Z",
+      "updatedAt": "2025-08-26T19:41:03.456Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 1021,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": null,
+      "output": null
+    },
+    {
+      "id": "6a0770019fe7c2b4",
+      "traceId": "dff173a675b759ce1b70e522b27d6846",
+      "projectId": "cmcmdwcag00c2ad077xp1qnyc",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": "bb189bc3771ff83d",
+      "startTime": "2025-08-26T19:40:59.171Z",
+      "endTime": "2025-08-26T19:41:02.017Z",
+      "name": "node.nodeCallLLM",
+      "metadata": {
+        "langgraph_node": "nodeCallLLM",
+        "langgraph_step": 1,
+        "attributes": {
+          "gen_ai.conversation.id": "6f8d2449-33ed-4c7c-82e7-5410e34ee4e6",
+          "koog.node.name": "nodeCallLLM",
+          "langfuse.observation.metadata.langgraph_node": "nodeCallLLM",
+          "langfuse.observation.metadata.langgraph_step": "1"
+        },
+        "resourceAttributes": {
+          "os.arch": "aarch64",
+          "os.type": "Mac OS X",
+          "os.version": "15.4.1",
+          "service.instance.time": "2025-08-26T19:40:59.130398Z",
+          "service.name": "ai.koog",
+          "service.version": "0.3.0"
+        },
+        "scope": {
+          "name": "ai.koog",
+          "version": "0.3.0",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": "0.3.0",
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-08-26T19:41:02.422Z",
+      "updatedAt": "2025-08-26T19:41:02.440Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 2846,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": null,
+      "output": null
+    },
+    {
+      "id": "042f9350c3729147",
+      "traceId": "dff173a675b759ce1b70e522b27d6846",
+      "projectId": "cmcmdwcag00c2ad077xp1qnyc",
+      "type": "GENERATION",
+      "environment": "default",
+      "parentObservationId": "6a0770019fe7c2b4",
+      "startTime": "2025-08-26T19:40:59.176Z",
+      "endTime": "2025-08-26T19:41:02.016Z",
+      "name": "llm.chat",
+      "metadata": {
+        "attributes": {
+          "gen_ai.completion.0.content": [
+            {
+              "function": {
+                "name": "HelloTool",
+                "arguments": {
+                  "name": "Bob"
+                }
+              },
+              "id": "call_n2HaWg9KFP0BZDqXv6G4b3nJ",
+              "type": "function"
+            }
+          ],
+          "gen_ai.request.temperature": "1",
+          "gen_ai.prompt.0.role": "system",
+          "gen_ai.completion.0.role": "assistant",
+          "gen_ai.request.model": "gpt-4o",
+          "gen_ai.conversation.id": "6f8d2449-33ed-4c7c-82e7-5410e34ee4e6",
+          "gen_ai.completion.0.finish_reason": "tool_calls",
+          "gen_ai.prompt.0.content": "You are a nice and polite assistant.",
+          "gen_ai.prompt.1.role": "user",
+          "gen_ai.response.finish_reasons": [
+            "tool_calls"
+          ],
+          "gen_ai.prompt.1.content": "Greet and say goodbye to the user in the same message. Use provided tools to generate a proper greeting. The user name is Bob.",
+          "gen_ai.completion.1.finish_reason": "tool_calls",
+          "gen_ai.system": "openai",
+          "gen_ai.completion.1.role": "assistant",
+          "gen_ai.completion.1.content": [
+            {
+              "function": {
+                "name": "ByeTool",
+                "arguments": {
+                  "name": "Bob"
+                }
+              },
+              "id": "call_dOeEHJDI0liHrCdFWTpkTsuO",
+              "type": "function"
+            }
+          ],
+          "gen_ai.operation.name": "chat"
+        },
+        "resourceAttributes": {
+          "os.arch": "aarch64",
+          "os.type": "Mac OS X",
+          "os.version": "15.4.1",
+          "service.instance.time": "2025-08-26T19:40:59.130398Z",
+          "service.name": "ai.koog",
+          "service.version": "0.3.0"
+        },
+        "scope": {
+          "name": "ai.koog",
+          "version": "0.3.0",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": "0.3.0",
+      "modelParameters": {
+        "temperature": 1
+      },
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-08-26T19:41:02.328Z",
+      "updatedAt": "2025-08-26T19:41:02.356Z",
+      "usageDetails": {
+        "input": 47,
+        "output": 106,
+        "total": 153
+      },
+      "costDetails": {
+        "input": 0.0001175,
+        "output": 0.00106,
+        "total": 0.0011775
+      },
+      "providedCostDetails": {},
+      "model": "gpt-4o",
+      "internalModelId": "b9854a5c92dc496b997d99d20",
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 2840,
+      "timeToFirstToken": null,
+      "inputCost": 0.0001175,
+      "outputCost": 0.00106,
+      "totalCost": 0.0011775,
+      "inputUsage": 47,
+      "outputUsage": 106,
+      "totalUsage": 153,
+      "input": [
+        {
+          "role": "system",
+          "content": "You are a nice and polite assistant."
+        },
+        {
+          "role": "user",
+          "content": "Greet and say goodbye to the user in the same message. Use provided tools to generate a proper greeting. The user name is Bob."
+        }
+      ],
+      "output": [
+        {
+          "content": [
+            {
+              "function": {
+                "name": "HelloTool",
+                "arguments": {
+                  "name": "Bob"
+                }
+              },
+              "id": "call_n2HaWg9KFP0BZDqXv6G4b3nJ",
+              "type": "function"
+            }
+          ],
+          "role": "assistant",
+          "finish_reason": "tool_calls"
+        },
+        {
+          "finish_reason": "tool_calls",
+          "role": "assistant",
+          "content": [
+            {
+              "function": {
+                "name": "ByeTool",
+                "arguments": {
+                  "name": "Bob"
+                }
+              },
+              "id": "call_dOeEHJDI0liHrCdFWTpkTsuO",
+              "type": "function"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "890e9114a4449257",
+      "traceId": "dff173a675b759ce1b70e522b27d6846",
+      "projectId": "cmcmdwcag00c2ad077xp1qnyc",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": "bb189bc3771ff83d",
+      "startTime": "2025-08-26T19:40:59.153Z",
+      "endTime": "2025-08-26T19:40:59.153Z",
+      "name": "node.__start__",
+      "metadata": {
+        "langgraph_node": "__start__",
+        "langgraph_step": 0,
+        "attributes": {
+          "gen_ai.conversation.id": "6f8d2449-33ed-4c7c-82e7-5410e34ee4e6",
+          "koog.node.name": "__start__",
+          "langfuse.observation.metadata.langgraph_node": "__start__",
+          "langfuse.observation.metadata.langgraph_step": "0"
+        },
+        "resourceAttributes": {
+          "os.arch": "aarch64",
+          "os.type": "Mac OS X",
+          "os.version": "15.4.1",
+          "service.instance.time": "2025-08-26T19:40:59.130398Z",
+          "service.name": "ai.koog",
+          "service.version": "0.3.0"
+        },
+        "scope": {
+          "name": "ai.koog",
+          "version": "0.3.0",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": "0.3.0",
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-08-26T19:40:59.897Z",
+      "updatedAt": "2025-08-26T19:40:59.915Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 0,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": null,
+      "output": null
+    }
+  ]
+}

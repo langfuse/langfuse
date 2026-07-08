@@ -1,0 +1,2 @@
+-- DropTable
+DROP TABLE events;

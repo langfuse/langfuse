@@ -1,0 +1,149 @@
+{
+  "trace": {
+    "id": "1b72c51fabed12ae7df83bfd4a09f545",
+    "projectId": "cloramnkj0002jz088vzn1ja4",
+    "name": "autogen-chat-trace",
+    "timestamp": "2025-06-06T11:31:33.965Z",
+    "environment": "default",
+    "tags": [
+      "autogen",
+      "dev"
+    ],
+    "bookmarked": false,
+    "release": null,
+    "version": "1.0.0",
+    "userId": "user_123",
+    "sessionId": "session_abc",
+    "public": true,
+    "input": "\"Say 'Hello World!'\"",
+    "output": "\"Hello World!\"",
+    "metadata": "{\"email\":\"user@langfuse.com\",\"resourceAttributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.33.1\",\"service.name\":\"unknown_service\"},\"scope\":{\"name\":\"langfuse-sdk\",\"version\":\"3.0.0\",\"attributes\":{\"public_key\":\"pk-lf-5855d85e-3943-497e-bd10-f50ad414bcba\"}}}",
+    "createdAt": "2025-06-06T11:31:35.000Z",
+    "updatedAt": "2025-06-06T11:31:35.337Z",
+    "scores": [],
+    "latency": 0.645
+  },
+  "observations": [
+    {
+      "id": "95f4f51edeb603d9",
+      "traceId": "1b72c51fabed12ae7df83bfd4a09f545",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": null,
+      "startTime": "2025-06-06T11:31:33.965Z",
+      "endTime": "2025-06-06T11:31:34.610Z",
+      "name": "autogen-chat-trace",
+      "metadata": {
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.33.1",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "langfuse-sdk",
+          "version": "3.0.0",
+          "attributes": {
+            "public_key": "pk-lf-5855d85e-3943-497e-bd10-f50ad414bcba"
+          }
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": "1.0.0",
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-06-06T11:31:35.295Z",
+      "updatedAt": "2025-06-06T11:31:35.337Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 645,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": null,
+      "output": null
+    },
+    {
+      "id": "83517f9062f5ada4",
+      "traceId": "1b72c51fabed12ae7df83bfd4a09f545",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "GENERATION",
+      "environment": "default",
+      "parentObservationId": "95f4f51edeb603d9",
+      "startTime": "2025-06-06T11:31:33.978Z",
+      "endTime": "2025-06-06T11:31:34.606Z",
+      "name": "chat gpt-4o",
+      "metadata": {
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.33.1",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "langfuse-sdk",
+          "version": "3.0.0",
+          "attributes": {
+            "public_key": "pk-lf-5855d85e-3943-497e-bd10-f50ad414bcba"
+          }
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": {
+        "seed": "",
+        "frequency_penalty": 0,
+        "max_tokens": -1,
+        "presence_penalty": 0,
+        "stop_sequences": "{\"arrayValue\":{}}",
+        "temperature": 1,
+        "top_p": 1,
+        "service_tier": "auto",
+        "user": "",
+        "is_stream": false
+      },
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-06-06T11:31:35.090Z",
+      "updatedAt": "2025-06-06T11:31:35.153Z",
+      "usageDetails": {
+        "input": 41,
+        "output": 3,
+        "total": 44
+      },
+      "costDetails": {
+        "total": 0.000025
+      },
+      "providedCostDetails": {
+        "total": 0.000025
+      },
+      "model": "gpt-4o",
+      "internalModelId": "b9854a5c92dc496b997d99d20",
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 628,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0.000025,
+      "inputUsage": 41,
+      "outputUsage": 3,
+      "totalUsage": 44,
+      "input": "system: You are a helpful AI assistant. Solve tasks using your tools. Reply with TERMINATE when the task has been completed.\nuser: Say 'Hello World!'",
+      "output": "Hello World!"
+    }
+  ]
+}

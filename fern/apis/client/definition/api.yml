@@ -1,0 +1,11 @@
+name: langfuse
+error-discrimination:
+  strategy: status-code
+auth: bearer
+imports:
+  commons: commons.yml
+errors:
+  - commons.Error
+  - commons.UnauthorizedError
+  - commons.AccessDeniedError
+  - commons.MethodNotAllowedError

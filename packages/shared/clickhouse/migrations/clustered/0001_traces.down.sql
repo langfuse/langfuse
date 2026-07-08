@@ -1,0 +1,1 @@
+DROP TABLE traces ON CLUSTER default;

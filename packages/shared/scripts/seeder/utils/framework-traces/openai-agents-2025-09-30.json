@@ -1,0 +1,931 @@
+{
+  "trace": {
+    "id": "fee618f96dc31e0ca38b2f7b26eb8b29",
+    "projectId": "cloramnkj0002jz088vzn1ja4",
+    "name": "Agent workflow",
+    "timestamp": "2025-09-30T09:03:59.962Z",
+    "environment": "default",
+    "tags": [],
+    "bookmarked": false,
+    "release": null,
+    "version": null,
+    "userId": null,
+    "sessionId": null,
+    "public": true,
+    "input": null,
+    "output": null,
+    "metadata": "{\"attributes\":{\"openinference.span.kind\":\"AGENT\"},\"resourceAttributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.37.0\",\"service.name\":\"unknown_service\"},\"scope\":{\"name\":\"openinference.instrumentation.openai_agents\",\"version\":\"1.3.0\",\"attributes\":{}}}",
+    "createdAt": "2025-09-30T09:04:03.000Z",
+    "updatedAt": "2025-09-30T09:04:07.465Z",
+    "scores": [
+      {
+        "id": "0721bd4f-a35c-4d29-a2c6-38879e1d758e",
+        "timestamp": "2025-09-30T09:04:30.125Z",
+        "projectId": "cloramnkj0002jz088vzn1ja4",
+        "environment": "default",
+        "name": "toxicity",
+        "source": "EVAL",
+        "authorUserId": null,
+        "comment": "The generation contains aggressive and dismissive language that undermines trust in professionals and promotes a negative view of the public's intelligence, which is harmful and disrespectful.",
+        "metadata": "{}",
+        "configId": null,
+        "createdAt": "2025-09-30T09:04:31.000Z",
+        "updatedAt": "2025-09-30T09:04:30.197Z",
+        "queueId": null,
+        "traceId": "fee618f96dc31e0ca38b2f7b26eb8b29",
+        "observationId": null,
+        "sessionId": null,
+        "datasetRunId": null,
+        "value": 0.8,
+        "stringValue": null,
+        "dataType": "NUMERIC"
+      },
+      {
+        "id": "f60dc1c4-17af-4512-ada9-f2440f437ce1",
+        "timestamp": "2025-09-30T09:04:28.687Z",
+        "projectId": "cloramnkj0002jz088vzn1ja4",
+        "environment": "default",
+        "name": "hallucination",
+        "source": "EVAL",
+        "authorUserId": null,
+        "comment": "There is no specific generation provided to evaluate for hallucination. Therefore, it is impossible to assess or score the degree of hallucination in this case.",
+        "metadata": "{}",
+        "configId": null,
+        "createdAt": "2025-09-30T09:04:29.000Z",
+        "updatedAt": "2025-09-30T09:04:28.773Z",
+        "queueId": null,
+        "traceId": "fee618f96dc31e0ca38b2f7b26eb8b29",
+        "observationId": null,
+        "sessionId": null,
+        "datasetRunId": null,
+        "value": 0,
+        "stringValue": null,
+        "dataType": "NUMERIC"
+      }
+    ],
+    "latency": 2.19
+  },
+  "observations": [
+    {
+      "id": "e5a76f27f51ad40e",
+      "traceId": "fee618f96dc31e0ca38b2f7b26eb8b29",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "AGENT",
+      "environment": "default",
+      "parentObservationId": null,
+      "startTime": "2025-09-30T09:03:59.962Z",
+      "endTime": "2025-09-30T09:04:02.152Z",
+      "name": "Agent workflow",
+      "metadata": {
+        "attributes": {
+          "openinference.span.kind": "AGENT"
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.37.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "openinference.instrumentation.openai_agents",
+          "version": "1.3.0",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": {},
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-09-30T09:04:07.382Z",
+      "updatedAt": "2025-09-30T09:04:07.382Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 2190,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": null,
+      "output": null
+    },
+    {
+      "id": "d950b668796240b5",
+      "traceId": "fee618f96dc31e0ca38b2f7b26eb8b29",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "AGENT",
+      "environment": "default",
+      "parentObservationId": "e5a76f27f51ad40e",
+      "startTime": "2025-09-30T09:03:59.962Z",
+      "endTime": "2025-09-30T09:04:02.152Z",
+      "name": "Hello world",
+      "metadata": {
+        "attributes": {
+          "llm.system": "openai",
+          "graph.node.id": "Hello world",
+          "openinference.span.kind": "AGENT"
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.37.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "openinference.instrumentation.openai_agents",
+          "version": "1.3.0",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": {},
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-09-30T09:04:07.382Z",
+      "updatedAt": "2025-09-30T09:04:07.382Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 2190,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": null,
+      "output": null
+    },
+    {
+      "id": "90d94774e8e3724d",
+      "traceId": "fee618f96dc31e0ca38b2f7b26eb8b29",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "GENERATION",
+      "environment": "default",
+      "parentObservationId": "d950b668796240b5",
+      "startTime": "2025-09-30T09:04:01.001Z",
+      "endTime": "2025-09-30T09:04:02.151Z",
+      "name": "response",
+      "metadata": {
+        "attributes": {
+          "llm.system": "openai",
+          "output.mime_type": "application/json",
+          "output.value": {
+            "id": "resp_0f00ca5b7e22bb4c0068db9d0110d8819da676bd1f2dd03a40",
+            "created_at": 1759223041,
+            "error": null,
+            "incomplete_details": null,
+            "instructions": "You are a helpful agent.",
+            "metadata": {},
+            "model": "gpt-4.1-2025-04-14",
+            "object": "response",
+            "output": [
+              {
+                "id": "msg_0f00ca5b7e22bb4c0068db9d019a78819d9fe1e4d3b6c96b68",
+                "content": [
+                  {
+                    "annotations": [],
+                    "text": "The weather in Tokyo is currently sunny. If you need more details like temperature or forecast for the upcoming days, just let me know!",
+                    "type": "output_text",
+                    "logprobs": []
+                  }
+                ],
+                "role": "assistant",
+                "status": "completed",
+                "type": "message"
+              }
+            ],
+            "parallel_tool_calls": true,
+            "temperature": 1,
+            "tool_choice": "auto",
+            "tools": [
+              {
+                "name": "get_weather",
+                "parameters": {
+                  "properties": {
+                    "city": {
+                      "title": "City",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["city"],
+                  "title": "get_weather_args",
+                  "type": "object",
+                  "additionalProperties": false
+                },
+                "strict": true,
+                "type": "function",
+                "description": null
+              }
+            ],
+            "top_p": 1,
+            "background": false,
+            "conversation": null,
+            "max_output_tokens": null,
+            "max_tool_calls": null,
+            "previous_response_id": null,
+            "prompt": null,
+            "prompt_cache_key": null,
+            "reasoning": {
+              "effort": null,
+              "generate_summary": null,
+              "summary": null
+            },
+            "safety_identifier": null,
+            "service_tier": "default",
+            "status": "completed",
+            "text": {
+              "format": {
+                "type": "text"
+              },
+              "verbosity": "medium"
+            },
+            "top_logprobs": 0,
+            "truncation": "disabled",
+            "usage": {
+              "input_tokens": 85,
+              "input_tokens_details": {
+                "cached_tokens": 0
+              },
+              "output_tokens": 29,
+              "output_tokens_details": {
+                "reasoning_tokens": 0
+              },
+              "total_tokens": 114
+            },
+            "user": null,
+            "billing": {
+              "payer": "developer"
+            },
+            "store": true
+          },
+          "llm.tools.0.tool.json_schema": {
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "description": null,
+              "parameters": {
+                "properties": {
+                  "city": {
+                    "title": "City",
+                    "type": "string"
+                  }
+                },
+                "required": ["city"],
+                "title": "get_weather_args",
+                "type": "object",
+                "additionalProperties": false
+              },
+              "strict": true
+            }
+          },
+          "llm.token_count.completion": "29",
+          "llm.token_count.prompt": "85",
+          "llm.token_count.total": "114",
+          "llm.token_count.prompt_details.cache_read": "0",
+          "llm.token_count.completion_details.reasoning": "0",
+          "llm.output_messages.0.message.role": "assistant",
+          "llm.output_messages.0.message.contents.0.message_content.type": "text",
+          "llm.output_messages.0.message.contents.0.message_content.text": "The weather in Tokyo is currently sunny. If you need more details like temperature or forecast for the upcoming days, just let me know!",
+          "llm.input_messages.0.message.role": "system",
+          "llm.input_messages.0.message.content": "You are a helpful agent.",
+          "llm.model_name": "gpt-4.1-2025-04-14",
+          "llm.invocation_parameters": {
+            "id": "resp_0f00ca5b7e22bb4c0068db9d0110d8819da676bd1f2dd03a40",
+            "created_at": 1759223041,
+            "instructions": "You are a helpful agent.",
+            "metadata": {},
+            "model": "gpt-4.1-2025-04-14",
+            "parallel_tool_calls": true,
+            "temperature": 1,
+            "tool_choice": "auto",
+            "top_p": 1,
+            "background": false,
+            "reasoning": {},
+            "service_tier": "default",
+            "text": {
+              "format": {
+                "type": "text"
+              },
+              "verbosity": "medium"
+            },
+            "top_logprobs": 0,
+            "truncation": "disabled",
+            "billing": {
+              "payer": "developer"
+            },
+            "store": true
+          },
+          "input.mime_type": "application/json",
+          "input.value": [
+            {
+              "content": "What's the weather in Tokyo?",
+              "role": "user"
+            },
+            {
+              "arguments": {
+                "city": "Tokyo"
+              },
+              "call_id": "call_Kud0j0DxWSmLzv9W5m6qVqXn",
+              "name": "get_weather",
+              "type": "function_call",
+              "id": "fc_0f00ca5b7e22bb4c0068db9d00d258819d987f4b9b63189e76",
+              "status": "completed"
+            },
+            {
+              "call_id": "call_Kud0j0DxWSmLzv9W5m6qVqXn",
+              "output": "The weather in Tokyo is sunny.",
+              "type": "function_call_output"
+            }
+          ],
+          "llm.input_messages.1.message.role": "user",
+          "llm.input_messages.1.message.content": "What's the weather in Tokyo?",
+          "llm.input_messages.2.message.role": "assistant",
+          "llm.input_messages.2.message.tool_calls.0.tool_call.id": "call_Kud0j0DxWSmLzv9W5m6qVqXn",
+          "llm.input_messages.2.message.tool_calls.0.tool_call.function.name": "get_weather",
+          "llm.input_messages.2.message.tool_calls.0.tool_call.function.arguments": {
+            "city": "Tokyo"
+          },
+          "llm.input_messages.3.message.role": "tool",
+          "llm.input_messages.3.message.tool_call_id": "call_Kud0j0DxWSmLzv9W5m6qVqXn",
+          "llm.input_messages.3.message.content": "The weather in Tokyo is sunny.",
+          "openinference.span.kind": "LLM"
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.37.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "openinference.instrumentation.openai_agents",
+          "version": "1.3.0",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": {
+        "id": "resp_0f00ca5b7e22bb4c0068db9d0110d8819da676bd1f2dd03a40",
+        "created_at": 1759223041,
+        "instructions": "You are a helpful agent.",
+        "metadata": "{}",
+        "model": "gpt-4.1-2025-04-14",
+        "parallel_tool_calls": "true",
+        "temperature": 1,
+        "tool_choice": "auto",
+        "top_p": 1,
+        "background": "false",
+        "reasoning": "{}",
+        "service_tier": "default",
+        "text": "{\"format\":{\"type\":\"text\"},\"verbosity\":\"medium\"}",
+        "top_logprobs": 0,
+        "truncation": "disabled",
+        "billing": "{\"payer\":\"developer\"}",
+        "store": "true"
+      },
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-09-30T09:04:07.382Z",
+      "updatedAt": "2025-09-30T09:04:07.382Z",
+      "usageDetails": {
+        "output": 29,
+        "input": 85,
+        "total": 114,
+        "prompt_details.cache_read": 0,
+        "completion_details.reasoning": 0
+      },
+      "costDetails": {
+        "output": 0.000232,
+        "input": 0.00017,
+        "total": 0.000402
+      },
+      "providedCostDetails": {},
+      "model": "gpt-4.1-2025-04-14",
+      "internalModelId": "cm7qahw732891bpmzy45r3x70",
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 1150,
+      "timeToFirstToken": null,
+      "inputCost": 0.00017,
+      "outputCost": 0.000232,
+      "totalCost": 0.000402,
+      "inputUsage": 85,
+      "outputUsage": 29,
+      "totalUsage": 114,
+      "input": [
+        {
+          "content": "What's the weather in Tokyo?",
+          "role": "user"
+        },
+        {
+          "arguments": {
+            "city": "Tokyo"
+          },
+          "call_id": "call_Kud0j0DxWSmLzv9W5m6qVqXn",
+          "name": "get_weather",
+          "type": "function_call",
+          "id": "fc_0f00ca5b7e22bb4c0068db9d00d258819d987f4b9b63189e76",
+          "status": "completed"
+        },
+        {
+          "call_id": "call_Kud0j0DxWSmLzv9W5m6qVqXn",
+          "output": "The weather in Tokyo is sunny.",
+          "type": "function_call_output"
+        }
+      ],
+      "output": {
+        "id": "resp_0f00ca5b7e22bb4c0068db9d0110d8819da676bd1f2dd03a40",
+        "created_at": 1759223041,
+        "error": null,
+        "incomplete_details": null,
+        "instructions": "You are a helpful agent.",
+        "metadata": {},
+        "model": "gpt-4.1-2025-04-14",
+        "object": "response",
+        "output": [
+          {
+            "id": "msg_0f00ca5b7e22bb4c0068db9d019a78819d9fe1e4d3b6c96b68",
+            "content": [
+              {
+                "annotations": [],
+                "text": "The weather in Tokyo is currently sunny. If you need more details like temperature or forecast for the upcoming days, just let me know!",
+                "type": "output_text",
+                "logprobs": []
+              }
+            ],
+            "role": "assistant",
+            "status": "completed",
+            "type": "message"
+          }
+        ],
+        "parallel_tool_calls": true,
+        "temperature": 1,
+        "tool_choice": "auto",
+        "tools": [
+          {
+            "name": "get_weather",
+            "parameters": {
+              "properties": {
+                "city": {
+                  "title": "City",
+                  "type": "string"
+                }
+              },
+              "required": ["city"],
+              "title": "get_weather_args",
+              "type": "object",
+              "additionalProperties": false
+            },
+            "strict": true,
+            "type": "function",
+            "description": null
+          }
+        ],
+        "top_p": 1,
+        "background": false,
+        "conversation": null,
+        "max_output_tokens": null,
+        "max_tool_calls": null,
+        "previous_response_id": null,
+        "prompt": null,
+        "prompt_cache_key": null,
+        "reasoning": {
+          "effort": null,
+          "generate_summary": null,
+          "summary": null
+        },
+        "safety_identifier": null,
+        "service_tier": "default",
+        "status": "completed",
+        "text": {
+          "format": {
+            "type": "text"
+          },
+          "verbosity": "medium"
+        },
+        "top_logprobs": 0,
+        "truncation": "disabled",
+        "usage": {
+          "input_tokens": 85,
+          "input_tokens_details": {
+            "cached_tokens": 0
+          },
+          "output_tokens": 29,
+          "output_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "total_tokens": 114
+        },
+        "user": null,
+        "billing": {
+          "payer": "developer"
+        },
+        "store": true
+      }
+    },
+    {
+      "id": "98870087af69bf06",
+      "traceId": "fee618f96dc31e0ca38b2f7b26eb8b29",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "GENERATION",
+      "environment": "default",
+      "parentObservationId": "d950b668796240b5",
+      "startTime": "2025-09-30T09:03:59.963Z",
+      "endTime": "2025-09-30T09:04:00.999Z",
+      "name": "response",
+      "metadata": {
+        "attributes": {
+          "llm.system": "openai",
+          "output.mime_type": "application/json",
+          "output.value": {
+            "id": "resp_0f00ca5b7e22bb4c0068db9d000be4819d824c447c54b65bc1",
+            "created_at": 1759223040,
+            "error": null,
+            "incomplete_details": null,
+            "instructions": "You are a helpful agent.",
+            "metadata": {},
+            "model": "gpt-4.1-2025-04-14",
+            "object": "response",
+            "output": [
+              {
+                "arguments": {
+                  "city": "Tokyo"
+                },
+                "call_id": "call_Kud0j0DxWSmLzv9W5m6qVqXn",
+                "name": "get_weather",
+                "type": "function_call",
+                "id": "fc_0f00ca5b7e22bb4c0068db9d00d258819d987f4b9b63189e76",
+                "status": "completed"
+              }
+            ],
+            "parallel_tool_calls": true,
+            "temperature": 1,
+            "tool_choice": "auto",
+            "tools": [
+              {
+                "name": "get_weather",
+                "parameters": {
+                  "properties": {
+                    "city": {
+                      "title": "City",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["city"],
+                  "title": "get_weather_args",
+                  "type": "object",
+                  "additionalProperties": false
+                },
+                "strict": true,
+                "type": "function",
+                "description": null
+              }
+            ],
+            "top_p": 1,
+            "background": false,
+            "conversation": null,
+            "max_output_tokens": null,
+            "max_tool_calls": null,
+            "previous_response_id": null,
+            "prompt": null,
+            "prompt_cache_key": null,
+            "reasoning": {
+              "effort": null,
+              "generate_summary": null,
+              "summary": null
+            },
+            "safety_identifier": null,
+            "service_tier": "default",
+            "status": "completed",
+            "text": {
+              "format": {
+                "type": "text"
+              },
+              "verbosity": "medium"
+            },
+            "top_logprobs": 0,
+            "truncation": "disabled",
+            "usage": {
+              "input_tokens": 55,
+              "input_tokens_details": {
+                "cached_tokens": 0
+              },
+              "output_tokens": 15,
+              "output_tokens_details": {
+                "reasoning_tokens": 0
+              },
+              "total_tokens": 70
+            },
+            "user": null,
+            "billing": {
+              "payer": "developer"
+            },
+            "store": true
+          },
+          "llm.tools.0.tool.json_schema": {
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "description": null,
+              "parameters": {
+                "properties": {
+                  "city": {
+                    "title": "City",
+                    "type": "string"
+                  }
+                },
+                "required": ["city"],
+                "title": "get_weather_args",
+                "type": "object",
+                "additionalProperties": false
+              },
+              "strict": true
+            }
+          },
+          "llm.token_count.completion": "15",
+          "llm.token_count.prompt": "55",
+          "llm.token_count.total": "70",
+          "llm.token_count.prompt_details.cache_read": "0",
+          "llm.token_count.completion_details.reasoning": "0",
+          "llm.output_messages.0.message.role": "assistant",
+          "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call_Kud0j0DxWSmLzv9W5m6qVqXn",
+          "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
+          "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": {
+            "city": "Tokyo"
+          },
+          "llm.input_messages.0.message.role": "system",
+          "llm.input_messages.0.message.content": "You are a helpful agent.",
+          "llm.model_name": "gpt-4.1-2025-04-14",
+          "llm.invocation_parameters": {
+            "id": "resp_0f00ca5b7e22bb4c0068db9d000be4819d824c447c54b65bc1",
+            "created_at": 1759223040,
+            "instructions": "You are a helpful agent.",
+            "metadata": {},
+            "model": "gpt-4.1-2025-04-14",
+            "parallel_tool_calls": true,
+            "temperature": 1,
+            "tool_choice": "auto",
+            "top_p": 1,
+            "background": false,
+            "reasoning": {},
+            "service_tier": "default",
+            "text": {
+              "format": {
+                "type": "text"
+              },
+              "verbosity": "medium"
+            },
+            "top_logprobs": 0,
+            "truncation": "disabled",
+            "billing": {
+              "payer": "developer"
+            },
+            "store": true
+          },
+          "input.mime_type": "application/json",
+          "input.value": [
+            {
+              "content": "What's the weather in Tokyo?",
+              "role": "user"
+            }
+          ],
+          "llm.input_messages.1.message.role": "user",
+          "llm.input_messages.1.message.content": "What's the weather in Tokyo?",
+          "openinference.span.kind": "LLM"
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.37.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "openinference.instrumentation.openai_agents",
+          "version": "1.3.0",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": {
+        "id": "resp_0f00ca5b7e22bb4c0068db9d000be4819d824c447c54b65bc1",
+        "created_at": 1759223040,
+        "instructions": "You are a helpful agent.",
+        "metadata": "{}",
+        "model": "gpt-4.1-2025-04-14",
+        "parallel_tool_calls": "true",
+        "temperature": 1,
+        "tool_choice": "auto",
+        "top_p": 1,
+        "background": "false",
+        "reasoning": "{}",
+        "service_tier": "default",
+        "text": "{\"format\":{\"type\":\"text\"},\"verbosity\":\"medium\"}",
+        "top_logprobs": 0,
+        "truncation": "disabled",
+        "billing": "{\"payer\":\"developer\"}",
+        "store": "true"
+      },
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-09-30T09:04:02.217Z",
+      "updatedAt": "2025-09-30T09:04:02.217Z",
+      "usageDetails": {
+        "output": 15,
+        "input": 55,
+        "total": 70,
+        "prompt_details.cache_read": 0,
+        "completion_details.reasoning": 0
+      },
+      "costDetails": {
+        "output": 0.00012,
+        "input": 0.00011,
+        "total": 0.00023
+      },
+      "providedCostDetails": {},
+      "model": "gpt-4.1-2025-04-14",
+      "internalModelId": "cm7qahw732891bpmzy45r3x70",
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 1036,
+      "timeToFirstToken": null,
+      "inputCost": 0.00011,
+      "outputCost": 0.00012,
+      "totalCost": 0.00023,
+      "inputUsage": 55,
+      "outputUsage": 15,
+      "totalUsage": 70,
+      "input": [
+        {
+          "content": "What's the weather in Tokyo?",
+          "role": "user"
+        }
+      ],
+      "output": {
+        "id": "resp_0f00ca5b7e22bb4c0068db9d000be4819d824c447c54b65bc1",
+        "created_at": 1759223040,
+        "error": null,
+        "incomplete_details": null,
+        "instructions": "You are a helpful agent.",
+        "metadata": {},
+        "model": "gpt-4.1-2025-04-14",
+        "object": "response",
+        "output": [
+          {
+            "arguments": {
+              "city": "Tokyo"
+            },
+            "call_id": "call_Kud0j0DxWSmLzv9W5m6qVqXn",
+            "name": "get_weather",
+            "type": "function_call",
+            "id": "fc_0f00ca5b7e22bb4c0068db9d00d258819d987f4b9b63189e76",
+            "status": "completed"
+          }
+        ],
+        "parallel_tool_calls": true,
+        "temperature": 1,
+        "tool_choice": "auto",
+        "tools": [
+          {
+            "name": "get_weather",
+            "parameters": {
+              "properties": {
+                "city": {
+                  "title": "City",
+                  "type": "string"
+                }
+              },
+              "required": ["city"],
+              "title": "get_weather_args",
+              "type": "object",
+              "additionalProperties": false
+            },
+            "strict": true,
+            "type": "function",
+            "description": null
+          }
+        ],
+        "top_p": 1,
+        "background": false,
+        "conversation": null,
+        "max_output_tokens": null,
+        "max_tool_calls": null,
+        "previous_response_id": null,
+        "prompt": null,
+        "prompt_cache_key": null,
+        "reasoning": {
+          "effort": null,
+          "generate_summary": null,
+          "summary": null
+        },
+        "safety_identifier": null,
+        "service_tier": "default",
+        "status": "completed",
+        "text": {
+          "format": {
+            "type": "text"
+          },
+          "verbosity": "medium"
+        },
+        "top_logprobs": 0,
+        "truncation": "disabled",
+        "usage": {
+          "input_tokens": 55,
+          "input_tokens_details": {
+            "cached_tokens": 0
+          },
+          "output_tokens": 15,
+          "output_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "total_tokens": 70
+        },
+        "user": null,
+        "billing": {
+          "payer": "developer"
+        },
+        "store": true
+      }
+    },
+    {
+      "id": "5b99c3e3411ed17b",
+      "traceId": "fee618f96dc31e0ca38b2f7b26eb8b29",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "TOOL",
+      "environment": "default",
+      "parentObservationId": "d950b668796240b5",
+      "startTime": "2025-09-30T09:04:01.000Z",
+      "endTime": "2025-09-30T09:04:01.000Z",
+      "name": "get_weather",
+      "metadata": {
+        "attributes": {
+          "llm.system": "openai",
+          "tool.name": "get_weather",
+          "input.value": {
+            "city": "Tokyo"
+          },
+          "input.mime_type": "application/json",
+          "output.value": "The weather in Tokyo is sunny.",
+          "openinference.span.kind": "TOOL"
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.37.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "openinference.instrumentation.openai_agents",
+          "version": "1.3.0",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": {},
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-09-30T09:04:02.217Z",
+      "updatedAt": "2025-09-30T09:04:02.217Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 0,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": {
+        "city": "Tokyo"
+      },
+      "output": "The weather in Tokyo is sunny."
+    }
+  ]
+}

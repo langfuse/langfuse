@@ -1,0 +1,133 @@
+import { z } from "zod";
+import {
+  commaSeparatedEnumArray,
+  publicApiPaginationZod,
+} from "../../../../utils/zod";
+import { stringDateTime } from "../../../../utils/typeChecks";
+import { applyScoreValidation } from "../../../../utils/scores";
+import { PostScoreBodyFoundationSchema } from "../shared";
+import {
+  ANNOTATION_SCORE_REQUIRES_CONFIG_ID_MESSAGE,
+  isAnnotationScoreMissingConfigId,
+  PublicApiCreateScoreSourceDomain,
+  ScoreDataTypeDomain,
+  ScoreSourceDomain,
+  ScoreSourceEnum,
+  TEXT_SCORE_MAX_LENGTH,
+} from "../../../../domain/scores";
+import { singleFilter } from "../../../../interfaces/filters";
+import { InvalidRequestError } from "../../../../errors";
+
+const operators = ["<", ">", "<=", ">=", "!=", "="] as const;
+
+export const SCORE_FIELD_GROUPS = ["score", "trace"] as const;
+
+/**
+ * Endpoints
+ */
+
+// GET /scores/{scoreId}
+export const GetScoreQuery = z.object({
+  scoreId: z.string(),
+});
+
+// GET /scores
+export const GetScoresQuery = z.object({
+  ...publicApiPaginationZod,
+  userId: z.string().nullish(),
+  dataType: ScoreDataTypeDomain.nullish(),
+  configId: z.string().nullish(),
+  queueId: z.string().nullish(),
+  traceTags: z.union([z.array(z.string()), z.string()]).nullish(),
+  environment: z.union([z.array(z.string()), z.string()]).nullish(),
+  name: z.string().nullish(),
+  fromTimestamp: stringDateTime,
+  toTimestamp: stringDateTime,
+  source: ScoreSourceDomain.nullish(),
+  value: z.coerce.number().nullish(),
+  operator: z.enum(operators).nullish(),
+  scoreIds: z
+    .string()
+    .transform((str) => str.split(",").map((id) => id.trim())) // Split the comma-separated string
+    .refine((arr) => arr.every((id) => typeof id === "string"), {
+      message: "Each score ID must be a string",
+    })
+    .nullish(),
+  fields: commaSeparatedEnumArray(SCORE_FIELD_GROUPS, null, {
+    unknownValues: "filter",
+  }),
+  filter: z
+    .string()
+    .optional()
+    .transform((str) => {
+      if (!str) return undefined;
+      try {
+        const parsed = JSON.parse(str);
+        return parsed;
+      } catch (e) {
+        if (e instanceof InvalidRequestError) throw e;
+        throw new InvalidRequestError("Invalid JSON in filter parameter");
+      }
+    })
+    .pipe(z.array(singleFilter).optional()),
+});
+
+// POST /scores
+// Roughly mirrors ScoreBody in `packages/shared/src/server/ingestion/types.ts`;
+// keep them in sync for fields that cross both surfaces.
+export const PostScoresBody = applyScoreValidation(
+  PostScoreBodyFoundationSchema.extend({
+    source: PublicApiCreateScoreSourceDomain.default(ScoreSourceEnum.API),
+  }).and(
+    z.discriminatedUnion("dataType", [
+      z.object({
+        value: z.number(),
+        dataType: z.literal("NUMERIC"),
+        configId: z.string().nullish(),
+      }),
+      z.object({
+        value: z.string(),
+        dataType: z.literal("CATEGORICAL"),
+        configId: z.string().nullish(),
+      }),
+      z.object({
+        value: z.number().refine((value) => value === 0 || value === 1, {
+          message:
+            "Value must be a number equal to either 0 or 1 for data type BOOLEAN",
+        }),
+        dataType: z.literal("BOOLEAN"),
+        configId: z.string().nullish(),
+      }),
+      z.object({
+        value: z.string(), // Corrected output text
+        dataType: z.literal("CORRECTION"),
+        configId: z.undefined().nullish(), // Cannot have config
+      }),
+      z.object({
+        value: z.string().min(1).max(TEXT_SCORE_MAX_LENGTH),
+        dataType: z.literal("TEXT"),
+        configId: z.string().nullish(),
+      }),
+      z.object({
+        value: z.union([z.string(), z.number()]),
+        dataType: z.undefined(),
+        configId: z.string().nullish(),
+      }),
+    ]),
+  ),
+).refine((data) => !isAnnotationScoreMissingConfigId(data), {
+  message: ANNOTATION_SCORE_REQUIRES_CONFIG_ID_MESSAGE,
+  path: ["configId"],
+});
+
+export const PostScoresResponse = z.object({ id: z.string() });
+
+// DELETE /scores/{scoreId}
+// Please note that the DELETE /scores/{scoreId} endpoint supports all score types (trace, session, dataset run) across v1 and v2.
+export const DeleteScoreQuery = z.object({
+  scoreId: z.string(),
+});
+
+export const DeleteScoreResponse = z.object({
+  message: z.string(),
+});

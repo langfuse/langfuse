@@ -1,0 +1,107 @@
+{
+  "name": "langfuse",
+  "version": "3.208.0",
+  "author": "engineering@langfuse.com",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "node": "24"
+  },
+  "scripts": {
+    "agents:check": "node scripts/agents/sync-agent-shims.mjs --check",
+    "agents:sync": "node scripts/agents/sync-agent-shims.mjs",
+    "postinstall": "node -e \"const fs = require('node:fs'); const cp = require('node:child_process'); if (!fs.existsSync('scripts/postinstall.sh')) { console.log('Skipping repo postinstall helper: scripts/postinstall.sh is not present in this install context.'); process.exit(0); } cp.execSync('bash scripts/postinstall.sh', { stdio: 'inherit' });\"",
+    "preinstall": "npx only-allow pnpm",
+    "infra:dev:up": "docker compose -f ./docker-compose.dev.yml up -d --wait",
+    "infra:dev:down": "docker compose -f ./docker-compose.dev.yml down",
+    "infra:dev:prune": "docker compose -f ./docker-compose.dev.yml down -v",
+    "db:generate": "turbo run db:generate",
+    "db:migrate": "turbo run db:migrate",
+    "db:seed": "turbo run db:seed",
+    "db:seed:examples": "turbo run db:seed:examples",
+    "nuke": "bash ./scripts/nuke.sh",
+    "scan:client-bundle": "node scripts/scan-client-bundle.mjs web/.next/static",
+    "seed": "pnpm --filter=shared run seed:scenario",
+    "dx": "pnpm i && pnpm run infra:dev:prune && pnpm run infra:dev:up --pull always && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
+    "dx-f": "pnpm i && pnpm run infra:dev:prune && pnpm run infra:dev:up --pull always && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset -f && SKIP_CONFIRM=1 pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
+    "dx:skip-infra": "pnpm i && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
+    "build": "turbo run build",
+    "build:check": "turbo run build:check",
+    "typecheck": "turbo run typecheck",
+    "tc": "turbo run typecheck",
+    "start": "turbo run start",
+    "dev": "turbo run dev",
+    "dev:worker": "turbo run dev --filter=worker",
+    "dev:web": "turbo run dev --filter=web",
+    "dev:web-webpack": "turbo run dev --filter=web -- --webpack",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
+    "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
+    "playwright:install": "pnpm --filter web exec playwright install chromium",
+    "storybook": "pnpm --filter web run storybook",
+    "test": "turbo run test",
+    "release": "bash ./scripts/release-preflight.sh && dotenv -e ../.env -- release-it",
+    "release:cloud": "bash ./scripts/release-cloud.sh",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@release-it/bumper": "^7.0.6",
+    "dotenv-cli": "^7.4.4",
+    "eslint-scope": "^9.1.2",
+    "espree": "^11.2.0",
+    "globals": "^16.5.0",
+    "husky": "^9.1.7",
+    "knip": "^6.22.0",
+    "prettier": "^3.8.3",
+    "release-it": "^20.2.0",
+    "turbo": "2.9.18"
+  },
+  "release-it": {
+    "git": {
+      "commitMessage": "chore: release v${version}",
+      "tagName": "v${version}",
+      "commitArgs": [
+        "--no-verify"
+      ],
+      "pushArgs": [
+        "--no-verify"
+      ]
+    },
+    "plugins": {
+      "@release-it/bumper": {
+        "out": [
+          {
+            "file": "./packages/shared/src/constants/VERSION.ts",
+            "type": "application/typescript"
+          },
+          {
+            "file": "./web/src/constants/VERSION.ts",
+            "type": "application/typescript"
+          },
+          {
+            "file": "./worker/src/constants/VERSION.ts",
+            "type": "application/typescript"
+          },
+          {
+            "file": "./web/package.json"
+          },
+          {
+            "file": "./worker/package.json"
+          }
+        ]
+      }
+    },
+    "github": {
+      "release": true,
+      "web": true,
+      "autoGenerate": true,
+      "releaseName": "v${version}",
+      "comments": {
+        "submit": true,
+        "issue": ":rocket: _This issue has been resolved in v${version}. See [${releaseName}](${releaseUrl}) for release notes._",
+        "pr": ":rocket: _This pull request is included in v${version}. See [${releaseName}](${releaseUrl}) for release notes._"
+      }
+    }
+  },
+  "packageManager": "pnpm@11.10.0"
+}

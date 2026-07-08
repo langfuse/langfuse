@@ -1,0 +1,386 @@
+import {
+  CloudWatchClient,
+  PutMetricDataCommand,
+} from "@aws-sdk/client-cloudwatch";
+import * as opentelemetry from "@opentelemetry/api";
+import * as dd from "dd-trace";
+import { env } from "../../env";
+import { API_KEY_CACHE_KEY_PREFIX } from "../auth/apiKeyCache";
+import { logger } from "../logger";
+
+// type CallbackFn<T> = () => T;
+
+/**
+ * IORedis request hook that records the full Redis command as a span attribute.
+ * Redacts credentials from AUTH/HELLO and values from API key cache operations.
+ */
+export function ioredisRequestHook(
+  span: opentelemetry.Span,
+  { cmdName, cmdArgs }: { cmdName: string; cmdArgs: unknown[] },
+): void {
+  if (!Array.isArray(cmdArgs) || cmdArgs.length === 0) return;
+  const cmd = cmdName.toUpperCase();
+  // AUTH and HELLO carry raw credentials — redact all args
+  if (cmd === "AUTH" || cmd === "HELLO") {
+    span.setAttribute("redis.full_command", `${cmdName} [REDACTED]`);
+    return;
+  }
+  const args = [...cmdArgs].map(String);
+  // Redact API key cache values.
+  if (args[0]?.includes(API_KEY_CACHE_KEY_PREFIX)) {
+    for (let i = 1; i < args.length; i++) {
+      args[i] = "[REDACTED]";
+    }
+  }
+  span.setAttribute("redis.full_command", `${cmdName} ${args.join(" ")}`);
+}
+
+export type TCarrier = {
+  traceparent?: string;
+  tracestate?: string;
+};
+
+export type SpanCtx = {
+  name: string;
+  spanKind?: opentelemetry.SpanKind; // https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#spankind
+  rootSpan?: boolean; // https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/overview.md#traces
+  traceScope?: string;
+  traceContext?: TCarrier;
+  startNewTrace?: boolean; // Start a new trace, severing any parent trace relationships
+};
+
+type AsyncCallbackFn<T> = (span: opentelemetry.Span) => Promise<T>;
+
+export async function instrumentAsync<T>(
+  ctx: SpanCtx,
+  callback: AsyncCallbackFn<T>,
+): Promise<T> {
+  const activeContext = ctx.startNewTrace
+    ? opentelemetry.ROOT_CONTEXT
+    : ctx.traceContext
+      ? opentelemetry.propagation.extract(
+          opentelemetry.context.active(),
+          ctx.traceContext,
+        )
+      : opentelemetry.context.active();
+
+  return getTracer(ctx.traceScope ?? callback.name).startActiveSpan(
+    ctx.name,
+    {
+      root: ctx.startNewTrace || (!ctx.traceContext && ctx.rootSpan),
+      kind: ctx.spanKind,
+    },
+    activeContext,
+    async (span) => {
+      const baggage = opentelemetry.propagation.getBaggage(
+        opentelemetry.context.active(),
+      );
+      if (baggage) {
+        baggage
+          .getAllEntries()
+          .forEach(([k, v]) => span.setAttribute(k, v.value));
+      }
+      try {
+        const result = await callback(span);
+        span.end();
+        return result;
+      } catch (ex) {
+        traceException(ex as opentelemetry.Exception, span);
+        span.end();
+        throw ex;
+      }
+    },
+  );
+}
+
+type SyncCallbackFn<T> = (span: opentelemetry.Span) => T;
+
+export function instrumentSync<T>(
+  ctx: SpanCtx,
+  callback: SyncCallbackFn<T>,
+): T {
+  const activeContext = ctx.startNewTrace
+    ? opentelemetry.ROOT_CONTEXT
+    : ctx.traceContext
+      ? opentelemetry.propagation.extract(
+          opentelemetry.context.active(),
+          ctx.traceContext,
+        )
+      : opentelemetry.context.active();
+
+  return getTracer(ctx.traceScope ?? callback.name).startActiveSpan(
+    ctx.name,
+    {
+      root: ctx.startNewTrace || (!ctx.traceContext && ctx.rootSpan),
+      kind: ctx.spanKind,
+    },
+    activeContext,
+    (span) => {
+      const baggage = opentelemetry.propagation.getBaggage(
+        opentelemetry.context.active(),
+      );
+      if (baggage) {
+        baggage
+          .getAllEntries()
+          .forEach(([k, v]) => span.setAttribute(k, v.value));
+      }
+      try {
+        const result = callback(span);
+        span.end();
+        return result;
+      } catch (ex) {
+        traceException(ex as opentelemetry.Exception, span);
+        span.end();
+        throw ex;
+      }
+    },
+  );
+}
+
+export const getCurrentSpan = () => opentelemetry.trace.getActiveSpan();
+
+export const addTagsToCurrentSpan = (
+  attributes: Parameters<opentelemetry.Span["setAttributes"]>[0],
+) => {
+  getCurrentSpan()?.setAttributes(attributes);
+};
+
+export const traceException = (
+  ex: unknown,
+  span?: opentelemetry.Span,
+  code?: string,
+) => {
+  const activeSpan = span ?? getCurrentSpan();
+
+  if (!activeSpan) {
+    return;
+  }
+
+  const exception = {
+    code: code,
+    message:
+      ex instanceof Error
+        ? ex.message
+        : typeof ex === "object" && ex !== null && "message" in ex
+          ? JSON.stringify(ex.message)
+          : JSON.stringify(ex),
+    name:
+      ex instanceof Error
+        ? ex.name
+        : typeof ex === "object" && ex !== null && "name" in ex
+          ? JSON.stringify(ex.name)
+          : "Error",
+    stack:
+      ex instanceof Error
+        ? JSON.stringify(ex.stack)
+        : typeof ex === "object" && ex !== null && "stack" in ex
+          ? JSON.stringify(ex.stack)
+          : undefined,
+  };
+
+  // adds an otel event
+  activeSpan.recordException(exception);
+
+  //adds tags for datadog error tracking
+  activeSpan.setAttributes({
+    "error.stack": exception.stack,
+    "error.message": exception.message,
+    "error.type": exception.name,
+  });
+
+  activeSpan.setStatus({
+    code: opentelemetry.SpanStatusCode.ERROR,
+    message: exception.message,
+  });
+};
+
+export const addUserToSpan = (
+  attributes: {
+    userId?: string;
+    projectId?: string;
+    email?: string;
+    orgId?: string;
+    plan?: string;
+    apiKeyId?: string;
+    publicKey?: string;
+  },
+  span?: opentelemetry.Span,
+) => {
+  const activeSpan = span ?? getCurrentSpan();
+
+  if (!activeSpan) {
+    return;
+  }
+
+  const ctx = opentelemetry.context.active();
+  let baggage =
+    opentelemetry.propagation.getBaggage(ctx) ??
+    opentelemetry.propagation.createBaggage();
+
+  if (attributes.userId) {
+    baggage = baggage.setEntry("user.id", {
+      value: attributes.userId,
+    });
+    activeSpan.setAttribute("user.id", attributes.userId);
+  }
+  if (attributes.email) {
+    baggage = baggage.setEntry("user.email", {
+      value: attributes.email,
+    });
+    activeSpan.setAttribute("user.email", attributes.email);
+  }
+  if (attributes.projectId) {
+    baggage = baggage.setEntry("langfuse.project.id", {
+      value: attributes.projectId,
+    });
+    activeSpan.setAttribute("langfuse.project.id", attributes.projectId);
+  }
+  if (attributes.orgId) {
+    baggage = baggage.setEntry("langfuse.org.id", {
+      value: attributes.orgId,
+    });
+    activeSpan.setAttribute("langfuse.org.id", attributes.orgId);
+  }
+  if (attributes.plan) {
+    baggage = baggage.setEntry("langfuse.org.plan", {
+      value: attributes.plan,
+    });
+    activeSpan.setAttribute("langfuse.org.plan", attributes.plan);
+  }
+  if (attributes.apiKeyId) {
+    baggage = baggage.setEntry("langfuse.api_key.id", {
+      value: attributes.apiKeyId,
+    });
+    activeSpan.setAttribute("langfuse.api_key.id", attributes.apiKeyId);
+  }
+  if (attributes.publicKey) {
+    baggage = baggage.setEntry("langfuse.api_key.public_key", {
+      value: attributes.publicKey,
+    });
+    activeSpan.setAttribute(
+      "langfuse.api_key.public_key",
+      attributes.publicKey,
+    );
+  }
+
+  return opentelemetry.propagation.setBaggage(ctx, baggage);
+};
+
+export const getTracer = (name: string) => opentelemetry.trace.getTracer(name);
+
+const cloudWatchClient = new CloudWatchClient();
+let lastFlushTime = 0;
+let metricCache: Record<string, number> = {};
+
+// Caches metrics and flushes them on schedule
+const sendCloudWatchMetric = (key: string, value: number, replace: boolean) => {
+  // Store the latest value for each metric key. If replace is false (e.g. for increments) we add the value to the existing value.
+  metricCache[key] = replace ? value : (metricCache[key] || 0) + value;
+
+  const currentTime = Date.now();
+  const flushInterval = 30 * 1000; // 30 seconds
+
+  // Check if it's time to flush the metrics
+  if (currentTime - lastFlushTime >= flushInterval) {
+    flushMetricsToCloudWatch();
+  }
+};
+
+// Flush all cached metrics in a single API call
+const flushMetricsToCloudWatch = () => {
+  if (Object.keys(metricCache).length === 0) return;
+
+  lastFlushTime = Date.now();
+
+  const metricData = Object.entries(metricCache).map(([key, value]) => ({
+    MetricName: key,
+    Value: value,
+  }));
+
+  // Clear the cache after preparing the metrics
+  metricCache = {};
+
+  cloudWatchClient
+    .send(
+      new PutMetricDataCommand({
+        Namespace: "Langfuse",
+        MetricData: metricData,
+      }),
+    )
+    .catch((error) => {
+      logger.warn("Failed to send metrics to CloudWatch", error);
+    });
+};
+
+// Metrics ending with these suffixes have their tags flattened into the
+// CloudWatch metric name (excluding "unit"). Other metrics are unaffected.
+const CW_TAG_FLATTENED_SUFFIXES = [".depth", ".rate"];
+
+function buildCloudWatchKey(
+  stat: string,
+  tags?: { [tag: string]: string | number },
+): string {
+  if (!tags || !CW_TAG_FLATTENED_SUFFIXES.some((s) => stat.endsWith(s))) {
+    return stat;
+  }
+  const suffix = Object.entries(tags)
+    .filter(([k]) => k !== "unit")
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${k}_${v}`)
+    .join(".");
+  return suffix ? `${stat}.${suffix}` : stat;
+}
+
+export const recordGauge = (
+  stat: string,
+  value?: number | undefined,
+  tags?:
+    | {
+        [tag: string]: string | number;
+      }
+    | undefined,
+) => {
+  if (env.ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING === "true") {
+    sendCloudWatchMetric(buildCloudWatchKey(stat, tags), value ?? 0, true);
+  }
+  dd.dogstatsd.gauge(stat, value, tags);
+};
+
+export const recordIncrement = (
+  stat: string,
+  value?: number | undefined,
+  tags?: { [tag: string]: string | number } | undefined,
+) => {
+  if (env.ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING === "true") {
+    sendCloudWatchMetric(buildCloudWatchKey(stat, tags), value ?? 1, false);
+  }
+  dd.dogstatsd.increment(stat, value, tags);
+};
+
+export const recordHistogram = (
+  stat: string,
+  value?: number | undefined,
+  tags?: { [tag: string]: string | number } | undefined,
+) => {
+  dd.dogstatsd.histogram(stat, value, tags);
+};
+
+export const recordDistribution = (
+  stat: string,
+  value?: number | undefined,
+  tags?: { [tag: string]: string | number } | undefined,
+) => {
+  dd.dogstatsd.distribution(stat, value, tags);
+};
+
+/**
+ * Converts a queue name to the matching datadog metric name.
+ * Consumer only needs to append the relevant suffix.
+ *
+ * Example: `legacy-ingestion-queue` -> `langfuse.queue.legacy_ingestion`
+ */
+export const convertQueueNameToMetricName = (queueName: string): string => {
+  return (
+    "langfuse.queue." + queueName.replace(/-/g, "_").replace(/_queue$/, "")
+  );
+};

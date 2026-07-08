@@ -1,0 +1,170 @@
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import {
+  createTRPCRouter,
+  protectedOrganizationProcedure,
+} from "@/src/server/api/trpc";
+import * as z from "zod";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { redis } from "@langfuse/shared/src/server";
+import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
+
+export const organizationApiKeysRouter = createTRPCRouter({
+  byOrganizationId: protectedOrganizationProcedure
+    .input(
+      z.object({
+        orgId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        session: ctx.session,
+        organizationId: input.orgId,
+        scope: "organization:CRUD_apiKeys",
+      });
+
+      return ctx.prisma.apiKey.findMany({
+        where: {
+          orgId: input.orgId,
+          scope: "ORGANIZATION",
+          isInAppAgentKey: false,
+        },
+        select: {
+          id: true,
+          createdAt: true,
+          expiresAt: true,
+          lastUsedAt: true,
+          note: true,
+          publicKey: true,
+          displaySecretKey: true,
+          createdByUser: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          createdByApiKey: {
+            select: {
+              id: true,
+              publicKey: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+      });
+    }),
+  create: protectedOrganizationProcedure
+    .input(
+      z.object({
+        orgId: z.string(),
+        note: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        session: ctx.session,
+        organizationId: input.orgId,
+        scope: "organization:CRUD_apiKeys",
+      });
+
+      const apiKeyMeta = await createAndAddApiKeysToDb({
+        prisma: ctx.prisma,
+        entityId: input.orgId,
+        note: input.note,
+        scope: "ORGANIZATION",
+        createdByUserId: ctx.session.user.id,
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "apiKey",
+        resourceId: apiKeyMeta.id,
+        action: "create",
+      });
+
+      return apiKeyMeta;
+    }),
+  updateNote: protectedOrganizationProcedure
+    .input(
+      z.object({
+        orgId: z.string(),
+        keyId: z.string(),
+        note: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        session: ctx.session,
+        organizationId: input.orgId,
+        scope: "organization:CRUD_apiKeys",
+      });
+
+      await ctx.prisma.apiKey.findFirstOrThrow({
+        where: {
+          id: input.keyId,
+          orgId: input.orgId,
+          isInAppAgentKey: false,
+        },
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "apiKey",
+        resourceId: input.keyId,
+        action: "update",
+      });
+
+      await ctx.prisma.apiKey.update({
+        where: {
+          id: input.keyId,
+          orgId: input.orgId,
+          isInAppAgentKey: false,
+        },
+        data: {
+          note: input.note,
+        },
+      });
+
+      // do not return the api key
+      return;
+    }),
+  delete: protectedOrganizationProcedure
+    .input(
+      z.object({
+        orgId: z.string(),
+        id: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        session: ctx.session,
+        organizationId: input.orgId,
+        scope: "organization:CRUD_apiKeys",
+      });
+      const apiKey = await ctx.prisma.apiKey.findFirstOrThrow({
+        where: {
+          id: input.id,
+          orgId: input.orgId,
+          scope: "ORGANIZATION",
+        },
+      });
+
+      if (apiKey.isInAppAgentKey) return false;
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "apiKey",
+        resourceId: input.id,
+        action: "delete",
+      });
+
+      return await new ApiAuthService(ctx.prisma, redis).deleteApiKey(
+        input.id,
+        input.orgId,
+        "ORGANIZATION",
+      );
+    }),
+});

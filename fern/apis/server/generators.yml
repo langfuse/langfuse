@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=https://schema.buildwithfern.dev/generators-yml.json
+default-group: local
+groups:
+  local:
+    generators:
+      # - name: fernapi/fern-java-sdk
+      #   version: 3.38.1
+      #   output:
+      #     location: local-file-system
+      #     path: ../../../../langfuse-java/src/main/java/com/langfuse/client/
+      #   config:
+      #     client-class-name: LangfuseClient
+
+      - name: fernapi/fern-python-sdk
+        version: 4.46.2
+        output:
+          location: local-file-system
+          path: ../../../generated/python
+        config:
+          pydantic_config:
+            enum_type: python_enums
+            version: v2
+          client:
+            class_name: LangfuseAPI
+        smart-casing: true
+
+      - name: fernapi/fern-typescript-node-sdk
+        version: 2.12.3
+        output:
+          location: local-file-system
+          path: ../../../generated/typescript
+        config:
+          namespaceExport: LangfuseAPI
+          outputSourceFiles: true
+          skipResponseValidation: true
+          fetchSupport: native
+          formDataSupport: Node18
+          fileResponseType: binary-response
+          streamType: web
+          omitFernHeaders: true
+        smart-casing: false

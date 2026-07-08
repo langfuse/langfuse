@@ -1,0 +1,435 @@
+import { useRouter } from "next/router";
+import { AutomationSidebar } from "@/src/features/automations/components/AutomationSidebar";
+import { AutomationDetails } from "@/src/features/automations/components/AutomationDetails";
+import {
+  AutomationForm,
+  parseCreateAutomationPrefill,
+} from "@/src/features/automations/components/automationForm";
+import { WebhookSecretRender } from "@/src/features/automations/components/WebhookSecretRender";
+import { Button } from "@/src/components/ui/button";
+import { Plus } from "lucide-react";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import Page from "@/src/components/layouts/page";
+import { api } from "@/src/utils/api";
+import { useQueryParams, StringParam, withDefault } from "use-query-params";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/src/components/ui/dialog";
+import { type AutomationDomain } from "@langfuse/shared";
+import { ErrorPage } from "@/src/components/error-page";
+import { getPathnameWithoutBasePath } from "@/src/utils/api";
+
+export default function AutomationsPage() {
+  const router = useRouter();
+  const utils = api.useUtils();
+  const projectId = router.query.projectId as string;
+  const [webhookSecret, setWebhookSecret] = useState<string | null>(null);
+  const [showSecretDialog, setShowSecretDialog] = useState(false);
+  /** pendingAutomationId is the id to select once the webhook-secret dialog dismisses, when no prefill.redirectUrl is set. */
+  const [pendingAutomationId, setPendingAutomationId] = useState<string | null>(
+    null,
+  );
+
+  const [urlParams, setUrlParams] = useQueryParams({
+    view: withDefault(StringParam, "list"),
+    automationId: StringParam,
+    tab: withDefault(StringParam, "executions"),
+    prefill: StringParam,
+  });
+
+  const { view, automationId } = urlParams;
+
+  /** parsedPrefill decodes the deep-link blob once; the form receives the parsed object and the create-success path reads its redirectUrl. */
+  const parsedPrefill = useMemo(
+    () => parseCreateAutomationPrefill(urlParams.prefill),
+    [urlParams.prefill],
+  );
+
+  const selectedAutomation = useMemo(
+    () => (automationId ? { automationId } : undefined),
+    [automationId],
+  );
+
+  // Fetch automations to check if any exist
+  const { data: automations } = api.automations.getAutomations.useQuery({
+    projectId,
+  });
+
+  // Fetch editing automation when in edit mode
+  const { data: editingAutomation, error: editingAutomationError } =
+    api.automations.getAutomation.useQuery(
+      {
+        projectId,
+        automationId: automationId!,
+      },
+      {
+        enabled: view === "edit" && !!automationId,
+      },
+    );
+
+  // Fetch automation for detail view to check if it exists
+  const { error: automationDetailError } =
+    api.automations.getAutomation.useQuery(
+      {
+        projectId,
+        automationId: automationId!,
+      },
+      {
+        enabled: view === "list" && !!selectedAutomation,
+      },
+    );
+
+  // Helper function to navigate without creating history entry
+  const navigateWithoutHistory = useCallback(
+    (updates: { view?: string; automationId?: string; tab?: string }) => {
+      const url = new URL(window.location.href);
+      const params = new URLSearchParams(url.search);
+      const pathname = getPathnameWithoutBasePath();
+
+      if (updates.view !== undefined) {
+        params.set("view", updates.view);
+        // The prefill blob is scoped to view=create; drop it on any other view.
+        if (updates.view !== "create") {
+          params.delete("prefill");
+        }
+      }
+      if (updates.automationId !== undefined) {
+        if (updates.automationId) {
+          params.set("automationId", updates.automationId);
+        } else {
+          params.delete("automationId");
+        }
+      }
+      if (updates.tab !== undefined) {
+        params.set("tab", updates.tab);
+      }
+
+      router.replace(
+        {
+          pathname,
+          query: params.toString(),
+        },
+        undefined,
+        { shallow: true },
+      );
+    },
+    [router],
+  );
+
+  // Auto-select the topmost automation or clear selection if none exist
+  useEffect(() => {
+    if (automations !== undefined) {
+      if (automations.length === 0 && selectedAutomation) {
+        // Clear selected automation if no automations exist
+        setUrlParams({
+          view: "list",
+          automationId: undefined,
+          tab: urlParams.tab,
+        });
+      } else if (
+        automations.length > 0 &&
+        !selectedAutomation &&
+        view === "list"
+      ) {
+        // Auto-select the topmost automation if none is currently selected
+        // Use router.replace to avoid creating new history entry
+        navigateWithoutHistory({
+          automationId: automations[0].id,
+        });
+      }
+    }
+  }, [
+    automations,
+    selectedAutomation,
+    view,
+    setUrlParams,
+    urlParams.tab,
+    navigateWithoutHistory,
+  ]);
+
+  const handleCreateAutomation = () => {
+    setUrlParams({
+      view: "create",
+      automationId: undefined,
+      tab: urlParams.tab,
+      prefill: undefined,
+    });
+  };
+
+  const handleEditAutomation = (automation: AutomationDomain) => {
+    setUrlParams({
+      view: "edit",
+      automationId: automation.id,
+      tab: urlParams.tab,
+    });
+  };
+
+  /** finishFlow returns the user to parsedPrefill.redirectUrl when present; otherwise invokes the caller-supplied fallback, defaulting to the automations list view with no selection. */
+  const finishFlow = useCallback(
+    (fallback?: () => void) => {
+      if (parsedPrefill.redirectUrl) {
+        router.push(parsedPrefill.redirectUrl);
+        return;
+      }
+      if (fallback) {
+        fallback();
+      } else {
+        navigateWithoutHistory({ view: "list" });
+      }
+    },
+    [parsedPrefill.redirectUrl, router, navigateWithoutHistory],
+  );
+
+  /** selectAutomationFallback navigates back to the automations list with the given id selected; used as the fallback after a successful create when no redirectUrl is set. */
+  const selectAutomationFallback = (id: string) => () =>
+    navigateWithoutHistory({
+      view: "list",
+      automationId: id,
+      tab: urlParams.tab,
+    });
+
+  const dismissSecretDialog = () => {
+    setShowSecretDialog(false);
+    setWebhookSecret(null);
+    const id = pendingAutomationId;
+    setPendingAutomationId(null);
+    finishFlow(id ? selectAutomationFallback(id) : undefined);
+  };
+
+  const handleReturnToList = () => {
+    finishFlow();
+  };
+
+  const handleCreateSuccess = (
+    automationId?: string,
+    webhookSecret?: string,
+    actionType?: "WEBHOOK" | "GITHUB_DISPATCH",
+  ) => {
+    if (webhookSecret && actionType === "WEBHOOK") {
+      setWebhookSecret(webhookSecret);
+      setShowSecretDialog(true);
+      setPendingAutomationId(automationId ?? null);
+      return;
+    }
+
+    finishFlow(
+      automationId ? selectAutomationFallback(automationId) : undefined,
+    );
+  };
+
+  const handleEditSuccess = () => {
+    // Return to detail view of the edited automation without history entry
+    utils.automations.invalidate();
+    navigateWithoutHistory({
+      view: "list",
+    });
+  };
+
+  const handleAutomationSelect = (automation: AutomationDomain) => {
+    setUrlParams({
+      view: "list",
+      automationId: automation.id,
+      tab: urlParams.tab, // Preserve the current tab selection
+    });
+  };
+
+  const handleDeleteAutomation = () => {
+    // Find the current automation index
+    if (!automations || !selectedAutomation) return;
+
+    const currentIndex = automations.findIndex(
+      (automation) => automation.id === selectedAutomation.automationId,
+    );
+
+    if (currentIndex === -1) return;
+
+    // Select the next automation, or the previous one if this was the last
+    let nextIndex: number;
+    if (currentIndex < automations.length - 1) {
+      // Select the next automation
+      nextIndex = currentIndex + 1;
+    } else if (currentIndex > 0) {
+      // Select the previous automation (this was the last one)
+      nextIndex = currentIndex - 1;
+    } else {
+      // This was the only automation, clear selection
+      setUrlParams({
+        view: "list",
+        automationId: undefined,
+        tab: urlParams.tab,
+      });
+      return;
+    }
+
+    const nextAutomation = automations[nextIndex];
+    if (nextAutomation) {
+      setUrlParams({
+        view: "list",
+        automationId: nextAutomation.id,
+        tab: urlParams.tab,
+      });
+    }
+  };
+
+  const renderAutomationNotFoundError = (message: string) => (
+    <ErrorPage
+      title="Webhook not found"
+      message={message}
+      additionalButton={{
+        label: "Back to Webhooks",
+        onClick: () => {
+          setUrlParams({
+            view: "list",
+            automationId: undefined,
+            tab: urlParams.tab,
+          });
+        },
+      }}
+    />
+  );
+
+  const renderMainContent = () => {
+    // Handle 404 errors for edit view
+    if (view === "edit" && editingAutomationError?.data?.code === "NOT_FOUND") {
+      return renderAutomationNotFoundError(
+        "The webhook you're trying to edit doesn't exist or has been deleted.",
+      );
+    }
+
+    // Handle 404 errors for detail view
+    if (
+      view === "list" &&
+      selectedAutomation &&
+      automationDetailError?.data?.code === "NOT_FOUND"
+    ) {
+      return renderAutomationNotFoundError(
+        "The webhook you're looking for doesn't exist or has been deleted.",
+      );
+    }
+
+    if (view === "create") {
+      return (
+        <div className="h-full p-6">
+          <AutomationForm
+            projectId={projectId}
+            onSuccess={handleCreateSuccess}
+            onCancel={handleReturnToList}
+            isEditing={true}
+            prefill={parsedPrefill}
+          />
+        </div>
+      );
+    }
+
+    if (view === "edit" && editingAutomation) {
+      return (
+        <div className="h-full p-6">
+          <AutomationForm
+            projectId={projectId}
+            onSuccess={handleEditSuccess}
+            onCancel={handleReturnToList}
+            automation={editingAutomation}
+            isEditing={true}
+          />
+        </div>
+      );
+    }
+
+    if (selectedAutomation) {
+      return (
+        <div className="h-full p-6">
+          <AutomationDetails
+            key={selectedAutomation.automationId}
+            projectId={projectId}
+            automationId={selectedAutomation.automationId}
+            onEditSuccess={handleEditSuccess}
+            onEdit={handleEditAutomation}
+            onDelete={handleDeleteAutomation}
+          />
+        </div>
+      );
+    }
+
+    return (
+      <div className="h-full p-6">
+        <div className="text-muted-foreground flex h-full items-center justify-center">
+          <div className="text-center">
+            <h3 className="text-lg font-medium">Select an automation</h3>
+            <p className="mt-2 text-sm">
+              Choose an automation from the sidebar to view its details and
+              execution history.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <Page
+      headerProps={{
+        title: "Automations",
+        breadcrumb: [
+          {
+            name: "Prompts",
+            href: `/project/${projectId}/prompts/`,
+          },
+        ],
+        actionButtonsRight: (
+          <Button onClick={handleCreateAutomation}>
+            <Plus className="mr-2 h-4 w-4" />
+            Create Automation
+          </Button>
+        ),
+      }}
+    >
+      <div className="h-full overflow-hidden contain-layout">
+        <div className="flex h-full">
+          <AutomationSidebar
+            projectId={projectId}
+            selectedAutomation={selectedAutomation}
+            onAutomationSelect={handleAutomationSelect}
+          />
+          <div className="flex-1 overflow-auto">{renderMainContent()}</div>
+        </div>
+      </div>
+      {/* Webhook Secret Dialog */}
+      <Dialog
+        open={showSecretDialog}
+        onOpenChange={(open) => {
+          if (open) {
+            setShowSecretDialog(true);
+          } else {
+            dismissSecretDialog();
+          }
+        }}
+      >
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Webhook Secret Created</DialogTitle>
+            <DialogDescription>
+              Your automation has been created successfully. Please copy the
+              webhook secret below - it will only be shown once.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            {webhookSecret && (
+              <WebhookSecretRender webhookSecret={webhookSecret} />
+            )}
+          </DialogBody>
+          <DialogFooter>
+            <Button onClick={dismissSecretDialog}>
+              {"I've saved the secret"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Page>
+  );
+}

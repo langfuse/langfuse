@@ -1,0 +1,30 @@
+name: Notify Slack Failure
+description: Send a CI failure notification to a Slack Workflow webhook.
+
+inputs:
+  title:
+    description: Slack notification header.
+    required: true
+  message:
+    description: Slack notification fallback text.
+    required: true
+  webhook-url:
+    description: Slack Workflow webhook URL.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Notify Slack
+      uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
+      with:
+        webhook: ${{ inputs.webhook-url }}
+        webhook-type: webhook-trigger
+        payload: |
+          title: "${{ inputs.title }}"
+          message: "${{ inputs.message }}"
+          ref: "${{ github.ref_name }}"
+          actor: "${{ github.actor }}"
+          event: "${{ github.event_name }}"
+          commit: "${{ github.sha }}"
+          workflow_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

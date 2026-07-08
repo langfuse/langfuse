@@ -1,0 +1,126 @@
+import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
+import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
+
+// Maps frontend column IDs to backend-expected column IDs
+// Frontend uses "tags" but backend CH mapping expects "trace_tags" for trace tags on scores table
+export const SCORE_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
+  tags: "trace_tags",
+};
+
+export type ScoresTableHiddenColumn =
+  | "traceId"
+  | "traceName"
+  | "observationId"
+  | "jobConfigurationId"
+  | "userId"
+  | "traceTags";
+
+const SCORES_HIDDEN_COLUMN_TO_FILTER_COLUMN: Partial<
+  Record<ScoresTableHiddenColumn, string>
+> = {
+  traceTags: "tags",
+};
+
+export const scoreFilterConfig: FilterConfig = {
+  tableName: "scores",
+
+  columnDefinitions: scoresTableCols,
+
+  defaultExpanded: ["environment", "name"],
+
+  defaultSidebarCollapsed: true,
+
+  facets: [
+    {
+      type: "categorical" as const,
+      column: "environment",
+      label: "Environment",
+    },
+    {
+      type: "categorical" as const,
+      column: "name",
+      label: "Name",
+    },
+    {
+      type: "categorical" as const,
+      column: "source",
+      label: "Source",
+    },
+    {
+      type: "categorical" as const,
+      column: "dataType",
+      label: "Data Type",
+    },
+    {
+      type: "numeric" as const,
+      column: "value",
+      label: "Numeric Value",
+      tooltip:
+        "Filters scores by numeric value. Applies to NUMERIC and BOOLEAN data types. For CATEGORICAL scores, use the 'Categorical Value' filter below.",
+      min: 0,
+      max: 1,
+      step: 0.01,
+    },
+    {
+      type: "categorical" as const,
+      column: "stringValue",
+      label: "Categorical Value",
+      tooltip:
+        "Filters scores by string value. Applies to CATEGORICAL data type scores only.",
+    },
+    {
+      type: "string" as const,
+      column: "traceId",
+      label: "Trace ID",
+    },
+    {
+      type: "string" as const,
+      column: "sessionId",
+      label: "Session ID",
+    },
+    {
+      type: "categorical" as const,
+      column: "traceName",
+      label: "Trace Name",
+    },
+    {
+      type: "string" as const,
+      column: "observationId",
+      label: "Observation ID",
+    },
+    {
+      type: "categorical" as const,
+      column: "userId",
+      label: "User ID",
+    },
+    {
+      type: "categorical" as const,
+      column: "tags",
+      label: "Trace Tags",
+    },
+  ],
+};
+
+export function getScoreFilterConfig(
+  hiddenColumns: ScoresTableHiddenColumn[] = [],
+): FilterConfig {
+  if (hiddenColumns.length === 0) {
+    return scoreFilterConfig;
+  }
+  const hiddenColumnSet = new Set<string>(
+    hiddenColumns.map(
+      (column) => SCORES_HIDDEN_COLUMN_TO_FILTER_COLUMN[column] ?? column,
+    ),
+  );
+
+  return {
+    ...scoreFilterConfig,
+    defaultExpanded: scoreFilterConfig.defaultExpanded?.filter(
+      (column) => !hiddenColumnSet.has(column),
+    ),
+    facets: scoreFilterConfig.facets.filter(
+      (facet) => !hiddenColumnSet.has(facet.column),
+    ),
+  };
+}

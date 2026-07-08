@@ -1,0 +1,369 @@
+import { useRouter } from "next/router";
+import { GenerationLatencyChart } from "@/src/features/dashboard/components/LatencyChart";
+import { ChartScores } from "@/src/features/dashboard/components/ChartScores";
+import { TracesBarListChart } from "@/src/features/dashboard/components/TracesBarListChart";
+import { ModelCostTable } from "@/src/features/dashboard/components/ModelCostTable";
+import { ScoresTable } from "@/src/features/dashboard/components/ScoresTable";
+import { ModelUsageChart } from "@/src/features/dashboard/components/ModelUsageChart";
+import { TracesAndObservationsTimeSeriesChart } from "@/src/features/dashboard/components/TracesTimeSeriesChart";
+import { UserChart } from "@/src/features/dashboard/components/UserChart";
+import { TimeRangePicker } from "@/src/components/date-picker";
+import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
+import { useDashboardFilterOptions } from "@/src/hooks/useDashboardFilterOptions";
+import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { type ColumnDefinition, type FilterState } from "@langfuse/shared";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { LatencyTables } from "@/src/features/dashboard/components/LatencyTables";
+import { useMemo } from "react";
+import {
+  DASHBOARD_AGGREGATION_OPTIONS,
+  findClosestDashboardInterval,
+  toAbsoluteTimeRange,
+  type DashboardDateRangeAggregationOption,
+} from "@/src/utils/date-range-utils";
+import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
+import { useDebounce } from "@/src/hooks/useDebounce";
+import { ScoreAnalytics } from "@/src/features/dashboard/components/score-analytics/ScoreAnalytics";
+import SetupTracingButton from "@/src/features/setup/components/SetupTracingButton";
+import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import Page from "@/src/components/layouts/page";
+import { MultiSelect } from "@/src/features/filters/components/multi-select";
+import {
+  convertSelectedEnvironmentsToFilter,
+  useEnvironmentFilter,
+} from "@/src/hooks/useEnvironmentFilter";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { type ViewVersion } from "@langfuse/shared/query";
+import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import {
+  DashboardQuerySchedulerProvider,
+  getDashboardQuerySchedulerMaxConcurrent,
+  useDashboardQueryScheduler,
+} from "@/src/hooks/useDashboardQueryScheduler";
+
+const HOME_DASHBOARD_CARD_IDS = {
+  traces: "home:traces",
+  modelCosts: "home:model-costs",
+  scoresTable: "home:scores-table",
+  tracesTimeSeries: "home:traces-time-series",
+  modelUsage: "home:model-usage",
+  users: "home:users",
+  chartScores: "home:chart-scores",
+  latencyTables: "home:latency-tables",
+  generationLatency: "home:generation-latency",
+  scoreAnalytics: "home:score-analytics",
+} as const;
+
+// Shared across the home time-series charts so hovering one moves the time
+// crosshair on all of them (they share one time range + granularity). (LFE-10549)
+const HOME_DASHBOARD_SYNC_ID = "home-dashboard-timeseries";
+
+export default function Dashboard() {
+  const router = useRouter();
+  const projectId = router.query.projectId as string;
+  const { timeRange, setTimeRange } = useDashboardDateRange();
+  const { isBetaEnabled } = useV4Beta();
+  const metricsVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
+
+  const absoluteTimeRange = useMemo(
+    () => toAbsoluteTimeRange(timeRange),
+    [timeRange],
+  );
+
+  const lookbackLimit = useEntitlementLimit("data-access-days");
+
+  const [userFilterState, setUserFilterState] = useQueryFilterState(
+    [],
+    "dashboard",
+    projectId,
+  );
+
+  const { nameOptions, tagsOptions } = useDashboardFilterOptions({
+    projectId,
+    isBetaEnabled,
+    timeRange,
+  });
+
+  const environmentOptionsState = useEnvironmentFilterOptionsCache({
+    projectId,
+    timeRange,
+  });
+  const environmentOptions: string[] =
+    environmentOptionsState.environmentOptions;
+
+  const { selectedEnvironments, setSelectedEnvironments } =
+    useEnvironmentFilter(environmentOptions, projectId);
+
+  const filterColumns: ColumnDefinition[] = [
+    {
+      name: "Trace Name",
+      id: "traceName",
+      type: "stringOptions",
+      options: nameOptions,
+      internal: "internalValue",
+    },
+    {
+      name: "Tags",
+      id: "tags",
+      type: "arrayOptions",
+      options: tagsOptions,
+      internal: "internalValue",
+    },
+    {
+      name: "User",
+      id: "user",
+      type: "string",
+      internal: "internalValue",
+    },
+    {
+      name: "Release",
+      id: "release",
+      type: "string",
+      internal: "internalValue",
+    },
+    {
+      name: "Version",
+      id: "version",
+      type: "string",
+      internal: "internalValue",
+    },
+  ];
+
+  const dashboardTimeRangePresets = DASHBOARD_AGGREGATION_OPTIONS;
+
+  const agg = useMemo(() => {
+    if ("range" in timeRange) {
+      return timeRange.range as DashboardDateRangeAggregationOption;
+    }
+
+    return findClosestDashboardInterval(timeRange) ?? "last7Days";
+  }, [timeRange]);
+
+  const fromTimestamp = absoluteTimeRange?.from
+    ? absoluteTimeRange.from
+    : new Date(new Date().getTime() - 1000);
+  const toTimestamp = absoluteTimeRange?.to ? absoluteTimeRange.to : new Date();
+  const timeFilter = [
+    {
+      type: "datetime" as const,
+      column: "startTime",
+      operator: ">" as const,
+      value: fromTimestamp,
+    },
+    {
+      type: "datetime" as const,
+      column: "startTime",
+      operator: "<" as const,
+      value: toTimestamp,
+    },
+  ];
+
+  const environmentFilter = convertSelectedEnvironmentsToFilter(
+    ["environment"],
+    selectedEnvironments,
+  );
+
+  const mergedFilterState: FilterState = [
+    ...userFilterState,
+    ...timeFilter,
+    ...environmentFilter,
+  ];
+  const isDashboardDataReady = environmentOptionsState.isReady;
+
+  const schedulerResetKey = useMemo(() => {
+    return [
+      projectId,
+      metricsVersion,
+      absoluteTimeRange?.from?.toISOString() ?? "",
+      absoluteTimeRange?.to?.toISOString() ?? "",
+      JSON.stringify(userFilterState),
+      selectedEnvironments.join(","),
+    ].join("|");
+  }, [
+    absoluteTimeRange?.from,
+    absoluteTimeRange?.to,
+    metricsVersion,
+    projectId,
+    selectedEnvironments,
+    userFilterState,
+  ]);
+
+  const scheduler = useDashboardQueryScheduler({
+    maxConcurrent: getDashboardQuerySchedulerMaxConcurrent(timeRange),
+    resetKey: schedulerResetKey,
+  });
+  const homeSchedulerIdPrefix = `${projectId}:`;
+
+  return (
+    <DashboardQuerySchedulerProvider
+      scheduler={scheduler}
+      shouldBucketQueriesByTimeRange={!("from" in timeRange)}
+    >
+      <Page
+        withPadding
+        scrollable
+        headerProps={{
+          title: "Home",
+          actionButtonsLeft: (
+            <>
+              <MultiSelect
+                title="Environment"
+                label="Env"
+                values={selectedEnvironments}
+                onValueChange={useDebounce(setSelectedEnvironments)}
+                options={environmentOptions.map((env) => ({
+                  value: env,
+                }))}
+                className="my-0 w-auto overflow-hidden"
+              />
+              <PopoverFilterBuilder
+                columns={filterColumns}
+                filterState={userFilterState}
+                onChange={useDebounce(setUserFilterState)}
+              />
+            </>
+          ),
+          actionButtonsRight: (
+            <>
+              <SetupTracingButton />
+            </>
+          ),
+        }}
+      >
+        <PageHeaderControlsPortal>
+          <TimeRangePicker
+            timeRange={timeRange}
+            onTimeRangeChange={setTimeRange}
+            timeRangePresets={dashboardTimeRangePresets}
+            className="my-0 max-w-full overflow-x-auto"
+            triggerClassName="px-2"
+            disabled={
+              lookbackLimit
+                ? {
+                    before: new Date(
+                      new Date().getTime() -
+                        lookbackLimit * 24 * 60 * 60 * 1000,
+                    ),
+                  }
+                : undefined
+            }
+          />
+        </PageHeaderControlsPortal>
+        {!isDashboardDataReady ? (
+          <NoDataOrLoading isLoading />
+        ) : (
+          <div className="grid w-full grid-cols-1 gap-3 overflow-hidden lg:grid-cols-2 xl:grid-cols-6">
+            <TracesBarListChart
+              className="col-span-1 xl:col-span-2"
+              projectId={projectId}
+              globalFilterState={[...userFilterState, ...environmentFilter]}
+              fromTimestamp={fromTimestamp}
+              toTimestamp={toTimestamp}
+              isLoading={environmentOptionsState.isPending}
+              metricsVersion={metricsVersion}
+              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.traces}`}
+            />
+            <ModelCostTable
+              className="col-span-1 xl:col-span-2"
+              projectId={projectId}
+              globalFilterState={[...userFilterState, ...environmentFilter]}
+              fromTimestamp={fromTimestamp}
+              toTimestamp={toTimestamp}
+              isLoading={environmentOptionsState.isPending}
+              metricsVersion={metricsVersion}
+              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.modelCosts}`}
+            />
+            <ScoresTable
+              className="col-span-1 xl:col-span-2"
+              projectId={projectId}
+              globalFilterState={mergedFilterState}
+              isLoading={environmentOptionsState.isPending}
+              metricsVersion={metricsVersion}
+            />
+            <TracesAndObservationsTimeSeriesChart
+              className="col-span-1 xl:col-span-3"
+              projectId={projectId}
+              globalFilterState={[...userFilterState, ...environmentFilter]}
+              fromTimestamp={fromTimestamp}
+              toTimestamp={toTimestamp}
+              agg={agg}
+              isLoading={environmentOptionsState.isPending}
+              metricsVersion={metricsVersion}
+              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.tracesTimeSeries}`}
+              syncId={HOME_DASHBOARD_SYNC_ID}
+            />
+            <ModelUsageChart
+              className="col-span-1 min-h-24 xl:col-span-3"
+              projectId={projectId}
+              globalFilterState={mergedFilterState}
+              fromTimestamp={fromTimestamp}
+              toTimestamp={toTimestamp}
+              userAndEnvFilterState={[...userFilterState, ...environmentFilter]}
+              agg={agg}
+              isLoading={environmentOptionsState.isPending}
+              metricsVersion={metricsVersion}
+              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.modelUsage}`}
+              syncId={HOME_DASHBOARD_SYNC_ID}
+            />
+            <UserChart
+              className="col-span-1 xl:col-span-3"
+              projectId={projectId}
+              globalFilterState={[...userFilterState, ...environmentFilter]}
+              fromTimestamp={fromTimestamp}
+              toTimestamp={toTimestamp}
+              isLoading={environmentOptionsState.isPending}
+              metricsVersion={metricsVersion}
+              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.users}`}
+            />
+            <ChartScores
+              className="col-span-1 xl:col-span-3"
+              agg={agg}
+              projectId={projectId}
+              globalFilterState={[...userFilterState, ...environmentFilter]}
+              fromTimestamp={fromTimestamp}
+              toTimestamp={toTimestamp}
+              isLoading={environmentOptionsState.isPending}
+              metricsVersion={metricsVersion}
+              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.chartScores}`}
+              syncId={HOME_DASHBOARD_SYNC_ID}
+            />
+            <LatencyTables
+              projectId={projectId}
+              globalFilterState={[...userFilterState, ...environmentFilter]}
+              fromTimestamp={fromTimestamp}
+              toTimestamp={toTimestamp}
+              isLoading={environmentOptionsState.isPending}
+              metricsVersion={metricsVersion}
+              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.latencyTables}`}
+            />
+            <GenerationLatencyChart
+              className="col-span-1 flex-auto justify-between lg:col-span-full"
+              projectId={projectId}
+              agg={agg}
+              globalFilterState={[...userFilterState, ...environmentFilter]}
+              fromTimestamp={fromTimestamp}
+              toTimestamp={toTimestamp}
+              isLoading={environmentOptionsState.isPending}
+              metricsVersion={metricsVersion}
+              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.generationLatency}`}
+              syncId={HOME_DASHBOARD_SYNC_ID}
+            />
+            <ScoreAnalytics
+              className="col-span-1 flex-auto justify-between lg:col-span-full"
+              agg={agg}
+              projectId={projectId}
+              globalFilterState={[...userFilterState, ...environmentFilter]}
+              fromTimestamp={fromTimestamp}
+              toTimestamp={toTimestamp}
+              isLoading={environmentOptionsState.isPending}
+              metricsVersion={metricsVersion}
+              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.scoreAnalytics}`}
+              syncId={HOME_DASHBOARD_SYNC_ID}
+            />
+          </div>
+        )}
+      </Page>
+    </DashboardQuerySchedulerProvider>
+  );
+}
