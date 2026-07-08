@@ -68,6 +68,15 @@ export function DashboardGrid({
 }) {
   const [rowHeight, setRowHeight] = useState(150);
 
+  // Tiles snap into place on initial mount and when switching dashboards;
+  // transitions turn on shortly after so only user drag/resize animates.
+  const [animationEnabled, setAnimationEnabled] = useState(false);
+  useEffect(() => {
+    setAnimationEnabled(false);
+    const timeout = setTimeout(() => setAnimationEnabled(true), 400);
+    return () => clearTimeout(timeout);
+  }, [dashboardId]);
+
   // Detect if screen is medium or smaller (1024px and below)
   const isSmallScreen = useMediaQuery("(max-width: 1024px)");
 
@@ -178,29 +187,31 @@ export function DashboardGrid({
 
   // Render grid layout for larger screens
   return (
-    <ResponsiveGridLayout
-      className="layout"
-      layouts={{ lg: layout }}
-      cols={{ lg: 12, md: 12, sm: 12, xs: 12, xxs: 12 }}
-      margin={[16, 16]}
-      rowHeight={rowHeight}
-      isDraggable={canEdit}
-      isResizable={canEdit}
-      onDragStop={handleLayoutChange} // Save immediately when drag stops
-      onResizeStop={handleLayoutChange} // Save immediately when resize stops
-      onWidthChange={handleWidthChange}
-      draggableHandle=".drag-handle"
-      useCSSTransforms
-    >
-      {widgets.map((widget) => (
-        <div
-          key={widget.id}
-          data-placement-id={widget.id}
-          className="max-h-full max-w-full"
-        >
-          {renderPlacement(widget)}
-        </div>
-      ))}
-    </ResponsiveGridLayout>
+    <div data-grid-animation={animationEnabled ? "on" : "off"}>
+      <ResponsiveGridLayout
+        className="layout"
+        layouts={{ lg: layout }}
+        cols={{ lg: 12, md: 12, sm: 12, xs: 12, xxs: 12 }}
+        margin={[16, 16]}
+        rowHeight={rowHeight}
+        isDraggable={canEdit}
+        isResizable={canEdit}
+        onDragStop={handleLayoutChange} // Save immediately when drag stops
+        onResizeStop={handleLayoutChange} // Save immediately when resize stops
+        onWidthChange={handleWidthChange}
+        draggableHandle=".drag-handle"
+        useCSSTransforms
+      >
+        {widgets.map((widget) => (
+          <div
+            key={widget.id}
+            data-placement-id={widget.id}
+            className="max-h-full max-w-full"
+          >
+            {renderPlacement(widget)}
+          </div>
+        ))}
+      </ResponsiveGridLayout>
+    </div>
   );
 }

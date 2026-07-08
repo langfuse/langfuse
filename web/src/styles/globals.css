@@ -455,6 +455,13 @@
 }
 
 @layer utilities {
+  /* react-grid-layout: suppress tile transitions during initial mount and
+     dashboard switches — only user drag/resize should animate. The attribute
+     is toggled by DashboardGrid. */
+  [data-grid-animation="off"] .react-grid-item {
+    transition: none !important;
+  }
+
   /* Custom styles for react-grid-layout resize handle */
   .react-resizable-handle {
     position: absolute;
