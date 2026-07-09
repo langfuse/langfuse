@@ -21,7 +21,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
-import { deepParseJson, parseJsonPrioritised } from "@langfuse/shared";
+import { normalizeDatasetJson } from "@/src/features/datasets/utils/datasetItemUtils";
 import { ActionButton } from "@/src/components/ActionButton";
 import { type MetadataDomainClient } from "@/src/utils/clientSideDomainTypes";
 import { type Prisma } from "@langfuse/shared";
@@ -42,20 +42,9 @@ const normalizePrefillValue = (
     return null;
   }
 
-  // metadata arrives as a serialized JSON string (the client envelope);
-  // input/output may already be native objects (from the trace query cache).
-  // Unwrap an outer JSON string first so the envelope doesn't consume
-  // deepParseJson's depth budget, clone native objects so we never mutate the
-  // shared query cache, then recursively parse nested stringified-JSON leaves
-  // (e.g. OTLP attributes stored as JSON strings) into native, editable JSON —
-  // matching how the trace/observation viewer renders the same data.
-  const unwrapped =
-    typeof value === "string" ? parseJsonPrioritised(value) : value;
-  const root =
-    unwrapped && typeof unwrapped === "object"
-      ? structuredClone(unwrapped)
-      : unwrapped;
-  return deepParseJson(root) as Prisma.JsonValue;
+  // Shared cleanup: parse a JSON-string wrapper, clone, and deep-parse nested
+  // JSON strings into real, editable JSON. See normalizeDatasetJson for why.
+  return normalizeDatasetJson(value) as Prisma.JsonValue;
 };
 
 export const NewDatasetItemFromExistingObject = (props: {
@@ -70,8 +59,8 @@ export const NewDatasetItemFromExistingObject = (props: {
   buttonVariant?: ButtonProps["variant"];
   size?: ButtonProps["size"];
 }) => {
-  // The clone + deep-parse in normalizePrefillValue is expensive, so only re-run
-  // it when the underlying prop changes rather than on every parent render.
+  // The clone + deep-parse is expensive, so only run it again when the prop
+  // itself changes, not on every parent render.
   const parsedInput = useMemo(
     () => normalizePrefillValue(props.input),
     [props.input],

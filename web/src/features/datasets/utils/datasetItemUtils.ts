@@ -2,33 +2,48 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { deepParseJson, parseJsonPrioritised, type Prisma } from "@langfuse/shared";
 
 /**
- * Converts a dataset item field value to a formatted JSON string.
- * Returns empty string for null/undefined values.
+ * Cleans up a dataset item JSON value before we show or edit it in the UI.
+ * This is the one shared helper used by the read-only views (through
+ * stringifyDatasetItemData), the item form (through formatJsonValue), and the
+ * prefill-from-trace flow (through normalizePrefillValue).
  *
- * Nested values that are themselves JSON strings (common for OTLP-ingested
- * traces, whose attribute values are serialized to strings) are recursively
- * parsed into native JSON so they render/edit as clean, expandable JSON rather
- * than escaped strings — matching how the trace/observation viewer already
- * displays the same data via deepParseJson.
+ * The value can come in as a real object (e.g. from the trace query cache) or
+ * as a JSON string (some tRPC paths send metadata as a stringified wrapper).
+ * So we:
+ *   1. If it's a string, parse it once first. We do this before deepParseJson
+ *      so the outer wrapper does not eat into deepParseJson's depth limit and
+ *      leave the inner values still escaped.
+ *   2. Clone objects, because deepParseJson changes them in place and the value
+ *      comes from the shared query cache, which we must not touch.
+ *   3. Deep-parse any nested JSON strings (e.g. OTLP attributes saved as
+ *      strings) into real JSON, the same way the trace/observation viewer does.
+ *
+ * Mixed values work too: real objects stay as they are, JSON strings get
+ * parsed, and plain (non-JSON) strings are left alone.
+ */
+export const normalizeDatasetJson = (value: unknown): unknown => {
+  const unwrapped =
+    typeof value === "string" ? parseJsonPrioritised(value) : value;
+  const root =
+    unwrapped && typeof unwrapped === "object"
+      ? structuredClone(unwrapped)
+      : unwrapped;
+  return deepParseJson(root);
+};
+
+/**
+ * Turns a dataset item field value into a formatted JSON string.
+ * Returns an empty string for null/undefined values.
+ *
+ * Nested JSON strings are deep-parsed through normalizeDatasetJson so they show
+ * as clean, expandable JSON instead of escaped strings, like the
+ * trace/observation viewer.
  */
 export const stringifyDatasetItemData = (data: unknown): string => {
   if (!data) return "";
 
   try {
-    // This field can arrive as a native object OR as a serialized JSON string
-    // (some tRPC paths return metadata as a stringified envelope). Unwrap an
-    // outer JSON string once so the envelope doesn't consume deepParseJson's
-    // depth budget — otherwise nested leaves sit one level too deep and stay
-    // escaped, unlike the trace/observation viewer which parses an object.
-    const unwrapped =
-      typeof data === "string" ? parseJsonPrioritised(data) : data;
-    // deepParseJson mutates objects in place; clone so we never corrupt the
-    // (shared) tRPC query-cache object this value is read from.
-    const root =
-      unwrapped && typeof unwrapped === "object"
-        ? structuredClone(unwrapped)
-        : unwrapped;
-    return JSON.stringify(deepParseJson(root), null, 2);
+    return JSON.stringify(normalizeDatasetJson(data), null, 2);
   } catch {
     showErrorToast(
       "Failed to stringify data",
