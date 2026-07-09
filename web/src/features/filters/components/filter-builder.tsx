@@ -88,6 +88,8 @@ export function PopoverFilterBuilder({
   filterWithAI = false,
   buttonType = "default",
   label = "Filters",
+  tableName = "unknown",
+  isV4 = false,
 }: {
   /** Which column field to persist in filter.column: 'id' for stable refs, 'name' for legacy compatibility */
   columns: ColumnDefinitionWithAlert[];
@@ -101,10 +103,18 @@ export function PopoverFilterBuilder({
   buttonType?: "default" | "icon";
   /** Trigger button label. Defaults to "Filters"; override to clarify scope. */
   label?: string;
+  /** Table this builder filters — the `tableName` analytics dimension. */
+  tableName?: string;
+  /** Whether this builder sits on a v4 (fast-mode) surface — `isV4` dimension. */
+  isV4?: boolean;
 }) {
   const capture = usePostHogClientCapture();
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
+  // Count of already-applied (valid) filters, so `setWipFilterState` can emit
+  // `filters:applied` only when a filter is newly completed — not on every
+  // keystroke of an in-progress edit. Seeded from the incoming applied state.
+  const prevValidCountRef = useRef(filterState.length);
 
   // Sync wipFilterState when filterState prop changes externally
   // (e.g., when a saved view preset is applied)
@@ -152,6 +162,27 @@ export function PopoverFilterBuilder({
       const newState = state instanceof Function ? state(prev) : state;
       const validFilters = getValidFilters(newState);
       onChange(validFilters);
+      // Analytics (LFE-10781): emit `filters:applied` only when a filter is
+      // newly completed (valid count grew), so an in-progress edit does not
+      // fire per keystroke. METADATA ONLY — we report the last valid filter's
+      // shape + counts, never a raw value.
+      if (validFilters.length > prevValidCountRef.current) {
+        const applied = validFilters[validFilters.length - 1];
+        if (applied) {
+          capture("filters:applied", {
+            surface: "filter_builder",
+            tableName,
+            column: applied.column,
+            filterType: applied.type,
+            operator: applied.operator,
+            ...("key" in applied && applied.key ? { key: applied.key } : {}),
+            valueCount: Array.isArray(applied.value) ? applied.value.length : 1,
+            conditionCount: validFilters.length,
+            isV4,
+          });
+        }
+      }
+      prevValidCountRef.current = validFilters.length;
       return newState;
     });
   };
@@ -167,8 +198,11 @@ export function PopoverFilterBuilder({
           if (open && filterState.length === 0) addNewFilter();
           // Discard all wip filters when closing popover
           if (!open) {
+            // METADATA ONLY (LFE-10781): previously sent the full `filterState`,
+            // which leaked raw filter VALUES (user ids, metadata content, free
+            // text = PII) into PostHog. Send only the applied-filter count.
             capture("table:filter_builder_close", {
-              filter: filterState,
+              filterCount: filterState.length,
             });
             setWipFilterState(filterState);
           }

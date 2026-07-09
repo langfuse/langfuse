@@ -1,5 +1,5 @@
 import type React from "react";
-import { useCallback, useMemo, useEffect, useState } from "react";
+import { useCallback, useMemo, useEffect, useRef, useState } from "react";
 import {
   StringParam,
   useQueryParam,
@@ -34,6 +34,7 @@ import { useKeyedSessionStorageState } from "./useKeyedSessionStorageState";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import type { FilterConfig, FilterStateMigration } from "../lib/filter-config";
 import type { PeekTableStateContextValue } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 /**
  * Decodes filters from URL query string and normalizes display names to column IDs.
@@ -373,6 +374,14 @@ type BaseUseSidebarFilterStateOptions = {
    * columns that are not server-enumerated (e.g. metadata).
    */
   loadingColumns?: ReadonlySet<string>;
+  /**
+   * Whether this sidebar is rendered on a v4 (fast-mode / events-table) surface.
+   * Drives the `isV4` dimension on the `filters:*` analytics events so we can
+   * split filtering behaviour by v3-legacy vs v4-fast-mode. Defaults to false;
+   * the v4 events table passes `true`. (The `v4BetaEnabled` super property set
+   * in `_app.tsx` still segments every event globally as a backstop.)
+   */
+  isV4?: boolean;
 };
 
 export type UseSidebarFilterStateOptions =
@@ -505,6 +514,8 @@ export function useSidebarFilterState(
   hookOptions: UseSidebarFilterStateOptions = DEFAULT_HOOK_OPTIONS,
 ) {
   const { loading, loadingColumns, implicitDefaultConfig } = hookOptions;
+  const isV4Surface = hookOptions.isV4 ?? false;
+  const capture = usePostHogClientCapture();
   const stateLocationType = hookOptions.stateLocation;
   const peekContext =
     stateLocationType === "peekContext" ? hookOptions.context : undefined;
@@ -887,8 +898,52 @@ export function useSidebarFilterState(
     setStoredFiltersQuery,
   ]);
 
+  // When true, the applied-filter capture inside `updateFilter` is suppressed —
+  // set by `updateOperator`, which funnels through `updateFilter` but must emit
+  // `filters:facet_operator_toggled` instead of a duplicate `filters:applied`.
+  const suppressAppliedCaptureRef = useRef(false);
+
+  // Emit `filters:applied` for a single facet interaction. METADATA ONLY: we
+  // derive shape (type/operator/key/counts) from the RESULTING filters for the
+  // column and never send the raw filter value (PII). Skips emission when the
+  // column ends up with no filter (a deselect-to-empty is a clear, not an
+  // apply). `conditionCount` counts the rows the column produced (a numeric
+  // range is 2: >= and <=); `valueCount` counts selected options.
+  const emitFilterApplied = useCallback(
+    (
+      surface: "sidebar" | "filter_builder",
+      column: string,
+      next: FilterState,
+    ) => {
+      const colFilters = next.filter((f) => f.column === column);
+      if (colFilters.length === 0) return;
+      const primary = colFilters[0];
+      capture("filters:applied", {
+        surface,
+        tableName: config.tableName,
+        column,
+        filterType: primary.type,
+        operator: primary.operator,
+        ...("key" in primary && primary.key ? { key: primary.key } : {}),
+        valueCount: Array.isArray(primary.value) ? primary.value.length : 1,
+        conditionCount: colFilters.length,
+        isV4: isV4Surface,
+      });
+    },
+    [capture, config.tableName, isV4Surface],
+  );
+
   const clearAll = () => {
+    const clearedCount = explicitFilterState.length;
     setFilterState([]);
+    if (clearedCount > 0) {
+      capture("filters:cleared", {
+        surface: "sidebar",
+        tableName: config.tableName,
+        clearedCount,
+        isV4: isV4Surface,
+      });
+    }
   };
 
   // Generic apply selection logic
@@ -1086,8 +1141,11 @@ export function useSidebarFilterState(
 
       const next = applySelection(withoutTextFilters, column, values, operator);
       setFilterState(next);
+      if (!suppressAppliedCaptureRef.current) {
+        emitFilterApplied("sidebar", column, next);
+      }
     },
-    [filterState, applySelection, setFilterState],
+    [filterState, applySelection, setFilterState, emitFilterApplied],
   );
 
   const updateFilterOnly = useCallback(
@@ -1131,13 +1189,57 @@ export function useSidebarFilterState(
     ],
   );
 
+  const emitOperatorToggled = useCallback(
+    (
+      column: string,
+      fromOperator: string | undefined,
+      toOperator: "any of" | "all of" | "none of",
+      valueCount: number,
+    ) => {
+      capture("filters:facet_operator_toggled", {
+        surface: "sidebar",
+        tableName: config.tableName,
+        column,
+        fromOperator,
+        toOperator,
+        valueCount,
+        isV4: isV4Surface,
+      });
+    },
+    [capture, config.tableName, isV4Surface],
+  );
+
+  // Runs `updateFilter` without the `filters:applied` capture, so the operator
+  // toggle emits exactly one `filters:facet_operator_toggled` (not both events).
+  const applyOperatorChange = useCallback(
+    (
+      column: string,
+      values: string[],
+      operator: "any of" | "all of" | "none of",
+    ) => {
+      suppressAppliedCaptureRef.current = true;
+      try {
+        updateFilter(column, values, operator);
+      } finally {
+        suppressAppliedCaptureRef.current = false;
+      }
+    },
+    [updateFilter],
+  );
+
   const updateOperator = useCallback(
     (column: string, newOperator: "any of" | "all of" | "none of") => {
       // Find the existing filter for this column
       const existingFilter = filterState.find((f) => f.column === column);
+      const fromOperator =
+        existingFilter?.type === "arrayOptions" ||
+        existingFilter?.type === "stringOptions"
+          ? existingFilter.operator
+          : undefined;
       if (!existingFilter) {
         // Without selected values there is no valid persisted filter yet.
-        updateFilter(column, [], newOperator);
+        applyOperatorChange(column, [], newOperator);
+        emitOperatorToggled(column, fromOperator, newOperator, 0);
         return;
       }
 
@@ -1171,9 +1273,15 @@ export function useSidebarFilterState(
       }
 
       // Update the filter with the new operator
-      updateFilter(column, currentValues, newOperator);
+      applyOperatorChange(column, currentValues, newOperator);
+      emitOperatorToggled(
+        column,
+        fromOperator,
+        newOperator,
+        currentValues.length,
+      );
     },
-    [filterState, updateFilter, options],
+    [filterState, applyOperatorChange, emitOperatorToggled, options],
   );
 
   const updateNumericFilter = useCallback(
@@ -1211,8 +1319,9 @@ export function useSidebarFilterState(
 
       const next: FilterState = [...withoutNumeric, ...filters];
       setFilterState(next);
+      emitFilterApplied("sidebar", column, next);
     },
-    [filterState, setFilterState],
+    [filterState, setFilterState, emitFilterApplied],
   );
 
   const updateStringFilter = useCallback(
@@ -1234,9 +1343,10 @@ export function useSidebarFilterState(
           },
         ];
         setFilterState(next);
+        emitFilterApplied("sidebar", column, next);
       }
     },
-    [filterState, setFilterState],
+    [filterState, setFilterState, emitFilterApplied],
   );
 
   // Text filter management for categorical filters
@@ -1270,8 +1380,9 @@ export function useSidebarFilterState(
 
       const next: FilterState = [...withoutCheckboxFilters, newFilter];
       setFilterState(next);
+      emitFilterApplied("sidebar", column, next);
     },
-    [filterState, setFilterState],
+    [filterState, setFilterState, emitFilterApplied],
   );
 
   const removeTextFilter = useCallback(
