@@ -30,7 +30,7 @@ describe("buildExpandedGraph", () => {
     new Set(result.graph.edges.map((e) => `${e.from}->${e.to}`));
 
   describe("nodes", () => {
-    it("creates one node per observation with numbered repeated names", () => {
+    it("creates one node per observation — repeated names stay distinct", () => {
       const data = [
         obs({ id: "a1", name: "agent", startTime: t(0), endTime: t(10) }),
         obs({ id: "l1", name: "llm", startTime: t(1), endTime: t(2), step: 2 }),
@@ -42,10 +42,6 @@ describe("buildExpandedGraph", () => {
       const llmNodes = result.graph.nodes.filter((n) => n.label === "llm");
 
       expect(llmNodes.map((n) => n.id)).toEqual(["l1", "l2", "l3"]);
-      expect(llmNodes.map((n) => n.counter)).toEqual([" (1)", " (2)", " (3)"]);
-      // unique names get no counter
-      const agentNode = result.graph.nodes.find((n) => n.id === "a1");
-      expect(agentNode?.counter).toBeUndefined();
     });
 
     it("dedupes duplicate observation ids", () => {
@@ -58,7 +54,6 @@ describe("buildExpandedGraph", () => {
       const agentNodes = result.graph.nodes.filter((n) => n.id === "a1");
 
       expect(agentNodes).toHaveLength(1);
-      expect(agentNodes[0].counter).toBeUndefined();
     });
 
     it("replaces incoming system rows with derived start/end anchors", () => {

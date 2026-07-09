@@ -6,6 +6,7 @@ import React, {
   useRef,
 } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
+import { ObservationType } from "@langfuse/shared";
 
 import { ElkGraphRenderer } from "./ElkGraphRenderer";
 import { GraphViewModeSwitch } from "./GraphViewModeSwitch";
@@ -86,7 +87,17 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
 
   const { graph, nodeToObservationsMap, limitExceeded } = useMemo(() => {
     if (isExpanded) {
-      return buildExpandedGraph(normalizedData, agentGraphData);
+      // Expanded ignores framework metadata: the instrumented hierarchy is
+      // the source of truth, so EVERY call becomes a node — including e.g.
+      // the LLM/tool calls inside LangGraph nodes, which the aggregated
+      // path's normalization filters out. Only EVENTs stay excluded
+      // (matching buildStepData's policy for the graph views).
+      return buildExpandedGraph(
+        agentGraphData.filter(
+          (o) => o.observationType !== ObservationType.EVENT,
+        ),
+        agentGraphData,
+      );
     }
     return { ...buildGraphFromStepData(normalizedData), limitExceeded: false };
   }, [normalizedData, isExpanded, agentGraphData]);
@@ -106,16 +117,21 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   // observation id → its node id, so the playhead's active-observation set can
   // be projected onto graph nodes. Aggregated: id → node NAME from the full
   // data (nodeToObservationsMap only holds the top-most of a same-name chain).
-  // Expanded: node ids ARE observation ids — the projection is identity.
+  // Expanded: node ids ARE observation ids — the projection is identity over
+  // the unfiltered data (ids that aren't graph nodes simply never match).
   const observationToNodeName = useMemo(() => {
     const map = new Map<string, string>();
-    for (const o of normalizedData) {
-      if (!o.id) continue;
-      if (isExpanded) map.set(o.id, o.id);
-      else if (o.node) map.set(o.id, o.node);
+    if (isExpanded) {
+      for (const o of agentGraphData) {
+        if (o.id) map.set(o.id, o.id);
+      }
+    } else {
+      for (const o of normalizedData) {
+        if (o.id && o.node) map.set(o.id, o.node);
+      }
     }
     return map;
-  }, [normalizedData, isExpanded]);
+  }, [normalizedData, agentGraphData, isExpanded]);
 
   const activeNodeNames = useMemo(() => {
     if (!activeObservationIds || activeObservationIds.size === 0) return null;

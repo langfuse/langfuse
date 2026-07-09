@@ -4,12 +4,6 @@ export type GraphNodeData = {
   id: string;
   label: string;
   type: string;
-  /**
-   * Static suffix rendered after the label (e.g. " (2)" for the 2nd occurrence
-   * of a repeated name in expanded mode). The renderer's dynamic cycling
-   * counter (" (2/3)", aggregated mode) takes precedence when present.
-   */
-  counter?: string;
 };
 
 /**

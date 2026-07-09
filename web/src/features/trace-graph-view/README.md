@@ -12,9 +12,11 @@ agentGraphData (tRPC getAgentGraphData)
   → buildStepData            timing-based step inference (cycle-guarded)
     / transformLanggraphToGeneralized   when langgraph metadata exists
   → one builder per GraphViewMode (the mode switch overlaid on the canvas):
-      buildGraphCanvasData   "aggregated": repeats collapse by name (+ cycling map)
-      buildExpandedGraph     "expanded": one node per observation, numbered
-                             repeats; edges from the instrumented hierarchy +
+      buildGraphCanvasData   "aggregated": repeats collapse by name (+ cycling
+                             map); langgraph traces show framework nodes only
+      buildExpandedGraph     "expanded": one node per observation (EVERY call,
+                             minus EVENTs — framework metadata is ignored);
+                             edges from the instrumented hierarchy +
                              happened-before sibling ordering (fork/join)
   → layout/elkLayout.computeGraphLayout   async ELK (lazy import);
       layout/measureNode     estimates node boxes (labels, counter reserve)

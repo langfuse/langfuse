@@ -10,13 +10,14 @@ import { type GraphParseResult } from "./buildGraphCanvasData";
 
 /**
  * Expanded ("as it ran") graph builder: one node per observation `id` —
- * repeated calls become distinct numbered nodes instead of collapsing into a
- * single `name (3/3)` vertex, so loops unroll into an acyclic DAG.
+ * repeated calls become distinct nodes instead of collapsing into a single
+ * `name (3/3)` vertex, so loops unroll into an acyclic DAG (which call is
+ * which reads off the run order of the layout).
  *
  * The instrumented hierarchy is the source of truth: a child hangs off its
  * parent (descent into a subtree) or off the sibling(s) that actually
  * finished before it started (fork/join derived from timing, only ever
- * within one parent's scope). No step inference.
+ * within one parent's scope). No step inference, no framework metadata.
  */
 const SYSTEM_NODE_IDS = new Set<string>([
   LANGFUSE_START_NODE_NAME,
@@ -194,24 +195,11 @@ export function buildExpandedGraph(
     return { graph: { nodes: [], edges: [] }, nodeToObservationsMap: {} };
   }
 
-  // Number repeated names in run order — "litellm_request (2)" — so identical
-  // calls stay tellable apart.
-  const nameTotals = new Map<string, number>();
-  for (const obs of observations) {
-    nameTotals.set(obs.name, (nameTotals.get(obs.name) ?? 0) + 1);
-  }
-  const nameSeen = new Map<string, number>();
-  const nodes: GraphNodeData[] = observations.map((obs) => {
-    const occurrence = (nameSeen.get(obs.name) ?? 0) + 1;
-    nameSeen.set(obs.name, occurrence);
-    return {
-      id: obs.id,
-      label: obs.name,
-      type: obs.observationType,
-      counter:
-        (nameTotals.get(obs.name) ?? 0) > 1 ? ` (${occurrence})` : undefined,
-    };
-  });
+  const nodes: GraphNodeData[] = observations.map((obs) => ({
+    id: obs.id,
+    label: obs.name,
+    type: obs.observationType,
+  }));
 
   const built = buildFlowEdges(observations, ancestry);
   if (built === null) return EDGE_LIMIT_RESULT;

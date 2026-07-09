@@ -72,9 +72,7 @@ function buildElkGraph(
   const children = graph.nodes.map((node) => {
     const { width, height } = measureNode(
       node,
-      // Cycling counter reserve (aggregated mode) or the node's own static
-      // counter (expanded mode, e.g. " (2)") — whichever the node renders.
-      counterReserve.get(node.id) ?? node.counter?.length ?? 0,
+      counterReserve.get(node.id) ?? 0,
     );
     // The synthetic anchors mean "the run starts/ends here" — pin them to
     // the first/last layer so edge shape can't strand them mid-graph (e.g.
