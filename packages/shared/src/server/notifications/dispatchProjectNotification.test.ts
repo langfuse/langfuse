@@ -210,6 +210,7 @@ describe("dispatchProjectNotification", () => {
       settingsUrl:
         "https://cloud.langfuse.com/project/proj_1/settings/integrations/blobstorage",
       receiverEmails: ["admin1@example.com", "admin2@example.com"],
+      disabled: false,
     });
   });
 

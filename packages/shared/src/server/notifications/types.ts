@@ -46,6 +46,9 @@ export const ProjectNotificationEventSchema = z.discriminatedUnion(
       eventType: z.literal(
         ProjectNotificationEventTypeSchema.enum["blob-export-failed"],
       ),
+      // true when the integration was auto-disabled after repeated failures
+      // (terminal event; selects the "disabled" email variant).
+      disabled: z.boolean().optional(),
     }),
     projectNotificationEventBaseSchema.extend({
       eventType: z.literal(

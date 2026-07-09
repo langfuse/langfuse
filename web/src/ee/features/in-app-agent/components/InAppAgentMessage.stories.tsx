@@ -386,6 +386,60 @@ export const LoadingToolCallGroup = meta.story({
   },
 });
 
+const longReasoningText = [
+  "Reading the current trace context and the visible filters.",
+  "Checking whether the user is asking about latency, quality, or cost first.",
+  "Comparing recent observations with error levels and score names.",
+  "Looking for a small query that can answer the next step without changing project state.",
+  "Keeping this text long enough to span several lines so the block visibly grows with its content.",
+  "The last line should be visible after mount and after streamed updates.",
+].join("\n");
+
+export const Reasoning = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "reasoning",
+      text: "Checking recent traces before querying metrics.",
+      isStreaming: false,
+    },
+  },
+});
+
+export const CompletedReasoning = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "reasoning",
+      text: longReasoningText,
+      isStreaming: false,
+    },
+  },
+});
+
+export const StreamingReasoning = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "reasoning",
+      text: longReasoningText,
+      isStreaming: true,
+    },
+  },
+});
+
+export const CompactStreamingReasoning = meta.story({
+  args: {
+    role: "assistant",
+    isCompact: true,
+    content: {
+      type: "reasoning",
+      text: longReasoningText,
+      isStreaming: true,
+    },
+  },
+});
+
 export const Loading = meta.story({
   args: {
     role: "assistant",

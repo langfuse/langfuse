@@ -769,6 +769,20 @@ describe("in-app agent persistence", () => {
         where: { projectId, conversationId: conversation.id, runId: run.id },
       }),
     ).resolves.toBe(9);
+
+    const persistedEventTypes = (
+      await prisma.inAppAgentEvent.findMany({
+        where: { projectId, conversationId: conversation.id, runId: run.id },
+        select: { type: true },
+      })
+    ).map((event) => event.type);
+    expect(persistedEventTypes).not.toContain(
+      EventType.REASONING_MESSAGE_START,
+    );
+    expect(persistedEventTypes).not.toContain(
+      EventType.REASONING_MESSAGE_CONTENT,
+    );
+    expect(persistedEventTypes).not.toContain(EventType.REASONING_MESSAGE_END);
   });
 
   it("stores only compact events and skips raw adapter payloads", async () => {

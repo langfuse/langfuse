@@ -486,7 +486,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               {visibleMessages.map((message, index) => {
                 const hasFullWidthContent =
                   message.content.type === "toolGroup" ||
-                  message.content.type === "redirectAction";
+                  message.content.type === "redirectAction" ||
+                  message.content.type === "reasoning";
 
                 const nextUserMessageIndex = visibleMessages.findIndex(
                   (nextMessage, nextIndex) =>
@@ -619,7 +620,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               placeholder="Ask the assistant a question..."
               rows={1}
               className={cn(
-                "bg-background placeholder:text-muted-foreground w-full flex-1 resize-none overflow-y-auto rounded-md text-sm leading-5 disabled:cursor-not-allowed disabled:opacity-60",
+                "bg-background placeholder:text-foreground-tertiary w-full flex-1 resize-none overflow-y-auto rounded-md text-sm leading-5 disabled:cursor-not-allowed disabled:opacity-60",
                 isExpanded
                   ? "max-h-40 min-h-14 border-none ring-0"
                   : "border-input max-h-40 min-h-8 px-3 py-1",
