@@ -23,6 +23,8 @@ import { type BaselineDiff } from "@/src/features/datasets/lib/calculateBaseline
 import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { useResourceMetricsDiff } from "@/src/features/datasets/hooks/useResourceMetricsDiff";
 import { NotFoundCard } from "@/src/features/datasets/components/NotFoundCard";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 const DatasetAggregateCellContent = ({
   projectId,
@@ -40,6 +42,8 @@ const DatasetAggregateCellContent = ({
   baselineRunValue?: EnrichedDatasetRunItem;
 }) => {
   const router = useRouter();
+  const capture = usePostHogClientCapture();
+  const { isBetaEnabled: isV4 } = useV4Beta();
   const silentHttpCodes = [404];
   const { selectedFields } = useDatasetCompareFields();
   const { activeCell, setActiveCell } = useActiveCell();
@@ -101,6 +105,18 @@ const DatasetAggregateCellContent = ({
 
   // Note that we implement custom handling for opening peek view from cell
   const handleOpenPeek = () => {
+    // Mirrors usePeekNavigation's peek:opened (this open bypasses the hook);
+    // re-clicking the already-peeked cell is a no-op and emits nothing.
+    if (
+      router.query.peek !== value.trace.id ||
+      router.query.observation !== value.observation?.id
+    ) {
+      capture("peek:opened", {
+        routePattern: router.pathname,
+        wasOpen: router.query.peek !== undefined,
+        isV4,
+      });
+    }
     const newQuery: Record<string, string | string[] | undefined> = {
       ...router.query,
       peek: value.trace.id,
