@@ -2,14 +2,12 @@ import {
   EvalTargetObject,
   EvalTemplateType,
   InternalServerError,
+  CODE_EVAL_TEMPLATE_VARIABLES,
   LangfuseConflictError,
   observationVariableMappingList,
   variableMappingList,
 } from "@langfuse/shared";
-import {
-  CODE_EVAL_TEMPLATE_VARIABLES,
-  getCodeEvalVariableMapping,
-} from "@/src/features/evals/utils/code-eval-template-utils";
+import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval-template-utils";
 
 // accepts both stored templates and createTemplate inputs (CODE inputs carry no vars)
 export const getEvalTemplateVariables = (template: {

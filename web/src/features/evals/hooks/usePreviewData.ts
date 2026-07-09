@@ -1,3 +1,5 @@
+import { useMemo } from "react";
+
 import {
   isEventTarget,
   isExperimentTarget,
@@ -76,6 +78,20 @@ function getPreviewMode({
     return shouldUseEventsTable ? "event" : "observation";
   }
   return "none";
+}
+
+/**
+ * Memoized on the query result reference: normalization deep-parses full
+ * untruncated payloads and zips tool calls, and downstream consumers memoize
+ * on the returned object's identity (code-eval-test-run-card).
+ */
+function useNormalizedPreviewDataFields(
+  record: Record<string, unknown> | null | undefined,
+): PreviewDataFields | null {
+  return useMemo(
+    () => (record ? normalizePreviewDataFields(record) : null),
+    [record],
+  );
 }
 
 function normalizePreviewDataFields(
@@ -163,17 +179,19 @@ function useObservationPreview({
     },
   );
 
+  const normalized = useNormalizedPreviewDataFields(
+    observationDetails.data as Record<string, unknown> | undefined,
+  );
+
   return {
     previewData:
-      observationDetails.data && traceId && observationId
+      observationDetails.data && normalized && traceId && observationId
         ? {
             type: EvalTargetObject.EVENT,
             traceId,
             observationId,
             timestamp: observationDetails.data.startTime ?? null,
-            data: normalizePreviewDataFields(
-              observationDetails.data as Record<string, unknown>,
-            ),
+            data: normalized,
           }
         : null,
     isLoading: observationDetails.isLoading,
@@ -212,17 +230,19 @@ function useEventPreview({
     },
   );
 
+  const normalized = useNormalizedPreviewDataFields(
+    eventDetails.data?.[0] as Record<string, unknown> | undefined,
+  );
+
   return {
     previewData:
-      observationId && traceId && timestamp && eventDetails.data?.[0]
+      observationId && traceId && timestamp && normalized
         ? {
             type: EvalTargetObject.EVENT,
             traceId,
             observationId,
             timestamp,
-            data: normalizePreviewDataFields(
-              eventDetails.data[0] as Record<string, unknown>,
-            ),
+            data: normalized,
           }
         : null,
     isLoading: eventDetails.isLoading,
@@ -261,17 +281,19 @@ function useExperimentPreview({
     },
   );
 
+  const normalized = useNormalizedPreviewDataFields(
+    experimentDetails.data?.[0] as Record<string, unknown> | undefined,
+  );
+
   return {
     previewData:
-      observationId && traceId && timestamp && experimentDetails.data?.[0]
+      observationId && traceId && timestamp && normalized
         ? {
             type: EvalTargetObject.EVENT,
             traceId,
             observationId,
             timestamp,
-            data: normalizePreviewDataFields(
-              experimentDetails.data[0] as Record<string, unknown>,
-            ),
+            data: normalized,
           }
         : null,
     isLoading: experimentDetails.isLoading,

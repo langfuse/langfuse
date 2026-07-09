@@ -42,11 +42,13 @@ export function renderPromptPreviewFromObservation(params: {
 
   // Both source records carry tool calls in the raw storage shape (name-less
   // JSON strings + parallel names); zip so a toolCalls mapping previews the
-  // named objects the evaluator runtime receives.
-  const observationWithToolCalls = {
-    ...observation,
-    toolCalls: zipToolCallsFromRecord(observation),
-  };
+  // named objects the evaluator runtime receives. Zipped lazily: this runs
+  // per evaluator row per render, and most mappings never reference toolCalls.
+  const observationWithToolCalls = variableMapping.some(
+    (mapping) => mapping.selectedColumnId === "toolCalls",
+  )
+    ? { ...observation, toolCalls: zipToolCallsFromRecord(observation) }
+    : observation;
 
   const variableValues = new Map<string, string>();
 

@@ -43,10 +43,8 @@ import {
   EvalTargetObject,
   EvaluatorBlockReason,
 } from "@langfuse/shared";
-import {
-  CODE_EVAL_TEMPLATE_VARIABLES,
-  getCodeEvalVariableMapping,
-} from "@/src/features/evals/utils/code-eval-template-utils";
+import { CODE_EVAL_TEMPLATE_VARIABLES } from "@langfuse/shared";
+import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval-template-utils";
 import type { Session } from "next-auth";
 
 beforeEach(() => {

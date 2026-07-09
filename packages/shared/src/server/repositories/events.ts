@@ -129,7 +129,7 @@ import {
 import { tracesTableCols } from "../../tableDefinitions/tracesTable";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 
-type EventBatchIOStringOutput = {
+export type EventBatchIOStringOutput = {
   id: string;
   input: string | null;
   output: string | null;
@@ -137,15 +137,23 @@ type EventBatchIOStringOutput = {
 };
 
 /** Raw ClickHouse storage shape: name-less JSON strings, names in the parallel toolCallNames array. */
-type EventBatchIOToolCallFields = {
+export type EventBatchIOToolCallFields = {
   toolCalls: string[];
   toolCallNames: string[];
 };
 
-type EventBatchIOWithExperimentOutput = EventBatchIOStringOutput & {
+export type EventBatchIOWithExperimentOutput = EventBatchIOStringOutput & {
   experimentItemExpectedOutput: string | null;
   experimentItemMetadata: MetadataDomain;
 };
+
+export type EventBatchIOResult<
+  TIncludeExperiment extends boolean,
+  TIncludeToolCalls extends boolean,
+> = (TIncludeExperiment extends true
+  ? EventBatchIOWithExperimentOutput
+  : EventBatchIOStringOutput) &
+  (TIncludeToolCalls extends true ? EventBatchIOToolCallFields : object);
 
 const BATCH_IO_STRING_RENDERING_PROPS: RenderingProps = {
   // Batch I/O truncation is handled in SQL via leftUTF8 for performance.
@@ -2473,12 +2481,7 @@ export const getObservationsBatchIOFromEventsTable = async <
   /** Opt-in: tool-call arrays can be large; only eval consumers need them. */
   includeToolCallFields?: TIncludeToolCalls;
 }): Promise<
-  Array<
-    (TIncludeExperiment extends true
-      ? EventBatchIOWithExperimentOutput
-      : EventBatchIOStringOutput) &
-      (TIncludeToolCalls extends true ? EventBatchIOToolCallFields : object)
-  >
+  Array<EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls>>
 > => {
   if (opts.observations.length === 0) {
     return [];
@@ -2574,12 +2577,7 @@ export const getObservationsBatchIOFromEventsTable = async <
               : {},
         }
       : {}),
-  })) as Array<
-    (TIncludeExperiment extends true
-      ? EventBatchIOWithExperimentOutput
-      : EventBatchIOStringOutput) &
-      (TIncludeToolCalls extends true ? EventBatchIOToolCallFields : object)
-  >;
+  })) as Array<EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls>>;
 };
 
 /**

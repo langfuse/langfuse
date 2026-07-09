@@ -207,7 +207,29 @@ export interface ObservationEvalVariableColumn {
   internal: ObservationEvalMappingColumnInternal;
 }
 
-export const eventTargetEvalVariableColumns: ObservationEvalVariableColumn[] = [
+/**
+ * Canonical variable set for code evaluators — one entry per experiment
+ * target column below (the id annotation on the column arrays pins them to
+ * this list). Web synthesizes rule mappings from it
+ * (getCodeEvalVariableMapping) and buildCodeEvalPayload (codeEvalExecution)
+ * places each variable in the evaluator payload — see the
+ * CODE_EVAL_PAYLOAD_SECTION_BY_VARIABLE tripwire in codeEvalDispatcherTypes.
+ */
+export const CODE_EVAL_TEMPLATE_VARIABLES = [
+  "input",
+  "output",
+  "metadata",
+  "toolCalls",
+  "experimentItemExpectedOutput",
+  "experimentItemMetadata",
+] as const;
+
+export type CodeEvalTemplateVariable =
+  (typeof CODE_EVAL_TEMPLATE_VARIABLES)[number];
+
+export const eventTargetEvalVariableColumns: (ObservationEvalVariableColumn & {
+  id: CodeEvalTemplateVariable;
+})[] = [
   {
     id: "input",
     name: "Input",
@@ -236,23 +258,24 @@ export const eventTargetEvalVariableColumns: ObservationEvalVariableColumn[] = [
   },
 ];
 
-export const experimentTargetEvalVariableColumns: ObservationEvalVariableColumn[] =
-  [
-    ...eventTargetEvalVariableColumns,
-    {
-      id: "experimentItemExpectedOutput",
-      name: "Expected Output",
-      description: "Expected output from experiment item",
-      internal: "experiment_item_expected_output",
-    },
-    {
-      id: "experimentItemMetadata",
-      name: "Experiment Item Metadata",
-      description: "Metadata from experiment item",
-      type: "stringObject",
-      internal: "experiment_item_metadata",
-    },
-  ];
+export const experimentTargetEvalVariableColumns: (ObservationEvalVariableColumn & {
+  id: CodeEvalTemplateVariable;
+})[] = [
+  ...eventTargetEvalVariableColumns,
+  {
+    id: "experimentItemExpectedOutput",
+    name: "Expected Output",
+    description: "Expected output from experiment item",
+    internal: "experiment_item_expected_output",
+  },
+  {
+    id: "experimentItemMetadata",
+    name: "Experiment Item Metadata",
+    description: "Metadata from experiment item",
+    type: "stringObject",
+    internal: "experiment_item_metadata",
+  },
+];
 
 /**
  * Columns available for variable extraction in observation-based evals.
@@ -263,46 +286,6 @@ export const experimentTargetEvalVariableColumns: ObservationEvalVariableColumn[
  */
 export const observationEvalVariableColumns: ObservationEvalVariableColumn[] = [
   ...experimentTargetEvalVariableColumns,
-];
-
-export const availableObservationEvalVariableColumns = [
-  ...observationEvalVariableColumns,
-  {
-    id: "toolDefinitions",
-    name: "Tool Definitions",
-    description: "Tool definitions",
-    internal: "tool_definitions",
-  },
-  {
-    id: "toolCallNames",
-    name: "Tool Call Names",
-    description: "Tool call names",
-    internal: "tool_call_names",
-  },
-  {
-    id: "providedModelName",
-    name: "Model",
-    description: "Model",
-    internal: "provided_model_name",
-  },
-  {
-    id: "modelParameters",
-    name: "Model Parameters",
-    description: "Model parameters",
-    internal: "model_parameters",
-  },
-  {
-    id: "usageDetails",
-    name: "Usage Details",
-    description: "Usage details",
-    internal: "usage_details",
-  },
-  {
-    id: "costDetails",
-    name: "Cost Details",
-    description: "Cost details",
-    internal: "cost_details",
-  },
 ];
 
 type ObservationEvalColumnDef = ColumnDefinition & {

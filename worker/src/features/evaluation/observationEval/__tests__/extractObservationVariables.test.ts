@@ -2,10 +2,53 @@ import { describe, it, expect } from "vitest";
 import { extractObservationVariables } from "../../../../../../packages/shared/src/server/evals/extractObservationVariables";
 import { type ObservationForEval } from "../types";
 import {
-  availableObservationEvalVariableColumns,
+  observationEvalVariableColumns,
   ObservationEvalVariableColumn,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
+
+// Test-only superset: extends the production columns with fields that are not
+// mappable in the product today, to cover extractObservationVariables'
+// custom-columns parameter.
+const availableObservationEvalVariableColumns = [
+  ...observationEvalVariableColumns,
+  {
+    id: "toolDefinitions",
+    name: "Tool Definitions",
+    description: "Tool definitions",
+    internal: "tool_definitions",
+  },
+  {
+    id: "toolCallNames",
+    name: "Tool Call Names",
+    description: "Tool call names",
+    internal: "tool_call_names",
+  },
+  {
+    id: "providedModelName",
+    name: "Model",
+    description: "Model",
+    internal: "provided_model_name",
+  },
+  {
+    id: "modelParameters",
+    name: "Model Parameters",
+    description: "Model parameters",
+    internal: "model_parameters",
+  },
+  {
+    id: "usageDetails",
+    name: "Usage Details",
+    description: "Usage details",
+    internal: "usage_details",
+  },
+  {
+    id: "costDetails",
+    name: "Cost Details",
+    description: "Cost details",
+    internal: "cost_details",
+  },
+];
 
 describe("extractObservationVariables", () => {
   const mockObservation: ObservationForEval = {

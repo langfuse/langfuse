@@ -28,10 +28,8 @@ import {
   type PublicEvaluatorOutputDefinitionType,
   type PublicEvaluatorTypeType,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
-import {
-  CODE_EVAL_TEMPLATE_VARIABLES,
-  getCodeEvalVariableMapping,
-} from "@/src/features/evals/utils/code-eval-template-utils";
+import { CODE_EVAL_TEMPLATE_VARIABLES } from "@langfuse/shared";
+import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval-template-utils";
 import type {
   ApiEvaluationRuleRecord,
   ApiEvaluatorRecord,

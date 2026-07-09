@@ -83,7 +83,7 @@ import {
   deleteEvalTemplateFamily,
   findEvalTemplateFamilyUsage,
 } from "@/src/features/evals/server/evalTemplateDeletion";
-import { CODE_EVAL_TEMPLATE_VARIABLES } from "@/src/features/evals/utils/code-eval-template-utils";
+import { CODE_EVAL_TEMPLATE_VARIABLES } from "@langfuse/shared";
 import {
   getCodeEvalCapabilities,
   isCodeEvalEnabled,

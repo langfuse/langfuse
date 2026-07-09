@@ -70,12 +70,16 @@ export type GetEventFilterOptionsInput = z.infer<
 
 export const BatchIOInput = zodSchema.object({
   projectId: zodSchema.string(),
-  observations: zodSchema.array(
-    zodSchema.object({
-      id: zodSchema.string(),
-      traceId: zodSchema.string(),
-    }),
-  ),
+  observations: zodSchema
+    .array(
+      zodSchema.object({
+        id: zodSchema.string(),
+        traceId: zodSchema.string(),
+      }),
+    )
+    // Bounds the unbounded-LIMIT ClickHouse read; the largest legitimate
+    // caller is one table page (max 50 rows), eval previews send one row.
+    .max(500),
   minStartTime: zodSchema.date(),
   maxStartTime: zodSchema.date(),
   truncated: zodSchema.boolean().optional(), // Defaults to true for performance

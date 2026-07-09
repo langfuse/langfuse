@@ -1,8 +1,25 @@
 import { z } from "zod";
 
-import { parseJsonIfString as parseIfString } from "../../utils/json";
-
 type IngestionJsonValue = string | object | number | boolean | null | undefined;
+
+/**
+ * Parse input that might be a JSON string or already an object.
+ *
+ * Deliberately native JSON.parse, not the shared parseJsonIfString: this runs
+ * over full observation input/output for every ingested span, and the shared
+ * helper's lossless-json slow path triggers on any digit followed by e/E
+ * (most UUIDs) or 13+ consecutive digits (ms timestamps).
+ */
+function parseIfString(data: unknown): unknown {
+  if (typeof data === "string") {
+    try {
+      return JSON.parse(data);
+    } catch {
+      return data; // Return original if not valid JSON
+    }
+  }
+  return data;
+}
 
 /**
  * ClickHouse storage schema for tool definitions.
