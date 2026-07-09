@@ -342,7 +342,9 @@
     --tertiary: 0 0% 16.5%;
     --tertiary-foreground: 0 0% 88%;
 
-    --accent: 0 0% 14.3%;
+    /* One clear step above --popover (10.2%) — focus:bg-accent is the only
+       focus cue in menus/selects/⌘K, and 14.3% was a near-invisible ~1.13:1. */
+    --accent: 0 0% 18%;
     --accent-foreground: 0 0% 91%;
 
     --destructive: 0 78.7% 63.1%;
@@ -355,7 +357,9 @@
     --link-hover: 246 95% 85%;
     --control-fill: 0 0% 78%;
     --control-track: 0 0% 24%;
-    --control-border: 0 0% 20%;
+    /* Matches --border-contrast: unchecked checkboxes/radios read by their
+       border alone; 20% was ~1.58:1 on the canvas. */
+    --control-border: 0 0% 26%;
 
     --muted-blue: 215 95% 73.1%;
     --muted-green: 142 76.7% 73.1%;

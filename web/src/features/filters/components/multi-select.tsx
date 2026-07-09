@@ -202,9 +202,9 @@ export function MultiSelect({
                   <InputCommandItem key="select-all" onSelect={handleSelectAll}>
                     <div
                       className={cn(
-                        "border-primary mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
+                        "border-control-border mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
                         allSelectedState
-                          ? "bg-primary text-primary-foreground"
+                          ? "bg-control-fill border-control-fill text-primary-foreground"
                           : "opacity-50 [&_svg]:invisible",
                       )}
                     >
@@ -242,9 +242,9 @@ export function MultiSelect({
                   >
                     <div
                       className={cn(
-                        "border-primary mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
+                        "border-control-border mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
                         isSelected
-                          ? "bg-primary text-primary-foreground"
+                          ? "bg-control-fill border-control-fill text-primary-foreground"
                           : "opacity-50 [&_svg]:invisible",
                       )}
                     >
@@ -304,7 +304,7 @@ export function MultiSelect({
                 >
                   <div
                     className={cn(
-                      "border-primary mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
+                      "border-control-border mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
                       getFreeTextInput(
                         isCustomSelectEnabled,
                         values,
@@ -312,7 +312,7 @@ export function MultiSelect({
                       ) ||
                         (optionValues.has(freeText) &&
                           selectedValues.has(freeText))
-                        ? "bg-primary text-primary-foreground"
+                        ? "bg-control-fill border-control-fill text-primary-foreground"
                         : "opacity-50 [&_svg]:invisible",
                     )}
                   >
