@@ -7,6 +7,7 @@ import { createExperimentJobClickhouse } from "../features/experiments/experimen
 import {
   createDatasetItem,
   createOrgProjectAndApiKey,
+  fetchLLMCompletion,
   logger,
 } from "@langfuse/shared/src/server";
 
@@ -573,5 +574,103 @@ describe("experiment processing integration", () => {
     //     }),
     //   }),
     // );
+  });
+});
+
+describe("experiment tool config (#14904)", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test("passes prompt tool config through to fetchLLMCompletion", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const datasetId = randomUUID();
+    const runId = randomUUID();
+    const promptId = randomUUID();
+
+    const toolDefinition = {
+      name: "get_weather",
+      description: "Get the current weather for a city",
+      parameters: {
+        type: "object",
+        properties: { city: { type: "string", description: "City name" } },
+        required: ["city"],
+      },
+    };
+
+    // Chat prompt whose config carries a tool definition (LLMToolDefinition shape).
+    await prisma.prompt.create({
+      data: {
+        id: promptId,
+        projectId,
+        name: "Weather Prompt",
+        prompt: [
+          {
+            role: "system",
+            content: "You are a weather assistant. Call the get_weather tool.",
+          },
+          { role: "user", content: "What is the weather in {{city}}?" },
+        ],
+        type: "chat",
+        version: 1,
+        createdBy: "test-user",
+        config: { tools: [toolDefinition], tool_choice: "auto" },
+      },
+    });
+
+    await prisma.dataset.create({
+      data: { id: datasetId, projectId, name: "Tool Config Dataset" },
+    });
+
+    await prisma.datasetRuns.create({
+      data: {
+        id: runId,
+        name: "Tool Config Run",
+        projectId,
+        datasetId,
+        metadata: {
+          prompt_id: promptId,
+          provider: "openai",
+          model: "gpt-3.5-turbo",
+          model_params: { temperature: 0 },
+        },
+      },
+    });
+
+    await createDatasetItem({
+      projectId,
+      datasetId,
+      input: { city: "Paris" },
+    });
+
+    await prisma.llmApiKeys.create({
+      data: {
+        id: randomUUID(),
+        projectId,
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        displaySecretKey: "test-key",
+        secretKey: encrypt("test-key"),
+      },
+    });
+
+    const result = await createExperimentJobClickhouse({
+      event: { projectId, datasetId, runId },
+    });
+
+    expect(result).toEqual({ success: true });
+
+    // The LLM invocation must receive the tool config defined on the prompt.
+    expect(vi.mocked(fetchLLMCompletion)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tools: expect.arrayContaining([
+          expect.objectContaining({ name: "get_weather" }),
+        ]),
+      }),
+    );
   });
 });

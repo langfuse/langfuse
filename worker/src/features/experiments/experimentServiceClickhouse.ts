@@ -218,6 +218,8 @@ async function processLLMCall(
       ...config.model_params,
     },
     structuredOutputSchema: config.structuredOutputSchema,
+    // Forward tool config defined on the prompt (GitHub #14904)
+    ...(config.tools.length > 0 ? { tools: config.tools } : {}),
     traceSinkParams,
   }).catch(); // catch errors and do not retry
 

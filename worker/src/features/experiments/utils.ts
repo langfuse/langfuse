@@ -20,6 +20,7 @@ import {
   ExperimentCreateEventSchema,
   ExperimentMetadataSchema,
   LLMApiKeySchema,
+  LLMToolDefinitionSchema,
   PromptContentSchema,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
@@ -223,6 +224,14 @@ export async function validateAndSetupExperiment(
 
   const allVariables = [...extractedVariables, ...placeholderNames];
 
+  // Tool config lives on the prompt's free-form `config` JSON. Extract and
+  // validate it here so it can be forwarded to the LLM call; invalid or absent
+  // configs fall back to no tools. (GitHub #14904)
+  const promptToolsResult = z
+    .object({ tools: z.array(LLMToolDefinitionSchema) })
+    .safeParse(prompt.config);
+  const tools = promptToolsResult.success ? promptToolsResult.data.tools : [];
+
   return {
     datasetRun,
     prompt,
@@ -231,6 +240,7 @@ export async function validateAndSetupExperiment(
     provider,
     model,
     model_params,
+    tools,
     structuredOutputSchema: validatedRunMetadata.data.structured_output_schema,
     experimentName: validatedRunMetadata.data.experiment_name,
     experimentRunName: validatedRunMetadata.data.experiment_run_name,
