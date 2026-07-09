@@ -276,7 +276,7 @@ export default function ExperimentsTable({
 
   const { timeRange, setTimeRange } = useTableDateRange(projectId, {
     defaultRelativeAggregation: "last30Days",
-    storageKey: `experimentsDateRangeState-${projectId}`,
+    persistAsDefault: false,
   });
 
   // Convert timeRange to absolute date range for compatibility
