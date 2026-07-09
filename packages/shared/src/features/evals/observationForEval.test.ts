@@ -35,7 +35,7 @@ describe("zipObservationToolCalls", () => {
     ).toEqual([]);
   });
 
-  it("keeps unparseable arguments as the raw string", () => {
+  it("keeps unparsable arguments as the raw string", () => {
     const result = zipObservationToolCalls({
       tool_calls: [
         '{"id":"call_1","arguments":"not json","type":"","index":0}',

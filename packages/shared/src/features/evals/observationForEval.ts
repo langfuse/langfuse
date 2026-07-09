@@ -98,7 +98,7 @@ const parseIfString = (value: unknown): unknown =>
  * `tool_call_names` is authoritative for count and order: ingestion writes
  * both arrays in lockstep (`convertCallsToArrays`), and stored entries carry
  * no name. `arguments` arrives double-encoded (a JSON string inside the entry
- * JSON) and is parsed to an object; unparseable values stay raw strings.
+ * JSON) and is parsed to an object; unparsable values stay raw strings.
  */
 export function zipObservationToolCalls(
   observation: Pick<ObservationForEval, "tool_calls" | "tool_call_names">,
