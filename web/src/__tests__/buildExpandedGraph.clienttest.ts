@@ -1,4 +1,7 @@
-import { buildExpandedGraph } from "@/src/features/trace-graph-view/buildExpandedGraph";
+import {
+  buildExpandedGraph,
+  MAX_EXPANDED_EDGES,
+} from "@/src/features/trace-graph-view/buildExpandedGraph";
 import {
   type AgentGraphDataResponse,
   LANGFUSE_START_NODE_NAME,
@@ -234,6 +237,65 @@ describe("buildExpandedGraph", () => {
       expect(edgeSet(result).has("root->leaf")).toBe(true);
     });
 
+    it("chains through an instant (zero-duration) predecessor instead of orphaning", () => {
+      // c1 is instant: the strict happened-before reduction has no "still
+      // running at the latest start" predecessor for c2 — the fallback must
+      // keep the chain (root→c1→c2), never wire c2 to __start__.
+      const data = [
+        obs({ id: "root", name: "root", startTime: t(0), endTime: t(10) }),
+        obs({
+          id: "c1",
+          name: "instant",
+          parentObservationId: "root",
+          startTime: t(1),
+          endTime: t(1),
+        }),
+        obs({
+          id: "c2",
+          name: "next",
+          parentObservationId: "root",
+          startTime: t(2),
+          endTime: t(3),
+        }),
+      ];
+
+      const result = buildExpandedGraph(data, "flow");
+
+      expect(edgeSet(result).has("c1->c2")).toBe(true);
+      expect(edgeSet(result).has(`${LANGFUSE_START_NODE_NAME}->c2`)).toBe(
+        false,
+      );
+    });
+
+    it("chains through a still-running predecessor (no endTime)", () => {
+      const data = [
+        obs({
+          id: "a",
+          name: "a",
+          startTime: t(0),
+          endTime: undefined,
+        }),
+        obs({ id: "b", name: "b", startTime: t(2), endTime: t(3) }),
+      ];
+
+      const result = buildExpandedGraph(data, "flow");
+
+      expect(edgeSet(result).has("a->b")).toBe(true);
+      expect(edgeSet(result).has(`${LANGFUSE_START_NODE_NAME}->b`)).toBe(false);
+    });
+
+    it("chains same-timestamp instants singly instead of quadratically", () => {
+      const data = ["s1", "s2", "s3"].map((id) =>
+        obs({ id, name: id, startTime: t(1), endTime: t(1) }),
+      );
+
+      const result = buildExpandedGraph(data, "flow");
+
+      expect(edgeSet(result).has("s1->s2")).toBe(true);
+      expect(edgeSet(result).has("s2->s3")).toBe(true);
+      expect(edgeSet(result).has("s1->s3")).toBe(false);
+    });
+
     it("treats unresolvable parents as root-level", () => {
       // LangGraph shape: node observations whose parent (the trace root span)
       // is filtered out of the graph entirely → they chain at root level.
@@ -264,6 +326,46 @@ describe("buildExpandedGraph", () => {
         ]),
       );
     });
+  });
+
+  it("bails with limitExceeded when parallel batches explode the edge count", () => {
+    // Two consecutive steps of 110 parallel observations each connect
+    // all-to-all (12100 edges), past the budget: the steps variant must
+    // bail instead of freezing ELK.
+    const data = [
+      ...Array.from({ length: 110 }, (_, i) =>
+        obs({ id: `a${i}`, name: `a${i}`, step: 1 }),
+      ),
+      ...Array.from({ length: 110 }, (_, i) =>
+        obs({ id: `b${i}`, name: `b${i}`, step: 2 }),
+      ),
+    ];
+
+    const result = buildExpandedGraph(data, "steps");
+
+    expect(110 * 110).toBeGreaterThan(MAX_EXPANDED_EDGES);
+    expect(result.limitExceeded).toBe(true);
+    expect(result.graph.nodes).toEqual([]);
+    expect(result.graph.edges).toEqual([]);
+  });
+
+  it("keeps a maximal linear chain under the edge budget", () => {
+    // 5000 sequential calls (the panel's observation cap) are ~5000 linear
+    // edges — a legitimate shape that must render, not bail.
+    const n = 5000;
+    const data = Array.from({ length: n }, (_, i) =>
+      obs({
+        id: `o${i}`,
+        name: "call",
+        startTime: t(i * 2),
+        endTime: t(i * 2 + 1),
+      }),
+    );
+
+    const result = buildExpandedGraph(data, "flow");
+
+    expect(result.limitExceeded).toBeUndefined();
+    expect(result.graph.nodes).toHaveLength(n + 2);
   });
 
   it("returns an identity observation map", () => {

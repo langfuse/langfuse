@@ -84,7 +84,7 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   // aggregated mode they are step names (repeats collapse into one node).
   const isExpanded = viewMode !== "aggregated";
 
-  const { graph, nodeToObservationsMap } = useMemo(() => {
+  const { graph, nodeToObservationsMap, limitExceeded } = useMemo(() => {
     if (viewMode === "expanded-steps" || viewMode === "expanded-flow") {
       return buildExpandedGraph(
         normalizedData,
@@ -92,7 +92,7 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
         agentGraphData,
       );
     }
-    return buildGraphFromStepData(normalizedData);
+    return { ...buildGraphFromStepData(normalizedData), limitExceeded: false };
   }, [normalizedData, viewMode, agentGraphData]);
 
   const graphNodeIds = useMemo(
@@ -135,6 +135,14 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   useEffect(() => {
     setCurrentObservationIndices({});
   }, [normalizedData]);
+
+  // A mode switch rebuilds the graph in a different node-id space, so the
+  // selection must re-resolve. Clear any stale click-echo entry first (runs
+  // before the sync effect below — declaration order) or it would swallow
+  // that re-sync and silently drop the highlight.
+  useEffect(() => {
+    clickWroteObservationIdRef.current = undefined;
+  }, [viewMode]);
 
   useEffect(() => {
     // Skip genuine echoes of an in-canvas click (the click already selected the
@@ -292,17 +300,24 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
 
   return (
     <div className="relative h-full w-full">
-      <ElkGraphRenderer
-        graph={graph}
-        selectedNodeName={selectedNodeName}
-        onCanvasNodeNameChange={onCanvasNodeNameChange}
-        nodeToObservationsMap={nodeToObservationsMap}
-        currentObservationIndices={currentObservationIndices}
-        activeNodeNames={activeNodeNames}
-        // Expanded runs are long chains — left→right reads like a timeline
-        // and fits the wide graph panel far better than top-down.
-        layoutDirection={isExpanded ? "RIGHT" : "DOWN"}
-      />
+      {limitExceeded ? (
+        <div className="text-muted-foreground flex h-full items-center justify-center px-4 text-center text-sm">
+          This trace branches too widely for the expanded graph — use the
+          aggregated view.
+        </div>
+      ) : (
+        <ElkGraphRenderer
+          graph={graph}
+          selectedNodeName={selectedNodeName}
+          onCanvasNodeNameChange={onCanvasNodeNameChange}
+          nodeToObservationsMap={nodeToObservationsMap}
+          currentObservationIndices={currentObservationIndices}
+          activeNodeNames={activeNodeNames}
+          // Expanded runs are long chains — left→right reads like a timeline
+          // and fits the wide graph panel far better than top-down.
+          layoutDirection={isExpanded ? "RIGHT" : "DOWN"}
+        />
+      )}
       {onViewModeChange && (
         // Overlaid sibling of the canvas (top-left, opposite the zoom stack)
         // so canvas clicks/gestures underneath are untouched.

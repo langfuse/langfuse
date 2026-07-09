@@ -47,6 +47,16 @@ const LAYOUT_OPTIONS: Record<string, string> = {
   "elk.layered.cycleBreaking.strategy": "DEPTH_FIRST",
 };
 
+/**
+ * MULTI_EDGE wrapping recurses per layer inside elkjs and a fully sequential
+ * expanded trace makes one layer per observation: measured, the recursion
+ * stack-overflows around ~1200 layers on small-stack browsers (Firefox) and
+ * costs tens of seconds well before that. Above this bound the graph keeps
+ * the RIGHT direction but skips wrapping (a plain ribbon lays out in
+ * milliseconds at any size).
+ */
+const MAX_WRAP_NODES = 300;
+
 /** Map our {nodes, edges} into an ELK graph, deduping edges and dropping self-loops. */
 function buildElkGraph(
   graph: GraphCanvasData,
@@ -87,8 +97,9 @@ function buildElkGraph(
       "elk.direction": direction,
       // Long expanded chains: let ELK wrap the layer sequence into multiple
       // rows near the panel's aspect ratio, so fit-zoom stays readable
-      // instead of shrinking a 1×N ribbon to nothing.
-      ...(direction === "RIGHT"
+      // instead of shrinking a 1×N ribbon to nothing (bounded — see
+      // MAX_WRAP_NODES).
+      ...(direction === "RIGHT" && graph.nodes.length <= MAX_WRAP_NODES
         ? {
             "elk.layered.wrapping.strategy": "MULTI_EDGE",
             "elk.aspectRatio": "1.6",

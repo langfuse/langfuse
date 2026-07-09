@@ -31,7 +31,29 @@ const SYSTEM_NODE_IDS = new Set<string>([
   LANGGRAPH_END_NODE_NAME,
 ]);
 
+/**
+ * Edge budget for expanded graphs. Consecutive parallel batches connect
+ * all-to-all (N×M edges), so a wide trace can explode combinatorially —
+ * ELK's layout cost grows super-linearly with edges and would freeze the
+ * tab long before the 5000-observation panel cap kicks in. Builders bail
+ * past the budget and the view shows a "too complex" notice instead. The
+ * bound clears every linear shape under the panel's observation cap (a
+ * 5000-call chain is ~5000 edges) and cuts off the quadratic ones.
+ */
+export const MAX_EXPANDED_EDGES = 10_000;
+
+export interface ExpandedGraphResult extends GraphParseResult {
+  /** True when the trace exceeded MAX_EXPANDED_EDGES — the graph is empty. */
+  limitExceeded?: boolean;
+}
+
 type Edge = { from: string; to: string };
+
+const EDGE_LIMIT_RESULT: ExpandedGraphResult = {
+  graph: { nodes: [], edges: [] },
+  nodeToObservationsMap: {},
+  limitExceeded: true,
+};
 
 function startMs(obs: AgentGraphDataResponse): number {
   return new Date(obs.startTime).getTime();
@@ -56,7 +78,7 @@ function byStartThenId(
  * keyed by id instead of name, so repeats stay distinct and steps strictly
  * increase (never cyclic).
  */
-function buildStepEdges(observations: AgentGraphDataResponse[]): Edge[] {
+function buildStepEdges(observations: AgentGraphDataResponse[]): Edge[] | null {
   const stepToIds = new Map<number, string[]>();
   for (const obs of observations) {
     if (obs.step === null) continue; // post-normalization every obs has one
@@ -68,13 +90,14 @@ function buildStepEdges(observations: AgentGraphDataResponse[]): Edge[] {
   const sortedSteps = [...stepToIds.entries()].sort(([a], [b]) => a - b);
   const edges: Edge[] = [];
   for (let i = 0; i < sortedSteps.length - 1; i++) {
+    if (edges.length > MAX_EXPANDED_EDGES) return null;
     for (const from of sortedSteps[i][1]) {
       for (const to of sortedSteps[i + 1][1]) {
         edges.push({ from, to });
       }
     }
   }
-  return edges;
+  return edges.length > MAX_EXPANDED_EDGES ? null : edges;
 }
 
 /**
@@ -93,7 +116,7 @@ function buildStepEdges(observations: AgentGraphDataResponse[]): Edge[] {
 function buildFlowEdges(
   observations: AgentGraphDataResponse[],
   ancestry: AgentGraphDataResponse[],
-): { edges: Edge[]; sinkIds: Set<string> } {
+): { edges: Edge[]; sinkIds: Set<string> } | null {
   const included = new Set(observations.map((obs) => obs.id));
   const ancestryById = new Map(ancestry.map((obs) => [obs.id, obs]));
 
@@ -120,27 +143,53 @@ function buildFlowEdges(
   const rootSiblingFroms = new Set<string>();
   for (const [parentId, group] of groups) {
     const ordered = [...group].sort(byStartThenId);
+    // Precomputed times + index loops: the scan is O(n²) in the group size
+    // and must stay allocation-free to be instant at the 5000-observation
+    // panel cap (a naive slice/filter per element takes seconds there).
+    const starts = ordered.map(startMs);
+    const ends = ordered.map(endMs);
     for (let i = 0; i < ordered.length; i++) {
+      if (edges.length > MAX_EXPANDED_EDGES) return null;
       const current = ordered[i];
-      const currentStart = startMs(current);
-      // Siblings that finished before this one started ("happened before").
-      const finished = ordered
-        .slice(0, i)
-        .filter((prev) => endMs(prev) <= currentStart);
-      if (finished.length === 0) {
+      // Bounds over the siblings that finished before this one started
+      // ("happened before"): the latest such start and end.
+      let finishedCount = 0;
+      let maxStart = -Infinity;
+      let maxEnd = -Infinity;
+      let latestFallback = -1;
+      for (let j = 0; j < i; j++) {
+        if (ends[j] > starts[i]) continue;
+        finishedCount++;
+        if (starts[j] > maxStart) maxStart = starts[j];
+        if (ends[j] >= maxEnd) {
+          maxEnd = ends[j];
+          latestFallback = j;
+        }
+      }
+      if (finishedCount === 0) {
         // Nothing precedes it in this scope: descend from the parent. Root
         // group sources get no edge — __start__ wiring covers them.
         if (parentId !== null) edges.push({ from: parentId, to: current.id });
         continue;
       }
       // Direct predecessors only (transitive reduction of the interval
-      // order): drop any that finished before another predecessor STARTED —
-      // the chain through that later one already implies the ordering.
-      const latestStart = Math.max(...finished.map(startMs));
-      for (const prev of finished) {
-        if (endMs(prev) > latestStart) {
-          edges.push({ from: prev.id, to: current.id });
-          if (parentId === null) rootSiblingFroms.add(prev.id);
+      // order): keep those still running when the latest predecessor
+      // started — anything that ended before then is implied transitively.
+      // When the frontier is an instant (zero-duration, still-running, or
+      // same-millisecond siblings) that set is EMPTY (nothing ends after the
+      // instant's start); fall back to one edge from the latest-ending
+      // predecessor so a chain of instants stays a chain instead of
+      // orphaning every successor onto __start__.
+      if (maxEnd > maxStart) {
+        for (let j = 0; j < i; j++) {
+          if (ends[j] > starts[i] || ends[j] <= maxStart) continue;
+          edges.push({ from: ordered[j].id, to: current.id });
+          if (parentId === null) rootSiblingFroms.add(ordered[j].id);
+        }
+      } else {
+        edges.push({ from: ordered[latestFallback].id, to: current.id });
+        if (parentId === null) {
+          rootSiblingFroms.add(ordered[latestFallback].id);
         }
       }
     }
@@ -164,7 +213,7 @@ export function buildExpandedGraph(
   data: AgentGraphDataResponse[],
   variant: ExpandedGraphVariant,
   ancestry: AgentGraphDataResponse[] = data,
-): GraphParseResult {
+): ExpandedGraphResult {
   // Dedupe by id (re-seeded/duplicated ingestion can repeat ids) and drop the
   // synthetic system rows — start/end are re-derived from the edges below.
   const byId = new Map<string, AgentGraphDataResponse>();
@@ -199,10 +248,18 @@ export function buildExpandedGraph(
     };
   });
 
-  const { edges, sinkIds } =
-    variant === "steps"
-      ? { edges: buildStepEdges(observations), sinkIds: null }
-      : buildFlowEdges(observations, ancestry);
+  let edges: Edge[];
+  let sinkIds: Set<string> | null = null;
+  if (variant === "steps") {
+    const built = buildStepEdges(observations);
+    if (built === null) return EDGE_LIMIT_RESULT;
+    edges = built;
+  } else {
+    const built = buildFlowEdges(observations, ancestry);
+    if (built === null) return EDGE_LIMIT_RESULT;
+    edges = built.edges;
+    sinkIds = built.sinkIds;
+  }
 
   // Synthetic entry/exit anchors, derived from the built edges: __start__
   // feeds every source; sinks feed __end__. In flow mode nested leaves always
@@ -232,6 +289,9 @@ export function buildExpandedGraph(
   for (const sink of sinks) {
     edges.push({ from: sink.id, to: LANGFUSE_END_NODE_NAME });
   }
+  // Anchor wiring counts against the budget too (a degenerate trace of
+  // isolated observations gets two anchor edges apiece).
+  if (edges.length > MAX_EXPANDED_EDGES) return EDGE_LIMIT_RESULT;
 
   // One observation per node — clicking a node selects exactly that call.
   const nodeToObservationsMap: Record<string, string[]> = {};
