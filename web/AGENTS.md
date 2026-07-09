@@ -68,12 +68,16 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
   [`web/.agents/skills/vercel-composition-patterns/SKILL.md`](.agents/skills/vercel-composition-patterns/SKILL.md)
 - React/Next.js performance and rendering best practices:
   [`web/.agents/skills/vercel-react-best-practices/SKILL.md`](.agents/skills/vercel-react-best-practices/SKILL.md)
+- PostHog product analytics — when and how to instrument user actions:
+  [`../.agents/skills/posthog-instrumentation/SKILL.md`](../.agents/skills/posthog-instrumentation/SKILL.md)
 
 Read these package-local skills before substantial frontend refactors when the
 task involves component composition, reusable component APIs, rendering
 performance, virtualized lists, local feature stores, bundle size,
 React/Next.js performance patterns, or browser-based signoff of user-visible
-changes.
+changes. When adding a meaningful user action (button, handler, form,
+mutation, feature surface), read the PostHog instrumentation skill and decide
+explicitly whether the action should emit an analytics event.
 
 ## Web Conventions
 
@@ -206,7 +210,10 @@ changes.
 1. Prefer `src/features/<feature>/*` for feature-local code.
 2. Put broadly reusable components in `src/components/*`.
 3. Keep server logic near feature server folders when possible.
-4. Review the affected user flow in a real browser with the Playwright MCP
+4. For meaningful user actions (buttons, form submits, mode switches), decide
+   explicitly whether to instrument them with PostHog. Use
+   `../.agents/skills/posthog-instrumentation/SKILL.md`.
+5. Review the affected user flow in a real browser with the Playwright MCP
    server before signoff. Use
    `../.agents/skills/frontend-browser-review/SKILL.md`.
 
