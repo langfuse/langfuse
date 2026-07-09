@@ -91,13 +91,6 @@ export const toolCallForEvalSchema = z.object({
 export type ToolCallForEval = z.infer<typeof toolCallForEvalSchema>;
 
 /**
- * Zips the parallel arrays back into named tool call objects.
- * `tool_call_names` is authoritative for count and order: ingestion writes
- * both arrays in lockstep (`convertCallsToArrays`), and stored entries carry
- * no name. `arguments` arrives double-encoded (a JSON string inside the entry
- * JSON) and is parsed to an object; unparsable values stay raw strings.
- */
-/**
  * zipObservationToolCalls for camelCase records with loosely typed arrays
  * (tRPC/domain shapes: events batchIO, legacy observations.byId). Malformed
  * names map to "" instead of being dropped — filtering would shift the zip
@@ -117,6 +110,13 @@ export function zipToolCallsFromRecord(record: object): ToolCallForEval[] {
   });
 }
 
+/**
+ * Zips the parallel arrays back into named tool call objects.
+ * `tool_call_names` is authoritative for count and order: ingestion writes
+ * both arrays in lockstep (`convertCallsToArrays`), and stored entries carry
+ * no name. `arguments` arrives double-encoded (a JSON string inside the entry
+ * JSON) and is parsed to an object; unparsable values stay raw strings.
+ */
 export function zipObservationToolCalls(
   observation: Pick<ObservationForEval, "tool_calls" | "tool_call_names">,
 ): ToolCallForEval[] {
