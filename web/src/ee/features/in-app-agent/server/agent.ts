@@ -211,15 +211,16 @@ export async function createAgUiStream(params: {
 
         for (const result of results) {
           if (result.status === "rejected") {
+            const error: unknown = result.reason;
             logger.error("Error in agent stream cleanup", {
-              error: result.reason,
+              error,
               runId: params.input.runId,
               threadId: params.input.threadId,
             });
           }
         }
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
         logger.error("Error in agent stream cleanup", {
           error,
           runId: params.input.runId,
@@ -234,7 +235,7 @@ export async function createAgUiStream(params: {
   ) => {
     try {
       await callback?.();
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(errorContext, {
         error,
         runId: params.input.runId,
@@ -298,7 +299,9 @@ export async function createAgUiStream(params: {
               encoder.encode(`data: ${JSON.stringify(agUiEvent)}\n\n`),
             );
           })
-          .catch((error) => failStream(error, String(agUiEvent.type)));
+          .catch((error: unknown) => {
+            failStream(error, String(agUiEvent.type));
+          });
       };
 
       const handleStreamedRunError = () => {
@@ -356,7 +359,9 @@ export async function createAgUiStream(params: {
             closed = true;
             controller.close();
           })
-          .catch((error) => failStream(error))
+          .catch((error: unknown) => {
+            failStream(error);
+          })
           .finally(finish);
       };
 
@@ -387,7 +392,7 @@ export async function createAgUiStream(params: {
             closed = true;
             controller.close();
           })
-          .catch((error) => {
+          .catch((error: unknown) => {
             closed = true;
             logger.error("Error while aborting agent stream", {
               error,
@@ -450,7 +455,7 @@ export async function createAgUiStream(params: {
         .then(async (initialAdapter) => {
           if (ending || closed || params.signal.aborted) {
             initialAdapter.interrupt();
-            initialAdapter.cleanup().catch((error) => {
+            initialAdapter.cleanup().catch((error: unknown) => {
               logger.error("Error in agent stream cleanup", {
                 error,
                 runId: params.input.runId,
@@ -506,7 +511,7 @@ export async function createAgUiStream(params: {
 
             if (ending || closed || params.signal.aborted) {
               currentAdapter.interrupt();
-              currentAdapter.cleanup().catch((error) => {
+              currentAdapter.cleanup().catch((error: unknown) => {
                 logger.error("Error in agent stream cleanup", {
                   error,
                   runId: params.input.runId,
@@ -569,7 +574,7 @@ export async function createAgUiStream(params: {
                 }
               }
             },
-            error(error) {
+            error(error: unknown) {
               if (ending || closed) {
                 return;
               }
@@ -625,7 +630,7 @@ export async function createAgUiStream(params: {
             },
           });
         })
-        .catch((error) => {
+        .catch((error: unknown) => {
           if (ending || closed) {
             return;
           }
@@ -669,7 +674,7 @@ export async function createAgUiStream(params: {
         .then(() => {
           closed = true;
         })
-        .catch((error) => {
+        .catch((error: unknown) => {
           closed = true;
           logger.error("Error while cancelling agent stream", {
             error,
@@ -822,8 +827,8 @@ async function createMastraAdapter(params: {
       interrupt: () => agent.abortRunStream(params.input.runId),
       cleanup: () => mcpClient.disconnect(),
     };
-  } catch (error) {
-    await mcpClient.disconnect().catch((disconnectError) => {
+  } catch (error: unknown) {
+    await mcpClient.disconnect().catch((disconnectError: unknown) => {
       logger.error("Error cleaning up failed agent initialization", {
         error: disconnectError,
         runId: params.input.runId,

@@ -22,6 +22,7 @@ import {
   type TraceSinkParams,
 } from "../types";
 import { executeAiSdkCompletion } from "./executeAiSdkCompletion";
+import type { AiSdkEngineDecision } from "./resolveLlmExecutionDecision";
 
 const publishToOtelIngestionQueue = vi.fn().mockResolvedValue(undefined);
 
@@ -54,6 +55,13 @@ const modelParams: ModelParams = {
   adapter: LLMAdapter.OpenAI,
   model: "gpt-4o",
   max_tokens: 128,
+};
+
+const decision: AiSdkEngineDecision = {
+  engine: "ai-sdk",
+  adapter: LLMAdapter.OpenAI,
+  providerOptionsName: "openai",
+  openAIApiMode: "chat-completions",
 };
 
 // System-first message lists are the norm for compiled experiment prompts and
@@ -116,8 +124,8 @@ describe("AI SDK telemetry integration", () => {
       streaming: false,
       apiKey: "sk-test",
       timeoutMs: 10_000,
-      fetch: globalThis.fetch,
-      apiMode: "chat-completions",
+      createFetch: () => globalThis.fetch,
+      decision,
       traceSinkParams,
     });
 
@@ -216,8 +224,8 @@ describe("AI SDK telemetry integration", () => {
       streaming: false,
       apiKey: "sk-test",
       timeoutMs: 10_000,
-      fetch: globalThis.fetch,
-      apiMode: "chat-completions",
+      createFetch: () => globalThis.fetch,
+      decision,
       traceSinkParams: {
         targetProjectId: "project-1",
         traceId: experimentTraceId,

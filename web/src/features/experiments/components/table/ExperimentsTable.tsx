@@ -274,7 +274,10 @@ export default function ExperimentsTable({
     order: "DESC",
   });
 
-  const { timeRange, setTimeRange } = useTableDateRange(projectId);
+  const { timeRange, setTimeRange } = useTableDateRange(projectId, {
+    defaultRelativeAggregation: "last30Days",
+    persistAsDefault: false,
+  });
 
   // Convert timeRange to absolute date range for compatibility
   const tableDateRange = useMemo(() => {

@@ -360,7 +360,9 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
       );
     }, 140);
 
-    return () => window.clearInterval(intervalId);
+    return () => {
+      window.clearInterval(intervalId);
+    };
   }, []);
 
   return (

@@ -31,10 +31,12 @@ import {
   BatchExportTableName,
   type ObservationType,
   TableViewPresetTableName,
+  type TableViewPresetState,
   BatchActionType,
   ActionId,
   RESOURCE_LIMIT_ERROR_MESSAGE,
 } from "@langfuse/shared";
+import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
@@ -107,6 +109,8 @@ import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSea
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { CategoryPresetChips } from "@/src/features/events/components/CategoryPresetChips";
+import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import { withMetadataPathOptions } from "@/src/features/search-bar/lib/metadata-paths";
 import {
   useObservedMetadataPaths,
@@ -539,6 +543,24 @@ export default function ObservationsEventsTable({
     setSearchQuery,
     setSearchType,
   });
+
+  // Non-destructive preview: while a category-chip preset row is hovered or
+  // focused, show the query it would apply as the store's preview overlay. The
+  // draft is never touched, so ending the preview cannot lose in-progress
+  // typing. Clicking still applies for real via applyViewState. No-op outside
+  // search-bar mode.
+  const previewViewInSearchBar = useCallback(
+    (state: TableViewPresetState | null) => {
+      if (!searchBarMode) return;
+      const { actions } = searchBarStore.getState();
+      if (state) {
+        actions.setPreview(filterStateToQueryText(state.filters).text);
+      } else {
+        actions.clearPreview();
+      }
+    },
+    [searchBarMode, searchBarStore],
+  );
 
   // Disabled for now because perhaps confusing
   // const viewModeFilter: FilterState =
@@ -1639,11 +1661,6 @@ export default function ObservationsEventsTable({
               currentSearchQuery={
                 searchBarMode ? (searchQuery ?? "") : undefined
               }
-              viewConfig={{
-                tableName: TableViewPresetTableName.ObservationsEvents,
-                projectId,
-                controllers: viewControllers,
-              }}
               columnsWithCustomSelect={[
                 "providedModelName",
                 "name",
@@ -1709,12 +1726,47 @@ export default function ObservationsEventsTable({
                 selectedRowIds: selectedObservationIds,
                 setRowSelection: setSelectedRows,
                 totalCount,
+                // totalCount stays null until select-all triggers the lazy
+                // count query; hasNextPage lets the select-all banner show
+                // without an eager count over the events table.
+                hasNextPage: hasMore,
                 pageSize: paginationState.limit,
                 pageIndex: paginationState.page - 1,
               }}
               // In bar mode AI filtering lives in the search bar ("Ask AI"),
               // so the legacy wand is only offered when the bar is absent.
               filterWithAI={!searchBarMode}
+              // Category-preset chips + "My Views" pill share the toolbar row,
+              // left-aligned, so they sit on the same line as the right-aligned
+              // Columns/Export controls.
+              leadingControls={
+                <div className="flex flex-wrap items-center gap-2">
+                  <CategoryPresetChips
+                    projectId={projectId}
+                    activeViewId={
+                      viewControllers.appliedViewId ??
+                      viewControllers.selectedViewId
+                    }
+                    onApplyView={viewControllers.handleSetViewId}
+                    applyViewState={viewControllers.applyViewState}
+                    onPreviewView={previewViewInSearchBar}
+                  />
+                  <TableViewPresetsDrawer
+                    viewConfig={{
+                      tableName: TableViewPresetTableName.ObservationsEvents,
+                      projectId,
+                      controllers: viewControllers,
+                    }}
+                    currentState={{
+                      orderBy: orderByState ?? null,
+                      filters: queryFilter.explicitFilterState ?? [],
+                      columnOrder,
+                      columnVisibility,
+                      searchQuery: searchQuery ?? "",
+                    }}
+                  />
+                </div>
+              }
             />
           </div>
         )}

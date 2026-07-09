@@ -46,7 +46,7 @@ function parseSkillMarkdown(
 }
 
 function parseFrontmatter(frontmatter: string): Record<string, string> {
-  const parsed = parse(frontmatter);
+  const parsed: unknown = parse(frontmatter);
 
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("In-app agent skill frontmatter must be a YAML object.");

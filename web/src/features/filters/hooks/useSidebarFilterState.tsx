@@ -1,6 +1,10 @@
 import type React from "react";
 import { useCallback, useMemo, useEffect, useState } from "react";
-import { StringParam, useQueryParam } from "use-query-params";
+import {
+  StringParam,
+  useQueryParam,
+  type UrlUpdateType,
+} from "use-query-params";
 import {
   type FilterState,
   singleFilter,
@@ -701,8 +705,13 @@ export function useSidebarFilterState(
     ],
   );
 
+  // `options.updateType` controls the history semantics of the URL write:
+  // user-initiated filter edits keep the default (push — a Back-able step);
+  // programmatic writes (e.g. the session default-view auto-apply) pass
+  // `replaceIn` so they don't mint a history entry Back would bounce off
+  // (LFE-10715). Ignored for non-URL state locations.
   const setFilterState = useCallback(
-    (newFilters: FilterState) => {
+    (newFilters: FilterState, options?: { updateType?: UrlUpdateType }) => {
       const explicitFilters = stripImplicitEnvironmentFilterFromExplicitState({
         explicitFilters: newFilters,
         config: managedEnvironmentPolicyConfig,
@@ -732,12 +741,13 @@ export function useSidebarFilterState(
         );
       }
       setPendingFiltersQuery(encoded);
-      // Eviction of an oversized state replaces the current history entry:
-      // repeated interactions in the oversized regime must not push a stack
-      // of identical param-less entries the Back button has to walk through.
+      // Eviction of an oversized state replaces the current history entry
+      // regardless of the caller's updateType: repeated interactions in the
+      // oversized regime must not push a stack of identical param-less
+      // entries the Back button has to walk through.
       setUrlFiltersQuery(
         urlQuery || null,
-        urlQuery !== encoded ? "replaceIn" : undefined,
+        urlQuery !== encoded ? "replaceIn" : options?.updateType,
       );
       if (stateLocationType === "urlAndSessionStorage") {
         setStoredFiltersQuery(encoded);
@@ -801,11 +811,11 @@ export function useSidebarFilterState(
           : canonicalFiltersQuery;
       if (urlFiltersQuery !== canonicalUrlQuery) {
         setPendingFiltersQuery(canonicalFiltersQuery);
-        // Rewriting the URL the user is already on (canonicalization or
-        // oversized-query eviction) must replace the history entry, not push
-        // one — pushing turns Back into a rewrite loop on a legacy oversized
-        // link (evict pushes a clean entry, Back lands on the giant one,
-        // which immediately evicts again).
+        // replaceIn: sanitizing is a programmatic correction of the current
+        // URL — pushing would mint a history entry holding the non-canonical
+        // filter, which Back lands on and this effect re-fires (LFE-10715).
+        // Same for evicting an oversized query (canonicalUrlQuery = ""):
+        // pushing would turn Back into a rewrite loop on a legacy giant link.
         setUrlFiltersQuery(canonicalUrlQuery || null, "replaceIn");
       }
 

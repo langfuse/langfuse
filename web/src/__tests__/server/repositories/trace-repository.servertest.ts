@@ -4,6 +4,7 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   getTraceById,
+  getTraceByIdFromTracesTable,
   getTracesBySessionId,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
@@ -135,6 +136,37 @@ describe("Clickhouse Traces Repository Test", () => {
       new Date(trace.updated_at).getTime(),
       -2, // Up to 50ms precision
     );
+  });
+
+  it("should return empty metadata and IO when excluded from the fetch", async () => {
+    const traceId = v4();
+
+    const trace = createTrace({
+      id: traceId,
+      project_id: projectId,
+      metadata: { key: "value" },
+      input: "some input",
+      output: "some output",
+      timestamp: Date.now(),
+    });
+
+    await createTracesCh([trace]);
+
+    const result = await getTraceByIdFromTracesTable({
+      traceId,
+      projectId,
+      timestamp: new Date(trace.timestamp),
+      excludeInputOutput: true,
+      excludeMetadata: true,
+    });
+    expect(result).not.toBeNull();
+    if (!result) {
+      return;
+    }
+    expect(result.id).toEqual(trace.id);
+    expect(result.metadata).toEqual({});
+    expect(result.input).toBeNull();
+    expect(result.output).toBeNull();
   });
 
   it("should retrieve traces by session ID", async () => {

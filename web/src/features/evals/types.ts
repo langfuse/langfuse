@@ -1,11 +1,6 @@
 import { z } from "zod";
 import { JobConfigState, type JobConfiguration } from "@langfuse/shared";
 
-export enum EvalReferencedEvaluators {
-  UPDATE = "update",
-  PERSIST = "persist",
-}
-
 export const EvaluatorStatus = JobConfigState;
 export const EvaluatorStatusSchema = z.enum(EvaluatorStatus);
 export type EvaluatorStatusType = z.infer<typeof EvaluatorStatusSchema>;
