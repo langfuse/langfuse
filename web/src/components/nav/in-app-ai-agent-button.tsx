@@ -24,7 +24,6 @@ import type { InAppAgentWindowConversation } from "@/src/ee/features/in-app-agen
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { AIFeaturesDisabledNotice } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
 function DeleteConversationDialog({
@@ -78,7 +77,6 @@ export const InAppAiAgentButton = () => {
     setIsExpanded,
   } = useInAppAiAgent();
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
-  const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const previousPanelRectRef = useRef<DOMRect | null>(null);
@@ -128,12 +126,10 @@ export const InAppAiAgentButton = () => {
 
   const handleClick = () => {
     if (organization && !organization.aiFeaturesEnabled) {
-      setSupportDrawerOpen(false);
       setEnableDialogOpen(true);
       return;
     }
 
-    setSupportDrawerOpen(false);
     const willOpen = !open;
 
     if (willOpen) {
@@ -145,7 +141,12 @@ export const InAppAiAgentButton = () => {
 
   return (
     <>
-      <SidebarMenuButton ref={buttonRef} isActive={open} onClick={handleClick}>
+      <SidebarMenuButton
+        ref={buttonRef}
+        data-ignore-outside-interaction
+        isActive={open}
+        onClick={handleClick}
+      >
         <BotMessageSquare className="h-4 w-4" />
         Assistant
       </SidebarMenuButton>
