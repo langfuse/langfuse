@@ -61,6 +61,12 @@ const ANTHROPIC_THINKING_TYPES = new Set(["adaptive", "enabled", "disabled"]);
  * Note the Claude Fable/Mythos guard from the LangChain path is unnecessary
  * here: the AI SDK only serializes `thinking` when it is explicitly enabled
  * or adaptive, so an omitted config never sends `{ type: "disabled" }`.
+ *
+ * Known engine difference (accepted): with `thinking` enabled the AI SDK
+ * sends `max_tokens = maxOutputTokens + budgetTokens` (the budget counts
+ * toward the limit), where LangChain sent `max_tokens` verbatim and Anthropic
+ * rejected configs whose budget met or exceeded it. Strictly more permissive;
+ * pinned in requestShape.test.ts.
  */
 export function translateAnthropicProviderOptions(
   providerOptions: Record<string, unknown> | undefined,
