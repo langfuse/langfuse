@@ -59,7 +59,6 @@ export const DashboardLineTimeSeriesChart = React.memo(
         config={config}
         rowLimit={100}
         chartConfig={chartConfig}
-        legendPosition="above"
         legendSummary={legendSummary}
         syncId={syncId}
         missingValue={missingValue}

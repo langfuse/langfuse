@@ -88,7 +88,12 @@ async function normalizeFetchInput(
       body: ["GET", "HEAD"].includes(request.method)
         ? undefined
         : await request.text(),
-      signal: request.signal,
+      // Never forward request.signal: undici links init.signal to it through
+      // a WeakRef'd AbortController owned by the temporary Request above, so
+      // once GC collects the Request, aborts (e.g. the AI SDK engine's native
+      // timeout) silently stop propagating and the HTTP request runs
+      // unbounded. Forward the caller's own signal instead.
+      signal: init?.signal ?? (input instanceof Request ? input.signal : null),
     },
   };
 }

@@ -138,9 +138,9 @@ function getContainerClasses(
   return cn(
     baseClasses,
     ASSISTANT_TITLES.includes(title || "")
-      ? "bg-accent-light-green dark:border-accent-dark-green"
+      ? "bg-accent-light-green dark:border-accent-dark-green/30"
       : "",
-    SYSTEM_TITLES.includes(title || "") ? "bg-primary-foreground" : "",
+    SYSTEM_TITLES.includes(title || "") ? "bg-card" : "",
     scrollable ? "" : "rounded-sm border",
     codeClassName,
   );
@@ -1221,7 +1221,7 @@ export function PrettyJsonView(props: {
       ASSISTANT_TITLES.includes(props.title || "")
         ? "bg-accent-light-green"
         : "",
-      SYSTEM_TITLES.includes(props.title || "") ? "bg-primary-foreground" : "",
+      SYSTEM_TITLES.includes(props.title || "") ? "bg-card" : "",
     );
 
   const body = (

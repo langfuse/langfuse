@@ -40,7 +40,7 @@ import {
   logger,
   upsertTrace,
   convertTraceDomainToClickhouse,
-  hasAnyTrace,
+  hasAnyTracingData,
   traceDeletionProcessor,
   getTracesTableMetrics,
   getCategoricalScoresGroupedByName,
@@ -106,8 +106,8 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      // Check if there are any traces in the database
-      const hasTraces = await hasAnyTrace(input.projectId);
+      // Check if there is any tracing data in the database
+      const hasTraces = await hasAnyTracingData(input.projectId);
 
       if (hasTraces) {
         return true;
@@ -356,6 +356,12 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx }) => {
+      if (!ctx.trace) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Trace not found",
+        });
+      }
       return {
         ...ctx.trace,
         input: ctx.trace.input as string,

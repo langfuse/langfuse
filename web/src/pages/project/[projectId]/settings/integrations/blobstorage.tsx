@@ -34,7 +34,6 @@ import {
   type BlobStorageIntegrationFormSchema,
   type BlobStorageSyncStatus,
 } from "@/src/features/blobstorage-integration/types";
-import { isParquetFileTypeAllowed } from "@/src/features/blobstorage-integration/parquetFileType";
 import { deriveSyncStatus } from "@/src/features/blobstorage-integration/deriveSyncStatus";
 import { Alert, AlertTitle, AlertDescription } from "@/src/components/ui/alert";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -321,7 +320,7 @@ const BlobStorageIntegrationSettingsForm = ({
         | "hourly",
       enabled: state?.enabled || false,
       forcePathStyle: state?.forcePathStyle || false,
-      fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
+      fileType: state?.fileType || BlobStorageIntegrationFileType.PARQUET,
       exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
       exportStartDate: state?.exportStartDate || null,
       exportSource: getExportSourceFormValue(state?.exportSource, availability),
@@ -355,7 +354,7 @@ const BlobStorageIntegrationSettingsForm = ({
           | "hourly",
         enabled: state?.enabled || false,
         forcePathStyle: state?.forcePathStyle || false,
-        fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
+        fileType: state?.fileType || BlobStorageIntegrationFileType.PARQUET,
         exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
         exportStartDate: state?.exportStartDate || null,
         exportSource: getExportSourceFormValue(
@@ -379,7 +378,6 @@ const BlobStorageIntegrationSettingsForm = ({
   // Internal `exportTuning.parquet` override (no write path); reflected read-only
   // below since the worker forces Parquet over the persisted fileType + gzip.
   const isParquetOverride = parquetEnabledFromTuning(state?.exportTuning);
-  const isParquetWhitelisted = isParquetFileTypeAllowed(projectId);
   const watchedFileType = blobStorageForm.watch("fileType");
   const isParquetExport =
     isParquetOverride ||
@@ -724,15 +722,10 @@ const BlobStorageIntegrationSettingsForm = ({
                     <SelectValue placeholder="Select file type" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="PARQUET">Parquet</SelectItem>
                     <SelectItem value="JSONL">JSONL</SelectItem>
                     <SelectItem value="CSV">CSV</SelectItem>
                     <SelectItem value="JSON">JSON</SelectItem>
-                    {(isParquetWhitelisted ||
-                      isParquetOverride ||
-                      watchedFileType ===
-                        BlobStorageIntegrationFileType.PARQUET) && (
-                      <SelectItem value="PARQUET">Parquet</SelectItem>
-                    )}
                   </SelectContent>
                 </Select>
               </FormControl>
@@ -781,6 +774,43 @@ const BlobStorageIntegrationSettingsForm = ({
             </FormItem>
           )}
         />
+
+        {watchedExportMode === BlobStorageExportMode.FROM_CUSTOM_DATE && (
+          <FormField
+            control={blobStorageForm.control}
+            name="exportStartDate"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Export Start Date</FormLabel>
+                <FormControl>
+                  <Input
+                    type="date"
+                    max={(() => {
+                      const t = new Date();
+                      return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+                    })()}
+                    value={
+                      field.value instanceof Date
+                        ? field.value.toISOString().split("T")[0]
+                        : ""
+                    }
+                    onChange={(e) => {
+                      const date = e.target.value
+                        ? new Date(e.target.value)
+                        : null;
+                      field.onChange(date);
+                    }}
+                    placeholder="Select start date"
+                  />
+                </FormControl>
+                <FormDescription>
+                  Data before this date will not be included in exports
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         {!hideExportSource && (
           <FormField
@@ -957,43 +987,6 @@ const BlobStorageIntegrationSettingsForm = ({
             </FormItem>
           )}
         />
-
-        {watchedExportMode === BlobStorageExportMode.FROM_CUSTOM_DATE && (
-          <FormField
-            control={blobStorageForm.control}
-            name="exportStartDate"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Export Start Date</FormLabel>
-                <FormControl>
-                  <Input
-                    type="date"
-                    max={(() => {
-                      const t = new Date();
-                      return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
-                    })()}
-                    value={
-                      field.value instanceof Date
-                        ? field.value.toISOString().split("T")[0]
-                        : ""
-                    }
-                    onChange={(e) => {
-                      const date = e.target.value
-                        ? new Date(e.target.value)
-                        : null;
-                      field.onChange(date);
-                    }}
-                    placeholder="Select start date"
-                  />
-                </FormControl>
-                <FormDescription>
-                  Data before this date will not be included in exports
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
 
         {/* Parquet compresses internally — gzip does not apply. */}
         {!isParquetExport && (

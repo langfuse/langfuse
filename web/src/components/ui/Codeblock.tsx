@@ -55,7 +55,7 @@ const CodeBlock: FC<Props> = memo(({ language, value, theme, className }) => {
   };
 
   return (
-    <div className="codeblock relative w-full overflow-hidden rounded border font-sans dark:bg-zinc-950">
+    <div className="codeblock dark:bg-surface-code relative w-full overflow-hidden rounded border font-sans">
       <div
         className={cn(
           "bg-secondary flex w-full items-center justify-between px-2",

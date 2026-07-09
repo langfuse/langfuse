@@ -189,9 +189,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             currentInput.trim() === trimmedContent ? "" : currentInput,
           );
 
-          window.requestAnimationFrame(() =>
-            scrollViewportToBottom(viewportRef.current),
-          );
+          window.requestAnimationFrame(() => {
+            scrollViewportToBottom(viewportRef.current);
+          });
         }
       })
       .catch(() => undefined);
@@ -329,7 +329,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                         conversation.id === selectedConversationId &&
                           "bg-accent text-accent-foreground",
                       )}
-                      onSelect={() => onSelectConversation(conversation.id)}
+                      onSelect={() => {
+                        onSelectConversation(conversation.id);
+                      }}
                     >
                       <span
                         className="min-w-0 flex-1 truncate"
@@ -378,7 +380,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 size="icon"
                 className="size-6"
                 aria-label={isExpanded ? "Collapse window" : "Expand window"}
-                onClick={() => onExpandedChange(!isExpanded)}
+                onClick={() => {
+                  onExpandedChange(!isExpanded);
+                }}
               >
                 {isExpanded ? (
                   <Minimize2 className="size-3" />
@@ -467,7 +471,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                           : "rounded-xl px-2 py-1.5",
                       )}
                       disabled={isInputDisabled}
-                      onClick={() => submitInput(message)}
+                      onClick={() => {
+                        submitInput(message);
+                      }}
                     >
                       {label}
                     </button>
@@ -595,7 +601,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               autoFocus={!isExpanded}
               ref={inputRef}
               value={input}
-              onChange={(event) => setInput(event.target.value)}
+              onChange={(event) => {
+                setInput(event.target.value);
+              }}
               onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
                 if (
                   event.key === "Enter" &&
@@ -611,7 +619,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               placeholder="Ask the assistant a question..."
               rows={1}
               className={cn(
-                "bg-background placeholder:text-muted-foreground w-full flex-1 resize-none overflow-y-auto rounded-md text-sm leading-5 disabled:cursor-not-allowed disabled:opacity-60",
+                "bg-background placeholder:text-foreground-tertiary w-full flex-1 resize-none overflow-y-auto rounded-md text-sm leading-5 disabled:cursor-not-allowed disabled:opacity-60",
                 isExpanded
                   ? "max-h-40 min-h-14 border-none ring-0"
                   : "border-input max-h-40 min-h-8 px-3 py-1",

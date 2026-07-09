@@ -732,7 +732,10 @@ async function cleanupInAppAgentMcpApiKey(params: {
   });
 }
 
-type SanitizedAgentInput = AgUiRunAgentInput &
+type SanitizedAgentInput = Omit<
+  AgUiRunAgentInput,
+  "messages" | "forwardedProps"
+> &
   (
     | {
         messages: [SanitizedUserMessage];
@@ -757,7 +760,7 @@ function sanitizeAgentInput(
   input: AgUiRunAgentInput,
   projectId: string,
 ): SanitizedAgentInput {
-  const forwardedProps = input.forwardedProps;
+  const forwardedProps: unknown = input.forwardedProps;
 
   if (
     forwardedProps !== undefined &&

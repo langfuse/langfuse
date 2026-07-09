@@ -281,6 +281,13 @@ const EnvSchema = z.object({
   LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG: z
     .enum(["true", "false"])
     .default("true"),
+  // Max concurrent S3 deleteFiles requests the blob-storage cleanup consumer
+  // keeps in flight. Bounds memory and backpressures the ClickHouse ref stream.
+  LANGFUSE_BLOB_STORAGE_DELETE_S3_CONCURRENCY: z.coerce
+    .number()
+    .min(1)
+    .max(20)
+    .default(5),
 
   // V4 write mode. Mirrors worker/src/env.ts so the web package can gate
   // public API routes that rely on the legacy traces/observations tables.
@@ -302,7 +309,7 @@ const EnvSchema = z.object({
     .number()
     .int()
     .gt(60)
-    .default(3600), // 1 hour
+    .default(600), // 10 minutes
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -443,8 +450,9 @@ const EnvSchema = z.object({
     .positive()
     .default(120_000), // 2 minutes
 
-  // Comma-separated list of LLM adapters (e.g. "openai") whose completions run
-  // on the AI SDK execution engine instead of LangChain
+  // Comma-separated list of LLM adapters (LLMAdapter enum values: "openai",
+  // "anthropic", "azure", "bedrock", "google-vertex-ai", "google-ai-studio")
+  // whose completions run on the AI SDK execution engine instead of LangChain
   LANGFUSE_LLM_COMPLETION_AI_SDK_ADAPTERS: z
     .string()
     .optional()
