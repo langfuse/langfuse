@@ -353,25 +353,20 @@ function InAppAgentReasoningBlock({
         />
       </summary>
       {isOpen ? (
-        // column-reverse keeps the scroll position pinned to the newest text
-        // while streaming without JS, and holds the user's position if they
-        // scroll up to read.
+        // The block grows with its content instead of scrolling internally;
+        // the drawer's auto-follow keeps the newest text visible while
+        // streaming, and the block collapses when streaming ends.
         <div
           aria-label="Assistant reasoning"
           data-testid="in-app-agent-reasoning-content"
           className={cn(
-            "border-border/70 mt-1 flex max-h-32 flex-col-reverse overflow-y-auto border-l px-3 py-1",
-            isCompact && "max-h-24 px-2.5 py-1",
+            // Vertical spacing is margin, not padding, so the left border
+            // hugs the text instead of extending past it.
+            "border-border/70 mt-2 mb-1 border-l px-3 leading-5 wrap-break-word whitespace-pre-wrap",
+            isCompact && "px-2.5 leading-4",
           )}
         >
-          <div
-            className={cn(
-              "leading-5 wrap-break-word whitespace-pre-wrap",
-              isCompact && "leading-4",
-            )}
-          >
-            {content.text || "Thinking..."}
-          </div>
+          {content.text || "Thinking..."}
         </div>
       ) : null}
     </details>

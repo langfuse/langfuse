@@ -392,23 +392,20 @@ const longReasoningText = [
   "Checking whether the user is asking about latency, quality, or cost first.",
   "Comparing recent observations with error levels and score names.",
   "Looking for a small query that can answer the next step without changing project state.",
-  "Keeping this block constrained so long reasoning scrolls internally while the drawer keeps following the conversation bottom.",
+  "Keeping this text long enough to span several lines so the block visibly grows with its content.",
   "The last line should be visible after mount and after streamed updates.",
 ].join("\n");
 
-async function expectReasoningViewportAtBottom(canvasElement: HTMLElement) {
+async function expectFullReasoningTextVisible(canvasElement: HTMLElement) {
   const canvas = within(canvasElement);
-  const viewport = await canvas.findByTestId("in-app-agent-reasoning-content");
+  const content = await canvas.findByTestId("in-app-agent-reasoning-content");
 
-  // Geometry-based check that works with the column-reverse scroll pinning,
-  // where scrollTop 0 is the bottom edge: the end of the reasoning text must
-  // be visible inside the viewport.
+  // The block grows with its content instead of scrolling internally, so the
+  // whole reasoning text must be laid out without overflow.
   await waitFor(() => {
-    expect(viewport.scrollHeight).toBeGreaterThanOrEqual(viewport.clientHeight);
-    const contentBottom =
-      viewport.firstElementChild?.getBoundingClientRect().bottom ?? Infinity;
-    expect(contentBottom).toBeLessThanOrEqual(
-      viewport.getBoundingClientRect().bottom + 1,
+    expect(content.scrollHeight).toBeLessThanOrEqual(content.clientHeight);
+    expect(content).toHaveTextContent(
+      "The last line should be visible after mount and after streamed updates.",
     );
   });
 }
@@ -513,7 +510,7 @@ export const StreamingThenCompletedReasoning = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await expectReasoningViewportAtBottom(canvasElement);
+    await expectFullReasoningTextVisible(canvasElement);
     await waitFor(
       () => {
         expect(
@@ -523,7 +520,7 @@ export const StreamingThenCompletedReasoning = meta.story({
       { timeout: 3_000 },
     );
     await userEvent.click(await canvas.findByText("Thought"));
-    await expectReasoningViewportAtBottom(canvasElement);
+    await expectFullReasoningTextVisible(canvasElement);
   },
 });
 

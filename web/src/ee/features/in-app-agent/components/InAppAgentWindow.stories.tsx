@@ -416,7 +416,7 @@ const longReasoningText = [
   "Checking active filters before choosing the smallest safe query.",
   "Comparing recent traces, observations, and score names for a matching latency signal.",
   "Waiting for the first tool call result before drafting a final answer.",
-  "Keeping this text intentionally long so the reasoning viewport scrolls internally instead of growing the whole drawer.",
+  "Keeping this text intentionally long so the reasoning block spans several lines while the drawer follows the conversation bottom.",
   "The final streamed line should remain visible inside the reasoning block.",
 ].join("\n");
 
