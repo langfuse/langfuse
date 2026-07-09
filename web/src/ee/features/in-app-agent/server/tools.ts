@@ -193,6 +193,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES: Record<
     approval: "auto",
     availability: { scope: "project:read" },
   },
+  submitFeedback: {
+    approval: "approval",
+    availability: { scope: "project:read" },
+  },
   getHealth: {
     approval: "auto",
     availability: { scope: "project:read" },
