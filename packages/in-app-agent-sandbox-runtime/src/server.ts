@@ -222,7 +222,7 @@ async function readOperation(body: ReadSandboxOperation, requestId: string) {
   logSandboxServer("read.complete", {
     requestId,
     path: body.path,
-    result: summarizeResult(result),
+    result,
   });
   return { result };
 }
@@ -239,7 +239,7 @@ async function writeOperation(body: WriteSandboxOperation, requestId: string) {
   logSandboxServer("write.complete", {
     requestId,
     path: body.path,
-    result: summarizeResult(result),
+    result,
   });
   return { result };
 }
@@ -269,7 +269,7 @@ async function editOperation(body: EditSandboxOperation, requestId: string) {
   logSandboxServer("edit.complete", {
     requestId,
     path: body.path,
-    result: summarizeResult(result),
+    result,
   });
   return { result };
 }
@@ -278,7 +278,7 @@ async function bashOperation(body: BashSandboxOperation, requestId: string) {
   const result = await runCommand(body.command, body.timeoutMs, requestId);
   logSandboxServer("bash.complete", {
     requestId,
-    result: summarizeResult(result),
+    result,
   });
   return { result };
 }
@@ -354,7 +354,7 @@ function runCommand(
     logSandboxServer("bash.start", {
       requestId,
       pid: child.pid ?? null,
-      command: summarizeText(command),
+      command,
       timeoutMs: timeoutMs ?? null,
     });
 
@@ -454,29 +454,9 @@ function summarizeOperation(body: SandboxOperation) {
       return {
         operation: body.operation,
         timeoutMs: body.timeoutMs ?? null,
-        command: summarizeText(body.command),
+        command: body.command,
       };
   }
-}
-
-function summarizeResult(result: unknown) {
-  if (result === null || typeof result !== "object") {
-    return result;
-  }
-
-  return Object.fromEntries(
-    Object.entries(result).map(([key, value]) => {
-      if (typeof value === "string") {
-        return [key, summarizeText(value)];
-      }
-
-      return [key, value];
-    }),
-  );
-}
-
-function summarizeText(text: string, maxLength = 500) {
-  return text.length <= maxLength ? text : `${text.slice(0, maxLength)}...`;
 }
 
 function resolveSandboxPath(requestPath: string) {
