@@ -39,6 +39,17 @@ const TYPESCRIPT_TOOL_CALL_DOC = `type ToolCall = {
 A tool call recorded on the observation. arguments is the parsed
 argument object when the recorded value was valid JSON.`;
 
+const PYTHON_TOOL_CALL_DOC = `@dataclass
+class ToolCall:
+    id: str = ""
+    name: str = ""
+    arguments: Any = None
+    type: str = ""
+    index: int = 0
+
+A tool call recorded on the observation. arguments is the parsed
+argument object when the recorded value was valid JSON.`;
+
 export const TYPESCRIPT_CODE_EVAL_HOVER_DOCS = {
   evaluate: `function evaluate(ctx: EvaluationContext): EvaluationResult
 
@@ -140,14 +151,15 @@ class ObservationContext:
     input: Any = None
     output: Any = None
     metadata: Any = None
-    tool_calls: list[Any] = field(default_factory=list)
+    tool_calls: list[ToolCall] = field(default_factory=list)
 
 The observation selected by the evaluator target.`,
-  tool_calls: `property observation.tool_calls: list[Any]
+  ToolCall: PYTHON_TOOL_CALL_DOC,
+  tool_calls: `property observation.tool_calls: list[ToolCall]
 
 The tool calls recorded on the observation, in the order the model emitted
-them. Each entry is a dict with id, name, arguments, type, and index;
-arguments is the parsed argument object when the recorded value was valid JSON.`,
+them. arguments is the parsed argument object when the recorded value was
+valid JSON.`,
   ExperimentContext: `@dataclass
 class ExperimentContext:
     item_expected_output: Any = None

@@ -65,11 +65,20 @@ from typing import Any
 
 
 @dataclass
+class ToolCall:
+    id: str = ""
+    name: str = ""
+    arguments: Any = None
+    type: str = ""
+    index: int = 0
+
+
+@dataclass
 class ObservationContext:
     input: Any = None
     output: Any = None
     metadata: Any = None
-    tool_calls: list[Any] = field(default_factory=list)
+    tool_calls: list[ToolCall] = field(default_factory=list)
 
 
 @dataclass
