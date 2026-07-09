@@ -487,6 +487,29 @@ export const traceRouter = createTRPCRouter({
               "Batch deletion does not support comment filters. Remove the comment filter and try again.",
           });
         }
+
+        // The events view declares its surface via query.useEventsTable so
+        // the worker reads the persisted events-view filters from the events
+        // table (their columns do not exist, or mean something else, in the
+        // traces table). The declaration is only honored when the events
+        // surface is actually available: per-user v4 beta flag, or the
+        // instance-wide preview opt-in that exposes the events view to
+        // non-beta users. Without a declaration (v3 traces table), the
+        // session snapshot in createBatchActionJob decides the source.
+        const declaresEventsTable = input.query.useEventsTable === true;
+        if (declaresEventsTable) {
+          const eventsSurfaceAvailable =
+            ctx.session.user.v4BetaEnabled === true ||
+            env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
+          if (!eventsSurfaceAvailable) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                "Events-backed batch deletion is not available for this user on this instance.",
+            });
+          }
+        }
+
         await createBatchActionJob({
           projectId: input.projectId,
           actionId: ActionId.TraceDelete,
@@ -494,6 +517,7 @@ export const traceRouter = createTRPCRouter({
           tableName: BatchExportTableName.Traces,
           session: ctx.session,
           query: input.query,
+          useEventsTableOverride: declaresEventsTable ? true : undefined,
         });
       } else {
         await Promise.all(

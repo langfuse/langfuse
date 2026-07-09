@@ -40,6 +40,12 @@ type CreateBatchActionJob = {
   };
   query: BatchActionQuery;
   targetId?: string;
+  // When defined, replaces the session snapshot as the worker's read-table
+  // routing. Callers must validate the value before passing it (see
+  // traces.deleteMany: the events view declares its surface and the server
+  // checks the beta flag / preview opt-in). Leave undefined everywhere else
+  // so the session snapshot keeps overriding client-sent values.
+  useEventsTableOverride?: boolean;
 };
 
 const ACTIVE_BATCH_ACTION_STATUSES = [
@@ -58,12 +64,17 @@ export const createBatchActionJob = async ({
   session,
   query,
   targetId,
+  useEventsTableOverride,
 }: CreateBatchActionJob) => {
   // Snapshot the user's v4 beta flag so the worker reads from the same data
-  // source as the UI table; overrides any client-sent value.
+  // source as the UI table; overrides any client-sent value. A caller may
+  // replace the snapshot with a validated override (e.g. the events view is
+  // reachable without the beta flag on preview instances, and its dispatches
+  // must stay events-backed so the persisted filters match the read table).
   const queryWithSnapshot: BatchActionQuery = {
     ...query,
-    useEventsTable: session.user.v4BetaEnabled ?? false,
+    useEventsTable:
+      useEventsTableOverride ?? session.user.v4BetaEnabled ?? false,
   };
 
   assertLegacyTracingIoSearchCanCreateBatchJob({

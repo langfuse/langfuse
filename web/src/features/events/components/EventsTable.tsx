@@ -765,6 +765,10 @@ export default function ObservationsEventsTable({
         orderBy: orderByState,
         searchQuery: searchQuery || undefined,
         searchType,
+        // Declare the dispatching surface: these are events-view filters, so
+        // the worker must read them from the events table. The server
+        // validates the declaration (beta flag or instance preview opt-in).
+        useEventsTable: true,
       },
       isBatchAction: selectAll,
     });

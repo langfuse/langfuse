@@ -370,6 +370,107 @@ describe("traces.deleteMany batch action", () => {
     ).resolves.toBeNull();
   });
 
+  describe("events-view dispatches (query.useEventsTable declared)", () => {
+    const mutableEnv = env as unknown as {
+      LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: "true" | "false";
+    };
+    const originalPreviewOptIn =
+      mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+
+    afterEach(() => {
+      mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
+        originalPreviewOptIn;
+    });
+
+    it("creates an events-backed config for non-beta users when the events preview surface is enabled", async () => {
+      // The events view is reachable without the per-user v4 beta flag when
+      // the instance-wide preview opt-in is set; a dispatch from it must keep
+      // reading from the events table so the persisted events-view filters
+      // stay valid for the worker.
+      mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
+      const { projectId, caller } = await createCaller({
+        v4BetaEnabled: false,
+      });
+      const batchActionId = `${projectId}-traces-trace-delete`;
+
+      await caller.traces.deleteMany({
+        projectId,
+        traceIds: [randomUUID()],
+        isBatchAction: true,
+        query: {
+          ...traceDeleteQuery(`delete-user-${randomUUID()}`),
+          useEventsTable: true,
+        },
+      });
+
+      const batchAction = await prisma.batchAction.findUniqueOrThrow({
+        where: { id: batchActionId },
+      });
+      expect(batchAction.query).toMatchObject({ useEventsTable: true });
+      expect(
+        TraceDeleteBatchActionConfigSchema.parse(batchAction.config),
+      ).toMatchObject({
+        source: "events",
+        inFlightBatch: null,
+      });
+      expect(mockAddBatchAction).not.toHaveBeenCalled();
+    });
+
+    it("rejects the declaration when neither the beta flag nor the preview surface is enabled", async () => {
+      mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      const { projectId, caller } = await createCaller({
+        v4BetaEnabled: false,
+      });
+      const batchActionId = `${projectId}-traces-trace-delete`;
+
+      await expect(
+        caller.traces.deleteMany({
+          projectId,
+          traceIds: [randomUUID()],
+          isBatchAction: true,
+          query: {
+            ...traceDeleteQuery(`delete-user-${randomUUID()}`),
+            useEventsTable: true,
+          },
+        }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message:
+          "Events-backed batch deletion is not available for this user on this instance.",
+      });
+
+      await expect(
+        prisma.batchAction.findUnique({ where: { id: batchActionId } }),
+      ).resolves.toBeNull();
+    });
+
+    it("keeps the traces-backed config for non-beta users who do not declare the events view", async () => {
+      // The v3 traces table dispatches without a declaration; the session
+      // snapshot alone decides the source even when the preview surface is
+      // enabled instance-wide.
+      mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
+      const { projectId, caller } = await createCaller({
+        v4BetaEnabled: false,
+      });
+      const batchActionId = `${projectId}-traces-trace-delete`;
+
+      await caller.traces.deleteMany({
+        projectId,
+        traceIds: [randomUUID()],
+        isBatchAction: true,
+        query: traceDeleteQuery(`delete-user-${randomUUID()}`),
+      });
+
+      const batchAction = await prisma.batchAction.findUniqueOrThrow({
+        where: { id: batchActionId },
+      });
+      expect(batchAction.query).toMatchObject({ useEventsTable: false });
+      expect(
+        TraceDeleteBatchActionConfigSchema.parse(batchAction.config),
+      ).toMatchObject({ source: "traces" });
+    });
+  });
+
   describe("with legacy IO search disabled", () => {
     const mutableEnv = env as unknown as {
       LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH: "true" | "false";

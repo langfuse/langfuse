@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { X, Trash } from "lucide-react";
 import { Plus } from "lucide-react";
@@ -72,6 +72,16 @@ export function TableActionMenu({
     setSelectedActionId(null);
     setDialogOpen(false);
   };
+
+  // If the selected action leaves `actions` while its dialog is open, the
+  // dialog unmounts without firing onClose; reset the open/selected state so
+  // the dialog cannot reappear without a click if the action returns.
+  useEffect(() => {
+    if (selectedActionId !== null && selectedAction === undefined) {
+      setSelectedActionId(null);
+      setDialogOpen(false);
+    }
+  }, [selectedActionId, selectedAction]);
 
   return (
     <>
