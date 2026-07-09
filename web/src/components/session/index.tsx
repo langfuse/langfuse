@@ -1183,6 +1183,10 @@ const LoadedSessionEventsPage: React.FC<{
               onChange={queryFilter.setFilterState}
               columnsWithCustomSelect={filterColumnsWithCustomSelect}
               label="Filter observations"
+              // Analytics (LFE-10781): session-detail observation refinement is a
+              // v3/legacy surface (the v4 events table filters via the grammar bar).
+              tableName="session-detail"
+              isV4={false}
             />
 
             {/* Separator */}

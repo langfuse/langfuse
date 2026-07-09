@@ -9,7 +9,7 @@ import {
   type ColumnDefinition,
   type OrderByState,
   type TableViewPresetState,
-  type TableViewPresetTableName,
+  TableViewPresetTableName,
   type TracingSearchType,
 } from "@langfuse/shared";
 import {
@@ -469,6 +469,16 @@ export function DataTableToolbar<TData, TValue>({
             onChange={setFilterState}
             columnsWithCustomSelect={columnsWithCustomSelect}
             filterWithAI={filterWithAI}
+            // Analytics (LFE-10781): the table's own identity, so popover
+            // filters:applied events aren't mislabeled "unknown". The v4 events
+            // table filters via the grammar bar (it omits filterColumnDefinition
+            // here, so this popover is a v3/legacy surface); derive isV4 from the
+            // ObservationsEvents view for consistency + future-proofing.
+            tableName={viewConfig?.tableName ?? "unknown"}
+            isV4={
+              viewConfig?.tableName ===
+              TableViewPresetTableName.ObservationsEvents
+            }
           />
         )}
 

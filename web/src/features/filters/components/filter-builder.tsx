@@ -131,7 +131,15 @@ export function PopoverFilterBuilder({
         (f) => !singleFilter.safeParse(f).success,
       );
       // Don't sync if user is actively editing (has invalid WIP filters)
-      return hasWipFilters ? currentWip : filterState;
+      if (hasWipFilters) return currentWip;
+      // Synced from external state (saved view applied, URL nav, clear-all): the
+      // commit bypasses the wrapped `setWipFilterState`, so re-baseline the
+      // applied-count ref here too (LFE-10781). Otherwise a stale count makes the
+      // next wrapper edit — including popover close — mis-fire `filters:applied`.
+      // `filterState` is already-valid (typed FilterState), so its length is the
+      // valid count.
+      prevValidCountRef.current = filterState.length;
+      return filterState;
     });
   }, [filterState]);
 
