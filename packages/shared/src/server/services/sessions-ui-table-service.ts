@@ -5,6 +5,7 @@ import { FilterState } from "../../types";
 import { sessionsViewCols } from "../../tableDefinitions/sessionsView";
 import { findUiColumnMapping } from "../../tableDefinitions";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import { scoreBooleansAggregation } from "../queries/clickhouse-sql/query-fragments";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { DateTimeFilter, FilterList, orderByToClickhouseSql } from "../queries";
 import {
@@ -262,10 +263,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         concat(name, ':', string_value),
         data_type = 'CATEGORICAL' AND notEmpty(string_value)
       ) AS score_categories,
-      groupArrayIf(
-        concat(name, ':', lowerUTF8(string_value)),
-        data_type = 'BOOLEAN' AND notEmpty(string_value)
-      ) AS score_booleans
+      ${scoreBooleansAggregation()} AS score_booleans
     FROM (
       SELECT
         project_id,

@@ -1,4 +1,5 @@
 import { DatasetRunItemDomain } from "../../domain/dataset-run-items";
+import { scoreBooleansAggregation } from "../queries/clickhouse-sql/query-fragments";
 import { type OrderByState } from "../../interfaces/orderBy";
 import { datasetRunItemsTableUiColumnDefinitions } from "../tableMappings";
 import { datasetRunsTableUiColumnDefinitions } from "../../tableDefinitions/mapDatasetRunsTable";
@@ -344,10 +345,7 @@ const getDatasetRunsTableInternal = async <T>(
           concat(s.name, ':', s.string_value),
           s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)
         ) AS score_categories,
-        groupArrayIf(
-          concat(s.name, ':', lowerUTF8(s.string_value)),
-          s.data_type = 'BOOLEAN' AND notEmpty(s.string_value)
-        ) AS score_booleans
+        ${scoreBooleansAggregation("s.")} AS score_booleans
       FROM dataset_run_items_rmt dri
       LEFT JOIN (
         SELECT
@@ -657,10 +655,7 @@ const getQualifyingDatasetItems = async <T>(opts: {
          concat(s.name, ':', s.string_value),
          s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)
        ) AS score_categories,
-        groupArrayIf(
-          concat(s.name, ':', lowerUTF8(s.string_value)),
-          s.data_type = 'BOOLEAN' AND notEmpty(s.string_value)
-        ) AS score_booleans
+        ${scoreBooleansAggregation("s.")} AS score_booleans
      FROM dataset_run_items_rmt dri
      LEFT JOIN (
        SELECT
@@ -842,10 +837,7 @@ const getDatasetRunItemsTableInternal = async <
          concat(s.name, ':', s.string_value),
          s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)
        ) AS score_categories,
-        groupArrayIf(
-          concat(s.name, ':', lowerUTF8(s.string_value)),
-          s.data_type = 'BOOLEAN' AND notEmpty(s.string_value)
-        ) AS score_booleans
+        ${scoreBooleansAggregation("s.")} AS score_booleans
      FROM dataset_run_items_rmt dri
      LEFT JOIN (
        SELECT

@@ -21,6 +21,7 @@ import {
   eventsExperimentsAggregation,
   eventsScoresAggregation,
   eventsTracesScoresAggregation,
+  scoreBooleansAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
 import { extractTimeFilter, queryClickhouse } from "../repositories";
 import { parseClickhouseUTCDateTimeFormat } from "../repositories/clickhouse";
@@ -110,7 +111,7 @@ const experimentScoreCTE = (params: {
       "s.experiment_id AS experiment_id",
       `groupArrayIf(tuple(s.name, s.exp_avg, s.data_type, s.string_value), s.data_type IN ('NUMERIC', 'BOOLEAN')) AS ${prefix}_scores_avg`,
       `groupArrayIf(concat(s.name, ':', s.string_value), s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)) AS ${prefix}_score_categories`,
-      `groupArrayIf(concat(s.name, ':', lowerUTF8(s.string_value)), s.data_type = 'BOOLEAN' AND notEmpty(s.string_value)) AS ${prefix}_score_booleans`,
+      `${scoreBooleansAggregation("s.")} AS ${prefix}_score_booleans`,
     )
     .groupBy("s.project_id", "s.experiment_id")
     .having(params.filters.apply())

@@ -12,6 +12,7 @@ import {
   getProjectIdDefaultFilter,
 } from "../queries/clickhouse-sql/factory";
 import { orderByToClickhouseSql } from "../queries";
+import { scoreBooleansAggregation } from "../queries/clickhouse-sql/query-fragments";
 import { shouldSkipObservationsFinal } from "../queries/clickhouse-sql/query-options";
 import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
 import { OrderByState } from "../../interfaces/orderBy";
@@ -1765,7 +1766,7 @@ async function buildTracesBaseQuery(
         groupUniqArray(id) as score_ids,
         groupArrayIf(tuple(name, avg_value), data_type IN ('NUMERIC', 'BOOLEAN')) AS scores_avg,
         groupArrayIf(concat(name, ':', string_value), data_type = 'CATEGORICAL' AND notEmpty(string_value)) AS score_categories,
-        groupArrayIf(concat(name, ':', lowerUTF8(string_value)), data_type = 'BOOLEAN' AND notEmpty(string_value)) AS score_booleans
+        ${scoreBooleansAggregation()} AS score_booleans
       FROM (
         SELECT
           project_id,
@@ -1800,8 +1801,7 @@ async function buildTracesBaseQuery(
         project_id,
         groupUniqArray(id) as score_ids,
         groupArrayIf(tuple(name, value), data_type IN ('NUMERIC', 'BOOLEAN')) as scores_avg,
-        groupArrayIf(concat(name, ':', string_value), data_type = 'CATEGORICAL') as score_categories,
-        groupArrayIf(concat(name, ':', lowerUTF8(string_value)), data_type = 'BOOLEAN' AND notEmpty(string_value)) AS score_booleans
+        groupArrayIf(concat(name, ':', string_value), data_type = 'CATEGORICAL') as score_categories
       FROM scores
       WHERE project_id = {projectId: String}
       AND session_id IS NULL

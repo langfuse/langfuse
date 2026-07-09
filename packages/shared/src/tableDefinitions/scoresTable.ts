@@ -67,8 +67,10 @@ export const scoresTableCols: ColumnDefinition[] = [
     name: "Boolean Value",
     id: "booleanValue",
     type: "stringOptions",
-    internal:
-      "if(s.data_type = 'BOOLEAN' AND notEmpty(s.string_value), lowerUTF8(s.string_value), '')",
+    // ClickHouse-only column: the SQL lives in the ClickHouse mappings
+    // (SCORE_BOOLEAN_VALUE_SQL in mapScoresTable) — `internal` is Postgres
+    // syntax and must not carry a ClickHouse expression.
+    internal: "",
     options: [{ value: "true" }, { value: "false" }],
   },
   {
