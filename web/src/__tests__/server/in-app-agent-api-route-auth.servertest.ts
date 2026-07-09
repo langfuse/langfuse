@@ -1,6 +1,5 @@
 import { EventType } from "@ag-ui/core";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE } from "@/src/ee/features/in-app-agent/constants";
 import { filterInAppAgentAvailableLangfuseMcpTools } from "@/src/ee/features/in-app-agent/server/tools";
 import { storePendingToolApproval } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
 import type {
@@ -38,6 +37,9 @@ const rateLimitMocks = vi.hoisted(() => ({
 const agentMocks = vi.hoisted(() => ({
   createAgUiStream: vi.fn(),
 }));
+
+const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
+  "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
 
 const langfuseClientMocks = vi.hoisted(() => ({
   getLangfuseClient: vi.fn(() => ({})),
@@ -623,7 +625,7 @@ describe("in-app agent public API route auth", () => {
 
       expect(response.status).toBe(412);
       await expect(response.json()).resolves.toEqual({
-        error: IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+        error: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
       });
       expect(agentMocks.createAgUiStream).not.toHaveBeenCalled();
     });
@@ -688,7 +690,7 @@ describe("in-app agent public API route auth", () => {
 
       expect(response.status).toBe(412);
       await expect(response.json()).resolves.toEqual({
-        error: IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+        error: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
       });
       await expect(
         pendingToolApprovalExists({
