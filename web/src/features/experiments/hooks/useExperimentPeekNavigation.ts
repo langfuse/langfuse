@@ -3,6 +3,7 @@ import { useQueryParam, StringParam } from "use-query-params";
 import { useRouter } from "next/router";
 import { useExperimentResultsState } from "./useExperimentResultsState";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { getPathnameWithoutBasePath } from "@/src/utils/api";
 
 type ExperimentTarget = {
   traceId: string;
@@ -30,15 +31,9 @@ export function useExperimentPeekNavigation() {
     if (!peekItemId) return undefined;
     const list = detailPagelists["experiment-items"];
     const entry = list?.find((e) => e.id === peekItemId);
-    if (!entry?.params?.experimentTargets) return undefined;
-    try {
-      return JSON.parse(entry.params.experimentTargets as string) as Record<
-        string,
-        ExperimentTarget
-      >;
-    } catch {
-      return undefined;
-    }
+    return entry?.meta?.experimentTargets as
+      | Record<string, ExperimentTarget>
+      | undefined;
   }, [detailPagelists, peekItemId]);
 
   // Current experiment: validate peekExperimentId is in allExperimentIds, fall back to first
@@ -69,7 +64,8 @@ export function useExperimentPeekNavigation() {
       params.set("timestamp", target.timestamp);
       params.set("observation", target.observationId);
 
-      const pathname = window.location.pathname;
+      // router.push re-prepends NEXT_PUBLIC_BASE_PATH, so strip it first
+      const pathname = getPathnameWithoutBasePath();
       router.push(`${pathname}?${params.toString()}`, undefined, {
         shallow: true,
       });

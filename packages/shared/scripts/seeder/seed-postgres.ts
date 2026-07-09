@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { hash } from "bcryptjs";
 import { v4 } from "uuid";
@@ -34,13 +36,23 @@ import {
 } from "./utils/seed-helpers";
 import { seedInAppAgentDemoConversation } from "./utils/in-app-agent-seed";
 import { seedDatasetVersions } from "./seed-dataset-versions";
-import { seedMediaTraces } from "./seed-media";
 
 const options = {
   environment: { type: "string" },
 } as const;
 
 const prisma = new PrismaClient();
+const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
+const IN_APP_AGENT_SYSTEM_PROMPT_PATH = resolve(
+  __dirname,
+  "../../../..",
+  "web/src/ee/features/in-app-agent/prompts/in-app-agent-system-prompt.txt",
+);
+
+const inAppAgentSystemPrompt = readFileSync(
+  IN_APP_AGENT_SYSTEM_PROMPT_PATH,
+  "utf-8",
+);
 
 async function main() {
   const environment = parseArgs({
@@ -112,6 +124,8 @@ async function main() {
       orgId: seedOrgId,
     },
   });
+
+  await upsertInAppAgentSystemPrompt(project1.id);
 
   // Realistic support chat scenario
   await createSupportChatSession(project1);
@@ -252,6 +266,7 @@ async function main() {
       },
       update: {},
     });
+    await upsertInAppAgentSystemPrompt(project2.id);
 
     const secondKey = {
       id: "seed-api-key-2",
@@ -369,9 +384,6 @@ async function main() {
 
     await createDashboardsAndWidgets([project1, project2]);
     await seedDatasetVersions(prisma, [project1.id, project2.id]);
-
-    // Seed media test traces (uploads to MinIO + creates Media/TraceMedia records)
-    await seedMediaTraces(project1.id);
 
     await prisma.llmSchema.createMany({
       data: [
@@ -782,6 +794,32 @@ async function generatePromptsForProject(projects: Project[]) {
     }),
   );
   return promptIds;
+}
+
+async function upsertInAppAgentSystemPrompt(projectId: string) {
+  await prisma.prompt.upsert({
+    where: {
+      projectId_name_version: {
+        projectId,
+        name: IN_APP_AGENT_SYSTEM_PROMPT_NAME,
+        version: 1,
+      },
+    },
+    create: {
+      projectId,
+      createdBy: "user-1",
+      prompt: inAppAgentSystemPrompt,
+      name: IN_APP_AGENT_SYSTEM_PROMPT_NAME,
+      type: "text",
+      version: 1,
+      labels: ["production", "latest"],
+    },
+    update: {
+      prompt: inAppAgentSystemPrompt,
+      type: "text",
+      labels: ["production", "latest"],
+    },
+  });
 }
 
 export const PROMPT_IDS: string[] = [];

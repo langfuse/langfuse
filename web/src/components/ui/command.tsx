@@ -17,7 +17,7 @@ import {
   DialogHeader,
 } from "@/src/components/ui/dialog";
 
-const commandDialogSurfaceClass = "bg-background dark:bg-[rgb(15_23_42)]";
+const commandDialogSurfaceClass = "bg-popover";
 
 const Command = React.forwardRef<
   React.ComponentRef<typeof CommandPrimitive>,
@@ -87,7 +87,7 @@ const CommandInput = React.forwardRef<
     <CommandPrimitive.Input
       ref={ref}
       className={cn(
-        "placeholder:text-muted-foreground flex h-8 w-full rounded-md bg-transparent py-3 pr-6 pl-6 text-sm outline-hidden focus:ring-0 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+        "placeholder:text-foreground-tertiary flex h-8 w-full rounded-md bg-transparent py-3 pr-6 pl-6 text-sm outline-hidden focus:ring-0 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
       {...props}

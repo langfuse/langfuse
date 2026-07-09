@@ -20,6 +20,13 @@ export interface ToolDefinition {
   parameters?: Record<string, unknown>;
 }
 
+export interface ToolCallInvocation {
+  id?: string;
+  name: string;
+  arguments?: unknown;
+  invocationNumber: number;
+}
+
 // Result from ChatML parsing hook
 export interface ChatMLParserResult {
   canDisplayAsChat: boolean;
@@ -27,6 +34,7 @@ export interface ChatMLParserResult {
   additionalInput: Record<string, unknown> | undefined;
   allTools: ToolDefinition[];
   toolCallCounts: Map<string, number>;
+  toolCallsByName: Map<string, ToolCallInvocation[]>;
   messageToToolCallNumbers: Map<number, number[]>;
   toolNameToDefinitionNumber: Map<string, number>;
   inputMessageCount: number;
@@ -44,6 +52,34 @@ function parseToolCallsFromMessage(
     : message.json?.tool_calls && Array.isArray(message.json?.tool_calls)
       ? message.json.tool_calls
       : [];
+}
+
+function getToolCallStringField(
+  toolCall: unknown,
+  field: string,
+): string | undefined {
+  if (!toolCall || typeof toolCall !== "object") return undefined;
+
+  const value = (toolCall as Record<string, unknown>)[field];
+
+  return typeof value === "string" ? value : undefined;
+}
+
+function getToolCallName(toolCall: unknown): string | undefined {
+  return (
+    getToolCallStringField(toolCall, "name") ??
+    getToolCallStringField(toolCall, "toolName")
+  );
+}
+
+function getToolCallArguments(toolCall: unknown): unknown {
+  if (!toolCall || typeof toolCall !== "object") return undefined;
+
+  const toolCallRecord = toolCall as Record<string, unknown>;
+
+  return (
+    toolCallRecord.arguments ?? toolCallRecord.args ?? toolCallRecord.input
+  );
 }
 
 /**
@@ -120,6 +156,7 @@ export function useChatMLParser(
     let toolCallCounter = 0;
     const messageToToolCallNumbers = new Map<number, number[]>();
     const toolCallCounts = new Map<string, number>();
+    const toolCallsByName = new Map<string, ToolCallInvocation[]>();
 
     for (let i = 0; i < messages.length; i++) {
       const message = messages[i];
@@ -131,13 +168,7 @@ export function useChatMLParser(
         const messageToolNumbers: number[] = [];
 
         for (const toolCall of toolCallList) {
-          const calledToolName =
-            toolCall.name && typeof toolCall.name === "string"
-              ? toolCall.name
-              : // AI SDK has 'toolName'
-                toolCall.toolName && typeof toolCall.toolName === "string"
-                ? toolCall.toolName
-                : undefined;
+          const calledToolName = getToolCallName(toolCall);
 
           if (calledToolName) {
             // Count tool calls from OUTPUT messages only
@@ -148,6 +179,16 @@ export function useChatMLParser(
               );
               toolCallCounter++;
               messageToolNumbers.push(toolCallCounter);
+
+              const toolCallsForName =
+                toolCallsByName.get(calledToolName) ?? [];
+              toolCallsForName.push({
+                id: getToolCallStringField(toolCall, "id"),
+                name: calledToolName,
+                arguments: getToolCallArguments(toolCall),
+                invocationNumber: toolCallCounter,
+              });
+              toolCallsByName.set(calledToolName, toolCallsForName);
             }
           }
         }
@@ -180,6 +221,7 @@ export function useChatMLParser(
       additionalInput: extractAdditionalInput(parsedInput),
       allTools: sortedTools,
       toolCallCounts,
+      toolCallsByName,
       messageToToolCallNumbers,
       toolNameToDefinitionNumber,
       inputMessageCount,

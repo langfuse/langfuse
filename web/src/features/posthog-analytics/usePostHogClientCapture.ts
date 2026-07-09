@@ -155,6 +155,7 @@ export const events = {
     "new_from_trace_form_open",
     "upload_csv_button_click",
     "upload_csv_form_submit",
+    "select_observations_button_click",
     "delete",
   ],
   dataset_run: [
@@ -220,6 +221,7 @@ export const events = {
     "message_sent",
     "community_hours_click",
   ], // also used on landing page for consistency
+  in_app_agent: ["new_chat_started", "new_chat_turn"],
   cmd_k_menu: ["opened", "search_entered", "navigated"],
   spend_alert: ["created", "updated", "deleted"],
   sidebar: ["book_a_call_clicked", "v4_beta_toggled"],

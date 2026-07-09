@@ -1,24 +1,58 @@
 import preview from "../../../../../.storybook/preview";
-import { useEffect, useRef, useState } from "react";
-import { fn } from "storybook/test";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
   InAppAgentWindow,
   type InAppAgentWindowMessage,
   type InAppAgentWindowProps,
 } from "./InAppAgentWindow";
+import {
+  InAppAgentWindowShell,
+  useInAppAgentWindowShellPanelControl,
+} from "./InAppAgentWindowShell";
+
+function InAppAgentWindowStoryShell({
+  children,
+  isExpanded,
+}: {
+  children: (props: { isHeaderDragHandleEnabled: boolean }) => ReactNode;
+  isExpanded: boolean;
+}) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const floatingPanelHandle = useInAppAgentWindowShellPanelControl({});
+
+  useEffect(() => {
+    floatingPanelHandle.initializeGeometry();
+  }, [floatingPanelHandle]);
+
+  return (
+    <InAppAgentWindowShell
+      floatingPanelHandle={floatingPanelHandle}
+      isExpanded={isExpanded}
+      panelRef={panelRef}
+    >
+      {children}
+    </InAppAgentWindowShell>
+  );
+}
 
 function StatefulInAppAgentWindow(args: InAppAgentWindowProps) {
   const [isExpanded, setIsExpanded] = useState(args.isExpanded);
 
   return (
-    <InAppAgentWindow
-      {...args}
-      isExpanded={isExpanded}
-      onExpandedChange={(isExpanded) => {
-        setIsExpanded(isExpanded);
-        args.onExpandedChange(isExpanded);
-      }}
-    />
+    <InAppAgentWindowStoryShell isExpanded={isExpanded}>
+      {({ isHeaderDragHandleEnabled }) => (
+        <InAppAgentWindow
+          {...args}
+          isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
+          isExpanded={isExpanded}
+          onExpandedChange={(isExpanded) => {
+            setIsExpanded(isExpanded);
+            args.onExpandedChange(isExpanded);
+          }}
+        />
+      )}
+    </InAppAgentWindowStoryShell>
   );
 }
 
@@ -153,14 +187,23 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
   const [messages, setMessages] = useState<InAppAgentWindowMessage[]>(
     streamingSeedMessages,
   );
-  const streamRef = useRef({
+  type StreamingPhase =
+    | "start"
+    | "intro"
+    | "tool-loading"
+    | "tool-done"
+    | "conclusion";
+
+  const streamRef = useRef<{
+    cycle: number;
+    phase: StreamingPhase;
+    phaseTicks: number;
+    introMessageId: string;
+    toolMessageId: string;
+    conclusionMessageId: string;
+  }>({
     cycle: 0,
-    phase: "start" as
-      | "start"
-      | "intro"
-      | "tool-loading"
-      | "tool-done"
-      | "conclusion",
+    phase: "start",
     phaseTicks: 0,
     introMessageId: "",
     toolMessageId: "",
@@ -317,32 +360,39 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
       );
     }, 140);
 
-    return () => window.clearInterval(intervalId);
+    return () => {
+      window.clearInterval(intervalId);
+    };
   }, []);
 
   return (
-    <InAppAgentWindow
-      {...args}
-      isExpanded={isExpanded}
-      messages={messages}
-      onExpandedChange={(isExpanded) => {
-        setIsExpanded(isExpanded);
-        args.onExpandedChange(isExpanded);
-      }}
-      onSubmit={(input) => {
-        setMessages((currentMessages) => [
-          ...currentMessages,
-          {
-            id: `manual-${currentMessages.length}`,
-            role: "user",
-            content: { type: "text", text: input },
-          },
-        ]);
+    <InAppAgentWindowStoryShell isExpanded={isExpanded}>
+      {({ isHeaderDragHandleEnabled }) => (
+        <InAppAgentWindow
+          {...args}
+          isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
+          isExpanded={isExpanded}
+          messages={messages}
+          onExpandedChange={(isExpanded) => {
+            setIsExpanded(isExpanded);
+            args.onExpandedChange(isExpanded);
+          }}
+          onSubmit={(input) => {
+            setMessages((currentMessages) => [
+              ...currentMessages,
+              {
+                id: `manual-${currentMessages.length}`,
+                role: "user",
+                content: { type: "text", text: input },
+              },
+            ]);
 
-        args.onSubmit(input);
-        return true;
-      }}
-    />
+            args.onSubmit(input);
+            return true;
+          }}
+        />
+      )}
+    </InAppAgentWindowStoryShell>
   );
 }
 
@@ -382,8 +432,12 @@ const meta = preview.meta({
     hasMoreConversations: false,
     isLoadingMoreConversations: false,
     selectedConversationId: undefined,
+    onDeleteConversation: fn(),
     onLoadMoreConversations: fn(),
+    onOpenConversationHistory: fn(),
     onNewConversation: fn(),
+    onApproveToolCall: fn(),
+    onRejectToolCall: fn(),
     onSelectConversation: fn(),
     onClose: fn(),
     onExpandedChange: fn(),
@@ -391,7 +445,45 @@ const meta = preview.meta({
     onSubmitFeedback: fn(),
     showCloseButton: true,
   },
-  render: StatefulInAppAgentWindow,
+  render: (args) => <StatefulInAppAgentWindow {...args} />,
+});
+
+export const ToolApprovalRequired = meta.story({
+  args: {
+    isInputDisabled: true,
+    selectedConversationId: "conversation-1",
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Create a dataset for regression examples.",
+        },
+      },
+      {
+        id: "approval-1",
+        role: "assistant",
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              type: "tool",
+              name: "langfuse_upsertDataset",
+              args: JSON.stringify({
+                name: "regression-examples",
+                description: "Examples used for release regression tests",
+              }),
+              approval: {
+                id: "approval-1",
+                status: "pending",
+              },
+            },
+          ],
+        },
+      },
+    ],
+  },
 });
 
 export const Empty = meta.story({
@@ -446,6 +538,15 @@ export const Conversation = meta.story({
         content: {
           type: "text",
           text: "Start by filtering traces by timestamp, then sort by latency. Open the slowest traces to inspect long-running observations.",
+        },
+      },
+      {
+        id: "assistant-redirect-1",
+        role: "assistant",
+        content: {
+          type: "redirectAction",
+          label: "Open slow traces",
+          href: "/project/project-1/traces?dateRange=1d&orderBy=column-latency_order-DESC",
         },
       },
       {
@@ -556,7 +657,7 @@ export const Streaming = meta.story({
     selectedConversationId: "conversation-1",
     messages: streamingSeedMessages,
   },
-  render: StreamingInAppAgentWindow,
+  render: (args) => <StreamingInAppAgentWindow {...args} />,
 });
 
 export const LoadingResponse = meta.story({
@@ -702,3 +803,76 @@ export const Error = meta.story({
     ],
   },
 });
+
+export const RefocusAfterSubmit = {
+  name: "(Test) Refocus After Submit",
+  render: function Render(args: InAppAgentWindowProps) {
+    const [isExpanded, setIsExpanded] = useState(args.isExpanded);
+    const [isInputDisabled, setIsInputDisabled] = useState(false);
+    const [messages, setMessages] = useState<InAppAgentWindowMessage[]>([
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "Assistant answer",
+        },
+      },
+    ]);
+
+    return (
+      <InAppAgentWindowStoryShell isExpanded={isExpanded}>
+        {({ isHeaderDragHandleEnabled }) => (
+          <InAppAgentWindow
+            {...args}
+            isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
+            isExpanded={isExpanded}
+            isInputDisabled={isInputDisabled}
+            messages={messages}
+            onExpandedChange={(isExpanded) => {
+              setIsExpanded(isExpanded);
+              args.onExpandedChange(isExpanded);
+            }}
+            onSubmit={(input) => {
+              setIsInputDisabled(true);
+              window.setTimeout(() => {
+                setMessages((currentMessages) => [
+                  ...currentMessages,
+                  {
+                    id: `assistant-${currentMessages.length + 1}`,
+                    role: "assistant",
+                    content: {
+                      type: "text",
+                      text: `Answer for: ${input}`,
+                    },
+                  },
+                ]);
+                setIsInputDisabled(false);
+              }, 50);
+
+              args.onSubmit(input);
+              return true;
+            }}
+          />
+        )}
+      </InAppAgentWindowStoryShell>
+    );
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+    const textarea = canvas.getByLabelText("Ask the assistant a question");
+
+    await userEvent.type(textarea, "Check the latest latency regression");
+    await userEvent.click(canvas.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => {
+      expect(
+        canvas.getByText("Answer for: Check the latest latency regression"),
+      ).toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      expect(textarea).toHaveFocus();
+    });
+  },
+};

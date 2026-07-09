@@ -4,6 +4,7 @@ import { LATEST_PROMPT_LABEL, type Prompt } from "@langfuse/shared";
 import { getPromptForApi } from "@/src/features/prompts/server/prompt-api-service";
 
 import { defineTool } from "../../../core/define-tool";
+import { buildPromptUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { UserInputError } from "../../../core/errors";
 import {
@@ -39,6 +40,11 @@ const formatPromptResponse = (prompt: Prompt) => ({
   updatedAt: prompt.updatedAt,
   createdBy: prompt.createdBy,
   projectId: prompt.projectId,
+  url: buildPromptUrl({
+    projectId: prompt.projectId,
+    name: prompt.name,
+    version: prompt.version,
+  }),
 });
 
 const buildPromptNotFoundMessage = (params: {
@@ -51,14 +57,16 @@ const buildPromptNotFoundMessage = (params: {
   return `Prompt '${name}' not found${label ? ` with label '${label}'` : ""}${version ? ` with version ${version}` : ""}`;
 };
 
-type CreatePromptReadToolOptions = {
-  name: string;
+type CreatePromptReadToolOptions<TName extends string> = {
+  name: TName;
   description: string;
   resolve: boolean;
   spanName: string;
 };
 
-export const createPromptReadTool = (options: CreatePromptReadToolOptions) => {
+export const createPromptReadTool = <const TName extends string>(
+  options: CreatePromptReadToolOptions<TName>,
+) => {
   const { name, description, resolve, spanName } = options;
 
   return defineTool({

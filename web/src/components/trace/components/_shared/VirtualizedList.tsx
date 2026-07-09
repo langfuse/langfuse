@@ -30,7 +30,10 @@ export function VirtualizedList<T>({
   onSelectItem,
   getItemId,
   estimatedItemSize = 48,
-  overscan = 500,
+  // overscan is a ROW COUNT, not pixels: keep it small so a long list mounts
+  // only a few dozen extra rows per scroll step instead of ~1000 (the old "500"
+  // mistook it for pixels). ~16 rows ≈ half a viewport of headroom.
+  overscan = 16,
 }: VirtualizedListProps<T>) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -38,6 +41,14 @@ export function VirtualizedList<T>({
     count: items.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => estimatedItemSize,
+    // Key the measurement cache by item id, matching the React key on each row.
+    // Rows have dynamic heights (SpanContent wraps a node's score badges over
+    // several lines) and the list filters/reorders as the search query changes.
+    // Without this the cache is keyed by index, so a reordered row reuses the
+    // previous occupant's measured height and the translateY offsets drift into
+    // overlap (same failure as the tree — LFE-10591). Keying by id keeps each
+    // measurement with its item.
+    getItemKey: (index) => getItemId(items[index]!),
     overscan,
   });
 

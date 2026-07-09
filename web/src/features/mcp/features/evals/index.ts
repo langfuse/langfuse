@@ -9,6 +9,10 @@ import {
   handleUpsertEvaluator,
 } from "./tools/upsertEvaluator";
 import {
+  deleteEvaluatorTool,
+  handleDeleteEvaluator,
+} from "./tools/deleteEvaluator";
+import {
   listEvaluationRulesTool,
   handleListEvaluationRules,
 } from "./tools/listEvaluationRules";
@@ -29,7 +33,7 @@ import {
   handleDeleteEvaluationRule,
 } from "./tools/deleteEvaluationRule";
 
-export const evalsFeature: McpFeatureModule = {
+export const evalsFeature = {
   name: "evals",
   description:
     "Manage evaluators and evaluation rules in the current Langfuse project (unstable API)",
@@ -37,23 +41,23 @@ export const evalsFeature: McpFeatureModule = {
     {
       definition: listEvaluatorsTool,
       handler: handleListEvaluators,
-      allowInAppAgentKey: true,
     },
     {
       definition: getEvaluatorTool,
       handler: handleGetEvaluator,
-      allowInAppAgentKey: true,
     },
     { definition: upsertEvaluatorTool, handler: handleUpsertEvaluator },
     {
+      definition: deleteEvaluatorTool,
+      handler: handleDeleteEvaluator,
+    },
+    {
       definition: listEvaluationRulesTool,
       handler: handleListEvaluationRules,
-      allowInAppAgentKey: true,
     },
     {
       definition: getEvaluationRuleTool,
       handler: handleGetEvaluationRule,
-      allowInAppAgentKey: true,
     },
     {
       definition: createEvaluationRuleTool,
@@ -68,4 +72,4 @@ export const evalsFeature: McpFeatureModule = {
       handler: handleDeleteEvaluationRule,
     },
   ],
-};
+} as const satisfies McpFeatureModule;

@@ -22,6 +22,7 @@ import {
   encodeCursor,
 } from "@/src/features/public-api/types/observations";
 import { defineTool } from "../../../core/define-tool";
+import { buildObservationUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import {
   ExpandMetadataKeysSchema,
@@ -143,6 +144,12 @@ const ObservationMcpFilterBaseSchema = z
     operator: z.string(),
     value: z.any(),
     type: z.string().optional(),
+    key: z
+      .string()
+      .optional()
+      .describe(
+        "Metadata/object key to filter on. Required when column is metadata.",
+      ),
   })
   .describe(
     `Advanced observation filter object. Example: ${OBSERVATION_MCP_FILTER_EXAMPLE_JSON}. The explicit form ${OBSERVATION_MCP_FILTER_EXAMPLE_WITH_TYPE_JSON} is also accepted.`,
@@ -225,7 +232,7 @@ const ListObservationsBaseSchema = z.object({
     .array(ObservationMcpFilterBaseSchema)
     .optional()
     .describe(
-      "Advanced filters. Each item must be an object with column, operator, value, and optional type. Type is inferred from getObservationFilterSchema columns when omitted.",
+      "Advanced filters. Each item must be an object with column, operator, value, optional type, and optional key. Type is inferred from getObservationFilterSchema columns when omitted. Use key for metadata filters.",
     ),
 });
 
@@ -234,7 +241,7 @@ const ListObservationsInputSchema = ListObservationsBaseSchema.extend({
     .array(ObservationMcpFilterSchema)
     .optional()
     .describe(
-      "Advanced filters. Each item must be an object with column, operator, value, and optional type. Type is inferred from getObservationFilterSchema columns when omitted.",
+      "Advanced filters. Each item must be an object with column, operator, value, optional type, and optional key. Type is inferred from getObservationFilterSchema columns when omitted. Use key for metadata filters.",
     ),
 });
 
@@ -298,7 +305,9 @@ export const [listObservationsTool, handleListObservations] = defineTool({
   name: "listObservations",
   description: [
     "Find and review observations in the current Langfuse project, such as generations, spans, events, agent steps, and tool calls.",
+    "Traces consist of observations. Use this tool when the user asks to inspect traces: pass traceId to page through the observations for a specific trace; those observation records are the trace data returned by the API.",
     "Use filters to narrow results by trace, name, type, level, environment, time range, or advanced filter conditions. Results are paginated with an opaque cursor.",
+    "For metadata filters, first call getObservationFilterMetadataKeys with observationIds, traceId, or a bounded time range, then set the relevant key field in the filter.",
     "",
     'By default this returns compact summary fields. Use fields: ["*"] for the full observation, or pass specific field names to limit the response size.',
     'Important: if you request metadata explicitly, for example fields: ["id", "metadata"], metadata values are truncated to 200 UTF-8 characters per key unless you also pass expandMetadataKeys with the keys that may need full values.',
@@ -356,8 +365,8 @@ export const [listObservationsTool, handleListObservations] = defineTool({
         const hasMore = items.length > input.limit;
         const dataToReturn = hasMore ? items.slice(0, input.limit) : items;
 
-        const data = dataToReturn.map((item) =>
-          projectObservation(
+        const data = dataToReturn.map((item) => {
+          const projectedObservation = projectObservation(
             {
               ...item,
               parentObservationId:
@@ -366,8 +375,21 @@ export const [listObservationsTool, handleListObservations] = defineTool({
                   : item.parentObservationId,
             },
             projectionFields,
-          ),
-        );
+          );
+
+          return {
+            ...projectedObservation,
+            ...(item.traceId
+              ? {
+                  url: buildObservationUrl({
+                    projectId: context.projectId,
+                    traceId: item.traceId,
+                    observationId: item.id,
+                  }),
+                }
+              : {}),
+          };
+        });
 
         const lastItem = dataToReturn[dataToReturn.length - 1];
 

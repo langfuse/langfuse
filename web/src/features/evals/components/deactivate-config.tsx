@@ -9,7 +9,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { Button } from "@/src/components/ui/button";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 
 export function DeactivateEvalConfig({
   projectId,
@@ -64,12 +64,12 @@ export function DeactivateEvalConfig({
                 evalConfig.timeScope[0] === "EXISTING")
             }
             checked={isActive}
-            className={isActive ? "data-[state=checked]:bg-dark-green" : ""}
+            color="green"
           />
         </div>
       </PopoverTrigger>
       <PopoverContent>
-        <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
+        <h2 className="mb-3 font-semibold">Please confirm</h2>
         <p className="mb-3 text-sm">
           {evalConfig?.status === "ACTIVE"
             ? "This action will deactivate the evaluator. No more traces will be evaluated based on this evaluator."

@@ -1,6 +1,5 @@
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
 import { Badge } from "@/src/components/ui/badge";
 import { useExperimentPeekNavigation } from "../hooks/useExperimentPeekNavigation";
 import { useExperimentNames } from "../hooks/useExperimentNames";
@@ -34,6 +33,7 @@ export function ExperimentPeekFooter({ projectId }: { projectId: string }) {
       <div className="flex min-w-0 items-center gap-2">
         <span
           className={cn("truncate text-xs font-medium", colorStyles?.textClass)}
+          title={currentName}
         >
           {currentName}
         </span>
@@ -55,9 +55,9 @@ export function ExperimentPeekFooter({ projectId }: { projectId: string }) {
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <KeyboardShortcut>
+        <span className="text-muted-foreground px-1 font-mono text-[10px] tabular-nums">
           {currentIndex + 1}/{total}
-        </KeyboardShortcut>
+        </span>
         <Button
           variant="outline"
           className="gap-1.5 px-2"

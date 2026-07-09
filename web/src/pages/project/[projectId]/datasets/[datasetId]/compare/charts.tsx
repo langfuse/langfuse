@@ -248,9 +248,6 @@ export default function DatasetCompare() {
                             type: chartType,
                             unit: getCompareViewChartUnit(key),
                           }}
-                          legendPosition={
-                            chartLabels.length > 1 ? "above" : "none"
-                          }
                         />
                       </div>
                     </div>

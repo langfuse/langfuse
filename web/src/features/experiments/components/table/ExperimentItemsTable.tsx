@@ -500,9 +500,10 @@ export default function ExperimentItemsTable({
               traceId: baselineExp?.traceId ?? "",
               observation: baselineExp?.observationId ?? "",
               timestamp: baselineExp?.startTime?.toISOString() ?? "",
-              // All experiment targets for switching between experiments
-              experimentTargets: JSON.stringify(experimentTargets),
             },
+            // All experiment targets for switching between experiments.
+            // Kept out of `params` so they never leak into the URL.
+            meta: { experimentTargets },
           };
         }),
       );
@@ -803,9 +804,11 @@ export default function ExperimentItemsTable({
               const expOption = selectedExperimentNames.find(
                 (e) => e.experimentId === exp.experimentId,
               );
+              const experimentLabel =
+                expOption?.experimentName ?? exp.experimentId.slice(0, 8);
               return (
-                <span className="truncate text-xs">
-                  {expOption?.experimentName ?? exp.experimentId.slice(0, 8)}
+                <span className="truncate text-xs" title={experimentLabel}>
+                  {experimentLabel}
                 </span>
               );
             }}

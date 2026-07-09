@@ -344,4 +344,140 @@ describe("RateLimitService", () => {
     });
     expect(result?.isRateLimited()).toBe(false);
   });
+
+  it("should apply public-api-legacy rate limits by cloud plan", async () => {
+    const cases = [
+      { plan: "cloud:hobby" as const, points: 15 },
+      { plan: "cloud:core" as const, points: 30 },
+      { plan: "cloud:pro" as const, points: 100 },
+      { plan: "cloud:team" as const, points: 100 },
+      { plan: "cloud:enterprise" as const, points: 100 },
+    ];
+
+    const rateLimitService = RateLimitService.getInstance(redis);
+
+    for (const testCase of cases) {
+      await redis.del(
+        `${RATE_LIMIT_REDIS_KEY_PREFIX}:public-api-legacy:${orgId}`,
+      );
+
+      const scope = {
+        orgId: orgId,
+        plan: testCase.plan,
+        projectId,
+        accessLevel: "project" as const,
+        rateLimitOverrides: [],
+      };
+
+      const result = await rateLimitService.rateLimitRequest(
+        scope,
+        "public-api-legacy",
+      );
+
+      expect(result?.res).toEqual({
+        scope: scope,
+        resource: "public-api-legacy",
+        points: testCase.points,
+        remainingPoints: testCase.points - 1,
+        msBeforeNext: expect.any(Number),
+        consumedPoints: 1,
+        isFirstInDuration: true,
+      });
+      expect(result?.isRateLimited()).toBe(false);
+    }
+  });
+
+  it("should apply public-api-v2-metrics rate limits by cloud plan", async () => {
+    const cases = [
+      { plan: "cloud:hobby" as const, points: 100, durationInSec: 86400 },
+      { plan: "cloud:core" as const, points: 100, durationInSec: 3600 },
+      { plan: "cloud:pro" as const, points: 500, durationInSec: 3600 },
+      { plan: "cloud:team" as const, points: 500, durationInSec: 3600 },
+      { plan: "cloud:enterprise" as const, points: 500, durationInSec: 3600 },
+    ];
+
+    const rateLimitService = RateLimitService.getInstance(redis);
+
+    for (const testCase of cases) {
+      const activeKey = `${RATE_LIMIT_REDIS_KEY_PREFIX}:public-api-v2-metrics:${orgId}`;
+
+      await redis.del(activeKey);
+
+      const scope = {
+        orgId: orgId,
+        plan: testCase.plan,
+        projectId,
+        accessLevel: "project" as const,
+        rateLimitOverrides: [],
+      };
+
+      const result = await rateLimitService.rateLimitRequest(
+        scope,
+        "public-api-v2-metrics",
+      );
+
+      expect(result?.res).toEqual({
+        scope: scope,
+        resource: "public-api-v2-metrics",
+        points: testCase.points,
+        remainingPoints: testCase.points - 1,
+        msBeforeNext: expect.any(Number),
+        consumedPoints: 1,
+        isFirstInDuration: true,
+      });
+      expect(result?.isRateLimited()).toBe(false);
+
+      const ttlInSec = await redis.ttl(activeKey);
+
+      expect(ttlInSec).toBeGreaterThan(0);
+      expect(ttlInSec).toBeLessThanOrEqual(testCase.durationInSec);
+      expect(ttlInSec).toBeGreaterThan(testCase.durationInSec - 60);
+    }
+  });
+
+  it("should apply media-upload rate limits separately from ingestion", async () => {
+    const scope = {
+      orgId: orgId,
+      plan: "cloud:hobby" as const,
+      projectId,
+      accessLevel: "project" as const,
+      rateLimitOverrides: [],
+    };
+
+    const rateLimitService = RateLimitService.getInstance(redis);
+    const mediaResult = await rateLimitService.rateLimitRequest(
+      scope,
+      "media-upload",
+    );
+    const ingestionResult = await rateLimitService.rateLimitRequest(
+      scope,
+      "ingestion",
+    );
+
+    expect(mediaResult?.res).toEqual({
+      scope: scope,
+      resource: "media-upload",
+      points: 1000,
+      remainingPoints: 999,
+      msBeforeNext: expect.any(Number),
+      consumedPoints: 1,
+      isFirstInDuration: true,
+    });
+    expect(ingestionResult?.res).toEqual({
+      scope: scope,
+      resource: "ingestion",
+      points: 1000,
+      remainingPoints: 999,
+      msBeforeNext: expect.any(Number),
+      consumedPoints: 1,
+      isFirstInDuration: true,
+    });
+
+    await expect(
+      redis.get(`${RATE_LIMIT_REDIS_KEY_PREFIX}:media-upload:${orgId}`),
+    ).resolves.toBeDefined();
+    await expect(
+      redis.get(`${RATE_LIMIT_REDIS_KEY_PREFIX}:ingestion:${orgId}`),
+    ).resolves.toBeDefined();
+  });
 });

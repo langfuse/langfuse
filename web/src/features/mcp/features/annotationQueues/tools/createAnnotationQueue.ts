@@ -4,6 +4,7 @@ import {
   CreateAnnotationQueueResponse,
 } from "@/src/features/public-api/types/annotation-queues";
 import { defineTool } from "../../../core/define-tool";
+import { buildAnnotationQueueUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { getMcpPublicApiAuth } from "../../publicApi";
 import { z } from "zod";
@@ -38,7 +39,15 @@ export const [createAnnotationQueueTool, handleCreateAnnotationQueue] =
             auditScope: context,
           });
 
-          return CreateAnnotationQueueResponse.parse(result);
+          const queue = CreateAnnotationQueueResponse.parse(result);
+
+          return {
+            ...queue,
+            url: buildAnnotationQueueUrl({
+              projectId: context.projectId,
+              queueId: queue.id,
+            }),
+          };
         },
       }),
   });

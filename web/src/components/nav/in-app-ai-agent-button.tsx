@@ -1,15 +1,8 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-} from "react";
-import { createPortal } from "react-dom";
-import { useSession } from "next-auth/react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { BotMessageSquare } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
+import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import {
   Dialog,
   DialogBody,
@@ -18,52 +11,82 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
+import { DialogController } from "@/src/components/ui/dialog-controller";
+import { Layer } from "@/src/components/ui/layer";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { ControlledInAppAgentWindow } from "@/src/ee/features/in-app-agent/components";
+import {
+  InAppAgentWindowShell,
+  useInAppAgentWindowShellPanelControl,
+} from "@/src/ee/features/in-app-agent/components/InAppAgentWindowShell";
 import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
+import type { InAppAgentWindowConversation } from "@/src/ee/features/in-app-agent/components/InAppAgentWindow";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { AIFeaturesDisabledNotice } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
-import { cn } from "@/src/utils/tailwind";
+import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
-const IN_APP_AI_AGENT_WINDOW_Z_INDEX = 51;
+function DeleteConversationDialog({
+  close,
+  conversation,
+  onDeleteConversation,
+}: {
+  close: () => void;
+  conversation: InAppAgentWindowConversation | null;
+  onDeleteConversation: (conversationId: string) => Promise<void>;
+}) {
+  const [deleteConversation, isDeletingConversation] =
+    useWatchedPromiseCallback(async () => {
+      if (!conversation) {
+        return;
+      }
+
+      try {
+        await onDeleteConversation(conversation.id);
+        close();
+      } catch {
+        // Error is already surfaced by the provider; keep the dialog open for retry.
+      }
+    }, [close, conversation, onDeleteConversation]);
+
+  return (
+    <ConfirmDialog
+      open={conversation !== null}
+      onOpenChange={(open) => {
+        if (!open) {
+          close();
+        }
+      }}
+      title="Delete conversation"
+      description="This removes the conversation from your recent conversations. This action cannot be undone."
+      confirmLabel="Delete conversation"
+      loading={isDeletingConversation}
+      onConfirm={deleteConversation}
+    />
+  );
+}
 
 export const InAppAiAgentButton = () => {
-  const session = useSession();
   const { organization } = useQueryProjectOrOrganization();
-  const { isAvailable, open, setOpen, isExpanded, setIsExpanded } =
-    useInAppAiAgent();
+  const {
+    deleteConversation,
+    isAvailable,
+    open,
+    setOpen,
+    isExpanded,
+    setIsExpanded,
+  } = useInAppAiAgent();
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
-  const isInAppAgentEnabled =
-    session.data?.user?.featureFlags.inAppAgent === true;
   const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const previousPanelRectRef = useRef<DOMRect | null>(null);
-  const [anchorStyle, setAnchorStyle] = useState<CSSProperties>();
-  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(
-    null,
-  );
   const [enableDialogOpen, setEnableDialogOpen] = useState(false);
 
-  const updateAnchorStyle = () => {
-    const button = buttonRef.current;
-
-    if (!button) {
-      return;
-    }
-
-    const rect = button.getBoundingClientRect();
-
-    setAnchorStyle({
-      left: rect.right - 6,
-    });
-  };
-
-  useEffect(() => {
-    setPortalContainer(document.body);
-  }, []);
+  const floatingPanelHandle = useInAppAgentWindowShellPanelControl({
+    anchorRef: buttonRef,
+  });
 
   useLayoutEffect(() => {
     const previousRect = previousPanelRectRef.current;
@@ -91,23 +114,15 @@ export const InAppAiAgentButton = () => {
     );
   }, [isExpanded]);
 
-  useEffect(() => {
-    if (!open || isExpanded) {
+  useLayoutEffect(() => {
+    if (!open || isExpanded || floatingPanelHandle.geometry) {
       return;
     }
 
-    updateAnchorStyle();
+    floatingPanelHandle.initializeGeometry();
+  }, [floatingPanelHandle, isExpanded, open]);
 
-    window.addEventListener("resize", updateAnchorStyle);
-    window.addEventListener("scroll", updateAnchorStyle, true);
-
-    return () => {
-      window.removeEventListener("resize", updateAnchorStyle);
-      window.removeEventListener("scroll", updateAnchorStyle, true);
-    };
-  }, [isExpanded, open]);
-
-  if (!isAvailable || !hasInAppAgentEntitlement || !isInAppAgentEnabled) {
+  if (!isAvailable || !hasInAppAgentEntitlement) {
     return null;
   }
 
@@ -118,8 +133,13 @@ export const InAppAiAgentButton = () => {
       return;
     }
 
-    updateAnchorStyle();
     setSupportDrawerOpen(false);
+    const willOpen = !open;
+
+    if (willOpen) {
+      floatingPanelHandle.resetGeometry();
+    }
+
     setOpen((currentOpen) => !currentOpen);
   };
 
@@ -129,37 +149,52 @@ export const InAppAiAgentButton = () => {
         <BotMessageSquare className="h-4 w-4" />
         Assistant
       </SidebarMenuButton>
-      {open && portalContainer
-        ? createPortal(
-            <div
-              ref={panelRef}
-              data-ignore-outside-interaction
-              className={cn(
-                "fixed origin-top-left",
-                isExpanded
-                  ? "inset-x-3 top-[calc(var(--banner-offset)+0.75rem)] bottom-3"
-                  : "bottom-2",
-              )}
-              style={
-                isExpanded
-                  ? { zIndex: IN_APP_AI_AGENT_WINDOW_Z_INDEX }
-                  : { ...anchorStyle, zIndex: IN_APP_AI_AGENT_WINDOW_Z_INDEX }
-              }
-            >
-              <ControlledInAppAgentWindow
-                zIndex={IN_APP_AI_AGENT_WINDOW_Z_INDEX}
+      {open ? (
+        <DialogController<InAppAgentWindowConversation>
+          dialog={(close, conversation) => (
+            <DeleteConversationDialog
+              close={close}
+              conversation={conversation}
+              onDeleteConversation={deleteConversation}
+            />
+          )}
+        >
+          {(deleteConversationDialog) => (
+            // The assistant window lives in the `agent` overlay layer — a
+            // <body>-level layer container that floats above page content but below
+            // every transient overlay (dropdowns, dialogs, popovers, tooltips,
+            // toasts) by DOM order alone. No z-index: layer ORDER stacks it (see
+            // components/ui/layer.tsx). This replaces the old body portal + z-51,
+            // which fought the nav-user dropdown's z-60 at <body> level.
+            <Layer name="agent">
+              <InAppAgentWindowShell
+                floatingPanelHandle={floatingPanelHandle}
                 isExpanded={isExpanded}
-                onExpandedChange={(nextIsExpanded) => {
-                  previousPanelRectRef.current =
-                    panelRef.current?.getBoundingClientRect() ?? null;
-                  setIsExpanded(nextIsExpanded);
-                }}
-                onClose={() => setOpen(false)}
-              />
-            </div>,
-            portalContainer,
-          )
-        : null}
+                panelRef={panelRef}
+              >
+                {({ isHeaderDragHandleEnabled }) => (
+                  <ControlledInAppAgentWindow
+                    isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
+                    isExpanded={isExpanded}
+                    onDeleteConversation={(conversation) =>
+                      deleteConversationDialog.open(conversation)
+                    }
+                    onExpandedChange={(nextIsExpanded) => {
+                      previousPanelRectRef.current =
+                        panelRef.current?.getBoundingClientRect() ?? null;
+                      setIsExpanded(nextIsExpanded);
+                    }}
+                    onClose={() => {
+                      floatingPanelHandle.clearGeometry();
+                      setOpen(false);
+                    }}
+                  />
+                )}
+              </InAppAgentWindowShell>
+            </Layer>
+          )}
+        </DialogController>
+      ) : null}
       <Dialog open={enableDialogOpen} onOpenChange={setEnableDialogOpen}>
         <DialogContent>
           <DialogHeader>

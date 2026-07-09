@@ -9,7 +9,6 @@ import {
 } from "@/src/features/table/types";
 import { TableActionDialog } from "@/src/features/table/components/TableActionDialog";
 import { type BatchExportTableName } from "@langfuse/shared";
-import { cn } from "@/src/utils/tailwind";
 import { numberFormatter } from "@/src/utils/numbers";
 import {
   Tooltip,
@@ -22,6 +21,10 @@ type TableActionMenuProps = {
   actions: TableAction[];
   tableName: BatchExportTableName;
   selectedCount: number | null;
+  // When the selected-row count is not the affected-entity count (e.g. datasets
+  // select-all, where folder rows expand on delete), render a non-numeric label
+  // instead of the count/loading spinner.
+  approximateCount?: boolean;
   onClearSelection: () => void;
   onCustomAction?: (actionType: CustomDialogTableAction["id"]) => void;
 };
@@ -38,6 +41,7 @@ export function TableActionMenu({
   actions,
   tableName,
   selectedCount,
+  approximateCount = false,
   onClearSelection,
   onCustomAction,
 }: TableActionMenuProps) {
@@ -65,7 +69,9 @@ export function TableActionMenu({
       <div className="pointer-events-none fixed inset-x-0 bottom-16 z-50 flex justify-center">
         <div className="ring-dark-blue/20 dark:border-dark-blue/30 dark:ring-dark-blue/30 bg-background pointer-events-auto flex items-center gap-2 rounded-lg border px-3 py-2 opacity-95 shadow-lg ring-2 backdrop-blur-md dark:shadow-none">
           <div className="text-sm font-medium">
-            {selectedCount !== null ? (
+            {approximateCount ? (
+              <span> All matching selected</span>
+            ) : selectedCount !== null ? (
               <span> {`${numberFormatter(selectedCount, 0)} selected`}</span>
             ) : (
               <Spinner size="sm" />
@@ -87,7 +93,7 @@ export function TableActionMenu({
                   key={action.id}
                   variant="outline"
                   size="sm"
-                  className={cn("h-8")}
+                  className="h-8"
                   title={action.label}
                   disabled={action.disabled}
                   onClick={() => handleActionSelect(action)}

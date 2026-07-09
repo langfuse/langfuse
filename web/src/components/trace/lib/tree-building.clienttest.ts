@@ -6,9 +6,11 @@
 
 import {
   buildTraceUiData,
+  dedupeObservationsById,
   removeHiddenNodes,
   getObservationLevels,
 } from "./tree-building";
+import { getSubtreeDurationOverflowMs } from "./helpers";
 import { type TreeNode } from "./types";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import Decimal from "decimal.js";
@@ -799,6 +801,216 @@ describe("buildTraceUiData", () => {
       expect(child?.totalCost).toBeUndefined();
       expect(parent?.totalCost).toBeUndefined();
       expect(result.roots[0].totalCost).toBeUndefined();
+    });
+  });
+
+  describe("Subtree Wall-Clock Duration Aggregation", () => {
+    it("leaf node subtree duration equals its own span", () => {
+      const trace = createMockTrace();
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "leaf",
+          parentObservationId: null,
+          startTime: new Date("2024-01-01T00:00:00.000Z"),
+          endTime: new Date("2024-01-01T00:00:01.000Z"),
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      const leaf = result.nodeMap.get("leaf");
+      expect(leaf?.subtreeWallClockDurationMs).toBe(1000);
+    });
+
+    it("async child outliving parent: subtree spans last end − first start", () => {
+      // Parent span ends after 40ms, but kicks off an async child that finishes
+      // ~12s later. The parent's own duration (40ms) badly understates elapsed time.
+      const trace = createMockTrace();
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "parent",
+          parentObservationId: null,
+          startTime: new Date("2024-01-01T00:00:00.000Z"),
+          endTime: new Date("2024-01-01T00:00:00.040Z"),
+        }),
+        createMockObservation({
+          id: "async-child",
+          parentObservationId: "parent",
+          startTime: new Date("2024-01-01T00:00:00.030Z"),
+          endTime: new Date("2024-01-01T00:00:12.030Z"),
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      const parent = result.nodeMap.get("parent");
+      const child = result.nodeMap.get("async-child");
+      // Own span = 40ms, subtree wall-clock = 12.030s − 0 = 12030ms
+      expect(parent?.subtreeWallClockDurationMs).toBe(12030);
+      // Child is a leaf: subtree == own span (12000ms)
+      expect(child?.subtreeWallClockDurationMs).toBe(12000);
+    });
+
+    it("aggregates wall-clock through deep nesting (3 levels)", () => {
+      const trace = createMockTrace();
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "grandparent",
+          parentObservationId: null,
+          startTime: new Date("2024-01-01T00:00:00.000Z"),
+          endTime: new Date("2024-01-01T00:00:00.100Z"),
+        }),
+        createMockObservation({
+          id: "parent",
+          parentObservationId: "grandparent",
+          startTime: new Date("2024-01-01T00:00:00.050Z"),
+          endTime: new Date("2024-01-01T00:00:00.200Z"),
+        }),
+        createMockObservation({
+          id: "child",
+          parentObservationId: "parent",
+          startTime: new Date("2024-01-01T00:00:00.150Z"),
+          endTime: new Date("2024-01-01T00:00:05.000Z"),
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      expect(result.nodeMap.get("child")?.subtreeWallClockDurationMs).toBe(
+        4850,
+      ); // 5.000 − 0.150
+      expect(result.nodeMap.get("parent")?.subtreeWallClockDurationMs).toBe(
+        4950,
+      ); // 5.000 − 0.050
+      expect(
+        result.nodeMap.get("grandparent")?.subtreeWallClockDurationMs,
+      ).toBe(5000); // 5.000 − 0.000
+    });
+
+    it("spans the latest-ending sibling across multiple children", () => {
+      const trace = createMockTrace();
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "parent",
+          parentObservationId: null,
+          startTime: new Date("2024-01-01T00:00:00.000Z"),
+          endTime: new Date("2024-01-01T00:00:00.500Z"),
+        }),
+        createMockObservation({
+          id: "child-a",
+          parentObservationId: "parent",
+          startTime: new Date("2024-01-01T00:00:00.100Z"),
+          endTime: new Date("2024-01-01T00:00:03.000Z"),
+        }),
+        createMockObservation({
+          id: "child-b",
+          parentObservationId: "parent",
+          startTime: new Date("2024-01-01T00:00:00.200Z"),
+          endTime: new Date("2024-01-01T00:00:08.000Z"), // latest end
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      // 8.000 (latest child end) − 0.000 (parent start) = 8000ms
+      expect(result.nodeMap.get("parent")?.subtreeWallClockDurationMs).toBe(
+        8000,
+      );
+    });
+
+    it("synchronous subtree contained within parent span equals own span", () => {
+      const trace = createMockTrace();
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "parent",
+          parentObservationId: null,
+          startTime: new Date("2024-01-01T00:00:00.000Z"),
+          endTime: new Date("2024-01-01T00:00:10.000Z"),
+        }),
+        createMockObservation({
+          id: "child",
+          parentObservationId: "parent",
+          startTime: new Date("2024-01-01T00:00:01.000Z"),
+          endTime: new Date("2024-01-01T00:00:09.000Z"), // fully inside parent
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      // Subtree wall-clock equals the parent's own span (10000ms)
+      expect(result.nodeMap.get("parent")?.subtreeWallClockDurationMs).toBe(
+        10000,
+      );
+    });
+
+    it("falls back to start time when a node has no endTime", () => {
+      const trace = createMockTrace();
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "parent",
+          parentObservationId: null,
+          startTime: new Date("2024-01-01T00:00:00.000Z"),
+          endTime: null, // no recorded end
+        }),
+        createMockObservation({
+          id: "child",
+          parentObservationId: "parent",
+          startTime: new Date("2024-01-01T00:00:00.100Z"),
+          endTime: new Date("2024-01-01T00:00:05.100Z"),
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      // Parent end falls back to its start (0); child extends to 5.100s → 5100ms
+      expect(result.nodeMap.get("parent")?.subtreeWallClockDurationMs).toBe(
+        5100,
+      );
+    });
+
+    it("leaf with no endTime has zero subtree duration", () => {
+      const trace = createMockTrace();
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "leaf",
+          parentObservationId: null,
+          startTime: new Date("2024-01-01T00:00:00.000Z"),
+          endTime: null,
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      expect(result.nodeMap.get("leaf")?.subtreeWallClockDurationMs).toBe(0);
+    });
+
+    it("computes subtree duration for events-based root observations", () => {
+      const trace = createMockTrace({
+        id: "trace-1",
+        rootObservationType: "SPAN",
+        rootObservationId: "root-obs",
+        latency: 6,
+      });
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "root-obs",
+          parentObservationId: null,
+          startTime: new Date("2024-01-01T00:00:00.000Z"),
+          endTime: new Date("2024-01-01T00:00:00.040Z"), // short own span
+        }),
+        createMockObservation({
+          id: "async-child",
+          parentObservationId: "root-obs",
+          startTime: new Date("2024-01-01T00:00:00.030Z"),
+          endTime: new Date("2024-01-01T00:00:06.000Z"),
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      expect(result.roots[0].id).toBe("root-obs");
+      // Own span 40ms but subtree extends to 6s
+      expect(result.roots[0].subtreeWallClockDurationMs).toBe(6000);
     });
   });
 
@@ -1929,5 +2141,218 @@ describe("getObservationLevels", () => {
   ])("returns levels at/above $minLevel", ({ minLevel, expected }) => {
     const levels = getObservationLevels(minLevel);
     expect(levels).toEqual(expected);
+  });
+});
+
+describe("getSubtreeDurationOverflowMs", () => {
+  it("returns null when there is no subtree duration", () => {
+    expect(getSubtreeDurationOverflowMs(1000, undefined)).toBeNull();
+    expect(getSubtreeDurationOverflowMs(1000, null)).toBeNull();
+  });
+
+  it("does not flag leaf nodes whose subtree equals their own span", () => {
+    expect(getSubtreeDurationOverflowMs(1000, 1000)).toBeNull();
+  });
+
+  it("returns null when the difference is below the rendered 0.01s precision", () => {
+    // 1.000s vs 1.004s both render as "1.00s" — no visible difference
+    expect(getSubtreeDurationOverflowMs(1000, 1004)).toBeNull();
+  });
+
+  it("returns the subtree duration on any difference visible at 0.01s precision", () => {
+    // 10ms is visible: "1.00s" vs "1.01s"
+    expect(getSubtreeDurationOverflowMs(1000, 1010)).toBe(1010);
+    // small absolute diffs that the old 250ms/10% margin would have hidden
+    expect(getSubtreeDurationOverflowMs(1000, 1200)).toBe(1200);
+    expect(getSubtreeDurationOverflowMs(10000, 10300)).toBe(10300);
+    // the async-parent case: tiny own span, large subtree
+    expect(getSubtreeDurationOverflowMs(40, 12030)).toBe(12030);
+  });
+
+  it("treats a missing own-span duration as zero", () => {
+    // own = 0 → "0.00s"; any visibly non-zero subtree is shown
+    expect(getSubtreeDurationOverflowMs(undefined, 300)).toBe(300);
+    // sub-precision subtree (< 0.005s) rounds to "0.00s" → hidden
+    expect(getSubtreeDurationOverflowMs(undefined, 4)).toBeNull();
+  });
+
+  it("compares at the formatter's coarser resolution for minute-scale durations", () => {
+    // both render as "1m 04s" (sub-second diff invisible at this scale)
+    expect(getSubtreeDurationOverflowMs(64_000, 64_400)).toBeNull();
+    // a full second is visible: "1m 04s" vs "1m 05s"
+    expect(getSubtreeDurationOverflowMs(64_000, 65_000)).toBe(65_000);
+  });
+});
+
+describe("Duplicate / colliding observation IDs (LFE-10588)", () => {
+  // Regression guard for a prod trace crash. Real traces can contain multiple
+  // rows that share the same observation id (colliding / reused ids in ingested
+  // data), and those rows may each carry a DIFFERENT parentObservationId. The
+  // tree builder keys nodes by id, so duplicate rows wire one node under several
+  // parents — turning the parent→child graph into a dense multi-parent DAG whose
+  // root→node path count grows exponentially. The depth-propagation BFS then grew
+  // its queue without bound, so loading such a trace threw
+  // "RangeError: Invalid array length" / ran out of memory. The builder must
+  // collapse to one row per id so the structure stays a proper forest.
+
+  it("collapses duplicate rows for the same id to a single node", () => {
+    const trace = createMockTrace({ id: "t" });
+    const observations: ObservationReturnType[] = [
+      createMockObservation({
+        id: "a",
+        parentObservationId: null,
+        startTime: new Date("2024-01-01T00:00:00.100Z"),
+      }),
+      createMockObservation({
+        id: "b",
+        parentObservationId: "a",
+        startTime: new Date("2024-01-01T00:00:00.200Z"),
+      }),
+      // duplicate row for child "b" — must not be double-wired under "a"
+      createMockObservation({
+        id: "b",
+        parentObservationId: "a",
+        startTime: new Date("2024-01-01T00:00:00.250Z"),
+      }),
+    ];
+
+    const result = buildTraceUiData(trace, observations);
+
+    // one node per distinct id (+ TRACE wrapper); each appears exactly once.
+    expect(result.nodeMap.size).toBe(3); // trace + a + b
+    expect(result.searchItems).toHaveLength(3);
+    expect(result.searchItems.filter((i) => i.node.id === "b")).toHaveLength(1);
+    // "a" must survive: pre-fix a duplicated child inflated a's in-degree so it
+    // never hit zero in the topological sort and the whole subtree was dropped.
+    expect(result.roots[0].children.map((c) => c.id)).toEqual(["a"]);
+  });
+
+  it("does not explode on colliding ids that form a multi-parent DAG", () => {
+    // Shortcut ladder: node i is a child of BOTH i-1 and i-2, each via a separate
+    // row that reuses id `n{i}`. Without deduplication the root→node path count
+    // is Fibonacci-large and the depth BFS / flatten grow without bound (the prod
+    // crash). Sized so the pre-fix blowup stays finite (~Fib(24)) rather than
+    // OOM-ing the test worker, while still being orders of magnitude too big.
+    const trace = createMockTrace({ id: "t" });
+    const N = 22;
+    const observations: ObservationReturnType[] = [];
+    let clock = 0;
+    const nextStart = () =>
+      new Date(`2024-01-01T00:00:00.${String(clock++).padStart(3, "0")}Z`);
+
+    observations.push(
+      createMockObservation({
+        id: "n0",
+        parentObservationId: null,
+        startTime: nextStart(),
+      }),
+    );
+    observations.push(
+      createMockObservation({
+        id: "n1",
+        parentObservationId: "n0",
+        startTime: nextStart(),
+      }),
+    );
+    for (let i = 2; i <= N; i++) {
+      // primary edge (earlier startTime → survives dedup): parent = i-1
+      observations.push(
+        createMockObservation({
+          id: `n${i}`,
+          parentObservationId: `n${i - 1}`,
+          startTime: nextStart(),
+        }),
+      );
+      // shortcut edge (duplicate id, later startTime): parent = i-2
+      observations.push(
+        createMockObservation({
+          id: `n${i}`,
+          parentObservationId: `n${i - 2}`,
+          startTime: nextStart(),
+        }),
+      );
+    }
+    const distinctIds = N + 1; // n0..nN
+
+    const result = buildTraceUiData(trace, observations);
+
+    // Dedup keeps the earliest-startTime row per id → a clean chain
+    // n0→n1→…→nN. Every distinct id survives exactly once (+ TRACE wrapper), and
+    // the flattened list is bounded — pre-fix the duplicated edges either dropped
+    // nodes (in-degree never hit zero) or blew the traversal up Fibonacci-large.
+    expect(result.nodeMap.size).toBe(distinctIds + 1);
+    expect(result.searchItems).toHaveLength(distinctIds + 1);
+    for (let i = 0; i <= N; i++) {
+      expect(result.nodeMap.has(`n${i}`)).toBe(true);
+    }
+  });
+
+  // The detail panel resolves the clicked observation via
+  // `observations.find(o => o.id === id)`. The tree node is built from the
+  // de-duped set (earliest-startTime row), so the array the panel searches must
+  // be de-duped the same way — otherwise, on a corrupt trace, the timeline row
+  // and the opened detail panel can silently show different data.
+
+  it("keeps the earliest-startTime row per id, independent of array order", () => {
+    // Array order lists the LATER row first, so a naive `.find` would pick it.
+    const later = createMockObservation({
+      id: "x",
+      name: "later",
+      parentObservationId: null,
+      startTime: new Date("2024-01-01T00:00:00.200Z"),
+    });
+    const earlier = createMockObservation({
+      id: "x",
+      name: "earlier",
+      parentObservationId: null,
+      startTime: new Date("2024-01-01T00:00:00.100Z"),
+    });
+
+    const deduped = dedupeObservationsById([later, earlier]);
+
+    expect(deduped).toHaveLength(1);
+    expect(deduped[0].name).toBe("earlier");
+  });
+
+  it("returns the same array reference when all ids are unique (no-op)", () => {
+    const list = [
+      createMockObservation({ id: "a" }),
+      createMockObservation({ id: "b" }),
+    ];
+    expect(dedupeObservationsById(list)).toBe(list);
+  });
+
+  it("resolves the same row for the tree node and a find() on the deduped list", () => {
+    const trace = createMockTrace({ id: "t" });
+    // Two colliding rows for id "x" differing on a user-visible field, with the
+    // later-startTime row first in array order.
+    const raw: ObservationReturnType[] = [
+      createMockObservation({
+        id: "x",
+        name: "later",
+        parentObservationId: null,
+        startTime: new Date("2024-01-01T00:00:00.200Z"),
+      }),
+      createMockObservation({
+        id: "x",
+        name: "earlier",
+        parentObservationId: null,
+        startTime: new Date("2024-01-01T00:00:00.100Z"),
+      }),
+    ];
+    // On the RAW array the panel's `.find` returns the first (wrong) row.
+    expect(raw.find((o) => o.id === "x")?.name).toBe("later");
+
+    // De-dup once (as TraceDataProvider now does), then feed both.
+    const deduped = dedupeObservationsById(raw);
+    const result = buildTraceUiData(trace, deduped);
+
+    const treeNodeName = result.nodeMap.get("x")?.name;
+    const panelRowName = deduped.find((o) => o.id === "x")?.name;
+
+    expect(treeNodeName).toBe("earlier");
+    expect(panelRowName).toBe("earlier");
+    // The invariant: timeline (tree node) and detail panel (find) agree.
+    expect(panelRowName).toBe(treeNodeName);
   });
 });

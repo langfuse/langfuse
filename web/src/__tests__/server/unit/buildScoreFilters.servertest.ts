@@ -189,3 +189,33 @@ describe("determineTraceJoinRequirement", () => {
     expect(needsTraceJoin).toBe(true);
   });
 });
+
+describe("apiVersion forwarding for query tagging", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockHandleGenerateScores.mockResolvedValue([]);
+    mockHandleGetScoresCount.mockResolvedValue(0);
+  });
+
+  it.each(["v1", "v2"] as const)(
+    "%s service passes apiVersion to the list handler",
+    async (version) => {
+      await new ScoresApiService(version).generateScoresForPublicApi(BASE);
+
+      expect(mockHandleGenerateScores.mock.calls[0][0].apiVersion).toBe(
+        version,
+      );
+    },
+  );
+
+  it.each(["v1", "v2"] as const)(
+    "%s service passes apiVersion to the count handler",
+    async (version) => {
+      await new ScoresApiService(version).getScoresCountForPublicApi(BASE);
+
+      expect(mockHandleGetScoresCount.mock.calls[0][0].apiVersion).toBe(
+        version,
+      );
+    },
+  );
+});

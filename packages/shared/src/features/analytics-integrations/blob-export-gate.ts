@@ -54,6 +54,26 @@ export function isLegacyBlobExportAllowed(
   return projectCreatedAt < LEGACY_BLOB_EXPORT_CUTOFF;
 }
 
+// Internal enum values whose export includes the enriched observations
+// (events) path. satisfies ensures each element remains a valid
+// AnalyticsIntegrationExportSource. Adding a new enum variant does NOT
+// automatically produce an error here; the list must be reviewed manually.
+export const ENRICHED_BLOB_EXPORT_SOURCES = [
+  AnalyticsIntegrationExportSource.EVENTS,
+  AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS,
+] as const satisfies ReadonlyArray<AnalyticsIntegrationExportSource>;
+
+export function isEnrichedBlobExportSource(
+  source: AnalyticsIntegrationExportSource | null | undefined,
+): boolean {
+  return (
+    source != null &&
+    (
+      ENRICHED_BLOB_EXPORT_SOURCES as readonly AnalyticsIntegrationExportSource[]
+    ).includes(source)
+  );
+}
+
 /**
  * Whether a blob storage integration row counts as legacy — i.e. may still use
  * legacy export sources. Applied to `BlobStorageIntegration.createdAt`.

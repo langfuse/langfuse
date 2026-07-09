@@ -22,6 +22,7 @@ import {
   QueueJobs,
   ScoreDeleteQueue,
   type AuthHeaderValidVerificationResultIngestion,
+  type IngestionAttribution,
   StringFilter,
   StringOptionsFilter,
   type FilterList,
@@ -224,11 +225,13 @@ export class ScoresApiService {
     auth,
     auditScope,
     scoreId = body.id ?? randomUUID(),
+    attribution,
   }: {
     body: z.infer<typeof PostScoresBodyV1>;
     auth: AuthHeaderValidVerificationResultIngestion;
     auditScope?: { projectId: string; orgId: string; apiKeyId: string };
     scoreId?: string;
+    attribution: IngestionAttribution;
   }) {
     const existingScore = auditScope
       ? await _handleGetScoreById({
@@ -238,6 +241,7 @@ export class ScoresApiService {
           scoreDataTypes:
             this.apiVersion === "v1" ? LISTABLE_SCORE_TYPES : undefined,
           preferredClickhouseService: "ReadOnly",
+          apiVersion: this.apiVersion,
         })
       : undefined;
 
@@ -251,6 +255,7 @@ export class ScoresApiService {
         },
       ],
       auth,
+      { attribution },
     );
 
     if (
@@ -335,6 +340,7 @@ export class ScoresApiService {
       scoreDataTypes:
         this.apiVersion === "v1" ? LISTABLE_SCORE_TYPES : undefined,
       preferredClickhouseService: "ReadOnly",
+      apiVersion: this.apiVersion,
     });
 
     if (!score) {
@@ -368,6 +374,7 @@ export class ScoresApiService {
       includeTrace,
       needsTraceJoin,
       pagination: { limit: props.limit, page: props.page },
+      apiVersion: this.apiVersion,
     });
     // Apply API-shape transformation (moves longStringValue→stringValue for
     // CORRECTION, strips longStringValue for others). Must happen here because
@@ -402,6 +409,7 @@ export class ScoresApiService {
       scoreScope: this.apiVersion === "v1" ? "traces_only" : "all",
       includeTrace,
       needsTraceJoin,
+      apiVersion: this.apiVersion,
     });
   }
 }

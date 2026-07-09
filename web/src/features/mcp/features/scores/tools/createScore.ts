@@ -7,7 +7,9 @@ import {
   UnauthorizedError,
 } from "@langfuse/shared";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
+import { createUnknownSdkIngestionAttribution } from "@langfuse/shared/src/server";
 import { defineTool } from "../../../core/define-tool";
+import { buildScoreTargetUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { ApiServerError } from "../../../core/errors";
 import { z } from "zod";
@@ -88,20 +90,24 @@ export const [createScoreTool, handleCreateScore] = defineTool({
       },
       fn: async (span) => {
         const scoresApiService = new ScoresApiService("v2");
+        const auth = {
+          validKey: true as const,
+          scope: {
+            projectId: context.projectId,
+            orgId: context.orgId,
+            apiKeyId: context.apiKeyId,
+            publicKey: context.publicKey,
+            accessLevel: context.accessLevel,
+            isIngestionSuspended: false,
+          },
+        };
         const { id: scoreId, result } = await scoresApiService.createScore({
           body: input,
-          auth: {
-            validKey: true,
-            scope: {
-              projectId: context.projectId,
-              orgId: context.orgId,
-              apiKeyId: context.apiKeyId,
-              publicKey: context.publicKey,
-              accessLevel: context.accessLevel,
-              isIngestionSuspended: false,
-            },
-          },
+          auth,
           auditScope: context,
+          attribution: createUnknownSdkIngestionAttribution({
+            authCheck: auth,
+          }),
         });
         span.setAttribute("mcp.score_id", scoreId);
 
@@ -113,7 +119,15 @@ export const [createScoreTool, handleCreateScore] = defineTool({
           throw new ApiServerError("Failed to create score");
         }
 
-        return PostScoresResponseV1.parse({ id: scoreId });
+        const score = PostScoresResponseV1.parse({ id: scoreId });
+        const url = buildScoreTargetUrl({
+          projectId: context.projectId,
+          traceId: input.traceId,
+          observationId: input.observationId,
+          sessionId: input.sessionId,
+        });
+
+        return url ? { ...score, url } : score;
       },
     });
   },

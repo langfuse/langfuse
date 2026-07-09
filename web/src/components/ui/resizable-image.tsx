@@ -11,6 +11,8 @@ import { useSession } from "next-auth/react";
 import { buildResizableImageSrc } from "./resizable-image.utils";
 import { getSafeImageUrl } from "@/src/components/ui/safe-url";
 
+export const COMPACT_IMAGE_MAX_HEIGHT_REM = 16;
+
 /**
  * Implemented customLoader as we cannot whitelist user provided image domains
  * Security risks are taken care of by a validation in api.utilities.validateImgUrl
@@ -44,13 +46,16 @@ const ImageErrorDisplay = ({
         <Link
           href={safeSrc}
           className="truncate text-sm underline"
+          title={src}
           target="_blank"
           rel="noopener noreferrer"
         >
           {src}
         </Link>
       ) : (
-        <span className="truncate text-sm">{src}</span>
+        <span className="truncate text-sm" title={src}>
+          {src}
+        </span>
       )}
     </div>
   );
@@ -61,11 +66,15 @@ export const ResizableImage = ({
   alt,
   isDefaultVisible = false,
   shouldValidateImageSource = true,
+  fitContent = false,
+  compactWidth,
 }: {
   src: string;
   alt?: string;
   isDefaultVisible?: boolean;
   shouldValidateImageSource?: boolean;
+  fitContent?: boolean;
+  compactWidth?: string;
 }) => {
   const safeSrc = getSafeImageUrl(src);
   const [isZoomedIn, setIsZoomedIn] = useState(true);
@@ -101,14 +110,23 @@ export const ResizableImage = ({
   const displayError = `Cannot load image. ${src.includes("http") ? "Http images are not rendered in Langfuse for security reasons" : "Invalid image URL"}`;
 
   return (
-    <div>
+    <div
+      className={cn(fitContent && (isZoomedIn ? "w-1/2" : "w-full"))}
+      style={
+        fitContent && isZoomedIn && compactWidth
+          ? { width: `min(50%, ${compactWidth})` }
+          : undefined
+      }
+    >
       {hasFetchError ? (
         <ImageErrorDisplay src={src} displayError={displayError} />
       ) : (
         <div
           className={cn(
-            "group relative w-full overflow-hidden",
-            isZoomedIn ? "h-1/2 w-1/2" : "h-full w-full",
+            "group relative overflow-hidden",
+            fitContent
+              ? "w-full"
+              : cn("w-full", isZoomedIn ? "h-1/2 w-1/2" : "h-full w-full"),
           )}
         >
           {isImageVisible && safeSrc && isValidImage.data?.isValid ? (
@@ -121,7 +139,10 @@ export const ResizableImage = ({
                 width={0}
                 height={0}
                 title={safeSrc ?? src}
-                className="h-full w-full rounded border object-contain"
+                className={cn(
+                  "rounded border",
+                  fitContent ? "h-auto w-full" : "h-full w-full object-contain",
+                )}
                 onError={(error) => {
                   setHasFetchError(true);
                   captureException(error);

@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
 import { MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/utils/constants";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { useChatMLParser } from "./hooks/useChatMLParser";
@@ -156,6 +157,16 @@ export function IOPreviewPretty({
     : (preParsedMetadata ??
       deepParseJson(metadata, { maxSize: 100_000, maxDepth: 2 }));
 
+  // Enable the metadata rows' actions menu (copy + add-to-filter). Observation
+  // metadata filters the observations table; trace metadata the traces table.
+  const metadataActions = useMemo<MetadataFilterActions>(
+    () => ({
+      projectId,
+      filterTarget: observationId ? "observations" : "traces",
+    }),
+    [projectId, observationId],
+  );
+
   // Parse ChatML format
   const {
     canDisplayAsChat,
@@ -163,6 +174,7 @@ export function IOPreviewPretty({
     additionalInput,
     allTools,
     toolCallCounts,
+    toolCallsByName,
     messageToToolCallNumbers,
     toolNameToDefinitionNumber,
     inputMessageCount,
@@ -244,6 +256,7 @@ export function IOPreviewPretty({
       <SectionToolDefinitions
         tools={allTools}
         toolCallCounts={toolCallCounts}
+        toolCallsByName={toolCallsByName}
         toolNameToDefinitionNumber={toolNameToDefinitionNumber}
       />
 
@@ -299,6 +312,7 @@ export function IOPreviewPretty({
             currentView="pretty"
             externalExpansionState={metadataExpansionState}
             onExternalExpansionChange={onMetadataExpansionChange}
+            metadataActions={metadataActions}
           />
         </div>
       )}
