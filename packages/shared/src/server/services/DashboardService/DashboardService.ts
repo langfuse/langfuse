@@ -109,27 +109,9 @@ export class DashboardService {
       data: {
         updatedBy: userId,
         definition: {
-          widgets: definition.widgets.map((widget) =>
-            widget.type === "preset"
-              ? {
-                  type: "preset",
-                  id: widget.id,
-                  presetId: widget.presetId,
-                  x: widget.x,
-                  y: widget.y,
-                  x_size: widget.x_size,
-                  y_size: widget.y_size,
-                }
-              : {
-                  type: "widget",
-                  id: widget.id,
-                  widgetId: widget.widgetId,
-                  x: widget.x,
-                  y: widget.y,
-                  x_size: widget.x_size,
-                  y_size: widget.y_size,
-                },
-          ),
+          // Already sanitized: the input is parsed against
+          // DashboardDefinitionSchema, which strips unknown keys.
+          widgets: definition.widgets,
         },
       },
     });
