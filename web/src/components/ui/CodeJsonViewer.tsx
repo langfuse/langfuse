@@ -124,6 +124,9 @@ export function JSONView(props: {
           <div
             className="max-w-full min-w-0 flex-1 overflow-hidden"
             onClick={() => {
+              // Prevent unwanted collapsing when users click inside an already expanded view
+              if (!isCollapsed) return;
+
               // If externally collapsed and user clicks to expand, sync the state
               if (props.externalJsonCollapsed && props.onToggleCollapse) {
                 props.onToggleCollapse();
