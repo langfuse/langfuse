@@ -82,7 +82,10 @@ import {
   deleteEvalTemplateFamily,
   findEvalTemplateFamilyUsage,
 } from "@/src/features/evals/server/evalTemplateDeletion";
-import { CODE_EVAL_TEMPLATE_VARIABLES } from "@/src/features/evals/utils/code-eval-template-utils";
+import {
+  CODE_EVAL_TEMPLATE_VARIABLES,
+  getCodeEvalVariableMapping,
+} from "@/src/features/evals/utils/code-eval-template-utils";
 import {
   getCodeEvalCapabilities,
   isCodeEvalEnabled,
@@ -1205,6 +1208,17 @@ export const evalRouter = createTRPCRouter({
         /**
          * UPDATE OF JOB CONFIGS REFERENCING THE NEW/UPDATED TEMPLATE
          */
+        // Code-eval mappings are synthesized, never user-authored. Re-pointed
+        // rules must adopt the current canonical mapping in the same write so
+        // stored state covers every variable the new template version's code
+        // can access (e.g. toolCalls); the worker extracts from stored state.
+        const repointedConfigData = {
+          evalTemplateId: evalTemplate.id,
+          ...(input.type === EvalTemplateType.CODE
+            ? { variableMapping: getCodeEvalVariableMapping() }
+            : {}),
+        };
+
         if (input.referencedEvaluators === EvalReferencedEvaluators.UPDATE) {
           /**
            * Option 2: Clone a langfuse managed template
@@ -1253,7 +1267,7 @@ export const evalRouter = createTRPCRouter({
                   },
                   projectId: input.projectId,
                 },
-                data: { evalTemplateId: evalTemplate.id },
+                data: repointedConfigData,
               });
             }
             /**
@@ -1268,9 +1282,7 @@ export const evalRouter = createTRPCRouter({
                 evalTemplateId: { in: templates.map((t) => t.id) },
                 projectId: input.projectId,
               },
-              data: {
-                evalTemplateId: evalTemplate.id,
-              },
+              data: repointedConfigData,
             });
           }
         }

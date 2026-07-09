@@ -9,7 +9,7 @@ import {
   invalidateProjectEvalConfigCaches,
   type ApiAccessScope,
 } from "@langfuse/shared/src/server";
-import { Prisma, prisma } from "@langfuse/shared/src/db";
+import { EvalTemplateType, Prisma, prisma } from "@langfuse/shared/src/db";
 import { type PostUnstableEvaluatorBodyParsedType } from "@/src/features/public-api/types/unstable-evaluators";
 import {
   type PUBLIC_EVALUATOR_TYPE_CODE,
@@ -19,7 +19,10 @@ import {
   isCodeEvalEnabled,
   isCodeEvalSourceCodeLanguageSupported,
 } from "@/src/features/evals/server/isCodeEvalEnabled";
-import { CODE_EVAL_TEMPLATE_VARIABLES } from "@/src/features/evals/utils/code-eval-template-utils";
+import {
+  CODE_EVAL_TEMPLATE_VARIABLES,
+  getCodeEvalVariableMapping,
+} from "@/src/features/evals/utils/code-eval-template-utils";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import { deleteEvalTemplateFamily } from "@/src/features/evals/server/evalTemplateDeletion";
@@ -253,12 +256,19 @@ export async function createPublicEvaluator(params: {
             : [];
         const upgradedConfigs = configsToUpgrade.map((config) => ({
           id: config.id,
-          variableMapping: prepareVariableMappingForEvaluatorUpgrade({
-            scoreName: config.scoreName,
-            targetObject: config.targetObject,
-            variableMapping: config.variableMapping,
-            nextVariables,
-          }),
+          // Code-eval mappings are synthesized, never user-authored: adopt
+          // the current canonical mapping instead of validating the stored
+          // snapshot against nextVariables, which would 409 whenever the
+          // canonical variable set grows (e.g. toolCalls).
+          variableMapping:
+            storedEvalTemplateType === EvalTemplateType.CODE
+              ? getCodeEvalVariableMapping()
+              : prepareVariableMappingForEvaluatorUpgrade({
+                  scoreName: config.scoreName,
+                  targetObject: config.targetObject,
+                  variableMapping: config.variableMapping,
+                  nextVariables,
+                }),
         }));
         const latestProjectTemplate = existingProjectTemplates[0];
 

@@ -43,6 +43,8 @@ import {
   EvalTargetObject,
   EvaluatorBlockReason,
 } from "@langfuse/shared";
+import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval-template-utils";
+import { EvalReferencedEvaluators } from "@/src/features/evals/types";
 import type { Session } from "next-auth";
 
 beforeEach(() => {
@@ -460,6 +462,62 @@ describe("evals trpc", () => {
         }),
       ).rejects.toThrow(
         "This code evaluator language is not supported by the configured dispatcher.",
+      );
+    });
+
+    it("adopts the canonical mapping on re-pointed code-eval rules when saving a new version", async () => {
+      const { project, caller } = await prepare();
+      const templateName = `code-template-repoint-${project.id}`;
+
+      const templateV1 = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: templateName,
+          version: 1,
+          type: EvalTemplateType.CODE,
+          prompt: null,
+          outputDefinition: undefined,
+          sourceCode:
+            'function evaluate() { return { scores: [{ name: "s", value: 1 }] }; }',
+          sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        },
+      });
+
+      // Stored snapshot predating a canonical-variable addition (toolCalls).
+      const staleMapping = getCodeEvalVariableMapping().filter(
+        (mapping) => mapping.templateVariable !== "toolCalls",
+      );
+      const jobConfig = await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          evalTemplateId: templateV1.id,
+          scoreName: "code-score",
+          filter: [],
+          targetObject: EvalTargetObject.EVENT,
+          variableMapping: staleMapping,
+          sampling: 1,
+          delay: 0,
+          status: "ACTIVE",
+        },
+      });
+
+      const templateV2 = await caller.evals.createTemplate({
+        projectId: project.id,
+        name: templateName,
+        type: EvalTemplateType.CODE,
+        sourceCode:
+          'function evaluate(ctx) { return { scores: [{ name: "s", value: ctx.observation.toolCalls.length }] }; }',
+        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        referencedEvaluators: EvalReferencedEvaluators.UPDATE,
+      });
+
+      const updatedConfig = await prisma.jobConfiguration.findUniqueOrThrow({
+        where: { id: jobConfig.id },
+      });
+      expect(updatedConfig.evalTemplateId).toBe(templateV2.id);
+      expect(updatedConfig.variableMapping).toEqual(
+        getCodeEvalVariableMapping(),
       );
     });
   });
