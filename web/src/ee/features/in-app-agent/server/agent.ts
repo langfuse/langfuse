@@ -1064,19 +1064,6 @@ export function patchMastraToolCallInputStreaming(adapter: MastraAgent) {
 
         const mastraChunk = chunk;
 
-        if (
-          mastraChunk.type === "start" ||
-          mastraChunk.type === "step-start" ||
-          mastraChunk.type === "step-finish" ||
-          mastraChunk.type === "text-start" ||
-          mastraChunk.type === "text-delta" ||
-          mastraChunk.type === "text-end"
-        ) {
-          return mastraChunk.type.startsWith("text-")
-            ? processor.handleChunk(chunk)
-            : false;
-        }
-
         if (mastraChunk.type === undefined) {
           return processor.handleChunk(chunk);
         }
@@ -1157,15 +1144,6 @@ export function patchMastraToolCallInputStreaming(adapter: MastraAgent) {
           if (toolCallId && synthesizedToolCallIds.has(toolCallId)) {
             synthesizedToolCallIds.delete(toolCallId);
             return false;
-          }
-
-          return processor.handleChunk(chunk);
-        }
-
-        if (mastraChunk.type === "tool-result") {
-          const { toolCallId } = mastraChunk.payload ?? {};
-          if (toolCallId) {
-            streamingToolCalls.delete(toolCallId);
           }
 
           return processor.handleChunk(chunk);
@@ -1263,6 +1241,18 @@ export function patchMastraToolCallInputStreaming(adapter: MastraAgent) {
             streamingToolCalls.delete(toolCallId);
             synthesizedToolCallIds.delete(toolCallId);
           }
+          return processor.handleChunk(chunk);
+        }
+
+        if (
+          mastraChunk.type === "start" ||
+          mastraChunk.type === "step-start" ||
+          mastraChunk.type === "step-finish" ||
+          mastraChunk.type === "text-start" ||
+          mastraChunk.type === "text-delta" ||
+          mastraChunk.type === "text-end" ||
+          mastraChunk.type === "tool-result"
+        ) {
           return processor.handleChunk(chunk);
         }
 

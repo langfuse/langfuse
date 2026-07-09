@@ -429,6 +429,70 @@ describe("patchMastraToolCallInputStreaming", () => {
     ]);
   });
 
+  it("passes non-tool streaming chunks through unchanged", () => {
+    const { forwardedChunks, onError, processor } =
+      createPatchedChunkProcessor();
+
+    processor.handleChunk({
+      type: "step-start",
+      payload: {},
+    });
+    processor.handleChunk({
+      type: "text-start",
+      payload: { textMessageId: "assistant-1" },
+    });
+    processor.handleChunk({
+      type: "text-delta",
+      payload: {
+        textMessageId: "assistant-1",
+        textDelta: "Investigating...",
+      },
+    });
+    processor.handleChunk({
+      type: "tool-result",
+      payload: {
+        toolCallId: "tool-call-1",
+        toolName: "langfuseDocs_search",
+        result: { ok: true },
+      },
+    });
+    processor.handleChunk({
+      type: "step-finish",
+      payload: {},
+    });
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(forwardedChunks).toEqual([
+      {
+        type: "step-start",
+        payload: {},
+      },
+      {
+        type: "text-start",
+        payload: { textMessageId: "assistant-1" },
+      },
+      {
+        type: "text-delta",
+        payload: {
+          textMessageId: "assistant-1",
+          textDelta: "Investigating...",
+        },
+      },
+      {
+        type: "tool-result",
+        payload: {
+          toolCallId: "tool-call-1",
+          toolName: "langfuseDocs_search",
+          result: { ok: true },
+        },
+      },
+      {
+        type: "step-finish",
+        payload: {},
+      },
+    ]);
+  });
+
   it("passes through native tool-calls that were not synthesized", () => {
     const { forwardedChunks, processor } = createPatchedChunkProcessor();
 
@@ -693,7 +757,7 @@ describe("patchMastraToolCallInputStreaming", () => {
     ]);
   });
 
-  it("swallows lifecycle chunks that the older adapter does not understand", () => {
+  it("passes lifecycle chunks through unchanged", () => {
     const { forwardedChunks, onError, processor } =
       createPatchedChunkProcessor();
 
@@ -720,7 +784,39 @@ describe("patchMastraToolCallInputStreaming", () => {
     });
 
     expect(onError).not.toHaveBeenCalled();
-    expect(forwardedChunks).toEqual([]);
+    expect(forwardedChunks).toEqual([
+      {
+        type: "start",
+        from: "AGENT",
+        runId: "run-1",
+        payload: {
+          id: "langfuse-in-app-assistant",
+          messageId: "message-1",
+        },
+      },
+      {
+        type: "step-start",
+        from: "AGENT",
+        runId: "run-1",
+        payload: {
+          messageId: "message-1",
+          request: {},
+          warnings: [],
+        },
+      },
+      {
+        type: "step-finish",
+        from: "AGENT",
+        runId: "run-1",
+        payload: {
+          messageId: "message-1",
+          stepResult: {
+            isContinued: true,
+            reason: "tool-calls",
+          },
+        },
+      },
+    ]);
   });
 
   it("converts tool-error chunks to tool-result error chunks", () => {
