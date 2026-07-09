@@ -83,6 +83,12 @@ Always fetch pricing from the provider's official docs before editing.
   $1.00/$0.10/$6.00). All three are reasoning models; no date-stamped snapshot versions were
   present at launch. If dated versions appear (e.g. `gpt-5.6-sol-2026-07-xx`), add them
   as separate pricing entries following the gpt-5.4 / gpt-5.5 precedent.
+  **Long context pricing** applies when input tokens exceed **272,000**: prices are 2× input
+  and 1.5× output for the full request (cached input also doubles). Individual model page
+  URLs: `https://developers.openai.com/api/docs/models/gpt-5.6-sol` (and -terra, -luna).
+  Long context prices: sol $10/$1.00/$45, terra $5/$0.50/$22.50, luna $2/$0.20/$9
+  per MTok input/cached/output. Added Large Context (>272K) tiers to the pricing file in
+  July 2026. The threshold of 272K is unique to this family; most other models use 200K.
 
 Capture:
 
