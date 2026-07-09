@@ -150,4 +150,12 @@ describe("EXPORT_FIELD_GROUP_OPTIONS — parquet description", () => {
       "Not included in the legacy observations export",
     );
   });
+
+  it("flags groups without legacy observation columns so the UI can hide them for legacy-only exports", () => {
+    for (const option of EXPORT_FIELD_GROUP_OPTIONS) {
+      expect(option.includedInLegacyExport).toBe(
+        option.value !== "trace_context",
+      );
+    }
+  });
 });

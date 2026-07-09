@@ -186,7 +186,7 @@ export function BatchActionsTable(props: { projectId: string }) {
 
   return (
     <DataTable
-      tableName={"batchActions"}
+      tableName="batchActions"
       columns={columns}
       data={
         batchActions.isPending

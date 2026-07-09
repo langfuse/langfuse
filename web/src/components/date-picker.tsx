@@ -47,7 +47,7 @@ export function DatePicker({
       <Popover>
         <PopoverTrigger asChild>
           <Button
-            variant={"outline"}
+            variant="outline"
             disabled={disabled}
             className={cn(
               "justify-start text-left font-normal",
@@ -228,7 +228,7 @@ export function DatePickerWithRange({
         <PopoverTrigger asChild>
           <Button
             id="date"
-            variant={"outline"}
+            variant="outline"
             className={cn(
               "w-[330px] justify-start text-left font-normal",
               !internalDateRange && "text-muted-foreground",
@@ -309,12 +309,15 @@ export type TimeRangePickerProps = {
   onTimeRangeChange: (timeRange: TimeRange) => void;
   timeRangePresets: readonly string[];
   className?: string;
+  /** Extra classes for the trigger button (e.g. tighter padding in the header). */
+  triggerClassName?: string;
   disabled?: boolean | { before?: Date; after?: Date } | Date | Date[];
   maxRangeMs?: number;
 };
 
 export function TimeRangePicker({
   className,
+  triggerClassName,
   timeRange,
   timeRangePresets,
   onTimeRangeChange,
@@ -532,6 +535,7 @@ export function TimeRangePicker({
             className={cn(
               "hover:bg-accent hover:text-accent-foreground w-fit justify-start text-left font-normal",
               !timeRange && "text-muted-foreground",
+              triggerClassName,
             )}
           >
             <div className="flex items-center gap-2">

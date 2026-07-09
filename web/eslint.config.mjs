@@ -99,6 +99,26 @@ export default [
         "warn",
         { classNameFunctions: ["cn", "clsx"] },
       ],
+
+      // TODO: Expand to more of the codebase
+      "no-nested-ternary": "error",
+    },
+  },
+
+  // We're using the in-app-agent directory as a testing ground for some new eslint-rules.
+  {
+    name: "langfuse/web/in-app-agent",
+    files: ["src/ee/features/in-app-agent/**/*.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/consistent-type-definitions": ["warn", "type"],
+      "@typescript-eslint/no-confusing-void-expression": "warn",
+      "@typescript-eslint/no-non-null-assertion": "warn",
+      "@typescript-eslint/no-meaningless-void-operator": "warn",
+      "@typescript-eslint/no-invalid-void-type": "warn",
+      "@typescript-eslint/no-unsafe-assignment": "warn",
+      "@typescript-eslint/return-await": ["warn", "in-try-catch"],
+      curly: ["error", "all"],
+      "@repo/no-switch-statements": "error",
     },
   },
 

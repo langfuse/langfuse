@@ -267,6 +267,7 @@ export default async function handler(request: Request) {
       {
         projectId,
         runId: sanitizedInput.runId,
+        userId,
         toolName: getInAppAgentMcpRegistryToolName(
           resumeApprovalRequest?.toolName,
         ),
@@ -643,18 +644,27 @@ function getLangfuseMcpUrl(): string {
   return baseUrl.toString();
 }
 
-async function createInAppAgentMcpApiKey(projectId: string) {
+async function createInAppAgentMcpApiKey(
+  projectId: string,
+  createdByUserId: string,
+) {
   return createAndAddApiKeysToDb({
     prisma,
     entityId: projectId,
     scope: "PROJECT",
     note: IN_APP_AGENT_API_KEY_NOTE,
     isInAppAgentKey: true,
+    createdByUserId,
   });
 }
 
 async function withInAppAgentMcpApiKeyCleanup<T>(
-  params: { projectId: string; runId: string; toolName?: McpToolName },
+  params: {
+    projectId: string;
+    runId: string;
+    userId: string;
+    toolName?: McpToolName;
+  },
   createResponse: (
     mcpApiKey: Awaited<ReturnType<typeof createInAppAgentMcpApiKey>>,
     runOverride: string | undefined,
@@ -663,7 +673,10 @@ async function withInAppAgentMcpApiKeyCleanup<T>(
 ): Promise<T> {
   // Each run gets a temporary in-app-agent API key. Approved MCP resumes also
   // get a tool-scoped run override for the single mutating registry tool.
-  const mcpApiKey = await createInAppAgentMcpApiKey(params.projectId);
+  const mcpApiKey = await createInAppAgentMcpApiKey(
+    params.projectId,
+    params.userId,
+  );
   let cleanupPromise: Promise<void> | undefined;
 
   const cleanupMcpApiKey = () => {
@@ -719,7 +732,10 @@ async function cleanupInAppAgentMcpApiKey(params: {
   });
 }
 
-type SanitizedAgentInput = AgUiRunAgentInput &
+type SanitizedAgentInput = Omit<
+  AgUiRunAgentInput,
+  "messages" | "forwardedProps"
+> &
   (
     | {
         messages: [SanitizedUserMessage];
@@ -744,7 +760,7 @@ function sanitizeAgentInput(
   input: AgUiRunAgentInput,
   projectId: string,
 ): SanitizedAgentInput {
-  const forwardedProps = input.forwardedProps;
+  const forwardedProps: unknown = input.forwardedProps;
 
   if (
     forwardedProps !== undefined &&

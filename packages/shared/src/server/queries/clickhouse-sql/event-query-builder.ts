@@ -41,7 +41,10 @@ export interface SplitQueryBuilder extends QueryWithParams {
   leftJoin(cteName: string, alias: string, onClause: string): SplitQueryBuilder;
   select(...expressions: string[]): SplitQueryBuilder;
   orderBy(clause: string): SplitQueryBuilder;
-  orderByColumns(entries: OrderByEntry[]): SplitQueryBuilder;
+  orderByColumns(
+    entries: OrderByEntry[],
+    options?: OrderByColumnsOptions,
+  ): SplitQueryBuilder;
 }
 
 /**
@@ -49,6 +52,51 @@ export interface SplitQueryBuilder extends QueryWithParams {
  */
 export type OrderByDirection = "ASC" | "DESC";
 export type OrderByEntry = { column: string; direction: OrderByDirection };
+export type OrderByColumnsOptions = {
+  eventTableAlias?: string;
+  /**
+   * Prepend `<alias>.project_id, toStartOfMinute(<alias>.start_time)` so the
+   * sort matches the events table PRIMARY KEY (project_id,
+   * toStartOfMinute(start_time), xxHash32(trace_id)) for read-in-order.
+   * Callers should set this when the sort order leads with start_time.
+   */
+  matchTablePrimaryKey?: boolean;
+};
+
+const findStartTimeOrderClause = (
+  entries: OrderByEntry[],
+  eventTableAlias: string,
+) =>
+  entries.find(
+    (e) => e.column.replace(/"/g, "") === `${eventTableAlias}.start_time`,
+  );
+
+const buildOrderByClause = (
+  entries: OrderByEntry[],
+  options: OrderByColumnsOptions = {},
+) => {
+  if (!entries.length) {
+    return undefined;
+  }
+
+  const columns: string[] = [];
+  const { eventTableAlias, matchTablePrimaryKey } = options;
+
+  if (matchTablePrimaryKey && eventTableAlias) {
+    // The prefix reuses the direction the caller chose for start_time so the
+    // combined order stays equivalent (toStartOfMinute is monotone).
+    const direction =
+      findStartTimeOrderClause(entries, eventTableAlias)?.direction ?? "DESC";
+    columns.push(
+      `${eventTableAlias}.project_id ${direction}`,
+      `toStartOfMinute(${eventTableAlias}.start_time) ${direction}`,
+    );
+  }
+
+  columns.push(...entries.map((e) => `${e.column} ${e.direction}`));
+
+  return `ORDER BY ${columns.join(", ")}`;
+};
 
 /**
  * Field mapping: each field defined once with its full SELECT expression
@@ -125,7 +173,10 @@ const EVENTS_FIELDS = {
   // Experiment fields (denormalized on events table)
   experimentId: 'e.experiment_id as "experiment_id"',
   experimentName: 'e.experiment_name as "experiment_name"',
+  experimentDescription: 'e.experiment_description as "experiment_description"',
   experimentDatasetId: 'e.experiment_dataset_id as "experiment_dataset_id"',
+  experimentMetadata:
+    "mapFromArrays(e.experiment_metadata_names, e.experiment_metadata_values) as experiment_metadata",
 
   // Experiment item fields
   experimentItemId: 'e.experiment_item_id as "experiment_item_id"',
@@ -240,7 +291,28 @@ const FIELD_SETS = {
   trace_context: ["tags", "release", "traceName"],
   model_export: ["providedModelName", "modelId", "modelParameters"],
   eventTs: ["eventTs"],
-
+  publicApiExperimentItemCore: [
+    "id",
+    "projectId",
+    "traceId",
+    "startTime",
+    "endTime",
+    "level",
+    "environment",
+    "experimentId",
+    "experimentName",
+    "experimentItemId",
+  ],
+  publicApiExperimentItemDataset: [
+    "experimentDatasetId",
+    "experimentItemVersion",
+  ],
+  publicApiExperimentItemExpectedOutput: ["experimentItemExpectedOutput"],
+  publicApiExperimentItemMetadataFields: ["experimentItemMetadata"],
+  publicApiExperimentItemExperimentMetadata: [
+    "experimentMetadata",
+    "experimentDescription",
+  ],
   // getById field sets (reuse the same fields - all queries use `FROM events_<type> e`)
   byIdBase: [
     "id",
@@ -591,13 +663,14 @@ abstract class AbstractQueryBuilder {
   /**
    * Add ORDER BY using OrderByEntry array for structured API
    */
-  orderByColumns(entries: OrderByEntry[]): this {
-    if (!entries.length) {
-      return this;
+  orderByColumns(
+    entries: OrderByEntry[],
+    options?: OrderByColumnsOptions,
+  ): this {
+    const orderByClause = buildOrderByClause(entries, options);
+    if (orderByClause) {
+      this.orderByClause = orderByClause;
     }
-
-    const columns: string[] = entries.map((e) => `${e.column} ${e.direction}`);
-    this.orderByClause = `ORDER BY ${columns.join(", ")}`;
     return this;
   }
 
@@ -771,38 +844,25 @@ abstract class BaseEventsQueryBuilder<
   }
 
   /**
-   * Set ORDER BY clause with automatic project_id prepending for optimal ClickHouse performance.
-   * The events table has ORDER BY (project_id, start_time, ...) so queries should match.
+   * Set ORDER BY clause. When the sort order includes e.start_time, the
+   * PRIMARY KEY prefix (project_id, toStartOfMinute(start_time)) is prepended
+   * for optimal ClickHouse performance.
    *
    * @example
    * builder.orderByColumns([
    *   { column: "e.start_time", direction: "DESC" },
    *   { column: "e.event_ts", direction: "DESC" },
    * ])
-   * // Produces: ORDER BY e.project_id DESC, e.start_time DESC, e.event_ts DESC
+   * // Produces: ORDER BY e.project_id DESC, toStartOfMinute(e.start_time) DESC, e.start_time DESC, e.event_ts DESC
    */
   orderByColumns(entries: OrderByEntry[]): this {
-    if (!entries.length) {
-      return this;
+    const orderByClause = buildOrderByClause(entries, {
+      eventTableAlias: "e",
+      matchTablePrimaryKey: Boolean(findStartTimeOrderClause(entries, "e")),
+    });
+    if (orderByClause) {
+      this.orderByClause = orderByClause;
     }
-
-    // When ordering by start_time, prepend project_id and toStartOfMinute(e.start_time)
-    // to match the table PRIMARY KEY: (project_id, toStartOfMinute(start_time), xxHash32(trace_id))
-    const startTimeEntry = entries.find((e) =>
-      e.column.replace(/"/g, "").endsWith("start_time"),
-    );
-
-    const columns: string[] = [];
-    if (startTimeEntry) {
-      columns.push(
-        `e.project_id ${startTimeEntry.direction}`,
-        `toStartOfMinute(e.start_time) ${startTimeEntry.direction}`,
-      );
-    }
-
-    columns.push(...entries.map((e) => `${e.column} ${e.direction}`));
-
-    this.orderByClause = `ORDER BY ${columns.join(", ")}`;
     return this;
   }
 
@@ -1772,7 +1832,8 @@ const EXPERIMENTS_AGGREGATION_FIELDS = {
   experimentName: "any(e.experiment_name) AS experiment_name",
   experimentDescription:
     "any(e.experiment_description) AS experiment_description",
-  experimentDatasetId: "any(e.experiment_dataset_id) AS experiment_dataset_id",
+  experimentDatasetId:
+    "nullIf(any(e.experiment_dataset_id), '') AS experiment_dataset_id",
   startTime: "min(e.start_time) AS start_time",
   itemCount: "uniq(e.experiment_item_id) AS item_count",
   errorCount: "countIf(e.level = 'ERROR') AS error_count",
@@ -1804,6 +1865,14 @@ const EXPERIMENTS_AGGREGATION_FIELD_SETS = {
     "experimentMetadata",
   ] as const,
   metrics: ["experimentId", "totalCost", "latencyAvg"] as const,
+  publicApiSummary: [
+    "experimentId",
+    "experimentName",
+    "experimentDescription",
+    "experimentDatasetId",
+    "startTime",
+  ] as const,
+  publicApiSummaryMetadata: ["experimentMetadata"] as const,
 } as const;
 
 export type ExperimentsAggregationFieldSetName =
@@ -1839,7 +1908,7 @@ export class ExperimentsAggregationQueryBuilder extends BaseEventsQueryBuilder<
   }
 
   /**
-   * Add start time filter with OBSERVATIONS_TO_TRACE_INTERVAL
+   * Add start time filter with OBSERVATIONS_TO_TRACE_INTERVAL.
    */
   withStartTimeFrom(startTimeFrom?: string | null): this {
     return this.when(Boolean(startTimeFrom), (b) =>

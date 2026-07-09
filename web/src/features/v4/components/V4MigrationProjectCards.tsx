@@ -1,11 +1,24 @@
 import { useMemo, type ReactNode } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
-import { ChevronRight, ExternalLink } from "lucide-react";
+import {
+  ChevronRight,
+  CircleCheck,
+  Clock,
+  ExternalLink,
+  Info,
+  TriangleAlert,
+} from "lucide-react";
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import { Badge } from "@/src/components/ui/badge";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/src/components/ui/accordion";
 import {
   ChartContainer,
   ChartTooltip,
@@ -15,6 +28,8 @@ import {
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { encodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
 import {
+  V4_LEGACY_EXPORT_AUTO_SWITCH_COPY,
+  V4_MIGRATION_DEADLINE_SHORT_LABEL,
   getV4MigrationStatus,
   normalizeLegacyApiEntrypoint,
 } from "@/src/features/v4/utils";
@@ -116,6 +131,12 @@ const STACKED_CHART_COLORS = [
   "hsl(var(--chart-8))",
   "hsl(var(--chart-3))",
 ] as const;
+
+const formatCountLabel = (
+  count: number,
+  singular: string,
+  plural = `${singular}s`,
+) => `${numberFormatter(count, 0)} ${count === 1 ? singular : plural}`;
 
 export const INTEGRATION_LINKS = [
   {
@@ -395,13 +416,13 @@ const Notice = ({ children }: { children: ReactNode }) => (
 );
 
 const SectionLoading = () => (
-  <div className="rounded-md border p-3">
+  <div className="border-dark-yellow/30 grid gap-3 border-l-2 py-1 pl-4">
     <div className="mb-3 flex items-center justify-between gap-3">
       <Skeleton className="h-4 w-32" />
       <Skeleton className="h-3 w-20" />
     </div>
     <Skeleton className="h-28 w-full" />
-    <div className="mt-3 flex gap-3 border-t pt-3">
+    <div className="flex gap-3">
       <Skeleton className="h-3 w-24" />
       <Skeleton className="h-3 w-32" />
       <Skeleton className="h-3 w-20" />
@@ -419,7 +440,7 @@ const InlineLink = ({
   children: ReactNode;
 }) => {
   const className =
-    "text-accent-dark-blue hover:text-primary-accent/60 inline-flex items-center gap-1 text-sm font-semibold whitespace-nowrap";
+    "text-link hover:text-link-hover inline-flex items-center gap-1 text-sm font-semibold whitespace-nowrap";
 
   return external ? (
     <a
@@ -439,36 +460,135 @@ const InlineLink = ({
   );
 };
 
-const Section = ({
+const DeadlineBadge = () => (
+  <Badge variant="warning" className="inline-flex items-center gap-1">
+    <Clock className="h-3 w-3" />
+    {V4_MIGRATION_DEADLINE_SHORT_LABEL}
+  </Badge>
+);
+
+const AuditSection = ({
   title,
-  count,
-  isCountLoading,
+  countLabel,
+  consequence,
   detailsHref,
   children,
 }: {
   title: string;
-  count: number;
-  isCountLoading?: boolean;
+  countLabel: string;
+  consequence: string;
   detailsHref: ProductHref;
   children: ReactNode;
 }) => (
-  <section>
-    <div className="flex items-center justify-between gap-3">
-      <h3 className="text-sm font-medium">{title}</h3>
-      <div className="flex items-center gap-2">
-        {isCountLoading ? (
-          <Skeleton className="h-5 w-8 rounded-full" />
-        ) : (
+  <section className="border-dark-yellow/60 grid gap-3 border-l-2 py-1 pl-4">
+    <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <TriangleAlert className="text-dark-yellow h-4 w-4 shrink-0" />
+          <h3 className="text-sm font-semibold">{title}</h3>
           <Badge variant="outline-solid" size="sm">
-            {numberFormatter(count, 0)}
+            {countLabel}
           </Badge>
-        )}
+          <DeadlineBadge />
+        </div>
+        <p className="text-muted-foreground mt-1 text-sm">{consequence}</p>
+      </div>
+      <div className="shrink-0">
         <InlineLink href={detailsHref}>Go to details</InlineLink>
       </div>
     </div>
-    <div className="mt-3 flex flex-col gap-2">{children}</div>
+    <div className="flex flex-col gap-2">{children}</div>
   </section>
 );
+
+const SuccessAudit = () => (
+  <div className="border-light-green flex items-start gap-3 border-l-2 py-2 pl-4">
+    <CircleCheck className="text-dark-green mt-0.5 h-4 w-4 shrink-0" />
+    <div className="min-w-0">
+      <div className="text-sm font-semibold">
+        No required v4 migration changes detected
+      </div>
+      <div className="text-muted-foreground mt-0.5 text-sm">
+        The selected range has no required customer action for v4.
+      </div>
+    </div>
+  </div>
+);
+
+const PassedCheckRow = ({ children }: { children: ReactNode }) => (
+  <div className="flex items-start gap-2 py-1.5 text-sm">
+    <CircleCheck className="text-dark-green h-4 w-4 shrink-0" />
+    <span className="min-w-0">{children}</span>
+  </div>
+);
+
+const NonActionDetails = ({
+  bucketTimes,
+  sdkUsageSeries,
+  passedChecks,
+}: {
+  bucketTimes: string[];
+  sdkUsageSeries: SdkUsageSeries[];
+  passedChecks: ReactNode[];
+}) => {
+  if (sdkUsageSeries.length === 0 && passedChecks.length === 0) return null;
+
+  return (
+    <Accordion
+      type="single"
+      collapsible
+      className="pt-1"
+      data-testid="non-action-details"
+    >
+      <AccordionItem value="details" className="border-b-0">
+        <AccordionTrigger className="py-3 text-sm hover:no-underline">
+          <span className="flex min-w-0 items-center gap-2">
+            <Info className="text-muted-foreground h-4 w-4 shrink-0" />
+            <span className="font-medium">
+              Details that do not require action
+            </span>
+            <Badge variant="outline-solid" size="sm">
+              {numberFormatter(sdkUsageSeries.length + passedChecks.length, 0)}
+            </Badge>
+          </span>
+        </AccordionTrigger>
+        <AccordionContent className="flex flex-col gap-5 pt-1">
+          {sdkUsageSeries.length ? (
+            <section className="flex flex-col gap-2">
+              <div>
+                <h4 className="text-sm font-medium">SDK telemetry</h4>
+                <p className="text-muted-foreground text-xs">
+                  Current, unknown with API keys, unsupported, and invalid SDK
+                  telemetry is shown for context only.
+                </p>
+              </div>
+              <SdkUsageDetails
+                bucketTimes={bucketTimes}
+                series={sdkUsageSeries}
+              />
+            </section>
+          ) : null}
+          {passedChecks.length ? (
+            <section className="flex flex-col gap-2">
+              <div>
+                <h4 className="text-sm font-medium">Passed checks</h4>
+                <p className="text-muted-foreground text-xs">
+                  These checks did not produce required customer work in the
+                  selected range.
+                </p>
+              </div>
+              <div className="grid gap-1">
+                {passedChecks.map((check, index) => (
+                  <PassedCheckRow key={index}>{check}</PassedCheckRow>
+                ))}
+              </div>
+            </section>
+          ) : null}
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
+  );
+};
 
 const getStackedChartSeries = (
   series: UsageSeries[],
@@ -588,7 +708,7 @@ export const UsageStackedBarOverview = ({
   }
 
   return (
-    <div className="rounded-md border p-3">
+    <div className="py-2">
       <div className="mb-2 flex items-center justify-between gap-3">
         <span className="text-sm font-medium">Usage over time</span>
         <span className="text-muted-foreground text-xs">
@@ -644,7 +764,7 @@ export const UsageStackedBarOverview = ({
           ))}
         </BarChart>
       </ChartContainer>
-      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 border-t pt-3">
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
         {chartSeries.map((item) => (
           <div
             key={item.key}
@@ -678,15 +798,15 @@ const SdkUsageDetails = ({
   const total = series.reduce((sum, item) => sum + item.total, 0);
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
       <UsageStackedBarOverview
         bucketTimes={bucketTimes}
         series={series}
         valueLabel="records"
         seriesLimit={null}
       />
-      <div className="overflow-hidden rounded-md border">
-        <div className="bg-muted/30 text-muted-foreground hidden grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_7rem_7rem] gap-3 border-b px-3 py-2 text-xs font-medium md:grid">
+      <div className="overflow-hidden">
+        <div className="text-muted-foreground hidden grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_7rem_7rem] gap-3 border-b py-2 text-xs font-medium md:grid">
           <span>SDK</span>
           <span>API key</span>
           <span className="text-right">Last seen</span>
@@ -708,7 +828,7 @@ const SdkUsageDetails = ({
             return (
               <div
                 key={getSdkUsageSeriesKey(item)}
-                className="grid gap-3 border-b px-3 py-2 last:border-b-0 md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_7rem_7rem] md:items-center"
+                className="grid gap-3 border-b py-2 last:border-b-0 md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_7rem_7rem] md:items-center"
               >
                 <div className="min-w-0">
                   <div className="flex min-w-0 items-center gap-2">
@@ -765,7 +885,7 @@ const SdkUsageDetails = ({
             );
           })}
         </div>
-        <div className="bg-muted/20 text-muted-foreground border-t px-3 py-2 text-right text-xs">
+        <div className="text-muted-foreground pt-2 text-right text-xs">
           {numberFormatter(total, 0, 2)} records
         </div>
       </div>
@@ -786,7 +906,7 @@ const ActionRow = ({
   total?: number;
   usageLabel?: string;
 }) => (
-  <div className="grid gap-3 rounded-md border px-3 py-2 md:grid-cols-[minmax(0,1fr)_8rem] md:items-center">
+  <div className="grid gap-3 border-b py-2 last:border-b-0 md:grid-cols-[minmax(0,1fr)_8rem] md:items-center">
     <div className="min-w-0">
       <div
         className={cn("truncate text-sm font-medium", titleClassName)}
@@ -899,10 +1019,19 @@ export const V4MigrationProjectCards = ({
       }),
     [sdkUsageBucketTimes, sdkUsageRows],
   );
-  const outdatedSdkUsageSeries = useMemo(
+  const requiredSdkUsageSeries = useMemo(
     () =>
       sdkUsageSeries.filter(
         (series) => series.upgradeStatus === "outdated_major",
+      ),
+    [sdkUsageSeries],
+  );
+  const nonActionSdkUsageSeries = useMemo(
+    () =>
+      sdkUsageSeries.filter(
+        (series) =>
+          series.upgradeStatus !== "outdated_major" &&
+          !isUntrackedSdkUsage(series),
       ),
     [sdkUsageSeries],
   );
@@ -928,7 +1057,7 @@ export const V4MigrationProjectCards = ({
     legacyApiSeries.length +
     traceLevelEvalCount +
     legacyIntegrationLinks.length +
-    outdatedSdkUsageSeries.length;
+    requiredSdkUsageSeries.length;
   const migrationStatus = getV4MigrationStatus(activeTaskCount);
   const isSummaryLoading =
     isLegacyIntegrationSummaryLoading || isTraceLevelEvalSummaryLoading;
@@ -936,10 +1065,66 @@ export const V4MigrationProjectCards = ({
     isLegacyApiUsageLoading ||
     isTraceLevelEvalExecutionsLoading ||
     isSdkUsageLoading;
+  const passedChecks = useMemo(() => {
+    const checks: ReactNode[] = [];
+
+    if (!isLegacyApiUsageLoading && !hasLegacyApiUsageError) {
+      if (legacyApiSeries.length === 0) {
+        checks.push("No legacy public API usage in this range.");
+      }
+    }
+
+    if (!isSdkUsageLoading && !hasSdkUsageError) {
+      if (requiredSdkUsageSeries.length === 0) {
+        checks.push(
+          sdkUsageSeries.length
+            ? "No outdated major SDK usage detected."
+            : "No SDK usage detected in this range.",
+        );
+      }
+    }
+
+    if (
+      !isTraceLevelEvalSummaryLoading &&
+      !isTraceLevelEvalExecutionsLoading &&
+      !hasTraceLevelEvalSummaryError &&
+      !hasTraceLevelEvalExecutionsError &&
+      traceLevelEvalCount === 0
+    ) {
+      checks.push("No trace-level evals detected.");
+    }
+
+    if (
+      !isLegacyIntegrationSummaryLoading &&
+      !hasLegacyIntegrationSummaryError &&
+      legacyIntegrationLinks.length === 0
+    ) {
+      checks.push("No legacy integration exports detected.");
+    }
+
+    return checks;
+  }, [
+    hasLegacyApiUsageError,
+    hasLegacyIntegrationSummaryError,
+    hasSdkUsageError,
+    hasTraceLevelEvalExecutionsError,
+    hasTraceLevelEvalSummaryError,
+    isLegacyApiUsageLoading,
+    isLegacyIntegrationSummaryLoading,
+    isSdkUsageLoading,
+    isTraceLevelEvalExecutionsLoading,
+    isTraceLevelEvalSummaryLoading,
+    legacyApiSeries.length,
+    legacyIntegrationLinks.length,
+    requiredSdkUsageSeries.length,
+    sdkUsageSeries.length,
+    traceLevelEvalCount,
+  ]);
 
   return (
     <DashboardCard
-      title="Required changes"
+      className="border-0 bg-transparent shadow-none"
+      title="V4 migration audit"
       description={
         isSummaryLoading
           ? "Loading V4 migration data."
@@ -957,7 +1142,7 @@ export const V4MigrationProjectCards = ({
       isLoading={isSummaryLoading}
       headerRight={
         isSummaryLoading ? undefined : (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <InlineLink href={V4_DOCS_LINK.href} external>
               {V4_DOCS_LINK.label}
             </InlineLink>
@@ -975,103 +1160,121 @@ export const V4MigrationProjectCards = ({
                   ? "Loading"
                   : migrationStatus.label}
             </Badge>
+            <DeadlineBadge />
           </div>
         )
       }
+      headerClassName="px-0 pt-0"
+      cardContentClassName="gap-5 px-0 pb-0"
     >
-      <Section
-        title="Legacy public APIs"
-        count={legacyApiSeries.length}
-        isCountLoading={isLegacyApiUsageLoading}
-        detailsHref={`/project/${projectId}/settings/api-keys`}
-      >
+      <div className="flex flex-col gap-5" data-testid="required-actions">
+        {isSdkUsageLoading ? (
+          <SectionLoading />
+        ) : hasSdkUsageError ? (
+          <Notice>Failed to load SDK usage.</Notice>
+        ) : requiredSdkUsageSeries.length ? (
+          <AuditSection
+            title="SDK upgrades"
+            countLabel={`${numberFormatter(
+              requiredSdkUsageSeries.length,
+              0,
+            )} outdated`}
+            consequence="Upgrade all SDKs that are not on the latest major version before the migration deadline."
+            detailsHref={`/project/${projectId}/settings/api-keys`}
+          >
+            <SdkUsageDetails
+              bucketTimes={sdkUsageBucketTimes}
+              series={requiredSdkUsageSeries}
+            />
+          </AuditSection>
+        ) : null}
+
         {isLegacyApiUsageLoading ? (
           <SectionLoading />
         ) : hasLegacyApiUsageError ? (
           <Notice>Failed to load public API usage.</Notice>
         ) : legacyApiSeries.length ? (
-          <UsageStackedBarOverview
-            bucketTimes={legacyApiBucketTimes}
-            series={legacyApiSeries}
-            valueLabel="calls"
-          />
-        ) : (
-          <Notice>No legacy public API usage in this range.</Notice>
-        )}
-      </Section>
+          <AuditSection
+            title="Legacy public APIs"
+            countLabel={formatCountLabel(legacyApiSeries.length, "route")}
+            consequence="Replace legacy public API reads with v4-compatible APIs before the migration deadline."
+            detailsHref={`/project/${projectId}/settings/api-keys`}
+          >
+            <UsageStackedBarOverview
+              bucketTimes={legacyApiBucketTimes}
+              series={legacyApiSeries}
+              valueLabel="calls"
+            />
+          </AuditSection>
+        ) : null}
 
-      <Section
-        title="SDK usage"
-        count={sdkUsageSeries.length}
-        isCountLoading={isSdkUsageLoading}
-        detailsHref={`/project/${projectId}/settings/api-keys`}
-      >
-        {isSdkUsageLoading ? (
-          <SectionLoading />
-        ) : hasSdkUsageError ? (
-          <Notice>Failed to load SDK usage.</Notice>
-        ) : sdkUsageSeries.length ? (
-          <SdkUsageDetails
-            bucketTimes={sdkUsageBucketTimes}
-            series={sdkUsageSeries}
-          />
-        ) : (
-          <Notice>No SDK usage detected in this range.</Notice>
-        )}
-      </Section>
-
-      <Section
-        title="Trace-level evals"
-        count={traceLevelEvalCount}
-        isCountLoading={isTraceLevelEvalSummaryLoading}
-        detailsHref={traceLevelEvalsHref}
-      >
         {isTraceLevelEvalSummaryLoading || isTraceLevelEvalExecutionsLoading ? (
           <SectionLoading />
         ) : hasTraceLevelEvalSummaryError ||
           hasTraceLevelEvalExecutionsError ? (
           <Notice>Failed to load trace-level eval data.</Notice>
-        ) : evalExecutionSeries.length ? (
-          <UsageStackedBarOverview
-            bucketTimes={evalExecutionBucketTimes}
-            series={evalExecutionSeries}
-            valueLabel="executions"
-          />
         ) : traceLevelEvalCount > 0 ? (
-          <ActionRow
-            title={`${numberFormatter(
-              traceLevelEvalCount,
-              0,
-            )} configured trace-level evals`}
-            detail="No executions found in the selected range."
-          />
-        ) : (
-          <Notice>No trace-level evals detected.</Notice>
-        )}
-      </Section>
+          <AuditSection
+            title="Trace-level evals"
+            countLabel={`${numberFormatter(traceLevelEvalCount, 0)} configured`}
+            consequence="Move trace-level evals to supported v4 evaluation workflows before the migration deadline."
+            detailsHref={traceLevelEvalsHref}
+          >
+            {evalExecutionSeries.length ? (
+              <UsageStackedBarOverview
+                bucketTimes={evalExecutionBucketTimes}
+                series={evalExecutionSeries}
+                valueLabel="executions"
+              />
+            ) : (
+              <ActionRow
+                title={`${numberFormatter(
+                  traceLevelEvalCount,
+                  0,
+                )} configured trace-level evals`}
+                detail="No executions found in the selected range."
+              />
+            )}
+          </AuditSection>
+        ) : null}
 
-      <Section
-        title="Integrations"
-        count={legacyIntegrationLinks.length}
-        isCountLoading={isLegacyIntegrationSummaryLoading}
-        detailsHref={`/project/${projectId}/settings/integrations`}
-      >
         {isLegacyIntegrationSummaryLoading ? (
           <SectionLoading />
         ) : hasLegacyIntegrationSummaryError ? (
           <Notice>Failed to load integration data.</Notice>
         ) : legacyIntegrationLinks.length ? (
-          legacyIntegrationLinks.map((integration) => (
-            <ActionRow
-              key={integration.key}
-              title={integration.label}
-              detail="Legacy traces and observations export is enabled."
-            />
-          ))
-        ) : (
-          <Notice>No legacy integration exports detected.</Notice>
-        )}
-      </Section>
+          <AuditSection
+            title="Legacy exports"
+            countLabel={formatCountLabel(
+              legacyIntegrationLinks.length,
+              "integration",
+            )}
+            consequence={V4_LEGACY_EXPORT_AUTO_SWITCH_COPY}
+            detailsHref={`/project/${projectId}/settings/integrations`}
+          >
+            {legacyIntegrationLinks.map((integration) => (
+              <ActionRow
+                key={integration.key}
+                title={integration.label}
+                detail="Legacy traces and observations export is enabled."
+              />
+            ))}
+          </AuditSection>
+        ) : null}
+
+        {!isSummaryLoading &&
+        !isTimelineLoading &&
+        !hasAnyError &&
+        activeTaskCount === 0 ? (
+          <SuccessAudit />
+        ) : null}
+      </div>
+
+      <NonActionDetails
+        bucketTimes={sdkUsageBucketTimes}
+        sdkUsageSeries={nonActionSdkUsageSeries}
+        passedChecks={passedChecks}
+      />
     </DashboardCard>
   );
 };

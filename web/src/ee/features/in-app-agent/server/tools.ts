@@ -185,6 +185,14 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES: Record<
     approval: "approval",
     availability: { scope: "evalJob:CUD" },
   },
+  listExperiments: {
+    approval: "auto",
+    availability: { scope: "project:read" },
+  },
+  listExperimentItems: {
+    approval: "auto",
+    availability: { scope: "project:read" },
+  },
   getHealth: {
     approval: "auto",
     availability: { scope: "project:read" },

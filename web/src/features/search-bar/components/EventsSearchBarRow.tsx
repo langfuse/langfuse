@@ -20,7 +20,7 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import type { ObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import { AI_GROUNDING_COLUMNS } from "@/src/features/search-bar/lib/ai-context";
-import { SearchComposer } from "@/src/features/search-bar/components/SearchComposer";
+import { ComposerWithPreview } from "@/src/features/search-bar/components/ComposerWithPreview";
 import { SearchBarAiPrompt } from "@/src/features/search-bar/components/SearchBarAiPrompt";
 import { SearchBarStoreProvider } from "@/src/features/search-bar/store/SearchBarStoreProvider";
 import type { SearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
@@ -86,7 +86,7 @@ export function EventsSearchBarRow({
         />
       ) : (
         <SearchBarStoreProvider store={store} commit={commit}>
-          <SearchComposer
+          <ComposerWithPreview
             projectId={projectId}
             observed={observed}
             erroredColumns={erroredColumns}

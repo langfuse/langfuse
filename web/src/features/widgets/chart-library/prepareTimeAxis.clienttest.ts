@@ -20,6 +20,17 @@ describe("prepareTimeAxis", () => {
     expect(MONTH_DAY.test(label)).toBe(false); // never a date on a time-scale tick
   });
 
+  it("temporal axes opt into vertical grid lines; categorical axes stay clean", () => {
+    const start = Date.UTC(2026, 5, 28, 0);
+    const temporal = Array.from({ length: 24 }, (_, h) =>
+      iso(start + h * HOUR),
+    );
+    expect(prepareTimeAxis(temporal, 6).showVerticalGrid).toBe(true);
+
+    const categorical = ["run-alpha", "run-beta", "run-gamma"];
+    expect(prepareTimeAxis(categorical, 6).showVerticalGrid).toBe(false);
+  });
+
   it("span >24h uses date mode (no hour-only ticks repeating across midnight)", () => {
     // 36 hourly buckets ≈ 35h span — must NOT be time mode (would duplicate hours).
     const start = Date.UTC(2026, 5, 28, 0);

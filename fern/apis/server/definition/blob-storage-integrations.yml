@@ -43,14 +43,17 @@ types:
       - AZURE_BLOB_STORAGE
 
   BlobStorageIntegrationFileType:
+    docs: |
+      File format for exported data. `PARQUET` is a columnar binary format encoded and compressed by the storage engine; gzip compression does not apply to it. Note that the model-price columns (`input_price`, `output_price`, `total_price`) are not included in Parquet observation exports.
     enum:
       - JSON
       - CSV
       - JSONL
+      - PARQUET
 
   BlobStorageIntegrationFileTypeResponse:
     docs: |
-      File type reported for an existing integration. Includes `PARQUET`, which a project may enable through the Langfuse UI but cannot yet be set via this API (the request `fileType` omits it).
+      File type reported for an existing integration.
     enum:
       - JSON
       - CSV

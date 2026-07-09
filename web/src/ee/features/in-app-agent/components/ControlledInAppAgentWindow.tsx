@@ -79,7 +79,9 @@ export function ControlledInAppAgentWindow(
       onOpenConversationHistory={invalidateConversations}
       onDeleteConversation={props.onDeleteConversation}
       onSelectConversation={selectConversation}
-      onNewConversation={() => selectConversation(null)}
+      onNewConversation={() => {
+        selectConversation(null);
+      }}
       onExpandedChange={props.onExpandedChange}
       onSubmit={submit}
       onApproveToolCall={approveToolCall}
