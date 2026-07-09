@@ -85,22 +85,15 @@ function normalizePreviewDataFields(
     input: getRecordValue(record, "input"),
     output: getRecordValue(record, "output"),
     metadata: getRecordValue(record, "metadata"),
-    toolCalls: getZippedToolCalls(record),
+    // Source records carry the raw storage shape; zip so the preview matches
+    // what the evaluator runtime produces.
+    toolCalls: zipToolCallsFromRecord(record ?? {}),
     experimentItemExpectedOutput: getRecordValue(
       record,
       "experimentItemExpectedOutput",
     ),
     experimentItemMetadata: getRecordValue(record, "experimentItemMetadata"),
   };
-}
-
-// Both source records (events batchIO and legacy observation) carry the raw
-// storage shape; zip client-side so the preview matches what the evaluator
-// runtime produces.
-function getZippedToolCalls(
-  record: Record<string, unknown> | null | undefined,
-) {
-  return zipToolCallsFromRecord(record ?? {});
 }
 
 function getRecordValue(
