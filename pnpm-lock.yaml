@@ -201,9 +201,6 @@ importers:
       '@aws-sdk/client-lambda':
         specifier: ^3.1046.0
         version: 3.1046.0
-      '@aws-sdk/client-lambda-microvms':
-        specifier: 3.1074.0
-        version: 3.1074.0
       '@aws-sdk/client-s3':
         specifier: ^3.1013.0
         version: 3.1024.0
