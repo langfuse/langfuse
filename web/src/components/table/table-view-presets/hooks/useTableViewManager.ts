@@ -335,13 +335,24 @@ export function useTableViewManager({
       // has run (the migration is one-shot and this is a separate persistence path).
       // Run the table's opt-in columnOrder migration on the payload first so the
       // same "only reposition a stale default" rule applies here too.
-      if (viewData.columnOrder) {
+      //
+      // EMPTY payloads carry no column opinion and must not touch the user's
+      // layout: system presets (and the chips' cleared state) ship
+      // `columnOrder: []` / `columnVisibility: {}`, and writing those through
+      // would reconcile the table back to default columns and PERSIST that to
+      // localStorage — silently wiping per-user reordering/visibility on every
+      // preset apply. User-saved views always persist a full non-empty
+      // snapshot, so gating on non-empty only skips the no-opinion payloads.
+      if (viewData.columnOrder && viewData.columnOrder.length > 0) {
         const migratedColumnOrder = validationContext.migrateColumnOrder
           ? validationContext.migrateColumnOrder(viewData.columnOrder)
           : viewData.columnOrder;
         setColumnOrder(migratedColumnOrder);
       }
-      if (viewData.columnVisibility)
+      if (
+        viewData.columnVisibility &&
+        Object.keys(viewData.columnVisibility).length > 0
+      )
         setColumnVisibility(viewData.columnVisibility);
 
       // Unlock as soon as the view is applied. Earlier versions kept the table
@@ -382,6 +393,12 @@ export function useTableViewManager({
         // mutation on a link open) — so there is nothing to fetch.
         !hasExplicitTableStateInUrl(router.query) &&
         (!isSystemPresetId(selectedViewId) || allowBackendSystemPresets),
+      // A 404 is an expected outcome, not an incident: system presets are
+      // code-defined and a catalog iteration can retire an id that still
+      // lives in bookmarks/session storage. Silence the GLOBAL query-cache
+      // error toast for it — the error effect below owns the messaging
+      // (friendly retirement notice vs. real error).
+      meta: { silentHttpCodes: [404] },
     },
   );
 
@@ -446,13 +463,45 @@ export function useTableViewManager({
     setIsInitialized(true);
     setIsLoading(false);
     handleSetViewId(null, { updateType: "replaceIn" });
-    showErrorToast("Error applying view", selectedViewError.message, "WARNING");
+    // A 404 on a system-preset id means the catalog retired it (system
+    // presets are code-defined); stale references live on in bookmarks and
+    // session storage. Stale DEFAULTS never reach here (getDefault
+    // self-heals them server-side), so this is an explicit-ish reference —
+    // tell the user once why they landed on the default table (a dead
+    // bookmark is fixable), in a friendlier voice than the real error kept
+    // for dangling user views and for transient failures (which must stay
+    // loud — a network blip is not a retirement).
+    if (
+      isSystemPresetId(requestedViewId) &&
+      selectedViewError.data?.httpStatus === 404
+    ) {
+      // How many users still follow "the older way" (a retired preset
+      // reference) and get redirected — sizes the cost of each catalog
+      // iteration.
+      capture("saved_views:retired_view_redirect", {
+        tableName,
+        viewId: requestedViewId,
+      });
+      showErrorToast(
+        "View no longer available",
+        "This suggested view was retired — showing the default view instead.",
+        "WARNING",
+      );
+    } else {
+      showErrorToast(
+        "Error applying view",
+        selectedViewError.message,
+        "WARNING",
+      );
+    }
   }, [
     disabled,
     isSelectedViewError,
     selectedViewError,
     selectedViewId,
     handleSetViewId,
+    capture,
+    tableName,
   ]);
 
   if (disabled) {
