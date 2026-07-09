@@ -466,8 +466,18 @@ export function resolveCheckboxOperator(params: {
     existingFilter.operator === "none of" &&
     existingFilter.type === "stringOptions"
   ) {
-    const deselected = availableValues.filter((v) => !values.includes(v));
-    return { finalOperator: "none of", finalValues: deselected };
+    // Same carry-over as the arrayOptions branch above: exclusions outside
+    // the current option list are invisible and cannot have been re-checked.
+    const checked = new Set(values);
+    const availableSet = new Set(availableValues);
+    const carriedExclusions = existingFilter.value.filter(
+      (v) => !availableSet.has(v),
+    );
+    const deselected = availableValues.filter((v) => !checked.has(v));
+    return {
+      finalOperator: "none of",
+      finalValues: [...carriedExclusions, ...deselected],
+    };
   }
   return { finalOperator: "any of", finalValues: values };
 }
@@ -939,16 +949,28 @@ export function useSidebarFilterState(
       let finalOperator: "any of" | "none of" | "all of";
       let finalValues: string[];
       const existingFilter = current.find((f) => f.column === column);
-      // For an active arrayOptions "none of" filter, "all checked" is not the
-      // same as "no filter": exclusions outside the current option list may
-      // still be live, and "none checked" means exclude-everything rather than
-      // reset. Skip the all/none-selected removal shortcut and let
+      const isManagedEnvironmentColumn =
+        column === managedEnvironmentColumn &&
+        managedEnvironmentPolicyConfig.hiddenEnvironments.length > 0;
+      // For an active "none of" filter, "all checked" is not the same as
+      // "no filter": exclusions outside the current option list may still be
+      // live. Skip the all-selected removal shortcut and let
       // resolveCheckboxOperator re-derive the exclusion set (an emptied set is
-      // removed below).
-      const preserveArrayNoneOfOperator =
-        colType === "arrayOptions" &&
-        existingFilter?.type === "arrayOptions" &&
-        existingFilter.operator === "none of";
+      // removed below). For arrayOptions this also covers "none checked",
+      // which means exclude-everything rather than reset; stringOptions keeps
+      // its long-standing uncheck-everything-resets behavior. The managed
+      // environment column is exempt: its all-selected shortcut persists the
+      // explicit enable-all-environments override, and its hidden
+      // environments are always listed, so there is nothing to carry.
+      const preserveNoneOfOperator =
+        (colType === "arrayOptions" &&
+          existingFilter?.type === "arrayOptions" &&
+          existingFilter.operator === "none of") ||
+        (colType !== "arrayOptions" &&
+          existingFilter?.type === "stringOptions" &&
+          existingFilter.operator === "none of" &&
+          values.length > 0 &&
+          !isManagedEnvironmentColumn);
 
       if (operator !== undefined) {
         // Explicit operator provided (e.g., from "Only" button or operator toggle) - use as-is
@@ -966,15 +988,11 @@ export function useSidebarFilterState(
         // If all items selected or none selected, remove filter
         // (only for implicit/checkbox-based selection, not when operator is explicitly set)
         if (
-          !preserveArrayNoneOfOperator &&
+          !preserveNoneOfOperator &&
           (values.length === 0 ||
             (values.length === availableValues.length &&
               availableValues.every((v) => values.includes(v))))
         ) {
-          const isManagedEnvironmentColumn =
-            column === managedEnvironmentColumn &&
-            managedEnvironmentPolicyConfig.hiddenEnvironments.length > 0;
-
           // Keep explicit override when user intentionally enables all environments.
           if (isManagedEnvironmentColumn && values.length > 0) {
             return [

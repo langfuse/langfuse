@@ -190,6 +190,27 @@ function StringOptionsHarness() {
       >
         uncheck search
       </button>
+      <button
+        data-testid="check-search"
+        onClick={() => facet.onChange([...facet.value, "search"])}
+      >
+        check search
+      </button>
+      <button
+        data-testid="set-stale-name-exclusion"
+        onClick={() =>
+          queryFilter.setFilterState([
+            {
+              column: "name",
+              type: "stringOptions",
+              operator: "none of",
+              value: ["stale-name"],
+            },
+          ])
+        }
+      >
+        set stale name exclusion
+      </button>
     </div>
   );
 }
@@ -379,5 +400,44 @@ describe("stringOptions facet operator plumbing (LFE-10717)", () => {
     ]);
     expect(screen.getByTestId("facet-operator").textContent).toBe("none of");
     expect(screen.getByTestId("facet-has-toggle").textContent).toBe("false");
+  });
+
+  it("carries an out-of-list exclusion across checkbox interactions (parity with arrayOptions)", () => {
+    render(<StringOptionsHarness />);
+
+    fireEvent.click(screen.getByTestId("set-stale-name-exclusion"));
+    // Every visible box is checked (the stale value is not listed); unchecking
+    // another value must extend the exclusion set, not silently drop the
+    // stale one.
+    fireEvent.click(screen.getByTestId("uncheck-search"));
+
+    expect(getFilterState()).toEqual([
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["stale-name", "search"],
+      },
+    ]);
+
+    // Re-checking search keeps only the stale exclusion alive.
+    fireEvent.click(screen.getByTestId("check-search"));
+    expect(getFilterState()).toEqual([
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["stale-name"],
+      },
+    ]);
+  });
+
+  it("re-checking the last excluded value still clears a stringOptions none-of filter", () => {
+    render(<StringOptionsHarness />);
+
+    fireEvent.click(screen.getByTestId("uncheck-search"));
+    fireEvent.click(screen.getByTestId("check-search"));
+
+    expect(getFilterState()).toEqual([]);
   });
 });

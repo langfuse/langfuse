@@ -1059,6 +1059,28 @@ describe("resolveCheckboxOperator (arrayOptions vs stringOptions)", () => {
       });
     });
 
+    it("preserves exclusions that fell out of the current option list (parity with arrayOptions)", () => {
+      // stringOptions option lists are top-N-capped / filter-scoped too; an
+      // invisible exclusion cannot have been re-checked and must survive
+      // other checkbox interactions.
+      const result = resolveCheckboxOperator({
+        colType: "stringOptions",
+        existingFilter: {
+          column: "name",
+          type: "stringOptions",
+          operator: "none of",
+          value: ["stale-name"],
+        },
+        values: ["tag-1", "tag-2", "tag-4", "tag-5"],
+        availableValues,
+      });
+
+      expect(result).toEqual({
+        finalOperator: "none of",
+        finalValues: ["stale-name", "tag-3"],
+      });
+    });
+
     it('should use "any of" when existing filter is "any of" for stringOptions', () => {
       const result = resolveCheckboxOperator({
         colType: "stringOptions",
