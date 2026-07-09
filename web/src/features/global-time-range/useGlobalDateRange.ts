@@ -42,23 +42,26 @@ export function useGlobalDateRange<T extends string>({
   allowedRanges,
   fallback,
   persistAsDefault = true,
+  storageKey,
 }: {
   allowedRanges: readonly T[];
   fallback: T;
   persistAsDefault?: boolean;
+  storageKey?: string;
 }): UseGlobalDateRangeOutput {
   const router = useRouter();
   const projectId =
     typeof router.query.projectId === "string"
       ? router.query.projectId
       : undefined;
+  const defaultKey = storageKey ?? projectId;
 
   // Selector returns a primitive (this project's stored token, or null). Always
   // current — switching projects selects a different field of the same store.
   // Page-local surfaces (persistAsDefault === false) ignore the shared default.
   const storedValue = useGlobalDateRangeStore((state) =>
-    persistAsDefault && projectId
-      ? (state.defaultsByProject[projectId] ?? null)
+    persistAsDefault && defaultKey
+      ? (state.defaultsByProject[defaultKey] ?? null)
       : null,
   );
   const setProjectDefault = useGlobalDateRangeStore(
@@ -78,9 +81,9 @@ export function useGlobalDateRange<T extends string>({
       // baseline for subsequent clean navigations — unless this surface is
       // page-local (an authoring/preview picker), which never persists.
       setQueryParams({ dateRange: encoded });
-      if (persistAsDefault && projectId) setProjectDefault(projectId, encoded);
+      if (persistAsDefault && defaultKey) setProjectDefault(defaultKey, encoded);
     },
-    [persistAsDefault, projectId, setProjectDefault, setQueryParams],
+    [persistAsDefault, defaultKey, setProjectDefault, setQueryParams],
   );
 
   return useMemo(
