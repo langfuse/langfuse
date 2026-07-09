@@ -364,6 +364,130 @@ describe("automations trpc", () => {
         expect(prompt.map((a) => a.name)).toEqual(["prompt-automation"]);
       });
     });
+
+    describe("project-notification eventSource", () => {
+      it("lists project-notification automations for any reader", async () => {
+        const { project, caller } = await prepare();
+
+        const trigger = await prisma.trigger.create({
+          data: {
+            id: v4(),
+            projectId: project.id,
+            eventSource: "project-notification",
+            eventActions: ["blob-export-failed"],
+            filter: [],
+            status: JobConfigState.ACTIVE,
+          },
+        });
+        const { secretKey, displaySecretKey } = generateWebhookSecret();
+        const action = await prisma.action.create({
+          data: {
+            id: v4(),
+            projectId: project.id,
+            type: "WEBHOOK",
+            config: {
+              type: "WEBHOOK",
+              url: "https://example.com/webhook",
+              apiVersion: { "project-notification": "v1" },
+              secretKey: encrypt(secretKey),
+              displaySecretKey,
+            },
+          },
+        });
+        await prisma.automation.create({
+          data: {
+            projectId: project.id,
+            triggerId: trigger.id,
+            actionId: action.id,
+            name: "notification-channel",
+          },
+        });
+
+        const response = await caller.automations.getAutomations({
+          projectId: project.id,
+          eventSource: "project-notification",
+        });
+        expect(response.map((a) => a.name)).toEqual(["notification-channel"]);
+      });
+
+      it("toggles trigger eventActions via updateTriggerEventActions, only for project-notification sources", async () => {
+        const { project, caller } = await prepare();
+
+        const trigger = await prisma.trigger.create({
+          data: {
+            id: v4(),
+            projectId: project.id,
+            eventSource: "project-notification",
+            eventActions: ["blob-export-failed", "evaluator-blocked"],
+            filter: [],
+            status: JobConfigState.ACTIVE,
+          },
+        });
+        const { secretKey, displaySecretKey } = generateWebhookSecret();
+        const action = await prisma.action.create({
+          data: {
+            id: v4(),
+            projectId: project.id,
+            type: "WEBHOOK",
+            config: {
+              type: "WEBHOOK",
+              url: "https://example.com/webhook",
+              apiVersion: { "project-notification": "v1" },
+              secretKey: encrypt(secretKey),
+              displaySecretKey,
+            },
+          },
+        });
+        const automation = await prisma.automation.create({
+          data: {
+            projectId: project.id,
+            triggerId: trigger.id,
+            actionId: action.id,
+            name: "notification-channel",
+          },
+        });
+
+        await caller.automations.updateTriggerEventActions({
+          projectId: project.id,
+          automationId: automation.id,
+          eventActions: ["blob-export-failed"],
+        });
+
+        const updatedTrigger = await prisma.trigger.findUniqueOrThrow({
+          where: { id: trigger.id },
+        });
+        expect(updatedTrigger.eventActions).toEqual(["blob-export-failed"]);
+
+        // Prompt-source automations must be rejected.
+        const promptTrigger = await prisma.trigger.create({
+          data: {
+            id: v4(),
+            projectId: project.id,
+            eventSource: "prompt",
+            eventActions: ["created"],
+            filter: [],
+            status: JobConfigState.ACTIVE,
+          },
+        });
+        const promptAutomation = await prisma.automation.create({
+          data: {
+            projectId: project.id,
+            triggerId: promptTrigger.id,
+            actionId: action.id,
+            name: "prompt-automation",
+          },
+        });
+        await expect(
+          caller.automations.updateTriggerEventActions({
+            projectId: project.id,
+            automationId: promptAutomation.id,
+            eventActions: [],
+          }),
+        ).rejects.toThrow(
+          "Event actions can only be toggled on project-notification automations.",
+        );
+      });
+    });
   });
 
   describe("automations.getAutomation", () => {

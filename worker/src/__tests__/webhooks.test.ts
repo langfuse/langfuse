@@ -707,6 +707,60 @@ describe("Webhook Integration Tests", () => {
       expect(await redis!.get(failureKey)).toBeNull();
     });
 
+    it("delivers a project notification envelope verbatim and completes the execution row", async () => {
+      const event = {
+        eventType: "blob-export-failed" as const,
+        severity: "ALERT" as const,
+        projectId,
+        resourceId: projectId,
+        resourceName: "Test Project",
+        message: "Blob storage export failed.",
+        url: `https://cloud.langfuse.com/project/${projectId}/settings`,
+      };
+      const executionId = v4();
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId,
+        payload: {
+          id: executionId,
+          timestamp: new Date(),
+          type: "project-notification",
+          apiVersion: "v1",
+          event,
+        },
+      };
+
+      // dispatchProjectNotification creates a PENDING row per enqueued job.
+      await prisma.automationExecution.create({
+        data: {
+          id: executionId,
+          projectId,
+          automationId,
+          triggerId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: event.resourceId,
+          input: event,
+        },
+      });
+
+      await executeWebhook(webhookInput, { skipValidation: true });
+
+      const requests = webhookServer.getReceivedRequests();
+      expect(requests).toHaveLength(1);
+      const body = JSON.parse(requests[0].body);
+      expect(body.type).toBe("project-notification");
+      expect(body.apiVersion).toBe("v1");
+      expect(body.id).toBe(executionId);
+      expect(body.event).toEqual(event);
+      // like the prompt-version path, the execution row is resolved to COMPLETED
+      const execution = await prisma.automationExecution.findUnique({
+        where: { id: executionId },
+      });
+      expect(execution?.status).toBe(ActionExecutionStatus.COMPLETED);
+    });
+
     it("auto-disables despite a redis.del failure on the failure-side reset", async () => {
       const action = await prisma.action.findUnique({
         where: { id: actionId },

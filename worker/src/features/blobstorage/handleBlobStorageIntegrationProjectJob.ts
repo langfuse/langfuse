@@ -27,12 +27,11 @@ import {
   BlobStorageIntegrationProcessingQueue,
   queryClickhouse,
   QueueJobs,
-  sendBlobStorageExportFailedEmail,
-  getProjectAdminEmails,
   enrichObservationWithModelData,
   createModelCache,
   blobStorageEndpointConnectionValidationOptions,
   validateBlobStorageEndpoint,
+  dispatchProjectNotification,
 } from "@langfuse/shared/src/server";
 import {
   registerInFlightBlobExport,
@@ -1407,41 +1406,28 @@ function notifyBlobStorageExportFailedInBackground(projectId: string): void {
         return;
       }
 
-      const emailEnv = {
-        EMAIL_FROM_ADDRESS: env.EMAIL_FROM_ADDRESS,
-        SMTP_CONNECTION_URL: env.SMTP_CONNECTION_URL,
-        NEXTAUTH_URL: env.NEXTAUTH_URL,
-        CLOUD_CRM_EMAIL: env.CLOUD_CRM_EMAIL,
-      };
-
-      if (
-        !emailEnv.EMAIL_FROM_ADDRESS ||
-        !emailEnv.SMTP_CONNECTION_URL ||
-        !emailEnv.NEXTAUTH_URL
-      ) {
-        return;
-      }
-
-      const [adminEmails, project] = await Promise.all([
-        getProjectAdminEmails(projectId),
-        prisma.project.findUnique({
-          where: { id: projectId },
-          select: { name: true },
-        }),
-      ]);
-
-      if (adminEmails.length === 0) {
-        return;
-      }
-
+      const project = await prisma.project.findUnique({
+        where: { id: projectId },
+        select: { name: true },
+      });
       const projectName = project?.name ?? projectId;
-      const settingsUrl = `${emailEnv.NEXTAUTH_URL}/project/${projectId}/settings/integrations/blobstorage`;
+      const settingsPath = `/project/${projectId}/settings/integrations/blobstorage`;
 
-      await sendBlobStorageExportFailedEmail({
-        env: emailEnv,
-        projectName,
-        settingsUrl,
-        receiverEmails: adminEmails,
+      // Route to configured notification channels and admin emails. The
+      // cooldown claim above already deduped, so no extra throttle is needed.
+      await dispatchProjectNotification({
+        projectId,
+        event: {
+          eventType: "blob-export-failed",
+          severity: "ALERT",
+          projectId,
+          resourceId: projectId,
+          resourceName: projectName,
+          message: `Blob storage export failed for project "${projectName}".`,
+          url: env.NEXTAUTH_URL
+            ? `${env.NEXTAUTH_URL}${settingsPath}`
+            : undefined,
+        },
       });
     } catch (error) {
       logger.error(

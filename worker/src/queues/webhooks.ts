@@ -30,6 +30,8 @@ import {
   SlackService,
   logger,
   redis,
+  ProjectNotificationWebhookQueueEventSchema,
+  buildProjectNotificationSlackMessage,
 } from "@langfuse/shared/src/server";
 import {
   MonitorWebhookQueueEventSchema,
@@ -87,6 +89,17 @@ function buildWebhookOutboundPayload(input: WebhookInput) {
     if (!parsed.success) {
       throw new InternalServerError(
         `Invalid monitor-alert payload: ${parsed.error.message}`,
+      );
+    }
+    return parsed.data;
+  }
+  if (input.payload.type === "project-notification") {
+    const parsed = ProjectNotificationWebhookQueueEventSchema.safeParse(
+      input.payload,
+    );
+    if (!parsed.success) {
+      throw new InternalServerError(
+        `Invalid project notification payload: ${parsed.error.message}`,
       );
     }
     return parsed.data;
@@ -743,6 +756,67 @@ async function executeSlackAction({
     return;
   }
 
+  if (input.payload.type === "project-notification") {
+    // Like the prompt-version path, project notifications track
+    // AutomationExecution rows — but disable after 5 consecutive failures (the
+    // HTTP-action pattern), not the prompt-Slack disable-after-1.
+    try {
+      await sendSlackProjectNotification({
+        payload: input.payload,
+        projectId,
+        channelId: slackConfig.channelId,
+      });
+      await prisma.automationExecution.update({
+        where: {
+          projectId,
+          triggerId: automation.trigger.id,
+          actionId: automation.action.id,
+          id: executionId,
+        },
+        data: {
+          status: ActionExecutionStatus.COMPLETED,
+          startedAt: executionStart,
+          finishedAt: new Date(),
+        },
+      });
+    } catch (error) {
+      logger.error("Error executing Slack action", error);
+      await prisma.$transaction(async (tx) => {
+        await tx.automationExecution.update({
+          where: {
+            id: executionId,
+            projectId,
+            triggerId: automation.trigger.id,
+            actionId: automation.action.id,
+          },
+          data: {
+            status: ActionExecutionStatus.ERROR,
+            startedAt: executionStart,
+            finishedAt: new Date(),
+            error: error instanceof Error ? error.message : "Unknown error",
+          },
+        });
+
+        const consecutiveFailures = await getConsecutiveAutomationFailures({
+          automationId: automation.id,
+          projectId,
+        });
+
+        // This is the 5th failure, looking for 4 in the past.
+        if (consecutiveFailures >= 4) {
+          await tx.trigger.update({
+            where: { id: automation.trigger.id, projectId },
+            data: { status: JobConfigState.INACTIVE },
+          });
+          logger.warn(
+            `Automation ${automation.trigger.id} disabled after ${consecutiveFailures} consecutive failures in project ${projectId} (project-notification/slack)`,
+          );
+        }
+      });
+    }
+    return;
+  }
+
   try {
     // Build message blocks using predefined formats or custom template
     let blocks: any[] = [];
@@ -890,6 +964,32 @@ async function sendSlackMonitorAlert({
     ...message,
   });
   await resetAutomationFailures({ projectId, automationId });
+}
+
+/** sendSlackProjectNotification builds and posts a project notification to Slack. */
+async function sendSlackProjectNotification({
+  payload,
+  projectId,
+  channelId,
+}: {
+  payload: WebhookInput["payload"];
+  projectId: string;
+  channelId: string;
+}) {
+  const parsed = ProjectNotificationWebhookQueueEventSchema.safeParse(payload);
+  if (!parsed.success) {
+    throw new InternalServerError(
+      `Invalid project notification payload: ${parsed.error.message}`,
+    );
+  }
+  const message = buildProjectNotificationSlackMessage(parsed.data.event);
+  const client =
+    await SlackService.getInstance().getWebClientForProject(projectId);
+  await SlackService.getInstance().sendMessage({
+    client,
+    channelId,
+    ...message,
+  });
 }
 
 /** slackMonitorAlertFailure tracks a failed monitor-alert delivery and auto-disables the trigger past the failure threshold. */

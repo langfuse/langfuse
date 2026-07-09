@@ -25,6 +25,7 @@ import {
 import { generateWebhookSecret, encrypt } from "@langfuse/shared/encryption";
 import { processWebhookActionConfig } from "./webhookHelpers";
 import { processGitHubDispatchActionConfig } from "./githubDispatchHelpers";
+import { updateTriggerEventActions } from "./automationService";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
@@ -495,6 +496,43 @@ export const automationsRouter = createTRPCRouter({
         trigger,
         automation,
       };
+    }),
+
+  // Toggle which project-notification events a channel receives. Narrow
+  // update on trigger.eventActions only, so the action config (and webhook
+  // secrets) is never round-tripped through the client.
+  updateTriggerEventActions: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        automationId: z.string(),
+        eventActions: z.array(z.string()),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:CUD",
+      });
+
+      const { previousTrigger, trigger } = await updateTriggerEventActions({
+        prisma: ctx.prisma,
+        projectId: ctx.session.projectId,
+        automationId: input.automationId,
+        eventActions: input.eventActions,
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "automation",
+        resourceId: trigger.id,
+        action: "update",
+        before: { trigger: previousTrigger },
+        after: { trigger },
+      });
+
+      return { trigger };
     }),
 
   // Delete an automation (both trigger and action)
