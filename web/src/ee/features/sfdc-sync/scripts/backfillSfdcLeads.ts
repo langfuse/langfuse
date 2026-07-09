@@ -14,14 +14,28 @@
  * WHAT IT DOES — three dependency-ordered passes (leads must exist before they
  * can be linked to accounts, exactly as the live sync enforces):
  *
- *   Pass 1  upsertUser   — one Lead per user that has an email.
- *   Pass 2  upsertOrg    — one Account per org. upsertOrg does NOT link any
- *                          member, so the representative owner
- *                          (OWNER > ADMIN > earliest non-NONE member w/ email)
- *                          is only there to satisfy the payload. Also persists
+ *   Pass 1  upsertUser   — one Lead per user that has an email, with the
+ *                          signup date (users.created_at) and a lead source
+ *                          derived from history: earliest surviving non-NONE,
+ *                          non-excluded org membership created with role
+ *                          OWNER → "Langfuse Cloud Signup", any other role →
+ *                          "Langfuse Cloud Invite". Users without memberships
+ *                          are Signup unless a pending invitation exists for
+ *                          their email (→ Invite). Accepted invitations are
+ *                          deleted on accept, so this is a heuristic, not a
+ *                          record.
+ *   Pass 2  upsertOrg    — one Account per org, org-only payload (Mulesoft
+ *                          ignores user fields on updateOrg; members are
+ *                          linked in pass 3): created date, current tier
+ *                          (resolved like entitlements), and — for orgs paid
+ *                          via Stripe — the converted-to-paid date, which is
+ *                          the billing cycle anchor (set from the first paid
+ *                          subscription). Orgs on a manual cloudConfig.plan
+ *                          send their tier but no conversion date; sales owns
+ *                          those records in SFDC. Also persists
  *                          organizations.sfdc_org_id.
  *   Pass 3  setUserRole  — one org-member bridge per non-NONE membership,
- *                          INCLUDING the owner (upsertOrg created no link, so
+ *                          INCLUDING the owner (upsertOrg links nobody, so
  *                          every member — owner included — needs setUserRole).
  *
  * IDEMPOTENCY / SAFETY
@@ -61,7 +75,13 @@
 import { parseArgs } from "node:util";
 
 import { env } from "@/src/env.mjs";
-import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import {
+  getSfdcService,
+  toSfdcPlan,
+  type SfdcLeadSource,
+} from "@/src/ee/features/sfdc-sync/server";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { parseDbOrg } from "@langfuse/shared";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 
@@ -131,13 +151,6 @@ async function mapWithConcurrency<T>(
   );
 }
 
-const ROLE_PRIORITY: Record<string, number> = {
-  [Role.OWNER]: 0,
-  [Role.ADMIN]: 1,
-  [Role.MEMBER]: 2,
-  [Role.VIEWER]: 3,
-};
-
 async function main() {
   const cli = parseCli();
   const sfdc = getSfdcService();
@@ -162,7 +175,7 @@ async function main() {
     leads: 0,
     leadsSkippedNoEmail: 0,
     orgs: 0,
-    orgsSkippedNoOwner: 0,
+    orgsSkippedNonCloudPlan: 0,
     orgsSkippedExcluded: 0,
     bridges: 0,
   };
@@ -173,6 +186,16 @@ async function main() {
       sampled++;
     }
   };
+
+  // Pending invitations mark not-yet-accepted invite leads. Accepted
+  // invitations are deleted, so for everyone else the lead source is derived
+  // from membership role history below. Pending invites are a small table —
+  // load the emails once instead of querying per user.
+  const pendingInviteEmails = new Set(
+    (
+      await prisma.membershipInvitation.findMany({ select: { email: true } })
+    ).map((invite) => invite.email.toLowerCase()),
+  );
 
   // ---- Pass 1: Leads (upsertUser) ----
   {
@@ -190,7 +213,17 @@ async function main() {
             ? { organizationMemberships: { some: { orgId: cli.orgId } } }
             : {}),
         },
-        select: { id: true, email: true, name: true },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          createdAt: true,
+          organizationMemberships: {
+            where: { role: { not: Role.NONE } },
+            select: { orgId: true, role: true },
+            orderBy: { createdAt: "asc" },
+          },
+        },
         orderBy: { id: "asc" },
         take,
         ...(cursorId ? { skip: 1, cursor: { id: cursorId } } : {}),
@@ -204,9 +237,34 @@ async function main() {
           counts.leadsSkippedNoEmail++;
           return;
         }
-        sample("upsertUser", { userId: u.id, email: u.email });
+        // Heuristic: users whose earliest real membership was created as
+        // OWNER signed up on their own (starter org / self-created org);
+        // everyone else got pulled in by an existing org. Excluded orgs
+        // (demo org, --exclude-org) don't count as "real".
+        const firstMembership = u.organizationMemberships.find(
+          (m) => !cli.excludeOrgIds.has(m.orgId),
+        );
+        const leadSource: SfdcLeadSource = firstMembership
+          ? firstMembership.role === Role.OWNER
+            ? "Langfuse Cloud Signup"
+            : "Langfuse Cloud Invite"
+          : pendingInviteEmails.has(u.email.toLowerCase())
+            ? "Langfuse Cloud Invite"
+            : "Langfuse Cloud Signup";
+        sample("upsertUser", {
+          userId: u.id,
+          email: u.email,
+          createdAt: u.createdAt.toISOString(),
+          leadSource,
+        });
         if (cli.execute)
-          await sfdc.upsertUser({ userId: u.id, email: u.email, name: u.name });
+          await sfdc.upsertUser({
+            userId: u.id,
+            email: u.email,
+            name: u.name,
+            createdAt: u.createdAt,
+            leadSource,
+          });
         counts.leads++;
       });
       logger.info(`[SFDC backfill] pass 1 (leads): ${counts.leads} processed`);
@@ -214,9 +272,10 @@ async function main() {
   }
 
   // ---- Pass 2: Accounts (upsertOrg) ----
-  // upsertOrg creates the SFDC Account only; it does not link members, so the
-  // representative owner is just to satisfy the payload. Member bridges (for
-  // every member, owner included) are established in pass 3.
+  // Org-only payload — Mulesoft ignores user fields on updateOrg, so no
+  // representative member is needed (orgs without any emailed member get an
+  // Account too). Member bridges (every member, owner included) are
+  // established in pass 3.
   {
     let cursorId: string | undefined;
     let processed = 0;
@@ -225,9 +284,9 @@ async function main() {
       const take = cli.limit
         ? Math.min(cli.batchSize, cli.limit - processed)
         : cli.batchSize;
+      // Full rows: parseDbOrg + plan resolution need cloudConfig et al.
       const orgs = await prisma.organization.findMany({
         where: cli.orgId ? { id: cli.orgId } : {},
-        select: { id: true, name: true },
         orderBy: { id: "asc" },
         take,
         ...(cursorId ? { skip: 1, cursor: { id: cursorId } } : {}),
@@ -241,47 +300,44 @@ async function main() {
           counts.orgsSkippedExcluded++;
           return;
         }
-        // Representative owner: lowest role priority, earliest createdAt.
-        const candidates = await prisma.organizationMembership.findMany({
-          where: {
-            orgId: org.id,
-            role: { not: Role.NONE },
-            user: { email: { not: null } },
-          },
-          select: {
-            userId: true,
-            role: true,
-            createdAt: true,
-            user: { select: { email: true } },
-          },
-          orderBy: { createdAt: "asc" },
-        });
-        const owner = candidates.reduce<(typeof candidates)[number] | null>(
-          (best, m) =>
-            best === null || ROLE_PRIORITY[m.role] < ROLE_PRIORITY[best.role]
-              ? m
-              : best,
-          null,
+        const parsedOrg = parseDbOrg(org);
+        const resolvedPlan = getOrganizationPlanServerSide(
+          parsedOrg.cloudConfig ?? undefined,
         );
-        if (!owner || !owner.user.email) {
-          counts.orgsSkippedNoOwner++;
-          logger.warn("[SFDC backfill] skipping org — no emailed member", {
+        const plan = toSfdcPlan(resolvedPlan);
+        if (!plan) {
+          // Non-cloud plan cannot happen here (the service factory asserted
+          // we are on Cloud) — skip defensively rather than guessing a tier.
+          counts.orgsSkippedNonCloudPlan++;
+          logger.warn("[SFDC backfill] skipping org — non-cloud plan", {
             orgId: org.id,
+            resolvedPlan,
           });
           return;
         }
+        // The billing cycle anchor is set from the org's first paid Stripe
+        // subscription and untouched by plan switches, so it doubles as the
+        // Hobby→paid conversion date. Only trust it for orgs currently paid
+        // via Stripe; manual cloudConfig.plan orgs carry the row default
+        // (org creation) — sales owns their conversion dates in SFDC.
+        const convertedToPaidAt =
+          resolvedPlan !== "cloud:hobby" &&
+          parsedOrg.cloudConfig?.stripe?.activeSubscriptionId
+            ? parsedOrg.cloudBillingCycleAnchor
+            : undefined;
         sample("upsertOrg", {
           orgId: org.id,
-          ownerUserId: owner.userId,
-          role: owner.role,
+          createdAt: org.createdAt.toISOString(),
+          plan,
+          convertedToPaidAt: convertedToPaidAt?.toISOString() ?? "(omitted)",
         });
         if (cli.execute)
           await sfdc.upsertOrg({
             orgId: org.id,
             orgName: org.name,
-            userId: owner.userId,
-            email: owner.user.email,
-            role: owner.role,
+            createdAt: org.createdAt,
+            plan,
+            convertedToPaidAt,
           });
         counts.orgs++;
       });
@@ -306,10 +362,14 @@ async function main() {
         where: {
           role: { not: Role.NONE },
           user: { email: { not: null } },
-          ...(cli.orgId ? { orgId: cli.orgId } : {}),
-          ...(cli.excludeOrgIds.size
-            ? { orgId: { notIn: [...cli.excludeOrgIds] } }
-            : {}),
+          // Single orgId condition: two spreads both writing the `orgId` key
+          // would silently drop the canary --org-id filter whenever the
+          // exclusion list is non-empty (the demo org always is in it).
+          ...(cli.orgId
+            ? { orgId: cli.orgId }
+            : cli.excludeOrgIds.size
+              ? { orgId: { notIn: [...cli.excludeOrgIds] } }
+              : {}),
           ...(recentCutoff ? { updatedAt: { lt: recentCutoff } } : {}),
         },
         select: {
