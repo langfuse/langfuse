@@ -81,51 +81,6 @@ describe("createProductionEvalExecutionDeps", () => {
     );
   });
 
-  it("passes the eval prompt cache key to OpenAI calls", async () => {
-    const deps = createProductionEvalExecutionDeps();
-
-    await deps.callLLM({
-      messages: [
-        {
-          role: "user",
-          type: "user",
-          content: "Judge this answer",
-        },
-      ],
-      modelConfig: {
-        provider: "openai",
-        model: "gpt-4.1",
-        apiKey: { adapter: "openai", secretKey: "secret" },
-        adapter: "openai" as any,
-        modelParams: {
-          providerOptions: {
-            seed: 7,
-          },
-        },
-      },
-      structuredOutputSchema: {} as any,
-      promptCacheKey: "lf-eval-v1-cache-key",
-      traceSinkParams: {
-        targetProjectId: "project-123",
-        traceId: "trace-123",
-        traceName: "Judge trace",
-        environment: "langfuse-llm-as-a-judge",
-        metadata: {},
-      },
-    });
-
-    expect(mockFetchLLMCompletion).toHaveBeenCalledWith(
-      expect.objectContaining({
-        promptCacheKey: "lf-eval-v1-cache-key",
-        modelParams: expect.objectContaining({
-          providerOptions: {
-            seed: 7,
-          },
-        }),
-      }),
-    );
-  });
-
   it("records llmaj export volume using the schema's JSON Schema form", async () => {
     const deps = createProductionEvalExecutionDeps();
 

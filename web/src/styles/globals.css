@@ -518,6 +518,14 @@
 }
 
 @layer utilities {
+  /* react-grid-layout: no tile/container transitions at all — layout
+     changes snap into place. The animations added no value and burned CPU
+     on window resizes and dashboard switches. */
+  .react-grid-layout,
+  .react-grid-item {
+    transition: none !important;
+  }
+
   /* Custom styles for react-grid-layout resize handle */
   .react-resizable-handle {
     position: absolute;

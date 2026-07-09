@@ -23,6 +23,7 @@ import { useSession } from "next-auth/react";
 
 export default function AIFeatureSwitch() {
   const { update: updateSession } = useSession();
+  const utils = api.useUtils();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const capture = usePostHogClientCapture();
   const organization = useQueryOrganization();
@@ -43,6 +44,8 @@ export default function AIFeatureSwitch() {
   const updateAIFeatures = api.organizations.update.useMutation({
     onSuccess: async () => {
       await updateSession();
+      // Admins resolve org context from this query, not the session
+      utils.organizations.byId.invalidate();
       setConfirmOpen(false);
     },
     onError: () => {
@@ -53,6 +56,8 @@ export default function AIFeatureSwitch() {
   const updateAITelemetry = api.organizations.update.useMutation({
     onSuccess: async () => {
       await updateSession();
+      // Admins resolve org context from this query, not the session
+      utils.organizations.byId.invalidate();
     },
     onError: () => {
       setIsAITelemetrySwitchEnabled(aiTelemetryEnabled ?? true);
