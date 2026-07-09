@@ -60,6 +60,34 @@ describe("inferLLMCompletionBlockReason", () => {
     },
   );
 
+  it("maps revoked GCP service account grants to LLM_CONNECTION_AUTH_INVALID", () => {
+    expect(
+      inferLLMCompletionBlockReason({
+        responseStatusCode: 500,
+        message: "invalid_grant: Invalid grant: account not found",
+      }),
+    ).toBe(EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID);
+  });
+
+  it("maps OpenRouter monthly key limit exhaustion to LLM_CONNECTION_BILLING_EXHAUSTED", () => {
+    expect(
+      inferLLMCompletionBlockReason({
+        responseStatusCode: 402,
+        message:
+          "This request requires more credits, or fewer max_tokens. You requested up to 65536 tokens, but can only afford 62702.",
+      }),
+    ).toBe(EvaluatorBlockReason.LLM_CONNECTION_BILLING_EXHAUSTED);
+  });
+
+  it("maps unresolvable custom endpoint hostnames to LLM_CONNECTION_ENDPOINT_UNREACHABLE", () => {
+    expect(
+      inferLLMCompletionBlockReason({
+        responseStatusCode: 500,
+        message: "DNS lookup failed for litellm.internal.example.com",
+      }),
+    ).toBe(EvaluatorBlockReason.LLM_CONNECTION_ENDPOINT_UNREACHABLE);
+  });
+
   it("maps Google's non-401 invalid API key message to LLM_CONNECTION_AUTH_INVALID", () => {
     expect(
       inferLLMCompletionBlockReason({
@@ -159,6 +187,42 @@ describe("mapToLLMCompletionError billing classification", () => {
     expect(mapped.getEvaluatorBlockReason()).toBe(
       EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID,
     );
+  });
+
+  it("surfaces DNS failures hidden behind SDK connection-error wrappers and blocks", () => {
+    // Anthropic/OpenAI SDKs wrap secureLlmFetch failures as
+    // `APIConnectionError { message: "Connection error.", cause }`.
+    const mapped = mapToLLMCompletionError(
+      new Error("Connection error.", {
+        cause: new Error("DNS lookup failed for litellm.internal.example.com"),
+      }),
+    );
+
+    expect(mapped.message).toBe(
+      "DNS lookup failed for litellm.internal.example.com",
+    );
+    expect(mapped.isRetryable).toBe(false);
+    expect(mapped.getEvaluatorBlockReason()).toBe(
+      EvaluatorBlockReason.LLM_CONNECTION_ENDPOINT_UNREACHABLE,
+    );
+  });
+
+  it("does not retry status-less invalid_grant auth failures", () => {
+    const mapped = mapToLLMCompletionError(
+      new Error("invalid_grant: Invalid grant: account not found"),
+    );
+
+    expect(mapped.isRetryable).toBe(false);
+    expect(mapped.getEvaluatorBlockReason()).toBe(
+      EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID,
+    );
+  });
+
+  it("keeps generic connection errors retryable and unblocked", () => {
+    const mapped = mapToLLMCompletionError(new Error("Connection error."));
+
+    expect(mapped.isRetryable).toBe(true);
+    expect(mapped.getEvaluatorBlockReason()).toBeNull();
   });
 
   it("keeps plain rate-limit 429s retryable and unblocked", () => {

@@ -13,6 +13,21 @@ const BLOCK_REASON_PATTERNS = [
     pattern: "API key not valid",
     blockReason: EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID,
   },
+  // google-auth-library reports deleted/revoked Vertex service accounts as a
+  // status-less OAuth error, not a 401.
+  {
+    pattern: "invalid_grant",
+    blockReason: EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID,
+  },
+  // secureLlmFetch DNS validation: the custom base URL's hostname resolved to
+  // no address via any strategy. Terminal until the connection's endpoint is
+  // fixed; often hidden behind SDK "Connection error." wrappers, so the
+  // matching non-retryable pattern must also exist in completionErrorMapping
+  // for the cause-chain message extraction to surface it here.
+  {
+    pattern: "DNS lookup failed",
+    blockReason: EvaluatorBlockReason.LLM_CONNECTION_ENDPOINT_UNREACHABLE,
+  },
   // Exhausted credits or spend budgets are terminal until a human tops up the
   // provider account, but providers report them with inconsistent status
   // codes (OpenRouter 402, Anthropic 400, LiteLLM 400/429, OpenAI 429), so
@@ -35,6 +50,11 @@ const BLOCK_REASON_PATTERNS = [
   },
   {
     pattern: "exceeded your current quota",
+    blockReason: EvaluatorBlockReason.LLM_CONNECTION_BILLING_EXHAUSTED,
+  },
+  // OpenRouter monthly key limits near exhaustion.
+  {
+    pattern: "requires more credits",
     blockReason: EvaluatorBlockReason.LLM_CONNECTION_BILLING_EXHAUSTED,
   },
 ] as const;
