@@ -25,6 +25,8 @@ export interface ComboboxOption<
 > {
   value: T;
   label?: string;
+  /** Rendered before the label (e.g. a brand/ownership icon). */
+  icon?: React.ReactNode;
   /** Small tag rendered after the label (e.g. "Default"). */
   badge?: string;
   disabled?: boolean;
@@ -126,6 +128,11 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
           disabled={disabled}
           name={name}
         >
+          {selectedOption?.icon && (
+            <span className="mr-1.5 flex shrink-0 items-center">
+              {selectedOption.icon}
+            </span>
+          )}
           <span className="truncate" title={buttonText}>
             {buttonText}
           </span>
@@ -179,6 +186,11 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                             : "opacity-0",
                         )}
                       />
+                      {option.icon && (
+                        <span className="mr-1.5 flex shrink-0 items-center">
+                          {option.icon}
+                        </span>
+                      )}
                       {option.label ?? String(option.value)}
                       {option.badge && (
                         <Badge variant="secondary" className="ml-auto">
@@ -225,6 +237,11 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                           : "opacity-0",
                       )}
                     />
+                    {option.icon && (
+                      <span className="mr-1.5 flex shrink-0 items-center">
+                        {option.icon}
+                      </span>
+                    )}
                     {option.label ?? String(option.value)}
                     {option.badge && (
                       <Badge variant="secondary" className="ml-auto">
