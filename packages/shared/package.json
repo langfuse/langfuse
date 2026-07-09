@@ -109,6 +109,7 @@
     "@aws-sdk/credential-providers": "^3.1056.0",
     "@aws-sdk/lib-storage": "^3.1013.0",
     "@aws-sdk/s3-request-presigner": "^3.1013.0",
+    "@azure/identity": "^4.13.1",
     "@azure/storage-blob": "^12.26.0",
     "@clickhouse/client": "1.23.1",
     "@google-cloud/storage": "^7.19.0",

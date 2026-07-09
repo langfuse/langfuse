@@ -40,6 +40,12 @@ const EnvSchema = z.object({
   REDIS_AUTH: z.string().nullish(),
   REDIS_USERNAME: z.string().nullish(),
   REDIS_CONNECTION_STRING: z.string().nullish(),
+  // Opt-in short-lived Redis credentials; "static" keeps username/password auth.
+  REDIS_AUTH_METHOD: z
+    .enum(["static", "azure_managed_identity"])
+    .default("static"),
+  REDIS_AZURE_CLIENT_ID: z.string().optional(),
+  REDIS_AZURE_SCOPE: z.string().optional(),
   // Optional prefix for Redis keys. Used by BullMQ queues via their native prefix option
   // and by the singleton cache instance via ioredis keyPrefix. Useful for multi-tenant Redis.
   REDIS_KEY_PREFIX: z.string().nullish(),
