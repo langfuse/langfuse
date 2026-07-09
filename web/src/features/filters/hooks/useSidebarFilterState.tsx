@@ -11,6 +11,7 @@ import {
   computeSelectedValues,
   encodeFiltersGeneric,
   decodeFiltersGeneric,
+  MAX_URL_FILTER_QUERY_LENGTH,
 } from "../lib/filter-query-encoding";
 import {
   buildSidebarFilterQueryStorageKey,
@@ -375,20 +376,40 @@ const DEFAULT_HOOK_OPTIONS: UseSidebarFilterStateOptions = {
   stateLocation: "urlAndSessionStorage",
 };
 
+// The URL value a given serialized filter query should produce: oversized
+// queries stay out of the URL entirely — the full request head is capped at
+// ~16KB by Node and most proxies, so a giant `?filter=` 431s on the next full
+// request (LFE-10717). Callers fall back to the session-storage mirror, which
+// keeps same-tab refreshes working. Only used where that fallback exists
+// (stateLocation "urlAndSessionStorage").
+const toUrlFilterQuery = (encoded: string): string =>
+  encoded.length > MAX_URL_FILTER_QUERY_LENGTH ? "" : encoded;
+
 /**
  * Pure function that determines the operator and values for checkbox-based
  * filter interactions. Extracted for testability.
  *
- * For arrayOptions (e.g., tags), "none of" inversion is NOT semantically
- * equivalent because a single trace can have multiple tags. For example,
- * a trace with tags [tag-1, tag-3] matches "any of [tag-1, tag-2]" but does NOT match
- * "none of [tag-3, tag-4, tag-5]" (because it contains tag-3). Because of that, we never
- * derive array filters by inverting the deselected set. Instead, we keep the user's explicit
- * array operator when one already exists ("all of" / "none of"), and otherwise default new
- * checkbox selections to positive matching ("any of").
+ * Checkboxes always show the KEPT set — "no filter" renders every option
+ * checked (implicit all). Unchecking from that state therefore expresses an
+ * exclusion, and the deselected values persist as `none of [deselected]`
+ * (LFE-10717). Materializing the complement (`any of [remaining]`) instead is
+ * wrong twice over for multi-valued columns (arrayOptions): a row carrying an
+ * excluded value alongside a still-checked one keeps matching (a session with
+ * users [X, Y] matches "any of [everyone-but-X]" via Y), and the complement is
+ * O(option-count) — at ~1000 user IDs it blows the URL budget (HTTP 431).
  *
- * For stringOptions (e.g., environment), each row has a single value,
- * so "none of [deselected]" is semantically equivalent to "any of [selected]".
+ * An EXPLICIT positive selection is never inverted (a trace with tags
+ * [tag-1, tag-3] matches "any of [tag-1, tag-2]" but not
+ * "none of [tag-3, tag-4, tag-5]"): once an "any of" filter exists, checkbox
+ * changes keep it positive, and "all of" is likewise preserved. While a
+ * "none of" filter is active, the checked set is the complement of the stored
+ * exclusions, so interactions re-derive the exclusions from what is unchecked
+ * — carrying over exclusions that fell out of the (top-N-capped, time-scoped)
+ * option list, which cannot have been re-checked while invisible.
+ *
+ * stringOptions (e.g., environment) behave the same way; each row has a
+ * single value there, so "none of [deselected]" is exactly equivalent to
+ * "any of [selected]".
  *
  * @param params - Filter context including column type, existing filter, selected and available values
  * @returns Object with finalOperator and finalValues to apply
@@ -412,7 +433,21 @@ export function resolveCheckboxOperator(params: {
       existingFilter?.operator === "none of" &&
       existingFilter.type === "arrayOptions"
     ) {
-      return { finalOperator: "none of", finalValues: values };
+      const checked = new Set(values);
+      const availableSet = new Set(availableValues);
+      const carriedExclusions = existingFilter.value.filter(
+        (v) => !availableSet.has(v),
+      );
+      const deselected = availableValues.filter((v) => !checked.has(v));
+      return {
+        finalOperator: "none of",
+        finalValues: [...carriedExclusions, ...deselected],
+      };
+    }
+    if (!existingFilter) {
+      const checked = new Set(values);
+      const deselected = availableValues.filter((v) => !checked.has(v));
+      return { finalOperator: "none of", finalValues: deselected };
     }
     return { finalOperator: "any of", finalValues: values };
   }
@@ -686,8 +721,17 @@ export function useSidebarFilterState(
       }
 
       const encoded = encodeFiltersGeneric(explicitFilters);
+      const urlQuery =
+        stateLocationType === "urlAndSessionStorage"
+          ? toUrlFilterQuery(encoded)
+          : encoded;
+      if (urlQuery !== encoded) {
+        console.warn(
+          `Filter state (${encoded.length} chars) exceeds the URL budget; persisting it in session storage only.`,
+        );
+      }
       setPendingFiltersQuery(encoded);
-      setUrlFiltersQuery(encoded || null);
+      setUrlFiltersQuery(urlQuery || null);
       if (stateLocationType === "urlAndSessionStorage") {
         setStoredFiltersQuery(encoded);
       }
@@ -712,7 +756,14 @@ export function useSidebarFilterState(
     if (pendingFiltersQuery === null) return;
 
     const normalizedUrlFiltersQuery = urlFiltersQuery ?? "";
-    if (normalizedUrlFiltersQuery === pendingFiltersQuery) {
+    // An oversized pending query is intentionally never written to the URL;
+    // it has "caught up" once the URL param is gone (state then reads from
+    // the session-storage mirror).
+    const expectedUrlFiltersQuery =
+      stateLocationType === "urlAndSessionStorage"
+        ? toUrlFilterQuery(pendingFiltersQuery)
+        : pendingFiltersQuery;
+    if (normalizedUrlFiltersQuery === expectedUrlFiltersQuery) {
       setPendingFiltersQuery(null);
     }
   }, [stateLocationType, pendingFiltersQuery, urlFiltersQuery]);
@@ -734,9 +785,16 @@ export function useSidebarFilterState(
     if (pendingFiltersQuery !== null) return;
 
     if (typeof urlFiltersQuery === "string") {
-      if (urlFiltersQuery !== canonicalFiltersQuery) {
+      // Canonicalization also evicts an oversized query that arrived via the
+      // URL (e.g. a legacy complement-filter link): it moves to the
+      // session-storage mirror instead of being rewritten into the URL.
+      const canonicalUrlQuery =
+        stateLocationType === "urlAndSessionStorage"
+          ? toUrlFilterQuery(canonicalFiltersQuery)
+          : canonicalFiltersQuery;
+      if (urlFiltersQuery !== canonicalUrlQuery) {
         setPendingFiltersQuery(canonicalFiltersQuery);
-        setUrlFiltersQuery(canonicalFiltersQuery || null);
+        setUrlFiltersQuery(canonicalUrlQuery || null);
       }
 
       if (
@@ -859,6 +917,12 @@ export function useSidebarFilterState(
       let finalOperator: "any of" | "none of" | "all of";
       let finalValues: string[];
       const existingFilter = current.find((f) => f.column === column);
+      // For an active arrayOptions "none of" filter, "all checked" is not the
+      // same as "no filter": exclusions outside the current option list may
+      // still be live, and "none checked" means exclude-everything rather than
+      // reset. Skip the all/none-selected removal shortcut and let
+      // resolveCheckboxOperator re-derive the exclusion set (an emptied set is
+      // removed below).
       const preserveArrayNoneOfOperator =
         colType === "arrayOptions" &&
         existingFilter?.type === "arrayOptions" &&
@@ -902,6 +966,13 @@ export function useSidebarFilterState(
           values,
           availableValues,
         }));
+
+        // Re-checking the last excluded value empties the exclusion set:
+        // return to the implicit-all default instead of persisting an empty
+        // "none of" filter.
+        if (finalOperator === "none of" && finalValues.length === 0) {
+          return other;
+        }
       }
 
       const filterType: "arrayOptions" | "stringOptions" =
@@ -976,12 +1047,15 @@ export function useSidebarFilterState(
         (columnDefinition) => columnDefinition.id === column,
       )?.type;
       const existingFilter = filterState.find((f) => f.column === column);
+      // "Only" is a positive selection: an active "none of" exclusion is
+      // replaced rather than preserved — `none of [value]` would mean
+      // everything-EXCEPT-value, the opposite of "only". "all of" is kept
+      // (all of one value = has that value).
       const operator =
         columnType === "arrayOptions" &&
         existingFilter?.type === "arrayOptions" &&
         (existingFilter.operator === "any of" ||
-          existingFilter.operator === "all of" ||
-          existingFilter.operator === "none of")
+          existingFilter.operator === "all of")
           ? existingFilter.operator
           : "any of";
       updateFilter(column, [value], operator);
@@ -1717,6 +1791,10 @@ export function useSidebarFilterState(
         //   effective state, so it never surfaces a "Clear" badge).
         // - Other facets: active when text filters exist or checkbox selections differ from unfiltered.
         //   Special case: "all of" with all values selected is still active.
+        //   Special case: a "none of" filter renders as its complement, so
+        //   when every exclusion sits outside the current option list the
+        //   checkboxes all show checked — the live filter must still surface
+        //   its "Clear" affordance.
         const isActive =
           hasTextFilters ||
           (isManagedEnvironmentFacet
@@ -1724,8 +1802,7 @@ export function useSidebarFilterState(
             : (currentOperator === "all of" &&
                 (selectedValues.length === availableValues.length ||
                   hasExplicitCheckboxFilterWhileLoading)) ||
-              (currentOperator === "none of" &&
-                hasExplicitCheckboxFilterWhileLoading) ||
+              (currentOperator === "none of" && hasExplicitCheckboxFilter) ||
               hasCheckboxSelections ||
               hasExplicitCheckboxFilterWhileLoading);
         const disableState = getFacetDisabledState(facet);
