@@ -316,6 +316,8 @@ export default function TracesTable({
 
     const scoresNumeric =
       traceFilterOptionsResponse.data?.scores_avg ?? undefined;
+    const scoresBoolean =
+      traceFilterOptionsResponse.data?.score_booleans ?? undefined;
 
     return {
       traceName:
@@ -350,6 +352,7 @@ export default function TracesTable({
       totalCost: [],
       score_categories: scoreCategories,
       scores_avg: scoresNumeric,
+      score_booleans: scoresBoolean,
     };
   }, [environmentFilterOptions.data, traceFilterOptionsResponse.data]);
 

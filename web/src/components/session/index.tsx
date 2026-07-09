@@ -842,6 +842,25 @@ const LoadedSessionEventsPage: React.FC<{
           return keyOptions ? { ...column, keyOptions } : column;
         }
 
+        if (column.type === "booleanObject" && column.id === "score_booleans") {
+          const keyOptions = getStringFilterOptions(
+            typedFilterOptions.score_booleans,
+          );
+
+          return keyOptions ? { ...column, keyOptions } : column;
+        }
+
+        if (
+          column.type === "booleanObject" &&
+          column.id === "trace_score_booleans"
+        ) {
+          const keyOptions = getStringFilterOptions(
+            typedFilterOptions.trace_score_booleans,
+          );
+
+          return keyOptions ? { ...column, keyOptions } : column;
+        }
+
         return column;
       });
   }, [typedFilterOptions, sessionEventsFilterConfig.columnDefinitions]);

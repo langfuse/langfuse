@@ -627,8 +627,10 @@ async function getObservationsFromEventsTableInternal<T>(
       column === "scores" ||
       column === "scores_avg" ||
       column === "score_categories" ||
+      column === "score_booleans" ||
       column === "scores (numeric)" ||
-      column === "scores (categorical)"
+      column === "scores (categorical)" ||
+      column === "scores (boolean)"
     );
   });
   const hasTraceScoresFilter = baseFilter.some((f) => {
@@ -636,8 +638,10 @@ async function getObservationsFromEventsTableInternal<T>(
     return (
       column === "trace_scores_avg" ||
       column === "trace_score_categories" ||
+      column === "trace_score_booleans" ||
       column === "trace scores (numeric)" ||
-      column === "trace scores (categorical)"
+      column === "trace scores (categorical)" ||
+      column === "trace scores (boolean)"
     );
   });
   const orderByEntries = orderByToEntries(
@@ -1791,7 +1795,10 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
 
   // Check if filters specifically reference score aggregation columns
   const hasScoreAggregationFilters = tracesFilter.some(
-    (f) => f.field === "s.scores_avg" || f.field === "s.score_categories",
+    (f) =>
+      f.field === "s.scores_avg" ||
+      f.field === "s.score_categories" ||
+      f.field === "s.score_booleans",
   );
 
   // Build traces CTE using eventsTracesAggregation WITHOUT filters
@@ -1825,6 +1832,7 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
           "score_ids",
           "scores_avg",
           "score_categories",
+          "score_booleans",
         ],
       })
       .leftJoin(

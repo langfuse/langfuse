@@ -178,6 +178,11 @@ export const observationFilterConfig: FilterConfig = {
       label: "Numeric Scores",
     },
     {
+      type: "booleanKeyValue" as const,
+      column: "score_booleans",
+      label: "Boolean Scores",
+    },
+    {
       type: "numeric" as const,
       column: "commentCount",
       label: "Comment Count",

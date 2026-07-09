@@ -32,6 +32,7 @@ import type {
   UIFilter,
   KeyValueFilterEntry,
   NumericKeyValueFilterEntry,
+  BooleanKeyValueFilterEntry,
   StringKeyValueFilterEntry,
   TextFilterEntry,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
@@ -374,6 +375,28 @@ export function DataTableControls({
                 );
               }
 
+              if (filter.type === "booleanKeyValue") {
+                return (
+                  <BooleanKeyValueFacet
+                    key={filter.column}
+                    filterKey={filter.column}
+                    label={filter.label}
+                    tooltip={filter.tooltip}
+                    help={filter.help}
+                    expanded={filter.expanded}
+                    loading={filter.loading}
+                    keyOptions={filter.keyOptions}
+                    value={filter.value}
+                    onChange={filter.onChange}
+                    isActive={filter.isActive}
+                    onReset={filter.onReset}
+                    keyPlaceholder="Name"
+                    isDisabled={filter.isDisabled}
+                    disabledReason={filter.disabledReason}
+                  />
+                );
+              }
+
               if (filter.type === "stringKeyValue") {
                 return (
                   <StringKeyValueFacet
@@ -467,6 +490,13 @@ interface NumericKeyValueFacetProps extends BaseFacetProps {
   keyOptions?: string[];
   value: NumericKeyValueFilterEntry[];
   onChange: (filters: NumericKeyValueFilterEntry[]) => void;
+  keyPlaceholder?: string;
+}
+
+interface BooleanKeyValueFacetProps extends BaseFacetProps {
+  keyOptions?: string[];
+  value: BooleanKeyValueFilterEntry[];
+  onChange: (filters: BooleanKeyValueFilterEntry[]) => void;
   keyPlaceholder?: string;
 }
 
@@ -1329,6 +1359,52 @@ export function NumericKeyValueFacet({
       ) : (
         <KeyValueFilterBuilder
           mode="numeric"
+          keyOptions={keyOptions}
+          activeFilters={value}
+          onChange={onChange}
+          keyPlaceholder={keyPlaceholder}
+        />
+      )}
+    </FilterAccordionItem>
+  );
+}
+
+export function BooleanKeyValueFacet({
+  label,
+  tooltip,
+  help,
+  filterKey,
+  filterKeyShort,
+  expanded: _expanded,
+  loading,
+  keyOptions,
+  value,
+  onChange,
+  isActive,
+  isDisabled,
+  disabledReason,
+  onReset,
+  keyPlaceholder,
+}: BooleanKeyValueFacetProps) {
+  return (
+    <FilterAccordionItem
+      label={label}
+      tooltip={tooltip}
+      help={help}
+      filterKey={filterKey}
+      filterKeyShort={filterKeyShort}
+      isActive={isActive}
+      isDisabled={isDisabled}
+      disabledReason={disabledReason}
+      onReset={onReset}
+    >
+      {loading ? (
+        <div className="text-muted-foreground px-4 py-2 text-sm">
+          Loading...
+        </div>
+      ) : (
+        <KeyValueFilterBuilder
+          mode="boolean"
           keyOptions={keyOptions}
           activeFilters={value}
           onChange={onChange}

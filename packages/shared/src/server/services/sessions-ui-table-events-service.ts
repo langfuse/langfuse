@@ -37,6 +37,7 @@ type SessionEventsBaseReturnType = {
 type SessionScoreFields = {
   scores_avg?: Array<Array<[string, number]>>;
   score_categories?: Array<Array<string>>;
+  score_booleans?: Array<Array<string>>;
 };
 
 export type SessionEventsDataReturnType = SessionEventsBaseReturnType &
@@ -286,7 +287,7 @@ const getSessionsTableFromEventsGeneric = async <T>(
           "s.session_output_usage",
           "s.session_total_usage",
         )
-        .select("sc.scores_avg", "sc.score_categories");
+        .select("sc.scores_avg", "sc.score_categories", "sc.score_booleans");
       break;
     default: {
       const exhaustiveCheckDefault: never = select;

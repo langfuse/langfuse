@@ -13,6 +13,7 @@ import {
   getEventsFilterOptionValuesPage,
   getEventsNumericStatsByFilterColumn,
   getNumericScoresGroupedByName,
+  getBooleanScoresGroupedByName,
   getScoresGroupedByNameSourceType,
   getObservationsBatchIOFromEventsTable,
   getScoresForObservations,
@@ -113,8 +114,10 @@ const EVENT_FILTER_OPTION_COLUMNS = [
 const EVENT_SCORE_FILTER_OPTION_COLUMNS = [
   "scores_avg",
   "score_categories",
+  "score_booleans",
   "trace_scores_avg",
   "trace_score_categories",
+  "trace_score_booleans",
 ] as const;
 
 export const EVENT_FILTER_OPTIONS_COLUMNS = [
@@ -534,22 +537,34 @@ export async function getEventFilterOptions(
   );
   const shouldLoadScoresAvg = requestedColumns.has("scores_avg");
   const shouldLoadScoreCategories = requestedColumns.has("score_categories");
+  const shouldLoadScoreBooleans = requestedColumns.has("score_booleans");
   const shouldLoadTraceScores = requestedColumns.has("trace_scores_avg");
   const shouldLoadTraceScoreCategories = requestedColumns.has(
     "trace_score_categories",
+  );
+  const shouldLoadTraceScoreBooleans = requestedColumns.has(
+    "trace_score_booleans",
   );
 
   // Observation-scoped and trace-scoped discovery are kept separate so each
   // score column only offers names its filter/join can actually match.
   const [
     numericScoreNames,
+    booleanScoreNames,
     categoricalScoreNames,
     traceScoreColumns,
     traceCategoricalScoreColumns,
+    traceBooleanScoreColumns,
     eventFilterOptions,
   ] = await Promise.all([
     shouldLoadScoresAvg
       ? getNumericScoresGroupedByName(projectId, [
+          ...OBSERVATION_SCORE_SCOPE_FILTER,
+          ...traceTimestampFilters,
+        ])
+      : Promise.resolve([]),
+    shouldLoadScoreBooleans
+      ? getBooleanScoresGroupedByName(projectId, [
           ...OBSERVATION_SCORE_SCOPE_FILTER,
           ...traceTimestampFilters,
         ])
@@ -568,6 +583,12 @@ export async function getEventFilterOptions(
       : Promise.resolve([]),
     shouldLoadTraceScoreCategories
       ? getCategoricalScoresGroupedByName(projectId, [
+          ...TRACE_SCORE_SCOPE_FILTER,
+          ...traceTimestampFilters,
+        ])
+      : Promise.resolve([]),
+    shouldLoadTraceScoreBooleans
+      ? getBooleanScoresGroupedByName(projectId, [
           ...TRACE_SCORE_SCOPE_FILTER,
           ...traceTimestampFilters,
         ])
@@ -609,11 +630,21 @@ export async function getEventFilterOptions(
     ...(shouldLoadScoreCategories
       ? { score_categories: categoricalScoreNames }
       : {}),
+    ...(shouldLoadScoreBooleans
+      ? { score_booleans: booleanScoreNames.map((score) => score.name) }
+      : {}),
     ...(shouldLoadTraceScores
       ? { trace_scores_avg: traceNumericScoreNames }
       : {}),
     ...(shouldLoadTraceScoreCategories
       ? { trace_score_categories: traceCategoricalScoreColumns }
+      : {}),
+    ...(shouldLoadTraceScoreBooleans
+      ? {
+          trace_score_booleans: traceBooleanScoreColumns.map(
+            (score) => score.name,
+          ),
+        }
       : {}),
   };
 }

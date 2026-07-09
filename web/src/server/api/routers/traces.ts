@@ -33,6 +33,7 @@ import {
   getTracesTableCount,
   getScoresForTraces,
   getNumericScoresGroupedByName,
+  getBooleanScoresGroupedByName,
   getTracesGroupedByName,
   getTracesGroupedByTags,
   getObservationsForTrace,
@@ -295,6 +296,7 @@ export const traceRouter = createTRPCRouter({
       const [
         numericScoreNames,
         categoricalScoreNames,
+        booleanScoreNames,
         traceNames,
         tags,
         userIds,
@@ -305,6 +307,7 @@ export const traceRouter = createTRPCRouter({
           input.projectId,
           traceScopedScoreFilters,
         ),
+        getBooleanScoresGroupedByName(input.projectId, traceScopedScoreFilters),
         getTracesGroupedByName(
           input.projectId,
           tracesTableUiColumnDefinitions,
@@ -334,6 +337,7 @@ export const traceRouter = createTRPCRouter({
         name: traceNames.map((n) => ({ value: n.name, count: n.count })),
         scores_avg: numericScoreNames.map((s) => s.name),
         score_categories: categoricalScoreNames,
+        score_booleans: booleanScoreNames.map((s) => s.name),
         tags: tags,
         users: userIds.map((u) => ({
           value: u.user,
