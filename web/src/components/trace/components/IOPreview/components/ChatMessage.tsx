@@ -84,7 +84,7 @@ export function ChatMessage({
           <MarkdownJsonView
             title="Placeholder"
             content={message.name || "Unnamed placeholder"}
-            customCodeHeaderClassName="bg-primary-foreground"
+            customCodeHeaderClassName="bg-card"
           />
         </div>
         <div style={{ display: shouldRenderMarkdown ? "none" : "block" }}>
@@ -184,7 +184,7 @@ export function ChatMessage({
             content={message.content || ""}
             customCodeHeaderClassName={cn(
               message.role === "assistant" && "bg-secondary",
-              message.role === "system" && "bg-primary-foreground",
+              message.role === "system" && "bg-card",
             )}
             audio={message.audio}
             controlButtons={passthroughToggleButton}
