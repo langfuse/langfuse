@@ -17,18 +17,23 @@ import {
 type BlobStorageExportFailedEmailTemplateProps = {
   projectName: string;
   settingsUrl: string;
+  // When true, the export was turned off after repeated failures and the
+  // customer must fix their config and re-enable it — not a transient failure.
+  disabled?: boolean;
 };
 
 export const BlobStorageExportFailedEmailTemplate = ({
   projectName,
   settingsUrl,
+  disabled = false,
 }: BlobStorageExportFailedEmailTemplateProps) => {
+  const preview = disabled
+    ? `Blob storage export disabled for project "${projectName}"`
+    : `Blob storage export failed for project "${projectName}"`;
   return (
     <Html>
       <Head />
-      <Preview>
-        Blob storage export failed for project &quot;{projectName}&quot;
-      </Preview>
+      <Preview>{preview}</Preview>
       <Tailwind>
         <Body className="bg-background my-auto mx-auto font-sans">
           <Container className="mx-auto my-10 w-[465px] rounded border border-solid border-[#eaeaea] p-5">
@@ -44,12 +49,29 @@ export const BlobStorageExportFailedEmailTemplate = ({
 
             <Section>
               <Heading className="mx-0 my-[30px] p-0 text-center text-2xl font-normal text-black">
-                Blob Storage Export Failed
+                {disabled
+                  ? "Blob Storage Export Disabled"
+                  : "Blob Storage Export Failed"}
               </Heading>
               <Text className="text-gray-700 text-sm leading-6">
-                The scheduled blob storage export for project &quot;
-                {projectName}&quot; has failed. Review the integration settings
-                to see the error details and resolve the issue.
+                {disabled ? (
+                  <>
+                    The blob storage export for project &quot;{projectName}
+                    &quot; has been disabled after repeated failures. This
+                    usually means the destination configuration or credentials
+                    are no longer valid. Once you have updated them, simply
+                    re-enable the export in the integration settings and it will
+                    pick up right where it left off.
+                  </>
+                ) : (
+                  <>
+                    The scheduled blob storage export for project &quot;
+                    {projectName}&quot; has failed after multiple attempts. It
+                    will be retried automatically at the next scheduled export.
+                    If the issue persists, review the integration settings to
+                    see the error details.
+                  </>
+                )}
               </Text>
             </Section>
 
@@ -66,8 +88,9 @@ export const BlobStorageExportFailedEmailTemplate = ({
 
             <Section>
               <Text className="text-[#666666] text-[12px] leading-[24px]">
-                This notification was sent to project admins regarding a failed
-                blob storage export for project &quot;{projectName}&quot;.
+                This notification was sent to project admins regarding a{" "}
+                {disabled ? "disabled" : "failed"} blob storage export for
+                project &quot;{projectName}&quot;.
               </Text>
             </Section>
           </Container>

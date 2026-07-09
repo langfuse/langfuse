@@ -31,10 +31,12 @@ import {
   BatchExportTableName,
   type ObservationType,
   TableViewPresetTableName,
+  type TableViewPresetState,
   BatchActionType,
   ActionId,
   RESOURCE_LIMIT_ERROR_MESSAGE,
 } from "@langfuse/shared";
+import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
@@ -45,6 +47,7 @@ import {
   toAbsoluteTimeRange,
   type TableDateRange,
 } from "@/src/utils/date-range-utils";
+import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { type ScoreAggregate } from "@langfuse/shared";
 import TagList from "@/src/features/tag/components/TagList";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
@@ -106,6 +109,8 @@ import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSea
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { CategoryPresetChips } from "@/src/features/events/components/CategoryPresetChips";
+import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import { withMetadataPathOptions } from "@/src/features/search-bar/lib/metadata-paths";
 import {
   useObservedMetadataPaths,
@@ -188,15 +193,18 @@ export type EventsTableProps = {
   userId?: string;
   omittedFilter?: ObservationEventsOmittableFilterColumn[];
   hideControls?: boolean;
-  /** Hide the toolbar time-range picker. Set by pages that render the picker
-   *  in the page header (TableTimeRangeHeaderPicker) — both read the same
-   *  shared per-project range, so embedded usages keep the toolbar picker. */
-  hideTimeRangePicker?: boolean;
   // External control props for embedded preview tables
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
   limitRows?: number;
   sessionId?: string;
+  /**
+   * When true, render the time-range picker and auto-refresh button in the
+   * page header (next to the title) via the header controls slot, instead of
+   * inside the table toolbar. Only used when the table is the primary content
+   * of a `Page`.
+   */
+  showControlsInPageHeader?: boolean;
 };
 
 // Build the start-time `FilterState` for an absolute date range (lower bound
@@ -229,11 +237,11 @@ export default function ObservationsEventsTable({
   userId,
   omittedFilter = [],
   hideControls = false,
-  hideTimeRangePicker = false,
   externalFilterState,
   externalDateRange,
   limitRows,
   sessionId,
+  showControlsInPageHeader = false,
 }: EventsTableProps) {
   const peekContext = usePeekTableState();
   const router = useRouter();
@@ -535,6 +543,24 @@ export default function ObservationsEventsTable({
     setSearchQuery,
     setSearchType,
   });
+
+  // Non-destructive preview: while a category-chip preset row is hovered or
+  // focused, show the query it would apply as the store's preview overlay. The
+  // draft is never touched, so ending the preview cannot lose in-progress
+  // typing. Clicking still applies for real via applyViewState. No-op outside
+  // search-bar mode.
+  const previewViewInSearchBar = useCallback(
+    (state: TableViewPresetState | null) => {
+      if (!searchBarMode) return;
+      const { actions } = searchBarStore.getState();
+      if (state) {
+        actions.setPreview(filterStateToQueryText(state.filters).text);
+      } else {
+        actions.clearPreview();
+      }
+    },
+    [searchBarMode, searchBarStore],
+  );
 
   // Disabled for now because perhaps confusing
   // const viewModeFilter: FilterState =
@@ -1558,9 +1584,23 @@ export default function ObservationsEventsTable({
     };
   }, [selectedObservationIds, observations.rows]);
 
+  const refreshConfig = {
+    onRefresh: handleRefresh,
+    isRefreshing: observations.status === "loading",
+    interval: refreshInterval,
+    setInterval: setRefreshInterval,
+  };
+
   return (
     <DataTableControlsProvider tableName={eventsFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
+        {showControlsInPageHeader && !hideControls && (
+          <TableHeaderControls
+            timeRange={timeRange}
+            setTimeRange={setTimeRange}
+            refresh={refreshConfig}
+          />
+        )}
         {!hideControls && (
           <div
             className={cn(
@@ -1573,9 +1613,11 @@ export default function ObservationsEventsTable({
           >
             {/* Search bar row: full-width query composer. In bar mode it sticks
                 together with the toolbar below, so the toolbar controls cannot
-                scroll underneath and render half-clipped. Time-range + refresh
-                live in the toolbar row below, next to the filter toggle and
-                views — not in the page header. */}
+                scroll underneath and render half-clipped. When
+                showControlsInPageHeader is set (the standalone traces/
+                observations pages), time-range + refresh are hoisted to the
+                page header via TableHeaderControls; otherwise they remain in
+                the toolbar row below. */}
             {searchBarMode && (
               <EventsSearchBarRow
                 projectId={projectId}
@@ -1619,11 +1661,6 @@ export default function ObservationsEventsTable({
               currentSearchQuery={
                 searchBarMode ? (searchQuery ?? "") : undefined
               }
-              viewConfig={{
-                tableName: TableViewPresetTableName.ObservationsEvents,
-                projectId,
-                controllers: viewControllers,
-              }}
               columnsWithCustomSelect={[
                 "providedModelName",
                 "name",
@@ -1636,8 +1673,8 @@ export default function ObservationsEventsTable({
               orderByState={orderByState}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
-              timeRange={hideTimeRangePicker ? undefined : timeRange}
-              setTimeRange={hideTimeRangePicker ? undefined : setTimeRange}
+              timeRange={showControlsInPageHeader ? undefined : timeRange}
+              setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
               // Disabled, for now moved to filter sidebar
               // TODO: remove this toggle once v4 looks good as is
               // viewModeToggle={
@@ -1646,12 +1683,9 @@ export default function ObservationsEventsTable({
               //     onViewModeChange={setViewMode}
               //   />
               // }
-              refreshConfig={{
-                onRefresh: handleRefresh,
-                isRefreshing: observations.status === "loading",
-                interval: refreshInterval,
-                setInterval: setRefreshInterval,
-              }}
+              refreshConfig={
+                showControlsInPageHeader ? undefined : refreshConfig
+              }
               actionButtons={[
                 <BatchExportTableButton
                   {...{
@@ -1692,12 +1726,47 @@ export default function ObservationsEventsTable({
                 selectedRowIds: selectedObservationIds,
                 setRowSelection: setSelectedRows,
                 totalCount,
+                // totalCount stays null until select-all triggers the lazy
+                // count query; hasNextPage lets the select-all banner show
+                // without an eager count over the events table.
+                hasNextPage: hasMore,
                 pageSize: paginationState.limit,
                 pageIndex: paginationState.page - 1,
               }}
               // In bar mode AI filtering lives in the search bar ("Ask AI"),
               // so the legacy wand is only offered when the bar is absent.
               filterWithAI={!searchBarMode}
+              // Category-preset chips + "My Views" pill share the toolbar row,
+              // left-aligned, so they sit on the same line as the right-aligned
+              // Columns/Export controls.
+              leadingControls={
+                <div className="flex flex-wrap items-center gap-2">
+                  <CategoryPresetChips
+                    projectId={projectId}
+                    activeViewId={
+                      viewControllers.appliedViewId ??
+                      viewControllers.selectedViewId
+                    }
+                    onApplyView={viewControllers.handleSetViewId}
+                    applyViewState={viewControllers.applyViewState}
+                    onPreviewView={previewViewInSearchBar}
+                  />
+                  <TableViewPresetsDrawer
+                    viewConfig={{
+                      tableName: TableViewPresetTableName.ObservationsEvents,
+                      projectId,
+                      controllers: viewControllers,
+                    }}
+                    currentState={{
+                      orderBy: orderByState ?? null,
+                      filters: queryFilter.explicitFilterState ?? [],
+                      columnOrder,
+                      columnVisibility,
+                      searchQuery: searchQuery ?? "",
+                    }}
+                  />
+                </div>
+              }
             />
           </div>
         )}

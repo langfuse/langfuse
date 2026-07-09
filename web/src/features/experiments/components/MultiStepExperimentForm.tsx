@@ -28,6 +28,7 @@ import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvalua
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
 import { useExperimentNameValidation } from "@/src/features/experiments/hooks/useExperimentNameValidation";
 import { useExperimentPromptData } from "@/src/features/experiments/hooks/useExperimentPromptData";
+import { getExistingEvaluators } from "@/src/features/experiments/hooks/useExperimentEvaluatorSelection";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -148,7 +149,7 @@ export const MultiStepExperimentForm = ({
     },
   );
 
-  const evalTemplates = api.evals.allTemplates.useQuery(
+  const evalTemplates = api.evals.latestTemplates.useQuery(
     { projectId },
     {
       enabled: hasEvalReadAccess,
@@ -158,9 +159,6 @@ export const MultiStepExperimentForm = ({
   const { createDefaultEvaluator } = useEvaluatorDefaults();
 
   const {
-    activeEvaluators,
-    pausedEvaluators,
-    evaluatorTargetObjects,
     selectedEvaluatorData,
     showEvaluatorForm,
     handleConfigureEvaluator,
@@ -323,10 +321,11 @@ export const MultiStepExperimentForm = ({
   }, [experimentName, form]);
 
   // Get evaluator names for review step
-  const activeEvaluatorNames =
-    evalTemplates.data?.templates
-      .filter((t) => activeEvaluators.includes(t.id))
-      .map((t) => t.name) ?? [];
+  const activeEvaluatorNames = Object.values(
+    getExistingEvaluators(evaluators.data, datasetId),
+  )
+    .filter((evaluator) => evaluator.isActive)
+    .map((evaluator) => evaluator.templateName);
 
   // Get dataset info for review step
   const selectedDataset = datasets.data?.find((d) => d.id === datasetId);
@@ -408,9 +407,6 @@ export const MultiStepExperimentForm = ({
     },
   };
   const evaluatorState = {
-    activeEvaluators,
-    pausedEvaluators,
-    evaluatorTargetObjects,
     evalTemplates: evalTemplates.data?.templates ?? [],
     activeEvaluatorNames,
     selectedEvaluatorData,
@@ -419,7 +415,6 @@ export const MultiStepExperimentForm = ({
     handleCloseEvaluatorForm,
     handleEvaluatorSuccess,
     handleSelectEvaluator,
-    handleEvaluatorToggled: () => evaluators.refetch(),
     preprocessFormValues,
   };
   const permissions = { hasEvalReadAccess, hasEvalWriteAccess };

@@ -134,6 +134,11 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
                 userId: ctx.session.user.id,
                 metadata: {
                   langfuse_user_id: ctx.session.user.id,
+                  ...(ctx.session.user.email
+                    ? { langfuse_user_email: ctx.session.user.email }
+                    : {}),
+                  langfuse_user_project_role: ctx.session.projectRole,
+                  langfuse_cloud_region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
                 },
                 prompt: promptResponse,
               })

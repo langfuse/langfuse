@@ -43,8 +43,10 @@ import {
   EvalTargetObject,
   EvaluatorBlockReason,
 } from "@langfuse/shared";
-import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval-template-utils";
-import { EvalReferencedEvaluators } from "@/src/features/evals/types";
+import {
+  CODE_EVAL_TEMPLATE_VARIABLES,
+  getCodeEvalVariableMapping,
+} from "@/src/features/evals/utils/code-eval-template-utils";
 import type { Session } from "next-auth";
 
 beforeEach(() => {
@@ -447,7 +449,103 @@ describe("evals trpc", () => {
     });
   });
 
+  describe("evals.latestTemplates", () => {
+    it("should return only the latest template per project/name/type family", async () => {
+      const { project, caller } = await prepare();
+
+      const staleLlmTemplate = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: `latest-family-template-${project.id}`,
+          version: 1,
+          prompt: "Score this response",
+          outputDefinition: createNumericEvalOutputDefinition({
+            reasoningDescription: "Why",
+            scoreDescription: "How good",
+          }),
+        },
+      });
+
+      const latestLlmTemplate = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: staleLlmTemplate.name,
+          version: 2,
+          prompt: "Score this response again",
+          outputDefinition: createNumericEvalOutputDefinition({
+            reasoningDescription: "Why",
+            scoreDescription: "How good",
+          }),
+        },
+      });
+
+      const codeTemplateWithSameName = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: staleLlmTemplate.name,
+          version: 3,
+          type: EvalTemplateType.CODE,
+          prompt: null,
+          outputDefinition: undefined,
+          sourceCode:
+            'function evaluate() { return { scores: [{ name: "code-score", value: 1 }] }; }',
+          sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        },
+      });
+
+      const response = await caller.evals.latestTemplates({
+        projectId: project.id,
+      });
+      const returnedIds = response.templates.map((template) => template.id);
+
+      expect(returnedIds).toContain(latestLlmTemplate.id);
+      expect(returnedIds).toContain(codeTemplateWithSameName.id);
+      expect(returnedIds).not.toContain(staleLlmTemplate.id);
+    });
+  });
+
   describe("evals.createTemplate", () => {
+    it("rejects new evaluators when the project already has the same template name", async () => {
+      const { project, caller } = await prepare();
+      const existingTemplate = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: `taken-template-name-${project.id}`,
+          version: 1,
+          prompt: "Score this response",
+          outputDefinition: createNumericEvalOutputDefinition({
+            reasoningDescription: "Why",
+            scoreDescription: "How good",
+          }),
+        },
+      });
+
+      await expect(
+        caller.evals.createTemplate({
+          projectId: project.id,
+          name: existingTemplate.name,
+          intent: "new",
+          type: EvalTemplateType.CODE,
+          sourceCode:
+            'function evaluate() { return { scores: [{ name: "code-score", value: 1 }] }; }',
+          sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        }),
+      ).rejects.toThrow(
+        // the existing template is LLM_AS_JUDGE while the attempt is CODE
+        `An evaluator named "${existingTemplate.name}" already exists in this project with a different type. Use a different name.`,
+      );
+
+      await expect(
+        prisma.evalTemplate.findMany({
+          where: {
+            projectId: project.id,
+            name: existingTemplate.name,
+          },
+          select: { id: true },
+        }),
+      ).resolves.toEqual([{ id: existingTemplate.id }]);
+    });
+
     it("rejects Python code evaluators for the insecure-local dispatcher", async () => {
       const { project, caller } = await prepare();
 
@@ -455,6 +553,7 @@ describe("evals trpc", () => {
         caller.evals.createTemplate({
           projectId: project.id,
           name: `python-code-template-${project.id}`,
+          intent: "new",
           type: EvalTemplateType.CODE,
           sourceCode:
             'def evaluate(ctx):\n    return { "scores": [{ "name": "python-score", "value": 1 }] }',
@@ -502,20 +601,21 @@ describe("evals trpc", () => {
         },
       });
 
-      const templateV2 = await caller.evals.createTemplate({
+      const newVersion = await caller.evals.createTemplate({
         projectId: project.id,
         name: templateName,
+        intent: "new-version",
+        sourceTemplateId: templateV1.id,
         type: EvalTemplateType.CODE,
         sourceCode:
           'function evaluate(ctx) { return { scores: [{ name: "s", value: ctx.observation.toolCalls.length }] }; }',
         sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
-        referencedEvaluators: EvalReferencedEvaluators.UPDATE,
       });
 
       const updatedConfig = await prisma.jobConfiguration.findUniqueOrThrow({
         where: { id: jobConfig.id },
       });
-      expect(updatedConfig.evalTemplateId).toBe(templateV2.id);
+      expect(updatedConfig.evalTemplateId).toBe(newVersion.template.id);
       expect(updatedConfig.variableMapping).toEqual(
         getCodeEvalVariableMapping(),
       );
@@ -523,6 +623,164 @@ describe("evals trpc", () => {
   });
 
   describe("evals.createJob", () => {
+    it("keeps evaluator configs on latest template versions", async () => {
+      const { project, caller } = await prepare();
+      runCodeEvalTestForJobConfigMock.mockResolvedValue(null);
+      const mapping = CODE_EVAL_TEMPLATE_VARIABLES.map((templateVariable) => ({
+        templateVariable,
+        selectedColumnId: templateVariable,
+        jsonSelector: null,
+      }));
+
+      const staleTemplate = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: `code-versioning-template-${project.id}`,
+          version: 1,
+          type: EvalTemplateType.CODE,
+          prompt: null,
+          outputDefinition: undefined,
+          sourceCode:
+            'function evaluate() { return { scores: [{ name: "versioning-score", value: 1 }] }; }',
+          sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        },
+      });
+      const latestTemplate = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: staleTemplate.name,
+          version: 2,
+          type: EvalTemplateType.CODE,
+          prompt: null,
+          outputDefinition: undefined,
+          sourceCode:
+            'function evaluate() { return { scores: [{ name: "versioning-score", value: 2 }] }; }',
+          sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        },
+      });
+
+      const createdFromStaleId = await caller.evals.createJob({
+        projectId: project.id,
+        evalTemplateId: staleTemplate.id,
+        scoreName: "stale-template-score",
+        target: EvalTargetObject.EXPERIMENT,
+        filter: [],
+        mapping,
+        sampling: 1,
+        delay: 0,
+        timeScope: ["NEW"],
+      });
+
+      await expect(
+        prisma.jobConfiguration.findUnique({
+          where: { id: createdFromStaleId.id },
+          select: { evalTemplateId: true },
+        }),
+      ).resolves.toEqual({ evalTemplateId: latestTemplate.id });
+
+      const configToRetarget = await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          evalTemplateId: staleTemplate.id,
+          scoreName: "retargeted-template-score",
+          filter: [],
+          targetObject: EvalTargetObject.EXPERIMENT,
+          variableMapping: mapping,
+          sampling: 1,
+          delay: 0,
+          status: "INACTIVE",
+          timeScope: ["NEW"],
+        },
+      });
+
+      const newVersion = await caller.evals.createTemplate({
+        projectId: project.id,
+        name: staleTemplate.name,
+        intent: "new-version",
+        sourceTemplateId: staleTemplate.id,
+        type: EvalTemplateType.CODE,
+        sourceCode:
+          'function evaluate() { return { scores: [{ name: "versioning-score", value: 3 }] }; }',
+        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+      });
+
+      expect(newVersion.updatedConfigCount).toBe(2);
+      expect(newVersion.template.version).toBe(3);
+      await expect(
+        prisma.jobConfiguration.findUnique({
+          where: { id: configToRetarget.id },
+          select: { evalTemplateId: true, variableMapping: true },
+        }),
+      ).resolves.toEqual({
+        evalTemplateId: newVersion.template.id,
+        variableMapping: mapping,
+      });
+    });
+
+    it("rejects stale template resolution when the latest version needs new variable mappings", async () => {
+      const { project, caller } = await prepare();
+
+      const staleTemplate = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: `llm-versioning-template-${project.id}`,
+          version: 1,
+          prompt: "Score {{query}}",
+          vars: ["query"],
+          outputDefinition: createNumericEvalOutputDefinition({
+            reasoningDescription: "Why",
+            scoreDescription: "How good",
+          }),
+        },
+      });
+      const latestTemplate = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: staleTemplate.name,
+          version: 2,
+          prompt: "Score {{query}} with {{context}}",
+          vars: ["query", "context"],
+          outputDefinition: createNumericEvalOutputDefinition({
+            reasoningDescription: "Why",
+            scoreDescription: "How good",
+          }),
+        },
+      });
+
+      await expect(
+        caller.evals.createJob({
+          projectId: project.id,
+          evalTemplateId: staleTemplate.id,
+          scoreName: "stale-template-missing-mapping-score",
+          target: EvalTargetObject.EXPERIMENT,
+          filter: [],
+          mapping: [
+            {
+              templateVariable: "query",
+              selectedColumnId: "query",
+              jsonSelector: null,
+            },
+          ],
+          sampling: 1,
+          delay: 0,
+          timeScope: ["NEW"],
+        }),
+      ).rejects.toThrow(
+        `Evaluator template "${staleTemplate.name}" changed while this form was open`,
+      );
+
+      await expect(
+        prisma.jobConfiguration.findFirst({
+          where: {
+            projectId: project.id,
+            scoreName: "stale-template-missing-mapping-score",
+            evalTemplateId: latestTemplate.id,
+          },
+        }),
+      ).resolves.toBeNull();
+    });
+
     it("saves experiment code evaluator configs without a matching observation", async () => {
       const { project, caller } = await prepare();
       runCodeEvalTestForJobConfigMock.mockResolvedValueOnce(null);
@@ -699,6 +957,98 @@ describe("evals trpc", () => {
       ).rejects.toThrow(
         'Filter column "Scores (numeric)" is not supported for target "trace".',
       );
+    });
+  });
+
+  describe("evals.updateAllDatasetEvalJobStatusByTemplateId", () => {
+    it("toggles experiment-target evaluator configs for the dataset", async () => {
+      const { project, caller } = await prepare();
+      const datasetId = `dataset-${project.id}`;
+      const otherDatasetId = `other-dataset-${project.id}`;
+      // CODE template so the reactivation preflight passes without an LLM connection
+      const template = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: `toggle-template-${project.id}`,
+          version: 1,
+          type: EvalTemplateType.CODE,
+          prompt: null,
+          outputDefinition: undefined,
+          sourceCode:
+            'function evaluate() { return { scores: [{ name: "toggle-score", value: 1 }] }; }',
+          sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        },
+      });
+      const experimentDatasetFilter = (id: string) => [
+        {
+          type: "stringOptions",
+          value: [id],
+          column: "experimentDatasetId",
+          operator: "any of",
+        },
+      ];
+      const experimentConfig = await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          evalTemplateId: template.id,
+          scoreName: "experiment-toggle-score",
+          filter: experimentDatasetFilter(datasetId),
+          targetObject: EvalTargetObject.EXPERIMENT,
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "ACTIVE",
+        },
+      });
+      const otherDatasetConfig = await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          evalTemplateId: template.id,
+          scoreName: "other-dataset-score",
+          filter: experimentDatasetFilter(otherDatasetId),
+          targetObject: EvalTargetObject.EXPERIMENT,
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "ACTIVE",
+        },
+      });
+
+      await caller.evals.updateAllDatasetEvalJobStatusByTemplateId({
+        projectId: project.id,
+        evalTemplateId: template.id,
+        datasetId,
+        newStatus: "INACTIVE",
+      });
+
+      await expect(
+        prisma.jobConfiguration.findUniqueOrThrow({
+          where: { id: experimentConfig.id },
+          select: { status: true },
+        }),
+      ).resolves.toEqual({ status: "INACTIVE" });
+      await expect(
+        prisma.jobConfiguration.findUniqueOrThrow({
+          where: { id: otherDatasetConfig.id },
+          select: { status: true },
+        }),
+      ).resolves.toEqual({ status: "ACTIVE" });
+
+      await caller.evals.updateAllDatasetEvalJobStatusByTemplateId({
+        projectId: project.id,
+        evalTemplateId: template.id,
+        datasetId,
+        newStatus: "ACTIVE",
+      });
+
+      await expect(
+        prisma.jobConfiguration.findUniqueOrThrow({
+          where: { id: experimentConfig.id },
+          select: { status: true },
+        }),
+      ).resolves.toEqual({ status: "ACTIVE" });
     });
   });
 
