@@ -59,18 +59,26 @@ export const createBatchActionJob = async ({
   query,
   targetId,
 }: CreateBatchActionJob) => {
-  assertLegacyTracingIoSearchCanCreateBatchJob({
-    searchQuery: query.searchQuery,
-    searchType: query.searchType,
-    tableName,
-  });
-
   // Snapshot the user's v4 beta flag so the worker reads from the same data
   // source as the UI table; overrides any client-sent value.
   const queryWithSnapshot: BatchActionQuery = {
     ...query,
     useEventsTable: session.user.v4BetaEnabled ?? false,
   };
+
+  assertLegacyTracingIoSearchCanCreateBatchJob({
+    searchQuery: queryWithSnapshot.searchQuery,
+    searchType: queryWithSnapshot.searchType,
+    tableName,
+    // Only TraceDelete's worker path honors useEventsTable (config.source
+    // "events" -> getTraceDeleteCursorPageFromEvents). Every other action
+    // reads from the legacy tables regardless of the flag, so it must keep
+    // the strict legacy IO-search guard.
+    useEventsTable:
+      actionId === ActionId.TraceDelete
+        ? queryWithSnapshot.useEventsTable
+        : undefined,
+  });
 
   const batchActionId = generateBatchActionId(projectId, actionId, tableName);
 

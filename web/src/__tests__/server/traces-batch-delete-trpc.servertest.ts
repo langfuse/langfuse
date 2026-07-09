@@ -16,12 +16,14 @@ vi.mock("@langfuse/shared/src/server", async () => {
 
 import type { Session } from "next-auth";
 import { randomUUID } from "crypto";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {
   ActionId,
+  AnnotationQueueObjectType,
   BatchExportTableName,
   BatchActionStatus,
   createTraceDeleteBatchActionConfig,
@@ -310,5 +312,165 @@ describe("traces.deleteMany batch action", () => {
       }),
     ).resolves.toBe(true);
     expect(mockGetBatchActionJobState).not.toHaveBeenCalled();
+  });
+
+  it("rejects batch deletes with comment filters without creating a batch action", async () => {
+    const { projectId, caller } = await createCaller();
+    const batchActionId = `${projectId}-traces-trace-delete`;
+
+    await expect(
+      caller.traces.deleteMany({
+        projectId,
+        traceIds: [randomUUID()],
+        isBatchAction: true,
+        query: {
+          filter: [
+            {
+              column: "commentCount",
+              operator: ">=" as const,
+              value: 1,
+              type: "number" as const,
+            },
+          ],
+          orderBy: { column: "timestamp", order: "DESC" as const },
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message:
+        "Batch deletion does not support comment filters. Remove the comment filter and try again.",
+    });
+
+    await expect(
+      prisma.batchAction.findUnique({ where: { id: batchActionId } }),
+    ).resolves.toBeNull();
+  });
+
+  it("rejects deletes with an empty traceIds array even for batch actions", async () => {
+    // An empty selection while select-all is armed signals a client-side
+    // consistency issue; the server contract requires at least one traceId
+    // for every delete and must fail loudly rather than absorb it.
+    const { projectId, caller } = await createCaller();
+    const batchActionId = `${projectId}-traces-trace-delete`;
+
+    await expect(
+      caller.traces.deleteMany({
+        projectId,
+        traceIds: [],
+        isBatchAction: true,
+        query: traceDeleteQuery(`delete-user-${randomUUID()}`),
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining("Minimum 1 traceId is required."),
+    });
+
+    await expect(
+      prisma.batchAction.findUnique({ where: { id: batchActionId } }),
+    ).resolves.toBeNull();
+  });
+
+  describe("with legacy IO search disabled", () => {
+    const mutableEnv = env as unknown as {
+      LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH: "true" | "false";
+    };
+    const originalLegacyIoSearchDisabled =
+      mutableEnv.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH;
+
+    afterEach(() => {
+      mutableEnv.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH =
+        originalLegacyIoSearchDisabled;
+    });
+
+    const ioSearchQuery = (userId: string) => ({
+      ...traceDeleteQuery(userId),
+      searchQuery: "some full-text query",
+      searchType: ["id" as const, "content" as const],
+    });
+
+    it("allows v4 (events-backed) batch deletes with full-text search", async () => {
+      mutableEnv.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH = "true";
+      const { projectId, caller } = await createCaller({
+        v4BetaEnabled: true,
+      });
+      const batchActionId = `${projectId}-traces-trace-delete`;
+
+      await caller.traces.deleteMany({
+        projectId,
+        traceIds: [randomUUID()],
+        isBatchAction: true,
+        query: ioSearchQuery(`delete-user-${randomUUID()}`),
+      });
+
+      const batchAction = await prisma.batchAction.findUniqueOrThrow({
+        where: { id: batchActionId },
+      });
+      expect(batchAction.status).toBe(BatchActionStatus.Queued);
+      expect(batchAction.query).toMatchObject({
+        useEventsTable: true,
+        searchQuery: "some full-text query",
+        searchType: ["id", "content"],
+      });
+      expect(
+        TraceDeleteBatchActionConfigSchema.parse(batchAction.config),
+      ).toMatchObject({ source: "events" });
+    });
+
+    it("still rejects non-TraceDelete batch actions with full-text search for v4 users", async () => {
+      // Only TraceDelete's worker path honors useEventsTable; other batch
+      // actions (here: trace add-to-annotation-queue) read from the legacy
+      // traces table and must keep the strict legacy IO-search guard even
+      // when the dispatching user is v4-flagged.
+      mutableEnv.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH = "true";
+      const { projectId, caller } = await createCaller({
+        v4BetaEnabled: true,
+      });
+
+      await expect(
+        caller.annotationQueueItems.createMany({
+          projectId,
+          queueId: randomUUID(),
+          objectIds: [randomUUID()],
+          objectType: AnnotationQueueObjectType.TRACE,
+          isBatchAction: true,
+          query: ioSearchQuery(`queue-user-${randomUUID()}`),
+        }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        // Literal owned by the module-private LEGACY_IO_SEARCH_BATCH_JOB_ERROR_MESSAGE
+        // in web/src/features/traces/server/legacyIoSearch.ts.
+        message:
+          "Input/output search is disabled for legacy tracing tables on this instance. Switch to ID, name, or user ID search before creating a batch job.",
+      });
+
+      expect(mockAddBatchAction).not.toHaveBeenCalled();
+    });
+
+    it("still rejects legacy (traces-backed) batch deletes with full-text search", async () => {
+      mutableEnv.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH = "true";
+      const { projectId, caller } = await createCaller({
+        v4BetaEnabled: false,
+      });
+      const batchActionId = `${projectId}-traces-trace-delete`;
+
+      await expect(
+        caller.traces.deleteMany({
+          projectId,
+          traceIds: [randomUUID()],
+          isBatchAction: true,
+          query: ioSearchQuery(`delete-user-${randomUUID()}`),
+        }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        // Literal owned by the module-private LEGACY_IO_SEARCH_BATCH_JOB_ERROR_MESSAGE
+        // in web/src/features/traces/server/legacyIoSearch.ts.
+        message:
+          "Input/output search is disabled for legacy tracing tables on this instance. Switch to ID, name, or user ID search before creating a batch job.",
+      });
+
+      await expect(
+        prisma.batchAction.findUnique({ where: { id: batchActionId } }),
+      ).resolves.toBeNull();
+    });
   });
 });

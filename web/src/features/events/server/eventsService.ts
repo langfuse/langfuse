@@ -6,7 +6,7 @@ import {
   filterAndValidateDbScoreList,
 } from "@langfuse/shared";
 import {
-  getObservationsCountFromEventsTable,
+  getObservationsCountsFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
   getCategoricalScoresGroupedByName,
   getEventsFilterOptionsForColumns,
@@ -324,7 +324,8 @@ export async function getEventList(params: GetObservationsListParams) {
 }
 
 /**
- * Get total count of events matching filters
+ * Get total count of events matching filters, plus the approximate number of
+ * unique traces they span (single ClickHouse pass).
  */
 export async function getEventCount(params: GetObservationsCountParams) {
   const queryOpts = {
@@ -337,9 +338,10 @@ export async function getEventCount(params: GetObservationsCountParams) {
     offset: 0,
   };
 
-  const totalCount = await getObservationsCountFromEventsTable(queryOpts);
+  const { totalCount, uniqueTraceCount } =
+    await getObservationsCountsFromEventsTable(queryOpts);
 
-  return { totalCount };
+  return { totalCount, uniqueTraceCount };
 }
 
 type EventFilterOptionRow = Awaited<

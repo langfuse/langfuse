@@ -45,22 +45,31 @@ export function TableActionMenu({
   onClearSelection,
   onCustomAction,
 }: TableActionMenuProps) {
-  const [selectedAction, setSelectedAction] = useState<TableAction | null>(
-    null,
-  );
+  const [selectedActionId, setSelectedActionId] = useState<
+    TableAction["id"] | null
+  >(null);
   const [isDialogOpen, setDialogOpen] = useState(false);
+
+  // Derive the action from props on every render (ids are unique within one
+  // menu) so the dialog shows live data — e.g. descriptions embedding lazily
+  // resolved select-all counts — instead of a snapshot frozen at click time.
+  // If the action disappears from `actions` while open, the dialog unmounts.
+  const selectedAction =
+    selectedActionId !== null
+      ? actions.find((action) => action.id === selectedActionId)
+      : undefined;
 
   const handleActionSelect = (action: TableAction) => {
     if ("customDialog" in action && action.customDialog) {
       onCustomAction?.(action.id);
       return;
     }
-    setSelectedAction(action);
+    setSelectedActionId(action.id);
     setDialogOpen(true);
   };
 
   const handleClose = () => {
-    setSelectedAction(null);
+    setSelectedActionId(null);
     setDialogOpen(false);
   };
 

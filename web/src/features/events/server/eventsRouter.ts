@@ -134,7 +134,7 @@ export const eventsRouter = createTRPCRouter({
       });
 
       if (hasNoMatches) {
-        return { totalCount: 0 };
+        return { totalCount: 0, uniqueTraceCount: 0 };
       }
 
       return instrumentAsync(

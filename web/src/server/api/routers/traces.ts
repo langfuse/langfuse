@@ -471,6 +471,22 @@ export const traceRouter = createTRPCRouter({
       });
 
       if (input.isBatchAction && input.query) {
+        // Comment filters (commentCount/commentContent in both the v3 traces
+        // and v4 events views) resolve via Postgres lookups at read time
+        // (applyCommentFilters); when the worker translates the stored
+        // filters into ClickHouse SQL, these columns map to a nonexistent
+        // "comments" table and would deterministically fail every batch, so
+        // reject them at dispatch.
+        const hasCommentFilter = (input.query.filter ?? []).some(
+          (f) => f.column === "commentCount" || f.column === "commentContent",
+        );
+        if (hasCommentFilter) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "Batch deletion does not support comment filters. Remove the comment filter and try again.",
+          });
+        }
         await createBatchActionJob({
           projectId: input.projectId,
           actionId: ActionId.TraceDelete,

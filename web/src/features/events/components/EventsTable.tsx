@@ -39,7 +39,11 @@ import {
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
-import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
+import {
+  compactNumberFormatter,
+  numberFormatter,
+  usdFormatter,
+} from "@/src/utils/numbers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -612,6 +616,7 @@ export default function ObservationsEventsTable({
   const {
     observations,
     totalCount,
+    uniqueTraceCount,
     isTotalCountLoading,
     isTotalCountError,
     hasMore,
@@ -745,15 +750,54 @@ export default function ObservationsEventsTable({
   }, [observations.rows, selectedRows]);
 
   const handleDeleteTraces = async ({ projectId }: { projectId: string }) => {
-    if (selectedTraceIds.length === 0) return;
+    // Select-all deletes are dispatched even if a background refetch drained
+    // the visible-page selection to [] while the dialog was open: the server
+    // requires at least one traceId regardless, so such a dispatch fails
+    // loudly (as in the v3 traces table) — an empty selection while
+    // select-all is armed signals a consistency issue, not a no-op.
+    if (!selectAll && selectedTraceIds.length === 0) return;
 
     await traceDeleteMutation.mutateAsync({
       projectId,
       traceIds: selectedTraceIds,
-      isBatchAction: false,
+      query: {
+        filter: filterState,
+        orderBy: orderByState,
+        searchQuery: searchQuery || undefined,
+        searchType,
+      },
+      isBatchAction: selectAll,
     });
     setSelectedRows({});
   };
+
+  // Confirmation counts for "Delete Traces": page selection counts directly;
+  // select-all counts resolve lazily ("..." while loading) and the distinct
+  // trace count is a ClickHouse `uniq` approximation, hence the "~".
+  const selectedVisibleRowCount = (observations.rows ?? []).filter(
+    (observation) => selectedRows[observation.id],
+  ).length;
+  const selectedItemCount = selectAll ? totalCount : selectedVisibleRowCount;
+  const itemCountDisplay =
+    selectedItemCount !== null
+      ? compactNumberFormatter(selectedItemCount)
+      : "...";
+  const selectedUniqueTraceCount = selectAll
+    ? uniqueTraceCount
+    : selectedTraceIds.length;
+  const traceCountDisplay =
+    selectedUniqueTraceCount !== null
+      ? `${selectAll ? "~" : ""}${compactNumberFormatter(selectedUniqueTraceCount)}`
+      : "...";
+
+  // Select-all deletes persist the raw filterState into the batch action, but
+  // comment filters (commentCount/commentContent) resolve via Postgres at read
+  // time and the worker cannot translate them into a ClickHouse query — the
+  // server blocks such dispatches, so disable the action up front with a
+  // clear reason.
+  const hasCommentFilter = filterState.some(
+    (f) => f.column === "commentCount" || f.column === "commentContent",
+  );
 
   const isSelectAllCountUnavailable = isTotalCountLoading || isTotalCountError;
   const selectAllCountUnavailableReason = isTotalCountLoading
@@ -768,12 +812,27 @@ export default function ObservationsEventsTable({
             id: ActionId.TraceDelete,
             type: BatchActionType.Delete,
             label: "Delete Traces",
-            description:
-              "This permanently deletes all observations within this trace(s), as well as the trace(s), even if you only have single observations selected. This action cannot be undone. Trace deletion happens asynchronously and may take up to 24 hours.",
-            disabled: selectAll || selectedTraceIds.length === 0,
-            disabledReason: selectAll
-              ? "Delete traces is only available for observations selected on the current page."
-              : "Selected observations are missing trace IDs.",
+            description: `${itemCountDisplay} ${selectedItemCount === 1 ? "item is" : "items are"} selected, spanning ${traceCountDisplay} unique ${selectedUniqueTraceCount === 1 ? "trace" : "traces"}. A trace is always deleted as a whole — if at least one of its observations is selected, all of its observations are deleted with it. This action cannot be undone. Trace deletion happens asynchronously and may take up to 24 hours.`,
+            // Select-all is not gated on the visible-page selection; if that
+            // selection drained to empty, dispatch fails loudly with the
+            // server's min-1 traceIds rejection (as in the v3 traces table).
+            // Page selection needs concrete trace IDs.
+            disabled: selectAll
+              ? hasCommentFilter
+              : selectedTraceIds.length === 0,
+            disabledReason:
+              selectAll && hasCommentFilter
+                ? "Batch deletion does not support comment filters. Remove the comment filter to delete."
+                : "Selected observations are missing trace IDs.",
+            // The server keys every trace-delete batch row under the traces
+            // table (row id `${projectId}-traces-trace-delete`), whichever
+            // view dispatched it — the events-vs-traces read routing travels
+            // in the job's config.source, not in the table name. The shared
+            // key allows only one active trace deletion per project across
+            // the v3 and v4 views, and pointing the in-progress poll at it
+            // lets this dialog see a deletion started from either view. This
+            // must stay Traces at least as long as the v3 view exists.
+            tableName: BatchExportTableName.Traces,
             accessCheck: {
               scope: "traces:delete",
               entitlement: "trace-deletion",

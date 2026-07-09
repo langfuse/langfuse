@@ -4,6 +4,7 @@ import {
   getObservationsForTraceFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
   getObservationsCountFromEventsTable,
+  getObservationsCountsFromEventsTable,
   getObservationByIdFromEventsTable,
   getObservationsFromEventsTableForPublicApi,
   getObservationsCountFromEventsTableForPublicApi,
@@ -463,6 +464,95 @@ describe("Clickhouse Events Repository Test", () => {
 
       expect(count).toBe(5);
       expect(observations.length).toBe(5);
+    });
+  });
+
+  maybe("getObservationsCountsFromEventsTable", () => {
+    it("should return zero counts for non-existent project", async () => {
+      const nonExistentProjectId = randomUUID();
+
+      const counts = await getObservationsCountsFromEventsTable({
+        projectId: nonExistentProjectId,
+        filter: [],
+      });
+
+      expect(counts).toEqual({ totalCount: 0, uniqueTraceCount: 0 });
+    });
+
+    it("should return total event count and unique trace count in one query", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceIds = [randomUUID(), randomUUID(), randomUUID()];
+      // 6 events across 3 distinct traces (2 events per trace)
+      const events = traceIds.flatMap((traceId, traceIndex) =>
+        Array.from({ length: 2 }, (_, i) =>
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: `counts-test-${traceIndex}-${i}`,
+          }),
+        ),
+      );
+
+      await createEventsCh(events);
+
+      const counts = await getObservationsCountsFromEventsTable({
+        projectId: uniqueProjectId,
+        filter: [],
+      });
+
+      expect(counts.totalCount).toBe(6);
+      expect(counts.uniqueTraceCount).toBe(3);
+    });
+
+    it("should apply filters to both counts", async () => {
+      const uniqueProjectId = randomUUID();
+      const matchingTraceId = randomUUID();
+      const otherTraceId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: matchingTraceId,
+          type: "SPAN",
+          name: "counts-filter-match",
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: matchingTraceId,
+          type: "SPAN",
+          name: "counts-filter-match",
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: otherTraceId,
+          type: "SPAN",
+          name: "counts-filter-other",
+        }),
+      ]);
+
+      const counts = await getObservationsCountsFromEventsTable({
+        projectId: uniqueProjectId,
+        filter: [
+          {
+            type: "string",
+            column: "name",
+            operator: "=",
+            value: "counts-filter-match",
+          },
+        ],
+      });
+
+      expect(counts.totalCount).toBe(2);
+      expect(counts.uniqueTraceCount).toBe(1);
     });
   });
 
