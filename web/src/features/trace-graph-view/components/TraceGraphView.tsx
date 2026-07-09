@@ -80,20 +80,16 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
     return agentGraphData; // Already normalized
   }, [agentGraphData]);
 
-  // In expanded modes node ids are observation ids (one node per call); in
+  // In expanded mode node ids are observation ids (one node per call); in
   // aggregated mode they are step names (repeats collapse into one node).
-  const isExpanded = viewMode !== "aggregated";
+  const isExpanded = viewMode === "expanded";
 
   const { graph, nodeToObservationsMap, limitExceeded } = useMemo(() => {
-    if (viewMode === "expanded-steps" || viewMode === "expanded-flow") {
-      return buildExpandedGraph(
-        normalizedData,
-        viewMode === "expanded-steps" ? "steps" : "flow",
-        agentGraphData,
-      );
+    if (isExpanded) {
+      return buildExpandedGraph(normalizedData, agentGraphData);
     }
     return { ...buildGraphFromStepData(normalizedData), limitExceeded: false };
-  }, [normalizedData, viewMode, agentGraphData]);
+  }, [normalizedData, isExpanded, agentGraphData]);
 
   const graphNodeIds = useMemo(
     () => new Set(graph.nodes.map((node) => node.id)),
@@ -313,8 +309,8 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
           nodeToObservationsMap={nodeToObservationsMap}
           currentObservationIndices={currentObservationIndices}
           activeNodeNames={activeNodeNames}
-          // Expanded runs are long chains — left→right reads like a timeline
-          // and fits the wide graph panel far better than top-down.
+          // Expanded runs are long chains — left→right reads like a
+          // timeline and fits the wide graph panel far better than top-down.
           layoutDirection={isExpanded ? "RIGHT" : "DOWN"}
         />
       )}

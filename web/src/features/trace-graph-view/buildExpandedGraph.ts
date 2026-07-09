@@ -9,21 +9,15 @@ import {
 import { type GraphParseResult } from "./buildGraphCanvasData";
 
 /**
- * Expanded ("as it ran") graph builders: one node per observation `id` —
+ * Expanded ("as it ran") graph builder: one node per observation `id` —
  * repeated calls become distinct numbered nodes instead of collapsing into a
  * single `name (3/3)` vertex, so loops unroll into an acyclic DAG.
  *
- * Two edge strategies (see GraphViewMode in types.ts):
- * - "steps": reuse the step numbers already present on the normalized data
- *   (timing-inferred by buildStepData, or explicit LangGraph metadata) and
- *   connect consecutive step groups. Same sequencing model as the aggregated
- *   view, just not collapsed by name.
- * - "flow": edges from real structure only — a child hangs off its parent
- *   (descent into a subtree) or off the sibling(s) that actually finished
- *   before it started (fork/join derived from timing). No step inference.
+ * The instrumented hierarchy is the source of truth: a child hangs off its
+ * parent (descent into a subtree) or off the sibling(s) that actually
+ * finished before it started (fork/join derived from timing, only ever
+ * within one parent's scope). No step inference.
  */
-export type ExpandedGraphVariant = "steps" | "flow";
-
 const SYSTEM_NODE_IDS = new Set<string>([
   LANGFUSE_START_NODE_NAME,
   LANGFUSE_END_NODE_NAME,
@@ -71,33 +65,6 @@ function byStartThenId(
   b: AgentGraphDataResponse,
 ): number {
   return startMs(a) - startMs(b) || a.id.localeCompare(b.id);
-}
-
-/**
- * Consecutive step groups, all-to-all — the aggregated view's sequencing
- * keyed by id instead of name, so repeats stay distinct and steps strictly
- * increase (never cyclic).
- */
-function buildStepEdges(observations: AgentGraphDataResponse[]): Edge[] | null {
-  const stepToIds = new Map<number, string[]>();
-  for (const obs of observations) {
-    if (obs.step === null) continue; // post-normalization every obs has one
-    const ids = stepToIds.get(obs.step);
-    if (ids) ids.push(obs.id);
-    else stepToIds.set(obs.step, [obs.id]);
-  }
-
-  const sortedSteps = [...stepToIds.entries()].sort(([a], [b]) => a - b);
-  const edges: Edge[] = [];
-  for (let i = 0; i < sortedSteps.length - 1; i++) {
-    if (edges.length > MAX_EXPANDED_EDGES) return null;
-    for (const from of sortedSteps[i][1]) {
-      for (const to of sortedSteps[i + 1][1]) {
-        edges.push({ from, to });
-      }
-    }
-  }
-  return edges.length > MAX_EXPANDED_EDGES ? null : edges;
 }
 
 /**
@@ -211,7 +178,6 @@ function buildFlowEdges(
  */
 export function buildExpandedGraph(
   data: AgentGraphDataResponse[],
-  variant: ExpandedGraphVariant,
   ancestry: AgentGraphDataResponse[] = data,
 ): ExpandedGraphResult {
   // Dedupe by id (re-seeded/duplicated ingestion can repeat ids) and drop the
@@ -229,8 +195,7 @@ export function buildExpandedGraph(
   }
 
   // Number repeated names in run order — "litellm_request (2)" — so identical
-  // calls stay tellable apart. Numbering is time-based (not variant-based) so
-  // switching edge strategies never renumbers nodes.
+  // calls stay tellable apart.
   const nameTotals = new Map<string, number>();
   for (const obs of observations) {
     nameTotals.set(obs.name, (nameTotals.get(obs.name) ?? 0) + 1);
@@ -248,30 +213,18 @@ export function buildExpandedGraph(
     };
   });
 
-  let edges: Edge[];
-  let sinkIds: Set<string> | null = null;
-  if (variant === "steps") {
-    const built = buildStepEdges(observations);
-    if (built === null) return EDGE_LIMIT_RESULT;
-    edges = built;
-  } else {
-    const built = buildFlowEdges(observations, ancestry);
-    if (built === null) return EDGE_LIMIT_RESULT;
-    edges = built.edges;
-    sinkIds = built.sinkIds;
-  }
+  const built = buildFlowEdges(observations, ancestry);
+  if (built === null) return EDGE_LIMIT_RESULT;
+  const { edges, sinkIds } = built;
 
   // Synthetic entry/exit anchors, derived from the built edges: __start__
-  // feeds every source; sinks feed __end__. In flow mode nested leaves always
-  // have an incoming parent/sibling edge, so sources are naturally the
-  // root-level heads, and buildFlowEdges caps sinks to the end of the
-  // root-level run so a bushy tree's every leaf doesn't converge on __end__.
+  // feeds every source; sinks feed __end__. Nested leaves always have an
+  // incoming parent/sibling edge, so sources are naturally the root-level
+  // heads, and buildFlowEdges caps sinks to the end of the root-level run so
+  // a bushy tree's every leaf doesn't converge on __end__.
   const hasIncoming = new Set(edges.map((edge) => edge.to));
-  const hasOutgoing = new Set(edges.map((edge) => edge.from));
   const sources = observations.filter((obs) => !hasIncoming.has(obs.id));
-  const sinks = observations.filter((obs) =>
-    sinkIds === null ? !hasOutgoing.has(obs.id) : sinkIds.has(obs.id),
-  );
+  const sinks = observations.filter((obs) => sinkIds.has(obs.id));
 
   nodes.unshift({
     id: LANGFUSE_START_NODE_NAME,

@@ -38,7 +38,7 @@ describe("buildExpandedGraph", () => {
         obs({ id: "l3", name: "llm", startTime: t(5), endTime: t(6), step: 4 }),
       ];
 
-      const result = buildExpandedGraph(data, "steps");
+      const result = buildExpandedGraph(data);
       const llmNodes = result.graph.nodes.filter((n) => n.label === "llm");
 
       expect(llmNodes.map((n) => n.id)).toEqual(["l1", "l2", "l3"]);
@@ -54,7 +54,7 @@ describe("buildExpandedGraph", () => {
         obs({ id: "a1", name: "agent" }),
       ];
 
-      const result = buildExpandedGraph(data, "steps");
+      const result = buildExpandedGraph(data);
       const agentNodes = result.graph.nodes.filter((n) => n.id === "a1");
 
       expect(agentNodes).toHaveLength(1);
@@ -76,7 +76,7 @@ describe("buildExpandedGraph", () => {
         }),
       ];
 
-      const result = buildExpandedGraph(data, "steps");
+      const result = buildExpandedGraph(data);
 
       expect(result.graph.nodes.map((n) => n.id)).toEqual([
         LANGFUSE_START_NODE_NAME,
@@ -94,50 +94,7 @@ describe("buildExpandedGraph", () => {
     });
   });
 
-  describe("steps variant", () => {
-    it("unrolls sequential same-name calls into a chain", () => {
-      const data = [
-        obs({ id: "l1", name: "llm", step: 1, startTime: t(0) }),
-        obs({ id: "l2", name: "llm", step: 2, startTime: t(2) }),
-        obs({ id: "l3", name: "llm", step: 3, startTime: t(4) }),
-      ];
-
-      const result = buildExpandedGraph(data, "steps");
-
-      expect(edgeSet(result)).toEqual(
-        new Set([
-          `${LANGFUSE_START_NODE_NAME}->l1`,
-          "l1->l2",
-          "l2->l3",
-          `l3->${LANGFUSE_END_NODE_NAME}`,
-        ]),
-      );
-    });
-
-    it("connects consecutive step groups all-to-all", () => {
-      const data = [
-        obs({ id: "p1", name: "planner", step: 1 }),
-        obs({ id: "t1", name: "tool-a", step: 2 }),
-        obs({ id: "t2", name: "tool-b", step: 2 }),
-        obs({ id: "c1", name: "critic", step: 3 }),
-      ];
-
-      const result = buildExpandedGraph(data, "steps");
-
-      expect(edgeSet(result)).toEqual(
-        new Set([
-          `${LANGFUSE_START_NODE_NAME}->p1`,
-          "p1->t1",
-          "p1->t2",
-          "t1->c1",
-          "t2->c1",
-          `c1->${LANGFUSE_END_NODE_NAME}`,
-        ]),
-      );
-    });
-  });
-
-  describe("flow variant", () => {
+  describe("edges", () => {
     it("chains sequential siblings and descends from the parent", () => {
       const data = [
         obs({ id: "root", name: "root", startTime: t(0), endTime: t(10) }),
@@ -157,7 +114,7 @@ describe("buildExpandedGraph", () => {
         }),
       ];
 
-      const result = buildExpandedGraph(data, "flow");
+      const result = buildExpandedGraph(data);
 
       expect(edgeSet(result)).toEqual(
         new Set([
@@ -178,7 +135,7 @@ describe("buildExpandedGraph", () => {
         obs({ id: "sum", name: "summarize", startTime: t(7), endTime: t(8) }),
       ];
 
-      const result = buildExpandedGraph(data, "flow");
+      const result = buildExpandedGraph(data);
 
       expect(edgeSet(result)).toEqual(
         new Set([
@@ -201,7 +158,7 @@ describe("buildExpandedGraph", () => {
         obs({ id: "c", name: "c", startTime: t(4), endTime: t(5) }),
       ];
 
-      const result = buildExpandedGraph(data, "flow");
+      const result = buildExpandedGraph(data);
 
       expect(edgeSet(result).has("a->c")).toBe(false);
       expect(edgeSet(result).has("a->b")).toBe(true);
@@ -232,7 +189,7 @@ describe("buildExpandedGraph", () => {
         }),
       ];
 
-      const result = buildExpandedGraph(graphData, "flow", ancestry);
+      const result = buildExpandedGraph(graphData, ancestry);
 
       expect(edgeSet(result).has("root->leaf")).toBe(true);
     });
@@ -259,7 +216,7 @@ describe("buildExpandedGraph", () => {
         }),
       ];
 
-      const result = buildExpandedGraph(data, "flow");
+      const result = buildExpandedGraph(data);
 
       expect(edgeSet(result).has("c1->c2")).toBe(true);
       expect(edgeSet(result).has(`${LANGFUSE_START_NODE_NAME}->c2`)).toBe(
@@ -278,7 +235,7 @@ describe("buildExpandedGraph", () => {
         obs({ id: "b", name: "b", startTime: t(2), endTime: t(3) }),
       ];
 
-      const result = buildExpandedGraph(data, "flow");
+      const result = buildExpandedGraph(data);
 
       expect(edgeSet(result).has("a->b")).toBe(true);
       expect(edgeSet(result).has(`${LANGFUSE_START_NODE_NAME}->b`)).toBe(false);
@@ -289,7 +246,7 @@ describe("buildExpandedGraph", () => {
         obs({ id, name: id, startTime: t(1), endTime: t(1) }),
       );
 
-      const result = buildExpandedGraph(data, "flow");
+      const result = buildExpandedGraph(data);
 
       expect(edgeSet(result).has("s1->s2")).toBe(true);
       expect(edgeSet(result).has("s2->s3")).toBe(true);
@@ -316,7 +273,7 @@ describe("buildExpandedGraph", () => {
         }),
       ];
 
-      const result = buildExpandedGraph(data, "flow");
+      const result = buildExpandedGraph(data);
 
       expect(edgeSet(result)).toEqual(
         new Set([
@@ -329,19 +286,24 @@ describe("buildExpandedGraph", () => {
   });
 
   it("bails with limitExceeded when parallel batches explode the edge count", () => {
-    // Two consecutive steps of 110 parallel observations each connect
-    // all-to-all (12100 edges), past the budget: the steps variant must
-    // bail instead of freezing ELK.
+    // A join of 110 parallel siblings into 110 parallel successors is
+    // all-to-all (12100 edges), past the budget: the builder must bail
+    // instead of freezing ELK.
     const data = [
       ...Array.from({ length: 110 }, (_, i) =>
-        obs({ id: `a${i}`, name: `a${i}`, step: 1 }),
+        obs({ id: `a${i}`, name: `a${i}`, startTime: t(0), endTime: t(100) }),
       ),
       ...Array.from({ length: 110 }, (_, i) =>
-        obs({ id: `b${i}`, name: `b${i}`, step: 2 }),
+        obs({
+          id: `b${i}`,
+          name: `b${i}`,
+          startTime: t(200),
+          endTime: t(300),
+        }),
       ),
     ];
 
-    const result = buildExpandedGraph(data, "steps");
+    const result = buildExpandedGraph(data);
 
     expect(110 * 110).toBeGreaterThan(MAX_EXPANDED_EDGES);
     expect(result.limitExceeded).toBe(true);
@@ -362,7 +324,7 @@ describe("buildExpandedGraph", () => {
       }),
     );
 
-    const result = buildExpandedGraph(data, "flow");
+    const result = buildExpandedGraph(data);
 
     expect(result.limitExceeded).toBeUndefined();
     expect(result.graph.nodes).toHaveLength(n + 2);
@@ -374,17 +336,13 @@ describe("buildExpandedGraph", () => {
       obs({ id: "b", name: "b", step: 2 }),
     ];
 
-    const result = buildExpandedGraph(data, "steps");
+    const result = buildExpandedGraph(data);
 
     expect(result.nodeToObservationsMap).toEqual({ a: ["a"], b: ["b"] });
   });
 
   it("returns an empty graph for empty input", () => {
-    expect(buildExpandedGraph([], "steps")).toEqual({
-      graph: { nodes: [], edges: [] },
-      nodeToObservationsMap: {},
-    });
-    expect(buildExpandedGraph([], "flow")).toEqual({
+    expect(buildExpandedGraph([])).toEqual({
       graph: { nodes: [], edges: [] },
       nodeToObservationsMap: {},
     });

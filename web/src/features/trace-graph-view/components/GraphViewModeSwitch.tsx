@@ -1,5 +1,5 @@
 import React from "react";
-import { Combine, ListOrdered, Route, type LucideIcon } from "lucide-react";
+import { Combine, Route, type LucideIcon } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
 import { type GraphViewMode } from "../types";
@@ -19,20 +19,13 @@ const MODES: {
     mode: "aggregated",
     icon: Combine,
     label: "Aggregated",
-    title: "Group repeated steps into one node — the overall shape",
+    title: "Repeated steps grouped into one node — the overall shape",
   },
   {
-    mode: "expanded-steps",
-    icon: ListOrdered,
-    label: "Steps",
-    title: "One node per call, in inferred step order — the run unrolled",
-  },
-  {
-    mode: "expanded-flow",
+    mode: "expanded",
     icon: Route,
-    label: "Flow",
-    title:
-      "One node per call, edges from real structure and timing (fork/join)",
+    label: "Expanded",
+    title: "Every call as its own node, in the order it ran",
   },
 ];
 

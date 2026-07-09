@@ -13,8 +13,9 @@ agentGraphData (tRPC getAgentGraphData)
     / transformLanggraphToGeneralized   when langgraph metadata exists
   → one builder per GraphViewMode (the mode switch overlaid on the canvas):
       buildGraphCanvasData   "aggregated": repeats collapse by name (+ cycling map)
-      buildExpandedGraph     "expanded-*": one node per observation, numbered
-                             repeats; edges from steps or real structure/timing
+      buildExpandedGraph     "expanded": one node per observation, numbered
+                             repeats; edges from the instrumented hierarchy +
+                             happened-before sibling ordering (fork/join)
   → layout/elkLayout.computeGraphLayout   async ELK (lazy import);
       layout/measureNode     estimates node boxes (labels, counter reserve)
   → components/ElkGraphRenderer           draws + gestures

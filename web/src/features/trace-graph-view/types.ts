@@ -16,17 +16,12 @@ export type GraphNodeData = {
  * How the graph is built from the trace's observations:
  * - "aggregated": repeated step names collapse into one node (loops render as
  *   cycles) — the original view, good for overall shape.
- * - "expanded-steps": one node per observation, edges follow the inferred
- *   step sequence — the run unrolled "as it ran".
- * - "expanded-flow": one node per observation, edges from real structure —
- *   parent→first-child plus happened-before ordering between siblings
- *   (fork/join from actual timing).
+ * - "expanded": one node per observation — the run "as it ran". Edges come
+ *   from the instrumented hierarchy (parent → first child) plus
+ *   happened-before ordering between siblings (fork/join from actual
+ *   timing), so loops unroll into an acyclic DAG.
  */
-export const GRAPH_VIEW_MODES = [
-  "aggregated",
-  "expanded-steps",
-  "expanded-flow",
-] as const;
+export const GRAPH_VIEW_MODES = ["aggregated", "expanded"] as const;
 export type GraphViewMode = (typeof GRAPH_VIEW_MODES)[number];
 
 export type GraphCanvasData = {
