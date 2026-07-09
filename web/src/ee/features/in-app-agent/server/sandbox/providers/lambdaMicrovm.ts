@@ -227,17 +227,17 @@ export function createLambdaMicrovmSandboxProvider(params: {
       getSession(sessions, sessionId).toolCallFiles = files;
     },
     async read({ path }) {
-      return await executeOperation(sessionId, { operation: "read", path });
+      return executeOperation(sessionId, { operation: "read", path });
     },
     async write({ path, content }) {
-      return await executeOperation(sessionId, {
+      return executeOperation(sessionId, {
         operation: "write",
         path,
         content,
       });
     },
     async edit({ path, oldText, newText }) {
-      return await executeOperation(sessionId, {
+      return executeOperation(sessionId, {
         operation: "edit",
         path,
         oldText,
@@ -245,7 +245,7 @@ export function createLambdaMicrovmSandboxProvider(params: {
       });
     },
     async bash({ command, timeoutMs }) {
-      return await executeOperation(sessionId, {
+      return executeOperation(sessionId, {
         operation: "bash",
         command,
         ...(timeoutMs ? { timeoutMs } : {}),

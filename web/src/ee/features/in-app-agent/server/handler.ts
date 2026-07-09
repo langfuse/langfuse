@@ -630,7 +630,7 @@ async function getInAppAgentSandboxProvider(
     );
   }
 
-  return await createInAppAgentSandboxProvider(providerType);
+  return createInAppAgentSandboxProvider(providerType);
 }
 
 type SessionUser = NonNullable<Session["user"]>;

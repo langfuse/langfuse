@@ -58,7 +58,7 @@ export async function createDockerSandboxProvider(params: {
   };
 
   const getContainerByConversationId = async (conversationId: string) => {
-    return await getContainerByIdentifier(
+    return getContainerByIdentifier(
       getDockerSandboxContainerName(conversationId),
     );
   };
@@ -119,7 +119,7 @@ export async function createDockerSandboxProvider(params: {
       logger.debug("In-app agent docker sandbox missing container", {
         conversationId: params.conversationId,
       });
-      return await createContainer(params);
+      return createContainer(params);
     }
 
     if (!existing.inspect.State?.Running) {
@@ -131,7 +131,7 @@ export async function createDockerSandboxProvider(params: {
       await existing.container
         .remove({ force: true, v: true })
         .catch(() => undefined);
-      return await createContainer(params);
+      return createContainer(params);
     }
 
     ensureSessionState(params.conversationId);
@@ -154,7 +154,7 @@ export async function createDockerSandboxProvider(params: {
     },
     async read({ path }) {
       const container = await ensureContainer({ conversationId });
-      return await callSandboxServer(container, {
+      return callSandboxServer(container, {
         operation: "read",
         path,
         toolCallFiles: getSession(sessions, conversationId).toolCallFiles,
@@ -162,7 +162,7 @@ export async function createDockerSandboxProvider(params: {
     },
     async write({ path, content }) {
       const container = await ensureContainer({ conversationId });
-      return await callSandboxServer(container, {
+      return callSandboxServer(container, {
         operation: "write",
         path,
         content,
@@ -171,7 +171,7 @@ export async function createDockerSandboxProvider(params: {
     },
     async edit({ path, oldText, newText }) {
       const container = await ensureContainer({ conversationId });
-      return await callSandboxServer(container, {
+      return callSandboxServer(container, {
         operation: "edit",
         path,
         oldText,
@@ -181,7 +181,7 @@ export async function createDockerSandboxProvider(params: {
     },
     async bash({ command, timeoutMs }) {
       const container = await ensureContainer({ conversationId });
-      return await callSandboxServer(container, {
+      return callSandboxServer(container, {
         operation: "bash",
         command,
         ...(timeoutMs ? { timeoutMs } : {}),

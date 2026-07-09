@@ -60,7 +60,7 @@ export async function createInAppAgentSandboxProvider(
 
     // Keep the Docker provider behind a runtime import since it's only used in development
     const { createDockerSandboxProvider } = await import("./providers/docker");
-    return await createDockerSandboxProvider({
+    return createDockerSandboxProvider({
       image: IN_APP_AGENT_LOCAL_SANDBOX_IMAGE,
     });
   }
