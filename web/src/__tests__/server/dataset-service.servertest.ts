@@ -710,6 +710,119 @@ describe("Fetch datasets for UI presentation", () => {
       expect(precisionRuns[0].id).toEqual(highScoreRunId);
     });
 
+    it("should filter dataset run items by boolean scores", async () => {
+      const datasetId = v4();
+      const scoreName = `passes_guardrail_${v4()}`;
+
+      await prisma.dataset.create({
+        data: {
+          id: datasetId,
+          name: v4(),
+          projectId: projectId,
+        },
+      });
+
+      const runId = v4();
+      await prisma.datasetRuns.create({
+        data: {
+          id: runId,
+          name: "boolean-score-run",
+          datasetId,
+          metadata: {},
+          projectId,
+        },
+      });
+
+      // Three items: one trace scored True, one scored False, one unscored
+      const itemIdWithTrueScore = v4();
+      const itemIdWithFalseScore = v4();
+      const itemIdWithoutScore = v4();
+
+      await createManyDatasetItems({
+        projectId,
+        items: [
+          { id: itemIdWithTrueScore, datasetId, metadata: {} },
+          { id: itemIdWithFalseScore, datasetId, metadata: {} },
+          { id: itemIdWithoutScore, datasetId, metadata: {} },
+        ],
+      });
+
+      const traceIdWithTrueScore = v4();
+      const traceIdWithFalseScore = v4();
+      const traceIdWithoutScore = v4();
+
+      await createDatasetRunItemsCh([
+        createDatasetRunItem({
+          id: v4(),
+          dataset_run_id: runId,
+          trace_id: traceIdWithTrueScore,
+          project_id: projectId,
+          dataset_item_id: itemIdWithTrueScore,
+          dataset_id: datasetId,
+          dataset_run_name: "boolean-score-run",
+        }),
+        createDatasetRunItem({
+          id: v4(),
+          dataset_run_id: runId,
+          trace_id: traceIdWithFalseScore,
+          project_id: projectId,
+          dataset_item_id: itemIdWithFalseScore,
+          dataset_id: datasetId,
+          dataset_run_name: "boolean-score-run",
+        }),
+        createDatasetRunItem({
+          id: v4(),
+          dataset_run_id: runId,
+          trace_id: traceIdWithoutScore,
+          project_id: projectId,
+          dataset_item_id: itemIdWithoutScore,
+          dataset_id: datasetId,
+          dataset_run_name: "boolean-score-run",
+        }),
+      ]);
+
+      await createScoresCh([
+        createTraceScore({
+          id: v4(),
+          trace_id: traceIdWithTrueScore,
+          project_id: projectId,
+          name: scoreName,
+          value: 1,
+          string_value: "True",
+          data_type: "BOOLEAN",
+        }),
+        createTraceScore({
+          id: v4(),
+          trace_id: traceIdWithFalseScore,
+          project_id: projectId,
+          name: scoreName,
+          value: 0,
+          string_value: "False",
+          data_type: "BOOLEAN",
+        }),
+      ]);
+
+      const runItems = await getDatasetRunItemsByDatasetIdCh({
+        projectId,
+        datasetId,
+        filter: [
+          {
+            type: "booleanObject" as const,
+            column: "agg_score_booleans",
+            key: scoreName,
+            operator: "=" as const,
+            value: true,
+          },
+        ],
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(runItems).toHaveLength(1);
+      expect(runItems[0].traceId).toEqual(traceIdWithTrueScore);
+      expect(runItems[0].datasetItemId).toEqual(itemIdWithTrueScore);
+    });
+
     it("should filter dataset runs by categorical scores", async () => {
       const datasetId = v4();
 

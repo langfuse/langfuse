@@ -267,6 +267,114 @@ describe("traces trpc", () => {
       expect(traces.traces.length).toBe(0);
     });
 
+    it("should filter traces by boolean score with = and <> operators", async () => {
+      const scoreName = `bool_score_${randomUUID()}`;
+
+      const traceWithTrueScore = createTrace({ project_id: projectId });
+      const traceWithFalseScore = createTrace({ project_id: projectId });
+      const traceWithoutScore = createTrace({ project_id: projectId });
+      const traceIds = [
+        traceWithTrueScore.id,
+        traceWithFalseScore.id,
+        traceWithoutScore.id,
+      ];
+
+      await createTracesCh([
+        traceWithTrueScore,
+        traceWithFalseScore,
+        traceWithoutScore,
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceWithTrueScore.id,
+          name: scoreName,
+          value: 1,
+          string_value: "True",
+          data_type: "BOOLEAN",
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceWithFalseScore.id,
+          name: scoreName,
+          value: 0,
+          string_value: "False",
+          data_type: "BOOLEAN",
+        }),
+      ]);
+
+      const baseFilter = [
+        {
+          column: "timestamp",
+          type: "datetime" as const,
+          operator: ">=" as const,
+          value: new Date(new Date().getTime() - 10_000).toISOString(),
+        },
+        {
+          column: "id",
+          type: "stringOptions" as const,
+          operator: "any of" as const,
+          value: traceIds,
+        },
+      ];
+
+      const equalsResult = await caller.traces.all({
+        projectId,
+        filter: [
+          ...baseFilter,
+          {
+            column: "Scores (boolean)",
+            type: "booleanObject",
+            key: scoreName,
+            operator: "=",
+            value: true,
+          },
+        ],
+        searchQuery: null,
+        searchType: ["id"],
+        page: 0,
+        limit: 50,
+        orderBy: {
+          column: "timestamp",
+          order: "DESC",
+        },
+      });
+
+      expect(equalsResult.traces.map((t) => t.id)).toEqual([
+        traceWithTrueScore.id,
+      ]);
+
+      // `<>` is the intended "none of / including unscored" semantics: NOT
+      // has() over an empty score_booleans array is true, so traces without
+      // any score of that name match too — consistent with categorical
+      // filters and InMemoryFilterService.
+      const notEqualsResult = await caller.traces.all({
+        projectId,
+        filter: [
+          ...baseFilter,
+          {
+            column: "Scores (boolean)",
+            type: "booleanObject",
+            key: scoreName,
+            operator: "<>",
+            value: true,
+          },
+        ],
+        searchQuery: null,
+        searchType: ["id"],
+        page: 0,
+        limit: 50,
+        orderBy: {
+          column: "timestamp",
+          order: "DESC",
+        },
+      });
+
+      expect(notEqualsResult.traces.map((t) => t.id).sort()).toEqual(
+        [traceWithFalseScore.id, traceWithoutScore.id].sort(),
+      );
+    });
+
     it("should search traces by input only", async () => {
       const trace = createTrace({
         project_id: projectId,

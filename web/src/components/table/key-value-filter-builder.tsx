@@ -77,6 +77,11 @@ const STRING_OPERATOR_LABELS = {
   "does not contain": "does not contain",
 } as const;
 
+const BOOLEAN_OPERATOR_LABELS = {
+  "=": "equals",
+  "<>": "does not equal",
+} as const;
+
 export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
   const {
     mode,
@@ -405,8 +410,13 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="=">equals</SelectItem>
-                    <SelectItem value="<>">does not equal</SelectItem>
+                    {Object.entries(BOOLEAN_OPERATOR_LABELS).map(
+                      ([op, label]) => (
+                        <SelectItem key={op} value={op}>
+                          {label}
+                        </SelectItem>
+                      ),
+                    )}
                   </SelectContent>
                 </Select>
 
