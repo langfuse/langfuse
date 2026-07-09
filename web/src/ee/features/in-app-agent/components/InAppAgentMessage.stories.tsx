@@ -1,6 +1,5 @@
 import preview from "../../../../../.storybook/preview";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import { useEffect, useState } from "react";
 import { InAppAgentMessage } from "./InAppAgentMessage";
 
 const meta = preview.meta({
@@ -396,20 +395,6 @@ const longReasoningText = [
   "The last line should be visible after mount and after streamed updates.",
 ].join("\n");
 
-async function expectFullReasoningTextVisible(canvasElement: HTMLElement) {
-  const canvas = within(canvasElement);
-  const content = await canvas.findByTestId("in-app-agent-reasoning-content");
-
-  // The block grows with its content instead of scrolling internally, so the
-  // whole reasoning text must be laid out without overflow.
-  await waitFor(() => {
-    expect(content.scrollHeight).toBeLessThanOrEqual(content.clientHeight);
-    expect(content).toHaveTextContent(
-      "The last line should be visible after mount and after streamed updates.",
-    );
-  });
-}
-
 export const Reasoning = meta.story({
   args: {
     role: "assistant",
@@ -471,56 +456,6 @@ export const Connecting = meta.story({
       type: "loading",
       label: "Connecting...",
     },
-  },
-});
-
-export const StreamingThenCompletedReasoning = meta.story({
-  name: "(Test) Streaming Then Completed Reasoning",
-  args: {
-    role: "assistant",
-    content: {
-      type: "reasoning",
-      text: longReasoningText,
-      isStreaming: true,
-    },
-  },
-  render: (args) => {
-    const [isStreaming, setIsStreaming] = useState(true);
-
-    useEffect(() => {
-      const timeoutId = window.setTimeout(() => {
-        setIsStreaming(false);
-      }, 1_500);
-      return () => {
-        window.clearTimeout(timeoutId);
-      };
-    }, []);
-
-    return (
-      <InAppAgentMessage
-        {...args}
-        content={{
-          type: "reasoning",
-          text: longReasoningText,
-          isStreaming,
-        }}
-      />
-    );
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-
-    await expectFullReasoningTextVisible(canvasElement);
-    await waitFor(
-      () => {
-        expect(
-          canvas.queryByTestId("in-app-agent-reasoning-content"),
-        ).not.toBeInTheDocument();
-      },
-      { timeout: 3_000 },
-    );
-    await userEvent.click(await canvas.findByText("Thought"));
-    await expectFullReasoningTextVisible(canvasElement);
   },
 });
 

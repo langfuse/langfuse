@@ -113,6 +113,11 @@ const streamingSeedMessages: InAppAgentWindowMessage[] = [
 const streamingInvestigations = [
   {
     prompt: "Check whether the spike is isolated to retrieval.",
+    reasoning: [
+      "The user suspects retrieval, so I should isolate retrieval-heavy traces before looking anywhere else.",
+      "Sorting by latency and filtering on the trace name keeps the query small and read-only.",
+      "If the slowest traces are all retrieval traces, the next step is comparing them against quality scores.",
+    ].join("\n"),
     intro:
       "I am checking retrieval-heavy traces first because their p95 latency moved before generation latency changed.",
     toolName: "langfuse_getTraces",
@@ -132,6 +137,10 @@ const streamingInvestigations = [
   },
   {
     prompt: "Compare the same window against quality scores.",
+    reasoning: [
+      "Latency alone does not tell us whether users were affected, so I am joining the slow segment with scores.",
+      "Averaging per score name is enough resolution to spot a quality regression without a heavy query.",
+    ].join("\n"),
     intro:
       "Next I am joining the slow traces with score distributions so we can see whether the latency spike also changed output quality.",
     toolName: "langfuse_queryMetrics",
@@ -151,6 +160,11 @@ const streamingInvestigations = [
   },
   {
     prompt: "Inspect model usage for the outlier traces.",
+    reasoning: [
+      "A fallback model or a larger context window can explain slow traces even when retrieval is healthy.",
+      "Fetching model name, token counts, and latency for just the two outlier traces keeps this cheap.",
+      "High token counts with a stable model would point back at the reranker passing too many documents.",
+    ].join("\n"),
     intro:
       "I am checking model and token usage because a fallback model or larger context window can make otherwise healthy traces slow.",
     toolName: "langfuse_getObservations",
@@ -189,6 +203,7 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
   );
   type StreamingPhase =
     | "start"
+    | "reasoning"
     | "intro"
     | "tool-loading"
     | "tool-done"
@@ -198,6 +213,7 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
     cycle: number;
     phase: StreamingPhase;
     phaseTicks: number;
+    reasoningMessageId: string;
     introMessageId: string;
     toolMessageId: string;
     conclusionMessageId: string;
@@ -205,6 +221,7 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
     cycle: 0,
     phase: "start",
     phaseTicks: 0,
+    reasoningMessageId: "",
     introMessageId: "",
     toolMessageId: "",
     conclusionMessageId: "",
@@ -218,10 +235,11 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
 
       if (stream.phase === "start") {
         const cycleId = `stream-${stream.cycle}`;
+        stream.reasoningMessageId = `${cycleId}-reasoning`;
         stream.introMessageId = `${cycleId}-intro`;
         stream.toolMessageId = `${cycleId}-tool`;
         stream.conclusionMessageId = `${cycleId}-conclusion`;
-        stream.phase = "intro";
+        stream.phase = "reasoning";
         stream.phaseTicks = 0;
 
         setMessages((currentMessages) => [
@@ -232,11 +250,62 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
             content: { type: "text", text: investigation.prompt },
           },
           {
-            id: stream.introMessageId,
+            id: stream.reasoningMessageId,
             role: "assistant",
-            content: { type: "text", text: "" },
+            content: { type: "reasoning", text: "", isStreaming: true },
           },
         ]);
+
+        return;
+      }
+
+      if (stream.phase === "reasoning") {
+        setMessages((currentMessages) => {
+          const nextMessages = currentMessages.map((message) => {
+            if (
+              message.id !== stream.reasoningMessageId ||
+              message.content.type !== "reasoning"
+            ) {
+              return message;
+            }
+
+            const text = appendToken(
+              message.content.text,
+              investigation.reasoning,
+            );
+
+            // The block collapses once the assistant's text answer arrives,
+            // mirroring getDrawerMessages semantics.
+            const isDone = text === investigation.reasoning;
+
+            if (isDone) {
+              stream.phase = "intro";
+              stream.phaseTicks = 0;
+            }
+
+            return {
+              ...message,
+              content: {
+                type: "reasoning" as const,
+                text,
+                isStreaming: !isDone,
+              },
+            };
+          });
+
+          if (stream.phase !== "intro") {
+            return nextMessages;
+          }
+
+          return [
+            ...nextMessages,
+            {
+              id: stream.introMessageId,
+              role: "assistant",
+              content: { type: "text", text: "" },
+            },
+          ];
+        });
 
         return;
       }
@@ -420,76 +489,6 @@ const longReasoningText = [
   "The final streamed line should remain visible inside the reasoning block.",
 ].join("\n");
 
-const reasoningWindowMessages: InAppAgentWindowMessage[] = [
-  ...streamingSeedMessages,
-  {
-    id: "user-reasoning-1",
-    role: "user",
-    content: {
-      type: "text",
-      text: "Why did checkout latency spike this morning?",
-    },
-  },
-  // A reasoning block stays open through the tool calls it triggered and only
-  // collapses once a newer reasoning block or an assistant text message
-  // arrives (mirrors getDrawerMessages output).
-  {
-    id: "assistant-reasoning-1",
-    role: "assistant",
-    content: {
-      type: "reasoning",
-      text: "Checking active filters before choosing the smallest safe query.",
-      isStreaming: false,
-    },
-  },
-  {
-    id: "assistant-tool-reasoning-1",
-    role: "assistant",
-    content: {
-      type: "toolGroup",
-      tools: [
-        {
-          type: "tool",
-          name: "langfuse_queryMetrics",
-          args: JSON.stringify({
-            view: "observations",
-            metrics: [{ measure: "latency", aggregation: "p95" }],
-          }),
-          result: JSON.stringify({ data: [{ p95_latency: 4.82 }] }),
-        },
-      ],
-    },
-  },
-  {
-    id: "assistant-reasoning-2",
-    role: "assistant",
-    content: {
-      type: "reasoning",
-      text: longReasoningText,
-      isStreaming: true,
-    },
-  },
-  {
-    id: "assistant-tool-reasoning-2",
-    role: "assistant",
-    content: {
-      type: "toolGroup",
-      isLoading: true,
-      tools: [
-        {
-          type: "tool",
-          name: "langfuse_queryMetrics",
-          args: JSON.stringify({
-            view: "observations",
-            metrics: [{ measure: "latency", aggregation: "p95" }],
-            limit: 10,
-          }),
-        },
-      ],
-    },
-  },
-];
-
 const meta = preview.meta({
   component: InAppAgentWindow,
   parameters: {
@@ -580,6 +579,15 @@ export const Conversation = meta.story({
         content: {
           type: "text",
           text: "Which traces had the highest latency today?",
+        },
+      },
+      {
+        id: "assistant-reasoning-1",
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: longReasoningText,
+          isStreaming: false,
         },
       },
       {
@@ -736,14 +744,6 @@ export const Streaming = meta.story({
     messages: streamingSeedMessages,
   },
   render: (args) => <StreamingInAppAgentWindow {...args} />,
-});
-
-export const StreamingReasoning = meta.story({
-  args: {
-    selectedConversationId: "conversation-1",
-    isInputDisabled: true,
-    messages: reasoningWindowMessages,
-  },
 });
 
 export const LoadingResponse = meta.story({
