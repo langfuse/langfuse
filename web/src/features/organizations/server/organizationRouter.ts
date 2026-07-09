@@ -25,23 +25,14 @@ export const organizationsRouter = createTRPCRouter({
   // Resolves a single organization in the same shape as
   // session.user.organizations[number]. Used as a fallback by useOrganization
   // for Langfuse admins, whose session does not contain customer orgs.
-  // Admin-only: buildAdminOrgContext returns ALL projects of the org with
-  // role OWNER, which would bypass the session's per-project role filter for
-  // regular members. The org is read via the server-resolved ctx.session.orgId
-  // rather than the raw input.
+  // Admin-only: buildAdminOrgContext enforces the admin check itself and reads
+  // the org via the server-resolved ctx.session.orgId — its response contains
+  // ALL projects of the org with role OWNER, which would bypass the session's
+  // per-project role filter for regular members.
   byId: protectedOrganizationProcedure
     .input(z.object({ orgId: z.string() }))
     .query(async ({ ctx }) => {
-      if (ctx.session.user.admin !== true) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Only Langfuse admins can access this endpoint",
-        });
-      }
-      const organization = await buildAdminOrgContext(
-        ctx.prisma,
-        ctx.session.orgId,
-      );
+      const organization = await buildAdminOrgContext(ctx);
       if (!organization) {
         throw new TRPCError({
           code: "NOT_FOUND",

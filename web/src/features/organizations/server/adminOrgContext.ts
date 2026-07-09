@@ -2,6 +2,7 @@ import { CloudConfigSchema } from "@langfuse/shared";
 import { Role, type PrismaClient } from "@langfuse/shared/src/db";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { type Session } from "next-auth";
+import { TRPCError } from "@trpc/server";
 
 /**
  * The organization shape attached to the next-auth session. Kept in sync with
@@ -22,18 +23,30 @@ type SessionOrganization = NonNullable<
  * therefore have no entry in their session — can still resolve an org/project
  * for client hooks (useOrganization/useProject) when viewing customer settings.
  *
- * SECURITY: this helper performs no access control. Callers must only invoke it
- * after access has been enforced (e.g. behind protectedOrganizationProcedure /
- * protectedProjectProcedure), and must pass the server-resolved orgId
- * (ctx.session.orgId), never a raw client-supplied id. Admins are represented
- * as Role.OWNER, mirroring how the tRPC middleware elevates them server-side.
+ * SECURITY: takes the caller's request context and enforces admin access
+ * itself (throws FORBIDDEN otherwise), and reads the org from the
+ * server-resolved ctx.session.orgId — never a raw client-supplied id. Admins
+ * are represented as Role.OWNER, mirroring the tRPC middleware elevation.
+ * Callers must still run it behind protectedOrganizationProcedure /
+ * protectedProjectProcedure so membership resolution and admin-access
+ * auditing happen first.
  */
-export async function buildAdminOrgContext(
-  prisma: PrismaClient,
-  orgId: string,
-): Promise<SessionOrganization | null> {
-  const organization = await prisma.organization.findUnique({
-    where: { id: orgId },
+export async function buildAdminOrgContext(ctx: {
+  prisma: PrismaClient;
+  session: {
+    user: { admin?: boolean } | null;
+    orgId: string;
+  };
+}): Promise<SessionOrganization | null> {
+  if (ctx.session.user?.admin !== true) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Only Langfuse admins can access this endpoint",
+    });
+  }
+
+  const organization = await ctx.prisma.organization.findUnique({
+    where: { id: ctx.session.orgId },
     include: {
       projects: {
         where: { deletedAt: null },
