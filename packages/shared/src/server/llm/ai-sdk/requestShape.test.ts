@@ -188,6 +188,7 @@ async function runCompletion(params: {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 describe("AI SDK request shapes", () => {
@@ -367,7 +368,9 @@ describe("AI SDK request shapes", () => {
     expect(request.body.max_tokens).toBe(128);
   });
 
-  it("Bedrock: converse URL from validated region, SigV4 auth, verbatim additional fields", async () => {
+  // The Bedrock builder deliberately uses no custom fetch (VPC endpoints),
+  // so capture at the global fetch the AI SDK falls back to.
+  async function runBedrockCompletion() {
     const modelParams: ModelParams = {
       provider: "bedrock",
       adapter: LLMAdapter.Bedrock,
@@ -386,8 +389,6 @@ describe("AI SDK request shapes", () => {
       throw new Error("Expected the AI SDK engine to be selected");
     }
 
-    // The Bedrock builder deliberately uses no custom fetch (VPC endpoints),
-    // so capture at the global fetch the AI SDK falls back to.
     const { calls, fetch } = createCaptureFetch(BEDROCK_RESPONSE);
     vi.stubGlobal("fetch", fetch);
 
@@ -407,12 +408,34 @@ describe("AI SDK request shapes", () => {
 
     expect(result).toBe("ok");
     expect(calls).toHaveLength(1);
-    const request = calls[0];
+    return calls[0];
+  }
+
+  it("Bedrock: converse URL from validated region, SigV4 auth, verbatim additional fields", async () => {
+    const request = await runBedrockCompletion();
+
     expect(decodeURIComponent(request.url)).toBe(
       "https://bedrock-runtime.us-east-1.amazonaws.com/model/anthropic.claude-3-5-sonnet-20241022-v2:0/converse",
     );
     expect(request.headers.get("authorization")).toMatch(/^AWS4-HMAC-SHA256/);
     expect(request.body.additionalModelRequestFields).toEqual({ top_k: 10 });
     expect(request.body.inferenceConfig).toMatchObject({ maxTokens: 64 });
+  });
+
+  it("Bedrock: tenant credentials suppress server-level env auth fallbacks", async () => {
+    // A self-hosted operator may set these for their own purposes; tenant
+    // connections must never authenticate with them. Unsuppressed, the
+    // provider's AWS_BEARER_TOKEN_BEDROCK fallback wins over the tenant's
+    // access keys entirely (requests would run under the SERVER identity).
+    vi.stubEnv("AWS_BEARER_TOKEN_BEDROCK", "server-bearer-token");
+    vi.stubEnv("AWS_SESSION_TOKEN", "server-session-token");
+
+    const request = await runBedrockCompletion();
+
+    // SigV4 with the tenant keys — not `Bearer server-bearer-token`.
+    expect(request.headers.get("authorization")).toMatch(/^AWS4-HMAC-SHA256/);
+    expect(request.headers.get("authorization")).toContain("AKIA123");
+    // No merged server session token (would surface as this SigV4 header).
+    expect(request.headers.get("x-amz-security-token")).toBeNull();
   });
 });

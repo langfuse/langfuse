@@ -71,6 +71,17 @@ export function translateBedrockProviderOptions(
   };
 }
 
+// `createAmazonBedrock` defaults an unset `apiKey` from the server's
+// AWS_BEARER_TOKEN_BEDROCK env var, and a resolved bearer token wins over
+// every other credential form — a tenant's access keys would silently
+// authenticate as the server. An empty string suppresses the fallback
+// (`loadOptionalSetting` returns any string verbatim; the provider treats
+// empty as unset and proceeds with SigV4) so auth only ever comes from the
+// resolved Langfuse connection credential, exactly like the LangChain engine
+// (which never honored AWS_BEARER_TOKEN_BEDROCK). Pinned by a regression
+// test in requestShape.test.ts.
+const SUPPRESS_BEARER_TOKEN_ENV_FALLBACK = { apiKey: "" };
+
 /**
  * Mirrors `resolveBedrockAuth` on the LangChain path: the decrypted secret is
  * either the default-credentials sentinel (allowed only self-hosted or for
@@ -93,7 +104,10 @@ export function resolveBedrockProviderAuth(params: {
     // Unlike the AI SDK's built-in env-only fallback, the node provider chain
     // matches the AWS SDK default chain the LangChain engine used (env,
     // profile, IMDS, IRSA, ...).
-    return { credentialProvider: fromNodeProviderChain() };
+    return {
+      credentialProvider: fromNodeProviderChain(),
+      ...SUPPRESS_BEARER_TOKEN_ENV_FALLBACK,
+    };
   }
 
   try {
@@ -105,9 +119,13 @@ export function resolveBedrockProviderAuth(params: {
       return { apiKey: parsedCredential.apiKey };
     }
 
+    // Note: the provider only reads AWS_SESSION_TOKEN when the access keys
+    // come from the environment; with both keys passed explicitly it uses the
+    // (unset) option value, so no server session token can leak in here.
     return {
       accessKeyId: parsedCredential.accessKeyId,
       secretAccessKey: parsedCredential.secretAccessKey,
+      ...SUPPRESS_BEARER_TOKEN_ENV_FALLBACK,
     };
   } catch {
     throw new Error(

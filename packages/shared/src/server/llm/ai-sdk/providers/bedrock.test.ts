@@ -92,7 +92,9 @@ describe("resolveBedrockProviderAuth", () => {
     });
     expect(auth.credentialProvider).toBeTypeOf("function");
     expect(auth.accessKeyId).toBeUndefined();
-    expect(auth.apiKey).toBeUndefined();
+    // Empty string (not undefined) so the provider never falls back to the
+    // server's AWS_BEARER_TOKEN_BEDROCK env var.
+    expect(auth.apiKey).toBe("");
   });
 
   it("rejects the sentinel when default credentials are not allowed", () => {
@@ -104,7 +106,7 @@ describe("resolveBedrockProviderAuth", () => {
     ).toThrow("Invalid Bedrock credentials");
   });
 
-  it("maps access key JSON to explicit credentials", () => {
+  it("maps access key JSON to explicit credentials, suppressing the bearer env fallback", () => {
     expect(
       resolveBedrockProviderAuth({
         secretKey: JSON.stringify({
@@ -113,7 +115,11 @@ describe("resolveBedrockProviderAuth", () => {
         }),
         allowDefaultCredentials: false,
       }),
-    ).toEqual({ accessKeyId: "AKIA123", secretAccessKey: "secret" });
+    ).toEqual({
+      accessKeyId: "AKIA123",
+      secretAccessKey: "secret",
+      apiKey: "",
+    });
   });
 
   it("maps a Bedrock API key to bearer auth", () => {
