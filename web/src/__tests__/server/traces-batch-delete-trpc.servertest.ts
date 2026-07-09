@@ -134,29 +134,6 @@ describe("traces.deleteMany batch action", () => {
     expect(mockAddBatchAction).not.toHaveBeenCalled();
   });
 
-  it("snapshots v4 beta state into an events-backed config", async () => {
-    const { projectId, caller } = await createCaller({ v4BetaEnabled: true });
-    const batchActionId = `${projectId}-traces-trace-delete`;
-
-    await caller.traces.deleteMany({
-      projectId,
-      traceIds: [randomUUID()],
-      isBatchAction: true,
-      query: traceDeleteQuery(`delete-user-${randomUUID()}`),
-    });
-
-    const batchAction = await prisma.batchAction.findUniqueOrThrow({
-      where: { id: batchActionId },
-    });
-    expect(batchAction.query).toMatchObject({ useEventsTable: true });
-    expect(
-      TraceDeleteBatchActionConfigSchema.parse(batchAction.config),
-    ).toMatchObject({
-      source: "events",
-      inFlightBatch: null,
-    });
-  });
-
   it("does not overwrite an active trace-delete BatchAction row", async () => {
     const { projectId, session, caller } = await createCaller();
     const batchActionId = `${projectId}-traces-trace-delete`;
@@ -370,7 +347,7 @@ describe("traces.deleteMany batch action", () => {
     ).resolves.toBeNull();
   });
 
-  describe("events-view dispatches (query.useEventsTable declared)", () => {
+  describe("events-surface declarations (query.useEventsTable)", () => {
     const mutableEnv = env as unknown as {
       LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: "true" | "false";
     };
@@ -444,13 +421,13 @@ describe("traces.deleteMany batch action", () => {
       ).resolves.toBeNull();
     });
 
-    it("keeps the traces-backed config for non-beta users who do not declare the events view", async () => {
-      // The v3 traces table dispatches without a declaration; the session
-      // snapshot alone decides the source even when the preview surface is
-      // enabled instance-wide.
-      mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
+    it("ignores a client-sent useEventsTable: false and routes on the session snapshot", async () => {
+      // Only validated useEventsTable: true declarations are honored —
+      // legacy and stale clients can't be trusted to set the flag correctly,
+      // so a client-sent false is ignored and the session's v4 beta flag
+      // snapshot decides the source: a beta user stays events-backed.
       const { projectId, caller } = await createCaller({
-        v4BetaEnabled: false,
+        v4BetaEnabled: true,
       });
       const batchActionId = `${projectId}-traces-trace-delete`;
 
@@ -458,15 +435,57 @@ describe("traces.deleteMany batch action", () => {
         projectId,
         traceIds: [randomUUID()],
         isBatchAction: true,
-        query: traceDeleteQuery(`delete-user-${randomUUID()}`),
+        query: {
+          ...traceDeleteQuery(`delete-user-${randomUUID()}`),
+          useEventsTable: false,
+        },
       });
 
       const batchAction = await prisma.batchAction.findUniqueOrThrow({
         where: { id: batchActionId },
       });
-      expect(batchAction.query).toMatchObject({ useEventsTable: false });
+      expect(batchAction.query).toMatchObject({ useEventsTable: true });
       expect(
         TraceDeleteBatchActionConfigSchema.parse(batchAction.config),
+      ).toMatchObject({ source: "events", inFlightBatch: null });
+    });
+
+    it("falls back to the session flag when the client declares no surface", async () => {
+      // Dispatches without query.useEventsTable (stale clients mid-deploy,
+      // out-of-tree callers) route on the session's v4 beta flag alone; the
+      // instance-wide preview opt-in is irrelevant without a declaration.
+      mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
+
+      const beta = await createCaller({ v4BetaEnabled: true });
+      await beta.caller.traces.deleteMany({
+        projectId: beta.projectId,
+        traceIds: [randomUUID()],
+        isBatchAction: true,
+        query: traceDeleteQuery(`delete-user-${randomUUID()}`),
+      });
+
+      const betaBatchAction = await prisma.batchAction.findUniqueOrThrow({
+        where: { id: `${beta.projectId}-traces-trace-delete` },
+      });
+      expect(betaBatchAction.query).toMatchObject({ useEventsTable: true });
+      expect(
+        TraceDeleteBatchActionConfigSchema.parse(betaBatchAction.config),
+      ).toMatchObject({ source: "events", inFlightBatch: null });
+
+      const nonBeta = await createCaller({ v4BetaEnabled: false });
+      await nonBeta.caller.traces.deleteMany({
+        projectId: nonBeta.projectId,
+        traceIds: [randomUUID()],
+        isBatchAction: true,
+        query: traceDeleteQuery(`delete-user-${randomUUID()}`),
+      });
+
+      const nonBetaBatchAction = await prisma.batchAction.findUniqueOrThrow({
+        where: { id: `${nonBeta.projectId}-traces-trace-delete` },
+      });
+      expect(nonBetaBatchAction.query).toMatchObject({ useEventsTable: false });
+      expect(
+        TraceDeleteBatchActionConfigSchema.parse(nonBetaBatchAction.config),
       ).toMatchObject({ source: "traces" });
     });
   });
@@ -488,6 +507,11 @@ describe("traces.deleteMany batch action", () => {
       searchQuery: "some full-text query",
       searchType: ["id" as const, "content" as const],
     });
+
+    // Literal owned by the module-private LEGACY_IO_SEARCH_BATCH_JOB_ERROR_MESSAGE
+    // in web/src/features/traces/server/legacyIoSearch.ts.
+    const legacyIoSearchErrorMessage =
+      "Input/output search is disabled for legacy tracing tables on this instance. Switch to ID, name, or user ID search before creating a batch job.";
 
     it("allows v4 (events-backed) batch deletes with full-text search", async () => {
       mutableEnv.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH = "true";
@@ -538,10 +562,7 @@ describe("traces.deleteMany batch action", () => {
         }),
       ).rejects.toMatchObject({
         code: "BAD_REQUEST",
-        // Literal owned by the module-private LEGACY_IO_SEARCH_BATCH_JOB_ERROR_MESSAGE
-        // in web/src/features/traces/server/legacyIoSearch.ts.
-        message:
-          "Input/output search is disabled for legacy tracing tables on this instance. Switch to ID, name, or user ID search before creating a batch job.",
+        message: legacyIoSearchErrorMessage,
       });
 
       expect(mockAddBatchAction).not.toHaveBeenCalled();
@@ -563,10 +584,7 @@ describe("traces.deleteMany batch action", () => {
         }),
       ).rejects.toMatchObject({
         code: "BAD_REQUEST",
-        // Literal owned by the module-private LEGACY_IO_SEARCH_BATCH_JOB_ERROR_MESSAGE
-        // in web/src/features/traces/server/legacyIoSearch.ts.
-        message:
-          "Input/output search is disabled for legacy tracing tables on this instance. Switch to ID, name, or user ID search before creating a batch job.",
+        message: legacyIoSearchErrorMessage,
       });
 
       await expect(

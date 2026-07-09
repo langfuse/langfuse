@@ -488,14 +488,12 @@ export const traceRouter = createTRPCRouter({
           });
         }
 
-        // The events view declares its surface via query.useEventsTable so
-        // the worker reads the persisted events-view filters from the events
-        // table (their columns do not exist, or mean something else, in the
-        // traces table). The declaration is only honored when the events
-        // surface is actually available: per-user v4 beta flag, or the
-        // instance-wide preview opt-in that exposes the events view to
-        // non-beta users. Without a declaration (v3 traces table), the
-        // session snapshot in createBatchActionJob decides the source.
+        // Decide here whether this delete reads from the events table: the
+        // v4 events view sets query.useEventsTable: true, which we honor
+        // after checking the events view is actually available to this user
+        // (v4 beta flag, or the instance-wide preview opt-in). In every
+        // other case createBatchActionJob infers the choice from the user's
+        // v4 beta flag.
         const declaresEventsTable = input.query.useEventsTable === true;
         if (declaresEventsTable) {
           const eventsSurfaceAvailable =

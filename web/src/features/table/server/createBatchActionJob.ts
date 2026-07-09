@@ -40,11 +40,9 @@ type CreateBatchActionJob = {
   };
   query: BatchActionQuery;
   targetId?: string;
-  // When defined, replaces the session snapshot as the worker's read-table
-  // routing. Callers must validate the value before passing it (see
-  // traces.deleteMany: the events view declares its surface and the server
-  // checks the beta flag / preview opt-in). Leave undefined everywhere else
-  // so the session snapshot keeps overriding client-sent values.
+  // Call-site decision on whether this action reads from the events table
+  // (see traces.deleteMany). When unset, it is inferred from the user's v4
+  // beta flag below.
   useEventsTableOverride?: boolean;
 };
 
@@ -66,11 +64,9 @@ export const createBatchActionJob = async ({
   targetId,
   useEventsTableOverride,
 }: CreateBatchActionJob) => {
-  // Snapshot the user's v4 beta flag so the worker reads from the same data
-  // source as the UI table; overrides any client-sent value. A caller may
-  // replace the snapshot with a validated override (e.g. the events view is
-  // reachable without the beta flag on preview instances, and its dispatches
-  // must stay events-backed so the persisted filters match the read table).
+  // Whether the action reads from the events table is determined at the
+  // call site (useEventsTableOverride) or inferred from the user's v4 beta
+  // flag; the decision is snapshotted into the query at dispatch time.
   const queryWithSnapshot: BatchActionQuery = {
     ...query,
     useEventsTable:
