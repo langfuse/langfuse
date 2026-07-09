@@ -1,19 +1,11 @@
 import { EventType } from "@ag-ui/core";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { getSandboxToolCallFiles } from "@/src/ee/features/in-app-agent/server/persistence";
 import { createInAppAgentSandbox } from "@/src/ee/features/in-app-agent/server/sandbox";
 
 describe("in-app agent sandbox", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it("persists sandbox ttl metadata when a turn ends", async () => {
+  it("persists sandbox session state when a turn ends", async () => {
     const sandboxSession = {
       async syncReadonlyFiles() {},
       async read() {
@@ -39,13 +31,11 @@ describe("in-app agent sandbox", () => {
     const sandbox = await createInAppAgentSandbox({
       conversationId: "conversation-1",
       projectId: "project-1",
-      ttlMs: 1_000,
       provider,
       getToolCallFiles: async () => [],
       saveState: async (state) => {
         savedStates.push(state);
       },
-      now: () => new Date("2026-07-02T12:00:00.000Z"),
     });
 
     await sandbox.sandbox.write({ path: "notes.txt", content: "hello" });
@@ -54,15 +44,11 @@ describe("in-app agent sandbox", () => {
     expect(savedStates[0]).toMatchObject({
       providerSessionId: "session-1",
       sandboxProvider: "dangerous-docker",
-      sandboxExpiresAt: null,
     });
     expect(savedStates[1]).toMatchObject({
       providerSessionId: "session-1",
       sandboxProvider: "dangerous-docker",
     });
-    expect(savedStates[1]?.sandboxExpiresAt).toEqual(
-      new Date("2026-07-02T12:00:01.000Z"),
-    );
   });
 
   it("exports prior non-sandbox tool calls into tool_calls files", () => {

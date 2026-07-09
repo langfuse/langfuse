@@ -63,11 +63,9 @@ const defaultInAppAgentUserAccess = {
 async function createTestSandbox() {
   let sandboxState: {
     providerSessionId: string | null;
-    sandboxExpiresAt: Date | null;
     sandboxProvider: string | null;
   } = {
     providerSessionId: null,
-    sandboxExpiresAt: null,
     sandboxProvider: null,
   };
   let sessionCounter = 0;
@@ -136,9 +134,7 @@ async function createTestSandbox() {
     conversationId: "conversation-1",
     projectId: "project-1",
     providerSessionId: sandboxState.providerSessionId,
-    sandboxExpiresAt: sandboxState.sandboxExpiresAt,
     sandboxProvider: sandboxState.sandboxProvider,
-    ttlMs: 1_000,
     provider,
     getToolCallFiles: async () => [],
     saveState: async (nextState) => {
@@ -147,8 +143,6 @@ async function createTestSandbox() {
         ...nextState,
         providerSessionId:
           nextState.providerSessionId ?? sandboxState.providerSessionId,
-        sandboxExpiresAt:
-          nextState.sandboxExpiresAt ?? sandboxState.sandboxExpiresAt,
         sandboxProvider:
           nextState.sandboxProvider ?? sandboxState.sandboxProvider,
       };

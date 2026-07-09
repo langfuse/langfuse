@@ -82,7 +82,6 @@ import {
 
 const IN_APP_AGENT_API_KEY_NOTE = "In-app agent MCP session";
 const MAX_IN_APP_AGENT_INPUT_BYTES = 1024 * 1024;
-const IN_APP_AGENT_SANDBOX_TTL_MS = 15 * 60 * 1000;
 const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
   "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
 
@@ -301,11 +300,9 @@ export default async function handler(request: Request) {
           conversationId: conversation.id,
           projectId,
           providerSessionId: conversation.providerSessionId,
-          sandboxExpiresAt: conversation.sandboxExpiresAt,
           sandboxProvider: parseInAppAgentSandboxProviderType(
             conversation.sandboxProvider,
           ),
-          ttlMs: IN_APP_AGENT_SANDBOX_TTL_MS,
           provider: sandboxProvider,
           getToolCallFiles: async () =>
             getSandboxToolCallFiles(conversationEvents),

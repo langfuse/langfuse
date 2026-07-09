@@ -32,7 +32,6 @@ describe("in-app agent router", () => {
 
     expect(deletedConversation.deletedAt).toBeInstanceOf(Date);
     expect(deletedConversation.providerSessionId).toBeNull();
-    expect(deletedConversation.sandboxExpiresAt).toBeNull();
     expect(deletedConversation.sandboxProvider).toBeNull();
   });
 
@@ -226,7 +225,6 @@ async function createConversation({
       title,
       providerSessionId: sandboxProvider ? "session-1" : null,
       sandboxProvider,
-      sandboxExpiresAt: sandboxProvider ? new Date() : null,
     },
   });
 }
