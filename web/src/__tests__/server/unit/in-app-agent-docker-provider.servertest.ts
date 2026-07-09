@@ -168,17 +168,11 @@ describe("in-app agent docker sandbox provider", () => {
       await import("@/src/ee/features/in-app-agent/server/sandbox/providers/docker");
     const provider = await createDockerSandboxProvider({
       image: "langfuse-in-app-agent-sandbox:latest",
-      snapshotStore: {
-        deleteSnapshot: async () => undefined,
-        getSnapshot: async () => null,
-        putSnapshot: async () => undefined,
-      },
     });
 
     const session = await provider.ensureSession({
       conversationId: "conversation-1",
       sessionId: "old-container-id",
-      snapshotKey: "snapshot-1",
     });
 
     expect(session.sessionId).toBe("conversation-1");

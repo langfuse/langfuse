@@ -65,12 +65,10 @@ async function createTestSandbox() {
     providerSessionId: string | null;
     sandboxExpiresAt: Date | null;
     sandboxProvider: string | null;
-    sandboxSnapshotKey: string | null;
   } = {
     providerSessionId: null,
     sandboxExpiresAt: null,
     sandboxProvider: null,
-    sandboxSnapshotKey: null,
   };
   let sessionCounter = 0;
   const files = new Map<string, string>();
@@ -140,7 +138,6 @@ async function createTestSandbox() {
     providerSessionId: sandboxState.providerSessionId,
     sandboxExpiresAt: sandboxState.sandboxExpiresAt,
     sandboxProvider: sandboxState.sandboxProvider,
-    sandboxSnapshotKey: sandboxState.sandboxSnapshotKey,
     ttlMs: 1_000,
     provider,
     getToolCallFiles: async () => [],
@@ -154,8 +151,6 @@ async function createTestSandbox() {
           nextState.sandboxExpiresAt ?? sandboxState.sandboxExpiresAt,
         sandboxProvider:
           nextState.sandboxProvider ?? sandboxState.sandboxProvider,
-        sandboxSnapshotKey:
-          nextState.sandboxSnapshotKey ?? sandboxState.sandboxSnapshotKey,
       };
     },
   });

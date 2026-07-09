@@ -6,7 +6,6 @@ export async function createInAppAgentSandbox(params: {
   providerSessionId?: string | null;
   sandboxExpiresAt?: Date | null;
   sandboxProvider?: string | null;
-  sandboxSnapshotKey?: string | null;
   ttlMs: number;
   provider: SandboxProvider;
   getToolCallFiles: () => Promise<ReadonlyArray<SandboxFile>>;
@@ -14,7 +13,6 @@ export async function createInAppAgentSandbox(params: {
     providerSessionId?: string | null;
     sandboxExpiresAt?: Date | null;
     sandboxProvider?: string | null;
-    sandboxSnapshotKey?: string | null;
   }) => Promise<void>;
   now?: () => Date;
 }): Promise<{

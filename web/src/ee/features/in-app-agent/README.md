@@ -20,16 +20,14 @@ Runs are foreground-only. A conversation can have one active run; stale unfinish
 - `server/persistence.ts`: conversations, runs, events, replay, active-run locking, and stale-run recovery.
 - `server/router.ts`: non-streaming tRPC routes for conversation lists, replay, and feedback.
 - `server/instrumentation.ts`: optional Langfuse tracing for agent runs, prompts, events, and errors.
-- `server/sandbox/config.ts`: sandbox provider selection and snapshot store wiring.
+- `server/sandbox/config.ts`: sandbox provider selection and runtime configuration.
 - `server/sandbox/service.ts`: conversation-scoped sandbox session reuse, readonly file sync, and turn-end suspension.
 - `server/sandbox/providers/*`: provider adapters for local Docker and Lambda MicroVM sandboxes.
-- `server/sandbox/snapshots.ts`: local-disk and S3-compatible snapshot persistence.
 - `server/sandbox/types.ts`: runtime-neutral sandbox interface used by tools/agent.
 - `constants.ts`: stable names shared across prompts, tools, persistence, and rendering.
 - `components/*`: client controller and prop-driven render components.
 
 Outside this feature folder, `packages/in-app-agent-sandbox-runtime/src/*` provides the shared sandbox runtime and contract types used by both the local Docker provider and the Lambda MicroVM image.
-`packages/shared/src/server/inAppAgentSandboxSnapshots.ts` owns shared sandbox snapshot keying and cleanup helpers.
 
 ## File Relationships
 
@@ -88,10 +86,10 @@ Both sandbox providers target the same runtime contract from `packages/in-app-ag
 
 Provider contract:
 
-- `ensureSession({ conversationId, sessionId?, snapshotKey })`
+- `ensureSession({ conversationId, sessionId? })`
 - `syncReadonlyFiles({ sessionId, files })`
 - `read`, `write`, `edit`, `bash`
-- optional `suspendSession({ sessionId, snapshotKey })`
+- optional `suspendSession({ sessionId })`
 
 Runtime HTTP surface:
 
@@ -102,11 +100,11 @@ Runtime HTTP surface:
 
 ## Sandbox Persistence And Cleanup
 
-Sandbox state is stored on the conversation row as `providerSessionId`, `sandboxProvider`, `sandboxSnapshotKey`, and `sandboxExpiresAt`.
+Sandbox state is stored on the conversation row as `providerSessionId`, `sandboxProvider`, and `sandboxExpiresAt`.
 
-There is currently no sandbox snapshot persistence or restoration flow for `lambda-microvm`. Session reuse only relies on an existing live or suspended MicroVM instance identified by `providerSessionId`.
+Session reuse only relies on an existing live or suspended runtime instance identified by `providerSessionId`.
 
-`server/router.ts` clears sandbox state before soft-deleting a conversation. Shared cleanup helpers in `packages/shared/src/server/inAppAgentSandboxSnapshots.ts` also support project-wide expired sandbox cleanup and default snapshot key generation at `in-app-agent-sandboxes/<projectId>/<conversationId>.snapshot`.
+`server/router.ts` clears sandbox state before soft-deleting a conversation.
 
 `dangerous-docker` is development-only. Worker data-retention cleanup only tears down `lambda-microvm` sandboxes; local Docker sandbox cleanup stays in the web process where that provider is used.
 
@@ -137,5 +135,5 @@ Sandbox tools are separate from MCP authorization. When a sandbox provider is en
 
 - Check AG-UI docs at `https://docs.ag-ui.com/llms.txt` before changing event semantics, ordering, stream handling, compaction, tools, state, or `HttpAgent` integration.
 - Keep persisted schemas backward-compatible unless there is an explicit migration.
-- Keep sandbox conversation state and snapshot semantics backward-compatible unless there is an explicit migration or cleanup plan.
+- Keep sandbox conversation state backward-compatible unless there is an explicit migration or cleanup plan.
 - Keep presentational components prop-driven; connect tRPC, streaming, and persistence at provider/router/handler boundaries.

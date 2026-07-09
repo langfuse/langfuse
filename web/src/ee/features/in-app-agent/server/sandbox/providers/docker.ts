@@ -192,19 +192,10 @@ export async function createDockerSandboxProvider(params: {
 
   return {
     type: "dangerous-docker",
-    async ensureSession({
-      conversationId,
-      sessionId,
-      snapshotKey,
-    }: {
-      conversationId: string;
-      sessionId?: string | null;
-      snapshotKey: string;
-    }) {
+    async ensureSession({ conversationId, sessionId }) {
       logger.debug("In-app agent docker sandbox ensureSession", {
         conversationId,
         requestedSessionId: sessionId,
-        snapshotKey,
       });
       const container = await ensureContainer({
         conversationId,
@@ -212,26 +203,18 @@ export async function createDockerSandboxProvider(params: {
       logger.debug("In-app agent docker sandbox ready session", {
         conversationId,
         sessionId: container.id,
-        snapshotKey,
       });
       return {
         sessionId: conversationId,
         sandbox: createSessionSandbox(conversationId),
       };
     },
-    async suspendSession({
-      sessionId,
-      snapshotKey,
-    }: {
-      sessionId: string;
-      snapshotKey: string;
-    }) {
+    async suspendSession({ sessionId }) {
       sessions.delete(sessionId);
       logger.debug(
         "In-app agent docker sandbox leaving container running across local session suspend",
         {
           sessionId,
-          snapshotKey,
         },
       );
     },

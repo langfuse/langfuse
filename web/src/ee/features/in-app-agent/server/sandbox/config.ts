@@ -37,17 +37,6 @@ export function getDefaultInAppAgentSandboxProviderType(): InAppAgentSandboxProv
   return providerType;
 }
 
-export async function deleteInAppAgentSandboxSnapshot(params: {
-  providerType: InAppAgentSandboxProviderType;
-  sessionId?: string | null;
-}) {
-  const provider = await createInAppAgentSandboxProvider(params.providerType);
-
-  if (params.sessionId && provider?.terminateSession) {
-    await provider.terminateSession({ sessionId: params.sessionId });
-  }
-}
-
 export async function createInAppAgentSandboxProvider(
   providerType: InAppAgentSandboxProviderType,
 ): Promise<SandboxProvider> {

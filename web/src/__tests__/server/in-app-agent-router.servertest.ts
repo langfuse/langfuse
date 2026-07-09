@@ -13,7 +13,6 @@ describe("in-app agent router", () => {
       projectId,
       userId,
       sandboxProvider: InAppAgentSandboxProvider.dangerous_docker,
-      sandboxSnapshotKey: "custom.snapshot",
     });
 
     await caller.inAppAgent.deleteConversation({
@@ -33,7 +32,6 @@ describe("in-app agent router", () => {
 
     expect(deletedConversation.deletedAt).toBeInstanceOf(Date);
     expect(deletedConversation.providerSessionId).toBeNull();
-    expect(deletedConversation.sandboxSnapshotKey).toBeNull();
     expect(deletedConversation.sandboxExpiresAt).toBeNull();
     expect(deletedConversation.sandboxProvider).toBeNull();
   });
@@ -214,13 +212,11 @@ async function createConversation({
   userId,
   title = "Test conversation",
   sandboxProvider,
-  sandboxSnapshotKey,
 }: {
   projectId: string;
   userId: string;
   title?: string;
   sandboxProvider?: InAppAgentSandboxProvider;
-  sandboxSnapshotKey?: string;
 }) {
   return prisma.inAppAgentConversation.create({
     data: {
@@ -230,7 +226,6 @@ async function createConversation({
       title,
       providerSessionId: sandboxProvider ? "session-1" : null,
       sandboxProvider,
-      sandboxSnapshotKey,
       sandboxExpiresAt: sandboxProvider ? new Date() : null,
     },
   });

@@ -305,7 +305,6 @@ export default async function handler(request: Request) {
           sandboxProvider: parseInAppAgentSandboxProviderType(
             conversation.sandboxProvider,
           ),
-          sandboxSnapshotKey: conversation.sandboxSnapshotKey,
           ttlMs: IN_APP_AGENT_SANDBOX_TTL_MS,
           provider: sandboxProvider,
           getToolCallFiles: async () =>

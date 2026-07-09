@@ -11,7 +11,6 @@ import {
 } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import {
-  clearInAppAgentConversationSandbox,
   convertDateToClickhouseDateTime,
   upsertScore,
 } from "@langfuse/shared/src/server";
@@ -21,11 +20,6 @@ import {
   getInAppAgentInstrumentationTraceId,
 } from "@/src/ee/features/in-app-agent/constants";
 import { InAppAgentMessageFeedbackValueSchema } from "@/src/ee/features/in-app-agent/schema";
-import type { InAppAgentSandboxProviderType } from "@/src/ee/features/in-app-agent/server/sandbox";
-import {
-  deleteInAppAgentSandboxSnapshot,
-  parseInAppAgentSandboxProviderType,
-} from "@/src/ee/features/in-app-agent/server/sandbox";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   createTRPCRouter,
@@ -42,19 +36,6 @@ import {
 } from "@/src/ee/features/in-app-agent/server/persistence";
 
 const CONVERSATION_LIST_LIMIT = 50;
-
-function toInAppAgentSandboxProviderType(
-  providerType: string | null,
-): InAppAgentSandboxProviderType {
-  const normalizedProviderType =
-    parseInAppAgentSandboxProviderType(providerType);
-
-  if (normalizedProviderType) {
-    return normalizedProviderType;
-  }
-
-  throw new Error("Missing in-app agent sandbox provider type");
-}
 
 const ConversationListCursorSchema = z.object({
   updatedAt: z.date(),
@@ -183,29 +164,6 @@ export const inAppAgentRouter = createTRPCRouter({
         userId: ctx.session.user.id,
       });
 
-      await clearInAppAgentConversationSandbox({
-        prisma: ctx.prisma,
-        projectId: input.projectId,
-        conversationId: input.conversationId,
-        deleteSnapshot: async ({ sandboxProvider, sessionId }) => {
-          const providerType = toInAppAgentSandboxProviderType(sandboxProvider);
-
-          if (
-            providerType === "dangerous-docker" &&
-            env.NODE_ENV !== "development"
-          ) {
-            return { skipped: true };
-          }
-
-          await deleteInAppAgentSandboxSnapshot({
-            providerType,
-            sessionId,
-          });
-
-          return { skipped: false };
-        },
-      });
-
       await ctx.prisma.inAppAgentConversation.update({
         where: {
           id_projectId: {
@@ -214,6 +172,9 @@ export const inAppAgentRouter = createTRPCRouter({
           },
         },
         data: {
+          providerSessionId: null,
+          sandboxExpiresAt: null,
+          sandboxProvider: null,
           deletedAt: new Date(),
         },
       });
