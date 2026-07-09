@@ -28,6 +28,7 @@ import {
 } from "@/src/features/filters/config/observations-config";
 import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
+import { resolveTableFilterState } from "@/src/components/table/utils/resolveTableFilterState";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import {
@@ -535,8 +536,11 @@ export default function ObservationsTable({
     modelIdFilter,
   );
 
-  // Use external filter state if provided, otherwise use combined filter state
-  const filterState = externalFilterState || combinedFilterState;
+  const filterState = resolveTableFilterState({
+    externalFilterState,
+    dateRangeFilter,
+    combinedFilterState,
+  });
 
   const backendFilterState = transformFiltersForBackend(
     filterState,

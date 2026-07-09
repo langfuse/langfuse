@@ -55,6 +55,7 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { type ScoreAggregate } from "@langfuse/shared";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
+import { resolveTableFilterState } from "@/src/components/table/utils/resolveTableFilterState";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BreakdownTooltip } from "@/src/components/trace/components/_shared/BreakdownToolTip";
@@ -395,8 +396,11 @@ export default function TracesTable({
     dateRangeFilter,
   );
 
-  // Use external filter state if provided, otherwise use combined filter state
-  const filterState = externalFilterState || combinedFilterState;
+  const filterState = resolveTableFilterState({
+    externalFilterState,
+    dateRangeFilter,
+    combinedFilterState,
+  });
 
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",

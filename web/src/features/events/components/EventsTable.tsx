@@ -5,6 +5,7 @@ import {
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { resolveTableFilterState } from "@/src/components/table/utils/resolveTableFilterState";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
@@ -605,8 +606,11 @@ export default function ObservationsEventsTable({
     .concat(userIdFilter)
     .concat(sessionIdFilter);
 
-  // Use external filter state if provided, otherwise use combined filter state
-  const filterState = externalFilterState || combinedFilterState;
+  const filterState = resolveTableFilterState({
+    externalFilterState,
+    dateRangeFilter,
+    combinedFilterState,
+  });
 
   // Use the custom hook for observations data fetching
   const {
