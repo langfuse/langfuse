@@ -56,28 +56,29 @@ const placement = (
 export const LANGFUSE_HOME_DASHBOARD_DEFINITION: DashboardDefinition = {
   widgets: [
     // Grid rows are 16:9-proportional to column width (see DashboardGrid), so
-    // row heights shrink with the viewport while the Home cards have fixed
-    // intrinsic minimum heights (headline metrics, tabs, min-h chart floors).
-    // Sizes below fit the densest card down to ~1240px viewports; below that
-    // the preset tile scrolls internally, and below 1025px the grid stacks.
+    // tiles grow with the viewport while the Home cards' content has fixed
+    // minimum heights. Cards adapt to their tile (charts stretch to absorb
+    // extra height; a too-short tile scrolls internally), so sizes below
+    // target a comfortable content fit at typical ~1300–1500px grid widths
+    // rather than the worst case. Below 1025px the grid stacks. (LFE-10813)
     // Row 1: overview tables
-    placement("home-traces", 0, 0, 4, 6),
-    placement("home-model-costs", 4, 0, 4, 6),
-    placement("home-scores-table", 8, 0, 4, 6),
+    placement("home-traces", 0, 0, 4, 5),
+    placement("home-model-costs", 4, 0, 4, 5),
+    placement("home-scores-table", 8, 0, 4, 5),
     // Row 2: traffic + usage time series (tabbed cards with headline metrics
     // have the largest intrinsic height)
-    placement("home-traces-obs-time-series", 0, 6, 6, 8),
-    placement("home-model-usage", 6, 6, 6, 8),
+    placement("home-traces-obs-time-series", 0, 5, 6, 6),
+    placement("home-model-usage", 6, 5, 6, 6),
     // Row 3: users + scores over time
-    placement("home-users", 0, 14, 6, 7),
-    placement("home-chart-scores", 6, 14, 6, 7),
+    placement("home-users", 0, 11, 6, 6),
+    placement("home-chart-scores", 6, 11, 6, 6),
     // Row 4: latency percentile tables
-    placement("home-latency-table-traces", 0, 21, 4, 6),
-    placement("home-latency-table-generations", 4, 21, 4, 6),
-    placement("home-latency-table-observations", 8, 21, 4, 6),
+    placement("home-latency-table-traces", 0, 17, 4, 5),
+    placement("home-latency-table-generations", 4, 17, 4, 5),
+    placement("home-latency-table-observations", 8, 17, 4, 5),
     // Row 5+: full-width analytics
-    placement("home-generation-latency", 0, 27, 12, 8),
-    placement("home-score-analytics", 0, 35, 12, 7),
+    placement("home-generation-latency", 0, 22, 12, 6),
+    placement("home-score-analytics", 0, 28, 12, 6),
   ],
 };
 
@@ -89,5 +90,5 @@ export const LANGFUSE_HOME_DASHBOARD = {
   definition: LANGFUSE_HOME_DASHBOARD_DEFINITION,
   filters: [],
   createdAt: "2026-07-06T00:00:00.000Z",
-  updatedAt: "2026-07-06T13:00:00.000Z",
+  updatedAt: "2026-07-09T00:00:00.000Z",
 };

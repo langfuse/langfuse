@@ -134,8 +134,11 @@ export const TracesBarListChart = ({
           description="Total traces tracked"
         />
         {adjustedData.length > 0 ? (
+          // The computed height is the flex basis (floor); grow lets the chart
+          // absorb extra tile height on dashboards — bar thickness stays
+          // capped, only the spacing stretches. (LFE-10813)
           <div
-            className="mt-4 w-full"
+            className="mt-4 w-full shrink-0 grow"
             style={{
               minHeight: 200,
               height: Math.max(
@@ -170,6 +173,7 @@ export const TracesBarListChart = ({
             isLoading={isLoading || traces.isPending || totalTraces.isPending}
             description="Traces contain details about LLM applications and can be created using the SDK."
             href="https://langfuse.com/docs/get-started"
+            className="h-auto grow"
           />
         )}
         <ExpandListButton

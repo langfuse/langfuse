@@ -99,8 +99,13 @@ export function DashboardGrid({
   readOnly?: boolean;
 }) {
   const { containerRef, width } = useDebouncedContainerWidth(200);
-  // Rows stay 16:9-proportional to column width
-  const rowHeight = width !== null ? ((width / 12) * 9) / 16 : 150;
+  // Rows stay 16:9-proportional to column width, with a floor so tiles keep a
+  // usable height on narrow screens — below the floor, widget content (chart
+  // floors, table rows) no longer fits and tiles scroll internally; the grid
+  // grows vertically instead. (LFE-10813)
+  const MIN_ROW_HEIGHT = 58;
+  const rowHeight =
+    width !== null ? Math.max(MIN_ROW_HEIGHT, ((width / 12) * 9) / 16) : 150;
 
   // Detect if screen is medium or smaller (1024px and below)
   const isSmallScreen = useMediaQuery("(max-width: 1024px)");
