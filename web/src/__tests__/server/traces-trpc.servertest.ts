@@ -721,6 +721,79 @@ describe("traces trpc", () => {
     });
   });
 
+  describe("traces.hasTracingConfigured", () => {
+    // In legacy/dual write modes the legacy `traces` table is still written and
+    // is the freshest source, so the onboarding gate must open from a legacy
+    // trace row alone. The events_only routing lives in
+    // traces-trpc-events-only.servertest.ts.
+    it("should clear the tracing onboarding gate from legacy traces-table data", async () => {
+      // Fresh project: `hasTraces` flag unset, no rows, no retention.
+      const freshProjectId = randomUUID();
+      await prisma.project.create({
+        data: {
+          id: freshProjectId,
+          name: "legacy-onboarding",
+          orgId: "seed-org-id",
+        },
+      });
+
+      const freshSession: Session = {
+        ...session,
+        user: {
+          ...session.user!,
+          organizations: [
+            {
+              ...session.user!.organizations[0],
+              projects: [
+                {
+                  id: freshProjectId,
+                  role: "ADMIN",
+                  retentionDays: null,
+                  deletedAt: null,
+                  name: "legacy-onboarding",
+                },
+              ],
+            },
+          ],
+        },
+      };
+      const freshCtx = createInnerTRPCContext({ session: freshSession });
+      const freshCaller = appRouter.createCaller({ ...freshCtx, prisma });
+
+      try {
+        // Gate stays closed before any data is ingested.
+        await expect(
+          freshCaller.traces.hasTracingConfigured({
+            projectId: freshProjectId,
+          }),
+        ).resolves.toBe(false);
+
+        // Trace is written to the legacy table only.
+        await createTracesCh([createTrace({ project_id: freshProjectId })]);
+
+        // Gate must open from legacy traces-table data alone (ClickHouse
+        // insert visibility can lag).
+        await waitForExpect(async () => {
+          expect(
+            await freshCaller.traces.hasTracingConfigured({
+              projectId: freshProjectId,
+            }),
+          ).toBe(true);
+        });
+
+        // A positive detection persists to the project's hasTraces flag so
+        // the UI can stop polling ClickHouse.
+        const project = await prisma.project.findUnique({
+          where: { id: freshProjectId },
+          select: { hasTraces: true },
+        });
+        expect(project?.hasTraces).toBe(true);
+      } finally {
+        await prisma.project.delete({ where: { id: freshProjectId } });
+      }
+    });
+  });
+
   describe("traces flags", () => {
     const useEventsTable =
       env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
