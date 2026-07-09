@@ -907,8 +907,11 @@ export function useSidebarFilterState(
   // derive shape (type/operator/key/counts) from the RESULTING filters for the
   // column and never send the raw filter value (PII). Skips emission when the
   // column ends up with no filter (a deselect-to-empty is a clear, not an
-  // apply). `conditionCount` counts the rows the column produced (a numeric
-  // range is 2: >= and <=); `valueCount` counts selected options.
+  // apply). Count semantics are aligned with the popover builder (LFE-10781
+  // review): `conditionCount` = TOTAL applied conditions across ALL columns
+  // (whole-filter complexity); `columnConditionCount` = rows this column
+  // produced (a numeric range is 2: >= and <=); `valueCount` = selected options
+  // in the primary condition.
   const emitFilterApplied = useCallback(
     (
       surface: "sidebar" | "filter_builder",
@@ -926,7 +929,8 @@ export function useSidebarFilterState(
         operator: primary.operator,
         ...("key" in primary && primary.key ? { key: primary.key } : {}),
         valueCount: Array.isArray(primary.value) ? primary.value.length : 1,
-        conditionCount: colFilters.length,
+        conditionCount: next.length,
+        columnConditionCount: colFilters.length,
         isV4: isV4Surface,
       });
     },

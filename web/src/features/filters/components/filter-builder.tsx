@@ -170,11 +170,14 @@ export function PopoverFilterBuilder({
       const newState = state instanceof Function ? state(prev) : state;
       const validFilters = getValidFilters(newState);
       onChange(validFilters);
-      // Analytics (LFE-10781): emit `filters:applied` only when a filter is
-      // newly completed (valid count grew), so an in-progress edit does not
-      // fire per keystroke. METADATA ONLY — we report the last valid filter's
-      // shape + counts, never a raw value.
-      if (validFilters.length > prevValidCountRef.current) {
+      const prevCount = prevValidCountRef.current;
+      // Analytics (LFE-10781). METADATA ONLY — we report the changed filter's
+      // shape + counts, never a raw value. Count semantics match the sidebar:
+      // `conditionCount` = TOTAL applied conditions across ALL columns;
+      // `columnConditionCount` = rows for the changed column.
+      if (validFilters.length > prevCount) {
+        // A filter was newly completed (valid count grew) — an in-progress edit
+        // does not fire per keystroke.
         const applied = validFilters[validFilters.length - 1];
         if (applied) {
           capture("filters:applied", {
@@ -186,9 +189,21 @@ export function PopoverFilterBuilder({
             ...("key" in applied && applied.key ? { key: applied.key } : {}),
             valueCount: Array.isArray(applied.value) ? applied.value.length : 1,
             conditionCount: validFilters.length,
+            columnConditionCount: validFilters.filter(
+              (f) => f.column === applied.column,
+            ).length,
             isV4,
           });
         }
+      } else if (validFilters.length < prevCount) {
+        // A shrink — the clear-all X buttons (setWipFilterState([])) or removing
+        // a row. Mirrors the sidebar's clearAll → `filters:cleared`.
+        capture("filters:cleared", {
+          surface: "filter_builder",
+          tableName,
+          clearedCount: prevCount - validFilters.length,
+          isV4,
+        });
       }
       prevValidCountRef.current = validFilters.length;
       return newState;

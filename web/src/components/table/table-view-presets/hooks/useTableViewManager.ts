@@ -21,9 +21,17 @@ import { isSystemPresetId } from "../components/data-table-view-presets-drawer";
 import type { FilterStateMigration } from "@/src/features/filters/lib/filter-config";
 
 /** How a saved view / preset apply was initiated — the `trigger` analytics
- * dimension on `saved_views:applied` (LFE-10781). */
+ * dimension on `saved_views:applied` (LFE-10781). `system_preset_cleared` is a
+ * v4 category-chip toggle-off (applies the cleared/default state). */
+export type SavedViewApplyTrigger =
+  | "select"
+  | "permalink"
+  | "default"
+  | "system_preset"
+  | "system_preset_cleared";
+
 export type SavedViewApplyMeta = {
-  trigger: "select" | "permalink" | "default" | "system_preset";
+  trigger: SavedViewApplyTrigger;
   viewId?: string | null;
 };
 
@@ -272,13 +280,7 @@ export function useTableViewManager({
 
   // Method to apply state from a view
   const applyViewState = useCallback(
-    (
-      viewData: TableViewPresetState,
-      meta?: {
-        trigger: "select" | "permalink" | "default" | "system_preset";
-        viewId?: string | null;
-      },
-    ) => {
+    (viewData: TableViewPresetState, meta?: SavedViewApplyMeta) => {
       // lock table
       setIsLoading(true);
 

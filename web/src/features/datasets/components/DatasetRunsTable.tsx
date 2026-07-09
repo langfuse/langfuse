@@ -708,6 +708,7 @@ export function DatasetRunsTable(props: {
           >
             <DataTableToolbar
               columns={columns}
+              tableName="dataset-runs"
               filterColumnDefinition={transformedFilterOptions}
               filterState={userFilterState}
               setFilterState={setFilterState}
@@ -773,6 +774,7 @@ export function DatasetRunsTable(props: {
         <>
           <DataTableToolbar
             columns={columns}
+            tableName="dataset-runs"
             filterColumnDefinition={transformedFilterOptions}
             filterState={userFilterState}
             setFilterState={setFilterState}
