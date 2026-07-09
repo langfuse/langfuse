@@ -22,13 +22,9 @@ import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { env } from "@/src/env.mjs";
 
 export const organizationsRouter = createTRPCRouter({
-  // Resolves a single organization in the same shape as
-  // session.user.organizations[number]. Used as a fallback by useOrganization
-  // for Langfuse admins, whose session does not contain customer orgs.
-  // Admin-only: buildAdminOrgContext enforces the admin check itself and reads
-  // the org via the server-resolved ctx.session.orgId — its response contains
-  // ALL projects of the org with role OWNER, which would bypass the session's
-  // per-project role filter for regular members.
+  // Admin-only fallback for useOrganization: returns the org in the same shape
+  // as session.user.organizations[number], since admins are not members of
+  // customer orgs and have no session entry.
   byId: protectedOrganizationProcedure
     .input(z.object({ orgId: z.string() }))
     .query(async ({ ctx }) => {

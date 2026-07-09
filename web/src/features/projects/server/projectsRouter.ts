@@ -306,13 +306,9 @@ export const projectsRouter = createTRPCRouter({
     )
     .query(async ({ input }) => getEnvironmentsForProject(input)),
 
-  // Resolves the project and its parent organization for a single project, in
-  // the same shape as session.user.organizations[number]. Used as a fallback by
-  // useProject for Langfuse admins, whose session does not contain customer
-  // orgs/projects. Admin-only: buildAdminOrgContext enforces the admin check
-  // itself and reads the org via the server-resolved ctx.session — its
-  // response contains ALL projects of the org with role OWNER, which would
-  // bypass the session's per-project role filter for regular members.
+  // Admin-only fallback for useProject: returns the project and its org in the
+  // same shape as session.user.organizations[number], since admins are not
+  // members of customer projects and have no session entry.
   byId: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx }) => {
