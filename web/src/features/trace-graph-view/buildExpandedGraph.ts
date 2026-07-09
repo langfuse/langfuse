@@ -119,19 +119,31 @@ function buildFlowEdges(
     for (let i = 0; i < ordered.length; i++) {
       if (edges.length > MAX_EXPANDED_EDGES) return null;
       const current = ordered[i];
-      // Bounds over the siblings that finished before this one started
-      // ("happened before"): the latest such start and end.
+      // Stats over the siblings that finished before this one started
+      // ("happened before"): the latest end (fallback anchor) and the two
+      // largest starts. Two, not one: the reduction predicate for a
+      // predecessor p must range over the OTHER predecessors' starts — using
+      // a single max would compare an instant against its own start and
+      // wrongly drop its edge (p.end === p.start === max).
       let finishedCount = 0;
-      let maxStart = -Infinity;
       let maxEnd = -Infinity;
       let latestFallback = -1;
+      let maxStart = -Infinity;
+      let maxStartIdx = -1;
+      let secondMaxStart = -Infinity;
       for (let j = 0; j < i; j++) {
         if (ends[j] > starts[i]) continue;
         finishedCount++;
-        if (starts[j] > maxStart) maxStart = starts[j];
         if (ends[j] >= maxEnd) {
           maxEnd = ends[j];
           latestFallback = j;
+        }
+        if (starts[j] > maxStart) {
+          secondMaxStart = maxStart;
+          maxStart = starts[j];
+          maxStartIdx = j;
+        } else if (starts[j] > secondMaxStart) {
+          secondMaxStart = starts[j];
         }
       }
       if (finishedCount === 0) {
@@ -141,20 +153,23 @@ function buildFlowEdges(
         continue;
       }
       // Direct predecessors only (transitive reduction of the interval
-      // order): keep those still running when the latest predecessor
-      // started — anything that ended before then is implied transitively.
-      // When the frontier is an instant (zero-duration, still-running, or
-      // same-millisecond siblings) that set is EMPTY (nothing ends after the
-      // instant's start); fall back to one edge from the latest-ending
-      // predecessor so a chain of instants stays a chain instead of
-      // orphaning every successor onto __start__.
-      if (maxEnd > maxStart) {
-        for (let j = 0; j < i; j++) {
-          if (ends[j] > starts[i] || ends[j] <= maxStart) continue;
+      // order): keep p iff no OTHER predecessor fits entirely after it,
+      // i.e. p.end > max(start of the others). When same-millisecond
+      // instants tie for the latest start, every candidate fails the strict
+      // check (nothing ends after the tied start) — fall back to one edge
+      // from the latest-ending predecessor so a chain of instants stays a
+      // chain instead of orphaning every successor onto __start__.
+      let emitted = false;
+      for (let j = 0; j < i; j++) {
+        if (ends[j] > starts[i]) continue;
+        const othersMaxStart = j === maxStartIdx ? secondMaxStart : maxStart;
+        if (ends[j] > othersMaxStart) {
           edges.push({ from: ordered[j].id, to: current.id });
           if (parentId === null) rootSiblingFroms.add(ordered[j].id);
+          emitted = true;
         }
-      } else {
+      }
+      if (!emitted) {
         edges.push({ from: ordered[latestFallback].id, to: current.id });
         if (parentId === null) {
           rootSiblingFroms.add(ordered[latestFallback].id);

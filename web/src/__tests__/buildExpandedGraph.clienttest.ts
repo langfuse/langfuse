@@ -236,6 +236,25 @@ describe("buildExpandedGraph", () => {
       expect(edgeSet(result).has(`${LANGFUSE_START_NODE_NAME}->b`)).toBe(false);
     });
 
+    it("keeps the edge of an instant that ran alongside a longer sibling", () => {
+      // The instant's own start is the latest start among the predecessors —
+      // the reduction must compare each predecessor against the OTHERS'
+      // starts, or the instant's edge is dropped and it dangles as a false
+      // sink while the successor loses a real ordering edge.
+      const data = [
+        obs({ id: "a", name: "long", startTime: t(0), endTime: t(5) }),
+        obs({ id: "i", name: "instant", startTime: t(3), endTime: t(3) }),
+        obs({ id: "c", name: "next", startTime: t(6), endTime: t(7) }),
+      ];
+
+      const result = buildExpandedGraph(data);
+
+      // both predecessors are direct (neither fits entirely after the other)
+      expect(edgeSet(result).has("a->c")).toBe(true);
+      expect(edgeSet(result).has("i->c")).toBe(true);
+      expect(edgeSet(result).has(`i->${LANGFUSE_END_NODE_NAME}`)).toBe(false);
+    });
+
     it("chains same-timestamp instants singly instead of quadratically", () => {
       const data = ["s1", "s2", "s3"].map((id) =>
         obs({ id, name: id, startTime: t(1), endTime: t(1) }),
