@@ -99,6 +99,12 @@ function ExclusionHarness() {
         only tag-3
       </button>
       <button
+        data-testid="only-tag-4"
+        onClick={() => facet.onOnlyChange?.("tag-4")}
+      >
+        only tag-4
+      </button>
+      <button
         data-testid="operator-any-of"
         onClick={() => facet.onOperatorChange?.("any of")}
       >
@@ -124,6 +130,65 @@ function ExclusionHarness() {
         }
       >
         set stale exclusion
+      </button>
+    </div>
+  );
+}
+
+const NAME_FILTER_CONFIG: FilterConfig = {
+  tableName: "traces",
+  columnDefinitions: [
+    {
+      id: "name",
+      name: "Name",
+      type: "stringOptions",
+      options: [],
+      internal: 't."name"',
+    },
+  ],
+  facets: [
+    {
+      type: "categorical",
+      column: "name",
+      label: "Name",
+    },
+  ],
+};
+
+const NAME_OPTIONS = {
+  name: ["checkout", "search", "chat"],
+};
+
+// stringOptions facets share the display pipeline: the operator must be
+// exposed there too so the none-of pinning in data-table-controls can surface
+// the just-unchecked row (the SOME/ALL/NONE toggle stays arrayOptions-only via
+// onOperatorChange).
+function StringOptionsHarness() {
+  const queryFilter = useSidebarFilterState(NAME_FILTER_CONFIG, NAME_OPTIONS, {
+    stateLocation: "memory",
+  });
+
+  const facet = queryFilter.filters.find(
+    (f): f is CategoricalUIFilter => f.column === "name",
+  );
+  if (!facet) throw new Error("name facet missing");
+
+  return (
+    <div>
+      <pre data-testid="filter-state">
+        {JSON.stringify(queryFilter.filterState)}
+      </pre>
+      <pre data-testid="facet-operator">{facet.operator ?? "undefined"}</pre>
+      <pre data-testid="facet-has-toggle">
+        {String(facet.onOperatorChange !== undefined)}
+      </pre>
+      <button
+        data-testid="uncheck-search"
+        onClick={() =>
+          facet.onChange(facet.value.filter((v) => v !== "search"))
+        }
+      >
+        uncheck search
       </button>
     </div>
   );
@@ -254,6 +319,36 @@ describe("arrayOptions facet exclusion gestures (LFE-10717)", () => {
     expect(getFacetValue()).toEqual(["tag-1", "tag-3", "tag-4"]);
   });
 
+  it('label-click "All" on the last kept value resets the facet instead of excluding everything', () => {
+    // With only one value left checked the label affordance reads "All"
+    // (re-select everything). Under an active none-of filter this must clear
+    // the filter — deriving exclusions from an empty checked set would yield
+    // `none of [every option]`, the exact opposite of the label.
+    render(<ExclusionHarness />);
+
+    fireEvent.click(screen.getByTestId("toggle-tag-1"));
+    fireEvent.click(screen.getByTestId("toggle-tag-2"));
+    fireEvent.click(screen.getByTestId("toggle-tag-3"));
+    expect(getFacetValue()).toEqual(["tag-4"]);
+
+    // onOnlyChange on the single remaining checked value = the "All" branch.
+    fireEvent.click(screen.getByTestId("only-tag-4"));
+
+    expect(getFilterState()).toEqual([]);
+    expect(getFacetValue()).toEqual(TAG_OPTIONS.tags);
+    expect(getFacetActive()).toBe(false);
+  });
+
+  it("toggling NONE without any selection is a no-op (no vacuous none-of filter persisted)", () => {
+    render(<ExclusionHarness />);
+
+    fireEvent.click(screen.getByTestId("operator-none-of"));
+
+    expect(getFilterState()).toEqual([]);
+    expect(getFacetValue()).toEqual(TAG_OPTIONS.tags);
+    expect(getFacetActive()).toBe(false);
+  });
+
   it("keeps the facet active for an exclusion outside the current option list", () => {
     // The excluded value fell out of the (top-N-capped / time-scoped) option
     // list: every visible checkbox is checked, but the filter is still live —
@@ -265,5 +360,24 @@ describe("arrayOptions facet exclusion gestures (LFE-10717)", () => {
     expect(getFacetValue()).toEqual(TAG_OPTIONS.tags);
     expect(getFacetOperator()).toBe("none of");
     expect(getFacetActive()).toBe(true);
+  });
+});
+
+describe("stringOptions facet operator plumbing (LFE-10717)", () => {
+  it("exposes the none-of operator (for exclusion pinning) without an operator toggle", () => {
+    render(<StringOptionsHarness />);
+
+    fireEvent.click(screen.getByTestId("uncheck-search"));
+
+    expect(getFilterState()).toEqual([
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["search"],
+      },
+    ]);
+    expect(screen.getByTestId("facet-operator").textContent).toBe("none of");
+    expect(screen.getByTestId("facet-has-toggle").textContent).toBe("false");
   });
 });

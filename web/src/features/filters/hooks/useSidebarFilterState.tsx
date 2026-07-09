@@ -153,11 +153,12 @@ export interface CategoricalUIFilter extends BaseUIFilter {
   /** Optional function to render an icon next to filter option labels */
   renderIcon?: (value: string) => React.ReactNode;
   /**
-   * Current operator for arrayOptions columns (tags, labels, etc.)
+   * Current operator of the facet's checkbox filter (arrayOptions AND
+   * stringOptions columns; undefined when no filter is applied):
    * - "any of": OR logic - match if item has ANY selected value
-   * - "all of": AND logic - match if item has ALL selected values
-   * - "none of": exclude items with ANY selected value
-   * undefined for non-arrayOptions columns
+   * - "all of": AND logic - match if item has ALL selected values (arrayOptions only)
+   * - "none of": exclude items carrying an UNCHECKED value (the filter stores
+   *   the exclusions; checkboxes display the kept complement)
    */
   operator?: "any of" | "all of" | "none of";
   /**
@@ -731,7 +732,13 @@ export function useSidebarFilterState(
         );
       }
       setPendingFiltersQuery(encoded);
-      setUrlFiltersQuery(urlQuery || null);
+      // Eviction of an oversized state replaces the current history entry:
+      // repeated interactions in the oversized regime must not push a stack
+      // of identical param-less entries the Back button has to walk through.
+      setUrlFiltersQuery(
+        urlQuery || null,
+        urlQuery !== encoded ? "replaceIn" : undefined,
+      );
       if (stateLocationType === "urlAndSessionStorage") {
         setStoredFiltersQuery(encoded);
       }
@@ -794,7 +801,12 @@ export function useSidebarFilterState(
           : canonicalFiltersQuery;
       if (urlFiltersQuery !== canonicalUrlQuery) {
         setPendingFiltersQuery(canonicalFiltersQuery);
-        setUrlFiltersQuery(canonicalUrlQuery || null);
+        // Rewriting the URL the user is already on (canonicalization or
+        // oversized-query eviction) must replace the history entry, not push
+        // one — pushing turns Back into a rewrite loop on a legacy oversized
+        // link (evict pushes a clean entry, Back lands on the giant one,
+        // which immediately evicts again).
+        setUrlFiltersQuery(canonicalUrlQuery || null, "replaceIn");
       }
 
       if (
@@ -932,6 +944,14 @@ export function useSidebarFilterState(
         // Explicit operator provided (e.g., from "Only" button or operator toggle) - use as-is
         finalOperator = operator;
         finalValues = values;
+
+        // An empty "none of" excludes nothing: since deselecting from the
+        // all-checked default now enters NONE mode by itself, toggling NONE
+        // without a selection is a no-op rather than a persisted vacuous
+        // filter (which would light the badge while matching everything).
+        if (finalOperator === "none of" && finalValues.length === 0) {
+          return other;
+        }
       } else {
         // If all items selected or none selected, remove filter
         // (only for implicit/checkbox-based selection, not when operator is explicitly set)
@@ -1828,10 +1848,11 @@ export function useSidebarFilterState(
           onChange: (values: string[]) => updateFilter(facet.column, values),
           onOnlyChange: (value: string) => {
             if (selectedValues.length === 1 && selectedValues.includes(value)) {
-              updateFilter(
-                facet.column,
-                selectedValues.filter((v) => v !== value),
-              );
+              // The label reads "All" in this state: re-select every option.
+              // Passing the full option list (not []) matters for an active
+              // "none of" filter — empty values there would re-derive to
+              // "exclude everything", the opposite of the label's promise.
+              updateFilter(facet.column, availableValues);
             } else {
               updateFilterOnly(facet.column, value);
             }
@@ -1851,8 +1872,10 @@ export function useSidebarFilterState(
             );
             setFilterState(withoutAll);
           },
-          // Only add operator toggle for arrayOptions columns
-          operator: isArrayOptions ? currentOperator : undefined,
+          // The operator is exposed for every checkbox facet so the "none of"
+          // display logic (pinning excluded rows) works on stringOptions too;
+          // the SOME/ALL/NONE toggle itself is gated on onOperatorChange below.
+          operator: currentOperator,
           onOperatorChange: isArrayOptions
             ? (op: "any of" | "all of" | "none of") =>
                 updateOperator(facet.column, op)
