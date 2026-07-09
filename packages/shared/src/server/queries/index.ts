@@ -64,6 +64,7 @@ export {
   buildEventsFullTableSplitQuery,
   type CTESchema,
   type CTEWithSchema,
+  type QueryWithParams,
   type ExperimentsAggregationFieldSetName,
   type SessionEventsMetricsRow,
   type SplitQueryBuilder,

@@ -5,6 +5,7 @@ import {
 } from "@langfuse/shared";
 import {
   DefaultEvalModelService,
+  isLLMCompletionError,
   testModelCall,
 } from "@langfuse/shared/src/server";
 
@@ -33,7 +34,7 @@ export async function getEvaluatorDefinitionPreflightError(params: {
   );
 
   if (!modelConfig.valid) {
-    return `No valid LLM model found for evaluator "${params.template.name}". ${modelConfig.error}`;
+    return `No valid LLM model found for evaluator "${params.template.name}". ${modelConfig.error}. Configure an LLM connection for this project under Settings → LLM Connections (/project/${params.projectId}/settings/llm-connections) before creating llm_as_judge evaluators.`;
   }
 
   try {
@@ -63,6 +64,11 @@ export async function getEvaluatorDefinitionPreflightError(params: {
       structuredOutputSchema: compiledOutputDefinition.outputResultSchema,
     });
   } catch (err) {
+    // A provider 404 also covers typos, missing model access, and bad base
+    // URLs — not just retired models, so don't claim "retired" as fact.
+    if (isLLMCompletionError(err) && err.responseStatusCode === 404) {
+      return `Model configuration not valid for evaluator "${params.template.name}". The provider could not find model '${modelConfig.config.model}' — it may be retired, misspelled, or not available to your API key. Update the evaluator's model or the project's default evaluation model.`;
+    }
     const message = err instanceof Error ? err.message : "Unknown error";
     return `Model configuration not valid for evaluator "${params.template.name}". ${message}`;
   }

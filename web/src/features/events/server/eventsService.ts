@@ -23,11 +23,6 @@ import {
   type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
 import { type timeFilter, type FilterState } from "@langfuse/shared";
-import {
-  monitorEvaluationOffsetMs,
-  type MonitorWindow,
-  windowToMs,
-} from "@langfuse/shared/monitors";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 
 type TimeFilter = z.infer<typeof timeFilter>;
@@ -83,7 +78,6 @@ interface GetObservationsCountParams {
 interface GetObservationsFilterOptionsParams {
   projectId: string;
   startTimeFilter?: TimeFilter[];
-  monitorWindow?: MonitorWindow;
   isRootObservation?: boolean;
   hasParentObservation?: boolean;
   observationType?: string;
@@ -158,29 +152,6 @@ const getDefaultEventFilterOptionsStartTimeFilter = (): TimeFilter[] => [
   },
 ];
 
-const getMonitorWindowStartTimeFilter = (
-  monitorWindow: MonitorWindow,
-): TimeFilter[] => {
-  const windowMs = Number(windowToMs(monitorWindow));
-  const to = new Date(Date.now() - monitorEvaluationOffsetMs);
-  const from = new Date(to.getTime() - windowMs);
-
-  return [
-    {
-      column: "startTime",
-      type: "datetime",
-      operator: ">=",
-      value: from,
-    },
-    {
-      column: "startTime",
-      type: "datetime",
-      operator: "<=",
-      value: to,
-    },
-  ];
-};
-
 const ensureStartTimeFilterForEventFilterOptions = <
   TParams extends GetObservationsFilterOptionsParams,
 >(
@@ -188,16 +159,6 @@ const ensureStartTimeFilterForEventFilterOptions = <
 ): TParams => {
   if (hasEventFilterOptionsLowerBoundStartTimeFilter(params.startTimeFilter)) {
     return params;
-  }
-
-  if (params.monitorWindow) {
-    return {
-      ...params,
-      startTimeFilter: [
-        ...getMonitorWindowStartTimeFilter(params.monitorWindow),
-        ...(params.startTimeFilter ?? []),
-      ],
-    };
   }
 
   logger.warn(

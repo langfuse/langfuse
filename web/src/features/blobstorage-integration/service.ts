@@ -26,7 +26,7 @@ type UpsertBlobStorageIntegrationInput = {
   enabled: boolean;
   forcePathStyle: boolean;
   // Optional: undefined preserves the persisted value on UPDATE (Prisma omits
-  // the column) and falls back to JSONL on CREATE.
+  // the column) and falls back to PARQUET on CREATE.
   fileType?: BlobStorageIntegrationFileType;
   exportMode: BlobStorageExportMode;
   exportStartDate: Date | null;
@@ -158,9 +158,10 @@ export async function upsertBlobStorageIntegration(params: {
       create: {
         ...writeData,
         exportSource: createExportSource,
-        // The Prisma column default is CSV; keep the historical JSONL default
-        // when the caller omits fileType on CREATE.
-        fileType: data.fileType ?? BlobStorageIntegrationFileType.JSONL,
+        // Parquet is the default export format; apply it when the caller omits
+        // fileType on CREATE. This app-level fallback (not the Prisma column
+        // default) is the source of truth for the default across every write path.
+        fileType: data.fileType ?? BlobStorageIntegrationFileType.PARQUET,
         projectId,
         secretAccessKey: encryptedSecret,
       },
@@ -178,6 +179,9 @@ export async function upsertBlobStorageIntegration(params: {
         // start-date logic takes effect instead of continuing from the
         // previous mode's lastSyncAt.
         ...(modeChanged ? { lastSyncAt: null, nextSyncAt: new Date() } : {}),
+        // Saving enabled resets the failure-notification cooldown: the
+        // customer just acted, so a fresh failure should email promptly.
+        ...(data.enabled ? { lastFailureNotificationSentAt: null } : {}),
         runStartedAt: null,
       },
     });

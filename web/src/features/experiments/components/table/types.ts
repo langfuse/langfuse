@@ -90,16 +90,19 @@ export type ExperimentsTableRow = {
 export type ExperimentsTableProps = {
   projectId: string;
   hideControls?: boolean;
-  /** Hide the toolbar time-range picker. Set by pages that render the picker
-   *  in the page header (TableTimeRangeHeaderPicker) — both read the same
-   *  shared per-project range, so embedded usages keep the toolbar picker. */
-  hideTimeRangePicker?: boolean;
   /** Default filters to apply on mount when no existing filters are set */
   defaultFilter?: FilterState;
   /** Hidden filters that scope the table but should not be user-visible */
   fixedFilter?: FilterState;
   /** Unique context ID to isolate filter state from other ExperimentsTable instances */
   sessionFilterContextId?: string;
+  /**
+   * When true, render the time-range picker and auto-refresh button in the
+   * page header (next to the title) via the header controls slot, instead of
+   * inside the table toolbar. Only used when the table is the primary content
+   * of a `Page`.
+   */
+  showControlsInPageHeader?: boolean;
 };
 
 /**

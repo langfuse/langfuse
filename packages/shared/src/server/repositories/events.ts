@@ -26,6 +26,9 @@ import {
 import {
   getTraceByIdFromTracesTable,
   getTracesIdentifierForSessionFromTracesTable,
+  hasAnyTrace,
+  persistProjectHasTracesFlag,
+  readProjectHasTracesFlag,
 } from "./traces";
 import {
   DateTimeFilter,
@@ -88,6 +91,7 @@ import {
   EventsObservationRecordReadType,
   TraceRecordReadType,
 } from "./definitions";
+import { UNKNOWN_INGESTION_SDK_VALUE } from "../ingestion/ingestionAttribution";
 import type { AnalyticsObservationEvent } from "../analytics-integrations/types";
 import {
   getObservationByIdFromObservationsTable,
@@ -117,6 +121,7 @@ import {
   eventsTableCols,
   type NumericEventsTableColumnId,
 } from "../../eventsTable";
+import type { TraceDeleteBatchActionCursor } from "../../features/batchAction/types";
 import {
   findUiColumnMapping,
   type UiColumnMappings,
@@ -497,10 +502,68 @@ export const getObservationsWithModelDataFromEventsTable = async (
   return enrichObservationsWithTraceFields(withModelData);
 };
 
+export const getTraceDeleteCursorPageFromEvents = async (props: {
+  projectId: string;
+  filter: FilterState;
+  cutoffCreatedAt: Date;
+  cursor?: TraceDeleteBatchActionCursor | null;
+  searchQuery?: string;
+  searchType?: TracingSearchType[];
+  limit: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
+}): Promise<TraceDeleteBatchActionCursor[]> => {
+  // Trace-delete cursoring intentionally reuses observation pagination where
+  // span_id is the final tuple element, while this scanner deduplicates by
+  // trace_id. If a deleted multi-span trace is still visible on a lagging
+  // replica, a later span for the same trace can be emitted again. That is
+  // acceptable because trace deletion is idempotent and only retries the same
+  // trace id; the processor keeps its durable in-flight traceIds boundary.
+  const rows = await getObservationsFromEventsTableInternal<{
+    id: string;
+    trace_id: string;
+    start_time: string;
+  }>({
+    projectId: props.projectId,
+    filter: [
+      ...props.filter,
+      {
+        column: "startTime",
+        operator: "<" as const,
+        value: props.cutoffCreatedAt,
+        type: "datetime" as const,
+      },
+    ],
+    searchQuery: props.searchQuery,
+    searchType: props.searchType,
+    limit: props.limit,
+    cursor: props.cursor?.id
+      ? {
+          lastStartTimeTo: new Date(props.cursor.timestamp),
+          lastTraceId: props.cursor.traceId,
+          lastId: props.cursor.id,
+        }
+      : undefined,
+    clickhouseConfigs: props.clickhouseConfigs,
+    // This scanner runs interleaved with DELETE mutations. Use the writable
+    // pool so the next page is read from the same side as the mutation path
+    // instead of a potentially lagging EventsReadOnly replica.
+    preferredClickhouseService: "ReadWrite",
+    select: "trace-delete-cursor",
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    traceId: row.trace_id,
+    timestamp: parseClickhouseUTCDateTimeFormat(row.start_time).toISOString(),
+  }));
+};
+
 async function getObservationsFromEventsTableInternal<T>(
   opts: ObservationTableQuery & {
-    select: "count" | "rows";
+    select: "count" | "rows" | "trace-delete-cursor";
     selectToolData?: boolean;
+    cursor?: PublicApiObservationsQuery["cursor"];
+    preferredClickhouseService?: PreferredClickhouseService;
   },
 ): Promise<Array<T>> {
   const {
@@ -513,6 +576,7 @@ async function getObservationsFromEventsTableInternal<T>(
     offset,
     orderBy,
     clickhouseConfigs,
+    preferredClickhouseService,
   } = opts;
 
   // Extract positionInTrace filter and build baseFilter without it
@@ -564,6 +628,12 @@ async function getObservationsFromEventsTableInternal<T>(
 
   if (opts.select === "count") {
     queryBuilder.selectFieldSet("count");
+  } else if (opts.select === "trace-delete-cursor") {
+    queryBuilder.selectRaw(
+      "e.span_id AS id",
+      "e.trace_id AS trace_id",
+      "e.start_time AS start_time",
+    );
   } else {
     queryBuilder.selectFieldSet(
       selectToolData ? "base" : "baseWithoutTools",
@@ -583,6 +653,7 @@ async function getObservationsFromEventsTableInternal<T>(
     query: opts.searchQuery,
     searchType: opts.searchType,
   });
+  const isTraceDeleteCursorSelect = opts.select === "trace-delete-cursor";
 
   // Handle positionInTrace via CTE with ROW_NUMBER()
   // All modes use the same pattern: rank observations per trace, pick rn = N.
@@ -657,8 +728,16 @@ async function getObservationsFromEventsTableInternal<T>(
     .when(search.requiresEventsFull, (b) => b.forceFullTable())
     .applyFilters(observationsFilter)
     .where(search)
-    .when(orderByEntries.length > 0, (b) => b.orderByColumns(orderByEntries))
-    .limit(limit, offset);
+    .when(isTraceDeleteCursorSelect, (b) =>
+      applyObservationsCursorFilter(opts.cursor, b),
+    )
+    .when(isTraceDeleteCursorSelect, (b) =>
+      applyOrderByForObservationsQuery(b).limitBy("e.trace_id", "e.project_id"),
+    )
+    .when(!isTraceDeleteCursorSelect && orderByEntries.length > 0, (b) =>
+      b.orderByColumns(orderByEntries),
+    )
+    .limit(limit, isTraceDeleteCursorSelect ? undefined : offset);
 
   const { query, params } = queryBuilder.buildWithParams();
 
@@ -675,7 +754,8 @@ async function getObservationsFromEventsTableInternal<T>(
         params: input.params,
         tags: input.tags,
         clickhouseConfigs,
-        preferredClickhouseService: "EventsReadOnly",
+        preferredClickhouseService:
+          preferredClickhouseService ?? "EventsReadOnly",
       });
     },
   });
@@ -1122,6 +1202,64 @@ export const getTracesIdentifierForSession = async (
   return getTracesIdentifierForSessionFromEvents(projectId, sessionId);
 };
 
+/**
+ * Check if any tracing data exists in the events table.
+ */
+export const hasAnyTraceFromEventsTable = async (
+  projectId: string,
+): Promise<boolean> => {
+  const query = `
+    SELECT 1
+    FROM events_core
+    WHERE project_id = {projectId: String}
+    AND is_deleted = 0
+    LIMIT 1
+  `;
+
+  const rows = await measureAndReturn({
+    operationName: "hasAnyTraceFromEventsTable",
+    projectId,
+    input: { params: { projectId } },
+    fn: async (input) => {
+      return queryClickhouse<{ 1: number }>({
+        query,
+        params: input.params,
+        tags: { projectId },
+        preferredClickhouseService: "EventsReadOnly",
+        clickhouseSettings: {
+          max_threads: 1,
+        },
+      });
+    },
+  });
+
+  return rows.length > 0;
+};
+
+/**
+ * Routing wrapper for the tracing onboarding gate ("has this project ingested
+ * any tracing data yet?").
+ *
+ * If data is only written into the events tables, we look there and go to the
+ * legacy traces table otherwise. Both paths share the project's `hasTraces`
+ * flag as a read-through cache, so steady-state checks skip ClickHouse.
+ */
+export const hasAnyTracingData = async (projectId: string) => {
+  if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only") {
+    return hasAnyTrace(projectId);
+  }
+
+  if (await readProjectHasTracesFlag(projectId)) {
+    return true;
+  }
+
+  const result = await hasAnyTraceFromEventsTable(projectId);
+  if (result) {
+    await persistProjectHasTracesFlag(projectId);
+  }
+  return result;
+};
+
 type PublicApiObservationsQuery = {
   projectId: string;
   page: number;
@@ -1319,22 +1457,40 @@ function applyOffsetPagination(
   return queryBuilder.limit(opts.limit, offset);
 }
 
+function applyObservationsCursorFilter(
+  cursor: PublicApiObservationsQuery["cursor"] | undefined,
+  queryBuilder: EventsQueryBuilder,
+): EventsQueryBuilder {
+  // The cursor carries start_time at millisecond precision (JS Date round-trip),
+  // while the column is DateTime64(6). This is lossless only because every
+  // ingestion path writes ms-aligned start_time values (OTel nanos are floored
+  // to ms). If ingestion ever preserves sub-millisecond precision, this bound
+  // floors to the boundary row's millisecond and permanently skips rows at page
+  // boundaries — carry the raw ClickHouse string through the cursor instead (LFE-10405).
+  return queryBuilder.when(Boolean(cursor), (b) => {
+    const currentCursor = cursor;
+    if (!currentCursor) {
+      return b;
+    }
+
+    return b.whereRaw(
+      "e.start_time <= {lastStartTime: DateTime64(6)} AND (e.start_time, xxHash32(e.trace_id), e.span_id) < ({lastStartTime: DateTime64(6)}, xxHash32({lastTraceId: String}), {lastId: String})",
+      {
+        lastStartTime: convertDateToClickhouseDateTime(
+          currentCursor.lastStartTimeTo,
+        ),
+        lastTraceId: currentCursor.lastTraceId,
+        lastId: currentCursor.lastId,
+      },
+    );
+  });
+}
+
 function applyCursorPagination(
   opts: PublicApiObservationsQuery,
   queryBuilder: EventsQueryBuilder,
 ): EventsQueryBuilder {
-  // Apply cursor filter if provided
-  queryBuilder = queryBuilder.when(Boolean(opts.cursor), (b) => {
-    const cursor = opts.cursor!;
-    return b.whereRaw(
-      "e.start_time <= {lastStartTime: DateTime64(6)} AND (e.start_time, xxHash32(e.trace_id), e.span_id) < ({lastStartTime: DateTime64(6)}, xxHash32({lastTraceId: String}), {lastId: String})",
-      {
-        lastStartTime: convertDateToClickhouseDateTime(cursor.lastStartTimeTo),
-        lastTraceId: cursor.lastTraceId,
-        lastId: cursor.lastId,
-      },
-    );
-  });
+  queryBuilder = applyObservationsCursorFilter(opts.cursor, queryBuilder);
 
   // Always apply limit (fetch limit+1 to detect if there are more results)
   return queryBuilder.limit(opts.limit + 1, undefined);
@@ -3051,48 +3207,17 @@ export type SdkMetadata = {
 };
 
 /**
- * Extract SDK info from v3 metadata object.
- * - Old (nested): `scope: {name, version}`, `resourceAttributes: {"telemetry.sdk.language": ...}`
- */
-function extractSdkInfoFromMetadata(metadata: Record<string, string>): {
-  name?: string;
-  version?: string;
-  language?: string;
-  telemetrySdkName?: string;
-} {
-  try {
-    const scopeJson = metadata["scope"];
-    const resourceJson = metadata["resourceAttributes"];
-
-    const scope = scopeJson ? JSON.parse(scopeJson) : null;
-    const resource = resourceJson ? JSON.parse(resourceJson) : null;
-
-    const name = scope?.name;
-    const version = scope?.version;
-    const language = resource?.["telemetry.sdk.language"];
-    const telemetrySdkName = resource?.["telemetry.sdk.name"];
-
-    return {
-      ...(name && { name }),
-      ...(version && { version }),
-      ...(language && { language }),
-      ...(telemetrySdkName && { telemetrySdkName }),
-    };
-  } catch {
-    return {};
-  }
-}
-
-/**
- * Infers SDK details from the most recent event in the past 7 days containing Langfuse SDK metadata attributes.
+ * Infers SDK details from the most recent OTel-compatible event in the past
+ * 7 days:
+ * - isOtel: event arrived via OTel-compatible ingestion (`source` column;
+ *   includes Langfuse SDK v3+, raw OTel exporters, and backfilled OTel rows)
+ * - name/version: ingestion attribution headers persisted at write time
+ *   (`ingestion_sdk_name`/`ingestion_sdk_version`; 'unknown' for non-Langfuse
+ *   clients, which then return no name/version)
+ * - language: `telemetry_sdk_language` resource attribute column
  *
- * Detection priority:
- * - v4+: Direct columns (scope_name, scope_version, telemetry_sdk_language)
- * - v3: Nested JSON in metadata (`scope: {name, version}`)
- * - v2 and older: No SDK metadata → returns isOtel: false
- *
- * Returns the most recent matching event's SDK info. Projects with no events
- * in the past 7 days return isOtel: false (acceptable for inactive projects).
+ * Projects with no OTel events in the past 7 days return isOtel: false
+ * (acceptable for inactive projects and pre-OTel v2 SDKs).
  */
 export async function getLatestSdkVersionInfoFromEvents(params: {
   projectId: string;
@@ -3113,15 +3238,15 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
 
   const builder = new EventsQueryBuilder({ projectId })
     .selectRaw(
-      "e.scope_name AS scope_name",
-      "e.scope_version AS scope_version",
+      "e.ingestion_sdk_name AS ingestion_sdk_name",
+      "e.ingestion_sdk_version AS ingestion_sdk_version",
       "e.telemetry_sdk_language AS telemetry_sdk_language",
     )
-    .selectMetadataExpanded([]) // Full metadata values from events_full
     .applyFilters(filter)
-    // OR condition: v4 has scope_name column, v3 has scope in metadata
+    // Matches all OTel-compatible write paths: 'otel' (direct) plus the
+    // 'otel-dual-write(-experiments)' and 'otel-backfill' variants
     .where({
-      query: "e.scope_name != '' OR hasAny(e.metadata_names, ['scope'])",
+      query: "startsWith(e.source, 'otel')",
       params: {},
     })
     .orderByDefault()
@@ -3130,10 +3255,9 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
   const { query, params: queryParams } = builder.buildWithParams();
 
   const result = await queryClickhouse<{
-    scope_name: string;
-    scope_version: string;
+    ingestion_sdk_name: string;
+    ingestion_sdk_version: string;
     telemetry_sdk_language: string;
-    metadata: Record<string, string>;
   }>({
     query,
     params: queryParams,
@@ -3146,27 +3270,24 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
   }
   const row = result[0];
 
-  // Prefer direct columns (v4), fall back to metadata (v3)
-  if (row.scope_name) {
-    return {
-      isOtel: true,
-      ...(row.scope_name && { name: row.scope_name }),
-      ...(row.scope_version && { version: row.scope_version }),
-      ...(row.telemetry_sdk_language && {
-        language: row.telemetry_sdk_language,
-      }),
-    };
-  }
+  // Attribution headers are only sent by Langfuse SDKs; raw OTel clients
+  // (e.g. Vercel AI SDK) carry the 'unknown' sentinel and yield no name/version
+  const hasAttribution =
+    row.ingestion_sdk_name &&
+    row.ingestion_sdk_name !== UNKNOWN_INGESTION_SDK_VALUE;
+  const version = hasAttribution
+    ? row.ingestion_sdk_version !== UNKNOWN_INGESTION_SDK_VALUE
+      ? row.ingestion_sdk_version
+      : ""
+    : undefined;
 
-  // Fall back to metadata extraction for v3 and raw OTel (e.g., Vercel AI SDK)
-  const { telemetrySdkName, ...sdkInfo } = extractSdkInfoFromMetadata(
-    row.metadata ?? {},
-  );
   return {
-    isOtel:
-      telemetrySdkName === "opentelemetry" ||
-      Boolean(sdkInfo.name || sdkInfo.version || sdkInfo.language),
-    ...sdkInfo,
+    isOtel: true,
+    ...(hasAttribution && { name: row.ingestion_sdk_name }),
+    ...(version && { version }),
+    ...(row.telemetry_sdk_language && {
+      language: row.telemetry_sdk_language,
+    }),
   };
 }
 

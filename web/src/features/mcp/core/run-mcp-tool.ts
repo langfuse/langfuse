@@ -1,5 +1,8 @@
+import { BaseError } from "@langfuse/shared";
 import { instrumentAsync } from "@langfuse/shared/src/server";
 import { SpanKind, type Span } from "@opentelemetry/api";
+
+import { UnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 
 import type { ServerContext } from "../types";
 
@@ -31,6 +34,18 @@ export const runMcpTool = async <TResult>({
         ),
       });
 
-      return await fn(span);
+      try {
+        return await fn(span);
+      } catch (error) {
+        // Expose the error cause on the span so trace analyses can group by
+        // cause instead of a single error class name.
+        if (error instanceof BaseError) {
+          span.setAttribute("mcp.error.http_code", error.httpCode);
+        }
+        if (error instanceof UnstablePublicApiError) {
+          span.setAttribute("mcp.error.code", error.code);
+        }
+        throw error;
+      }
     },
   );
