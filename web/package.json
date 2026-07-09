@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.205.1",
+  "version": "3.209.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -12,8 +12,8 @@
     "typecheck": "dotenv -e ../.env -- tsgo -p tsconfig.build.json --noEmit --skipLibCheck --incremental --tsBuildInfoFile .tsbuildinfo",
     "dev": "dotenv -e ../.env -- next dev",
     "dev:http": "dotenv -e ../.env -- next dev --experimental-https --experimental-https-key ./localhost+1-key.pem --experimental-https-cert ./localhost+1.pem",
-    "lint": "dotenv -e ../.env -- eslint . --cache --cache-location .next/cache/eslint/ --max-warnings 0",
-    "lint:fix": "dotenv -e ../.env -- eslint . --cache --cache-location .next/cache/eslint/ --fix",
+    "lint": "dotenv -e ../.env -- eslint . --cache --cache-location .next/cache/eslint/ --max-warnings 0 --concurrency 2",
+    "lint:fix": "dotenv -e ../.env -- eslint . --cache --cache-location .next/cache/eslint/ --fix --concurrency 2",
     "analyze": "dotenv -e ../.env -- next experimental-analyze",
     "clean": "rm -rf node_modules",
     "start": "dotenv -e ../.env -- sh -c 'NEXT_MANUAL_SIG_HANDLE=true next start'",
@@ -143,7 +143,7 @@
     "lucide-react": "^0.552.0",
     "nanoid": "^3.3.11",
     "next": "16.2.9",
-    "next-auth": "^4.24.13",
+    "next-auth": "^4.24.14",
     "next-query-params": "^5.1.0",
     "next-themes": "^0.4.6",
     "posthog-js": "^1.390.2",

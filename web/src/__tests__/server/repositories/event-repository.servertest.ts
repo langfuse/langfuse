@@ -987,48 +987,6 @@ describe("Clickhouse Events Repository Test", () => {
         expect(Number(range?.max)).toBeCloseTo(1, 3);
       });
     });
-
-    it("uses the monitor window to scope monitor filter option queries", async () => {
-      const uniqueProjectId = randomUUID();
-      const traceId = randomUUID();
-      const now = Date.now();
-      const recentLevel = "WARNING";
-      const oldLevel = "ERROR";
-
-      await createEventsCh([
-        createEvent({
-          id: randomUUID(),
-          span_id: randomUUID(),
-          project_id: uniqueProjectId,
-          trace_id: traceId,
-          type: "SPAN",
-          name: "recent-monitor-filter-option-event",
-          level: recentLevel,
-          start_time: (now - 60 * 1000) * 1000,
-        }),
-        createEvent({
-          id: randomUUID(),
-          span_id: randomUUID(),
-          project_id: uniqueProjectId,
-          trace_id: traceId,
-          type: "SPAN",
-          name: "old-monitor-filter-option-event",
-          level: oldLevel,
-          start_time: (now - 10 * 60 * 1000) * 1000,
-        }),
-      ]);
-
-      await waitForExpect(async () => {
-        const options = await getEventFilterOptions({
-          projectId: uniqueProjectId,
-          monitorWindow: "5m",
-        });
-        const levels = options.level.map((level) => level.value);
-
-        expect(levels).toContain(recentLevel);
-        expect(levels).not.toContain(oldLevel);
-      });
-    });
   });
 
   maybe("events filter option repository helpers", () => {
@@ -3345,18 +3303,17 @@ describe("Clickhouse Events Repository Test", () => {
   });
 
   maybe("getLatestSdkVersionInfoFromEvents", () => {
-    it("should return isOtel: false for v2 data (no scope metadata)", async () => {
+    it("should return isOtel: false for classic ingestion data (no OTel source)", async () => {
       const uniqueProjectId = randomUUID();
 
-      // v2 data has no scope key in metadata
+      // v2 SDK via classic batch ingestion: not OTel-compatible
       await createEventsCh([
         createEvent({
           project_id: uniqueProjectId,
           start_time: Date.now() * 1000,
-          metadata_names: ["version"],
-          metadata_values: ["2.x"],
-          scope_name: "",
-          scope_version: "",
+          source: "ingestion-api-dual-write",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "2.60.1",
           telemetry_sdk_language: "",
         }),
       ]);
@@ -3368,89 +3325,30 @@ describe("Clickhouse Events Repository Test", () => {
       expect(result.isOtel).toBe(false);
     });
 
-    it("should return isOtel: true with v3 version from metadata", async () => {
+    it("should return isOtel: true with attribution from the newest OTel event", async () => {
       const uniqueProjectId = randomUUID();
       const now = Date.now() * 1000;
 
-      // Insert v2 data
+      // Insert v2 data (classic ingestion, must be skipped)
       await createEventsCh([
         createEvent({
           project_id: uniqueProjectId,
           start_time: now - 10000000, // older
-          metadata_names: ["version"],
-          metadata_values: ["2.x"],
-          scope_name: "",
-          scope_version: "",
+          source: "ingestion-api-dual-write",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "2.60.1",
           telemetry_sdk_language: "",
         }),
       ]);
 
-      // Insert v3 data - SDK info in metadata as nested JSON
+      // Insert v3 data - Langfuse SDK via OTLP, attribution from headers
       await createEventsCh([
         createEvent({
           project_id: uniqueProjectId,
           start_time: now, // newer
-          metadata_names: ["resourceAttributes", "scope"],
-          metadata_values: [
-            '{"telemetry.sdk.language":"python","telemetry.sdk.name":"opentelemetry"}',
-            '{"name":"langfuse-sdk","version":"3.14.6"}',
-          ],
-          scope_name: "", // v3 has empty direct columns
-          scope_version: "",
-          telemetry_sdk_language: "",
-        }),
-      ]);
-
-      const result = await getLatestSdkVersionInfoFromEvents({
-        projectId: uniqueProjectId,
-      });
-
-      expect(result.isOtel).toBe(true);
-      expect(result.version).toBe("3.14.6");
-    });
-
-    it("should return v4 version from direct columns when available", async () => {
-      const uniqueProjectId = randomUUID();
-      const now = Date.now() * 1000;
-
-      // Insert v2 data (oldest)
-      await createEventsCh([
-        createEvent({
-          project_id: uniqueProjectId,
-          start_time: now - 20000000,
-          metadata_names: ["version"],
-          metadata_values: ["2.x"],
-          scope_name: "",
-          scope_version: "",
-          telemetry_sdk_language: "",
-        }),
-      ]);
-
-      // Insert v3 data (middle)
-      await createEventsCh([
-        createEvent({
-          project_id: uniqueProjectId,
-          start_time: now - 10000000,
-          metadata_names: ["resourceAttributes", "scope"],
-          metadata_values: [
-            '{"telemetry.sdk.language":"python"}',
-            '{"name":"langfuse-sdk","version":"3.14.6"}',
-          ],
-          scope_name: "",
-          scope_version: "",
-          telemetry_sdk_language: "",
-        }),
-      ]);
-
-      // Insert v4 data (newest) - SDK info in direct columns
-      await createEventsCh([
-        createEvent({
-          project_id: uniqueProjectId,
-          start_time: now, // newest
-          metadata_names: ["scope.name", "scope.version"],
-          metadata_values: ["langfuse-sdk", "4.2.0"],
-          scope_name: "langfuse-sdk",
-          scope_version: "4.2.0",
+          source: "otel",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "3.14.6",
           telemetry_sdk_language: "python",
         }),
       ]);
@@ -3460,28 +3358,36 @@ describe("Clickhouse Events Repository Test", () => {
       });
 
       expect(result.isOtel).toBe(true);
-      expect(result.version).toBe("4.2.0");
+      expect(result.name).toBe("python");
+      expect(result.version).toBe("3.14.6");
+      expect(result.language).toBe("python");
     });
 
-    it("should return isOtel: true for Vercel AI SDK events (OTel without Langfuse SDK)", async () => {
+    it("should match dual-write OTel events and return the newest attribution", async () => {
       const uniqueProjectId = randomUUID();
       const now = Date.now() * 1000;
 
-      // Vercel AI SDK: sent via OTel but without Langfuse SDK
-      // scope.name is "ai" (instrumentation scope), no version
-      // resourceAttributes has telemetry.sdk.name = "opentelemetry"
+      // Older direct-write event
       await createEventsCh([
         createEvent({
           project_id: uniqueProjectId,
-          start_time: now,
-          metadata_names: ["resourceAttributes", "scope"],
-          metadata_values: [
-            '{"telemetry.sdk.language":"nodejs","telemetry.sdk.name":"opentelemetry"}',
-            '{"name":"ai","attributes":{}}',
-          ],
-          scope_name: "", // No direct columns for raw OTel
-          scope_version: "",
-          telemetry_sdk_language: "",
+          start_time: now - 10000000,
+          source: "otel",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "3.14.6",
+          telemetry_sdk_language: "python",
+        }),
+      ]);
+
+      // Newest event arrived via the dual-write propagation path
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now, // newest
+          source: "otel-dual-write",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "4.2.0",
+          telemetry_sdk_language: "python",
         }),
       ]);
 
@@ -3490,9 +3396,35 @@ describe("Clickhouse Events Repository Test", () => {
       });
 
       expect(result.isOtel).toBe(true);
-      expect(result.name).toBe("ai");
-      expect(result.language).toBe("nodejs");
+      expect(result.name).toBe("python");
+      expect(result.version).toBe("4.2.0");
+    });
+
+    it("should return isOtel: true without name/version for raw OTel clients (e.g. Vercel AI SDK)", async () => {
+      const uniqueProjectId = randomUUID();
+      const now = Date.now() * 1000;
+
+      // Vercel AI SDK: sent via OTel but without Langfuse SDK headers,
+      // so ingestion attribution carries the 'unknown' sentinel
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now,
+          source: "otel",
+          ingestion_sdk_name: "unknown",
+          ingestion_sdk_version: "unknown",
+          telemetry_sdk_language: "nodejs",
+        }),
+      ]);
+
+      const result = await getLatestSdkVersionInfoFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.isOtel).toBe(true);
+      expect(result.name).toBeUndefined();
       expect(result.version).toBeUndefined();
+      expect(result.language).toBe("nodejs");
     });
   });
 

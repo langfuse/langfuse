@@ -16,6 +16,7 @@ const EnvSchema = z.object({
     .default(3030),
 
   NEXTAUTH_URL: z.string().optional(),
+  NEXT_PUBLIC_BASE_PATH: z.string().optional(),
 
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
     .enum(["US", "EU", "STAGING", "DEV", "HIPAA", "JP"])
@@ -465,6 +466,21 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(7200), // 2 hours to handle worst-case deletions
+  LANGFUSE_TRACE_DELETE_BATCH_ACTION_RUNNER_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  LANGFUSE_TRACE_DELETE_BATCH_ACTION_RUNNER_INTERVAL_MS: z.coerce
+    .number()
+    .positive()
+    .default(10_000),
+  LANGFUSE_TRACE_DELETE_BATCH_ACTION_RUNNER_LOCK_TTL_SECONDS: z.coerce
+    .number()
+    .positive()
+    .default(1_800),
+  LANGFUSE_TRACE_DELETE_BATCH_ACTION_RUNNER_MAX_BATCHES_PER_RUN: z.coerce
+    .number()
+    .positive()
+    .default(5),
 
   // V4 migration flags. See LFE-9778.
   LANGFUSE_MIGRATION_V4_WRITE_MODE: z

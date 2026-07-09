@@ -9,21 +9,33 @@ import { compactNumberFormatter, numberFormatter } from "@/src/utils/numbers";
 export const toFullMetricString = (metric: FormattedMetric): string =>
   `${metric.negative ? "-" : ""}${metric.prefix ?? ""}${metric.main}${metric.suffix ?? ""}`;
 
+/** One recharts row: the time bucket plus a value per series present in it. */
+export type TimeSeriesGroupedRow = {
+  time_dimension: string;
+} & {
+  [dimension: string]: number | null | string;
+};
+
 /**
  * Groups data by dimension to prepare it for time series breakdowns
  * @param data
  */
-export const groupDataByTimeDimension = (data: DataPoint[]) => {
+export const groupDataByTimeDimension = (
+  data: DataPoint[],
+): TimeSeriesGroupedRow[] => {
   // First, group by time_dimension
   const timeGroups = data.reduce(
-    (acc: Record<string, Record<string, number>>, item: DataPoint) => {
+    (acc: Record<string, Record<string, number | null>>, item: DataPoint) => {
       const time = item.time_dimension || "Unknown";
       if (!acc[time]) {
         acc[time] = {};
       }
 
-      const dimension = item.dimension || "Unknown";
-      acc[time][dimension] = item.metric as number;
+      // A dimension-less point is a bucket marker (e.g. a gap-filled empty
+      // bucket): it keeps the bucket on the axis without adding a series.
+      if (item.dimension) {
+        acc[time][item.dimension] = item.metric as number | null;
+      }
 
       return acc;
     },

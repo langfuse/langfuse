@@ -52,6 +52,10 @@ import {
   COMPOSER_PLACEHOLDER,
   optionDomId,
 } from "@/src/features/search-bar/components/presentation";
+import {
+  COMPOSER_SURFACE_CLASSES,
+  COMPOSER_TEXT_CLASSES,
+} from "@/src/features/search-bar/components/composer-chrome";
 
 const LISTBOX_ID = "search-bar-listbox";
 // Word joiners (shared with ComposerTokens) give the DOM caret boundaries
@@ -1267,7 +1271,9 @@ export function SearchComposer({
           // centers a single line near min-h-9 and the box grows when wrapped.
           // Right gutter keeps the last token clear of the top-right control:
           // the "Ask AI" button (pr-20), or the error icon (pr-8).
-          "border-input bg-background relative min-h-9 rounded-md border px-2 py-1.5",
+          // Box + text metrics are shared with the preview surface
+          // (composer-chrome.ts) so the overlay renders pixel-identical.
+          COMPOSER_SURFACE_CLASSES,
           onActivateAi !== undefined && !showGlobalDiagnostics
             ? "pr-20"
             : "pr-8",
@@ -1316,7 +1322,10 @@ export function SearchComposer({
           // below the ~24px pills ("too big"). 24px matches the pill height so
           // the caret aligns with the pills. Trade-off: tighter gap between
           // wrapped lines of pills (single-line is unaffected).
-          className="min-h-6 font-mono text-xs leading-6 break-words whitespace-pre-wrap caret-[hsl(var(--foreground))] outline-none"
+          className={cn(
+            COMPOSER_TEXT_CLASSES,
+            "caret-[hsl(var(--foreground))] outline-none",
+          )}
           onInput={(event) => {
             if (!(event.nativeEvent as InputEvent).isComposing) syncFromDom();
           }}

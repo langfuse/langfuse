@@ -20,6 +20,7 @@ import {
   getLangfuseAITraceSinkParams,
 } from "@/src/features/ai-features/server/bedrockCompletion";
 import { truncate } from "@/src/utils/string";
+import { assertUnreachable } from "@/src/utils/types";
 import {
   AgUiMessageSchema,
   InAppAgentRedirectActionToolResultSchema,
@@ -196,7 +197,7 @@ export async function finishRun(params: {
         errorMessage: params.errorMessage ?? null,
       },
     })
-    .catch((error) =>
+    .catch((error: unknown) =>
       logger.error("Failed to finish in-app agent run", {
         error,
         runId: params.runId,
@@ -516,115 +517,166 @@ export function shouldFlushPersistedEvent(event: AgUiEvent) {
 }
 
 export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
-  switch (event.type) {
-    case EventType.RUN_STARTED: {
-      const input = isRecord(event.input)
-        ? {
-            ...event.input,
-            messages: Array.isArray(event.input.messages)
-              ? parseMessages(event.input.messages)
-              : [],
-            tools: [],
-            context: [],
-            forwardedProps: {},
-          }
-        : undefined;
+  if (event.type === EventType.RUN_STARTED) {
+    const input = isRecord(event.input)
+      ? {
+          ...event.input,
+          messages: Array.isArray(event.input.messages)
+            ? parseMessages(event.input.messages)
+            : [],
+          tools: [],
+          context: [],
+          forwardedProps: {},
+        }
+      : undefined;
 
-      return compactObject({
-        type: event.type,
-        threadId: getString(event, "threadId"),
-        runId: getString(event, "runId"),
-        parentRunId: getString(event, "parentRunId"),
-        input,
-      });
-    }
-    case EventType.MESSAGES_SNAPSHOT:
-      return null;
-    case EventType.TEXT_MESSAGE_CHUNK: {
-      const messageId = getString(event, "messageId");
-      const role = getTextChunkRole(event);
-
-      if (!messageId || role !== "assistant") {
-        return null;
-      }
-
-      return compactObject({
-        type: event.type,
-        messageId,
-        role,
-        delta: getString(event, "delta") ?? "",
-      });
-    }
-    case EventType.TEXT_MESSAGE_START:
-      return compactObject({
-        type: event.type,
-        messageId: getString(event, "messageId"),
-        role: getString(event, "role"),
-        name: getString(event, "name"),
-      });
-    case EventType.TEXT_MESSAGE_CONTENT:
-      return compactObject({
-        type: event.type,
-        messageId: getString(event, "messageId"),
-        delta: getString(event, "delta") ?? "",
-      });
-    case EventType.TEXT_MESSAGE_END:
-      return compactObject({
-        type: event.type,
-        messageId: getString(event, "messageId"),
-      });
-    case EventType.TOOL_CALL_START:
-      return compactObject({
-        type: event.type,
-        toolCallId: getString(event, "toolCallId"),
-        toolCallName: getString(event, "toolCallName"),
-        parentMessageId: getString(event, "parentMessageId"),
-      });
-    case EventType.TOOL_CALL_ARGS:
-      return compactObject({
-        type: event.type,
-        toolCallId: getString(event, "toolCallId"),
-        delta: getString(event, "delta") ?? "",
-      });
-    case EventType.TOOL_CALL_END:
-      return compactObject({
-        type: event.type,
-        toolCallId: getString(event, "toolCallId"),
-      });
-    case EventType.TOOL_CALL_RESULT:
-      return compactObject({
-        type: event.type,
-        messageId: getString(event, "messageId"),
-        toolCallId: getString(event, "toolCallId"),
-        content: getString(event, "content"),
-        role: getString(event, "role"),
-        error: getString(event, "error"),
-      });
-    case EventType.ACTIVITY_SNAPSHOT:
-      return compactObject({
-        type: event.type,
-        messageId: getString(event, "messageId"),
-        activityType: getString(event, "activityType"),
-        content: isRecord(event.content) ? event.content : undefined,
-        replace: typeof event.replace === "boolean" ? event.replace : undefined,
-      });
-    case EventType.RUN_FINISHED:
-      return compactObject({
-        type: event.type,
-        threadId: getString(event, "threadId"),
-        runId: getString(event, "runId"),
-      });
-    case EventType.RUN_ERROR:
-      return compactObject({
-        type: event.type,
-        threadId: getString(event, "threadId"),
-        runId: getString(event, "runId"),
-        message: getString(event, "message"),
-        code: getString(event, "code"),
-      });
-    default:
-      return null;
+    return compactObject({
+      type: event.type,
+      threadId: getString(event, "threadId"),
+      runId: getString(event, "runId"),
+      parentRunId: getString(event, "parentRunId"),
+      input,
+    });
   }
+
+  if (event.type === EventType.MESSAGES_SNAPSHOT) {
+    return null;
+  }
+
+  if (event.type === EventType.TEXT_MESSAGE_CHUNK) {
+    const messageId = getString(event, "messageId");
+    const role = getTextChunkRole(event);
+
+    if (!messageId || role !== "assistant") {
+      return null;
+    }
+
+    return compactObject({
+      type: event.type,
+      messageId,
+      role,
+      delta: getString(event, "delta") ?? "",
+    });
+  }
+
+  if (event.type === EventType.TEXT_MESSAGE_START) {
+    return compactObject({
+      type: event.type,
+      messageId: getString(event, "messageId"),
+      role: getString(event, "role"),
+      name: getString(event, "name"),
+    });
+  }
+
+  if (event.type === EventType.TEXT_MESSAGE_CONTENT) {
+    return compactObject({
+      type: event.type,
+      messageId: getString(event, "messageId"),
+      delta: getString(event, "delta") ?? "",
+    });
+  }
+
+  if (event.type === EventType.TEXT_MESSAGE_END) {
+    return compactObject({
+      type: event.type,
+      messageId: getString(event, "messageId"),
+    });
+  }
+
+  if (event.type === EventType.TOOL_CALL_START) {
+    return compactObject({
+      type: event.type,
+      toolCallId: getString(event, "toolCallId"),
+      toolCallName: getString(event, "toolCallName"),
+      parentMessageId: getString(event, "parentMessageId"),
+    });
+  }
+
+  if (event.type === EventType.TOOL_CALL_ARGS) {
+    return compactObject({
+      type: event.type,
+      toolCallId: getString(event, "toolCallId"),
+      delta: getString(event, "delta") ?? "",
+    });
+  }
+
+  if (event.type === EventType.TOOL_CALL_END) {
+    return compactObject({
+      type: event.type,
+      toolCallId: getString(event, "toolCallId"),
+    });
+  }
+
+  if (event.type === EventType.TOOL_CALL_RESULT) {
+    return compactObject({
+      type: event.type,
+      messageId: getString(event, "messageId"),
+      toolCallId: getString(event, "toolCallId"),
+      content: getString(event, "content"),
+      role: getString(event, "role"),
+      error: getString(event, "error"),
+    });
+  }
+
+  if (event.type === EventType.ACTIVITY_SNAPSHOT) {
+    return compactObject({
+      type: event.type,
+      messageId: getString(event, "messageId"),
+      activityType: getString(event, "activityType"),
+      content: isRecord(event.content) ? event.content : undefined,
+      replace: typeof event.replace === "boolean" ? event.replace : undefined,
+    });
+  }
+
+  if (event.type === EventType.RUN_FINISHED) {
+    return compactObject({
+      type: event.type,
+      threadId: getString(event, "threadId"),
+      runId: getString(event, "runId"),
+    });
+  }
+
+  if (event.type === EventType.RUN_ERROR) {
+    return compactObject({
+      type: event.type,
+      threadId: getString(event, "threadId"),
+      runId: getString(event, "runId"),
+      message: getString(event, "message"),
+      code: getString(event, "code"),
+    });
+  }
+
+  if (
+    event.type === EventType.STATE_SNAPSHOT ||
+    event.type === EventType.STATE_DELTA ||
+    event.type === EventType.ACTIVITY_DELTA ||
+    event.type === EventType.RAW ||
+    event.type === EventType.CUSTOM ||
+    event.type === EventType.STEP_STARTED ||
+    event.type === EventType.STEP_FINISHED ||
+    event.type === EventType.TOOL_CALL_CHUNK ||
+    event.type === EventType.REASONING_START ||
+    event.type === EventType.REASONING_MESSAGE_START ||
+    event.type === EventType.REASONING_MESSAGE_CHUNK ||
+    event.type === EventType.REASONING_MESSAGE_CONTENT ||
+    event.type === EventType.REASONING_MESSAGE_END ||
+    event.type === EventType.REASONING_END ||
+    event.type === EventType.REASONING_ENCRYPTED_VALUE ||
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
+    event.type === EventType.THINKING_START ||
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
+    event.type === EventType.THINKING_END ||
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
+    event.type === EventType.THINKING_TEXT_MESSAGE_START ||
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
+    event.type === EventType.THINKING_TEXT_MESSAGE_CONTENT ||
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
+    event.type === EventType.THINKING_TEXT_MESSAGE_END
+  ) {
+    return null;
+  }
+
+  return assertUnreachable(event.type);
 }
 
 export function createConversationMessageAccumulator(
@@ -661,10 +713,8 @@ export function createConversationMessageAccumulator(
       return true;
     }
 
-    messages[existingIndex] = mergeMessages(
-      messages[existingIndex]!,
-      parsed.data,
-    );
+    const existingMessage = messages[existingIndex];
+    messages[existingIndex] = mergeMessages(existingMessage, parsed.data);
 
     return true;
   };
@@ -674,176 +724,214 @@ export function createConversationMessageAccumulator(
   }
 
   const processEvent = (event: AgUiEvent, runId?: string): boolean => {
-    switch (event.type) {
-      case EventType.RUN_STARTED: {
-        if (!isRecord(event.input) || !Array.isArray(event.input.messages)) {
-          break;
-        }
-
-        let changed = false;
-
-        for (const message of parseMessages(event.input.messages)) {
-          changed = upsertMessage(message) || changed;
-        }
-
-        return changed;
+    if (event.type === EventType.RUN_STARTED) {
+      if (!isRecord(event.input) || !Array.isArray(event.input.messages)) {
+        return false;
       }
-      case EventType.TEXT_MESSAGE_CHUNK: {
-        const messageId = getString(event, "messageId");
-        const role = getTextChunkRole(event);
 
-        if (!messageId || role !== "assistant") {
-          break;
-        }
+      let changed = false;
 
-        const existingIndex = messageIndexes.get(messageId);
-        const existingMessage =
-          existingIndex === undefined ? undefined : messages[existingIndex];
-        const existingContent =
-          existingMessage?.role === "assistant"
-            ? existingMessage.content
-            : undefined;
-        const draft = textDrafts.get(messageId) ?? {
-          id: messageId,
-          content: existingContent ?? "",
-          runId,
-        };
-
-        draft.content += getString(event, "delta") ?? "";
-        draft.runId ??= runId;
-        textDrafts.set(messageId, draft);
-
-        return upsertMessage({
-          id: draft.id,
-          role: "assistant",
-          content: draft.content,
-          ...(draft.runId ? { runId: draft.runId } : {}),
-        });
+      for (const message of parseMessages(event.input.messages)) {
+        changed = upsertMessage(message) || changed;
       }
-      case EventType.TEXT_MESSAGE_START: {
-        const messageId = getString(event, "messageId");
 
-        if (messageId && getString(event, "role") === "assistant") {
-          textDrafts.set(messageId, { id: messageId, content: "", runId });
-        }
-        break;
-      }
-      case EventType.TEXT_MESSAGE_CONTENT: {
-        const messageId = getString(event, "messageId");
-        const delta = getString(event, "delta") ?? "";
-        const draft = messageId ? textDrafts.get(messageId) : undefined;
-
-        if (draft) {
-          draft.content += delta;
-          draft.runId ??= runId;
-        }
-        break;
-      }
-      case EventType.TEXT_MESSAGE_END: {
-        const messageId = getString(event, "messageId");
-        const draft = messageId ? textDrafts.get(messageId) : undefined;
-
-        if (!draft) {
-          break;
-        }
-
-        const changed = upsertMessage({
-          id: draft.id,
-          role: "assistant",
-          content: draft.content,
-          ...((draft.runId ?? runId) ? { runId: draft.runId ?? runId } : {}),
-        });
-
-        textDrafts.delete(draft.id);
-        return changed;
-      }
-      case EventType.TOOL_CALL_START: {
-        const toolCallId = getString(event, "toolCallId");
-        const parentMessageId = getString(event, "parentMessageId");
-        const name = getString(event, "toolCallName");
-
-        if (toolCallId && parentMessageId && name) {
-          toolCallDrafts.set(toolCallId, {
-            parentMessageId,
-            name,
-            args: "",
-            runId,
-          });
-        }
-        break;
-      }
-      case EventType.TOOL_CALL_ARGS: {
-        const toolCallId = getString(event, "toolCallId");
-        const draft = toolCallId ? toolCallDrafts.get(toolCallId) : undefined;
-
-        if (draft) {
-          draft.args += getString(event, "delta") ?? "";
-        }
-        break;
-      }
-      case EventType.TOOL_CALL_END: {
-        const toolCallId = getString(event, "toolCallId");
-        const draft = toolCallId ? toolCallDrafts.get(toolCallId) : undefined;
-
-        if (toolCallId && draft) {
-          const changed = upsertMessage({
-            id: draft.parentMessageId,
-            role: "assistant",
-            ...((draft.runId ?? runId) ? { runId: draft.runId ?? runId } : {}),
-            toolCalls: [
-              {
-                id: toolCallId,
-                type: "function",
-                function: {
-                  name: draft.name,
-                  arguments: draft.args,
-                },
-              },
-            ],
-          });
-          toolCallDrafts.delete(toolCallId);
-          return changed;
-        }
-        break;
-      }
-      case EventType.TOOL_CALL_RESULT: {
-        const messageId = getString(event, "messageId");
-        const toolCallId = getString(event, "toolCallId");
-        const content = getString(event, "content");
-
-        if (messageId && toolCallId && content !== undefined) {
-          return upsertMessage({
-            id: messageId,
-            role: "tool",
-            content,
-            toolCallId,
-            ...(getString(event, "error")
-              ? { error: getString(event, "error") }
-              : {}),
-          });
-        }
-        break;
-      }
-      case EventType.ACTIVITY_SNAPSHOT: {
-        const messageId = getString(event, "messageId");
-        const activityType = getString(event, "activityType");
-        const content = event.content;
-
-        if (messageId && activityType && isRecord(content)) {
-          return upsertMessage({
-            id: messageId,
-            role: "activity",
-            activityType,
-            content,
-          });
-        }
-        break;
-      }
-      default:
-        break;
+      return changed;
     }
 
-    return false;
+    if (event.type === EventType.TEXT_MESSAGE_CHUNK) {
+      const messageId = getString(event, "messageId");
+      const role = getTextChunkRole(event);
+
+      if (!messageId || role !== "assistant") {
+        return false;
+      }
+
+      const existingIndex = messageIndexes.get(messageId);
+      const existingMessage =
+        existingIndex === undefined ? undefined : messages[existingIndex];
+      const existingContent =
+        existingMessage?.role === "assistant"
+          ? existingMessage.content
+          : undefined;
+      const draft = textDrafts.get(messageId) ?? {
+        id: messageId,
+        content: existingContent ?? "",
+        runId,
+      };
+
+      draft.content += getString(event, "delta") ?? "";
+      draft.runId ??= runId;
+      textDrafts.set(messageId, draft);
+
+      return upsertMessage({
+        id: draft.id,
+        role: "assistant",
+        content: draft.content,
+        ...(draft.runId ? { runId: draft.runId } : {}),
+      });
+    }
+
+    if (event.type === EventType.TEXT_MESSAGE_START) {
+      const messageId = getString(event, "messageId");
+
+      if (messageId && getString(event, "role") === "assistant") {
+        textDrafts.set(messageId, { id: messageId, content: "", runId });
+      }
+      return false;
+    }
+
+    if (event.type === EventType.TEXT_MESSAGE_CONTENT) {
+      const messageId = getString(event, "messageId");
+      const delta = getString(event, "delta") ?? "";
+      const draft = messageId ? textDrafts.get(messageId) : undefined;
+
+      if (draft) {
+        draft.content += delta;
+        draft.runId ??= runId;
+      }
+      return false;
+    }
+
+    if (event.type === EventType.TEXT_MESSAGE_END) {
+      const messageId = getString(event, "messageId");
+      const draft = messageId ? textDrafts.get(messageId) : undefined;
+
+      if (!draft) {
+        return false;
+      }
+
+      const changed = upsertMessage({
+        id: draft.id,
+        role: "assistant",
+        content: draft.content,
+        ...((draft.runId ?? runId) ? { runId: draft.runId ?? runId } : {}),
+      });
+
+      textDrafts.delete(draft.id);
+      return changed;
+    }
+
+    if (event.type === EventType.TOOL_CALL_START) {
+      const toolCallId = getString(event, "toolCallId");
+      const parentMessageId = getString(event, "parentMessageId");
+      const name = getString(event, "toolCallName");
+
+      if (toolCallId && parentMessageId && name) {
+        toolCallDrafts.set(toolCallId, {
+          parentMessageId,
+          name,
+          args: "",
+          runId,
+        });
+      }
+      return false;
+    }
+
+    if (event.type === EventType.TOOL_CALL_ARGS) {
+      const toolCallId = getString(event, "toolCallId");
+      const draft = toolCallId ? toolCallDrafts.get(toolCallId) : undefined;
+
+      if (draft) {
+        draft.args += getString(event, "delta") ?? "";
+      }
+      return false;
+    }
+
+    if (event.type === EventType.TOOL_CALL_END) {
+      const toolCallId = getString(event, "toolCallId");
+      const draft = toolCallId ? toolCallDrafts.get(toolCallId) : undefined;
+
+      if (toolCallId && draft) {
+        const changed = upsertMessage({
+          id: draft.parentMessageId,
+          role: "assistant",
+          ...((draft.runId ?? runId) ? { runId: draft.runId ?? runId } : {}),
+          toolCalls: [
+            {
+              id: toolCallId,
+              type: "function",
+              function: {
+                name: draft.name,
+                arguments: draft.args,
+              },
+            },
+          ],
+        });
+        toolCallDrafts.delete(toolCallId);
+        return changed;
+      }
+      return false;
+    }
+
+    if (event.type === EventType.TOOL_CALL_RESULT) {
+      const messageId = getString(event, "messageId");
+      const toolCallId = getString(event, "toolCallId");
+      const content = getString(event, "content");
+
+      if (messageId && toolCallId && content !== undefined) {
+        return upsertMessage({
+          id: messageId,
+          role: "tool",
+          content,
+          toolCallId,
+          ...(getString(event, "error")
+            ? { error: getString(event, "error") }
+            : {}),
+        });
+      }
+      return false;
+    }
+
+    if (event.type === EventType.ACTIVITY_SNAPSHOT) {
+      const messageId = getString(event, "messageId");
+      const activityType = getString(event, "activityType");
+      const content = event.content;
+
+      if (messageId && activityType && isRecord(content)) {
+        return upsertMessage({
+          id: messageId,
+          role: "activity",
+          activityType,
+          content,
+        });
+      }
+      return false;
+    }
+
+    if (
+      event.type === EventType.MESSAGES_SNAPSHOT ||
+      event.type === EventType.RUN_FINISHED ||
+      event.type === EventType.RUN_ERROR ||
+      event.type === EventType.STATE_SNAPSHOT ||
+      event.type === EventType.STATE_DELTA ||
+      event.type === EventType.ACTIVITY_DELTA ||
+      event.type === EventType.RAW ||
+      event.type === EventType.CUSTOM ||
+      event.type === EventType.STEP_STARTED ||
+      event.type === EventType.STEP_FINISHED ||
+      event.type === EventType.TOOL_CALL_CHUNK ||
+      event.type === EventType.REASONING_START ||
+      event.type === EventType.REASONING_MESSAGE_START ||
+      event.type === EventType.REASONING_MESSAGE_CHUNK ||
+      event.type === EventType.REASONING_MESSAGE_CONTENT ||
+      event.type === EventType.REASONING_MESSAGE_END ||
+      event.type === EventType.REASONING_END ||
+      event.type === EventType.REASONING_ENCRYPTED_VALUE ||
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      event.type === EventType.THINKING_START ||
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      event.type === EventType.THINKING_END ||
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      event.type === EventType.THINKING_TEXT_MESSAGE_START ||
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      event.type === EventType.THINKING_TEXT_MESSAGE_CONTENT ||
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      event.type === EventType.THINKING_TEXT_MESSAGE_END
+    ) {
+      return false;
+    }
+
+    return assertUnreachable(event.type);
   };
 
   return {
