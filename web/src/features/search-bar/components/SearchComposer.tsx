@@ -52,6 +52,10 @@ import {
   COMPOSER_PLACEHOLDER,
   optionDomId,
 } from "@/src/features/search-bar/components/presentation";
+import {
+  COMPOSER_SURFACE_CLASSES,
+  COMPOSER_TEXT_CLASSES,
+} from "@/src/features/search-bar/components/composer-chrome";
 
 const LISTBOX_ID = "search-bar-listbox";
 // Word joiners (shared with ComposerTokens) give the DOM caret boundaries
@@ -308,22 +312,14 @@ export function SearchComposer({
 }) {
   const storeApi = useSearchBarStoreApi();
   const commitToFilterState = useSearchBarCommit();
-  const { draft, previewText, valid, diagnostics, invalidRevealDraft } =
-    useSearchBarStore(
-      useShallow((s) => ({
-        draft: s.draft,
-        previewText: s.previewText,
-        valid: s.draftValid,
-        diagnostics: s.draftDiagnostics,
-        invalidRevealDraft: s.invalidRevealDraft,
-      })),
-    );
-  // What the bar DISPLAYS: the preview overlay while one is active, else the
-  // draft. The substitution is render-only — every editing, undo, autocomplete,
-  // and commit path below stays keyed on `draft` (and they are inert during a
-  // preview anyway: previews run while focus is in a popover, not the editor).
-  const displayText = previewText ?? draft;
-  const previewActive = previewText !== null;
+  const { draft, valid, diagnostics, invalidRevealDraft } = useSearchBarStore(
+    useShallow((s) => ({
+      draft: s.draft,
+      valid: s.draftValid,
+      diagnostics: s.draftDiagnostics,
+      invalidRevealDraft: s.invalidRevealDraft,
+    })),
+  );
 
   const [autocompleteOpen, setAutocompleteOpen] = React.useState(false);
   const [highlightedOptionId, setHighlightedOptionId] = React.useState<
@@ -401,10 +397,8 @@ export function SearchComposer({
   // "reveal on Enter/blur" rule — mid-typing and partial structured picks
   // (level:, tags:(, has:) must not flash red. The committed query is derived
   // from valid filter state and can never be invalid, so this depends only on
-  // a revealed failed commit. Suppressed while a preview overlays the bar: the
-  // diagnostics describe the draft, which is not what is displayed.
-  const showGlobalDiagnostics =
-    !previewActive && !valid && invalidRevealDraft === draft;
+  // a revealed failed commit.
+  const showGlobalDiagnostics = !valid && invalidRevealDraft === draft;
   const showTokenDiagnostics = showGlobalDiagnostics;
   const visibleDiagnostics = showGlobalDiagnostics ? diagnostics : [];
 
@@ -1166,7 +1160,7 @@ export function SearchComposer({
   const describedBy =
     visibleDiagnostics.length > 0 ? "search-bar-diagnostics" : undefined;
 
-  const segments = deriveComposerSegments(displayText, scoreTypes);
+  const segments = deriveComposerSegments(draft, scoreTypes);
   // The remove affordance targets the hovered token, or — while the editor is
   // focused — the token holding a collapsed caret. Not at the trailing
   // insertion point, where the user is appending, not editing.
@@ -1241,10 +1235,10 @@ export function SearchComposer({
     });
   }, [removeTargetIdActual]);
 
-  // Re-measure when the target or displayed text changes.
+  // Re-measure when the target or draft text changes.
   React.useLayoutEffect(() => {
     measureRemovePosition();
-  }, [measureRemovePosition, displayText]);
+  }, [measureRemovePosition, draft]);
 
   // Those deps miss layout reflows that don't change React state — window
   // resize, browser zoom, sidebar collapse — which re-wrap the full-width bar
@@ -1268,8 +1262,7 @@ export function SearchComposer({
     >
       <div
         data-testid="search-bar-surface"
-        data-composer-text={displayText}
-        data-composer-preview={previewActive || undefined}
+        data-composer-text={draft}
         onMouseLeave={() => setHoveredTokenId(null)}
         className={cn(
           // Prominent primary control. Block (not flex) so inline pills never
@@ -1278,7 +1271,9 @@ export function SearchComposer({
           // centers a single line near min-h-9 and the box grows when wrapped.
           // Right gutter keeps the last token clear of the top-right control:
           // the "Ask AI" button (pr-20), or the error icon (pr-8).
-          "border-input bg-background relative min-h-9 rounded-md border px-2 py-1.5",
+          // Box + text metrics are shared with the preview surface
+          // (composer-chrome.ts) so the overlay renders pixel-identical.
+          COMPOSER_SURFACE_CLASSES,
           onActivateAi !== undefined && !showGlobalDiagnostics
             ? "pr-20"
             : "pr-8",
@@ -1287,7 +1282,7 @@ export function SearchComposer({
             "border-destructive focus-within:ring-destructive/40",
         )}
       >
-        {displayText.length === 0 && (
+        {draft.length === 0 && (
           <div
             className={cn(
               "text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 truncate font-mono text-xs",
@@ -1327,7 +1322,10 @@ export function SearchComposer({
           // below the ~24px pills ("too big"). 24px matches the pill height so
           // the caret aligns with the pills. Trade-off: tighter gap between
           // wrapped lines of pills (single-line is unaffected).
-          className="min-h-6 font-mono text-xs leading-6 break-words whitespace-pre-wrap caret-[hsl(var(--foreground))] outline-none"
+          className={cn(
+            COMPOSER_TEXT_CLASSES,
+            "caret-[hsl(var(--foreground))] outline-none",
+          )}
           onInput={(event) => {
             if (!(event.nativeEvent as InputEvent).isComposing) syncFromDom();
           }}
@@ -1347,7 +1345,7 @@ export function SearchComposer({
           onMouseOver={onRootMouseOver}
         >
           <ComposerTokens
-            draft={displayText}
+            draft={draft}
             showDiagnostics={showTokenDiagnostics}
             scoreTypes={scoreTypes}
           />
