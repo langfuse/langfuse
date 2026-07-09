@@ -81,6 +81,11 @@ export type AuthedProjectAPIRouteConfig<
    * return stale or empty data.
    */
   rejectInEventsOnlyMode?: boolean;
+  /**
+   * Redact or summarize the request body before logging. Use this for routes
+   * accepting user-authored content, secrets, or other sensitive payloads.
+   */
+  redactLogBody?: (body: unknown) => unknown;
   fn: (params: {
     query: z.infer<TQuery>;
     body: z.infer<TBody>;
@@ -382,7 +387,9 @@ export const createAuthedProjectAPIRoute = <
       `Request to route ${routeConfig.name} projectId ${auth.scope.projectId}`,
       {
         query: req.query,
-        body: req.body,
+        body: routeConfig.redactLogBody
+          ? routeConfig.redactLogBody(req.body)
+          : req.body,
       },
     );
 

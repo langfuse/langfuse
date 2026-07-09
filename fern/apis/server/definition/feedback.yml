@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    submit:
+      docs: Submit explicit user-approved feedback about Langfuse skills, MCP tools, CLI, docs, or public API. Do not include secrets, credentials, customer data, trace payloads, or unrelated use-case details.
+      method: POST
+      path: /feedback
+      request: SubmitFeedbackRequest
+      response: SubmitFeedbackResponse
+types:
+  FeedbackTargetType:
+    enum:
+      - skill
+      - mcp-tool
+      - cli
+      - docs
+      - public-api
+      - other
+  SubmitFeedbackRequest:
+    properties:
+      targetType:
+        type: FeedbackTargetType
+        docs: What the feedback is about.
+      target:
+        type: string
+        docs: Specific skill, MCP tool, CLI command, API endpoint, or docs page. Must be between 1 and 200 characters.
+      feedback:
+        type: string
+        docs: Concise feedback text approved by the user. Must be between 1 and 3000 characters.
+      goal:
+        type: optional<string>
+        docs: Optional user-approved goal or use case they were trying to achieve. Must be between 1 and 1500 characters when provided. Do not include secrets, customer data, trace payloads, or broad unrelated context.
+      referenceUrl:
+        type: optional<string>
+        docs: Optional reference URL. Langfuse stores it as text for triage and does not fetch it.
+  SubmitFeedbackResponse:
+    properties:
+      id:
+        type: string
+        docs: Correlation ID for the submitted feedback.
