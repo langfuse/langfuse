@@ -1406,10 +1406,16 @@ function notifyBlobStorageExportFailedInBackground(projectId: string): void {
         return;
       }
 
-      const project = await prisma.project.findUnique({
-        where: { id: projectId },
-        select: { name: true },
-      });
+      const [project, integration] = await Promise.all([
+        prisma.project.findUnique({
+          where: { id: projectId },
+          select: { name: true },
+        }),
+        prisma.blobStorageIntegration.findUnique({
+          where: { projectId },
+          select: { bucketName: true },
+        }),
+      ]);
       const projectName = project?.name ?? projectId;
       const settingsPath = `/project/${projectId}/settings/integrations/blobstorage`;
 
@@ -1421,8 +1427,11 @@ function notifyBlobStorageExportFailedInBackground(projectId: string): void {
           eventType: "blob-export-failed",
           severity: "ALERT",
           projectId,
+          projectName,
+          // The integration is keyed by projectId (1:1); the bucket name is
+          // the most useful human label for the failing export destination.
           resourceId: projectId,
-          resourceName: projectName,
+          resourceName: integration?.bucketName ?? "Blob storage integration",
           message: `Blob storage export failed for project "${projectName}".`,
           url: env.NEXTAUTH_URL
             ? `${env.NEXTAUTH_URL}${settingsPath}`

@@ -85,6 +85,7 @@ export * from "./redis/cloudSpendAlertQueue";
 export * from "./redis/cloudFreeTierUsageThresholdQueue";
 export * from "./redis/getQueue";
 export * from "./redis/webhookQueue";
+export * from "./redis/automationFailureCounter";
 export * from "./redis/monitorQueue";
 export * from "./redis/traceDelete";
 export * from "./redis/projectDelete";

@@ -29,7 +29,9 @@ import {
   getConsecutiveAutomationFailures,
   SlackService,
   logger,
-  redis,
+  automationFailureThreshold,
+  incrementAutomationFailureCount,
+  resetAutomationFailureCount,
   ProjectNotificationWebhookQueueEventSchema,
   buildProjectNotificationSlackMessage,
 } from "@langfuse/shared/src/server";
@@ -51,36 +53,6 @@ const GITHUB_REPOSITORY_DISPATCH_TRUNCATED_FIELDS = [
   "prompt.prompt",
   "prompt.config",
 ];
-
-/** automationFailureThreshold is the consecutive-failure count after which a monitor-alert trigger is auto-disabled. Mirrors prompt-version's getConsecutiveAutomationFailures threshold (>= 5 failures since the last success). */
-const automationFailureThreshold = 5;
-const automationFailureTtlSeconds = 24 * 60 * 60;
-const automationFailureKey = (projectId: string, automationId: string) =>
-  `automation-failures:${projectId}:${automationId}`;
-
-/** incrementAutomationFailure bumps the consecutive-failure counter for a monitor-alert Automation and refreshes the 24h TTL; returns the new count. Inline because monitor-alert is the only consumer today. */
-async function incrementAutomationFailure(args: {
-  projectId: string;
-  automationId: string;
-}): Promise<number> {
-  if (!redis) return 0;
-  const key = automationFailureKey(args.projectId, args.automationId);
-  const results = await redis
-    .multi()
-    .incr(key)
-    .expire(key, automationFailureTtlSeconds)
-    .exec();
-  return Number(results?.[0]?.[1] ?? 0);
-}
-
-/** resetAutomationFailures clears the streak after a successful delivery. */
-async function resetAutomationFailures(args: {
-  projectId: string;
-  automationId: string;
-}): Promise<void> {
-  if (!redis) return;
-  await redis.del(automationFailureKey(args.projectId, args.automationId));
-}
 
 /** buildWebhookOutboundPayload validates and returns the HTTP body for a WebhookInput, discriminating on payload.type. monitor-alert: the processor already built the unified envelope — pass through. prompt-version: wrap at dispatch time with id = executionId and timestamp = now. */
 function buildWebhookOutboundPayload(input: WebhookInput) {
@@ -320,7 +292,7 @@ async function executeHttpAction({
     // Update execution status on success
     if (isMonitorAlert) {
       try {
-        await resetAutomationFailures({
+        await resetAutomationFailureCount({
           projectId,
           automationId: automation.id,
         });
@@ -368,7 +340,7 @@ async function executeHttpAction({
     if (isMonitorAlert) {
       // monitor-alert: Redis counter compensates for the missing
       // AutomationExecution streak. Disable on the 5th consecutive failure.
-      const count = await incrementAutomationFailure({
+      const count = await incrementAutomationFailureCount({
         projectId,
         automationId: automation.id,
       });
@@ -378,7 +350,7 @@ async function executeHttpAction({
           data: { status: JobConfigState.INACTIVE },
         });
         try {
-          await resetAutomationFailures({
+          await resetAutomationFailureCount({
             projectId,
             automationId: automation.id,
           });
@@ -757,9 +729,13 @@ async function executeSlackAction({
   }
 
   if (input.payload.type === "project-notification") {
-    // Like the prompt-version path, project notifications track
-    // AutomationExecution rows — but disable after 5 consecutive failures (the
-    // HTTP-action pattern), not the prompt-Slack disable-after-1.
+    // Project notifications resolve their AutomationExecution row (so the
+    // executions table stays accurate) but drive the auto-disable *decision*
+    // off the Redis failure counter, NOT the DB walk. Deliberate split:
+    // WEBHOOK project-notification uses the DB walk (its config carries
+    // lastFailingExecutionId, so the window advances on re-enable); Slack
+    // configs have no lastFailingExecutionId, so the DB walk would count every
+    // historical ERROR row and re-disable after one failure post-re-enable.
     try {
       await sendSlackProjectNotification({
         payload: input.payload,
@@ -779,40 +755,44 @@ async function executeSlackAction({
           finishedAt: new Date(),
         },
       });
+      await resetAutomationFailureCount({
+        projectId,
+        automationId: automation.id,
+      });
     } catch (error) {
       logger.error("Error executing Slack action", error);
-      await prisma.$transaction(async (tx) => {
-        await tx.automationExecution.update({
-          where: {
-            id: executionId,
-            projectId,
-            triggerId: automation.trigger.id,
-            actionId: automation.action.id,
-          },
-          data: {
-            status: ActionExecutionStatus.ERROR,
-            startedAt: executionStart,
-            finishedAt: new Date(),
-            error: error instanceof Error ? error.message : "Unknown error",
-          },
-        });
-
-        const consecutiveFailures = await getConsecutiveAutomationFailures({
-          automationId: automation.id,
+      await prisma.automationExecution.update({
+        where: {
+          id: executionId,
           projectId,
-        });
-
-        // This is the 5th failure, looking for 4 in the past.
-        if (consecutiveFailures >= 4) {
-          await tx.trigger.update({
-            where: { id: automation.trigger.id, projectId },
-            data: { status: JobConfigState.INACTIVE },
-          });
-          logger.warn(
-            `Automation ${automation.trigger.id} disabled after ${consecutiveFailures} consecutive failures in project ${projectId} (project-notification/slack)`,
-          );
-        }
+          triggerId: automation.trigger.id,
+          actionId: automation.action.id,
+        },
+        data: {
+          status: ActionExecutionStatus.ERROR,
+          startedAt: executionStart,
+          finishedAt: new Date(),
+          error: error instanceof Error ? error.message : "Unknown error",
+        },
       });
+
+      const count = await incrementAutomationFailureCount({
+        projectId,
+        automationId: automation.id,
+      });
+      if (count >= automationFailureThreshold) {
+        await prisma.trigger.update({
+          where: { id: automation.trigger.id, projectId },
+          data: { status: JobConfigState.INACTIVE },
+        });
+        await resetAutomationFailureCount({
+          projectId,
+          automationId: automation.id,
+        });
+        logger.warn(
+          `Automation ${automation.trigger.id} disabled after ${count} consecutive failures in project ${projectId} (project-notification/slack)`,
+        );
+      }
     }
     return;
   }
@@ -963,7 +943,7 @@ async function sendSlackMonitorAlert({
     channelId,
     ...message,
   });
-  await resetAutomationFailures({ projectId, automationId });
+  await resetAutomationFailureCount({ projectId, automationId });
 }
 
 /** sendSlackProjectNotification builds and posts a project notification to Slack. */
@@ -1000,7 +980,7 @@ async function slackMonitorAlertFailure({
   projectId: string;
   automation: NonNullable<Awaited<ReturnType<typeof getAutomationById>>>;
 }) {
-  const count = await incrementAutomationFailure({
+  const count = await incrementAutomationFailureCount({
     projectId,
     automationId: automation.id,
   });
@@ -1009,7 +989,10 @@ async function slackMonitorAlertFailure({
       where: { id: automation.trigger.id, projectId },
       data: { status: JobConfigState.INACTIVE },
     });
-    await resetAutomationFailures({ projectId, automationId: automation.id });
+    await resetAutomationFailureCount({
+      projectId,
+      automationId: automation.id,
+    });
     logger.warn(
       `Automation ${automation.trigger.id} disabled after ${count} consecutive failures in project ${projectId} (monitor-alert/slack)`,
     );

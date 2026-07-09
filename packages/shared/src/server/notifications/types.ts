@@ -1,4 +1,4 @@
-import { type EvaluatorBlockReason } from "@prisma/client";
+import { EvaluatorBlockReason } from "@prisma/client";
 import { z } from "zod";
 
 import {
@@ -21,16 +21,41 @@ export type ProjectNotificationSeverity = z.infer<
   typeof ProjectNotificationSeveritySchema
 >;
 
-/** ProjectNotificationEventSchema is the `event` body of the project-notification webhook envelope. */
-export const ProjectNotificationEventSchema = z.object({
-  eventType: ProjectNotificationEventTypeSchema,
+/** projectNotificationEventBaseSchema holds the fields shared by every project notification event. */
+const projectNotificationEventBaseSchema = z.object({
   severity: ProjectNotificationSeveritySchema,
   projectId: z.string(),
+  projectName: z.string(),
   resourceId: z.string(),
   resourceName: z.string(),
   message: z.string(),
   url: z.string().optional(),
 });
+
+/**
+ * ProjectNotificationEventSchema is the `event` body of the
+ * project-notification webhook envelope, discriminated on eventType. It is
+ * both the producer input and the outbound wire body. `blockReason` values are
+ * the Prisma EvaluatorBlockReason enum and are public API — additive changes
+ * are fine, renames are breaking.
+ */
+export const ProjectNotificationEventSchema = z.discriminatedUnion(
+  "eventType",
+  [
+    projectNotificationEventBaseSchema.extend({
+      eventType: z.literal(
+        ProjectNotificationEventTypeSchema.enum["blob-export-failed"],
+      ),
+    }),
+    projectNotificationEventBaseSchema.extend({
+      eventType: z.literal(
+        ProjectNotificationEventTypeSchema.enum["evaluator-blocked"],
+      ),
+      blockReason: z.enum(EvaluatorBlockReason),
+      evalTemplateId: z.string().optional(),
+    }),
+  ],
+);
 export type ProjectNotificationEvent = z.infer<
   typeof ProjectNotificationEventSchema
 >;
@@ -51,20 +76,3 @@ export const ProjectNotificationWebhookQueueEventSchema = z.object({
 export type ProjectNotificationWebhookQueueEvent = z.infer<
   typeof ProjectNotificationWebhookQueueEventSchema
 >;
-
-/**
- * ProjectNotificationDispatchEvent is the producer-side input to
- * dispatchProjectNotification: the wire event plus per-eventType admin-email
- * template data (discriminated on eventType). The extra fields are
- * internal-only and stripped from the outbound webhook body.
- */
-export type ProjectNotificationDispatchEvent =
-  | (Omit<ProjectNotificationEvent, "eventType"> & {
-      eventType: "blob-export-failed";
-    })
-  | (Omit<ProjectNotificationEvent, "eventType"> & {
-      eventType: "evaluator-blocked";
-      projectName: string;
-      blockReason: EvaluatorBlockReason;
-      evalTemplateId?: string;
-    });

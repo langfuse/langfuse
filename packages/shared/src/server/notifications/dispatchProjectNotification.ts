@@ -11,10 +11,7 @@ import { getAutomations } from "../repositories/automation-repository";
 import { sendBlobStorageExportFailedEmail } from "../services/email/blobStorageExportFailed/sendBlobStorageExportFailedEmail";
 import { sendEvaluatorBlockedEmail } from "../services/email/evaluatorBlocked/sendEvaluatorBlockedEmail";
 import { getProjectAdminEmails } from "../services/getProjectAdminEmails";
-import {
-  type ProjectNotificationDispatchEvent,
-  type ProjectNotificationEvent,
-} from "./types";
+import { type ProjectNotificationEvent } from "./types";
 
 /** ProjectNotificationEmailEnv is the SMTP/env slice the email templates receive. */
 type ProjectNotificationEmailEnv = {
@@ -40,25 +37,20 @@ export async function dispatchProjectNotification({
   event,
 }: {
   projectId: string;
-  event: ProjectNotificationDispatchEvent;
+  event: ProjectNotificationEvent;
 }): Promise<void> {
-  await dispatchToChannels({ projectId, event });
+  // Channel dispatch must never suppress the admin email — the email is the
+  // always-on floor (worst case for blob-export, whose 24h cooldown claim is
+  // already committed by the time we get here). Isolate channel failures.
+  try {
+    await dispatchToChannels({ projectId, event });
+  } catch (error) {
+    logger.error(
+      `dispatchProjectNotification: channel dispatch failed for ${event.eventType} in project ${projectId}; continuing to admin emails`,
+      error,
+    );
+  }
   await dispatchAdminEmails({ projectId, event });
-}
-
-/** toOutboundEvent strips the internal email-template fields down to the wire event. */
-function toOutboundEvent(
-  event: ProjectNotificationDispatchEvent,
-): ProjectNotificationEvent {
-  return {
-    eventType: event.eventType,
-    severity: event.severity,
-    projectId: event.projectId,
-    resourceId: event.resourceId,
-    resourceName: event.resourceName,
-    message: event.message,
-    url: event.url,
-  };
 }
 
 async function dispatchToChannels({
@@ -66,7 +58,7 @@ async function dispatchToChannels({
   event,
 }: {
   projectId: string;
-  event: ProjectNotificationDispatchEvent;
+  event: ProjectNotificationEvent;
 }): Promise<void> {
   const queue = WebhookQueue.getInstance();
   if (!queue) {
@@ -90,8 +82,6 @@ async function dispatchToChannels({
       (automation.trigger.eventActions as string[]).includes(event.eventType),
   );
 
-  const outboundEvent = toOutboundEvent(event);
-
   for (const automation of matching) {
     const executionId = randomUUID();
 
@@ -106,7 +96,7 @@ async function dispatchToChannels({
         actionId: automation.action.id,
         status: ActionExecutionStatus.PENDING,
         sourceId: event.resourceId,
-        input: outboundEvent,
+        input: event,
       },
     });
 
@@ -123,7 +113,7 @@ async function dispatchToChannels({
           timestamp: new Date(),
           type: "project-notification",
           apiVersion: "v1",
-          event: outboundEvent,
+          event,
         },
       },
     });
@@ -135,7 +125,7 @@ async function dispatchAdminEmails({
   event,
 }: {
   projectId: string;
-  event: ProjectNotificationDispatchEvent;
+  event: ProjectNotificationEvent;
 }): Promise<void> {
   if (
     !env.EMAIL_FROM_ADDRESS ||
@@ -171,7 +161,7 @@ async function sendEventAdminEmails({
   receiverEmails,
   emailEnv,
 }: {
-  event: ProjectNotificationDispatchEvent;
+  event: ProjectNotificationEvent;
   receiverEmails: string[];
   emailEnv: ProjectNotificationEmailEnv;
 }): Promise<void> {
@@ -179,8 +169,7 @@ async function sendEventAdminEmails({
     case "blob-export-failed": {
       await sendBlobStorageExportFailedEmail({
         env: emailEnv,
-        // resourceName carries the project name for this event type.
-        projectName: event.resourceName,
+        projectName: event.projectName,
         settingsUrl: `${emailEnv.NEXTAUTH_URL}/project/${event.projectId}/settings/integrations/blobstorage`,
         receiverEmails,
       });

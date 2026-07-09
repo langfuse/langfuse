@@ -452,6 +452,114 @@ describe("Slack Processor", () => {
       expect(trigger?.status).toBe(JobConfigState.INACTIVE);
     });
 
+    it("project-notification Slack: disable rides the Redis counter, ignoring prior DB failure history", async () => {
+      const { redis } = await import("@langfuse/shared/src/server");
+      const failureKey = `automation-failures:${projectId}:${automationId}`;
+      await redis!.del(failureKey);
+
+      // Simulate history from before a re-enable: many prior ERROR rows that a
+      // DB walk (used by the webhook path) would count. The Slack path must
+      // NOT consult these — Slack configs carry no lastFailingExecutionId, so
+      // the DB walk would re-disable after a single post-re-enable failure.
+      for (let i = 0; i < 6; i++) {
+        await prisma.automationExecution.create({
+          data: {
+            id: v4(),
+            projectId,
+            triggerId,
+            automationId,
+            actionId,
+            status: ActionExecutionStatus.ERROR,
+            sourceId: v4(),
+            input: {},
+          },
+        });
+      }
+
+      mockSlackService.sendMessage.mockRejectedValue(
+        new Error("Slack API error"),
+      );
+
+      const buildInput = (): WebhookInput => {
+        const executionId = v4();
+        return {
+          projectId,
+          automationId,
+          executionId,
+          payload: {
+            id: executionId,
+            timestamp: new Date(),
+            type: "project-notification",
+            apiVersion: "v1",
+            event: {
+              eventType: "blob-export-failed",
+              severity: "ALERT",
+              projectId,
+              projectName: "Test Project",
+              resourceId: projectId,
+              resourceName: "test-bucket",
+              message: "Blob storage export failed.",
+            },
+          },
+        };
+      };
+
+      const firstInput = buildInput();
+      await prisma.automationExecution.create({
+        data: {
+          id: firstInput.executionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: projectId,
+          input: {},
+        },
+      });
+
+      await executeWebhook(firstInput, { skipValidation: true });
+
+      // One failure → Redis counter is 1, so the trigger stays ACTIVE despite
+      // the 6 historical ERROR rows the DB walk would have counted.
+      expect(await redis!.get(failureKey)).toBe("1");
+      const stillActive = await prisma.trigger.findUnique({
+        where: { id: triggerId },
+      });
+      expect(stillActive?.status).toBe(JobConfigState.ACTIVE);
+
+      // The PENDING execution row is resolved to ERROR (table stays accurate).
+      const execution = await prisma.automationExecution.findUnique({
+        where: { id: firstInput.executionId },
+      });
+      expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
+
+      // Four more failures reach the threshold of 5 and disable, then reset.
+      for (let i = 0; i < 4; i++) {
+        const input = buildInput();
+        await prisma.automationExecution.create({
+          data: {
+            id: input.executionId,
+            projectId,
+            triggerId,
+            automationId,
+            actionId,
+            status: ActionExecutionStatus.PENDING,
+            sourceId: projectId,
+            input: {},
+          },
+        });
+        await executeWebhook(input, { skipValidation: true });
+      }
+
+      const disabled = await prisma.trigger.findUnique({
+        where: { id: triggerId },
+      });
+      expect(disabled?.status).toBe(JobConfigState.INACTIVE);
+      // Counter cleared on disable so a re-enable starts from a clean slate.
+      expect(await redis!.get(failureKey)).toBeNull();
+    });
+
     it("monitor-alert with a JSON-round-tripped (string) timestamp builds the full message, not the fallback", async () => {
       // Reconfigure the action as a monitor-alert SLACK action.
       await prisma.action.update({

@@ -712,8 +712,9 @@ describe("Webhook Integration Tests", () => {
         eventType: "blob-export-failed" as const,
         severity: "ALERT" as const,
         projectId,
+        projectName: "Test Project",
         resourceId: projectId,
-        resourceName: "Test Project",
+        resourceName: "test-export-bucket",
         message: "Blob storage export failed.",
         url: `https://cloud.langfuse.com/project/${projectId}/settings`,
       };

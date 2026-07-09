@@ -7,10 +7,13 @@ const baseEvent: ProjectNotificationEvent = {
   eventType: "evaluator-blocked",
   severity: "ALERT",
   projectId: "proj_1",
+  projectName: "My Project",
   resourceId: "cfg_1",
   resourceName: "Toxicity",
   message: "Evaluator was blocked due to an invalid model config.",
   url: "https://cloud.langfuse.com/project/proj_1/evals",
+  blockReason: "LLM_CONNECTION_MISSING",
+  evalTemplateId: "tpl_1",
 };
 
 describe("buildProjectNotificationSlackMessage", () => {
@@ -23,6 +26,8 @@ describe("buildProjectNotificationSlackMessage", () => {
     const serialized = JSON.stringify(attachment.blocks);
     expect(serialized).toContain("Evaluator blocked: Toxicity");
     expect(serialized).toContain("invalid model config");
+    // project name surfaces in the context line
+    expect(serialized).toContain("Project: My Project");
     // deep-link button present when url is set
     expect(serialized).toContain(baseEvent.url);
   });

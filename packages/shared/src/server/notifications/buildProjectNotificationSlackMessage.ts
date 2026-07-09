@@ -33,5 +33,6 @@ export function buildProjectNotificationSlackMessage(
     body: event.message,
     timestamp: new Date(),
     url: event.url,
+    contextText: `Project: ${event.projectName}`,
   });
 }

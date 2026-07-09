@@ -14,6 +14,8 @@ export function buildColoredAttachmentSlackMessage(args: {
   body: string;
   timestamp: Date;
   url?: string;
+  /** contextText is an optional extra context element rendered next to the timestamp. */
+  contextText?: string;
 }): SlackMessage {
   const { color } = args;
   const title = escapeSlackMrkdwn(args.title);
@@ -34,6 +36,14 @@ export function buildColoredAttachmentSlackMessage(args: {
           type: "mrkdwn",
           text: `⏱ ${args.timestamp.toISOString()}`,
         },
+        ...(args.contextText
+          ? [
+              {
+                type: "mrkdwn",
+                text: escapeSlackMrkdwn(args.contextText),
+              },
+            ]
+          : []),
       ],
     },
     ...(args.url

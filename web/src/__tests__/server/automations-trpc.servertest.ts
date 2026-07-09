@@ -410,6 +410,192 @@ describe("automations trpc", () => {
         expect(response.map((a) => a.name)).toEqual(["notification-channel"]);
       });
 
+      it("excludes project-notification automations from the general list and count", async () => {
+        const { project, caller } = await prepare();
+
+        // A prompt automation (general UI) plus a project-notification channel.
+        const { secretKey, displaySecretKey } = generateWebhookSecret();
+        const sharedConfig = {
+          type: "WEBHOOK" as const,
+          url: "https://example.com/webhook",
+          apiVersion: { prompt: "v1" as const },
+          secretKey: encrypt(secretKey),
+          displaySecretKey,
+        };
+        for (const [eventSource, name, apiVersion] of [
+          ["prompt", "prompt-automation", { prompt: "v1" as const }],
+          [
+            "project-notification",
+            "notification-channel",
+            { "project-notification": "v1" as const },
+          ],
+        ] as const) {
+          const trigger = await prisma.trigger.create({
+            data: {
+              id: v4(),
+              projectId: project.id,
+              eventSource,
+              eventActions:
+                eventSource === "prompt" ? ["created"] : ["blob-export-failed"],
+              filter: [],
+              status: JobConfigState.ACTIVE,
+            },
+          });
+          const action = await prisma.action.create({
+            data: {
+              id: v4(),
+              projectId: project.id,
+              type: "WEBHOOK",
+              config: { ...sharedConfig, apiVersion },
+            },
+          });
+          await prisma.automation.create({
+            data: {
+              projectId: project.id,
+              triggerId: trigger.id,
+              actionId: action.id,
+              name,
+            },
+          });
+        }
+
+        // No eventSource → general list excludes project-notification.
+        const generalList = await caller.automations.getAutomations({
+          projectId: project.id,
+        });
+        expect(generalList.map((a) => a.name)).toEqual(["prompt-automation"]);
+
+        // Explicit eventSource still returns the channel.
+        const notificationList = await caller.automations.getAutomations({
+          projectId: project.id,
+          eventSource: "project-notification",
+        });
+        expect(notificationList.map((a) => a.name)).toEqual([
+          "notification-channel",
+        ]);
+
+        // Header count excludes the project-notification channel.
+        const count = await caller.automations.count({
+          projectId: project.id,
+        });
+        expect(count).toBe(1);
+      });
+
+      it("reactivateAutomation re-enables a disabled channel and advances the webhook failure window", async () => {
+        const { project, caller } = await prepare();
+
+        const trigger = await prisma.trigger.create({
+          data: {
+            id: v4(),
+            projectId: project.id,
+            eventSource: "project-notification",
+            eventActions: ["blob-export-failed"],
+            filter: [],
+            status: JobConfigState.INACTIVE,
+          },
+        });
+        const { secretKey, displaySecretKey } = generateWebhookSecret();
+        const action = await prisma.action.create({
+          data: {
+            id: v4(),
+            projectId: project.id,
+            type: "WEBHOOK",
+            config: {
+              type: "WEBHOOK",
+              url: "https://example.com/webhook",
+              apiVersion: { "project-notification": "v1" },
+              secretKey: encrypt(secretKey),
+              displaySecretKey,
+            },
+          },
+        });
+        const automation = await prisma.automation.create({
+          data: {
+            projectId: project.id,
+            triggerId: trigger.id,
+            actionId: action.id,
+            name: "notification-channel",
+          },
+        });
+        const execution = await prisma.automationExecution.create({
+          data: {
+            id: v4(),
+            projectId: project.id,
+            automationId: automation.id,
+            triggerId: trigger.id,
+            actionId: action.id,
+            status: ActionExecutionStatus.ERROR,
+            sourceId: project.id,
+            input: {},
+          },
+        });
+
+        await caller.automations.reactivateAutomation({
+          projectId: project.id,
+          automationId: automation.id,
+        });
+
+        const updatedTrigger = await prisma.trigger.findUniqueOrThrow({
+          where: { id: trigger.id },
+        });
+        expect(updatedTrigger.status).toBe(JobConfigState.ACTIVE);
+
+        const updatedAction = await prisma.action.findUniqueOrThrow({
+          where: { id: action.id },
+        });
+        expect(
+          (updatedAction.config as { lastFailingExecutionId?: string })
+            .lastFailingExecutionId,
+        ).toBe(execution.id);
+      });
+
+      it("reactivateAutomation rejects non-project-notification sources", async () => {
+        const { project, caller } = await prepare();
+
+        const trigger = await prisma.trigger.create({
+          data: {
+            id: v4(),
+            projectId: project.id,
+            eventSource: "prompt",
+            eventActions: ["created"],
+            filter: [],
+            status: JobConfigState.INACTIVE,
+          },
+        });
+        const { secretKey, displaySecretKey } = generateWebhookSecret();
+        const action = await prisma.action.create({
+          data: {
+            id: v4(),
+            projectId: project.id,
+            type: "WEBHOOK",
+            config: {
+              type: "WEBHOOK",
+              url: "https://example.com/webhook",
+              apiVersion: { prompt: "v1" },
+              secretKey: encrypt(secretKey),
+              displaySecretKey,
+            },
+          },
+        });
+        const automation = await prisma.automation.create({
+          data: {
+            projectId: project.id,
+            triggerId: trigger.id,
+            actionId: action.id,
+            name: "prompt-automation",
+          },
+        });
+
+        await expect(
+          caller.automations.reactivateAutomation({
+            projectId: project.id,
+            automationId: automation.id,
+          }),
+        ).rejects.toThrow(
+          "This operation is only supported on project-notification automations.",
+        );
+      });
+
       it("toggles trigger eventActions via updateTriggerEventActions, only for project-notification sources", async () => {
         const { project, caller } = await prepare();
 
@@ -484,7 +670,7 @@ describe("automations trpc", () => {
             eventActions: [],
           }),
         ).rejects.toThrow(
-          "Event actions can only be toggled on project-notification automations.",
+          "This operation is only supported on project-notification automations.",
         );
       });
     });

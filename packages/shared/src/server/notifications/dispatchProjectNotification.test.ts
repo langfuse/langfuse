@@ -55,27 +55,28 @@ import { sendBlobStorageExportFailedEmail } from "../services/email/blobStorageE
 import { sendEvaluatorBlockedEmail } from "../services/email/evaluatorBlocked/sendEvaluatorBlockedEmail";
 import { getProjectAdminEmails } from "../services/getProjectAdminEmails";
 import { dispatchProjectNotification } from "./dispatchProjectNotification";
-import { type ProjectNotificationDispatchEvent } from "./types";
+import { type ProjectNotificationEvent } from "./types";
 
-const blobEvent: ProjectNotificationDispatchEvent = {
+const blobEvent: ProjectNotificationEvent = {
   eventType: "blob-export-failed",
   severity: "ALERT",
   projectId: "proj_1",
+  projectName: "My Project",
   resourceId: "res_1",
-  resourceName: "My Project",
+  resourceName: "my-export-bucket",
   message: "Blob storage export failed.",
   url: "https://cloud.langfuse.com/x",
 };
 
-const evaluatorEvent: ProjectNotificationDispatchEvent = {
+const evaluatorEvent: ProjectNotificationEvent = {
   eventType: "evaluator-blocked",
   severity: "ALERT",
   projectId: "proj_1",
+  projectName: "My Project",
   resourceId: "cfg_1",
   resourceName: "Toxicity",
   message: "Evaluator was blocked.",
   url: "https://cloud.langfuse.com/x",
-  projectName: "My Project",
   blockReason: "LLM_CONNECTION_MISSING",
   evalTemplateId: "tpl_1",
 };
@@ -169,7 +170,7 @@ describe("dispatchProjectNotification", () => {
     });
   });
 
-  it("builds the envelope with executionId as the payload id and strips email-template fields", async () => {
+  it("builds the envelope with executionId as the payload id and the full typed event body", async () => {
     vi.mocked(getAutomations).mockResolvedValue([
       automation("a1", JobConfigState.ACTIVE, ["evaluator-blocked"]),
     ]);
@@ -185,16 +186,9 @@ describe("dispatchProjectNotification", () => {
     expect(job.payload.payload.apiVersion).toBe("v1");
     // envelope id equals the WebhookInput executionId
     expect(job.payload.payload.id).toBe(job.payload.executionId);
-    // internal template data must not leak into the outbound body
-    expect(job.payload.payload.event).toEqual({
-      eventType: "evaluator-blocked",
-      severity: "ALERT",
-      projectId: "proj_1",
-      resourceId: "cfg_1",
-      resourceName: "Toxicity",
-      message: "Evaluator was blocked.",
-      url: "https://cloud.langfuse.com/x",
-    });
+    // the wire body carries the full typed event, incl. projectName,
+    // blockReason, and evalTemplateId
+    expect(job.payload.payload.event).toEqual(evaluatorEvent);
   });
 
   it("sends the blob-export-failed email to all admins in one send", async () => {
@@ -275,6 +269,20 @@ describe("dispatchProjectNotification", () => {
       projectId: "proj_1",
       event: blobEvent,
     });
+
+    expect(add).not.toHaveBeenCalled();
+    expect(sendBlobStorageExportFailedEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("still sends admin emails when the channel dispatch throws", async () => {
+    setEmailEnv(emailEnvValues);
+    // A Postgres/Redis/queue error in the channel path must not suppress email.
+    vi.mocked(getAutomations).mockRejectedValue(new Error("db down"));
+    vi.mocked(getProjectAdminEmails).mockResolvedValue(["admin@example.com"]);
+
+    await expect(
+      dispatchProjectNotification({ projectId: "proj_1", event: blobEvent }),
+    ).resolves.toBeUndefined();
 
     expect(add).not.toHaveBeenCalled();
     expect(sendBlobStorageExportFailedEmail).toHaveBeenCalledTimes(1);

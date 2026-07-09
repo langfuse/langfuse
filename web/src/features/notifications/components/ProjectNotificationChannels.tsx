@@ -61,6 +61,7 @@ export function ProjectNotificationChannels({
     editingChannel,
     webhookSecret,
     isDeleting,
+    isReactivating,
     isTogglingEvent,
     isEventEnabled,
     actions,
@@ -85,9 +86,11 @@ export function ProjectNotificationChannels({
               channels={channels}
               isLoading={isLoading}
               isDeleting={isDeleting}
+              isReactivating={isReactivating}
               onAdd={actions.openCreate}
               onEdit={actions.openEdit}
               onDelete={actions.deleteChannel}
+              onReactivate={actions.reactivateChannel}
             />
           </div>
 
