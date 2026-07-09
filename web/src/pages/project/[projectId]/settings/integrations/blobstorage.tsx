@@ -775,6 +775,43 @@ const BlobStorageIntegrationSettingsForm = ({
           )}
         />
 
+        {watchedExportMode === BlobStorageExportMode.FROM_CUSTOM_DATE && (
+          <FormField
+            control={blobStorageForm.control}
+            name="exportStartDate"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Export Start Date</FormLabel>
+                <FormControl>
+                  <Input
+                    type="date"
+                    max={(() => {
+                      const t = new Date();
+                      return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+                    })()}
+                    value={
+                      field.value instanceof Date
+                        ? field.value.toISOString().split("T")[0]
+                        : ""
+                    }
+                    onChange={(e) => {
+                      const date = e.target.value
+                        ? new Date(e.target.value)
+                        : null;
+                      field.onChange(date);
+                    }}
+                    placeholder="Select start date"
+                  />
+                </FormControl>
+                <FormDescription>
+                  Data before this date will not be included in exports
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+
         {!hideExportSource && (
           <FormField
             control={blobStorageForm.control}
@@ -950,43 +987,6 @@ const BlobStorageIntegrationSettingsForm = ({
             </FormItem>
           )}
         />
-
-        {watchedExportMode === BlobStorageExportMode.FROM_CUSTOM_DATE && (
-          <FormField
-            control={blobStorageForm.control}
-            name="exportStartDate"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Export Start Date</FormLabel>
-                <FormControl>
-                  <Input
-                    type="date"
-                    max={(() => {
-                      const t = new Date();
-                      return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
-                    })()}
-                    value={
-                      field.value instanceof Date
-                        ? field.value.toISOString().split("T")[0]
-                        : ""
-                    }
-                    onChange={(e) => {
-                      const date = e.target.value
-                        ? new Date(e.target.value)
-                        : null;
-                      field.onChange(date);
-                    }}
-                    placeholder="Select start date"
-                  />
-                </FormControl>
-                <FormDescription>
-                  Data before this date will not be included in exports
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
 
         {/* Parquet compresses internally — gzip does not apply. */}
         {!isParquetExport && (

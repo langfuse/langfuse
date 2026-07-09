@@ -1457,6 +1457,12 @@ function applyObservationsCursorFilter(
   cursor: PublicApiObservationsQuery["cursor"] | undefined,
   queryBuilder: EventsQueryBuilder,
 ): EventsQueryBuilder {
+  // The cursor carries start_time at millisecond precision (JS Date round-trip),
+  // while the column is DateTime64(6). This is lossless only because every
+  // ingestion path writes ms-aligned start_time values (OTel nanos are floored
+  // to ms). If ingestion ever preserves sub-millisecond precision, this bound
+  // floors to the boundary row's millisecond and permanently skips rows at page
+  // boundaries — carry the raw ClickHouse string through the cursor instead (LFE-10405).
   return queryBuilder.when(Boolean(cursor), (b) => {
     const currentCursor = cursor;
     if (!currentCursor) {
