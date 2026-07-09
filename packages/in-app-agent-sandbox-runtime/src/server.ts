@@ -35,130 +35,11 @@ const server = createServer(async (request, response) => {
       url: request.url ?? "",
     });
 
-    if (request.method === "GET" && request.url === "/health") {
-      logSandboxServer("health.ok", { requestId });
-      sendJson(response, 200, { status: "ok" });
-      logSandboxServer("request.end", {
-        requestId,
-        statusCode: 200,
-        durationMs: Date.now() - startedAt,
-      });
-      return;
-    }
-
-    if (
-      request.method === "POST" &&
-      request.url === `${MICROVM_RUNTIME_HOOKS_ROOT}/ready`
-    ) {
-      sendJson(response, 200, await readyHook(requestId));
-      logSandboxServer("request.end", {
-        requestId,
-        statusCode: 200,
-        durationMs: Date.now() - startedAt,
-      });
-      return;
-    }
-
-    if (
-      request.method === "POST" &&
-      request.url === `${MICROVM_RUNTIME_HOOKS_ROOT}/run`
-    ) {
-      sendJson(response, 200, await runHook(requestId, request));
-      logSandboxServer("request.end", {
-        requestId,
-        statusCode: 200,
-        durationMs: Date.now() - startedAt,
-      });
-      return;
-    }
-
-    if (
-      request.method === "POST" &&
-      request.url === `${MICROVM_RUNTIME_HOOKS_ROOT}/suspend`
-    ) {
-      sendJson(response, 200, await suspendHook(requestId));
-      logSandboxServer("request.end", {
-        requestId,
-        statusCode: 200,
-        durationMs: Date.now() - startedAt,
-      });
-      return;
-    }
-
-    if (
-      request.method === "POST" &&
-      request.url === `${MICROVM_RUNTIME_HOOKS_ROOT}/resume`
-    ) {
-      sendJson(response, 200, await resumeHook(requestId));
-      logSandboxServer("request.end", {
-        requestId,
-        statusCode: 200,
-        durationMs: Date.now() - startedAt,
-      });
-      return;
-    }
-
-    if (
-      request.method === "POST" &&
-      request.url === `${MICROVM_RUNTIME_HOOKS_ROOT}/terminate`
-    ) {
-      sendJson(response, 200, await terminateHook(requestId));
-      logSandboxServer("request.end", {
-        requestId,
-        statusCode: 200,
-        durationMs: Date.now() - startedAt,
-      });
-      return;
-    }
-
-    if (request.method === "POST" && request.url === "/sandbox") {
-      const body = SandboxOperationSchema.parse(await readJsonBody(request));
-      logSandboxServer("sandbox.request", {
-        requestId,
-        operation: summarizeOperation(body),
-      });
-      await syncToolCallFiles(body.toolCallFiles, requestId);
-
-      switch (body.operation) {
-        case "read":
-          sendJson(response, 200, await readOperation(body, requestId));
-          logSandboxServer("request.end", {
-            requestId,
-            statusCode: 200,
-            durationMs: Date.now() - startedAt,
-          });
-          return;
-        case "write":
-          sendJson(response, 200, await writeOperation(body, requestId));
-          logSandboxServer("request.end", {
-            requestId,
-            statusCode: 200,
-            durationMs: Date.now() - startedAt,
-          });
-          return;
-        case "edit":
-          sendJson(response, 200, await editOperation(body, requestId));
-          logSandboxServer("request.end", {
-            requestId,
-            statusCode: 200,
-            durationMs: Date.now() - startedAt,
-          });
-          return;
-        case "bash":
-          sendJson(response, 200, await bashOperation(body, requestId));
-          logSandboxServer("request.end", {
-            requestId,
-            statusCode: 200,
-            durationMs: Date.now() - startedAt,
-          });
-          return;
-      }
-    }
-
-    sendJson(response, 404, { error: "Not found" });
+    const result = await routeRequest(request, requestId);
+    sendJson(response, result.statusCode, result.body);
     logSandboxServer("request.end", {
       requestId,
-      statusCode: 404,
+      statusCode: result.statusCode,
       durationMs: Date.now() - startedAt,
     });
   } catch (error) {
@@ -170,6 +51,11 @@ const server = createServer(async (request, response) => {
     sendJson(response, 500, {
       error:
         error instanceof Error ? error.message : "Unknown sandbox server error",
+    });
+    logSandboxServer("request.end", {
+      requestId,
+      statusCode: 500,
+      durationMs: Date.now() - startedAt,
     });
   }
 });
@@ -202,6 +88,73 @@ async function syncToolCallFiles(toolCallFiles: unknown, requestId: string) {
     await mkdir(path.dirname(filePath), { recursive: true });
     await writeFile(filePath, file.content, "utf8");
   }
+}
+
+async function routeRequest(request: IncomingMessage, requestId: string) {
+  if (request.method === "GET" && request.url === "/health") {
+    logSandboxServer("health.ok", { requestId });
+    return { statusCode: 200, body: { status: "ok" } };
+  }
+
+  if (
+    request.method === "POST" &&
+    request.url === `${MICROVM_RUNTIME_HOOKS_ROOT}/ready`
+  ) {
+    return { statusCode: 200, body: await readyHook(requestId) };
+  }
+
+  if (
+    request.method === "POST" &&
+    request.url === `${MICROVM_RUNTIME_HOOKS_ROOT}/run`
+  ) {
+    return { statusCode: 200, body: await runHook(requestId, request) };
+  }
+
+  if (
+    request.method === "POST" &&
+    request.url === `${MICROVM_RUNTIME_HOOKS_ROOT}/suspend`
+  ) {
+    return { statusCode: 200, body: await suspendHook(requestId) };
+  }
+
+  if (
+    request.method === "POST" &&
+    request.url === `${MICROVM_RUNTIME_HOOKS_ROOT}/resume`
+  ) {
+    return { statusCode: 200, body: await resumeHook(requestId) };
+  }
+
+  if (
+    request.method === "POST" &&
+    request.url === `${MICROVM_RUNTIME_HOOKS_ROOT}/terminate`
+  ) {
+    return { statusCode: 200, body: await terminateHook(requestId) };
+  }
+
+  if (request.method === "POST" && request.url === "/sandbox") {
+    const body = SandboxOperationSchema.parse(await readJsonBody(request));
+    logSandboxServer("sandbox.request", {
+      requestId,
+      operation: summarizeOperation(body),
+    });
+    await syncToolCallFiles(body.toolCallFiles, requestId);
+
+    if (body.operation === "read") {
+      return { statusCode: 200, body: await readOperation(body, requestId) };
+    }
+
+    if (body.operation === "write") {
+      return { statusCode: 200, body: await writeOperation(body, requestId) };
+    }
+
+    if (body.operation === "edit") {
+      return { statusCode: 200, body: await editOperation(body, requestId) };
+    }
+
+    return { statusCode: 200, body: await bashOperation(body, requestId) };
+  }
+
+  return { statusCode: 404, body: { error: "Not found" } };
 }
 
 async function readOperation(body: ReadSandboxOperation, requestId: string) {
