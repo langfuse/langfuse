@@ -42,6 +42,14 @@ export function extractObservationVariables(
     const internal = columns.find((col) => col.id === fieldId)?.internal;
     if (internal && observation[internal] !== undefined) {
       const fieldValue = resolveFieldValue(internal);
+      // Zipped tool calls are fully parsed already (arguments via
+      // parseJsonIfString); deepParseJson would only coerce top-level id/name/
+      // type strings that happen to be JSON literals ("true"/"null") into
+      // primitives, corrupting the calls.
+      if (internal === "tool_calls") {
+        parsedFields.set(fieldId, fieldValue);
+        continue;
+      }
       try {
         parsedFields.set(fieldId, deepParseJson(fieldValue));
       } catch {

@@ -234,11 +234,10 @@ describe("extractObservationVariables", () => {
     });
 
     it("passes string argument values through unchanged", () => {
-      // The zipped calls run through deepParseJson like input/output, but its
-      // depth guard (default maxDepth 3: array -> call -> arguments -> leaf)
-      // stops before argument values, so JSON-literal strings the model
-      // emitted ("true", "42", serialized objects) are NOT coerced. This pins
-      // the payload types evaluator code receives.
+      // Zipped calls skip deepParseJson entirely (arguments are already parsed
+      // by the zip), so JSON-literal strings the model emitted ("true", "42",
+      // serialized objects) are NOT coerced. This pins the payload types
+      // evaluator code receives.
       const args = JSON.stringify({
         count: "42",
         flag: "true",
@@ -274,6 +273,42 @@ describe("extractObservationVariables", () => {
             nested: '{"a":1}',
           },
           type: "function",
+          index: 0,
+        },
+      ]);
+    });
+
+    it("keeps JSON-literal id/name/type strings as strings", () => {
+      // A tool named "null" (or an id/type of "true"/"false") is unusual but
+      // legal. deepParseJson would coerce these top-level fields to primitives
+      // at depth 2 — which then fails buildCodeEvalPayload's schema parse and
+      // empties the whole array, or leaks null/true into judge prompts.
+      const observation = {
+        ...mockObservation,
+        tool_calls: [
+          JSON.stringify({
+            id: "true",
+            arguments: "{}",
+            type: "false",
+            index: 0,
+          }),
+        ],
+        tool_call_names: ["null"],
+      };
+
+      const result = extractObservationVariables({
+        observation,
+        variableMapping: [
+          { templateVariable: "tools", selectedColumnId: "toolCalls" },
+        ],
+      });
+
+      expect(result[0].value).toEqual([
+        {
+          id: "true",
+          name: "null",
+          arguments: {},
+          type: "false",
           index: 0,
         },
       ]);

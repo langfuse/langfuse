@@ -257,9 +257,10 @@ function CodeEvalTestRunInputCards({
         input: deepParseJson(data.input),
         output: deepParseJson(data.output),
         metadata: deepParseJson(data.metadata),
-        // deepParseJson matches variable extraction, which parses JSON strings
-        // nested inside the zipped calls' arguments before dispatch.
-        toolCalls: deepParseJson(data.toolCalls),
+        // No deepParseJson, matching variable extraction: the zipped calls are
+        // fully parsed already, and it would coerce id/name/type strings that
+        // are JSON literals ("true"/"null") into primitives.
+        toolCalls: data.toolCalls,
       },
       ...(includeExperimentVariables
         ? {
