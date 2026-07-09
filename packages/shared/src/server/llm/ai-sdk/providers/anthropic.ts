@@ -3,6 +3,7 @@ import type { LanguageModel } from "ai";
 
 import type { ModelParams } from "../../types";
 import type { TranslatedProviderOptions } from "./types";
+import { ensureBaseURLSuffix, isPlainObject } from "./utils";
 
 /**
  * LangChain's `anthropicApiUrl` is the API origin — the underlying
@@ -13,10 +14,7 @@ import type { TranslatedProviderOptions } from "./types";
 export function toAnthropicBaseURL(
   baseURL: string | null | undefined,
 ): string | undefined {
-  if (!baseURL) return undefined;
-
-  const trimmed = baseURL.replace(/\/+$/, "");
-  return trimmed.endsWith("/v1") ? trimmed : `${trimmed}/v1`;
+  return ensureBaseURLSuffix(baseURL, "/v1");
 }
 
 export function buildAnthropicModel(params: {
@@ -82,7 +80,7 @@ export function translateAnthropicProviderOptions(
   const unknownKeys: string[] = [];
 
   for (const [key, value] of Object.entries(providerOptions)) {
-    if (key === "anthropic" && typeof value === "object" && value !== null) {
+    if (key === "anthropic" && isPlainObject(value)) {
       // Nested `anthropic` object is treated as already AI SDK-shaped.
       Object.assign(translated, value);
       continue;

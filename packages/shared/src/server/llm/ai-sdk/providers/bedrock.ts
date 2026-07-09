@@ -11,6 +11,23 @@ import {
 } from "../../../../interfaces/customLLMProviderConfigSchemas";
 import type { ModelParams } from "../../types";
 import type { TranslatedProviderOptions } from "./types";
+import { isPlainObject } from "./utils";
+
+// AWS region identifiers are lowercase alphanumerics plus hyphens
+// (e.g. "us-east-1", "eu-central-1"). The region flows into the Bedrock host
+// the AI SDK builds (https://bedrock-runtime.${region}.amazonaws.com) and this
+// path intentionally skips the secure LLM fetch, so reject anything that
+// could reshape that host — the LangChain engine got the equivalent guard
+// from the AWS SDK's own host-label validation.
+const AWS_REGION_PATTERN = /^[a-z0-9-]+$/;
+
+export function assertValidBedrockRegion(region: string | undefined): void {
+  if (region !== undefined && !AWS_REGION_PATTERN.test(region)) {
+    throw new Error(
+      "Invalid Bedrock region. Regions must be a single AWS region identifier.",
+    );
+  }
+}
 
 /**
  * Translation of Langfuse `modelParams.providerOptions` to AI SDK Bedrock
@@ -32,13 +49,19 @@ export function translateBedrockProviderOptions(
 
   const { bedrock: nested, ...rest } = providerOptions;
 
+  // A non-object `bedrock` key is not an escape hatch — keep it in the
+  // verbatim passthrough like LangChain would.
+  const passthrough = isPlainObject(nested)
+    ? rest
+    : { ...rest, ...(nested !== undefined ? { bedrock: nested } : {}) };
+
   const translated: Record<string, unknown> = {
-    ...(Object.keys(rest).length > 0
-      ? { additionalModelRequestFields: rest }
+    ...(Object.keys(passthrough).length > 0
+      ? { additionalModelRequestFields: passthrough }
       : {}),
   };
 
-  if (typeof nested === "object" && nested !== null) {
+  if (isPlainObject(nested)) {
     Object.assign(translated, nested);
   }
 
@@ -111,6 +134,7 @@ export function buildBedrockModel(params: {
   const { region } = shouldUseLangfuseAPIKey
     ? { region: env.LANGFUSE_AWS_BEDROCK_REGION }
     : BedrockConfigSchema.parse(config);
+  assertValidBedrockRegion(region);
 
   const isSelfHosted = !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const auth = resolveBedrockProviderAuth({

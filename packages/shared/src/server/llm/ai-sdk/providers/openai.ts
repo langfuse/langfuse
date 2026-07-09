@@ -4,6 +4,7 @@ import type { LanguageModel } from "ai";
 import type { ModelParams } from "../../types";
 import { processOpenAIBaseURL } from "../../utils";
 import type { TranslatedProviderOptions } from "./types";
+import { isPlainObject } from "./utils";
 
 export type OpenAIApiMode = "responses" | "chat-completions";
 
@@ -79,7 +80,7 @@ export function translateOpenAIProviderOptions(
   const unknownKeys: string[] = [];
 
   for (const [key, value] of Object.entries(providerOptions)) {
-    if (key === "openai" && typeof value === "object" && value !== null) {
+    if (key === "openai" && isPlainObject(value)) {
       // Nested `openai` object is treated as already AI SDK-shaped.
       Object.assign(translated, value);
       continue;

@@ -3,6 +3,7 @@ import type { LanguageModel } from "ai";
 
 import type { ModelParams } from "../../types";
 import type { TranslatedProviderOptions } from "./types";
+import { ensureBaseURLSuffix, isPlainObject } from "./utils";
 
 /**
  * LangChain's secure Google AI Studio client appends the SDK-generated path
@@ -13,10 +14,7 @@ import type { TranslatedProviderOptions } from "./types";
 export function toGoogleAIStudioBaseURL(
   baseURL: string | null | undefined,
 ): string | undefined {
-  if (!baseURL) return undefined;
-
-  const trimmed = baseURL.replace(/\/+$/, "");
-  return trimmed.endsWith("/v1beta") ? trimmed : `${trimmed}/v1beta`;
+  return ensureBaseURLSuffix(baseURL, "/v1beta");
 }
 
 export function buildGoogleAIStudioModel(params: {
@@ -64,7 +62,7 @@ export function translateGoogleProviderOptions(params: {
   const translated: Record<string, unknown> = {};
 
   const nested = providerOptions?.google;
-  if (typeof nested === "object" && nested !== null) {
+  if (isPlainObject(nested)) {
     // Nested `google` object is treated as already AI SDK-shaped.
     Object.assign(translated, nested);
   }
@@ -126,8 +124,12 @@ function buildThinkingConfig(params: {
       return { ok: false, unknownKeys: ["thinkingLevel"] };
     }
 
-    // Mirror LangChain: thought summaries are on unless thinking is off, and
-    // the 2.5-pro family cannot go below its 128-token minimum.
+    // Mirror LangChain exactly, quirks included, so flipping the engine flag
+    // never changes what a given config sends: `includeThoughts` is computed
+    // BEFORE the 2.5-pro 128-token clamp (an explicit budget of 128 hides
+    // thoughts while 1-127 gets clamped to 128 with thoughts visible), the
+    // `>= 0` bound intentionally exempts negative budgets from clamping, and
+    // negative budgets pass through to surface the same provider error.
     const includeThoughts = !(
       thinkingBudget === 0 ||
       (model.includes("pro") && thinkingBudget === 128)

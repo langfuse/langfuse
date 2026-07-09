@@ -2,6 +2,7 @@ import { createAzure } from "@ai-sdk/azure";
 import type { LanguageModel } from "ai";
 
 import type { ModelParams } from "../../types";
+import { trimTrailingSlashes } from "./utils";
 
 // Pinned to the version the LangChain engine sends
 // (`AzureChatOpenAI.azureOpenAIApiVersion`) so both engines hit the identical
@@ -28,7 +29,7 @@ export function translateAzureBaseURL(
     return { ok: false, reason: "Azure connections require a base URL" };
   }
 
-  const trimmed = baseURL.replace(/\/+$/, "");
+  const trimmed = trimTrailingSlashes(baseURL);
   if (!trimmed.endsWith("/deployments")) {
     return {
       ok: false,
