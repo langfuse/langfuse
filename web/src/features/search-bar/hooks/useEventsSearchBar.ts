@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FilterState, TracingSearchType } from "@langfuse/shared";
 
 import {
+  classifySearchError,
   DEFAULT_SEARCH_TYPE,
   planCommit,
 } from "@/src/features/search-bar/lib/commit";
@@ -185,16 +186,50 @@ export function useEventsSearchBar({
   const committedTextRef = useRef(committedText);
   committedTextRef.current = committedText;
 
+  // The draft that last emitted a `filters:search_error`, so a blur that
+  // re-fails the SAME input does not double-emit (an explicit enter/pick retry
+  // still counts — a repeated attempt is signal).
+  const lastErrorTextRef = useRef<string | null>(null);
+
   const commit = useCallback(
     (trigger: SearchCommitTrigger = "enter"): string | null => {
+      const draftText = store.getState().draft;
       const result = planCommit(
-        store.getState().draft,
+        draftText,
         scoreTypeContextFromObserved(observedRef.current),
       );
       if (result.status === "invalid") {
         store.getState().actions.revealInvalid();
+        // Analytics (LFE-10781): a non-empty typed query was rejected (a UI
+        // error). METADATA ONLY — `orAttempted`/`reason` come from the AST shape
+        // + static diagnostic messages, `queryLength` is a char count; the query
+        // TEXT is never sent. The grammar bar is v4-only, so isV4 is always true.
+        // `orAttempted:true` (an OR between conditions — the parked cross-field
+        // OR, LFE-10421) is the headline demand signal. Fires once per failed
+        // commit: a blur that re-fails the same input is deduped.
+        const trimmed = draftText.trim();
+        const isBlurRefail =
+          trigger === "blur" && draftText === lastErrorTextRef.current;
+        if (trimmed.length > 0 && !isBlurRefail) {
+          const { orAttempted, reason } = classifySearchError(
+            result.ast,
+            result.diagnostics,
+          );
+          capture("filters:search_error", {
+            tableName,
+            orAttempted,
+            reason,
+            queryLength: trimmed.length,
+            trigger,
+            isV4: true,
+          });
+        }
+        lastErrorTextRef.current = draftText;
         return null;
       }
+      // A valid commit clears the error-dedup baseline so a later re-failure of
+      // the same text still emits.
+      lastErrorTextRef.current = null;
       const { setFilterState, setSearchQuery, setSearchType } =
         applyRef.current;
       // Re-attach the filters the grammar can't represent so the commit never

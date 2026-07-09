@@ -259,6 +259,7 @@ export const events = {
     "cleared",
     "facet_operator_toggled",
     "search_submitted",
+    "search_error",
     "ai_generate_requested",
     "ai_generate_applied",
     "ai_generate_failed",
