@@ -1,3 +1,4 @@
 import { EvalTemplateDetail } from "@/src/features/evals/components/eval-template-detail";
+import { withEvalMigrationGate } from "@/src/features/evals/components/EvalMigrationGate";
 
-export default EvalTemplateDetail;
+export default withEvalMigrationGate(EvalTemplateDetail);
