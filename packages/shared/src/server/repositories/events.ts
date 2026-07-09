@@ -91,6 +91,7 @@ import {
   EventsObservationRecordReadType,
   TraceRecordReadType,
 } from "./definitions";
+import { UNKNOWN_INGESTION_SDK_VALUE } from "../ingestion/ingestionAttribution";
 import type { AnalyticsObservationEvent } from "../analytics-integrations/types";
 import {
   getObservationByIdFromObservationsTable,
@@ -3192,48 +3193,17 @@ export type SdkMetadata = {
 };
 
 /**
- * Extract SDK info from v3 metadata object.
- * - Old (nested): `scope: {name, version}`, `resourceAttributes: {"telemetry.sdk.language": ...}`
- */
-function extractSdkInfoFromMetadata(metadata: Record<string, string>): {
-  name?: string;
-  version?: string;
-  language?: string;
-  telemetrySdkName?: string;
-} {
-  try {
-    const scopeJson = metadata["scope"];
-    const resourceJson = metadata["resourceAttributes"];
-
-    const scope = scopeJson ? JSON.parse(scopeJson) : null;
-    const resource = resourceJson ? JSON.parse(resourceJson) : null;
-
-    const name = scope?.name;
-    const version = scope?.version;
-    const language = resource?.["telemetry.sdk.language"];
-    const telemetrySdkName = resource?.["telemetry.sdk.name"];
-
-    return {
-      ...(name && { name }),
-      ...(version && { version }),
-      ...(language && { language }),
-      ...(telemetrySdkName && { telemetrySdkName }),
-    };
-  } catch {
-    return {};
-  }
-}
-
-/**
- * Infers SDK details from the most recent event in the past 7 days containing Langfuse SDK metadata attributes.
+ * Infers SDK details from the most recent OTel-compatible event in the past
+ * 7 days:
+ * - isOtel: event arrived via OTel-compatible ingestion (`source` column;
+ *   includes Langfuse SDK v3+, raw OTel exporters, and backfilled OTel rows)
+ * - name/version: ingestion attribution headers persisted at write time
+ *   (`ingestion_sdk_name`/`ingestion_sdk_version`; 'unknown' for non-Langfuse
+ *   clients, which then return no name/version)
+ * - language: `telemetry_sdk_language` resource attribute column
  *
- * Detection priority:
- * - v4+: Direct columns (scope_name, scope_version, telemetry_sdk_language)
- * - v3: Nested JSON in metadata (`scope: {name, version}`)
- * - v2 and older: No SDK metadata → returns isOtel: false
- *
- * Returns the most recent matching event's SDK info. Projects with no events
- * in the past 7 days return isOtel: false (acceptable for inactive projects).
+ * Projects with no OTel events in the past 7 days return isOtel: false
+ * (acceptable for inactive projects and pre-OTel v2 SDKs).
  */
 export async function getLatestSdkVersionInfoFromEvents(params: {
   projectId: string;
@@ -3254,15 +3224,15 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
 
   const builder = new EventsQueryBuilder({ projectId })
     .selectRaw(
-      "e.scope_name AS scope_name",
-      "e.scope_version AS scope_version",
+      "e.ingestion_sdk_name AS ingestion_sdk_name",
+      "e.ingestion_sdk_version AS ingestion_sdk_version",
       "e.telemetry_sdk_language AS telemetry_sdk_language",
     )
-    .selectMetadataExpanded([]) // Full metadata values from events_full
     .applyFilters(filter)
-    // OR condition: v4 has scope_name column, v3 has scope in metadata
+    // Matches all OTel-compatible write paths: 'otel' (direct) plus the
+    // 'otel-dual-write(-experiments)' and 'otel-backfill' variants
     .where({
-      query: "e.scope_name != '' OR hasAny(e.metadata_names, ['scope'])",
+      query: "startsWith(e.source, 'otel')",
       params: {},
     })
     .orderByDefault()
@@ -3271,10 +3241,9 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
   const { query, params: queryParams } = builder.buildWithParams();
 
   const result = await queryClickhouse<{
-    scope_name: string;
-    scope_version: string;
+    ingestion_sdk_name: string;
+    ingestion_sdk_version: string;
     telemetry_sdk_language: string;
-    metadata: Record<string, string>;
   }>({
     query,
     params: queryParams,
@@ -3287,27 +3256,24 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
   }
   const row = result[0];
 
-  // Prefer direct columns (v4), fall back to metadata (v3)
-  if (row.scope_name) {
-    return {
-      isOtel: true,
-      ...(row.scope_name && { name: row.scope_name }),
-      ...(row.scope_version && { version: row.scope_version }),
-      ...(row.telemetry_sdk_language && {
-        language: row.telemetry_sdk_language,
-      }),
-    };
-  }
+  // Attribution headers are only sent by Langfuse SDKs; raw OTel clients
+  // (e.g. Vercel AI SDK) carry the 'unknown' sentinel and yield no name/version
+  const hasAttribution =
+    row.ingestion_sdk_name &&
+    row.ingestion_sdk_name !== UNKNOWN_INGESTION_SDK_VALUE;
+  const version = hasAttribution
+    ? row.ingestion_sdk_version !== UNKNOWN_INGESTION_SDK_VALUE
+      ? row.ingestion_sdk_version
+      : ""
+    : undefined;
 
-  // Fall back to metadata extraction for v3 and raw OTel (e.g., Vercel AI SDK)
-  const { telemetrySdkName, ...sdkInfo } = extractSdkInfoFromMetadata(
-    row.metadata ?? {},
-  );
   return {
-    isOtel:
-      telemetrySdkName === "opentelemetry" ||
-      Boolean(sdkInfo.name || sdkInfo.version || sdkInfo.language),
-    ...sdkInfo,
+    isOtel: true,
+    ...(hasAttribution && { name: row.ingestion_sdk_name }),
+    ...(version && { version }),
+    ...(row.telemetry_sdk_language && {
+      language: row.telemetry_sdk_language,
+    }),
   };
 }
 
