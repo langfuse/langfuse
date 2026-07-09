@@ -1,9 +1,8 @@
 import { SiSlack } from "react-icons/si";
-import { Webhook, Plus, Pencil, Trash2, RotateCcw } from "lucide-react";
+import { Webhook, Plus, Pencil, Trash2 } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
-import { JobConfigState, type AutomationDomain } from "@langfuse/shared";
+import { type AutomationDomain } from "@langfuse/shared";
 
 const destinationLabel = (automation: AutomationDomain): string => {
   if (automation.action.type === "SLACK") {
@@ -21,11 +20,9 @@ export type ProjectNotificationChannelsListProps = {
   channels: AutomationDomain[] | undefined;
   isLoading: boolean;
   isDeleting: boolean;
-  isReactivating: boolean;
   onAdd: () => void;
   onEdit: (channel: AutomationDomain) => void;
   onDelete: (automationId: string) => void;
-  onReactivate: (automationId: string) => void;
 };
 
 /**
@@ -37,11 +34,9 @@ export function ProjectNotificationChannelsList({
   channels,
   isLoading,
   isDeleting,
-  isReactivating,
   onAdd,
   onEdit,
   onDelete,
-  onReactivate,
 }: ProjectNotificationChannelsListProps) {
   return (
     <div className="flex flex-col gap-4">
@@ -66,22 +61,8 @@ export function ProjectNotificationChannelsList({
                 >
                   {destinationLabel(channel)}
                 </span>
-                {channel.trigger.status === JobConfigState.INACTIVE && (
-                  <StatusBadge type="disabled" className="shrink-0" />
-                )}
               </div>
               <div className="flex shrink-0 items-center gap-1">
-                {channel.trigger.status === JobConfigState.INACTIVE && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    disabled={isReactivating}
-                    onClick={() => onReactivate(channel.id)}
-                    title="Re-enable channel"
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                  </Button>
-                )}
                 <Button
                   variant="ghost"
                   size="icon"

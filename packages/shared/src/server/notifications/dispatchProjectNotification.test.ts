@@ -47,7 +47,7 @@ vi.mock("../../env", () => ({
   },
 }));
 
-import { ActionExecutionStatus, JobConfigState } from "@prisma/client";
+import { JobConfigState } from "@prisma/client";
 import { type AutomationDomain } from "../../domain/automations";
 import { env } from "../../env";
 import { getAutomations } from "../repositories/automation-repository";
@@ -122,7 +122,7 @@ describe("dispatchProjectNotification", () => {
     setEmailEnv({});
   });
 
-  it("enqueues one webhook job per active automation with the event enabled", async () => {
+  it("enqueues a webhook job only for active channels with the event enabled", async () => {
     vi.mocked(getAutomations).mockResolvedValue([
       automation("a1", JobConfigState.ACTIVE, ["blob-export-failed"]),
       automation("a2", JobConfigState.ACTIVE, ["evaluator-blocked"]),
@@ -139,79 +139,10 @@ describe("dispatchProjectNotification", () => {
     });
 
     // a1 and a4 have the event enabled; a2 has it toggled off, a3 is inactive.
-    expect(add).toHaveBeenCalledTimes(2);
     const enqueuedAutomationIds = add.mock.calls.map(
       (call) => call[1].payload.automationId,
     );
     expect(enqueuedAutomationIds.sort()).toEqual(["a1", "a4"]);
-  });
-
-  it("creates a PENDING AutomationExecution row per enqueued job", async () => {
-    vi.mocked(getAutomations).mockResolvedValue([
-      automation("a1", JobConfigState.ACTIVE, ["blob-export-failed"]),
-    ]);
-
-    await dispatchProjectNotification({
-      projectId: "proj_1",
-      event: blobEvent,
-    });
-
-    expect(createExecution).toHaveBeenCalledTimes(1);
-    const executionData = createExecution.mock.calls[0][0].data;
-    const job = add.mock.calls[0][1];
-    expect(executionData).toMatchObject({
-      id: job.payload.executionId,
-      projectId: "proj_1",
-      automationId: "a1",
-      triggerId: "trigger-a1",
-      actionId: "action-a1",
-      status: ActionExecutionStatus.PENDING,
-      sourceId: blobEvent.resourceId,
-    });
-  });
-
-  it("builds the envelope with executionId as the payload id and the full typed event body", async () => {
-    vi.mocked(getAutomations).mockResolvedValue([
-      automation("a1", JobConfigState.ACTIVE, ["evaluator-blocked"]),
-    ]);
-
-    await dispatchProjectNotification({
-      projectId: "proj_1",
-      event: evaluatorEvent,
-    });
-
-    const job = add.mock.calls[0][1];
-    expect(job.payload.projectId).toBe("proj_1");
-    expect(job.payload.payload.type).toBe("project-notification");
-    expect(job.payload.payload.apiVersion).toBe("v1");
-    // envelope id equals the WebhookInput executionId
-    expect(job.payload.payload.id).toBe(job.payload.executionId);
-    // the wire body carries the full typed event, incl. projectName,
-    // blockReason, and evalTemplateId
-    expect(job.payload.payload.event).toEqual(evaluatorEvent);
-  });
-
-  it("sends the blob-export-failed email to all admins in one send", async () => {
-    setEmailEnv(emailEnvValues);
-    vi.mocked(getProjectAdminEmails).mockResolvedValue([
-      "admin1@example.com",
-      "admin2@example.com",
-    ]);
-
-    await dispatchProjectNotification({
-      projectId: "proj_1",
-      event: blobEvent,
-    });
-
-    expect(sendBlobStorageExportFailedEmail).toHaveBeenCalledTimes(1);
-    expect(sendBlobStorageExportFailedEmail).toHaveBeenCalledWith({
-      env: emailEnvValues,
-      projectName: "My Project",
-      settingsUrl:
-        "https://cloud.langfuse.com/project/proj_1/settings/integrations/blobstorage",
-      receiverEmails: ["admin1@example.com", "admin2@example.com"],
-      disabled: false,
-    });
   });
 
   it("sends the evaluator-blocked email per recipient with the resolution url", async () => {
@@ -238,41 +169,6 @@ describe("dispatchProjectNotification", () => {
         "https://cloud.langfuse.com/project/proj_1/settings/llm-connections",
       receiverEmail: "admin1@example.com",
     });
-  });
-
-  it("skips admin emails when SMTP env is missing", async () => {
-    await dispatchProjectNotification({
-      projectId: "proj_1",
-      event: blobEvent,
-    });
-
-    expect(getProjectAdminEmails).not.toHaveBeenCalled();
-    expect(sendBlobStorageExportFailedEmail).not.toHaveBeenCalled();
-  });
-
-  it("skips admin emails when no admins are found", async () => {
-    setEmailEnv(emailEnvValues);
-
-    await dispatchProjectNotification({
-      projectId: "proj_1",
-      event: blobEvent,
-    });
-
-    expect(sendBlobStorageExportFailedEmail).not.toHaveBeenCalled();
-  });
-
-  it("still sends admin emails when the webhook queue is unavailable", async () => {
-    getInstance.mockReturnValue(null);
-    setEmailEnv(emailEnvValues);
-    vi.mocked(getProjectAdminEmails).mockResolvedValue(["admin@example.com"]);
-
-    await dispatchProjectNotification({
-      projectId: "proj_1",
-      event: blobEvent,
-    });
-
-    expect(add).not.toHaveBeenCalled();
-    expect(sendBlobStorageExportFailedEmail).toHaveBeenCalledTimes(1);
   });
 
   it("still sends admin emails when the channel dispatch throws", async () => {

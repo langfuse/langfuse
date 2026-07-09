@@ -27,10 +27,7 @@ import {
 import { generateWebhookSecret, encrypt } from "@langfuse/shared/encryption";
 import { processWebhookActionConfig } from "./webhookHelpers";
 import { processGitHubDispatchActionConfig } from "./githubDispatchHelpers";
-import {
-  reactivateProjectNotificationChannel,
-  updateTriggerEventActions,
-} from "./automationService";
+import { updateTriggerEventActions } from "./automationService";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
@@ -539,41 +536,6 @@ export const automationsRouter = createTRPCRouter({
         automationId: input.automationId,
         eventActions: input.eventActions,
       });
-
-      await auditLog({
-        session: ctx.session,
-        resourceType: "automation",
-        resourceId: trigger.id,
-        action: "update",
-        before: { trigger: previousTrigger },
-        after: { trigger },
-      });
-
-      return { trigger };
-    }),
-
-  // Re-enable a project-notification channel that auto-disabled after
-  // consecutive delivery failures, resetting its failure tracking.
-  reactivateAutomation: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        automationId: z.string(),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "automations:CUD",
-      });
-
-      const { previousTrigger, trigger } =
-        await reactivateProjectNotificationChannel({
-          prisma: ctx.prisma,
-          projectId: input.projectId,
-          automationId: input.automationId,
-        });
 
       await auditLog({
         session: ctx.session,

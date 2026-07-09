@@ -40,10 +40,6 @@ export function useProjectNotificationChannels(projectId: string) {
     onSuccess: () => utils.automations.getAutomations.invalidate({ projectId }),
   });
 
-  const reactivateChannel = api.automations.reactivateAutomation.useMutation({
-    onSuccess: () => utils.automations.getAutomations.invalidate({ projectId }),
-  });
-
   const updateEventActions =
     api.automations.updateTriggerEventActions.useMutation({
       onSuccess: () =>
@@ -84,7 +80,6 @@ export function useProjectNotificationChannels(projectId: string) {
     editingChannel,
     webhookSecret,
     isDeleting: deleteChannel.isPending,
-    isReactivating: reactivateChannel.isPending,
     isTogglingEvent: updateEventActions.isPending,
     isEventEnabled,
     actions: {
@@ -109,8 +104,6 @@ export function useProjectNotificationChannels(projectId: string) {
       },
       deleteChannel: (automationId: string) =>
         deleteChannel.mutate({ projectId, automationId }),
-      reactivateChannel: (automationId: string) =>
-        reactivateChannel.mutate({ projectId, automationId }),
       dismissWebhookSecret: () => setWebhookSecret(null),
     },
   };
