@@ -255,6 +255,30 @@ describe("buildExpandedGraph", () => {
       expect(edgeSet(result).has(`i->${LANGFUSE_END_NODE_NAME}`)).toBe(false);
     });
 
+    it("chains a same-start instant through its longer sibling instead of orphaning it", () => {
+      // b (instant) shares a's start and ends before a's start — the
+      // happened-before b→a must be emitted (end tiebreak in the run-order
+      // sort), so the reduction may legitimately drop b→c as implied via
+      // b→a→c. Without the tiebreak b sorted after a, b→a was never
+      // considered, and b dangled as a disconnected __start__→b→__end__.
+      const data = [
+        obs({ id: "a", name: "long", startTime: t(0), endTime: t(5) }),
+        obs({ id: "b", name: "instant", startTime: t(0), endTime: t(0) }),
+        obs({ id: "c", name: "next", startTime: t(10), endTime: t(15) }),
+      ];
+
+      const result = buildExpandedGraph(data);
+
+      expect(edgeSet(result)).toEqual(
+        new Set([
+          `${LANGFUSE_START_NODE_NAME}->b`,
+          "b->a",
+          "a->c",
+          `c->${LANGFUSE_END_NODE_NAME}`,
+        ]),
+      );
+    });
+
     it("chains same-timestamp instants singly instead of quadratically", () => {
       const data = ["s1", "s2", "s3"].map((id) =>
         obs({ id, name: id, startTime: t(1), endTime: t(1) }),

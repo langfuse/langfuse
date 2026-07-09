@@ -61,11 +61,24 @@ function endMs(obs: AgentGraphDataResponse): number {
   return Math.max(start, end);
 }
 
-function byStartThenId(
+/**
+ * Run order for the sibling scan. The happened-before pass only looks
+ * BACKWARDS (j < i), so it needs: x happened-before y (x.end ≤ y.start) ⇒
+ * x sorts before y. Start alone doesn't guarantee that — a same-start
+ * instant ends before its longer sibling STARTS, yet an id tiebreak could
+ * sort it after, and the reduction would then drop edges citing a chain
+ * that was never emitted. Tie-breaking by END fixes it: a same-start pair
+ * can only be ordered (one an instant at the shared start), and the instant
+ * has the smaller end. Same-instant ties (id tiebreak) are symmetric and
+ * covered by the fallback chain.
+ */
+function byRunOrder(
   a: AgentGraphDataResponse,
   b: AgentGraphDataResponse,
 ): number {
-  return startMs(a) - startMs(b) || a.id.localeCompare(b.id);
+  return (
+    startMs(a) - startMs(b) || endMs(a) - endMs(b) || a.id.localeCompare(b.id)
+  );
 }
 
 /**
@@ -110,7 +123,7 @@ function buildFlowEdges(
   const edges: Edge[] = [];
   const rootSiblingFroms = new Set<string>();
   for (const [parentId, group] of groups) {
-    const ordered = [...group].sort(byStartThenId);
+    const ordered = [...group].sort(byRunOrder);
     // Precomputed times + index loops: the scan is O(n²) in the group size
     // and must stay allocation-free to be instant at the 5000-observation
     // panel cap (a naive slice/filter per element takes seconds there).
@@ -204,7 +217,7 @@ export function buildExpandedGraph(
       byId.set(obs.id, obs);
     }
   }
-  const observations = [...byId.values()].sort(byStartThenId);
+  const observations = [...byId.values()].sort(byRunOrder);
 
   if (observations.length === 0) {
     return { graph: { nodes: [], edges: [] }, nodeToObservationsMap: {} };
