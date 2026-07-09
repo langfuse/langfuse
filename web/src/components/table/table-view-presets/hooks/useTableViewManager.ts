@@ -475,6 +475,13 @@ export function useTableViewManager({
       isSystemPresetId(requestedViewId) &&
       selectedViewError.data?.httpStatus === 404
     ) {
+      // How many users still follow "the older way" (a retired preset
+      // reference) and get redirected — sizes the cost of each catalog
+      // iteration.
+      capture("saved_views:retired_view_redirect", {
+        tableName,
+        viewId: requestedViewId,
+      });
       showErrorToast(
         "View no longer available",
         "This suggested view was retired — showing the default view instead.",
@@ -493,6 +500,8 @@ export function useTableViewManager({
     selectedViewError,
     selectedViewId,
     handleSetViewId,
+    capture,
+    tableName,
   ]);
 
   if (disabled) {

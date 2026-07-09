@@ -56,6 +56,13 @@ export const events = {
     "category_chip_apply",
     "category_preset_preview",
     "category_preset_coming_soon_click",
+    // Fired when a chip popover closes; carries durationMs + outcome
+    // ("applied" | "cleared" | "previewed_only" | "no_interaction") so the
+    // explore → activate funnel and dwell time read from one event.
+    "category_chip_close",
+    // A bookmarked/stored system-preset id that the catalog retired — the
+    // user was shown the one-time notice and landed on the default view.
+    "retired_view_redirect",
   ],
   score: [
     "create",

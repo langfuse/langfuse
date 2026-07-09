@@ -102,6 +102,20 @@ export function CategoryPresetChips({
   const pointerDownRef = useRef(false);
   const openedByPointerRef = useRef(false);
 
+  // Explore → activate funnel: one close event carries how long the popover
+  // was open and how the interaction ended, so dwell time and conversion read
+  // without stitching opens to applies. Shared across the chips — only one
+  // popover interaction happens at a time; chip→chip switching closes the old
+  // popover (capturing ITS outcome via its own closure) before the new opens.
+  const openedAtRef = useRef<number | null>(null);
+  const outcomeRef = useRef<
+    "no_interaction" | "previewed_only" | "applied" | "cleared"
+  >("no_interaction");
+  const markExplored = () => {
+    if (outcomeRef.current === "no_interaction")
+      outcomeRef.current = "previewed_only";
+  };
+
   const presetsByCategory = useMemo(() => {
     // While the preset list is loading, render no chips at all (null below)
     // rather than a lone Quality chip holding just the coming-soon placeholder
@@ -163,6 +177,8 @@ export function CategoryPresetChips({
               if (open) {
                 openedByPointerRef.current = pointerDownRef.current;
                 pointerDownRef.current = false;
+                openedAtRef.current = Date.now();
+                outcomeRef.current = "no_interaction";
                 capture("saved_views:category_chip_open", {
                   category,
                   tableName: TableViewPresetTableName.ObservationsEvents,
@@ -172,6 +188,15 @@ export function CategoryPresetChips({
                 // (select a preset, click outside, Escape) — always end the
                 // preview so it can't outlive the popover.
                 onPreviewView?.(null);
+                if (openedAtRef.current !== null) {
+                  capture("saved_views:category_chip_close", {
+                    category,
+                    outcome: outcomeRef.current,
+                    durationMs: Date.now() - openedAtRef.current,
+                    tableName: TableViewPresetTableName.ObservationsEvents,
+                  });
+                  openedAtRef.current = null;
+                }
               }
             }}
           >
@@ -221,6 +246,7 @@ export function CategoryPresetChips({
                       aria-disabled={preset.disabled || undefined}
                       onMouseEnter={() => {
                         if (!preset.state) return;
+                        markExplored();
                         onPreviewView?.(preset.state);
                         capture("saved_views:category_preset_preview", {
                           category,
@@ -233,12 +259,15 @@ export function CategoryPresetChips({
                       onMouseLeave={() =>
                         !preset.disabled && onPreviewView?.(null)
                       }
-                      onFocus={() =>
-                        preset.state && onPreviewView?.(preset.state)
-                      }
+                      onFocus={() => {
+                        if (!preset.state) return;
+                        markExplored();
+                        onPreviewView?.(preset.state);
+                      }}
                       onBlur={() => !preset.disabled && onPreviewView?.(null)}
                       onClick={() => {
                         if (!preset.state) {
+                          markExplored();
                           capture(
                             "saved_views:category_preset_coming_soon_click",
                             {
@@ -254,6 +283,7 @@ export function CategoryPresetChips({
                         // Set ?viewId for deep-link/provenance, then apply the
                         // preset's filters/orderBy (or clear on toggle-off).
                         const next = isPresetActive ? null : preset.id;
+                        outcomeRef.current = next ? "applied" : "cleared";
                         onApplyView(next);
                         applyViewState(
                           next ? preset.state : CLEARED_VIEW_STATE,
