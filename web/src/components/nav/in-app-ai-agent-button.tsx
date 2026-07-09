@@ -161,9 +161,9 @@ export const InAppAiAgentButton = () => {
         >
           {(deleteConversationDialog) => (
             // The assistant window lives in the `agent` overlay layer — a
-            // <body>-level layer container that floats above page content but below
-            // every transient overlay (dropdowns, dialogs, popovers, tooltips,
-            // toasts) by DOM order alone. No z-index: layer ORDER stacks it (see
+            // <body>-level layer container that floats above page content and
+            // panel surfaces, but below true modals and transient overlays by DOM
+            // order alone. No z-index: layer ORDER stacks it (see
             // components/ui/layer.tsx). This replaces the old body portal + z-51,
             // which fought the nav-user dropdown's z-60 at <body> level.
             <Layer name="agent">

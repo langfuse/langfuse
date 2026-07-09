@@ -110,12 +110,12 @@ Drawer.displayName = "Drawer";
 
 const DrawerTrigger = DrawerPrimitive.Trigger;
 
-// Route the Vaul portal into the `modal` overlay layer (null until mounted →
+// Route the Vaul portal into the `panel` overlay layer (null until mounted →
 // falls back to <body>, SSR-parity). Layer order, not z-index, stacks it.
 const DrawerPortal = ({
   ...props
 }: React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Portal>) => {
-  const container = useLayerContainer("modal");
+  const container = useLayerContainer("panel");
   return <DrawerPrimitive.Portal container={container} {...props} />;
 };
 DrawerPortal.displayName = "DrawerPortal";
