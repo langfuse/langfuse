@@ -73,7 +73,6 @@ import {
   compileEvalPrompt,
   buildEvalMessages,
   buildEvalExecutionMetadata,
-  buildEvalPromptCacheKey,
   getEnvironmentFromVariables,
 } from "./evalRuntime";
 import {
@@ -858,13 +857,6 @@ export async function runLLMAsJudgeEvaluation({
 
       // Prepare LLM call
       const messages = buildEvalMessages(prompt);
-      const promptCacheKey = buildEvalPromptCacheKey({
-        projectId,
-        templateId: template.id,
-        templateVersion: template.version,
-        provider: modelConfig.config.provider,
-        model: modelConfig.config.model,
-      });
 
       const executionTraceId = createW3CTraceId(jobExecutionId);
 
@@ -887,7 +879,7 @@ export async function runLLMAsJudgeEvaluation({
           llmSpan.setAttribute("eval.model.name", modelConfig.config.model);
           llmSpan.setAttribute(
             "eval.model.adapter",
-            modelConfig.config.apiKey.adapter,
+            modelConfig.config.adapter,
           );
 
           try {
@@ -896,7 +888,6 @@ export async function runLLMAsJudgeEvaluation({
               modelConfig: modelConfig.config,
               structuredOutputSchema:
                 compiledOutputDefinition.outputResultSchema,
-              promptCacheKey,
               traceSinkParams: {
                 targetProjectId: projectId,
                 traceId: executionTraceId,
