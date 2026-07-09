@@ -190,6 +190,52 @@ describe("extractObservationVariables", () => {
       ]);
     });
 
+    it("passes string argument values through unchanged", () => {
+      // The zipped calls run through deepParseJson like input/output, but its
+      // depth guard (default maxDepth 3: array -> call -> arguments -> leaf)
+      // stops before argument values, so JSON-literal strings the model
+      // emitted ("true", "42", serialized objects) are NOT coerced. This pins
+      // the payload types evaluator code receives.
+      const args = JSON.stringify({
+        count: "42",
+        flag: "true",
+        nested: '{"a":1}',
+      });
+      const observation = {
+        ...mockObservation,
+        tool_calls: [
+          JSON.stringify({
+            id: "call_1",
+            arguments: args,
+            type: "function",
+            index: 0,
+          }),
+        ],
+        tool_call_names: ["search"],
+      };
+
+      const result = extractObservationVariables({
+        observation,
+        variableMapping: [
+          { templateVariable: "tools", selectedColumnId: "toolCalls" },
+        ],
+      });
+
+      expect(result[0].value).toEqual([
+        {
+          id: "call_1",
+          name: "search",
+          arguments: {
+            count: "42",
+            flag: "true",
+            nested: '{"a":1}',
+          },
+          type: "function",
+          index: 0,
+        },
+      ]);
+    });
+
     it("should support JSONPath selectors over zipped toolCalls", () => {
       const variableMapping: ObservationVariableMapping[] = [
         {

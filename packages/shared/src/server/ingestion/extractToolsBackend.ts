@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { parseJsonIfString as parseIfString } from "../../utils/json";
+
 type IngestionJsonValue = string | object | number | boolean | null | undefined;
 
 /**
@@ -379,20 +381,6 @@ function extractToolCallsFromMessage(
       }
     }
   }
-}
-
-/**
- * Parse input that might be a JSON string or already an object.
- */
-function parseIfString(data: unknown): unknown {
-  if (typeof data === "string") {
-    try {
-      return JSON.parse(data);
-    } catch {
-      return data; // Return original if not valid JSON
-    }
-  }
-  return data;
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {

@@ -92,8 +92,11 @@ const INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE: Record<
   input: "input",
   output: "output",
   metadata: "metadata",
+  // Only camelCase for tool calls: the column id is new with tool-call
+  // support, so unlike expected_output no legacy snake_case rows exist. An
+  // accidental "tool_calls" write should surface at the corrupted-mapping
+  // error boundary, not be absorbed here.
   toolCalls: "tool_calls",
-  tool_calls: "tool_calls",
   expected_output: "expected_output",
   expectedOutput: "expected_output",
   experiment_item_expected_output: "expected_output",

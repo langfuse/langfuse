@@ -7,7 +7,7 @@ import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
 import {
   EvalTargetObject,
   extractValueFromObject,
-  zipObservationToolCalls,
+  zipToolCallsFromRecord,
   type EvalTargetObject as EvalTargetObjectType,
   type ToolCallForEval,
 } from "@langfuse/shared";
@@ -100,16 +100,7 @@ function normalizePreviewDataFields(
 function getZippedToolCalls(
   record: Record<string, unknown> | null | undefined,
 ) {
-  return zipObservationToolCalls({
-    tool_calls: Array.isArray(record?.toolCalls) ? record.toolCalls : [],
-    // Map (not filter) malformed names: dropping an entry would shift the
-    // zip and misattribute every later call's name.
-    tool_call_names: Array.isArray(record?.toolCallNames)
-      ? record.toolCallNames.map((name) =>
-          typeof name === "string" ? name : "",
-        )
-      : [],
-  });
+  return zipToolCallsFromRecord(record ?? {});
 }
 
 function getRecordValue(

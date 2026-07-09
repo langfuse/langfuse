@@ -1,5 +1,6 @@
 import {
   extractValueFromObjectAsString,
+  zipToolCallsFromRecord,
   type BatchActionQuery,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
@@ -39,11 +40,19 @@ export function renderPromptPreviewFromObservation(params: {
     return "Template has no prompt.";
   }
 
+  // Both source records carry tool calls in the raw storage shape (name-less
+  // JSON strings + parallel names); zip so a toolCalls mapping previews the
+  // named objects the evaluator runtime receives.
+  const observationWithToolCalls = {
+    ...observation,
+    toolCalls: zipToolCallsFromRecord(observation),
+  };
+
   const variableValues = new Map<string, string>();
 
   for (const mapping of variableMapping) {
     const { value } = extractValueFromObjectAsString(
-      observation,
+      observationWithToolCalls,
       mapping.selectedColumnId,
       mapping.jsonSelector ?? undefined,
     );
