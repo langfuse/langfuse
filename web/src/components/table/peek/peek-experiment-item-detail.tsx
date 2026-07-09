@@ -24,6 +24,18 @@ const PeekViewExperimentItemDetail = ({ projectId }: { projectId: string }) => {
     timestamp,
   });
 
+  // No trace target means the current experiment has no run for this item;
+  // without this guard the disabled trace query would show a skeleton forever.
+  if (!traceId) {
+    return (
+      <div className="flex h-full items-center justify-center p-4">
+        <span className="text-muted-foreground text-sm">
+          No run for this item in the selected experiment
+        </span>
+      </div>
+    );
+  }
+
   return (
     <TraceDetailBody trace={trace.data} context="peek" keySuffix={peekId} />
   );
