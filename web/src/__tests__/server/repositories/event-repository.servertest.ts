@@ -3101,6 +3101,56 @@ describe("Clickhouse Events Repository Test", () => {
       expect(result).toBeDefined();
       expect(result.length).toBe(0);
     });
+
+    it("should fetch tool call fields only when includeToolCallFields is set", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+      const storedToolCall = JSON.stringify({
+        id: "call_1",
+        arguments: JSON.stringify({ city: "Berlin" }),
+        type: "function",
+        index: 0,
+      });
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "test-tool-calls",
+          input: "tool call input",
+          output: "tool call output",
+          tool_calls: [storedToolCall],
+          tool_call_names: ["get_weather"],
+          start_time: nowMicro,
+        }),
+      ]);
+
+      const baseParams = {
+        projectId,
+        observations: [{ id: observationId, traceId }],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
+      };
+
+      const withoutToolCalls =
+        await getObservationsBatchIOFromEventsTable(baseParams);
+      expect(withoutToolCalls.length).toBe(1);
+      expect(withoutToolCalls[0]).not.toHaveProperty("toolCalls");
+      expect(withoutToolCalls[0]).not.toHaveProperty("toolCallNames");
+
+      const withToolCalls = await getObservationsBatchIOFromEventsTable({
+        ...baseParams,
+        includeToolCallFields: true,
+      });
+      expect(withToolCalls.length).toBe(1);
+      expect(withToolCalls[0]?.toolCalls).toEqual([storedToolCall]);
+      expect(withToolCalls[0]?.toolCallNames).toEqual(["get_weather"]);
+    });
   });
 
   maybe("getLatestSdkVersionInfoFromEvents", () => {

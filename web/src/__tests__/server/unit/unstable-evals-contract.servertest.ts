@@ -563,6 +563,33 @@ describe("unstable public eval adapters", () => {
     );
   });
 
+  it("accepts tool_calls mappings for both targets", () => {
+    for (const target of ["observation", "experiment"] as const) {
+      const writeModel = toJobConfigurationInput({
+        input: {
+          name: "tool_call_check",
+          target,
+          enabled: true,
+          sampling: 1,
+          filter: [],
+          mapping: [
+            { variable: "calls", source: "tool_calls", jsonPath: "$[*].name" },
+          ],
+        },
+        evaluatorVariables: ["calls"],
+        evaluatorType: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
+      });
+
+      expect(writeModel.variableMapping).toEqual([
+        {
+          templateVariable: "calls",
+          selectedColumnId: "toolCalls",
+          jsonSelector: "$[*].name",
+        },
+      ]);
+    }
+  });
+
   it("rejects missing evaluator variable mappings", () => {
     expectUnstablePublicApiError(
       () =>

@@ -12,7 +12,6 @@ class ObservationContext:
     output: Any = None
     metadata: Any = None
     tool_calls: list[Any] = field(default_factory=list)
-    tool_call_names: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -36,7 +35,6 @@ class EvaluationContext:
                 output=observation.get("output"),
                 metadata=observation.get("metadata"),
                 tool_calls=observation.get("toolCalls") or [],
-                tool_call_names=observation.get("toolCallNames") or [],
             ),
             experiment=ExperimentContext(
                 item_expected_output=experiment.get("itemExpectedOutput"),

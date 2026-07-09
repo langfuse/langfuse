@@ -42,7 +42,6 @@ const baseInput: DispatchInput = {
       output: null,
       metadata: null,
       toolCalls: [],
-      toolCallNames: [],
     },
   },
 };

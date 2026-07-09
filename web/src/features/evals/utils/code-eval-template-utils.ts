@@ -19,6 +19,7 @@ export const CODE_EVAL_TEMPLATE_VARIABLES = [
   "input",
   "output",
   "metadata",
+  "toolCalls",
   "experimentItemExpectedOutput",
   "experimentItemMetadata",
 ] as const;

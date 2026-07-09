@@ -81,6 +81,7 @@ export const BatchIOInput = zodSchema.object({
   minStartTime: zodSchema.date(),
   maxStartTime: zodSchema.date(),
   truncated: zodSchema.boolean().optional(), // Defaults to true for performance
+  includeToolCalls: zodSchema.boolean().optional(), // Defaults to false; tool-call arrays can be large
 });
 
 export type BatchIOInput = z.infer<typeof BatchIOInput>;
@@ -196,6 +197,7 @@ export const eventsRouter = createTRPCRouter({
             minStartTime: input.minStartTime,
             maxStartTime: input.maxStartTime,
             truncated: input.truncated,
+            includeToolCallFields: input.includeToolCalls,
           });
 
           return batchIO.map(toDomainWithStringifiedMetadata);
@@ -218,6 +220,7 @@ export const eventsRouter = createTRPCRouter({
             maxStartTime: input.maxStartTime,
             truncated: input.truncated,
             includeExperimentFields: true,
+            includeToolCallFields: input.includeToolCalls,
           });
 
           return batchIO.map(toDomainWithStringifiedMetadata);

@@ -80,6 +80,7 @@ const PUBLIC_MAPPING_SOURCE_TO_INTERNAL_COLUMN: Record<
   input: "input",
   output: "output",
   metadata: "metadata",
+  tool_calls: "toolCalls",
   expected_output: "experimentItemExpectedOutput",
   experiment_item_metadata: "experimentItemMetadata",
 };
@@ -91,6 +92,8 @@ const INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE: Record<
   input: "input",
   output: "output",
   metadata: "metadata",
+  toolCalls: "tool_calls",
+  tool_calls: "tool_calls",
   expected_output: "expected_output",
   expectedOutput: "expected_output",
   experiment_item_expected_output: "expected_output",

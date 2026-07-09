@@ -41,7 +41,10 @@ describe("extractObservationVariables", () => {
 
     // Tool call properties
     tool_definitions: { search: '{"description": "Search the web"}' },
-    tool_calls: ['{"name": "search", "args": {"query": "test"}}'],
+    // Real storage shape: name-less JSON strings, names in the parallel array.
+    tool_calls: [
+      '{"id":"call_1","arguments":"{\\"query\\":\\"test\\"}","type":"function","index":0}',
+    ],
     tool_call_names: ["search"],
     tool_call_count: 1,
 
@@ -164,22 +167,45 @@ describe("extractObservationVariables", () => {
   });
 
   describe("tool call extraction", () => {
-    it("should extract toolCalls variable", () => {
+    it("should extract toolCalls as zipped objects with the default columns", () => {
       const variableMapping: ObservationVariableMapping[] = [
         { templateVariable: "tools", selectedColumnId: "toolCalls" },
       ];
 
-      const result = extractObservationVariables(
-        {
-          observation: mockObservation,
-          variableMapping,
-        },
-        availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
-      );
+      const result = extractObservationVariables({
+        observation: mockObservation,
+        variableMapping,
+      });
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("tools");
-      expect(result[0].value).toEqual(mockObservation.tool_calls);
+      expect(result[0].value).toEqual([
+        {
+          id: "call_1",
+          name: "search",
+          arguments: { query: "test" },
+          type: "function",
+          index: 0,
+        },
+      ]);
+    });
+
+    it("should support JSONPath selectors over zipped toolCalls", () => {
+      const variableMapping: ObservationVariableMapping[] = [
+        {
+          templateVariable: "calledTools",
+          selectedColumnId: "toolCalls",
+          jsonSelector: "$[*].name",
+        },
+      ];
+
+      const result = extractObservationVariables({
+        observation: mockObservation,
+        variableMapping,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].value).toEqual("search");
     });
 
     it("should extract toolDefinitions variable", () => {

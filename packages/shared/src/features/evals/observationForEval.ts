@@ -6,6 +6,7 @@ import { metadataArraysToRecord } from "../../server/utils/metadata_conversion";
 import { SingleValueOption } from "../../tableDefinitions";
 import { ColumnDefinition } from "../../tableDefinitions";
 import { formatColumnOptions } from "../../tableDefinitions/typeHelpers";
+import { parseJsonPrioritised } from "../../utils/json";
 
 const flexibleUsageCostSchema = z.record(
   z.string(),
@@ -89,14 +90,8 @@ export const toolCallForEvalSchema = z.object({
 
 export type ToolCallForEval = z.infer<typeof toolCallForEvalSchema>;
 
-function parseJsonStringShallow(value: unknown): unknown {
-  if (typeof value !== "string") return value;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return value;
-  }
-}
+const parseIfString = (value: unknown): unknown =>
+  typeof value === "string" ? parseJsonPrioritised(value) : value;
 
 /**
  * Zips the parallel arrays back into named tool call objects.
@@ -109,7 +104,7 @@ export function zipObservationToolCalls(
   observation: Pick<ObservationForEval, "tool_calls" | "tool_call_names">,
 ): ToolCallForEval[] {
   return observation.tool_call_names.map((name, i) => {
-    const parsed = parseJsonStringShallow(observation.tool_calls[i]);
+    const parsed = parseIfString(observation.tool_calls[i]);
     const entry =
       typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
         ? (parsed as Record<string, unknown>)
@@ -118,7 +113,7 @@ export function zipObservationToolCalls(
     return {
       id: typeof entry.id === "string" ? entry.id : "",
       name,
-      arguments: parseJsonStringShallow(entry.arguments) ?? {},
+      arguments: parseIfString(entry.arguments) ?? {},
       type: typeof entry.type === "string" ? entry.type : "",
       index: typeof entry.index === "number" ? entry.index : 0,
     };
@@ -178,6 +173,7 @@ export type ObservationEvalMappingColumnInternal = keyof Pick<
   | "input"
   | "output"
   | "metadata"
+  | "tool_calls"
   | "experiment_item_expected_output"
   | "experiment_item_metadata"
 >;
@@ -214,6 +210,13 @@ export const eventTargetEvalVariableColumns: ObservationEvalVariableColumn[] = [
     type: "stringObject",
     internal: "metadata",
   },
+  {
+    id: "toolCalls",
+    name: "Tool Calls",
+    description:
+      "Tool calls recorded on the observation ({id, name, arguments, type, index})",
+    internal: "tool_calls",
+  },
 ];
 
 export const experimentTargetEvalVariableColumns: ObservationEvalVariableColumn[] =
@@ -247,12 +250,6 @@ export const observationEvalVariableColumns: ObservationEvalVariableColumn[] = [
 
 export const availableObservationEvalVariableColumns = [
   ...observationEvalVariableColumns,
-  {
-    id: "toolCalls", // Needs to match the `ID` from `mapObservationsTable.ts`
-    name: "Tool Calls",
-    description: "Tool calls",
-    internal: "tool_calls",
-  },
   {
     id: "toolDefinitions",
     name: "Tool Definitions",

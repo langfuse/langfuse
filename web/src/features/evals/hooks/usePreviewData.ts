@@ -7,13 +7,16 @@ import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
 import {
   EvalTargetObject,
   extractValueFromObject,
+  zipObservationToolCalls,
   type EvalTargetObject as EvalTargetObjectType,
+  type ToolCallForEval,
 } from "@langfuse/shared";
 
 export type PreviewDataFields = {
   input: unknown;
   output: unknown;
   metadata: unknown;
+  toolCalls: ToolCallForEval[];
   experimentItemExpectedOutput: unknown;
   experimentItemMetadata: unknown;
 };
@@ -82,12 +85,31 @@ function normalizePreviewDataFields(
     input: getRecordValue(record, "input"),
     output: getRecordValue(record, "output"),
     metadata: getRecordValue(record, "metadata"),
+    toolCalls: getZippedToolCalls(record),
     experimentItemExpectedOutput: getRecordValue(
       record,
       "experimentItemExpectedOutput",
     ),
     experimentItemMetadata: getRecordValue(record, "experimentItemMetadata"),
   };
+}
+
+// Both source records (events batchIO and legacy observation) carry the raw
+// storage shape; zip client-side so the preview matches what the evaluator
+// runtime produces.
+function getZippedToolCalls(
+  record: Record<string, unknown> | null | undefined,
+) {
+  return zipObservationToolCalls({
+    tool_calls: Array.isArray(record?.toolCalls) ? record.toolCalls : [],
+    // Map (not filter) malformed names: dropping an entry would shift the
+    // zip and misattribute every later call's name.
+    tool_call_names: Array.isArray(record?.toolCallNames)
+      ? record.toolCallNames.map((name) =>
+          typeof name === "string" ? name : "",
+        )
+      : [],
+  });
 }
 
 function getRecordValue(
@@ -198,6 +220,7 @@ function useEventPreview({
       minStartTime: timestamp as Date,
       maxStartTime: timestamp as Date,
       truncated: false,
+      includeToolCalls: true,
     },
     {
       ...sendAsPostOption,
@@ -246,6 +269,7 @@ function useExperimentPreview({
       minStartTime: timestamp as Date,
       maxStartTime: timestamp as Date,
       truncated: false,
+      includeToolCalls: true,
     },
     {
       ...sendAsPostOption,

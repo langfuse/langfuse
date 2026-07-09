@@ -32,7 +32,6 @@ export type CodeEvalPayload = {
     output: unknown;
     metadata: unknown;
     toolCalls: ToolCallForEval[];
-    toolCallNames: string[];
   };
   experiment?: {
     itemExpectedOutput: unknown;

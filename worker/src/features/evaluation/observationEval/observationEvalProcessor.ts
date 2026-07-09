@@ -251,7 +251,6 @@ export async function processObservationEval(
       executionResult = await executeCodeBasedEvaluation({
         ...executionParams,
         template: evalJobConfig.evalTemplate as EvalTemplateCodeBased,
-        observation: observationData,
       });
       break;
   }

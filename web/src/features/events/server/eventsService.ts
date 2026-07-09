@@ -655,7 +655,10 @@ export async function getEventFilterOptions(
   };
 }
 
-interface GetEventBatchIOParams<TIncludeExperiment extends boolean = false> {
+interface GetEventBatchIOParams<
+  TIncludeExperiment extends boolean = false,
+  TIncludeToolCalls extends boolean = false,
+> {
   projectId: string;
   observations: Array<{
     id: string;
@@ -665,6 +668,8 @@ interface GetEventBatchIOParams<TIncludeExperiment extends boolean = false> {
   maxStartTime: Date;
   truncated?: boolean;
   includeExperimentFields?: TIncludeExperiment;
+  /** Opt-in: tool-call arrays can be large; only eval consumers need them. */
+  includeToolCallFields?: TIncludeToolCalls;
 }
 
 type EventBatchIOStringOutput = Awaited<
@@ -676,20 +681,28 @@ type EventBatchIOWithExperimentOutput = EventBatchIOStringOutput & {
   experimentItemMetadata: unknown;
 };
 
+type EventBatchIOToolCallFields = {
+  toolCalls: string[];
+  toolCallNames: string[];
+};
+
+type EventBatchIOResult<
+  TIncludeExperiment extends boolean,
+  TIncludeToolCalls extends boolean,
+> = (TIncludeExperiment extends true
+  ? EventBatchIOWithExperimentOutput
+  : EventBatchIOStringOutput) &
+  (TIncludeToolCalls extends true ? EventBatchIOToolCallFields : object);
+
 /**
  * Batch fetch input/output and metadata for multiple observations
  */
 export async function getEventBatchIO<
   TIncludeExperiment extends boolean = false,
+  TIncludeToolCalls extends boolean = false,
 >(
-  params: GetEventBatchIOParams<TIncludeExperiment>,
-): Promise<
-  Array<
-    TIncludeExperiment extends true
-      ? EventBatchIOWithExperimentOutput
-      : EventBatchIOStringOutput
-  >
-> {
+  params: GetEventBatchIOParams<TIncludeExperiment, TIncludeToolCalls>,
+): Promise<Array<EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls>>> {
   return getObservationsBatchIOFromEventsTable({
     projectId: params.projectId,
     observations: params.observations,
@@ -697,13 +710,11 @@ export async function getEventBatchIO<
     maxStartTime: params.maxStartTime,
     truncated: params.truncated,
     includeExperimentFields: params.includeExperimentFields,
+    includeToolCallFields: params.includeToolCallFields,
   } as Parameters<typeof getObservationsBatchIOFromEventsTable>[0] & {
     includeExperimentFields?: TIncludeExperiment;
+    includeToolCallFields?: TIncludeToolCalls;
   }) as Promise<
-    Array<
-      TIncludeExperiment extends true
-        ? EventBatchIOWithExperimentOutput
-        : EventBatchIOStringOutput
-    >
+    Array<EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls>>
   >;
 }

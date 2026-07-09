@@ -7,7 +7,6 @@ import {
   resolveConfiguredCodeEvalDispatcher,
   runCodeBasedEvaluationDispatch,
   type ExtractedVariable,
-  type ObservationToolCallFields,
 } from "@langfuse/shared/src/server";
 import { UnrecoverableError } from "../../../errors/UnrecoverableError";
 import { createW3CTraceId } from "../../utils";
@@ -22,7 +21,6 @@ export async function executeCodeBasedEvaluation(params: {
   config: JobConfiguration;
   template: EvalTemplateCodeBased;
   extractedVariables: ExtractedVariable[];
-  observation: ObservationToolCallFields;
   hasExperimentContext?: boolean;
   executionMetadata: Record<string, string>;
   // Unused by code-based eval; the shared observation processor passes it.
@@ -67,7 +65,6 @@ export async function executeCodeBasedEvaluation(params: {
         jobExecutionId,
         template: params.template,
         extractedVariables: params.extractedVariables,
-        observation: params.observation,
         hasExperimentContext: params.hasExperimentContext ?? false,
         traceName: `Execute evaluator: ${params.template.name}`,
         metadata: executionMetadata,

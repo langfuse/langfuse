@@ -24,20 +24,7 @@ import {
   type DispatchResult,
 } from "./codeEvalDispatcherTypes";
 import type { ExtractedVariable } from "./extractObservationVariables";
-import {
-  zipObservationToolCalls,
-  type ObservationForEval,
-} from "../../features/evals/observationForEval";
-
-/**
- * Tool call data bypasses the variable-mapping machinery on purpose: mappings
- * are stored per job configuration, so existing evaluators would never
- * receive the fields if they were mapping-driven.
- */
-export type ObservationToolCallFields = Pick<
-  ObservationForEval,
-  "tool_calls" | "tool_call_names"
->;
+import type { ToolCallForEval } from "../../features/evals/observationForEval";
 
 const INTERNAL_CODE_EVAL_ERROR_MESSAGE = "An internal error occurred";
 const INTERNAL_CODE_EVAL_ERROR_CODE = "INTERNAL_ERROR" as const;
@@ -119,18 +106,23 @@ type CodeBasedEvaluationDispatchResult =
 function buildCodeEvalPayload(params: {
   extractedVariables: ExtractedVariable[];
   hasExperimentContext: boolean;
-  observation: ObservationToolCallFields;
 }): CodeEvalPayload {
   const byName = new Map(
     params.extractedVariables.map((v) => [v.var, v.value]),
   );
+  // Extraction zips tool calls into named objects (extractObservationVariables).
+  // Configs saved before "toolCalls" entered the code eval mapping extract
+  // nothing for it, so those evaluators see empty arrays.
+  const rawToolCalls = byName.get("toolCalls");
+  const toolCalls = Array.isArray(rawToolCalls)
+    ? (rawToolCalls as ToolCallForEval[])
+    : [];
   const payload: CodeEvalPayload = {
     observation: {
       input: byName.get("input") ?? null,
       output: byName.get("output") ?? null,
       metadata: byName.get("metadata") ?? null,
-      toolCalls: zipObservationToolCalls(params.observation),
-      toolCallNames: params.observation.tool_call_names,
+      toolCalls,
     },
   };
 
@@ -209,7 +201,6 @@ export async function runCodeBasedEvaluationDispatch(params: {
   jobExecutionId: string;
   template: EvalTemplateCodeBased;
   extractedVariables: ExtractedVariable[];
-  observation: ObservationToolCallFields;
   hasExperimentContext?: boolean;
   traceName: string;
   metadata: Record<string, unknown>;
@@ -218,7 +209,6 @@ export async function runCodeBasedEvaluationDispatch(params: {
   const payload = buildCodeEvalPayload({
     extractedVariables: params.extractedVariables,
     hasExperimentContext: params.hasExperimentContext ?? false,
-    observation: params.observation,
   });
   const traceStartTime = new Date();
   let dispatchResult: DispatchResult | undefined;

@@ -21,7 +21,6 @@ const baseInput: Omit<DispatchInput, "runtime" | "code"> = {
       output: "4",
       metadata: { source: "test" },
       toolCalls: [],
-      toolCallNames: [],
     },
     experiment: {
       itemExpectedOutput: "4",
