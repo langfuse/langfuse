@@ -525,9 +525,7 @@ export function MarkdownView({
           title === "assistant" || title === "Output" || title === "Model"
             ? "bg-accent-light-green"
             : "",
-          title === "system" || title === "Input"
-            ? "bg-primary-foreground"
-            : "",
+          title === "system" || title === "Input" ? "bg-card" : "",
           className,
         )}
       >
