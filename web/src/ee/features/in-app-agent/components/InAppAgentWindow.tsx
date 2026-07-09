@@ -88,6 +88,7 @@ type InAppAgentWindowCloseButtonProps =
 
 export type InAppAgentWindowProps = {
   conversations: InAppAgentWindowConversation[];
+  disablePendingToolApprovalActions?: boolean;
   error: string | null;
   hasMoreConversations: boolean;
   isHeaderDragHandleEnabled?: boolean;
@@ -116,6 +117,7 @@ export type InAppAgentWindowProps = {
 export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const {
     conversations,
+    disablePendingToolApprovalActions = false,
     error,
     hasMoreConversations,
     isHeaderDragHandleEnabled = false,
@@ -568,8 +570,16 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   key={`${tool.approval?.id ?? tool.name}-${index}`}
                   tool={tool}
                   isCompact={!isExpanded}
-                  onApproveToolCall={onApproveToolCall}
-                  onRejectToolCall={onRejectToolCall}
+                  onApproveToolCall={
+                    disablePendingToolApprovalActions
+                      ? undefined
+                      : onApproveToolCall
+                  }
+                  onRejectToolCall={
+                    disablePendingToolApprovalActions
+                      ? undefined
+                      : onRejectToolCall
+                  }
                 />
               ))}
             </div>

@@ -43,6 +43,8 @@ const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
 const OPEN_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-open";
 const FEEDBACK_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-feedback";
+const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
+  "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
 
 const MastraSuspendEventSchema = z.object({
   type: z.literal("mastra_suspend"),
@@ -77,6 +79,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   hasMoreConversations: false,
   isLoadingMoreConversations: false,
   selectedConversationId: undefined,
+  selectedConversationIsWriteLocked: false,
   loadMoreConversations: () => undefined,
   invalidateConversations: () => undefined,
   selectConversation: () => undefined,
@@ -104,6 +107,7 @@ export type InAppAiAgentConversation = {
   id: string;
   title: string | null;
   updatedAt: Date;
+  isWriteLocked: boolean;
 };
 
 type InAppAiAgentContextType = {
@@ -122,6 +126,7 @@ type InAppAiAgentContextType = {
   hasMoreConversations: boolean;
   isLoadingMoreConversations: boolean;
   selectedConversationId: string | undefined;
+  selectedConversationIsWriteLocked: boolean;
   loadMoreConversations: () => void;
   invalidateConversations: () => void;
   selectConversation: (conversationId: string | null) => void;
@@ -270,6 +275,8 @@ function InAppAiAgentProviderInner({
       ),
     [feedbackByConversationId, messages, selectedConversationId],
   );
+  const selectedConversationIsWriteLocked =
+    conversationQuery.data?.conversation.isWriteLocked ?? false;
   const fetchNextConversationsPage = conversationListQuery.fetchNextPage;
   const loadMoreConversations = useCallback(() => {
     if (!hasMoreConversations || isLoadingMoreConversations) {
@@ -671,6 +678,11 @@ function InAppAiAgentProviderInner({
 
       let startedRun = false;
       try {
+        if (selectedConversationIsWriteLocked) {
+          setError(SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE);
+          return false;
+        }
+
         const isNewConversation = !selectedConversationId;
         const conversationId =
           selectedConversationId ?? createInAppAgentConversationId();
@@ -737,6 +749,7 @@ function InAppAiAgentProviderInner({
       releaseSubmitLock,
       runAgent,
       selectedConversationId,
+      selectedConversationIsWriteLocked,
       setSelectedConversationId,
     ],
   );
@@ -805,6 +818,11 @@ function InAppAiAgentProviderInner({
 
   const resumeToolApproval = useCallback(
     async (approvalId: string, approved: boolean) => {
+      if (selectedConversationIsWriteLocked) {
+        setError(SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE);
+        return;
+      }
+
       const approval = pendingToolApprovals.find(
         (approval) => approval.id === approvalId,
       );
@@ -891,6 +909,7 @@ function InAppAiAgentProviderInner({
       pendingToolApprovals,
       runAgent,
       selectedConversationId,
+      selectedConversationIsWriteLocked,
       updatePendingToolApprovals,
     ],
   );
@@ -922,6 +941,7 @@ function InAppAiAgentProviderInner({
       hasMoreConversations,
       isLoadingMoreConversations,
       selectedConversationId: selectedConversationId ?? undefined,
+      selectedConversationIsWriteLocked,
       loadMoreConversations,
       invalidateConversations,
       selectConversation,
@@ -940,6 +960,7 @@ function InAppAiAgentProviderInner({
       isLoadingMoreConversations,
       isRunning,
       isSelectedConversationHydrating,
+      selectedConversationIsWriteLocked,
       isSubmitting,
       deleteConversation,
       loadMoreConversations,

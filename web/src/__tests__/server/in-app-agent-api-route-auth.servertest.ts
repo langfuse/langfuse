@@ -1,7 +1,13 @@
+import { EventType } from "@ag-ui/core";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE } from "@/src/ee/features/in-app-agent/constants";
 import { filterInAppAgentAvailableLangfuseMcpTools } from "@/src/ee/features/in-app-agent/server/tools";
 import { storePendingToolApproval } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
-import type { InAppAgentToolApprovalRequest } from "@/src/ee/features/in-app-agent/schema";
+import type {
+  AgUiEvent,
+  InAppAgentToolApprovalRequest,
+} from "@/src/ee/features/in-app-agent/schema";
+import { replaceRunEvents } from "@/src/ee/features/in-app-agent/server/persistence";
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -546,6 +552,152 @@ describe("in-app agent public API route auth", () => {
         }),
       ).resolves.toBe(false);
       expect(agentMocks.createAgUiStream).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("blocks writes to old conversations with sandbox tool history", async () => {
+    await withInAppAgentCloudEnv(async () => {
+      const { project, userId } = await setupInAppAgentProjectSession();
+      const conversationId = `conversation-${randomUUID()}`;
+      const createdAt = new Date(Date.now() - 9 * 60 * 60 * 1000);
+
+      await prisma.inAppAgentConversation.create({
+        data: {
+          id: conversationId,
+          projectId: project.id,
+          createdByUserId: userId,
+          title: "Old sandbox conversation",
+          createdAt,
+        },
+      });
+      await prisma.inAppAgentRun.create({
+        data: {
+          id: "run-old-sandbox",
+          projectId: project.id,
+          conversationId,
+          triggeredByUserId: userId,
+          model: "haiku",
+          mcpApiKeyId: "api-key-old-sandbox",
+        },
+      });
+      await replaceRunEvents({
+        prisma,
+        projectId: project.id,
+        conversationId,
+        runId: "run-old-sandbox",
+        events: [
+          {
+            type: EventType.TOOL_CALL_START,
+            toolCallId: "tool-call-1",
+            toolCallName: "bash",
+          } as AgUiEvent,
+          {
+            type: EventType.TOOL_CALL_RESULT,
+            toolCallId: "tool-call-1",
+            content: "done",
+          } as AgUiEvent,
+        ],
+      });
+
+      const { default: handler } =
+        await import("@/src/ee/features/in-app-agent/server/handler");
+      const response = await handler(
+        new Request("http://localhost/api/in-app-agent", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            threadId: conversationId,
+            runId: "client-run-locked",
+            messages: [{ id: "message-1", role: "user", content: "hello" }],
+            tools: [],
+            context: [],
+            state: {
+              type: "existingConversation",
+              projectId: project.id,
+              conversationId,
+            },
+            forwardedProps: {},
+          }),
+        }),
+      );
+
+      expect(response.status).toBe(412);
+      await expect(response.json()).resolves.toEqual({
+        error: IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+      });
+      expect(agentMocks.createAgUiStream).not.toHaveBeenCalled();
+    });
+  });
+
+  it("blocks resume writes to old conversations with sandbox tool history", async () => {
+    await withInAppAgentCloudEnv(async () => {
+      const { project, userId } = await setupInAppAgentProjectSession();
+      const conversationId = `conversation-${randomUUID()}`;
+      const createdAt = new Date(Date.now() - 9 * 60 * 60 * 1000);
+      const forwardedProps = createResumeForwardedProps();
+
+      await prisma.inAppAgentConversation.create({
+        data: {
+          id: conversationId,
+          projectId: project.id,
+          createdByUserId: userId,
+          title: "Old sandbox resume conversation",
+          createdAt,
+        },
+      });
+      await prisma.inAppAgentRun.create({
+        data: {
+          id: "run-old-sandbox-resume",
+          projectId: project.id,
+          conversationId,
+          triggeredByUserId: userId,
+          model: "haiku",
+          mcpApiKeyId: "api-key-old-sandbox-resume",
+        },
+      });
+      await replaceRunEvents({
+        prisma,
+        projectId: project.id,
+        conversationId,
+        runId: "run-old-sandbox-resume",
+        events: [
+          {
+            type: EventType.TOOL_CALL_START,
+            toolCallId: "tool-call-1",
+            toolCallName: "write",
+          } as AgUiEvent,
+          {
+            type: EventType.TOOL_CALL_RESULT,
+            toolCallId: "tool-call-1",
+            content: "done",
+          } as AgUiEvent,
+        ],
+      });
+      await seedPendingToolApproval({
+        projectId: project.id,
+        conversationId,
+        userId,
+        approvalRequest: forwardedProps.command.resume.approvalRequest,
+      });
+
+      const { response } = await callInAppAgentRoute({
+        projectId: project.id,
+        conversationId,
+        forwardedProps,
+      });
+
+      expect(response.status).toBe(412);
+      await expect(response.json()).resolves.toEqual({
+        error: IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+      });
+      await expect(
+        pendingToolApprovalExists({
+          projectId: project.id,
+          conversationId,
+          toolCallId: forwardedProps.command.resume.approvalRequest.toolCallId,
+        }),
+      ).resolves.toBe(true);
+      expect(agentMocks.createAgUiStream).not.toHaveBeenCalled();
     });
   });
 

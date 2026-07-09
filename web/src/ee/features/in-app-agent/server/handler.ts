@@ -37,6 +37,7 @@ import {
   finishRun,
   getConversationEvents,
   getConversationMessagesForReplay,
+  isInAppAgentConversationWriteLocked,
   maybeInferAndPersistConversationTitle,
   getSandboxToolCallFiles,
   replaceRunEvents,
@@ -82,6 +83,8 @@ import {
 const IN_APP_AGENT_API_KEY_NOTE = "In-app agent MCP session";
 const MAX_IN_APP_AGENT_INPUT_BYTES = 1024 * 1024;
 const IN_APP_AGENT_SANDBOX_TTL_MS = 15 * 60 * 1000;
+const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
+  "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
 
 export default async function handler(request: Request) {
   try {
@@ -250,6 +253,25 @@ export default async function handler(request: Request) {
       conversationId,
       userId: userId,
     });
+    const conversationEvents = await getConversationEvents({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+    });
+
+    if (
+      isInAppAgentConversationWriteLocked({
+        conversation,
+        events: conversationEvents,
+      })
+    ) {
+      throw new BaseError(
+        "PreconditionFailedError",
+        412,
+        SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+        true,
+      );
+    }
 
     if (isResumeAgentInput(sanitizedInput)) {
       await validatePendingToolApproval({
@@ -287,13 +309,7 @@ export default async function handler(request: Request) {
           ttlMs: IN_APP_AGENT_SANDBOX_TTL_MS,
           provider: sandboxProvider,
           getToolCallFiles: async () =>
-            getSandboxToolCallFiles(
-              await getConversationEvents({
-                prisma,
-                projectId,
-                conversationId: conversation.id,
-              }),
-            ),
+            getSandboxToolCallFiles(conversationEvents),
           saveState: async (state) => {
             await prisma.inAppAgentConversation.update({
               where: {

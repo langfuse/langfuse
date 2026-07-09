@@ -6,6 +6,9 @@ import type { InAppAgentWindowConversation } from "./InAppAgentWindow";
 import { useInAppAiAgent } from "./InAppAiAgentProvider";
 import { getDrawerMessages } from "./utils/utils";
 
+const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
+  "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
+
 type ControlledInAppAgentWindowBaseProps = {
   isHeaderDragHandleEnabled?: boolean;
   isExpanded: boolean;
@@ -44,14 +47,19 @@ export function ControlledInAppAgentWindow(
     rejectToolCall,
     selectConversation,
     selectedConversationId,
+    selectedConversationIsWriteLocked,
     submit,
     submitFeedback,
   } = useInAppAiAgent();
   const isInputDisabled =
     isRunning ||
     isSubmitting ||
+    selectedConversationIsWriteLocked ||
     isSelectedConversationHydrating ||
     pendingToolApprovals.length > 0;
+  const displayError = selectedConversationIsWriteLocked
+    ? SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE
+    : error;
 
   const drawerMessages = useMemo(
     () =>
@@ -66,10 +74,11 @@ export function ControlledInAppAgentWindow(
 
   return (
     <InAppAgentWindow
-      error={error}
+      error={displayError}
       isHeaderDragHandleEnabled={props.isHeaderDragHandleEnabled}
       isExpanded={props.isExpanded}
       isInputDisabled={isInputDisabled}
+      disablePendingToolApprovalActions={selectedConversationIsWriteLocked}
       messages={drawerMessages}
       conversations={conversations}
       hasMoreConversations={hasMoreConversations}
