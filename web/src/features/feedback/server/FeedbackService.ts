@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { ServiceUnavailableError } from "@langfuse/shared/src/errors";
+import { ServiceUnavailableError } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import type {
   PostFeedbackBodyType,

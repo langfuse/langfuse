@@ -1,4 +1,4 @@
-import { ServiceUnavailableError } from "@langfuse/shared/src/errors";
+import { ServiceUnavailableError } from "@langfuse/shared";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 import { beforeEach, describe, expect, it, vi } from "vitest";

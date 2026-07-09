@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ServiceUnavailableError } from "@langfuse/shared/src/errors";
+import { ServiceUnavailableError } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { submitFeedback } from "@/src/features/feedback/server/FeedbackService";
 

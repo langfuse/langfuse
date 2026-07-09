@@ -8,7 +8,7 @@ vi.mock("@/src/features/feedback/server/FeedbackService", () => ({
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
-import { ServiceUnavailableError } from "@langfuse/shared/src/errors";
+import { ServiceUnavailableError } from "@langfuse/shared";
 import { mockServerContext } from "../mcp-helpers";
 import { handleSubmitFeedback } from "@/src/features/mcp/features/feedback/tools/submitFeedback";
 
