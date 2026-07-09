@@ -225,7 +225,7 @@ export function BatchExportsTable(props: { projectId: string }) {
   return (
     <>
       <DataTable
-        tableName={"batchExports"}
+        tableName="batchExports"
         columns={columns}
         data={
           batchExports.isPending

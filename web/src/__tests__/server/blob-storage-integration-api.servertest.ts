@@ -39,7 +39,7 @@ const BlobStorageIntegrationResponseSchema = z.object({
   exportFrequency: z.enum(["every_20_minutes", "hourly", "daily", "weekly"]),
   enabled: z.boolean(),
   forcePathStyle: z.boolean(),
-  fileType: z.enum(["JSON", "CSV", "JSONL"]),
+  fileType: z.enum(["JSON", "CSV", "JSONL", "PARQUET"]),
   exportMode: z.enum(["FULL_HISTORY", "FROM_TODAY", "FROM_CUSTOM_DATE"]),
   exportStartDate: z.coerce.date().nullable(),
   compressed: z.boolean(),
@@ -1868,6 +1868,99 @@ describe("Blob Storage Integrations API", () => {
         where: { projectId: testProject1Id },
       });
       expect(saved?.exportSource).toBe("EVENTS");
+    });
+  });
+
+  describe("Parquet fileType", () => {
+    const seedParquetIntegration = () =>
+      prisma.blobStorageIntegration.create({
+        data: {
+          projectId: testProject1Id,
+          type: "S3",
+          bucketName: "test-bucket",
+          region: "us-east-1",
+          accessKeyId: "test-access-key",
+          secretAccessKey: "encrypted-secret",
+          prefix: "langfuse-exports/",
+          exportFrequency: "daily",
+          enabled: true,
+          forcePathStyle: false,
+          fileType: "PARQUET",
+          exportMode: "FULL_HISTORY",
+          // Non-legacy source so updates aren't rejected by the Cloud
+          // legacy-export-source cutoff gate (orthogonal to fileType here).
+          exportSource: "EVENTS",
+        },
+      });
+
+    beforeEach(async () => {
+      await prisma.blobStorageIntegration.deleteMany({
+        where: { projectId: testProject1Id },
+      });
+    });
+
+    afterAll(async () => {
+      await prisma.blobStorageIntegration.deleteMany({
+        where: { projectId: testProject1Id },
+      });
+    });
+
+    it("accepts PARQUET as a request fileType", async () => {
+      const result = await makeAPICall(
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        {
+          ...validBlobStorageConfig,
+          projectId: testProject1Id,
+          fileType: "PARQUET",
+        },
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(result.status).toBe(200);
+
+      const saved = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: testProject1Id },
+      });
+      expect(saved?.fileType).toBe("PARQUET");
+    });
+
+    it("allows changing the fileType of a Parquet-configured integration", async () => {
+      await seedParquetIntegration();
+
+      const result = await makeAPICall(
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        {
+          ...validBlobStorageConfig,
+          projectId: testProject1Id,
+          exportSource: "OBSERVATIONS_V2",
+        },
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(result.status).toBe(200);
+
+      const saved = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: testProject1Id },
+      });
+      expect(saved?.fileType).toBe(validBlobStorageConfig.fileType);
+    });
+
+    it("GET reports fileType PARQUET for a Parquet-configured integration", async () => {
+      await seedParquetIntegration();
+
+      const response = await makeZodVerifiedAPICall(
+        BlobStorageIntegrationsResponseSchema,
+        "GET",
+        "/api/public/integrations/blob-storage",
+        undefined,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+        200,
+      );
+
+      const integration = response.body.data.find(
+        (i) => i.projectId === testProject1Id,
+      );
+      expect(integration?.fileType).toBe("PARQUET");
     });
   });
 });

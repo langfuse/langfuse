@@ -7,7 +7,7 @@ import {
   LEGACY_BLOB_EXPORT_SOURCES,
   LEGACY_BLOB_EXPORTER_CUTOFF,
   isLegacyBlobExporter,
-  type BlobStorageIntegrationFileType,
+  BlobStorageIntegrationFileType,
   type ObservationFieldGroupFull,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
@@ -25,7 +25,9 @@ type UpsertBlobStorageIntegrationInput = {
   exportFrequency: string;
   enabled: boolean;
   forcePathStyle: boolean;
-  fileType: BlobStorageIntegrationFileType;
+  // Optional: undefined preserves the persisted value on UPDATE (Prisma omits
+  // the column) and falls back to PARQUET on CREATE.
+  fileType?: BlobStorageIntegrationFileType;
   exportMode: BlobStorageExportMode;
   exportStartDate: Date | null;
   exportSource?: AnalyticsIntegrationExportSource;
@@ -119,7 +121,7 @@ export async function upsertBlobStorageIntegration(params: {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.blobStorageIntegration.findUnique({
       where: { projectId },
-      select: { exportMode: true },
+      select: { exportMode: true, lastError: true, runStartedAt: true },
     });
 
     // Require secret key for new integrations (unless using host credentials)
@@ -156,6 +158,10 @@ export async function upsertBlobStorageIntegration(params: {
       create: {
         ...writeData,
         exportSource: createExportSource,
+        // Parquet is the default export format; apply it when the caller omits
+        // fileType on CREATE. This app-level fallback (not the Prisma column
+        // default) is the source of truth for the default across every write path.
+        fileType: data.fileType ?? BlobStorageIntegrationFileType.PARQUET,
         projectId,
         secretAccessKey: encryptedSecret,
       },
@@ -164,10 +170,19 @@ export async function upsertBlobStorageIntegration(params: {
         // Only overwrite secretAccessKey when a new value is provided,
         // so partial updates don't wipe the existing encrypted secret.
         ...(encryptedSecret ? { secretAccessKey: encryptedSecret } : {}),
+        // Schedule an immediate retry when saving an errored integration
+        // so the scheduler picks it up via the nextSyncAt clause.
+        ...(existing?.lastError && data.enabled && !modeChanged
+          ? { nextSyncAt: new Date() }
+          : {}),
         // Reset sync state when export mode changes so the new mode's
         // start-date logic takes effect instead of continuing from the
         // previous mode's lastSyncAt.
-        ...(modeChanged ? { lastSyncAt: null, nextSyncAt: null } : {}),
+        ...(modeChanged ? { lastSyncAt: null, nextSyncAt: new Date() } : {}),
+        // Saving enabled resets the failure-notification cooldown: the
+        // customer just acted, so a fresh failure should email promptly.
+        ...(data.enabled ? { lastFailureNotificationSentAt: null } : {}),
+        runStartedAt: null,
       },
     });
 

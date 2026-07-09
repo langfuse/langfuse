@@ -73,12 +73,14 @@ import {
   compileEvalPrompt,
   buildEvalMessages,
   buildEvalExecutionMetadata,
+  buildEvalPromptCacheKey,
   getEnvironmentFromVariables,
 } from "./evalRuntime";
 import {
   completeEvalExecution,
   type EvalExecutionResult,
 } from "./evalCompletion";
+import { isEvalTargetEnvironmentAllowed } from "./isEvalTargetEnvironmentAllowed";
 import {
   type EvalExecutionDeps,
   createProductionEvalExecutionDeps,
@@ -269,7 +271,6 @@ export const createEvalJobs = async ({
             : "timestamp" in event
               ? new Date(event.timestamp)
               : new Date(jobTimestamp),
-        clickhouseFeatureTag: "eval-create",
         excludeInputOutput: true,
         excludeMetadata: false, // Metadata needed for in-memory filter evaluation
       });
@@ -439,7 +440,7 @@ export const createEvalJobs = async ({
       });
     } else {
       // If the event is not a DatasetRunItemUpsertEventType and the trace has no special filters, we can already assume it's present
-      let exists: boolean = false;
+      let exists = false;
       let timestamp: Date | undefined = undefined;
       if (!("datasetItemId" in event) && traceFilter.length === 0) {
         exists = true;
@@ -857,6 +858,13 @@ export async function runLLMAsJudgeEvaluation({
 
       // Prepare LLM call
       const messages = buildEvalMessages(prompt);
+      const promptCacheKey = buildEvalPromptCacheKey({
+        projectId,
+        templateId: template.id,
+        templateVersion: template.version,
+        provider: modelConfig.config.provider,
+        model: modelConfig.config.model,
+      });
 
       const executionTraceId = createW3CTraceId(jobExecutionId);
 
@@ -879,7 +887,7 @@ export async function runLLMAsJudgeEvaluation({
           llmSpan.setAttribute("eval.model.name", modelConfig.config.model);
           llmSpan.setAttribute(
             "eval.model.adapter",
-            modelConfig.config.adapter,
+            modelConfig.config.apiKey.adapter,
           );
 
           try {
@@ -888,6 +896,7 @@ export async function runLLMAsJudgeEvaluation({
               modelConfig: modelConfig.config,
               structuredOutputSchema:
                 compiledOutputDefinition.outputResultSchema,
+              promptCacheKey,
               traceSinkParams: {
                 targetProjectId: projectId,
                 traceId: executionTraceId,
@@ -1136,6 +1145,41 @@ export const evaluate = async ({
     `Extracted ${extractedVariables.length} variables for job ${event.jobExecutionId}`,
   );
 
+  const environment =
+    getEnvironmentFromVariables(extractedVariables) ??
+    DEFAULT_TRACE_ENVIRONMENT;
+
+  // Final fail-closed loop safeguard: never execute an eval whose target
+  // lives in an internal Langfuse environment, regardless of which scheduling
+  // path created the job. See isEvalTargetEnvironmentAllowed. The environment
+  // is derived from the extracted trace/observation variables; mappings
+  // without any tracing-data variable fall back to the default environment
+  // and rely on the scheduling-time guards.
+  if (!isEvalTargetEnvironmentAllowed(environment)) {
+    logger.warn(
+      "Cancelling eval job targeting an internal Langfuse environment",
+      {
+        jobExecutionId: event.jobExecutionId,
+        projectId: event.projectId,
+        environment,
+        traceId: job.jobInputTraceId,
+      },
+    );
+    recordIncrement(
+      "langfuse.evaluation-execution.internal_target_blocked",
+      1,
+      {
+        source: "trace-eval",
+      },
+    );
+    await prisma.jobExecution.update({
+      where: { id: job.id, projectId: event.projectId },
+      data: { status: JobExecutionStatus.CANCELLED, endTime: new Date() },
+    });
+
+    return;
+  }
+
   // Execute the shared LLM-as-a-judge evaluation
   await executeLLMAsJudgeEvaluation({
     projectId: event.projectId,
@@ -1144,9 +1188,7 @@ export const evaluate = async ({
     config,
     template: template as EvalTemplateLlmAsAJudge,
     extractedVariables,
-    environment:
-      getEnvironmentFromVariables(extractedVariables) ??
-      DEFAULT_TRACE_ENVIRONMENT,
+    environment,
   });
 };
 
@@ -1265,7 +1307,6 @@ export async function extractVariablesFromTracingData({
           traceId,
           projectId,
           timestamp: traceTimestamp,
-          clickhouseFeatureTag: "eval-execution",
         });
         traceCache.set(traceCacheKey, trace ?? null);
       }

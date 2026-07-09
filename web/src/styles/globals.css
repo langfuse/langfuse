@@ -14,7 +14,13 @@
   --spacing-screen-with-banner: calc(100svh - var(--banner-offset));
 
   --color-primary-accent: hsl(var(--primary-accent));
-  --color-hover-primary-accent: hsl(var(--hover-primary-accent));
+  --color-link: hsl(var(--link));
+  --color-link-hover: hsl(var(--link-hover));
+  --color-control-fill: hsl(var(--control-fill));
+  --color-control-track: hsl(var(--control-track));
+  --color-control-border: hsl(var(--control-border));
+  --color-foreground-tertiary: hsl(var(--foreground-tertiary));
+  --color-surface-code: hsl(var(--surface-code));
   --color-muted-magenta: hsl(var(--muted-magenta));
   --color-muted-blue: hsl(var(--muted-blue));
   --color-muted-green: hsl(var(--muted-green));
@@ -40,6 +46,7 @@
   --color-qlang-keyword: hsl(var(--qlang-keyword));
 
   --color-border: hsl(var(--border));
+  --color-border-contrast: hsl(var(--border-contrast));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
   --color-background: hsl(var(--background));
@@ -144,6 +151,10 @@
 
   If we ever want to remove these styles, we need to add an explicit border
   color utility to any element that depends on these defaults.
+
+  Uses the theme-aware --border token: the `* { @apply border-border }` reset
+  below already wins for real elements, so this only governs pseudo-elements —
+  which previously got a light-only gray-200 in both themes.
 */
 @layer base {
   *,
@@ -151,7 +162,7 @@
   ::before,
   ::backdrop,
   ::file-selector-button {
-    border-color: var(--color-gray-200, currentcolor);
+    border-color: hsl(var(--border));
   }
 }
 
@@ -162,6 +173,13 @@
 
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
+    /* Faintest text tier: placeholders, disabled, hints — one step below
+       muted-foreground (langfuse.com/docs has the same 4th step). NOTE: ~2.8:1
+       on white — flagged in review, kept per design preference for now. */
+    --foreground-tertiary: 215 12% 62%;
+    /* Code blocks sit a step BELOW their surrounding surface ("code is a
+       well"), matching the docs site's --surface-code convention. */
+    --surface-code: 0 0% 98%;
 
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
@@ -173,6 +191,9 @@
     --header-foreground: var(--foreground);
 
     --border: 214.3 31.8% 91.4%;
+    /* Structural/viz lines (tree connectors, timeline grid + bar outlines):
+       one clear step stronger than the hairline --border. */
+    --border-contrast: 214.3 20% 80%;
     --input: 214.3 31.8% 91.4%;
 
     --primary: 222.2 47.4% 11.2%;
@@ -193,7 +214,21 @@
     --ring: 215 20.2% 65.1%;
 
     --primary-accent: 243 75.4% 58.6%;
-    --hover-primary-accent: 239 83.5% 66.7%;
+    /* Hyperlinks get their own pair (tabs/selection stay on primary-accent):
+       same lavender family as dark, but muted — links shouldn't be the
+       loudest thing on a light page — with a clearly darker hover step. */
+    --link: 246 40% 50%;
+    --link-hover: 246 55% 36%;
+    /* Checked selection controls (checkbox/switch): monochrome in BOTH
+       modes — dark fill + light glyph in light, muted-white fill + dark
+       glyph in dark. Deliberately dimmer than --primary in dark so checked
+       controls don't outshine content (fills read louder than text).
+       --control-track is the switch's off-state track. */
+    --control-fill: 222.2 47.4% 11.2%;
+    --control-track: 214.3 31.8% 91.4%;
+    /* Unchecked control boundary — quieter than the near-black fill in light,
+       a touch above --input in dark so the box still reads on the canvas. */
+    --control-border: 215 12% 60%;
 
     --muted-green: 84 81% 44%;
     --muted-magenta: 330 90% 70%;
@@ -267,66 +302,94 @@
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 83%;
+    /* Linear-style surface ladder: elevation is carried by lightness steps
+       (background < header/sidebar < card < popover) plus hairline borders —
+       not shadows. Values from linear.app's [data-theme=dark] tokens. */
+    /* Neutral (zero-saturation) surface ladder — lightness steps carry the
+       elevation (Linear's structure, de-tinted per Trang's call after a
+       cool/neutral/warm A-B). Text hierarchy comes from the WIDE GAP between
+       tiers: emphasis 91% > body 88% > meta 54% > faint 40%, with sidebar nav
+       dimmer than content until active. Bright tiers cap near 91% (the docs
+       site caps at 90%) — never near-white. Don't compress the ramp — the
+       gap is the hierarchy. */
+    --background: 0 0% 3.5%;
+    --foreground: 0 0% 88%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 0 0% 11.6%;
+    --muted-foreground: 0 0% 54%;
+    --foreground-tertiary: 0 0% 40%;
+    --surface-code: 0 0% 2.3%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 88%;
+    --popover: 0 0% 10.2%;
+    --popover-foreground: 0 0% 88%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 88%;
+    --card: 0 0% 8.2%;
+    --card-foreground: 0 0% 88%;
 
-    --header: 217.2 32.6% 15%;
+    --header: 0 0% 6.3%;
     --header-foreground: var(--foreground);
 
-    --border: 217.2 32.6% 27.5%;
-    --input: 217.2 32.6% 27.5%;
+    --border: 0 0% 10.5%;
+    --border-contrast: 0 0% 26%;
+    --input: 0 0% 18%;
 
-    --primary: 210 40% 83%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 0 0% 90%;
+    --primary-foreground: 0 0% 3.5%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 88%;
+    --secondary: 0 0% 11.6%;
+    --secondary-foreground: 0 0% 88%;
 
-    --tertiary: 217.2 32.6% 30%;
-    --tertiary-foreground: 210 40% 88%;
+    --tertiary: 0 0% 16.5%;
+    --tertiary-foreground: 0 0% 88%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 20% 98%;
+    /* One clear step above --popover (10.2%) — focus:bg-accent is the only
+       focus cue in menus/selects/⌘K, and 14.3% was a near-invisible ~1.13:1. */
+    --accent: 0 0% 18%;
+    --accent-foreground: 0 0% 91%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 85.7% 97.3%;
+    --destructive: 0 78.7% 63.1%;
+    --destructive-foreground: 0 0% 100%;
 
-    --ring: 217.2 32.6% 17.5%;
+    --ring: 246 55% 70%;
 
     --primary-accent: 246 55% 70%;
-    --muted-primary-accent: 239 83.5% 66.7%;
+    --link: 246 55% 70%;
+    --link-hover: 246 95% 85%;
+    --control-fill: 0 0% 78%;
+    --control-track: 0 0% 24%;
+    /* Matches --border-contrast: unchecked checkboxes/radios read by their
+       border alone; 20% was ~1.58:1 on the canvas. */
+    --control-border: 0 0% 26%;
 
     --muted-blue: 215 95% 73.1%;
     --muted-green: 142 76.7% 73.1%;
     --muted-magenta: 330 76.7% 73.1%;
-    --muted-gray: 210 50% 25%;
+    /* Keeps ~4pp above --card so chart grids (--chart-grid) and disabled
+       badge fills stay discernible on elevated surfaces, without the harshness
+       of --border-contrast (26%). */
+    --muted-gray: 0 0% 16%;
 
-    --light-red: 0 62.8% 30.6%;
-    --dark-red: 0 90.6% 70.8%;
+    /* Status pairs on Linear's hues: light-* are dark tinted backgrounds,
+       dark-* the readable text/icon color on them. */
+    --light-red: 0 35% 14%;
+    --dark-red: 0 78.7% 63.1%;
 
-    --light-yellow: 32 81% 28.8%;
-    --dark-yellow: 53 98.3% 76.9%;
+    --light-yellow: 48 45% 13%;
+    --dark-yellow: 48 100% 47.1%;
 
-    --light-green: 144 61.2% 20.2%;
-    --dark-green: 142 76.7% 73.1%;
+    --light-green: 134 35% 13%;
+    --dark-green: 134 62% 40.2%;
 
-    --light-blue: 224 64.3% 32.9%;
-    --dark-blue: 212 96.4% 78.4%;
+    --light-blue: 209 45% 15%;
+    --dark-blue: 209 96.7% 64.7%;
 
-    --accent-light-green: 192 21% 9%;
-    --accent-dark-green: 124 21.8% 30.6%;
+    /* accent-light-green doubles as a full-height output/diff surface
+       (PrettyJsonView), so it stays a whisper above --card, not chip-strength. */
+    --accent-light-green: 134 15% 9%;
+    --accent-dark-green: 134 50% 55%;
 
-    --accent-light-blue: 263 60% 50.4%;
-    --accent-dark-blue: 224 50% 90%;
+    --accent-light-blue: 240 32.4% 13.9%;
+    --accent-dark-blue: 246 70% 76%;
 
     /* Search-bar query syntax highlighting (dark). Brighter than light so the
        key/value read against the dark surface. See :root for the contract. */
@@ -337,14 +400,14 @@
 
     --radius: 0.5rem;
 
-    --sidebar-background: 222.2 84% 4.9%;
-    --sidebar-foreground: 210 40% 83%;
-    --sidebar-primary: 210 40% 81%;
-    --sidebar-primary-foreground: 222.2 47.4% 10.2%;
-    --sidebar-accent: 217.2 32.6% 16.5%;
-    --sidebar-accent-foreground: 210 40% 86%;
-    --sidebar-border: 217.2 32.6% 26.5%;
-    --sidebar-ring: 224.3 76.3% 46%;
+    --sidebar-background: 0 0% 6.3%;
+    --sidebar-foreground: 0 0% 60%;
+    --sidebar-primary: 0 0% 90%;
+    --sidebar-primary-foreground: 0 0% 3.5%;
+    --sidebar-accent: 0 0% 11.6%;
+    --sidebar-accent-foreground: 0 0% 91%;
+    --sidebar-border: 0 0% 10.5%;
+    --sidebar-ring: 246 55% 70%;
 
     --find-match-background: 60 100% 20%;
     --find-match-selected-background: 60 100% 50%;
@@ -410,8 +473,21 @@
 
   /* Overlay layer roots (see _document.tsx + components/ui/layer.tsx). The
      stack is click-through; each layer is its own isolated stacking context and
-     they order by DOM order (later = on top). Overlay content opts back into
-     pointer events on itself. */
+     they order by DOM order (later = on top). The layer containers are
+     `pointer-events: none` so the EMPTY regions around an overlay pass clicks
+     through to the app behind (e.g. the non-modal table peek leaves the rest of
+     the page clickable). Each portaled overlay is appended as a DIRECT CHILD of
+     its layer container (Radix/Vaul `*.Portal` `container`, or `<Layer>`'s
+     `createPortal`), so we opt those overlay roots — and thus their subtrees —
+     back into pointer events here. This makes interactivity correct-by-
+     construction for EVERY overlay routed through a layer, including non-modal
+     ones (peek, Popover, HoverCard, Tooltip) where Radix does NOT manage
+     pointer-events itself (it only sets `auto` when it disables outside pointer
+     events, i.e. modal Dialog/Sheet/AlertDialog/Drawer and DropdownMenu/Select).
+     Without this, a non-modal overlay inherits the container's `none` and is
+     fully click-through — clicks fall to the app underneath. A specific child
+     can still opt back out with its own `pointer-events: none` (e.g. a
+     decorative arrow) — that wins by specificity/cascade. */
   [data-overlay-root] {
     position: fixed;
     inset: 0;
@@ -422,6 +498,9 @@
     inset: 0;
     isolation: isolate;
     pointer-events: none;
+  }
+  [data-overlay-root] > [data-layer] > * {
+    pointer-events: auto;
   }
 }
 

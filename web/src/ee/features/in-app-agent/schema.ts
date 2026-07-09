@@ -183,8 +183,8 @@ export type InAppAgentMessageSource = z.infer<
 const AgUiToolSchema = z.object({
   name: z.string(),
   description: z.string(),
-  parameters: z.any().optional(),
-  metadata: z.record(z.string(), z.any()).optional(),
+  parameters: z.unknown().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 const AgUiContextSchema = z.object({
@@ -196,11 +196,11 @@ export const AgUiRunAgentInputSchema = z.object({
   threadId: z.string(),
   runId: z.string(),
   parentRunId: z.string().optional(),
-  state: z.any().optional(),
+  state: z.unknown().optional(),
   messages: z.array(AgUiMessageSchema),
   tools: z.array(AgUiToolSchema),
   context: z.array(AgUiContextSchema),
-  forwardedProps: z.any().optional(),
+  forwardedProps: z.unknown().optional(),
 });
 
 export type AgUiRunAgentInput = z.infer<typeof AgUiRunAgentInputSchema>;
@@ -217,6 +217,29 @@ export type AgUiCustomEvent = AgUiEvent & {
   name: string;
   value: unknown;
 };
+
+export const InAppAgentToolApprovalRequestSchema = z.object({
+  type: z.literal("tool_approval_request"),
+  toolCallId: z.string().min(1),
+  toolName: z.string().min(1),
+  args: z.unknown().optional(),
+  runId: z.string().min(1),
+});
+
+export type InAppAgentToolApprovalRequest = z.infer<
+  typeof InAppAgentToolApprovalRequestSchema
+>;
+
+export const ResumeForwardedPropsSchema = z.object({
+  command: z.object({
+    resume: z.object({
+      approved: z.boolean(),
+      approvalRequest: InAppAgentToolApprovalRequestSchema,
+    }),
+  }),
+});
+
+export type ResumeForwardedProps = z.infer<typeof ResumeForwardedPropsSchema>;
 
 export const InAppAgentRuntimeStateSchema = z.discriminatedUnion("type", [
   z.object({

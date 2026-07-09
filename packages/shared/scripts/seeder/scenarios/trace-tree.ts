@@ -11,7 +11,12 @@ import {
 } from "../../../src/server";
 import { ObservationType } from "../../../src/domain";
 import { observationToEvent, traceToEvent } from "./event-mirror";
-import { buildPayload, PayloadStyle, PAYLOAD_STYLES } from "./payload";
+import {
+  buildPayload,
+  generationUsageCost,
+  PayloadStyle,
+  PAYLOAD_STYLES,
+} from "./payload";
 import { jitter, Rng, utcDayStartMs } from "./rng";
 import {
   chunk,
@@ -34,6 +39,11 @@ const ALL_KINDS: ObservationType[] = [
   "SPAN",
   "EVENT",
 ];
+
+// The shape that historically had NO graph view: no agentic types, no
+// langgraph metadata — only qualifies via the >1-distinct-node rule (LFE-10665
+// collapsed-by-default graph panel).
+const PLAIN_KINDS: ObservationType[] = ["SPAN", "GENERATION", "EVENT"];
 
 const NAME_BY_KIND: Record<string, string[]> = {
   AGENT: ["router-agent", "support-agent", "planner-agent"],
@@ -122,6 +132,15 @@ const run = async (
   const payloadBytes = params["payload-bytes"] as number;
   const payloadStyle = params["payload-style"] as PayloadStyle;
   const withV4 = params["v4"] as boolean;
+  const asyncParents = params["async-parents"] as boolean;
+  // Type restriction is index-keyed (jitter), not rng-stream-keyed, so the
+  // default (--plain absent) output stays byte-identical.
+  const kinds = (params["plain"] as boolean) ? PLAIN_KINDS : ALL_KINDS;
+  // Attach this many distinct scores to EVERY observation. The default 0 keeps
+  // the historic handful of trace-level scores. A high value (e.g. 12) is the
+  // "lots of scores" shape from LFE-10591 that overflows fixed/virtualized tree
+  // rows — many distinct score names wrap into several badge lines per node.
+  const scoresPerNode = params["scores-per-node"] as number;
 
   if (!PAYLOAD_STYLES.includes(payloadStyle)) {
     throw new SeedError(
@@ -153,6 +172,12 @@ const run = async (
       "larger payloads exceed V8 string limits during generation",
     );
   }
+  if (scoresPerNode < 0 || scoresPerNode > 100) {
+    throw new SeedError(
+      `--scores-per-node must be between 0 and 100, got ${scoresPerNode}`,
+      "pass e.g. --scores-per-node 12 to reproduce the many-scores overflow",
+    );
+  }
 
   const breadth = Math.min(
     requestedBreadth,
@@ -175,7 +200,10 @@ const run = async (
       counts: {
         traces: 1,
         observations: observationCount,
-        scores: 3 + (observationCount >= 7 ? 1 : 0),
+        scores:
+          3 +
+          (observationCount >= 7 ? 1 : 0) +
+          observationCount * scoresPerNode,
         events: withV4 ? observationCount + 1 : 0,
       },
       verified: {},
@@ -189,7 +217,7 @@ const run = async (
     observationCount,
     depth,
     breadth,
-    ALL_KINDS,
+    kinds,
     ctx.seed,
   );
 
@@ -259,10 +287,27 @@ const run = async (
     }
   }
 
+  // LFE-10475 demo (opt-in via --async-parents): the root dispatcher and the
+  // hub node behave like fire-and-forget async work — their OWN span ends almost
+  // immediately while their subtree keeps running. We only shorten the written
+  // end_time of these nodes (subtree offsets and ancestors are untouched), so
+  // their own-span duration badly understates the subtree's wall-clock duration.
+  // This is exactly the shape that surfaces the subtree-duration badge.
+  const ASYNC_OWN_DURATION_MS = 40;
+  const hubIndex = Math.min(2, depth - 1);
+  const asyncParentIndexes = asyncParents
+    ? new Set<number>([0, hubIndex])
+    : new Set<number>();
+
   let retryNodeUsed = false;
   const observations: ObservationRecordInsertType[] = shape.map((node) => {
     const isGeneration = node.kind === "GENERATION";
     const startTime = traceTimestamp + startOffsets[node.index];
+    // Async parents (opt-in): own span ends right after start, while the
+    // subtree keeps running off the (untouched) child offsets.
+    const endOffset = asyncParentIndexes.has(node.index)
+      ? startOffsets[node.index] + ASYNC_OWN_DURATION_MS
+      : endOffsets[node.index];
     const missingEndTime = node.index > 0 && node.index % 19 === 0;
     const isError = node.index % 29 === 7;
     const isFailedToolRetryPair =
@@ -313,7 +358,7 @@ const run = async (
           : `${ctx.idPrefix}-obs-${node.parentIndex}`,
       name,
       start_time: startTime,
-      end_time: missingEndTime ? null : traceTimestamp + endOffsets[node.index],
+      end_time: missingEndTime ? null : traceTimestamp + endOffset,
       completion_start_time: isGeneration ? startTime + rng.int(80, 400) : null,
       level:
         isError || isFailedToolRetryPair
@@ -357,31 +402,17 @@ const run = async (
       model_parameters: isGeneration
         ? JSON.stringify({ temperature: 0.2, max_tokens: 1024 })
         : "{}",
-      provided_usage_details: isGeneration
-        ? {
-            input: usageInput,
-            output: usageOutput,
-            total: usageInput + usageOutput,
-          }
-        : {},
-      usage_details: isGeneration
-        ? {
-            input: usageInput,
-            output: usageOutput,
-            total: usageInput + usageOutput,
-          }
-        : {},
-      provided_cost_details: isGeneration
-        ? { input: usageInput * 2e-6, output: usageOutput * 6e-6 }
-        : {},
-      cost_details: isGeneration
-        ? {
-            input: usageInput * 2e-6,
-            output: usageOutput * 6e-6,
-            total: usageInput * 2e-6 + usageOutput * 6e-6,
-          }
-        : {},
-      total_cost: isGeneration ? usageInput * 2e-6 + usageOutput * 6e-6 : null,
+      // Empty fields stay explicit for non-generations: the createObservation
+      // factory would otherwise fill non-empty usage/cost defaults.
+      ...(isGeneration
+        ? generationUsageCost(usageInput, usageOutput)
+        : {
+            provided_usage_details: {},
+            usage_details: {},
+            provided_cost_details: {},
+            cost_details: {},
+            total_cost: null,
+          }),
       prompt_id: null,
       prompt_name: null,
       prompt_version: null,
@@ -460,6 +491,44 @@ const run = async (
     successScore.string_value = successScore.value === 1 ? "True" : "False";
   }
 
+  // --scores-per-node: attach N distinct scores to EVERY observation. This is
+  // the LFE-10591 "lots of scores" shape — many differently-named badges per
+  // row that wrap into several lines. Names are stable and jitter-derived (not
+  // rng stream) so re-runs with the same prefix overwrite in place. Every 4th
+  // name is categorical; the rest numeric. Names are long-ish so they truncate
+  // like real eval metrics (mirroring the reported trace).
+  if (scoresPerNode > 0) {
+    const SCORE_CATEGORIES = ["pass", "warn", "fail"] as const;
+    observations.forEach((obs, obsIndex) => {
+      for (let s = 0; s < scoresPerNode; s++) {
+        const label = String(s).padStart(2, "0");
+        const isCategorical = s % 4 === 3;
+        const seedIndex = obsIndex * (scoresPerNode + 1) + s + 1;
+        scores.push(
+          createTraceScore({
+            id: `${obs.id}-nodescore-${label}`,
+            project_id: ctx.projectId,
+            trace_id: traceId,
+            observation_id: obs.id,
+            environment: ctx.environment,
+            name: isCategorical
+              ? `eval_categorical_metric_${label}`
+              : `eval_numeric_metric_${label}`,
+            value: isCategorical ? 0 : jitter(ctx.seed, seedIndex, 100) / 100,
+            string_value: isCategorical
+              ? SCORE_CATEGORIES[jitter(ctx.seed, seedIndex, 2)]
+              : undefined,
+            data_type: isCategorical ? "CATEGORICAL" : "NUMERIC",
+            source: "EVAL",
+            comment: null,
+            metadata: {},
+            timestamp: traceTimestamp,
+          }),
+        );
+      }
+    });
+  }
+
   const events = withV4
     ? [
         traceToEvent(trace),
@@ -481,7 +550,9 @@ const run = async (
   for (const batch of chunk(observations, 1000)) {
     await createObservationsCh(batch);
   }
-  await createScoresCh(scores);
+  for (const batch of chunk(scores, 1000)) {
+    await createScoresCh(batch);
+  }
   for (const batch of chunk(events, 500)) {
     await createEventsCh(batch);
   }
@@ -533,7 +604,7 @@ const run = async (
       `Readback mismatch: expected ${observations.length} observations, found ${verified.observations}`,
     );
   }
-  const expectedKinds = Math.min(observations.length, ALL_KINDS.length);
+  const expectedKinds = Math.min(observations.length, kinds.length);
   if (verified.observationKinds < expectedKinds) {
     throw new SeedError(
       `Readback mismatch: expected ${expectedKinds} distinct observation kinds, found ${verified.observationKinds}`,
@@ -607,6 +678,27 @@ export const traceTreeScenario: ScenarioDefinition = {
       type: "boolean",
       default: false,
       description: "also mirror the tree into v4 events_full/events_core",
+    },
+    {
+      flag: "async-parents",
+      type: "boolean",
+      default: false,
+      description:
+        "root + hub nodes end immediately while their subtree keeps running (async/fire-and-forget shape; surfaces the subtree wall-clock duration badge)",
+    },
+    {
+      flag: "plain",
+      type: "boolean",
+      default: false,
+      description:
+        "restrict observation types to SPAN/GENERATION/EVENT (no agentic types) — the shape whose graph panel is collapsed by default (LFE-10665)",
+    },
+    {
+      flag: "scores-per-node",
+      type: "number",
+      default: 0,
+      description:
+        "attach N distinct scores to every observation (the LFE-10591 'lots of scores' shape; try 12), 0-100",
     },
   ],
   run,

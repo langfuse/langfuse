@@ -2,13 +2,14 @@
 
 import { useMemo } from "react";
 import { InAppAgentWindow } from "./InAppAgentWindow";
+import type { InAppAgentWindowConversation } from "./InAppAgentWindow";
 import { useInAppAiAgent } from "./InAppAiAgentProvider";
 import { getDrawerMessages } from "./utils/utils";
 
 type ControlledInAppAgentWindowBaseProps = {
   isHeaderDragHandleEnabled?: boolean;
-  zIndex?: number;
   isExpanded: boolean;
+  onDeleteConversation: (conversation: InAppAgentWindowConversation) => void;
   onExpandedChange: (isExpanded: boolean) => void;
 };
 
@@ -35,19 +36,27 @@ export function ControlledInAppAgentWindow(
     isRunning,
     isSelectedConversationHydrating,
     isSubmitting,
+    invalidateConversations,
     loadMoreConversations,
     messages,
+    pendingToolApprovals,
+    approveToolCall,
+    rejectToolCall,
     selectConversation,
     selectedConversationId,
     submit,
     submitFeedback,
   } = useInAppAiAgent();
   const isInputDisabled =
-    isRunning || isSubmitting || isSelectedConversationHydrating;
+    isRunning ||
+    isSubmitting ||
+    isSelectedConversationHydrating ||
+    pendingToolApprovals.length > 0;
 
   const drawerMessages = useMemo(
-    () => getDrawerMessages({ error, isRunning, messages }),
-    [error, isRunning, messages],
+    () =>
+      getDrawerMessages({ error, isRunning, messages, pendingToolApprovals }),
+    [error, isRunning, messages, pendingToolApprovals],
   );
 
   const closeButtonProps =
@@ -64,14 +73,19 @@ export function ControlledInAppAgentWindow(
       messages={drawerMessages}
       conversations={conversations}
       hasMoreConversations={hasMoreConversations}
-      zIndex={props.zIndex}
       isLoadingMoreConversations={isLoadingMoreConversations}
       selectedConversationId={selectedConversationId}
       onLoadMoreConversations={loadMoreConversations}
+      onOpenConversationHistory={invalidateConversations}
+      onDeleteConversation={props.onDeleteConversation}
       onSelectConversation={selectConversation}
-      onNewConversation={() => selectConversation(null)}
+      onNewConversation={() => {
+        selectConversation(null);
+      }}
       onExpandedChange={props.onExpandedChange}
       onSubmit={submit}
+      onApproveToolCall={approveToolCall}
+      onRejectToolCall={rejectToolCall}
       onSubmitFeedback={submitFeedback}
       {...closeButtonProps}
     />

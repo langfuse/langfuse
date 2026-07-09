@@ -107,13 +107,12 @@ export function useScoreConfigSelection({
         if (field?.id) {
           toast.error("Cannot deselect a populated score");
           return;
-        } else {
-          // No score -> remove row from form and empty selected config ids
-          remove(fieldIndex);
-          setEmptySelectedConfigIds?.(
-            emptySelectedConfigIds.filter((id) => id !== changedValueId),
-          );
         }
+        // No score -> remove row from form and empty selected config ids
+        remove(fieldIndex);
+        setEmptySelectedConfigIds?.(
+          emptySelectedConfigIds.filter((id) => id !== changedValueId),
+        );
       }
     },
     [

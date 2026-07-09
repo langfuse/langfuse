@@ -9,7 +9,7 @@ import {
 import { type NextRouter, useRouter } from "next/router";
 import { useEffect, useCallback, useState, useRef } from "react";
 import { type VisibilityState } from "@tanstack/react-table";
-import { StringParam } from "use-query-params";
+import { StringParam, type UrlUpdateType } from "use-query-params";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useQueryParam } from "use-query-params";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -38,6 +38,13 @@ interface UseTableStateProps {
     filterColumnDefinition?: ColumnDefinition[];
     expandableFilterColumns?: string[];
     migrateFilterState?: FilterStateMigration;
+    /**
+     * Runs on a persisted saved-view `columnOrder` before it is applied, so a
+     * table whose default column position changed can reposition a stale column
+     * in pre-PR view payloads (mirrors `migrateFilterState`). Must be a pure
+     * transform; return the input unchanged to leave the order untouched.
+     */
+    migrateColumnOrder?: (columnOrder: string[]) => string[];
   };
   currentFilterState?: FilterState;
   currentExpandedFilters?: string[];
@@ -90,8 +97,6 @@ export function useTableViewManager({
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const capture = usePostHogClientCapture();
-  const pendingFiltersRef = useRef<FilterState | null>(null);
-  const pendingFiltersPreviousStateRef = useRef<FilterState | null>(null);
 
   const [storedViewId, setStoredViewId] = useSessionStorage<string | null>(
     `${tableName}-${projectId}-viewId`,
@@ -117,11 +122,16 @@ export function useTableViewManager({
       },
     );
 
-  // Keep track of the viewId in session storage and in the query params
+  // Keep track of the viewId in session storage and in the query params.
+  // `updateType` controls the browser-history semantics of the URL write:
+  // user-initiated selections keep the default (push — a Back-able step),
+  // while programmatic corrections pass `replaceIn` so the pre-write URL does
+  // not survive as a history entry that Back lands on and that re-triggers
+  // the write (LFE-10715).
   const handleSetViewId = useCallback(
-    (viewId: string | null) => {
+    (viewId: string | null, options?: { updateType?: UrlUpdateType }) => {
       setStoredViewId(viewId);
-      setSelectedViewId(viewId);
+      setSelectedViewId(viewId, options?.updateType);
 
       // Explicitly selecting "My view (default)" should stop bootstrap restore.
       // Otherwise an in-flight bootstrap can restore a previously selected view.
@@ -167,27 +177,40 @@ export function useTableViewManager({
     if (isInitialized) return;
     if (!isRouterReady) return;
 
-    // If viewId already in the URL and is not a system preset, let the getById
-    // query resolve it.
+    // Clear stale frontend-only system presets from the URL first (they are
+    // defined in code, not the DB, so there is nothing to fetch).
     if (
       selectedViewId &&
-      (!isSystemPresetId(selectedViewId) || allowBackendSystemPresets)
+      isSystemPresetId(selectedViewId) &&
+      !allowBackendSystemPresets
     ) {
+      handleSetViewId(null, { updateType: "replaceIn" });
       return;
     }
 
-    // Clear stale frontend-only system presets from the URL.
-    if (selectedViewId && isSystemPresetId(selectedViewId)) {
-      handleSetViewId(null);
-      return;
-    }
+    const hasResolvableView =
+      !!selectedViewId &&
+      (!isSystemPresetId(selectedViewId) || allowBackendSystemPresets);
 
-    // Query params such as `filter` are explicit table state. They must take
-    // precedence over implicit session/default view restoration, otherwise a
-    // direct filtered URL is immediately overwritten by the restored view.
+    // Explicit table state in the URL (`filter`/`search`/`searchType`/
+    // `orderBy`) is authoritative, even when a `viewId` is present. The viewId
+    // is a provenance reference — which saved view a link came from — but the
+    // URL's filters/sort/search are what is actually applied (the URL is the
+    // source of truth). We do NOT fetch or apply the saved view here: applying
+    // it would overwrite the URL's filters, and writing its column layout would
+    // silently mutate the visitor's own per-table localStorage on a
+    // non-deliberate link open. The viewId stays in the URL so the drawer still
+    // shows the originating view. Preserves deep-link precedence (#13865) and
+    // makes shared links carry in-view edits (LFE-10486).
     if (hasExplicitTableStateInUrl(router.query)) {
       setIsInitialized(true);
       setIsLoading(false);
+      return;
+    }
+
+    // A real saved view (or an allowed backend system preset) in the URL with
+    // no explicit table state → let the getById query resolve and hydrate it.
+    if (hasResolvableView) {
       return;
     }
 
@@ -205,7 +228,7 @@ export function useTableViewManager({
 
     if (defaultViewId) {
       if (isSystemPresetId(defaultViewId) && !allowBackendSystemPresets) {
-        handleSetViewId(null);
+        handleSetViewId(null, { updateType: "replaceIn" });
         return;
       }
       setStoredViewId(defaultViewId);
@@ -292,16 +315,11 @@ export function useTableViewManager({
         setExpandedFiltersRef.current(nextExpandedFilters);
       }
 
-      if (setFiltersRef.current) {
+      // Apply the view's filters unless what is applied already matches. The
+      // sidebar filter hook updates optimistically, so the applied filter state
+      // — and the URL it writes to — reflect the view synchronously.
+      if (setFiltersRef.current && !filtersAlreadyApplied) {
         setFiltersRef.current(validFilters);
-        // Track expected filters to observe when state actually updates (for useEffect below)
-        // If filters are already applied, don't set pending ref (will unlock immediately).
-        // Also track pre-apply state so we can unlock when filters propagate but get
-        // migrated into an equivalent shape by downstream hooks.
-        if (!filtersAlreadyApplied) {
-          pendingFiltersRef.current = validFilters;
-          pendingFiltersPreviousStateRef.current = currentFilterState ?? [];
-        }
       }
 
       if (setSearchQueryRef.current) {
@@ -311,19 +329,41 @@ export function useTableViewManager({
         setSearchQueryRef.current(viewData.searchQuery || null);
       }
 
-      // Apply column order and visibility without validation since UI will handle gracefully
-      if (viewData.columnOrder) setColumnOrder(viewData.columnOrder);
-      if (viewData.columnVisibility)
+      // Apply column order and visibility without validation since UI will handle gracefully.
+      // A saved view persists its own columnOrder snapshot, so a pre-PR view can
+      // re-introduce a stale column position even after the localStorage migration
+      // has run (the migration is one-shot and this is a separate persistence path).
+      // Run the table's opt-in columnOrder migration on the payload first so the
+      // same "only reposition a stale default" rule applies here too.
+      //
+      // EMPTY payloads carry no column opinion and must not touch the user's
+      // layout: system presets (and the chips' cleared state) ship
+      // `columnOrder: []` / `columnVisibility: {}`, and writing those through
+      // would reconcile the table back to default columns and PERSIST that to
+      // localStorage — silently wiping per-user reordering/visibility on every
+      // preset apply. User-saved views always persist a full non-empty
+      // snapshot, so gating on non-empty only skips the no-opinion payloads.
+      if (viewData.columnOrder && viewData.columnOrder.length > 0) {
+        const migratedColumnOrder = validationContext.migrateColumnOrder
+          ? validationContext.migrateColumnOrder(viewData.columnOrder)
+          : viewData.columnOrder;
+        setColumnOrder(migratedColumnOrder);
+      }
+      if (
+        viewData.columnVisibility &&
+        Object.keys(viewData.columnVisibility).length > 0
+      )
         setColumnVisibility(viewData.columnVisibility);
 
-      // If filters were already applied, unlock table immediately
-      if (filtersAlreadyApplied) {
-        setIsLoading(false);
-      }
-
-      // NOTE: Table remains locked until useEffect observer detects filter state propagation
-      // This is relevant for the saved views. Because the URL lazy updates and we don't want to wait
-      // for a page reload
+      // Unlock as soon as the view is applied. Earlier versions kept the table
+      // locked until a useEffect observer saw the filter change propagate to
+      // `currentFilterState`; that observer was the source of LFE-7389
+      // fragility — an early return or a canonicalized-shape mismatch could
+      // leave the table showing unfiltered rows, or never unlock. The sidebar
+      // filter hook applies updates optimistically, so propagation is
+      // synchronous and the URL becomes the source of truth for the applied
+      // filters on the same render. Unlock deterministically here instead.
+      setIsLoading(false);
     },
     [
       setColumnOrder,
@@ -348,7 +388,17 @@ export function useTableViewManager({
         isRouterReady &&
         !!selectedViewId &&
         !isInitialized &&
+        // Explicit URL state is authoritative and we deliberately do not apply
+        // the view over it (no filter overwrite, no localStorage column
+        // mutation on a link open) — so there is nothing to fetch.
+        !hasExplicitTableStateInUrl(router.query) &&
         (!isSystemPresetId(selectedViewId) || allowBackendSystemPresets),
+      // A 404 is an expected outcome, not an incident: system presets are
+      // code-defined and a catalog iteration can retire an id that still
+      // lives in bookmarks/session storage. Silence the GLOBAL query-cache
+      // error toast for it — the error effect below owns the messaging
+      // (friendly retirement notice vs. real error).
+      meta: { silentHttpCodes: [404] },
     },
   );
 
@@ -358,10 +408,19 @@ export function useTableViewManager({
     const requestedViewId = selectedViewId;
     if (!requestedViewId) return;
     if (isInitializedRef.current) return;
+    // Explicit URL state is authoritative and the view is deliberately not
+    // applied over it — guard here too (not just via the query `enabled`) so
+    // cached view data can never apply the view on the first render regardless
+    // of effect timing (LFE-10486).
+    if (hasExplicitTableStateInUrl(router.query)) {
+      setIsInitialized(true);
+      setIsLoading(false);
+      return;
+    }
     if (selectedViewIdRef.current !== requestedViewId) return;
     if (selectedViewData.id !== requestedViewId) return;
     if (!isViewApplicableToTable(tableName, selectedViewData.tableName)) {
-      handleSetViewId(null);
+      handleSetViewId(null, { updateType: "replaceIn" });
       return;
     }
 
@@ -383,6 +442,7 @@ export function useTableViewManager({
     isSelectedViewSuccess,
     selectedViewData,
     selectedViewId,
+    router.query,
     handleSetViewId,
     capture,
     tableName,
@@ -402,38 +462,47 @@ export function useTableViewManager({
     isInitializedRef.current = true;
     setIsInitialized(true);
     setIsLoading(false);
-    handleSetViewId(null);
-    showErrorToast("Error applying view", selectedViewError.message, "WARNING");
+    handleSetViewId(null, { updateType: "replaceIn" });
+    // A 404 on a system-preset id means the catalog retired it (system
+    // presets are code-defined); stale references live on in bookmarks and
+    // session storage. Stale DEFAULTS never reach here (getDefault
+    // self-heals them server-side), so this is an explicit-ish reference —
+    // tell the user once why they landed on the default table (a dead
+    // bookmark is fixable), in a friendlier voice than the real error kept
+    // for dangling user views and for transient failures (which must stay
+    // loud — a network blip is not a retirement).
+    if (
+      isSystemPresetId(requestedViewId) &&
+      selectedViewError.data?.httpStatus === 404
+    ) {
+      // How many users still follow "the older way" (a retired preset
+      // reference) and get redirected — sizes the cost of each catalog
+      // iteration.
+      capture("saved_views:retired_view_redirect", {
+        tableName,
+        viewId: requestedViewId,
+      });
+      showErrorToast(
+        "View no longer available",
+        "This suggested view was retired — showing the default view instead.",
+        "WARNING",
+      );
+    } else {
+      showErrorToast(
+        "Error applying view",
+        selectedViewError.message,
+        "WARNING",
+      );
+    }
   }, [
     disabled,
     isSelectedViewError,
     selectedViewError,
     selectedViewId,
     handleSetViewId,
+    capture,
+    tableName,
   ]);
-
-  // Observe when filter state propagates from saved view
-  // After calling setFilters, URL updates async → filterState recalculates → this effect detects completion
-  useEffect(() => {
-    const pendingFilters = pendingFiltersRef.current;
-    if (!pendingFilters || currentFilterState === undefined) return;
-
-    const preApplyFilters = pendingFiltersPreviousStateRef.current ?? [];
-    const hasExpectedShape = isEqual(currentFilterState, pendingFilters);
-    const hasPropagatedWithCanonicalization = !isEqual(
-      currentFilterState,
-      preApplyFilters,
-    );
-
-    if (hasExpectedShape || hasPropagatedWithCanonicalization) {
-      // Filter state has synchronized - safe to unlock table.
-      // `hasPropagatedWithCanonicalization` handles equivalent rewrites
-      // (for example legacy env-delta -> canonical none-of shape).
-      pendingFiltersRef.current = null;
-      pendingFiltersPreviousStateRef.current = null;
-      setIsLoading(false);
-    }
-  }, [currentFilterState]);
 
   if (disabled) {
     return {
@@ -441,6 +510,7 @@ export function useTableViewManager({
       applyViewState: () => {},
       handleSetViewId: () => {},
       selectedViewId: null,
+      appliedViewId: null,
       defaultViewScope: null,
     };
   }
@@ -450,6 +520,32 @@ export function useTableViewManager({
     applyViewState,
     handleSetViewId,
     selectedViewId,
+    // The view whose state is reflected in the live table — i.e. whose column
+    // layout is in localStorage. We reuse `storedViewId` (session-persisted,
+    // set on apply/create/select and cleared on deselect) rather than a
+    // session-scoped React flag, so the signal survives a reload: after a view
+    // is applied the URL becomes `?viewId=X&filter=...`, and on reload the
+    // explicit-URL-state short-circuit skips re-applying it — but storedViewId
+    // is still X, so "Update view" correctly trusts the live columns instead of
+    // reverting to the view's stored snapshot. On a fresh shared-link visit
+    // storedViewId is null (or another view), so the view's columns are
+    // preserved (the visitor's own localStorage layout is not saved over the
+    // view).
+    //
+    // Deliberate tradeoff: storedViewId is sessionStorage (per-tab) while the
+    // column layout is localStorage (cross-tab). So the *owner* reopening their
+    // own `?viewId=X&filter=...` bookmark in a NEW tab is indistinguishable at
+    // runtime from a stranger opening a shared link — both have empty
+    // sessionStorage + explicit URL state. We intentionally err toward
+    // preserving the saved view's stored columns when ambiguous: the cost is
+    // that an in-tab column reorder in that new tab is not saved on "Update
+    // view" (recoverable — re-select the view, then update), whereas trusting
+    // the live columns would let any visitor silently overwrite a shared view's
+    // columns. A robust resolution needs the column-state-model rework
+    // (decouple "the view's columns" from "my personal columns"); a per-tab
+    // signal cannot tell the two visits apart. Keep this comment if "fixing"
+    // the symmetric case is attempted. (LFE-10486)
+    appliedViewId: storedViewId,
     defaultViewScope: resolvedDefault?.scope ?? null,
   };
 }

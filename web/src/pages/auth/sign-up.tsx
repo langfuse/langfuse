@@ -17,7 +17,7 @@ import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { env } from "@/src/env.mjs";
 import { useState } from "react";
-import { LangfuseIcon } from "@/src/components/LangfuseLogo";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
 import {
@@ -407,7 +407,9 @@ function VerifiedSignupFlow({
         </Head>
         <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
           <div className="sm:mx-auto sm:w-full sm:max-w-md">
-            <LangfuseIcon className="mx-auto" />
+            <div className="mx-auto w-fit">
+              <LangfuseIcon />
+            </div>
             <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
               Check your email
             </h2>
@@ -455,7 +457,7 @@ function VerifiedSignupFlow({
                 The code is valid for 3 minutes.{" "}
                 <button
                   type="button"
-                  className="text-primary-accent hover:text-hover-primary-accent font-medium"
+                  className="text-link hover:text-link-hover font-medium"
                   onClick={() => {
                     setPhase("form");
                     setOtpCode("");
@@ -552,7 +554,9 @@ function SignupPageShell({ children }: { children: React.ReactNode }) {
       </Head>
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <LangfuseIcon className="mx-auto" />
+          <div className="mx-auto w-fit">
+            <LangfuseIcon />
+          </div>
           <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
             Create new account
           </h2>
@@ -581,7 +585,7 @@ function SignupFooter() {
       Already have an account?{" "}
       <Link
         href={`/auth/sign-in${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
-        className="text-primary-accent hover:text-hover-primary-accent leading-6 font-semibold"
+        className="text-link hover:text-link-hover leading-6 font-semibold"
       >
         Sign in
       </Link>

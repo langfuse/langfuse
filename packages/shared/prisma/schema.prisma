@@ -79,6 +79,7 @@ model User {
   defaultViews              DefaultView[]               @relation("DefaultViewUser")
   inAppAgentConversations   InAppAgentConversation[]    @relation("InAppAgentConversationCreatedByUser")
   inAppAgentRuns            InAppAgentRun[]             @relation("InAppAgentRunTriggeredByUser")
+  apiKeysCreated            ApiKey[]                    @relation("ApiKeyCreatedByUser")
 
   @@map("users")
 }
@@ -180,6 +181,7 @@ model Project {
   InAppAgentConversation    InAppAgentConversation[]
   InAppAgentEvent           InAppAgentEvent[]
   InAppAgentRun             InAppAgentRun[]
+  InAppAgentPendingToolApproval InAppAgentPendingToolApproval[]
 
   @@index([orgId])
   @@map("projects")
@@ -206,9 +208,15 @@ model ApiKey {
   orgId               String?       @map("organization_id")
   organization        Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
   scope               ApiKeyScope   @default(PROJECT) @map("scope")
+  createdByUserId     String?       @map("created_by_user_id")
+  createdByUser       User?         @relation("ApiKeyCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdByApiKeyId   String?       @map("created_by_api_key_id")
+  createdByApiKey     ApiKey?       @relation("ApiKeyCreatedByApiKey", fields: [createdByApiKeyId], references: [id], onDelete: SetNull)
+  apiKeysCreated      ApiKey[]      @relation("ApiKeyCreatedByApiKey")
 
   @@index(orgId)
   @@index(projectId)
+  @@index(createdByApiKeyId)
   @@index(publicKey)
   @@index(hashedSecretKey)
   @@index(fastHashedSecretKey)
@@ -227,6 +235,7 @@ model InAppAgentConversation {
   createdByUserId   String?                               @map("created_by_user_id")
   createdByUser     User?                                 @relation("InAppAgentConversationCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
   title             String?
+  renamedByUserAt   DateTime?                             @map("renamed_by_user_at")
   visibilityScope   InAppAgentConversationVisibilityScope @default(PERSONAL) @map("visibility_scope")
   providerSessionId String?                               @map("provider_session_id")
   deletedAt         DateTime?                             @map("deleted_at")
@@ -235,6 +244,7 @@ model InAppAgentConversation {
 
   events InAppAgentEvent[]
   runs   InAppAgentRun[]
+  pendingToolApprovals InAppAgentPendingToolApproval[]
 
   @@id([id, projectId])
   @@index([projectId, createdByUserId, deletedAt, updatedAt, id], map: "in_app_agent_conversations_project_user_list_idx")
@@ -279,6 +289,22 @@ model InAppAgentRun {
   @@id([id, projectId])
   @@index([projectId, conversationId, createdAt], map: "in_app_agent_runs_project_conversation_created_idx")
   @@map("in_app_agent_runs")
+}
+
+model InAppAgentPendingToolApproval {
+  projectId           String                 @map("project_id")
+  project             Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  conversationId      String                 @map("conversation_id")
+  conversation        InAppAgentConversation @relation(fields: [conversationId, projectId], references: [id, projectId], onDelete: Cascade)
+  toolCallId          String                 @map("tool_call_id")
+  approvalFingerprint String                 @map("approval_fingerprint")
+  expiresAt           DateTime               @map("expires_at")
+  createdAt           DateTime               @default(now()) @map("created_at")
+  updatedAt           DateTime               @default(now()) @updatedAt @map("updated_at")
+
+  @@id([projectId, conversationId, toolCallId])
+  @@index([expiresAt], map: "in_app_agent_pending_tool_approvals_expires_at_idx")
+  @@map("in_app_agent_pending_tool_approvals")
 }
 
 model BackgroundMigration {
@@ -1237,6 +1263,9 @@ model BlobStorageIntegration {
   // Shared with LFE-10394; extend the zod schema, do not duplicate the column.
   exportTuning Json? @map("export_tuning")
 
+  // Run tracking
+  runStartedAt DateTime? @map("run_started_at")
+
   // Error tracking
   lastError   String?   @map("last_error")
   lastErrorAt DateTime? @map("last_error_at")
@@ -1274,6 +1303,7 @@ enum BlobStorageIntegrationFileType {
   JSON
   CSV
   JSONL
+  PARQUET
 
   @@map("BlobStorageIntegrationFileType")
 }

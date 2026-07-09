@@ -8,6 +8,7 @@ import { ModelUsageChart } from "@/src/features/dashboard/components/ModelUsageC
 import { TracesAndObservationsTimeSeriesChart } from "@/src/features/dashboard/components/TracesTimeSeriesChart";
 import { UserChart } from "@/src/features/dashboard/components/UserChart";
 import { TimeRangePicker } from "@/src/components/date-picker";
+import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { useDashboardFilterOptions } from "@/src/hooks/useDashboardFilterOptions";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { type ColumnDefinition, type FilterState } from "@langfuse/shared";
@@ -53,6 +54,10 @@ const HOME_DASHBOARD_CARD_IDS = {
   generationLatency: "home:generation-latency",
   scoreAnalytics: "home:score-analytics",
 } as const;
+
+// Shared across the home time-series charts so hovering one moves the time
+// crosshair on all of them (they share one time range + granularity). (LFE-10549)
+const HOME_DASHBOARD_SYNC_ID = "home-dashboard-timeseries";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -202,22 +207,6 @@ export default function Dashboard() {
           title: "Home",
           actionButtonsLeft: (
             <>
-              <TimeRangePicker
-                timeRange={timeRange}
-                onTimeRangeChange={setTimeRange}
-                timeRangePresets={dashboardTimeRangePresets}
-                className="my-0 max-w-full overflow-x-auto"
-                disabled={
-                  lookbackLimit
-                    ? {
-                        before: new Date(
-                          new Date().getTime() -
-                            lookbackLimit * 24 * 60 * 60 * 1000,
-                        ),
-                      }
-                    : undefined
-                }
-              />
               <MultiSelect
                 title="Environment"
                 label="Env"
@@ -242,6 +231,25 @@ export default function Dashboard() {
           ),
         }}
       >
+        <PageHeaderControlsPortal>
+          <TimeRangePicker
+            timeRange={timeRange}
+            onTimeRangeChange={setTimeRange}
+            timeRangePresets={dashboardTimeRangePresets}
+            className="my-0 max-w-full overflow-x-auto"
+            triggerClassName="px-2"
+            disabled={
+              lookbackLimit
+                ? {
+                    before: new Date(
+                      new Date().getTime() -
+                        lookbackLimit * 24 * 60 * 60 * 1000,
+                    ),
+                  }
+                : undefined
+            }
+          />
+        </PageHeaderControlsPortal>
         {!isDashboardDataReady ? (
           <NoDataOrLoading isLoading />
         ) : (
@@ -283,6 +291,7 @@ export default function Dashboard() {
               isLoading={environmentOptionsState.isPending}
               metricsVersion={metricsVersion}
               schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.tracesTimeSeries}`}
+              syncId={HOME_DASHBOARD_SYNC_ID}
             />
             <ModelUsageChart
               className="col-span-1 min-h-24 xl:col-span-3"
@@ -295,6 +304,7 @@ export default function Dashboard() {
               isLoading={environmentOptionsState.isPending}
               metricsVersion={metricsVersion}
               schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.modelUsage}`}
+              syncId={HOME_DASHBOARD_SYNC_ID}
             />
             <UserChart
               className="col-span-1 xl:col-span-3"
@@ -316,6 +326,7 @@ export default function Dashboard() {
               isLoading={environmentOptionsState.isPending}
               metricsVersion={metricsVersion}
               schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.chartScores}`}
+              syncId={HOME_DASHBOARD_SYNC_ID}
             />
             <LatencyTables
               projectId={projectId}
@@ -336,6 +347,7 @@ export default function Dashboard() {
               isLoading={environmentOptionsState.isPending}
               metricsVersion={metricsVersion}
               schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.generationLatency}`}
+              syncId={HOME_DASHBOARD_SYNC_ID}
             />
             <ScoreAnalytics
               className="col-span-1 flex-auto justify-between lg:col-span-full"
@@ -347,6 +359,7 @@ export default function Dashboard() {
               isLoading={environmentOptionsState.isPending}
               metricsVersion={metricsVersion}
               schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.scoreAnalytics}`}
+              syncId={HOME_DASHBOARD_SYNC_ID}
             />
           </div>
         )}

@@ -65,6 +65,8 @@ export const projectScopes = [
   "llmTools:CUD",
   "llmTools:read",
 
+  "playground:execute",
+
   "comments:CUD",
   "comments:read",
 
@@ -81,10 +83,15 @@ export const projectScopes = [
 
   "monitors:read",
   "monitors:CUD",
+
+  "v4Migration:read",
 ] as const;
 
 // type string of all Resource:Action, e.g. "members:read"
 export type ProjectScope = (typeof projectScopes)[number];
+
+export const v4MigrationProjectScope =
+  "v4Migration:read" satisfies ProjectScope;
 
 export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
   OWNER: [
@@ -124,6 +131,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "llmSchemas:read",
     "llmTools:CUD",
     "llmTools:read",
+    "playground:execute",
     "batchExports:create",
     "batchExports:read",
     "comments:CUD",
@@ -143,6 +151,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "automations:read",
     "monitors:read",
     "monitors:CUD",
+    v4MigrationProjectScope,
   ],
   ADMIN: [
     "project:read",
@@ -180,6 +189,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "llmSchemas:read",
     "llmTools:CUD",
     "llmTools:read",
+    "playground:execute",
     "batchExports:create",
     "batchExports:read",
     "comments:CUD",
@@ -199,6 +209,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "automations:read",
     "monitors:read",
     "monitors:CUD",
+    v4MigrationProjectScope,
   ],
   MEMBER: [
     "project:read",
@@ -226,6 +237,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "llmSchemas:CUD",
     "llmTools:CUD",
     "llmTools:read",
+    "playground:execute",
     "batchExports:create",
     "batchExports:read",
     "comments:CUD",

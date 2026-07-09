@@ -21,9 +21,7 @@ import {
 } from "@langfuse/shared/monitors";
 
 import { renderChartSubtitle } from "../helpers/renderMonitorLabels";
-
-/** previewBucketCount is the number of complete window buckets the preview renders. */
-const previewBucketCount = 20;
+import { getMonitorPreviewRange } from "../helpers/monitorTimeRanges";
 
 /** MonitorChartPreview renders the live time-series preview with alert/warning threshold bands for a monitor draft. */
 export const MonitorChartPreview = ({
@@ -49,12 +47,10 @@ export const MonitorChartPreview = ({
 }) => {
   /** bucketRange spans 20 complete window buckets ending at the last floored boundary. */
   const { fromTimestamp, toTimestamp } = useMemo(() => {
-    const ms = Number(windowToMs(window));
-    const to = Math.floor(Date.now() / ms) * ms;
-    const from = to - previewBucketCount * ms;
+    const { from, to } = getMonitorPreviewRange(window, Date.now());
     return {
-      toTimestamp: new Date(to).toISOString(),
-      fromTimestamp: new Date(from).toISOString(),
+      toTimestamp: to.toISOString(),
+      fromTimestamp: from.toISOString(),
     };
   }, [window]);
 

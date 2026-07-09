@@ -12,6 +12,11 @@ import {
   getObservationsBatchIOFromEventsTable,
   getLatestSdkVersionInfoFromEvents,
   getTracesIdentifierForSessionFromEvents,
+  getEventsFilterOptionsForColumns,
+  getEventsFilterOptionValuesPage,
+  createScoresCh,
+  createTraceScore,
+  type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
 import {
   getEventFilterNumericRange,
@@ -39,6 +44,12 @@ function idFilter(id: string): FilterCondition {
     value: id,
   };
 }
+
+const findFilterOption = (
+  rows: Awaited<ReturnType<typeof getEventsFilterOptionsForColumns>>,
+  column: EventFilterOptionColumn,
+  value: string,
+) => rows.find((row) => row.column === column && row.value === value);
 
 describe("Clickhouse Events Repository Test", () => {
   it("should kill redis connection", () => {
@@ -605,6 +616,67 @@ describe("Clickhouse Events Repository Test", () => {
       });
     });
 
+    it("only loads requested filter option columns", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const now = Date.now();
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "unrequested-filter-option-name",
+          level: "WARNING",
+          tags: ["unrequested-filter-option-tag"],
+          start_time: now * 1000,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          name: "unrequested-filter-option-score",
+          data_type: "NUMERIC",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          name: "unrequested-filter-option-category",
+          data_type: "CATEGORICAL",
+          string_value: "unrequested-category-value",
+          value: 1,
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const options = await getEventFilterOptions({
+          projectId: uniqueProjectId,
+          columns: ["level"],
+        });
+
+        expect(options.level?.map((level) => level.value)).toContain("WARNING");
+        // Unrequested columns are absent (not empty arrays), so the client can
+        // distinguish "loaded, no values" from "not requested yet" for lazy loading.
+        expect(options.name).toBeUndefined();
+        expect(options.traceTags).toBeUndefined();
+        expect(options.scores_avg).toBeUndefined();
+        expect(options.score_categories).toBeUndefined();
+        expect(options.trace_scores_avg).toBeUndefined();
+        expect(options.trace_score_categories).toBeUndefined();
+      });
+    });
+
     it("applies the default startTime bound to paged and numeric filter values", async () => {
       const uniqueProjectId = randomUUID();
       const traceId = randomUUID();
@@ -674,47 +746,192 @@ describe("Clickhouse Events Repository Test", () => {
         expect(Number(range?.max)).toBeCloseTo(1, 3);
       });
     });
+  });
 
-    it("uses the monitor window to scope monitor filter option queries", async () => {
+  maybe("events filter option repository helpers", () => {
+    it("executes the bulk filter option query for scalar, array, and boolean facets", async () => {
       const uniqueProjectId = randomUUID();
       const traceId = randomUUID();
-      const now = Date.now();
-      const recentLevel = "WARNING";
-      const oldLevel = "ERROR";
+      const rootSpanId = randomUUID();
+      const childSpanId = randomUUID();
+      const otherRootSpanId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: rootSpanId,
+          span_id: rootSpanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          parent_span_id: "",
+          is_app_root: true,
+          type: "GENERATION",
+          name: "runtime-filter-alpha",
+          level: "WARNING",
+          tags: ["zeta", "alpha", "alpha"],
+          tool_definitions: { search: "{}", calculator: "{}" },
+          tool_call_names: ["search"],
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: childSpanId,
+          span_id: childSpanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          parent_span_id: rootSpanId,
+          type: "SPAN",
+          name: "runtime-filter-beta",
+          level: "WARNING",
+          tags: ["beta"],
+          tool_definitions: { search: "{}" },
+          tool_call_names: ["lookup", "search"],
+          start_time: nowMicro + 1_000,
+          event_ts: nowMicro + 1_000,
+        }),
+        createEvent({
+          id: otherRootSpanId,
+          span_id: otherRootSpanId,
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          parent_span_id: "",
+          is_app_root: true,
+          type: "GENERATION",
+          name: "runtime-filter-alpha",
+          level: "ERROR",
+          tags: ["alpha"],
+          tool_definitions: { lookup: "{}" },
+          tool_call_names: ["lookup"],
+          start_time: nowMicro + 2_000,
+          event_ts: nowMicro + 2_000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const rows = await getEventsFilterOptionsForColumns({
+          projectId: uniqueProjectId,
+          filter: [],
+          columns: [
+            "name",
+            "level",
+            "traceTags",
+            "isRootObservation",
+            "hasParentObservation",
+            "toolNames",
+            "calledToolNames",
+          ],
+          topN: 20,
+        });
+
+        expect(Number(findFilterOption(rows, "level", "WARNING")?.count)).toBe(
+          2,
+        );
+        expect(Number(findFilterOption(rows, "level", "ERROR")?.count)).toBe(1);
+        expect(
+          Number(findFilterOption(rows, "name", "runtime-filter-alpha")?.count),
+        ).toBe(2);
+        expect(
+          Number(findFilterOption(rows, "name", "runtime-filter-beta")?.count),
+        ).toBe(1);
+        expect(
+          Number(findFilterOption(rows, "traceTags", "alpha")?.count),
+        ).toBe(2);
+        expect(Number(findFilterOption(rows, "traceTags", "beta")?.count)).toBe(
+          1,
+        );
+        expect(Number(findFilterOption(rows, "traceTags", "zeta")?.count)).toBe(
+          1,
+        );
+        expect(
+          rows
+            .filter((row) => row.column === "traceTags")
+            .map((row) => row.value),
+        ).toEqual(["alpha", "beta", "zeta"]);
+        expect(
+          rows
+            .filter((row) => row.column === "isRootObservation")
+            .map((row) => row.value),
+        ).toEqual(["false", "true"]);
+        expect(
+          Number(findFilterOption(rows, "isRootObservation", "false")?.count),
+        ).toBe(1);
+        expect(
+          Number(findFilterOption(rows, "isRootObservation", "true")?.count),
+        ).toBe(2);
+        expect(
+          Number(
+            findFilterOption(rows, "hasParentObservation", "false")?.count,
+          ),
+        ).toBe(2);
+        expect(
+          Number(findFilterOption(rows, "hasParentObservation", "true")?.count),
+        ).toBe(1);
+        expect(
+          Number(findFilterOption(rows, "toolNames", "search")?.count),
+        ).toBe(2);
+        expect(
+          Number(findFilterOption(rows, "toolNames", "calculator")?.count),
+        ).toBe(1);
+        expect(
+          Number(findFilterOption(rows, "calledToolNames", "lookup")?.count),
+        ).toBe(2);
+        expect(
+          Number(findFilterOption(rows, "calledToolNames", "search")?.count),
+        ).toBe(2);
+      });
+    });
+
+    it("executes the exact single-column array filter option query with paging", async () => {
+      const uniqueProjectId = randomUUID();
+      const nowMicro = Date.now() * 1000;
 
       await createEventsCh([
         createEvent({
           id: randomUUID(),
           span_id: randomUUID(),
           project_id: uniqueProjectId,
-          trace_id: traceId,
+          trace_id: randomUUID(),
           type: "SPAN",
-          name: "recent-monitor-filter-option-event",
-          level: recentLevel,
-          start_time: (now - 60 * 1000) * 1000,
+          tags: ["gamma", "alpha", "alpha"],
+          start_time: nowMicro,
+          event_ts: nowMicro,
         }),
         createEvent({
           id: randomUUID(),
           span_id: randomUUID(),
           project_id: uniqueProjectId,
-          trace_id: traceId,
+          trace_id: randomUUID(),
           type: "SPAN",
-          name: "old-monitor-filter-option-event",
-          level: oldLevel,
-          start_time: (now - 10 * 60 * 1000) * 1000,
+          tags: ["beta", "alpha"],
+          start_time: nowMicro + 1_000,
+          event_ts: nowMicro + 1_000,
         }),
       ]);
 
       await waitForExpect(async () => {
-        const options = await getEventFilterOptions({
+        const firstPage = await getEventsFilterOptionValuesPage({
           projectId: uniqueProjectId,
-          monitorWindow: "5m",
+          filter: [],
+          column: "traceTags",
+          limit: 2,
+          offset: 0,
         });
-        const levels = options.level.map((level) => level.value);
 
-        expect(levels).toContain(recentLevel);
-        expect(levels).not.toContain(oldLevel);
+        expect(firstPage.map((row) => row.value)).toEqual(["alpha", "beta"]);
+        expect(Number(firstPage[0]?.count)).toBe(2);
+        expect(Number(firstPage[1]?.count)).toBe(1);
       });
+
+      const secondPage = await getEventsFilterOptionValuesPage({
+        projectId: uniqueProjectId,
+        filter: [],
+        column: "traceTags",
+        limit: 2,
+        offset: 2,
+      });
+
+      expect(secondPage.map((row) => row.value)).toEqual(["gamma"]);
+      expect(Number(secondPage[0]?.count)).toBe(1);
     });
   });
 
@@ -2845,18 +3062,17 @@ describe("Clickhouse Events Repository Test", () => {
   });
 
   maybe("getLatestSdkVersionInfoFromEvents", () => {
-    it("should return isOtel: false for v2 data (no scope metadata)", async () => {
+    it("should return isOtel: false for classic ingestion data (no OTel source)", async () => {
       const uniqueProjectId = randomUUID();
 
-      // v2 data has no scope key in metadata
+      // v2 SDK via classic batch ingestion: not OTel-compatible
       await createEventsCh([
         createEvent({
           project_id: uniqueProjectId,
           start_time: Date.now() * 1000,
-          metadata_names: ["version"],
-          metadata_values: ["2.x"],
-          scope_name: "",
-          scope_version: "",
+          source: "ingestion-api-dual-write",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "2.60.1",
           telemetry_sdk_language: "",
         }),
       ]);
@@ -2868,89 +3084,30 @@ describe("Clickhouse Events Repository Test", () => {
       expect(result.isOtel).toBe(false);
     });
 
-    it("should return isOtel: true with v3 version from metadata", async () => {
+    it("should return isOtel: true with attribution from the newest OTel event", async () => {
       const uniqueProjectId = randomUUID();
       const now = Date.now() * 1000;
 
-      // Insert v2 data
+      // Insert v2 data (classic ingestion, must be skipped)
       await createEventsCh([
         createEvent({
           project_id: uniqueProjectId,
           start_time: now - 10000000, // older
-          metadata_names: ["version"],
-          metadata_values: ["2.x"],
-          scope_name: "",
-          scope_version: "",
+          source: "ingestion-api-dual-write",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "2.60.1",
           telemetry_sdk_language: "",
         }),
       ]);
 
-      // Insert v3 data - SDK info in metadata as nested JSON
+      // Insert v3 data - Langfuse SDK via OTLP, attribution from headers
       await createEventsCh([
         createEvent({
           project_id: uniqueProjectId,
           start_time: now, // newer
-          metadata_names: ["resourceAttributes", "scope"],
-          metadata_values: [
-            '{"telemetry.sdk.language":"python","telemetry.sdk.name":"opentelemetry"}',
-            '{"name":"langfuse-sdk","version":"3.14.6"}',
-          ],
-          scope_name: "", // v3 has empty direct columns
-          scope_version: "",
-          telemetry_sdk_language: "",
-        }),
-      ]);
-
-      const result = await getLatestSdkVersionInfoFromEvents({
-        projectId: uniqueProjectId,
-      });
-
-      expect(result.isOtel).toBe(true);
-      expect(result.version).toBe("3.14.6");
-    });
-
-    it("should return v4 version from direct columns when available", async () => {
-      const uniqueProjectId = randomUUID();
-      const now = Date.now() * 1000;
-
-      // Insert v2 data (oldest)
-      await createEventsCh([
-        createEvent({
-          project_id: uniqueProjectId,
-          start_time: now - 20000000,
-          metadata_names: ["version"],
-          metadata_values: ["2.x"],
-          scope_name: "",
-          scope_version: "",
-          telemetry_sdk_language: "",
-        }),
-      ]);
-
-      // Insert v3 data (middle)
-      await createEventsCh([
-        createEvent({
-          project_id: uniqueProjectId,
-          start_time: now - 10000000,
-          metadata_names: ["resourceAttributes", "scope"],
-          metadata_values: [
-            '{"telemetry.sdk.language":"python"}',
-            '{"name":"langfuse-sdk","version":"3.14.6"}',
-          ],
-          scope_name: "",
-          scope_version: "",
-          telemetry_sdk_language: "",
-        }),
-      ]);
-
-      // Insert v4 data (newest) - SDK info in direct columns
-      await createEventsCh([
-        createEvent({
-          project_id: uniqueProjectId,
-          start_time: now, // newest
-          metadata_names: ["scope.name", "scope.version"],
-          metadata_values: ["langfuse-sdk", "4.2.0"],
-          scope_name: "langfuse-sdk",
-          scope_version: "4.2.0",
+          source: "otel",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "3.14.6",
           telemetry_sdk_language: "python",
         }),
       ]);
@@ -2960,28 +3117,36 @@ describe("Clickhouse Events Repository Test", () => {
       });
 
       expect(result.isOtel).toBe(true);
-      expect(result.version).toBe("4.2.0");
+      expect(result.name).toBe("python");
+      expect(result.version).toBe("3.14.6");
+      expect(result.language).toBe("python");
     });
 
-    it("should return isOtel: true for Vercel AI SDK events (OTel without Langfuse SDK)", async () => {
+    it("should match dual-write OTel events and return the newest attribution", async () => {
       const uniqueProjectId = randomUUID();
       const now = Date.now() * 1000;
 
-      // Vercel AI SDK: sent via OTel but without Langfuse SDK
-      // scope.name is "ai" (instrumentation scope), no version
-      // resourceAttributes has telemetry.sdk.name = "opentelemetry"
+      // Older direct-write event
       await createEventsCh([
         createEvent({
           project_id: uniqueProjectId,
-          start_time: now,
-          metadata_names: ["resourceAttributes", "scope"],
-          metadata_values: [
-            '{"telemetry.sdk.language":"nodejs","telemetry.sdk.name":"opentelemetry"}',
-            '{"name":"ai","attributes":{}}',
-          ],
-          scope_name: "", // No direct columns for raw OTel
-          scope_version: "",
-          telemetry_sdk_language: "",
+          start_time: now - 10000000,
+          source: "otel",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "3.14.6",
+          telemetry_sdk_language: "python",
+        }),
+      ]);
+
+      // Newest event arrived via the dual-write propagation path
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now, // newest
+          source: "otel-dual-write",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "4.2.0",
+          telemetry_sdk_language: "python",
         }),
       ]);
 
@@ -2990,9 +3155,215 @@ describe("Clickhouse Events Repository Test", () => {
       });
 
       expect(result.isOtel).toBe(true);
-      expect(result.name).toBe("ai");
-      expect(result.language).toBe("nodejs");
+      expect(result.name).toBe("python");
+      expect(result.version).toBe("4.2.0");
+    });
+
+    it("should return isOtel: true without name/version for raw OTel clients (e.g. Vercel AI SDK)", async () => {
+      const uniqueProjectId = randomUUID();
+      const now = Date.now() * 1000;
+
+      // Vercel AI SDK: sent via OTel but without Langfuse SDK headers,
+      // so ingestion attribution carries the 'unknown' sentinel
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now,
+          source: "otel",
+          ingestion_sdk_name: "unknown",
+          ingestion_sdk_version: "unknown",
+          telemetry_sdk_language: "nodejs",
+        }),
+      ]);
+
+      const result = await getLatestSdkVersionInfoFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.isOtel).toBe(true);
+      expect(result.name).toBeUndefined();
       expect(result.version).toBeUndefined();
+      expect(result.language).toBe("nodejs");
+    });
+  });
+
+  // LFE-10596: trace-level score filtering returned empty in v4. The events
+  // table splits scores into observation-scoped (`scores_avg`, joined on
+  // span_id) and trace-scoped (`trace_scores_avg`, joined on trace_id). A
+  // trace-level score (observation_id NULL) can only match the trace-scoped
+  // column, so its NAME must be offered under `trace_scores_avg` only — never
+  // under `scores_avg`, where a filter on it can never match.
+  maybe("LFE-10596 trace-level score filtering", () => {
+    it("trace-level score matches trace_scores_avg but not scores_avg", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "Help Assistant",
+        }),
+      ]);
+
+      await createScoresCh([
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: null,
+          name: "CSAT",
+          value: 1,
+          data_type: "NUMERIC",
+        }),
+      ]);
+
+      const scoresAvgFilter: FilterCondition = {
+        type: "numberObject",
+        column: "scores_avg",
+        operator: "=",
+        key: "CSAT",
+        value: 1,
+      };
+      const traceScoresAvgFilter: FilterCondition = {
+        type: "numberObject",
+        column: "trace_scores_avg",
+        operator: "=",
+        key: "CSAT",
+        value: 1,
+      };
+
+      const [noFilterCount, scoresAvgCount, traceScoresAvgCount] =
+        await Promise.all([
+          getObservationsCountFromEventsTable({
+            projectId: uniqueProjectId,
+            filter: [],
+          }),
+          getObservationsCountFromEventsTable({
+            projectId: uniqueProjectId,
+            filter: [scoresAvgFilter],
+          }),
+          getObservationsCountFromEventsTable({
+            projectId: uniqueProjectId,
+            filter: [traceScoresAvgFilter],
+          }),
+        ]);
+
+      expect(noFilterCount).toBe(1);
+      expect(traceScoresAvgCount).toBe(1);
+      expect(scoresAvgCount).toBe(0);
+    });
+
+    it("offers a trace-level numeric score under trace_scores_avg, not scores_avg", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+      const observationId = randomUUID();
+      const traceScoreName = `csat-${randomUUID()}`;
+      const observationScoreName = `latency-rating-${randomUUID()}`;
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "Help Assistant",
+        }),
+      ]);
+
+      await createScoresCh([
+        // Trace-level score (observation_id NULL) -> trace_scores_avg only.
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: null,
+          name: traceScoreName,
+          value: 1,
+          data_type: "NUMERIC",
+        }),
+        // Observation-level score -> scores_avg only.
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: observationId,
+          name: observationScoreName,
+          value: 1,
+          data_type: "NUMERIC",
+        }),
+      ]);
+
+      const options = await getEventFilterOptions({
+        projectId: uniqueProjectId,
+      });
+
+      expect(options.trace_scores_avg).toContain(traceScoreName);
+      expect(options.scores_avg).not.toContain(traceScoreName);
+
+      expect(options.scores_avg).toContain(observationScoreName);
+      expect(options.trace_scores_avg).not.toContain(observationScoreName);
+    });
+
+    it("offers a trace-level categorical score under trace_score_categories, not score_categories", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+      const observationId = randomUUID();
+      const traceCategoryName = `hallucination-check-${randomUUID()}`;
+      const observationCategoryName = `answer-relevancy-${randomUUID()}`;
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "Help Assistant",
+        }),
+      ]);
+
+      await createScoresCh([
+        // Trace-level categorical (observation_id NULL) -> trace_score_categories only.
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: null,
+          name: traceCategoryName,
+          value: 0,
+          string_value: "faithful",
+          data_type: "CATEGORICAL",
+        }),
+        // Observation-level categorical -> score_categories only.
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: observationId,
+          name: observationCategoryName,
+          value: 0,
+          string_value: "relevant",
+          data_type: "CATEGORICAL",
+        }),
+      ]);
+
+      const options = await getEventFilterOptions({
+        projectId: uniqueProjectId,
+      });
+
+      const scoreCategoryLabels = options.score_categories.map((c) => c.label);
+      const traceScoreCategoryLabels = options.trace_score_categories.map(
+        (c) => c.label,
+      );
+
+      expect(traceScoreCategoryLabels).toContain(traceCategoryName);
+      expect(scoreCategoryLabels).not.toContain(traceCategoryName);
+
+      expect(scoreCategoryLabels).toContain(observationCategoryName);
+      expect(traceScoreCategoryLabels).not.toContain(observationCategoryName);
     });
   });
 });

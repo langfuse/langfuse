@@ -3,6 +3,8 @@ import { useRouter } from "next/router";
 import { type Row } from "@tanstack/react-table";
 import { urlRegex } from "@langfuse/shared";
 import { type JsonTableRow } from "@/src/components/table/utils/jsonExpansionUtils";
+import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
+import { JsonMediaTag } from "@/src/components/ui/media/JsonMediaTag";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -100,32 +102,30 @@ function renderArrayValue(arr: unknown[]): JSX.Element {
           if (keys.length <= OBJECT_PREVIEW_KEYS) {
             const keyPreview = keys.map((k) => `"${k}": ...`).join(", ");
             return `{${keyPreview}}`;
-          } else {
-            return `{"${keys[0]}": ...}`;
           }
+          return `{"${keys[0]}": ...}`;
         }
         if (itemType === "array") return "...";
         return String(item);
       })
       .join(", ");
     return <span className={PREVIEW_TEXT_CLASSES}>[{displayItems}]</span>;
-  } else {
-    // Show truncated values for large arrays
-    const preview = arr
-      .slice(0, ARRAY_PREVIEW_ITEMS)
-      .map((item) => {
-        const itemType = getValueType(item);
-        if (itemType === "string") return `"${String(item)}"`;
-        if (itemType === "object" || itemType === "array") return "...";
-        return String(item);
-      })
-      .join(", ");
-    return (
-      <span className={PREVIEW_TEXT_CLASSES}>
-        [{preview}, ...{arr.length - ARRAY_PREVIEW_ITEMS} more]
-      </span>
-    );
   }
+  // Show truncated values for large arrays
+  const preview = arr
+    .slice(0, ARRAY_PREVIEW_ITEMS)
+    .map((item) => {
+      const itemType = getValueType(item);
+      if (itemType === "string") return `"${String(item)}"`;
+      if (itemType === "object" || itemType === "array") return "...";
+      return String(item);
+    })
+    .join(", ");
+  return (
+    <span className={PREVIEW_TEXT_CLASSES}>
+      [{preview}, ...{arr.length - ARRAY_PREVIEW_ITEMS} more]
+    </span>
+  );
 }
 
 function renderObjectValue(obj: Record<string, unknown>): JSX.Element {
@@ -270,6 +270,9 @@ function ValueCellActionsMenu({
     );
   };
 
+  const includeFilterText = `metadata.${metadataKey} ${includeOperator} ${displayValue}`;
+  const excludeFilterText = `metadata.${metadataKey} ${excludeOperator} ${displayValue}`;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -307,8 +310,11 @@ function ValueCellActionsMenu({
               <Filter className="mr-2 h-3.5 w-3.5 shrink-0" />
               <span className="flex min-w-0 flex-col">
                 <span>Include in filter</span>
-                <span className="text-muted-foreground truncate font-mono">
-                  metadata.{metadataKey} {includeOperator} {displayValue}
+                <span
+                  className="text-muted-foreground truncate font-mono"
+                  title={includeFilterText}
+                >
+                  {includeFilterText}
                 </span>
               </span>
             </DropdownMenuItem>
@@ -319,8 +325,11 @@ function ValueCellActionsMenu({
               <FilterX className="mr-2 h-3.5 w-3.5 shrink-0" />
               <span className="flex min-w-0 flex-col">
                 <span>Exclude from filter</span>
-                <span className="text-muted-foreground truncate font-mono">
-                  metadata.{metadataKey} {excludeOperator} {displayValue}
+                <span
+                  className="text-muted-foreground truncate font-mono"
+                  title={excludeFilterText}
+                >
+                  {excludeFilterText}
                 </span>
               </span>
             </DropdownMenuItem>
@@ -367,6 +376,17 @@ export const ValueCell = memo(
       switch (type) {
         case "string": {
           const stringValue = String(value);
+
+          // Render previewable media (Langfuse refs, data URIs, media URLs) as a
+          // hover-to-peek chip instead of the raw string.
+          const mediaDescriptor = classifyMediaValue(stringValue);
+          if (mediaDescriptor) {
+            return {
+              content: <JsonMediaTag descriptor={mediaDescriptor} />,
+              needsTruncation: false,
+            };
+          }
+
           const needsTruncation = stringValue.length > MAX_CELL_DISPLAY_CHARS;
           const displayValue =
             needsTruncation && !isCellExpanded

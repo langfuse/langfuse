@@ -10,6 +10,7 @@ import { useRouter, type NextRouter } from "next/router";
 import { SidebarProvider, SidebarInset } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "@/src/components/nav/app-sidebar";
 import { Toaster } from "@/src/components/ui/sonner";
+import { Layer } from "@/src/components/ui/layer";
 import { TopBannerProvider } from "@/src/features/top-banner";
 import { AppContentWithRightDrawer } from "../right-drawer/AppContentWithRightDrawer";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
@@ -38,26 +39,6 @@ const PaymentBanner = dynamic(
   () =>
     import("@/src/features/payment-banner").then((mod) => ({
       default: mod.PaymentBanner,
-    })),
-  {
-    ssr: false,
-  },
-);
-
-const V4EnabledBanner = dynamic(
-  () =>
-    import("@/src/features/events/components/V4EnabledBanner").then((mod) => ({
-      default: mod.V4EnabledBanner,
-    })),
-  {
-    ssr: false,
-  },
-);
-
-const V4PromoBanner = dynamic(
-  () =>
-    import("@/src/features/events/components/V4PromoBanner").then((mod) => ({
-      default: mod.V4PromoBanner,
     })),
   {
     ssr: false,
@@ -190,8 +171,6 @@ export function AuthenticatedLayout({
         <SidebarProvider>
           <div className="flex h-dvh w-full flex-col">
             <PaymentBanner />
-            <V4EnabledBanner />
-            <V4PromoBanner />
             <div className="pt-banner-offset flex min-h-0 flex-1">
               <AppSidebar
                 navItems={navigation.mainNavigation}
@@ -202,7 +181,14 @@ export function AuthenticatedLayout({
                 <AppContentWithRightDrawer>
                   {children}
                 </AppContentWithRightDrawer>
-                <Toaster visibleToasts={1} />
+                {/* Toasts render in the `toast` overlay layer — the last layer
+                    in LAYER_ORDER — so they paint above every overlay (incl. a
+                    non-modal peek) by DOM order alone, no z-index. Sonner's
+                    Toaster is position:fixed, so nesting it in the fixed
+                    full-screen layer container is positionally identical. */}
+                <Layer name="toast">
+                  <Toaster visibleToasts={1} />
+                </Layer>
                 <CommandMenu mainNavigation={navigation.navigation} />
               </SidebarInset>
             </div>

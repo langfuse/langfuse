@@ -50,7 +50,7 @@ export const DashboardTable = ({
                   </tr>
                 </thead>
 
-                <tbody className="divide-accent bg-background divide-y">
+                <tbody className="divide-accent divide-y">
                   {rows
                     .slice(
                       0,
