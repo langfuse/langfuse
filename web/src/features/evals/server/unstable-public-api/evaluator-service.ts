@@ -206,6 +206,7 @@ export async function createPublicEvaluator(params: {
             : [];
         const upgradedConfigs = configsToUpgrade.map((config) => {
           const preparedMapping = prepareVariableMappingForEvaluatorUpgrade({
+            templateType: storedEvalTemplateType,
             targetObject: config.targetObject,
             variableMapping: config.variableMapping,
             nextVariables,

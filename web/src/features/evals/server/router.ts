@@ -1046,6 +1046,7 @@ export const evalRouter = createTRPCRouter({
         }
 
         const preparedMapping = prepareVariableMappingForEvaluatorUpgrade({
+          templateType: resolvedEvalTemplate.type,
           targetObject: input.target,
           variableMapping: variableMappingForTarget,
           nextVariables: getEvalTemplateVariables(resolvedEvalTemplate),
@@ -1326,6 +1327,7 @@ export const evalRouter = createTRPCRouter({
               })
             : [];
         const upgradedConfigs = prepareConfigsForTemplateUpgrade({
+          templateType: input.type,
           configs: configsToUpgrade,
           nextVariables,
         });
