@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ServiceUnavailableError } from "@langfuse/shared/src/errors";
 import { env } from "@/src/env.mjs";
 import { submitFeedback } from "@/src/features/feedback/server/FeedbackService";
 
@@ -31,21 +32,24 @@ describe("FeedbackService", () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   });
 
-  it("posts a Slack-safe feedback payload", async () => {
-    const fetchMock = vi.fn(async () => new Response("ok", { status: 200 }));
+  it("posts a Slack-safe payload and maps sink failures to service unavailable", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("ok", { status: 200 }))
+      .mockResolvedValueOnce(new Response("error", { status: 500 }))
+      .mockRejectedValueOnce(new DOMException("Timed out", "TimeoutError"));
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await submitFeedback({
-      authScope,
-      input: {
-        targetType: "mcp-tool",
-        target: "submitFeedback",
-        feedback:
-          "This mentions @here and <!channel> and <https://example.com|link>.",
-        goal: "Help improve feedback guidance without alerting the channel.",
-        referenceUrl: "https://example.com/reference",
-      },
-    });
+    const input = {
+      targetType: "mcp-tool" as const,
+      target: "submitFeedback",
+      feedback:
+        "This mentions @here and <!channel> and <https://example.com|link>.",
+      goal: "Help improve feedback guidance without alerting the channel.",
+      referenceUrl: "https://example.com/reference",
+    };
+
+    const result = await submitFeedback({ authScope, input });
 
     expect(result.id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
@@ -77,5 +81,12 @@ describe("FeedbackService", () => {
         block.text.text.includes("@here"),
     );
     expect(feedbackBlock).toBeTruthy();
+
+    await expect(submitFeedback({ authScope, input })).rejects.toBeInstanceOf(
+      ServiceUnavailableError,
+    );
+    await expect(submitFeedback({ authScope, input })).rejects.toBeInstanceOf(
+      ServiceUnavailableError,
+    );
   });
 });

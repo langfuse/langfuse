@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { ServiceUnavailableError } from "@langfuse/shared/src/errors";
 import { env } from "@/src/env.mjs";
 import type {
   PostFeedbackBodyType,
@@ -42,18 +43,9 @@ type SlackPayload = {
 
 export type FeedbackSlackMessage = SlackPayload;
 
-export class FeedbackSinkUnavailableError extends Error {
-  public readonly name = "ServiceUnavailableError";
-  public readonly httpCode = 503;
-  public readonly isOperational = true;
-
-  public isUserError(): boolean {
-    return false;
-  }
-}
-
 const SLACK_SECTION_TEXT_LIMIT = 3000;
 const SLACK_FIELD_TEXT_LIMIT = 2000;
+const FEEDBACK_SLACK_TIMEOUT_MS = 5_000;
 
 const truncateForSlack = (value: string, maxLength: number): string => {
   if (value.length <= maxLength) return value;
@@ -140,9 +132,7 @@ const getFeedbackWebhookUrl = (): string => {
   const webhookUrl = env.LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK;
 
   if (!webhookUrl) {
-    throw new FeedbackSinkUnavailableError(
-      "Feedback Slack sink is not configured",
-    );
+    throw new ServiceUnavailableError("Feedback Slack sink is not configured");
   }
 
   const parsed = new URL(webhookUrl);
@@ -150,9 +140,7 @@ const getFeedbackWebhookUrl = (): string => {
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
     (parsed.protocol !== "https:" || parsed.hostname !== "hooks.slack.com")
   ) {
-    throw new FeedbackSinkUnavailableError(
-      "Feedback Slack sink is misconfigured",
-    );
+    throw new ServiceUnavailableError("Feedback Slack sink is misconfigured");
   }
 
   return webhookUrl;
@@ -169,19 +157,23 @@ export const submitFeedback = async ({
   const webhookUrl = getFeedbackWebhookUrl();
   const payload = buildFeedbackSlackMessage({ id, input, authScope });
 
-  const response = await fetch(webhookUrl, {
-    method: "POST",
-    redirect: "error",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  let response: Response;
+  try {
+    response = await fetch(webhookUrl, {
+      method: "POST",
+      redirect: "error",
+      signal: AbortSignal.timeout(FEEDBACK_SLACK_TIMEOUT_MS),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throw new ServiceUnavailableError("Feedback Slack sink request failed");
+  }
 
   if (!response.ok) {
-    throw new FeedbackSinkUnavailableError(
-      "Feedback Slack sink rejected message",
-    );
+    throw new ServiceUnavailableError("Feedback Slack sink rejected message");
   }
 
   return { id };

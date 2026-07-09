@@ -13,10 +13,13 @@ export default withMiddlewares({
     responseSchema: PostFeedbackResponse,
     successStatusCode: 201,
     redactLogBody: (body) => {
-      const candidate = body as {
-        targetType?: unknown;
-        target?: unknown;
-      };
+      const candidate =
+        typeof body === "object" && body !== null
+          ? (body as {
+              targetType?: unknown;
+              target?: unknown;
+            })
+          : {};
       return {
         targetType: candidate.targetType,
         target: candidate.target,

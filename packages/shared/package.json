@@ -27,6 +27,10 @@
       "import": "./dist/src/env.js",
       "require": "./dist/src/env.js"
     },
+    "./src/errors": {
+      "import": "./dist/src/errors/index.js",
+      "require": "./dist/src/errors/index.js"
+    },
     "./src/server": {
       "import": "./dist/src/server/index.js",
       "require": "./dist/src/server/index.js"

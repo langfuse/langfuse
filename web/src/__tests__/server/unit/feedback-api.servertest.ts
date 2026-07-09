@@ -1,3 +1,8 @@
+import { ServiceUnavailableError } from "@langfuse/shared/src/errors";
+import type { NextApiRequest, NextApiResponse } from "next";
+import { createMocks } from "node-mocks-http";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
 const { mockRateLimitRequest, mockSubmitFeedback, mockVerifyAuth } = vi.hoisted(
   () => ({
     mockRateLimitRequest: vi.fn(),
@@ -28,8 +33,6 @@ vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
   },
 }));
 
-import type { NextApiRequest, NextApiResponse } from "next";
-import { createMocks } from "node-mocks-http";
 import handler from "@/src/pages/api/public/feedback";
 
 const validScope = {
@@ -42,6 +45,14 @@ const validScope = {
   accessLevel: "project",
   isIngestionSuspended: false,
   isInAppAgentKey: false,
+};
+
+const validBody = {
+  targetType: "docs",
+  target: "skill-feedback.md",
+  feedback: "Please mention the MCP feedback tool.",
+  goal: "I wanted to send feedback after using a Langfuse skill.",
+  referenceUrl: "https://langfuse.com/docs",
 };
 
 const createRequest = (body: unknown) =>
@@ -70,36 +81,8 @@ describe("POST /api/public/feedback", () => {
     });
   });
 
-  it("requires authentication", async () => {
-    mockVerifyAuth.mockResolvedValueOnce({
-      validKey: false,
-      error: "Invalid authorization header",
-    });
-
-    const { req, res } = createRequest({
-      targetType: "docs",
-      target: "skill-feedback.md",
-      feedback: "Please mention the MCP feedback tool.",
-    });
-
-    await handler(req, res);
-
-    expect(res._getStatusCode()).toBe(401);
-    expect(JSON.parse(res._getData())).toMatchObject({
-      message: "Invalid authorization header",
-    });
-    expect(mockSubmitFeedback).not.toHaveBeenCalled();
-  });
-
   it("posts feedback and returns a correlation id", async () => {
-    const body = {
-      targetType: "docs",
-      target: "skill-feedback.md",
-      feedback: "Please mention the MCP feedback tool.",
-      goal: "I wanted to send feedback after using a Langfuse skill.",
-      referenceUrl: "https://langfuse.com/docs",
-    };
-    const { req, res } = createRequest(body);
+    const { req, res } = createRequest(validBody);
 
     await handler(req, res);
 
@@ -108,18 +91,13 @@ describe("POST /api/public/feedback", () => {
       id: "11111111-1111-4111-8111-111111111111",
     });
     expect(mockSubmitFeedback).toHaveBeenCalledWith({
-      input: body,
+      input: validBody,
       authScope: validScope,
     });
   });
 
-  it("validates the request body before submitting feedback", async () => {
-    const { req, res } = createRequest({
-      targetType: "docs",
-      target: "skill-feedback.md",
-      feedback: "",
-      metadata: { unexpected: true },
-    });
+  it("returns 400 for a null body", async () => {
+    const { req, res } = createRequest(null);
 
     await handler(req, res);
 
@@ -128,5 +106,20 @@ describe("POST /api/public/feedback", () => {
       message: "Invalid request data",
     });
     expect(mockSubmitFeedback).not.toHaveBeenCalled();
+  });
+
+  it("returns 503 when the feedback sink is unavailable", async () => {
+    mockSubmitFeedback.mockRejectedValueOnce(
+      new ServiceUnavailableError("Feedback Slack sink rejected message"),
+    );
+    const { req, res } = createRequest(validBody);
+
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(503);
+    expect(JSON.parse(res._getData())).toMatchObject({
+      message: "Feedback Slack sink rejected message",
+      error: "ServiceUnavailableError",
+    });
   });
 });

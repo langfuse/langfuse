@@ -7,6 +7,8 @@ vi.mock("@/src/features/feedback/server/FeedbackService", () => ({
 }));
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
+import { ServiceUnavailableError } from "@langfuse/shared/src/errors";
 import { mockServerContext } from "../mcp-helpers";
 import { handleSubmitFeedback } from "@/src/features/mcp/features/feedback/tools/submitFeedback";
 
@@ -49,5 +51,27 @@ describe("MCP submitFeedback tool", () => {
         orgId: "org-1",
       },
     });
+
+    mockSubmitFeedback.mockRejectedValueOnce(
+      new ServiceUnavailableError("Feedback Slack sink rejected message"),
+    );
+
+    try {
+      await handleSubmitFeedback(
+        {
+          targetType: "mcp-tool",
+          target: "submitFeedback",
+          feedback: "The Slack sink failed.",
+        },
+        context,
+      );
+      throw new Error("Expected submitFeedback to throw");
+    } catch (error) {
+      expect(error).toMatchObject({ code: ErrorCode.InvalidRequest });
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain(
+        "Feedback Slack sink rejected message",
+      );
+    }
   });
 });
