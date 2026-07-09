@@ -31,6 +31,10 @@ const LambdaMicrovmErrorSchema = z.object({
     .optional(),
 });
 
+const LambdaMicrovmOperationResultSchema = z.object({
+  result: z.unknown(),
+});
+
 type LambdaMicrovmOperation =
   | { operation: "read"; path: string }
   | { operation: "write"; path: string; content: string }
@@ -210,8 +214,9 @@ export function createLambdaMicrovmSandboxProvider(params: {
     }
 
     const result = (await response.json()) as unknown;
-    if (isRecord(result) && "result" in result) {
-      return result.result;
+    const parsedResult = LambdaMicrovmOperationResultSchema.safeParse(result);
+    if (parsedResult.success) {
+      return parsedResult.data.result;
     }
 
     return result;
@@ -486,8 +491,4 @@ function isMissingMicrovmError(error: unknown) {
   const statusCode = $metadata?.httpStatusCode;
 
   return name === "ResourceNotFoundException" || statusCode === 404;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
