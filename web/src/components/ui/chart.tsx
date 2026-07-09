@@ -89,29 +89,54 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
     return null;
   }
 
-  return (
-    <style
-      dangerouslySetInnerHTML={{
-        __html: Object.entries(THEMES)
-          .map(
-            ([theme, prefix]) => `
-${prefix} [data-chart=${id}] {
-${colorConfig
-  .map(([key, itemConfig]) => {
-    const color =
-      itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
-      itemConfig.color;
-    const safeKey = key.replace(/[^\p{L}\p{N}_ .()-]/gu, "_");
-    return color ? `  --color-${safeKey}: ${color};` : null;
-  })
-  .join("\n")}
-}
-`,
-          )
-          .join("\n"),
-      }}
-    />
-  );
+  const sanitizeCssVariableName = (value: string) =>
+    value.replace(/[^a-zA-Z0-9_-]/g, "_");
+
+  const escapeCssAttributeValue = (value: string) =>
+    value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "");
+
+  const isSafeCssColorValue = (value: string) => {
+    const trimmedValue = value.trim();
+
+    return (
+      /^#[0-9a-fA-F]{3,8}$/.test(trimmedValue) ||
+      /^(rgb|rgba|hsl|hsla|oklch|lab|lch)\([a-zA-Z0-9\s,.%/+()-]+\)$/.test(
+        trimmedValue,
+      ) ||
+      /^var\(--[a-zA-Z0-9_-]+\)$/.test(trimmedValue) ||
+      /^[a-zA-Z]+$/.test(trimmedValue)
+    );
+  };
+
+  const safeChartId = escapeCssAttributeValue(id);
+
+  const chartCss = Object.entries(THEMES)
+    .map(([theme, prefix]) => {
+      const cssVariables = colorConfig
+        .map(([key, itemConfig]) => {
+          const color =
+            itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
+            itemConfig.color;
+
+          if (!color || !isSafeCssColorValue(color)) {
+            return null;
+          }
+
+          const safeKey = sanitizeCssVariableName(key);
+
+          return `  --color-${safeKey}: ${color.trim()};`;
+        })
+        .filter(Boolean)
+        .join("\n");
+
+      return `
+${prefix} [data-chart="${safeChartId}"] {
+${cssVariables}
+}`;
+    })
+    .join("\n");
+
+  return <style>{chartCss}</style>;
 };
 
 type ChartTooltipProps = React.ComponentProps<typeof RechartsPrimitive.Tooltip>;
