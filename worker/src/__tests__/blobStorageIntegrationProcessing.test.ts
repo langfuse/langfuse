@@ -19,13 +19,22 @@ const originalCloudRegion = vi.hoisted(() => {
 // per-stage timing metrics are assertable.
 const mockRecordIncrement = vi.hoisted(() => vi.fn());
 const mockRecordHistogram = vi.hoisted(() => vi.fn());
+// Stubbable endpoint preflight — the customer-fault tests reject it to drive an
+// in-try failure without infra. Defaults to the real impl for other tests.
+const mockValidateBlobStorageEndpoint = vi.hoisted(() => vi.fn());
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@langfuse/shared/src/server")>();
+  if (mockValidateBlobStorageEndpoint.getMockImplementation() === undefined) {
+    mockValidateBlobStorageEndpoint.mockImplementation(
+      actual.validateBlobStorageEndpoint,
+    );
+  }
   return {
     ...actual,
     recordIncrement: mockRecordIncrement,
     recordHistogram: mockRecordHistogram,
+    validateBlobStorageEndpoint: mockValidateBlobStorageEndpoint,
   };
 });
 
@@ -173,6 +182,175 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       // Nothing was exported.
       const files = await storageService.listFiles(s3Prefix);
       expect(files.filter((f) => f.file.includes(projectId))).toHaveLength(0);
+    });
+  });
+
+  // After BullMQ exhausts its retries, a customer-fault error disables the
+  // integration; everything else keeps retrying as before.
+  describe("customer-fault disable", () => {
+    const originalV4Preview = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+
+    afterEach(() => {
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
+        originalV4Preview;
+    });
+
+    // Minimal AWS SDK v3 S3 AccessDenied shape (high-confidence customer fault).
+    const accessDeniedError = (): Error => {
+      const err = new Error("Access Denied");
+      err.name = "AccessDenied";
+      Object.assign(err, {
+        Code: "AccessDenied",
+        $metadata: { httpStatusCode: 403 },
+      });
+      return err;
+    };
+
+    // endpoint must be non-null so the handler runs the preflight we stub.
+    const createIntegration = async (projectId: string) => {
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: projectId,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: "https://customer-bucket.s3.example.com",
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "daily",
+          exportSource: "TRACES_OBSERVATIONS",
+          lastSyncAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        },
+      });
+    };
+
+    const runAttempt = (projectId: string, attemptsMade: number) =>
+      handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+        attemptsMade,
+        opts: { attempts: 5 },
+      } as Job);
+
+    // The notification runs fire-and-forget after the handler rejects; give
+    // it time to land (or prove it never fires) before negative assertions.
+    const settleBackgroundTasks = () =>
+      new Promise((resolve) => setTimeout(resolve, 200));
+
+    it("keeps the integration enabled and does not notify on a non-final customer-fault attempt", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      await createIntegration(projectId);
+      mockValidateBlobStorageEndpoint.mockRejectedValueOnce(
+        accessDeniedError(),
+      );
+
+      await expect(runAttempt(projectId, 0)).rejects.toThrow(/access denied/i);
+      await settleBackgroundTasks();
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      // BullMQ still has retries left, so we let it retry — no disable yet,
+      // and no email either: a later retry may still succeed.
+      expect(row.enabled).toBe(true);
+      expect(row.lastError).toMatch(/access denied/i);
+      expect(row.lastFailureNotificationSentAt).toBeNull();
+    });
+
+    it("disables the integration on the final exhausted customer-fault attempt", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      await createIntegration(projectId);
+      mockValidateBlobStorageEndpoint.mockRejectedValueOnce(
+        accessDeniedError(),
+      );
+
+      await expect(runAttempt(projectId, 4)).rejects.toThrow(/access denied/i);
+      await settleBackgroundTasks();
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.enabled).toBe(false);
+      expect(row.lastError).toMatch(/access denied/i);
+      expect(row.lastErrorAt).not.toBeNull();
+      // The "disabled" email bypasses the cooldown, so it must not claim it.
+      expect(row.lastFailureNotificationSentAt).toBeNull();
+    });
+
+    it("does not disable on the final attempt of a non-customer-fault ('other') error", async () => {
+      // Enriched source + V4 preview off => the guard throws a plain Error,
+      // which the classifier treats as "other".
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: endpoint ? endpoint : null,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "daily",
+          exportSource: "EVENTS",
+          lastSyncAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        },
+      });
+
+      await expect(runAttempt(projectId, 4)).rejects.toThrow(/enriched/i);
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      // "other" errors stay enabled and keep retrying on the next scheduled
+      // run — but the run is exhausted, so the cooldown-gated informational
+      // notification fires (observable via its atomic cooldown claim).
+      expect(row.enabled).toBe(true);
+      await vi.waitFor(async () => {
+        const notified = await prisma.blobStorageIntegration.findUniqueOrThrow({
+          where: { projectId },
+        });
+        expect(notified.lastFailureNotificationSentAt).not.toBeNull();
+      });
+    });
+
+    it("suppresses the informational email when the integration was disabled mid-run", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      await createIntegration(projectId);
+      // Simulate a concurrent worker's customer-fault disable (or a user
+      // toggle) landing mid-run, followed by a non-customer-fault failure:
+      // "will retry at the next scheduled export" would be false.
+      mockValidateBlobStorageEndpoint.mockImplementationOnce(async () => {
+        await prisma.blobStorageIntegration.updateMany({
+          where: { projectId },
+          data: { enabled: false },
+        });
+        throw new Error("connection refused");
+      });
+
+      await expect(runAttempt(projectId, 4)).rejects.toThrow(
+        /connection refused/i,
+      );
+      await settleBackgroundTasks();
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.enabled).toBe(false);
+      expect(row.lastError).toMatch(/connection refused/i);
+      expect(row.lastFailureNotificationSentAt).toBeNull();
     });
   });
 

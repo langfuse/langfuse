@@ -455,7 +455,7 @@ function MessageFeedbackControls({
               rows={3}
               maxLength={500}
               className={cn(
-                "border-input bg-background text-foreground placeholder:text-muted-foreground w-full resize-none rounded-md border px-2 py-1",
+                "border-input bg-background text-foreground placeholder:text-foreground-tertiary w-full resize-none rounded-md border px-2 py-1",
                 isCompact ? "text-xs" : "text-sm",
               )}
             />

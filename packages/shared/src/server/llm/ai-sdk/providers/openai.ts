@@ -3,6 +3,8 @@ import type { LanguageModel } from "ai";
 
 import type { ModelParams } from "../../types";
 import { processOpenAIBaseURL } from "../../utils";
+import type { TranslatedProviderOptions } from "./types";
+import { isPlainObject } from "./utils";
 
 export type OpenAIApiMode = "responses" | "chat-completions";
 
@@ -56,6 +58,7 @@ const OPENAI_PROVIDER_OPTION_KEY_MAP: Record<string, string> = {
   max_completion_tokens: "maxCompletionTokens",
   text_verbosity: "textVerbosity",
   verbosity: "textVerbosity",
+  prompt_cache_key: "promptCacheKey",
   store: "store",
   user: "user",
   // camelCase (already AI SDK-shaped)
@@ -65,11 +68,8 @@ const OPENAI_PROVIDER_OPTION_KEY_MAP: Record<string, string> = {
   logitBias: "logitBias",
   maxCompletionTokens: "maxCompletionTokens",
   textVerbosity: "textVerbosity",
+  promptCacheKey: "promptCacheKey",
 };
-
-export type TranslatedProviderOptions =
-  | { ok: true; value: Record<string, unknown> | undefined }
-  | { ok: false; unknownKeys: string[] };
 
 export function translateOpenAIProviderOptions(
   providerOptions: Record<string, unknown> | undefined,
@@ -82,7 +82,7 @@ export function translateOpenAIProviderOptions(
   const unknownKeys: string[] = [];
 
   for (const [key, value] of Object.entries(providerOptions)) {
-    if (key === "openai" && typeof value === "object" && value !== null) {
+    if (key === "openai" && isPlainObject(value)) {
       // Nested `openai` object is treated as already AI SDK-shaped.
       Object.assign(translated, value);
       continue;
