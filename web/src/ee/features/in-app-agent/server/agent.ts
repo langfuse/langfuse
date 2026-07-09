@@ -174,8 +174,14 @@ export async function createAgUiStream(params: {
     tracing: params.options.langfuseTracing
       ? { ...params.options.langfuseTracing, prompt }
       : undefined,
+    model: params.options.awsBedrock.modelId,
   });
   instrumentation?.recordAvailableSkills?.(LANGFUSE_IN_APP_AGENT_SKILLS);
+  const onStepFinish = instrumentation
+    ? (event: unknown) => {
+        instrumentation.recordStepFinish?.(event);
+      }
+    : undefined;
 
   let subscription: { unsubscribe: () => void } | undefined;
   let ending = false;
@@ -451,6 +457,7 @@ export async function createAgUiStream(params: {
         instructions,
         onToolsAvailable: (tools) =>
           instrumentation?.recordAvailableTools?.(tools),
+        onStepFinish,
       })
         .then(async (initialAdapter) => {
           if (ending || closed || params.signal.aborted) {
@@ -507,6 +514,7 @@ export async function createAgUiStream(params: {
               },
               awsProfile,
               instructions,
+              onStepFinish,
             });
 
             if (ending || closed || params.signal.aborted) {
@@ -700,6 +708,7 @@ async function createMastraAdapter(params: {
   awsProfile?: string;
   instructions: string;
   onToolsAvailable?: (tools: Record<string, unknown>) => void;
+  onStepFinish?: (event: unknown) => void;
 }) {
   const bedrock = createAmazonBedrock({
     ...(params.options.awsBedrock.region
@@ -780,6 +789,9 @@ async function createMastraAdapter(params: {
       defaultOptions: {
         abortSignal: params.signal,
         maxSteps: MAX_AGENT_STEPS,
+        // Fires once per LLM call with that call's token usage; the AG-UI
+        // event stream itself never carries usage.
+        ...(params.onStepFinish ? { onStepFinish: params.onStepFinish } : {}),
       },
     });
 

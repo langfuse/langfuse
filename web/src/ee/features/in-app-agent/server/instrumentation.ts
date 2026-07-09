@@ -32,6 +32,7 @@ export type InAppAgentTracingConfig = {
 export type InAppAgentInstrumentationParams = {
   input: AgUiRunAgentInput;
   tracing?: InAppAgentTracingConfig;
+  model?: string;
 };
 
 export type InAppAgentPromptMetadata = {
@@ -90,6 +91,7 @@ type ToolCallApprovalStatus = "approved" | "rejected";
 export function createInAppAgentInstrumentation({
   input,
   tracing,
+  model,
 }: InAppAgentInstrumentationParams) {
   if (!tracing?.targetProjectId) {
     return undefined;
@@ -107,6 +109,7 @@ export function createInAppAgentInstrumentation({
       targetProjectId: tracing.targetProjectId,
       environment: tracing.environment,
       prompt: tracing.prompt,
+      model,
     });
   } catch (error) {
     logger.warn("Failed to initialize in-app agent Langfuse tracing", error);
@@ -143,6 +146,8 @@ export class InAppAgentInstrumentation {
   private reasoning = "";
   private completionStartTime?: Date;
   private ended = false;
+  private readonly model?: string;
+  private usageDetails?: Record<string, number>;
 
   constructor(params: {
     input: AgUiRunAgentInput;
@@ -155,6 +160,7 @@ export class InAppAgentInstrumentation {
     targetProjectId: string;
     environment: string;
     prompt?: InAppAgentPromptMetadata;
+    model?: string;
   }) {
     this.metadata = {
       ...params.metadata,
@@ -172,6 +178,7 @@ export class InAppAgentInstrumentation {
     };
     this.agentRunInput = getAgentRunInput(params.input);
     this.prompt = params.prompt;
+    this.model = params.model;
 
     const traceSinkParams = {
       targetProjectId: params.targetProjectId,
@@ -250,6 +257,50 @@ export class InAppAgentInstrumentation {
     this.toolCallApprovals.set(approval.toolCallId, approval.status);
   }
 
+  // Receives Mastra's per-LLM-call onStepFinish event and accumulates its
+  // token usage onto the agent-turn generation, since the AG-UI event stream
+  // itself never carries usage.
+  recordStepFinish(event: unknown) {
+    if (this.ended) {
+      return;
+    }
+
+    const usage = isRecord(event) ? event.usage : undefined;
+    if (!isRecord(usage)) {
+      return;
+    }
+
+    const inputTokens = getFiniteNumber(usage.inputTokens);
+    const outputTokens = getFiniteNumber(usage.outputTokens);
+    if (inputTokens === undefined && outputTokens === undefined) {
+      return;
+    }
+
+    const cacheReadTokens = getFiniteNumber(usage.cachedInputTokens) ?? 0;
+    const cacheWriteTokens =
+      getFiniteNumber(usage.cacheCreationInputTokens) ?? 0;
+    const totals = (this.usageDetails ??= {
+      input: 0,
+      output: 0,
+      cache_read_input_tokens: 0,
+      cache_creation_input_tokens: 0,
+      total: 0,
+    });
+
+    // Mastra's inputTokens includes cache reads/writes, while Langfuse model
+    // prices bill `input` as non-cached input tokens with separate cache keys.
+    totals.input += Math.max(
+      0,
+      (inputTokens ?? 0) - cacheReadTokens - cacheWriteTokens,
+    );
+    totals.output += outputTokens ?? 0;
+    totals.cache_read_input_tokens += cacheReadTokens;
+    totals.cache_creation_input_tokens += cacheWriteTokens;
+    totals.total +=
+      getFiniteNumber(usage.totalTokens) ??
+      (inputTokens ?? 0) + (outputTokens ?? 0);
+  }
+
   recordAvailableSkills(skills: unknown[]) {
     if (this.ended) {
       return;
@@ -281,6 +332,7 @@ export class InAppAgentInstrumentation {
       ...(this.completionStartTime
         ? { completionStartTime: this.completionStartTime }
         : {}),
+      ...this.getAgentRunUsage(),
       level: "ERROR",
       statusMessage: message,
       metadata: {
@@ -323,6 +375,7 @@ export class InAppAgentInstrumentation {
       ...(this.completionStartTime
         ? { completionStartTime: this.completionStartTime }
         : {}),
+      ...this.getAgentRunUsage(),
       metadata,
       ...(this.prompt
         ? {
@@ -567,6 +620,19 @@ export class InAppAgentInstrumentation {
         enqueue: (type: string, body: ToolObservationBody) => void;
       }
     ).enqueue("tool-create", body);
+  }
+
+  // Model is only set alongside provided usage; on its own it would make
+  // ingestion tokenize the agent-turn input/output into estimated usage.
+  private getAgentRunUsage() {
+    if (!this.usageDetails) {
+      return {};
+    }
+
+    return {
+      usageDetails: this.usageDetails,
+      ...(this.model ? { model: this.model } : {}),
+    };
   }
 
   private endOpenToolSpans(
@@ -873,6 +939,12 @@ function normalizeToolOutput(output: unknown): unknown {
 
 function isToolError(output: unknown): boolean {
   return isRecord(output) && output.error === true;
+}
+
+function getFiniteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
 }
 
 function getSerializableToolParameters(tool: Record<string, unknown>): unknown {
