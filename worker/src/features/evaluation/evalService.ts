@@ -261,7 +261,7 @@ export const createEvalJobs = async ({
     try {
       // Metadata is the heaviest column on this fetch. Skip it unless a
       // trace-target config's filter reads it during in-memory evaluation;
-      // keep it for unparseable filters so a metadata filter never evaluates
+      // keep it for unparsable filters so a metadata filter never evaluates
       // against an empty object.
       const cachedTraceNeedsMetadata = configs.some((config) => {
         if (config.targetObject !== EvalTargetObject.TRACE) {
