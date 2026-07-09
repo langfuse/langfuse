@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   Dialog,
   DialogContent,
@@ -102,6 +103,17 @@ export function SelectWidgetDialog({
   dashboardId,
 }: SelectWidgetDialogProps) {
   const router = useRouter();
+  const capture = usePostHogClientCapture();
+
+  const openCapturedRef = useRef(false);
+  useEffect(() => {
+    if (open && !openCapturedRef.current) {
+      capture("dashboard:add_widget_dialog_open", {
+        dashboard_id: dashboardId,
+      });
+    }
+    openCapturedRef.current = open;
+  }, [open, dashboardId, capture]);
 
   // Fetch widgets (project-owned and Langfuse-maintained)
   const widgets = api.dashboardWidgets.all.useQuery(
@@ -120,6 +132,13 @@ export function SelectWidgetDialog({
   const projectWidgets = widgets.data?.widgets ?? [];
 
   const selectWidget = (widget: WidgetItem) => {
+    capture("dashboard:widget_added", {
+      kind: "project_widget",
+      widget_id: widget.id,
+      chart_type: widget.chartType,
+      view: widget.view,
+      dashboard_id: dashboardId,
+    });
     onSelectWidget(widget);
     onOpenChange(false);
   };
@@ -142,11 +161,15 @@ export function SelectWidgetDialog({
             <div className="flex flex-col gap-3 p-1">
               <button
                 type="button"
-                onClick={() =>
+                onClick={() => {
+                  capture("dashboard:new_widget_form_open", {
+                    source: "add_widget_dialog",
+                    dashboard_id: dashboardId,
+                  });
                   router.push(
                     `/project/${projectId}/widgets/new?dashboardId=${dashboardId}`,
-                  )
-                }
+                  );
+                }}
                 className={`${rowClassName} border-dashed`}
               >
                 <RowIllustration type="CUSTOM" />
@@ -161,6 +184,9 @@ export function SelectWidgetDialog({
               <Tabs
                 defaultValue={
                   projectWidgets.length > 0 ? "project" : "home-cards"
+                }
+                onValueChange={(tab) =>
+                  capture("dashboard:add_widget_tab_switch", { tab })
                 }
               >
                 <TabsList>

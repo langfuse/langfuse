@@ -52,7 +52,7 @@ function CloneDashboardButton({
   const mutCloneDashboard = api.dashboard.cloneDashboard.useMutation({
     onSuccess: () => {
       utils.dashboard.invalidate();
-      capture("dashboard:clone_dashboard");
+      capture("dashboard:clone_dashboard", { source: "list_clone_button" });
       showSuccessToast({
         title: "Dashboard cloned",
         description: "The dashboard has been cloned successfully",
@@ -137,6 +137,7 @@ function LockedEditDashboardButton({
 }) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const hasAccess = useHasProjectAccess({ projectId, scope: "dashboards:CUD" });
+  const capture = usePostHogClientCapture();
 
   return (
     <>
@@ -144,7 +145,14 @@ function LockedEditDashboardButton({
         variant="ghost"
         size="default"
         disabled={!hasAccess}
-        onClick={() => setIsDialogOpen(true)}
+        onClick={() => {
+          capture("dashboard:locked_edit_attempt", {
+            dashboard_id: dashboardId,
+            attempt: "list_edit",
+            surface: "list",
+          });
+          setIsDialogOpen(true);
+        }}
       >
         <Edit className="mr-2 h-4 w-4" />
         Edit

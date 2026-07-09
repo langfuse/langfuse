@@ -37,6 +37,7 @@ import {
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 import { CopyWidgetDialog } from "@/src/features/widgets/components/CopyWidgetDialog";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Badge } from "@/src/components/ui/badge";
 
 export interface WidgetPlacement {
@@ -80,6 +81,7 @@ export function DashboardWidget({
 }) {
   const router = useRouter();
   const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
   const { isBetaEnabled } = useV4Beta();
   const widget = api.dashboardWidgets.get.useQuery(
     {
@@ -414,6 +416,11 @@ export function DashboardWidget({
 
   const copyMutation = api.dashboardWidgets.copyToProject.useMutation({
     onSuccess: (data) => {
+      capture("dashboard:widget_copied_to_project", {
+        source_widget_id: placement.widgetId,
+        new_widget_id: data.widgetId,
+        dashboard_id: dashboardId,
+      });
       utils.dashboard.getDashboard.invalidate().then(() => {
         router.push(
           `/project/${projectId}/widgets/${data.widgetId}?dashboardId=${dashboardId}`,
@@ -514,7 +521,13 @@ export function DashboardWidget({
                 </button>
               ) : widget.data.owner === "LANGFUSE" ? (
                 <button
-                  onClick={() => setIsCopyDialogOpen(true)}
+                  onClick={() => {
+                    capture("dashboard:widget_copy_first_open", {
+                      widget_id: placement.widgetId,
+                      dashboard_id: dashboardId,
+                    });
+                    setIsCopyDialogOpen(true);
+                  }}
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
                   aria-label="Edit widget"
                 >

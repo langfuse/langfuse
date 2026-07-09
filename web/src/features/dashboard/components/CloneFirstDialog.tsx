@@ -72,7 +72,11 @@ export function CloneFirstDialog({
   const cloneDashboard = api.dashboard.cloneDashboard.useMutation({
     onSuccess: (data) => {
       utils.dashboard.invalidate();
-      capture("dashboard:clone_dashboard");
+      capture("dashboard:clone_dashboard", {
+        source: "clone_first_dialog",
+        set_as_home: setAsHome,
+        had_pending_change: Boolean(pendingDefinition),
+      });
       showSuccessToast({
         title: "Editable copy created",
         description: setAsHome
@@ -107,6 +111,10 @@ export function CloneFirstDialog({
     // navigate.
     if (!nextOpen && cloneDashboard.isPending) return;
     if (!nextOpen) {
+      capture("dashboard:clone_first_cancelled", {
+        dashboard_id: dashboardId,
+        had_pending_change: Boolean(pendingDefinition),
+      });
       onCancel?.();
     }
     onOpenChange(nextOpen);
@@ -150,6 +158,11 @@ export function CloneFirstDialog({
                   size="sm"
                   type="button"
                   onClick={() => {
+                    capture("dashboard:clone_open_existing_click", {
+                      dashboard_id: dashboardId,
+                      existing_clone_id: existingClone.id,
+                      had_pending_change: Boolean(pendingDefinition),
+                    });
                     onOpenChange(false);
                     onCancel?.();
                     router.push(

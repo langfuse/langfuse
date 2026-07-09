@@ -11,7 +11,7 @@ import {
   type FilterState,
 } from "@langfuse/shared";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
@@ -40,6 +40,7 @@ import Link from "next/link";
 import { PencilIcon } from "lucide-react";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Button } from "@/src/components/ui/button";
 import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
 import { HomeDashboardSelect } from "@/src/features/dashboard/components/HomeDashboardSelect";
@@ -47,6 +48,7 @@ import { HomeDashboardSelect } from "@/src/features/dashboard/components/HomeDas
 export default function Dashboard() {
   const router = useRouter();
   const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
   const projectId = router.query.projectId as string;
   const { timeRange, setTimeRange } = useDashboardDateRange();
   const { isBetaEnabled } = useV4Beta();
@@ -182,6 +184,25 @@ export default function Dashboard() {
     },
   });
 
+  // Usage analytics: which dashboard Home actually shows (default vs peek)
+  const viewedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!displayedDashboard || viewedRef.current === displayedDashboard.id)
+      return;
+    viewedRef.current = displayedDashboard.id;
+    capture("dashboard:home_dashboard_viewed", {
+      dashboard_id: displayedDashboard.id,
+      dashboard_owner: displayedDashboard.owner,
+      is_peek: Boolean(peekId),
+      is_curated_default: !peekId && !homeDashboard.data?.homeDashboardId,
+    });
+  }, [
+    displayedDashboard,
+    peekId,
+    homeDashboard.data?.homeDashboardId,
+    capture,
+  ]);
+
   // Home is a viewing surface: no in-place editing (that lives in the
   // Dashboards section, one pencil click away).
   const definition =
@@ -264,9 +285,13 @@ export default function Dashboard() {
                 projectId={projectId}
                 value={dashboardId}
                 defaultDashboardId={appliedDefaultId}
-                onValueChange={(id) =>
-                  setPeekId(id === appliedDefaultId ? null : id)
-                }
+                onValueChange={(id) => {
+                  capture("dashboard:home_dashboard_peeked", {
+                    dashboard_id: id,
+                    is_default: id === appliedDefaultId,
+                  });
+                  setPeekId(id === appliedDefaultId ? null : id);
+                }}
                 currentDashboardName={dashboardName}
               />
               {Boolean(peekId) && hasRbacCUDAccess && (
@@ -274,15 +299,19 @@ export default function Dashboard() {
                   variant="outline"
                   loading={setHomeDashboard.isPending}
                   title="Show this dashboard on Home for everyone in this project"
-                  onClick={() =>
+                  onClick={() => {
+                    capture("dashboard:home_dashboard_set_default", {
+                      dashboard_id: dashboardId,
+                      source: "home_selector",
+                    });
                     setHomeDashboard.mutate({
                       projectId,
                       dashboardId:
                         dashboardId === LANGFUSE_HOME_DASHBOARD_ID
                           ? null
                           : dashboardId,
-                    })
-                  }
+                    });
+                  }}
                 >
                   Set default
                 </Button>
@@ -295,6 +324,12 @@ export default function Dashboard() {
               >
                 <Link
                   href={`/project/${projectId}/dashboards/${encodeURIComponent(dashboardId)}`}
+                  onClick={() =>
+                    capture("dashboard:home_edit_pencil_click", {
+                      dashboard_id: dashboardId,
+                      dashboard_owner: dashboardOwner,
+                    })
+                  }
                 >
                   <PencilIcon className="h-4 w-4" />
                   <span className="sr-only">

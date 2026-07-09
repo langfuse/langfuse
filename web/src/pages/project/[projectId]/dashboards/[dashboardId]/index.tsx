@@ -100,13 +100,25 @@ export default function DashboardDetail() {
   const [gridResetKey, setGridResetKey] = useState(0);
 
   const openCloneFirst = useCallback(
-    (pendingDefinition?: { widgets: DashboardPlacement[] }) => {
+    (
+      attempt:
+        | "layout_change"
+        | "delete_widget"
+        | "add_widget"
+        | "widget_pencil",
+      pendingDefinition?: { widgets: DashboardPlacement[] },
+    ) => {
+      capture("dashboard:locked_edit_attempt", {
+        dashboard_id: dashboardId,
+        attempt,
+        surface: "detail",
+      });
       setCloneFirstState({
         open: true,
         pendingDefinition: pendingDefinition ?? null,
       });
     },
-    [],
+    [capture, dashboardId],
   );
 
   // Filter state - use persistent filters from dashboard
@@ -459,7 +471,7 @@ export default function DashboardDetail() {
 
       if (isLockedEditable) {
         // Carry the removal into the clone instead of mutating.
-        openCloneFirst(updatedDefinition);
+        openCloneFirst("delete_widget", updatedDefinition);
         return;
       }
 
@@ -471,7 +483,7 @@ export default function DashboardDetail() {
   // Handle adding a widget
   const handleAddWidget = () => {
     if (isLockedEditable) {
-      openCloneFirst();
+      openCloneFirst("add_widget");
       return;
     }
     setIsWidgetDialogOpen(true);
@@ -485,7 +497,7 @@ export default function DashboardDetail() {
   const mutateCloneDashboard = api.dashboard.cloneDashboard.useMutation({
     onSuccess: (data) => {
       utils.dashboard.invalidate();
-      capture("dashboard:clone_dashboard");
+      capture("dashboard:clone_dashboard", { source: "detail_clone_button" });
       // Redirect to new dashboard
       if (data?.id) {
         router.replace(
@@ -561,14 +573,17 @@ export default function DashboardDetail() {
                 value={dashboard.data.name}
                 required
                 aria-label="Rename dashboard"
-                onSave={(name) =>
+                onSave={(name) => {
+                  capture("dashboard:dashboard_renamed_inline", {
+                    dashboard_id: dashboardId,
+                  });
                   updateDashboardMetadata.mutate({
                     projectId,
                     dashboardId,
                     name,
                     description: dashboard.data?.description ?? "",
-                  })
-                }
+                  });
+                }}
               />
             ) : undefined,
           breadcrumb: [
@@ -654,15 +669,19 @@ export default function DashboardDetail() {
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem
                       disabled={isCurrentHome || setHomeDashboard.isPending}
-                      onClick={() =>
+                      onClick={() => {
+                        capture("dashboard:home_dashboard_set_default", {
+                          dashboard_id: dashboardId,
+                          source: "detail_menu",
+                        });
                         setHomeDashboard.mutate({
                           projectId,
                           dashboardId:
                             dashboardId === LANGFUSE_HOME_DASHBOARD_ID
                               ? null
                               : dashboardId,
-                        })
-                      }
+                        });
+                      }}
                     >
                       <HomeIcon className="mr-2 h-4 w-4" />
                       {isCurrentHome ? "Shown on Home" : "Use as Home"}
@@ -751,7 +770,7 @@ export default function DashboardDetail() {
               onChange={(updatedWidgets) => {
                 if (isLockedEditable) {
                   // Carry the attempted layout change into the clone.
-                  openCloneFirst({
+                  openCloneFirst("layout_change", {
                     ...localDashboardDefinition,
                     widgets: updatedWidgets,
                   });
@@ -775,7 +794,9 @@ export default function DashboardDetail() {
               dashboardOwner={dashboard.data?.owner}
               getWidgetSchedulerId={getWidgetSchedulerId}
               onLockedEditAttempt={
-                isLockedEditable ? () => openCloneFirst() : undefined
+                isLockedEditable
+                  ? () => openCloneFirst("widget_pencil")
+                  : undefined
               }
             />
           </div>
