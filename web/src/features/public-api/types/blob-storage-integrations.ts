@@ -20,15 +20,15 @@ export const BlobStorageIntegrationType = z.enum([
   "AZURE_BLOB_STORAGE",
 ]);
 
-export const BlobStorageIntegrationFileType = z.enum(["JSON", "CSV", "JSONL"]);
+export const BlobStorageIntegrationFileType = z.enum([
+  "JSON",
+  "CSV",
+  "JSONL",
+  "PARQUET",
+]);
 
-// Response-only file type. Parquet is a first-class fileType that the public API
-// cannot yet *create* (the request enum above intentionally omits it, gating it
-// behind an in-code project whitelist on the web side), but a project that
-// enabled Parquet through the UI persists `PARQUET`, so the API must be able to
-// *report* it. Adding a value to the response enum is additive/backwards
-// compatible. Promote PARQUET into the request enum once it is generally
-// available.
+// Kept as a separate export for the response type. Now identical to the request
+// enum since Parquet is generally available and settable via the API.
 export const BlobStorageIntegrationFileTypeResponse = z.enum([
   "JSON",
   "CSV",

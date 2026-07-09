@@ -165,6 +165,16 @@ function TracePanelNavigationHeaderExpanded({
 
   return (
     <Command className="flex h-auto shrink-0 flex-col gap-1 overflow-hidden rounded-none border-b">
+      {/* Responsive toolbar via container queries on this row's own width —
+          no JS measurement. The breakpoints are tuned to the row's actual
+          content minimums (all fixed-size icon buttons + the search input's
+          min-width, so the sums are font-independent): with playback controls
+          present the row needs ~434px with switcher labels, ~352px icons-only,
+          ~292px with the minor tools folded into "…". Hence: labels < 440px →
+          hidden; tools < 360px → folded; search < 300px → narrower min-width
+          (covers dragging to the 260px panel min). If you ADD anything to this
+          row, re-measure and retune all three — stale thresholds show up as a
+          clipped switcher at default widths (LFE-10729). */}
       <div className="@container/navheader flex flex-row items-center justify-between pr-2 pl-1">
         {/* Panel Toggle Button; special p-0.5 offset to pixel align with closed
             version. Hidden while the detail panel is closed (nothing useful to
@@ -185,7 +195,7 @@ function TracePanelNavigationHeaderExpanded({
           <CommandInput
             showBorder={false}
             placeholder="Search"
-            className="h-7 min-w-20 border-0 pr-0 focus:ring-0"
+            className="h-7 min-w-20 border-0 pr-0 focus:ring-0 @max-[300px]/navheader:min-w-10"
             value={searchInputValue}
             onValueChange={setSearchInputValue}
             onKeyDown={handleSearchKeyDown}
@@ -193,7 +203,7 @@ function TracePanelNavigationHeaderExpanded({
         </div>
         <div className="flex shrink-0 flex-row items-center gap-0.5">
           {/* Minor tools — inline when the panel is wide enough. */}
-          <div className="hidden flex-row items-center gap-0.5 @min-[380px]/navheader:flex">
+          <div className="hidden flex-row items-center gap-0.5 @min-[360px]/navheader:flex">
             <Button
               onClick={handleToggleTreeNodes}
               variant="ghost"
@@ -236,7 +246,7 @@ function TracePanelNavigationHeaderExpanded({
                 size="icon"
                 title="More"
                 aria-label="More options"
-                className="h-7 w-7 @min-[380px]/navheader:hidden"
+                className="h-7 w-7 @min-[360px]/navheader:hidden"
               >
                 <MoreHorizontal className="h-3.5 w-3.5" />
               </Button>
@@ -334,7 +344,7 @@ function ViewModeSegment({
       )}
     >
       <Icon className="h-3.5 w-3.5 shrink-0" />
-      <span className="@max-[360px]/navheader:hidden">{label}</span>
+      <span className="@max-[440px]/navheader:hidden">{label}</span>
     </button>
   );
 }

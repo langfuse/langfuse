@@ -398,7 +398,9 @@ function MessageFeedbackControls({
           label="Good response"
           isSelected={selectedValue === "thumbs_up"}
           disabled={isDisabled}
-          onClick={() => handleSelectFeedback("thumbs_up")}
+          onClick={() => {
+            handleSelectFeedback("thumbs_up");
+          }}
         >
           <ThumbsUp
             className={cn(
@@ -412,7 +414,9 @@ function MessageFeedbackControls({
         label="Bad response"
         isSelected={selectedValue === "thumbs_down"}
         disabled={isDisabled}
-        onClick={() => handleSelectFeedback("thumbs_down")}
+        onClick={() => {
+          handleSelectFeedback("thumbs_down");
+        }}
       >
         <ThumbsDown
           className={cn(
@@ -427,7 +431,9 @@ function MessageFeedbackControls({
           className="text-muted-foreground hover:text-foreground ml-1 min-w-0 flex-1 truncate text-left text-xs disabled:cursor-not-allowed disabled:opacity-60"
           title={commentButtonText}
           disabled={isDisabled}
-          onClick={() => setIsCommentPopoverOpen(true)}
+          onClick={() => {
+            setIsCommentPopoverOpen(true);
+          }}
         >
           {commentButtonText}
         </button>
@@ -441,7 +447,9 @@ function MessageFeedbackControls({
           <div>
             <textarea
               value={comment}
-              onChange={(event) => setComment(event.target.value)}
+              onChange={(event) => {
+                setComment(event.target.value);
+              }}
               disabled={isDisabled}
               placeholder="Optional feedback comment"
               rows={3}
@@ -833,7 +841,9 @@ function getSelectedMarkdownFromSource(
   htmlContainer.append(range.cloneContents());
   htmlContainer
     .querySelectorAll("[data-in-app-agent-code-copy-button]")
-    .forEach((node) => node.remove());
+    .forEach((node) => {
+      node.remove();
+    });
 
   return {
     markdown: selectedMarkdown,

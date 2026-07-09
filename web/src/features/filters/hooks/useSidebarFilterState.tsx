@@ -1,6 +1,10 @@
 import type React from "react";
 import { useCallback, useMemo, useEffect, useState } from "react";
-import { StringParam, useQueryParam } from "use-query-params";
+import {
+  StringParam,
+  useQueryParam,
+  type UrlUpdateType,
+} from "use-query-params";
 import {
   type FilterState,
   singleFilter,
@@ -665,8 +669,13 @@ export function useSidebarFilterState(
     ],
   );
 
+  // `options.updateType` controls the history semantics of the URL write:
+  // user-initiated filter edits keep the default (push — a Back-able step);
+  // programmatic writes (e.g. the session default-view auto-apply) pass
+  // `replaceIn` so they don't mint a history entry Back would bounce off
+  // (LFE-10715). Ignored for non-URL state locations.
   const setFilterState = useCallback(
-    (newFilters: FilterState) => {
+    (newFilters: FilterState, options?: { updateType?: UrlUpdateType }) => {
       const explicitFilters = stripImplicitEnvironmentFilterFromExplicitState({
         explicitFilters: newFilters,
         config: managedEnvironmentPolicyConfig,
@@ -687,7 +696,7 @@ export function useSidebarFilterState(
 
       const encoded = encodeFiltersGeneric(explicitFilters);
       setPendingFiltersQuery(encoded);
-      setUrlFiltersQuery(encoded || null);
+      setUrlFiltersQuery(encoded || null, options?.updateType);
       if (stateLocationType === "urlAndSessionStorage") {
         setStoredFiltersQuery(encoded);
       }
@@ -736,7 +745,10 @@ export function useSidebarFilterState(
     if (typeof urlFiltersQuery === "string") {
       if (urlFiltersQuery !== canonicalFiltersQuery) {
         setPendingFiltersQuery(canonicalFiltersQuery);
-        setUrlFiltersQuery(canonicalFiltersQuery || null);
+        // replaceIn: sanitizing is a programmatic correction of the current
+        // URL — pushing would mint a history entry holding the non-canonical
+        // filter, which Back lands on and this effect re-fires (LFE-10715).
+        setUrlFiltersQuery(canonicalFiltersQuery || null, "replaceIn");
       }
 
       if (
