@@ -129,8 +129,10 @@ explicitly whether the action should emit an analytics event.
   z-index.** The app renders inside `#__next`, isolated into one stacking
   context (`globals.css`), so its z-indexes can't escape; overlays go in layers
   that sit outside it and always win. `LAYER_ORDER` is
-  `["agent", "modal", "popover", "tooltip", "toast"]` — containers declared in
-  `_document.tsx`, ordered by that array (later = on top), carrying NO z-index.
+  `["panel", "agent", "modal", "popover", "tooltip", "toast"]` — containers declared
+  in `_document.tsx`, ordered by that array (later = on top), carrying NO z-index.
+  `panel` is for docked side surfaces like Sheet, Drawer, and the table peek;
+  `modal` is for true blocking Dialog and AlertDialog surfaces.
   **THE RULE (see `src/components/ui/layer.tsx` JSDoc — source of truth): every
   overlay portals through a layer container; never let a Radix/Vaul `*.Portal`
   fall back to `<body>`.** Radix/Vaul primitives route via their `*.Portal`'s
