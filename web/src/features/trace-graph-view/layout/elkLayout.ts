@@ -52,7 +52,9 @@ function buildElkGraph(
   const children = graph.nodes.map((node) => {
     const { width, height } = measureNode(
       node,
-      counterReserve.get(node.id) ?? 0,
+      // Cycling counter reserve (aggregated mode) or the node's own static
+      // counter (expanded mode, e.g. " (2)") — whichever the node renders.
+      counterReserve.get(node.id) ?? node.counter?.length ?? 0,
     );
     return { id: node.id, width, height };
   });

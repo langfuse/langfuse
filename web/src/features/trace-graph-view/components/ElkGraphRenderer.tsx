@@ -434,7 +434,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
                 y={node.y}
                 width={node.width}
                 height={node.height}
-                counter={counters.get(node.id)}
+                counter={counters.get(node.id) ?? meta.counter}
                 selected={node.id === selectedNodeName}
                 active={activeNodeNames?.has(node.id) ?? false}
                 compact={compact}

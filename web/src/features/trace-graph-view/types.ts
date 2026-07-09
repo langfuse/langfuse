@@ -4,7 +4,30 @@ export type GraphNodeData = {
   id: string;
   label: string;
   type: string;
+  /**
+   * Static suffix rendered after the label (e.g. " (2)" for the 2nd occurrence
+   * of a repeated name in expanded mode). The renderer's dynamic cycling
+   * counter (" (2/3)", aggregated mode) takes precedence when present.
+   */
+  counter?: string;
 };
+
+/**
+ * How the graph is built from the trace's observations:
+ * - "aggregated": repeated step names collapse into one node (loops render as
+ *   cycles) — the original view, good for overall shape.
+ * - "expanded-steps": one node per observation, edges follow the inferred
+ *   step sequence — the run unrolled "as it ran".
+ * - "expanded-flow": one node per observation, edges from real structure —
+ *   parent→first-child plus happened-before ordering between siblings
+ *   (fork/join from actual timing).
+ */
+export const GRAPH_VIEW_MODES = [
+  "aggregated",
+  "expanded-steps",
+  "expanded-flow",
+] as const;
+export type GraphViewMode = (typeof GRAPH_VIEW_MODES)[number];
 
 export type GraphCanvasData = {
   nodes: GraphNodeData[];

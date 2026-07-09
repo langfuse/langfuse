@@ -11,12 +11,19 @@ custom renderer keeps it virtualization-ready.
 agentGraphData (tRPC getAgentGraphData)
   → buildStepData            timing-based step inference (cycle-guarded)
     / transformLanggraphToGeneralized   when langgraph metadata exists
-  → buildGraphCanvasData     nodes/edges + node→observations cycling map
+  → one builder per GraphViewMode (the mode switch overlaid on the canvas):
+      buildGraphCanvasData   "aggregated": repeats collapse by name (+ cycling map)
+      buildExpandedGraph     "expanded-*": one node per observation, numbered
+                             repeats; edges from steps or real structure/timing
   → layout/elkLayout.computeGraphLayout   async ELK (lazy import);
       layout/measureNode     estimates node boxes (labels, counter reserve)
   → components/ElkGraphRenderer           draws + gestures
       components/GraphNode                view-only node (memo)
 ```
+
+Both builders return the same `{graph, nodeToObservationsMap}` pair — everything
+downstream is mode-agnostic. The selected mode is a trace view preference
+(`ViewPreferencesContext.graphViewMode`, localStorage), passed in as a prop.
 
 ## Ownership
 
