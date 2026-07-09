@@ -35,6 +35,10 @@ import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvide
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { CloudStatusMenu } from "@/src/features/cloud-status-notification/components/CloudStatusMenu";
 import { type ProductModule } from "@/src/ee/features/ui-customization/productModuleSchema";
+import {
+  isMonitorsAvailable,
+  type V4WriteMode,
+} from "@/src/features/monitors/helpers/monitorsAvailability";
 
 export enum RouteSection {
   Main = "main",
@@ -65,6 +69,7 @@ export type Route = {
     organization: User["organizations"][number] | undefined;
     projectId: string | undefined;
     isLangfuseCloud: boolean;
+    v4WriteMode: V4WriteMode | undefined; // undefined until the session has loaded
   }) => boolean;
   group?: RouteGroup; // group this route belongs to (within a section)
 };
@@ -132,10 +137,10 @@ export const ROUTES: Route[] = [
     pathname: "/project/[projectId]/monitors",
     icon: BellRing,
     projectRbacScopes: ["monitors:read"],
-    show: ({ isLangfuseCloud }) => isLangfuseCloud,
+    show: ({ isLangfuseCloud, v4WriteMode }) =>
+      isMonitorsAvailable({ isLangfuseCloud, v4WriteMode }),
     group: RouteGroup.Observability,
     section: RouteSection.Main,
-    label: "Beta",
   },
   {
     title: "Prompts",

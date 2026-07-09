@@ -95,6 +95,7 @@ import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApi
 import { env } from "@/src/env.mjs";
 import { isBaseError, parseIO } from "@langfuse/shared";
 import { type Flag } from "@/src/features/feature-flags/types";
+import { isMonitorsAvailable } from "@/src/features/monitors/helpers/monitorsAvailability";
 
 setUpSuperjson();
 
@@ -397,9 +398,17 @@ export const requireFeatureFlag = (flag: Flag) =>
     return next();
   });
 
-/** requireLangfuseCloud rejects calls from non-Langfuse-Cloud deployments. */
-export const requireLangfuseCloud = t.middleware(({ next }) => {
-  if (!isLangfuseCloud) {
+/** requireMonitorsAvailable rejects monitors calls on deployments where the
+ * feature cannot evaluate: monitors read the v4 events tables, which are only
+ * written on Langfuse Cloud and on self-hosted deployments whose
+ * LANGFUSE_MIGRATION_V4_WRITE_MODE is `dual` or `events_only`. */
+export const requireMonitorsAvailable = t.middleware(({ next }) => {
+  if (
+    !isMonitorsAvailable({
+      isLangfuseCloud,
+      v4WriteMode: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+    })
+  ) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Not found" });
   }
   return next();

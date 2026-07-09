@@ -2,14 +2,14 @@ import { type ReactNode } from "react";
 
 import { ErrorPage } from "@/src/components/error-page";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useMonitorsAvailable } from "@/src/features/monitors/helpers/useMonitorsAvailable";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 
 /** MonitorScope is the RBAC scope a monitor page can require for entry. */
 type MonitorScope = "monitors:read" | "monitors:CUD";
 
-/** MonitorPagePermissions gates a monitor page on Langfuse Cloud and a project RBAC scope. */
+/** MonitorPagePermissions gates a monitor page on deployment-level monitors availability and a project RBAC scope. */
 export function MonitorPagePermissions({
   scope,
   children,
@@ -18,10 +18,11 @@ export function MonitorPagePermissions({
   children: ReactNode;
 }) {
   const projectId = useProjectIdFromURL();
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const { available, isPending } = useMonitorsAvailable();
   const hasAccess = useHasProjectAccess({ projectId, scope });
 
-  if (!isLangfuseCloud) {
+  if (!available) {
+    if (isPending) return null;
     return <ErrorPage title="Not found" message="This page does not exist." />;
   }
 
