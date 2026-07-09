@@ -258,10 +258,10 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
       // Rich object: spread for table rendering
       const { content, ...rest } = normalized;
       return { ...rest, ...content };
-    } else {
-      // Simple object: stringify for text rendering
-      normalized.content = stringifyToolResultContent(normalized.content);
     }
+
+    // Simple object: stringify for text rendering
+    normalized.content = stringifyToolResultContent(normalized.content);
   }
 
   return normalized;
@@ -340,6 +340,16 @@ function preprocessData(data: unknown): unknown {
     }
   }
 
+  if (
+    typeof data === "object" &&
+    !Array.isArray(data) &&
+    ["function_call", "tool_call", "function_call_output"].includes(
+      String((data as Record<string, unknown>).type),
+    )
+  ) {
+    return normalizeMessage(data);
+  }
+
   // Array of messages
   if (Array.isArray(data)) {
     return data.map(normalizeMessage);
@@ -384,7 +394,11 @@ export const openAIAdapter: ProviderAdapter = {
       }
 
       // Semantic Kernel (scope.name starts with Microsoft.SemanticKernel)
-      if ("scope" in meta && typeof meta.scope === "object") {
+      if (
+        "scope" in meta &&
+        meta.scope !== null &&
+        typeof meta.scope === "object"
+      ) {
         const scope = meta.scope as Record<string, unknown>;
         if (
           typeof scope.name === "string" &&
@@ -410,7 +424,11 @@ export const openAIAdapter: ProviderAdapter = {
       if (providerName === "microsoft.agent_framework") return false;
 
       // Pydantic ai
-      if ("scope" in meta && typeof meta.scope === "object") {
+      if (
+        "scope" in meta &&
+        meta.scope !== null &&
+        typeof meta.scope === "object"
+      ) {
         const scope = meta.scope as Record<string, unknown>;
         if (scope.name === "pydantic-ai") {
           return false;

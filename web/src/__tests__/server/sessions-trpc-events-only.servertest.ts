@@ -96,6 +96,7 @@ maybe("sessions trpc (events_only write mode)", () => {
   // the session is countable (ClickHouse insert visibility can lag).
   const seedSessionEvent = async (sessionId: string) => {
     const traceId = randomUUID();
+    const startTime = new Date();
     await createEventsCh([
       createEvent({
         id: traceId,
@@ -106,7 +107,7 @@ maybe("sessions trpc (events_only write mode)", () => {
         type: "SPAN",
         session_id: sessionId,
         user_id: "user-a",
-        start_time: Date.now() * 1000,
+        start_time: startTime.getTime() * 1000,
       }),
     ]);
 
@@ -118,7 +119,7 @@ maybe("sessions trpc (events_only write mode)", () => {
       expect(rows[0]?.session_id).toBe(sessionId);
     });
 
-    return traceId;
+    return { traceId, startTime };
   };
 
   it("forces events_only write mode", () => {
@@ -134,7 +135,7 @@ maybe("sessions trpc (events_only write mode)", () => {
     });
     expect(before).toBeNull();
 
-    await seedSessionEvent(sessionId);
+    const { startTime } = await seedSessionEvent(sessionId);
 
     const result = await caller.sessions.byIdWithScoresFromEvents({
       projectId,
@@ -145,6 +146,12 @@ maybe("sessions trpc (events_only write mode)", () => {
     expect(result.bookmarked).toBe(false);
     expect(result.public).toBe(false);
     expect(result.countTraces).toBeGreaterThanOrEqual(1);
+    expect(
+      Math.abs(result.minTimestamp.getTime() - startTime.getTime()),
+    ).toBeLessThan(1000);
+    expect(
+      Math.abs(result.maxTimestamp.getTime() - startTime.getTime()),
+    ).toBeLessThan(1000);
   });
 
   it("bookmark creates the trace_sessions row on demand and round-trips", async () => {

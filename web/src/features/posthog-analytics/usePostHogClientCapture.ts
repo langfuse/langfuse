@@ -52,6 +52,17 @@ export const events = {
     "update_name",
     "search_views",
     "system_preset_selected",
+    "category_chip_open",
+    "category_chip_apply",
+    "category_preset_preview",
+    "category_preset_coming_soon_click",
+    // Fired when a chip popover closes; carries durationMs + outcome
+    // ("applied" | "cleared" | "previewed_only" | "no_interaction") so the
+    // explore → activate funnel and dwell time read from one event.
+    "category_chip_close",
+    // A bookmarked/stored system-preset id that the catalog retired — the
+    // user was shown the one-time notice and landed on the default view.
+    "retired_view_redirect",
   ],
   score: [
     "create",
@@ -155,6 +166,7 @@ export const events = {
     "new_from_trace_form_open",
     "upload_csv_button_click",
     "upload_csv_form_submit",
+    "select_observations_button_click",
     "delete",
   ],
   dataset_run: [
@@ -220,6 +232,7 @@ export const events = {
     "message_sent",
     "community_hours_click",
   ], // also used on landing page for consistency
+  in_app_agent: ["new_chat_started", "new_chat_turn"],
   cmd_k_menu: ["opened", "search_entered", "navigated"],
   spend_alert: ["created", "updated", "deleted"],
   sidebar: ["book_a_call_clicked", "v4_beta_toggled"],

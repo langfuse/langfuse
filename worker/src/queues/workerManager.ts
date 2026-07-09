@@ -1,15 +1,19 @@
 import { Job, Processor, Worker, WorkerOptions } from "bullmq";
+import { context as otelContext } from "@opentelemetry/api";
 import {
   convertQueueNameToMetricName,
+  contextWithLangfuseProps,
   createBullMQWorkerOptionsWithRedis,
   logger,
   QueueName,
+  recordDistribution,
   recordGauge,
   recordHistogram,
   recordIncrement,
   traceException,
 } from "@langfuse/shared/src/server";
 import { env } from "../env";
+import { WORKER_HOST_ID } from "../utils/hostId";
 import {
   resolveQueueInstance,
   SHARDED_QUEUE_BASE_NAMES,
@@ -17,6 +21,24 @@ import {
 
 export class WorkerManager {
   private static workers: { [key: string]: Worker } = {};
+
+  private static extractProjectId(job: Job): string | undefined {
+    const data = job.data as {
+      payload?: {
+        projectId?: unknown;
+        authCheck?: { scope?: { projectId?: unknown } };
+      };
+    };
+
+    const candidates = [
+      data.payload?.projectId,
+      data.payload?.authCheck?.scope?.projectId,
+    ];
+
+    return candidates.find((candidate): candidate is string => {
+      return typeof candidate === "string" && candidate.length > 0;
+    });
+  }
 
   private static resolveMetricInfo(queueName: QueueName): {
     baseMetric: string;
@@ -56,13 +78,22 @@ export class WorkerManager {
       recordHistogram(oldMetric + ".wait_time", waitTime, {
         unit: "milliseconds",
       });
-      recordHistogram(baseMetric + ".time", waitTime, {
+      recordDistribution(baseMetric + ".time_distribution", waitTime, {
         type: "wait",
         unit: "milliseconds",
         ...shardTag,
       });
 
-      const result = await processor(job);
+      const clickHouseCtx = contextWithLangfuseProps({
+        projectId: WorkerManager.extractProjectId(job),
+        clickhouse: {
+          surface: "worker",
+          route: baseMetric,
+        },
+      });
+      const result = await otelContext.with(clickHouseCtx, () =>
+        processor(job),
+      );
 
       const queue = resolveQueueInstance(queueName);
       // Sample queue depth gauges for sharded queues to reduce metric volume.
@@ -97,7 +128,7 @@ export class WorkerManager {
       recordHistogram(oldMetric + ".processing_time", processingTime, {
         unit: "milliseconds",
       });
-      recordHistogram(baseMetric + ".time", processingTime, {
+      recordDistribution(baseMetric + ".time_distribution", processingTime, {
         type: "processing",
         unit: "milliseconds",
         ...shardTag,
@@ -176,6 +207,20 @@ export class WorkerManager {
       recordIncrement(oldMetric + ".error");
       recordIncrement(baseMetric + ".rate", 1, {
         type: "error",
+        ...shardTag,
+      });
+    });
+    // Counts intermediate re-enqueues (LFE-10063), not just the terminal
+    // "stalled more than allowable limit" the "failed" handler catches.
+    worker.on("stalled", (jobId: string) => {
+      // detectedOnHost: the stall-checker pod, which may differ from the pod
+      // whose lock expired.
+      logger.warn(
+        `Queue job ${jobId} in ${queueName} stalled (lock expired, re-enqueued) detectedOnHost=${WORKER_HOST_ID}`,
+      );
+      recordIncrement(oldMetric + ".stalled");
+      recordIncrement(baseMetric + ".rate", 1, {
+        type: "stalled",
         ...shardTag,
       });
     });

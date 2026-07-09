@@ -23,6 +23,12 @@ import { getViewDeclaration } from "../dataModel";
 import { InvalidRequestError } from "../../../errors";
 import { env } from "../../../env";
 import { NULL_IF_EMPTY_RE } from "./nullIfEmptyFilter";
+import {
+  getCompatibleFilterTypes,
+  isFilterColumnType,
+  type CompatibleFilterType,
+  type FilterColumnType,
+} from "../../../server/queries/clickhouse-sql/filterTypeCompatibility";
 
 type AppliedDimensionType = {
   table: string;
@@ -50,6 +56,51 @@ type MappedFilters = {
   whereFilters: Filter[];
   whereRawParts: RawSqlPart[];
 };
+
+const isQueryArrayDimensionType = (dimensionType: string | undefined) =>
+  dimensionType === "string[]" || dimensionType === "arrayString";
+
+const getFilterColumnTypeForQueryDimension = (
+  dimensionType: string | undefined,
+): FilterColumnType | null => {
+  if (isQueryArrayDimensionType(dimensionType)) {
+    return "arrayOptions";
+  }
+
+  if (dimensionType === "null" || dimensionType === "positionInTrace") {
+    return null;
+  }
+
+  return isFilterColumnType(dimensionType) ? dimensionType : null;
+};
+
+const getCompatibleFilterTypesForQueryDimension = (
+  dimensionType: string | undefined,
+): readonly CompatibleFilterType[] | null => {
+  const filterColumnType = getFilterColumnTypeForQueryDimension(dimensionType);
+
+  if (!filterColumnType) {
+    return null;
+  }
+
+  // Query array dimensions are ClickHouse Array(String) expressions. The shared
+  // table also allows stringOptions for legacy UI array columns, but metrics
+  // queries must use arrayOptions so QueryBuilder generates hasAny/hasAll in SQL.
+  if (isQueryArrayDimensionType(dimensionType)) {
+    return ["arrayOptions"];
+  }
+
+  return getCompatibleFilterTypes(filterColumnType);
+};
+
+const formatExpectedFilterTypes = (
+  filterTypes: readonly CompatibleFilterType[],
+) =>
+  filterTypes.length === 1
+    ? `'${filterTypes[0]}'`
+    : filterTypes
+        .map((filterType) => `'${filterType}'`)
+        .join(filterTypes.length === 2 ? " or " : ", ");
 
 type AppliedBucketingDimension =
   | { type: "none" }
@@ -271,24 +322,50 @@ export class QueryBuilder {
   ) {
     for (const filter of filters) {
       // Validate filters on dimension fields
-      if (filter.column in view.dimensions) {
-        const dimension = view.dimensions[filter.column];
+      const dimension = this.resolveDimension(filter.column, view);
 
-        // Array fields (like tags) validation
-        if (dimension.type === "string[]") {
-          if (filter.type === "string") {
-            throw new InvalidRequestError(
-              `Invalid filter for field '${filter.column}': Array fields require type 'arrayOptions', not 'string'. ` +
-                `Use operators like 'any of', 'all of', or 'none of' with an array of values.`,
-            );
-          }
+      if (dimension) {
+        const compatibleFilterTypes = getCompatibleFilterTypesForQueryDimension(
+          dimension.type,
+        );
 
-          // Additional validation: ensure value is array for arrayOptions
-          if (filter.type === "arrayOptions" && !Array.isArray(filter.value)) {
-            throw new InvalidRequestError(
-              `Invalid filter for field '${filter.column}': arrayOptions type requires an array of values, not '${typeof filter.value}'.`,
-            );
-          }
+        if (!compatibleFilterTypes) {
+          throw new InvalidRequestError(
+            `Invalid query dimension '${filter.column}': Unsupported dimension type '${dimension.type ?? "undefined"}'.`,
+          );
+        }
+
+        if (filter.type === "null") {
+          continue;
+        }
+
+        if (!compatibleFilterTypes.includes(filter.type)) {
+          throw new InvalidRequestError(
+            `Invalid filter for field '${filter.column}': Filter type '${filter.type}' is not supported for dimension type '${dimension.type ?? "string"}'. ` +
+              `Expected ${formatExpectedFilterTypes(compatibleFilterTypes)}.`,
+          );
+        }
+
+        if (filter.type === "arrayOptions" && !Array.isArray(filter.value)) {
+          throw new InvalidRequestError(
+            `Invalid filter for field '${filter.column}': arrayOptions type requires an array of values, not '${typeof filter.value}'.`,
+          );
+        }
+      }
+
+      // Special validation for time dimension filters
+      else if (filter.column === view.timeDimension) {
+        const compatibleFilterTypes: CompatibleFilterType[] = ["datetime"];
+
+        if (filter.type === "null") {
+          continue;
+        }
+
+        if (!compatibleFilterTypes.includes(filter.type)) {
+          throw new InvalidRequestError(
+            `Invalid filter for field '${filter.column}': Filter type '${filter.type}' is not supported for time dimension '${view.timeDimension}'. ` +
+              `Expected ${formatExpectedFilterTypes(compatibleFilterTypes)}.`,
+          );
         }
       }
 
@@ -454,7 +531,7 @@ export class QueryBuilder {
 
       // Normal dimension or special-case filter: build column mapping
       let clickhouseSelect: string;
-      let queryPrefix: string = "";
+      let queryPrefix = "";
       let clickhouseTableName: string = actualTableName;
       let type: string;
       let emptyEqualsNull: boolean | undefined;
@@ -806,15 +883,18 @@ export class QueryBuilder {
     // Choose appropriate granularity based on date range to get ~50 buckets
     if (diffHours < 2) {
       return "minute"; // Less than a 2h, use minutes
-    } else if (diffHours < 72) {
-      return "hour"; // Less than 3 days, use hours
-    } else if (diffHours < 1440) {
-      return "day"; // Less than 60 days, use days
-    } else if (diffHours < 8760) {
-      return "week"; // Less than a year, use weeks
-    } else {
-      return "month"; // Over a year, use months
     }
+    if (diffHours < 72) {
+      return "hour"; // Less than 3 days, use hours
+    }
+    if (diffHours < 1440) {
+      return "day"; // Less than 60 days, use days
+    }
+    if (diffHours < 8760) {
+      return "week"; // Less than a year, use weeks
+    }
+
+    return "month"; // Over a year, use months
   }
 
   private getTimeDimensionSql(
@@ -1437,7 +1517,7 @@ export class QueryBuilder {
   public async build(
     query: QueryType,
     projectId: string,
-    enableSingleLevelOptimization: boolean = false,
+    enableSingleLevelOptimization = false,
   ): Promise<{ query: string; parameters: Record<string, unknown> }> {
     // Run zod validation
     const parseResult = queryModel.safeParse(query);

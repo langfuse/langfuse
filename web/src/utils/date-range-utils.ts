@@ -335,12 +335,11 @@ export const formatDateRange = (from: Date, to: Date) => {
     const fromPattern = showFromYear ? "LLL dd, yyyy" : "LLL dd";
     const toPattern = showToYear ? "LLL dd, yyyy" : "LLL dd";
     return `${format(from, fromPattern)} - ${format(to, toPattern)}`;
-  } else {
-    // Show dates with times for partial day ranges
-    const fromPattern = showFromYear ? "LLL dd yyyy, HH:mm" : "LLL dd, HH:mm";
-    const toPattern = showToYear ? "LLL dd yyyy, HH:mm" : "LLL dd, HH:mm";
-    return `${format(from, fromPattern)} - ${format(to, toPattern)}`;
   }
+  // Show dates with times for partial day ranges
+  const fromPattern = showFromYear ? "LLL dd yyyy, HH:mm" : "LLL dd, HH:mm";
+  const toPattern = showToYear ? "LLL dd yyyy, HH:mm" : "LLL dd, HH:mm";
+  return `${format(from, fromPattern)} - ${format(to, toPattern)}`;
 };
 
 export type RelativeTimeRange = {
@@ -480,9 +479,9 @@ function getIntervalDuration(interval: IntervalConfig): number {
 export function getOptimalInterval(
   fromDate: Date,
   toDate: Date,
-  targetPoints: number = 13,
-  minPoints: number = 10,
-  maxPoints: number = 16,
+  targetPoints = 13,
+  minPoints = 10,
+  maxPoints = 16,
 ): IntervalConfig {
   const durationMs = toDate.getTime() - fromDate.getTime();
 
@@ -586,9 +585,8 @@ export function getScoreAnalyticsInterval(
     return "week";
   }
   // > 1 year → month (yields 12+ points)
-  else {
-    return "month";
-  }
+
+  return "month";
 }
 
 /**
@@ -599,9 +597,8 @@ export function getScoreAnalyticsInterval(
 export function rangeToString(range: TimeRange): string {
   if ("range" in range) {
     return getAbbreviatedTimeRange(range.range);
-  } else {
-    return `${range.from.getTime()}-${range.to.getTime()}`;
   }
+  return `${range.from.getTime()}-${range.to.getTime()}`;
 }
 
 /**
@@ -643,6 +640,41 @@ export function rangeFromString<T extends string>(
   }
 
   return { range: fallback };
+}
+
+/**
+ * Resolves the active time range from its two possible sources using the
+ * presence-XOR rule (no merging):
+ * - If the URL carries an explicit `dateRange` value, it wins outright — shared
+ *   links are authoritative and we ignore the persisted preference.
+ * - Otherwise we fall back to the per-user stored default (relative
+ *   meta-format), so clean navigations keep the last chosen range.
+ * - Otherwise the view's fallback preset.
+ *
+ * A stored value that is not valid for this view's `allowedRanges` (e.g. a
+ * table-only preset surfacing on a dashboard) degrades to the fallback rather
+ * than merging.
+ */
+export function resolveTimeRange<T extends string>(
+  sources: { urlValue?: string | null; storedValue?: string | null },
+  allowedRanges: readonly T[],
+  fallback: T,
+): TimeRange {
+  const fromUrl =
+    sources.urlValue != null && sources.urlValue !== ""
+      ? sources.urlValue
+      : null;
+  const fromStorage =
+    sources.storedValue != null && sources.storedValue !== ""
+      ? sources.storedValue
+      : null;
+
+  const source = fromUrl ?? fromStorage;
+  if (source == null) {
+    return { range: fallback };
+  }
+
+  return rangeFromString(source, allowedRanges, fallback);
 }
 
 /**
@@ -691,10 +723,9 @@ export function getChartAxisFormat(
       if (durationHours !== null && durationHours <= 24) {
         // Within 1 day: time only
         return "HH:mm";
-      } else {
-        // Multiple days: date + time
-        return "MMM dd, HH:mm";
       }
+      // Multiple days: date + time
+      return "MMM dd, HH:mm";
 
     case "day":
       // 7 days - 90 days: date without time

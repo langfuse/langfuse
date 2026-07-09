@@ -8,8 +8,11 @@ export function DataTableSelectAllBanner({
   setRowSelection,
   pageSize,
   totalCount,
+  approximateCount,
 }: MultiSelect) {
-  const totalPages = totalCount ? Math.ceil(totalCount / pageSize) : 0;
+  const totalPages = totalCount ? Math.ceil(totalCount / pageSize) : null;
+  // Hide the precise number when the row count is not the affected-entity count.
+  const exactCount = approximateCount ? null : totalCount;
 
   return (
     <div className="bg-light-blue/40 dark:bg-light-blue/50 @container mb-2 flex flex-wrap items-center justify-center gap-2 rounded-sm p-2">
@@ -17,7 +20,7 @@ export function DataTableSelectAllBanner({
         <span className="text-sm">
           All{" "}
           <span className="font-semibold">
-            {numberFormatter(totalCount ?? 0, 0)}
+            {exactCount === null ? "matching" : numberFormatter(exactCount, 0)}
           </span>{" "}
           items are selected.{" "}
           <Button
@@ -33,8 +36,9 @@ export function DataTableSelectAllBanner({
         </span>
       ) : (
         <span className="text-sm">
-          All <span className="font-semibold">{pageSize}</span> items on this
-          page are selected.{" "}
+          All{" "}
+          <span className="font-semibold">{numberFormatter(pageSize, 0)}</span>{" "}
+          items on this page are selected.{" "}
           <Button
             variant="ghost"
             className="text-accent-dark-blue hover:text-accent-dark-blue/80 h-auto p-0 font-semibold"
@@ -42,8 +46,12 @@ export function DataTableSelectAllBanner({
               setSelectAll(true);
             }}
           >
-            Select all {numberFormatter(totalCount ?? 0, 0)} items across{" "}
-            {numberFormatter(totalPages, 0)} pages
+            {exactCount === null || totalPages === null
+              ? "Select all matching items"
+              : `Select all ${numberFormatter(
+                  exactCount,
+                  0,
+                )} items across ${numberFormatter(totalPages, 0)} pages`}
           </Button>
         </span>
       )}

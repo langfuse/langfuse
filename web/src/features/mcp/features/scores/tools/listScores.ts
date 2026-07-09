@@ -9,6 +9,7 @@ import {
 import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { McpAdvancedFilterBaseSchema } from "../../../core/filter-schema";
+import { buildScoreTargetUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 import { paginationMeta } from "../../publicApi";
@@ -132,7 +133,16 @@ export const [listScoresTool, handleListScores] = defineTool({
         ]);
 
         const totalItems = count ?? 0;
-        const data = filterAndValidateV2GetScoreList(items);
+        const data = filterAndValidateV2GetScoreList(items).map((score) => {
+          const url = buildScoreTargetUrl({
+            projectId: context.projectId,
+            traceId: score.traceId,
+            observationId: score.observationId,
+            sessionId: score.sessionId,
+          });
+
+          return url ? { ...score, url } : score;
+        });
         span.setAttribute("mcp.result_count", data.length);
 
         return {

@@ -140,7 +140,7 @@ export function MultiSelect({
         <Button
           variant="outline"
           className={cn(
-            "border-input ring-offset-background placeholder:text-muted-foreground focus:ring-ring flex h-8 w-full items-center justify-between gap-x-2 rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+            "border-input ring-offset-background placeholder:text-foreground-tertiary focus:ring-ring flex h-8 w-full items-center justify-between gap-x-2 rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
             className,
           )}
           disabled={disabled}
@@ -202,13 +202,13 @@ export function MultiSelect({
                   <InputCommandItem key="select-all" onSelect={handleSelectAll}>
                     <div
                       className={cn(
-                        "border-primary mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
+                        "border-control-border mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
                         allSelectedState
-                          ? "bg-primary text-primary-foreground"
+                          ? "bg-control-fill border-control-fill text-primary-foreground"
                           : "opacity-50 [&_svg]:invisible",
                       )}
                     >
-                      <Check className={cn("h-4 w-4")} />
+                      <Check className="h-4 w-4" />
                     </div>
                     <div className="font-medium">
                       {allSelectedState ? "Deselect All" : "Select All"}
@@ -242,13 +242,13 @@ export function MultiSelect({
                   >
                     <div
                       className={cn(
-                        "border-primary mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
+                        "border-control-border mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
                         isSelected
-                          ? "bg-primary text-primary-foreground"
+                          ? "bg-control-fill border-control-fill text-primary-foreground"
                           : "opacity-50 [&_svg]:invisible",
                       )}
                     >
-                      <Check className={cn("h-4 w-4")} />
+                      <Check className="h-4 w-4" />
                     </div>
                     <div
                       className={cn(
@@ -304,7 +304,7 @@ export function MultiSelect({
                 >
                   <div
                     className={cn(
-                      "border-primary mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
+                      "border-control-border mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
                       getFreeTextInput(
                         isCustomSelectEnabled,
                         values,
@@ -312,7 +312,7 @@ export function MultiSelect({
                       ) ||
                         (optionValues.has(freeText) &&
                           selectedValues.has(freeText))
-                        ? "bg-primary text-primary-foreground"
+                        ? "bg-control-fill border-control-fill text-primary-foreground"
                         : "opacity-50 [&_svg]:invisible",
                     )}
                   >

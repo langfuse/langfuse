@@ -49,7 +49,6 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
   const showProtectedLabelsSettings = useHasEntitlement(
     "prompt-protected-labels",
   );
-
   if (!project || !organization || !router.query.projectId) {
     return [];
   }
@@ -151,7 +150,7 @@ export const getProjectSettingsPages = ({
       "claude code",
       "cursor",
     ],
-    content: <DeveloperToolsSettings />,
+    content: <DeveloperToolsSettings projectId={project.id} />,
   },
   {
     title: "LLM Connections",

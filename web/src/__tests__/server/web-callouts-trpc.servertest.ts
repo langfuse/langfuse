@@ -1,9 +1,15 @@
 import type { Session } from "next-auth";
 import type { Mock } from "vitest";
+import { TRPCError } from "@trpc/server";
 
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import {
+  enforceWebCalloutRateLimit,
+  recordWebCalloutInvokeMetric,
+  withWebCalloutInFlightLimit,
+} from "@/src/features/web-callouts/server/rateLimit";
 import { decrypt } from "@langfuse/shared/encryption";
 import {
   fetchWithSecureRedirects,
@@ -26,6 +32,14 @@ vi.mock("@langfuse/shared/encryption", async () => {
     ),
   };
 });
+
+vi.mock("@/src/features/web-callouts/server/rateLimit", () => ({
+  enforceWebCalloutRateLimit: vi.fn(),
+  recordWebCalloutInvokeMetric: vi.fn(),
+  withWebCalloutInFlightLimit: vi.fn(
+    async (_context: unknown, fn: () => Promise<unknown>) => fn(),
+  ),
+}));
 
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
@@ -305,11 +319,14 @@ const mockSuccessfulTargetValidation = ({
 describe("webCallouts router", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const originalNodeEnv = env.NODE_ENV;
-  const originalWebCalloutsEnabled = env.LANGFUSE_ENABLE_WEB_CALLOUTS;
 
   beforeEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-    (env as any).LANGFUSE_ENABLE_WEB_CALLOUTS = "true";
+    (enforceWebCalloutRateLimit as Mock).mockResolvedValue(undefined);
+    (recordWebCalloutInvokeMetric as Mock).mockReturnValue(undefined);
+    (withWebCalloutInFlightLimit as Mock).mockImplementation(
+      async (_context: unknown, fn: () => Promise<unknown>) => fn(),
+    );
     (validateWebhookURL as Mock).mockResolvedValue(undefined);
     (fetchWithSecureRedirects as Mock).mockResolvedValue({
       response: { ok: true, status: 204 },
@@ -325,7 +342,6 @@ describe("webCallouts router", () => {
 
   afterEach(() => {
     (env as any).NODE_ENV = originalNodeEnv;
-    (env as any).LANGFUSE_ENABLE_WEB_CALLOUTS = originalWebCalloutsEnabled;
     vi.useRealTimers();
     vi.clearAllMocks();
   });
@@ -370,40 +386,6 @@ describe("webCallouts router", () => {
     expect(enabled).not.toHaveProperty("url");
     expect(enabled).not.toHaveProperty("requestHeaders");
     expect(enabled).not.toHaveProperty("requestHeaderKeys");
-  });
-
-  it("hides metadata and blocks backend work when disabled by environment", async () => {
-    const { caller, projectId } = await prepare();
-
-    await createEndpoint(caller, projectId);
-    vi.clearAllMocks();
-    (env as any).LANGFUSE_ENABLE_WEB_CALLOUTS = "false";
-
-    await expect(
-      caller.webCallouts.availability({ projectId }),
-    ).resolves.toEqual({ enabled: false });
-    await expect(caller.webCallouts.enabled({ projectId })).resolves.toEqual({
-      enabled: false,
-      id: null,
-      name: null,
-      toastMessage: null,
-    });
-    await expect(caller.webCallouts.all({ projectId })).rejects.toMatchObject({
-      code: "NOT_FOUND",
-      message: "Web callouts are not enabled.",
-    });
-    await expect(
-      caller.webCallouts.invoke({
-        projectId,
-        traceId: "trace-1",
-        observationId: null,
-        sessionId: null,
-      }),
-    ).rejects.toMatchObject({
-      code: "NOT_FOUND",
-      message: "Web callouts are not enabled.",
-    });
-    expect(fetchWithSecureRedirects).not.toHaveBeenCalled();
   });
 
   it("allows callout URLs on custom ports", async () => {
@@ -571,6 +553,12 @@ describe("webCallouts router", () => {
         sessionId: null,
       }),
     ).resolves.toEqual({ success: true, status: 204 });
+    expect(enforceWebCalloutRateLimit).toHaveBeenCalledWith({
+      orgId,
+      projectId,
+      endpointId: endpoint.id,
+      userId: "user-1",
+    });
   });
 
   it("rejects callout metadata and invoke access for project none role", async () => {
@@ -660,6 +648,59 @@ describe("webCallouts router", () => {
     expect(redirectOptions.redirectValidation.validateUrl).toEqual(
       expect.any(Function),
     );
+    expect(recordWebCalloutInvokeMetric).toHaveBeenCalledWith("attempted", {
+      orgId: "org-1",
+      projectId,
+      endpointId: "endpoint-1",
+      userId: "user-1",
+    });
+    expect(enforceWebCalloutRateLimit).toHaveBeenCalledWith({
+      orgId: "org-1",
+      projectId,
+      endpointId: "endpoint-1",
+      userId: "user-1",
+    });
+    expect(withWebCalloutInFlightLimit).toHaveBeenCalledWith(
+      {
+        orgId: "org-1",
+        projectId,
+        endpointId: "endpoint-1",
+        userId: "user-1",
+      },
+      expect.any(Function),
+    );
+  });
+
+  it("rate limits before target validation and outbound delivery", async () => {
+    const { caller, projectId } = await prepare();
+    await createEndpoint(caller, projectId);
+    vi.clearAllMocks();
+    (enforceWebCalloutRateLimit as Mock).mockRejectedValueOnce(
+      new TRPCError({
+        code: "TOO_MANY_REQUESTS",
+        message: "Web callout invocation rate limit exceeded.",
+      }),
+    );
+
+    await expect(
+      caller.webCallouts.invoke({
+        projectId,
+        traceId: "trace-1",
+        observationId: null,
+        sessionId: null,
+      }),
+    ).rejects.toMatchObject({
+      code: "TOO_MANY_REQUESTS",
+      message: "Web callout invocation rate limit exceeded.",
+    });
+
+    expect(getTraceById).not.toHaveBeenCalled();
+    expect(validateWebhookURL).not.toHaveBeenCalledWith(
+      "https://example.com/callout",
+      expect.anything(),
+      expect.anything(),
+    );
+    expect(fetchWithSecureRedirects).not.toHaveBeenCalled();
   });
 
   it("preserves blank existing request header values on update", async () => {

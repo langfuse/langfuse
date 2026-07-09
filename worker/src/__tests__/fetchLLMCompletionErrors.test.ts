@@ -13,6 +13,20 @@ const chatAnthropicConstructorMock = vi.fn().mockImplementation(function () {
   };
 });
 
+const mockGcpServiceAccountKey = {
+  type: "service_account",
+  project_id: "test-project",
+  private_key_id: "test-key-id",
+  private_key: "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n",
+  client_email: "test@test-project.iam.gserviceaccount.com",
+  client_id: "1234567890",
+  auth_uri: "https://accounts.google.com/o/oauth2/auth",
+  token_uri: "https://oauth2.googleapis.com/token",
+  auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
+  client_x509_cert_url:
+    "https://www.googleapis.com/robot/v1/metadata/x509/test%40test-project.iam.gserviceaccount.com",
+} as const;
+
 process.env.CLICKHOUSE_URL ??= "http://localhost:8123";
 process.env.CLICKHOUSE_USER ??= "default";
 process.env.CLICKHOUSE_PASSWORD ??= "password";
@@ -29,8 +43,9 @@ class MockLLMCompletionError extends Error {
     message: string;
     responseStatusCode?: number;
     isRetryable?: boolean;
+    cause?: unknown;
   }) {
-    super(params.message);
+    super(params.message, { cause: params.cause });
     this.name = "LLMCompletionError";
     this.responseStatusCode = params.responseStatusCode ?? 500;
     this.isRetryable = params.isRetryable ?? false;
@@ -117,8 +132,8 @@ describe("fetchLLMCompletion provider error classification", () => {
 
     anthropicInvokeMock.mockRejectedValue(wrappedError);
 
-    await expect(
-      fetchLLMCompletion({
+    try {
+      await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -137,11 +152,357 @@ describe("fetchLLMCompletion provider error classification", () => {
         llmConnection: {
           secretKey: encrypt("anthropic-api-key"),
         },
+      });
+      expect.fail("Expected fetchLLMCompletion to throw");
+    } catch (e) {
+      expect(e).toMatchObject({
+        name: "LLMCompletionError",
+        responseStatusCode: 401,
+        isRetryable: false,
+      });
+      expect((e as Error).cause).toBe(wrappedError);
+    }
+  });
+
+  it("forwards Anthropic options and normalizes sampling params for Claude on Vertex", async () => {
+    const modelInstance = {
+      topP: -1,
+      temperature: 0,
+      invoke: anthropicInvokeMock,
+      pipe: vi.fn().mockReturnValue({
+        invoke: anthropicInvokeMock,
       }),
-    ).rejects.toMatchObject({
-      name: "LLMCompletionError",
-      responseStatusCode: 401,
-      isRetryable: false,
+      withStructuredOutput: vi.fn().mockReturnValue({
+        invoke: anthropicInvokeMock,
+      }),
+    };
+
+    chatAnthropicConstructorMock.mockImplementationOnce(function () {
+      return modelInstance;
     });
+    anthropicInvokeMock.mockResolvedValue({ content: "ok" });
+
+    await expect(
+      fetchLLMCompletion({
+        streaming: false,
+        messages: [
+          {
+            role: "user",
+            content: "Score this observation.",
+            type: "public-api-created",
+          },
+        ],
+        modelParams: {
+          provider: "vertexai",
+          adapter: "google-vertex-ai",
+          model: "claude-sonnet-4-6",
+          temperature: 0,
+          max_tokens: 10,
+          providerOptions: {
+            thinking: {
+              type: "enabled",
+              budget_tokens: 16000,
+            },
+          },
+        },
+        llmConnection: {
+          secretKey: encrypt(JSON.stringify(mockGcpServiceAccountKey)),
+          config: {
+            location: "us-east5",
+          },
+        },
+      }),
+    ).resolves.toEqual({ text: "ok" });
+
+    expect(chatAnthropicConstructorMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: "claude-sonnet-4-6",
+        temperature: 0,
+        topP: undefined,
+        invocationKwargs: {
+          thinking: {
+            type: "enabled",
+            budget_tokens: 16000,
+          },
+        },
+      }),
+    );
+    expect(modelInstance.topP).toBeUndefined();
+    expect(modelInstance.temperature).toBe(0);
+  });
+
+  it("applies the adaptive thinking structured output workaround for Claude on Vertex", async () => {
+    const thinkingDuringStructuredOutput: unknown[] = [];
+    const modelInstance = {
+      thinking: { type: "disabled" },
+      invoke: anthropicInvokeMock,
+      pipe: vi.fn().mockReturnValue({
+        invoke: anthropicInvokeMock,
+      }),
+      withStructuredOutput: vi.fn().mockImplementation(function () {
+        thinkingDuringStructuredOutput.push(modelInstance.thinking);
+        return {
+          invoke: anthropicInvokeMock,
+        };
+      }),
+    };
+
+    chatAnthropicConstructorMock.mockImplementationOnce(function () {
+      return modelInstance;
+    });
+    anthropicInvokeMock.mockResolvedValue({ result: "ok" });
+
+    await expect(
+      fetchLLMCompletion({
+        streaming: false,
+        messages: [
+          {
+            role: "user",
+            content: "Return structured output.",
+            type: "public-api-created",
+          },
+        ],
+        modelParams: {
+          provider: "vertexai",
+          adapter: "google-vertex-ai",
+          model: "claude-fable-5",
+          temperature: 0,
+          max_tokens: 10,
+        },
+        llmConnection: {
+          secretKey: encrypt(JSON.stringify(mockGcpServiceAccountKey)),
+          config: {
+            location: "us-east5",
+          },
+        },
+        structuredOutputSchema: {
+          type: "object",
+          properties: {
+            result: { type: "string" },
+          },
+          required: ["result"],
+          additionalProperties: false,
+        },
+      }),
+    ).resolves.toEqual({ result: "ok" });
+
+    expect(thinkingDuringStructuredOutput).toEqual([{ type: "adaptive" }]);
+    expect(modelInstance.thinking).toEqual({ type: "disabled" });
+  });
+
+  it("rejects Claude on Vertex model names that are not single path segments", async () => {
+    await expect(
+      fetchLLMCompletion({
+        streaming: false,
+        messages: [
+          {
+            role: "user",
+            content: "Score this observation.",
+            type: "public-api-created",
+          },
+        ],
+        modelParams: {
+          provider: "vertexai",
+          adapter: "google-vertex-ai",
+          model:
+            "../../../../../../../projects/victim/locations/us-east5/publishers/anthropic/models/claude-3-5-sonnet",
+          temperature: 0,
+          max_tokens: 10,
+        },
+        llmConnection: {
+          secretKey: encrypt(JSON.stringify(mockGcpServiceAccountKey)),
+          config: {
+            location: "us-east5",
+          },
+        },
+      }),
+    ).rejects.toThrow(
+      "Invalid Anthropic Vertex AI model name. Model names must be a single Vertex model ID segment.",
+    );
+
+    expect(chatAnthropicConstructorMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects Claude on Vertex locations that could reshape the Vertex host", async () => {
+    await expect(
+      fetchLLMCompletion({
+        streaming: false,
+        messages: [
+          {
+            role: "user",
+            content: "Score this observation.",
+            type: "public-api-created",
+          },
+        ],
+        modelParams: {
+          provider: "vertexai",
+          adapter: "google-vertex-ai",
+          model: "claude-sonnet-4-6",
+          temperature: 0,
+          max_tokens: 10,
+        },
+        llmConnection: {
+          secretKey: encrypt(JSON.stringify(mockGcpServiceAccountKey)),
+          config: {
+            location: "attacker.example/",
+          },
+        },
+      }),
+    ).rejects.toThrow(
+      "Invalid Vertex AI location. Locations must be a single Vertex region identifier.",
+    );
+
+    expect(chatAnthropicConstructorMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects an empty Claude on Vertex location with the clean error", async () => {
+    await expect(
+      fetchLLMCompletion({
+        streaming: false,
+        messages: [
+          {
+            role: "user",
+            content: "Score this observation.",
+            type: "public-api-created",
+          },
+        ],
+        modelParams: {
+          provider: "vertexai",
+          adapter: "google-vertex-ai",
+          model: "claude-sonnet-4-6",
+          temperature: 0,
+          max_tokens: 10,
+        },
+        llmConnection: {
+          secretKey: encrypt(JSON.stringify(mockGcpServiceAccountKey)),
+          config: {
+            location: "",
+          },
+        },
+      }),
+    ).rejects.toThrow(
+      "Invalid Vertex AI location. Locations must be a single Vertex region identifier.",
+    );
+
+    expect(chatAnthropicConstructorMock).not.toHaveBeenCalled();
+  });
+
+  it("does not forward Anthropic env credentials to the Vertex client", async () => {
+    let capturedCreateClient:
+      | ((options: { apiKey?: string | null }) => {
+          apiKey: string | null;
+          authToken: string | null;
+        })
+      | undefined;
+
+    chatAnthropicConstructorMock.mockImplementationOnce(function (args: {
+      createClient: (options: { apiKey?: string | null }) => {
+        apiKey: string | null;
+        authToken: string | null;
+      };
+    }) {
+      capturedCreateClient = args.createClient;
+      return {
+        invoke: anthropicInvokeMock,
+        pipe: vi.fn().mockReturnValue({
+          invoke: anthropicInvokeMock,
+        }),
+        withStructuredOutput: vi.fn().mockReturnValue({
+          invoke: anthropicInvokeMock,
+        }),
+      };
+    });
+    anthropicInvokeMock.mockResolvedValue({ content: "ok" });
+
+    await expect(
+      fetchLLMCompletion({
+        streaming: false,
+        messages: [
+          {
+            role: "user",
+            content: "Score this observation.",
+            type: "public-api-created",
+          },
+        ],
+        modelParams: {
+          provider: "vertexai",
+          adapter: "google-vertex-ai",
+          model: "claude-sonnet-4-6",
+          temperature: 0,
+          max_tokens: 10,
+        },
+        llmConnection: {
+          secretKey: encrypt(JSON.stringify(mockGcpServiceAccountKey)),
+          config: {
+            location: "us-east5",
+          },
+        },
+      }),
+    ).resolves.toEqual({ text: "ok" });
+
+    expect(capturedCreateClient).toBeDefined();
+    // ChatAnthropic forwards process.env.ANTHROPIC_API_KEY here, and the base
+    // SDK also defaults apiKey/authToken from env. The Vertex client must force
+    // both null so neither ships as a header to Google.
+    const client = capturedCreateClient!({
+      apiKey: "sk-should-not-leak",
+    });
+    expect(client.apiKey).toBeNull();
+    expect(client.authToken).toBeNull();
+  });
+
+  it("drops a providerOptions.model override for Claude on Vertex", async () => {
+    chatAnthropicConstructorMock.mockImplementationOnce(function () {
+      return {
+        invoke: anthropicInvokeMock,
+        pipe: vi.fn().mockReturnValue({
+          invoke: anthropicInvokeMock,
+        }),
+        withStructuredOutput: vi.fn().mockReturnValue({
+          invoke: anthropicInvokeMock,
+        }),
+      };
+    });
+    anthropicInvokeMock.mockResolvedValue({ content: "ok" });
+
+    await expect(
+      fetchLLMCompletion({
+        streaming: false,
+        messages: [
+          {
+            role: "user",
+            content: "Score this observation.",
+            type: "public-api-created",
+          },
+        ],
+        modelParams: {
+          provider: "vertexai",
+          adapter: "google-vertex-ai",
+          model: "claude-sonnet-4-6",
+          temperature: 0,
+          max_tokens: 10,
+          providerOptions: {
+            model:
+              "../../../../../../../projects/victim/locations/us-east5/publishers/anthropic/models/claude-3-5-sonnet",
+          },
+        },
+        llmConnection: {
+          secretKey: encrypt(JSON.stringify(mockGcpServiceAccountKey)),
+          config: {
+            location: "us-east5",
+          },
+        },
+      }),
+    ).resolves.toEqual({ text: "ok" });
+
+    expect(chatAnthropicConstructorMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: "claude-sonnet-4-6",
+        invocationKwargs: {},
+      }),
+    );
+    // The validated `model` field must win; the injected override is stripped.
+    const { invocationKwargs } = chatAnthropicConstructorMock.mock.calls[0][0];
+    expect(invocationKwargs).not.toHaveProperty("model");
   });
 });

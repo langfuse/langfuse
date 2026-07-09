@@ -9,13 +9,14 @@ import { defineTool } from "../../../core/define-tool";
 import {
   CreatePromptSchema,
   PromptType,
-  PromptLabelSchema,
   PromptNameSchema,
   COMMIT_MESSAGE_MAX_LENGTH,
   PROMPT_NAME_MAX_LENGTH,
 } from "@langfuse/shared";
 import { createPromptForApi } from "@/src/features/prompts/server/prompt-api-service";
+import { buildPromptUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
+import { ParamCreatePromptLabels } from "../validation";
 
 /**
  * Base schema for JSON Schema generation (MCP client display)
@@ -33,7 +34,9 @@ const CreateTextPromptBaseSchema = z.object({
   labels: z
     .array(z.string())
     .optional()
-    .describe("Labels to assign (e.g., ['production', 'staging'])"),
+    .describe(
+      "Optional labels to assign, excluding 'production'. New prompt versions receive the 'latest' label automatically.",
+    ),
   config: z
     .record(z.string(), z.any())
     .optional()
@@ -57,7 +60,7 @@ const CreateTextPromptBaseSchema = z.object({
 const CreateTextPromptInputSchema = z.object({
   name: PromptNameSchema,
   prompt: z.string(),
-  labels: z.array(PromptLabelSchema).optional(),
+  labels: ParamCreatePromptLabels,
   config: z.record(z.string(), z.any()).optional(),
   tags: z.array(z.string()).optional(),
   commitMessage: z.string().max(COMMIT_MESSAGE_MAX_LENGTH).optional(),
@@ -74,7 +77,9 @@ export const [createTextPromptTool, handleCreateTextPrompt] = defineTool({
     "Important:",
     "- Prompts are immutable - cannot modify existing versions",
     "- To update content, create a new version",
-    "- To promote to production, use updatePromptLabels",
+    "- New prompt versions receive the 'latest' label automatically",
+    "- Cannot assign the 'production' label during creation",
+    "- To promote to production, use updatePromptLabels only when the user explicitly requests it",
     "- Labels are unique across versions",
     "- Use {{variable_name}} syntax for dynamic content",
     "",
@@ -117,6 +122,11 @@ export const [createTextPromptTool, handleCreateTextPrompt] = defineTool({
           config: createdPrompt.config,
           createdAt: createdPrompt.createdAt,
           createdBy: createdPrompt.createdBy,
+          url: buildPromptUrl({
+            projectId: context.projectId,
+            name: createdPrompt.name,
+            version: createdPrompt.version,
+          }),
           message: `Successfully created text prompt '${createdPrompt.name}' version ${createdPrompt.version}${createdPrompt.labels.length > 0 ? ` with labels: ${createdPrompt.labels.join(", ")}` : ""}`,
         };
       },

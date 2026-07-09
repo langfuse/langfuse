@@ -150,7 +150,7 @@ const DatasetRunTableMultiSelectAction = ({
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle className="mb-4">Please confirm</DialogTitle>
-            <DialogDescription className="text-md p-0">
+            <DialogDescription className="p-0">
               This action cannot be undone and removes all the data associated
               with {selectedRunIds.length} dataset run
               {selectedRunIds.length > 1 ? "s" : ""}.
@@ -693,9 +693,6 @@ export function DatasetRunsTable(props: {
                             type: chartType,
                             unit: getCompareViewChartUnit(key),
                           }}
-                          legendPosition={
-                            chartLabels.length > 1 ? "above" : "none"
-                          }
                         />
                       </div>
                     </div>
@@ -738,7 +735,7 @@ export function DatasetRunsTable(props: {
               ]}
             />
             <DataTable
-              tableName={"datasetRuns"}
+              tableName="datasetRuns"
               columns={columns}
               data={
                 runs.isPending
@@ -802,7 +799,7 @@ export function DatasetRunsTable(props: {
             ]}
           />
           <DataTable
-            tableName={"datasetRuns"}
+            tableName="datasetRuns"
             columns={columns}
             data={
               runs.isPending

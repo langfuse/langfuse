@@ -134,6 +134,76 @@ describe("MediaRetentionCleaner", () => {
       expect(allDeletedPaths).toContain(media.bucketPath);
     });
 
+    it("protects claimed-associated media but sweeps pending associations", async () => {
+      await drainExpiredMedia();
+      const now = Date.now();
+      const tenDaysAgo = new Date(now - 10 * 24 * 60 * 60 * 1000);
+
+      const { projectId } = await createOrgProjectAndApiKey();
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { retentionDays: 7 },
+      });
+
+      // Claimed association (validFrom set) protects its media from retention.
+      const claimedMedia = await createTestMedia(projectId, tenDaysAgo);
+      await prisma.datasetItemMedia.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          datasetId: randomUUID(),
+          datasetItemId: randomUUID(),
+          datasetItemValidFrom: new Date(),
+          mediaId: claimedMedia.id,
+          field: "input",
+          jsonPath: "$['image']",
+          referenceString: `@@@langfuseMedia:type=image/png|id=${claimedMedia.id}|source=base64@@@`,
+        },
+      });
+
+      // Pending association (null validFrom): an abandoned upload that never
+      // claimed an item. It must not shield the project from the picker, and is
+      // swept along with its media.
+      const pendingMedia = await createTestMedia(projectId, tenDaysAgo);
+      await prisma.datasetItemMedia.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          datasetId: randomUUID(),
+          datasetItemId: randomUUID(),
+          datasetItemValidFrom: null,
+          mediaId: pendingMedia.id,
+          field: "input",
+          jsonPath: null,
+          referenceString: null,
+        },
+      });
+
+      await processUntilProjectComplete(projectId);
+
+      // Claimed media (and its row) survive; pending media (and its row) are gone.
+      await expect(
+        prisma.media.findUnique({
+          where: { projectId_id: { projectId, id: claimedMedia.id } },
+        }),
+      ).resolves.not.toBeNull();
+      await expect(
+        prisma.media.findUnique({
+          where: { projectId_id: { projectId, id: pendingMedia.id } },
+        }),
+      ).resolves.toBeNull();
+      await expect(
+        prisma.datasetItemMedia.count({
+          where: { projectId, datasetItemValidFrom: { not: null } },
+        }),
+      ).resolves.toBe(1);
+      await expect(
+        prisma.datasetItemMedia.count({
+          where: { projectId, datasetItemValidFrom: null },
+        }),
+      ).resolves.toBe(0);
+    });
+
     it("should NOT delete media within retention period", async () => {
       const now = Date.now();
       const fiveDaysAgo = new Date(now - 5 * 24 * 60 * 60 * 1000);

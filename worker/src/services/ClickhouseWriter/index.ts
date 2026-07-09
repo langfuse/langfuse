@@ -13,6 +13,7 @@ import {
   TraceNullRecordInsertType,
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
+  buildClickHouseLogComment,
 } from "@langfuse/shared/src/server";
 
 import { Decimal } from "decimal.js";
@@ -28,6 +29,7 @@ import { backOff } from "exponential-backoff";
 const DECIMAL_64_12_LIMIT = new Decimal("1e6");
 const DECIMAL_64_12_MAX_NUM = 999_999.999_999;
 const DECIMAL_64_12_MIN_NUM = -DECIMAL_64_12_MAX_NUM;
+const MULTI_PROJECT_LOG_COMMENT_PROJECT_ID = "MULTI_PROJECT";
 
 export class ClickhouseWriter {
   private static instance: ClickhouseWriter | null = null;
@@ -464,15 +466,15 @@ export class ClickhouseWriter {
                 truncated: true,
               });
               return true;
-            } else {
-              logger.error(
-                `ClickHouse query failed with non-retryable error: ${error.message}`,
-                {
-                  error: error.message,
-                },
-              );
-              return false;
             }
+
+            logger.error(
+              `ClickHouse query failed with non-retryable error: ${error.message}`,
+              {
+                error: error.message,
+              },
+            );
+            return false;
           },
           startingDelay: 100,
           timeMultiple: 1,
@@ -577,14 +579,10 @@ export class ClickhouseWriter {
         format: "JSONEachRow",
         values: params.records,
         clickhouse_settings: {
-          log_comment: JSON.stringify({
-            feature: "ingestion",
-            type: params.table,
-            operation_name: "writeToClickhouse",
-            projectId:
-              params.records.length > 0
-                ? params.records[0].project_id
-                : undefined,
+          log_comment: buildClickHouseLogComment({
+            surface: "worker",
+            route: "clickhouse-writer",
+            projectId: MULTI_PROJECT_LOG_COMMENT_PROJECT_ID,
           }),
         },
       })

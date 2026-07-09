@@ -1,0 +1,212 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  errors: ./errors.yml
+
+service:
+  auth: true
+  base-path: /api/public/unstable
+  endpoints:
+    create:
+      docs: |
+        Create a reusable dashboard widget.
+
+        This endpoint creates the widget. It does not place the widget on a dashboard grid, this has to be done in the UI.
+
+        Supported views are `observations`, `scores-numeric`, and `scores-categorical`.
+        The legacy `traces` view is not supported by this unstable API, `minVersion` defaults to `2`; values below `2` are rejected.
+
+        Unstable API note:
+        - This surface may evolve while dashboard/widget APIs are being finalized.
+      method: POST
+      path: /dashboard-widgets
+      request: CreateDashboardWidgetRequest
+      response: DashboardWidget
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+      examples:
+        - name: CreateCostWidget
+          request:
+            name: Total cost by model
+            description: Total model cost grouped by provided model name.
+            view: observations
+            dimensions:
+              - field: providedModelName
+            metrics:
+              - measure: totalCost
+                agg: sum
+            filters: []
+            chartType: HORIZONTAL_BAR
+            chartConfig:
+              type: HORIZONTAL_BAR
+              row_limit: 10
+            minVersion: 2
+          response:
+            body:
+              id: cm_dashboard_widget_123
+              createdAt: "2026-07-03T09:00:00.000Z"
+              updatedAt: "2026-07-03T09:00:00.000Z"
+              name: Total cost by model
+              description: Total model cost grouped by provided model name.
+              view: observations
+              dimensions:
+                - field: providedModelName
+              metrics:
+                - measure: totalCost
+                  agg: sum
+              filters: []
+              chartType: HORIZONTAL_BAR
+              chartConfig:
+                type: HORIZONTAL_BAR
+                row_limit: 10
+              minVersion: 2
+
+types:
+  DashboardWidgetView:
+    enum:
+      - observations
+      - name: ScoresNumeric
+        value: scores-numeric
+      - name: ScoresCategorical
+        value: scores-categorical
+
+  DashboardWidgetChartType:
+    enum:
+      - LINE_TIME_SERIES
+      - AREA_TIME_SERIES
+      - BAR_TIME_SERIES
+      - HORIZONTAL_BAR
+      - VERTICAL_BAR
+      - PIE
+      - NUMBER
+      - HISTOGRAM
+      - PIVOT_TABLE
+
+  DashboardWidgetMetricAggregation:
+    enum:
+      - sum
+      - avg
+      - count
+      - max
+      - min
+      - p50
+      - p75
+      - p90
+      - p95
+      - p99
+      - histogram
+      - uniq
+
+  DashboardWidgetDimension:
+    properties:
+      field:
+        type: string
+
+  DashboardWidgetMetric:
+    properties:
+      measure:
+        type: string
+      agg:
+        type: DashboardWidgetMetricAggregation
+
+  DashboardWidgetFilter:
+    docs: |
+      A dashboard widget filter in Langfuse filter-state shape.
+
+      Filter shapes depend on `type`, for example string filters use a string `value`,
+      option filters use a list of strings, and object filters include `key`.
+    properties:
+      column:
+        type: string
+      operator:
+        type: string
+      type:
+        type: string
+      value:
+        type: optional<unknown>
+      key:
+        type: optional<string>
+
+  DashboardWidgetChartConfig:
+    docs: |
+      Chart-specific widget configuration.
+
+      `type` must match the top-level `chartType`.
+      `row_limit` applies to total-value charts and pivot tables.
+      `bins` applies to histograms.
+      `defaultSort` applies to pivot tables.
+    properties:
+      type:
+        type: DashboardWidgetChartType
+      row_limit:
+        type: optional<integer>
+      show_value_labels:
+        type: optional<boolean>
+      bins:
+        type: optional<integer>
+      defaultSort:
+        type: optional<DashboardWidgetDefaultSort>
+
+  DashboardWidgetDefaultSort:
+    properties:
+      column:
+        type: string
+      order:
+        type: DashboardWidgetSortOrder
+
+  DashboardWidgetSortOrder:
+    enum:
+      - ASC
+      - DESC
+
+  CreateDashboardWidgetRequest:
+    properties:
+      name:
+        type: string
+      description:
+        type: string
+      view:
+        type: DashboardWidgetView
+      dimensions:
+        type: list<DashboardWidgetDimension>
+      metrics:
+        type: list<DashboardWidgetMetric>
+      filters:
+        type: list<DashboardWidgetFilter>
+      chartType:
+        type: DashboardWidgetChartType
+      chartConfig:
+        type: DashboardWidgetChartConfig
+      minVersion:
+        type: optional<integer>
+
+  DashboardWidget:
+    properties:
+      id:
+        type: string
+      createdAt:
+        type: datetime
+      updatedAt:
+        type: datetime
+      name:
+        type: string
+      description:
+        type: string
+      view:
+        type: DashboardWidgetView
+      dimensions:
+        type: list<DashboardWidgetDimension>
+      metrics:
+        type: list<DashboardWidgetMetric>
+      filters:
+        type: list<DashboardWidgetFilter>
+      chartType:
+        type: DashboardWidgetChartType
+      chartConfig:
+        type: DashboardWidgetChartConfig
+      minVersion:
+        type: integer
