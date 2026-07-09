@@ -223,6 +223,278 @@ describe("getDrawerMessages", () => {
     expect(mappedMessages[1]?.content).not.toHaveProperty("sources");
   });
 
+  it("shows live reasoning messages while the run is active", () => {
+    const mappedMessages = getDrawerMessages({
+      error: null,
+      isRunning: true,
+      messages: [
+        {
+          id: "user-1",
+          role: "user",
+          content: "Investigate latency spikes",
+        },
+        {
+          id: "reasoning-1",
+          role: "reasoning",
+          content: "Checking recent traces before querying metrics.",
+        },
+      ] satisfies AgUiMessage[],
+    });
+
+    expect(mappedMessages).toMatchObject([
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Investigate latency spikes",
+        },
+      },
+      {
+        id: "reasoning-1",
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "Checking recent traces before querying metrics.",
+          isStreaming: true,
+        },
+      },
+    ]);
+    expect(mappedMessages).toHaveLength(2);
+  });
+
+  it("marks reasoning complete when a run stops before assistant text arrives", () => {
+    const mappedMessages = getDrawerMessages({
+      error: "The run was interrupted before an answer was generated.",
+      isRunning: false,
+      messages: [
+        {
+          id: "user-1",
+          role: "user",
+          content: "Investigate latency spikes",
+        },
+        {
+          id: "reasoning-1",
+          role: "reasoning",
+          content: "Checking recent traces before querying metrics.",
+        },
+      ] satisfies AgUiMessage[],
+    });
+
+    expect(mappedMessages).toMatchObject([
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Investigate latency spikes",
+        },
+      },
+      {
+        id: "reasoning-1",
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "Checking recent traces before querying metrics.",
+          isStreaming: false,
+        },
+      },
+    ]);
+    expect(mappedMessages).toHaveLength(2);
+  });
+
+  it("keeps reasoning open while later tool calls run before the assistant response", () => {
+    const mappedMessages = getDrawerMessages({
+      error: null,
+      isRunning: true,
+      messages: [
+        {
+          id: "user-1",
+          role: "user",
+          content: "Find failed traces",
+        },
+        {
+          id: "reasoning-1",
+          role: "reasoning",
+          content: "Looking for error-level traces first.",
+        },
+        {
+          id: "assistant-1",
+          role: "assistant",
+          content: "",
+          toolCalls: [
+            {
+              id: "tool-call-1",
+              type: "function",
+              function: {
+                name: "langfuse_queryMetrics",
+                arguments: JSON.stringify({ view: "traces" }),
+              },
+            },
+          ],
+        },
+      ] satisfies AgUiMessage[],
+    });
+
+    expect(mappedMessages).toMatchObject([
+      {
+        id: "user-1",
+        content: { type: "text" },
+      },
+      {
+        id: "reasoning-1",
+        content: {
+          type: "reasoning",
+          text: "Looking for error-level traces first.",
+          isStreaming: true,
+        },
+      },
+      {
+        id: "tools-assistant-1",
+        content: {
+          type: "toolGroup",
+          isLoading: true,
+        },
+      },
+    ]);
+  });
+
+  it("keeps only the latest reasoning block streaming in a multi-step tool loop", () => {
+    const mappedMessages = getDrawerMessages({
+      error: null,
+      isRunning: true,
+      messages: [
+        {
+          id: "user-1",
+          role: "user",
+          content: "Find failed traces",
+        },
+        {
+          id: "reasoning-1",
+          role: "reasoning",
+          content: "Looking for error-level traces first.",
+        },
+        {
+          id: "assistant-1",
+          role: "assistant",
+          content: "",
+          toolCalls: [
+            {
+              id: "tool-call-1",
+              type: "function",
+              function: {
+                name: "langfuse_queryMetrics",
+                arguments: JSON.stringify({ view: "traces" }),
+              },
+            },
+          ],
+        },
+        {
+          id: "tool-result-1",
+          role: "tool",
+          toolCallId: "tool-call-1",
+          content: JSON.stringify({ error: "Metrics API unavailable" }),
+        },
+        {
+          id: "reasoning-2",
+          role: "reasoning",
+          content: "The metrics query failed, retrying with a smaller window.",
+        },
+        {
+          id: "assistant-2",
+          role: "assistant",
+          content: "",
+          toolCalls: [
+            {
+              id: "tool-call-2",
+              type: "function",
+              function: {
+                name: "langfuse_queryMetrics",
+                arguments: JSON.stringify({ view: "traces", limit: 10 }),
+              },
+            },
+          ],
+        },
+      ] satisfies AgUiMessage[],
+    });
+
+    expect(mappedMessages).toMatchObject([
+      {
+        id: "user-1",
+        content: { type: "text" },
+      },
+      {
+        id: "reasoning-1",
+        content: {
+          type: "reasoning",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "tools-assistant-1",
+        content: { type: "toolGroup" },
+      },
+      {
+        id: "reasoning-2",
+        content: {
+          type: "reasoning",
+          isStreaming: true,
+        },
+      },
+      {
+        id: "tools-assistant-2",
+        content: { type: "toolGroup" },
+      },
+    ]);
+  });
+
+  it("drops completed reasoning messages without content but keeps streaming ones", () => {
+    const mappedMessages = getDrawerMessages({
+      error: null,
+      isRunning: true,
+      messages: [
+        {
+          id: "user-1",
+          role: "user",
+          content: "Find failed traces",
+        },
+        {
+          // Adaptive thinking can emit a reasoning start/end pair without any
+          // content; once completed there is nothing to disclose.
+          id: "reasoning-empty",
+          role: "reasoning",
+          content: "",
+        },
+        {
+          id: "assistant-1",
+          role: "assistant",
+          content: "I found 12 failed traces in the selected window.",
+        },
+        {
+          id: "user-2",
+          role: "user",
+          content: "And in the week before?",
+        },
+        {
+          id: "reasoning-live",
+          role: "reasoning",
+          content: "",
+        },
+      ] satisfies AgUiMessage[],
+    });
+
+    expect(mappedMessages).toMatchObject([
+      { id: "user-1" },
+      { id: "assistant-1" },
+      { id: "user-2" },
+      {
+        id: "reasoning-live",
+        content: { type: "reasoning", text: "", isStreaming: true },
+      },
+    ]);
+    expect(mappedMessages).toHaveLength(4);
+  });
+
   it("adds pending tool approvals as approval tool groups", () => {
     const mappedMessages = getDrawerMessages({
       error: null,

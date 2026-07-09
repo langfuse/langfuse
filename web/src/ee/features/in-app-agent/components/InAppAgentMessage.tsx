@@ -2,6 +2,7 @@
 import {
   ArrowRight,
   Check,
+  ChevronDown,
   Copy,
   BookOpenText,
   Loader2,
@@ -58,6 +59,7 @@ type InAppAgentRedirectActionContent = {
 
 export type InAppAgentMessageContent =
   | { type: "loading"; label?: string }
+  | { type: "reasoning"; text: string; isStreaming: boolean }
   | {
       type: "text";
       text: string;
@@ -181,6 +183,10 @@ export function InAppAgentMessage({
     );
   }
 
+  if (content.type === "reasoning") {
+    return <InAppAgentReasoningBlock content={content} isCompact={isCompact} />;
+  }
+
   if (content.type === "text" && role === "assistant") {
     return (
       <AssistantMessageWithFeedback
@@ -201,7 +207,7 @@ const MessageCard = forwardRef<
     role: InAppAgentMessageRole;
     content: Exclude<
       InAppAgentMessageContent,
-      { type: "toolGroup" | "redirectAction" }
+      { type: "toolGroup" | "redirectAction" | "reasoning" }
     >;
     isCompact: boolean;
   }
@@ -295,6 +301,75 @@ function AssistantMessageWithFeedback({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function InAppAgentReasoningBlock({
+  content,
+  isCompact,
+}: {
+  content: Extract<InAppAgentMessageContent, { type: "reasoning" }>;
+  isCompact: boolean;
+}) {
+  // null until the user toggles manually; until then the disclosure follows
+  // the streaming state (open while streaming, collapsed when done).
+  const [userToggled, setUserToggled] = useState<boolean | null>(null);
+  const isOpen = userToggled ?? content.isStreaming;
+
+  return (
+    <details
+      open={isOpen}
+      onToggle={(event) => {
+        // The browser also fires toggle when React flips `open` at stream
+        // start/end; only record toggles that diverge from the current state.
+        if (event.currentTarget.open !== isOpen) {
+          setUserToggled(event.currentTarget.open);
+        }
+      }}
+      className={cn(
+        "text-muted-foreground max-w-full",
+        isCompact ? "text-[0.775rem]" : "text-sm",
+      )}
+    >
+      <summary
+        className={cn(
+          "hover:text-foreground focus-visible:ring-ring flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-none font-medium outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden",
+          isCompact && "px-0.5",
+        )}
+      >
+        <span
+          className={cn(
+            "min-w-0 flex-1",
+            content.isStreaming && styles.thinkingShimmer,
+          )}
+        >
+          {content.isStreaming ? "Thinking" : "Thought"}
+        </span>
+        <ChevronDown
+          className={cn(
+            "size-3.5 shrink-0 transition-transform",
+            !isOpen && "-rotate-90",
+          )}
+        />
+      </summary>
+      {isOpen ? (
+        // The block grows with its content instead of scrolling internally;
+        // the drawer's auto-follow keeps the newest text visible while
+        // streaming, and the block collapses when streaming ends.
+        <div
+          aria-label="Assistant reasoning"
+          data-testid="in-app-agent-reasoning-content"
+          className={cn(
+            // Vertical spacing is margin, not padding, so the left border
+            // hugs the text instead of extending past it.
+            "border-border/70 mt-2 mb-1 border-l px-3 leading-5 wrap-break-word whitespace-pre-wrap",
+            isCompact && "px-2.5 leading-4",
+          )}
+        >
+          {content.text || "Thinking..."}
+        </div>
+      ) : null}
+    </details>
   );
 }
 
