@@ -7,9 +7,9 @@
     "declaration": false,
     "declarationMap": false,
     "outDir": "./dist",
+    "rootDir": "./src",
     "target": "es2024",
     "types": ["node"],
-    "downlevelIteration": true,
     "resolveJsonModule": true
   },
   "include": ["."],
