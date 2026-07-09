@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
@@ -29,22 +30,54 @@ const SDK_UPGRADE_DOC_URLS = [
 ] as const;
 const SDK_UPGRADE_DISMISS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const UNKNOWN_SDK_VALUE = "unknown";
-const DIRECT_EVENTS_TABLE_SOURCE_VALUES = ["otel"] as const;
 const BACKFILL_EVENTS_TABLE_SOURCE_VALUES = [
   "ingestion-api-backfill",
   "otel-backfill",
 ] as const;
+const PYTHON_SDK_NAMES = ["python"] as const;
+const JAVASCRIPT_SDK_NAMES = ["javascript", "js", "langfuse-js"] as const;
 
 const SDK_UPGRADE_MINIMUM_VERSIONS = [
   {
-    sdkNames: ["python"],
-    minimumVersion: "4.0.0",
-  },
-  {
-    sdkNames: ["javascript", "js", "langfuse-js"],
+    sdkNames: PYTHON_SDK_NAMES,
     minimumVersion: "5.0.0",
   },
+  {
+    sdkNames: JAVASCRIPT_SDK_NAMES,
+    minimumVersion: "6.0.0",
+  },
 ] as const;
+
+const SDK_UPGRADE_MODAL_COPY = {
+  generic: {
+    variant: "generic",
+    title: "Upgrade your Langfuse SDK",
+    description:
+      "This project is receiving data from an older Langfuse SDK version.",
+    body: "Upgrade to the latest Langfuse SDK so new observations use the current ingestion path and SDK behavior.",
+  },
+  javascriptBeforeV5: {
+    variant: "javascript_before_v5",
+    title: "Upgrade your Langfuse JS/TS SDK to v5",
+    description:
+      "This project is receiving data from a pre-v5 Langfuse JS/TS SDK.",
+    body: "Upgrade to JS/TS SDK v5 and review the migration guide for the OpenTelemetry-based tracing model, attribute propagation, and API namespace changes.",
+  },
+  javascriptV5: {
+    variant: "javascript_v5",
+    title: "Update your Langfuse JS/TS SDK",
+    description:
+      "This project is receiving data from an early Langfuse JS/TS v5 SDK.",
+    body: "Update to the latest JS/TS SDK release to pick up the current SDK fixes, defaults, and tracing behavior.",
+  },
+  python: {
+    variant: "python",
+    title: "Upgrade your Langfuse Python SDK",
+    description:
+      "This project is receiving data from an older Langfuse Python SDK.",
+    body: "Upgrade to the latest Python SDK and review the migration guide for the current observation APIs, attribute propagation, and metadata requirements.",
+  },
+} as const;
 
 type SdkVersionSummary = {
   sdkName: string;
@@ -56,6 +89,7 @@ type SdkVersionSummary = {
 export function SdkUpgradeModal({ userId }: { userId: string }) {
   const projectId = useProjectIdFromURL();
   const [open, setOpen] = useState(false);
+  const capture = usePostHogClientCapture();
   const { copy: copyAiUpgradePrompt, isCopied: isAiUpgradePromptCopied } =
     useCopyToClipboard({ successDuration: 2_000 });
 
@@ -73,9 +107,11 @@ export function SdkUpgradeModal({ userId }: { userId: string }) {
     },
   );
 
-  const sdkVersionsToUpgrade =
-    sdkUpgradeStatus.data?.sdkVersions?.filter(shouldUpgradeSdkVersion) ?? [];
+  const sdkVersionsToUpgrade = mergeSdkVersionGroups(
+    sdkUpgradeStatus.data?.sdkVersions?.filter(shouldUpgradeSdkVersion) ?? [],
+  );
   const shouldShowUpgradeModal = sdkVersionsToUpgrade.length > 0;
+  const modalCopy = getSdkUpgradeModalCopy(sdkVersionsToUpgrade);
 
   useEffect(() => {
     if (!storageKey || !shouldShowUpgradeModal) {
@@ -98,6 +134,39 @@ export function SdkUpgradeModal({ userId }: { userId: string }) {
     setOpen(false);
   };
 
+  const getAnalyticsProps = () =>
+    getSdkUpgradeModalAnalyticsProps({
+      projectId,
+      variant: modalCopy.variant,
+      sdkVersions: sdkVersionsToUpgrade,
+    });
+
+  const handleRemindMeLaterClick = () => {
+    capture(
+      "sdk_upgrade_modal:remind_me_later_button_click",
+      getAnalyticsProps(),
+    );
+    dismiss();
+  };
+
+  const handleCopyAiUpgradePromptClick = () => {
+    capture(
+      "sdk_upgrade_modal:copy_ai_prompt_button_click",
+      getAnalyticsProps(),
+    );
+    copyAiUpgradePrompt(buildAiSdkUpgradePrompt(sdkVersionsToUpgrade)).catch(
+      () => undefined,
+    );
+  };
+
+  const handleViewUpgradeGuideClick = () => {
+    capture("sdk_upgrade_modal:view_upgrade_guide_button_click", {
+      ...getAnalyticsProps(),
+      href: SDK_UPGRADE_DOCS_URL,
+    });
+    dismiss();
+  };
+
   if (!projectId) return null;
 
   return (
@@ -113,16 +182,12 @@ export function SdkUpgradeModal({ userId }: { userId: string }) {
         className="sm:max-w-lg"
       >
         <DialogHeader>
-          <DialogTitle>Upgrade your Langfuse SDK</DialogTitle>
-          <DialogDescription>
-            This project is still receiving data through a legacy ingestion
-            path.
-          </DialogDescription>
+          <DialogTitle>{modalCopy.title}</DialogTitle>
+          <DialogDescription>{modalCopy.description}</DialogDescription>
         </DialogHeader>
         <DialogBody>
           <p className="text-muted-foreground text-sm leading-6">
-            Upgrade to the latest Langfuse SDK so new observations are ingested
-            directly and appear in Langfuse without legacy ingestion delays.
+            {modalCopy.body}
           </p>
           {sdkVersionsToUpgrade.length > 0 ? (
             <div className="bg-muted/40 rounded-md border px-3 py-2 text-sm">
@@ -141,17 +206,10 @@ export function SdkUpgradeModal({ userId }: { userId: string }) {
           ) : null}
         </DialogBody>
         <DialogFooter>
-          <Button variant="outline" onClick={dismiss}>
+          <Button variant="outline" onClick={handleRemindMeLaterClick}>
             Remind me later
           </Button>
-          <Button
-            variant="outline"
-            onClick={() => {
-              copyAiUpgradePrompt(
-                buildAiSdkUpgradePrompt(sdkVersionsToUpgrade),
-              ).catch(() => undefined);
-            }}
-          >
+          <Button variant="outline" onClick={handleCopyAiUpgradePromptClick}>
             {isAiUpgradePromptCopied ? (
               <CheckIcon className="mr-1 size-4" />
             ) : (
@@ -159,11 +217,12 @@ export function SdkUpgradeModal({ userId }: { userId: string }) {
             )}
             {isAiUpgradePromptCopied ? "Copied" : "Copy AI upgrade prompt"}
           </Button>
-          <Button asChild onClick={dismiss}>
+          <Button asChild>
             <a
               href={SDK_UPGRADE_DOCS_URL}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={handleViewUpgradeGuideClick}
             >
               View upgrade guide
             </a>
@@ -231,7 +290,7 @@ function shouldUpgradeSdkVersion(sdk: SdkVersionSummary) {
     sdkName === UNKNOWN_SDK_VALUE ||
     sdkVersion === UNKNOWN_SDK_VALUE
   ) {
-    return shouldUpgradeForEventsTableSource(sdk.source);
+    return false;
   }
 
   const baseVersion = extractBaseSdkVersion(sdkVersion);
@@ -240,13 +299,10 @@ function shouldUpgradeSdkVersion(sdk: SdkVersionSummary) {
   );
 
   if (sdkThreshold) {
-    return (
-      isVersionLessThan(baseVersion, sdkThreshold.minimumVersion) ??
-      shouldUpgradeForEventsTableSource(sdk.source)
-    );
+    return isVersionLessThan(baseVersion, sdkThreshold.minimumVersion) ?? false;
   }
 
-  return shouldUpgradeForEventsTableSource(sdk.source);
+  return false;
 }
 
 function extractBaseSdkVersion(sdkVersion: string) {
@@ -281,27 +337,110 @@ function isVersionLessThan(version: string, minimumVersion: string) {
 }
 
 function parseVersion(version: string): [number, number, number] | null {
-  const match = version.match(/^v?(\d+)\.(\d+)\.(\d+)$/);
+  const match = version.match(/^v?(\d+)\.(\d+)(?:\.(\d+))?$/);
   if (!match) return null;
 
   const major = Number(match[1]);
   const minor = Number(match[2]);
-  const patch = Number(match[3]);
+  const patch = Number(match[3] ?? 0);
 
   if (![major, minor, patch].every(Number.isSafeInteger)) return null;
 
   return [major, minor, patch];
 }
 
-function shouldUpgradeForEventsTableSource(source: string) {
-  const normalizedSource = source.trim().toLowerCase();
-
-  if (isBackfillEventsTableSource(normalizedSource)) {
-    return false;
+function getSdkUpgradeModalCopy(sdkVersions: SdkVersionSummary[]) {
+  if (sdkVersions.some(isPreV5JavaScriptSdkVersion)) {
+    return SDK_UPGRADE_MODAL_COPY.javascriptBeforeV5;
   }
 
-  return !DIRECT_EVENTS_TABLE_SOURCE_VALUES.includes(
-    normalizedSource as (typeof DIRECT_EVENTS_TABLE_SOURCE_VALUES)[number],
+  if (sdkVersions.some(isV5OrNewerJavaScriptSdkVersion)) {
+    return SDK_UPGRADE_MODAL_COPY.javascriptV5;
+  }
+
+  if (sdkVersions.some((sdkVersion) => isPythonSdkName(sdkVersion.sdkName))) {
+    return SDK_UPGRADE_MODAL_COPY.python;
+  }
+
+  return SDK_UPGRADE_MODAL_COPY.generic;
+}
+
+function mergeSdkVersionGroups(sdkVersions: SdkVersionSummary[]) {
+  const groupedSdkVersions = new Map<string, SdkVersionSummary>();
+
+  for (const sdkVersion of sdkVersions) {
+    const sdkName = sdkVersion.sdkName.trim();
+    const sdkVersionValue = sdkVersion.sdkVersion.trim();
+    const key = `${sdkName.toLowerCase()}:${sdkVersionValue.toLowerCase()}`;
+    const existingSdkVersion = groupedSdkVersions.get(key);
+
+    if (existingSdkVersion) {
+      existingSdkVersion.count += sdkVersion.count;
+      continue;
+    }
+
+    groupedSdkVersions.set(key, {
+      ...sdkVersion,
+      sdkName,
+      sdkVersion: sdkVersionValue,
+    });
+  }
+
+  return Array.from(groupedSdkVersions.values()).sort(
+    (left, right) => right.count - left.count,
+  );
+}
+
+function getSdkUpgradeModalAnalyticsProps({
+  projectId,
+  variant,
+  sdkVersions,
+}: {
+  projectId: string | undefined;
+  variant: string;
+  sdkVersions: SdkVersionSummary[];
+}) {
+  return {
+    projectId,
+    variant,
+    sdkVersionCount: sdkVersions.length,
+    totalTraceCount: sdkVersions.reduce(
+      (total, sdkVersion) => total + sdkVersion.count,
+      0,
+    ),
+    sdkVersions: sdkVersions.map(formatSdkVersion),
+  };
+}
+
+function isPreV5JavaScriptSdkVersion(sdk: SdkVersionSummary) {
+  const parsedVersion = parseVersion(extractBaseSdkVersion(sdk.sdkVersion));
+
+  return Boolean(
+    isJavaScriptSdkName(sdk.sdkName) && parsedVersion && parsedVersion[0] < 5,
+  );
+}
+
+function isV5OrNewerJavaScriptSdkVersion(sdk: SdkVersionSummary) {
+  const parsedVersion = parseVersion(extractBaseSdkVersion(sdk.sdkVersion));
+
+  return Boolean(
+    isJavaScriptSdkName(sdk.sdkName) && parsedVersion && parsedVersion[0] >= 5,
+  );
+}
+
+function isJavaScriptSdkName(sdkName: string) {
+  const normalizedSdkName = sdkName.trim().toLowerCase();
+
+  return JAVASCRIPT_SDK_NAMES.some(
+    (javascriptSdkName) => javascriptSdkName === normalizedSdkName,
+  );
+}
+
+function isPythonSdkName(sdkName: string) {
+  const normalizedSdkName = sdkName.trim().toLowerCase();
+
+  return PYTHON_SDK_NAMES.some(
+    (pythonSdkName) => pythonSdkName === normalizedSdkName,
   );
 }
 
@@ -345,9 +484,10 @@ If the coding agent does not have the Langfuse skill installed, install or refer
 
 Upgrade task:
 1. Inspect the codebase for Langfuse SDK dependencies, imports, initialization, tracing calls, LangChain/OpenAI wrappers, and dataset/score API usage.
-2. Upgrade Python SDK usage to v4+ and JS/TS SDK usage to v5+ where present.
+2. Upgrade Python SDK usage to v4+ and JS/TS SDK usage to the latest version where present.
 3. Apply the documented migration changes, especially attribute propagation, observation creation APIs, metadata string limits, release/environment configuration, and span export filtering.
-4. Preserve existing trace hierarchy, user/session/tags/metadata propagation, input/output capture, scores, and dataset experiment behavior.
-5. Enable Langfuse debug logging while validating locally.
-6. Run the relevant tests, lint, and type checks, then summarize the exact files changed and any remaining manual steps.`;
+4. For JS/TS v4 or older, follow the v4 to v5 migration guide. For JS/TS v5.x, treat this as an update to the latest JS/TS SDK unless the current docs say otherwise.
+5. Preserve existing trace hierarchy, user/session/tags/metadata propagation, input/output capture, scores, and dataset experiment behavior.
+6. Enable Langfuse debug logging while validating locally.
+7. Run the relevant tests, lint, and type checks, then summarize the exact files changed and any remaining manual steps.`;
 }

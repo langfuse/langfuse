@@ -236,6 +236,11 @@ export const events = {
   cmd_k_menu: ["opened", "search_entered", "navigated"],
   spend_alert: ["created", "updated", "deleted"],
   sidebar: ["book_a_call_clicked", "v4_beta_toggled"],
+  sdk_upgrade_modal: [
+    "remind_me_later_button_click",
+    "copy_ai_prompt_button_click",
+    "view_upgrade_guide_button_click",
+  ],
 } as const;
 
 // type that represents all possible event names, e.g. "traces:bookmark"
