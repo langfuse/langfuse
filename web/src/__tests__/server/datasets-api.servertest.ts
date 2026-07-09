@@ -24,6 +24,7 @@ import {
   PostDatasetsV2Response,
   DeleteDatasetItemV1Response,
   DeleteDatasetRunV1Response,
+  DeleteDatasetV2Response,
   GetDatasetRunItemsV1Response,
 } from "@/src/features/public-api/types/datasets";
 import { v4 as uuidv4 } from "uuid";
@@ -1330,6 +1331,99 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
 
     // ClickHouse run-item deletion propagates asynchronously via the worker
     // queue; it is covered deterministically in
+    // worker/src/__tests__/datasetDelete.test.ts.
+  });
+
+  it("should delete a dataset via DELETE /v2/datasets/{datasetName}", async () => {
+    const datasetName = `dataset-${uuidv4()}`;
+    const nonExistentDatasetName = `non-existent-${uuidv4()}`;
+
+    // Create a dataset with an item
+    const dataset = await makeZodVerifiedAPICall(
+      PostDatasetsV2Response,
+      "POST",
+      "/api/public/v2/datasets",
+      {
+        name: datasetName,
+      },
+      auth,
+    );
+    expect(dataset.status).toBe(200);
+
+    const datasetItem = await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName,
+        id: uuidv4(),
+        input: { key: "value" },
+      },
+      auth,
+    );
+    expect(datasetItem.status).toBe(200);
+
+    // Attempt to delete with a different project's auth should fail
+    const { auth: otherAuth } = await createOrgProjectAndApiKey();
+    const deleteWithWrongAuth = await makeAPICall(
+      "DELETE",
+      `/api/public/v2/datasets/${encodeURIComponent(datasetName)}`,
+      undefined,
+      otherAuth,
+    );
+    expect(deleteWithWrongAuth.status).toBe(404);
+
+    // Attempt to delete a non-existent dataset should fail
+    const deleteNonExistent = await makeAPICall(
+      "DELETE",
+      `/api/public/v2/datasets/${encodeURIComponent(nonExistentDatasetName)}`,
+      undefined,
+      auth,
+    );
+    expect(deleteNonExistent.status).toBe(404);
+
+    // Verify dataset still exists in database before deletion
+    const dbDatasetBeforeDelete = await prisma.dataset.findFirst({
+      where: {
+        name: datasetName,
+        projectId: dataset.body.projectId,
+      },
+    });
+    expect(dbDatasetBeforeDelete).not.toBeNull();
+
+    // Delete the dataset and verify response matches DeleteDatasetV2Response
+    const deleteResponse = await makeZodVerifiedAPICall(
+      DeleteDatasetV2Response,
+      "DELETE",
+      `/api/public/v2/datasets/${encodeURIComponent(datasetName)}`,
+      undefined,
+      auth,
+    );
+    expect(deleteResponse.status).toBe(200);
+    expect(deleteResponse.body).toEqual({
+      message: "Dataset successfully deleted",
+    });
+
+    // Verify dataset no longer exists in database
+    const dbDatasetAfterDelete = await prisma.dataset.findFirst({
+      where: {
+        name: datasetName,
+        projectId: dataset.body.projectId,
+      },
+    });
+    expect(dbDatasetAfterDelete).toBeNull();
+
+    // GET should now return 404
+    const getAfterDelete = await makeAPICall(
+      "GET",
+      `/api/public/v2/datasets/${encodeURIComponent(datasetName)}`,
+      undefined,
+      auth,
+    );
+    expect(getAfterDelete.status).toBe(404);
+
+    // ClickHouse item/run cleanup propagates asynchronously via the worker
+    // queue (deletionType: "dataset"); it is covered deterministically in
     // worker/src/__tests__/datasetDelete.test.ts.
   });
 
