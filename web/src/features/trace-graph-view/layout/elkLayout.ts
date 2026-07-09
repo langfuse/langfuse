@@ -27,14 +27,17 @@ export interface GraphLayout {
   height: number;
 }
 
+export type GraphLayoutDirection = "DOWN" | "RIGHT";
+
 /**
- * ELK "layered" options for a top-down, deterministic DAG. Orthogonal routing +
- * merged edges keep dense traces from turning into a hairball.
+ * ELK "layered" options for a deterministic DAG. Orthogonal routing + merged
+ * edges keep dense traces from turning into a hairball. Direction is
+ * per-mode: aggregated graphs read top-down; expanded "as it ran" chains are
+ * long and thin, so they lay out left→right like a timeline.
  * @see https://eclipse.dev/elk/reference/algorithms/org-eclipse-elk-layered.html
  */
 const LAYOUT_OPTIONS: Record<string, string> = {
   "elk.algorithm": "org.eclipse.elk.layered",
-  "elk.direction": "DOWN",
   "elk.edgeRouting": "ORTHOGONAL",
   "elk.layered.mergeEdges": "true",
   "elk.layered.spacing.nodeNodeBetweenLayers": "52",
@@ -48,6 +51,7 @@ const LAYOUT_OPTIONS: Record<string, string> = {
 function buildElkGraph(
   graph: GraphCanvasData,
   counterReserve: Map<string, number>,
+  direction: GraphLayoutDirection,
 ): ElkNode {
   const children = graph.nodes.map((node) => {
     const { width, height } = measureNode(
@@ -78,7 +82,19 @@ function buildElkGraph(
 
   return {
     id: "root",
-    layoutOptions: LAYOUT_OPTIONS,
+    layoutOptions: {
+      ...LAYOUT_OPTIONS,
+      "elk.direction": direction,
+      // Long expanded chains: let ELK wrap the layer sequence into multiple
+      // rows near the panel's aspect ratio, so fit-zoom stays readable
+      // instead of shrinking a 1×N ribbon to nothing.
+      ...(direction === "RIGHT"
+        ? {
+            "elk.layered.wrapping.strategy": "MULTI_EDGE",
+            "elk.aspectRatio": "1.6",
+          }
+        : {}),
+    },
     children,
     edges,
   };
@@ -129,6 +145,7 @@ function buildCounterReserve(
 export async function computeGraphLayout(
   graph: GraphCanvasData,
   nodeToObservationsMap: Record<string, string[]> = {},
+  direction: GraphLayoutDirection = "DOWN",
 ): Promise<GraphLayout> {
   if (graph.nodes.length === 0) {
     return { nodes: [], edges: [], width: 0, height: 0 };
@@ -136,7 +153,9 @@ export async function computeGraphLayout(
 
   const elk = await getElk();
   const counterReserve = buildCounterReserve(nodeToObservationsMap);
-  const result = await elk.layout(buildElkGraph(graph, counterReserve));
+  const result = await elk.layout(
+    buildElkGraph(graph, counterReserve, direction),
+  );
 
   const nodes: PositionedNode[] = (result.children ?? []).map((child) => ({
     id: child.id,

@@ -17,7 +17,11 @@ import { ZoomIn, ZoomOut, Maximize } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { type GraphCanvasData, type GraphNodeData } from "../types";
-import { computeGraphLayout, type GraphLayout } from "../layout/elkLayout";
+import {
+  computeGraphLayout,
+  type GraphLayout,
+  type GraphLayoutDirection,
+} from "../layout/elkLayout";
 import { GraphNode } from "./GraphNode";
 
 type ElkGraphRendererProps = {
@@ -32,6 +36,8 @@ type ElkGraphRendererProps = {
    * (resting state stays fully visible — no dimming).
    */
   activeNodeNames?: ReadonlySet<string> | null;
+  /** Layer direction: DOWN (default) or RIGHT (long expanded chains). */
+  layoutDirection?: GraphLayoutDirection;
 };
 
 type Transform = { x: number; y: number; k: number };
@@ -78,6 +84,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   nodeToObservationsMap = {},
   currentObservationIndices = {},
   activeNodeNames = null,
+  layoutDirection = "DOWN",
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
@@ -144,7 +151,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     // A new graph gets a fresh fit; stale hover highlighting drops too.
     overrideRef.current = null;
     setHoveredId(null);
-    computeGraphLayout(graph, nodeToObservationsMap)
+    computeGraphLayout(graph, nodeToObservationsMap, layoutDirection)
       .then((result) => {
         if (!cancelled) setLayout(result);
       })
@@ -156,7 +163,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [graph, nodeToObservationsMap, layoutAttempt]);
+  }, [graph, nodeToObservationsMap, layoutDirection, layoutAttempt]);
 
   // Track container size.
   useEffect(() => {

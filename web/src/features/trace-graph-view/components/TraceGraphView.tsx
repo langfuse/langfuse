@@ -299,6 +299,9 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
         nodeToObservationsMap={nodeToObservationsMap}
         currentObservationIndices={currentObservationIndices}
         activeNodeNames={activeNodeNames}
+        // Expanded runs are long chains — left→right reads like a timeline
+        // and fits the wide graph panel far better than top-down.
+        layoutDirection={isExpanded ? "RIGHT" : "DOWN"}
       />
       {onViewModeChange && (
         // Overlaid sibling of the canvas (top-left, opposite the zoom stack)
