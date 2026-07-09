@@ -107,8 +107,11 @@ export function DashboardGrid({
   const rowHeight =
     width !== null ? Math.max(MIN_ROW_HEIGHT, ((width / 12) * 9) / 16) : 150;
 
-  // Detect if screen is medium or smaller (1024px and below)
-  const isSmallScreen = useMediaQuery("(max-width: 1024px)");
+  // Detect if screen is medium or smaller (below 1024px). Exact complement of
+  // Tailwind's `lg:` breakpoint: widget content uses `lg:` variants for its
+  // grid-mode sizing (e.g. smaller chart flex bases that rely on grow), so the
+  // stacked layout must never overlap them. (LFE-10813)
+  const isSmallScreen = useMediaQuery("(max-width: 1023.98px)");
 
   // Convert WidgetPlacement to react-grid-layout format
   const layout = widgets.map((w) => ({

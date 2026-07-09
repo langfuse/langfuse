@@ -60,7 +60,7 @@ export const LANGFUSE_HOME_DASHBOARD_DEFINITION: DashboardDefinition = {
     // minimum heights. Cards adapt to their tile (charts stretch to absorb
     // extra height; a too-short tile scrolls internally), so sizes below
     // target a comfortable content fit at typical ~1300–1500px grid widths
-    // rather than the worst case. Below 1025px the grid stacks. (LFE-10813)
+    // rather than the worst case. Below 1024px the grid stacks. (LFE-10813)
     // Row 1: overview tables
     placement("home-traces", 0, 0, 4, 5),
     placement("home-model-costs", 4, 0, 4, 5),
