@@ -103,5 +103,9 @@
       }
     }
   },
-  "packageManager": "pnpm@11.10.0"
+"packageManager": "pnpm@11.10.0",
+  "overrides": {
+    "nodemailer": "^9.0.1",
+    "path-to-regexp": "^8.4.2"
+  }
 }
