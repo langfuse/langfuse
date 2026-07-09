@@ -629,7 +629,7 @@ describe("createAgUiStream", () => {
           await Promise.resolve();
         },
         awsBedrock: {
-          modelId: "anthropic.claude-sonnet-4-20250514-v1:0",
+          modelId: "eu.anthropic.claude-opus-4-8",
         },
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
@@ -694,9 +694,8 @@ describe("createAgUiStream", () => {
       maxSteps: 10,
       providerOptions: {
         bedrock: {
-          reasoningConfig: {
-            type: "enabled",
-            budgetTokens: 1024,
+          additionalModelRequestFields: {
+            thinking: { type: "adaptive", display: "summarized" },
           },
         },
       },
@@ -852,7 +851,7 @@ describe("createAgUiStream", () => {
     expect(instrumentationMocks.instrumentation.flush).toHaveBeenCalled();
   });
 
-  it("does not enable Bedrock reasoning for Claude models without thinking support", async () => {
+  it("does not enable Bedrock reasoning for non-Claude models", async () => {
     const { createAgUiStream } =
       await import("@/src/ee/features/in-app-agent/server/agent");
     const input = {
@@ -896,7 +895,7 @@ describe("createAgUiStream", () => {
       signal: new AbortController().signal,
       options: {
         awsBedrock: {
-          modelId: "anthropic.claude-3-haiku-20240307-v1:0",
+          modelId: "meta.llama3-70b-instruct-v1:0",
         },
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",

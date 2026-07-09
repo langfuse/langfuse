@@ -44,22 +44,7 @@ const LOCAL_IN_APP_AGENT_SYSTEM_PROMPT_DIR = path.join(
   "src/ee/features/in-app-agent/prompts/",
 );
 const MAX_AGENT_STEPS = 10;
-const IN_APP_AGENT_REASONING_BUDGET_TOKENS = 1024;
-// Models that reject thinking.type.enabled (400: "use thinking.type.adaptive
-// and output_config.effort"). Checked before the budget list below because
-// e.g. "anthropic.claude-opus-4-8" also matches "anthropic.claude-opus-4-".
-const BEDROCK_CLAUDE_ADAPTIVE_REASONING_MODEL_ID_PARTS = [
-  "anthropic.claude-opus-4-7",
-  "anthropic.claude-opus-4-8",
-  "anthropic.claude-sonnet-5",
-  "anthropic.claude-fable-5",
-] as const;
-const BEDROCK_CLAUDE_REASONING_MODEL_ID_PARTS = [
-  "anthropic.claude-3-7-sonnet-",
-  "anthropic.claude-haiku-4-",
-  "anthropic.claude-sonnet-4-",
-  "anthropic.claude-opus-4-",
-] as const;
+const BEDROCK_CLAUDE_MODEL_ID_PART = "anthropic.claude";
 const LANGFUSE_DOCS_MCP_URL = "https://langfuse.com/api/mcp";
 
 // Screen context is included as data only. Tool execution safety is enforced by
@@ -132,39 +117,24 @@ ${serializedContext}
 `;
 }
 
+// Adaptive thinking is the default for every Claude model so new generations
+// work without maintaining a model list. Older models that only support
+// thinking.type.enabled (e.g. haiku 4.5) reject adaptive with a 400 — the
+// in-app agent must run on a model generation that supports it.
 export function getBedrockReasoningProviderOptions(modelId: string) {
-  if (
-    BEDROCK_CLAUDE_ADAPTIVE_REASONING_MODEL_ID_PARTS.some((modelIdPart) =>
-      modelId.includes(modelIdPart),
-    )
-  ) {
-    return {
-      bedrock: {
-        // Passed as raw request fields instead of reasoningConfig because
-        // @ai-sdk/amazon-bedrock overwrites additionalModelRequestFields
-        // .thinking when reasoningConfig is set, and these models default
-        // display to "omitted" (empty thinking text) — without "summarized"
-        // the reasoning UI would render blank blocks.
-        additionalModelRequestFields: {
-          thinking: { type: "adaptive" as const, display: "summarized" },
-        },
-      },
-    };
-  }
-
-  if (
-    !BEDROCK_CLAUDE_REASONING_MODEL_ID_PARTS.some((modelIdPart) =>
-      modelId.includes(modelIdPart),
-    )
-  ) {
+  if (!modelId.includes(BEDROCK_CLAUDE_MODEL_ID_PART)) {
     return undefined;
   }
 
   return {
     bedrock: {
-      reasoningConfig: {
-        type: "enabled" as const,
-        budgetTokens: IN_APP_AGENT_REASONING_BUDGET_TOKENS,
+      // Passed as raw request fields instead of reasoningConfig because
+      // @ai-sdk/amazon-bedrock overwrites additionalModelRequestFields
+      // .thinking when reasoningConfig is set, and these models default
+      // display to "omitted" (empty thinking text) — without "summarized"
+      // the reasoning UI would render blank blocks.
+      additionalModelRequestFields: {
+        thinking: { type: "adaptive" as const, display: "summarized" },
       },
     },
   };

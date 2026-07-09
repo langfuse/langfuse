@@ -490,53 +490,6 @@ const reasoningWindowMessages: InAppAgentWindowMessage[] = [
   },
 ];
 
-const completedReasoningWindowMessages: InAppAgentWindowMessage[] = [
-  ...streamingSeedMessages,
-  {
-    id: "user-reasoning-1",
-    role: "user",
-    content: {
-      type: "text",
-      text: "Why did checkout latency spike this morning?",
-    },
-  },
-  {
-    id: "assistant-reasoning-1",
-    role: "assistant",
-    content: {
-      type: "reasoning",
-      text: longReasoningText,
-      isStreaming: false,
-    },
-  },
-  {
-    id: "assistant-tool-reasoning-1",
-    role: "assistant",
-    content: {
-      type: "toolGroup",
-      tools: [
-        {
-          type: "tool",
-          name: "langfuse_queryMetrics",
-          args: JSON.stringify({
-            view: "observations",
-            metrics: [{ measure: "latency", aggregation: "p95" }],
-          }),
-          result: JSON.stringify({ data: [{ p95_latency: 4.82 }] }),
-        },
-      ],
-    },
-  },
-  {
-    id: "assistant-reasoning-answer-1",
-    role: "assistant",
-    content: {
-      type: "text",
-      text: "Checkout latency is concentrated in retrieval-heavy traces. The next step is to compare reranking latency against the baseline deployment.",
-    },
-  },
-];
-
 const meta = preview.meta({
   component: InAppAgentWindow,
   parameters: {
@@ -790,23 +743,6 @@ export const StreamingReasoning = meta.story({
     selectedConversationId: "conversation-1",
     isInputDisabled: true,
     messages: reasoningWindowMessages,
-  },
-});
-
-export const ExpandedStreamingReasoning = meta.story({
-  args: {
-    selectedConversationId: "conversation-1",
-    isExpanded: true,
-    isInputDisabled: true,
-    messages: reasoningWindowMessages,
-  },
-});
-
-export const CompletedReasoning = meta.story({
-  args: {
-    selectedConversationId: "conversation-1",
-    isInputDisabled: false,
-    messages: completedReasoningWindowMessages,
   },
 });
 
