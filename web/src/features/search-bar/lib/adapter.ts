@@ -722,11 +722,27 @@ function lowerScores(
     return raw === "true" || raw === "false";
   });
   if (
-    scoreType === "boolean" ||
-    (isObservedBooleanScore(scoreTypes, level, key) &&
-      allBooleanLiterals &&
-      !isComparison(node.op))
+    isObservedBooleanScore(scoreTypes, level, key) &&
+    allBooleanLiterals &&
+    !isComparison(node.op)
   ) {
+    lowerBooleanScore();
+    return;
+  }
+  if (scoreType === "boolean") {
+    // Legacy-read compat: boolean scores also aggregate numerically (0/1)
+    // into scores_avg, and pre-boolean-filter URLs/saved views still carry
+    // numberObject filters on them. Numeric-shaped input keeps lowering
+    // numerically so that state stays renderable/editable; everything else
+    // gets the boolean diagnostic (never the categorical fallback — a boolean
+    // name has no data in score_categories).
+    const allNumericValues = node.values.every((v) =>
+      Number.isFinite(Number(v)),
+    );
+    if (isComparison(node.op) || node.op === "exact" || allNumericValues) {
+      lowerNumeric();
+      return;
+    }
     lowerBooleanScore();
     return;
   }
@@ -752,7 +768,11 @@ function lowerScores(
   }
 
   // '=' default: numeric when known-numeric, else value-syntax fallback
-  // (all-numeric → numeric) for unknown/both.
+  // (all-numeric → numeric) for unknown/both. Known context-miss caveat: a
+  // booleanObject filter whose score name is not in the observed sets (time
+  // range, name-limit cap, saved view) renders as `scores.X:true` and
+  // re-lowers here to categoryOptions — the same context dependence the
+  // categorical kind has always had; eager score-name loading keeps this rare.
   const allNumeric = node.values.every((v) => Number.isFinite(Number(v)));
   if (scoreType === "numeric" || allNumeric) {
     lowerNumeric();

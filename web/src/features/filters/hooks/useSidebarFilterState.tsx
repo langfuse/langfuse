@@ -1394,11 +1394,36 @@ export function useSidebarFilterState(
           const isActive = activeFilters.length > 0;
           const disableState = getFacetDisabledState(facet);
 
-          // Get available keys from options (should be array of score names)
+          // Get available keys from options (should be array of score names).
+          // Backend numeric score-name discovery keeps BOOLEAN names for
+          // legacy numeric filtering; the paired boolean facet (same column
+          // with the score_booleans suffix) owns those names in the UI, so
+          // subtract them from the offering here. Active filter keys are
+          // merged back in resolveKnownKeyOptions, so pre-existing numeric
+          // filters on boolean scores (old URLs/saved views) still render
+          // and stay editable.
+          const pairedBooleanKeys =
+            options[facet.column.replace(/scores_avg$/, "score_booleans")];
+          const booleanNames = new Set(
+            Array.isArray(pairedBooleanKeys)
+              ? pairedBooleanKeys.map((option) =>
+                  typeof option === "string" ? option : option.value,
+                )
+              : [],
+          );
           const availableKeys = options[facet.column];
+          const nonBooleanKeys =
+            Array.isArray(availableKeys) && booleanNames.size > 0
+              ? availableKeys.filter(
+                  (option) =>
+                    !booleanNames.has(
+                      typeof option === "string" ? option : option.value,
+                    ),
+                )
+              : availableKeys;
           const keyOptions = resolveKnownKeyOptions(
             facet.keyOptions,
-            availableKeys,
+            nonBooleanKeys,
             activeFilters.map((filter) => filter.key),
           );
 
