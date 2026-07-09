@@ -44,14 +44,23 @@ export function useExperimentPeekNavigation() {
   // Current target for trace rendering
   const currentTarget = experimentTargets?.[currentExperimentId ?? ""] ?? null;
 
-  // Check if prev/next have targets available
-  const prevId = currentIndex > 0 ? allExperimentIds[currentIndex - 1] : null;
-  const nextId =
-    currentIndex < allExperimentIds.length - 1
-      ? allExperimentIds[currentIndex + 1]
-      : null;
-  const hasPrev = !!(prevId && experimentTargets?.[prevId]);
-  const hasNext = !!(nextId && experimentTargets?.[nextId]);
+  // Nearest experiment with a run for this item in each direction. Scans past
+  // gaps so an experiment without a run for this item doesn't block the ones
+  // behind it.
+  const findReachableId = (step: 1 | -1): string | null => {
+    for (
+      let i = currentIndex + step;
+      i >= 0 && i < allExperimentIds.length;
+      i += step
+    ) {
+      if (experimentTargets?.[allExperimentIds[i]]) return allExperimentIds[i];
+    }
+    return null;
+  };
+  const prevId = findReachableId(-1);
+  const nextId = findReachableId(1);
+  const hasPrev = prevId !== null;
+  const hasNext = nextId !== null;
 
   const goTo = useCallback(
     (experimentId: string) => {
@@ -74,12 +83,12 @@ export function useExperimentPeekNavigation() {
   );
 
   const goToPrev = useCallback(() => {
-    if (prevId && hasPrev) goTo(prevId);
-  }, [prevId, hasPrev, goTo]);
+    if (prevId) goTo(prevId);
+  }, [prevId, goTo]);
 
   const goToNext = useCallback(() => {
-    if (nextId && hasNext) goTo(nextId);
-  }, [nextId, hasNext, goTo]);
+    if (nextId) goTo(nextId);
+  }, [nextId, goTo]);
 
   return {
     currentExperimentId,
