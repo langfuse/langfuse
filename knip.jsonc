@@ -1,17 +1,13 @@
 {
   "ignore": [".agents/skills/**", "scripts/**", "vitest.workspace.ts"],
   "ignoreBinaries": ["vitest"],
-  "ignoreWorkspaces": [
-    "web",
-    "worker",
-    "packages/shared",
-  ],
+  "ignoreWorkspaces": ["web", "worker", "packages/shared"],
   "workspaces": {
     "ee": {
       "project": ["src/**/*.ts"],
     },
     "packages/in-app-agent-sandbox-runtime": {
-      "entry": ["src/server.ts", "src/toolRunner.ts"],
+      "entry": ["src/server.ts"],
       "project": ["src/**/*.ts"],
     },
     "packages/config-eslint": {
