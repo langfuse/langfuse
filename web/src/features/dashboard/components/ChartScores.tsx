@@ -118,7 +118,7 @@ export function ChartScores(props: {
       isLoading={props.isLoading || scores.isPending}
     >
       {!isEmptyTimeSeries({ data: extractedScores }) ? (
-        <div className="min-h-80">
+        <div className="h-80 w-full shrink-0">
           <Chart
             chartType="LINE_TIME_SERIES"
             data={chartData}
