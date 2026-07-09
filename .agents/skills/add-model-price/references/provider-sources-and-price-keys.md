@@ -77,6 +77,12 @@ Always fetch pricing from the provider's official docs before editing.
   WebFetch, but you haven't granted it yet"), not a website-level HTTP 403. If the
   `developers.openai.com/api/docs/pricing` fetch fails for either reason, leave OpenAI
   prices unchanged and report it as an unresolved finding.
+- **GPT-5.6 model family (added July 2026)** — OpenAI introduced a three-variant naming
+  scheme for GPT-5.6: `gpt-5.6-sol` (flagship, $5/$0.50/$30 per MTok input/cached/output),
+  `gpt-5.6-terra` (balanced, $2.50/$0.25/$15), and `gpt-5.6-luna` (cost-efficient,
+  $1.00/$0.10/$6.00). All three are reasoning models; no date-stamped snapshot versions were
+  present at launch. If dated versions appear (e.g. `gpt-5.6-sol-2026-07-xx`), add them
+  as separate pricing entries following the gpt-5.4 / gpt-5.5 precedent.
 
 Capture:
 
