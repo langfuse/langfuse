@@ -4,6 +4,30 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+catalogs:
+  default:
+    '@aws-sdk/client-cloudwatch':
+      specifier: 3.1056.0
+      version: 3.1056.0
+    '@aws-sdk/client-lambda':
+      specifier: 3.1056.0
+      version: 3.1056.0
+    '@aws-sdk/client-s3':
+      specifier: 3.1056.0
+      version: 3.1056.0
+    '@aws-sdk/client-sesv2':
+      specifier: 3.1056.0
+      version: 3.1056.0
+    '@aws-sdk/credential-providers':
+      specifier: 3.1056.0
+      version: 3.1056.0
+    '@aws-sdk/lib-storage':
+      specifier: 3.1056.0
+      version: 3.1056.0
+    '@aws-sdk/s3-request-presigner':
+      specifier: 3.1056.0
+      version: 3.1056.0
+
 overrides:
   esbuild: 0.28.1
   undici@7: 7.28.0
@@ -177,26 +201,26 @@ importers:
         specifier: ^0.17.1
         version: 0.17.1(zod@4.3.6)
       '@aws-sdk/client-cloudwatch':
-        specifier: ^3.1013.0
-        version: 3.1024.0
+        specifier: 'catalog:'
+        version: 3.1056.0
       '@aws-sdk/client-lambda':
-        specifier: ^3.1046.0
-        version: 3.1046.0
+        specifier: 'catalog:'
+        version: 3.1056.0
       '@aws-sdk/client-s3':
-        specifier: ^3.1013.0
-        version: 3.1024.0
+        specifier: 'catalog:'
+        version: 3.1056.0
       '@aws-sdk/client-sesv2':
-        specifier: ^3.1013.0
-        version: 3.1045.0
+        specifier: 'catalog:'
+        version: 3.1056.0
       '@aws-sdk/credential-providers':
-        specifier: ^3.1056.0
+        specifier: 'catalog:'
         version: 3.1056.0
       '@aws-sdk/lib-storage':
-        specifier: ^3.1013.0
-        version: 3.1024.0(@aws-sdk/client-s3@3.1024.0)
+        specifier: 'catalog:'
+        version: 3.1056.0(@aws-sdk/client-s3@3.1056.0)
       '@aws-sdk/s3-request-presigner':
-        specifier: ^3.1013.0
-        version: 3.1024.0
+        specifier: 'catalog:'
+        version: 3.1056.0
       '@azure/storage-blob':
         specifier: ^12.26.0
         version: 12.26.0
@@ -415,7 +439,7 @@ importers:
         specifier: ^5.2.0
         version: 5.2.0
       '@aws-sdk/credential-providers':
-        specifier: 3.1056.0
+        specifier: 'catalog:'
         version: 3.1056.0
       '@baselime/trpc-opentelemetry-middleware':
         specifier: ^0.1.2
@@ -989,8 +1013,8 @@ importers:
         specifier: ^0.8.0
         version: 0.8.0(bullmq@5.76.3)
       '@aws-sdk/client-s3':
-        specifier: ^3.1013.0
-        version: 3.1024.0
+        specifier: 'catalog:'
+        version: 3.1056.0
       '@langfuse/shared':
         specifier: workspace:*
         version: link:../packages/shared
@@ -1423,9 +1447,6 @@ packages:
     resolution: {integrity: sha512-nLbCWqQNgUiwwtFsen1AdzAtvuLRsQS8rYgMuxCrdKf9kOssamGLuPwyTY9wyYblNr9+1XM8v6zoDTPPSIeANg==}
     engines: {node: '>=16.0.0'}
 
-  '@aws-crypto/crc32c@5.2.0':
-    resolution: {integrity: sha512-+iWb8qaHLYKrNvGRbiYRHSdKRWhto5XlZUEBwDjYNf+ly5SVYG6zEoYIdxvf5R3zyeP16w4PLBn3rH1xc74Rag==}
-
   '@aws-crypto/sha1-browser@5.2.0':
     resolution: {integrity: sha512-OH6lveCFfcDjX4dbAvCFSYUjJZjDr/3XJ3xHtjn3Oj5b9RjojQo8npoLeA/bNwkOkrSQ0wgrHzXk4tDRxGKJeg==}
 
@@ -1442,6 +1463,10 @@ packages:
   '@aws-crypto/util@5.2.0':
     resolution: {integrity: sha512-4RkU9EsI6ZpBve5fseQlGNUWKMa1RLPQ1dnjnQoe07ldfIzcsGb5hC5W0Dm7u423KWzawlrpbjXBrXCEv9zazQ==}
 
+  '@aws-sdk/checksums@3.1000.12':
+    resolution: {integrity: sha512-RgNDWfhNRIlNEzePIRrYTNi/6q+wwRMMapojn8YVzw4ZcJRa/gxVMtUbeZARR1gmopuv6oIhMbY7J66qIQ0ynw==}
+    engines: {node: '>=20.0.0'}
+
   '@aws-sdk/client-bedrock-agent-runtime@3.1024.0':
     resolution: {integrity: sha512-+s1TmlHDNgpmHz13Q2E5XAm6LDoZHGxNQTajV6HrHcLowE07E1iYmS+z7vtFuJET9HDSN7ILhHPwMVCuBmqkGw==}
     engines: {node: '>=20.0.0'}
@@ -1450,8 +1475,8 @@ packages:
     resolution: {integrity: sha512-LU80q1avpBwQ0eVAGbQpPApdVY4vcdBEIycY5iaznI10mdabeG83nrFySJrZ8knX7G6hl5d5KIOSjcpnolMKSA==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/client-cloudwatch@3.1024.0':
-    resolution: {integrity: sha512-FoZuLd17+pMP8CwDGna1z08Pr6fLN1NWEcT7ufQdWhWcdBl99dAPPKs2ypMr5zTPNEUmchcKMUDp2VzNSTaOcQ==}
+  '@aws-sdk/client-cloudwatch@3.1056.0':
+    resolution: {integrity: sha512-CAGI9907XAGHAGeOz0I3eZpgsPxIoQupMev7A/rolxByxFlKpZ23Dz3NS8gD6PevqKnIQZmxFrTObjyYj8SY3A==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/client-cognito-identity@3.1056.0':
@@ -1462,24 +1487,24 @@ packages:
     resolution: {integrity: sha512-KYd1SYF+WaZinfzg4rsfprZQ3X1qboaJnHtjppd82JG3YSO/LVkenOkFIIsREPnXMoy6Dy6Xx+BXh4Y9A+a1zQ==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/client-lambda@3.1046.0':
-    resolution: {integrity: sha512-g997Ks9pIxUWrc+BRlbkEXCIsYiW60lVSvSt38UXu50XG6DAH63l+ALiwzBk47TA2XlFO7z/IufklQCnCBaQnQ==}
+  '@aws-sdk/client-lambda@3.1056.0':
+    resolution: {integrity: sha512-ReG6Pj7yZKyh+wD2uG+6PP5LcAet2hArf7rLNokoUZCRxEBf0kbRtvfCSAMAoXbTXLKhIwbH6/6E1FbJDxDmLQ==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/client-s3@3.1024.0':
-    resolution: {integrity: sha512-8qdO5aLCzaf9l0RdrSBW1iIroRKP2QBqtZ6lkrtHKiaaH0B18xEn+lrEgiN/eCf3uRAYk4cqbnI2XcWzm+7dDQ==}
+  '@aws-sdk/client-s3@3.1056.0':
+    resolution: {integrity: sha512-WfMZEM2eC96anIT0RzR/QmhaefWKsNjOHNv09ORBkcA++ULBnm1fRau+KKGEIbr5nDnf9BTG7E7U3oOVklQS8g==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/client-sesv2@3.1045.0':
-    resolution: {integrity: sha512-Ae6oKWTod06687mIdKPnHPG5tolx/g68tqIbySMoWCs56OmRqn+7JiS3pOlpQeqjhbJlukfrXbsTMgZcXO9cSQ==}
+  '@aws-sdk/client-sesv2@3.1056.0':
+    resolution: {integrity: sha512-LXvqjyJ1heyT0hlHQqZGXuZyaBjH52adIwVUjYPg8I5k7MLBWQVPTFg6MFnlqxJAMhbJSfoI08e5gAY4T9lceg==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/core@3.974.15':
     resolution: {integrity: sha512-UpA0rTGW/tHGITcCqHisbuuEPraYg9GG+mWmXjY5+RxZBMLGe6aL9oe0ix50LztwAcPIkGZLH0yWdMIkCM10hw==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/crc64-nvme@3.972.5':
-    resolution: {integrity: sha512-2VbTstbjKdT+yKi8m7b3a9CiVac+pL/IY2PHJwsaGkkHmuuqkJZIErPck1h6P3T9ghQMLSdMPyW6Qp7Di5swFg==}
+  '@aws-sdk/core@3.974.27':
+    resolution: {integrity: sha512-WRWEgIq6vx+NU6ot3VrRu4Jovj9MIObitSi6of/GV5THDDPccBhivCRNkWJutMM+m3GvdeI3l/UbGNcoOobxOA==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/credential-provider-cognito-identity@3.972.38':
@@ -1526,34 +1551,34 @@ packages:
     resolution: {integrity: sha512-2IrLrOruRr1NhTK0vguBL1gCWv1pu4bf4KaqpsA+/vCJpFEbvXFawn71GvCzk1wyjnDUsemtKypqoKGv4cSGbA==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/lib-storage@3.1024.0':
-    resolution: {integrity: sha512-5zZSYI8VncyiatvEn+UqElvgX14NKEc+3a+aeMyMzqKuYgDCFd97KGdbqAXEgnfEiTNK0QgSecFC6PUMAsE3xg==}
+  '@aws-sdk/lib-storage@3.1056.0':
+    resolution: {integrity: sha512-+Gg4n2/1RVyREDiI53VlUYSjXg1g70uhhujojnUqwH1FyQ8bTFPZ23zJNdNAU5QCIAusgNkqhZS03fVk2bXCRA==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
-      '@aws-sdk/client-s3': ^3.1024.0
+      '@aws-sdk/client-s3': ^3.1056.0
 
-  '@aws-sdk/middleware-bucket-endpoint@3.972.8':
-    resolution: {integrity: sha512-WR525Rr2QJSETa9a050isktyWi/4yIGcmY3BQ1kpHqb0LqUglQHCS8R27dTJxxWNZvQ0RVGtEZjTCbZJpyF3Aw==}
+  '@aws-sdk/middleware-bucket-endpoint@3.972.31':
+    resolution: {integrity: sha512-qAq2i5wj8wnZ+V/WlwwE0cfvJamyvV2k6v9Iq7UfDYzQC60xCHG/4/f4hJG4DELoCQeR6DstbD93pR7wLtfOtg==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/middleware-eventstream@3.972.8':
     resolution: {integrity: sha512-r+oP+tbCxgqXVC3pu3MUVePgSY0ILMjA+aEwOosS77m3/DRbtvHrHwqvMcw+cjANMeGzJ+i0ar+n77KXpRA8RQ==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/middleware-expect-continue@3.972.8':
-    resolution: {integrity: sha512-5DTBTiotEES1e2jOHAq//zyzCjeMB78lEHd35u15qnrid4Nxm7diqIf9fQQ3Ov0ChH1V3Vvt13thOnrACmfGVQ==}
+  '@aws-sdk/middleware-expect-continue@3.972.27':
+    resolution: {integrity: sha512-yqwl26dLHxWYVcF8drGETF5vU0rmoYd6tY89qeoe9lsS+NWerD/0YkgUnRe1p4ZALiO3vHcxWYoi3dtahAvDZQ==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/middleware-flexible-checksums@3.974.6':
-    resolution: {integrity: sha512-YckB8k1ejbyCg/g36gUMFLNzE4W5cERIa4MtsdO+wpTmJEP0+TB7okWIt7d8TDOvnb7SwvxJ21E4TGOBxFpSWQ==}
+  '@aws-sdk/middleware-flexible-checksums@3.974.37':
+    resolution: {integrity: sha512-EI6E7KlYzEGXCqfznmkmqebY3XLcqHQNnl/o3rOFRX//LJ4Vc81igwtohmfM/kHnqxE8J/hyItwL5+LdDynXQg==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/middleware-host-header@3.972.11':
     resolution: {integrity: sha512-CBC6+tVYaOJo7QXgN1zJ4Ba2f3/Cpy4eRViYFimXW/O5Mn8hBmgXXzHu4vy4ubT80YWnp8aCFygr7dTOa14yQg==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/middleware-location-constraint@3.972.8':
-    resolution: {integrity: sha512-KaUoFuoFPziIa98DSQsTPeke1gvGXlc5ZGMhy+b+nLxZ4A7jmJgLzjEF95l8aOQN2T/qlPP3MrAyELm8ExXucw==}
+  '@aws-sdk/middleware-location-constraint@3.972.24':
+    resolution: {integrity: sha512-a/1rbT9Vhz8Z6KXppZFFh+2zuFclkeTkzVJcRHfd4ejqkO/Gdsy7OINCAQHfX3VV0yDhRb7HjoAXy03D9N56rA==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/middleware-logger@3.972.10':
@@ -1564,12 +1589,12 @@ packages:
     resolution: {integrity: sha512-5eltYxKB4MfdQv7/VhWxRbAVQKow5dz9votRFigTYrWJHMQXwLMltlbk7KFWSZh5NDBySfmjT7Jv/DWfYCmDng==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/middleware-sdk-s3@3.972.37':
-    resolution: {integrity: sha512-Km7M+i8DrLArVzrid1gfxeGhYHBd3uxvE77g0s5a52zPSVosxzQBnJ0gwWb6NIp/DOk8gsBMhi7V+cpJG0ndTA==}
+  '@aws-sdk/middleware-sdk-s3@3.972.58':
+    resolution: {integrity: sha512-6uaWRRYJGhOqc9EoTSbLDf9nI/doSAb5vAwGshs5/Hlv5Ce25b246lBkbRd/77fLAi+uMI1a70mJzVyLyCEufQ==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/middleware-ssec@3.972.8':
-    resolution: {integrity: sha512-wqlK0yO/TxEC2UsY9wIlqeeutF6jjLe0f96Pbm40XscTo57nImUk9lBcw0dPgsm0sppFtAkSlDrfpK+pC30Wqw==}
+  '@aws-sdk/middleware-ssec@3.972.24':
+    resolution: {integrity: sha512-m/+ToPJQkdRF0o9CWaQWFwdsCM1IEsppDHff43/o4fAADAZPx7YRxo18XsKStjghr7QBTdEinE4PdLcmxNqf0w==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/middleware-user-agent@3.972.39':
@@ -1588,12 +1613,16 @@ packages:
     resolution: {integrity: sha512-VuLXVmm7+lKVxqFcOItPkXhjbJ02iUfxkxheRu41SfWf6/xrZup2A2SwHZos/LeQGu3SBHeqTQht80Uo3ienPA==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/s3-request-presigner@3.1024.0':
-    resolution: {integrity: sha512-KNoGsXnTfBxPqrtV2Owd4mrLnhTHRsOz6Hdaz+As5czGMQuPchoRvG1BJzn2NFRGLt/HSJAXVn+G6IhtRIDe+Q==}
+  '@aws-sdk/s3-request-presigner@3.1056.0':
+    resolution: {integrity: sha512-bRqvWgjfJOLakgsmcXgUnTCrTep1B9ppCUjsUyu0M7ueRnVjcNc2uZox/bneCKOgjbzQG7Hs8bo+lTotRdOVOA==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/signature-v4-multi-region@3.996.30':
     resolution: {integrity: sha512-HULDLMVzkmTSEv6//7kx2kRevp/VYUpm8hJNNFbmhxDn0fUiGTxVcM9yg31TukvTq8nyOBDUN2gH0o5IRbKjdw==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/signature-v4-multi-region@3.996.38':
+    resolution: {integrity: sha512-C379Sk+MiFZCfWZphKlMyLHKxV22OjoGM5KJjj5IJNJcOCWL4IGIpnEGzv1FQiRwhYXfq55SJMfxlqPE08JJ9g==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/token-providers@3.1013.0':
@@ -1604,12 +1633,12 @@ packages:
     resolution: {integrity: sha512-81duvlltQlsfn5K+o8zILcystBRdbT1G2JJYVCML5NZHBz4CL/zf+sAemCtBh/uh6RQUMyInGeZLQ7/8igZhbA==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/types@3.973.9':
-    resolution: {integrity: sha512-kuBfgQVdcz5Bmapc4A13YbpVw/pXkesfhetcFYwbntqas8sF41OHyd4o28+/TG2ZQdHBsv90Lsu5y6oitvYCdg==}
+  '@aws-sdk/types@3.973.15':
+    resolution: {integrity: sha512-IULn8uBV/SMtmOIANsm4WHXIOtVPBWfOWs3WGL0j/sI+KhaYehvOw0ET+9urnn8MBpiijuU/0JOpuwKOE451PQ==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/util-arn-parser@3.972.3':
-    resolution: {integrity: sha512-HzSD8PMFrvgi2Kserxuff5VitNq2sgf3w9qxmskKDiDTThWfVteJxuCS9JXiPIPtmCrp+7N9asfIaVhBFORllA==}
+  '@aws-sdk/types@3.973.9':
+    resolution: {integrity: sha512-kuBfgQVdcz5Bmapc4A13YbpVw/pXkesfhetcFYwbntqas8sF41OHyd4o28+/TG2ZQdHBsv90Lsu5y6oitvYCdg==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/util-endpoints@3.996.9':
@@ -1640,8 +1669,16 @@ packages:
     resolution: {integrity: sha512-cDbrqvDS73whl6YAPSPq0U6whzG6UWI9PuWh0wrUuGoZexhWEqhdunbukV7iBoaWnFV1AODutM5hOD6rtn439g==}
     engines: {node: '>=20.0.0'}
 
+  '@aws-sdk/xml-builder@3.972.33':
+    resolution: {integrity: sha512-ezbwz9WpuLctm6o7P2t2naDhVVPI5jFGrVefVybhcKGjU57VIyT46pQVO0RI2RYkUdhdj2Z9uSIlAzGZE9NW9A==}
+    engines: {node: '>=20.0.0'}
+
   '@aws/lambda-invoke-store@0.2.4':
     resolution: {integrity: sha512-iY8yvjE0y651BixKNPgmv1WrQc+GZ142sb0z4gYnChDDY2YqI4P/jsSopBWrKfAt7LOJAkOXt7rC/hms+WclQQ==}
+    engines: {node: '>=18.0.0'}
+
+  '@aws/lambda-invoke-store@0.3.0':
+    resolution: {integrity: sha512-sl4Bm6yiMNYrZKkqqDFWN0UfnWhlS8ivKxrYl+6t0gCLrqr8y3B2IqZZbFRkfaVVp7C/baApyh71P+LeE1A2sQ==}
     engines: {node: '>=18.0.0'}
 
   '@azure/abort-controller@2.1.2':
@@ -4998,24 +5035,16 @@ packages:
     resolution: {integrity: sha512-y+TAF7TszcmFzbVtBkFqAdBwKSoD+8shkNxhp4WIfFwXmCKdFje9WD6evROApPa2FTy1v1uc9yBaJs3609PPgg==}
     engines: {node: '>= 18', npm: '>= 8.6.0'}
 
-  '@smithy/chunked-blob-reader-native@4.2.3':
-    resolution: {integrity: sha512-jA5k5Udn7Y5717L86h4EIv06wIr3xn8GM1qHRi/Nf31annXcXHJjBKvgztnbn2TxH3xWrPBfgwHsOwZf0UmQWw==}
-    engines: {node: '>=18.0.0'}
-
-  '@smithy/chunked-blob-reader@5.2.2':
-    resolution: {integrity: sha512-St+kVicSyayWQca+I1rGitaOEH6uKgE8IUWoYnnEX26SWdWQcL6LvMSD19Lg+vYHKdT9B2Zuu7rd3i6Wnyb/iw==}
-    engines: {node: '>=18.0.0'}
-
   '@smithy/config-resolver@4.5.0':
     resolution: {integrity: sha512-m5PNfr7xKdIegNG8DlLz+Gf/DlAhHWFGmFbe0DZo9pnvBwuZ3P/9OMtQU0UyWMYy8zjl+HDFVS7rdD9p2xEFjQ==}
     engines: {node: '>=18.0.0'}
 
-  '@smithy/core@3.24.5':
-    resolution: {integrity: sha512-Kt8phUg45M15EjhYAbZ+fFikYneijLu9Liugz8ZsYz2i8j0hzGv27LWKpEHYRfvj+LyCOSijpcR/2i8RouV+cA==}
-    engines: {node: '>=18.0.0'}
-
   '@smithy/core@3.29.0':
     resolution: {integrity: sha512-sEvpvkBVoMxjoek35XyJFn2ZD3EJ1RpiZrT47WaZodxzAIWS44zkdvbqGE/ZlugtjiQp62cffYZ9ldyRkjAGnA==}
+    engines: {node: '>=18.0.0'}
+
+  '@smithy/core@3.29.1':
+    resolution: {integrity: sha512-qoiY4nrk5OCu1+eIR1VB8l5DmON/oKiqrd5zZFAhXJXjJlLWQusKEW/SkBDAtGDcPaz86m9kfcE1lngU0GlM6A==}
     engines: {node: '>=18.0.0'}
 
   '@smithy/credential-provider-imds@4.3.6':
@@ -5050,16 +5079,8 @@ packages:
     resolution: {integrity: sha512-SK3VMeH0fibgdTg2QeB+O4p7Yy/2E5HBOHJeC58FshkDdeuX8lOgO7PfjYfLyPLP1ch55j91cQqKBzDS0mRjSQ==}
     engines: {node: '>=18.0.0'}
 
-  '@smithy/hash-blob-browser@4.2.13':
-    resolution: {integrity: sha512-YrF4zWKh+ghLuquldj6e/RzE3xZYL8wIPfkt0MqCRphVICjyyjH8OwKD7LLlKpVEbk4FLizFfC1+gwK6XQdR3g==}
-    engines: {node: '>=18.0.0'}
-
   '@smithy/hash-node@4.3.0':
     resolution: {integrity: sha512-4a+KoVqr1SZtw7cZvY24XU1S5OL+c23MdDQ3jFmMCQ5s9diBFdMG/UIgp5dNqlwvDrWA0U5KO+z3Gzq1ize+LA==}
-    engines: {node: '>=18.0.0'}
-
-  '@smithy/hash-stream-node@4.2.12':
-    resolution: {integrity: sha512-O3YbmGExeafuM/kP7Y8r6+1y0hIh3/zn6GROx0uNlB54K9oihAL75Qtc+jFfLNliTi6pxOAYZrRKD9A7iA6UFw==}
     engines: {node: '>=18.0.0'}
 
   '@smithy/invalid-dependency@4.3.0':
@@ -5074,12 +5095,8 @@ packages:
     resolution: {integrity: sha512-n6rQ4N8Jj4YTQO3YFrlgZuwKodf4zUFs7EJIWH86pSCWBaAtAGBFfCM7Wx6D2bBJ2xqFNxGBSrUWswT3M0VJow==}
     engines: {node: '>=18.0.0'}
 
-  '@smithy/md5-js@4.2.12':
-    resolution: {integrity: sha512-W/oIpHCpWU2+iAkfZYyGWE+qkpuf3vEXHLxQQDx9FPNZTTdnul0dZ2d/gUFrtQ5je1G2kp4cjG0/24YueG2LbQ==}
-    engines: {node: '>=18.0.0'}
-
-  '@smithy/middleware-compression@4.3.42':
-    resolution: {integrity: sha512-Ys2R8N7oZ3b6p063lhk7paRbX1F9Ju8a8Bsrw2nFfsG8iHYpgfW6ijd7hJKqRe+Wq9ABfcmX3luBlEd+B5/jVA==}
+  '@smithy/middleware-compression@4.5.6':
+    resolution: {integrity: sha512-BTRqmd5xIL6hFiJzWlQsMPSRmedAbBLEKIiwgvwdDom6tyKty2TWne48pehQPHwjYhCEiqJTlADjqXV36EI3sQ==}
     engines: {node: '>=18.0.0'}
 
   '@smithy/middleware-content-length@4.3.0':
@@ -5134,6 +5151,10 @@ packages:
     resolution: {integrity: sha512-QBJKWGqIknH0dc9LWpfH1mkdokAx6iXYN3UcQ3eY6uIEyScuoQAhfl94ge7ozUy9WgFUdE8xsvwBjaYBbWmPNA==}
     engines: {node: '>=18.0.0'}
 
+  '@smithy/signature-v4@5.6.2':
+    resolution: {integrity: sha512-QgHflghMoPxCJ9axiCVh8KZfbC9fuP6vkXXyK//E3cq7nLaSSyyLj0GAoqVWezYeDQmXIZhmlRvLE16jsqDK6g==}
+    engines: {node: '>=18.0.0'}
+
   '@smithy/smithy-client@4.13.0':
     resolution: {integrity: sha512-lysfoRCr7PdD9CsPp9VQuJYRGI5mWYb8FRkbdBSQttxpQmW7tZsFgmpBNKVcgvBsAgBCkYX/UQs0NmznuBcZQQ==}
     engines: {node: '>=18.0.0'}
@@ -5168,10 +5189,6 @@ packages:
 
   '@smithy/util-buffer-from@4.2.2':
     resolution: {integrity: sha512-FDXD7cvUoFWwN6vtQfEta540Y/YBe5JneK3SoZg9bThSoOAC/eGeYEua6RkBgKjGa/sz6Y+DuBZj3+YEY21y4Q==}
-    engines: {node: '>=18.0.0'}
-
-  '@smithy/util-config-provider@4.2.2':
-    resolution: {integrity: sha512-dWU03V3XUprJwaUIFVv4iOnS1FC9HnMHDfUrlNDSh4315v0cWyaIErP8KiqGVbf5z+JupoVpNM7ZB3jFiTejvQ==}
     engines: {node: '>=18.0.0'}
 
   '@smithy/util-defaults-mode-browser@4.4.0':
@@ -5216,10 +5233,6 @@ packages:
 
   '@smithy/util-utf8@4.4.5':
     resolution: {integrity: sha512-ZS7Y5X8mU9qRSsqwOeGKw86WWtPsRxa396kX2HyhYwADRqFHJ0cb3p2uFk6QnFF3BluUUBHTZJpPA9QuEl0tlg==}
-    engines: {node: '>=18.0.0'}
-
-  '@smithy/util-waiter@4.2.14':
-    resolution: {integrity: sha512-2zqq5o/oizvMaFUlNiTyZ7dbgYv1a893aGut2uaxtbzTx/VYYnRxWzDHuD/ftgcw94ffenua+ZNLrbqwUYE+Bg==}
     engines: {node: '>=18.0.0'}
 
   '@stablelib/base64@1.0.1':
@@ -12227,12 +12240,6 @@ snapshots:
       '@aws-sdk/types': 3.973.9
       tslib: 2.8.1
 
-  '@aws-crypto/crc32c@5.2.0':
-    dependencies:
-      '@aws-crypto/util': 5.2.0
-      '@aws-sdk/types': 3.973.9
-      tslib: 2.8.1
-
   '@aws-crypto/sha1-browser@5.2.0':
     dependencies:
       '@aws-crypto/supports-web-crypto': 5.2.0
@@ -12266,6 +12273,14 @@ snapshots:
     dependencies:
       '@aws-sdk/types': 3.973.9
       '@smithy/util-utf8': 2.3.0
+      tslib: 2.8.1
+
+  '@aws-sdk/checksums@3.1000.12':
+    dependencies:
+      '@aws-sdk/core': 3.974.27
+      '@aws-sdk/types': 3.973.15
+      '@smithy/core': 3.29.0
+      '@smithy/types': 4.15.1
       tslib: 2.8.1
 
   '@aws-sdk/client-bedrock-agent-runtime@3.1024.0':
@@ -12310,7 +12325,7 @@ snapshots:
       '@smithy/util-endpoints': 3.5.0
       '@smithy/util-middleware': 4.3.0
       '@smithy/util-retry': 4.4.0
-      '@smithy/util-utf8': 4.2.2
+      '@smithy/util-utf8': 4.4.5
       tslib: 2.8.1
     transitivePeerDependencies:
       - aws-crt
@@ -12362,56 +12377,24 @@ snapshots:
       '@smithy/util-middleware': 4.3.0
       '@smithy/util-retry': 4.4.0
       '@smithy/util-stream': 4.6.0
-      '@smithy/util-utf8': 4.2.2
+      '@smithy/util-utf8': 4.4.5
       tslib: 2.8.1
     transitivePeerDependencies:
       - aws-crt
 
-  '@aws-sdk/client-cloudwatch@3.1024.0':
+  '@aws-sdk/client-cloudwatch@3.1056.0':
     dependencies:
       '@aws-crypto/sha256-browser': 5.2.0
       '@aws-crypto/sha256-js': 5.2.0
       '@aws-sdk/core': 3.974.15
       '@aws-sdk/credential-provider-node': 3.972.47
-      '@aws-sdk/middleware-host-header': 3.972.11
-      '@aws-sdk/middleware-logger': 3.972.10
-      '@aws-sdk/middleware-recursion-detection': 3.972.12
-      '@aws-sdk/middleware-user-agent': 3.972.39
-      '@aws-sdk/region-config-resolver': 3.972.14
       '@aws-sdk/types': 3.973.9
-      '@aws-sdk/util-endpoints': 3.996.9
-      '@aws-sdk/util-user-agent-browser': 3.972.11
-      '@aws-sdk/util-user-agent-node': 3.973.25
-      '@smithy/config-resolver': 4.5.0
-      '@smithy/core': 3.24.5
+      '@smithy/core': 3.29.0
       '@smithy/fetch-http-handler': 5.4.5
-      '@smithy/hash-node': 4.3.0
-      '@smithy/invalid-dependency': 4.3.0
-      '@smithy/middleware-compression': 4.3.42
-      '@smithy/middleware-content-length': 4.3.0
-      '@smithy/middleware-endpoint': 4.5.0
-      '@smithy/middleware-retry': 4.6.0
-      '@smithy/middleware-serde': 4.3.0
-      '@smithy/middleware-stack': 4.3.0
-      '@smithy/node-config-provider': 4.4.0
-      '@smithy/node-http-handler': 4.5.1
-      '@smithy/protocol-http': 5.4.0
-      '@smithy/smithy-client': 4.13.0
-      '@smithy/types': 4.14.2
-      '@smithy/url-parser': 4.3.0
-      '@smithy/util-base64': 4.3.2
-      '@smithy/util-body-length-browser': 4.2.2
-      '@smithy/util-body-length-node': 4.2.3
-      '@smithy/util-defaults-mode-browser': 4.4.0
-      '@smithy/util-defaults-mode-node': 4.3.0
-      '@smithy/util-endpoints': 3.5.0
-      '@smithy/util-middleware': 4.3.0
-      '@smithy/util-retry': 4.4.0
-      '@smithy/util-utf8': 4.2.2
-      '@smithy/util-waiter': 4.2.14
+      '@smithy/middleware-compression': 4.5.6
+      '@smithy/node-http-handler': 4.7.5
+      '@smithy/types': 4.15.1
       tslib: 2.8.1
-    transitivePeerDependencies:
-      - aws-crt
 
   '@aws-sdk/client-cognito-identity@3.1056.0':
     dependencies:
@@ -12465,138 +12448,58 @@ snapshots:
       '@smithy/util-endpoints': 3.5.0
       '@smithy/util-middleware': 4.3.0
       '@smithy/util-retry': 4.4.0
-      '@smithy/util-utf8': 4.2.2
+      '@smithy/util-utf8': 4.4.5
       tslib: 2.8.1
     transitivePeerDependencies:
       - aws-crt
 
-  '@aws-sdk/client-lambda@3.1046.0':
+  '@aws-sdk/client-lambda@3.1056.0':
     dependencies:
       '@aws-crypto/sha256-browser': 5.2.0
       '@aws-crypto/sha256-js': 5.2.0
       '@aws-sdk/core': 3.974.15
       '@aws-sdk/credential-provider-node': 3.972.47
-      '@aws-sdk/middleware-host-header': 3.972.11
-      '@aws-sdk/middleware-logger': 3.972.10
-      '@aws-sdk/middleware-recursion-detection': 3.972.12
-      '@aws-sdk/middleware-user-agent': 3.972.39
-      '@aws-sdk/region-config-resolver': 3.972.14
       '@aws-sdk/types': 3.973.9
-      '@aws-sdk/util-endpoints': 3.996.9
-      '@aws-sdk/util-user-agent-browser': 3.972.11
-      '@aws-sdk/util-user-agent-node': 3.973.25
-      '@smithy/core': 3.24.5
+      '@smithy/core': 3.29.0
       '@smithy/fetch-http-handler': 5.4.5
       '@smithy/node-http-handler': 4.7.5
-      '@smithy/types': 4.14.2
+      '@smithy/types': 4.15.1
       tslib: 2.8.1
-    transitivePeerDependencies:
-      - aws-crt
 
-  '@aws-sdk/client-s3@3.1024.0':
+  '@aws-sdk/client-s3@3.1056.0':
     dependencies:
       '@aws-crypto/sha1-browser': 5.2.0
       '@aws-crypto/sha256-browser': 5.2.0
       '@aws-crypto/sha256-js': 5.2.0
       '@aws-sdk/core': 3.974.15
       '@aws-sdk/credential-provider-node': 3.972.47
-      '@aws-sdk/middleware-bucket-endpoint': 3.972.8
-      '@aws-sdk/middleware-expect-continue': 3.972.8
-      '@aws-sdk/middleware-flexible-checksums': 3.974.6
-      '@aws-sdk/middleware-host-header': 3.972.11
-      '@aws-sdk/middleware-location-constraint': 3.972.8
-      '@aws-sdk/middleware-logger': 3.972.10
-      '@aws-sdk/middleware-recursion-detection': 3.972.12
-      '@aws-sdk/middleware-sdk-s3': 3.972.37
-      '@aws-sdk/middleware-ssec': 3.972.8
-      '@aws-sdk/middleware-user-agent': 3.972.39
-      '@aws-sdk/region-config-resolver': 3.972.14
+      '@aws-sdk/middleware-bucket-endpoint': 3.972.31
+      '@aws-sdk/middleware-expect-continue': 3.972.27
+      '@aws-sdk/middleware-flexible-checksums': 3.974.37
+      '@aws-sdk/middleware-location-constraint': 3.972.24
+      '@aws-sdk/middleware-sdk-s3': 3.972.58
+      '@aws-sdk/middleware-ssec': 3.972.24
       '@aws-sdk/signature-v4-multi-region': 3.996.30
       '@aws-sdk/types': 3.973.9
-      '@aws-sdk/util-endpoints': 3.996.9
-      '@aws-sdk/util-user-agent-browser': 3.972.11
-      '@aws-sdk/util-user-agent-node': 3.973.25
-      '@smithy/config-resolver': 4.5.0
-      '@smithy/core': 3.24.5
-      '@smithy/eventstream-serde-browser': 4.2.12
-      '@smithy/eventstream-serde-config-resolver': 4.3.12
-      '@smithy/eventstream-serde-node': 4.2.12
+      '@smithy/core': 3.29.0
       '@smithy/fetch-http-handler': 5.4.5
-      '@smithy/hash-blob-browser': 4.2.13
-      '@smithy/hash-node': 4.3.0
-      '@smithy/hash-stream-node': 4.2.12
-      '@smithy/invalid-dependency': 4.3.0
-      '@smithy/md5-js': 4.2.12
-      '@smithy/middleware-content-length': 4.3.0
-      '@smithy/middleware-endpoint': 4.5.0
-      '@smithy/middleware-retry': 4.6.0
-      '@smithy/middleware-serde': 4.3.0
-      '@smithy/middleware-stack': 4.3.0
-      '@smithy/node-config-provider': 4.4.0
-      '@smithy/node-http-handler': 4.5.1
-      '@smithy/protocol-http': 5.4.0
-      '@smithy/smithy-client': 4.13.0
-      '@smithy/types': 4.14.2
-      '@smithy/url-parser': 4.3.0
-      '@smithy/util-base64': 4.3.2
-      '@smithy/util-body-length-browser': 4.2.2
-      '@smithy/util-body-length-node': 4.2.3
-      '@smithy/util-defaults-mode-browser': 4.4.0
-      '@smithy/util-defaults-mode-node': 4.3.0
-      '@smithy/util-endpoints': 3.5.0
-      '@smithy/util-middleware': 4.3.0
-      '@smithy/util-retry': 4.4.0
-      '@smithy/util-stream': 4.6.0
-      '@smithy/util-utf8': 4.2.2
-      '@smithy/util-waiter': 4.2.14
+      '@smithy/node-http-handler': 4.7.5
+      '@smithy/types': 4.15.1
       tslib: 2.8.1
-    transitivePeerDependencies:
-      - aws-crt
 
-  '@aws-sdk/client-sesv2@3.1045.0':
+  '@aws-sdk/client-sesv2@3.1056.0':
     dependencies:
       '@aws-crypto/sha256-browser': 5.2.0
       '@aws-crypto/sha256-js': 5.2.0
       '@aws-sdk/core': 3.974.15
       '@aws-sdk/credential-provider-node': 3.972.47
-      '@aws-sdk/middleware-host-header': 3.972.11
-      '@aws-sdk/middleware-logger': 3.972.10
-      '@aws-sdk/middleware-recursion-detection': 3.972.12
-      '@aws-sdk/middleware-user-agent': 3.972.39
-      '@aws-sdk/region-config-resolver': 3.972.14
       '@aws-sdk/signature-v4-multi-region': 3.996.30
       '@aws-sdk/types': 3.973.9
-      '@aws-sdk/util-endpoints': 3.996.9
-      '@aws-sdk/util-user-agent-browser': 3.972.11
-      '@aws-sdk/util-user-agent-node': 3.973.25
-      '@smithy/config-resolver': 4.5.0
-      '@smithy/core': 3.24.5
+      '@smithy/core': 3.29.0
       '@smithy/fetch-http-handler': 5.4.5
-      '@smithy/hash-node': 4.3.0
-      '@smithy/invalid-dependency': 4.3.0
-      '@smithy/middleware-content-length': 4.3.0
-      '@smithy/middleware-endpoint': 4.5.0
-      '@smithy/middleware-retry': 4.6.0
-      '@smithy/middleware-serde': 4.3.0
-      '@smithy/middleware-stack': 4.3.0
-      '@smithy/node-config-provider': 4.4.0
       '@smithy/node-http-handler': 4.7.5
-      '@smithy/protocol-http': 5.4.0
-      '@smithy/smithy-client': 4.13.0
-      '@smithy/types': 4.14.2
-      '@smithy/url-parser': 4.3.0
-      '@smithy/util-base64': 4.3.2
-      '@smithy/util-body-length-browser': 4.2.2
-      '@smithy/util-body-length-node': 4.2.3
-      '@smithy/util-defaults-mode-browser': 4.4.0
-      '@smithy/util-defaults-mode-node': 4.3.0
-      '@smithy/util-endpoints': 3.5.0
-      '@smithy/util-middleware': 4.3.0
-      '@smithy/util-retry': 4.4.0
-      '@smithy/util-utf8': 4.2.2
+      '@smithy/types': 4.15.1
       tslib: 2.8.1
-    transitivePeerDependencies:
-      - aws-crt
 
   '@aws-sdk/core@3.974.15':
     dependencies:
@@ -12609,9 +12512,15 @@ snapshots:
       bowser: 2.14.1
       tslib: 2.8.1
 
-  '@aws-sdk/crc64-nvme@3.972.5':
+  '@aws-sdk/core@3.974.27':
     dependencies:
+      '@aws-sdk/types': 3.973.15
+      '@aws-sdk/xml-builder': 3.972.33
+      '@aws/lambda-invoke-store': 0.3.0
+      '@smithy/core': 3.29.0
+      '@smithy/signature-v4': 5.6.2
       '@smithy/types': 4.15.1
+      bowser: 2.14.1
       tslib: 2.8.1
 
   '@aws-sdk/credential-provider-cognito-identity@3.972.38':
@@ -12733,26 +12642,19 @@ snapshots:
       '@smithy/types': 4.15.1
       tslib: 2.8.1
 
-  '@aws-sdk/lib-storage@3.1024.0(@aws-sdk/client-s3@3.1024.0)':
+  '@aws-sdk/lib-storage@3.1056.0(@aws-sdk/client-s3@3.1056.0)':
     dependencies:
-      '@aws-sdk/client-s3': 3.1024.0
-      '@smithy/middleware-endpoint': 4.5.0
-      '@smithy/protocol-http': 5.4.0
-      '@smithy/smithy-client': 4.13.0
-      '@smithy/types': 4.14.2
+      '@aws-sdk/client-s3': 3.1056.0
+      '@smithy/core': 3.29.0
+      '@smithy/types': 4.15.1
       buffer: 5.6.0
       events: 3.3.0
       stream-browserify: 3.0.0
       tslib: 2.8.1
 
-  '@aws-sdk/middleware-bucket-endpoint@3.972.8':
+  '@aws-sdk/middleware-bucket-endpoint@3.972.31':
     dependencies:
-      '@aws-sdk/types': 3.973.9
-      '@aws-sdk/util-arn-parser': 3.972.3
-      '@smithy/node-config-provider': 4.4.0
-      '@smithy/protocol-http': 5.4.0
-      '@smithy/types': 4.15.1
-      '@smithy/util-config-provider': 4.2.2
+      '@aws-sdk/middleware-sdk-s3': 3.972.58
       tslib: 2.8.1
 
   '@aws-sdk/middleware-eventstream@3.972.8':
@@ -12762,28 +12664,14 @@ snapshots:
       '@smithy/types': 4.15.1
       tslib: 2.8.1
 
-  '@aws-sdk/middleware-expect-continue@3.972.8':
+  '@aws-sdk/middleware-expect-continue@3.972.27':
     dependencies:
-      '@aws-sdk/types': 3.973.9
-      '@smithy/protocol-http': 5.4.0
-      '@smithy/types': 4.15.1
+      '@aws-sdk/middleware-sdk-s3': 3.972.58
       tslib: 2.8.1
 
-  '@aws-sdk/middleware-flexible-checksums@3.974.6':
+  '@aws-sdk/middleware-flexible-checksums@3.974.37':
     dependencies:
-      '@aws-crypto/crc32': 5.2.0
-      '@aws-crypto/crc32c': 5.2.0
-      '@aws-crypto/util': 5.2.0
-      '@aws-sdk/core': 3.974.15
-      '@aws-sdk/crc64-nvme': 3.972.5
-      '@aws-sdk/types': 3.973.9
-      '@smithy/is-array-buffer': 4.2.2
-      '@smithy/node-config-provider': 4.4.0
-      '@smithy/protocol-http': 5.4.0
-      '@smithy/types': 4.15.1
-      '@smithy/util-middleware': 4.3.0
-      '@smithy/util-stream': 4.6.0
-      '@smithy/util-utf8': 4.2.2
+      '@aws-sdk/checksums': 3.1000.12
       tslib: 2.8.1
 
   '@aws-sdk/middleware-host-header@3.972.11':
@@ -12793,10 +12681,9 @@ snapshots:
       '@smithy/types': 4.15.1
       tslib: 2.8.1
 
-  '@aws-sdk/middleware-location-constraint@3.972.8':
+  '@aws-sdk/middleware-location-constraint@3.972.24':
     dependencies:
-      '@aws-sdk/types': 3.973.9
-      '@smithy/types': 4.15.1
+      '@aws-sdk/middleware-sdk-s3': 3.972.58
       tslib: 2.8.1
 
   '@aws-sdk/middleware-logger@3.972.10':
@@ -12813,27 +12700,18 @@ snapshots:
       '@smithy/types': 4.15.1
       tslib: 2.8.1
 
-  '@aws-sdk/middleware-sdk-s3@3.972.37':
+  '@aws-sdk/middleware-sdk-s3@3.972.58':
     dependencies:
-      '@aws-sdk/core': 3.974.15
-      '@aws-sdk/types': 3.973.9
-      '@aws-sdk/util-arn-parser': 3.972.3
+      '@aws-sdk/core': 3.974.27
+      '@aws-sdk/signature-v4-multi-region': 3.996.38
+      '@aws-sdk/types': 3.973.15
       '@smithy/core': 3.29.0
-      '@smithy/node-config-provider': 4.4.0
-      '@smithy/protocol-http': 5.4.0
-      '@smithy/signature-v4': 5.4.5
-      '@smithy/smithy-client': 4.13.0
       '@smithy/types': 4.15.1
-      '@smithy/util-config-provider': 4.2.2
-      '@smithy/util-middleware': 4.3.0
-      '@smithy/util-stream': 4.6.0
-      '@smithy/util-utf8': 4.2.2
       tslib: 2.8.1
 
-  '@aws-sdk/middleware-ssec@3.972.8':
+  '@aws-sdk/middleware-ssec@3.972.24':
     dependencies:
-      '@aws-sdk/types': 3.973.9
-      '@smithy/types': 4.15.1
+      '@aws-sdk/middleware-sdk-s3': 3.972.58
       tslib: 2.8.1
 
   '@aws-sdk/middleware-user-agent@3.972.39':
@@ -12857,7 +12735,7 @@ snapshots:
       '@smithy/types': 4.15.1
       '@smithy/util-base64': 4.3.2
       '@smithy/util-hex-encoding': 4.2.2
-      '@smithy/util-utf8': 4.2.2
+      '@smithy/util-utf8': 4.4.5
       tslib: 2.8.1
 
   '@aws-sdk/nested-clients@3.997.13':
@@ -12880,21 +12758,26 @@ snapshots:
       '@smithy/types': 4.15.1
       tslib: 2.8.1
 
-  '@aws-sdk/s3-request-presigner@3.1024.0':
+  '@aws-sdk/s3-request-presigner@3.1056.0':
     dependencies:
+      '@aws-sdk/core': 3.974.15
       '@aws-sdk/signature-v4-multi-region': 3.996.30
       '@aws-sdk/types': 3.973.9
-      '@aws-sdk/util-format-url': 3.972.8
-      '@smithy/middleware-endpoint': 4.5.0
-      '@smithy/protocol-http': 5.4.0
-      '@smithy/smithy-client': 4.13.0
-      '@smithy/types': 4.14.2
+      '@smithy/core': 3.29.0
+      '@smithy/types': 4.15.1
       tslib: 2.8.1
 
   '@aws-sdk/signature-v4-multi-region@3.996.30':
     dependencies:
       '@aws-sdk/types': 3.973.9
       '@smithy/signature-v4': 5.4.5
+      '@smithy/types': 4.15.1
+      tslib: 2.8.1
+
+  '@aws-sdk/signature-v4-multi-region@3.996.38':
+    dependencies:
+      '@aws-sdk/types': 3.973.15
+      '@smithy/signature-v4': 5.6.2
       '@smithy/types': 4.15.1
       tslib: 2.8.1
 
@@ -12917,13 +12800,14 @@ snapshots:
       '@smithy/types': 4.15.1
       tslib: 2.8.1
 
-  '@aws-sdk/types@3.973.9':
+  '@aws-sdk/types@3.973.15':
     dependencies:
       '@smithy/types': 4.15.1
       tslib: 2.8.1
 
-  '@aws-sdk/util-arn-parser@3.972.3':
+  '@aws-sdk/types@3.973.9':
     dependencies:
+      '@smithy/types': 4.15.1
       tslib: 2.8.1
 
   '@aws-sdk/util-endpoints@3.996.9':
@@ -12965,7 +12849,14 @@ snapshots:
       fast-xml-parser: 5.7.3
       tslib: 2.8.1
 
+  '@aws-sdk/xml-builder@3.972.33':
+    dependencies:
+      '@smithy/types': 4.15.1
+      tslib: 2.8.1
+
   '@aws/lambda-invoke-store@0.2.4': {}
+
+  '@aws/lambda-invoke-store@0.3.0': {}
 
   '@azure/abort-controller@2.1.2':
     dependencies:
@@ -16403,27 +16294,17 @@ snapshots:
     transitivePeerDependencies:
       - debug
 
-  '@smithy/chunked-blob-reader-native@4.2.3':
-    dependencies:
-      '@smithy/util-base64': 4.3.2
-      tslib: 2.8.1
-
-  '@smithy/chunked-blob-reader@5.2.2':
-    dependencies:
-      tslib: 2.8.1
-
   '@smithy/config-resolver@4.5.0':
     dependencies:
       '@smithy/core': 3.29.0
       tslib: 2.8.1
 
-  '@smithy/core@3.24.5':
+  '@smithy/core@3.29.0':
     dependencies:
-      '@aws-crypto/crc32': 5.2.0
       '@smithy/types': 4.15.1
       tslib: 2.8.1
 
-  '@smithy/core@3.29.0':
+  '@smithy/core@3.29.1':
     dependencies:
       '@smithy/types': 4.15.1
       tslib: 2.8.1
@@ -16465,7 +16346,7 @@ snapshots:
 
   '@smithy/eventstream-serde-universal@4.2.12':
     dependencies:
-      '@smithy/eventstream-codec': 4.2.12
+      '@smithy/eventstream-codec': 4.4.5
       '@smithy/types': 4.15.1
       tslib: 2.8.1
 
@@ -16475,22 +16356,9 @@ snapshots:
       '@smithy/types': 4.15.1
       tslib: 2.8.1
 
-  '@smithy/hash-blob-browser@4.2.13':
-    dependencies:
-      '@smithy/chunked-blob-reader': 5.2.2
-      '@smithy/chunked-blob-reader-native': 4.2.3
-      '@smithy/types': 4.15.1
-      tslib: 2.8.1
-
   '@smithy/hash-node@4.3.0':
     dependencies:
       '@smithy/core': 3.29.0
-      tslib: 2.8.1
-
-  '@smithy/hash-stream-node@4.2.12':
-    dependencies:
-      '@smithy/types': 4.15.1
-      '@smithy/util-utf8': 4.2.2
       tslib: 2.8.1
 
   '@smithy/invalid-dependency@4.3.0':
@@ -16506,22 +16374,10 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  '@smithy/md5-js@4.2.12':
+  '@smithy/middleware-compression@4.5.6':
     dependencies:
+      '@smithy/core': 3.29.1
       '@smithy/types': 4.15.1
-      '@smithy/util-utf8': 4.2.2
-      tslib: 2.8.1
-
-  '@smithy/middleware-compression@4.3.42':
-    dependencies:
-      '@smithy/core': 3.29.0
-      '@smithy/is-array-buffer': 4.2.2
-      '@smithy/node-config-provider': 4.4.0
-      '@smithy/protocol-http': 5.4.0
-      '@smithy/types': 4.15.1
-      '@smithy/util-config-provider': 4.2.2
-      '@smithy/util-middleware': 4.3.0
-      '@smithy/util-utf8': 4.2.2
       fflate: 0.8.1
       tslib: 2.8.1
 
@@ -16595,6 +16451,12 @@ snapshots:
       '@smithy/types': 4.15.1
       tslib: 2.8.1
 
+  '@smithy/signature-v4@5.6.2':
+    dependencies:
+      '@smithy/core': 3.29.1
+      '@smithy/types': 4.15.1
+      tslib: 2.8.1
+
   '@smithy/smithy-client@4.13.0':
     dependencies:
       '@smithy/core': 3.29.0
@@ -16617,7 +16479,7 @@ snapshots:
   '@smithy/util-base64@4.3.2':
     dependencies:
       '@smithy/util-buffer-from': 4.2.2
-      '@smithy/util-utf8': 4.2.2
+      '@smithy/util-utf8': 4.4.5
       tslib: 2.8.1
 
   '@smithy/util-body-length-browser@4.2.2':
@@ -16636,10 +16498,6 @@ snapshots:
   '@smithy/util-buffer-from@4.2.2':
     dependencies:
       '@smithy/is-array-buffer': 4.2.2
-      tslib: 2.8.1
-
-  '@smithy/util-config-provider@4.2.2':
-    dependencies:
       tslib: 2.8.1
 
   '@smithy/util-defaults-mode-browser@4.4.0':
@@ -16693,11 +16551,6 @@ snapshots:
   '@smithy/util-utf8@4.4.5':
     dependencies:
       '@smithy/core': 3.29.0
-      tslib: 2.8.1
-
-  '@smithy/util-waiter@4.2.14':
-    dependencies:
-      '@smithy/types': 4.15.1
       tslib: 2.8.1
 
   '@stablelib/base64@1.0.1': {}
