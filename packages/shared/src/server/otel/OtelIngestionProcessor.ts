@@ -1676,6 +1676,30 @@ export class OtelIngestionProcessor {
       }
     }
 
+    // OpenTelemetry GenAI semconv v1.37+ records prompts and completions on a
+    // gen_ai.client.inference.operation.details span event instead of span
+    // attributes (https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-events/)
+    const operationDetailsEvents = events.filter(
+      (event: Record<string, unknown>) =>
+        event.name === "gen_ai.client.inference.operation.details",
+    );
+    for (const event of operationDetailsEvents) {
+      const eventAttributes: Record<string, unknown> =
+        event.attributes?.reduce(
+          (acc: Record<string, unknown>, attr: any) => {
+            acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
+            return acc;
+          },
+          {} as Record<string, unknown>,
+        ) ?? {};
+
+      const genAiInputOutput =
+        this.extractOpenTelemetryGenAiInputAndOutput(eventAttributes);
+      if (genAiInputOutput) {
+        return { ...genAiInputOutput, filteredAttributes };
+      }
+    }
+
     const inputEvents = events.filter(
       (event: Record<string, unknown>) =>
         event.name === "gen_ai.system.message" ||
