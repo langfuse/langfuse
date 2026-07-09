@@ -18,8 +18,8 @@ import {
   type WriteSandboxOperation,
 } from "./contracts.js";
 
-const SERVER_PORT = Number(process.env.PORT ?? 5000);
-const WORKSPACE_ROOT = process.env.WORKSPACE_ROOT ?? "/workspace";
+const SERVER_PORT = 5000;
+const WORKSPACE_ROOT = "/workspace";
 const TOOL_CALLS_ROOT = path.join(WORKSPACE_ROOT, "tool_calls");
 const MICROVM_RUNTIME_HOOKS_ROOT = "/aws/lambda-microvms/runtime/v1";
 let requestCounter = 0;
