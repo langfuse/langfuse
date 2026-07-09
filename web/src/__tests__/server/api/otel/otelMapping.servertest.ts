@@ -4478,6 +4478,156 @@ describe("OTel Resource Span Mapping", () => {
       );
     });
 
+    // GenAI semantic conventions v1.37+ record prompts/completions on a
+    // gen_ai.client.inference.operation.details span event (e.g. Hindsight)
+    it("should extract input/output from gen_ai.client.inference.operation.details span event", async () => {
+      const inputMessages = JSON.stringify([
+        {
+          role: "user",
+          parts: [{ type: "text", content: "What is the capital of France?" }],
+        },
+      ]);
+      const outputMessages = JSON.stringify([
+        {
+          role: "assistant",
+          parts: [{ type: "text", content: "Paris" }],
+          finish_reason: "stop",
+        },
+      ]);
+
+      const resourceSpan = {
+        resource: {},
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                attributes: [
+                  {
+                    key: "gen_ai.operation.name",
+                    value: { stringValue: "chat" },
+                  },
+                  {
+                    key: "gen_ai.request.model",
+                    value: { stringValue: "gpt-4o-mini" },
+                  },
+                ],
+                events: [
+                  {
+                    timeUnixNano: {
+                      low: 1327691067,
+                      high: 404677085,
+                      unsigned: true,
+                    },
+                    name: "gen_ai.client.inference.operation.details",
+                    attributes: [
+                      {
+                        key: "gen_ai.input.messages",
+                        value: { stringValue: inputMessages },
+                      },
+                      {
+                        key: "gen_ai.output.messages",
+                        value: { stringValue: outputMessages },
+                      },
+                      {
+                        key: "gen_ai.system_instructions",
+                        value: { stringValue: "You are a helpful assistant." },
+                      },
+                      {
+                        key: "gen_ai.response.finish_reasons",
+                        value: { stringValue: JSON.stringify(["stop"]) },
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const langfuseEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+
+      const observation = langfuseEvents.find(
+        (e) => e.type.endsWith("-create") && e.type !== "trace-create",
+      );
+
+      // Input contains the chat history with system instructions prepended
+      expect(observation?.body.input).toBeDefined();
+      const inputParsed =
+        typeof observation?.body.input === "string"
+          ? JSON.parse(observation.body.input)
+          : observation?.body.input;
+      expect(Array.isArray(inputParsed)).toBe(true);
+      expect(inputParsed[0]).toEqual({
+        role: "system",
+        content: "You are a helpful assistant.",
+      });
+      expect(inputParsed[1].role).toBe("user");
+      expect(inputParsed[1].parts[0].content).toBe(
+        "What is the capital of France?",
+      );
+
+      // Output contains the model response messages
+      expect(observation?.body.output).toBeDefined();
+      const outputParsed =
+        typeof observation?.body.output === "string"
+          ? JSON.parse(observation.body.output)
+          : observation?.body.output;
+      expect(Array.isArray(outputParsed)).toBe(true);
+      expect(outputParsed[0].role).toBe("assistant");
+      expect(outputParsed[0].parts[0].content).toBe("Paris");
+    });
+
+    it("should extract output from gen_ai.client.inference.operation.details span event without system instructions", async () => {
+      const outputMessages = JSON.stringify([
+        {
+          role: "assistant",
+          parts: [{ type: "text", content: "Hello!" }],
+          finish_reason: "stop",
+        },
+      ]);
+
+      const resourceSpan = {
+        resource: {},
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                events: [
+                  {
+                    name: "gen_ai.client.inference.operation.details",
+                    attributes: [
+                      {
+                        key: "gen_ai.output.messages",
+                        value: { stringValue: outputMessages },
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const langfuseEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+
+      const observation = langfuseEvents.find(
+        (e) => e.type.endsWith("-create") && e.type !== "trace-create",
+      );
+
+      expect(observation?.body.input).toBeFalsy();
+      expect(observation?.body.output).toBe(outputMessages);
+    });
+
     it("should move gen_ai.tool.definitions from metadata to observation input", async () => {
       const traceId = "abcdef1234567890abcdef1234567892";
       const rootSpanId = "1234567890abcdeb";
