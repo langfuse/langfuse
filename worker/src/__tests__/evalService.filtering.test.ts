@@ -701,4 +701,60 @@ describe("test eval filtering", () => {
     // Both configs should produce a job — the metadata filter should match
     expect(jobs.length).toBe(2);
   }, 10_000);
+
+  test("evaluates non-metadata filters in memory when metadata is excluded from the cached trace fetch", async ({
+    expect,
+    projectId,
+    traceId1,
+    upsertTrace,
+    configureJob,
+    getJobs,
+  }) => {
+    // The trace carries metadata, but no config filters on it, so the cached
+    // trace fetch drops the metadata column entirely.
+    await upsertTrace({
+      id: traceId1,
+      name: "important-trace",
+      metadata: { tier: "premium" },
+    });
+
+    // Two configs so configs.length > 1 triggers the cached trace path.
+    await configureJob({
+      scoreName: "name-match",
+      filter: [
+        {
+          type: "string",
+          value: "important-trace",
+          column: "Name",
+          operator: "=",
+        },
+      ],
+    });
+    await configureJob({
+      scoreName: "name-mismatch",
+      filter: [
+        {
+          type: "string",
+          value: "other-trace",
+          column: "Name",
+          operator: "=",
+        },
+      ],
+    });
+
+    await createEvalJobs({
+      event: { projectId, traceId: traceId1 },
+      jobTimestamp: new Date(),
+    });
+
+    const jobs = await getJobs();
+    // In-memory evaluation on the metadata-less trace must still discriminate
+    // between the two name filters.
+    expect(jobs.length).toBe(1);
+    expect(jobs[0].jobInputTraceId).toBe(traceId1);
+    const matchingConfig = await prisma.jobConfiguration.findFirst({
+      where: { projectId, scoreName: "name-match" },
+    });
+    expect(jobs[0].jobConfigurationId).toBe(matchingConfig?.id);
+  }, 10_000);
 });

@@ -313,22 +313,54 @@ export const getTracesBySessionId = async (
   return traces;
 };
 
-export const hasAnyTrace = async (projectId: string) => {
-  // Check PostgreSQL flag first — once set, it's never reverted
+/**
+ * Read-through shortcut on the project's `hasTraces` flag — once set, the flag
+ * is never reverted, so a true value can skip ClickHouse entirely.
+ */
+export const readProjectHasTracesFlag = async (
+  projectId: string,
+): Promise<boolean> => {
   try {
     const project = await prisma.project.findUnique({
       where: { id: projectId },
       select: { hasTraces: true },
     });
-    if (project?.hasTraces) {
-      return true;
-    }
+    return project?.hasTraces === true;
   } catch (error) {
     traceException(error);
     logger.error("Failed to read hasTraces flag from PostgreSQL", {
       projectId,
       error,
     });
+    return false;
+  }
+};
+
+/**
+ * Persist a positive tracing-data detection on the project's `hasTraces` flag.
+ * Only updates if not already set to avoid unnecessary writes.
+ */
+export const persistProjectHasTracesFlag = async (
+  projectId: string,
+): Promise<void> => {
+  try {
+    await prisma.project.updateMany({
+      where: { id: projectId, hasTraces: false },
+      data: { hasTraces: true },
+    });
+  } catch (error) {
+    traceException(error);
+    logger.error("Failed to persist hasTraces flag to PostgreSQL", {
+      projectId,
+      error,
+    });
+  }
+};
+
+export const hasAnyTrace = async (projectId: string) => {
+  // Check PostgreSQL flag first — once set, it's never reverted
+  if (await readProjectHasTracesFlag(projectId)) {
+    return true;
   }
 
   const result = await measureAndReturn({
@@ -362,20 +394,8 @@ export const hasAnyTrace = async (projectId: string) => {
   });
 
   // Persist positive result in PostgreSQL — once a project has traces, it stays true
-  // Only update if not already set to avoid unnecessary writes
   if (result) {
-    try {
-      await prisma.project.updateMany({
-        where: { id: projectId, hasTraces: false },
-        data: { hasTraces: true },
-      });
-    } catch (error) {
-      traceException(error);
-      logger.error("Failed to persist hasTraces flag to PostgreSQL", {
-        projectId,
-        error,
-      });
-    }
+    await persistProjectHasTracesFlag(projectId);
   }
 
   return result;
@@ -520,7 +540,9 @@ export const getTraceByIdFromTracesTable = async ({
         : renderingProps.truncated
           ? `leftUTF8(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`
           : "output";
-      const metadataColumn = excludeMetadata ? "'{}'" : "metadata";
+      // map() (not a '{}' string literal) so the excluded column keeps the
+      // Map type and converts to an empty object in the domain model.
+      const metadataColumn = excludeMetadata ? "map()" : "metadata";
 
       const query = `
         SELECT

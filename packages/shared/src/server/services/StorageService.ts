@@ -271,6 +271,11 @@ export interface StorageService {
   deleteFiles(paths: string[]): Promise<void>;
 }
 
+// Keys per S3 DeleteObjects request. The API hard limit is 1000; 900 leaves a
+// margin. Exported so callers that batch their own deletes can size a batch to
+// exactly one request instead of duplicating the number.
+export const S3_DELETE_OBJECTS_CHUNK_SIZE = 900;
+
 export class StorageServiceFactory {
   /**
    * Get an instance of the StorageService
@@ -925,7 +930,7 @@ class S3StorageService implements StorageService {
   }
 
   async deleteFilesNonRetrying(paths: string[]): Promise<void> {
-    const chunkSize = 900;
+    const chunkSize = S3_DELETE_OBJECTS_CHUNK_SIZE;
     const chunks = [];
 
     for (let i = 0; i < paths.length; i += chunkSize) {

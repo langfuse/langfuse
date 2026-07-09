@@ -11,7 +11,6 @@ import {
   paginationZod,
   timeFilter,
 } from "@langfuse/shared";
-import { MonitorWindowSchema } from "@langfuse/shared/monitors";
 import {
   toDomainArrayWithStringifiedMetadata,
   toDomainWithStringifiedMetadata,
@@ -59,7 +58,6 @@ export type GetAllEventsInput = z.infer<typeof GetAllEventsInput>;
 const GetEventFilterOptionsInput = zodSchema.object({
   projectId: zodSchema.string(),
   startTimeFilter: zodSchema.array(timeFilter).optional(),
-  monitorWindow: MonitorWindowSchema.optional(),
   isRootObservation: zodSchema.boolean().optional(),
   hasParentObservation: zodSchema.boolean().optional(),
   columns: zodSchema
@@ -82,6 +80,8 @@ export const BatchIOInput = zodSchema.object({
   minStartTime: zodSchema.date(),
   maxStartTime: zodSchema.date(),
   truncated: zodSchema.boolean().optional(), // Defaults to true for performance
+  // Opts into trace-level auth (public traces) in protectedGetTraceProcedure
+  traceId: zodSchema.string().optional(),
 });
 
 export type BatchIOInput = z.infer<typeof BatchIOInput>;
@@ -171,7 +171,6 @@ export const eventsRouter = createTRPCRouter({
           return getEventFilterOptions({
             projectId: input.projectId,
             startTimeFilter: input.startTimeFilter,
-            monitorWindow: input.monitorWindow,
             isRootObservation:
               input.isRootObservation ??
               (input.hasParentObservation !== undefined
@@ -182,18 +181,24 @@ export const eventsRouter = createTRPCRouter({
         },
       );
     }),
-  batchIO: protectedProjectProcedure
+  batchIO: protectedGetTraceProcedure
     .input(BatchIOInput)
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       return instrumentAsync(
         { name: "get-event-batch-io-trpc" },
         async (span) => {
           span.setAttribute("project_id", input.projectId);
           span.setAttribute("observation_count", input.observations.length);
 
+          // the middleware only authorized access to input.traceId (which may
+          // merely be public) — never fetch other traces' observations through it
+          const observations = input.traceId
+            ? input.observations.filter((o) => o.traceId === input.traceId)
+            : input.observations;
+
           const batchIO = await getEventBatchIO({
-            projectId: ctx.session.projectId,
-            observations: input.observations,
+            projectId: input.projectId,
+            observations,
             minStartTime: input.minStartTime,
             maxStartTime: input.maxStartTime,
             truncated: input.truncated,
