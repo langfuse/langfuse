@@ -143,7 +143,7 @@ export function SpendAlertsTable({ orgId }: SpendAlertsTableProps) {
   return (
     <>
       <DataTableToolbar columns={columns} />
-      <DataTable tableName={"spend-alerts"} columns={columns} data={data} />
+      <DataTable tableName="spend-alerts" columns={columns} data={data} />
 
       {editingAlert && editingAlertData && (
         <SpendAlertDialog
@@ -153,7 +153,7 @@ export function SpendAlertsTable({ orgId }: SpendAlertsTableProps) {
           onOpenChange={(open) => !open && setEditingAlert(null)}
           onSuccess={() => {
             setEditingAlert(null);
-            void refetch();
+            refetch();
           }}
         />
       )}
@@ -166,7 +166,7 @@ export function SpendAlertsTable({ orgId }: SpendAlertsTableProps) {
           onOpenChange={(open) => !open && setDeletingAlert(null)}
           onSuccess={() => {
             setDeletingAlert(null);
-            void refetch();
+            refetch();
           }}
         />
       )}

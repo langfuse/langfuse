@@ -4,6 +4,7 @@ import * as React from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 
 import { cn } from "@/src/utils/tailwind";
+import { useLayerContainer } from "@/src/components/ui/layer";
 import { useMediaQuery } from "react-responsive";
 import { cva } from "class-variance-authority";
 
@@ -35,7 +36,7 @@ type DrawerContentProps = React.ComponentPropsWithoutRef<
 // https://tailwindcss.com/docs/responsive-design
 const TAILWIND_MD_MEDIA_QUERY = 768;
 
-const drawerVariants = cva("fixed z-50 flex flex-col border bg-background", {
+const drawerVariants = cva("fixed flex flex-col border bg-background", {
   variants: {
     direction: {
       bottom: "inset-x-0 bottom-0 rounded-t-lg",
@@ -109,24 +110,32 @@ Drawer.displayName = "Drawer";
 
 const DrawerTrigger = DrawerPrimitive.Trigger;
 
-const DrawerPortal = DrawerPrimitive.Portal;
+// Route the Vaul portal into the `modal` overlay layer (null until mounted →
+// falls back to <body>, SSR-parity). Layer order, not z-index, stacks it.
+const DrawerPortal = ({
+  ...props
+}: React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Portal>) => {
+  const container = useLayerContainer("modal");
+  return <DrawerPrimitive.Portal container={container} {...props} />;
+};
+DrawerPortal.displayName = "DrawerPortal";
 
 const DrawerClose = DrawerPrimitive.Close;
 
 const DrawerOverlay = React.forwardRef<
-  React.ElementRef<typeof DrawerPrimitive.Overlay>,
+  React.ComponentRef<typeof DrawerPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Overlay>
 >(({ className, ...props }, ref) => (
   <DrawerPrimitive.Overlay
     ref={ref}
-    className={cn("bg-primary/20 fixed inset-0 z-50", className)}
+    className={cn("bg-primary/20 fixed inset-0", className)}
     {...props}
   />
 ));
 DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName;
 
 const DrawerContent = React.forwardRef<
-  React.ElementRef<typeof DrawerPrimitive.Content>,
+  React.ComponentRef<typeof DrawerPrimitive.Content>,
   DrawerContentProps
 >(
   (
@@ -181,7 +190,7 @@ const DrawerFooter = ({
 DrawerFooter.displayName = "DrawerFooter";
 
 const DrawerTitle = React.forwardRef<
-  React.ElementRef<typeof DrawerPrimitive.Title>,
+  React.ComponentRef<typeof DrawerPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Title>
 >(({ className, ...props }, ref) => (
   <DrawerPrimitive.Title
@@ -196,7 +205,7 @@ const DrawerTitle = React.forwardRef<
 DrawerTitle.displayName = DrawerPrimitive.Title.displayName;
 
 const DrawerDescription = React.forwardRef<
-  React.ElementRef<typeof DrawerPrimitive.Description>,
+  React.ComponentRef<typeof DrawerPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Description>
 >(({ className, ...props }, ref) => (
   <DrawerPrimitive.Description

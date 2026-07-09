@@ -19,6 +19,7 @@ import {
 } from "@langfuse/shared";
 import { sendMembershipInvitationEmail } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { throwIfExceedsLimit } from "@/src/features/entitlements/server/hasEntitlementLimit";
 import {
@@ -113,7 +114,7 @@ export const membersRouter = createTRPCRouter({
     .input(
       z.object({
         orgId: z.string(),
-        email: z.string().email(),
+        email: z.email(),
         orgRole: z.enum(Role),
         // in case a projectRole should be set for a specific project
         projectId: z.string().optional(),
@@ -268,12 +269,11 @@ export const membersRouter = createTRPCRouter({
               after: newProjectMembership,
             });
             return;
-          } else {
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message: "User is already a member of this organization",
-            });
           }
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "User is already a member of this organization",
+          });
         }
 
         // Check member limit before creating new membership
@@ -298,6 +298,13 @@ export const membersRouter = createTRPCRouter({
           resourceId: orgMembership.id,
           action: "create",
           after: orgMembership,
+        });
+        // SFDC: link existing lead to org as a member.
+        await getSfdcService()?.setUserRole({
+          orgId: input.orgId,
+          userId: user.id,
+          email: user.email,
+          role: input.orgRole,
         });
         if (project && input.projectRole && input.projectRole !== Role.NONE) {
           const projectMembership = await ctx.prisma.projectMembership.create({
@@ -405,6 +412,8 @@ export const membersRouter = createTRPCRouter({
         },
         include: {
           ProjectMemberships: true,
+          // user.email is read by the SFDC sync after delete.
+          user: { select: { email: true } },
         },
       });
       if (!orgMembership)
@@ -455,12 +464,21 @@ export const membersRouter = createTRPCRouter({
         before: orgMembership,
       });
 
-      return await ctx.prisma.organizationMembership.delete({
+      const deleted = await ctx.prisma.organizationMembership.delete({
         where: {
           id: orgMembership.id,
           orgId: input.orgId,
         },
       });
+
+      // SFDC: remove the org-member bridge.
+      await getSfdcService()?.removeUser({
+        orgId: input.orgId,
+        userId: orgMembership.userId,
+        email: orgMembership.user?.email,
+      });
+
+      return deleted;
     }),
   deleteInvite: protectedOrganizationProcedure
     .input(
@@ -542,6 +560,8 @@ export const membersRouter = createTRPCRouter({
           orgId: input.orgId,
           id: input.orgMembershipId,
         },
+        // user.email is read by the SFDC sync after update.
+        include: { user: { select: { email: true } } },
       });
       if (!membership) throw new TRPCError({ code: "NOT_FOUND" });
 
@@ -572,15 +592,7 @@ export const membersRouter = createTRPCRouter({
         });
       }
 
-      await auditLog({
-        session: ctx.session,
-        resourceType: "orgMembership",
-        resourceId: membership.id,
-        action: "update",
-        before: membership,
-      });
-
-      return await ctx.prisma.organizationMembership.update({
+      const updatedMembership = await ctx.prisma.organizationMembership.update({
         where: {
           id: membership.id,
           orgId: input.orgId,
@@ -589,6 +601,24 @@ export const membersRouter = createTRPCRouter({
           role: input.role,
         },
       });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "orgMembership",
+        resourceId: membership.id,
+        action: "update",
+        before: membership,
+        after: updatedMembership,
+      });
+
+      await getSfdcService()?.setUserRole({
+        orgId: input.orgId,
+        userId: membership.userId,
+        email: membership.user?.email,
+        role: input.role,
+      });
+
+      return updatedMembership;
     }),
   updateProjectRole: protectedOrganizationProcedure
     .input(
@@ -636,6 +666,19 @@ export const membersRouter = createTRPCRouter({
         });
       }
 
+      // orgMembershipId and userId are independent client inputs, but project
+      // access is resolved via orgMembershipId (OrganizationMembership.userId),
+      // not this row's userId. A mismatched pair would grant the role to the
+      // org membership owner while recording it against a different user in both
+      // the ProjectMembership row and the audit log, so reject it.
+      if (orgMembership.userId !== input.userId) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "The provided userId does not match the organization membership",
+        });
+      }
+
       // cannot edit project roles of users with higher org roles
       throwIfHigherRole({
         ownRole: ctx.session.orgRole,
@@ -675,7 +718,7 @@ export const membersRouter = createTRPCRouter({
           await auditLog({
             session: ctx.session,
             resourceType: "projectMembership",
-            resourceId: `${input.orgMembershipId}--${input.projectId}`,
+            resourceId: `${input.projectId}--${input.userId}`,
             action: "delete",
             before: projectMembership,
           });
@@ -716,9 +759,10 @@ export const membersRouter = createTRPCRouter({
       await auditLog({
         session: ctx.session,
         resourceType: "projectMembership",
-        resourceId: input.projectId + "--" + input.userId,
-        action: "update",
+        resourceId: `${input.projectId}--${input.userId}`,
+        action: projectMembership ? "update" : "create",
         before: projectMembership,
+        after: updatedProjectMembership,
       });
 
       return updatedProjectMembership;

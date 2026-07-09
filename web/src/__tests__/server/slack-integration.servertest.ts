@@ -1,3 +1,4 @@
+import type { Mock } from "vitest";
 import { prisma } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
 import { encrypt } from "@langfuse/shared/encryption";
@@ -7,12 +8,12 @@ import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
 // Mock SlackService
-jest.mock("@langfuse/shared/src/server", () => {
-  const actual = jest.requireActual("@langfuse/shared/src/server");
+vi.mock("@langfuse/shared/src/server", async () => {
+  const actual = await vi.importActual("@langfuse/shared/src/server");
   return {
     ...actual,
     SlackService: {
-      getInstance: jest.fn(),
+      getInstance: vi.fn(),
     },
   };
 });
@@ -76,16 +77,16 @@ describe("Slack Integration", () => {
 
     // Create mock service instance
     mockSlackService = {
-      getWebClientForProject: jest.fn(),
-      sendMessage: jest.fn(),
-      getChannels: jest.fn(),
-      getChannelInfo: jest.fn(),
-      validateClient: jest.fn(),
-      deleteIntegration: jest.fn(),
+      getWebClientForProject: vi.fn(),
+      sendMessage: vi.fn(),
+      getChannels: vi.fn(),
+      getChannelInfo: vi.fn(),
+      validateClient: vi.fn(),
+      deleteIntegration: vi.fn(),
     };
 
     // Setup the getInstance mock to return our mock service
-    (SlackService.getInstance as jest.Mock).mockReturnValue(mockSlackService);
+    (SlackService.getInstance as Mock).mockReturnValue(mockSlackService);
   });
 
   afterAll(async () => {
@@ -267,7 +268,7 @@ describe("Slack Integration", () => {
 
     describe("sendTestMessage", () => {
       it("should send test message successfully", async () => {
-        const mockClient = { auth: { test: jest.fn() } };
+        const mockClient = { auth: { test: vi.fn() } };
         mockSlackService.getWebClientForProject.mockResolvedValue(mockClient);
         mockSlackService.sendMessage.mockResolvedValue({
           messageTs: "1234567890.123456",
@@ -312,7 +313,7 @@ describe("Slack Integration", () => {
       });
 
       it("should resolve channel info for manually-typed channel names", async () => {
-        const mockClient = { auth: { test: jest.fn() } };
+        const mockClient = { auth: { test: vi.fn() } };
         mockSlackService.getWebClientForProject.mockResolvedValue(mockClient);
         mockSlackService.sendMessage.mockResolvedValue({
           messageTs: "1234567890.123456",
@@ -377,7 +378,7 @@ describe("Slack Integration", () => {
       });
 
       it("should create audit log entry", async () => {
-        const mockClient = { auth: { test: jest.fn() } };
+        const mockClient = { auth: { test: vi.fn() } };
         mockSlackService.getWebClientForProject.mockResolvedValue(mockClient);
         mockSlackService.sendMessage.mockResolvedValue({
           messageTs: "1234567890.123456",

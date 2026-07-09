@@ -27,10 +27,12 @@ import { ModelsSettings } from "@/src/features/models/components/ModelSettings";
 import ConfigureRetention from "@/src/features/projects/components/ConfigureRetention";
 import ContainerPage from "@/src/components/layouts/container-page";
 import ProtectedLabelsSettings from "@/src/features/prompts/components/ProtectedLabelsSettings";
-import { Slack } from "lucide-react";
+import { SiSlack } from "react-icons/si";
 import { ScoreConfigSettings } from "@/src/features/score-configs/components/ScoreConfigSettings";
 import { env } from "@/src/env.mjs";
 import { NotificationSettings } from "@/src/features/notifications/components/NotificationSettings";
+import { WebCalloutIntegrationCard } from "@/src/features/web-callouts/components/WebCalloutSettingsPage";
+import { DeveloperToolsSettings } from "@/src/features/developer-tools/components/DeveloperToolsSettings";
 
 type ProjectSettingsPage = {
   title: string;
@@ -47,7 +49,6 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
   const showProtectedLabelsSettings = useHasEntitlement(
     "prompt-protected-labels",
   );
-
   if (!project || !organization || !router.query.projectId) {
     return [];
   }
@@ -137,6 +138,21 @@ export const getProjectSettingsPages = ({
     ),
   },
   {
+    title: "MCP & CLI",
+    slug: "developer-tools",
+    cmdKKeywords: [
+      "mcp",
+      "cli",
+      "skill",
+      "agent",
+      "model context protocol",
+      "command line",
+      "claude code",
+      "cursor",
+    ],
+    content: <DeveloperToolsSettings projectId={project.id} />,
+  },
+  {
     title: "LLM Connections",
     slug: "llm-connections",
     cmdKKeywords: [
@@ -200,7 +216,7 @@ export const getProjectSettingsPages = ({
   {
     title: "Integrations",
     slug: "integrations",
-    cmdKKeywords: ["posthog", "mixpanel", "analytics"],
+    cmdKKeywords: ["posthog", "mixpanel", "analytics", "callback", "webhook"],
     content: <Integrations projectId={project.id} />,
   },
   {
@@ -355,7 +371,7 @@ const Integrations = (props: { projectId: string }) => {
 
         <Card className="p-3">
           <div className="mb-4 flex items-center gap-2">
-            <Slack className="text-foreground h-5 w-5" />
+            <SiSlack className="text-foreground h-5 w-5" />
             <span className="font-semibold">Slack</span>
           </div>
           <p className="text-primary mb-4 text-sm">
@@ -372,6 +388,11 @@ const Integrations = (props: { projectId: string }) => {
             </ActionButton>
           </div>
         </Card>
+
+        <WebCalloutIntegrationCard
+          projectId={props.projectId}
+          hasAccess={hasAccess}
+        />
       </div>
     </div>
   );

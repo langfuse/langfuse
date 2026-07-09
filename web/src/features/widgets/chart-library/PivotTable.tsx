@@ -41,7 +41,7 @@ import {
   DEFAULT_ROW_LIMIT,
 } from "@/src/features/widgets/utils/pivot-table-utils";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
-import { numberFormatter } from "@/src/utils/numbers";
+import { valueFormatter } from "@/src/features/widgets/chart-library/utils";
 import { formatMetricName } from "@/src/features/widgets/utils";
 import { type OrderByState } from "@langfuse/shared";
 
@@ -55,12 +55,6 @@ export interface PivotTableProps {
 
   /** Pivot table specific configuration */
   config?: PivotTableConfig;
-
-  /** Chart configuration from shadcn/ui (for consistency with other charts) */
-  chartConfig?: ChartProps["config"];
-
-  /** Accessibility layer flag */
-  accessibilityLayer?: boolean;
 
   /** Current sort state */
   sortState?: OrderByState;
@@ -83,7 +77,9 @@ const StaticHeader: React.FC<{
   return (
     <TableHead className={cn("p-1", className)}>
       <div className="flex items-center select-none">
-        <span className="truncate">{label}</span>
+        <span className="truncate" title={label}>
+          {label}
+        </span>
       </div>
     </TableHead>
   );
@@ -123,7 +119,9 @@ const SortableHeader: React.FC<{
           rightAlign ? "justify-end" : "justify-start",
         )}
       >
-        <span className="truncate">{label}</span>
+        <span className="truncate" title={label}>
+          {label}
+        </span>
         {isSorted && (
           <span
             className="ml-1"
@@ -151,7 +149,8 @@ const SortableHeader: React.FC<{
 const PivotTableRowComponent: React.FC<{
   row: PivotTableRow;
   metrics: string[];
-}> = ({ row, metrics }) => {
+  units?: (string | undefined)[];
+}> = ({ row, metrics, units }) => {
   return (
     <TableRow
       className={cn(
@@ -180,7 +179,7 @@ const PivotTableRowComponent: React.FC<{
       </TableCell>
 
       {/* Metric columns */}
-      {metrics.map((metric) => (
+      {metrics.map((metric, i) => (
         <TableCell
           key={metric}
           className={cn(
@@ -188,27 +187,12 @@ const PivotTableRowComponent: React.FC<{
             (row.isSubtotal || row.isTotal) && "font-semibold",
           )}
         >
-          {formatMetricValue(row.values[metric])}
+          {valueFormatter(row.values[metric], units?.[i])}
         </TableCell>
       ))}
     </TableRow>
   );
 };
-
-/**
- * Formats metric values for display in the table
- * Handles numbers and strings with appropriate formatting
- *
- * @param value - The metric value to format
- * @returns Formatted string for display
- */
-function formatMetricValue(value: number | string): string {
-  if (typeof value === "string") {
-    return value;
-  }
-
-  return numberFormatter(value, 2).replace(/\.00$/, "");
-}
 
 /**
  * Formats metric names for column headers
@@ -238,6 +222,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
   onSortChange,
   isLoading = false,
 }) => {
+  const units = config?.units;
   // Transform chart data into pivot table structure
   const pivotTableRows = useMemo(() => {
     if (!data || data.length === 0) {
@@ -417,7 +402,12 @@ export const PivotTable: React.FC<PivotTableProps> = ({
 
         <TableBody>
           {sortedRows.map((row) => (
-            <PivotTableRowComponent key={row.id} row={row} metrics={metrics} />
+            <PivotTableRowComponent
+              key={row.id}
+              row={row}
+              metrics={metrics}
+              units={units}
+            />
           ))}
         </TableBody>
       </Table>

@@ -5,7 +5,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { Loader2 } from "lucide-react";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { Heatmap } from "../charts/Heatmap";
 import { HeatmapLegend } from "../charts/HeatmapLegend";
@@ -15,6 +14,7 @@ import { type HeatmapCell } from "@/src/features/score-analytics/lib/heatmap-uti
 import { useCallback } from "react";
 import { SamplingDetailsHoverCard } from "../SamplingDetailsHoverCard";
 import { type ScoreDataTypeType } from "@langfuse/shared";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 interface HeatmapTooltipContentProps {
   cell: HeatmapCell;
@@ -166,7 +166,7 @@ export function HeatmapCard() {
           <CardDescription>Loading heatmap...</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-1 flex-col items-center justify-center pl-1">
-          <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+          <Spinner size="xl" variant="muted" />
         </CardContent>
       </Card>
     );

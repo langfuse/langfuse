@@ -5,6 +5,7 @@ import {
 import * as opentelemetry from "@opentelemetry/api";
 import * as dd from "dd-trace";
 import { env } from "../../env";
+import { API_KEY_CACHE_KEY_PREFIX } from "../auth/apiKeyCache";
 import { logger } from "../logger";
 
 // type CallbackFn<T> = () => T;
@@ -25,8 +26,8 @@ export function ioredisRequestHook(
     return;
   }
   const args = [...cmdArgs].map(String);
-  // Redact API key cache values: SET [prefix:]api-key:{hash} <json>
-  if (args[0]?.includes("api-key:")) {
+  // Redact API key cache values.
+  if (args[0]?.includes(API_KEY_CACHE_KEY_PREFIX)) {
     for (let i = 1; i < args.length; i++) {
       args[i] = "[REDACTED]";
     }
@@ -138,6 +139,12 @@ export function instrumentSync<T>(
 
 export const getCurrentSpan = () => opentelemetry.trace.getActiveSpan();
 
+export const addTagsToCurrentSpan = (
+  attributes: Parameters<opentelemetry.Span["setAttributes"]>[0],
+) => {
+  getCurrentSpan()?.setAttributes(attributes);
+};
+
 export const traceException = (
   ex: unknown,
   span?: opentelemetry.Span,
@@ -194,6 +201,8 @@ export const addUserToSpan = (
     email?: string;
     orgId?: string;
     plan?: string;
+    apiKeyId?: string;
+    publicKey?: string;
   },
   span?: opentelemetry.Span,
 ) => {
@@ -237,6 +246,21 @@ export const addUserToSpan = (
       value: attributes.plan,
     });
     activeSpan.setAttribute("langfuse.org.plan", attributes.plan);
+  }
+  if (attributes.apiKeyId) {
+    baggage = baggage.setEntry("langfuse.api_key.id", {
+      value: attributes.apiKeyId,
+    });
+    activeSpan.setAttribute("langfuse.api_key.id", attributes.apiKeyId);
+  }
+  if (attributes.publicKey) {
+    baggage = baggage.setEntry("langfuse.api_key.public_key", {
+      value: attributes.publicKey,
+    });
+    activeSpan.setAttribute(
+      "langfuse.api_key.public_key",
+      attributes.publicKey,
+    );
   }
 
   return opentelemetry.propagation.setBaggage(ctx, baggage);
@@ -288,6 +312,25 @@ const flushMetricsToCloudWatch = () => {
     });
 };
 
+// Metrics ending with these suffixes have their tags flattened into the
+// CloudWatch metric name (excluding "unit"). Other metrics are unaffected.
+const CW_TAG_FLATTENED_SUFFIXES = [".depth", ".rate"];
+
+function buildCloudWatchKey(
+  stat: string,
+  tags?: { [tag: string]: string | number },
+): string {
+  if (!tags || !CW_TAG_FLATTENED_SUFFIXES.some((s) => stat.endsWith(s))) {
+    return stat;
+  }
+  const suffix = Object.entries(tags)
+    .filter(([k]) => k !== "unit")
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${k}_${v}`)
+    .join(".");
+  return suffix ? `${stat}.${suffix}` : stat;
+}
+
 export const recordGauge = (
   stat: string,
   value?: number | undefined,
@@ -298,7 +341,7 @@ export const recordGauge = (
     | undefined,
 ) => {
   if (env.ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING === "true") {
-    sendCloudWatchMetric(stat, value ?? 0, true);
+    sendCloudWatchMetric(buildCloudWatchKey(stat, tags), value ?? 0, true);
   }
   dd.dogstatsd.gauge(stat, value, tags);
 };
@@ -309,7 +352,7 @@ export const recordIncrement = (
   tags?: { [tag: string]: string | number } | undefined,
 ) => {
   if (env.ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING === "true") {
-    sendCloudWatchMetric(stat, value ?? 1, false);
+    sendCloudWatchMetric(buildCloudWatchKey(stat, tags), value ?? 1, false);
   }
   dd.dogstatsd.increment(stat, value, tags);
 };

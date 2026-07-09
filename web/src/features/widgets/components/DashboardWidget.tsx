@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/src/utils/api";
 import {
-  type views,
-  type metricAggregations,
+  buildWidgetOrderBy,
+  getResultUnit,
+  isV2BreakdownChart,
+  requiresV2,
+  toQueryChartConfig,
+  validateQuery,
   type QueryType,
-  mapLegacyUiTableFilterToView,
-} from "@/src/features/query";
+  type ViewVersion,
+  type metricAggregations,
+  type views,
+} from "@langfuse/shared/query";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
@@ -23,6 +30,9 @@ import { DownloadButton } from "@/src/features/widgets/chart-library/DownloadBut
 import {
   formatMetricName,
   shouldUseWidgetSSE,
+  sanitizePivotTableDefaultSort,
+  getWidgetMetricPresentation,
+  getWidgetMissingBucketValue,
 } from "@/src/features/widgets/utils";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
 import {
@@ -30,14 +40,7 @@ import {
   getChartLoadingStateProps,
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { type ViewVersion } from "@/src/features/query";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
-import {
-  validateQuery,
-  toQueryChartConfig,
-  isV2BreakdownChart,
-  buildWidgetOrderBy,
-} from "@/src/features/query/validateQuery";
 
 export interface WidgetPlacement {
   id: string;
@@ -80,10 +83,21 @@ export function DashboardWidget({
       enabled: Boolean(projectId),
     },
   );
+  const widgetRequiresV2 = requiresV2({
+    view: widget.data?.view ?? "traces",
+    dimensions: widget.data?.dimensions ?? [],
+    measures:
+      widget.data?.metrics.map((metric) => ({ measure: metric.measure })) ?? [],
+    filters: widget.data?.filters ?? [],
+  });
   // If widget requires v2 features (minVersion >= 2), must use v2.
   // Otherwise follow the beta toggle.
   const metricsVersion: ViewVersion =
-    (widget.data?.minVersion ?? 1) >= 2 || isBetaEnabled ? "v2" : "v1";
+    widgetRequiresV2 || (widget.data?.minVersion ?? 1) >= 2
+      ? "v2"
+      : isBetaEnabled && (widget.data?.view ?? "traces") !== "traces"
+        ? "v2"
+        : "v1";
   const hasCUDAccess =
     useHasProjectAccess({ projectId, scope: "dashboards:CUD" }) &&
     dashboardOwner !== "LANGFUSE";
@@ -91,7 +105,10 @@ export function DashboardWidget({
   // Initialize sort state for pivot tables
   const defaultSort =
     widget.data?.chartConfig.type === "PIVOT_TABLE"
-      ? widget.data?.chartConfig.defaultSort
+      ? sanitizePivotTableDefaultSort(widget.data.chartConfig.defaultSort, {
+          dimensions: widget.data.dimensions,
+          metrics: widget.data.metrics,
+        })
       : undefined;
 
   const [sortState, setSortState] = useState<OrderByState | null>(() => {
@@ -156,7 +173,10 @@ export function DashboardWidget({
           aggregation: metric.agg as z.infer<typeof metricAggregations>,
         })) ?? [],
       filters: [
-        ...(widget.data?.filters ?? []),
+        ...mapLegacyUiTableFilterToView(
+          (widget.data?.view as z.infer<typeof views>) ?? "traces",
+          widget.data?.filters ?? [],
+        ),
         ...mapLegacyUiTableFilterToView(
           (widget.data?.view as z.infer<typeof views>) ?? "traces",
           filterState,
@@ -255,17 +275,45 @@ export function DashboardWidget({
       };
       const metricField = `${metric.agg}_${metric.measure}`;
       const metricValue = item[metricField];
+      const isTimeSeries = isTimeSeriesChart(widget.data.chartType);
 
       const dimensionField =
         widget.data.dimensions.slice().shift()?.field ?? "none";
+      const dimensionValue = item[dimensionField];
+
+      // A gap-filled empty bucket arrives as a row with no dimension and the
+      // metric column's type default: NULL for nullable aggregations
+      // (avg/percentiles), 0 for non-nullable ones (count/uniq/sum). Keep it
+      // as a pure bucket marker (holds the spot on the time axis) instead of
+      // inventing an "n/a" series. The 0 form is only treated as filler for
+      // additive metrics, where the marker is lossless (prepareDenseSeries
+      // re-derives the honest 0 for any series that exists); a real
+      // dimension-less avg/percentile 0 stays a visible data point. (LFE-10694)
+      const isFillerMetricValue =
+        metricValue == null ||
+        (getWidgetMissingBucketValue(metric.agg) === "zero" &&
+          Number(metricValue) === 0);
+      if (
+        isTimeSeries &&
+        (dimensionValue === null || dimensionValue === "") &&
+        isFillerMetricValue
+      ) {
+        return {
+          dimension: undefined,
+          metric: null,
+          time_dimension: item["time_dimension"],
+        };
+      }
+
       return {
         dimension:
-          item[dimensionField] !== undefined
+          dimensionValue !== undefined
             ? (() => {
-                const val = item[dimensionField];
-                if (typeof val === "string") return val;
+                const val = dimensionValue;
+                // Empty first: "" is a string, so the order matters. (LFE-10694)
                 if (val === null || val === undefined || val === "")
                   return "n/a";
+                if (typeof val === "string") return val;
                 if (Array.isArray(val)) return val.join(", ");
                 // Objects / numbers / booleans are stringified to avoid React key issues
                 return String(val);
@@ -273,11 +321,74 @@ export function DashboardWidget({
             : formatMetricName(metricField),
         metric: Array.isArray(metricValue)
           ? metricValue
-          : Number(metricValue || 0),
+          : // On a time series a missing value stays null — the chart renders
+            // it by the metric's missing-bucket semantics instead of a fake 0.
+            isTimeSeries && metricValue == null
+            ? null
+            : Number(metricValue || 0),
         time_dimension: item["time_dimension"],
       };
     });
   }, [queryResult.data, widget.data]);
+
+  const chartPresentation = useMemo(() => {
+    if (!widget.data) {
+      return undefined;
+    }
+
+    if (widget.data.chartType === "PIVOT_TABLE") {
+      return undefined;
+    }
+
+    const metric = widget.data.metrics[0];
+    if (!metric) {
+      return undefined;
+    }
+
+    return getWidgetMetricPresentation({
+      metric,
+      view: widget.data.view,
+      version: metricsVersion,
+    });
+  }, [metricsVersion, widget.data]);
+
+  // Memoize the Chart's config/chartConfig objects so the scheduler's page
+  // re-renders don't hand Chart fresh literals every tick (transformedData is
+  // already memoized) — letting Chart's React.memo bail. (LFE-10549)
+  const chartConfigForRender = useMemo(() => {
+    const data = widget.data;
+    if (!data) return undefined;
+    return {
+      ...data.chartConfig,
+      // For PIVOT_TABLE, enhance chartConfig with dimensions and metric field names
+      ...(data.chartType === "PIVOT_TABLE" && {
+        dimensions: data.dimensions.map((dim) => dim.field),
+        metrics: data.metrics.map(
+          (metric) => `${metric.agg}_${metric.measure}`,
+        ),
+        units: data.metrics.map((metric) =>
+          getResultUnit(data.view, metric.measure, metric.agg, metricsVersion),
+        ),
+        defaultSort,
+      }),
+      ...(data.chartType !== "PIVOT_TABLE" && {
+        unit: getResultUnit(
+          data.view,
+          data.metrics[0]?.measure ?? "",
+          data.metrics[0]?.agg,
+          metricsVersion,
+        ),
+      }),
+    };
+  }, [widget.data, metricsVersion, defaultSort]);
+
+  const chartMetricConfig = useMemo(
+    () =>
+      chartPresentation
+        ? { metric: { label: chartPresentation.label } }
+        : undefined,
+    [chartPresentation],
+  );
 
   const handleEdit = () => {
     router.push(
@@ -314,9 +425,7 @@ export function DashboardWidget({
 
   if (widget.isPending) {
     return (
-      <div
-        className={`bg-background flex items-center justify-center rounded-lg border p-4`}
-      >
+      <div className="bg-background flex items-center justify-center rounded-lg border p-4">
         <div className="text-muted-foreground">Loading...</div>
       </div>
     );
@@ -324,18 +433,14 @@ export function DashboardWidget({
 
   if (!widget.data) {
     return (
-      <div
-        className={`bg-background flex items-center justify-center rounded-lg border p-4`}
-      >
+      <div className="bg-background flex items-center justify-center rounded-lg border p-4">
         <div className="text-muted-foreground">Widget not found</div>
       </div>
     );
   }
 
   return (
-    <div
-      className={`bg-background group flex h-full w-full flex-col overflow-hidden rounded-lg border p-4`}
-    >
+    <div className="bg-background group flex h-full w-full flex-col overflow-hidden rounded-lg border p-4">
       <div className="flex items-center justify-between">
         <span className="truncate font-medium" title={widget.data.name}>
           {widget.data.name}{" "}
@@ -409,6 +514,10 @@ export function DashboardWidget({
             <Chart
               chartType={widget.data.chartType}
               data={transformedData}
+              // Sync the hover crosshair across all time-series widgets on this
+              // dashboard (non-time-series chart types ignore it). (LFE-10549)
+              syncId={dashboardId}
+              config={chartMetricConfig}
               rowLimit={
                 widget.data.chartConfig.type === "LINE_TIME_SERIES" ||
                 widget.data.chartConfig.type === "BAR_TIME_SERIES" ||
@@ -416,16 +525,7 @@ export function DashboardWidget({
                   ? 100
                   : (widget.data.chartConfig.row_limit ?? 100)
               }
-              chartConfig={{
-                ...widget.data.chartConfig,
-                // For PIVOT_TABLE, enhance chartConfig with dimensions and metric field names
-                ...(widget.data.chartType === "PIVOT_TABLE" && {
-                  dimensions: widget.data.dimensions.map((dim) => dim.field),
-                  metrics: widget.data.metrics.map(
-                    (metric) => `${metric.agg}_${metric.measure}`,
-                  ),
-                }),
-              }}
+              chartConfig={chartConfigForRender}
               sortState={
                 widget.data.chartType === "PIVOT_TABLE" ? sortState : undefined
               }
@@ -433,6 +533,10 @@ export function DashboardWidget({
                 widget.data.chartType === "PIVOT_TABLE" ? updateSort : undefined
               }
               isLoading={queryResult.isPending}
+              metricFormatter={chartPresentation?.metricFormatter}
+              missingValue={getWidgetMissingBucketValue(
+                widget.data.metrics[0]?.agg ?? "count",
+              )}
             />
             <ChartLoadingState
               isLoading={chartLoadingState.isLoading}

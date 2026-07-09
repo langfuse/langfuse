@@ -70,6 +70,12 @@ export function mockServerContext(
   };
 }
 
+export const mcpEvalOutputDefinition = {
+  dataType: "NUMERIC" as const,
+  reasoning: { description: "Why the score was assigned" },
+  score: { description: "A score between 0 and 1" },
+};
+
 /**
  * Verifies that a response follows the MCP content block format.
  * MCP tools return { content: [{ type: "text", text: "..." }] }
@@ -261,8 +267,8 @@ export function verifyToolAnnotations(
  */
 export async function waitFor(
   condition: () => Promise<boolean>,
-  timeoutMs: number = 5000,
-  intervalMs: number = 100,
+  timeoutMs = 5000,
+  intervalMs = 100,
 ): Promise<void> {
   const startTime = Date.now();
 

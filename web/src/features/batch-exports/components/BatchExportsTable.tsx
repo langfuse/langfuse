@@ -44,7 +44,7 @@ export function BatchExportsTable(props: { projectId: string }) {
 
   const cancelBatchExport = api.batchExport.cancel.useMutation({
     onSuccess: () => {
-      void batchExports.refetch();
+      batchExports.refetch();
       setCancelDialogOpen(false);
       setSelectedExportId(null);
     },
@@ -225,7 +225,7 @@ export function BatchExportsTable(props: { projectId: string }) {
   return (
     <>
       <DataTable
-        tableName={"batchExports"}
+        tableName="batchExports"
         columns={columns}
         data={
           batchExports.isPending
@@ -247,6 +247,7 @@ export function BatchExportsTable(props: { projectId: string }) {
           onChange: setPaginationState,
           state: paginationState,
         }}
+        cellPadding="comfortable"
       />
     </>
   );

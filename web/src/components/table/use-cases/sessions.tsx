@@ -5,15 +5,24 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
+import {
+  TableBadgeLoadingCell,
+  TableIconButtonLoadingCell,
+  TableTextLoadingCell,
+} from "@/src/components/table/loading-cells";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import {
-  sessionFilterConfig,
+  type UseSidebarFilterStateOptions,
+  useSidebarFilterState,
+} from "@/src/features/filters/hooks/useSidebarFilterState";
+import {
+  getSessionFilterConfig,
   SESSION_COLUMN_TO_BACKEND_KEY,
+  type SessionOmittableFilterColumn,
 } from "@/src/features/filters/config/sessions-config";
 import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
@@ -37,10 +46,10 @@ import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
-import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import { joinSessionCoreAndMetrics } from "@/src/components/table/use-cases/session-row-data";
 import TagList from "@/src/features/tag/components/TagList";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
@@ -78,8 +87,15 @@ export type SessionTableRow = {
 export type SessionTableProps = {
   projectId: string;
   userId?: string;
-  omittedFilter?: string[];
+  omittedFilter?: SessionOmittableFilterColumn[];
   isBetaEnabled?: boolean;
+  /**
+   * When true, render the time-range picker and auto-refresh button in the
+   * page header (next to the title) via the header controls slot, instead of
+   * inside the table toolbar. Only used when the table is the primary content
+   * of a `Page`.
+   */
+  showControlsInPageHeader?: boolean;
 };
 
 export default function SessionsTable({
@@ -87,7 +103,12 @@ export default function SessionsTable({
   userId,
   omittedFilter = [],
   isBetaEnabled = false,
+  showControlsInPageHeader = false,
 }: SessionTableProps) {
+  const sessionsFilterConfig = useMemo(
+    () => getSessionFilterConfig(omittedFilter),
+    [omittedFilter],
+  );
   const { setDetailPageList } = useDetailPageLists();
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
@@ -238,15 +259,24 @@ export default function SessionsTable({
     };
   }, [environmentOptions, filterOptions.data]);
 
-  const queryFilter = useSidebarFilterState(
-    sessionFilterConfig,
-    newFilterOptions,
-    {
-      loading: filterOptions.isPending || environmentFilterOptions.isPending,
+  const isSidebarFilterLoading =
+    filterOptions.isPending || environmentFilterOptions.isPending;
+
+  const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(
+    () => ({
+      loading: isSidebarFilterLoading,
+      stateLocation: "urlAndSessionStorage",
       sessionFilterContextId: projectId,
       // Sidebar-only implicit environment defaults
       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
-    },
+    }),
+    [isSidebarFilterLoading, projectId],
+  );
+
+  const queryFilter = useSidebarFilterState(
+    sessionsFilterConfig,
+    newFilterOptions,
+    queryFilterOptions,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -266,15 +296,13 @@ export default function SessionsTable({
   const backendFilterState = transformFiltersForBackend(
     combinedFilterState,
     SESSION_COLUMN_TO_BACKEND_KEY,
-    sessionFilterConfig.columnDefinitions,
+    sessionsFilterConfig.columnDefinitions,
   );
 
   const payloadCount = {
     projectId,
     filter: backendFilterState,
     orderBy: null,
-    page: 0,
-    limit: 1,
   };
 
   const payloadGetAll = {
@@ -360,7 +388,7 @@ export default function SessionsTable({
 
   const sessionRowData = useMemo(
     () =>
-      joinTableCoreAndMetrics<SessionCoreOutput, SessionMetricOutput>(
+      joinSessionCoreAndMetrics<SessionCoreOutput, SessionMetricOutput>(
         sessions.data?.sessions,
         sessionMetrics.data,
       ),
@@ -382,6 +410,7 @@ export default function SessionsTable({
     projectId,
     tableName: "sessions",
     setSelectedRows,
+    setSelectAll,
   });
 
   const handleAddToAnnotationQueue = async ({
@@ -431,6 +460,7 @@ export default function SessionsTable({
       isFixedPosition: true,
       header: undefined,
       size: 50,
+      loadingCell: <TableIconButtonLoadingCell />,
       cell: ({ row }) => {
         const bookmarked: SessionTableRow["bookmarked"] =
           row.getValue("bookmarked");
@@ -484,11 +514,12 @@ export default function SessionsTable({
       header: "Duration",
       size: 130,
       enableHiding: true,
+      loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const value: SessionTableRow["sessionDuration"] =
           row.getValue("sessionDuration");
         if (!sessionMetrics.isSuccess) {
-          return <Skeleton className="h-3 w-1/2" />;
+          return <TableTextLoadingCell />;
         }
         return value && typeof value === "number"
           ? formatIntervalSeconds(value)
@@ -502,6 +533,7 @@ export default function SessionsTable({
       id: "environment",
       size: 150,
       enableHiding: true,
+      loadingCell: <TableBadgeLoadingCell />,
       cell: ({ row }) => {
         const value: SessionTableRow["environment"] =
           row.getValue("environment");
@@ -509,6 +541,7 @@ export default function SessionsTable({
           <Badge
             variant="secondary"
             className="max-w-fit truncate rounded-sm px-1 font-normal"
+            title={value}
           >
             {value}
           </Badge>
@@ -522,21 +555,22 @@ export default function SessionsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return isColumnLoading ? <Skeleton className="h-3 w-1/2" /> : null;
+        return isColumnLoading ? <TableTextLoadingCell /> : null;
       },
       columns: scoreColumns,
     },
     {
       accessorKey: "userIds",
-      enableColumnFilter: !omittedFilter.find((f) => f === "userIds"),
+      enableColumnFilter: !omittedFilter.includes("userIds"),
       id: "userIds",
       header: "User IDs",
       size: 200,
       enableHiding: true,
+      loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const value: SessionTableRow["userIds"] = row.getValue("userIds");
         if (!sessionMetrics.isSuccess) {
-          return <Skeleton className="h-3 w-1/2" />;
+          return <TableTextLoadingCell />;
         }
         return value && Array.isArray(value) ? (
           <div className="flex gap-1">
@@ -561,11 +595,12 @@ export default function SessionsTable({
       },
       enableHiding: true,
       enableSorting: true,
+      loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const value: SessionTableRow["countTraces"] =
           row.getValue("countTraces");
         if (!sessionMetrics.isSuccess) {
-          return <Skeleton className="h-3 w-1/2" />;
+          return <TableTextLoadingCell />;
         }
         return value ? <span>{numberFormatter(value, 0)}</span> : undefined;
       },
@@ -578,10 +613,11 @@ export default function SessionsTable({
       enableHiding: true,
       defaultHidden: true,
       enableSorting: true,
+      loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const value: SessionTableRow["inputCost"] = row.getValue("inputCost");
         if (!sessionMetrics.isSuccess) {
-          return <Skeleton className="h-3 w-1/2" />;
+          return <TableTextLoadingCell />;
         }
         return value ? (
           <span>{usdFormatter(value.toNumber())}</span>
@@ -596,10 +632,11 @@ export default function SessionsTable({
       enableHiding: true,
       enableSorting: true,
       defaultHidden: true,
+      loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const value: SessionTableRow["outputCost"] = row.getValue("outputCost");
         if (!sessionMetrics.isSuccess) {
-          return <Skeleton className="h-3 w-1/2" />;
+          return <TableTextLoadingCell />;
         }
         return value ? (
           <span>{usdFormatter(value.toNumber())}</span>
@@ -613,10 +650,11 @@ export default function SessionsTable({
       size: 110,
       enableHiding: true,
       enableSorting: true,
+      loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const value: SessionTableRow["totalCost"] = row.getValue("totalCost");
         if (!sessionMetrics.isSuccess) {
-          return <Skeleton className="h-3 w-1/2" />;
+          return <TableTextLoadingCell />;
         }
         return value ? (
           <span>{usdFormatter(value.toNumber())}</span>
@@ -631,11 +669,12 @@ export default function SessionsTable({
       enableHiding: true,
       defaultHidden: true,
       enableSorting: true,
+      loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const value: SessionTableRow["inputTokens"] =
           row.getValue("inputTokens");
         if (!sessionMetrics.isSuccess) {
-          return <Skeleton className="h-3 w-1/2" />;
+          return <TableTextLoadingCell />;
         }
         return value ? (
           <span>{numberFormatter(Number(value), 0)}</span>
@@ -650,11 +689,12 @@ export default function SessionsTable({
       enableHiding: true,
       defaultHidden: true,
       enableSorting: true,
+      loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const value: SessionTableRow["outputTokens"] =
           row.getValue("outputTokens");
         if (!sessionMetrics.isSuccess) {
-          return <Skeleton className="h-3 w-1/2" />;
+          return <TableTextLoadingCell />;
         }
         return value ? (
           <span>{numberFormatter(Number(value), 0)}</span>
@@ -669,11 +709,12 @@ export default function SessionsTable({
       enableHiding: true,
       defaultHidden: true,
       enableSorting: true,
+      loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const value: SessionTableRow["totalTokens"] =
           row.getValue("totalTokens");
         if (!sessionMetrics.isSuccess) {
-          return <Skeleton className="h-3 w-1/2" />;
+          return <TableTextLoadingCell />;
         }
         return value ? (
           <span>{numberFormatter(Number(value), 0)}</span>
@@ -687,6 +728,7 @@ export default function SessionsTable({
       size: 220,
       enableHiding: true,
       enableSorting: true,
+      loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const promptTokens: SessionTableRow["inputTokens"] =
           row.getValue("inputTokens");
@@ -695,7 +737,7 @@ export default function SessionsTable({
         const totalTokens: SessionTableRow["totalTokens"] =
           row.getValue("totalTokens");
         if (!sessionMetrics.isSuccess) {
-          return <Skeleton className="h-3 w-1/2" />;
+          return <TableTextLoadingCell />;
         }
         return (
           <TokenUsageBadge
@@ -714,13 +756,15 @@ export default function SessionsTable({
       size: 250,
       enableHiding: true,
       defaultHidden: true,
+      loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const value: SessionTableRow["traceTags"] = row.getValue("traceTags");
         if (!sessionMetrics.isSuccess) {
-          return <Skeleton className="h-3 w-1/2" />;
+          return <TableTextLoadingCell />;
         }
         return (
-          value && (
+          value &&
+          value.length > 0 && (
             <div
               className={cn(
                 "flex gap-x-2 gap-y-1",
@@ -743,37 +787,63 @@ export default function SessionsTable({
     columns,
   );
 
+  const selectedSessionIds = useMemo(
+    () =>
+      Object.keys(selectedRows).filter((sessionId) =>
+        sessions.data?.sessions.map((s) => s.id).includes(sessionId),
+      ),
+    [selectedRows, sessions.data?.sessions],
+  );
+
+  const selectedSessionCount = selectAll
+    ? totalCount
+    : selectedSessionIds.length;
+
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Sessions,
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,
       setFilters: setFiltersWrapper,
+      setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibility,
     },
     validationContext: {
       columns,
-      filterColumnDefinition: sessionFilterConfig.columnDefinitions,
+      filterColumnDefinition: sessionsFilterConfig.columnDefinitions,
+      expandableFilterColumns: sessionsFilterConfig.facets.map(
+        (facet) => facet.column,
+      ),
     },
     currentFilterState: queryFilter.explicitFilterState,
+    currentExpandedFilters: queryFilter.expanded,
   });
 
   return (
-    <DataTableControlsProvider tableName={sessionFilterConfig.tableName}>
+    <DataTableControlsProvider tableName={sessionsFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
+        {showControlsInPageHeader && (
+          <TableHeaderControls
+            timeRange={timeRange}
+            setTimeRange={setTimeRange}
+          />
+        )}
         {/* Toolbar spanning full width */}
         <DataTableToolbar
           filterState={queryFilter.explicitFilterState}
           actionButtons={[
-            Object.keys(selectedRows).filter((sessionId) =>
-              sessions.data?.sessions.map((s) => s.id).includes(sessionId),
-            ).length > 0 ? (
+            selectedSessionIds.length > 0 || selectAll ? (
               <TableActionMenu
                 key="sessions-multi-select-actions"
                 projectId={projectId}
                 actions={tableActions}
                 tableName={BatchExportTableName.Sessions}
+                selectedCount={selectedSessionCount}
+                onClearSelection={() => {
+                  setSelectedRows({});
+                  setSelectAll(false);
+                }}
               />
             ) : null,
             <BatchExportTableButton
@@ -796,17 +866,15 @@ export default function SessionsTable({
             projectId,
             controllers: viewControllers,
           }}
-          timeRange={timeRange}
-          setTimeRange={setTimeRange}
+          timeRange={showControlsInPageHeader ? undefined : timeRange}
+          setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
           columnsWithCustomSelect={["userIds"]}
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
           multiSelect={{
             selectAll,
             setSelectAll,
-            selectedRowIds: Object.keys(selectedRows).filter((sessionId) =>
-              sessions.data?.sessions.map((s) => s.id).includes(sessionId),
-            ),
+            selectedRowIds: selectedSessionIds,
             setRowSelection: setSelectedRows,
             totalCount,
             ...paginationState,
@@ -815,11 +883,15 @@ export default function SessionsTable({
 
         {/* Content area with sidebar and table */}
         <ResizableFilterLayout>
-          <DataTableControls queryFilter={queryFilter} />
+          <DataTableControls
+            // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
+            key={viewControllers.selectedViewId ?? "no-view"}
+            queryFilter={queryFilter}
+          />
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable
-              tableName={"sessions"}
+              tableName="sessions"
               columns={columns}
               data={
                 sessions.isPending || isViewLoading
@@ -868,6 +940,7 @@ export default function SessionsTable({
               columnOrder={columnOrder}
               onColumnOrderChange={setColumnOrder}
               rowSelection={selectedRows}
+              highlightAllRows={selectAll}
               setRowSelection={setSelectedRows}
               help={{
                 description:

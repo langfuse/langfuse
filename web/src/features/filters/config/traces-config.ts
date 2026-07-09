@@ -1,5 +1,10 @@
 import { tracesTableCols } from "@langfuse/shared";
-import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import {
+  omitFilterFacets,
+  type FilterConfig,
+} from "@/src/features/filters/lib/filter-config";
+
+export type TraceOmittableFilterColumn = "userId" | "sessionId";
 
 export const traceFilterConfig: FilterConfig = {
   tableName: "traces",
@@ -35,6 +40,13 @@ export const traceFilterConfig: FilterConfig = {
       label: "Session ID",
     },
     {
+      // Tags are a primary, user-defined filter — keep them near the identity
+      // facets at the top of the sidebar rather than buried mid-list (LFE-10494).
+      type: "categorical" as const,
+      column: "traceTags",
+      label: "Tags",
+    },
+    {
       type: "stringKeyValue" as const,
       column: "metadata",
       label: "Metadata",
@@ -67,11 +79,6 @@ export const traceFilterConfig: FilterConfig = {
       type: "string" as const,
       column: "commentContent",
       label: "Comment Content",
-    },
-    {
-      type: "categorical" as const,
-      column: "traceTags",
-      label: "Tags",
     },
     {
       type: "categorical" as const,
@@ -143,3 +150,9 @@ export const traceFilterConfig: FilterConfig = {
     },
   ],
 };
+
+export function getTraceFilterConfig(
+  omittedFilter: TraceOmittableFilterColumn[] = [],
+): FilterConfig {
+  return omitFilterFacets(traceFilterConfig, omittedFilter);
+}

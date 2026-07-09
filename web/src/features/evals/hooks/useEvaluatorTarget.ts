@@ -3,6 +3,8 @@ import {
   EvalTargetObject,
   availableTraceEvalVariables,
   availableDatasetEvalVariables,
+  eventTargetEvalVariableColumns,
+  experimentTargetEvalVariableColumns,
 } from "@langfuse/shared";
 import {
   isTraceTarget,
@@ -73,12 +75,25 @@ export const useEvaluatorTargetState = () => {
     const isObservationBased =
       isEventTarget(targetObject) || isExperimentTarget(targetObject);
 
+    // Get valid column IDs for the target
+    const validColumnIds = isEventTarget(targetObject)
+      ? new Set(eventTargetEvalVariableColumns.map((c) => c.id))
+      : isExperimentTarget(targetObject)
+        ? new Set(experimentTargetEvalVariableColumns.map((c) => c.id))
+        : null;
+
     return currentMapping.map((field) => {
+      // Reset selectedColumnId if invalid for the new target
+      const selectedColumnId =
+        validColumnIds && !validColumnIds.has(field.selectedColumnId ?? "")
+          ? null
+          : field.selectedColumnId;
+
       if (isObservationBased) {
         // Placeholder langfuseObject (stripped in onSubmit)
         return {
           templateVariable: field.templateVariable,
-          selectedColumnId: field.selectedColumnId,
+          selectedColumnId,
           jsonSelector: field.jsonSelector,
           langfuseObject: "event" as LangfuseObject,
           objectName: null,
@@ -88,6 +103,7 @@ export const useEvaluatorTargetState = () => {
       // Proper langfuseObject for trace/dataset
       return {
         ...field,
+        selectedColumnId,
         langfuseObject: (isTraceTarget(targetObject)
           ? "trace"
           : "dataset_item") as LangfuseObject,

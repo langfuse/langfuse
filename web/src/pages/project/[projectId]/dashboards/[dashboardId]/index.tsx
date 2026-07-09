@@ -355,7 +355,7 @@ export default function DashboardDetail() {
 
   const mutateCloneDashboard = api.dashboard.cloneDashboard.useMutation({
     onSuccess: (data) => {
-      void utils.dashboard.invalidate();
+      utils.dashboard.invalidate();
       capture("dashboard:clone_dashboard");
       // Redirect to new dashboard
       if (data?.id) {

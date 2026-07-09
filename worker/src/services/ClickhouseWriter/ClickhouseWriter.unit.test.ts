@@ -115,6 +115,34 @@ describe("ClickhouseWriter", () => {
     expect(mockInsert).toHaveBeenCalledTimes(1);
   });
 
+  it("should mark writer insert log comments as multi-project", async () => {
+    const mockInsert = vi
+      .spyOn(clickhouseClientMock, "insert")
+      .mockResolvedValue();
+
+    writer.addToQueue(TableName.Traces, {
+      id: "1",
+      name: "test",
+      project_id: "project-1",
+    } as any);
+    writer.addToQueue(TableName.Traces, {
+      id: "2",
+      name: "test",
+      project_id: "project-1",
+    } as any);
+
+    await vi.advanceTimersByTimeAsync(writer.writeInterval);
+
+    const logComment = JSON.parse(
+      mockInsert.mock.calls[0][0].clickhouse_settings.log_comment,
+    );
+    expect(logComment).toMatchObject({
+      surface: "worker",
+      route: "clickhouse-writer",
+      projectId: "MULTI_PROJECT",
+    });
+  });
+
   it("should handle errors and retry", async () => {
     const mockInsert = vi
       .spyOn(clickhouseClientMock, "insert")
@@ -155,6 +183,11 @@ describe("ClickhouseWriter", () => {
       ),
     ).toBe(true);
     expect(writer["queue"][TableName.Traces]).toHaveLength(0);
+    expect(serverExports.recordIncrement).toHaveBeenCalledWith(
+      "langfuse.queue.clickhouse_writer.rows_dropped",
+      1,
+      { entity_type: TableName.Traces },
+    );
   });
 
   it("should shutdown gracefully", async () => {

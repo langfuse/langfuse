@@ -174,7 +174,7 @@ const test = baseTest.extend<{
   },
 });
 
-describe.concurrent("test eval filtering", () => {
+describe("test eval filtering", () => {
   test("creates eval job only for matching environment", async ({
     expect,
     upsertTwoTraces,

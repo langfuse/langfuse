@@ -1,4 +1,3 @@
-/** @jest-environment node */
 import {
   getBillingCycleAnchor,
   getBillingCycleStart,

@@ -40,6 +40,9 @@ import { prisma } from "@langfuse/shared/src/db";
 import { BaseError, UnauthorizedError, ForbiddenError } from "@langfuse/shared";
 import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
+import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@/src/ee/features/in-app-agent/constants";
+import { InAppAgentMcpRunOverrideSchema } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
+import { safeJsonParse } from "@/src/utils/json";
 
 // Bootstrap MCP features - registers all tools at module load time
 import "@/src/features/mcp/server/bootstrap";
@@ -80,7 +83,9 @@ export default async function handler(
     const authCheck = await new ApiAuthService(
       prisma,
       redis,
-    ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
+    ).verifyAuthHeaderAndReturnScope(req.headers.authorization, {
+      allowInAppAgentKey: true,
+    });
 
     if (!authCheck.validKey) {
       throw new UnauthorizedError(authCheck.error);
@@ -114,7 +119,9 @@ export default async function handler(
       return rateLimitCheck.sendRestResponseIfLimited(res);
     }
 
-    // Build ServerContext from authenticated scope
+    // Build ServerContext from authenticated scope. In-app-agent keys need a
+    // run override for mutating tools; read-only tools remain available
+    // without it via their MCP readOnlyHint annotation.
     const context: ServerContext = {
       projectId: authCheck.scope.projectId,
       orgId: authCheck.scope.orgId,
@@ -122,9 +129,10 @@ export default async function handler(
       apiKeyId: authCheck.scope.apiKeyId,
       accessLevel: "project",
       publicKey: authCheck.scope.publicKey,
+      inAppAgent: getInAppAgentContext(req, authCheck.scope.isInAppAgentKey),
     };
 
-    logger.info("MCP request authenticated", {
+    logger.debug("MCP request authenticated", {
       method: req.method,
       projectId: context.projectId,
       orgId: context.orgId,
@@ -167,6 +175,32 @@ export default async function handler(
   }
 }
 
+export function getInAppAgentContext(
+  req: NextApiRequest,
+  isInAppAgentKey: boolean | undefined,
+): ServerContext["inAppAgent"] {
+  if (isInAppAgentKey !== true) {
+    return undefined;
+  }
+
+  const headerValue = req.headers[IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER];
+
+  if (typeof headerValue !== "string") {
+    return { permissions: "read" };
+  }
+
+  const parsedOverride = InAppAgentMcpRunOverrideSchema.safeParse(
+    safeJsonParse(headerValue),
+  );
+
+  return parsedOverride.success
+    ? {
+        permissions: "single-tool-override",
+        allowedToolName: parsedOverride.data.toolName,
+      }
+    : { permissions: "read" };
+}
+
 /**
  * Enable body parsing for JSON-RPC messages
  * Streamable HTTP transport receives JSON-RPC via POST body
@@ -174,7 +208,7 @@ export default async function handler(
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: "1mb",
+      sizeLimit: "4.5mb",
     },
   },
 };

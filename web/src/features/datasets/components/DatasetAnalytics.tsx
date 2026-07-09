@@ -4,7 +4,6 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 
 export function DatasetAnalytics(props: {
-  projectId: string;
   scoreOptions: { key: string; value: string }[];
   selectedMetrics: string[];
   setSelectedMetrics: (metrics: string[]) => void;

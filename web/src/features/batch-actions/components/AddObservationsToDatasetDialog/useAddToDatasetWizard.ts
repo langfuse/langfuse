@@ -310,7 +310,7 @@ export function useAddToDatasetWizard(props: UseAddToDatasetWizardProps) {
   }, [state.step]);
 
   const showBackButton = state.step !== "choice" && state.step !== "status";
-  const canClose = state.step !== "status";
+  const canClose = !state.submission.isSubmitting;
   const isLoading =
     state.step === "create"
       ? state.createStep.isCreating

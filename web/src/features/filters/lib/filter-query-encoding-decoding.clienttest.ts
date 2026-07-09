@@ -421,6 +421,19 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
         },
       ]);
     });
+
+    it("should decode arrayOptions none-of filter with empty values", () => {
+      const result = decodeFilters("tags;arrayOptions;;none of;");
+
+      expect(result).toEqual([
+        {
+          column: "tags",
+          type: "arrayOptions",
+          operator: "none of",
+          value: [],
+        },
+      ]);
+    });
   });
 
   describe("Round-trip consistency", () => {
@@ -495,6 +508,22 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
       const deserialized = decodeFilters(serialized);
 
       expect(deserialized).toEqual(filterWithEmptyString);
+    });
+
+    it("should maintain consistency for empty arrayOptions none-of filters", () => {
+      const filterWithPendingNoneSelection: FilterState = [
+        {
+          column: "tags",
+          type: "arrayOptions",
+          operator: "none of",
+          value: [],
+        },
+      ];
+
+      const serialized = encodeFilters(filterWithPendingNoneSelection);
+      const deserialized = decodeFilters(serialized);
+
+      expect(deserialized).toEqual(filterWithPendingNoneSelection);
     });
 
     it("should maintain consistency for values containing pipes", () => {

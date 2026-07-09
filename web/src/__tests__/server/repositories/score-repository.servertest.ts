@@ -3,12 +3,15 @@ import {
   createScoresCh,
   getScoreById,
   getScoresByIds,
+  getCategoricalScoresGroupedByName,
   getScoresGroupedByNameSourceType,
   getScoresUiTable,
   getScoresForTraces,
   getScoresForObservations,
   getScoresForSessions,
   getScoresForExperiments,
+  queryScoreRecordsForExperimentItems,
+  queryScoreRecordsForExperiments,
   getTraceScoresForDatasetRuns,
   getScoreNames,
   createTracesCh,
@@ -406,6 +409,105 @@ describe("Clickhouse Scores Repository Test", () => {
     });
   });
 
+  describe("filter option score grouping limits", () => {
+    it("should return at most 200 categorical score names and 20 values per score", async () => {
+      const { projectId: isolatedProjectId } =
+        await createOrgProjectAndApiKey();
+      const prioritizedScoreName =
+        "categorical-filter-score-with-config-priority";
+
+      const cappedScoreNames = Array.from(
+        { length: 10 },
+        (_, index) => `categorical-filter-score-capped-${index}`,
+      );
+      const cappedScoreRows = cappedScoreNames.flatMap((scoreName) =>
+        Array.from({ length: 25 }, (_, index) =>
+          createTraceScore({
+            project_id: isolatedProjectId,
+            trace_id: v4(),
+            name: scoreName,
+            data_type: "CATEGORICAL",
+            string_value: `${scoreName}-${index}`,
+            value: index,
+            source: "API",
+          }),
+        ),
+      );
+
+      await prisma.scoreConfig.create({
+        data: {
+          projectId: isolatedProjectId,
+          name: prioritizedScoreName,
+          dataType: "CATEGORICAL",
+          categories: [
+            { label: "A", value: 1 },
+            { label: "B", value: 2 },
+            { label: "C", value: 3 },
+            { label: "D", value: 4 },
+            { label: "E", value: 5 },
+          ],
+        },
+      });
+
+      const prioritizedScoreRows = Array.from({ length: 25 }, (_, index) =>
+        createTraceScore({
+          project_id: isolatedProjectId,
+          trace_id: v4(),
+          name: prioritizedScoreName,
+          data_type: "CATEGORICAL",
+          string_value: `observed-${index}`,
+          value: index,
+          source: "API",
+        }),
+      );
+
+      const additionalScoreRows = Array.from({ length: 193 }, (_, index) =>
+        createTraceScore({
+          project_id: isolatedProjectId,
+          trace_id: v4(),
+          name: `categorical-filter-score-${index}`,
+          data_type: "CATEGORICAL",
+          string_value: `other-value-${index}`,
+          value: index,
+          source: "API",
+        }),
+      );
+
+      await createScoresCh([
+        ...cappedScoreRows,
+        ...prioritizedScoreRows,
+        ...additionalScoreRows,
+      ]);
+
+      const result = await getCategoricalScoresGroupedByName(
+        isolatedProjectId,
+        [],
+      );
+
+      expect(result).toHaveLength(200);
+
+      for (const cappedScoreName of cappedScoreNames) {
+        const cappedScore = result.find(
+          (score) => score.label === cappedScoreName,
+        );
+
+        expect(cappedScore).toBeDefined();
+        expect(cappedScore?.values).toHaveLength(20);
+        expect(
+          cappedScore?.values.every((value) =>
+            value.startsWith(`${cappedScoreName}-`),
+          ),
+        ).toBe(true);
+      }
+      const prioritizedScore = result.find(
+        (row) => row.label === prioritizedScoreName,
+      );
+
+      expect(prioritizedScore).toBeDefined();
+      expect(prioritizedScore?.values).toHaveLength(20);
+    });
+  });
+
   describe("getScoresUiTable", () => {
     it("should return empty array when no scores match filter", async () => {
       const { projectId: isolatedProjectId } =
@@ -728,6 +830,173 @@ describe("Clickhouse Scores Repository Test", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].metadata).toEqual({});
+    });
+  });
+
+  describe("queryScoreRecordsForExperimentItems", () => {
+    it("returns item and trace scores only", async () => {
+      const { projectId: isolatedProjectId } =
+        await createOrgProjectAndApiKey();
+      const startTimeMs = Date.now();
+      const traceId = v4();
+      const observationId = v4();
+      const latestItemScoreId = v4();
+      const latestTraceScoreId = v4();
+      const experimentScoreId = v4();
+      const sessionScoreId = v4();
+
+      await createScoresCh([
+        createTraceScore({
+          id: v4(),
+          project_id: isolatedProjectId,
+          trace_id: traceId,
+          observation_id: observationId,
+          name: "old item score",
+          timestamp: startTimeMs + 1,
+          created_at: startTimeMs + 1,
+          updated_at: startTimeMs + 1,
+          event_ts: startTimeMs + 1,
+        }),
+        createTraceScore({
+          id: latestItemScoreId,
+          project_id: isolatedProjectId,
+          trace_id: traceId,
+          observation_id: observationId,
+          name: "latest item score",
+          timestamp: startTimeMs + 2,
+          created_at: startTimeMs + 2,
+          updated_at: startTimeMs + 2,
+          event_ts: startTimeMs + 2,
+        }),
+        createTraceScore({
+          id: v4(),
+          project_id: isolatedProjectId,
+          trace_id: traceId,
+          observation_id: null,
+          name: "old trace score",
+          timestamp: startTimeMs + 3,
+          created_at: startTimeMs + 3,
+          updated_at: startTimeMs + 3,
+          event_ts: startTimeMs + 3,
+        }),
+        createTraceScore({
+          id: latestTraceScoreId,
+          project_id: isolatedProjectId,
+          trace_id: traceId,
+          observation_id: "",
+          name: "latest trace score",
+          timestamp: startTimeMs + 4,
+          created_at: startTimeMs + 4,
+          updated_at: startTimeMs + 4,
+          event_ts: startTimeMs + 4,
+        }),
+        {
+          ...createDatasetRunScore({
+            id: experimentScoreId,
+            project_id: isolatedProjectId,
+            dataset_run_id: `exp-${v4()}`,
+          }),
+          trace_id: traceId,
+        },
+        {
+          ...createSessionScore({
+            id: sessionScoreId,
+            project_id: isolatedProjectId,
+            session_id: `session-${v4()}`,
+          }),
+          trace_id: traceId,
+        },
+      ]);
+
+      const result = await queryScoreRecordsForExperimentItems({
+        projectId: isolatedProjectId,
+        traceIds: [traceId],
+        observationIds: [observationId],
+        min: new Date(startTimeMs),
+        scoreLimit: 50,
+      });
+
+      const scoreIds = result.map((score) => score.id);
+      expect(scoreIds).toHaveLength(4);
+      expect(scoreIds).toEqual(
+        expect.arrayContaining([latestItemScoreId, latestTraceScoreId]),
+      );
+      expect(scoreIds).not.toContain(experimentScoreId);
+      expect(scoreIds).not.toContain(sessionScoreId);
+    });
+  });
+
+  describe("queryScoreRecordsForExperiments", () => {
+    it("returns experiment scores only, limited per experiment", async () => {
+      const { projectId: isolatedProjectId } =
+        await createOrgProjectAndApiKey();
+      const startTimeMs = Date.now();
+      const experimentId = `exp-${v4()}`;
+      const latestScoreId = v4();
+      const traceScopedScoreId = v4();
+      const otherExperimentScoreId = v4();
+
+      await createScoresCh([
+        createDatasetRunScore({
+          id: v4(),
+          project_id: isolatedProjectId,
+          dataset_run_id: experimentId,
+          name: "old experiment score",
+          timestamp: startTimeMs + 1,
+          created_at: startTimeMs + 1,
+          updated_at: startTimeMs + 1,
+          event_ts: startTimeMs + 1,
+        }),
+        createDatasetRunScore({
+          id: latestScoreId,
+          project_id: isolatedProjectId,
+          dataset_run_id: experimentId,
+          name: "latest experiment score",
+          timestamp: startTimeMs + 2,
+          created_at: startTimeMs + 2,
+          updated_at: startTimeMs + 2,
+          event_ts: startTimeMs + 2,
+        }),
+        createDatasetRunScore({
+          id: v4(),
+          project_id: isolatedProjectId,
+          dataset_run_id: experimentId,
+          name: "correction experiment score",
+          data_type: "CORRECTION",
+          timestamp: startTimeMs + 3,
+          created_at: startTimeMs + 3,
+          updated_at: startTimeMs + 3,
+          event_ts: startTimeMs + 3,
+        }),
+        {
+          ...createDatasetRunScore({
+            id: traceScopedScoreId,
+            project_id: isolatedProjectId,
+            dataset_run_id: experimentId,
+          }),
+          trace_id: v4(),
+        },
+        createDatasetRunScore({
+          id: otherExperimentScoreId,
+          project_id: isolatedProjectId,
+          dataset_run_id: `exp-${v4()}`,
+        }),
+      ]);
+
+      const result = await queryScoreRecordsForExperiments({
+        projectId: isolatedProjectId,
+        experimentIds: [experimentId],
+        fromTimestamp: new Date(startTimeMs),
+        scoreLimit: 1,
+      });
+
+      const scoreIds = result.map((score) => score.id);
+      expect(scoreIds).toEqual([latestScoreId]);
+      expect(result.every((score) => score.data_type !== "CORRECTION")).toBe(
+        true,
+      );
+      expect(scoreIds).not.toContain(traceScopedScoreId);
+      expect(scoreIds).not.toContain(otherExperimentScoreId);
     });
   });
 

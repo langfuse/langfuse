@@ -7,6 +7,9 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { hashPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { z } from "zod";
 import { type Role } from "@langfuse/shared";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 
 export default async function handler(
   req: NextApiRequest,
@@ -16,7 +19,7 @@ export default async function handler(
 
   if (req.method !== "GET" && req.method !== "POST") {
     logger.error(
-      `Method not allowed for ${req.method} on /api/public/scim/Users`,
+      `[SCIM] Method not allowed for ${req.method} on /api/public/scim/Users`,
     );
     return res.status(405).json({
       schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
@@ -52,8 +55,25 @@ export default async function handler(
     });
   }
 
+  // Gate SCIM provisioning behind the `admin-api` entitlement, matching the
+  // sibling organization admin endpoints (memberships, projects, apiKeys).
+  // Without this, any org-scoped key could create users and assign roles on
+  // plans that do not include the feature.
+  if (
+    !hasEntitlementBasedOnPlan({
+      plan: authCheck.scope.plan,
+      entitlement: "admin-api",
+    })
+  ) {
+    return res.status(403).json({
+      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+      detail: "This feature is not available on your current plan.",
+      status: 403,
+    });
+  }
+
   logger.info(
-    `Received request for /api/public/scim/Users with method ${req.method} for orgId ${authCheck.scope.orgId}`,
+    `[SCIM] Received request for /api/public/scim/Users with method ${req.method} for orgId ${authCheck.scope.orgId}`,
   );
 
   if (req.method === "GET") {
@@ -128,7 +148,7 @@ export default async function handler(
         Resources: scimUsers,
       });
     } catch (error) {
-      logger.error("Error retrieving SCIM users", error);
+      logger.error("[SCIM] Error retrieving users", error);
       return res.status(500).json({
         schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
         detail: "Internal server error",
@@ -144,7 +164,7 @@ export default async function handler(
         try {
           body = JSON.parse(body);
         } catch (error) {
-          logger.error("Failed to parse JSON body", error);
+          logger.error("[SCIM] Failed to parse JSON body", error);
           return res.status(400).json({
             schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
             detail: "Invalid JSON body",
@@ -156,7 +176,7 @@ export default async function handler(
       const { userName, name, password, displayName, roles } = body;
 
       if (!userName) {
-        logger.warn("userName is required for SCIM user creation");
+        logger.warn("[SCIM] userName is required for user creation");
         return res.status(400).json({
           schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
           detail: "userName is required",
@@ -171,7 +191,7 @@ export default async function handler(
         );
         const parsedRoles = roleSchema.safeParse(roles);
         if (!parsedRoles.success) {
-          logger.warn("Invalid roles provided for SCIM user creation");
+          logger.warn("[SCIM] Invalid roles provided for user creation");
           return res.status(400).json({
             schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
             detail: `Invalid roles provided: ${JSON.stringify(roles)}, must be one of OWNER, ADMIN, MEMBER, VIEWER, NONE`,
@@ -182,11 +202,15 @@ export default async function handler(
         role = parsedRoles.data[0];
       }
 
-      // Check if user already exists
+      // Check if user already exists. Normalize the email to lowercase to
+      // stay consistent with the upsert below; otherwise a case-variant
+      // userName slips past the duplicate check and the upsert can collide
+      // with an existing user row.
+      const normalizedEmail = userName.toLowerCase();
       const existingUser = await prisma.organizationMembership.findMany({
         where: {
           user: {
-            email: userName,
+            email: normalizedEmail,
           },
           orgId: authCheck.scope.orgId,
         },
@@ -194,7 +218,7 @@ export default async function handler(
 
       if (existingUser.length > 0) {
         logger.warn(
-          `User with userName ${userName} already exists in organization ${authCheck.scope.orgId}`,
+          `[SCIM] User ${existingUser[0].userId} already exists in organization ${authCheck.scope.orgId}`,
         );
         return res.status(409).json({
           schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
@@ -206,21 +230,44 @@ export default async function handler(
       // Create the user
       const user = await prisma.user.upsert({
         where: {
-          email: userName.toLowerCase(),
+          email: normalizedEmail,
         },
         create: {
-          email: userName.toLowerCase(),
+          email: normalizedEmail,
           name: name?.formatted || displayName,
           password: password ? await hashPassword(password) : undefined,
         },
         update: {},
       });
-      await prisma.organizationMembership.create({
+      const orgMembership = await prisma.organizationMembership.create({
         data: {
           userId: user.id,
           orgId: authCheck.scope.orgId,
           role,
         },
+      });
+      await auditLog({
+        resourceType: "orgMembership",
+        resourceId: orgMembership.id,
+        action: "create",
+        after: orgMembership,
+        apiKeyId: authCheck.scope.apiKeyId,
+        orgId: authCheck.scope.orgId,
+      });
+      logger.info(
+        `[SCIM] Assigned user ${user.id} to org ${authCheck.scope.orgId} with role ${role}`,
+      );
+
+      await getSfdcService()?.upsertUser({
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+      });
+      await getSfdcService()?.setUserRole({
+        orgId: authCheck.scope.orgId,
+        userId: user.id,
+        email: user.email,
+        role,
       });
 
       // Return SCIM formatted user
@@ -245,7 +292,7 @@ export default async function handler(
         },
       });
     } catch (error) {
-      logger.error("Failed to create SCIM user", error);
+      logger.error("[SCIM] Failed to create user", error);
       return res.status(500).json({
         schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
         detail: "Internal server error",

@@ -13,9 +13,10 @@ import {
   ParamPromptTag,
 } from "../validation";
 import { ParamLimit, ParamPage } from "../../../core/validation";
-import { getPromptsMeta } from "@/src/features/prompts/server/actions/getPromptsMeta";
-import { instrumentAsync } from "@langfuse/shared/src/server";
-import { SpanKind } from "@opentelemetry/api";
+import { listPromptsForApi } from "@/src/features/prompts/server/prompt-api-service";
+import { buildPromptUrl } from "@/src/utils/product-url";
+import { runMcpTool } from "../../../core/run-mcp-tool";
+import { paginationMeta } from "../../publicApi";
 
 const ParamFromUpdatedAt = z.iso
   .datetime({ offset: true })
@@ -88,39 +89,24 @@ export const [listPromptsTool, handleListPrompts] = defineTool({
   baseSchema: ListPromptsBaseSchema,
   inputSchema: ListPromptsInputSchema,
   handler: async (input, context) => {
-    return await instrumentAsync(
-      { name: "mcp.prompts.list", spanKind: SpanKind.INTERNAL },
-      async (span) => {
+    return await runMcpTool({
+      spanName: "mcp.prompts.list",
+      context,
+      attributes: {
+        "mcp.pagination_page": input.page ?? 1,
+        "mcp.pagination_limit": input.limit ?? 50,
+        "mcp.filter_name": input.name,
+        "mcp.filter_label": input.label,
+        "mcp.filter_tag": input.tag,
+        "mcp.filter_fromUpdatedAt": input.fromUpdatedAt,
+        "mcp.filter_toUpdatedAt": input.toUpdatedAt,
+      },
+      fn: async (span) => {
         const { name, label, tag, fromUpdatedAt, toUpdatedAt, page, limit } =
           input;
 
-        // Set span attributes for observability
-        span.setAttributes({
-          "langfuse.project.id": context.projectId,
-          "langfuse.org.id": context.orgId,
-          "mcp.api_key_id": context.apiKeyId,
-          "mcp.pagination_page": page ?? 1,
-          "mcp.pagination_limit": limit ?? 50,
-        });
-
-        if (name) {
-          span.setAttribute("mcp.filter_name", name);
-        }
-        if (label) {
-          span.setAttribute("mcp.filter_label", label);
-        }
-        if (tag) {
-          span.setAttribute("mcp.filter_tag", tag);
-        }
-        if (fromUpdatedAt) {
-          span.setAttribute("mcp.filter_fromUpdatedAt", fromUpdatedAt);
-        }
-        if (toUpdatedAt) {
-          span.setAttribute("mcp.filter_toUpdatedAt", toUpdatedAt);
-        }
-
         // Fetch prompts metadata using existing service
-        const result = await getPromptsMeta({
+        const result = await listPromptsForApi({
           projectId: context.projectId, // Auto-injected from authenticated API key
           name,
           label,
@@ -136,24 +122,35 @@ export const [listPromptsTool, handleListPrompts] = defineTool({
 
         // Return formatted response
         return {
-          data: result.data.map((prompt) => ({
-            name: prompt.name,
-            type: prompt.type,
-            versions: prompt.versions,
-            labels: prompt.labels,
-            tags: prompt.tags,
-            lastUpdatedAt: prompt.lastUpdatedAt,
-            lastConfig: prompt.lastConfig,
-          })),
-          pagination: {
+          data: result.data.map((prompt) => {
+            const latestVersion =
+              prompt.versions.length > 0
+                ? Math.max(...prompt.versions)
+                : undefined;
+
+            return {
+              name: prompt.name,
+              type: prompt.type,
+              versions: prompt.versions,
+              labels: prompt.labels,
+              tags: prompt.tags,
+              lastUpdatedAt: prompt.lastUpdatedAt,
+              lastConfig: prompt.lastConfig,
+              url: buildPromptUrl({
+                projectId: context.projectId,
+                name: prompt.name,
+                version: latestVersion,
+              }),
+            };
+          }),
+          meta: paginationMeta({
             page: result.pagination.page,
             limit: result.pagination.limit,
-            totalPages: result.pagination.totalPages,
             totalItems: result.pagination.totalItems,
-          },
+          }),
         };
       },
-    );
+    });
   },
   readOnlyHint: true,
 });

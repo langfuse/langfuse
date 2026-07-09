@@ -2,112 +2,53 @@ import React, { useEffect, useRef, useState, useMemo } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 
-// Helper function to strip trailing zeros after decimal point while preserving integer zeros
-const stripTrailingDecimalZeros = (numStr: string): string =>
-  numStr.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+// This should ideally be read based on the actual font sizes defined in Tailwind
+const baseFontSizeLookup = {
+  "text-8xl": 128,
+  "text-7xl": 96,
+  "text-6xl": 72,
+  "text-5xl": 60,
+  "text-4xl": 48,
+  "text-3xl": 36,
+  "text-2xl": 24,
+  "text-xl": 20,
+  "text-lg": 18,
+  "text-base": 16,
+  "text-sm": 14,
+} as const;
 
-// Format large numbers with appropriate units and dynamic decimal places
-const formatBigNumber = (
-  value: number,
-  maxCharacters?: number,
-): { formatted: string; unit: string } => {
-  const absValue = Math.abs(value);
+type FontSizeClass = keyof typeof baseFontSizeLookup;
 
-  // Calculate how many decimal places we can afford based on available space
-  const getOptimalDecimalPlaces = (
-    baseNumber: number,
-    unit: string,
-    maxChars?: number,
-  ): number => {
-    if (!maxChars) return 1; // Default to 1 decimal place
+const baseFontSizes = Object.entries(baseFontSizeLookup)
+  .sort(([, leftPx], [, rightPx]) => rightPx - leftPx)
+  .map(([fontClass, px]) => ({ class: fontClass as FontSizeClass, px }));
 
-    const baseStr = Math.floor(Math.abs(baseNumber)).toString();
-    const signLength = value < 0 ? 1 : 0;
-    const availableForDecimals =
-      maxChars - baseStr.length - unit.length - signLength - 1; // -1 for decimal point
+const affixFontSizeLookup: Record<FontSizeClass, string> = {
+  "text-8xl": "text-4xl",
+  "text-7xl": "text-3xl",
+  "text-6xl": "text-2xl",
+  "text-5xl": "text-xl",
+  "text-4xl": "text-lg",
+  "text-3xl": "text-base",
+  "text-2xl": "text-sm",
+  "text-xl": "text-sm",
+  "text-lg": "text-xs",
+  "text-base": "text-xs",
+  "text-sm": "text-xs",
+};
 
-    return Math.max(0, Math.min(3, availableForDecimals)); // Max 3 decimal places, min 0
-  };
-
-  if (absValue >= 1e12) {
-    const baseValue = value / 1e12;
-    const decimals = getOptimalDecimalPlaces(baseValue, "T", maxCharacters);
-    return {
-      formatted: stripTrailingDecimalZeros(baseValue.toFixed(decimals)),
-      unit: "T",
-    };
-  } else if (absValue >= 1e9) {
-    const baseValue = value / 1e9;
-    const decimals = getOptimalDecimalPlaces(baseValue, "B", maxCharacters);
-    return {
-      formatted: stripTrailingDecimalZeros(baseValue.toFixed(decimals)),
-      unit: "B",
-    };
-  } else if (absValue >= 1e6) {
-    const baseValue = value / 1e6;
-    const decimals = getOptimalDecimalPlaces(baseValue, "M", maxCharacters);
-    return {
-      formatted: stripTrailingDecimalZeros(baseValue.toFixed(decimals)),
-      unit: "M",
-    };
-  } else if (absValue >= 1e3) {
-    const baseValue = value / 1e3;
-    const decimals = getOptimalDecimalPlaces(baseValue, "K", maxCharacters);
-    return {
-      formatted: stripTrailingDecimalZeros(baseValue.toFixed(decimals)),
-      unit: "K",
-    };
-  } else if (absValue >= 1) {
-    // For numbers >= 1, show dynamic decimal places based on space
-    const decimals = maxCharacters
-      ? Math.min(
-          3,
-          Math.max(
-            0,
-            maxCharacters -
-              Math.floor(absValue).toString().length -
-              (value < 0 ? 1 : 0) -
-              1,
-          ),
-        )
-      : 2;
-    return {
-      formatted: stripTrailingDecimalZeros(
-        value.toFixed(Math.max(0, Math.min(3, decimals))),
-      ),
-      unit: "",
-    };
-  } else if (absValue > 0) {
-    // For small numbers, show as many meaningful decimal places as space allows
-    // Find the first significant digit and show a few more places
-    const str = absValue.toString();
-    const firstSignificantIndex = str.search(/[1-9]/);
-
-    if (firstSignificantIndex === -1) return { formatted: "0", unit: "" };
-
-    // Calculate how many decimal places we need to show meaningful digits
-    const neededDecimals = firstSignificantIndex + 2; // Show 2 significant digits
-    const maxAllowedDecimals = maxCharacters ? maxCharacters - 2 : 6; // Account for "0."
-    const decimals = Math.min(neededDecimals, maxAllowedDecimals, 8); // Max 8 decimal places
-
-    return {
-      formatted: stripTrailingDecimalZeros(
-        value.toFixed(Math.max(0, Math.min(3, decimals))),
-      ),
-      unit: "",
-    };
-  } else {
-    return { formatted: "0", unit: "" };
-  }
+const getAffixFontSize = (size: FontSizeClass) => {
+  return affixFontSizeLookup[size];
 };
 
 export const BigNumber: React.FC<ChartProps> = ({
   data,
   className,
+  metricFormatter,
 }: ChartProps & { className?: string }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLSpanElement>(null);
-  const [fontSize, setFontSize] = useState("text-6xl");
+  const [fontSize, setFontSize] = useState<FontSizeClass>("text-6xl");
   const [maxCharacters, setMaxCharacters] = useState<number>();
 
   // Calculate metric value from data - show loading if no data
@@ -127,9 +68,25 @@ export const BigNumber: React.FC<ChartProps> = ({
     }, 0);
   }, [data, isLoading]);
 
-  const displayValue = !isLoading
-    ? formatBigNumber(calculatedMetric, maxCharacters)
-    : { formatted: "0", unit: "" };
+  const displayValue = useMemo(() => {
+    if (isLoading) {
+      return { main: "0" };
+    }
+
+    return metricFormatter
+      ? metricFormatter(
+          calculatedMetric,
+          maxCharacters
+            ? {
+                style: "compact",
+                maxCharacters,
+              }
+            : { style: "compact" },
+        )
+      : {
+          main: calculatedMetric.toString(),
+        };
+  }, [calculatedMetric, isLoading, maxCharacters, metricFormatter]);
 
   useEffect(() => {
     const resizeObserver = new ResizeObserver(() => {
@@ -144,21 +101,7 @@ export const BigNumber: React.FC<ChartProps> = ({
       const availableHeight = containerHeight * 0.9; // Use more height (was 0.8)
 
       // Start with a large font size and scale down
-      const baseFontSizes = [
-        { class: "text-8xl", px: 128 },
-        { class: "text-7xl", px: 96 },
-        { class: "text-6xl", px: 72 },
-        { class: "text-5xl", px: 60 },
-        { class: "text-4xl", px: 48 },
-        { class: "text-3xl", px: 36 },
-        { class: "text-2xl", px: 24 },
-        { class: "text-xl", px: 20 },
-        { class: "text-lg", px: 18 },
-        { class: "text-base", px: 16 },
-        { class: "text-sm", px: 14 },
-      ];
-
-      let selectedFontSize = "text-sm";
+      let selectedFontSize: FontSizeClass = "text-sm";
       let calculatedMaxChars = 0;
 
       // Test each font size to find the largest that fits
@@ -169,11 +112,20 @@ export const BigNumber: React.FC<ChartProps> = ({
 
         // Quick test with current display value
         const testDisplayValue = !isLoading
-          ? formatBigNumber(calculatedMetric, maxChars)
-          : { formatted: "0", unit: "" };
+          ? metricFormatter
+            ? metricFormatter(calculatedMetric, {
+                style: "compact",
+                maxCharacters: maxChars,
+              })
+            : { main: "0" }
+          : { main: "0" };
 
-        const textLength = (testDisplayValue.formatted + testDisplayValue.unit)
-          .length;
+        const textLength = (
+          (testDisplayValue.negative ? "-" : "") +
+          (testDisplayValue.prefix ?? "") +
+          testDisplayValue.main +
+          (testDisplayValue.suffix ?? "")
+        ).length;
         const estimatedWidth = textLength * charWidth;
         const estimatedHeight = px * 1.1; // Less conservative line height (was 1.2)
 
@@ -196,7 +148,7 @@ export const BigNumber: React.FC<ChartProps> = ({
     }
 
     return () => resizeObserver.disconnect();
-  }, [calculatedMetric, isLoading]);
+  }, [calculatedMetric, isLoading, metricFormatter]);
 
   if (isLoading) {
     return null;
@@ -211,37 +163,42 @@ export const BigNumber: React.FC<ChartProps> = ({
       )}
     >
       <div className="flex items-baseline justify-center gap-1">
+        {displayValue.prefix && (
+          <span
+            className={cn(
+              "text-muted-foreground font-bold",
+              getAffixFontSize(fontSize),
+            )}
+          >
+            {displayValue.negative && (
+              <span
+                className={cn(
+                  "text-foreground font-extrabold tracking-tight",
+                  fontSize,
+                )}
+              >
+                -
+              </span>
+            )}
+            {displayValue.prefix}
+          </span>
+        )}
         <span
           ref={textRef}
           className={cn("text-center font-extrabold tracking-tight", fontSize)}
           title={calculatedMetric.toString()}
         >
-          {displayValue.formatted}
+          {displayValue.negative && !displayValue.prefix ? "-" : ""}
+          {displayValue.main}
         </span>
-        {displayValue.unit && (
+        {displayValue.suffix && (
           <span
             className={cn(
               "text-muted-foreground font-bold",
-              fontSize === "text-8xl"
-                ? "text-4xl"
-                : fontSize === "text-7xl"
-                  ? "text-3xl"
-                  : fontSize === "text-6xl"
-                    ? "text-2xl"
-                    : fontSize === "text-5xl"
-                      ? "text-xl"
-                      : fontSize === "text-4xl"
-                        ? "text-lg"
-                        : fontSize === "text-3xl"
-                          ? "text-base"
-                          : fontSize === "text-2xl"
-                            ? "text-sm"
-                            : fontSize === "text-xl"
-                              ? "text-sm"
-                              : "text-xs",
+              getAffixFontSize(fontSize),
             )}
           >
-            {displayValue.unit}
+            {displayValue.suffix}
           </span>
         )}
       </div>

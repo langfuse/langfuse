@@ -49,13 +49,13 @@ const prepareProjectsAndApiKeys = async (
     });
     if (!apiKeyExists) {
       const sk = await hashSecretKey(
-        `sk-${Math.random().toString(36).substr(2, 9)}`,
+        `sk-${Math.random().toString(36).slice(2, 11)}`,
       );
       await prisma.apiKey.create({
         data: {
           id: apiKeyId,
           note: `API Key for ${projectId}`,
-          publicKey: `pk-${Math.random().toString(36).substr(2, 9)}`,
+          publicKey: `pk-${Math.random().toString(36).slice(2, 11)}`,
           hashedSecretKey: sk,
           displaySecretKey: getDisplaySecretKey(sk),
           scope: "PROJECT",

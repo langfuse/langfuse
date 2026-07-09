@@ -7,10 +7,10 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { Loader2 } from "lucide-react";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { ScoreDistributionBooleanChart } from "../charts/ScoreDistributionBooleanChart";
 import { SamplingDetailsHoverCard } from "../SamplingDetailsHoverCard";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 type DistributionTab = "score1" | "score2" | "all" | "matched";
 
@@ -128,7 +128,7 @@ export function DistributionBooleanCard() {
           <CardDescription>Loading chart...</CardDescription>
         </CardHeader>
         <CardContent className="flex h-[340px] flex-col items-center justify-center pl-0">
-          <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+          <Spinner size="xl" variant="muted" />
         </CardContent>
       </Card>
     );

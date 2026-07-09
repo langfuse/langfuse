@@ -4,6 +4,7 @@ import {
   type ReactNode,
   type ReactElement,
   memo,
+  useMemo,
   isValidElement,
   Children,
   createElement,
@@ -35,10 +36,10 @@ import { type MediaReturnType } from "@/src/features/media/validation";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import DOMPurify from "dompurify";
 import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
 import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
 import { Button } from "@/src/components/ui/button";
+import { getSafeImageUrl, getSafeLinkUrl } from "@/src/components/ui/safe-url";
 import {
   getPromptReferenceMarkdownHref,
   getPromptReferenceMarkdownLabel,
@@ -52,6 +53,7 @@ import {
   getRenderedInlineMediaIds,
   getStandaloneMediaReferenceStrings,
 } from "@/src/components/ui/markdown-media.utils";
+import { exceedsMarkdownRenderLimits } from "@/src/components/ui/markdown-render-limits";
 
 type ReactMarkdownNode = ReactMarkdownExtraProps["node"];
 type ReactMarkdownNodeChildren = Exclude<
@@ -62,33 +64,6 @@ type ReactMarkdownNodeChildren = Exclude<
 // ReactMarkdown does not render raw HTML by default for security reasons, to prevent XSS (Cross-Site Scripting) attacks.
 // html is rendered as plain text by default.
 const MemoizedReactMarkdown: FC<Options> = memo(ReactMarkdown);
-
-const getSafeUrl = (href: string | undefined | null): string | null => {
-  if (!href || typeof href !== "string") return null;
-
-  // DOMPurify's default sanitization is quite permissive but safe
-  // It blocks javascript:, data: with scripts, vbscript:, etc.
-  // But allows http:, https:, ftp:, mailto:, tel:, and many others
-  try {
-    const sanitized = DOMPurify.sanitize(href, {
-      // ALLOWED_TAGS: An array of HTML tags that are explicitly permitted in the output.
-      // Setting this to an empty array means that no HTML tags are allowed.
-      // Any HTML tag found within the 'href' string would be stripped out.
-      ALLOWED_TAGS: [],
-
-      // ALLOWED_ATTR: An array of HTML attributes that are explicitly permitted on allowed tags.
-      // Setting this to an empty array means that no HTML attributes are allowed.
-      // Similar to ALLOWED_TAGS, this ensures that if any attributes are somehow
-      // embedded within the URL string (e.g., malformed or attempting injection),
-      // they will be removed by DOMPurify. We only expect a pure URL string.
-      ALLOWED_ATTR: [],
-    });
-
-    return sanitized || null;
-  } catch {
-    return null;
-  }
-};
 
 const isTextElement = (
   child: ReactNode,
@@ -238,6 +213,30 @@ function MarkdownRenderer({
 }) {
   const promptReferenceProjectId = usePromptReferenceProjectId();
 
+  // Guard against payloads that would overflow the JS call stack while
+  // react-markdown recursively walks the parsed tree (crashes Firefox, whose
+  // stack is much smaller than Chrome's). Rendered as plain text instead.
+  // See markdown-render-limits.ts for the mechanism.
+  const tooLargeOrDeep = useMemo(
+    () => exceedsMarkdownRenderLimits(markdown),
+    [markdown],
+  );
+
+  if (tooLargeOrDeep) {
+    return (
+      <div className={cn("space-y-2 overflow-x-auto text-sm", className)}>
+        <div className="text-muted-foreground flex items-center gap-1 text-xs">
+          <Info className="h-3 w-3" />
+          Content is too large or deeply nested to render as markdown.
+          Displaying as plain text.
+        </div>
+        <pre className="text-sm break-words whitespace-pre-wrap">
+          {markdown}
+        </pre>
+      </div>
+    );
+  }
+
   // Try to parse markdown content
 
   try {
@@ -285,7 +284,7 @@ function MarkdownRenderer({
               }
 
               // Handle regular links
-              const safeHref = getSafeUrl(href);
+              const safeHref = getSafeLinkUrl(href);
               if (safeHref) {
                 return (
                   <Link
@@ -371,8 +370,10 @@ function MarkdownRenderer({
               );
             },
             img({ src, alt }) {
-              return src && typeof src === "string" ? (
-                <ResizableImage src={src} alt={alt} />
+              const safeSrc =
+                typeof src === "string" ? getSafeImageUrl(src) : null;
+              return safeSrc ? (
+                <ResizableImage src={safeSrc} alt={alt} />
               ) : null;
             },
             hr() {
@@ -484,7 +485,7 @@ export function MarkdownView({
   });
 
   const handleOnCopy = () => {
-    void copyTextToClipboard(markdownContent);
+    copyTextToClipboard(markdownContent);
   };
 
   const handleOnValueChange = () => {
@@ -504,7 +505,7 @@ export function MarkdownView({
   );
 
   return (
-    <div className={cn("overflow-hidden")} key={theme}>
+    <div className="overflow-hidden" key={theme}>
       {title ? (
         <>
           <MarkdownJsonViewHeader
@@ -566,40 +567,53 @@ export function MarkdownView({
           )
         ) : (
           // content parts (multi-modal)
-          (markdown ?? []).map((content, index) =>
-            isOpenAITextContentPart(content) ? (
-              <MarkdownRenderer
-                key={index}
-                markdown={content.text}
-                theme={theme}
-                customCodeHeaderClassName={customCodeHeaderClassName}
-              />
-            ) : isOpenAIImageContentPart(content) ? (
-              OpenAIUrlImageUrl.safeParse(content.image_url.url).success ? (
-                <div key={index}>
-                  <ResizableImage src={content.image_url.url.toString()} />
-                </div>
-              ) : MediaReferenceStringSchema.safeParse(content.image_url.url)
-                  .success ? (
-                <LangfuseMediaView
-                  mediaReferenceString={content.image_url.url}
+          (markdown ?? []).map((content, index) => {
+            if (isOpenAITextContentPart(content)) {
+              return (
+                <MarkdownRenderer
+                  key={index}
+                  markdown={content.text}
+                  theme={theme}
+                  customCodeHeaderClassName={customCodeHeaderClassName}
                 />
+              );
+            }
+
+            if (isOpenAIImageContentPart(content)) {
+              const imageUrl = content.image_url.url;
+              const safeImageUrl =
+                typeof imageUrl === "string" &&
+                OpenAIUrlImageUrl.safeParse(imageUrl).success
+                  ? getSafeImageUrl(imageUrl)
+                  : null;
+
+              return safeImageUrl ? (
+                <div key={index}>
+                  <ResizableImage src={safeImageUrl} />
+                </div>
+              ) : MediaReferenceStringSchema.safeParse(imageUrl).success ? (
+                <LangfuseMediaView mediaReferenceString={imageUrl} />
               ) : (
                 <div className="grid grid-cols-[auto_1fr] items-center gap-2">
                   <span title="<Base64 data URI>" className="h-4 w-4">
                     <ImageOff className="h-4 w-4" />
                   </span>
-                  <span className="truncate text-sm">
-                    {content.image_url.url.toString()}
+                  <span
+                    className="truncate text-sm"
+                    title={imageUrl.toString()}
+                  >
+                    {imageUrl.toString()}
                   </span>
                 </div>
-              )
-            ) : content.type === "input_audio" ? (
+              );
+            }
+
+            return content.type === "input_audio" ? (
               <LangfuseMediaView
                 mediaReferenceString={content.input_audio.data}
               />
-            ) : null,
-          )
+            ) : null;
+          })
         )}
         {audio ? (
           <>
@@ -619,11 +633,11 @@ export function MarkdownView({
           <div className="text-muted-foreground mx-3 border-t px-2 py-1 text-xs">
             Media
           </div>
-          <div className="flex flex-wrap gap-2 p-4 pt-1">
+          <div className="mx-3 flex flex-wrap gap-2 pt-1 pb-4">
             {remainingMedia.map((m) => (
               <LangfuseMediaView
                 mediaAPIReturnValue={m}
-                asFileIcon={true}
+                variant="icon"
                 key={m.mediaId}
               />
             ))}

@@ -14,9 +14,7 @@ type ExperimentComparisonSelectorProps = {
   baselineExperimentId?: string;
   selectedIds: string[];
   onSelectedIdsChange: (ids: string[]) => void;
-  isLoading?: boolean;
   maxSelections?: number;
-  disabled?: boolean;
 };
 
 export function ExperimentComparisonSelector({
@@ -93,7 +91,10 @@ export function ExperimentComparisonSelector({
               {isSelected && <Check className="text-primary h-4 w-4" />}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">
+              <p
+                className="truncate text-sm font-medium"
+                title={item.experimentName}
+              >
                 {item.experimentName}
               </p>
             </div>
@@ -104,7 +105,10 @@ export function ExperimentComparisonSelector({
             variant="secondary"
             className="flex items-center gap-1 px-2 py-0.5"
           >
-            <span className="max-w-24 truncate text-xs">
+            <span
+              className="max-w-24 truncate text-xs"
+              title={item.experimentName}
+            >
               {item.experimentName}
             </span>
             <button

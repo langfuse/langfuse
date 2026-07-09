@@ -160,9 +160,15 @@ export function useSyncMessageSearchMessages(
     }
 
     actions.registerPageMessages(pageId, messages);
+  }, [actions, messages, pageId]);
+
+  useEffect(() => {
+    if (!actions) {
+      return;
+    }
 
     return () => {
       actions.unregisterPageMessages(pageId);
     };
-  }, [actions, messages, pageId]);
+  }, [actions, pageId]);
 }

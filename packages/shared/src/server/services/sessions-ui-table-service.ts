@@ -3,6 +3,7 @@ import { OrderByState } from "../../interfaces/orderBy";
 import { sessionCols } from "../tableMappings/mapSessionTable";
 import { FilterState } from "../../types";
 import { sessionsViewCols } from "../../tableDefinitions/sessionsView";
+import { findUiColumnMapping } from "../../tableDefinitions";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { DateTimeFilter, FilterList, orderByToClickhouseSql } from "../queries";
@@ -55,7 +56,6 @@ export const getSessionsTableCount = async (props: {
     orderBy: props.orderBy,
     limit: props.limit,
     page: props.page,
-    tags: { kind: "count" },
   });
 
   return rows.length > 0 ? Number(rows[0].count) : 0;
@@ -75,7 +75,6 @@ export const getSessionsTable = async (props: {
     orderBy: props.orderBy,
     limit: props.limit,
     page: props.page,
-    tags: { kind: "list" },
   });
 
   return rows.map((row) => ({
@@ -100,7 +99,6 @@ export const getSessionsWithMetrics = async (props: {
     limit: props.limit,
     page: props.page,
     clickhouseConfigs: props.clickhouseConfigs,
-    tags: { kind: "analytic" },
   });
 
   return rows.map((row) => ({
@@ -216,10 +214,8 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
 
   const requiresScoresJoin =
     tracesFilter.find((f) => f.clickhouseTable === "scores") !== undefined ||
-    sessionCols.find(
-      (c) =>
-        c.uiTableName === orderBy?.column || c.uiTableId === orderBy?.column,
-    )?.clickhouseTableName === "scores";
+    findUiColumnMapping(sessionCols, orderBy?.column)?.clickhouseTableName ===
+      "scores";
 
   const hasMetricsFilter =
     tracesFilter.find((f) =>
@@ -396,13 +392,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
             }
           : {}),
       },
-      tags: {
-        ...(props.tags ?? {}),
-        feature: "tracing",
-        type: "sessions-table",
-        projectId,
-        operation_name: `getSessionsTableGeneric-${select}`,
-      },
+      tags: { ...(props.tags ?? {}), projectId },
     },
     fn: async (input) => {
       return queryClickhouse<T>({

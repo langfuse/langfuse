@@ -8,8 +8,14 @@ import Page from "@/src/components/layouts/page";
 import { LevelCountsDisplay } from "@/src/components/level-counts-display";
 import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execution-utils";
 import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
-import { type EvaluatorExecutionStatusCount } from "@langfuse/shared";
+import {
+  type EvalTargetObject,
+  type EvaluatorExecutionStatusCount,
+  validateEvaluatorFiltersForTarget,
+} from "@langfuse/shared";
 import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { AlertTriangle } from "lucide-react";
 
 const JobExecutionCounts = ({
   isLoading,
@@ -42,6 +48,16 @@ export const EvaluatorDetail = () => {
     evaluatorId,
     evaluator: evaluator.data,
   });
+  const filterValidation = React.useMemo(() => {
+    if (!evaluator.data) {
+      return null;
+    }
+
+    return validateEvaluatorFiltersForTarget({
+      targetObject: evaluator.data.targetObject as EvalTargetObject,
+      filter: evaluator.data.filter,
+    });
+  }, [evaluator.data]);
 
   // get all templates for the current template name
   const allTemplates = api.evals.allTemplatesForName.useQuery(
@@ -126,6 +142,19 @@ export const EvaluatorDetail = () => {
     >
       {existingEvaluator && (
         <div className="flex h-full flex-col overflow-hidden">
+          {filterValidation && !filterValidation.isValid && (
+            <div className="mx-3 mt-3">
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Unsupported filters</AlertTitle>
+                <AlertDescription>
+                  This evaluator contains deprecated or unsupported filters. The
+                  filters must be removed. Until the filters are removed, the
+                  evaluator is paused and will not be run.{" "}
+                </AlertDescription>
+              </Alert>
+            </div>
+          )}
           {existingEvaluator.blockedAt && (
             <div className="mx-3 mt-3">
               <EvaluatorPausedCallout

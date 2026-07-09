@@ -2,16 +2,59 @@ import { randomUUID } from "crypto";
 import { makeAPICall } from "@/src/__tests__/test-utils";
 import waitForExpect from "wait-for-expect";
 import {
+  clickhouseClient,
   getBlobStorageByProjectAndEntityId,
   getObservationById,
   getScoreById,
   getTraceById,
+  createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 
-const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+let projectId: string;
+let auth: string;
+let publicKey: string;
+
+const postIngestion = (body: unknown, customHeaders?: Record<string, string>) =>
+  makeAPICall("POST", "/api/public/ingestion", body, auth, customHeaders);
+
+type IngestionAttributionRow = {
+  ingestion_api_key: string;
+  ingestion_sdk_name: string;
+  ingestion_sdk_version: string;
+};
+
+const getIngestionAttribution = async (table: "scores", id: string) => {
+  const result = await clickhouseClient().query({
+    query: `
+      SELECT
+        ingestion_api_key,
+        ingestion_sdk_name,
+        ingestion_sdk_version
+      FROM ${table}
+      WHERE project_id = {projectId: String}
+        AND id = {id: String}
+      ORDER BY event_ts DESC
+      LIMIT 1
+    `,
+    query_params: {
+      projectId,
+      id,
+    },
+    format: "JSONEachRow",
+  });
+
+  const rows = await result.json<IngestionAttributionRow>();
+  return rows[0];
+};
 
 describe("/api/public/ingestion API Endpoint", () => {
+  beforeEach(async () => {
+    const fixture = await createOrgProjectAndApiKey();
+    projectId = fixture.projectId;
+    auth = fixture.auth;
+    publicKey = fixture.publicKey;
+  });
   it.each([
     [
       "plain",
@@ -87,7 +130,7 @@ describe("/api/public/ingestion API Endpoint", () => {
   ])(
     "should create traces via the ingestion API (%s)",
     async (_name: string, entity: any) => {
-      const response = await makeAPICall("POST", "/api/public/ingestion", {
+      const response = await postIngestion({
         batch: [entity],
       });
 
@@ -125,7 +168,7 @@ describe("/api/public/ingestion API Endpoint", () => {
   //       environment: "production",
   //     },
   //   };
-  //   const response = await makeAPICall("POST", "/api/public/ingestion", {
+  //   const response = await postIngestion({
   //     batch: [entity],
   //   });
   //
@@ -364,19 +407,8 @@ describe("/api/public/ingestion API Endpoint", () => {
   ])(
     "should create observations via the ingestion API (%s)",
     async (_name: string, type: string, entity: any) => {
-      const response = await makeAPICall("POST", "/api/public/ingestion", {
-        batch: [
-          {
-            id: randomUUID(),
-            type: "trace-create",
-            timestamp: new Date().toISOString(),
-            body: {
-              id: entity.traceId,
-              timestamp: new Date().toISOString(),
-            },
-          },
-          entity,
-        ],
+      const response = await postIngestion({
+        batch: [entity],
       });
 
       expect(response.status).toBe(207);
@@ -437,7 +469,7 @@ describe("/api/public/ingestion API Endpoint", () => {
   ])(
     "should create scores via the ingestion API (%s)",
     async (_name: string, entity: any) => {
-      const response = await makeAPICall("POST", "/api/public/ingestion", {
+      const response = await postIngestion({
         batch: [entity],
       });
 
@@ -458,6 +490,71 @@ describe("/api/public/ingestion API Endpoint", () => {
       });
     },
   );
+
+  it("should persist ingestion attribution for scores", async () => {
+    const timestamp = new Date().toISOString();
+    const traceId = randomUUID();
+    const observationId = randomUUID();
+    const scoreId = randomUUID();
+
+    const response = await postIngestion(
+      {
+        batch: [
+          {
+            id: randomUUID(),
+            type: "generation-create",
+            timestamp,
+            body: {
+              id: observationId,
+              traceId,
+              startTime: timestamp,
+              model: "gpt-4",
+              environment: "default",
+            },
+          },
+          {
+            id: randomUUID(),
+            type: "score-create",
+            timestamp,
+            body: {
+              id: scoreId,
+              name: "score-name",
+              traceId,
+              observationId,
+              value: 100.5,
+              environment: "default",
+            },
+          },
+        ],
+      },
+      {
+        "x-langfuse-sdk-name": "python",
+        "x-langfuse-sdk-version": "3.4.0",
+      },
+    );
+
+    expect(response.status).toBe(207);
+
+    await waitForExpect(async () => {
+      const observation = await getObservationById({
+        id: observationId,
+        projectId,
+      });
+      expect(observation).toBeDefined();
+
+      const score = await getScoreById({
+        projectId,
+        scoreId,
+      });
+      expect(score).toBeDefined();
+
+      expect(await getIngestionAttribution("scores", scoreId)).toEqual({
+        ingestion_api_key: publicKey,
+        ingestion_sdk_name: "python",
+        ingestion_sdk_version: "3.4.0",
+      });
+    }, 15_000);
+  }, 20_000);
 
   it.each([
     "&",
@@ -489,7 +586,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     async (char: string) => {
       const traceId = randomUUID();
 
-      const response = await makeAPICall("POST", "/api/public/ingestion", {
+      const response = await postIngestion({
         batch: [
           {
             id: randomUUID(),
@@ -522,7 +619,7 @@ describe("/api/public/ingestion API Endpoint", () => {
   it("should fail for \\r in id", async () => {
     const traceId = v4();
 
-    const response = await makeAPICall("POST", "/api/public/ingestion", {
+    const response = await postIngestion({
       batch: [
         {
           id: `${v4()}-\r-test`,
@@ -557,7 +654,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     const repeatCount = Math.ceil(1500 / baseString.length);
     const name = baseString.repeat(repeatCount);
 
-    const response = await makeAPICall("POST", "/api/public/ingestion", {
+    const response = await postIngestion({
       batch: [
         {
           id: v4(),
@@ -583,7 +680,7 @@ describe("/api/public/ingestion API Endpoint", () => {
   });
 
   it("should silently drop invalid float values in usageDetails", async () => {
-    const response = await makeAPICall("POST", "/api/public/ingestion", {
+    const response = await postIngestion({
       batch: [
         {
           id: v4(),
@@ -632,7 +729,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         },
       };
 
-      const response = await makeAPICall("POST", "/api/public/ingestion", {
+      const response = await postIngestion({
         batch: [entity],
       });
 
@@ -647,7 +744,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     const traceId = v4();
     const eventId = v4();
 
-    const response = await makeAPICall("POST", "/api/public/ingestion", {
+    const response = await postIngestion({
       batch: [
         {
           id: eventId,
@@ -700,7 +797,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         },
       };
 
-      const response = await makeAPICall("POST", "/api/public/ingestion", {
+      const response = await postIngestion({
         batch: [entity],
       });
 
@@ -741,7 +838,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         },
       };
 
-      const response = await makeAPICall("POST", "/api/public/ingestion", {
+      const response = await postIngestion({
         batch: [entity],
       });
 
@@ -786,7 +883,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         },
       };
 
-      const response = await makeAPICall("POST", "/api/public/ingestion", {
+      const response = await postIngestion({
         batch: [entity],
       });
 
@@ -819,11 +916,6 @@ describe("/api/public/ingestion API Endpoint", () => {
       },
     };
 
-    const response1 = await makeAPICall("POST", "/api/public/ingestion", {
-      batch: [traceUpdate1],
-    });
-    expect(response1.status).toBe(207);
-
     // Second update with additional metadata: {"step": 2, "error": ""}
     // This should merge with the first update
     const traceUpdate2 = {
@@ -838,7 +930,20 @@ describe("/api/public/ingestion API Endpoint", () => {
       },
     };
 
-    const response2 = await makeAPICall("POST", "/api/public/ingestion", {
+    const response1 = await postIngestion({
+      batch: [traceUpdate1],
+    });
+    expect(response1.status).toBe(207);
+
+    await waitForExpect(async () => {
+      const trace = await getTraceById({ traceId, projectId });
+      expect(trace?.metadata).toEqual({
+        step: 1,
+        status: "started",
+      });
+    }, 15_000);
+
+    const response2 = await postIngestion({
       batch: [traceUpdate2],
     });
     expect(response2.status).toBe(207);
@@ -892,7 +997,7 @@ describe("/api/public/ingestion API Endpoint", () => {
       },
     };
 
-    const response = await makeAPICall("POST", "/api/public/ingestion", {
+    const response = await postIngestion({
       batch: [score1, score2],
     });
 

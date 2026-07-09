@@ -1,11 +1,16 @@
 import {
+  dashboardColumnDefinitions,
+  createFilterFromFilterState,
+  FilterList,
   orderByToClickhouseSql,
   orderByToPrismaSql,
+  scoresTableUiColumnDefinitions,
   tracesTableUiColumnDefinitions,
 } from "@langfuse/shared/src/server";
 import {
   InvalidRequestError,
   normalizeOrderByForTable,
+  scoresTableCols,
   tracesTableCols,
 } from "@langfuse/shared";
 
@@ -58,5 +63,42 @@ describe("orderByToPrisma (Convert orderBy to Prisma.sql)", () => {
         tracesTableUiColumnDefinitions,
       ),
     ).toThrow(InvalidRequestError);
+  });
+
+  test("orderByToClickhouseSql matches UiColumnMapping aliases", () => {
+    expect(
+      orderByToClickhouseSql(
+        { column: "Tool Names", order: "ASC" },
+        dashboardColumnDefinitions,
+      ),
+    ).toBe("ORDER BY mapKeys(tool_definitions) ASC");
+  });
+
+  test("scores mappings qualify filters/orderBy with alias", () => {
+    expect(
+      orderByToClickhouseSql(
+        { column: "timestamp", order: "DESC" },
+        scoresTableUiColumnDefinitions,
+      ),
+    ).toBe("ORDER BY s.timestamp DESC");
+
+    const filterList = new FilterList(
+      createFilterFromFilterState(
+        [
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: new Date(0),
+          },
+        ],
+        scoresTableUiColumnDefinitions,
+        scoresTableCols,
+      ),
+    );
+
+    expect(filterList.apply().query).toMatch(
+      /^s\.timestamp >= \{dateTimeFilter[A-Za-z]{5}: DateTime64\(3\)\}$/,
+    );
   });
 });

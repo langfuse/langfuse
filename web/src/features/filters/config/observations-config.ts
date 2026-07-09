@@ -1,7 +1,12 @@
 import { observationsTableCols } from "@langfuse/shared";
-import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import {
+  omitFilterFacets,
+  type FilterConfig,
+} from "@/src/features/filters/lib/filter-config";
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
+
+export type ObservationsOmittableFilterColumn = "model" | "promptName";
 
 /**
  * Maps frontend column IDs to backend-expected column IDs
@@ -41,6 +46,13 @@ export const observationFilterConfig: FilterConfig = {
       label: "Trace Name",
     },
     {
+      // Tags are a primary, user-defined filter — keep them near the identity
+      // facets at the top of the sidebar rather than buried mid-list (LFE-10494).
+      type: "categorical" as const,
+      column: "tags",
+      label: "Trace Tags",
+    },
+    {
       type: "categorical" as const,
       column: "level",
       label: "Level",
@@ -59,11 +71,6 @@ export const observationFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "promptName",
       label: "Prompt Name",
-    },
-    {
-      type: "categorical" as const,
-      column: "tags",
-      label: "Trace Tags",
     },
     {
       type: "stringKeyValue" as const,
@@ -184,3 +191,9 @@ export const observationFilterConfig: FilterConfig = {
     },
   ],
 };
+
+export function getObservationsFilterConfig(
+  omittedFilter: ObservationsOmittableFilterColumn[] = [],
+): FilterConfig {
+  return omitFilterFacets(observationFilterConfig, omittedFilter);
+}

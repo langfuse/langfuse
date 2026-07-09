@@ -31,6 +31,7 @@ export function DatasetRunItemsByRunTable(props: {
   datasetRunId: string;
   datasetVersion?: Date | null;
 }) {
+  const { projectId, datasetId, datasetRunId, datasetVersion } = props;
   const { setDetailPageList } = useDetailPageLists();
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -42,18 +43,20 @@ export function DatasetRunItemsByRunTable(props: {
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
     "dataset_run_items_by_run",
-    props.projectId,
+    projectId,
   );
 
   const datasetRunItemsFilterOptionsResponse =
     api.datasets.runItemFilterOptions.useQuery({
-      projectId: props.projectId,
-      datasetId: props.datasetId,
-      datasetRunIds: [props.datasetRunId],
+      projectId,
+      datasetId,
+      datasetRunIds: [datasetRunId],
     });
 
   const runItems = api.datasets.runItemsByRunId.useQuery({
-    ...props,
+    projectId,
+    datasetId,
+    datasetRunId,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     filter: userFilterState,
@@ -86,11 +89,11 @@ export function DatasetRunItemsByRunTable(props: {
 
   const { scoreColumns, isLoading: isColumnLoading } =
     useScoreColumns<DatasetRunItemByRunRowData>({
-      projectId: props.projectId,
+      projectId,
       scoreColumnKey: "scores",
       filter: scoreFilters.forDatasetRunItems({
-        datasetRunIds: [props.datasetRunId],
-        datasetId: props.datasetId,
+        datasetRunIds: [datasetRunId],
+        datasetId,
       }),
     });
 
@@ -103,12 +106,12 @@ export function DatasetRunItemsByRunTable(props: {
       isPinnedLeft: true,
       cell: ({ row }) => {
         const datasetItemId: string = row.getValue("datasetItemId");
-        const versionParam = props.datasetVersion
-          ? `?version=${props.datasetVersion.toISOString()}`
+        const versionParam = datasetVersion
+          ? `?version=${datasetVersion.toISOString()}`
           : "";
         return (
           <TableLink
-            path={`/project/${props.projectId}/datasets/${props.datasetId}/items/${datasetItemId}${versionParam}`}
+            path={`/project/${projectId}/datasets/${datasetId}/items/${datasetItemId}${versionParam}`}
             value={datasetItemId}
           />
         );
@@ -136,13 +139,13 @@ export function DatasetRunItemsByRunTable(props: {
         if (!trace) return null;
         return trace.observationId ? (
           <TableLink
-            path={`/project/${props.projectId}/traces/${encodeURIComponent(trace.traceId)}?observation=${encodeURIComponent(trace.observationId)}`}
+            path={`/project/${projectId}/traces/${encodeURIComponent(trace.traceId)}?observation=${encodeURIComponent(trace.observationId)}`}
             value={`Trace: ${trace.traceId}, Observation: ${trace.observationId}`}
             icon={<ListTree className="h-4 w-4" />}
           />
         ) : (
           <TableLink
-            path={`/project/${props.projectId}/traces/${encodeURIComponent(trace.traceId)}`}
+            path={`/project/${projectId}/traces/${encodeURIComponent(trace.traceId)}`}
             value={`Trace: ${trace.traceId}`}
             icon={<ListTree className="h-4 w-4" />}
           />
@@ -198,7 +201,7 @@ export function DatasetRunItemsByRunTable(props: {
         return trace ? (
           <TraceObservationIOCell
             traceId={trace.traceId}
-            projectId={props.projectId}
+            projectId={projectId}
             observationId={trace.observationId}
             io="input"
             fromTimestamp={runAt}
@@ -221,7 +224,7 @@ export function DatasetRunItemsByRunTable(props: {
         return trace ? (
           <TraceObservationIOCell
             traceId={trace.traceId}
-            projectId={props.projectId}
+            projectId={projectId}
             observationId={trace.observationId}
             io="output"
             fromTimestamp={runAt}
@@ -240,8 +243,8 @@ export function DatasetRunItemsByRunTable(props: {
         const datasetItemId: string = row.getValue("datasetItemId");
         return datasetItemId ? (
           <DatasetItemIOCell
-            projectId={props.projectId}
-            datasetId={props.datasetId}
+            projectId={projectId}
+            datasetId={datasetId}
             datasetItemId={datasetItemId}
             datasetItemVersion={row.original.datasetItemVersion}
             io="expectedOutput"
@@ -254,7 +257,7 @@ export function DatasetRunItemsByRunTable(props: {
 
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<DatasetRunItemByRunRowData>(
-      `datasetRunsItemsColumnVisibility-${props.projectId}`,
+      `datasetRunsItemsColumnVisibility-${projectId}`,
       columns,
     );
 
@@ -287,7 +290,7 @@ export function DatasetRunItemsByRunTable(props: {
         setRowHeight={setRowHeight}
       />
       <DataTable
-        tableName={"datasetRunItems"}
+        tableName="datasetRunItems"
         columns={columns}
         data={
           runItems.isLoading

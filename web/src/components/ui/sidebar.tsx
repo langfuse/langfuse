@@ -18,7 +18,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { Portal } from "@radix-ui/react-tooltip";
 
 const SIDEBAR_STORAGE_KEY = "sidebar:state";
 const SIDEBAR_WIDTH = "11.5rem";
@@ -274,7 +273,7 @@ const Sidebar = React.forwardRef<
 Sidebar.displayName = "Sidebar";
 
 const SidebarTrigger = React.forwardRef<
-  React.ElementRef<typeof Button>,
+  React.ComponentRef<typeof Button>,
   React.ComponentProps<typeof Button>
 >(({ className, onClick, ...props }, ref) => {
   const { toggleSidebar } = useSidebar();
@@ -343,7 +342,7 @@ const SidebarInset = React.forwardRef<
 SidebarInset.displayName = "SidebarInset";
 
 const SidebarInput = React.forwardRef<
-  React.ElementRef<typeof Input>,
+  React.ComponentRef<typeof Input>,
   React.ComponentProps<typeof Input>
 >(({ className, ...props }, ref) => {
   return (
@@ -395,7 +394,7 @@ const SidebarFooter = React.forwardRef<
 SidebarFooter.displayName = "SidebarFooter";
 
 const SidebarSeparator = React.forwardRef<
-  React.ElementRef<typeof Separator>,
+  React.ComponentRef<typeof Separator>,
   React.ComponentProps<typeof Separator>
 >(({ className, ...props }, ref) => {
   return (
@@ -587,6 +586,7 @@ const SidebarMenuButton = React.forwardRef<
         data-size={size}
         data-active={isActive}
         className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
+        title={props.title}
         {...props}
       />
     );
@@ -604,17 +604,18 @@ const SidebarMenuButton = React.forwardRef<
     return (
       <Tooltip>
         <TooltipTrigger asChild>{button}</TooltipTrigger>
-        <Portal>
-          <TooltipContent
-            side="right"
-            align="center"
-            hidden={state !== "collapsed" || isMobile}
-            // relative + isolate create a new stacking context
-            // z-9999 ensures this appears above other elements, even across different stacking contexts
-            className="relative isolate z-9999 text-sm font-semibold"
-            {...tooltip}
-          />
-        </Portal>
+        {/* No extra Portal, no z-index: TooltipContent already portals into the
+            `tooltip` overlay layer, which paints above the whole app by layer
+            ORDER (see components/ui/layer.tsx). The old outer Portal re-parented
+            to <body> and `relative isolate z-9999` escaped via a magic number —
+            both are now obsolete and the `isolate` even risked trapping it. */}
+        <TooltipContent
+          side="right"
+          align="center"
+          hidden={state !== "collapsed" || isMobile}
+          className="text-sm font-semibold"
+          {...tooltip}
+        />
       </Tooltip>
     );
   },
@@ -755,6 +756,7 @@ const SidebarMenuSubButton = React.forwardRef<
         "group-data-[collapsible=icon]:hidden",
         className,
       )}
+      title={props.title}
       {...props}
     />
   );

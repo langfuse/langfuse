@@ -147,9 +147,7 @@ export default function ModelDetailPage() {
                       projectId={projectId}
                       modelData={model}
                       onSuccess={() => {
-                        void router.push(
-                          `/project/${projectId}/settings/models`,
-                        );
+                        router.push(`/project/${projectId}/settings/models`);
                       }}
                     />
                   </>
@@ -321,7 +319,7 @@ export default function ModelDetailPage() {
             <div className="flex max-h-[calc(100vh-20rem)] flex-col">
               <Generations
                 projectId={projectId}
-                omittedFilter={["Model"]}
+                omittedFilter={["model"]}
                 modelId={model.id}
               />
             </div>

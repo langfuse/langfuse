@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Keep the MCP low-level Server API for now; migration to McpServer needs endpoint-level coverage. */
 /**
  * MCP Streamable HTTP Transport
  *
@@ -71,7 +72,7 @@ export async function handleMcpRequest(
       // Connect server to transport
       await server.connect(transport);
 
-      logger.info("MCP server connected via Streamable HTTP transport", {
+      logger.debug("MCP server connected via Streamable HTTP transport", {
         method: req.method,
       });
 

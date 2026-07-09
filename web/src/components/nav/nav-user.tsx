@@ -15,6 +15,9 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import {
@@ -29,6 +32,7 @@ export type UserNavigationItem = {
   onClick?: () => void;
   content?: React.ReactNode;
   href?: string;
+  subItems?: UserNavigationItem[];
 };
 
 export type UserNavigationProps = {
@@ -50,6 +54,35 @@ export function NavUser({ user, items }: UserNavigationProps) {
     .join("")
     .toUpperCase();
 
+  const renderMenuItem = (item: UserNavigationItem) => {
+    if (item.subItems?.length) {
+      return (
+        <DropdownMenuSub key={item.name}>
+          <DropdownMenuSubTrigger>
+            {item.content ?? item.name}
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            {item.subItems.map(renderMenuItem)}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+      );
+    }
+
+    if (item.href) {
+      return (
+        <DropdownMenuItem key={item.name} asChild>
+          <Link href={item.href}>{item.content ?? item.name}</Link>
+        </DropdownMenuItem>
+      );
+    }
+
+    return (
+      <DropdownMenuItem key={item.name} onClick={item.onClick}>
+        {item.content ?? item.name}
+      </DropdownMenuItem>
+    );
+  };
+
   return (
     <SidebarMenu>
       <SidebarMenuItem>
@@ -66,7 +99,9 @@ export function NavUser({ user, items }: UserNavigationProps) {
                 </AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">{user.name}</span>
+                <span className="truncate font-semibold" title={user.name}>
+                  {user.name}
+                </span>
                 <span className="truncate text-xs" title={user.email}>
                   {user.email}
                 </span>
@@ -75,6 +110,10 @@ export function NavUser({ user, items }: UserNavigationProps) {
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
+            // No z-index: this dropdown portals into the `popover` overlay
+            // layer, which sits above the `agent` layer (the assistant window)
+            // by layer ORDER — so it opens above the window with no magic
+            // number. See components/ui/layer.tsx.
             className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
             side={isMobile ? "bottom" : "right"}
             align="end"
@@ -89,7 +128,9 @@ export function NavUser({ user, items }: UserNavigationProps) {
                   </AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">{user.name}</span>
+                  <span className="truncate font-semibold" title={user.name}>
+                    {user.name}
+                  </span>
                   <span className="truncate text-xs" title={user.email}>
                     {user.email}
                   </span>
@@ -97,19 +138,7 @@ export function NavUser({ user, items }: UserNavigationProps) {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              {items.map((item) =>
-                item.href ? (
-                  <DropdownMenuItem key={item.name} asChild>
-                    <Link href={item.href}>{item.content ?? item.name}</Link>
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem key={item.name} onClick={item.onClick}>
-                    {item.content ?? item.name}
-                  </DropdownMenuItem>
-                ),
-              )}
-            </DropdownMenuGroup>
+            <DropdownMenuGroup>{items.map(renderMenuItem)}</DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>

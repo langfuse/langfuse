@@ -1,14 +1,11 @@
 import { type z } from "zod";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
-import { paginationZod } from "@langfuse/shared";
+import { BatchTableNames, paginationZod } from "@langfuse/shared";
 import { GenerationTableOptions } from "./utils/GenerationTableOptions";
 import { getAllGenerations } from "@/src/server/api/routers/generations/db/getAllGenerationsSqlQuery";
-import {
-  getObservationsCountFromEventsTable,
-  getObservationsTableCount,
-} from "@langfuse/shared/src/server";
-import { env } from "@/src/env.mjs";
+import { getObservationsTableCount } from "@langfuse/shared/src/server";
 import { applyCommentFilters } from "@langfuse/shared/src/server";
+import { sanitizeLegacyTracingSearch } from "@/src/features/traces/server/legacyIoSearch";
 
 const GetAllGenerationsInput = GenerationTableOptions.extend({
   ...paginationZod,
@@ -20,6 +17,12 @@ export const getAllQueries = {
   all: protectedProjectProcedure
     .input(GetAllGenerationsInput)
     .query(async ({ input, ctx }) => {
+      const search = sanitizeLegacyTracingSearch({
+        searchQuery: input.searchQuery,
+        searchType: input.searchType,
+        tableName: BatchTableNames.Observations,
+      });
+
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -35,14 +38,22 @@ export const getAllQueries = {
         input: {
           ...input,
           filter: filterState,
+          searchQuery: search.searchQuery ?? null,
+          searchType: search.searchType ?? ["id"],
         },
         selectIOAndMetadata: false,
       });
       return { generations };
     }),
   countAll: protectedProjectProcedure
-    .input(GetAllGenerationsInput)
+    .input(GenerationTableOptions)
     .query(async ({ input, ctx }) => {
+      const search = sanitizeLegacyTracingSearch({
+        searchQuery: input.searchQuery,
+        searchType: input.searchType,
+        tableName: BatchTableNames.Observations,
+      });
+
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -57,13 +68,12 @@ export const getAllQueries = {
       const queryOpts = {
         projectId: ctx.session.projectId,
         filter: filterState,
+        searchQuery: search.searchQuery,
+        searchType: search.searchType ?? ["id"],
         limit: 1,
         offset: 0,
       };
-      const countQuery =
-        env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
-          ? await getObservationsCountFromEventsTable(queryOpts)
-          : await getObservationsTableCount(queryOpts);
+      const countQuery = await getObservationsTableCount(queryOpts);
       return {
         totalCount: countQuery,
       };

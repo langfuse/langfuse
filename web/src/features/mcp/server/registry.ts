@@ -19,9 +19,9 @@ import { logger } from "@langfuse/shared/src/server";
  *
  * Combines tool definition (for MCP protocol) with handler (for execution)
  */
-export interface RegisteredTool {
+export interface RegisteredTool<TName extends string = string> {
   /** Tool definition for MCP protocol */
-  definition: ToolDefinition;
+  definition: ToolDefinition<TName>;
 
   /** Tool handler function - accepts any input type */
 
@@ -54,7 +54,7 @@ export interface McpFeatureModule {
   description: string;
 
   /** Tools provided by this feature */
-  tools: RegisteredTool[];
+  tools: readonly RegisteredTool[];
 
   /**
    * Optional: Check if feature is enabled for the given context
@@ -143,18 +143,64 @@ class ToolRegistry {
   }
 
   /**
+   * Get tool handler by name after applying the owning feature's enablement
+   * check. Direct calls must behave the same as discovery for gated features.
+   */
+  async getEnabledTool(
+    name: string,
+    context: ServerContext,
+  ): Promise<RegisteredTool | undefined> {
+    const tool = this.tools.get(name);
+    if (!tool) return undefined;
+
+    const feature = this.getFeatureForTool(name);
+    if (!feature) return undefined;
+
+    if (feature.isEnabled && !(await feature.isEnabled(context))) {
+      return undefined;
+    }
+
+    if (!this.canCallTool(tool, context)) {
+      return undefined;
+    }
+
+    return tool;
+  }
+
+  private canCallTool(tool: RegisteredTool, context: ServerContext): boolean {
+    if (!context.inAppAgent) {
+      return true;
+    }
+
+    if (context.inAppAgent.permissions === "read") {
+      return tool.definition.annotations?.readOnlyHint === true;
+    }
+
+    if (context.inAppAgent.permissions === "single-tool-override") {
+      return context.inAppAgent.allowedToolName === tool.definition.name;
+    }
+
+    return false;
+  }
+
+  /**
    * Get feature name for a tool (for error messages)
    *
    * @param toolName - Tool name to lookup
    * @returns Feature name or "unknown"
    */
   private getToolFeature(toolName: string): string {
-    for (const [featureName, feature] of this.features.entries()) {
+    const feature = this.getFeatureForTool(toolName);
+    return feature?.name ?? "unknown";
+  }
+
+  private getFeatureForTool(toolName: string): McpFeatureModule | undefined {
+    for (const feature of this.features.values()) {
       if (feature.tools.some((t) => t.definition.name === toolName)) {
-        return featureName;
+        return feature;
       }
     }
-    return "unknown";
+    return undefined;
   }
 
   /**

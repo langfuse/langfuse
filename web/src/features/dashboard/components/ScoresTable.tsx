@@ -5,7 +5,7 @@ import {
   type ScoreSourceType,
   type FilterState,
 } from "@langfuse/shared";
-import { type ViewVersion } from "@/src/features/query";
+import { type ViewVersion } from "@langfuse/shared/query";
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { RightAlignedCell } from "./RightAlignedCell";
@@ -146,7 +146,7 @@ export const ScoresTable = ({
 
   if (!zeroValueScores || !oneValueScores) {
     return (
-      <DashboardCard title={"Scores"} isLoading={false}>
+      <DashboardCard title="Scores" isLoading={false}>
         <NoDataOrLoading isLoading={false} />
       </DashboardCard>
     );

@@ -1,6 +1,4 @@
-/**
- * @jest-environment jsdom
- */
+// @vitest-environment jsdom
 
 import { buildTreeFromJSON } from "./treeStructure";
 import {
@@ -368,7 +366,7 @@ describe("isNodeVisible - Integration Tests", () => {
 });
 
 describe("getNodeByIndex after expansion changes", () => {
-  it("CRITICAL: should return valid nodes for ALL indexes after collapse", () => {
+  it("CRITICAL: should return valid nodes for ALL indexes after collapse", async () => {
     // This test catches the bug where getNodeByIndex returns null for valid indexes
     const data = {
       items: [
@@ -399,7 +397,7 @@ describe("getNodeByIndex after expansion changes", () => {
     expect(item1Node).toBeDefined();
 
     // Import toggleNodeExpansion
-    const { toggleNodeExpansion } = require("./treeExpansion");
+    const { toggleNodeExpansion } = await import("./treeExpansion");
     toggleNodeExpansion(tree, item1Node!.id);
 
     // Get new row count after collapse
@@ -419,7 +417,7 @@ describe("getNodeByIndex after expansion changes", () => {
     expect(failedIndexes.length).toBe(0);
   });
 
-  it("CRITICAL: should handle multiple sequential collapses correctly", () => {
+  it("CRITICAL: should handle multiple sequential collapses correctly", async () => {
     const data = [
       { type: "A", items: [1, 2, 3] },
       { type: "B", items: [4, 5, 6] },
@@ -431,7 +429,7 @@ describe("getNodeByIndex after expansion changes", () => {
       initialExpansion: true,
     });
 
-    const { toggleNodeExpansion } = require("./treeExpansion");
+    const { toggleNodeExpansion } = await import("./treeExpansion");
 
     // Collapse root.0
     toggleNodeExpansion(tree, "root.0");
@@ -473,7 +471,7 @@ describe("getNodeByIndex after expansion changes", () => {
     expect(failedIndexes).toEqual([]);
   });
 
-  it("CRITICAL: should handle expand after collapse correctly", () => {
+  it("CRITICAL: should handle expand after collapse correctly", async () => {
     const data = { a: [1, 2, 3], b: [4, 5, 6] };
 
     const tree = buildTreeFromJSON(data, {
@@ -481,7 +479,7 @@ describe("getNodeByIndex after expansion changes", () => {
       initialExpansion: true,
     });
 
-    const { toggleNodeExpansion } = require("./treeExpansion");
+    const { toggleNodeExpansion } = await import("./treeExpansion");
 
     // Collapse a
     toggleNodeExpansion(tree, "root.a");

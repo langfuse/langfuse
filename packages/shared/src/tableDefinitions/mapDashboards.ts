@@ -1,6 +1,6 @@
 import { UiColumnMappings } from "./types";
 
-// Make sure to update web/src/features/query/dashboardUiTableToViewMapping.ts if you make changes
+// Make sure to update web/src/features/dashboard/lib/dashboardUiTableToViewMapping.ts if you make changes
 
 export const dashboardColumnDefinitions: UiColumnMappings = [
   {
@@ -103,7 +103,14 @@ export const dashboardColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "observations",
     clickhouseSelect: "mapKeys(tool_definitions)",
     uiTableId: "toolNames",
-    uiTableName: "Tool Names",
+    uiTableName: "Tool Names (Available)",
+    aliases: ["Tool Names"],
+  },
+  {
+    clickhouseTableName: "observations",
+    clickhouseSelect: "tool_call_names",
+    uiTableId: "calledToolNames",
+    uiTableName: "Tool Names (Called)",
   },
   {
     clickhouseTableName: "traces",

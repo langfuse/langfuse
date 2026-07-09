@@ -7,19 +7,20 @@ RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
-RUN npm install turbo@2.9.5 --global
+RUN npm install turbo@2.9.18 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
-RUN corepack prepare pnpm@10.33.0 --activate
+RUN corepack prepare pnpm@11.10.0 --activate
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runtime-base
 # Remove build-only package managers. npm stays here because the runner stage
 # uses it to install prisma and optional dd-trace before removing it.
-RUN rm -rf /usr/local/lib/node_modules/corepack && \
+RUN rm -rf /usr/local/lib/node_modules/corepack \
+            /root/.cache/node/corepack && \
     rm -f /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg
 
-FROM --platform=${BUILDPLATFORM} golang:1.24 AS migrate-builder
+FROM --platform=${BUILDPLATFORM} golang:1.26 AS migrate-builder
 ARG TARGETOS
 ARG TARGETARCH
 ENV CGO_ENABLED=0 \
@@ -51,8 +52,21 @@ COPY --from=pruner /app/out/json/ .
 
 RUN pnpm install --frozen-lockfile
 
+# pnpm 11 defaults verify-deps-before-run to "install", so every `pnpm run`
+# spawned by turbo re-checks node_modules via file mtimes. Cached install
+# layers make those mtimes look stale, and the concurrent auto-installs race
+# in the hoisting step (ENOENT unlink in node_modules/.pnpm/node_modules).
+# The frozen-lockfile install above is authoritative; skip the check.
+ENV pnpm_config_verify_deps_before_run=false
+
 ENV DOCKER_BUILD 1
 ENV NEXT_MANUAL_SIG_HANDLE true
+
+# Allows the CI docker build smoke test to skip the Next.js type check that
+# the lint job already runs (`pnpm run typecheck`). Release builds do not set
+# this and still fail on TypeScript errors.
+ARG NEXT_IGNORE_BUILD_ERRORS
+ENV NEXT_IGNORE_BUILD_ERRORS=$NEXT_IGNORE_BUILD_ERRORS
 
 # pass public variables in build step
 ARG NEXT_PUBLIC_PLAIN_APP_ID
@@ -141,7 +155,7 @@ RUN npm install -g --no-package-lock --no-save prisma@6.19.3
 # Install dd-trace only if NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is configured
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
 RUN if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
-    npm install --no-package-lock --no-save dd-trace@5.65.0; \
+    npm install --no-package-lock --no-save dd-trace@5.109.0; \
     fi
 
 # npm is only used for the installs above; remove it from the final runtime image.

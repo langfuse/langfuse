@@ -16,6 +16,7 @@ export type AuditableResource =
   | "datasetItem"
   | "dataset"
   | "datasetRun"
+  | "datasetRunItem"
   | "trace"
   | "project"
   | "observation"
@@ -32,6 +33,7 @@ export type AuditableResource =
   | "blobStorageIntegration"
   | "posthogIntegration"
   | "mixpanelIntegration"
+  | "webCalloutEndpoint"
   | "llmApiKey"
   | "llmTool"
   | "llmSchema"
@@ -40,8 +42,11 @@ export type AuditableResource =
   | "batchAction"
   | "automation"
   | "action"
+  | "dashboardWidget"
   | "slackIntegration"
   | "cloudSpendAlert"
+  | "verifiedDomain"
+  | "ssoConfig"
   // legacy resources
   | "membership";
 

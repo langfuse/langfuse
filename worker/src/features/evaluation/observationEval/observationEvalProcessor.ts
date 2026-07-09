@@ -1,19 +1,39 @@
 import { z } from "zod";
 import {
   DEFAULT_TRACE_ENVIRONMENT,
-  LLMAsJudgeExecutionEventSchema,
+  ObservationEvalExecutionEventSchema,
+  extractObservationVariables,
   logger,
+  recordIncrement,
+  type ExtractedVariable,
 } from "@langfuse/shared/src/server";
+import { isEvalTargetEnvironmentAllowed } from "../isEvalTargetEnvironmentAllowed";
 import {
   observationForEvalSchema,
   observationVariableMappingList,
-  isJobConfigExecutable,
+  type EvalTemplateCodeBased,
+  type EvalTemplateLlmAsAJudge,
+  isJobConfigExecutableForExecutionMode,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
+import {
+  EvalTemplateType,
+  type JobConfiguration,
+  type JobExecution,
+} from "@prisma/client";
 import { prisma, JobExecutionStatus } from "@langfuse/shared/src/db";
 import { UnrecoverableError } from "../../../errors/UnrecoverableError";
-import { extractObservationVariables } from "./extractObservationVariables";
-import { executeLLMAsJudgeEvaluation } from "../evalService";
+import { buildEvalExecutionMetadata } from "../evalRuntime";
+import {
+  completeEvalExecution,
+  type EvalExecutionResult,
+} from "../evalCompletion";
+import {
+  createProductionEvalExecutionDeps,
+  type EvalExecutionDeps,
+} from "../evalExecutionDeps";
+import { runLLMAsJudgeEvaluation } from "../evalService";
+import { executeCodeBasedEvaluation } from "../codeBased";
 import { getEvalS3StorageClient } from "../s3StorageClient";
 import { type ObservationForEval } from "./types";
 
@@ -21,8 +41,22 @@ import { type ObservationForEval } from "./types";
  * Dependencies for processing observation evals.
  * Allows S3 operations to be injected for testability.
  */
+export type ObservationEvalExecutionBaseParams = {
+  projectId: string;
+  organizationId: string;
+  jobExecutionId: string;
+  job: JobExecution;
+  config: JobConfiguration;
+  extractedVariables: ExtractedVariable[];
+  hasExperimentContext: boolean;
+  environment: string;
+  executionMetadata: Record<string, string>;
+  deps: EvalExecutionDeps;
+};
+
 export interface ObservationEvalProcessorDeps {
   downloadObservationFromS3: (path: string) => Promise<string>;
+  evalExecutionDeps: EvalExecutionDeps;
 }
 
 /**
@@ -35,25 +69,34 @@ export function createObservationEvalProcessorDeps(): ObservationEvalProcessorDe
 
       return s3Client.download(path);
     },
+    evalExecutionDeps: createProductionEvalExecutionDeps(),
   };
 }
 
 /**
- * Processes an observation-level LLM-as-a-judge evaluation job.
+ * Processes an observation-level evaluation job.
  *
  * This function:
- * 1. Fetches and validates job execution, config, and template
+ * 1. Fetches job execution, config, and the expected template type
  * 2. Downloads observation data from S3 (stored during scheduling)
  * 3. Extracts variables from the observation
- * 4. Calls the shared executeLLMAsJudgeEvaluation() for LLM call and score persistence
+ * 4. Executes the evaluator-specific implementation
+ * 5. Completes the eval execution with shared score persistence
  */
-export async function processObservationEval({
-  event,
-  deps = createObservationEvalProcessorDeps(),
-}: {
-  event: z.infer<typeof LLMAsJudgeExecutionEventSchema>;
+type ObservationEvalExecutionType =
+  | typeof EvalTemplateType.LLM_AS_JUDGE
+  | typeof EvalTemplateType.CODE;
+
+type ProcessObservationEvalParams = {
+  event: z.infer<typeof ObservationEvalExecutionEventSchema>;
+  executionType: ObservationEvalExecutionType;
   deps?: ObservationEvalProcessorDeps;
-}): Promise<void> {
+};
+
+export async function processObservationEval(
+  params: ProcessObservationEvalParams,
+): Promise<void> {
+  const { event, deps = createObservationEvalProcessorDeps() } = params;
   logger.debug(
     `Processing observation eval job ${event.jobExecutionId} for project ${event.projectId}`,
   );
@@ -90,9 +133,19 @@ export async function processObservationEval({
     where: {
       id: job.jobConfigurationId,
       projectId: event.projectId,
+      evalTemplate: {
+        is: {
+          type: params.executionType,
+        },
+      },
     },
     include: {
       evalTemplate: true,
+      project: {
+        select: {
+          orgId: true,
+        },
+      },
     },
   });
 
@@ -102,7 +155,9 @@ export async function processObservationEval({
     );
   }
 
-  if (!isJobConfigExecutable(evalJobConfig)) {
+  if (
+    !isJobConfigExecutableForExecutionMode(evalJobConfig, event.executionMode)
+  ) {
     logger.debug(
       `Job execution ${event.jobExecutionId} is not executable because the evaluator is blocked or inactive.`,
     );
@@ -151,6 +206,34 @@ export async function processObservationEval({
     `Downloaded observation data for job ${job.id}: span_id=${observationData.span_id}`,
   );
 
+  // Final fail-closed loop safeguard: never execute an eval whose target
+  // lives in an internal Langfuse environment, regardless of which scheduling
+  // path created the job. See isEvalTargetEnvironmentAllowed.
+  if (!isEvalTargetEnvironmentAllowed(observationData.environment)) {
+    logger.warn(
+      "Cancelling eval job targeting an internal Langfuse environment",
+      {
+        jobExecutionId: event.jobExecutionId,
+        projectId: event.projectId,
+        environment: observationData.environment,
+        observationId: observationData.span_id,
+      },
+    );
+    recordIncrement(
+      "langfuse.evaluation-execution.internal_target_blocked",
+      1,
+      {
+        source: "observation-eval",
+      },
+    );
+    await prisma.jobExecution.update({
+      where: { id: job.id, projectId: event.projectId },
+      data: { status: JobExecutionStatus.CANCELLED, endTime: new Date() },
+    });
+
+    return;
+  }
+
   // Extract variables from observation
   const parsedVariableMapping = observationVariableMappingList.parse(
     evalJobConfig.variableMapping,
@@ -165,14 +248,50 @@ export async function processObservationEval({
     `Extracted ${extractedVariables.length} variables for job ${job.id}`,
   );
 
-  // Execute the shared LLM-as-a-judge evaluation
-  await executeLLMAsJudgeEvaluation({
+  const executionParams = {
     projectId: event.projectId,
+    organizationId: evalJobConfig.project.orgId,
     jobExecutionId: event.jobExecutionId,
     job,
     config: evalJobConfig,
-    template: evalJobConfig.evalTemplate,
     extractedVariables,
+    hasExperimentContext: Boolean(observationData.experiment_id),
     environment: observationData.environment ?? DEFAULT_TRACE_ENVIRONMENT,
+    executionMetadata: buildEvalExecutionMetadata({
+      jobExecutionId: event.jobExecutionId,
+      jobConfigurationId: job.jobConfigurationId,
+      targetTraceId: job.jobInputTraceId,
+      targetObservationId: job.jobInputObservationId,
+      targetDatasetItemId: job.jobInputDatasetItemId,
+    }),
+    deps: deps.evalExecutionDeps,
+  };
+
+  // The config query filters evalTemplate.type, but Prisma does not narrow the
+  // nullable template fields from that relation predicate.
+  let executionResult: EvalExecutionResult;
+  switch (params.executionType) {
+    case EvalTemplateType.LLM_AS_JUDGE:
+      executionResult = await runLLMAsJudgeEvaluation({
+        ...executionParams,
+        template: evalJobConfig.evalTemplate as EvalTemplateLlmAsAJudge,
+      });
+      break;
+    case EvalTemplateType.CODE:
+      executionResult = await executeCodeBasedEvaluation({
+        ...executionParams,
+        template: evalJobConfig.evalTemplate as EvalTemplateCodeBased,
+      });
+      break;
+  }
+
+  await completeEvalExecution({
+    projectId: executionParams.projectId,
+    jobExecutionId: executionParams.jobExecutionId,
+    traceId: executionParams.job.jobInputTraceId,
+    observationId: executionParams.job.jobInputObservationId,
+    environment: executionParams.environment,
+    deps: executionParams.deps,
+    result: executionResult,
   });
 }

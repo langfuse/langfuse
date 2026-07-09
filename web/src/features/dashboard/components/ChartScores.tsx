@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { type ScoreDataTypeType, type FilterState } from "@langfuse/shared";
 import {
@@ -11,15 +12,20 @@ import {
 } from "@/src/utils/date-range-utils";
 import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import {
-  type QueryType,
-  type ViewVersion,
-  mapLegacyUiTableFilterToView,
-} from "@/src/features/query";
+import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+
+// Static — hoisted so its reference is stable across re-renders (keeps the
+// memoized <Chart> from reconciling on dashboard scheduler re-renders).
+const SCORES_CHART_CONFIG = {
+  type: "LINE_TIME_SERIES",
+  show_data_point_dots: false,
+  subtle_fill: true,
+} as const;
 
 export function ChartScores(props: {
   className?: string;
@@ -31,6 +37,7 @@ export function ChartScores(props: {
   isLoading?: boolean;
   metricsVersion?: ViewVersion;
   schedulerId?: string;
+  syncId?: string;
 }) {
   const scoresQuery: QueryType = {
     view: "scores-numeric",
@@ -66,27 +73,42 @@ export function ChartScores(props: {
     },
   );
 
-  const extractedScores = scores.data
-    ? fillMissingValuesAndTransform(
-        extractTimeSeriesData(scores.data as DatabaseRow[], "time_dimension", [
-          {
-            uniqueIdentifierColumns: [
-              {
-                accessor: "data_type",
-                formatFct: (value) =>
-                  getScoreDataTypeIcon(value as ScoreDataTypeType),
-              },
-              { accessor: "name" },
-              {
-                accessor: "source",
-                formatFct: (value) => `(${value.toLowerCase()})`,
-              },
-            ],
-            valueColumn: "avg_value",
-          },
-        ]),
-      )
-    : [];
+  // Memoize the transform on the (scheduler-stable) query result so the chart's
+  // data prop keeps a stable reference across dashboard re-renders. (LFE-10549)
+  const extractedScores = useMemo(
+    () =>
+      scores.data
+        ? fillMissingValuesAndTransform(
+            extractTimeSeriesData(
+              scores.data as DatabaseRow[],
+              "time_dimension",
+              [
+                {
+                  uniqueIdentifierColumns: [
+                    {
+                      accessor: "data_type",
+                      formatFct: (value) =>
+                        getScoreDataTypeIcon(value as ScoreDataTypeType),
+                    },
+                    { accessor: "name" },
+                    {
+                      accessor: "source",
+                      formatFct: (value) => `(${value.toLowerCase()})`,
+                    },
+                  ],
+                  valueColumn: "avg_value",
+                },
+              ],
+            ),
+          )
+        : [],
+    [scores.data],
+  );
+
+  const chartData = useMemo(
+    () => timeSeriesToDataPoints(extractedScores),
+    [extractedScores],
+  );
 
   return (
     <DashboardCard
@@ -99,14 +121,10 @@ export function ChartScores(props: {
         <div className="min-h-80">
           <Chart
             chartType="LINE_TIME_SERIES"
-            data={timeSeriesToDataPoints(extractedScores, props.agg)}
+            data={chartData}
             rowLimit={100}
-            chartConfig={{
-              type: "LINE_TIME_SERIES",
-              show_data_point_dots: false,
-              subtle_fill: true,
-            }}
-            legendPosition="above"
+            chartConfig={SCORES_CHART_CONFIG}
+            syncId={props.syncId}
           />
         </div>
       ) : (

@@ -8,7 +8,7 @@ export const NewPrompt = () => {
   const projectId = useProjectIdFromURL();
   const [initialPromptId] = useQueryParam("promptId", StringParam);
 
-  const { data: initialPrompt, isInitialLoading } = api.prompts.byId.useQuery(
+  const { data: initialPrompt, isLoading } = api.prompts.byId.useQuery(
     {
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
       id: initialPromptId ?? "",
@@ -20,7 +20,7 @@ export const NewPrompt = () => {
     },
   );
 
-  if (isInitialLoading) {
+  if (isLoading) {
     return <div className="p-3">Loading...</div>;
   }
 

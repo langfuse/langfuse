@@ -1,14 +1,12 @@
-/** @jest-environment node */
-
 import type { Session } from "next-auth";
 import * as z from "zod";
 import { env } from "@/src/env.mjs";
 
-jest.mock("@langfuse/shared/src/server", () => {
-  const originalModule = jest.requireActual("@langfuse/shared/src/server");
+vi.mock("@langfuse/shared/src/server", async () => {
+  const originalModule = await vi.importActual("@langfuse/shared/src/server");
   return {
     ...originalModule,
-    getTraceById: jest.fn(),
+    getTraceById: vi.fn(),
   };
 });
 
@@ -76,12 +74,12 @@ const createTestCaller = (params: {
 }) => {
   const mockPrisma = {
     project: {
-      findFirst: jest.fn().mockResolvedValue({
+      findFirst: vi.fn().mockResolvedValue({
         orgId: params.projectOrgId ?? "db-org-id",
       }),
     },
     traceSession: {
-      findFirst: jest.fn().mockResolvedValue(
+      findFirst: vi.fn().mockResolvedValue(
         params.traceSession ?? {
           public: false,
         },
@@ -104,7 +102,7 @@ const createTestCaller = (params: {
 };
 
 describe("admin access webhook in tRPC authorization middleware", () => {
-  const mockGetTraceById = jest.mocked(getTraceById);
+  const mockGetTraceById = vi.mocked(getTraceById);
   const originalWebhook = env.LANGFUSE_ADMIN_ACCESS_WEBHOOK;
   const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
 
@@ -115,9 +113,9 @@ describe("admin access webhook in tRPC authorization middleware", () => {
 
   beforeEach(() => {
     resetAdminAccessWebhookCacheForTests();
-    jest.restoreAllMocks();
-    jest.clearAllMocks();
-    jest.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true } as Response);
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true } as Response);
     mockGetTraceById.mockResolvedValue({
       id: "trace-id",
       input: "{}",
@@ -151,7 +149,7 @@ describe("admin access webhook in tRPC authorization middleware", () => {
         deletedAt: null,
       },
     });
-    const fetchSpy = jest.mocked(globalThis.fetch);
+    const fetchSpy = vi.mocked(globalThis.fetch);
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const request = fetchSpy.mock.calls[0]?.[1] as RequestInit;
     const payload = JSON.parse(String(request.body));
@@ -173,7 +171,7 @@ describe("admin access webhook in tRPC authorization middleware", () => {
       projectId,
     });
 
-    const fetchSpy = jest.mocked(globalThis.fetch);
+    const fetchSpy = vi.mocked(globalThis.fetch);
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const request = fetchSpy.mock.calls[0]?.[1] as RequestInit;
     const payload = JSON.parse(String(request.body));
@@ -205,7 +203,7 @@ describe("admin access webhook in tRPC authorization middleware", () => {
         public: true,
       },
     });
-    const fetchSpy = jest.mocked(globalThis.fetch);
+    const fetchSpy = vi.mocked(globalThis.fetch);
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const request = fetchSpy.mock.calls[0]?.[1] as RequestInit;
     const payload = JSON.parse(String(request.body));

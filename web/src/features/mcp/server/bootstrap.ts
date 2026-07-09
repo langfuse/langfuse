@@ -11,11 +11,39 @@
  */
 
 import { toolRegistry } from "./registry";
+import type { McpFeatureModule } from "./registry";
 import { promptsFeature } from "../features/prompts";
-// Import future features as they're added:
-// import { datasetsFeature } from "../features/datasets";
-// import { tracesFeature } from "../features/traces";
-// import { evalsFeature } from "../features/evals";
+import { observationsFeature } from "../features/observations";
+import { annotationQueuesFeature } from "../features/annotationQueues";
+import { commentsFeature } from "../features/comments";
+import { datasetsFeature } from "../features/datasets";
+import { healthFeature } from "../features/health";
+import { scoresFeature } from "../features/scores";
+import { metricsFeature } from "../features/metrics";
+import { modelsFeature } from "../features/models";
+import { mediaFeature } from "../features/media";
+import { evalsFeature } from "../features/evals";
+import { dashboardWidgetsFeature } from "../features/dashboardWidgets";
+import { experimentsFeature } from "../features/experiments";
+
+const MCP_FEATURES = [
+  promptsFeature,
+  observationsFeature,
+  annotationQueuesFeature,
+  commentsFeature,
+  datasetsFeature,
+  healthFeature,
+  scoresFeature,
+  metricsFeature,
+  modelsFeature,
+  mediaFeature,
+  evalsFeature,
+  dashboardWidgetsFeature,
+  experimentsFeature,
+] as const satisfies readonly McpFeatureModule[];
+
+export type McpFeature = (typeof MCP_FEATURES)[number];
+export type McpToolName = McpFeature["tools"][number]["definition"]["name"];
 
 /**
  * Bootstrap all MCP features
@@ -25,12 +53,9 @@ import { promptsFeature } from "../features/prompts";
  */
 export function bootstrapMcpFeatures(): void {
   // Register all feature modules
-  toolRegistry.register(promptsFeature);
-
-  // Add future features here:
-  // toolRegistry.register(datasetsFeature);
-  // toolRegistry.register(tracesFeature);
-  // toolRegistry.register(evalsFeature);
+  for (const feature of MCP_FEATURES) {
+    toolRegistry.register(feature);
+  }
 }
 
 /**

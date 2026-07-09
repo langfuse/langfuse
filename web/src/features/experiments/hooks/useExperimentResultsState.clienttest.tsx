@@ -3,7 +3,7 @@ import { useExperimentResultsState } from "./useExperimentResultsState";
 
 const queryParamStore = new Map<string, unknown>();
 
-jest.mock("use-query-params", () => {
+vi.mock("use-query-params", () => {
   const React = require("react");
 
   return {

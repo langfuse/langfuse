@@ -20,19 +20,21 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { api } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
-import { Loader2 } from "lucide-react";
 import { type Prisma } from "@langfuse/shared";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { getFormattedPayload } from "@/src/features/experiments/utils/format";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 const RemoteExperimentSetupSchema = z.object({
   url: z.url(),
   defaultPayload: z.string(),
+  enabled: z.boolean(),
 });
 
 type RemoteExperimentSetupForm = z.infer<typeof RemoteExperimentSetupSchema>;
@@ -42,14 +44,17 @@ export const RemoteExperimentUpsertForm = ({
   datasetId,
   existingRemoteExperiment,
   setShowRemoteExperimentUpsertForm,
+  onBack,
 }: {
   projectId: string;
   datasetId: string;
   existingRemoteExperiment?: {
     url: string;
     payload: Prisma.JsonValue;
+    enabled?: boolean;
   } | null;
   setShowRemoteExperimentUpsertForm: (show: boolean) => void;
+  onBack?: () => void;
 }) => {
   const hasDatasetAccess = useHasProjectAccess({
     projectId,
@@ -67,6 +72,7 @@ export const RemoteExperimentUpsertForm = ({
     defaultValues: {
       url: existingRemoteExperiment?.url || "",
       defaultPayload: getFormattedPayload(existingRemoteExperiment?.payload),
+      enabled: existingRemoteExperiment?.enabled ?? true,
     },
   });
 
@@ -100,6 +106,10 @@ export const RemoteExperimentUpsertForm = ({
             "The remote dataset run trigger has been removed from this dataset.",
         });
         setShowRemoteExperimentUpsertForm(false);
+        utils.datasets.getRemoteExperiment.invalidate({
+          projectId,
+          datasetId,
+        });
       },
       onError: (error) => {
         showErrorToast(
@@ -126,6 +136,7 @@ export const RemoteExperimentUpsertForm = ({
       datasetId,
       url: data.url,
       defaultPayload: data.defaultPayload,
+      enabled: data.enabled,
     });
   };
 
@@ -155,26 +166,32 @@ export const RemoteExperimentUpsertForm = ({
       <DialogHeader>
         <Button
           variant="ghost"
-          onClick={() => setShowRemoteExperimentUpsertForm(false)}
+          onClick={() => {
+            if (onBack) {
+              onBack();
+            } else {
+              setShowRemoteExperimentUpsertForm(false);
+            }
+          }}
           className="inline-block self-start"
         >
           ← Back
         </Button>
         <DialogTitle>
           {existingRemoteExperiment
-            ? "Edit remote dataset run trigger"
-            : "Set up remote dataset run trigger in UI"}
+            ? "Edit remote experiment trigger"
+            : "Set up remote experiment trigger in UI"}
         </DialogTitle>
         <DialogDescription>
-          Enable your team to run custom dataset runs on dataset{" "}
+          Enable your team to run custom experiments on dataset{" "}
           <strong>
             {dataset.isSuccess ? (
               <>&quot;{dataset.data?.name}&quot;</>
             ) : (
-              <Loader2 className="inline h-4 w-4 animate-spin" />
+              <Spinner size="sm" display="inline" />
             )}
           </strong>
-          . Configure a webhook URL to trigger remote custom dataset runs from
+          . Configure a webhook URL to trigger remote custom experiments from
           UI. We will send dataset info (name, id) and config to your service,
           which can run against the dataset and post results to Langfuse.
         </DialogDescription>
@@ -190,7 +207,7 @@ export const RemoteExperimentUpsertForm = ({
                 <FormItem>
                   <FormLabel>URL</FormLabel>
                   <FormDescription>
-                    The URL that will be called when the remote dataset run is
+                    The URL that will be called when the remote experiment is
                     triggered.
                   </FormDescription>
                   <FormControl>
@@ -211,9 +228,9 @@ export const RemoteExperimentUpsertForm = ({
                 <FormItem>
                   <FormLabel>Default config</FormLabel>
                   <FormDescription>
-                    Set a default config that will be sent to the remote dataset
-                    run URL. This can be modified before starting a new run.
-                    View docs for more details.
+                    Set a default config that will be sent to the remote
+                    experiment run URL. This can be modified before starting a
+                    new run. View docs for more details.
                   </FormDescription>
                   <CodeMirrorEditor
                     value={field.value}
@@ -224,6 +241,29 @@ export const RemoteExperimentUpsertForm = ({
                     minHeight={200}
                   />
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="enabled"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <FormLabel>Enabled</FormLabel>
+                    <FormDescription>
+                      {field.value
+                        ? "Trigger is active. You can disable anytime to pause without losing your configuration."
+                        : "Trigger is paused. Enable to allow running remote experiments."}
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
                 </FormItem>
               )}
             />
@@ -239,17 +279,22 @@ export const RemoteExperimentUpsertForm = ({
                   disabled={deleteRemoteExperimentMutation.isPending}
                 >
                   {deleteRemoteExperimentMutation.isPending && (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <div className="mr-2">
+                      <Spinner size="sm" />
+                    </div>
                   )}
                   Delete
                 </Button>
               )}
               <Button
                 type="submit"
+                className="ml-auto"
                 disabled={upsertRemoteExperimentMutation.isPending}
               >
                 {upsertRemoteExperimentMutation.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <div className="mr-2">
+                    <Spinner size="sm" />
+                  </div>
                 ) : null}
                 {existingRemoteExperiment ? "Update" : "Set up"}
               </Button>

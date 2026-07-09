@@ -1,4 +1,3 @@
-/** @jest-environment node */
 // Set environment variable before any imports to ensure it's picked up by env module
 process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
   "true";
@@ -171,6 +170,10 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
     expect(getDatasetV2.body).not.toHaveProperty("items");
     expect(getDatasetV2.body).not.toHaveProperty("runs");
+    // Remote experiment fields should not be exposed in public API
+    expect(getDatasetV2.body).not.toHaveProperty("remoteExperimentEnabled");
+    expect(getDatasetV2.body).not.toHaveProperty("remoteExperimentUrl");
+    expect(getDatasetV2.body).not.toHaveProperty("remoteExperimentPayload");
   });
 
   it("should not return ARCHIVED dataset items when getting a dataset", async () => {
@@ -451,7 +454,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
   });
 
-  it("should return 404 when trying to update dataset item that exists in different dataset of the same project", async () => {
+  it("should return 409 when trying to update dataset item that exists in different dataset of the same project", async () => {
     const dataset = await prisma.dataset.create({
       data: {
         name: "dataset-name-1",
@@ -488,7 +491,10 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       auth,
     );
 
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(409);
+    expect(JSON.stringify(response.body)).toContain(
+      `Dataset item id ${datasetItemId} already exists in another dataset (id ${dataset.id})`,
+    );
   });
 
   it("GET datasets (v1 & v2)", async () => {
@@ -606,6 +612,12 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         page: 1,
       }),
     });
+    // Remote experiment fields should not be exposed in public API
+    for (const dataset of getDatasetsV2.body.data) {
+      expect(dataset).not.toHaveProperty("remoteExperimentEnabled");
+      expect(dataset).not.toHaveProperty("remoteExperimentUrl");
+      expect(dataset).not.toHaveProperty("remoteExperimentPayload");
+    }
   });
 
   it("should create and get a dataset items (via datasets (v1), individually, and as a list)", async () => {
@@ -1316,21 +1328,10 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
     expect(dbRunAfterDelete).toBeNull();
 
-    // Verify run items are also deleted
-    await waitForExpect(async () => {
-      const dbRunItems = await getDatasetRunItemsByDatasetIdCh({
-        projectId: dataset.body.projectId,
-        datasetId: dataset.body.id,
-        filter: [],
-        orderBy: {
-          column: "createdAt",
-          order: "DESC",
-        },
-        limit: 10,
-      });
-      expect(dbRunItems).toHaveLength(0);
-    }, 30000);
-  }, 90000);
+    // ClickHouse run-item deletion propagates asynchronously via the worker
+    // queue; it is covered deterministically in
+    // worker/src/__tests__/datasetDelete.test.ts.
+  });
 
   it("dataset-run-items should fail when neither trace nor observation provided", async () => {
     const response = await makeAPICall(

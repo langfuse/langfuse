@@ -1,7 +1,7 @@
-/** @jest-environment node */
-
 import { prisma } from "@langfuse/shared/src/db";
 import { disconnectQueues, makeAPICall } from "@/src/__tests__/test-utils";
+import type { NextApiRequest, NextApiResponse } from "next";
+import { createMocks } from "node-mocks-http";
 import { v4 as uuidv4, v4 } from "uuid";
 import {
   PromptSchema,
@@ -23,9 +23,14 @@ import {
 import { randomUUID } from "node:crypto";
 import waitForExpect from "wait-for-expect";
 import { createPrompt } from "@/src/features/prompts/server/actions/createPrompt";
+import { promptNameHandler } from "@/src/features/prompts/server/handlers/promptNameHandler";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const baseURI = "/api/public/v2/prompts";
+
+afterAll(async () => {
+  await disconnectQueues();
+});
 
 type CreatePromptInDBParams = {
   promptId?: string;
@@ -126,9 +131,6 @@ const testPromptEquality = (
 };
 
 describe("/api/public/v2/prompts API Endpoint", () => {
-  afterAll(async () => {
-    await disconnectQueues();
-  });
   describe("when fetching a prompt", () => {
     it("should return a 401 if key is invalid", async () => {
       const projectId = uuidv4();
@@ -1000,9 +1002,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
           "angled[brac]es]",
         ];
 
-        for (const name of validNames) {
-          await testValidName(name, auth);
-        }
+        await Promise.all(validNames.map((name) => testValidName(name, auth)));
       });
     });
 
@@ -1210,7 +1210,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     let projectId: string;
     let auth: string;
 
-    beforeEach(async () => {
+    beforeAll(async () => {
       // Create a prompt in a different project
       ({ projectId: projectId, auth: auth } =
         await createOrgProjectAndApiKey());
@@ -1892,16 +1892,57 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(body.prompt).toBe(parentContent);
       expect(body.resolutionGraph).toBeNull();
     });
+
+    it("should return 409 when resolve=true and a stored dependency is missing", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+
+      const parentPromptName = "parent-prompt-" + nanoid();
+      const missingChildName = "missing-child-prompt-" + nanoid();
+      const parentContent = `Parent: @@@langfusePrompt:name=${missingChildName}|version=1@@@`;
+
+      const parentPrompt = await createPromptInDB({
+        name: parentPromptName,
+        prompt: parentContent,
+        labels: ["production"],
+        version: 1,
+        config: {},
+        projectId,
+        createdBy: "user-1",
+      });
+
+      await prisma.promptDependency.create({
+        data: {
+          projectId,
+          parentId: parentPrompt.id,
+          childName: missingChildName,
+          childVersion: 1,
+        },
+      });
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "GET",
+        query: {
+          promptName: parentPromptName,
+          version: "1",
+        },
+        headers: {
+          authorization: auth,
+        },
+      });
+
+      await promptNameHandler(req, res);
+
+      expect(res._getStatusCode()).toBe(409);
+      expect(JSON.stringify(res._getJSONData())).toContain(
+        "Prompt dependency not found",
+      );
+    });
   });
 });
 
 describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
   let triggerId: string;
   let actionId: string;
-
-  afterAll(async () => {
-    await disconnectQueues();
-  });
 
   it("should update the labels of a prompt", async () => {
     const { projectId: newProjectId, auth: newAuth } =

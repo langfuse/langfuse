@@ -14,6 +14,7 @@ import {
 } from "../actions/createPrompt";
 import { checkHasProtectedLabels } from "../utils/checkHasProtectedLabels";
 import {
+  CommentObjectType,
   CreatePromptTRPCSchema,
   LATEST_PROMPT_LABEL,
   optionalPaginationZod,
@@ -58,6 +59,19 @@ const PromptFilterOptions = z.object({
   searchQuery: z.string().optional(),
   searchType: z.array(TracingSearchType).optional(),
 });
+
+const promptMetricsTimeWindow = {
+  fromTimestamp: z.date().optional(),
+  toTimestamp: z.date().optional(),
+};
+
+const isValidPromptMetricsTimeWindow = ({
+  fromTimestamp,
+  toTimestamp,
+}: {
+  fromTimestamp?: Date;
+  toTimestamp?: Date;
+}) => !fromTimestamp || !toTimestamp || fromTimestamp < toTimestamp;
 
 export const promptRouter = createTRPCRouter({
   hasAny: protectedProjectProcedure
@@ -236,16 +250,24 @@ export const promptRouter = createTRPCRouter({
     }),
   metrics: protectedProjectProcedure
     .input(
-      z.object({
-        projectId: z.string(),
-        promptNames: z.array(z.string()),
-      }),
+      z
+        .object({
+          projectId: z.string(),
+          promptNames: z.array(z.string()),
+          ...promptMetricsTimeWindow,
+        })
+        .refine(isValidPromptMetricsTimeWindow, {
+          message: "fromTimestamp must be before toTimestamp",
+        }),
     )
     .query(async ({ input }) => {
-      if (input.promptNames.length === 0) return [];
+      const { projectId, promptNames, ...timeWindow } = input;
+      if (promptNames.length === 0) return [];
+
       const res = await getObservationsWithPromptName(
-        input.projectId,
-        input.promptNames,
+        projectId,
+        promptNames,
+        timeWindow,
       );
       return res.map(({ promptName, count }) => ({
         promptName,
@@ -663,47 +685,48 @@ export const promptRouter = createTRPCRouter({
           });
         }
 
-        if (labels.length > 0) {
-          const dependents = await ctx.prisma.$queryRaw<
-            {
-              parent_name: string;
-              parent_version: number;
-              child_version: number;
-              child_label: string;
-            }[]
-          >`
-            SELECT
-              p."name" AS "parent_name",
-              p."version" AS "parent_version",
-              pd."child_version" AS "child_version",
-              pd."child_label" AS "child_label"
-            FROM
-              prompt_dependencies pd
-              INNER JOIN prompts p ON p.id = pd.parent_id
-            WHERE
-              p.project_id = ${projectId}
-              AND pd.project_id = ${projectId}
-              AND pd.child_name = ${promptName}
-              AND (
-                (pd."child_version" IS NOT NULL AND pd."child_version" = ${version})
-                OR
-                (pd."child_label" IS NOT NULL AND pd."child_label" IN (${Prisma.join(labels)}))
-              )
-            `;
+        const dependents = await ctx.prisma.$queryRaw<
+          {
+            parent_name: string;
+            parent_version: number;
+            child_version: number;
+            child_label: string;
+          }[]
+        >`
+          SELECT
+            p."name" AS "parent_name",
+            p."version" AS "parent_version",
+            pd."child_version" AS "child_version",
+            pd."child_label" AS "child_label"
+          FROM
+            prompt_dependencies pd
+            INNER JOIN prompts p ON p.id = pd.parent_id
+          WHERE
+            p.project_id = ${projectId}
+            AND pd.project_id = ${projectId}
+            AND pd.child_name = ${promptName}
+            AND (
+              (pd."child_version" IS NOT NULL AND pd."child_version" = ${version})
+              ${
+                labels.length > 0
+                  ? Prisma.sql`OR (pd."child_label" IS NOT NULL AND pd."child_label" IN (${Prisma.join(labels)}))`
+                  : Prisma.empty
+              }
+            )
+          `;
 
-          if (dependents.length > 0) {
-            const dependencyMessages = dependents
-              .map(
-                (d) =>
-                  `${d.parent_name} v${d.parent_version} depends on ${promptName} ${d.child_version ? `v${d.child_version}` : d.child_label}`,
-              )
-              .join("\n");
+        if (dependents.length > 0) {
+          const dependencyMessages = dependents
+            .map(
+              (d) =>
+                `${d.parent_name} v${d.parent_version} depends on ${promptName} ${d.child_version ? `v${d.child_version}` : d.child_label}`,
+            )
+            .join("\n");
 
-            throw new TRPCError({
-              code: "CONFLICT",
-              message: `Other prompts are depending on the prompt version you are trying to delete:\n\n${dependencyMessages}\n\nPlease delete the dependent prompts first.`,
-            });
-          }
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `Other prompts are depending on the prompt version you are trying to delete:\n\n${dependencyMessages}\n\nPlease delete the dependent prompts first.`,
+          });
         }
 
         await auditLog(
@@ -1137,6 +1160,7 @@ export const promptRouter = createTRPCRouter({
           version: true,
           type: true,
           prompt: true,
+          config: true,
           labels: true,
         },
         where: {
@@ -1150,6 +1174,7 @@ export const promptRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         name: z.string(),
+        includeCommentCounts: z.boolean().optional(),
         ...optionalPaginationZod,
       }),
     )
@@ -1159,6 +1184,14 @@ export const promptRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "prompts:read",
       });
+      if (input.includeCommentCounts) {
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "comments:read",
+        });
+      }
+
       const [prompts, totalCount] = await Promise.all([
         ctx.prisma.prompt.findMany({
           where: {
@@ -1177,6 +1210,31 @@ export const promptRouter = createTRPCRouter({
           },
         }),
       ]);
+
+      let commentCounts = new Map<string, number>();
+      if (input.includeCommentCounts) {
+        const promptIds = prompts.map((p) => p.id);
+        if (promptIds.length > 0) {
+          const groupedCommentCounts = await ctx.prisma.comment.groupBy({
+            by: ["objectId"],
+            where: {
+              projectId: input.projectId,
+              objectType: CommentObjectType.PROMPT,
+              objectId: { in: promptIds },
+            },
+            _count: {
+              objectId: true,
+            },
+          });
+
+          commentCounts = new Map(
+            groupedCommentCounts.map(({ objectId, _count }) => [
+              objectId,
+              _count.objectId,
+            ]),
+          );
+        }
+      }
 
       const userIds = prompts
         .map((p) => p.createdBy)
@@ -1209,26 +1267,37 @@ export const promptRouter = createTRPCRouter({
           creator: user?.name,
         };
       });
-      return { promptVersions: joinedPromptAndUsers, totalCount };
+      return {
+        promptVersions: joinedPromptAndUsers,
+        totalCount,
+        ...(input.includeCommentCounts ? { commentCounts } : {}),
+      };
     }),
   versionMetrics: protectedProjectProcedure
     .input(
-      z.object({
-        projectId: z.string(),
-        promptIds: z.array(z.string()),
-      }),
+      z
+        .object({
+          projectId: z.string(),
+          promptIds: z.array(z.string()),
+          ...promptMetricsTimeWindow,
+        })
+        .refine(isValidPromptMetricsTimeWindow, {
+          message: "fromTimestamp must be before toTimestamp",
+        }),
     )
     .query(async ({ input, ctx }) => {
+      const { projectId, promptIds, ...timeWindow } = input;
+
       throwIfNoProjectAccess({
         session: ctx.session,
-        projectId: input.projectId,
+        projectId,
         scope: "prompts:read",
       });
 
       const [observations, observationScores, traceScores] = await Promise.all([
-        getObservationMetricsForPrompts(input.projectId, input.promptIds),
-        getScoresForPromptIds(input.projectId, input.promptIds, "observation"),
-        getScoresForPromptIds(input.projectId, input.promptIds, "trace"),
+        getObservationMetricsForPrompts(projectId, promptIds, timeWindow),
+        getScoresForPromptIds(projectId, promptIds, "observation", timeWindow),
+        getScoresForPromptIds(projectId, promptIds, "trace", timeWindow),
       ]);
 
       return observations.map((r) => {
@@ -1426,11 +1495,16 @@ const getScoresForPromptIds = async (
   projectId: string,
   promptIds: string[],
   fetchScoreRelation: "observation" | "trace",
+  timeWindow: {
+    fromTimestamp?: Date;
+    toTimestamp?: Date;
+  } = {},
 ) => {
   const scores = await getAggregatedScoresForPrompts(
     projectId,
     promptIds,
     fetchScoreRelation,
+    timeWindow,
   );
 
   return promptIds.map((promptId) => {
@@ -1543,12 +1617,12 @@ const generatePromptQuery = (
     FROM combined p
     ${orderAndLimit};
     `;
-  } else {
-    const baseColumns = Prisma.sql`id, name, version, project_id, prompt, type, updated_at, created_at, labels, tags, config, created_by`;
+  }
+  const baseColumns = Prisma.sql`id, name, version, project_id, prompt, type, updated_at, created_at, labels, tags, config, created_by`;
 
-    // When we're at the root level, show all individual prompts that don't have folders
-    // and one representative per folder for prompts that do have folders
-    return Prisma.sql`
+  // When we're at the root level, show all individual prompts that don't have folders
+  // and one representative per folder for prompts that do have folders
+  return Prisma.sql`
     WITH ${latestCTE},
     individual_prompts AS (
       /* Individual prompts without folders */
@@ -1588,5 +1662,4 @@ const generatePromptQuery = (
     FROM combined p
     ${orderAndLimit};
     `;
-  }
 };

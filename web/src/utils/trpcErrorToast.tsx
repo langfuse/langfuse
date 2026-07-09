@@ -3,6 +3,15 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
 // Catch network level errors, e.g. by proxy rate-limiting
 
+/**
+ * Check if error was caused by a response parsing failure.
+ * This happens when infrastructure (nginx, cloudflare, etc.) returns a non-JSON
+ * response body (e.g., empty body on 431, HTML error page on 502/503/504).
+ */
+const isResponseParseError = (error: TRPCClientError<any>): boolean => {
+  return error.cause instanceof SyntaxError;
+};
+
 const httpStatusOverride: Record<number, keyof typeof errorTitleMap> = {
   429: "TOO_MANY_REQUESTS",
   524: "TIMEOUT",
@@ -28,6 +37,17 @@ const errorTitleMap = {
 const getErrorTitleAndHttpCode = (error: TRPCClientError<any>) => {
   const httpStatus: number =
     typeof error.data?.httpStatus === "number" ? error.data.httpStatus : 500;
+
+  if (
+    httpStatus === 422 &&
+    error.data?.errorName === "ClickHouseResourceError"
+  ) {
+    // Handle ClickHouse resource limit errors with specific messaging
+    return {
+      errorTitle: "Request Timed Out",
+      httpStatus,
+    };
+  }
 
   if (httpStatus in httpStatusOverride) {
     return {
@@ -61,6 +81,17 @@ const getErrorDescription = (httpStatus: number) => {
 
 export const trpcErrorToast = (error: unknown) => {
   if (error instanceof TRPCClientError) {
+    // Handle infrastructure-level errors that return non-JSON responses
+    // (e.g., 431 with empty body, 502/503/504 with HTML error pages)
+    if (isResponseParseError(error)) {
+      showErrorToast(
+        "Unexpected Response",
+        "The request could not be completed. We've been notified and are looking into it. Please try again or contact support if this persists.",
+        "WARNING",
+      );
+      return;
+    }
+
     const { errorTitle, httpStatus } = getErrorTitleAndHttpCode(error);
 
     const path = error.data?.path;

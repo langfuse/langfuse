@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { LoaderCircle } from "lucide-react";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
 import {
   Command,
@@ -68,7 +68,7 @@ export function MentionAutocomplete({
               role="status"
               aria-live="polite"
             >
-              <LoaderCircle className="h-4 w-4 animate-spin" />
+              <Spinner size="sm" />
               <span className="sr-only">Loading users...</span>
             </div>
           )}
@@ -81,6 +81,7 @@ export function MentionAutocomplete({
                 {displayedUsers.map((user, index) => {
                   const displayName = user.name || user.email || "User";
                   const isSelected = index === selectedIndex;
+                  const userLabel = user.name || "Unknown";
                   return (
                     <CommandItem
                       key={user.id}
@@ -98,11 +99,14 @@ export function MentionAutocomplete({
                         </AvatarFallback>
                       </Avatar>
                       <div className="text-foreground flex-1 overflow-hidden">
-                        <div className="truncate font-medium">
-                          {user.name || "Unknown"}
+                        <div className="truncate font-medium" title={userLabel}>
+                          {userLabel}
                         </div>
                         {user.email && (
-                          <div className="text-muted-foreground truncate text-xs">
+                          <div
+                            className="text-muted-foreground truncate text-xs"
+                            title={user.email}
+                          >
                             {user.email}
                           </div>
                         )}

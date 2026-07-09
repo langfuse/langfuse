@@ -3,6 +3,7 @@ import {
   createTrace,
   createTracesCh,
   createEvent,
+  createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
 import {
   createObservationsCh,
@@ -15,8 +16,6 @@ import {
 import { GetObservationsV1Response } from "@/src/features/public-api/types/observations";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
-
-const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 // Helper type for creating observation data
 type ObservationData = {
@@ -70,25 +69,24 @@ const createObservationData = (
       user_id: trace?.user_id ?? null,
       tags: trace?.tags ?? [],
     });
-  } else {
-    // For observations table: milliseconds, simpler structure
-    return createObservation({
-      id,
-      trace_id: data.trace_id,
-      project_id: data.project_id,
-      name: data.name,
-      type: data.type,
-      level: data.level,
-      start_time: data.start_time,
-      end_time: data.end_time === null ? null : data.end_time,
-      input: data.input,
-      output: data.output,
-      metadata: data.metadata,
-      provided_model_name: data.provided_model_name,
-      provided_usage_details: data.provided_usage_details,
-      provided_cost_details: data.provided_cost_details,
-    });
   }
+  // For observations table: milliseconds, simpler structure
+  return createObservation({
+    id,
+    trace_id: data.trace_id,
+    project_id: data.project_id,
+    name: data.name,
+    type: data.type,
+    level: data.level,
+    start_time: data.start_time,
+    end_time: data.end_time === null ? null : data.end_time,
+    input: data.input,
+    output: data.output,
+    metadata: data.metadata,
+    provided_model_name: data.provided_model_name,
+    provided_usage_details: data.provided_usage_details,
+    provided_cost_details: data.provided_cost_details,
+  });
 };
 
 // Helper to create trace and observations in one go
@@ -111,6 +109,15 @@ const createAndInsertObservations = async (
 };
 
 describe("/api/public/observations API Endpoint", () => {
+  let projectId: string;
+  let auth: string;
+
+  beforeAll(async () => {
+    const fixture = await createOrgProjectAndApiKey();
+    projectId = fixture.projectId;
+    auth = fixture.auth;
+  });
+
   // Test suite factory to run tests against both implementations
   const runTestSuite = (useEventsTable: boolean) => {
     const suiteName = useEventsTable
@@ -275,6 +282,8 @@ describe("/api/public/observations API Endpoint", () => {
           GetObservationsV1Response,
           "GET",
           `/api/public/observations${queryParam}`,
+          undefined,
+          auth,
         );
 
         expect(response.status).toBe(200);
@@ -459,6 +468,8 @@ describe("/api/public/observations API Endpoint", () => {
           GetObservationsV1Response,
           "GET",
           `/api/public/observations${queryParam}traceId=${traceId}&level=DEBUG`,
+          undefined,
+          auth,
         );
 
         expect(debugResponse.body.data.length).toBe(1);
@@ -471,6 +482,8 @@ describe("/api/public/observations API Endpoint", () => {
           GetObservationsV1Response,
           "GET",
           `/api/public/observations${queryParam}traceId=${traceId}&level=DEFAULT`,
+          undefined,
+          auth,
         );
 
         expect(defaultResponse.body.data.length).toBe(1);
@@ -483,6 +496,8 @@ describe("/api/public/observations API Endpoint", () => {
           GetObservationsV1Response,
           "GET",
           `/api/public/observations${queryParam}traceId=${traceId}&level=WARNING`,
+          undefined,
+          auth,
         );
 
         expect(warningResponse.body.data.length).toBe(1);
@@ -495,6 +510,8 @@ describe("/api/public/observations API Endpoint", () => {
           GetObservationsV1Response,
           "GET",
           `/api/public/observations${queryParam}traceId=${traceId}&level=ERROR`,
+          undefined,
+          auth,
         );
 
         expect(errorResponse.body.data.length).toBe(1);
@@ -543,6 +560,8 @@ describe("/api/public/observations API Endpoint", () => {
           GetObservationsV1Response,
           "GET",
           `/api/public/observations${queryParam}traceId=${traceId}&level=ERROR`,
+          undefined,
+          auth,
         );
 
         expect(errorResponse.body.data.length).toBe(0);
@@ -553,7 +572,7 @@ describe("/api/public/observations API Endpoint", () => {
   };
 
   // Run tests with both implementations
-  if (env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true") {
+  if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true") {
     runTestSuite(true); // with events table
   }
   runTestSuite(false); // with observations table
@@ -615,6 +634,8 @@ describe("/api/public/observations API Endpoint", () => {
             GetObservationsV1Response,
             "GET",
             `/api/public/observations${queryParam}&traceId=${traceId}&filter=${encodeURIComponent(filterParam)}`,
+            undefined,
+            auth,
           );
 
           expect(response.body.data.length).toBe(1);
@@ -667,6 +688,8 @@ describe("/api/public/observations API Endpoint", () => {
             GetObservationsV1Response,
             "GET",
             `/api/public/observations${queryParam}&traceId=${traceId}&type=GENERATION&filter=${encodeURIComponent(filterParam)}`,
+            undefined,
+            auth,
           );
 
           // Should match only test-generation (both filters applied)
@@ -683,6 +706,8 @@ describe("/api/public/observations API Endpoint", () => {
               GetObservationsV1Response,
               "GET",
               `/api/public/observations${queryParam}&filter=${encodeURIComponent(malformedFilter)}`,
+              undefined,
+              auth,
             );
             fail("Should have thrown an error");
           } catch (error) {
@@ -719,6 +744,8 @@ describe("/api/public/observations API Endpoint", () => {
             GetObservationsV1Response,
             "GET",
             `/api/public/observations${queryParam}&traceId=${traceId}&filter=`,
+            undefined,
+            auth,
           );
 
           expect(response.body.data.length).toBe(1);
@@ -764,6 +791,8 @@ describe("/api/public/observations API Endpoint", () => {
           const response = await makeAPICall(
             "GET",
             `/api/public/observations${queryParam}&traceId=${traceId}&type=GENERATION&filter=${encodeURIComponent(filterParam)}`,
+            undefined,
+            auth,
           );
 
           expect(response.status).toBe(400);
@@ -869,6 +898,8 @@ describe("/api/public/observations API Endpoint", () => {
             GetObservationsV1Response,
             "GET",
             `/api/public/observations${queryParam}filter=${encodeURIComponent(filterParam)}`,
+            undefined,
+            auth,
           );
 
           expect(response.status).toBe(200);
@@ -885,7 +916,7 @@ describe("/api/public/observations API Endpoint", () => {
     };
 
     // Run all advanced filtering tests for both implementations
-    if (env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true") {
+    if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true") {
       runAdvancedFilterTestSuite(true); // with events table
     }
     runAdvancedFilterTestSuite(false); // with observations table
@@ -984,6 +1015,8 @@ describe("/api/public/observations API Endpoint", () => {
             GetObservationsV1Response,
             "GET",
             `/api/public/observations${queryParam}traceId=${traceId}&filter=${encodeURIComponent(filterParam)}`,
+            undefined,
+            auth,
           );
 
           expect(response.status).toBe(200);
@@ -1075,6 +1108,8 @@ describe("/api/public/observations API Endpoint", () => {
             GetObservationsV1Response,
             "GET",
             `/api/public/observations${queryParam}traceId=${traceId}&filter=${encodeURIComponent(filterParam)}`,
+            undefined,
+            auth,
           );
 
           expect(response.status).toBe(200);
@@ -1210,6 +1245,8 @@ describe("/api/public/observations API Endpoint", () => {
             GetObservationsV1Response,
             "GET",
             `/api/public/observations${queryParam}traceId=${traceId}&filter=${encodeURIComponent(filterParam)}`,
+            undefined,
+            auth,
           );
 
           expect(response.status).toBe(200);
@@ -1221,7 +1258,7 @@ describe("/api/public/observations API Endpoint", () => {
     };
 
     // Run parentObservationId filter tests for both implementations
-    if (env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true") {
+    if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true") {
       runParentObservationIdFilterTestSuite(true); // with events table
     }
     runParentObservationIdFilterTestSuite(false); // with observations table

@@ -6,6 +6,81 @@ This document describes how table state (filters, sorting, pagination, search) i
 
 Peek views allow users to quickly preview table items in a side panel. When navigating between items using K/J shortcuts, tables inside the peek view remount, which would normally reset their state. The peek state management system prevents this by storing table state in a context that persists across navigation.
 
+## Panel shell, resize, and expand
+
+`TablePeekView` ([`../peek.tsx`](../peek.tsx)) is responsive and keeps the peek
+**on top of the table** (it does not split the layout):
+
+- **Desktop** — a docked-right, non-modal Radix dialog (no overlay), so the
+  table behind stays interactive. A left-edge handle resizes it; dragging to the
+  far edge (or the header Expand button) **expands** it to the max width
+  (viewport − sidebar; the sidebar stays visible).
+- **Mobile** (`useIsMobile`, <768px) — a `vaul` bottom drawer with native
+  swipe-down dismissal (Expand is hidden).
+
+Dismissal:
+
+- **Click-outside closes**, with exceptions: a target inside the peek
+  (`[data-peek-content]`) never closes it; clicking another table row
+  (`[data-row-index]`) **switches** the peeked item in place; and selection
+  checkboxes / `data-ignore-outside-interaction` regions / the table's
+  `ignoredSelectors` don't close it. Nested Radix popovers/menus opened inside
+  the peek don't close it (DismissableLayer stacking).
+- **Escape**, the close button, and (mobile) swipe-down also close.
+
+Panel state follows the local-feature-state pattern from
+`frontend-large-feature-architecture`:
+
+- [`store/peekPanelStore.ts`](./store/peekPanelStore.ts) — a per-mount vanilla
+  Zustand store (lazy `useState`) owning ONLY the widget width + transient drag
+  state, mutated through named `actions`. Selectors (`selectWidgetWidth`,
+  `selectIsResizing`, `selectDraftExpanded`) return primitives so subscriptions
+  bail out cheaply.
+- [`actions/resizePeekPanel.ts`](./actions/resizePeekPanel.ts) — the drag
+  workflow (window pointer listeners → store actions; on pointer-up commits a
+  widget width or flips the expanded flag). Takes the store instance, not hooks.
+- [`usePeekPanelState.ts`](./usePeekPanelState.ts) — the integration boundary:
+  owns the store, derives the final width (widget vs expanded — measuring the
+  sidebar offset for the expanded case), and wires drag/keyboard to the store +
+  action. Takes `isExpanded` in / `onExpandedChange` out (the URL owns expanded).
+
+State altitudes:
+
+| State       | Altitude                        | Where it lives                                                                                             |
+| ----------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| expanded    | route (shareable, reloadable)   | URL `peekView=expanded`, managed in `peek.tsx` (`router.replace`), cleared on close by `usePeekNavigation` |
+| width       | cross-view persisted preference | store `widthFraction`, mirrored to `localStorage` (`peekViewWidthFraction`)                                |
+| resize drag | high-frequency transient        | store `draftFraction` / `draftExpanded` / `isResizing`, committed on pointer-up                            |
+| which item  | route                           | the `peek` URL param (see below)                                                                           |
+
+The **default** width (no saved preference) is viewport-aware: 50vw, but capped
+in px (`PEEK_MAX_DEFAULT_WIDTH_PX`) so a bigger screen doesn't mean a
+proportionally bigger peek (LFE-10601). Normal laptops still open at 50vw; only
+very wide monitors trim the fraction so the peek stays comfortable and the list
+navigable.
+
+The **inner tree ↔ info split** inside the peek is a separate
+`react-resizable-panels` group (`TraceLayoutDesktop`), unified with the width to
+persist in **`localStorage`** under a peek-scoped group id (`trace-layout-peek-*`)
+rather than per-tab `sessionStorage`. Its default is computed as an explicit
+**percentage** from the width the peek opens at: the info panel gets a
+comfortable target and the tree/timeline takes the remainder, clamped to a
+comfortable band — so extra width on a big peek flows to info (the content), not
+the tree (the index). A percentage (not a px `defaultSize`, which the library
+resolves against a transient mid-open width) keeps that default deterministic.
+The full-page trace view keeps its own share-based, per-tab layout.
+
+The peek and the standalone trace page already share one beta-aware fetch
+([`../../trace/useTraceDetailData.ts`](../../trace/useTraceDetailData.ts)), one
+body + title
+([`../../trace/TraceDetailBody.tsx`](../../trace/TraceDetailBody.tsx) →
+`TraceDetailBody` / `traceDetailTitle`), and one action set
+([`../../trace/TraceDetailActions.tsx`](../../trace/TraceDetailActions.tsx) —
+star / publish / delete) — `usePeekData` is now a thin wrapper over the shared
+hook. **Next slice:** collapse the `<Trace context>` branching and fold these
+primitives into a single `TraceDetailSurface` wrapper so the peek and `TracePage`
+share one component, not four — see the PR discussion.
+
 ## Architecture
 
 The peek state architecture separates the persisting context provider from the remounting content:
@@ -26,10 +101,12 @@ The peek state architecture separates the persisting context provider from the r
         │ Table Components (e.g., ScoresTable)  │
         │                                       │
         │  Hooks automatically detect peek:     │
-        │  • useSidebarFilterState()            │
         │  • useOrderByState()                  │
         │  • usePaginationState()               │
         │  • useFullTextSearch()                │
+        │                                       │
+        │  Hooks requiring explicit wiring:     │
+        │  • useSidebarFilterState()            │
         └───────────────────────────────────────┘
                             │
                             ▼
@@ -38,6 +115,10 @@ The peek state architecture separates the persisting context provider from the r
         │                                        │
         │ const peekContext = usePeekTableState()│
         │ if (peekContext) {                     │
+        │   useSidebarFilterState({             │
+        │     stateLocation: "peekContext",     │
+        │     context: peekContext,             │
+        │   })                                  │
         │   return peekContext.tableState.X      │
         │ }                                      │
         │ return urlState                        │
@@ -53,15 +134,21 @@ The peek state architecture separates the persisting context provider from the r
 - Provides persistent state storage across peek item navigation
 - Stores filters, sorting, pagination, and search state
 - Does NOT remount when `itemId` changes during K/J navigation
-- Tables inside the peek view automatically use this context when available
+- Tables inside the peek view can read from this context when the relevant hook
+  supports it or the caller explicitly wires it
 
 #### Peek-Aware Hooks
 
-All state management hooks automatically detect when they're running inside a peek view and read/write state accordingly:
+Most state management hooks automatically detect when they're running inside a
+peek view and read/write state accordingly. `useSidebarFilterState` is the
+exception and must be wired explicitly by the caller.
 
 1. **`useSidebarFilterState`** - Manages filter state
    - Location: `web/src/features/filters/hooks/useSidebarFilterState.tsx`
-   - Checks for `usePeekTableState()` and reads from `peekContext.tableState.filters`
+   - Requires explicit `hookOptions` wiring:
+     `stateLocation: "peekContext"` with `context: usePeekTableState()`
+   - Without that wiring, it uses URL or session storage state instead of the
+     peek context
 
 2. **`useOrderByState`** - Manages sorting state
    - Location: `web/src/features/orderBy/hooks/useOrderByState.ts`
@@ -151,9 +238,37 @@ To make a table work with peek state persistence:
 3. **For filters, use useSidebarFilterState:**
 
    ```typescript
-   // Already peek-aware, no changes needed if already using this hook
-   const queryFilter = useSidebarFilterState(filterConfig, options, projectId);
+   const peekContext = usePeekTableState();
+
+   const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(() => {
+     if (peekContext) {
+       return {
+         loading: isSidebarFilterLoading,
+         implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+         stateLocation: "peekContext",
+         context: peekContext,
+       };
+     }
+
+     return {
+       loading: isSidebarFilterLoading,
+       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+       stateLocation: "urlAndSessionStorage",
+       sessionFilterContextId: projectId,
+     };
+   }, [isSidebarFilterLoading, peekContext, projectId]);
+
+   const queryFilter = useSidebarFilterState(
+     filterConfig,
+     filterOptions,
+     queryFilterOptions,
+   );
    ```
+
+   `useSidebarFilterState` no longer detects peek context internally. If the
+   table can render inside `PeekTableStateProvider`, the caller must pass
+   `stateLocation: "peekContext"` explicitly or filters will persist in URL or
+   session state instead of the in-memory peek state.
 
 4. **For sorting, use useOrderByState:**
 
@@ -167,7 +282,7 @@ To make a table work with peek state persistence:
 
 ### How It Works Internally
 
-Each peek-aware hook follows the same pattern:
+Most peek-aware hooks follow this pattern internally:
 
 ```typescript
 export const useSomeState = () => {
@@ -241,12 +356,23 @@ Hypothetical: Trace peek with both Scores table AND Events table
 - Tables use `disableUrlPersistence` and scope data via props (`traceId`, `observationId`)
 
 **Future Solution (if multiple independent table types are needed):**
-Namespace state by table identifier:
+Any follow-up design for namespaced peek state still needs to keep the explicit
+`useSidebarFilterState` wiring pattern:
 
 ```typescript
-const filters = useSidebarFilterState(config, options, projectId, loading, {
-  tableId: "scores", // Unique identifier per table
-});
+const queryFilterOptions: UseSidebarFilterStateOptions = peekContext
+  ? {
+      loading,
+      stateLocation: "peekContext",
+      context: peekContext,
+    }
+  : {
+      loading,
+      stateLocation: "urlAndSessionStorage",
+      sessionFilterContextId: projectId,
+    };
+
+const filters = useSidebarFilterState(config, options, queryFilterOptions);
 ```
 
 ## Related Files

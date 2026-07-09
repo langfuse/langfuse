@@ -15,7 +15,8 @@ import { UsageDetailsEditor } from "./UsageDetailsEditor";
 import { MatchedModelCard } from "./MatchedModelCard";
 import { MatchedTierCard } from "./MatchedTierCard";
 import { NoMatchDisplay } from "./NoMatchDisplay";
-import { Loader2, CheckCircle, SquareArrowOutUpRight } from "lucide-react";
+import { CheckCircle, SquareArrowOutUpRight } from "lucide-react";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 type TestModelMatchDialogProps = {
   projectId: string;
@@ -47,11 +48,11 @@ export function TestModelMatchDialog({
   );
 
   // Handle form submission
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.SyntheticEvent) => {
     e.preventDefault();
     if (modelName.trim()) {
       setHasSubmitted(true);
-      void refetch();
+      refetch();
     }
   };
 
@@ -132,7 +133,7 @@ export function TestModelMatchDialog({
                   <>
                     {isLoading && (
                       <div className="bg-muted/30 text-muted-foreground flex min-h-[300px] items-center justify-center gap-2 rounded-lg border p-6">
-                        <Loader2 className="h-5 w-5 animate-spin" />
+                        <Spinner size="md" />
                         <span>Testing match...</span>
                       </div>
                     )}
@@ -153,11 +154,7 @@ export function TestModelMatchDialog({
                                 Match Found
                               </span>
                             </div>
-                            <MatchedModelCard
-                              projectId={projectId}
-                              model={data.model}
-                              pricingTierId={data.matchedTier.id}
-                            />
+                            <MatchedModelCard model={data.model} />
                             <MatchedTierCard tier={data.matchedTier} />
                           </>
                         ) : (

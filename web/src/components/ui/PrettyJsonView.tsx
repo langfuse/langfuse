@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, useRef, useCallback, memo } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { deepParseJson } from "@langfuse/shared";
+import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
@@ -56,6 +57,7 @@ import {
 import {
   ValueCell,
   getValueStringLength,
+  type MetadataFilterActions,
 } from "@/src/components/table/ValueCell";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 
@@ -81,6 +83,15 @@ const SYSTEM_TITLES = ["system", "Input"];
 
 const MONO_TEXT_CLASSES = "font-mono text-xs wrap-break-word";
 const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
+
+// decodeUnicodeInJson was extracted to a standalone module so that other JSON
+// viewers (e.g. CodeJsonViewer) can reuse it without creating an import cycle.
+// Re-exported here for backward compatibility with existing imports and tests.
+export {
+  decodeUnicodeInJson,
+  DECODE_UNICODE_MAX_NODES,
+  DECODE_UNICODE_MAX_DEPTH,
+} from "@/src/utils/decodeUnicodeInJson";
 
 function shouldShowValue(value: unknown, showNullValues: boolean): boolean {
   if (showNullValues) return true;
@@ -433,9 +444,10 @@ function JsonPrettyTable({
   toggleCellExpansion,
   stickyTopLevelKey = false,
   showObservationTypeBadge = false,
+  metadataActions,
 }: {
   data: JsonTableRow[];
-  expandAllRef?: React.MutableRefObject<(() => void) | null>;
+  expandAllRef?: React.RefObject<(() => void) | null>;
   onExpandStateChange?: (allExpanded: boolean) => void;
   noBorder?: boolean;
   expanded: ExpandedState;
@@ -449,6 +461,7 @@ function JsonPrettyTable({
   toggleCellExpansion: (cellId: string) => void;
   stickyTopLevelKey?: boolean;
   showObservationTypeBadge?: boolean;
+  metadataActions?: MetadataFilterActions;
 }) {
   const headerRef = useRef<HTMLTableRowElement>(null);
   const topLevelRowRef = useRef<HTMLTableRowElement>(null);
@@ -574,6 +587,10 @@ function JsonPrettyTable({
           row={row}
           expandedCells={expandedCells}
           toggleCellExpansion={toggleCellExpansion}
+          preserveStringWhitespace={
+            row.original.key === "code_eval_source_code"
+          }
+          metadataActions={metadataActions}
         />
       ),
     },
@@ -613,7 +630,7 @@ function JsonPrettyTable({
   const expandRowsWithLazyLoading = useCallback(
     (
       rowFilter: (rows: Row<JsonTableRow>[]) => Row<JsonTableRow>[],
-      shouldCollapse: boolean = false,
+      shouldCollapse = false,
     ) => {
       if (shouldCollapse) {
         onExpandedChange({});
@@ -767,12 +784,15 @@ export function PrettyJsonView(props: {
   showObservationTypeBadge?: boolean;
   /** Content to render between header and main content (e.g., thinking blocks) */
   afterHeader?: React.ReactNode;
+  /** When set, rows show an actions menu with copy + add-to-filter shortcuts
+      (metadata views only). */
+  metadataActions?: MetadataFilterActions;
 }) {
   // Use pre-parsed data if available, otherwise parse on-demand
   const parsedJson = useMemo(() => {
     // If pre-parsed data is provided, use it directly (skip parsing)
     if (props.parsedJson !== undefined) {
-      return props.parsedJson;
+      return decodeUnicodeInJson(props.parsedJson);
     }
 
     // If still parsing in Web Worker, return null (will show loading state)
@@ -782,7 +802,7 @@ export function PrettyJsonView(props: {
 
     // Fast path: if already an object, likely no parsing needed
     if (typeof props.json !== "string") {
-      return props.json;
+      return decodeUnicodeInJson(props.json);
     }
 
     // Only parse strings, with size/depth limits
@@ -791,8 +811,23 @@ export function PrettyJsonView(props: {
       maxDepth: 2,
     });
 
-    return result;
+    // Decode \uXXXX escapes so Python SDK (ensure_ascii=True) traces display
+    // non-ASCII characters correctly in the trace detail view.
+    return decodeUnicodeInJson(result);
   }, [props.json, props.parsedJson, props.isParsing]);
+
+  // JSONView internally calls deepParseJson (with maxDepth:3) which mutates
+  // nested string fields in place. Because baseTableData[].rawChildData holds
+  // references back into parsedJson, sharing parsedJson with JSONView would
+  // corrupt the table's lazy-loaded children whenever JSONView renders (even
+  // while hidden via display:none). Pass a deep clone so the two views stay
+  // independent.
+  const jsonViewInput = useMemo(() => {
+    if (parsedJson === null || parsedJson === undefined) return props.json;
+    if (typeof parsedJson !== "object") return parsedJson;
+    return structuredClone(parsedJson);
+  }, [parsedJson, props.json]);
+
   const actualCurrentView = props.currentView ?? "pretty";
   const expandAllRef = useRef<(() => void) | null>(null);
   const [allRowsExpanded, setAllRowsExpanded] = useState(false);
@@ -1006,9 +1041,8 @@ export function PrettyJsonView(props: {
     } else if (internalExpansionState === false) {
       // user collapsed all
       return false;
-    } else {
-      return finalState;
     }
+    return finalState;
   }, [finalExpansionState, internalExpansionState]);
 
   // table data with lazy-loaded children
@@ -1149,7 +1183,7 @@ export function PrettyJsonView(props: {
       event.preventDefault();
     }
     const textToCopy = stringifyJsonNode(parsedJson);
-    void copyTextToClipboard(textToCopy);
+    copyTextToClipboard(textToCopy);
 
     if (event) {
       event.currentTarget.focus();
@@ -1282,6 +1316,7 @@ export function PrettyJsonView(props: {
                   toggleCellExpansion={toggleCellExpansion}
                   stickyTopLevelKey={props.stickyTopLevelKey}
                   showObservationTypeBadge={props.showObservationTypeBadge}
+                  metadataActions={props.metadataActions}
                 />
               )}
             </div>
@@ -1293,7 +1328,11 @@ export function PrettyJsonView(props: {
             style={{ display: shouldUseTableView ? "none" : "block" }}
           >
             <JSONView
-              json={props.json}
+              // Use the unicode-decoded payload so that \uXXXX escapes from
+              // Python SDK ensure_ascii=True render as original characters.
+              // Pass a clone to avoid JSONView's internal deepParseJson
+              // mutating the shared parsedJson / rawChildData tree.
+              json={jsonViewInput}
               title={props.title} // Title value used for background styling
               hideTitle={true} // But hide the title, we display it
               className=""
@@ -1313,11 +1352,11 @@ export function PrettyJsonView(props: {
           <div className="text-muted-foreground my-1 px-2 py-1 text-xs">
             Media
           </div>
-          <div className="flex flex-wrap gap-2 p-4 pt-1">
+          <div className="flex flex-wrap gap-2 pt-1 pb-4">
             {remainingMarkdownMedia.map((m) => (
               <LangfuseMediaView
                 mediaAPIReturnValue={m}
-                asFileIcon={true}
+                variant="icon"
                 key={m.mediaId}
               />
             ))}
@@ -1332,11 +1371,11 @@ export function PrettyJsonView(props: {
             <div className="text-muted-foreground my-1 px-2 py-1 text-xs">
               Media
             </div>
-            <div className="flex flex-wrap gap-2 p-4 pt-1">
+            <div className="flex flex-wrap gap-2 pt-1 pb-4">
               {props.media.map((m) => (
                 <LangfuseMediaView
                   mediaAPIReturnValue={m}
-                  asFileIcon={true}
+                  variant="icon"
                   key={m.mediaId}
                 />
               ))}

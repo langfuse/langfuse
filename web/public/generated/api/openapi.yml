@@ -1,6 +1,6 @@
 openapi: 3.0.1
 info:
-  title: langfuse
+  title: server
   version: ''
   description: >-
     ## Authentication
@@ -74,7 +74,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
+      security: &ref_0
         - BasicAuth: []
     post:
       description: Create an annotation queue
@@ -114,8 +114,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -167,8 +166,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/annotation-queues/{queueId}/items:
     get:
       description: Get items for a specific annotation queue
@@ -235,8 +233,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     post:
       description: Add an item to an annotation queue
       operationId: annotationQueues_createQueueItem
@@ -281,8 +278,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -340,8 +336,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     patch:
       description: Update an annotation queue item
       operationId: annotationQueues_updateQueueItem
@@ -392,8 +387,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -450,8 +444,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/annotation-queues/{queueId}/assignments:
     post:
       description: Create an assignment for a user to an annotation queue
@@ -497,8 +490,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -549,8 +541,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -598,8 +589,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     put:
       description: >-
         Create or update a blob storage integration for a specific project
@@ -641,8 +631,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -695,8 +684,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     delete:
       description: >-
         Delete a blob storage integration by ID (requires organization-scoped
@@ -742,8 +730,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/comments:
     post:
       description: >-
@@ -785,8 +772,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -872,8 +858,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/comments/{commentId}:
     get:
       description: Get a comment by id
@@ -919,8 +904,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/dataset-items:
     post:
       description: Create a dataset item
@@ -960,8 +944,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -1058,8 +1041,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/dataset-items/{id}:
     get:
       description: Get a dataset item
@@ -1104,8 +1086,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     delete:
       description: >-
         Delete a dataset item and all its run items. This action is
@@ -1151,8 +1132,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/dataset-run-items:
     post:
       description: Create a dataset run item
@@ -1192,8 +1172,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -1262,8 +1241,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/v2/datasets:
     get:
       description: Get all datasets
@@ -1317,8 +1295,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     post:
       description: Create a dataset
       operationId: datasets_create
@@ -1357,8 +1334,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -1409,8 +1385,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/datasets/{datasetName}/runs/{runName}:
     get:
       description: Get a dataset run and its items
@@ -1460,8 +1435,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     delete:
       description: Delete a dataset run and all its run items. This action is irreversible.
       operationId: datasets_deleteRun
@@ -1510,8 +1484,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/datasets/{datasetName}/runs:
     get:
       description: Get dataset runs
@@ -1570,8 +1543,259 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
+  /api/public/experiments:
+    get:
+      description: |-
+        List experiments with cursor-based pagination. Results are ordered by
+        latest experiment activity descending.
+      operationId: experiments_list
+      tags:
+        - Experiments
+      parameters:
+        - name: fields
+          in: query
+          description: |-
+            Comma-separated list of field groups to include. Available groups:
+            `core`, `metadata`, `scores`. If omitted, `core` is returned.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: limit
+          in: query
+          description: Number of experiments to return per page. Maximum 100, default 50.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: scoreLimit
+          in: query
+          description: >-
+            Number of scores to return per experiment when `fields=scores` is
+            requested. Maximum 50, default 50.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: cursor
+          in: query
+          description: Versioned base64url cursor from the previous response page.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: fromStartTime
+          in: query
+          description: Retrieve only experiments on or after this datetime.
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: toStartTime
+          in: query
+          description: Retrieve only experiments before this datetime.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: id
+          in: query
+          description: Comma-separated list of experiment IDs.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: name
+          in: query
+          description: Comma-separated list of experiment names.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: datasetId
+          in: query
+          description: Comma-separated list of dataset IDs.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: filter
+          in: query
+          description: |-
+            JSON string containing an array of structured filter conditions.
+            Supported columns are `id`, `name`, and `datasetId`.
+          required: false
+          schema:
+            type: string
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExperimentsResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+  /api/public/experiment-items:
+    get:
+      description: |-
+        List experiment items with cursor-based pagination. Use this endpoint
+        to export experiment item inputs, outputs, expected outputs, metadata,
+        and optionally item/trace scores. Results are ordered by time
+        descending.
+      operationId: experiments_listItems
+      tags:
+        - Experiments
+      parameters:
+        - name: fields
+          in: query
+          description: |-
+            Comma-separated list of field groups to include. Available groups:
+            `core`, `dataset`, `io`, `metadata`, `itemMetadata`,
+            `experimentMetadata`, `scores`. If omitted, `core,dataset` is
+            returned.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: limit
+          in: query
+          description: >-
+            Number of experiment items to return per page. Maximum 100, default
+            50.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: scoreLimit
+          in: query
+          description: >-
+            Number of scores to return per experiment item when `fields=scores`
+            is requested. Maximum 50, default 50.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: cursor
+          in: query
+          description: Versioned base64url cursor from the previous response page.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: fromStartTime
+          in: query
+          description: Retrieve only experiment items started on or after this datetime.
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: toStartTime
+          in: query
+          description: Retrieve only experiment items started before this datetime.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: experimentId
+          in: query
+          description: Comma-separated list of experiment IDs.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: experimentName
+          in: query
+          description: Comma-separated list of experiment names.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: experimentItemId
+          in: query
+          description: Comma-separated list of experiment item IDs.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: datasetId
+          in: query
+          description: Comma-separated list of dataset IDs.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: filter
+          in: query
+          description: |-
+            JSON string containing an array of structured filter conditions.
+            Supported columns are `experimentId`, `experimentName`,
+            `experimentItemId`, and `datasetId`.
+          required: false
+          schema:
+            type: string
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExperimentItemsResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
   /api/public/health:
     get:
       description: Check health of API and database
@@ -1663,25 +1887,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/IngestionResponse'
-              examples:
-                Example1:
-                  value:
-                    successes:
-                      - id: abcdef-1234-5678-90ab
-                        status: 201
-                    errors: []
-                Example2:
-                  value:
-                    successes:
-                      - id: abcdef-1234-5678-90ab
-                        status: 201
-                    errors: []
-                Example3:
-                  value:
-                    successes:
-                      - id: abcdef-1234-5678-90ab
-                        status: 201
-                    errors: []
         '400':
           description: ''
           content:
@@ -1707,8 +1912,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -1730,52 +1934,6 @@ paths:
                     debugging.
               required:
                 - batch
-            examples:
-              Example1:
-                value:
-                  batch:
-                    - id: abcdef-1234-5678-90ab
-                      timestamp: '2022-01-01T00:00:00.000Z'
-                      type: trace-create
-                      body:
-                        id: abcdef-1234-5678-90ab
-                        timestamp: '2022-01-01T00:00:00.000Z'
-                        environment: production
-                        name: My Trace
-                        userId: 1234-5678-90ab-cdef
-                        input: My input
-                        output: My output
-                        sessionId: 1234-5678-90ab-cdef
-                        release: 1.0.0
-                        version: 1.0.0
-                        metadata: My metadata
-                        tags:
-                          - tag1
-                          - tag2
-                        public: true
-              Example2:
-                value:
-                  batch:
-                    - id: abcdef-1234-5678-90ab
-                      timestamp: '2022-01-01T00:00:00.000Z'
-                      type: span-create
-                      body:
-                        id: abcdef-1234-5678-90ab
-                        traceId: 1234-5678-90ab-cdef
-                        startTime: '2022-01-01T00:00:00.000Z'
-                        environment: test
-              Example3:
-                value:
-                  batch:
-                    - id: abcdef-1234-5678-90ab
-                      timestamp: '2022-01-01T00:00:00.000Z'
-                      type: score-create
-                      body:
-                        id: abcdef-1234-5678-90ab
-                        traceId: 1234-5678-90ab-cdef
-                        name: My Score
-                        value: 0.9
-                        environment: default
   /api/public/metrics:
     get:
       description: >-
@@ -1876,8 +2034,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/observations/{observationId}:
     get:
       description: Get a observation
@@ -1925,8 +2082,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/observations:
     get:
       description: >-
@@ -2214,8 +2370,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/scores:
     post:
       description: Create a score (supports both trace and session scores)
@@ -2255,8 +2410,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -2304,8 +2458,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/llm-connections:
     get:
       description: Get all LLM connections in a project
@@ -2359,8 +2512,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     put:
       description: >-
         Create or update an LLM connection. The connection is upserted on
@@ -2401,14 +2553,60 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/UpsertLlmConnectionRequest'
+  /api/public/llm-connections/{id}:
+    delete:
+      description: >-
+        Delete an LLM connection by id. Evaluators that depend on the deleted
+        connection are automatically paused.
+      operationId: llmConnections_delete
+      tags:
+        - LlmConnections
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteLlmConnectionResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
   /api/public/media/{mediaId}:
     get:
       description: Get a media record
@@ -2454,8 +2652,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     patch:
       description: Patch a media record
       operationId: media_patch
@@ -2496,8 +2693,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -2543,8 +2739,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -2848,8 +3043,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/models:
     post:
       description: Create a model
@@ -2889,8 +3083,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -2949,8 +3142,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/models/{id}:
     get:
       description: Get a model
@@ -2995,8 +3187,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     delete:
       description: >-
         Delete a model. Cannot delete models managed by Langfuse. You can create
@@ -3039,8 +3230,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/v2/observations:
     get:
       description: >-
@@ -3079,11 +3269,13 @@ paths:
 
         - `model` - providedModelName, internalModelId, modelParameters
 
-        - `usage` - usageDetails, costDetails, totalCost
+        - `usage` - usageDetails, costDetails, totalCost, usagePricingTierName
 
         - `prompt` - promptId, promptName, promptVersion
 
         - `metrics` - latency, timeToFirstToken
+
+        - `trace_context` - tags, release, traceName
 
 
         If not specified, `core` and `basic` field groups are returned.
@@ -3106,7 +3298,7 @@ paths:
             Comma-separated list of field groups to include in the response.
 
             Available groups: core, basic, time, io, metadata, model, usage,
-            prompt, metrics.
+            prompt, metrics, trace_context.
 
             If not specified, `core` and `basic` field groups are returned.
 
@@ -3253,12 +3445,12 @@ paths:
                 "column": string,         // Required. Column to filter on (see available columns below)
                 "operator": string,       // Required. Operator based on type:
                                           // - datetime: ">", "<", ">=", "<="
-                                          // - string: "=", "contains", "does not contain", "starts with", "ends with"
+                                          // - string: "=", "contains", "does not contain", "starts with", "ends with", "matches"
                                           // - stringOptions: "any of", "none of"
                                           // - categoryOptions: "any of", "none of"
                                           // - arrayOptions: "any of", "none of", "all of"
                                           // - number: "=", ">", "<", ">=", "<="
-                                          // - stringObject: "=", "contains", "does not contain", "starts with", "ends with"
+                                          // - stringObject: "=", "contains", "does not contain", "starts with", "ends with", "matches"
                                           // - numberObject: "=", ">", "<", ">=", "<="
                                           // - boolean: "=", "<>"
                                           // - null: "is null", "is not null"
@@ -3349,9 +3541,28 @@ paths:
 
             ### Structured Data
 
+            - `input` (string) - Observation input. Supports accelerated indexed
+            literal search with the `matches` operator.
+
+            - `output` (string) - Observation output. Supports accelerated
+            indexed literal search with the `matches` operator.
+
             - `metadata` (stringObject/numberObject/categoryOptions) - Metadata
             key-value pairs. Use `key` parameter to filter on specific metadata
             keys.
+
+
+            The `matches` operator is only supported for `input`, `output`, and
+            stringObject `metadata` filters. It performs indexed literal search
+            with token-boundary pruning using the events table text indexes.
+            Case sensitivity differs by target: `input` and `output` matches are
+            case-insensitive, while metadata value matches are case-sensitive.
+            Unlike SQL `LIKE`, `%` and `_` are treated as literal characters.
+            Use `contains` for legacy substring semantics where the API allows
+            it. Any v2 `input` or `output` filter must be accompanied by at
+            least one `=` or `matches` filter on `input` or `output`; standalone
+            `contains`, `starts with`, `ends with`, and `does not contain`
+            filters on these columns are rejected.
 
 
             ## Filter Examples
@@ -3377,6 +3588,12 @@ paths:
                 "key": "environment",
                 "operator": "=",
                 "value": "production"
+              },
+              {
+                "type": "string",
+                "column": "output",
+                "operator": "matches",
+                "value": "needle"
               }
             ]
 
@@ -3417,8 +3634,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/otel/v1/traces:
     post:
       description: >-
@@ -3464,9 +3680,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OtelTraceResponse'
-              examples:
-                BasicTraceExport:
-                  value: {}
         '400':
           description: ''
           content:
@@ -3492,8 +3705,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -3510,34 +3722,6 @@ paths:
                     the OTLP specification
               required:
                 - resourceSpans
-            examples:
-              BasicTraceExport:
-                value:
-                  resourceSpans:
-                    - resource:
-                        attributes:
-                          - key: service.name
-                            value:
-                              stringValue: my-service
-                          - key: service.version
-                            value:
-                              stringValue: 1.0.0
-                      scopeSpans:
-                        - scope:
-                            name: langfuse-sdk
-                            version: 2.60.3
-                          spans:
-                            - traceId: 0123456789abcdef0123456789abcdef
-                              spanId: 0123456789abcdef
-                              name: my-operation
-                              kind: 1
-                              startTimeUnixNano: '1747872000000000000'
-                              endTimeUnixNano: '1747872001000000000'
-                              attributes:
-                                - key: langfuse.observation.type
-                                  value:
-                                    stringValue: generation
-                              status: {}
   /api/public/organizations/memberships:
     get:
       description: >-
@@ -3579,8 +3763,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     put:
       description: >-
         Create or update a membership for the organization associated with the
@@ -3621,8 +3804,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -3669,8 +3851,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -3723,8 +3904,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     put:
       description: >-
         Create or update a membership for a specific project (requires
@@ -3771,8 +3951,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -3825,8 +4004,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -3874,8 +4052,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/organizations/apiKeys:
     get:
       description: >-
@@ -3917,8 +4094,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/projects:
     get:
       description: >-
@@ -3961,8 +4137,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     post:
       description: Create a new project (requires organization-scoped API key)
       operationId: projects_create
@@ -4001,8 +4176,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -4070,8 +4244,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -4141,8 +4314,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/projects/{projectId}/apiKeys:
     get:
       description: Get all API keys for a project (requires organization-scoped API key)
@@ -4187,8 +4359,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     post:
       description: >-
         Create a new API key for a project (requires organization-scoped API
@@ -4234,8 +4405,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -4308,8 +4478,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/v2/prompts/{name}/versions/{version}:
     patch:
       description: Update labels for a specific prompt version
@@ -4365,8 +4534,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -4460,8 +4628,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     delete:
       description: >-
         Delete prompt versions. If neither version nor label is specified, all
@@ -4522,8 +4689,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/v2/prompts:
     get:
       description: Get a list of prompt names with versions and labels
@@ -4615,8 +4781,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     post:
       description: Create a new version for the prompt with the given `name`
       operationId: prompts_create
@@ -4655,8 +4820,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -4704,8 +4868,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/scim/ResourceTypes:
     get:
       description: Get SCIM Resource Types (requires organization-scoped API key)
@@ -4745,8 +4908,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/scim/Schemas:
     get:
       description: Get SCIM Schemas (requires organization-scoped API key)
@@ -4786,8 +4948,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/scim/Users:
     get:
       description: List users in the organization (requires organization-scoped API key)
@@ -4848,8 +5009,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     post:
       description: >-
         Create a new user in the organization (requires organization-scoped API
@@ -4890,8 +5050,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -4966,8 +5125,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     delete:
       description: >-
         Remove a user from the organization (requires organization-scoped API
@@ -5014,8 +5172,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/score-configs:
     post:
       description: >-
@@ -5057,8 +5214,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -5119,8 +5275,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/score-configs/{configId}:
     get:
       description: Get a score config
@@ -5166,8 +5321,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     patch:
       description: Update a score config
       operationId: scoreConfigs_update
@@ -5212,17 +5366,264 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/UpdateScoreConfigRequest'
+  /api/public/v3/scores:
+    get:
+      description: |-
+        Get a list of scores with a polymorphic `value` field (v3).
+
+        The `value` field type depends on `dataType`:
+        - `NUMERIC` → number
+        - `BOOLEAN` → boolean
+        - `CATEGORICAL`, `TEXT`, `CORRECTION` → string
+
+        The response always includes the core fields: id, projectId, name,
+        value, dataType, source, timestamp, environment, createdAt, updatedAt.
+
+        Additional field groups can be requested via the `fields` parameter:
+        - `details` — adds comment, configId, metadata
+        - `subject` — adds the subject object describing the entity the score
+          is attached to: kind (trace, observation, session, or experiment),
+          id, and traceId for observation-level scores
+        - `annotation` — adds authorUserId, queueId
+
+        Unknown group names return HTTP 400.
+      operationId: scoresV3_getManyV3
+      tags:
+        - ScoresV3
+      parameters:
+        - name: limit
+          in: query
+          description: >-
+            Number of items per page. Maximum 100, default 50. Requests with a
+            limit greater than 100 return HTTP 400.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: cursor
+          in: query
+          description: >-
+            URL-safe base64 (base64url) cursor for pagination. Use the cursor
+            from the previous response to get the next page. Absent on the final
+            page.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: fields
+          in: query
+          description: >-
+            Comma-separated field groups to include in addition to the
+            always-returned core fields. Allowed: details, subject, annotation —
+            see the endpoint description for the fields each group adds. Unknown
+            names return HTTP 400.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: id
+          in: query
+          description: >-
+            Comma-separated list of score IDs to filter by (OR within, AND
+            across filters).
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: name
+          in: query
+          description: Comma-separated list of score names to filter by.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: source
+          in: query
+          description: >-
+            Comma-separated list of score sources to filter by (e.g. API,
+            ANNOTATION, EVAL). Case-insensitive — `api` and `API` are
+            equivalent.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: dataType
+          in: query
+          description: >-
+            Comma-separated list of data types to filter by (NUMERIC, BOOLEAN,
+            CATEGORICAL, TEXT, CORRECTION). Case-insensitive — `numeric` and
+            `NUMERIC` are equivalent. Must be a single value when used with
+            value, valueMin, or valueMax; otherwise the request returns HTTP
+            400. Must be NUMERIC when used with valueMin or valueMax.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: environment
+          in: query
+          description: Comma-separated list of environments to filter by.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: configId
+          in: query
+          description: Comma-separated list of score config IDs to filter by.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: queueId
+          in: query
+          description: Comma-separated list of annotation queue IDs to filter by.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: authorUserId
+          in: query
+          description: Comma-separated list of author user IDs to filter by.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: value
+          in: query
+          description: >-
+            Comma-separated list of exact values to filter by. Requires a single
+            dataType from NUMERIC, BOOLEAN, or CATEGORICAL; any other dataType,
+            multiple dataTypes, or omitting dataType returns HTTP 400. For
+            BOOLEAN, each value must be "true" or "false"; for NUMERIC, each
+            value must be a finite number. Otherwise the request returns HTTP
+            400.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: valueMin
+          in: query
+          description: >-
+            Inclusive lower bound on the numeric value. Requires
+            dataType=NUMERIC as a single value; otherwise the request returns
+            HTTP 400.
+          required: false
+          schema:
+            type: number
+            format: double
+            nullable: true
+        - name: valueMax
+          in: query
+          description: >-
+            Inclusive upper bound on the numeric value. Requires
+            dataType=NUMERIC as a single value; otherwise the request returns
+            HTTP 400.
+          required: false
+          schema:
+            type: number
+            format: double
+            nullable: true
+        - name: traceId
+          in: query
+          description: >-
+            Comma-separated list of trace IDs to filter by. Mutually exclusive
+            with sessionId, experimentId. May be combined with observationId to
+            scope the observation lookup to a specific trace.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: sessionId
+          in: query
+          description: >-
+            Comma-separated list of session IDs to filter by. Mutually exclusive
+            with traceId, observationId, experimentId.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: observationId
+          in: query
+          description: >-
+            Comma-separated list of observation IDs to filter by. Requires
+            traceId to be specified, because observation IDs are scoped to a
+            trace. Mutually exclusive with sessionId, experimentId. Returns HTTP
+            400 when used without traceId.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: experimentId
+          in: query
+          description: >-
+            Comma-separated list of dataset run IDs (experiment IDs) to filter
+            by. Mutually exclusive with traceId, sessionId, observationId.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: fromTimestamp
+          in: query
+          description: Inclusive lower bound on the score timestamp.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: toTimestamp
+          in: query
+          description: Exclusive upper bound on the score timestamp.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetScoresV3Response'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
   /api/public/v2/scores:
     get:
-      description: Get a list of scores (supports both trace and session scores)
+      description: |-
+        **Deprecated.** Use `GET /api/public/v3/scores` instead. This endpoint
+        is no longer available on Langfuse v4 and later.
+
+        Get a list of scores (supports both trace and session scores)
       operationId: scores_get-many
       tags:
         - Scores
@@ -5237,8 +5638,9 @@ paths:
         - name: limit
           in: query
           description: >-
-            Limit of items per page. If you encounter api issues due to too
-            large page sizes, try to reduce the limit.
+            Limit of items per page. Maximum 100. Defaults to 50. Requests with
+            a limit greater than 100 return HTTP 400. If you encounter api
+            issues due to too large page sizes, try to reduce the limit.
           required: false
           schema:
             type: integer
@@ -5439,11 +5841,14 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/v2/scores/{scoreId}:
     get:
-      description: Get a score (supports both trace and session scores)
+      description: |-
+        **Deprecated.** Use `GET /api/public/v3/scores` with the `id` filter
+        instead. This endpoint is no longer available on Langfuse v4 and later.
+
+        Get a score (supports both trace and session scores)
       operationId: scores_get-by-id
       tags:
         - Scores
@@ -5486,11 +5891,22 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/sessions:
     get:
-      description: Get sessions
+      description: >-
+        Get sessions.
+
+
+        This legacy endpoint is not recommended for new data extraction
+        workflows.
+
+        Use the v2 observations endpoint with a bounded time range and group
+        rows by
+
+        `sessionId` instead:
+
+        `GET /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`.
       operationId: sessions_list
       tags:
         - Sessions
@@ -5574,14 +5990,22 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/sessions/{sessionId}:
     get:
       description: >-
-        Get a session. Please note that `traces` on this endpoint are not
-        paginated, if you plan to fetch large sessions, consider `GET
-        /api/public/traces?sessionId=<sessionId>`
+        Get a session.
+
+
+        Please note that `traces` on this endpoint are not paginated. For large
+
+        sessions or new data extraction workflows, use the v2 observations
+        endpoint
+
+        with a URL-encoded `sessionId` filter and a bounded time range:
+
+        `GET /api/public/v2/observations?filter=<sessionId
+        filter>&fromStartTime=<from>&toStartTime=<to>`.
       operationId: sessions_get
       tags:
         - Sessions
@@ -5624,8 +6048,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/traces/{traceId}:
     get:
       description: Get a specific trace
@@ -5684,8 +6107,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     delete:
       description: Delete a specific trace
       operationId: trace_delete
@@ -5730,8 +6152,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/traces:
     get:
       description: Get list of traces
@@ -6051,8 +6472,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     delete:
       description: Delete multiple traces
       operationId: trace_deleteMultiple
@@ -6091,8 +6511,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -6107,6 +6526,916 @@ paths:
                   description: List of trace IDs to delete
               required:
                 - traceIds
+  /api/public/unstable/dashboard-widgets:
+    post:
+      description: >-
+        Create a reusable dashboard widget.
+
+
+        This endpoint creates the widget. It does not place the widget on a
+        dashboard grid, this has to be done in the UI.
+
+
+        Supported views are `observations`, `scores-numeric`, and
+        `scores-categorical`.
+
+        The legacy `traces` view is not supported by this unstable API,
+        `minVersion` defaults to `2`; values below `2` are rejected.
+
+
+        Unstable API note:
+
+        - This surface may evolve while dashboard/widget APIs are being
+        finalized.
+      operationId: unstable_dashboardWidgets_create
+      tags:
+        - UnstableDashboardWidgets
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDashboardWidget'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/unstableCreateDashboardWidgetRequest'
+  /api/public/unstable/evaluation-rules:
+    post:
+      description: >-
+        Create an evaluation rule.
+
+
+        An evaluation rule defines **what** incoming data should be evaluated
+        and **how prompt variables should be populated** from that data.
+
+
+        Use this resource after choosing an evaluator from the evaluator
+        endpoints.
+
+
+        Key rules:
+
+        - `name` must be unique within the project for public evaluation rules
+
+        - `target` must be `observation` or `experiment`
+
+        - `evaluator.name` + `evaluator.scope` must identify an existing
+        evaluator family returned by the evaluator endpoints
+
+        - Langfuse resolves that family to its latest version before saving the
+        evaluation rule
+
+        - for `target=experiment`, use dataset `id` values from `GET
+        /api/public/v2/datasets` when filtering by `datasetId`
+
+        - for `llm_as_judge` evaluators, every evaluator prompt variable must be
+        mapped exactly once
+
+        - for `code` evaluators, Langfuse uses the fixed code runtime mapping;
+        omit `mapping` in create and update requests
+
+        - for user-provided `llm_as_judge` mappings, `expected_output` and
+        `experiment_item_metadata` are only valid for `target=experiment`
+
+        - if `enabled=true`, Langfuse validates that the referenced evaluator
+        can currently run
+
+        - at most 50 evaluation rules can be effectively active in one project
+        at the same time
+
+
+        If an evaluation rule with the same `name` already exists in the
+        project, the API returns `409`.
+
+        In that case, update the existing resource with `PATCH
+        /api/public/unstable/evaluation-rules/{evaluationRuleId}` instead of
+        creating a second one.
+
+
+        If enabling this resource would exceed the 50-active limit, the API also
+        returns `409`.
+
+        In that case, disable or pause another active evaluation rule before
+        enabling a new one.
+
+
+        Current scope:
+
+        - evaluation rules are live-ingestion rules only
+
+        - they do not trigger historical backfills
+
+
+        Recovery guidance:
+
+        - `400 invalid_filter_value`: fix the filter `column` or `value` using
+        `details.column`, `details.invalidValues`, and `details.allowedValues`
+
+        - `400 invalid_filter_value` with `details.column=datasetId`: call `GET
+        /api/public/v2/datasets`, then retry with dataset `id` values from that
+        response
+
+        - `400 missing_variable_mapping`: for `llm_as_judge` evaluators, fetch
+        the evaluator again and make sure every variable in `variables` appears
+        exactly once in `mapping`
+
+        - `400 duplicate_variable_mapping`: remove repeated mappings for the
+        same variable
+
+        - `400 invalid_variable_mapping`: for `llm_as_judge`, switch to a valid
+        `source` for the selected `target`, or fix the variable name
+
+        - `400 invalid_json_path`: remove or correct the `jsonPath`
+
+        - `422 evaluator_preflight_failed`: the selected evaluator cannot run
+        with the resolved model configuration. Fix the evaluator/default model
+        setup, then retry the create request.
+      operationId: unstable_evaluationRules_create
+      tags:
+        - UnstableEvaluationRules
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableEvaluationRule'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '409':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '422':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/unstableCreateEvaluationRuleRequest'
+    get:
+      description: >-
+        List evaluation rules in the authenticated project.
+
+
+        Each item describes one live evaluation rule and its effective runtime
+        status.
+      operationId: unstable_evaluationRules_list
+      tags:
+        - UnstableEvaluationRules
+      parameters:
+        - name: page
+          in: query
+          description: 1-based page number. Defaults to `1`.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          description: Maximum number of items per page. Defaults to `50`.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableEvaluationRules'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+  /api/public/unstable/evaluation-rules/{evaluationRuleId}:
+    get:
+      description: >-
+        Get one evaluation rule by its identifier.
+
+
+        Use this endpoint to inspect the current evaluator, target, mapping,
+        filters, and effective runtime status.
+      operationId: unstable_evaluationRules_get
+      tags:
+        - UnstableEvaluationRules
+      parameters:
+        - name: evaluationRuleId
+          in: path
+          description: >-
+            Evaluation rule identifier returned by the evaluation rule
+            endpoints.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableEvaluationRule'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+    patch:
+      description: >-
+        Update an evaluation rule.
+
+
+        Typical uses:
+
+        - enable or disable live execution
+
+        - switch to another evaluator
+
+        - adjust sampling
+
+        - change filters
+
+        - update LLM-as-judge variable mappings
+
+
+        Important behavior:
+
+        - provide only the fields you want to change
+
+        - if you provide `evaluator`, Langfuse resolves that evaluator family to
+        its latest version before saving
+
+        - changing `target`, `filter`, or an LLM-as-judge `mapping` must still
+        produce a valid target-specific configuration
+
+        - if you change `target` for an LLM-as-judge rule, also send a
+        compatible `filter` and `mapping` in the same request unless the
+        existing ones are still valid for the new target
+
+        - for `code` evaluator rules, omit `mapping`; Langfuse stores the fixed
+        code runtime mapping automatically
+
+        - if the resulting config is enabled, Langfuse re-validates that the
+        selected evaluator can run
+
+        - if the update would move a non-active evaluation rule into the active
+        state and the project already has 50 active evaluation rules, the API
+        returns `409`
+
+
+        Recovery guidance:
+
+        - if an LLM-as-judge update fails with `missing_variable_mapping` or
+        `invalid_variable_mapping` after changing `evaluator` or `target`,
+        resend the request with a complete new `mapping`
+
+        - if the update fails with `invalid_filter_value` after changing
+        `target`, resend the request with a target-compatible `filter`
+      operationId: unstable_evaluationRules_update
+      tags:
+        - UnstableEvaluationRules
+      parameters:
+        - name: evaluationRuleId
+          in: path
+          description: Evaluation rule identifier.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableEvaluationRule'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/unstableUpdateEvaluationRuleRequest'
+    delete:
+      description: >-
+        Delete an evaluation rule.
+
+
+        This removes the live-ingestion rule only. It does not delete the
+        referenced evaluator.
+      operationId: unstable_evaluationRules_delete
+      tags:
+        - UnstableEvaluationRules
+      parameters:
+        - name: evaluationRuleId
+          in: path
+          description: Evaluation rule identifier.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDeleteEvaluationRuleResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+  /api/public/unstable/evaluators:
+    post:
+      description: >-
+        Create an evaluator in the authenticated project.
+
+
+        Use evaluators to define **how** Langfuse should score data.
+
+        LLM-as-a-judge evaluators define a prompt, expected structured output,
+        and optional model configuration.
+
+        Code evaluators define source code and a runtime language.
+
+
+        Naming behavior:
+
+        - If this is a new evaluator name in your project, Langfuse creates
+        version `1`.
+
+        - If the name already exists in your project, Langfuse creates the next
+        version and returns it.
+
+        - When a new project version is created, existing evaluation rules in
+        that project automatically move to the newest version for that evaluator
+        name.
+
+
+        Recommended workflow:
+
+        1. Create the evaluator.
+
+        2. Read the returned `variables` array.
+
+        3. Read the returned `outputDefinition.dataType` so the client knows
+        whether future scores will be numeric, boolean, or categorical.
+
+        4. Create one or more evaluation rules that reference the returned
+        evaluator family using `name` and `scope`.
+
+
+        Code evaluator validation:
+
+        - At creation, Langfuse only validates the request shape
+
+        - The `sourceCode` itself is not executed here. It is first run
+        (preflight-tested against a sample observation) when you link the
+        evaluator to an evaluation rule, so runtime errors in the code surface
+        at evaluation-rule creation, not at evaluator creation.
+
+
+        Recovery guidance:
+
+        - `422` with `code=evaluator_preflight_failed`: the evaluator cannot run
+        with the resolved model configuration. Add a valid explicit
+        `modelConfig`, or configure the project's default evaluation model, then
+        retry the same request.
+
+        - `400` with `code=invalid_body`: the request shape is malformed. Use
+        the structured `details.issues` array to fix the specific fields and
+        retry.
+
+        - `400` with `code=invalid_body` on `outputDefinition`: for
+        `type=llm_as_judge`, send `dataType`, `reasoning.description`, and
+        `score.description`. Do not send `version`; it is not part of the public
+        request shape.
+
+        - If `type` is omitted, Langfuse treats the request as
+        `type=llm_as_judge` for backwards compatibility. New clients should send
+        `type` explicitly.
+
+
+        Unstable API note:
+
+        - This surface may evolve while the underlying evaluation data model is
+        being redesigned.
+      operationId: unstable_evaluators_create
+      tags:
+        - UnstableEvaluators
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableEvaluator'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '409':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '422':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/unstableCreateEvaluatorRequest'
+    get:
+      description: >-
+        List the evaluators available to the authenticated project.
+
+
+        Important behavior:
+
+        - This endpoint returns the latest version of each available evaluator.
+
+        - Results can include evaluators from your project and Langfuse-managed
+        evaluators.
+
+        - If the same evaluator name exists in both places, both are returned as
+        separate items with different `scope` values.
+      operationId: unstable_evaluators_list
+      tags:
+        - UnstableEvaluators
+      parameters:
+        - name: page
+          in: query
+          description: 1-based page number. Defaults to `1`.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          description: Maximum number of items per page. Defaults to `50`.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableEvaluators'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+  /api/public/unstable/evaluators/{evaluatorId}:
+    get:
+      description: >-
+        Get one evaluator by `id`.
+
+
+        Use this endpoint when you want the prompt, output definition, model
+        configuration, and derived variables for the evaluator you plan to use
+        in an evaluation rule.
+      operationId: unstable_evaluators_get
+      tags:
+        - UnstableEvaluators
+      parameters:
+        - name: evaluatorId
+          in: path
+          description: Evaluator identifier returned by the evaluator endpoints.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableEvaluator'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+    delete:
+      description: >-
+        Delete an evaluator.
+
+
+        Important behavior:
+
+        - This deletes the evaluator including all of its stored versions;
+        `evaluatorId` may reference any version.
+
+        - The API returns `409` while evaluation rules still reference the
+        evaluator. Delete those evaluation rules first.
+
+        - Langfuse-managed evaluators (`scope=managed`) cannot be deleted; the
+        API returns `403`.
+
+        - Scores already produced by the evaluator are not deleted.
+      operationId: unstable_evaluators_delete
+      tags:
+        - UnstableEvaluators
+      parameters:
+        - name: evaluatorId
+          in: path
+          description: Evaluator identifier returned by the evaluator endpoints.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDeleteEvaluatorResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '409':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
 components:
   schemas:
     AnnotationQueueStatus:
@@ -6146,6 +7475,7 @@ components:
       required:
         - id
         - name
+        - description
         - scoreConfigIds
         - createdAt
         - updatedAt
@@ -6300,6 +7630,22 @@ components:
         - JSON
         - CSV
         - JSONL
+        - PARQUET
+      description: >-
+        File format for exported data. `PARQUET` is a columnar binary format
+        encoded and compressed by the storage engine; gzip compression does not
+        apply to it. Note that the model-price columns (`input_price`,
+        `output_price`, `total_price`) are not included in Parquet observation
+        exports.
+    BlobStorageIntegrationFileTypeResponse:
+      title: BlobStorageIntegrationFileTypeResponse
+      type: string
+      enum:
+        - JSON
+        - CSV
+        - JSONL
+        - PARQUET
+      description: File type reported for an existing integration.
     BlobStorageExportMode:
       title: BlobStorageExportMode
       type: string
@@ -6311,9 +7657,57 @@ components:
       title: BlobStorageExportFrequency
       type: string
       enum:
+        - every_20_minutes
         - hourly
         - daily
         - weekly
+    BlobStorageExportSource:
+      title: BlobStorageExportSource
+      type: string
+      enum:
+        - LEGACY_TRACES_OBSERVATIONS
+        - OBSERVATIONS_V2
+        - LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS
+      description: >-
+        What data the integration exports.
+
+        - `LEGACY_TRACES_OBSERVATIONS`: traces, observations, and scores tables.
+        Observation columns are controlled by `exportFieldGroups`; field groups
+        without a counterpart in this data model (e.g. `trace_context`) are
+        omitted.
+
+        - `OBSERVATIONS_V2`: same data model as the
+        `/api/public/v2/observations` endpoint, plus scores. Columns are
+        controlled by `exportFieldGroups`.
+
+        - `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS`: both sets. Observation
+        columns of both portions are controlled by `exportFieldGroups`.
+
+
+        **Note:** `OBSERVATIONS_V2` and the enriched-observations portion of
+        `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` rely on the enriched
+        observations table (Langfuse Fast Preview / v4), which is currently
+        available on Langfuse Cloud only. See https://langfuse.com/docs/v4.
+    BlobStorageExportFieldGroup:
+      title: BlobStorageExportFieldGroup
+      type: string
+      enum:
+        - core
+        - basic
+        - time
+        - io
+        - metadata
+        - model
+        - usage
+        - prompt
+        - metrics
+        - tools
+        - trace_context
+      description: >-
+        Field group selecting which observation columns are included in the
+        export. Applies to all export sources; groups without a counterpart in
+        the legacy data model (e.g. `trace_context`) are omitted from the legacy
+        observations export.
     CreateBlobStorageIntegrationRequest:
       title: CreateBlobStorageIntegrationRequest
       type: object
@@ -6369,13 +7763,55 @@ components:
           nullable: true
           description: >-
             Custom start date for exports (required when exportMode is
-            FROM_CUSTOM_DATE)
+            FROM_CUSTOM_DATE). Must not be in the future (27 h tolerance for
+            timezone differences).
         compressed:
           type: boolean
           nullable: true
           description: >-
             Enable gzip compression for exported files (.csv.gz, .json.gz,
             .jsonl.gz). Defaults to true.
+        exportSource:
+          $ref: '#/components/schemas/BlobStorageExportSource'
+          nullable: true
+          description: >-
+            Data to export. When omitted on update, the existing value is
+            preserved. When omitted on create: integrations on Langfuse Cloud
+            default to `OBSERVATIONS_V2`; self-hosted deployments fall back to
+            `LEGACY_TRACES_OBSERVATIONS`. Required when `exportFieldGroups` is
+            provided.
+
+
+            **Cloud-only project deprecation gate (effective 2026-05-20):** For
+            projects created on or after 2026-05-20 on Langfuse Cloud,
+            `LEGACY_TRACES_OBSERVATIONS` and
+            `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` are rejected with HTTP
+            400. Use `OBSERVATIONS_V2` for all new integrations. Self-hosted
+            deployments are unaffected.
+
+
+            **Cloud-only integration deprecation gate (effective 2026-06-22):**
+            On Langfuse Cloud, legacy export sources are only accepted for blob
+            storage integrations created before 2026-06-22, regardless of
+            project age. Requests that would create a new integration with
+            `LEGACY_TRACES_OBSERVATIONS` or
+            `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` are rejected with HTTP
+            400. Use `OBSERVATIONS_V2` instead. Self-hosted deployments are
+            unaffected.
+        exportFieldGroups:
+          type: array
+          items:
+            $ref: '#/components/schemas/BlobStorageExportFieldGroup'
+          nullable: true
+          description: >-
+            Field groups to include in each exported observation row. Applies to
+            all export sources; must include `core` if provided. When omitted on
+            create, the column default (all groups) applies. When omitted on
+            update, the existing value is preserved.
+
+
+            `exportFieldGroups` requires `exportSource` to be provided in the
+            same request.
       required:
         - projectId
         - type
@@ -6415,7 +7851,7 @@ components:
         forcePathStyle:
           type: boolean
         fileType:
-          $ref: '#/components/schemas/BlobStorageIntegrationFileType'
+          $ref: '#/components/schemas/BlobStorageIntegrationFileTypeResponse'
         exportMode:
           $ref: '#/components/schemas/BlobStorageExportMode'
         exportStartDate:
@@ -6424,6 +7860,16 @@ components:
           nullable: true
         compressed:
           type: boolean
+        exportSource:
+          $ref: '#/components/schemas/BlobStorageExportSource'
+        exportFieldGroups:
+          type: array
+          items:
+            $ref: '#/components/schemas/BlobStorageExportFieldGroup'
+          nullable: true
+          description: >-
+            Field groups included in each exported observation row. An empty
+            list is treated as all groups during export.
         nextSyncAt:
           type: string
           format: date-time
@@ -6450,14 +7896,23 @@ components:
         - projectId
         - type
         - bucketName
+        - endpoint
         - region
+        - accessKeyId
         - prefix
         - exportFrequency
         - enabled
         - forcePathStyle
         - fileType
         - exportMode
+        - exportStartDate
         - compressed
+        - exportSource
+        - exportFieldGroups
+        - nextSyncAt
+        - lastSyncAt
+        - lastError
+        - lastErrorAt
         - createdAt
         - updatedAt
     BlobStorageIntegrationsResponse:
@@ -6475,6 +7930,7 @@ components:
       type: string
       enum:
         - idle
+        - running
         - queued
         - up_to_date
         - disabled
@@ -6486,10 +7942,12 @@ components:
 
         - `error` — last export failed (see `lastError` for details)
 
-        - `idle` — enabled but has never exported yet
+        - `running` — an export job is currently being processed
 
         - `queued` — next export is overdue (`nextSyncAt` is in the past) and
         waiting to be picked up by the worker
+
+        - `idle` — enabled but has never exported yet and no export is queued
 
         - `up_to_date` — all available data has been exported; next export is
         scheduled for the future
@@ -6499,9 +7957,9 @@ components:
         Compare `lastSyncAt` against your
 
         ETL bookmark to determine if new data is available. Note that exports
-        run with a 30-minute lag buffer,
+        run with a 20-minute lag buffer,
 
-        so `lastSyncAt` will always be at least 30 minutes behind real-time.
+        so `lastSyncAt` will always be at least 20 minutes behind real-time.
     BlobStorageIntegrationStatusResponse:
       title: BlobStorageIntegrationStatusResponse
       type: object
@@ -6543,6 +8001,10 @@ components:
         - projectId
         - syncStatus
         - enabled
+        - lastSyncAt
+        - nextSyncAt
+        - lastError
+        - lastErrorAt
     BlobStorageIntegrationDeletionResponse:
       title: BlobStorageIntegrationDeletionResponse
       type: object
@@ -6661,6 +8123,11 @@ components:
       required:
         - id
         - timestamp
+        - name
+        - sessionId
+        - release
+        - version
+        - userId
         - tags
         - public
         - environment
@@ -6854,14 +8321,23 @@ components:
             not start with 'langfuse'.
       required:
         - id
+        - traceId
         - type
+        - name
         - startTime
+        - endTime
+        - completionStartTime
+        - model
         - modelParameters
         - input
+        - version
         - metadata
         - output
         - usage
         - level
+        - statusMessage
+        - parentObservationId
+        - promptId
         - usageDetails
         - costDetails
         - environment
@@ -6927,6 +8403,18 @@ components:
           format: double
           nullable: true
           description: The time to the first token in seconds
+      required:
+        - promptName
+        - promptVersion
+        - modelId
+        - inputPrice
+        - outputPrice
+        - totalPrice
+        - calculatedInputCost
+        - calculatedOutputCost
+        - calculatedTotalCost
+        - latency
+        - timeToFirstToken
       allOf:
         - $ref: '#/components/schemas/Observation'
     ObservationV2:
@@ -7057,6 +8545,12 @@ components:
           format: double
           nullable: true
           description: The total cost of the observation in USD
+        usagePricingTierName:
+          type: string
+          nullable: true
+          description: >-
+            The name of the pricing tier applied to this observation's usage
+            costs
         promptId:
           type: string
           nullable: true
@@ -7082,12 +8576,56 @@ components:
         modelId:
           type: string
           nullable: true
-          description: The matched model ID
+          description: >-
+            The matched model ID. Null when the `model` field group is not
+            requested.
+        inputPrice:
+          type: string
+          nullable: true
+          description: >-
+            The input token price (USD per unit) from the matched model,
+            serialized as a decimal string (e.g. "0.0001"). Null when the
+            `model` field group is not requested.
+        outputPrice:
+          type: string
+          nullable: true
+          description: >-
+            The output token price (USD per unit) from the matched model,
+            serialized as a decimal string (e.g. "0.0001"). Null when the
+            `model` field group is not requested.
+        totalPrice:
+          type: string
+          nullable: true
+          description: >-
+            The total token price (USD per unit) from the matched model,
+            serialized as a decimal string (e.g. "0.0001"). Null when the
+            `model` field group is not requested.
+        traceName:
+          type: string
+          nullable: true
+          description: The name of the parent trace
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: Tags from the parent trace (denormalized onto the observation)
+        release:
+          type: string
+          nullable: true
+          description: The release version of the parent trace
       required:
         - id
+        - traceId
         - startTime
+        - endTime
         - projectId
+        - parentObservationId
         - type
+        - modelId
+        - inputPrice
+        - outputPrice
+        - totalPrice
     Usage:
       title: Usage
       type: object
@@ -7127,6 +8665,7 @@ components:
         - input
         - output
         - total
+        - unit
     ScoreConfig:
       title: ScoreConfig
       type: object
@@ -7255,7 +8794,11 @@ components:
         - timestamp
         - createdAt
         - updatedAt
+        - authorUserId
+        - comment
         - metadata
+        - configId
+        - queueId
         - environment
     NumericScoreV1:
       title: NumericScoreV1
@@ -7438,7 +8981,11 @@ components:
         - timestamp
         - createdAt
         - updatedAt
+        - authorUserId
+        - comment
         - metadata
+        - configId
+        - queueId
         - environment
     NumericScore:
       title: NumericScore
@@ -7649,7 +9196,10 @@ components:
       required:
         - id
         - name
+        - description
         - metadata
+        - inputSchema
+        - expectedOutputSchema
         - projectId
         - createdAt
         - updatedAt
@@ -7685,16 +9235,83 @@ components:
         updatedAt:
           type: string
           format: date-time
+        mediaReferences:
+          type: array
+          items:
+            $ref: '#/components/schemas/DatasetItemMediaReference'
+          description: >-
+            Resolved Langfuse media references found in input, expectedOutput,
+            and metadata.
       required:
         - id
         - status
         - input
         - expectedOutput
         - metadata
+        - sourceTraceId
+        - sourceObservationId
         - datasetId
         - datasetName
         - createdAt
         - updatedAt
+        - mediaReferences
+    DatasetItemMediaReference:
+      title: DatasetItemMediaReference
+      type: object
+      properties:
+        field:
+          $ref: '#/components/schemas/DatasetItemMediaReferenceField'
+          description: The dataset item field containing the reference
+        referenceString:
+          type: string
+          description: >-
+            The Langfuse media reference string, e.g.
+            `@@@langfuseMedia:type=image/png|id=...|source=bytes@@@`
+        jsonPath:
+          type: string
+          description: >-
+            JSONPath of the string holding the reference within the field, e.g.
+            `$['image']`
+        media:
+          $ref: '#/components/schemas/DatasetItemMediaReferenceMedia'
+          description: The resolved media record.
+      required:
+        - field
+        - referenceString
+        - jsonPath
+        - media
+    DatasetItemMediaReferenceField:
+      title: DatasetItemMediaReferenceField
+      type: string
+      enum:
+        - input
+        - expectedOutput
+        - metadata
+    DatasetItemMediaReferenceMedia:
+      title: DatasetItemMediaReferenceMedia
+      type: object
+      properties:
+        mediaId:
+          type: string
+          description: The unique langfuse identifier of the media record
+        contentType:
+          type: string
+          description: The MIME type of the media record
+        contentLength:
+          type: integer
+          description: The size of the media record in bytes
+        url:
+          type: string
+          description: The signed download URL of the media record
+        urlExpiry:
+          type: string
+          description: The expiry date and time of the download URL
+      required:
+        - mediaId
+        - contentType
+        - contentLength
+        - url
+        - urlExpiry
     DatasetRunItem:
       title: DatasetRunItem
       type: object
@@ -7725,6 +9342,7 @@ components:
         - datasetRunName
         - datasetItemId
         - traceId
+        - observationId
         - createdAt
         - updatedAt
     DatasetRun:
@@ -7760,6 +9378,7 @@ components:
       required:
         - id
         - name
+        - description
         - metadata
         - datasetId
         - datasetName
@@ -7902,6 +9521,11 @@ components:
         - id
         - modelName
         - matchPattern
+        - startDate
+        - inputPrice
+        - outputPrice
+        - totalPrice
+        - tokenizerId
         - tokenizerConfig
         - isLangfuseManaged
         - createdAt
@@ -8268,7 +9892,7 @@ components:
           nullable: true
         - type: integer
           nullable: true
-        - type: integer
+        - type: number
           format: float
           nullable: true
         - type: boolean
@@ -8347,7 +9971,8 @@ components:
           nullable: true
           description: >-
             Dataset items are upserted on their id. Id needs to be unique
-            (project-level) and cannot be reused across datasets.
+            (project-level), cannot be reused across datasets, and must be at
+            most 255 characters.
         status:
           $ref: '#/components/schemas/DatasetStatus'
           nullable: true
@@ -8486,6 +10111,175 @@ components:
           type: string
       required:
         - message
+    ExperimentsResponse:
+      title: ExperimentsResponse
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Experiment'
+        meta:
+          $ref: '#/components/schemas/ExperimentsResponseMeta'
+      required:
+        - data
+        - meta
+    ExperimentsResponseMeta:
+      title: ExperimentsResponseMeta
+      type: object
+      properties:
+        cursor:
+          type: string
+          nullable: true
+          description: >-
+            Versioned base64url cursor for retrieving the next page. Absent when
+            there are no more results.
+    Experiment:
+      title: Experiment
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        startTime:
+          type: string
+          format: date-time
+          description: |-
+            Start of the experiment, i.e. the earliest event within the
+            requested time range. Clipped to `fromStartTime` when the
+            experiment started before the requested range.
+        endTime:
+          type: string
+          format: date-time
+          description: |-
+            End of the experiment, i.e. the latest event end within the
+            requested time range.
+        itemCount:
+          type: integer
+          description: Number of experiment items within the requested time range.
+        datasetId:
+          type: string
+          nullable: true
+          description: Null when the experiment is not associated with a dataset.
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Included only when `fields=metadata` is requested.
+        scores:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScoreV3'
+          nullable: true
+          description: >-
+            Included only when `fields=scores` is requested. Contains scores
+            directly attached to the experiment.
+      required:
+        - id
+        - name
+        - description
+        - startTime
+        - endTime
+        - itemCount
+        - datasetId
+    ExperimentItemsResponse:
+      title: ExperimentItemsResponse
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExperimentItem'
+        meta:
+          $ref: '#/components/schemas/ExperimentsResponseMeta'
+      required:
+        - data
+        - meta
+    ExperimentItem:
+      title: ExperimentItem
+      type: object
+      properties:
+        id:
+          type: string
+        traceId:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+          nullable: true
+        level:
+          $ref: '#/components/schemas/ObservationLevel'
+        environment:
+          type: string
+        experimentId:
+          type: string
+        experimentName:
+          type: string
+        experimentItemId:
+          type: string
+        experimentDatasetId:
+          type: string
+          nullable: true
+          description: Included when `fields=dataset` is requested.
+        experimentItemVersion:
+          type: string
+          format: date-time
+          nullable: true
+          description: Included when `fields=dataset` is requested.
+        input:
+          nullable: true
+          description: Included when `fields=io` is requested.
+        output:
+          nullable: true
+          description: Included when `fields=io` is requested.
+        expectedOutput:
+          nullable: true
+          description: Included when `fields=io` is requested.
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Included when `fields=metadata` is requested.
+        experimentItemMetadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Included when `fields=itemMetadata` is requested.
+        experimentMetadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Included when `fields=experimentMetadata` is requested.
+        experimentDescription:
+          type: string
+          nullable: true
+          description: Included when `fields=experimentMetadata` is requested.
+        scores:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScoreV3'
+          nullable: true
+          description: >-
+            Included only when `fields=scores` is requested. Contains item and
+            trace scores only; experiment-level scores are returned by the
+            experiments endpoint.
+      required:
+        - id
+        - traceId
+        - startTime
+        - endTime
+        - level
+        - environment
+        - experimentId
+        - experimentName
+        - experimentItemId
     HealthResponse:
       title: HealthResponse
       type: object
@@ -8493,10 +10287,8 @@ components:
         version:
           type: string
           description: Langfuse server version
-          example: 1.25.0
         status:
           type: string
-          example: OK
       required:
         - version
         - status
@@ -8928,7 +10720,6 @@ components:
           description: >-
             The name of the score. Always overrides "output" for correction
             scores.
-          example: novelty
         environment:
           type: string
           nullable: true
@@ -9257,7 +11048,6 @@ components:
           nullable: true
         name:
           type: string
-          example: novelty
         value:
           $ref: '#/components/schemas/CreateScoreValue'
           description: >-
@@ -9299,9 +11089,28 @@ components:
             Reference a score config on a score. The unique langfuse identifier
             of a score config. When passing this field, the dataType and
             stringValue fields are automatically populated.
+        source:
+          $ref: '#/components/schemas/legacyCreateScoreSource'
+          nullable: true
+          description: >-
+            The source of the score. Defaults to API. Set to ANNOTATION to
+            prefill scores (e.g. from an LLM) for a human reviewer to verify in
+            an annotation queue. When source is ANNOTATION, a configId is
+            required unless dataType is CORRECTION. EVAL is reserved for
+            internal evaluator outputs and is not accepted on this endpoint.
       required:
         - name
         - value
+    legacyCreateScoreSource:
+      title: legacyCreateScoreSource
+      type: string
+      enum:
+        - API
+        - ANNOTATION
+      description: |-
+        Source values accepted when creating a score via the public REST API.
+        EVAL is reserved for internal evaluator outputs and is intentionally not
+        exposed here — use commons.ScoreSource when reading scores.
     legacyCreateScoreResponse:
       title: legacyCreateScoreResponse
       type: object
@@ -9354,7 +11163,8 @@ components:
           nullable: true
           description: >-
             Adapter-specific configuration. Required for Bedrock
-            (`{"region":"us-east-1"}`), optional for VertexAI
+            (`{"region":"us-east-1"}`), optional for OpenAI
+            (`{"useResponsesApi":true}`), optional for VertexAI
             (`{"location":"us-central1"}`), not used by other adapters.
         createdAt:
           type: string
@@ -9428,14 +11238,24 @@ components:
           description: >-
             Adapter-specific configuration. Validation rules: - **Bedrock**:
             Required. Must be `{"region": "<aws-region>"}` (e.g.,
-            `{"region":"us-east-1"}`) - **VertexAI**: Optional. If provided,
-            must be `{"location": "<gcp-location>"}` (e.g.,
-            `{"location":"us-central1"}`) - **Other adapters**: Not supported.
-            Omit this field or set to null.
+            `{"region":"us-east-1"}`) - **OpenAI**: Optional. If provided, must
+            be `{"useResponsesApi": <boolean>}` to control whether Langfuse
+            routes calls through OpenAI's Responses API. - **VertexAI**:
+            Optional. If provided, must be `{"location": "<gcp-location>"}`
+            (e.g., `{"location":"us-central1"}`) - **Other adapters**: Not
+            supported. Omit this field or set to null.
       required:
         - provider
         - adapter
         - secretKey
+    DeleteLlmConnectionResponse:
+      title: DeleteLlmConnectionResponse
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
     LlmAdapter:
       title: LlmAdapter
       type: string
@@ -9501,16 +11321,35 @@ components:
     GetMediaUploadUrlRequest:
       title: GetMediaUploadUrlRequest
       type: object
+      description: >-
+        Request a presigned media upload URL. Provide exactly one context: a
+        trace (traceId, optionally observationId) or a dataset item (datasetId +
+        datasetItemId). field is required and must match the chosen context.
       properties:
         traceId:
           type: string
-          description: The trace ID associated with the media record
+          nullable: true
+          description: >-
+            The trace the media is associated with. Null for dataset item media
+            uploads.
         observationId:
           type: string
           nullable: true
           description: >-
             The observation ID associated with the media record. If the media
             record is associated directly with a trace, this will be null.
+        datasetId:
+          type: string
+          nullable: true
+          description: >-
+            The dataset the media belongs to. Null for trace/observation media
+            uploads.
+        datasetItemId:
+          type: string
+          nullable: true
+          description: >-
+            The dataset item the media is associated with (need not exist yet).
+            Null for trace/observation media uploads.
         contentType:
           $ref: '#/components/schemas/MediaContentType'
         contentLength:
@@ -9522,10 +11361,9 @@ components:
         field:
           type: string
           description: >-
-            The trace / observation field the media record is associated with.
-            This can be one of `input`, `output`, `metadata`
+            The item field the media is in: `input`/`output`/`metadata` (trace)
+            or `input`/`expectedOutput`/`metadata` (dataset item).
       required:
-        - traceId
         - contentType
         - contentLength
         - sha256Hash
@@ -10760,6 +12598,9 @@ components:
       properties:
         name:
           type: string
+          description: >-
+            Name of the score config. Max 35 characters. Only letters, numbers,
+            underscores, spaces, periods, parentheses, and hyphens are allowed.
         dataType:
           $ref: '#/components/schemas/ScoreConfigDataType'
         categories:
@@ -10806,7 +12647,9 @@ components:
         name:
           type: string
           nullable: true
-          description: The name of the score config
+          description: >-
+            Name of the score config. Max 35 characters. Only letters, numbers,
+            underscores, spaces, periods, parentheses, and hyphens are allowed.
         categories:
           type: array
           items:
@@ -10837,6 +12680,308 @@ components:
             Description is shown across the Langfuse UI and can be used to e.g.
             explain the config categories in detail, why a numeric range was
             set, or provide additional context on config name or usage
+    ScoreSubjectTraceV3:
+      title: ScoreSubjectTraceV3
+      type: object
+      properties:
+        id:
+          type: string
+          description: The trace ID.
+      required:
+        - id
+    ScoreSubjectObservationV3:
+      title: ScoreSubjectObservationV3
+      type: object
+      properties:
+        id:
+          type: string
+          description: The observation ID.
+        traceId:
+          type: string
+          nullable: true
+          description: The parent trace ID, if available.
+      required:
+        - id
+    ScoreSubjectSessionV3:
+      title: ScoreSubjectSessionV3
+      type: object
+      properties:
+        id:
+          type: string
+          description: The session ID.
+      required:
+        - id
+    ScoreSubjectExperimentV3:
+      title: ScoreSubjectExperimentV3
+      type: object
+      properties:
+        id:
+          type: string
+          description: The dataset run ID (experiment ID).
+      required:
+        - id
+    ScoreSubjectV3:
+      title: ScoreSubjectV3
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - trace
+            - $ref: '#/components/schemas/ScoreSubjectTraceV3'
+          required:
+            - kind
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - observation
+            - $ref: '#/components/schemas/ScoreSubjectObservationV3'
+          required:
+            - kind
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - session
+            - $ref: '#/components/schemas/ScoreSubjectSessionV3'
+          required:
+            - kind
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - experiment
+            - $ref: '#/components/schemas/ScoreSubjectExperimentV3'
+          required:
+            - kind
+      description: >-
+        A reference to the entity this score is attached to. Discriminated by
+        "kind" — one of trace, observation, session, or experiment.
+    BaseScoreV3:
+      title: BaseScoreV3
+      type: object
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+        name:
+          type: string
+        source:
+          $ref: '#/components/schemas/ScoreSource'
+        timestamp:
+          type: string
+          format: date-time
+        environment:
+          type: string
+          description: The environment from which this score originated.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        comment:
+          type: string
+          nullable: true
+          description: >-
+            Optional comment attached to the score. Present when "details" is
+            included in the fields parameter.
+        configId:
+          type: string
+          nullable: true
+          description: >-
+            The score config ID, if this score was created from a config.
+            Present when "details" is included in the fields parameter.
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: >-
+            Arbitrary metadata attached to the score. Present when "details" is
+            included in the fields parameter.
+        authorUserId:
+          type: string
+          nullable: true
+          description: >-
+            The user who created this score, if available. Present when
+            "annotation" is included in the fields parameter.
+        queueId:
+          type: string
+          nullable: true
+          description: >-
+            The annotation queue this score belongs to, if any. Present when
+            "annotation" is included in the fields parameter.
+        subject:
+          $ref: '#/components/schemas/ScoreSubjectV3'
+          nullable: true
+          description: >-
+            The entity this score is attached to (trace, observation, session,
+            or experiment). Present when "subject" is included in the fields
+            parameter.
+      required:
+        - id
+        - projectId
+        - name
+        - source
+        - timestamp
+        - environment
+        - createdAt
+        - updatedAt
+    NumericScoreV3:
+      title: NumericScoreV3
+      type: object
+      properties:
+        value:
+          type: number
+          format: double
+          description: The numeric value of the score.
+      required:
+        - value
+      allOf:
+        - $ref: '#/components/schemas/BaseScoreV3'
+    BooleanScoreV3:
+      title: BooleanScoreV3
+      type: object
+      properties:
+        value:
+          type: boolean
+          description: The boolean value of the score.
+      required:
+        - value
+      allOf:
+        - $ref: '#/components/schemas/BaseScoreV3'
+    CategoricalScoreV3:
+      title: CategoricalScoreV3
+      type: object
+      properties:
+        value:
+          type: string
+          description: The string category value of the score.
+      required:
+        - value
+      allOf:
+        - $ref: '#/components/schemas/BaseScoreV3'
+    TextScoreV3:
+      title: TextScoreV3
+      type: object
+      properties:
+        value:
+          type: string
+          description: The text content of the score.
+      required:
+        - value
+      allOf:
+        - $ref: '#/components/schemas/BaseScoreV3'
+    CorrectionScoreV3:
+      title: CorrectionScoreV3
+      type: object
+      properties:
+        value:
+          type: string
+          description: The correction content of the score. Empty string if not set.
+      required:
+        - value
+      allOf:
+        - $ref: '#/components/schemas/BaseScoreV3'
+    ScoreV3:
+      title: ScoreV3
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - NUMERIC
+            - $ref: '#/components/schemas/NumericScoreV3'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - BOOLEAN
+            - $ref: '#/components/schemas/BooleanScoreV3'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - CATEGORICAL
+            - $ref: '#/components/schemas/CategoricalScoreV3'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - TEXT
+            - $ref: '#/components/schemas/TextScoreV3'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - CORRECTION
+            - $ref: '#/components/schemas/CorrectionScoreV3'
+          required:
+            - dataType
+    GetScoresV3Meta:
+      title: GetScoresV3Meta
+      type: object
+      properties:
+        limit:
+          type: integer
+        cursor:
+          type: string
+          nullable: true
+          description: >-
+            URL-safe base64 (base64url) cursor for the next page. Absent when
+            there are no more results.
+      required:
+        - limit
+    GetScoresV3Response:
+      title: GetScoresV3Response
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScoreV3'
+        meta:
+          $ref: '#/components/schemas/GetScoresV3Meta'
+      required:
+        - data
+        - meta
     GetScoresResponseTraceData:
       title: GetScoresResponseTraceData
       type: object
@@ -11017,6 +13162,1977 @@ components:
           type: string
       required:
         - id
+    unstableEvaluatorType:
+      title: unstableEvaluatorType
+      type: string
+      enum:
+        - llm_as_judge
+        - code
+      description: |-
+        The evaluator engine type.
+
+        The unstable public API supports LLM-as-a-judge and code evaluators.
+    unstableCodeEvaluatorSourceCodeLanguage:
+      title: unstableCodeEvaluatorSourceCodeLanguage
+      type: string
+      enum:
+        - PYTHON
+        - TYPESCRIPT
+      description: Code evaluator runtime language.
+    unstableEvaluatorScope:
+      title: unstableEvaluatorScope
+      type: string
+      enum:
+        - project
+        - managed
+      description: |-
+        Where an evaluator comes from.
+
+        - `project`: created in your project
+        - `managed`: provided by Langfuse
+    unstableEvaluationRuleTarget:
+      title: unstableEvaluationRuleTarget
+      type: string
+      enum:
+        - observation
+        - experiment
+      description: >-
+        The ingestion object type that should trigger evaluation runs.
+
+
+        Choose the target first, because it changes both the valid filter
+        columns and the valid variable-mapping sources:
+
+        - `observation` evaluates live-ingested observations such as
+        generations, spans, and events.
+          It supports mapping from `input`, `output`, and `metadata`.
+        - `experiment` evaluates live experiment executions and can additionally
+        map `expected_output` and `experiment_item_metadata`.
+          It currently supports filtering by `datasetId`.
+          Discover valid dataset IDs with `GET /api/public/v2/datasets`, then use the returned dataset `id` values in your filter.
+    unstableEvaluationRuleStatus:
+      title: unstableEvaluationRuleStatus
+      type: string
+      enum:
+        - active
+        - inactive
+        - paused
+      description: >-
+        Effective runtime status of the evaluation rule.
+
+
+        - `active`: enabled and currently runnable.
+
+        - `inactive`: disabled by configuration.
+
+        - `paused`: enabled, but Langfuse has blocked execution until the
+        underlying issue is resolved.
+    unstableEvaluationRuleMappingSource:
+      title: unstableEvaluationRuleMappingSource
+      type: string
+      enum:
+        - input
+        - output
+        - metadata
+        - expected_output
+        - experiment_item_metadata
+      description: >-
+        Source field used to populate a prompt variable.
+
+
+        Use these values when mapping evaluator prompt variables to live data.
+
+
+        Target-specific rules:
+
+        - `target=observation` supports `input`, `output`, and `metadata`
+
+        - `target=experiment` supports `input`, `output`, `metadata`,
+        `expected_output`, and `experiment_item_metadata`
+
+
+        Source semantics:
+
+        - `input`: the observation or experiment input payload
+
+        - `output`: the observation or experiment output payload
+
+        - `metadata`: the metadata object for the target. Combine with
+        `jsonPath` when you need one nested field instead of the whole object.
+
+        - `expected_output`: the experiment item's expected output. Only valid
+        for `target=experiment`.
+
+        - `experiment_item_metadata`: the experiment item's metadata object.
+        Only valid for `target=experiment`.
+    unstableEvaluatorModelConfig:
+      title: unstableEvaluatorModelConfig
+      type: object
+      description: >-
+        Optional explicit model configuration for an evaluator.
+
+
+        If omitted, Langfuse uses the project's default evaluation model.
+
+        If provided, the model must be available to the project when the
+        evaluator or evaluation rule is enabled.
+
+
+        To discover valid configured `provider` values for a project, call `GET
+        /api/public/llm-connections` and read the `provider` field from the
+        returned connections.
+
+        Use a `provider` value that matches one of the connections already
+        configured in the same project.
+
+
+        Recovery guidance:
+
+        - If evaluator creation returns `422` with
+        `code=evaluator_preflight_failed`, either provide a valid explicit
+        `modelConfig` here or configure the project's default evaluation model,
+        then retry the same request.
+      properties:
+        provider:
+          type: string
+          description: >-
+            Provider identifier to use for this evaluator, for example `openai`
+            or `anthropic`.
+
+
+            To discover valid values for the current project, call `GET
+            /api/public/llm-connections` and use one of the returned `provider`
+            values.
+        model:
+          type: string
+          description: >-
+            Model identifier exposed by the provider, for example
+            `gpt-4.1-mini`.
+      required:
+        - provider
+        - model
+    unstableEvaluatorOutputDataType:
+      title: unstableEvaluatorOutputDataType
+      type: string
+      enum:
+        - NUMERIC
+        - BOOLEAN
+        - CATEGORICAL
+      description: >-
+        Structured score type returned by an evaluator.
+
+
+        This controls the type of score value Langfuse stores for evaluation
+        results:
+
+        - `NUMERIC`: a numeric score such as `0.82`
+
+        - `BOOLEAN`: a boolean score such as `true`
+
+        - `CATEGORICAL`: one or more category labels from a fixed list
+    unstableEvaluatorOutputFieldDefinition:
+      title: unstableEvaluatorOutputFieldDefinition
+      type: object
+      properties:
+        description:
+          type: string
+          description: >-
+            Human-readable instructions for what the evaluator should return in
+            this field.
+      required:
+        - description
+    unstableEvaluatorOutputDefinition:
+      title: unstableEvaluatorOutputDefinition
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - NUMERIC
+            - $ref: >-
+                #/components/schemas/unstablePublicNumericEvaluatorOutputDefinition
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - BOOLEAN
+            - $ref: >-
+                #/components/schemas/unstablePublicBooleanEvaluatorOutputDefinition
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - CATEGORICAL
+            - $ref: >-
+                #/components/schemas/unstablePublicCategoricalEvaluatorOutputDefinition
+          required:
+            - dataType
+      description: >-
+        Structured output definition to send when creating an evaluator.
+
+
+        Agent guidance:
+
+        - `dataType` is required.
+
+        - Do not send `version`; that is an internal storage detail and is not
+        part of the public request contract.
+
+        - For `NUMERIC` and `BOOLEAN`, provide `reasoning.description` and
+        `score.description`.
+
+        - For `CATEGORICAL`, also provide `score.categories` and
+        `score.shouldAllowMultipleMatches`.
+    unstablePublicNumericEvaluatorOutputDefinition:
+      title: unstablePublicNumericEvaluatorOutputDefinition
+      type: object
+      properties:
+        dataType:
+          $ref: '#/components/schemas/unstableEvaluatorOutputDataType'
+          description: Always `NUMERIC`.
+        reasoning:
+          $ref: '#/components/schemas/unstableEvaluatorOutputFieldDefinition'
+        score:
+          $ref: '#/components/schemas/unstableEvaluatorOutputFieldDefinition'
+      required:
+        - dataType
+        - reasoning
+        - score
+    unstablePublicBooleanEvaluatorOutputDefinition:
+      title: unstablePublicBooleanEvaluatorOutputDefinition
+      type: object
+      properties:
+        dataType:
+          $ref: '#/components/schemas/unstableEvaluatorOutputDataType'
+          description: Always `BOOLEAN`.
+        reasoning:
+          $ref: '#/components/schemas/unstableEvaluatorOutputFieldDefinition'
+        score:
+          $ref: '#/components/schemas/unstableEvaluatorOutputFieldDefinition'
+      required:
+        - dataType
+        - reasoning
+        - score
+    unstablePublicCategoricalEvaluatorOutputScoreDefinition:
+      title: unstablePublicCategoricalEvaluatorOutputScoreDefinition
+      type: object
+      properties:
+        description:
+          type: string
+        categories:
+          type: array
+          items:
+            type: string
+        shouldAllowMultipleMatches:
+          type: boolean
+      required:
+        - description
+        - categories
+        - shouldAllowMultipleMatches
+    unstablePublicCategoricalEvaluatorOutputDefinition:
+      title: unstablePublicCategoricalEvaluatorOutputDefinition
+      type: object
+      properties:
+        dataType:
+          $ref: '#/components/schemas/unstableEvaluatorOutputDataType'
+          description: Always `CATEGORICAL`.
+        reasoning:
+          $ref: '#/components/schemas/unstableEvaluatorOutputFieldDefinition'
+        score:
+          $ref: >-
+            #/components/schemas/unstablePublicCategoricalEvaluatorOutputScoreDefinition
+      required:
+        - dataType
+        - reasoning
+        - score
+    unstablePublicEvaluatorOutputDefinition:
+      title: unstablePublicEvaluatorOutputDefinition
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - NUMERIC
+            - $ref: >-
+                #/components/schemas/unstablePublicNumericEvaluatorOutputDefinition
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - BOOLEAN
+            - $ref: >-
+                #/components/schemas/unstablePublicBooleanEvaluatorOutputDefinition
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - CATEGORICAL
+            - $ref: >-
+                #/components/schemas/unstablePublicCategoricalEvaluatorOutputDefinition
+          required:
+            - dataType
+      description: >-
+        Evaluator output definition returned by the public API.
+
+
+        This response always includes `dataType` and never includes an internal
+        output-definition `version`.
+
+        Legacy stored evaluator definitions are normalized into this shape
+        before they are returned.
+
+
+        Use this response shape when deciding how to interpret future evaluation
+        scores:
+
+        - `NUMERIC`: expect numeric score values
+
+        - `BOOLEAN`: expect `true` / `false`
+
+        - `CATEGORICAL`: expect one or more values from `score.categories`
+    unstableEvaluationRuleStringFilterOperator:
+      title: unstableEvaluationRuleStringFilterOperator
+      type: string
+      enum:
+        - '='
+        - contains
+        - does not contain
+        - starts with
+        - ends with
+    unstableEvaluationRuleNumberFilterOperator:
+      title: unstableEvaluationRuleNumberFilterOperator
+      type: string
+      enum:
+        - '='
+        - '>'
+        - <
+        - '>='
+        - <=
+    unstableEvaluationRuleOptionsFilterOperator:
+      title: unstableEvaluationRuleOptionsFilterOperator
+      type: string
+      enum:
+        - any of
+        - none of
+    unstableEvaluationRuleArrayOptionsFilterOperator:
+      title: unstableEvaluationRuleArrayOptionsFilterOperator
+      type: string
+      enum:
+        - any of
+        - none of
+        - all of
+    unstableEvaluationRuleBooleanFilterOperator:
+      title: unstableEvaluationRuleBooleanFilterOperator
+      type: string
+      enum:
+        - '='
+        - <>
+    unstableEvaluationRuleNullFilterOperator:
+      title: unstableEvaluationRuleNullFilterOperator
+      type: string
+      enum:
+        - is null
+        - is not null
+    unstableDateTimeEvaluationRuleFilter:
+      title: unstableDateTimeEvaluationRuleFilter
+      type: object
+      properties:
+        column:
+          type: string
+          description: Column to filter on.
+        operator:
+          $ref: '#/components/schemas/unstableEvaluationRuleNumberFilterOperator'
+          description: Comparison operator for datetime values.
+        value:
+          type: string
+          format: date-time
+          description: Datetime value to compare against.
+      required:
+        - column
+        - operator
+        - value
+    unstableStringEvaluationRuleFilter:
+      title: unstableStringEvaluationRuleFilter
+      type: object
+      properties:
+        column:
+          type: string
+          description: Column to filter on.
+        operator:
+          $ref: '#/components/schemas/unstableEvaluationRuleStringFilterOperator'
+        value:
+          type: string
+      required:
+        - column
+        - operator
+        - value
+    unstableNumberEvaluationRuleFilter:
+      title: unstableNumberEvaluationRuleFilter
+      type: object
+      properties:
+        column:
+          type: string
+          description: Column to filter on.
+        operator:
+          $ref: '#/components/schemas/unstableEvaluationRuleNumberFilterOperator'
+        value:
+          type: number
+          format: double
+      required:
+        - column
+        - operator
+        - value
+    unstableStringOptionsEvaluationRuleFilter:
+      title: unstableStringOptionsEvaluationRuleFilter
+      type: object
+      properties:
+        column:
+          type: string
+          description: Column to filter on.
+        operator:
+          $ref: '#/components/schemas/unstableEvaluationRuleOptionsFilterOperator'
+        value:
+          type: array
+          items:
+            type: string
+          description: One or more allowed string values.
+      required:
+        - column
+        - operator
+        - value
+    unstableArrayOptionsEvaluationRuleFilter:
+      title: unstableArrayOptionsEvaluationRuleFilter
+      type: object
+      properties:
+        column:
+          type: string
+          description: Column to filter on.
+        operator:
+          $ref: >-
+            #/components/schemas/unstableEvaluationRuleArrayOptionsFilterOperator
+        value:
+          type: array
+          items:
+            type: string
+          description: One or more array elements to match.
+      required:
+        - column
+        - operator
+        - value
+    unstableStringObjectEvaluationRuleFilter:
+      title: unstableStringObjectEvaluationRuleFilter
+      type: object
+      properties:
+        column:
+          type: string
+          description: >-
+            Object-valued column to filter on. In the unstable public API this
+            is currently `metadata`.
+        key:
+          type: string
+          description: Top-level key inside the object-valued column to filter on.
+        operator:
+          $ref: '#/components/schemas/unstableEvaluationRuleStringFilterOperator'
+        value:
+          type: string
+      required:
+        - column
+        - key
+        - operator
+        - value
+    unstableNumberObjectEvaluationRuleFilter:
+      title: unstableNumberObjectEvaluationRuleFilter
+      type: object
+      properties:
+        column:
+          type: string
+          description: Object-valued column to filter on.
+        key:
+          type: string
+          description: Key inside the object-valued column to filter on.
+        operator:
+          $ref: '#/components/schemas/unstableEvaluationRuleNumberFilterOperator'
+        value:
+          type: number
+          format: double
+      required:
+        - column
+        - key
+        - operator
+        - value
+    unstableCategoryOptionsEvaluationRuleFilter:
+      title: unstableCategoryOptionsEvaluationRuleFilter
+      type: object
+      properties:
+        column:
+          type: string
+          description: Object-valued column to filter on.
+        key:
+          type: string
+          description: Key inside the object-valued column to filter on.
+        operator:
+          $ref: '#/components/schemas/unstableEvaluationRuleOptionsFilterOperator'
+        value:
+          type: array
+          items:
+            type: string
+      required:
+        - column
+        - key
+        - operator
+        - value
+    unstableBooleanEvaluationRuleFilter:
+      title: unstableBooleanEvaluationRuleFilter
+      type: object
+      properties:
+        column:
+          type: string
+          description: Column to filter on.
+        operator:
+          $ref: '#/components/schemas/unstableEvaluationRuleBooleanFilterOperator'
+        value:
+          type: boolean
+      required:
+        - column
+        - operator
+        - value
+    unstableNullEvaluationRuleFilter:
+      title: unstableNullEvaluationRuleFilter
+      type: object
+      properties:
+        column:
+          type: string
+          description: >-
+            Column to filter on. In the unstable public API this is currently
+            `parentObservationId`.
+        operator:
+          $ref: '#/components/schemas/unstableEvaluationRuleNullFilterOperator'
+        value:
+          type: string
+          nullable: true
+          description: >-
+            Ignored placeholder value. Clients may omit it or send an empty
+            string.
+      required:
+        - column
+        - operator
+    unstableEvaluationRuleMapping:
+      title: unstableEvaluationRuleMapping
+      type: object
+      description: >-
+        Maps one evaluator variable to one source field from the target object.
+
+
+        Manual mappings are used for `llm_as_judge` evaluators. `code`
+        evaluators use a fixed runtime mapping managed by Langfuse.
+
+
+        How to build a valid mapping list:
+
+        1. Create the evaluator or fetch it with `GET /evaluators/{id}`.
+
+        2. Read the evaluator `variables` array.
+
+        3. Add exactly one mapping object for each variable in that array.
+
+        4. Use the variable name exactly as returned, without braces such as
+        `{{` or `}}`.
+
+        5. Choose a `source` that is valid for the selected `target`.
+
+
+        `jsonPath` is optional. Use it only when the selected source is a JSON
+        object and you want to extract one nested field before inserting it into
+        the evaluator prompt.
+
+
+        Recovery guidance:
+
+        - `invalid_variable_mapping`: the variable name is unknown for this
+        evaluator, or the selected `source` is not valid for the chosen `target`
+
+        - `missing_variable_mapping`: one or more LLM-as-judge evaluator
+        variables are not mapped yet
+
+        - `duplicate_variable_mapping`: the same evaluator variable appears more
+        than once
+
+        - `invalid_json_path`: the JSONPath expression is malformed. Remove it
+        or correct it.
+      properties:
+        variable:
+          type: string
+          description: >-
+            Prompt variable name without braces.
+
+
+            Example: for the prompt `Judge {{input}} against {{output}}`, use
+            `input` and `output`.
+        source:
+          $ref: '#/components/schemas/unstableEvaluationRuleMappingSource'
+          description: >-
+            Source field that should populate the prompt variable.
+
+
+            Quick reference:
+
+            - `target=observation`: `input`, `output`, `metadata`
+
+            - `target=experiment`: `input`, `output`, `metadata`,
+            `expected_output`, `experiment_item_metadata`
+        jsonPath:
+          type: string
+          nullable: true
+          description: >-
+            Optional JSONPath selector applied to the selected source before it
+            is passed to the evaluator prompt.
+
+
+            Requirements:
+
+            - Must start with `$`
+
+            - Must be a syntactically valid JSONPath expression
+
+            - Most useful with `source=metadata`
+      required:
+        - variable
+        - source
+    unstableEvaluationRuleFilter:
+      title: unstableEvaluationRuleFilter
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - datetime
+            - $ref: '#/components/schemas/unstableDateTimeEvaluationRuleFilter'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - string
+            - $ref: '#/components/schemas/unstableStringEvaluationRuleFilter'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - number
+            - $ref: '#/components/schemas/unstableNumberEvaluationRuleFilter'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - stringOptions
+            - $ref: '#/components/schemas/unstableStringOptionsEvaluationRuleFilter'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - categoryOptions
+            - $ref: '#/components/schemas/unstableCategoryOptionsEvaluationRuleFilter'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - arrayOptions
+            - $ref: '#/components/schemas/unstableArrayOptionsEvaluationRuleFilter'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - stringObject
+            - $ref: '#/components/schemas/unstableStringObjectEvaluationRuleFilter'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - numberObject
+            - $ref: '#/components/schemas/unstableNumberObjectEvaluationRuleFilter'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - boolean
+            - $ref: '#/components/schemas/unstableBooleanEvaluationRuleFilter'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - 'null'
+            - $ref: '#/components/schemas/unstableNullEvaluationRuleFilter'
+          required:
+            - type
+      description: >-
+        One filter condition used to decide whether a live-ingested target
+        should be evaluated.
+
+
+        An evaluation rule can include zero or more filter objects. All filters
+        must be satisfied for the target to run.
+
+
+        How to build a valid filter object:
+
+        - Pick the `target` first, because it changes the supported columns.
+
+        - Pick the filter `type`. That determines which fields are required.
+
+        - Use `key` only for object filters such as `metadata`.
+
+        - Use the correct `value` shape for the chosen filter `type`.
+
+
+        Operator quick reference by filter `type`:
+
+        - `string`: `"="`, `contains`, `does not contain`, `starts with`, `ends
+        with`
+
+        - `number`: `"="`, `">"`, `"<"`, `">="`, `"<="`
+
+        - `datetime`: `"="`, `">"`, `"<"`, `">="`, `"<="`
+
+        - `stringOptions`: `any of`, `none of`
+
+        - `arrayOptions`: `any of`, `none of`, `all of`
+
+        - `stringObject`: same operators as `string`
+
+        - `null`: `is null`, `is not null`
+
+
+        Supported columns by target:
+
+        - `target=observation`
+          - `type`: `stringOptions`, operators `any of` / `none of`, values `GENERATION`, `SPAN`, `EVENT`
+          - `name`: `stringOptions`, operators `any of` / `none of`
+          - `environment`: `stringOptions`, operators `any of` / `none of`
+          - `level`: `stringOptions`, operators `any of` / `none of`, values `DEBUG`, `DEFAULT`, `WARNING`, `ERROR`
+          - `version`: `string`
+          - `traceName`: `stringOptions`, operators `any of` / `none of`
+          - `userId`: `string`
+          - `sessionId`: `string`
+          - `tags`: `arrayOptions`, operators `any of` / `none of` / `all of`
+          - `metadata`: `stringObject` with `key`
+          - `parentObservationId`: `null`, operators `is null` / `is not null`
+          - `calledToolNames`: `arrayOptions`, operators `any of` / `none of` / `all of`
+          - `toolCalls`: `number`
+        - `target=experiment`
+          - `datasetId`: `stringOptions`, operators `any of` / `none of`
+            Use dataset `id` values from `GET /api/public/v2/datasets`, not dataset names.
+
+        Recovery guidance:
+
+        - `invalid_filter_value` with `details.column` but no `invalidValues`:
+        the selected `column` is not supported for the chosen `target`
+
+        - `invalid_filter_value` with `details.invalidValues`: the selected
+        values are not allowed for that column. Replace them with one of
+        `details.allowedValues` when provided.
+
+        - `invalid_filter_value` for `column=datasetId`: call `GET
+        /api/public/v2/datasets`, then retry with dataset `id` values from that
+        response.
+    unstableDashboardWidgetView:
+      title: unstableDashboardWidgetView
+      type: string
+      enum:
+        - observations
+        - scores-numeric
+        - scores-categorical
+    unstableDashboardWidgetChartType:
+      title: unstableDashboardWidgetChartType
+      type: string
+      enum:
+        - LINE_TIME_SERIES
+        - AREA_TIME_SERIES
+        - BAR_TIME_SERIES
+        - HORIZONTAL_BAR
+        - VERTICAL_BAR
+        - PIE
+        - NUMBER
+        - HISTOGRAM
+        - PIVOT_TABLE
+    unstableDashboardWidgetMetricAggregation:
+      title: unstableDashboardWidgetMetricAggregation
+      type: string
+      enum:
+        - sum
+        - avg
+        - count
+        - max
+        - min
+        - p50
+        - p75
+        - p90
+        - p95
+        - p99
+        - histogram
+        - uniq
+    unstableDashboardWidgetDimension:
+      title: unstableDashboardWidgetDimension
+      type: object
+      properties:
+        field:
+          type: string
+      required:
+        - field
+    unstableDashboardWidgetMetric:
+      title: unstableDashboardWidgetMetric
+      type: object
+      properties:
+        measure:
+          type: string
+        agg:
+          $ref: '#/components/schemas/unstableDashboardWidgetMetricAggregation'
+      required:
+        - measure
+        - agg
+    unstableDashboardWidgetFilter:
+      title: unstableDashboardWidgetFilter
+      type: object
+      description: >-
+        A dashboard widget filter in Langfuse filter-state shape.
+
+
+        Filter shapes depend on `type`, for example string filters use a string
+        `value`,
+
+        option filters use a list of strings, and object filters include `key`.
+      properties:
+        column:
+          type: string
+        operator:
+          type: string
+        type:
+          type: string
+        value:
+          nullable: true
+        key:
+          type: string
+          nullable: true
+      required:
+        - column
+        - operator
+        - type
+    unstableDashboardWidgetChartConfig:
+      title: unstableDashboardWidgetChartConfig
+      type: object
+      description: |-
+        Chart-specific widget configuration.
+
+        `type` must match the top-level `chartType`.
+        `row_limit` applies to total-value charts and pivot tables.
+        `bins` applies to histograms.
+        `defaultSort` applies to pivot tables.
+      properties:
+        type:
+          $ref: '#/components/schemas/unstableDashboardWidgetChartType'
+        row_limit:
+          type: integer
+          nullable: true
+        show_value_labels:
+          type: boolean
+          nullable: true
+        bins:
+          type: integer
+          nullable: true
+        defaultSort:
+          $ref: '#/components/schemas/unstableDashboardWidgetDefaultSort'
+          nullable: true
+      required:
+        - type
+    unstableDashboardWidgetDefaultSort:
+      title: unstableDashboardWidgetDefaultSort
+      type: object
+      properties:
+        column:
+          type: string
+        order:
+          $ref: '#/components/schemas/unstableDashboardWidgetSortOrder'
+      required:
+        - column
+        - order
+    unstableDashboardWidgetSortOrder:
+      title: unstableDashboardWidgetSortOrder
+      type: string
+      enum:
+        - ASC
+        - DESC
+    unstableCreateDashboardWidgetRequest:
+      title: unstableCreateDashboardWidgetRequest
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        view:
+          $ref: '#/components/schemas/unstableDashboardWidgetView'
+        dimensions:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetDimension'
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetMetric'
+        filters:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetFilter'
+        chartType:
+          $ref: '#/components/schemas/unstableDashboardWidgetChartType'
+        chartConfig:
+          $ref: '#/components/schemas/unstableDashboardWidgetChartConfig'
+        minVersion:
+          type: integer
+          nullable: true
+      required:
+        - name
+        - description
+        - view
+        - dimensions
+        - metrics
+        - filters
+        - chartType
+        - chartConfig
+    unstableDashboardWidget:
+      title: unstableDashboardWidget
+      type: object
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        name:
+          type: string
+        description:
+          type: string
+        view:
+          $ref: '#/components/schemas/unstableDashboardWidgetView'
+        dimensions:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetDimension'
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetMetric'
+        filters:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetFilter'
+        chartType:
+          $ref: '#/components/schemas/unstableDashboardWidgetChartType'
+        chartConfig:
+          $ref: '#/components/schemas/unstableDashboardWidgetChartConfig'
+        minVersion:
+          type: integer
+      required:
+        - id
+        - createdAt
+        - updatedAt
+        - name
+        - description
+        - view
+        - dimensions
+        - metrics
+        - filters
+        - chartType
+        - chartConfig
+        - minVersion
+    unstablePublicApiErrorCode:
+      title: unstablePublicApiErrorCode
+      type: string
+      enum:
+        - authentication_failed
+        - access_denied
+        - invalid_request
+        - invalid_query
+        - invalid_body
+        - invalid_filter_value
+        - invalid_json_path
+        - invalid_variable_mapping
+        - missing_variable_mapping
+        - duplicate_variable_mapping
+        - resource_not_found
+        - name_conflict
+        - evaluator_preflight_failed
+        - conflict
+        - unprocessable_content
+        - rate_limited
+        - method_not_allowed
+        - internal_error
+      description: >-
+        Machine-readable error code returned by the unstable evaluators API.
+
+
+        SDKs, CLIs, and agents should branch on `code` rather than parsing the
+        human-readable `message`.
+
+        The HTTP status still indicates the broad error class, while `code`
+        gives the specific failure reason.
+    unstablePublicApiValidationIssue:
+      title: unstablePublicApiValidationIssue
+      type: object
+      description: >-
+        One validation issue returned for malformed request bodies or query
+        parameters.
+
+
+        This mirrors the most important parts of a Zod issue: a machine-readable
+        `code`,
+
+        a human-readable `message`, and a structured `path`.
+      properties:
+        code:
+          type: string
+          description: >-
+            Machine-readable validation issue code emitted by the server
+            validator.
+        message:
+          type: string
+          description: Human-readable explanation of the validation failure.
+        path:
+          type: array
+          items: {}
+          description: Path to the invalid field, for example `["mapping", 0, "jsonPath"]`.
+      required:
+        - code
+        - message
+        - path
+    unstablePublicApiErrorDetails:
+      title: unstablePublicApiErrorDetails
+      type: object
+      description: >-
+        Optional structured context attached to an unstable-evals error.
+
+
+        The populated fields depend on the error `code`:
+
+        - request parsing failures populate `issues`
+
+        - filter validation failures populate `field`, `column`,
+        `invalidValues`, and `allowedValues`
+
+        - variable mapping failures populate `field`, `variable`, or `variables`
+
+        - JSONPath validation failures populate `field`, `variable`, and `value`
+
+        - evaluator preflight failures populate `evaluatorName`, `provider`, and
+        `model`
+
+        - rate limiting populates `retryAfterSeconds`, `limit`, `remaining`, and
+        `resetAt`
+      properties:
+        issues:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstablePublicApiValidationIssue'
+          nullable: true
+          description: Validation issues for malformed request bodies or query parameters.
+        field:
+          type: string
+          nullable: true
+          description: >-
+            Path-like reference to the failing field, for example
+            `mapping[1].jsonPath`.
+        column:
+          type: string
+          nullable: true
+          description: Filter column that failed validation.
+        invalidValues:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: Unsupported values supplied by the caller.
+        allowedValues:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: Allowed values for the failing filter column.
+        variable:
+          type: string
+          nullable: true
+          description: Evaluator variable involved in the failure.
+        variables:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: >-
+            Multiple evaluator variables involved in the failure, for example
+            missing mappings.
+        value:
+          type: string
+          nullable: true
+          description: Raw invalid value supplied by the caller.
+        evaluatorName:
+          type: string
+          nullable: true
+          description: Evaluator name used during preflight validation.
+        provider:
+          type: string
+          nullable: true
+          description: Provider resolved during evaluator preflight, if any.
+        model:
+          type: string
+          nullable: true
+          description: Model resolved during evaluator preflight, if any.
+        retryAfterSeconds:
+          type: integer
+          nullable: true
+          description: Suggested retry delay for rate-limited requests.
+        limit:
+          type: integer
+          nullable: true
+          description: >-
+            Numeric limit associated with the failure, for example the active
+            evaluation-rule cap or the current rate-limit window.
+        remaining:
+          type: integer
+          nullable: true
+          description: Remaining requests in the current rate-limit window.
+        resetAt:
+          type: string
+          nullable: true
+          description: ISO-8601 timestamp when the current rate-limit window resets.
+    unstablePublicApiError:
+      title: unstablePublicApiError
+      type: object
+      description: >-
+        Standard error envelope for the unstable evaluators API.
+
+
+        Response handling guidance:
+
+        - Use the HTTP status code for the broad class of failure.
+
+        - Use `code` for precise branching in SDKs, CLIs, or agents.
+
+        - Inspect `details` for field-level validation context such as invalid
+        filter values, malformed JSONPath expressions, or missing variable
+        mappings.
+
+        - Retry only after fixing the specific issue described by `code` and
+        `details`.
+      properties:
+        message:
+          type: string
+          description: Human-readable description of the failure.
+        code:
+          $ref: '#/components/schemas/unstablePublicApiErrorCode'
+          description: Stable machine-readable error code.
+        details:
+          $ref: '#/components/schemas/unstablePublicApiErrorDetails'
+          nullable: true
+          description: >-
+            Optional structured error context. Inspect the populated fields
+            based on `code`.
+      required:
+        - message
+        - code
+    unstableEvaluationRule:
+      title: unstableEvaluationRule
+      type: object
+      description: >-
+        Live evaluation rule for incoming data.
+
+
+        An evaluation rule answers:
+
+        - which evaluator should be used
+
+        - which target objects should trigger scoring
+
+        - how often scoring should run
+
+        - which target fields should populate each evaluator variable
+
+        - whether the deployment is active, inactive, or paused
+
+
+        Important status semantics:
+
+        - `enabled` is the desired on/off setting from the client
+
+        - `status` is the effective runtime state after Langfuse applies
+        validation and blocking rules
+
+        - `enabled=true` with `status=paused` means the rule should run, but
+        Langfuse has paused it until the underlying problem is fixed
+      properties:
+        id:
+          type: string
+          description: Stable evaluation rule identifier.
+        name:
+          type: string
+          description: >-
+            Human-readable deployment name. This is independent from the
+            evaluator name.
+        evaluator:
+          $ref: '#/components/schemas/unstableEvaluationRuleEvaluator'
+          description: >-
+            Evaluator currently used by this rule.
+
+
+            `name` and `scope` identify the evaluator family conceptually.
+
+            `id` is the currently active evaluator version in that family.
+
+            If you create a newer project version with the same evaluator name
+            later, existing evaluation rules are moved to it automatically.
+        target:
+          $ref: '#/components/schemas/unstableEvaluationRuleTarget'
+          description: Target object type that should trigger scoring.
+        enabled:
+          type: boolean
+          description: Desired enabled state configured by the client.
+        status:
+          $ref: '#/components/schemas/unstableEvaluationRuleStatus'
+          description: >-
+            Effective runtime status after Langfuse applies validation and
+            blocking rules.
+        pausedReason:
+          type: string
+          nullable: true
+          description: Machine-readable reason when `status=paused`, otherwise `null`.
+        pausedMessage:
+          type: string
+          nullable: true
+          description: Human-readable explanation when `status=paused`, otherwise `null`.
+        sampling:
+          type: number
+          format: double
+          description: |-
+            Fraction of matching target objects that should be evaluated.
+
+            Must be greater than `0` and less than or equal to `1`.
+            - `1` means evaluate every matching target.
+            - `0.25` means evaluate approximately 25% of matching targets.
+        filter:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleFilter'
+          description: >-
+            List of filter conditions used to decide whether a target should be
+            evaluated.
+        mapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleMapping'
+          description: >-
+            Variable mappings used to populate evaluator runtime variables from
+            the live target object.
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the evaluation rule was created.
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the evaluation rule was last updated.
+      required:
+        - id
+        - name
+        - evaluator
+        - target
+        - enabled
+        - status
+        - pausedReason
+        - pausedMessage
+        - sampling
+        - filter
+        - mapping
+        - createdAt
+        - updatedAt
+    unstableEvaluationRules:
+      title: unstableEvaluationRules
+      type: object
+      description: Paginated list of evaluation rules.
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRule'
+          description: Evaluation rules in the current page.
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+          description: Standard pagination metadata.
+      required:
+        - data
+        - meta
+    unstableCreateEvaluationRuleRequest:
+      title: unstableCreateEvaluationRuleRequest
+      oneOf:
+        - $ref: '#/components/schemas/unstableCreateLlmAsJudgeEvaluationRuleRequest'
+        - $ref: '#/components/schemas/unstableCreateCodeEvaluationRuleRequest'
+      description: >-
+        Request body for creating an evaluation rule.
+
+
+        Checklist for agents and SDK clients:
+
+        - reference an existing evaluator family by `evaluator.name` and
+        `evaluator.scope`
+
+        - choose `target=observation` or `target=experiment`
+
+        - if `target=experiment` and you want a dataset filter, call `GET
+        /api/public/v2/datasets` first and use dataset `id` values in
+        `filter[].value`
+
+        - for `llm_as_judge`, fetch or inspect the evaluator first and provide a
+        complete variable mapping for every evaluator variable
+
+        - for `code`, do not send variables or mappings; Langfuse stores the
+        fixed code runtime mapping automatically
+
+        - optionally narrow execution with `filter`
+
+        - set `enabled=true` only when you want live execution immediately
+    unstableCreateLlmAsJudgeEvaluationRuleRequest:
+      title: unstableCreateLlmAsJudgeEvaluationRuleRequest
+      type: object
+      properties:
+        name:
+          type: string
+          description: Human-readable deployment name.
+        evaluator:
+          $ref: >-
+            #/components/schemas/unstableLlmAsJudgeEvaluationRuleEvaluatorReference
+          description: >-
+            LLM-as-judge evaluator family to use.
+
+
+            Use `name`, `scope`, and `type` from the evaluator endpoints. If
+            `type` is omitted, Langfuse defaults it to `llm_as_judge` for
+            backwards compatibility.
+
+            Langfuse resolves that family to its latest version before saving
+            the rule.
+        target:
+          $ref: '#/components/schemas/unstableEvaluationRuleTarget'
+          description: Target object type to evaluate.
+        enabled:
+          type: boolean
+          description: Whether the deployment should be active immediately after creation.
+        sampling:
+          type: number
+          format: double
+          nullable: true
+          description: Optional sampling fraction. Defaults to `1`.
+        filter:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleFilter'
+          nullable: true
+          description: >-
+            Optional filter list.
+
+
+            Omit or pass an empty list to evaluate all matching targets for the
+            selected `target`.
+
+            Each filter object must use a column that is valid for that
+            `target`.
+
+            For `target=experiment`, `column=datasetId` expects dataset `id`
+            values from `GET /api/public/v2/datasets`, not dataset names.
+        mapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleMapping'
+          description: >-
+            LLM-as-judge variable mappings.
+
+
+            Every evaluator variable must appear exactly once.
+
+            Build this list from the evaluator `variables` array returned by the
+            evaluator endpoints.
+      required:
+        - name
+        - evaluator
+        - target
+        - enabled
+        - mapping
+    unstableCreateCodeEvaluationRuleRequest:
+      title: unstableCreateCodeEvaluationRuleRequest
+      type: object
+      properties:
+        name:
+          type: string
+          description: Human-readable deployment name.
+        evaluator:
+          $ref: '#/components/schemas/unstableCodeEvaluationRuleEvaluatorReference'
+          description: >-
+            Code evaluator family to use.
+
+
+            Use `name`, `scope`, and `type` from the evaluator endpoints.
+
+            Langfuse resolves that family to its latest version before saving
+            the rule.
+        target:
+          $ref: '#/components/schemas/unstableEvaluationRuleTarget'
+          description: Target object type to evaluate.
+        enabled:
+          type: boolean
+          description: Whether the deployment should be active immediately after creation.
+        sampling:
+          type: number
+          format: double
+          nullable: true
+          description: Optional sampling fraction. Defaults to `1`.
+        filter:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleFilter'
+          nullable: true
+          description: >-
+            Optional filter list.
+
+
+            Omit or pass an empty list to evaluate all matching targets for the
+            selected `target`.
+
+            Each filter object must use a column that is valid for that
+            `target`.
+
+            For `target=experiment`, `column=datasetId` expects dataset `id`
+            values from `GET /api/public/v2/datasets`, not dataset names.
+      required:
+        - name
+        - evaluator
+        - target
+        - enabled
+    unstableUpdateEvaluationRuleRequest:
+      title: unstableUpdateEvaluationRuleRequest
+      type: object
+      description: >-
+        Partial update body for an evaluation rule.
+
+
+        Provide only the fields you want to change.
+
+        An empty body is rejected.
+
+
+        Practical guidance:
+
+        - If you only want to rename the rule or change sampling, send just
+        those fields.
+
+        - If you change to an LLM-as-judge `evaluator`, send a fresh `mapping`
+        unless you are certain the existing mapping still matches the evaluator
+        variables.
+
+        - If you change `target` for an LLM-as-judge rule, usually send both
+        `filter` and `mapping` in the same request.
+
+        - For code evaluator rules, omit `mapping`; Langfuse stores the fixed
+        code runtime mapping automatically.
+
+        - If you change an experiment `datasetId` filter, call `GET
+        /api/public/v2/datasets` and use dataset `id` values from that response.
+      properties:
+        name:
+          type: string
+          nullable: true
+          description: Updated deployment name.
+        evaluator:
+          $ref: '#/components/schemas/unstableEvaluationRuleEvaluatorReference'
+          nullable: true
+          description: >-
+            Updated evaluator family.
+
+
+            Langfuse resolves the provided evaluator family to its latest
+            version before saving the rule.
+
+            A rule's evaluator type cannot be changed: provide `name` and
+            `scope` for an evaluator family of the rule's current type. To use a
+            different evaluator type, create a new rule.
+        target:
+          $ref: '#/components/schemas/unstableEvaluationRuleTarget'
+          nullable: true
+          description: Updated target object type.
+        enabled:
+          type: boolean
+          nullable: true
+          description: Updated desired enabled state.
+        sampling:
+          type: number
+          format: double
+          nullable: true
+          description: Updated sampling fraction.
+        filter:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleFilter'
+          nullable: true
+          description: >-
+            Updated filter list.
+
+
+            For `target=experiment`, `column=datasetId` expects dataset `id`
+            values from `GET /api/public/v2/datasets`, not dataset names.
+        mapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleMapping'
+          nullable: true
+          description: >-
+            Updated LLM-as-judge variable mappings.
+
+
+            Do not send this field for code evaluator rules. Langfuse stores the
+            fixed code runtime mapping automatically and returns it in the
+            response.
+    unstableDeleteEvaluationRuleResponse:
+      title: unstableDeleteEvaluationRuleResponse
+      type: object
+      description: Confirmation response returned after successful deletion.
+      properties:
+        message:
+          type: string
+          description: Always `Evaluation rule successfully deleted`.
+      required:
+        - message
+    unstableEvaluationRuleEvaluatorReference:
+      title: unstableEvaluationRuleEvaluatorReference
+      type: object
+      description: >-
+        Evaluator family reference used when updating an evaluation rule.
+
+
+        `name` and `scope` identify the evaluator family in the authenticated
+        project context.
+
+        A rule's evaluator type cannot be changed, so this reference does not
+        accept a `type`; the family must match the rule's current evaluator
+        type.
+      properties:
+        name:
+          type: string
+          description: Evaluator family name.
+        scope:
+          $ref: '#/components/schemas/unstableEvaluatorScope'
+          description: Whether the evaluator family is project-owned or Langfuse-managed.
+      required:
+        - name
+        - scope
+    unstableLlmAsJudgeEvaluationRuleEvaluatorReference:
+      title: unstableLlmAsJudgeEvaluationRuleEvaluatorReference
+      type: object
+      description: >-
+        LLM-as-judge evaluator family reference used when creating an evaluation
+        rule.
+      properties:
+        name:
+          type: string
+          description: Evaluator family name.
+        scope:
+          $ref: '#/components/schemas/unstableEvaluatorScope'
+          description: Whether the evaluator family is project-owned or Langfuse-managed.
+        type:
+          $ref: '#/components/schemas/unstableLlmAsJudgeEvaluatorType'
+          nullable: true
+          description: Evaluator engine type. Defaults to `llm_as_judge` when omitted.
+      required:
+        - name
+        - scope
+    unstableCodeEvaluationRuleEvaluatorReference:
+      title: unstableCodeEvaluationRuleEvaluatorReference
+      type: object
+      description: Code evaluator family reference used when creating an evaluation rule.
+      properties:
+        name:
+          type: string
+          description: Evaluator family name.
+        scope:
+          $ref: '#/components/schemas/unstableEvaluatorScope'
+          description: Whether the evaluator family is project-owned or Langfuse-managed.
+        type:
+          type: string
+          const: code
+          description: Must be `code`.
+      required:
+        - name
+        - scope
+        - type
+    unstableLlmAsJudgeEvaluatorType:
+      title: unstableLlmAsJudgeEvaluatorType
+      type: string
+      enum:
+        - llm_as_judge
+    unstableEvaluationRuleEvaluator:
+      title: unstableEvaluationRuleEvaluator
+      type: object
+      description: |-
+        Resolved evaluator currently used by the evaluation rule.
+
+        `id` is the exact active evaluator version.
+        `name`, `scope`, and `type` identify the evaluator family conceptually.
+      properties:
+        id:
+          type: string
+          description: >-
+            Identifier of the exact evaluator version currently used by the
+            rule.
+        name:
+          type: string
+          description: Evaluator family name.
+        scope:
+          $ref: '#/components/schemas/unstableEvaluatorScope'
+          description: Whether the evaluator family is project-owned or Langfuse-managed.
+        type:
+          $ref: '#/components/schemas/unstableEvaluatorType'
+          description: Evaluator engine type.
+      required:
+        - id
+        - name
+        - scope
+        - type
+    unstableDeleteEvaluatorResponse:
+      title: unstableDeleteEvaluatorResponse
+      type: object
+      description: Confirmation response returned after successful deletion.
+      properties:
+        message:
+          type: string
+          description: Always `Evaluator successfully deleted`.
+      required:
+        - message
+    unstableEvaluator:
+      title: unstableEvaluator
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - llm_as_judge
+            - $ref: '#/components/schemas/unstableLlmAsJudgeEvaluator'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - code
+            - $ref: '#/components/schemas/unstableCodeEvaluator'
+          required:
+            - type
+      description: >-
+        One evaluator that can be used for scoring.
+
+
+        An evaluator describes **how** to score data.
+
+
+        It does not define **which** live objects are evaluated. That is the job
+        of `evaluation-rules`.
+
+
+        For agent clients, the most important fields are:
+
+        - `type`: determines which evaluator fields are present
+
+        - `variables`: for LLM evaluators, use these exact names when building
+        the evaluation-rule `mapping` array. LLM evaluators require every
+        variable to be mapped. Code evaluators always expose the fixed runtime
+        payload fields and Langfuse maps them automatically.
+
+
+        Versioning behavior:
+
+        - `GET /evaluators` returns the latest version of each available
+        evaluator.
+
+        - `GET /evaluators/{id}` can return an older version.
+
+        - Evaluation rules always run against the latest version for the
+        selected evaluator name within the same source (`project` or `managed`).
+    unstableEvaluatorBase:
+      title: unstableEvaluatorBase
+      type: object
+      properties:
+        id:
+          type: string
+          description: Identifier of this evaluator.
+        name:
+          type: string
+          description: Evaluator name.
+        version:
+          type: integer
+          description: Version number of this evaluator.
+        scope:
+          $ref: '#/components/schemas/unstableEvaluatorScope'
+          description: >-
+            Where this evaluator comes from: your project or Langfuse-managed
+            defaults.
+        variables:
+          type: array
+          items:
+            type: string
+          description: >-
+            Variables that can be mapped when creating an evaluation rule.
+
+
+            LLM evaluators require every variable to be mapped exactly once.
+            Code evaluators always expose the fixed runtime payload fields and
+            Langfuse maps them automatically.
+        evaluationRuleCount:
+          type: integer
+          description: >-
+            Number of evaluation rules in the project that currently use this
+            evaluator version.
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when this evaluator was created.
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when this evaluator was last updated.
+      required:
+        - id
+        - name
+        - version
+        - scope
+        - variables
+        - evaluationRuleCount
+        - createdAt
+        - updatedAt
+    unstableLlmAsJudgeEvaluator:
+      title: unstableLlmAsJudgeEvaluator
+      type: object
+      properties:
+        prompt:
+          type: string
+          description: Prompt template used during evaluation.
+        outputDefinition:
+          $ref: '#/components/schemas/unstablePublicEvaluatorOutputDefinition'
+          description: >-
+            Structured output schema returned by this evaluator.
+
+
+            Responses always include `dataType` and omit the internal
+            output-definition `version`.
+
+            Use `dataType` to decide how future scores should be interpreted.
+        modelConfig:
+          $ref: '#/components/schemas/unstableEvaluatorModelConfig'
+          nullable: true
+          description: >-
+            Explicit model configuration, or `null` when the project default
+            evaluation model is used.
+      required:
+        - prompt
+        - outputDefinition
+        - modelConfig
+      allOf:
+        - $ref: '#/components/schemas/unstableEvaluatorBase'
+    unstableCodeEvaluator:
+      title: unstableCodeEvaluator
+      type: object
+      properties:
+        sourceCode:
+          type: string
+          description: Source code executed for each matched observation.
+        sourceCodeLanguage:
+          $ref: '#/components/schemas/unstableCodeEvaluatorSourceCodeLanguage'
+          description: Runtime language for `sourceCode`.
+      required:
+        - sourceCode
+        - sourceCodeLanguage
+      allOf:
+        - $ref: '#/components/schemas/unstableEvaluatorBase'
+    unstableEvaluators:
+      title: unstableEvaluators
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluator'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
+    unstableCreateEvaluatorRequest:
+      title: unstableCreateEvaluatorRequest
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - llm_as_judge
+            - $ref: '#/components/schemas/unstableCreateLlmAsJudgeEvaluatorRequest'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - code
+            - $ref: '#/components/schemas/unstableCreateCodeEvaluatorRequest'
+          required:
+            - type
+      description: >-
+        Request body for creating an evaluator.
+
+
+        If the same `name` already exists in your project, Langfuse creates the
+        next version and returns it.
+
+        Existing evaluation rules in the same project are then moved to that new
+        latest version automatically.
+
+        If `type` is omitted, Langfuse defaults it to `llm_as_judge` for
+        backwards compatibility.
+    unstableCreateLlmAsJudgeEvaluatorRequest:
+      title: unstableCreateLlmAsJudgeEvaluatorRequest
+      type: object
+      properties:
+        name:
+          type: string
+          description: Evaluator name within the authenticated project.
+        prompt:
+          type: string
+          description: Prompt template used by the evaluator.
+        outputDefinition:
+          $ref: '#/components/schemas/unstableEvaluatorOutputDefinition'
+          description: >-
+            Structured output schema the evaluator must return.
+
+
+            Always send `dataType`.
+
+            Do not send `version`; it is an internal storage detail and not part
+            of the public request contract.
+        modelConfig:
+          $ref: '#/components/schemas/unstableEvaluatorModelConfig'
+          nullable: true
+          description: >-
+            Optional explicit model configuration. Omit or set to `null` to use
+            the project default evaluation model.
+      required:
+        - name
+        - prompt
+        - outputDefinition
+    unstableCreateCodeEvaluatorRequest:
+      title: unstableCreateCodeEvaluatorRequest
+      type: object
+      properties:
+        name:
+          type: string
+          description: Evaluator name within the authenticated project.
+        sourceCode:
+          type: string
+          description: Code executed for each matched observation.
+        sourceCodeLanguage:
+          $ref: '#/components/schemas/unstableCodeEvaluatorSourceCodeLanguage'
+          description: Runtime language for `sourceCode`.
+      required:
+        - name
+        - sourceCode
+        - sourceCodeLanguage
     utilsMetaResponse:
       title: utilsMetaResponse
       type: object

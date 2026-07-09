@@ -6,7 +6,10 @@ import {
 } from "@/src/components/ui/chart";
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
-import { compactNumberFormatter } from "@/src/utils/numbers";
+import {
+  formatMetric,
+  toFullMetricString,
+} from "@/src/features/widgets/chart-library/utils";
 
 /**
  * VerticalBarChart component
@@ -25,9 +28,12 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
     },
   },
   accessibilityLayer = true,
-  valueFormatter = compactNumberFormatter,
+  metricFormatter = (value, options) => formatMetric(value, options),
   subtleFill = false,
 }) => {
+  const formatValue = (value: number) =>
+    toFullMetricString(metricFormatter(value, { style: "compact" }));
+
   return (
     <ChartContainer
       config={config}
@@ -49,12 +55,14 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
           fontSize={12}
           tickLine={false}
           axisLine={false}
+          tickFormatter={(value) => formatValue(Number(value))}
         />
         <Bar
           dataKey="metric"
           radius={[4, 4, 0, 0]}
           className="fill-(--color-metric)"
           fillOpacity={subtleFill ? 0.3 : 1}
+          isAnimationActive={false}
         />
         <ChartTooltip
           cursor={false}
@@ -64,7 +72,7 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
               active={active}
               payload={payload}
               label={label}
-              valueFormatter={(v) => valueFormatter(Number(v))}
+              valueFormatter={(v) => formatValue(Number(v))}
             />
           )}
         />

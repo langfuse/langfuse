@@ -1,5 +1,3 @@
-/** @jest-environment node */
-
 import { CreateEvalTemplateInputSchema } from "@/src/features/evals/server/router";
 import {
   createBooleanEvalOutputDefinition,
@@ -12,6 +10,7 @@ describe("CreateEvalTemplateInputSchema", () => {
   const baseInput = {
     name: "Accuracy evaluator",
     projectId: "project-1",
+    intent: "new" as const,
     prompt: "Judge {{output}} against {{expected_output}}",
     provider: null,
     model: null,

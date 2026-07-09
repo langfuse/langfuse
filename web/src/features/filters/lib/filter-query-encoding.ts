@@ -3,8 +3,21 @@ import {
   singleFilter,
   type SingleValueOption,
 } from "@langfuse/shared";
-import { encodeDelimitedArray, decodeDelimitedArray } from "use-query-params";
 import { normalizeLegacySessionPositionInTraceKey } from "@/src/components/session/session-position-in-trace";
+
+const encodeDelimitedArray = (values: string[], delimiter: string): string =>
+  values.join(delimiter);
+
+const decodeDelimitedArray = (
+  value: string,
+  delimiter: string,
+): string[] | undefined => {
+  if (value === "") {
+    return [];
+  }
+
+  return value.split(delimiter);
+};
 
 // Escape pipe characters in values to avoid conflicts with the delimiter
 // Uses backslash escaping: | → \|, and \ → \\
@@ -51,10 +64,15 @@ export type GenericFilterOptions = Record<
 // Pure helper: compute UI-selected values from a filter entry and available values
 export function computeSelectedValues(
   availableValues: string[],
-  filterEntry: { operator?: string; value?: unknown } | undefined,
+  filterEntry:
+    | { operator?: string; value?: unknown; type?: string }
+    | undefined,
 ): string[] {
   if (!filterEntry) return availableValues;
   const values = (filterEntry.value as string[]) ?? [];
+  if (filterEntry.type === "arrayOptions") {
+    return values;
+  }
   if (filterEntry.operator === "none of") {
     const excluded = new Set(values);
     return availableValues.filter((v) => !excluded.has(v));
