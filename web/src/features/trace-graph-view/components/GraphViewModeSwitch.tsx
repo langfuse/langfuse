@@ -51,6 +51,7 @@ export function GraphViewModeSwitch({
           type="button"
           onClick={() => onChange(mode)}
           aria-pressed={value === mode}
+          aria-label={label}
           title={title}
           className={cn(
             "flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors",
@@ -60,7 +61,9 @@ export function GraphViewModeSwitch({
           )}
         >
           <Icon className="h-3.5 w-3.5 shrink-0" />
-          <span>{label}</span>
+          {/* Collapse to icons on narrow canvases (mirrors the nav header's
+              switch) so the pill never collides with the zoom stack. */}
+          <span className="@max-[340px]/graphcanvas:hidden">{label}</span>
         </button>
       ))}
     </div>

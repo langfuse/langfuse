@@ -1,6 +1,12 @@
 import type { ELK, ElkNode } from "elkjs";
 
-import { type GraphCanvasData } from "../types";
+import {
+  type GraphCanvasData,
+  LANGFUSE_START_NODE_NAME,
+  LANGFUSE_END_NODE_NAME,
+  LANGGRAPH_START_NODE_NAME,
+  LANGGRAPH_END_NODE_NAME,
+} from "../types";
 import { measureNode } from "./measureNode";
 
 export interface PositionedNode {
@@ -70,7 +76,30 @@ function buildElkGraph(
       // counter (expanded mode, e.g. " (2)") — whichever the node renders.
       counterReserve.get(node.id) ?? node.counter?.length ?? 0,
     );
-    return { id: node.id, width, height };
+    // The synthetic anchors mean "the run starts/ends here" — pin them to
+    // the first/last layer so edge shape can't strand them mid-graph (e.g.
+    // a root span's `root→__end__` edge would otherwise place __end__ in
+    // the second column while the run continues to the right of it).
+    const constraint =
+      node.id === LANGFUSE_START_NODE_NAME ||
+      node.id === LANGGRAPH_START_NODE_NAME
+        ? "FIRST"
+        : node.id === LANGFUSE_END_NODE_NAME ||
+            node.id === LANGGRAPH_END_NODE_NAME
+          ? "LAST"
+          : null;
+    return {
+      id: node.id,
+      width,
+      height,
+      ...(constraint
+        ? {
+            layoutOptions: {
+              "elk.layered.layering.layerConstraint": constraint,
+            },
+          }
+        : {}),
+    };
   });
 
   const seen = new Set<string>();
