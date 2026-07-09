@@ -166,7 +166,14 @@ export default function Dashboard() {
     displayedDashboard?.id ?? peekId ?? LANGFUSE_HOME_DASHBOARD_ID;
   const dashboardName = displayedDashboard?.name ?? "Langfuse Home";
   const dashboardOwner = displayedDashboard?.owner ?? "LANGFUSE";
-  const isPeekLoading = Boolean(peekId) && peekQuery.isPending;
+  // Show a loading state until the home resolution (or peek fetch) settles —
+  // rendering the curated fallback early would flash the wrong layout and
+  // fire its widget queries whenever the project default is a different
+  // dashboard. The constant fallback only renders once the query has settled
+  // without a dashboard (curated row missing / no read access).
+  const isResolvingDashboard = peekId
+    ? peekQuery.isPending
+    : homeDashboard.isPending;
 
   const hasRbacCUDAccess = useHasProjectAccess({
     projectId,
@@ -361,7 +368,7 @@ export default function Dashboard() {
             }
           />
         </PageHeaderControlsPortal>
-        {!isDashboardDataReady || isPeekLoading ? (
+        {!isDashboardDataReady || isResolvingDashboard ? (
           <NoDataOrLoading isLoading />
         ) : (
           <DashboardGrid
