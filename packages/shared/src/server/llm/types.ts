@@ -245,6 +245,15 @@ export enum LLMAdapter {
   GoogleAIStudio = "google-ai-studio",
 }
 
+// Some providers require at least 1 user message; both execution engines
+// convert a lone message into a user message for them.
+export const PROVIDERS_WITH_REQUIRED_USER_MESSAGE: readonly LLMAdapter[] = [
+  LLMAdapter.VertexAI,
+  LLMAdapter.GoogleAIStudio,
+  LLMAdapter.Anthropic,
+  LLMAdapter.Bedrock,
+];
+
 export const TextPromptContentSchema = z.string().min(1, "Enter a prompt");
 
 export const PromptContentSchema = z.union([
