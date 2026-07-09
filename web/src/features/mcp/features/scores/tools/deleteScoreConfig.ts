@@ -9,6 +9,9 @@ export const [deleteScoreConfigTool, handleDeleteScoreConfig] = defineTool({
     "Delete a score configuration from the current Langfuse project by archiving it.",
   baseSchema: PutScoreConfigQuery,
   inputSchema: PutScoreConfigQuery,
+  analyticsProperties: (input) => ({
+    scoreConfigId: input.configId,
+  }),
   handler: async (input, context) => {
     return await runMcpTool({
       spanName: "mcp.score_configs.delete",

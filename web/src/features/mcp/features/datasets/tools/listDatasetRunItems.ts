@@ -12,6 +12,12 @@ export const [listDatasetRunItemsTool, handleListDatasetRunItems] = defineTool({
     "List dataset run items, each linking one dataset item to a trace or observation within a dataset run, by dataset ID and run ID.",
   baseSchema: GetDatasetRunItemsMcpInput,
   inputSchema: GetDatasetRunItemsMcpInput,
+  analyticsProperties: (input) => ({
+    datasetId: input.datasetId,
+    datasetRunId: input.datasetRunId,
+    page: input.page,
+    limit: input.limit,
+  }),
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.dataset_run_items.list",

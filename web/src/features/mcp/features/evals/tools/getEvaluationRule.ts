@@ -12,6 +12,9 @@ export const [getEvaluationRuleTool, handleGetEvaluationRule] = defineTool({
     "Fetch a single evaluation rule by id, including its evaluator reference, target, filter, variable mapping, sampling, and status.",
   baseSchema: GetUnstableEvaluationRuleQuery,
   inputSchema: GetUnstableEvaluationRuleQuery,
+  analyticsProperties: (input) => ({
+    evaluationRuleId: input.evaluationRuleId,
+  }),
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.evaluation_rules.get",

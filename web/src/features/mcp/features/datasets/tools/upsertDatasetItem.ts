@@ -11,6 +11,15 @@ export const [upsertDatasetItemTool, handleUpsertDatasetItem] = defineTool({
     "Upsert a dataset item (one example in a dataset) by dataset ID. Item IDs are unique per project across all datasets, so an ID used in one dataset cannot be reused in another.",
   baseSchema: PostDatasetItemMcpInput,
   inputSchema: PostDatasetItemMcpInput,
+  analyticsProperties: (input) => ({
+    datasetId: input.datasetId,
+    datasetItemId: input.id,
+    hasExpectedOutput:
+      input.expectedOutput !== undefined && input.expectedOutput !== null,
+    hasMetadata: input.metadata !== undefined && input.metadata !== null,
+    sourceTraceId: input.sourceTraceId,
+    sourceObservationId: input.sourceObservationId,
+  }),
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.dataset_items.upsert",

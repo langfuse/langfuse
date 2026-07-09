@@ -12,6 +12,9 @@ export const [deleteModelTool, handleDeleteModel] = defineTool({
     "Delete a custom model definition from the current project. Built-in models cannot be deleted.",
   baseSchema: DeleteModelV1Query,
   inputSchema: DeleteModelV1Query,
+  analyticsProperties: (input) => ({
+    modelId: input.modelId,
+  }),
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.models.delete",

@@ -14,6 +14,14 @@ export const [listDatasetItemsTool, handleListDatasetItems] = defineTool({
     "List dataset items, individual examples with input and optional expected output, optionally filtered by dataset ID, source trace, source observation, or version.",
   baseSchema: GetDatasetItemsMcpBaseSchema,
   inputSchema: GetDatasetItemsMcpInput,
+  analyticsProperties: (input) => ({
+    datasetId: input.datasetId,
+    sourceTraceId: input.sourceTraceId,
+    sourceObservationId: input.sourceObservationId,
+    datasetVersion: input.version?.toISOString(),
+    page: input.page,
+    limit: input.limit,
+  }),
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.dataset_items.list",

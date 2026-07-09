@@ -12,6 +12,9 @@ export const [deleteDatasetItemTool, handleDeleteDatasetItem] = defineTool({
     "Delete a dataset item, one example in a dataset, and all its run items.",
   baseSchema: DeleteDatasetItemV1Query,
   inputSchema: DeleteDatasetItemV1Query,
+  analyticsProperties: (input) => ({
+    datasetItemId: input.datasetItemId,
+  }),
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.dataset_items.delete",

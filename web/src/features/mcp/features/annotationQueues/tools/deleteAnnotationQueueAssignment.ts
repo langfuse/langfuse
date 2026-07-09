@@ -13,6 +13,10 @@ export const [
   description: "Remove a project user's assignment from an annotation queue.",
   baseSchema: DeleteAnnotationQueueAssignmentToolSchema,
   inputSchema: DeleteAnnotationQueueAssignmentToolSchema,
+  analyticsProperties: (input) => ({
+    annotationQueueId: input.queueId,
+    assignedUserId: input.userId,
+  }),
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.annotation_queue_assignments.delete",

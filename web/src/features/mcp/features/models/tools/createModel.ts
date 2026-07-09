@@ -34,6 +34,17 @@ export const [createModelTool, handleCreateModel] = defineTool({
     "Create a custom model definition for cost tracking/tokenization in the current project.",
   baseSchema: CreateModelBaseSchema,
   inputSchema: PostModelsV1Body,
+  analyticsProperties: (input) => ({
+    modelName: input.modelName,
+    modelUnit: input.unit,
+    hasStartDate: input.startDate !== undefined,
+    hasInputPrice: input.inputPrice !== undefined,
+    hasOutputPrice: input.outputPrice !== undefined,
+    hasTotalPrice: input.totalPrice !== undefined,
+    tokenizerId: input.tokenizerId ?? undefined,
+    hasTokenizerConfig: input.tokenizerConfig !== undefined,
+    pricingTierCount: input.pricingTiers?.length,
+  }),
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.models.create",

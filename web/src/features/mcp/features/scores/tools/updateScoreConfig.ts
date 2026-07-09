@@ -55,6 +55,14 @@ export const [updateScoreConfigTool, handleUpdateScoreConfig] = defineTool({
     "Update a score configuration. Use this to rename, describe, or adjust allowed numeric/category fields.",
   baseSchema: McpUpdateScoreConfigBaseSchema,
   inputSchema: McpUpdateScoreConfigInputSchema,
+  analyticsProperties: (input) => ({
+    scoreConfigId: input.configId,
+    name: input.name,
+    minValue: input.minValue ?? undefined,
+    maxValue: input.maxValue ?? undefined,
+    categoricalCategoryCount: input.categories?.length,
+    hasDescription: input.description !== undefined,
+  }),
   handler: async (input, context) => {
     return await runMcpTool({
       spanName: "mcp.score_configs.update",

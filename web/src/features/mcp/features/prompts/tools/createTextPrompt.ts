@@ -87,6 +87,14 @@ export const [createTextPromptTool, handleCreateTextPrompt] = defineTool({
   ].join("\n"),
   baseSchema: CreateTextPromptBaseSchema,
   inputSchema: CreateTextPromptInputSchema,
+  analyticsProperties: (input) => ({
+    promptName: input.name,
+    promptLength: input.prompt.length,
+    labelCount: input.labels?.length,
+    tagCount: input.tags?.length,
+    hasConfig: input.config !== undefined,
+    hasCommitMessage: input.commitMessage !== undefined,
+  }),
   handler: async (input, context) => {
     return await runMcpTool({
       spanName: "mcp.prompts.create_text",

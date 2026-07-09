@@ -40,6 +40,16 @@ export const [createEvaluationRuleTool, handleCreateEvaluationRule] =
     ].join(" "),
     baseSchema: CreateEvaluationRuleBaseSchema,
     inputSchema: PostUnstableEvaluationRuleBody,
+    analyticsProperties: (input) => ({
+      evaluationRuleName: input.name,
+      evaluationRuleTarget: input.target,
+      hasFilter: input.filter.length > 0,
+      filterCount: input.filter?.length,
+      hasMapping: input.mapping !== undefined,
+      mappingCount: input.mapping?.length,
+      enabled: input.enabled,
+      sampling: input.sampling,
+    }),
     handler: async (input, context) =>
       runMcpTool({
         spanName: "mcp.evaluation_rules.create",

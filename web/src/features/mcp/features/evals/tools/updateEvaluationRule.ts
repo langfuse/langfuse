@@ -40,6 +40,17 @@ export const [updateEvaluationRuleTool, handleUpdateEvaluationRule] =
     ].join(" "),
     baseSchema: UpdateEvaluationRuleBaseSchema,
     inputSchema: UpdateEvaluationRuleInputSchema,
+    analyticsProperties: (input) => ({
+      evaluationRuleId: input.evaluationRuleId,
+      evaluationRuleTarget: input.target,
+      hasFilter: input.filter !== undefined,
+      filterCount: input.filter?.length,
+      hasMapping: input.mapping !== undefined,
+      mappingCount: input.mapping?.length,
+      hasName: input.name !== undefined,
+      hasEnabled: input.enabled !== undefined,
+      hasSampling: input.sampling !== undefined,
+    }),
     handler: async (input, context) =>
       runMcpTool({
         spanName: "mcp.evaluation_rules.update",

@@ -8,6 +8,9 @@ export const [getMediaTool, handleGetMedia] = defineTool({
   description: "Fetch metadata and a signed download URL for one media asset.",
   baseSchema: GetMediaQuerySchema,
   inputSchema: GetMediaQuerySchema,
+  analyticsProperties: (input) => ({
+    mediaId: input.mediaId,
+  }),
   handler: async (input, context) => {
     return await runMcpTool({
       spanName: "mcp.media.get",

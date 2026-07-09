@@ -18,6 +18,14 @@ export const [listExperimentsTool, handleListExperiments] = defineTool({
   ].join("\n"),
   baseSchema: ListExperimentsBaseSchema,
   inputSchema: ListExperimentsInputSchema,
+  analyticsProperties: (input) => ({
+    limit: input.limit,
+    fieldCount: input.fields.length,
+    fromStartTime: input.fromStartTime,
+    toStartTime: input.toStartTime,
+    experimentIdCount: input.id?.length,
+    hasCursor: input.cursor !== undefined,
+  }),
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.experiments.list",

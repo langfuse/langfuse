@@ -16,8 +16,6 @@ import type { McpToolName } from "./server/bootstrap";
  * Audit Logging: All mutating operations must create audit log entries
  * using @/src/features/audit-logs/auditLog
  *
- * PII Protection: userId is PII - use sanitized logging
- *
  * RBAC: Check accessLevel and scope before operations
  *
  * Rate Limiting: Use RateLimitService from public API

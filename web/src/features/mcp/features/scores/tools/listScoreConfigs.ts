@@ -9,6 +9,10 @@ export const [listScoreConfigsTool, handleListScoreConfigs] = defineTool({
     "List score configurations. Returns exactly data and meta at the top level.",
   baseSchema: GetScoreConfigsQuery,
   inputSchema: GetScoreConfigsQuery,
+  analyticsProperties: (input) => ({
+    page: input.page,
+    limit: input.limit,
+  }),
   handler: async (input, context) => {
     return await runMcpTool({
       spanName: "mcp.score_configs.list",

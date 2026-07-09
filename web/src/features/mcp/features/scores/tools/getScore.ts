@@ -18,6 +18,9 @@ export const [getScoreTool, handleGetScore] = defineTool({
   ].join("\n"),
   baseSchema: GetScoreQueryV2,
   inputSchema: GetScoreQueryV2,
+  analyticsProperties: (input) => ({
+    scoreId: input.scoreId,
+  }),
   handler: async (input, context) => {
     return await runMcpTool({
       spanName: "mcp.scores.get",

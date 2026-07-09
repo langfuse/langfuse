@@ -20,6 +20,9 @@ export const [getMetricsSchemaTool, handleGetMetricsSchema] = defineTool({
     "Discover which Langfuse metrics can be analyzed and how to group, filter, aggregate, and time-bucket them before calling queryMetrics.",
   baseSchema: GetMetricsSchemaInput,
   inputSchema: GetMetricsSchemaInput,
+  analyticsProperties: (input) => ({
+    metricsView: input.view,
+  }),
   handler: async (input, context) => {
     return await runMcpTool({
       spanName: "mcp.metrics.schema",

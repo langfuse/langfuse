@@ -71,6 +71,12 @@ export const [updatePromptLabelsTool, handleUpdatePromptLabels] = defineTool({
   ].join("\n"),
   baseSchema: UpdatePromptLabelsBaseSchema,
   inputSchema: UpdatePromptLabelsInputSchema,
+  analyticsProperties: (input) => ({
+    promptName: input.name,
+    promptVersion: input.version,
+    newLabelCount: input.newLabels.length,
+    includesProductionLabel: input.newLabels.includes("production"),
+  }),
   handler: async (input, context) => {
     return await runMcpTool({
       spanName: "mcp.prompts.update_labels",

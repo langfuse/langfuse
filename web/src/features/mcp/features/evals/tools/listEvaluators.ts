@@ -13,6 +13,10 @@ export const [listEvaluatorsTool, handleListEvaluators] = defineTool({
     "List evaluators (llm_as_judge and code) defined in the current Langfuse project. Results are paginated.",
   baseSchema: GetUnstableEvaluatorsQuery,
   inputSchema: GetUnstableEvaluatorsQuery,
+  analyticsProperties: (input) => ({
+    page: input.page,
+    limit: input.limit,
+  }),
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.evaluators.list",

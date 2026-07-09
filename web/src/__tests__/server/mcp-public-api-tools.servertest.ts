@@ -2,6 +2,42 @@ process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
   "true";
 process.env.LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION = "true";
 
+const posthogCapture = vi.hoisted(() => vi.fn());
+const requestHandlers = new Map<
+  symbol,
+  (request: unknown) => Promise<unknown>
+>();
+
+vi.mock("@modelcontextprotocol/sdk/types.js", () => ({
+  ListToolsRequestSchema: Symbol("ListToolsRequestSchema"),
+  CallToolRequestSchema: Symbol("CallToolRequestSchema"),
+  ErrorCode: {
+    InvalidRequest: "InvalidRequest",
+    InvalidParams: "InvalidParams",
+    InternalError: "InternalError",
+  },
+  McpError: class MockMcpError extends Error {
+    code: string;
+
+    constructor(code: string, message: string) {
+      super(message);
+      this.name = "McpError";
+      this.code = code;
+    }
+  },
+}));
+
+vi.mock("@modelcontextprotocol/sdk/server/index.js", () => ({
+  Server: class MockServer {
+    setRequestHandler(
+      schema: symbol,
+      handler: (request: unknown) => Promise<unknown>,
+    ) {
+      requestHandlers.set(schema, handler);
+    }
+  },
+}));
+
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
   const queue = {
@@ -27,6 +63,12 @@ vi.mock("@langfuse/shared/src/server", async () => {
   };
 });
 
+vi.mock("@/src/features/posthog-analytics/ServerPosthog", () => ({
+  ServerPosthog: class MockServerPosthog {
+    capture = posthogCapture;
+  },
+}));
+
 import { v4 as uuidv4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -47,6 +89,7 @@ import {
 import "@/src/features/mcp/server/bootstrap";
 import { config as mcpRouteConfig } from "@/src/pages/api/public/mcp";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
+import { createMcpServer } from "@/src/features/mcp/server/mcpServer";
 import {
   handleCreateAnnotationQueue,
   handleCreateAnnotationQueueAssignment,
@@ -137,8 +180,37 @@ const createProjectUser = async ({
 };
 
 describe("MCP public API tools", () => {
+  beforeEach(() => {
+    posthogCapture.mockReset();
+    requestHandlers.clear();
+  });
+
   const getToolNames = async (context = mockServerContext()) =>
     (await toolRegistry.getToolDefinitions(context)).map((tool) => tool.name);
+
+  const callTool = async ({
+    name,
+    args,
+    context,
+  }: {
+    name: string;
+    args: Record<string, unknown>;
+    context: ReturnType<typeof mockServerContext>;
+  }) => {
+    const { CallToolRequestSchema } =
+      await import("@modelcontextprotocol/sdk/types.js");
+
+    createMcpServer(context);
+
+    const callToolRequestHandler = requestHandlers.get(CallToolRequestSchema);
+
+    expect(callToolRequestHandler).toBeDefined();
+
+    return await callToolRequestHandler?.({
+      method: "tools/call",
+      params: { name, arguments: args },
+    });
+  };
 
   it("registers public API tools", async () => {
     const toolNames = await getToolNames();
@@ -228,6 +300,87 @@ describe("MCP public API tools", () => {
     await expect(
       toolRegistry.getEnabledTool("upsertDataset", context),
     ).resolves.toBeUndefined();
+  });
+
+  it("captures tool-specific PostHog properties for successful tool calls", async () => {
+    const { context, projectId } = await createMcpTestSetup();
+    const promptName = `mcp-posthog-${uuidv4()}`;
+
+    await createPromptInDb({
+      name: promptName,
+      prompt: "Prompt for analytics capture",
+      projectId,
+      labels: ["production"],
+      version: 3,
+    });
+
+    await expect(
+      callTool({
+        name: "getPrompt",
+        args: { name: promptName, version: 3 },
+        context,
+      }),
+    ).resolves.toBeDefined();
+
+    expect(posthogCapture).toHaveBeenCalledWith({
+      distinctId: context.apiKeyId,
+      event: "mcp_tool_call",
+      properties: expect.objectContaining({
+        toolName: "getPrompt",
+        success: true,
+        promptName,
+        promptVersion: 3,
+        projectId: context.projectId,
+        apiKeyId: context.apiKeyId,
+      }),
+    });
+  });
+
+  it("captures failure metadata for failing tool calls", async () => {
+    const { context } = await createMcpTestSetup();
+    const missingPromptName = `missing-${uuidv4()}`;
+
+    await expect(
+      callTool({
+        name: "getPrompt",
+        args: { name: missingPromptName },
+        context,
+      }),
+    ).rejects.toThrow();
+
+    expect(posthogCapture).toHaveBeenCalledWith({
+      distinctId: context.apiKeyId,
+      event: "mcp_tool_call",
+      properties: expect.objectContaining({
+        toolName: "getPrompt",
+        success: false,
+        promptName: missingPromptName,
+        errorName: "McpError",
+        errorCode: "InvalidRequest",
+      }),
+    });
+  });
+
+  it("captures failure metadata for unknown tool calls", async () => {
+    const { context } = await createMcpTestSetup();
+
+    await expect(
+      callTool({
+        name: "missingTool",
+        args: {},
+        context,
+      }),
+    ).rejects.toThrow("Unknown tool: missingTool");
+
+    expect(posthogCapture).toHaveBeenCalledWith({
+      distinctId: context.apiKeyId,
+      event: "mcp_tool_call",
+      properties: expect.objectContaining({
+        toolName: "missingTool",
+        success: false,
+        errorName: "Error",
+      }),
+    });
   });
 
   it("marks destructive public API tools", async () => {

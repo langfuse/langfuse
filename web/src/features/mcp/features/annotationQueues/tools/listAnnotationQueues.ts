@@ -14,6 +14,10 @@ export const [listAnnotationQueuesTool, handleListAnnotationQueues] =
       "List annotation queues, worklists that collect trace or observation items for human review and scoring, with pagination.",
     baseSchema: GetAnnotationQueuesQuery,
     inputSchema: GetAnnotationQueuesQuery,
+    analyticsProperties: (input) => ({
+      page: input.page,
+      limit: input.limit,
+    }),
     handler: async (input, context) =>
       runMcpTool({
         spanName: "mcp.annotation_queues.list",

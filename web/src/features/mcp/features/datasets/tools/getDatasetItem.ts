@@ -13,6 +13,9 @@ export const [getDatasetItemTool, handleGetDatasetItem] = defineTool({
     "Get a dataset item, one example in a dataset with input and optional expected output, by ID.",
   baseSchema: GetDatasetItemV1Query,
   inputSchema: GetDatasetItemV1Query,
+  analyticsProperties: (input) => ({
+    datasetItemId: input.datasetItemId,
+  }),
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.dataset_items.get",

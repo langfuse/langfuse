@@ -12,6 +12,10 @@ export const [listEvaluationRulesTool, handleListEvaluationRules] = defineTool({
     "List evaluation rules in the current Langfuse project. Each rule attaches an evaluator to incoming observations or experiment items. Results are paginated.",
   baseSchema: GetUnstableEvaluationRulesQuery,
   inputSchema: GetUnstableEvaluationRulesQuery,
+  analyticsProperties: (input) => ({
+    page: input.page,
+    limit: input.limit,
+  }),
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.evaluation_rules.list",

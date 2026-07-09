@@ -81,6 +81,20 @@ export const [createDashboardWidgetTool, handleCreateDashboardWidget] =
     ].join(" "),
     baseSchema: CreateDashboardWidgetBaseSchema,
     inputSchema: PostUnstableDashboardWidgetBody,
+    analyticsProperties: (input) => ({
+      dashboardWidgetName: input.name,
+      dashboardWidgetView: input.view,
+      chartType: input.chartType,
+      dimensionCount: input.dimensions.length,
+      metricCount: input.metrics.length,
+      filterCount: input.filters.length,
+      minVersion: input.minVersion,
+      rowLimit:
+        "row_limit" in input.chartConfig
+          ? input.chartConfig.row_limit
+          : undefined,
+      bins: "bins" in input.chartConfig ? input.chartConfig.bins : undefined,
+    }),
     destructiveHint: true,
     handler: async (input, context) =>
       runMcpTool({

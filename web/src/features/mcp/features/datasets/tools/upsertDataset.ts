@@ -51,6 +51,17 @@ export const [upsertDatasetTool, handleUpsertDataset] = defineTool({
     "Upsert a dataset, a named collection of input and optional expected-output examples for experiments and evaluations.",
   baseSchema: UpsertDatasetBaseSchema,
   inputSchema: UpsertDatasetInputSchema,
+  analyticsProperties: (input) => ({
+    datasetId: input.id,
+    datasetName: input.name,
+    hasDescription: input.description !== undefined,
+    hasMetadata: input.metadata !== undefined,
+    hasInputSchema:
+      input.inputSchema !== undefined && input.inputSchema !== null,
+    hasExpectedOutputSchema:
+      input.expectedOutputSchema !== undefined &&
+      input.expectedOutputSchema !== null,
+  }),
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.datasets.upsert",

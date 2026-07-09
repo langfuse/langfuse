@@ -30,6 +30,12 @@ export const [getObservationTool, handleGetObservation] = defineTool({
   ].join("\n"),
   baseSchema: GetObservationBaseSchema,
   inputSchema: GetObservationBaseSchema,
+  analyticsProperties: (input) => ({
+    observationId: input.observationId,
+    requestedFieldCount: input.fields?.length ?? 0,
+    requestedAllFields: input.fields?.includes("*") ?? false,
+    expandedMetadataKeyCount: input.expandMetadataKeys?.length ?? 0,
+  }),
   handler: async (input, context) => {
     return await runMcpTool({
       spanName: "mcp.observations.get",

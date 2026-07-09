@@ -99,6 +99,14 @@ export const [createChatPromptTool, handleCreateChatPrompt] = defineTool({
   ].join("\n"),
   baseSchema: CreateChatPromptBaseSchema,
   inputSchema: CreateChatPromptInputSchema,
+  analyticsProperties: (input) => ({
+    promptName: input.name,
+    promptMessageCount: input.prompt.length,
+    labelCount: input.labels?.length,
+    tagCount: input.tags?.length,
+    hasConfig: input.config !== undefined,
+    hasCommitMessage: input.commitMessage !== undefined,
+  }),
   handler: async (input, context) => {
     return await runMcpTool({
       spanName: "mcp.prompts.create_chat",

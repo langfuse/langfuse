@@ -14,6 +14,10 @@ export const [getAnnotationQueueItemTool, handleGetAnnotationQueueItem] =
       "Get an annotation queue item, one queued trace or observation with review status, by queue ID and item ID.",
     baseSchema: GetAnnotationQueueItemByIdQuery,
     inputSchema: GetAnnotationQueueItemByIdQuery,
+    analyticsProperties: (input) => ({
+      annotationQueueId: input.queueId,
+      annotationQueueItemId: input.itemId,
+    }),
     handler: async (input, context) =>
       runMcpTool({
         spanName: "mcp.annotation_queue_items.get",

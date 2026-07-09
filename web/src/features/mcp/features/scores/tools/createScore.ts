@@ -80,6 +80,21 @@ export const [createScoreTool, handleCreateScore] = defineTool({
   baseSchema: CreateScoreBaseSchema,
   inputSchema: PostScoresBodyV1,
   destructiveHint: true,
+  analyticsProperties: (input) => ({
+    scoreId: input.id ?? undefined,
+    scoreName: input.name,
+    traceId: input.traceId ?? undefined,
+    sessionId: input.sessionId ?? undefined,
+    datasetRunId: input.datasetRunId ?? undefined,
+    observationId: input.observationId ?? undefined,
+    hasComment: input.comment != null,
+    hasMetadata: input.metadata != null,
+    environment: input.environment,
+    queueId: input.queueId ?? undefined,
+    source: input.source,
+    dataType: input.dataType,
+    configId: input.configId ?? undefined,
+  }),
   handler: async (input, context) => {
     return await runMcpTool({
       spanName: "mcp.scores.create",

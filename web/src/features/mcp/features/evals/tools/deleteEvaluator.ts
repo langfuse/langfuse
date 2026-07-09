@@ -12,6 +12,9 @@ export const [deleteEvaluatorTool, handleDeleteEvaluator] = defineTool({
     "Delete a project evaluator by id, including all of its versions. Fails while evaluation rules still reference the evaluator; delete those first. Langfuse-managed evaluators cannot be deleted. This cannot be undone.",
   baseSchema: DeleteUnstableEvaluatorQuery,
   inputSchema: DeleteUnstableEvaluatorQuery,
+  analyticsProperties: (input) => ({
+    evaluatorId: input.evaluatorId,
+  }),
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.evaluators.delete",

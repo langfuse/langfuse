@@ -24,6 +24,13 @@ export const [listCommentsTool, handleListComments] = defineTool({
     "List comments in the current Langfuse project, optionally filtered by object or author.",
   baseSchema: ListCommentsBaseSchema,
   inputSchema: GetCommentsV1Query,
+  analyticsProperties: (input) => ({
+    commentObjectType: input.objectType ?? undefined,
+    commentObjectId: input.objectId ?? undefined,
+    authorUserId: input.authorUserId ?? undefined,
+    page: input.page,
+    limit: input.limit,
+  }),
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.comments.list",

@@ -13,6 +13,9 @@ export const [getAnnotationQueueTool, handleGetAnnotationQueue] = defineTool({
     "Get an annotation queue, a worklist of trace or observation items for human review and scoring, by ID.",
   baseSchema: GetAnnotationQueueByIdQuery,
   inputSchema: GetAnnotationQueueByIdQuery,
+  analyticsProperties: (input) => ({
+    annotationQueueId: input.queueId,
+  }),
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.annotation_queues.get",

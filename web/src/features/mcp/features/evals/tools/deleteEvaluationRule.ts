@@ -13,6 +13,9 @@ export const [deleteEvaluationRuleTool, handleDeleteEvaluationRule] =
       "Delete an evaluation rule by id. This stops the rule from evaluating new items and cannot be undone.",
     baseSchema: DeleteUnstableEvaluationRuleQuery,
     inputSchema: DeleteUnstableEvaluationRuleQuery,
+    analyticsProperties: (input) => ({
+      evaluationRuleId: input.evaluationRuleId,
+    }),
     handler: async (input, context) =>
       runMcpTool({
         spanName: "mcp.evaluation_rules.delete",

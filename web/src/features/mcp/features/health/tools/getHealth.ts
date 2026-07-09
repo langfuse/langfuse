@@ -21,6 +21,10 @@ export const [getHealthTool, handleGetHealth] = defineTool({
     "Check Langfuse API health. Optionally verify database availability and recent trace/observation ingestion.",
   baseSchema: HealthInputSchema,
   inputSchema: HealthInputSchema,
+  analyticsProperties: (input) => ({
+    failIfDatabaseUnavailable: input.failIfDatabaseUnavailable,
+    failIfNoRecentEvents: input.failIfNoRecentEvents,
+  }),
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.health.get",

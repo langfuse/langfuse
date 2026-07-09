@@ -88,6 +88,13 @@ export const [listPromptsTool, handleListPrompts] = defineTool({
   ].join("\n"),
   baseSchema: ListPromptsBaseSchema,
   inputSchema: ListPromptsInputSchema,
+  analyticsProperties: (input) => ({
+    promptName: input.name,
+    promptLabel: input.label,
+    promptTag: input.tag,
+    page: input.page,
+    limit: input.limit,
+  }),
   handler: async (input, context) => {
     return await runMcpTool({
       spanName: "mcp.prompts.list",

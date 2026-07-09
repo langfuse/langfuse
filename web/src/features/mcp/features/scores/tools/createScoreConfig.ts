@@ -36,6 +36,17 @@ export const [createScoreConfigTool, handleCreateScoreConfig] = defineTool({
   baseSchema: CreateScoreConfigBaseSchema,
   inputSchema: CreateScoreConfigInputSchema,
   destructiveHint: true,
+  analyticsProperties: (input) => ({
+    scoreConfigName: input.name,
+    scoreConfigDataType: input.dataType,
+    hasDescription: input.description !== undefined,
+    minValue: "minValue" in input ? (input.minValue ?? undefined) : undefined,
+    maxValue: "maxValue" in input ? (input.maxValue ?? undefined) : undefined,
+    categoricalCategoryCount:
+      "categories" in input && Array.isArray(input.categories)
+        ? input.categories.length
+        : undefined,
+  }),
   handler: async (input, context) => {
     return await runMcpTool({
       spanName: "mcp.score_configs.create",

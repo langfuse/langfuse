@@ -11,6 +11,10 @@ export const [getDatasetRunTool, handleGetDatasetRun] = defineTool({
     "Get a dataset run, one experiment or evaluation execution over a dataset, and its run items by dataset ID and run ID.",
   baseSchema: GetDatasetRunMcpInput,
   inputSchema: GetDatasetRunMcpInput,
+  analyticsProperties: (input) => ({
+    datasetId: input.datasetId,
+    datasetRunId: input.datasetRunId,
+  }),
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.dataset_runs.get",

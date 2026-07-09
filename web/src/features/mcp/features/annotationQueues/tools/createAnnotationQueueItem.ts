@@ -12,6 +12,11 @@ export const [createAnnotationQueueItemTool, handleCreateAnnotationQueueItem] =
       "Add an annotation queue item, one trace or observation to review, to a queue.",
     baseSchema: CreateAnnotationQueueItemToolSchema,
     inputSchema: CreateAnnotationQueueItemToolSchema,
+    analyticsProperties: (input) => ({
+      annotationQueueId: input.queueId,
+      annotationObjectType: input.objectType,
+      hasObjectId: input.objectId.length > 0,
+    }),
     handler: async (input, context) =>
       runMcpTool({
         spanName: "mcp.annotation_queue_items.create",

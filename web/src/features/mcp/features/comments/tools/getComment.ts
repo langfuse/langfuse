@@ -12,6 +12,9 @@ export const [getCommentTool, handleGetComment] = defineTool({
   description: "Get a comment by ID from the current Langfuse project.",
   baseSchema: GetCommentV1Query,
   inputSchema: GetCommentV1Query,
+  analyticsProperties: (input) => ({
+    commentId: input.commentId,
+  }),
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.comments.get",

@@ -27,6 +27,12 @@ export const [createCommentTool, handleCreateComment] = defineTool({
   description: "Create a comment on a trace, observation, session, or prompt.",
   baseSchema: CreateCommentToolBaseSchema,
   inputSchema: CreateCommentToolSchema,
+  analyticsProperties: (input) => ({
+    commentObjectType: input.objectType,
+    commentObjectId: input.objectId,
+    commentLength: input.content.length,
+    authorUserId: input.authorUserId != null ? input.authorUserId : undefined,
+  }),
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.comments.create",

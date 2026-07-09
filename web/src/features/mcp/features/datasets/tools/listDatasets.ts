@@ -11,6 +11,11 @@ export const [listDatasetsTool, handleListDatasets] = defineTool({
     "List datasets, named collections of input and optional expected-output examples for experiments and evaluations. Optionally filter by dataset name to find a dataset ID.",
   baseSchema: GetDatasetsMcpInput,
   inputSchema: GetDatasetsMcpInput,
+  analyticsProperties: (input) => ({
+    datasetName: input.name,
+    page: input.page,
+    limit: input.limit,
+  }),
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.datasets.list",

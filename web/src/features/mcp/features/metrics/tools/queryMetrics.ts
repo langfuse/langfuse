@@ -94,6 +94,17 @@ export const [queryMetricsTool, handleQueryMetrics] = defineTool({
     "Answer analytics questions about the current Langfuse project, such as usage over time, model costs, latency, errors, scores, or grouped breakdowns by environment, trace, observation, model, user, session, tag, or score name.",
   baseSchema: MetricsQueryObjectV2BaseSchema,
   inputSchema: MetricsQueryObjectV2,
+  analyticsProperties: (input) => ({
+    metricsView: input.view,
+    dimensionCount: input.dimensions.length,
+    metricCount: input.metrics.length,
+    filterCount: input.filters.length,
+    hasTimeDimension: input.timeDimension != null,
+    timeGranularity: input.timeDimension?.granularity,
+    orderByCount: input.orderBy?.length,
+    bins: input.config?.bins,
+    rowLimit: input.config?.row_limit,
+  }),
   handler: async (input, context) => {
     return await runMcpTool({
       spanName: "mcp.metrics.query",

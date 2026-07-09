@@ -33,6 +33,16 @@ export const [createDatasetRunItemTool, handleCreateDatasetRunItem] =
       "Create a dataset run item, a result that links one dataset item to a trace or observation in a dataset run.",
     baseSchema: CreateDatasetRunItemBaseSchema,
     inputSchema: PostDatasetRunItemsV1Body,
+    analyticsProperties: (input) => ({
+      datasetItemId: input.datasetItemId,
+      datasetRunName: input.runName,
+      hasRunDescription: input.runDescription != null,
+      hasMetadata: input.metadata != null,
+      observationId: input.observationId ?? undefined,
+      traceId: input.traceId ?? undefined,
+      hasDatasetVersion: input.datasetVersion != null,
+      hasCreatedAt: input.createdAt != null,
+    }),
     handler: async (input, context) =>
       runMcpTool({
         spanName: "mcp.dataset_run_items.create",

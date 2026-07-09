@@ -14,6 +14,12 @@ export const [listAnnotationQueueItemsTool, handleListAnnotationQueueItems] =
       "List annotation queue items, each linking one trace or observation to a queue with a review status, with optional status filtering.",
     baseSchema: GetAnnotationQueueItemsQuery,
     inputSchema: GetAnnotationQueueItemsQuery,
+    analyticsProperties: (input) => ({
+      annotationQueueId: input.queueId,
+      status: input.status,
+      page: input.page,
+      limit: input.limit,
+    }),
     handler: async (input, context) =>
       runMcpTool({
         spanName: "mcp.annotation_queue_items.list",

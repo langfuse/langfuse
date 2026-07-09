@@ -12,6 +12,9 @@ export const [getModelTool, handleGetModel] = defineTool({
   description: "Get a model definition by ID from the current project scope.",
   baseSchema: GetModelV1Query,
   inputSchema: GetModelV1Query,
+  analyticsProperties: (input) => ({
+    modelId: input.modelId,
+  }),
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.models.get",

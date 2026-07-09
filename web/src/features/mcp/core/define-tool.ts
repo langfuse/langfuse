@@ -9,13 +9,32 @@ import { z } from "zod";
 import { wrapErrorHandling } from "./error-formatting";
 import type { ServerContext } from "../types";
 
+export type ToolAnalyticsPropertyValue = string | number | boolean;
+
+export type ToolAnalyticsProperties = Record<
+  string,
+  ToolAnalyticsPropertyValue | undefined
+>;
+
+type ToolAnalyticsExtractor<TInput> = (
+  input: TInput,
+  context: ServerContext,
+) => ToolAnalyticsProperties;
+
 /**
  * Tool handler function type
  */
-export type ToolHandler<TInput> = (
+export type ToolHandler<TInput> = ((
   input: TInput,
   context: ServerContext,
-) => Promise<unknown>;
+) => Promise<unknown>) & {
+  parseInput?: (rawInput: unknown) => TInput;
+  executeParsed?: (input: TInput, context: ServerContext) => Promise<unknown>;
+  getAnalyticsProperties?: (
+    input: TInput,
+    context: ServerContext,
+  ) => ToolAnalyticsProperties;
+};
 
 /**
  * Tool definition options
@@ -35,6 +54,9 @@ export interface DefineToolOptions<TInput, TName extends string = string> {
 
   /** Handler function that executes the tool logic */
   handler: ToolHandler<TInput>;
+
+  /** Optional analytics fields to attach to mcp_tool_call PostHog events */
+  analyticsProperties?: ToolAnalyticsExtractor<TInput>;
 
   /** Hint: This tool only reads data, does not modify anything */
   readOnlyHint?: boolean;
@@ -118,6 +140,7 @@ export function defineTool<TInput, const TName extends string>(
     baseSchema,
     inputSchema,
     handler,
+    analyticsProperties,
     readOnlyHint,
     destructiveHint,
     expensiveHint,
@@ -166,14 +189,30 @@ export function defineTool<TInput, const TName extends string>(
     };
   }
 
+  const parseInput = (rawInput: unknown) => inputSchema.parse(rawInput);
+
   // Wrap handler with validation and error handling
   const wrappedHandler: ToolHandler<TInput> = wrapErrorHandling(
     async (rawInput: unknown, context: ServerContext) => {
       // Validate input with the full schema (including refinements)
-      const validatedInput = inputSchema.parse(rawInput);
+      const validatedInput = parseInput(rawInput);
       return await handler(validatedInput, context);
     },
   );
+
+  wrappedHandler.parseInput = parseInput;
+  wrappedHandler.executeParsed = wrapErrorHandling(
+    async (validatedInput: TInput, context: ServerContext) => {
+      return await handler(validatedInput, context);
+    },
+  );
+
+  if (analyticsProperties) {
+    wrappedHandler.getAnalyticsProperties = (
+      input: TInput,
+      context: ServerContext,
+    ) => analyticsProperties(input, context);
+  }
 
   return [toolDefinition, wrappedHandler];
 }

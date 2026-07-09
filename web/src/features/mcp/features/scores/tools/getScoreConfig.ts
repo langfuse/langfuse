@@ -9,6 +9,9 @@ export const [getScoreConfigTool, handleGetScoreConfig] = defineTool({
     "Fetch one score configuration by ID from the current Langfuse project. Returns the public score config object directly.",
   baseSchema: GetScoreConfigQuery,
   inputSchema: GetScoreConfigQuery,
+  analyticsProperties: (input) => ({
+    scoreConfigId: input.configId,
+  }),
   handler: async (input, context) => {
     return await runMcpTool({
       spanName: "mcp.score_configs.get",

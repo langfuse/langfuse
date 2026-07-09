@@ -13,6 +13,10 @@ export const [listModelsTool, handleListModels] = defineTool({
     "List custom and Langfuse-managed model definitions visible to the current project.",
   baseSchema: GetModelsV1Query,
   inputSchema: GetModelsV1Query,
+  analyticsProperties: (input) => ({
+    page: input.page,
+    limit: input.limit,
+  }),
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.models.list",

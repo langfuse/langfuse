@@ -163,6 +163,15 @@ export const [
     "List example values for a string or boolean observation filter field, such as names, types, levels, environments, model names, tags, users, or sessions. For numeric metric fields, returns a range with min, max, avg, and count. Use the returned cursor to page through long value lists.",
   baseSchema: GetObservationFilterValuesBaseSchema,
   inputSchema: GetObservationFilterValuesBaseSchema,
+  analyticsProperties: (input) => ({
+    filterColumn: input.column,
+    observationType: input.observationType,
+    hasParentObservation: input.hasParentObservation,
+    limit: input.limit,
+    hasCursor: input.cursor !== undefined,
+    fromStartTime: input.fromStartTime,
+    toStartTime: input.toStartTime,
+  }),
   handler: async (input, context) => {
     return await runMcpTool({
       spanName: "mcp.observations.filterValues",

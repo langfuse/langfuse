@@ -13,6 +13,9 @@ export const [getEvaluatorTool, handleGetEvaluator] = defineTool({
     "Fetch a single evaluator by id, including its prompt or source code, output definition, and how many evaluation rules reference it.",
   baseSchema: GetUnstableEvaluatorQuery,
   inputSchema: GetUnstableEvaluatorQuery,
+  analyticsProperties: (input) => ({
+    evaluatorId: input.evaluatorId,
+  }),
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.evaluators.get",

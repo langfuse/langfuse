@@ -74,6 +74,18 @@ export const createPromptReadTool = <const TName extends string>(
     description,
     baseSchema: PromptReadBaseSchema,
     inputSchema: PromptReadInputSchema,
+    analyticsProperties: (input) => {
+      const effectiveLabel = input.version
+        ? input.label
+        : (input.label ?? LATEST_PROMPT_LABEL);
+
+      return {
+        promptName: input.name,
+        promptLabel: effectiveLabel,
+        promptVersion: input.version ?? undefined,
+        resolvePromptReferences: resolve,
+      };
+    },
     handler: async (input, context) => {
       const effectiveLabel = input.version
         ? input.label

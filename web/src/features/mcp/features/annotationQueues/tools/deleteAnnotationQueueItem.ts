@@ -13,6 +13,10 @@ export const [deleteAnnotationQueueItemTool, handleDeleteAnnotationQueueItem] =
       "Remove an annotation queue item, the queued trace or observation, from a queue.",
     baseSchema: DeleteAnnotationQueueItemQuery,
     inputSchema: DeleteAnnotationQueueItemQuery,
+    analyticsProperties: (input) => ({
+      annotationQueueId: input.queueId,
+      annotationQueueItemId: input.itemId,
+    }),
     handler: async (input, context) =>
       runMcpTool({
         spanName: "mcp.annotation_queue_items.delete",

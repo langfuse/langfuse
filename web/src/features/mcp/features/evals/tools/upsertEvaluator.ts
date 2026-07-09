@@ -48,6 +48,16 @@ export const [upsertEvaluatorTool, handleUpsertEvaluator] = defineTool({
   ].join(" "),
   baseSchema: UpsertEvaluatorBaseSchema,
   inputSchema: PostUnstableEvaluatorBody,
+  analyticsProperties: (input) => ({
+    evaluatorName: input.name,
+    evaluatorType: input.type,
+    hasPrompt: input.prompt !== undefined,
+    hasModel: input.modelConfig?.model !== undefined,
+    hasModelConfig: input.modelConfig !== undefined,
+    hasOutputDefinition: input.outputDefinition !== undefined,
+    hasSourceCode: input.sourceCode !== undefined,
+    sourceCodeLanguage: input.sourceCodeLanguage,
+  }),
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.evaluators.upsert",
