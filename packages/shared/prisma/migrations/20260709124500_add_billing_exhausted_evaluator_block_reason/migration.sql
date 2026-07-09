@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "EvaluatorBlockReason" ADD VALUE 'LLM_CONNECTION_BILLING_EXHAUSTED';

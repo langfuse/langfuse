@@ -28,6 +28,8 @@ const getReasonSummary = (blockReason: EvaluatorBlockReason) => {
   switch (blockReason) {
     case EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID:
       return "LLM authentication failed";
+    case EvaluatorBlockReason.LLM_CONNECTION_BILLING_EXHAUSTED:
+      return "LLM provider credits exhausted";
     case EvaluatorBlockReason.LLM_CONNECTION_MISSING:
       return "LLM connection missing";
     case EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING:
@@ -51,6 +53,16 @@ const getResolutionSteps = (blockReason: EvaluatorBlockReason) => {
           Connections
           <br />
           • Save the corrected connection
+          <br />• Reactivate the paused evaluator
+        </>
+      );
+    case EvaluatorBlockReason.LLM_CONNECTION_BILLING_EXHAUSTED:
+      return (
+        <>
+          • Add credits or raise the spend limit in your LLM provider account
+          <br />
+          • Check which connection is affected in Project Settings → LLM
+          Connections
           <br />• Reactivate the paused evaluator
         </>
       );
