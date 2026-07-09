@@ -7,7 +7,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -35,6 +35,29 @@ import { type Prisma } from "@langfuse/shared";
  * 2. From an existing dataset item: Creates a new dataset item based on an existing one
  *    (requires fromDatasetId) -> isCopyItem
  */
+const normalizePrefillValue = (
+  value: Prisma.JsonValue | null,
+): Prisma.JsonValue | null => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  // metadata arrives as a serialized JSON string (the client envelope);
+  // input/output may already be native objects (from the trace query cache).
+  // Unwrap an outer JSON string first so the envelope doesn't consume
+  // deepParseJson's depth budget, clone native objects so we never mutate the
+  // shared query cache, then recursively parse nested stringified-JSON leaves
+  // (e.g. OTLP attributes stored as JSON strings) into native, editable JSON —
+  // matching how the trace/observation viewer renders the same data.
+  const unwrapped =
+    typeof value === "string" ? parseJsonPrioritised(value) : value;
+  const root =
+    unwrapped && typeof unwrapped === "object"
+      ? structuredClone(unwrapped)
+      : unwrapped;
+  return deepParseJson(root) as Prisma.JsonValue;
+};
+
 export const NewDatasetItemFromExistingObject = (props: {
   projectId: string;
   traceId?: string;
@@ -47,32 +70,20 @@ export const NewDatasetItemFromExistingObject = (props: {
   buttonVariant?: ButtonProps["variant"];
   size?: ButtonProps["size"];
 }) => {
-  const normalizePrefillValue = (
-    value: Prisma.JsonValue | null,
-  ): Prisma.JsonValue | null => {
-    if (value === null || value === undefined) {
-      return null;
-    }
-
-    // metadata arrives as a serialized JSON string (the client envelope);
-    // input/output may already be native objects (from the trace query cache).
-    // Unwrap an outer JSON string first so the envelope doesn't consume
-    // deepParseJson's depth budget, clone native objects so we never mutate the
-    // shared query cache, then recursively parse nested stringified-JSON leaves
-    // (e.g. OTLP attributes stored as JSON strings) into native, editable JSON —
-    // matching how the trace/observation viewer renders the same data.
-    const unwrapped =
-      typeof value === "string" ? parseJsonPrioritised(value) : value;
-    const root =
-      unwrapped && typeof unwrapped === "object"
-        ? structuredClone(unwrapped)
-        : unwrapped;
-    return deepParseJson(root) as Prisma.JsonValue;
-  };
-
-  const parsedInput = normalizePrefillValue(props.input);
-  const parsedOutput = normalizePrefillValue(props.output);
-  const parsedMetadata = normalizePrefillValue(props.metadata);
+  // The clone + deep-parse in normalizePrefillValue is expensive, so only re-run
+  // it when the underlying prop changes rather than on every parent render.
+  const parsedInput = useMemo(
+    () => normalizePrefillValue(props.input),
+    [props.input],
+  );
+  const parsedOutput = useMemo(
+    () => normalizePrefillValue(props.output),
+    [props.output],
+  );
+  const parsedMetadata = useMemo(
+    () => normalizePrefillValue(props.metadata),
+    [props.metadata],
+  );
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
