@@ -200,7 +200,10 @@ describe("AI SDK request shapes", () => {
         model: "gpt-4o",
         max_tokens: 128,
         temperature: 0.2,
-        providerOptions: { reasoning_effort: "high" },
+        providerOptions: {
+          reasoning_effort: "high",
+          prompt_cache_key: "eval-project-1",
+        },
       },
       apiKey: "sk-test",
       response: OPENAI_CHAT_RESPONSE,
@@ -211,6 +214,7 @@ describe("AI SDK request shapes", () => {
     expect(request.headers.get("authorization")).toBe("Bearer sk-test");
     expect(request.body.model).toBe("gpt-4o");
     expect(request.body.reasoning_effort).toBe("high");
+    expect(request.body.prompt_cache_key).toBe("eval-project-1");
     expect(request.body.temperature).toBe(0.2);
     expect(request.body.max_tokens).toBe(128);
     expect(request.body.messages).toEqual([

@@ -58,6 +58,7 @@ const OPENAI_PROVIDER_OPTION_KEY_MAP: Record<string, string> = {
   max_completion_tokens: "maxCompletionTokens",
   text_verbosity: "textVerbosity",
   verbosity: "textVerbosity",
+  prompt_cache_key: "promptCacheKey",
   store: "store",
   user: "user",
   // camelCase (already AI SDK-shaped)
@@ -67,6 +68,7 @@ const OPENAI_PROVIDER_OPTION_KEY_MAP: Record<string, string> = {
   logitBias: "logitBias",
   maxCompletionTokens: "maxCompletionTokens",
   textVerbosity: "textVerbosity",
+  promptCacheKey: "promptCacheKey",
 };
 
 export function translateOpenAIProviderOptions(
