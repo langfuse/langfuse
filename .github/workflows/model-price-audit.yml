@@ -167,22 +167,20 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Exclude local Claude observability plugin checkout from audit diff
+      - name: Checkout Claude observability plugin
         if: steps.validate-inputs.outputs.dry_run_mode == 'disabled'
+        env:
+          PLUGIN_COMMIT: 9ad0076a7a24e8673ac6e7ac6f7b658b18826bb6
         run: |
           set -euo pipefail
 
-          echo ".github/actions/claude-observability-plugin/" >> .git/info/exclude
-
-      - name: Checkout Claude observability plugin
-        if: steps.validate-inputs.outputs.dry_run_mode == 'disabled'
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          repository: langfuse/Claude-Observability-Plugin
-          ref: 9ad0076a7a24e8673ac6e7ac6f7b658b18826bb6
-          path: .github/actions/claude-observability-plugin
-          fetch-depth: 1
-          persist-credentials: false
+          # Clone outside the workspace so the plugin files never show up in
+          # the audit diff that guards the allowed edit surface.
+          plugin_dir="$RUNNER_TEMP/claude-observability-plugin"
+          git clone --no-checkout --depth 1 \
+            https://github.com/langfuse/Claude-Observability-Plugin.git "$plugin_dir"
+          git -C "$plugin_dir" fetch --depth 1 origin "$PLUGIN_COMMIT"
+          git -C "$plugin_dir" checkout "$PLUGIN_COMMIT"
 
       - name: Install uv
         if: steps.validate-inputs.outputs.dry_run_mode == 'disabled'
@@ -212,7 +210,7 @@ jobs:
           fi
 
           # Pre-warm the uv cache so the first Stop hook does not spend its timeout budget resolving dependencies.
-          uv run --quiet --script .github/actions/claude-observability-plugin/hooks/langfuse_hook.py < /dev/null || true
+          uv run --quiet --script "$RUNNER_TEMP/claude-observability-plugin/hooks/langfuse_hook.py" < /dev/null || true
 
       - name: Run Claude price audit
         id: claude-audit
@@ -243,7 +241,7 @@ jobs:
                     "hooks": [
                       {
                         "type": "command",
-                        "command": "uv run --quiet --script ${{ github.workspace }}/.github/actions/claude-observability-plugin/hooks/langfuse_hook.py"
+                        "command": "uv run --quiet --script ${{ runner.temp }}/claude-observability-plugin/hooks/langfuse_hook.py"
                       }
                     ]
                   }
@@ -253,7 +251,7 @@ jobs:
                     "hooks": [
                       {
                         "type": "command",
-                        "command": "uv run --quiet --script ${{ github.workspace }}/.github/actions/claude-observability-plugin/hooks/langfuse_hook.py"
+                        "command": "uv run --quiet --script ${{ runner.temp }}/claude-observability-plugin/hooks/langfuse_hook.py"
                       }
                     ]
                   }
