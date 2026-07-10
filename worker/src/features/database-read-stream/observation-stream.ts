@@ -24,6 +24,7 @@ import {
   convertEventsObservation,
   shouldSkipObservationsFinal,
   EventsQueryBuilder,
+  eventSearchCondition,
   eventsScoresAggregation,
   scoreBooleansAggregation,
 } from "@langfuse/shared/src/server";
@@ -34,7 +35,6 @@ import {
   prepareScoresForOutput,
 } from "./getDatabaseReadStream";
 import { fetchCommentsForExport } from "./fetchCommentsForExport";
-import { eventSearchCondition } from "./event-stream";
 
 const DEFAULT_BATCH_SIZE = 1000;
 const REDUCED_BATCH_SIZE = 200; // Smaller batch for JSON/JSONL which hold parsed objects in memory
