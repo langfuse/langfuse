@@ -1,3 +1,11 @@
+import { vi } from "vitest";
+
+// requireV4Writes 404s the monitors routes under the default legacy write mode;
+// env is parsed at module load, so force a passing mode before any import.
+vi.hoisted(() => {
+  process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+});
+
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { entitlementAccess } from "@/src/features/entitlements/constants/entitlements";
