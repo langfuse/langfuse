@@ -59,6 +59,12 @@ type MappedFilters = {
   whereRawParts: RawSqlPart[];
 };
 
+// Exploded array dimensions (tags, toolNames) have unbounded cardinality — a
+// project can carry thousands of distinct tags, and grouping by all of them is
+// both a perf hazard and unreadable in a chart. Chart queries are hard-capped
+// at this many buckets; pivot tables keep their explicit row_limit.
+const EXPLODED_DIMENSION_MAX_BUCKETS = 25;
+
 const isQueryArrayDimensionType = (dimensionType: string | undefined) =>
   dimensionType === "string[]" || dimensionType === "arrayString";
 
@@ -119,13 +125,13 @@ type AppliedBucketingDimension =
     };
 
 export class QueryBuilder {
-  private chartConfig?: { bins?: number; row_limit?: number };
+  private chartConfig?: { type?: string; bins?: number; row_limit?: number };
   private version: ViewVersion;
   private rootEventConditionMaxWindowHours: number =
     env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
 
   constructor(
-    chartConfig?: { bins?: number; row_limit?: number },
+    chartConfig?: { type?: string; bins?: number; row_limit?: number },
     version: ViewVersion = "v1",
   ) {
     this.chartConfig = chartConfig;
@@ -1311,11 +1317,64 @@ export class QueryBuilder {
 
   /**
    * Builds a LIMIT clause for the query if row_limit is specified in chartConfig.
+   *
+   * Non-timeseries queries over an exploded array dimension always get a
+   * limit: charts are hard-capped at EXPLODED_DIMENSION_MAX_BUCKETS, pivot
+   * tables keep an explicit row_limit (tables scroll; the cap is a chart
+   * readability number). Timeseries queries are capped per-series instead
+   * (buildSeriesCapClause) — a row LIMIT would truncate the time axis.
    */
-  private buildLimitClause(): string {
-    const rowLimit = this.chartConfig?.row_limit;
+  private buildLimitClause(hasUncappedExplodedDimension = false): string {
+    let rowLimit = this.chartConfig?.row_limit;
+    if (hasUncappedExplodedDimension) {
+      rowLimit =
+        this.chartConfig?.type === "PIVOT_TABLE"
+          ? (rowLimit ?? EXPLODED_DIMENSION_MAX_BUCKETS)
+          : Math.min(
+              rowLimit ?? EXPLODED_DIMENSION_MAX_BUCKETS,
+              EXPLODED_DIMENSION_MAX_BUCKETS,
+            );
+    }
     if (!rowLimit) return "";
     return `LIMIT ${rowLimit}`;
+  }
+
+  /**
+   * Caps a timeseries breakdown over exploded array dimensions to the top
+   * EXPLODED_DIMENSION_MAX_BUCKETS series, ranked by the first metric
+   * aggregated over the whole window. Emitted as a HAVING clause on the outer
+   * SELECT (the exploded alias is a group key there in both the
+   * inner-exploded and the aggregationFunction outer-exploded shapes).
+   */
+  private buildSeriesCapClause(
+    explodedDimensions: AppliedDimensionType[],
+    innerQuery: string,
+    appliedMetrics: AppliedMetricType[],
+  ): string {
+    if (explodedDimensions.length === 0) return "";
+
+    const rankSql =
+      appliedMetrics.length > 0
+        ? this.translateAggregation(appliedMetrics[0])
+        : "count(*)";
+
+    const conditions = explodedDimensions.map((dimension) => {
+      const alias = dimension.alias ?? dimension.sql;
+      // Inner-exploded dimensions are already scalar in the inner rows;
+      // aggregationFunction dimensions carry the aggregated array and explode
+      // here with the same (restriction-aware) expression as the outer SELECT.
+      const selectPart = dimension.aggregationFunction
+        ? this.buildExplodedSelectPart(dimension, alias)
+        : `${alias} as ${alias}`;
+      return `${alias} IN (
+        SELECT ${selectPart}
+        FROM (${innerQuery})
+        GROUP BY ${alias}
+        ORDER BY ${rankSql} DESC
+        LIMIT ${EXPLODED_DIMENSION_MAX_BUCKETS})`;
+    });
+
+    return `HAVING ${conditions.join(" AND ")}`;
   }
 
   private buildOuterSelect(
@@ -1323,6 +1382,7 @@ export class QueryBuilder {
     outerMetricsPart: string,
     innerQuery: string,
     groupByClause: string,
+    havingClause: string,
     orderByClause: string,
     withFillClause: string,
     limitClause: string,
@@ -1333,6 +1393,7 @@ export class QueryBuilder {
         ${outerMetricsPart}
       FROM (${innerQuery})
       ${groupByClause}
+      ${havingClause}
       ${orderByClause}
       ${withFillClause}
       ${limitClause}`;
@@ -1728,10 +1789,19 @@ export class QueryBuilder {
       }
     }
 
+    // Exploded array dimensions have unbounded cardinality and always get a
+    // bucket cap: a series cap for timeseries (HAVING on the outer SELECT —
+    // requires the two-level shape), a row LIMIT otherwise.
+    const explodedDimensions = appliedDimensions.filter((d) => d.explodeArray);
+    const needsSeriesCap =
+      explodedDimensions.length > 0 &&
+      appliedBucketingDimension.type === "time";
+
     // Check if single-level optimization is applicable
     // Note: Relation tables are OK as long as measures have aggs configuration
     const canOptimize =
       enableSingleLevelOptimization &&
+      !needsSeriesCap &&
       this.canUseSingleLevelQuery(appliedDimensions, appliedMetrics);
 
     // Build GROUP BY clause (used by both single-level and two-level queries)
@@ -1761,7 +1831,9 @@ export class QueryBuilder {
     );
 
     // Build LIMIT clause for row limiting
-    const limitClause = this.buildLimitClause();
+    const limitClause = this.buildLimitClause(
+      explodedDimensions.length > 0 && !needsSeriesCap,
+    );
 
     // Build final query - branch based on optimization
     let sql: string;
@@ -1804,11 +1876,20 @@ export class QueryBuilder {
       );
       const outerMetricsPart = this.buildOuterMetricsPart(appliedMetrics);
 
+      const havingClause = needsSeriesCap
+        ? this.buildSeriesCapClause(
+            explodedDimensions,
+            innerQuery,
+            appliedMetrics,
+          )
+        : "";
+
       sql = this.buildOuterSelect(
         outerDimensionsPart,
         outerMetricsPart,
         innerQuery,
         groupByClause,
+        havingClause,
         orderByClause,
         withFillClause,
         limitClause,

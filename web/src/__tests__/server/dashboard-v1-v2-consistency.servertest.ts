@@ -2112,5 +2112,69 @@ describe("dashboard v1 vs v2 consistency", () => {
         "tag-b": 1,
       });
     });
+
+    it("traces view: timeseries breakdown is capped to the top 25 series", async () => {
+      const org = await createOrgProjectAndApiKey();
+      const capProjectId = org.projectId;
+
+      const baseTime = new Date("2024-06-15T12:00:00Z").getTime();
+      const baseTimeUs = baseTime * 1000;
+
+      // 26 single-trace tags + one "popular" tag on 3 traces = 27 tags.
+      const mkRootEvent = (tag: string, i: number) => {
+        const traceId = v4();
+        const rootId = `t-${traceId}`;
+        const startUs = baseTimeUs + i * 1_000_000;
+        return createEvent({
+          id: rootId,
+          span_id: rootId,
+          trace_id: traceId,
+          project_id: capProjectId,
+          parent_span_id: "",
+          name: `cap-trace-${i}`,
+          type: "SPAN",
+          trace_name: `cap-trace-${i}`,
+          tags: [tag],
+          environment: "default",
+          start_time: startUs,
+          end_time: startUs + 500_000,
+          created_at: startUs,
+          updated_at: startUs + 500_000,
+          event_ts: startUs,
+        });
+      };
+
+      const events = [
+        ...Array.from({ length: 26 }, (_, i) =>
+          mkRootEvent(`bulk-${String(i).padStart(2, "0")}`, i),
+        ),
+        ...Array.from({ length: 3 }, (_, i) => mkRootEvent("popular", 26 + i)),
+      ];
+      await createEventsCh(events);
+
+      const result = await executeQuery(
+        capProjectId,
+        {
+          view: "traces",
+          dimensions: [{ field: "tags" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          timeDimension: { granularity: "day" },
+          filters: [],
+          orderBy: null,
+          fromTimestamp: new Date(baseTime - 24 * 60 * 60 * 1000).toISOString(),
+          toTimestamp: new Date(baseTime + 60 * 60 * 1000).toISOString(),
+          chartConfig: { type: "LINE_TIME_SERIES" },
+        },
+        "v2",
+        true,
+      );
+
+      // WITH FILL emits empty-dimension bucket markers; ignore them.
+      const seriesTags = new Set(
+        result.map((r) => r.tags).filter((tag) => tag !== "" && tag != null),
+      );
+      expect(seriesTags.size).toBe(25);
+      expect(seriesTags.has("popular")).toBe(true);
+    });
   });
 });

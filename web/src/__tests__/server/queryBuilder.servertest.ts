@@ -747,6 +747,123 @@ describe("queryBuilder", () => {
         });
       });
 
+      describe("exploded breakdown bucket cap", () => {
+        const seedTracesWithUniqueTags = async (
+          projectId: string,
+          tagCount: number,
+        ) => {
+          const traces = [];
+          for (let i = 0; i < tagCount; i++) {
+            traces.push(
+              createTrace({
+                project_id: projectId,
+                name: `trace-${i}`,
+                tags: [`tag-${String(i).padStart(2, "0")}`],
+                timestamp: new Date().getTime(),
+              }),
+            );
+          }
+          await createTracesCh(traces);
+        };
+
+        const capQuery = (
+          chartConfig: QueryType["chartConfig"],
+          timeDimension: QueryType["timeDimension"] = null,
+        ): QueryType => ({
+          view: "traces",
+          dimensions: [{ field: "tags" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [],
+          timeDimension,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+          chartConfig,
+        });
+
+        it("caps a chart breakdown at 25 buckets when no row_limit is set", async () => {
+          const projectId = randomUUID();
+          await seedTracesWithUniqueTags(projectId, 30);
+
+          const result = await executeQuery(
+            projectId,
+            capQuery({ type: "HORIZONTAL_BAR" }),
+          );
+
+          expect(result).toHaveLength(25);
+        });
+
+        it("clamps an explicit chart row_limit to 25", async () => {
+          const projectId = randomUUID();
+          await seedTracesWithUniqueTags(projectId, 30);
+
+          const result = await executeQuery(
+            projectId,
+            capQuery({ type: "HORIZONTAL_BAR", row_limit: 100 }),
+          );
+
+          expect(result).toHaveLength(25);
+        });
+
+        it("keeps an explicit pivot table row_limit above 25", async () => {
+          const projectId = randomUUID();
+          await seedTracesWithUniqueTags(projectId, 30);
+
+          const result = await executeQuery(
+            projectId,
+            capQuery({ type: "PIVOT_TABLE", row_limit: 28 }),
+          );
+
+          expect(result).toHaveLength(28);
+        });
+
+        it("caps a timeseries breakdown to the top 25 series", async () => {
+          const projectId = randomUUID();
+          const traces = [];
+          // 26 single-trace tags + one "popular" tag on 3 traces = 27 tags
+          for (let i = 0; i < 26; i++) {
+            traces.push(
+              createTrace({
+                project_id: projectId,
+                name: `bulk-trace-${i}`,
+                tags: [`bulk-${String(i).padStart(2, "0")}`],
+                timestamp: new Date().getTime(),
+              }),
+            );
+          }
+          for (let i = 0; i < 3; i++) {
+            traces.push(
+              createTrace({
+                project_id: projectId,
+                name: `popular-trace-${i}`,
+                tags: ["popular"],
+                timestamp: new Date().getTime(),
+              }),
+            );
+          }
+          await createTracesCh(traces);
+
+          const result = await executeQuery(
+            projectId,
+            capQuery({ type: "LINE_TIME_SERIES" }, { granularity: "day" }),
+          );
+
+          // WITH FILL emits empty-dimension bucket markers; ignore them.
+          const seriesTags = new Set(
+            result
+              .map((row: any) => row.tags)
+              .filter((tag: unknown) => tag !== "" && tag != null),
+          );
+          expect(seriesTags.size).toBe(25);
+          // The highest-count series must survive the cap.
+          expect(seriesTags.has("popular")).toBe(true);
+        });
+      });
+
       it("should filter traces by tags using 'any of' operator", async () => {
         // Setup
         const projectId = randomUUID();
