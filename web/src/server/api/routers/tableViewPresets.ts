@@ -114,7 +114,7 @@ export const TableViewPresetsRouter = createTRPCRouter({
       // System presets are frontend-defined and have no table_view_presets row.
       // Treat their deletion as an idempotent no-op without clearing defaults.
       if (isSystemTableViewPresetId(input.tableViewPresetsId)) {
-        return { success: true };
+        return;
       }
 
       // Keep deletion idempotent so stale clients can safely repeat it.
@@ -134,10 +134,6 @@ export const TableViewPresetsRouter = createTRPCRouter({
           },
         });
       });
-
-      return {
-        success: true,
-      };
     }),
 
   getByTableName: protectedProjectProcedure

@@ -86,12 +86,12 @@ describe("table view presets tRPC", () => {
       tableViewPresetsId: preset.id,
     };
 
-    await expect(caller.TableViewPresets.delete(input)).resolves.toEqual({
-      success: true,
-    });
-    await expect(caller.TableViewPresets.delete(input)).resolves.toEqual({
-      success: true,
-    });
+    await expect(
+      caller.TableViewPresets.delete(input),
+    ).resolves.toBeUndefined();
+    await expect(
+      caller.TableViewPresets.delete(input),
+    ).resolves.toBeUndefined();
 
     await expect(
       prisma.tableViewPreset.count({ where: { id: preset.id, projectId } }),
@@ -130,7 +130,7 @@ describe("table view presets tRPC", () => {
         projectId,
         tableViewPresetsId: systemPresetId,
       }),
-    ).resolves.toEqual({ success: true });
+    ).resolves.toBeUndefined();
 
     await expect(
       prisma.defaultView.count({
@@ -156,7 +156,7 @@ describe("table view presets tRPC", () => {
         projectId,
         tableViewPresetsId: missingPresetId,
       }),
-    ).resolves.toEqual({ success: true });
+    ).resolves.toBeUndefined();
 
     await expect(
       prisma.defaultView.count({
