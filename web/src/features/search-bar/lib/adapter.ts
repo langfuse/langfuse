@@ -33,6 +33,15 @@ import {
 } from "./fields";
 import { quoteIfNeeded } from "./quoting";
 
+/**
+ * Emitted when a top-level OR between conditions can't collapse to a same-field
+ * any-of (the PARKED cross-field-OR feature, LFE-10421). Exported so the
+ * analytics error classifier can match this exact cause without brittle string
+ * fragments (LFE-10781 `filters:search_error` → reason `unsupported_or`).
+ */
+export const OR_NOT_SUPPORTED_MESSAGE =
+  "OR is not supported yet, filters combine with AND. Use field:(a OR b) for any-of values";
+
 export type SingleEventsFilter = FilterState[number];
 
 export type AstToFilterStateResult = {
@@ -207,9 +216,7 @@ function lowerTopLevel(
         lowerFilterNode(collapsed, negated, ctx);
         return;
       }
-      ctx.errors.push(
-        "OR is not supported yet, filters combine with AND. Use field:(a OR b) for any-of values",
-      );
+      ctx.errors.push(OR_NOT_SUPPORTED_MESSAGE);
       return;
     }
     case "filter":

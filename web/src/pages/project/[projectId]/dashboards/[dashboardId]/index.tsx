@@ -610,6 +610,10 @@ export default function DashboardDetail() {
                 columns={filterColumns}
                 filterState={currentFilters}
                 onChange={setCurrentFilters}
+                // Analytics (LFE-10781): custom dashboard filter — a v3/legacy
+                // surface (not the v4 events table).
+                tableName="dashboard"
+                isV4={false}
               />
             </>
           ),

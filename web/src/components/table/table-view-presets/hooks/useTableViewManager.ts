@@ -20,6 +20,26 @@ import { validateOrderBy, validateFilters } from "../validation";
 import { isSystemPresetId } from "../components/data-table-view-presets-drawer";
 import type { FilterStateMigration } from "@/src/features/filters/lib/filter-config";
 
+/** How a saved view / preset apply was initiated — the `trigger` analytics
+ * dimension on `saved_views:applied` (LFE-10781). `system_preset_cleared` is a
+ * v4 category-chip toggle-off (applies the cleared/default state). */
+export type SavedViewApplyTrigger =
+  | "select"
+  | "permalink"
+  | "default"
+  | "system_preset"
+  | "system_preset_cleared";
+
+export type SavedViewApplyMeta = {
+  trigger: SavedViewApplyTrigger;
+  viewId?: string | null;
+};
+
+export type ApplyViewStateFn = (
+  viewData: TableViewPresetState,
+  meta?: SavedViewApplyMeta,
+) => void;
+
 interface TableStateUpdaters {
   setColumnOrder: (columnOrder: string[]) => void;
   setColumnVisibility: (columnVisibility: VisibilityState) => void;
@@ -254,9 +274,13 @@ export function useTableViewManager({
     setSelectedViewId,
   ]);
 
+  // v4 fast-mode surface iff this manager drives the events table. Drives the
+  // `isV4` dimension on `saved_views:applied` (LFE-10781).
+  const isV4 = tableName === TableViewPresetTableName.ObservationsEvents;
+
   // Method to apply state from a view
   const applyViewState = useCallback(
-    (viewData: TableViewPresetState) => {
+    (viewData: TableViewPresetState, meta?: SavedViewApplyMeta) => {
       // lock table
       setIsLoading(true);
 
@@ -364,8 +388,25 @@ export function useTableViewManager({
       // synchronous and the URL becomes the source of truth for the applied
       // filters on the same render. Unlock deterministically here instead.
       setIsLoading(false);
+
+      // Analytics (LFE-10781): a saved view / preset was applied. METADATA ONLY
+      // — we send the view id + filter COUNT, never the filter values. Fires for
+      // every apply path, including the programmatic default/session restore the
+      // drawer's own captures miss. `trigger` classifies the entry point.
+      if (meta) {
+        capture("saved_views:applied", {
+          tableName,
+          viewId: meta.viewId ?? null,
+          trigger: meta.trigger,
+          filterCount: validFilters.length,
+          isV4,
+        });
+      }
     },
     [
+      capture,
+      tableName,
+      isV4,
       setColumnOrder,
       setColumnVisibility,
       validationContext,
@@ -424,6 +465,14 @@ export function useTableViewManager({
       return;
     }
 
+    // Wait for the default-view query to resolve before applying, so the
+    // trigger is classified correctly. `getDefault` and `getById` race with no
+    // ordering; if `getById` wins (cold cache, a bookmark of the default view,
+    // session-restore), `defaultViewId` is still undefined here and a
+    // default-view restore would be mislabeled `permalink` — permanently, since
+    // the `isInitializedRef` guard makes this a one-shot (LFE-10781 review).
+    if (isDefaultLoading) return;
+
     // Track permalink visit
     capture("saved_views:permalink_visit", {
       tableName,
@@ -431,7 +480,14 @@ export function useTableViewManager({
       name: selectedViewData.name,
     });
 
-    applyViewState(selectedViewData);
+    // This single programmatic-restore effect covers URL permalinks, session
+    // restore, and the resolved default view. Classify as "default" when the
+    // applied view is the resolved default, else treat as a "permalink"
+    // (deep-link / session-restore) entry (LFE-10781).
+    applyViewState(selectedViewData, {
+      trigger: requestedViewId === defaultViewId ? "default" : "permalink",
+      viewId: requestedViewId,
+    });
     if (storedViewId !== requestedViewId) {
       setStoredViewId(requestedViewId);
     }
@@ -449,6 +505,8 @@ export function useTableViewManager({
     applyViewState,
     storedViewId,
     setStoredViewId,
+    defaultViewId,
+    isDefaultLoading,
   ]);
 
   useEffect(() => {
