@@ -112,8 +112,47 @@ worker picks up the job and sets `runStartedAt`.
 | File | Role |
 |---|---|
 | `deriveSyncStatus.ts` | Derives display status from DB fields |
-| `types.ts` | `BlobStorageSyncStatus` type |
+| `types.ts` | Form zod schema, `BlobStorageSyncStatus` type |
+| `exportSource.ts` | Export-source availability/options helpers (pure) |
 | `service.ts` | Upsert logic (web save path) |
 | `blobstorage-integration-router.ts` | tRPC router (save, runNow) |
 | `worker/src/features/blobstorage/handleBlobStorageIntegrationProjectJob.ts` | Worker job handler |
 | `worker/src/features/blobstorage/handleBlobStorageIntegrationSchedule.ts` | Scheduler (enqueues due jobs) |
+
+## UI Owner Map
+
+**Surface**: Project Settings → Integrations → Blob Storage — export
+configuration form plus sync status display.
+
+**Entry point**:
+`web/src/pages/project/[projectId]/settings/integrations/blobstorage.tsx`
+owns the lifecycle: the tRPC `get` query (with status-driven refetch
+interval), the sync-status badge, and page layout. It mounts the two
+feature components below.
+
+**Structure** (`components/`):
+
+| File | Role |
+|---|---|
+| `BlobStorageIntegrationForm.tsx` | Form shell: availability + schema, `useForm`, mutations, submit, action buttons |
+| `formValues.ts` | Pure `buildBlobStorageFormValues()` + shared `BlobStorageFormControl` type |
+| `StorageProviderFields.tsx` | Provider select + provider-dependent connection fields |
+| `ExportScheduleFields.tsx` | Frequency, file type, export mode, custom start date |
+| `ExportSourceField.tsx` | Source selector + blocked-save alert (LFE-10296) |
+| `ExportFieldGroupsField.tsx` | Field-group checkboxes |
+| `GzipCompressionField.tsx` | Gzip toggle; self-hides for Parquet |
+| `BlobStorageStatusSection.tsx` | Status header, last-error alert, sync card |
+
+**External consumers**: none — the components are only mounted by the
+settings page above.
+
+**State ownership**: server state lives in the tRPC query (page); form
+state lives in react-hook-form, created in the form shell and re-synced
+from server state via the reactive `values` option with
+`keepDirtyValues` (no reset effect). Field-group components receive the
+typed `control` prop and subscribe to individual fields with `useWatch`;
+there is no local Zustand store and no feature `useEffect`.
+
+**Performance boundaries**: a keystroke or select change rerenders only
+the field-group component watching that field. The form shell reads no
+field values, so it only rerenders on mutation/loading state changes.
