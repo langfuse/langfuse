@@ -68,6 +68,12 @@ import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { env, v4AllowPreviewOptIn } from "../../env";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
+import {
+  buildBlobExportManifest,
+  buildBlobExportManifestKey,
+  formatBlobExportTimestamp,
+  type BlobExportManifestFile,
+} from "./manifest";
 
 export const BlobExportFormat = {
   JSON_RAW: "json-raw",
@@ -312,6 +318,36 @@ const createRawJsonlNewlineTransform = (): Transform =>
     },
   });
 
+// Shared connection config for every object written by a run (table files and
+// the run-completion manifest). KMS SSE is not supported for this integration.
+type BlobStorageConnectionConfig = {
+  bucketName: string;
+  endpoint: string | null;
+  region: string;
+  accessKeyId: string | undefined;
+  secretAccessKey: string | undefined;
+  forcePathStyle?: boolean;
+  type: BlobStorageIntegrationType;
+};
+
+const createBlobStorageService = (
+  config: BlobStorageConnectionConfig,
+): StorageService =>
+  StorageServiceFactory.getInstance({
+    accessKeyId: config.accessKeyId,
+    secretAccessKey: config.secretAccessKey,
+    bucketName: config.bucketName,
+    endpoint: config.endpoint ?? undefined,
+    region: config.region,
+    forcePathStyle: config.forcePathStyle ?? false,
+    awsSse: undefined,
+    awsSseKmsKeyId: undefined,
+    useAzureBlob: config.type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE,
+    useGoogleCloudStorage: false, // Not supported in blob storage integration
+    useOCIObjectStorage: false, // Not supported in blob storage integration
+    connectionValidation: blobStorageEndpointConnectionValidationOptions(),
+  });
+
 const processBlobStorageExport = async (config: {
   projectId: string;
   minTimestamp: Date;
@@ -348,24 +384,9 @@ const processBlobStorageExport = async (config: {
     `[BLOB INTEGRATION] Processing ${config.table} export for project ${config.projectId}`,
   );
 
-  // Initialize the storage service
-  // KMS SSE is not supported for this integration.
-  const storageService: StorageService = StorageServiceFactory.getInstance({
-    accessKeyId: config.accessKeyId,
-    secretAccessKey: config.secretAccessKey,
-    bucketName: config.bucketName,
-    endpoint: config.endpoint ?? undefined,
-    region: config.region,
-    forcePathStyle: config.forcePathStyle ?? false,
-    awsSse: undefined,
-    awsSseKmsKeyId: undefined,
-    useAzureBlob: config.type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE,
-    useGoogleCloudStorage: false, // Not supported in blob storage integration
-    useOCIObjectStorage: false, // Not supported in blob storage integration
-    connectionValidation: blobStorageEndpointConnectionValidationOptions(),
-  });
+  const storageService = createBlobStorageService(config);
 
-  await instrumentAsync(
+  return await instrumentAsync(
     {
       name: `blob-export-table`,
       spanKind: SpanKind.INTERNAL,
@@ -431,6 +452,9 @@ const processBlobStorageExport = async (config: {
       // Outside the try so the catch can distinguish a real upload success from
       // a failure.
       let uploadSucceeded = false;
+      // Populated at the upload boundary; returned to the caller so the run can
+      // list every file in its completion manifest (LFE-10843).
+      let manifestFile: BlobExportManifestFile | undefined;
       let heartbeat: ReturnType<typeof setInterval> | undefined;
 
       // Per-stage errors so the catch can name the originating cause instead of
@@ -465,10 +489,9 @@ const processBlobStorageExport = async (config: {
             ? "passthrough"
             : "standard";
 
-        const timestamp = config.maxTimestamp
-          .toISOString()
-          .replace(/:/g, "-")
-          .substring(0, 19);
+        // Shared stem with the run manifest key, so a run's files and its
+        // manifest sort together under the project prefix.
+        const timestamp = formatBlobExportTimestamp(config.maxTimestamp);
         // Parquet: fixed `.parquet` extension (no `.gz`) and Parquet content type.
         const extension = parquetEligible
           ? "parquet"
@@ -783,6 +806,24 @@ const processBlobStorageExport = async (config: {
           const exportFormat = parquetEligible
             ? BlobExportFormat.PARQUET
             : resolveBlobExportFormat(config.fileType, config.compressed);
+
+          // Record this file for the run manifest. rowCount is null on the
+          // parquet path (binary stream has no per-row boundaries, so
+          // sourceStats.rows stays 0 and would misreport as an empty file).
+          manifestFile = {
+            key: filePath,
+            table: config.table,
+            fileType: parquetEligible
+              ? BlobStorageIntegrationFileType.PARQUET
+              : config.fileType,
+            format: exportFormat,
+            compressed: parquetEligible ? false : config.compressed,
+            contentType: uploadContentType,
+            sizeBytes: compressedCounter
+              ? compressedCounter.bytes
+              : serializedCounter.bytes,
+            rowCount: parquetEligible ? null : sourceStats.rows,
+          };
           // Unified export-volume metric: the actual uploaded volume per
           // source (post-gzip size for compressed formats, raw/parquet size
           // otherwise). destination_type (S3 / S3_COMPATIBLE / AZURE_*) splits
@@ -1027,7 +1068,56 @@ const processBlobStorageExport = async (config: {
         span.setAttribute("blob.eventLoopDelay.p99Ms", Math.round(p99Ms));
         span.setAttribute("blob.eventLoopDelay.meanMs", Math.round(meanMs));
       }
+
+      // Only reached on the success path (the catch above rethrows), so the
+      // entry is always populated here.
+      if (!manifestFile) {
+        throw new Error(
+          `[BLOB INTEGRATION] Missing manifest entry after a successful ${config.table} export for project ${config.projectId}`,
+        );
+      }
+      return manifestFile;
     },
+  );
+};
+
+// Writes the run-completion manifest (LFE-10843). The manifest is a small JSON
+// body, so it uses the single-shot uploadFile (string body) rather than the
+// buffered multipart path the table streams use.
+const writeBlobExportManifest = async (params: {
+  connection: BlobStorageConnectionConfig;
+  prefix?: string;
+  projectId: string;
+  exportSource: string;
+  minTimestamp: Date;
+  maxTimestamp: Date;
+  files: BlobExportManifestFile[];
+}): Promise<void> => {
+  const manifest = buildBlobExportManifest({
+    projectId: params.projectId,
+    exportSource: params.exportSource,
+    minTimestamp: params.minTimestamp,
+    maxTimestamp: params.maxTimestamp,
+    createdAt: new Date(),
+    files: params.files,
+  });
+  const key = buildBlobExportManifestKey({
+    prefix: params.prefix,
+    projectId: params.projectId,
+    maxTimestamp: params.maxTimestamp,
+  });
+
+  const storageService = createBlobStorageService(params.connection);
+  await storageService.uploadFile({
+    fileName: key,
+    fileType: "application/json; charset=utf-8",
+    // Trailing newline keeps the object POSIX-line friendly for shell tooling.
+    data: JSON.stringify(manifest, null, 2) + "\n",
+  });
+
+  logger.info(
+    `[BLOB INTEGRATION] Wrote run manifest for project ${params.projectId}: ` +
+      `key=${key} files=${manifest.files.length} tables=${manifest.tables.join(",")}`,
   );
 };
 
@@ -1235,15 +1325,19 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
+    // Files written by this run, collected for the completion manifest below.
+    let runFiles: BlobExportManifestFile[];
     if (isTraceOnlyProject) {
       // Only process traces table for projects in the trace-only list (legacy behavior)
       logger.info(
         `[BLOB INTEGRATION] Project ${projectId} is configured for trace-only export via env var, skipping observations, scores, and events`,
       );
-      await processBlobStorageExport({ ...executionConfig, table: "traces" });
+      runFiles = [
+        await processBlobStorageExport({ ...executionConfig, table: "traces" }),
+      ];
     } else {
       // Process tables based on exportSource setting
-      const processPromises: Promise<void>[] = [];
+      const processPromises: Promise<BlobExportManifestFile>[] = [];
 
       // Always include scores
       processPromises.push(
@@ -1278,8 +1372,25 @@ export const handleBlobStorageIntegrationProjectJob = async (
         );
       }
 
-      await Promise.all(processPromises);
+      runFiles = await Promise.all(processPromises);
     }
+
+    // Write the run-completion manifest as the LAST object of the run — its
+    // presence is the run's commit point. Strictly after every table upload
+    // succeeded (the awaits above), so consumers subscribing to native
+    // object-created events on the `manifests/` prefix get a run-level
+    // completion signal and can verify they can read every listed file
+    // (LFE-10843). A failure here throws into the catch below, so lastSyncAt is
+    // not advanced and the run retries — table files are simply overwritten.
+    await writeBlobExportManifest({
+      connection: executionConfig,
+      prefix: blobStorageIntegration.prefix || undefined,
+      projectId,
+      exportSource: blobStorageIntegration.exportSource,
+      minTimestamp,
+      maxTimestamp,
+      files: runFiles,
+    });
 
     // Determine if we've caught up with present-day data
     const caughtUp = maxTimestamp.getTime() >= uncappedMaxTimestamp.getTime();
