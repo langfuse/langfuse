@@ -7,8 +7,9 @@ name: AWS PR Preview
 #   /preview resume    start the instance again
 #   /preview destroy   delete the CloudFormation stack and preview images
 #
-# PRs opened by an allowlisted author (AWS_PREVIEW_ALLOWED_USERS) auto-deploy
-# and refresh on every push. Anyone on the allowlist can also drive previews
+# PRs opened by an allowlisted author (AWS_PREVIEW_ALLOWED_USERS) auto-deploy;
+# subsequent pushes refresh the preview only if it is already running (a push
+# never resurrects one stopped via /preview stop). Anyone on the allowlist can also drive previews
 # manually with the /preview comments above. Each engineer may have at most 5
 # previews running at once (best-effort, PreviewOwner tag). A housekeeping
 # schedule stops previews idle (low CPU) for several hours, destroys previews
@@ -54,6 +55,10 @@ on:
       pr_number:
         description: "Pull request number (not needed for stop-all/reap)"
         required: false
+      refresh_only:
+        description: "Only refresh an already-running preview; skip if stopped or absent. Set by push-triggered auto-deploy."
+        required: false
+        default: "false"
 
 permissions: {}
 
@@ -296,6 +301,12 @@ jobs:
               return;
             }
 
+            // A push (synchronize) may only REFRESH an already-running
+            // preview; opening or reopening a PR may create one. deploy_gate
+            // enforces this so a push never resurrects a /preview stop-ped env.
+            const refreshOnly =
+              context.payload.action === "synchronize" ? "true" : "false";
+
             // Hand off to the existing deploy path on the default branch, so
             // AWS is only ever assumed from a refs/heads/main run.
             await github.rest.actions.createWorkflowDispatch({
@@ -303,9 +314,15 @@ jobs:
               repo,
               workflow_id: "aws-preview.yml",
               ref: context.payload.repository.default_branch,
-              inputs: { action: "deploy", pr_number: String(pr.number) },
+              inputs: {
+                action: "deploy",
+                pr_number: String(pr.number),
+                refresh_only: refreshOnly,
+              },
             });
-            core.info(`Dispatched deploy for PR #${pr.number} (author ${author}).`);
+            core.info(
+              `Dispatched deploy for PR #${pr.number} (author ${author}, refresh_only=${refreshOnly}).`,
+            );
 
   deploy_gate:
     name: Check deploy preconditions
@@ -331,6 +348,7 @@ jobs:
           ACTOR: ${{ needs.context.outputs.actor }}
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ needs.context.outputs.pr_number }}
+          REFRESH_ONLY: ${{ github.event.inputs.refresh_only }}
         run: |
           set -euo pipefail
 
@@ -353,6 +371,19 @@ jobs:
           pr_state="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .state)"
           if [ "${pr_state}" != "open" ]; then
             echo "PR ${PR_NUMBER} is ${pr_state}; not deploying."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Push-triggered auto-deploy (refresh_only) may only refresh a preview
+          # that is already running — it must never create or resurrect one.
+          # This keeps /preview stop sticky and matches the documented contract
+          # ("pushing refreshes only if already deployed and running"). Opening
+          # a PR and explicit /preview deploy leave refresh_only unset/false.
+          if [ "${REFRESH_ONLY:-}" = "true" ] \
+            && [ "${instance_state}" != "running" ] \
+            && [ "${instance_state}" != "pending" ]; then
+            echo "PR ${PR_NUMBER} preview is ${instance_state}; push refresh skipped."
             echo "proceed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -690,7 +721,31 @@ jobs:
             --query "Command.CommandId" \
             --output text)"
 
-          if ! aws ssm wait command-executed --command-id "${command_id}" --instance-id "${INSTANCE_ID}"; then
+          # Poll for completion rather than `aws ssm wait command-executed`,
+          # whose ~100s default (5s x 20 attempts) is far shorter than a cold
+          # deploy: the bundled cloud-init wait, ECR login, ~7 image pulls, and
+          # six container-readiness gates in deploy.sh run for several minutes.
+          # The short waiter would fail the step spuriously while the on-host
+          # deploy is still succeeding.
+          deploy_ok=false
+          for _ in $(seq 1 120); do
+            status="$(aws ssm get-command-invocation \
+              --command-id "${command_id}" \
+              --instance-id "${INSTANCE_ID}" \
+              --query "Status" --output text 2>/dev/null || echo "Pending")"
+            case "${status}" in
+              Success)
+                deploy_ok=true
+                break
+                ;;
+              Cancelled | TimedOut | Failed)
+                break
+                ;;
+            esac
+            sleep 10
+          done
+
+          if [ "${deploy_ok}" != "true" ]; then
             aws ssm get-command-invocation \
               --command-id "${command_id}" \
               --instance-id "${INSTANCE_ID}" \
@@ -1210,24 +1265,32 @@ jobs:
               fi
 
               echo "Destroying ${stack_name}: PR ${pr_number} is closed."
-              aws cloudformation delete-stack --stack-name "${stack_name}"
-              aws cloudformation wait stack-delete-complete --stack-name "${stack_name}"
+              # Isolate each teardown in a subshell so one stuck/failed
+              # deletion doesn't abort the whole batch under set -e.
+              if ! (
+                set -e
+                aws cloudformation delete-stack --stack-name "${stack_name}"
+                aws cloudformation wait stack-delete-complete --stack-name "${stack_name}"
 
-              for repository_url in \
-                "${AWS_PREVIEW_WEB_ECR_REPOSITORY_URL}" \
-                "${AWS_PREVIEW_WORKER_ECR_REPOSITORY_URL}"; do
-                repository_name="${repository_url#*/}"
-                image_ids="$(aws ecr list-images \
-                  --repository-name "${repository_name}" \
-                  --filter tagStatus=TAGGED \
-                  --query "imageIds[?starts_with(imageTag, 'pr-${pr_number}-')]" \
-                  --output json)"
-                if [ "${image_ids}" != "[]" ]; then
-                  aws ecr batch-delete-image \
+                for repository_url in \
+                  "${AWS_PREVIEW_WEB_ECR_REPOSITORY_URL}" \
+                  "${AWS_PREVIEW_WORKER_ECR_REPOSITORY_URL}"; do
+                  repository_name="${repository_url#*/}"
+                  image_ids="$(aws ecr list-images \
                     --repository-name "${repository_name}" \
-                    --image-ids "${image_ids}" >/dev/null
-                fi
-              done
+                    --filter tagStatus=TAGGED \
+                    --query "imageIds[?starts_with(imageTag, 'pr-${pr_number}-')]" \
+                    --output json)"
+                  if [ "${image_ids}" != "[]" ]; then
+                    aws ecr batch-delete-image \
+                      --repository-name "${repository_name}" \
+                      --image-ids "${image_ids}" >/dev/null
+                  fi
+                done
+              ); then
+                echo "Failed to reap ${stack_name}; continuing with the next stack."
+                continue
+              fi
 
               gh pr comment "${pr_number}" --repo "${GITHUB_REPOSITORY}" \
                 --body "🗑️ AWS preview destroyed because the PR is closed. Reopen and \`/preview deploy\` to recreate." \
@@ -1276,27 +1339,37 @@ jobs:
             esac
 
             echo "Reaping ${stack_name} (stopped since ${stopped_at})"
-            aws cloudformation delete-stack --stack-name "${stack_name}"
-            aws cloudformation wait stack-delete-complete --stack-name "${stack_name}"
+            # Isolate each teardown in a subshell so one stuck/failed deletion
+            # doesn't abort the whole batch under set -e.
+            if ! (
+              set -e
+              aws cloudformation delete-stack --stack-name "${stack_name}"
+              aws cloudformation wait stack-delete-complete --stack-name "${stack_name}"
+
+              if [ -n "${pr_number}" ] && [ "${pr_number}" != "None" ]; then
+                for repository_url in \
+                  "${AWS_PREVIEW_WEB_ECR_REPOSITORY_URL}" \
+                  "${AWS_PREVIEW_WORKER_ECR_REPOSITORY_URL}"; do
+                  repository_name="${repository_url#*/}"
+                  image_ids="$(aws ecr list-images \
+                    --repository-name "${repository_name}" \
+                    --filter tagStatus=TAGGED \
+                    --query "imageIds[?starts_with(imageTag, 'pr-${pr_number}-')]" \
+                    --output json)"
+
+                  if [ "${image_ids}" != "[]" ]; then
+                    aws ecr batch-delete-image \
+                      --repository-name "${repository_name}" \
+                      --image-ids "${image_ids}" >/dev/null
+                  fi
+                done
+              fi
+            ); then
+              echo "Failed to reap ${stack_name}; continuing with the next stack."
+              continue
+            fi
 
             if [ -n "${pr_number}" ] && [ "${pr_number}" != "None" ]; then
-              for repository_url in \
-                "${AWS_PREVIEW_WEB_ECR_REPOSITORY_URL}" \
-                "${AWS_PREVIEW_WORKER_ECR_REPOSITORY_URL}"; do
-                repository_name="${repository_url#*/}"
-                image_ids="$(aws ecr list-images \
-                  --repository-name "${repository_name}" \
-                  --filter tagStatus=TAGGED \
-                  --query "imageIds[?starts_with(imageTag, 'pr-${pr_number}-')]" \
-                  --output json)"
-
-                if [ "${image_ids}" != "[]" ]; then
-                  aws ecr batch-delete-image \
-                    --repository-name "${repository_name}" \
-                    --image-ids "${image_ids}" >/dev/null
-                fi
-              done
-
               gh pr comment "${pr_number}" --repo "${GITHUB_REPOSITORY}" \
                 --body "🗑️ AWS preview destroyed after 7 days stopped. Recreate with \`/preview deploy\`." \
                 || echo "Could not comment on PR ${pr_number}."
