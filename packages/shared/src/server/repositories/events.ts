@@ -3217,9 +3217,7 @@ type SdkUpgradeCandidate = {
   sdkName: string;
   sdkVersion: string;
   canonicalSdkName: IngestionSdkCanonicalName;
-  latestMajor: number;
   major: number;
-  upgradeStatus: "outdated_major";
   count: number;
 };
 
@@ -3236,7 +3234,6 @@ const toSdkUpgradeCandidate = (row: {
   if (
     classification.status !== "outdated_major" ||
     !classification.canonicalSdkName ||
-    classification.latestMajor === null ||
     classification.major === null
   ) {
     return null;
@@ -3246,9 +3243,7 @@ const toSdkUpgradeCandidate = (row: {
     sdkName: row.sdk_name,
     sdkVersion: row.sdk_version,
     canonicalSdkName: classification.canonicalSdkName,
-    latestMajor: classification.latestMajor,
     major: classification.major,
-    upgradeStatus: classification.status,
     count: Number(row.count),
   };
 };
@@ -3265,10 +3260,11 @@ export async function getSdkUpgradeStatusFromEvents(params: {
 
   const queryBuilder = new EventsAggQueryBuilder({
     projectId,
-    groupByColumn: "e.ingestion_sdk_name, e.ingestion_sdk_version",
+    groupByColumn:
+      "lower(trim(e.ingestion_sdk_name)), lower(trim(e.ingestion_sdk_version))",
     selectExpression: `
-      e.ingestion_sdk_name AS sdk_name,
-      e.ingestion_sdk_version AS sdk_version,
+      lower(trim(e.ingestion_sdk_name)) AS sdk_name,
+      lower(trim(e.ingestion_sdk_version)) AS sdk_version,
       uniq(e.trace_id) AS count
     `,
   })
@@ -3281,7 +3277,7 @@ export async function getSdkUpgradeStatusFromEvents(params: {
       { ignoredSdkUpgradeSources: [...SDK_UPGRADE_IGNORED_SOURCE_VALUES] },
     )
     .whereRaw(
-      "lower(e.ingestion_sdk_name) IN ({supportedSdkNames: Array(String)})",
+      "lower(trim(e.ingestion_sdk_name)) IN ({supportedSdkNames: Array(String)})",
       { supportedSdkNames: SDK_UPGRADE_SUPPORTED_SDK_NAMES },
     )
     .orderBy("ORDER BY count DESC");

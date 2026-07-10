@@ -15,7 +15,7 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { api } from "@/src/utils/api";
+import { api, type RouterOutputs } from "@/src/utils/api";
 
 const SDK_UPGRADE_DISMISSED_STORAGE_PREFIX =
   "langfuse-sdk-upgrade-modal-dismissed";
@@ -30,7 +30,6 @@ const SDK_UPGRADE_DOC_URLS = [
   "https://langfuse.com/docs/observability/sdk/upgrade-path/js-v4-to-v5",
 ] as const;
 const SDK_UPGRADE_DISMISS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const UNKNOWN_SDK_VALUE = "unknown";
 
 const SDK_UPGRADE_MODAL_COPY = {
   generic: {
@@ -63,15 +62,8 @@ const SDK_UPGRADE_MODAL_COPY = {
   },
 } as const;
 
-type SdkVersionSummary = {
-  sdkName: string;
-  sdkVersion: string;
-  canonicalSdkName: "python" | "javascript";
-  latestMajor: number;
-  major: number;
-  upgradeStatus: "outdated_major";
-  count: number;
-};
+type SdkVersionSummary =
+  RouterOutputs["events"]["getSdkUpgradeStatus"]["sdkVersions"][number];
 
 export function SdkUpgradeModal({ userId }: { userId: string }) {
   const projectId = useProjectIdFromURL();
@@ -95,9 +87,7 @@ export function SdkUpgradeModal({ userId }: { userId: string }) {
     },
   );
 
-  const sdkVersionsToUpgrade = mergeSdkVersionGroups(
-    sdkUpgradeStatus.data?.sdkVersions ?? [],
-  );
+  const sdkVersionsToUpgrade = sdkUpgradeStatus.data?.sdkVersions ?? [];
   const shouldShowUpgradeModal = sdkVersionsToUpgrade.length > 0;
   const modalCopy = getSdkUpgradeModalCopy(sdkVersionsToUpgrade);
 
@@ -159,7 +149,7 @@ export function SdkUpgradeModal({ userId }: { userId: string }) {
 
   return (
     <Dialog
-      open={open}
+      open={open && shouldShowUpgradeModal}
       onOpenChange={(nextOpen) => {
         if (!nextOpen) dismiss();
       }}
@@ -177,21 +167,19 @@ export function SdkUpgradeModal({ userId }: { userId: string }) {
           <p className="text-muted-foreground text-sm leading-6">
             {modalCopy.body}
           </p>
-          {sdkVersionsToUpgrade.length > 0 ? (
-            <div className="bg-muted/40 rounded-md border px-3 py-2 text-sm">
-              <div className="text-muted-foreground mb-1">
-                Detected SDK versions in traces from the last 24 hours:
-              </div>
-              <div className="space-y-1">
-                {sdkVersionsToUpgrade.slice(0, 5).map((sdkVersion) => (
-                  <SdkVersionRow
-                    key={`${sdkVersion.sdkName}:${sdkVersion.sdkVersion}`}
-                    sdkVersion={sdkVersion}
-                  />
-                ))}
-              </div>
+          <div className="bg-muted/40 rounded-md border px-3 py-2 text-sm">
+            <div className="text-muted-foreground mb-1">
+              Detected SDK versions in traces from the last 24 hours:
             </div>
-          ) : null}
+            <div className="space-y-1">
+              {sdkVersionsToUpgrade.slice(0, 5).map((sdkVersion) => (
+                <SdkVersionRow
+                  key={`${sdkVersion.sdkName}:${sdkVersion.sdkVersion}`}
+                  sdkVersion={sdkVersion}
+                />
+              ))}
+            </div>
+          </div>
         </DialogBody>
         <DialogFooter>
           <Button variant="outline" onClick={handleRemindMeLaterClick}>
@@ -282,32 +270,6 @@ function getSdkUpgradeModalCopy(sdkVersions: SdkVersionSummary[]) {
   return SDK_UPGRADE_MODAL_COPY.generic;
 }
 
-function mergeSdkVersionGroups(sdkVersions: SdkVersionSummary[]) {
-  const groupedSdkVersions = new Map<string, SdkVersionSummary>();
-
-  for (const sdkVersion of sdkVersions) {
-    const sdkName = sdkVersion.sdkName.trim();
-    const sdkVersionValue = sdkVersion.sdkVersion.trim();
-    const key = `${sdkName.toLowerCase()}:${sdkVersionValue.toLowerCase()}`;
-    const existingSdkVersion = groupedSdkVersions.get(key);
-
-    if (existingSdkVersion) {
-      existingSdkVersion.count += sdkVersion.count;
-      continue;
-    }
-
-    groupedSdkVersions.set(key, {
-      ...sdkVersion,
-      sdkName,
-      sdkVersion: sdkVersionValue,
-    });
-  }
-
-  return Array.from(groupedSdkVersions.values()).sort(
-    (left, right) => right.count - left.count,
-  );
-}
-
 function getSdkUpgradeModalAnalyticsProps({
   projectId,
   variant,
@@ -338,23 +300,17 @@ function isV5OrNewerJavaScriptSdkVersion(sdk: SdkVersionSummary) {
 }
 
 function formatSdkVersion(sdk: { sdkName: string; sdkVersion: string }) {
-  const sdkName = sdk.sdkName.trim() || UNKNOWN_SDK_VALUE;
-  const sdkVersion = sdk.sdkVersion.trim() || UNKNOWN_SDK_VALUE;
-
-  return `${sdkName}@${sdkVersion}`;
+  return `${sdk.sdkName}@${sdk.sdkVersion}`;
 }
 
 function buildAiSdkUpgradePrompt(sdkVersions: SdkVersionSummary[]) {
-  const detectedVersions =
-    sdkVersions.length > 0
-      ? sdkVersions
-          .slice(0, 10)
-          .map(
-            (sdkVersion) =>
-              `- ${formatSdkVersion(sdkVersion)} (${sdkVersion.count.toLocaleString()} traces in the last 24 hours)`,
-          )
-          .join("\n")
-      : "- Unknown Langfuse SDK version";
+  const detectedVersions = sdkVersions
+    .slice(0, 10)
+    .map(
+      (sdkVersion) =>
+        `- ${formatSdkVersion(sdkVersion)} (${sdkVersion.count.toLocaleString()} traces in the last 24 hours)`,
+    )
+    .join("\n");
 
   return `Use the Langfuse skill to upgrade this codebase to the latest Langfuse SDK.
 
