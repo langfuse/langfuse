@@ -77,16 +77,24 @@ export const BlobStorageIntegrationContainer = ({
     updatedAt: Date | null;
     epoch: number;
   }>({ identity, updatedAt: config?.updatedAt ?? null, epoch: 0 });
-  // Set on own-save success so the resulting updatedAt bump is adopted
-  // (remount from the just-saved row, clearing dirty flags) instead of
-  // showing the banner against the user's own change.
-  const [pendingSelfSave, setPendingSelfSave] = useState(false);
+  // Own-save tracking. `inFlight` is set from onMutate so a poll refetch
+  // that races ahead of the mutation response cannot flash the banner for
+  // the user's own change. onSuccess records the exact updatedAt the save
+  // wrote, and ONLY that value is adopted silently (remount from the saved
+  // row, clearing dirty flags) — any other new updatedAt is a genuine
+  // concurrent edit and still banners, so a leftover expectation can never
+  // swallow an external edit.
+  const [selfSave, setSelfSave] = useState<{
+    inFlight: boolean;
+    expectedUpdatedAt: number | null;
+  }>({ inFlight: false, expectedUpdatedAt: null });
 
   // Render-phase state adjustment (React's derive-state-from-props pattern):
   // identity changes rebaseline the snapshot before anything is compared.
   if (snapshot.identity !== identity) {
     setSnapshot({ identity, updatedAt: config?.updatedAt ?? null, epoch: 0 });
-    if (pendingSelfSave) setPendingSelfSave(false);
+    if (selfSave.inFlight || selfSave.expectedUpdatedAt != null)
+      setSelfSave({ inFlight: false, expectedUpdatedAt: null });
   }
 
   const configUpdatedAt = config?.updatedAt
@@ -101,27 +109,46 @@ export const BlobStorageIntegrationContainer = ({
     snapshotUpdatedAt != null &&
     configUpdatedAt !== snapshotUpdatedAt;
 
-  if (updatedAtChanged && pendingSelfSave) {
+  if (
+    updatedAtChanged &&
+    selfSave.expectedUpdatedAt != null &&
+    configUpdatedAt === selfSave.expectedUpdatedAt
+  ) {
     setSnapshot({
       identity,
       updatedAt: config?.updatedAt ?? null,
       epoch: snapshot.epoch + 1,
     });
-    setPendingSelfSave(false);
+    setSelfSave({ inFlight: false, expectedUpdatedAt: null });
   }
-  const hasDrift = updatedAtChanged && !pendingSelfSave;
+  const hasDrift =
+    updatedAtChanged &&
+    !selfSave.inFlight &&
+    configUpdatedAt !== selfSave.expectedUpdatedAt;
 
   const utils = api.useUtils();
   // invalidate() stays unguarded everywhere: the query cache is keyed per
   // projectId, so refreshing the fired-for project in the background is
   // correct even after a switch.
   const mut = api.blobStorageIntegration.update.useMutation({
-    onSuccess: (_data, variables) => {
+    onMutate: () => {
+      setSelfSave({ inFlight: true, expectedUpdatedAt: null });
+    },
+    onSuccess: (data, variables) => {
       utils.blobStorageIntegration.invalidate();
-      if (variables.projectId !== projectIdRef.current) return; // stale
-      setPendingSelfSave(true);
+      if (variables.projectId !== projectIdRef.current) {
+        setSelfSave({ inFlight: false, expectedUpdatedAt: null }); // stale
+        return;
+      }
+      setSelfSave({
+        inFlight: false,
+        expectedUpdatedAt: data?.updatedAt
+          ? new Date(data.updatedAt).getTime()
+          : null,
+      });
     },
     onError: (error, variables) => {
+      setSelfSave({ inFlight: false, expectedUpdatedAt: null });
       if (variables.projectId !== projectIdRef.current) return; // stale
       showErrorToast("Failed to save integration", error.message);
     },

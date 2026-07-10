@@ -10,6 +10,7 @@ const { mutationOpts } = vi.hoisted(() => ({
   mutationOpts: {} as Record<
     string,
     {
+      onMutate?: (variables: { projectId: string }) => void;
       onSuccess?: (data: unknown, variables: { projectId: string }) => void;
       onError?: (error: unknown, variables: { projectId: string }) => void;
     }
@@ -185,15 +186,22 @@ describe("BlobStorageIntegrationContainer", () => {
   });
 
   it("own save: updatedAt bump after update success remounts without a banner", () => {
+    const savedAt = new Date("2026-01-02T00:00:00Z");
     const { rerender } = render(ui({ config: savedConfig() }));
     fireEvent.change(bucketInput(), { target: { value: "self-saved-bucket" } });
 
-    act(() => mutationOpts.update.onSuccess?.({}, { projectId: "p1" }));
+    act(() => mutationOpts.update.onMutate?.({ projectId: "p1" }));
+    act(() =>
+      mutationOpts.update.onSuccess?.(
+        { updatedAt: savedAt },
+        { projectId: "p1" },
+      ),
+    );
     rerender(
       ui({
         config: savedConfig({
           bucketName: "self-saved-bucket",
-          updatedAt: new Date("2026-01-02T00:00:00Z"),
+          updatedAt: savedAt,
         }),
       }),
     );
@@ -202,5 +210,67 @@ describe("BlobStorageIntegrationContainer", () => {
       screen.queryByText("Configuration changed elsewhere"),
     ).not.toBeInTheDocument();
     expect(bucketInput()).toHaveValue("self-saved-bucket"); // remounted from saved row
+  });
+
+  it("own-save race: poll delivering the new updatedAt before onSuccess does not flash the banner", () => {
+    const savedAt = new Date("2026-01-02T00:00:00Z");
+    const { rerender } = render(ui({ config: savedConfig() }));
+    fireEvent.change(bucketInput(), { target: { value: "racy-bucket" } });
+
+    // Save request in flight; poll refetch lands first with the new row.
+    act(() => mutationOpts.update.onMutate?.({ projectId: "p1" }));
+    rerender(
+      ui({
+        config: savedConfig({ bucketName: "racy-bucket", updatedAt: savedAt }),
+      }),
+    );
+
+    expect(
+      screen.queryByText("Configuration changed elsewhere"),
+    ).not.toBeInTheDocument(); // no flash while in flight
+    expect(bucketInput()).toHaveValue("racy-bucket"); // draft untouched
+
+    // Mutation response arrives; its updatedAt matches → silent adoption.
+    act(() =>
+      mutationOpts.update.onSuccess?.(
+        { updatedAt: savedAt },
+        { projectId: "p1" },
+      ),
+    );
+    expect(
+      screen.queryByText("Configuration changed elsewhere"),
+    ).not.toBeInTheDocument();
+    expect(bucketInput()).toHaveValue("racy-bucket");
+  });
+
+  it("leftover own-save expectation cannot swallow a different external edit", () => {
+    const savedAt = new Date("2026-01-02T00:00:00Z");
+    const externalAt = new Date("2026-01-03T00:00:00Z");
+    const { rerender } = render(ui({ config: savedConfig() }));
+
+    act(() => mutationOpts.update.onMutate?.({ projectId: "p1" }));
+    act(() =>
+      mutationOpts.update.onSuccess?.(
+        { updatedAt: savedAt },
+        { projectId: "p1" },
+      ),
+    );
+
+    // The post-save refetch never delivered savedAt (e.g. it failed); the
+    // next thing to arrive is a concurrent edit with a DIFFERENT updatedAt.
+    fireEvent.change(bucketInput(), { target: { value: "my-draft" } });
+    rerender(
+      ui({
+        config: savedConfig({
+          bucketName: "changed-elsewhere",
+          updatedAt: externalAt,
+        }),
+      }),
+    );
+
+    expect(
+      screen.getByText("Configuration changed elsewhere"),
+    ).toBeInTheDocument(); // still banners
+    expect(bucketInput()).toHaveValue("my-draft"); // draft intact
   });
 });
