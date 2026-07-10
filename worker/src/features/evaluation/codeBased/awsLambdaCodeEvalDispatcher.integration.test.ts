@@ -28,6 +28,7 @@ const baseInput: DispatchInput = {
       input: "hello",
       output: "hello world",
       metadata: { topic: "integration" },
+      toolCalls: [],
     },
     experiment: {
       itemExpectedOutput: "hello world",

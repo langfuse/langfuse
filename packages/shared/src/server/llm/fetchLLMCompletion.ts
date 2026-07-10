@@ -43,6 +43,7 @@ import {
   LLMToolDefinition,
   ModelParams,
   OpenAIModel,
+  PROVIDERS_WITH_REQUIRED_USER_MESSAGE,
   ToolCallResponse,
   ToolCallResponseSchema,
   TraceSinkParams,
@@ -60,6 +61,11 @@ import {
 } from "./utils";
 import { logger } from "../logger";
 import { executeAiSdkCompletion } from "./ai-sdk/executeAiSdkCompletion";
+import {
+  assertValidAnthropicVertexModelName,
+  assertValidVertexLocation,
+  isClaudeModel,
+} from "./ai-sdk/providers/vertex";
 import {
   recordLlmExecutionDecision,
   resolveLlmExecutionDecision,
@@ -103,13 +109,6 @@ function adapterSupportsReasoning(adapter: LLMAdapter): boolean {
   return ADAPTERS_WITH_REASONING_SUPPORT.has(adapter);
 }
 
-const PROVIDERS_WITH_REQUIRED_USER_MESSAGE = [
-  LLMAdapter.VertexAI,
-  LLMAdapter.GoogleAIStudio,
-  LLMAdapter.Anthropic,
-  LLMAdapter.Bedrock,
-];
-
 const ANTHROPIC_ALWAYS_ADAPTIVE_THINKING_MODELS = [
   "claude-fable-5",
   "claude-mythos-5",
@@ -128,14 +127,6 @@ const ANTHROPIC_SAMPLING_PARAM_NORMALIZATION_MODELS = [
   "claude-opus-4-6",
   "claude-haiku-4-5",
 ] as const;
-
-const ANTHROPIC_VERTEX_MODEL_NAME_PATTERN = /^[A-Za-z0-9_.@-]+$/;
-
-// Vertex region identifiers are lowercase alphanumerics plus hyphens
-// (e.g. "us-east5", "europe-west1") with the special "global"/"us"/"eu"
-// endpoints. Disallowing every URL delimiter keeps an attacker-controlled
-// location from reshaping the Vertex host the SDKs build from it.
-const VERTEX_LOCATION_PATTERN = /^[a-z0-9-]+$/;
 
 function isAnthropicAlwaysAdaptiveThinkingModel(modelName: string): boolean {
   return ANTHROPIC_ALWAYS_ADAPTIVE_THINKING_MODELS.some((model) =>
@@ -193,21 +184,6 @@ function normalizeAnthropicSamplingParams(
     modelParams.temperature === undefined
   ) {
     chatModel.temperature = undefined;
-  }
-}
-
-function isClaudeModel(modelName: string): boolean {
-  return modelName.toLowerCase().includes("claude");
-}
-
-function assertValidAnthropicVertexModelName(modelName: string) {
-  if (
-    !ANTHROPIC_VERTEX_MODEL_NAME_PATTERN.test(modelName) ||
-    modelName.includes("..")
-  ) {
-    throw new Error(
-      "Invalid Anthropic Vertex AI model name. Model names must be a single Vertex model ID segment.",
-    );
   }
 }
 
@@ -377,9 +353,10 @@ export async function fetchLLMCompletion(
   // internal tracing is captured natively and routed through the regular OTel
   // ingestion pipeline instead of the LangChain callback handler.
   const executionDecision = resolveLlmExecutionDecision({
-    adapter: modelParams.adapter,
-    providerOptions: modelParams.providerOptions,
+    modelParams,
     llmConnectionConfig: config,
+    baseURL,
+    shouldUseLangfuseAPIKey,
     enabledAdapters: env.LANGFUSE_LLM_COMPLETION_AI_SDK_ADAPTERS,
   });
   recordLlmExecutionDecision(executionDecision);
@@ -396,11 +373,12 @@ export async function fetchLLMCompletion(
       apiKey,
       baseURL,
       extraHeaders,
+      llmConnectionConfig: config,
+      shouldUseLangfuseAPIKey,
       maxRetries,
       timeoutMs,
-      fetch: secureLlmFetch("OpenAI LLM base URL"),
-      apiMode: executionDecision.openAIApiMode,
-      translatedProviderOptions: executionDecision.translatedProviderOptions,
+      createFetch: secureLlmFetch,
+      decision: executionDecision,
       traceSinkParams,
     });
   }
@@ -594,11 +572,7 @@ export async function fetchLLMCompletion(
     // location flows into the Vertex host both SDKs build from it
     // (https://${location}-aiplatform.googleapis.com), so reject anything that
     // could reshape that host and exfiltrate the Google OAuth bearer token.
-    if (location !== undefined && !VERTEX_LOCATION_PATTERN.test(location)) {
-      throw new Error(
-        "Invalid Vertex AI location. Locations must be a single Vertex region identifier.",
-      );
-    }
+    assertValidVertexLocation(location);
 
     // Handle both explicit credentials and default provider chain (ADC)
     // Only allow default provider chain in self-hosted or internal AI features

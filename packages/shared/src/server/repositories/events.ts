@@ -26,6 +26,9 @@ import {
 import {
   getTraceByIdFromTracesTable,
   getTracesIdentifierForSessionFromTracesTable,
+  hasAnyTrace,
+  persistProjectHasTracesFlag,
+  readProjectHasTracesFlag,
 } from "./traces";
 import {
   DateTimeFilter,
@@ -88,6 +91,7 @@ import {
   EventsObservationRecordReadType,
   TraceRecordReadType,
 } from "./definitions";
+import { UNKNOWN_INGESTION_SDK_VALUE } from "../ingestion/ingestionAttribution";
 import type { AnalyticsObservationEvent } from "../analytics-integrations/types";
 import {
   getObservationByIdFromObservationsTable,
@@ -125,17 +129,31 @@ import {
 import { tracesTableCols } from "../../tableDefinitions/tracesTable";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 
-type EventBatchIOStringOutput = {
+export type EventBatchIOStringOutput = {
   id: string;
   input: string | null;
   output: string | null;
   metadata: MetadataDomain;
 };
 
-type EventBatchIOWithExperimentOutput = EventBatchIOStringOutput & {
+/** Raw ClickHouse storage shape: name-less JSON strings, names in the parallel toolCallNames array. */
+export type EventBatchIOToolCallFields = {
+  toolCalls: string[];
+  toolCallNames: string[];
+};
+
+export type EventBatchIOWithExperimentOutput = EventBatchIOStringOutput & {
   experimentItemExpectedOutput: string | null;
   experimentItemMetadata: MetadataDomain;
 };
+
+export type EventBatchIOResult<
+  TIncludeExperiment extends boolean,
+  TIncludeToolCalls extends boolean,
+> = (TIncludeExperiment extends true
+  ? EventBatchIOWithExperimentOutput
+  : EventBatchIOStringOutput) &
+  (TIncludeToolCalls extends true ? EventBatchIOToolCallFields : object);
 
 const BATCH_IO_STRING_RENDERING_PROPS: RenderingProps = {
   // Batch I/O truncation is handled in SQL via leftUTF8 for performance.
@@ -476,6 +494,28 @@ export const getObservationsCountFromEventsTable = async (
   return Number(count[0].count);
 };
 
+/**
+ * Row count plus approximate distinct trace count over the same filtered set,
+ * computed in a single ClickHouse pass. Powers the events-table select-all
+ * batch-delete confirmation ("N items spanning M unique traces").
+ */
+export const getObservationsCountsFromEventsTable = async (
+  opts: ObservationTableQuery,
+): Promise<{ totalCount: number; uniqueTraceCount: number }> => {
+  const counts = await getObservationsFromEventsTableInternal<{
+    count: string;
+    unique_trace_count: string;
+  }>({
+    ...opts,
+    select: "count-with-unique-traces",
+  });
+
+  return {
+    totalCount: Number(counts[0].count),
+    uniqueTraceCount: Number(counts[0].unique_trace_count),
+  };
+};
+
 export const getObservationsWithModelDataFromEventsTable = async (
   opts: ObservationTableQuery,
 ): Promise<FullEventsObservations> => {
@@ -556,7 +596,11 @@ export const getTraceDeleteCursorPageFromEvents = async (props: {
 
 async function getObservationsFromEventsTableInternal<T>(
   opts: ObservationTableQuery & {
-    select: "count" | "rows" | "trace-delete-cursor";
+    select:
+      | "count"
+      | "count-with-unique-traces"
+      | "rows"
+      | "trace-delete-cursor";
     selectToolData?: boolean;
     cursor?: PublicApiObservationsQuery["cursor"];
     preferredClickhouseService?: PreferredClickhouseService;
@@ -597,8 +641,10 @@ async function getObservationsFromEventsTableInternal<T>(
       column === "scores" ||
       column === "scores_avg" ||
       column === "score_categories" ||
+      column === "score_booleans" ||
       column === "scores (numeric)" ||
-      column === "scores (categorical)"
+      column === "scores (categorical)" ||
+      column === "scores (boolean)"
     );
   });
   const hasTraceScoresFilter = baseFilter.some((f) => {
@@ -606,8 +652,10 @@ async function getObservationsFromEventsTableInternal<T>(
     return (
       column === "trace_scores_avg" ||
       column === "trace_score_categories" ||
+      column === "trace_score_booleans" ||
       column === "trace scores (numeric)" ||
-      column === "trace scores (categorical)"
+      column === "trace scores (categorical)" ||
+      column === "trace scores (boolean)"
     );
   });
   const orderByEntries = orderByToEntries(
@@ -620,6 +668,8 @@ async function getObservationsFromEventsTableInternal<T>(
 
   if (opts.select === "count") {
     queryBuilder.selectFieldSet("count");
+  } else if (opts.select === "count-with-unique-traces") {
+    queryBuilder.selectFieldSet("countWithUniqueTraces");
   } else if (opts.select === "trace-delete-cursor") {
     queryBuilder.selectRaw(
       "e.span_id AS id",
@@ -1194,6 +1244,64 @@ export const getTracesIdentifierForSession = async (
   return getTracesIdentifierForSessionFromEvents(projectId, sessionId);
 };
 
+/**
+ * Check if any tracing data exists in the events table.
+ */
+export const hasAnyTraceFromEventsTable = async (
+  projectId: string,
+): Promise<boolean> => {
+  const query = `
+    SELECT 1
+    FROM events_core
+    WHERE project_id = {projectId: String}
+    AND is_deleted = 0
+    LIMIT 1
+  `;
+
+  const rows = await measureAndReturn({
+    operationName: "hasAnyTraceFromEventsTable",
+    projectId,
+    input: { params: { projectId } },
+    fn: async (input) => {
+      return queryClickhouse<{ 1: number }>({
+        query,
+        params: input.params,
+        tags: { projectId },
+        preferredClickhouseService: "EventsReadOnly",
+        clickhouseSettings: {
+          max_threads: 1,
+        },
+      });
+    },
+  });
+
+  return rows.length > 0;
+};
+
+/**
+ * Routing wrapper for the tracing onboarding gate ("has this project ingested
+ * any tracing data yet?").
+ *
+ * If data is only written into the events tables, we look there and go to the
+ * legacy traces table otherwise. Both paths share the project's `hasTraces`
+ * flag as a read-through cache, so steady-state checks skip ClickHouse.
+ */
+export const hasAnyTracingData = async (projectId: string) => {
+  if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only") {
+    return hasAnyTrace(projectId);
+  }
+
+  if (await readProjectHasTracesFlag(projectId)) {
+    return true;
+  }
+
+  const result = await hasAnyTraceFromEventsTable(projectId);
+  if (result) {
+    await persistProjectHasTracesFlag(projectId);
+  }
+  return result;
+};
+
 type PublicApiObservationsQuery = {
   projectId: string;
   page: number;
@@ -1395,6 +1503,12 @@ function applyObservationsCursorFilter(
   cursor: PublicApiObservationsQuery["cursor"] | undefined,
   queryBuilder: EventsQueryBuilder,
 ): EventsQueryBuilder {
+  // The cursor carries start_time at millisecond precision (JS Date round-trip),
+  // while the column is DateTime64(6). This is lossless only because every
+  // ingestion path writes ms-aligned start_time values (OTel nanos are floored
+  // to ms). If ingestion ever preserves sub-millisecond precision, this bound
+  // floors to the boundary row's millisecond and permanently skips rows at page
+  // boundaries — carry the raw ClickHouse string through the cursor instead (LFE-10405).
   return queryBuilder.when(Boolean(cursor), (b) => {
     const currentCursor = cursor;
     if (!currentCursor) {
@@ -1695,7 +1809,10 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
 
   // Check if filters specifically reference score aggregation columns
   const hasScoreAggregationFilters = tracesFilter.some(
-    (f) => f.field === "s.scores_avg" || f.field === "s.score_categories",
+    (f) =>
+      f.field === "s.scores_avg" ||
+      f.field === "s.score_categories" ||
+      f.field === "s.score_booleans",
   );
 
   // Build traces CTE using eventsTracesAggregation WITHOUT filters
@@ -1729,6 +1846,7 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
           "score_ids",
           "scores_avg",
           "score_categories",
+          "score_booleans",
         ],
       })
       .leftJoin(
@@ -2385,6 +2503,7 @@ export const deleteEventsOlderThanDays = async (
 
 export const getObservationsBatchIOFromEventsTable = async <
   TIncludeExperiment extends boolean = false,
+  TIncludeToolCalls extends boolean = false,
 >(opts: {
   projectId: string;
   observations: Array<{
@@ -2395,12 +2514,10 @@ export const getObservationsBatchIOFromEventsTable = async <
   maxStartTime: Date;
   truncated?: boolean; // Default true for performance, false for full data
   includeExperimentFields?: TIncludeExperiment;
+  /** Opt-in: tool-call arrays can be large; only eval consumers need them. */
+  includeToolCallFields?: TIncludeToolCalls;
 }): Promise<
-  Array<
-    TIncludeExperiment extends true
-      ? EventBatchIOWithExperimentOutput
-      : EventBatchIOStringOutput
-  >
+  Array<EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls>>
 > => {
   if (opts.observations.length === 0) {
     return [];
@@ -2430,6 +2547,12 @@ export const getObservationsBatchIOFromEventsTable = async <
       mapFromArrays(arrayReverse(e.experiment_item_metadata_names), arrayReverse(e.experiment_item_metadata_values)) as experiment_item_metadata,
     `
     : "";
+  const toolCallFieldsSelect = opts.includeToolCallFields
+    ? `
+      e.tool_calls as tool_calls,
+      e.tool_call_names as tool_call_names,
+    `
+    : "";
 
   const query = `
     SELECT
@@ -2437,6 +2560,7 @@ export const getObservationsBatchIOFromEventsTable = async <
       ${inputSelect},
       ${outputSelect},
       ${experimentFieldsSelect}
+      ${toolCallFieldsSelect}
       mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) as metadata
     FROM ${tableName} e
     WHERE e.project_id = {projectId: String}
@@ -2451,6 +2575,8 @@ export const getObservationsBatchIOFromEventsTable = async <
     input: string | null;
     output: string | null;
     metadata: Record<string, string>;
+    tool_calls?: string[];
+    tool_call_names?: string[];
     experiment_item_expected_output?: string | null;
     experiment_item_metadata?: Record<string, string>;
   }>({
@@ -2472,6 +2598,12 @@ export const getObservationsBatchIOFromEventsTable = async <
     output: applyBatchIOStringRendering(r.output),
     metadata:
       r.metadata !== undefined ? parseMetadataCHRecordToDomain(r.metadata) : {},
+    ...(opts.includeToolCallFields
+      ? {
+          toolCalls: r.tool_calls ?? [],
+          toolCallNames: r.tool_call_names ?? [],
+        }
+      : {}),
     ...(opts.includeExperimentFields
       ? {
           experimentItemExpectedOutput: r.experiment_item_expected_output,
@@ -2481,11 +2613,7 @@ export const getObservationsBatchIOFromEventsTable = async <
               : {},
         }
       : {}),
-  })) as Array<
-    TIncludeExperiment extends true
-      ? EventBatchIOWithExperimentOutput
-      : EventBatchIOStringOutput
-  >;
+  })) as Array<EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls>>;
 };
 
 /**
@@ -3131,48 +3259,17 @@ export type SdkMetadata = {
 };
 
 /**
- * Extract SDK info from v3 metadata object.
- * - Old (nested): `scope: {name, version}`, `resourceAttributes: {"telemetry.sdk.language": ...}`
- */
-function extractSdkInfoFromMetadata(metadata: Record<string, string>): {
-  name?: string;
-  version?: string;
-  language?: string;
-  telemetrySdkName?: string;
-} {
-  try {
-    const scopeJson = metadata["scope"];
-    const resourceJson = metadata["resourceAttributes"];
-
-    const scope = scopeJson ? JSON.parse(scopeJson) : null;
-    const resource = resourceJson ? JSON.parse(resourceJson) : null;
-
-    const name = scope?.name;
-    const version = scope?.version;
-    const language = resource?.["telemetry.sdk.language"];
-    const telemetrySdkName = resource?.["telemetry.sdk.name"];
-
-    return {
-      ...(name && { name }),
-      ...(version && { version }),
-      ...(language && { language }),
-      ...(telemetrySdkName && { telemetrySdkName }),
-    };
-  } catch {
-    return {};
-  }
-}
-
-/**
- * Infers SDK details from the most recent event in the past 7 days containing Langfuse SDK metadata attributes.
+ * Infers SDK details from the most recent OTel-compatible event in the past
+ * 7 days:
+ * - isOtel: event arrived via OTel-compatible ingestion (`source` column;
+ *   includes Langfuse SDK v3+, raw OTel exporters, and backfilled OTel rows)
+ * - name/version: ingestion attribution headers persisted at write time
+ *   (`ingestion_sdk_name`/`ingestion_sdk_version`; 'unknown' for non-Langfuse
+ *   clients, which then return no name/version)
+ * - language: `telemetry_sdk_language` resource attribute column
  *
- * Detection priority:
- * - v4+: Direct columns (scope_name, scope_version, telemetry_sdk_language)
- * - v3: Nested JSON in metadata (`scope: {name, version}`)
- * - v2 and older: No SDK metadata → returns isOtel: false
- *
- * Returns the most recent matching event's SDK info. Projects with no events
- * in the past 7 days return isOtel: false (acceptable for inactive projects).
+ * Projects with no OTel events in the past 7 days return isOtel: false
+ * (acceptable for inactive projects and pre-OTel v2 SDKs).
  */
 export async function getLatestSdkVersionInfoFromEvents(params: {
   projectId: string;
@@ -3193,15 +3290,15 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
 
   const builder = new EventsQueryBuilder({ projectId })
     .selectRaw(
-      "e.scope_name AS scope_name",
-      "e.scope_version AS scope_version",
+      "e.ingestion_sdk_name AS ingestion_sdk_name",
+      "e.ingestion_sdk_version AS ingestion_sdk_version",
       "e.telemetry_sdk_language AS telemetry_sdk_language",
     )
-    .selectMetadataExpanded([]) // Full metadata values from events_full
     .applyFilters(filter)
-    // OR condition: v4 has scope_name column, v3 has scope in metadata
+    // Matches all OTel-compatible write paths: 'otel' (direct) plus the
+    // 'otel-dual-write(-experiments)' and 'otel-backfill' variants
     .where({
-      query: "e.scope_name != '' OR hasAny(e.metadata_names, ['scope'])",
+      query: "startsWith(e.source, 'otel')",
       params: {},
     })
     .orderByDefault()
@@ -3210,10 +3307,9 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
   const { query, params: queryParams } = builder.buildWithParams();
 
   const result = await queryClickhouse<{
-    scope_name: string;
-    scope_version: string;
+    ingestion_sdk_name: string;
+    ingestion_sdk_version: string;
     telemetry_sdk_language: string;
-    metadata: Record<string, string>;
   }>({
     query,
     params: queryParams,
@@ -3226,27 +3322,24 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
   }
   const row = result[0];
 
-  // Prefer direct columns (v4), fall back to metadata (v3)
-  if (row.scope_name) {
-    return {
-      isOtel: true,
-      ...(row.scope_name && { name: row.scope_name }),
-      ...(row.scope_version && { version: row.scope_version }),
-      ...(row.telemetry_sdk_language && {
-        language: row.telemetry_sdk_language,
-      }),
-    };
-  }
+  // Attribution headers are only sent by Langfuse SDKs; raw OTel clients
+  // (e.g. Vercel AI SDK) carry the 'unknown' sentinel and yield no name/version
+  const hasAttribution =
+    row.ingestion_sdk_name &&
+    row.ingestion_sdk_name !== UNKNOWN_INGESTION_SDK_VALUE;
+  const version = hasAttribution
+    ? row.ingestion_sdk_version !== UNKNOWN_INGESTION_SDK_VALUE
+      ? row.ingestion_sdk_version
+      : ""
+    : undefined;
 
-  // Fall back to metadata extraction for v3 and raw OTel (e.g., Vercel AI SDK)
-  const { telemetrySdkName, ...sdkInfo } = extractSdkInfoFromMetadata(
-    row.metadata ?? {},
-  );
   return {
-    isOtel:
-      telemetrySdkName === "opentelemetry" ||
-      Boolean(sdkInfo.name || sdkInfo.version || sdkInfo.language),
-    ...sdkInfo,
+    isOtel: true,
+    ...(hasAttribution && { name: row.ingestion_sdk_name }),
+    ...(version && { version }),
+    ...(row.telemetry_sdk_language && {
+      language: row.telemetry_sdk_language,
+    }),
   };
 }
 

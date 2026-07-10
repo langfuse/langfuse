@@ -6,6 +6,7 @@ import {
   createTrace,
   createTracesCh,
   createTraceScore,
+  createSessionScore,
   createScoresCh,
   getTraceByIdFromTracesTable,
   createEventsCh,
@@ -264,6 +265,114 @@ describe("traces trpc", () => {
       });
 
       expect(traces.traces.length).toBe(0);
+    });
+
+    it("should filter traces by boolean score with = and <> operators", async () => {
+      const scoreName = `bool_score_${randomUUID()}`;
+
+      const traceWithTrueScore = createTrace({ project_id: projectId });
+      const traceWithFalseScore = createTrace({ project_id: projectId });
+      const traceWithoutScore = createTrace({ project_id: projectId });
+      const traceIds = [
+        traceWithTrueScore.id,
+        traceWithFalseScore.id,
+        traceWithoutScore.id,
+      ];
+
+      await createTracesCh([
+        traceWithTrueScore,
+        traceWithFalseScore,
+        traceWithoutScore,
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceWithTrueScore.id,
+          name: scoreName,
+          value: 1,
+          string_value: "True",
+          data_type: "BOOLEAN",
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceWithFalseScore.id,
+          name: scoreName,
+          value: 0,
+          string_value: "False",
+          data_type: "BOOLEAN",
+        }),
+      ]);
+
+      const baseFilter = [
+        {
+          column: "timestamp",
+          type: "datetime" as const,
+          operator: ">=" as const,
+          value: new Date(new Date().getTime() - 10_000).toISOString(),
+        },
+        {
+          column: "id",
+          type: "stringOptions" as const,
+          operator: "any of" as const,
+          value: traceIds,
+        },
+      ];
+
+      const equalsResult = await caller.traces.all({
+        projectId,
+        filter: [
+          ...baseFilter,
+          {
+            column: "Scores (boolean)",
+            type: "booleanObject",
+            key: scoreName,
+            operator: "=",
+            value: true,
+          },
+        ],
+        searchQuery: null,
+        searchType: ["id"],
+        page: 0,
+        limit: 50,
+        orderBy: {
+          column: "timestamp",
+          order: "DESC",
+        },
+      });
+
+      expect(equalsResult.traces.map((t) => t.id)).toEqual([
+        traceWithTrueScore.id,
+      ]);
+
+      // `<>` is the intended "none of / including unscored" semantics: NOT
+      // has() over an empty score_booleans array is true, so traces without
+      // any score of that name match too — consistent with categorical
+      // filters and InMemoryFilterService.
+      const notEqualsResult = await caller.traces.all({
+        projectId,
+        filter: [
+          ...baseFilter,
+          {
+            column: "Scores (boolean)",
+            type: "booleanObject",
+            key: scoreName,
+            operator: "<>",
+            value: true,
+          },
+        ],
+        searchQuery: null,
+        searchType: ["id"],
+        page: 0,
+        limit: 50,
+        orderBy: {
+          column: "timestamp",
+          order: "DESC",
+        },
+      });
+
+      expect(notEqualsResult.traces.map((t) => t.id).sort()).toEqual(
+        [traceWithFalseScore.id, traceWithoutScore.id].sort(),
+      );
     });
 
     it("should search traces by input only", async () => {
@@ -528,34 +637,130 @@ describe("traces trpc", () => {
       await createTracesCh([trace]);
       await createObservationsCh([observation]);
 
-      const observationScore = createTraceScore({
-        project_id: projectId,
-        trace_id: trace.id,
-        observation_id: observation.id,
-        name: "observation_only_quality",
-        source: "API",
-        data_type: "NUMERIC",
-        value: 0.7,
-      });
-      const sessionScore = createTraceScore({
-        project_id: projectId,
-        trace_id: null,
-        session_id: randomUUID(),
-        name: "session_only_quality",
-        source: "API",
-        data_type: "NUMERIC",
-        value: 0.5,
-      });
-      await createScoresCh([observationScore, sessionScore]);
+      const observationScoreName = `observation_quality_${randomUUID()}`;
+      const sessionScoreName = `session_quality_${randomUUID()}`;
+      const scoreTimestamp = Date.now();
+
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          trace_id: trace.id,
+          observation_id: observation.id,
+          name: observationScoreName,
+          source: "API",
+          data_type: "NUMERIC",
+          value: 0.7,
+          timestamp: scoreTimestamp,
+        }),
+        createSessionScore({
+          project_id: projectId,
+          name: sessionScoreName,
+          source: "API",
+          data_type: "NUMERIC",
+          value: 0.5,
+          timestamp: scoreTimestamp,
+        }),
+      ]);
 
       const filterOptions = await caller.traces.filterOptions({
         projectId,
+        timestampFilter: [
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: new Date(scoreTimestamp - 1_000),
+          },
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: "<=",
+            value: new Date(scoreTimestamp + 1_000),
+          },
+        ],
       });
 
       expect(filterOptions.scores_avg).toEqual(
-        expect.arrayContaining(["observation_only_quality"]),
+        expect.arrayContaining([observationScoreName]),
       );
-      expect(filterOptions.scores_avg).not.toContain("session_only_quality");
+      expect(filterOptions.scores_avg).not.toContain(sessionScoreName);
+    });
+
+    it("should include observation-only boolean score names for trace-scoped aggregates", async () => {
+      const trace = createTrace({
+        project_id: projectId,
+      });
+      const observation = createObservation({
+        project_id: projectId,
+        trace_id: trace.id,
+      });
+      await createTracesCh([trace]);
+      await createObservationsCh([observation]);
+
+      const observationScoreName = `observation_bool_${randomUUID()}`;
+      const emptyObservationScoreName = `observation_bool_empty_${randomUUID()}`;
+      const sessionScoreName = `session_bool_${randomUUID()}`;
+      const scoreTimestamp = Date.now();
+
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          trace_id: trace.id,
+          observation_id: observation.id,
+          name: observationScoreName,
+          source: "API",
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "True",
+          timestamp: scoreTimestamp,
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: trace.id,
+          observation_id: observation.id,
+          name: emptyObservationScoreName,
+          source: "API",
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "",
+          timestamp: scoreTimestamp,
+        }),
+        createSessionScore({
+          project_id: projectId,
+          name: sessionScoreName,
+          source: "API",
+          data_type: "BOOLEAN",
+          value: 0,
+          string_value: "False",
+          timestamp: scoreTimestamp,
+        }),
+      ]);
+
+      const filterOptions = await caller.traces.filterOptions({
+        projectId,
+        timestampFilter: [
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: new Date(scoreTimestamp - 1_000),
+          },
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: "<=",
+            value: new Date(scoreTimestamp + 1_000),
+          },
+        ],
+      });
+
+      expect(filterOptions.score_booleans).toEqual(
+        expect.arrayContaining([observationScoreName]),
+      );
+      expect(filterOptions.score_booleans).not.toContain(
+        emptyObservationScoreName,
+      );
+      expect(filterOptions.score_booleans).not.toContain(sessionScoreName);
     });
   });
 
@@ -718,6 +923,79 @@ describe("traces trpc", () => {
       ).rejects.toMatchObject({
         code: "UNAUTHORIZED",
       });
+    });
+  });
+
+  describe("traces.hasTracingConfigured", () => {
+    // In legacy/dual write modes the legacy `traces` table is still written and
+    // is the freshest source, so the onboarding gate must open from a legacy
+    // trace row alone. The events_only routing lives in
+    // traces-trpc-events-only.servertest.ts.
+    it("should clear the tracing onboarding gate from legacy traces-table data", async () => {
+      // Fresh project: `hasTraces` flag unset, no rows, no retention.
+      const freshProjectId = randomUUID();
+      await prisma.project.create({
+        data: {
+          id: freshProjectId,
+          name: "legacy-onboarding",
+          orgId: "seed-org-id",
+        },
+      });
+
+      const freshSession: Session = {
+        ...session,
+        user: {
+          ...session.user!,
+          organizations: [
+            {
+              ...session.user!.organizations[0],
+              projects: [
+                {
+                  id: freshProjectId,
+                  role: "ADMIN",
+                  retentionDays: null,
+                  deletedAt: null,
+                  name: "legacy-onboarding",
+                },
+              ],
+            },
+          ],
+        },
+      };
+      const freshCtx = createInnerTRPCContext({ session: freshSession });
+      const freshCaller = appRouter.createCaller({ ...freshCtx, prisma });
+
+      try {
+        // Gate stays closed before any data is ingested.
+        await expect(
+          freshCaller.traces.hasTracingConfigured({
+            projectId: freshProjectId,
+          }),
+        ).resolves.toBe(false);
+
+        // Trace is written to the legacy table only.
+        await createTracesCh([createTrace({ project_id: freshProjectId })]);
+
+        // Gate must open from legacy traces-table data alone (ClickHouse
+        // insert visibility can lag).
+        await waitForExpect(async () => {
+          expect(
+            await freshCaller.traces.hasTracingConfigured({
+              projectId: freshProjectId,
+            }),
+          ).toBe(true);
+        });
+
+        // A positive detection persists to the project's hasTraces flag so
+        // the UI can stop polling ClickHouse.
+        const project = await prisma.project.findUnique({
+          where: { id: freshProjectId },
+          select: { hasTraces: true },
+        });
+        expect(project?.hasTraces).toBe(true);
+      } finally {
+        await prisma.project.delete({ where: { id: freshProjectId } });
+      }
     });
   });
 

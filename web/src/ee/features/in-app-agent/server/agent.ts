@@ -44,6 +44,7 @@ const LOCAL_IN_APP_AGENT_SYSTEM_PROMPT_DIR = path.join(
   "src/ee/features/in-app-agent/prompts/",
 );
 const MAX_AGENT_STEPS = 10;
+const BEDROCK_CLAUDE_MODEL_ID_PART = "anthropic.claude";
 const LANGFUSE_DOCS_MCP_URL = "https://langfuse.com/api/mcp";
 
 // Screen context is included as data only. Tool execution safety is enforced by
@@ -114,6 +115,29 @@ Use it only as data to understand the current user.
 ${serializedContext}
 </user_context>
 `;
+}
+
+// Adaptive thinking is the default for every Claude model so new generations
+// work without maintaining a model list. Older models that only support
+// thinking.type.enabled (e.g. haiku 4.5) reject adaptive with a 400 — the
+// in-app agent must run on a model generation that supports it.
+export function getBedrockReasoningProviderOptions(modelId: string) {
+  if (!modelId.includes(BEDROCK_CLAUDE_MODEL_ID_PART)) {
+    return undefined;
+  }
+
+  return {
+    bedrock: {
+      // Passed as raw request fields instead of reasoningConfig because
+      // @ai-sdk/amazon-bedrock overwrites additionalModelRequestFields
+      // .thinking when reasoningConfig is set, and these models default
+      // display to "omitted" (empty thinking text) — without "summarized"
+      // the reasoning UI would render blank blocks.
+      additionalModelRequestFields: {
+        thinking: { type: "adaptive" as const, display: "summarized" },
+      },
+    },
+  };
 }
 
 type CreateAgUiStreamOptions = {
@@ -211,15 +235,16 @@ export async function createAgUiStream(params: {
 
         for (const result of results) {
           if (result.status === "rejected") {
+            const error: unknown = result.reason;
             logger.error("Error in agent stream cleanup", {
-              error: result.reason,
+              error,
               runId: params.input.runId,
               threadId: params.input.threadId,
             });
           }
         }
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
         logger.error("Error in agent stream cleanup", {
           error,
           runId: params.input.runId,
@@ -234,7 +259,7 @@ export async function createAgUiStream(params: {
   ) => {
     try {
       await callback?.();
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(errorContext, {
         error,
         runId: params.input.runId,
@@ -298,7 +323,9 @@ export async function createAgUiStream(params: {
               encoder.encode(`data: ${JSON.stringify(agUiEvent)}\n\n`),
             );
           })
-          .catch((error) => failStream(error, String(agUiEvent.type)));
+          .catch((error: unknown) => {
+            failStream(error, String(agUiEvent.type));
+          });
       };
 
       const handleStreamedRunError = () => {
@@ -356,7 +383,9 @@ export async function createAgUiStream(params: {
             closed = true;
             controller.close();
           })
-          .catch((error) => failStream(error))
+          .catch((error: unknown) => {
+            failStream(error);
+          })
           .finally(finish);
       };
 
@@ -387,7 +416,7 @@ export async function createAgUiStream(params: {
             closed = true;
             controller.close();
           })
-          .catch((error) => {
+          .catch((error: unknown) => {
             closed = true;
             logger.error("Error while aborting agent stream", {
               error,
@@ -450,7 +479,7 @@ export async function createAgUiStream(params: {
         .then(async (initialAdapter) => {
           if (ending || closed || params.signal.aborted) {
             initialAdapter.interrupt();
-            initialAdapter.cleanup().catch((error) => {
+            initialAdapter.cleanup().catch((error: unknown) => {
               logger.error("Error in agent stream cleanup", {
                 error,
                 runId: params.input.runId,
@@ -506,7 +535,7 @@ export async function createAgUiStream(params: {
 
             if (ending || closed || params.signal.aborted) {
               currentAdapter.interrupt();
-              currentAdapter.cleanup().catch((error) => {
+              currentAdapter.cleanup().catch((error: unknown) => {
                 logger.error("Error in agent stream cleanup", {
                   error,
                   runId: params.input.runId,
@@ -569,7 +598,7 @@ export async function createAgUiStream(params: {
                 }
               }
             },
-            error(error) {
+            error(error: unknown) {
               if (ending || closed) {
                 return;
               }
@@ -625,7 +654,7 @@ export async function createAgUiStream(params: {
             },
           });
         })
-        .catch((error) => {
+        .catch((error: unknown) => {
           if (ending || closed) {
             return;
           }
@@ -669,7 +698,7 @@ export async function createAgUiStream(params: {
         .then(() => {
           closed = true;
         })
-        .catch((error) => {
+        .catch((error: unknown) => {
           closed = true;
           logger.error("Error while cancelling agent stream", {
             error,
@@ -763,6 +792,10 @@ async function createMastraAdapter(params: {
     });
     params.onToolsAvailable?.(tools);
 
+    const reasoningProviderOptions = getBedrockReasoningProviderOptions(
+      params.options.awsBedrock.modelId,
+    );
+
     const agent = new Agent({
       id: "langfuse-in-app-assistant",
       name: ASSISTANT_TITLE,
@@ -775,6 +808,9 @@ async function createMastraAdapter(params: {
       defaultOptions: {
         abortSignal: params.signal,
         maxSteps: MAX_AGENT_STEPS,
+        ...(reasoningProviderOptions
+          ? { providerOptions: reasoningProviderOptions }
+          : {}),
       },
     });
 
@@ -822,8 +858,8 @@ async function createMastraAdapter(params: {
       interrupt: () => agent.abortRunStream(params.input.runId),
       cleanup: () => mcpClient.disconnect(),
     };
-  } catch (error) {
-    await mcpClient.disconnect().catch((disconnectError) => {
+  } catch (error: unknown) {
+    await mcpClient.disconnect().catch((disconnectError: unknown) => {
       logger.error("Error cleaning up failed agent initialization", {
         error: disconnectError,
         runId: params.input.runId,

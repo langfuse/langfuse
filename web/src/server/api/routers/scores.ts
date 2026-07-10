@@ -100,6 +100,8 @@ type AllScoresFromEventsReturnType = Omit<ScoreDomain, "metadata"> & {
   hasMetadata: boolean;
 };
 
+const BOOLEAN_SCORE_VALUE_OPTIONS = [{ value: "true" }, { value: "false" }];
+
 export const scoresRouter = createTRPCRouter({
   /**
    * Get all scores for a project, meant for internal use and *excludes metadata of scores*
@@ -366,6 +368,7 @@ export const scoresRouter = createTRPCRouter({
           count: Number(u.count),
         })),
         stringValue: stringValues,
+        booleanValue: BOOLEAN_SCORE_VALUE_OPTIONS,
       };
     }),
   filterOptions: protectedProjectProcedure
@@ -408,6 +411,7 @@ export const scoresRouter = createTRPCRouter({
         })),
         userId: userIds.map((u) => ({ value: u.user, count: u.count })),
         stringValue: stringValues,
+        booleanValue: BOOLEAN_SCORE_VALUE_OPTIONS,
       };
     }),
   deleteMany: protectedProjectProcedure

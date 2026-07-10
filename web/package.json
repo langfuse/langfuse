@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.207.0",
+  "version": "3.211.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -37,7 +37,7 @@
     "@appsignal/opentelemetry-instrumentation-bullmq": "^0.8.0",
     "@astral-sh/ruff-wasm-web": "0.15.13",
     "@aws-crypto/sha256-browser": "^5.2.0",
-    "@aws-sdk/credential-providers": "3.1056.0",
+    "@aws-sdk/credential-providers": "catalog:",
     "@baselime/trpc-opentelemetry-middleware": "^0.1.2",
     "@codemirror/lang-javascript": "^6.2.5",
     "@codemirror/lang-json": "^6.0.2",
@@ -222,7 +222,7 @@
     "raw-loader": "^4.0.2",
     "storybook": "10.3.6",
     "tailwindcss": "^4.2.2",
-    "typescript": "^5.7.2",
+    "typescript": "catalog:",
     "vite": "^7.3.5",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^4.1.8",

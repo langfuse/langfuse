@@ -197,7 +197,7 @@ export async function finishRun(params: {
         errorMessage: params.errorMessage ?? null,
       },
     })
-    .catch((error) =>
+    .catch((error: unknown) =>
       logger.error("Failed to finish in-app agent run", {
         error,
         runId: params.runId,
@@ -655,6 +655,8 @@ export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
     event.type === EventType.STEP_STARTED ||
     event.type === EventType.STEP_FINISHED ||
     event.type === EventType.TOOL_CALL_CHUNK ||
+    // Reasoning is a live responsiveness signal. Keep plaintext reasoning out
+    // of persisted conversation history and replay.
     event.type === EventType.REASONING_START ||
     event.type === EventType.REASONING_MESSAGE_START ||
     event.type === EventType.REASONING_MESSAGE_CHUNK ||
@@ -713,10 +715,8 @@ export function createConversationMessageAccumulator(
       return true;
     }
 
-    messages[existingIndex] = mergeMessages(
-      messages[existingIndex]!,
-      parsed.data,
-    );
+    const existingMessage = messages[existingIndex];
+    messages[existingIndex] = mergeMessages(existingMessage, parsed.data);
 
     return true;
   };
@@ -912,6 +912,7 @@ export function createConversationMessageAccumulator(
       event.type === EventType.STEP_STARTED ||
       event.type === EventType.STEP_FINISHED ||
       event.type === EventType.TOOL_CALL_CHUNK ||
+      // Reasoning is live-only; do not reconstruct it from persisted history.
       event.type === EventType.REASONING_START ||
       event.type === EventType.REASONING_MESSAGE_START ||
       event.type === EventType.REASONING_MESSAGE_CHUNK ||
