@@ -212,7 +212,7 @@ export function SearchBarAiPrompt({
             // ring box-shadow (the "blue box"). border-0 + focus:ring-0 drop both
             // (it's `:focus`, not `:focus-visible`), so the only focus indicator
             // is the container's subtle focus-within ring, matching the grammar bar.
-            className="placeholder:text-muted-foreground min-w-0 flex-1 border-0 bg-transparent text-xs leading-6 outline-none focus:ring-0 focus:outline-none disabled:opacity-60"
+            className="placeholder:text-foreground-tertiary min-w-0 flex-1 border-0 bg-transparent text-xs leading-6 outline-none focus:ring-0 focus:outline-none disabled:opacity-60"
             onChange={(event) => {
               setValue(event.target.value);
               if (error) setError(null);

@@ -32,6 +32,7 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { api } from "@/src/utils/api";
+import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 
 import type { RouterOutput } from "@/src/utils/types";
 import {
@@ -96,10 +97,13 @@ export type ScoresTableProps = {
   hiddenColumns?: ScoresTableHiddenColumn[];
   localStorageSuffix?: string;
   disableUrlPersistence?: boolean;
-  /** Hide the toolbar time-range picker. Set by pages that render the picker
-   *  in the page header (TableTimeRangeHeaderPicker) — both read the same
-   *  shared per-project range, so embedded usages keep the toolbar picker. */
-  hideTimeRangePicker?: boolean;
+  /**
+   * When true, render the time-range picker and auto-refresh button in the
+   * page header (next to the title) via the header controls slot, instead of
+   * inside the table toolbar. Only used when the table is the primary content
+   * of a `Page`.
+   */
+  showControlsInPageHeader?: boolean;
 };
 
 function createFilterState(
@@ -126,7 +130,7 @@ export default function ScoresTable({
   hiddenColumns = [],
   localStorageSuffix = "",
   disableUrlPersistence = false,
-  hideTimeRangePicker = false,
+  showControlsInPageHeader = false,
 }: ScoresTableProps) {
   const peekContext = usePeekTableState();
 
@@ -306,6 +310,7 @@ export default function ScoresTable({
           value: sv.value,
           count: sv.count !== undefined ? Number(sv.count) : undefined,
         })) ?? undefined,
+      booleanValue: filterOptions.data?.booleanValue ?? undefined,
       traceName:
         filterOptions.data?.traceName?.map((tn) => ({
           value: tn.value,
@@ -926,6 +931,12 @@ export default function ScoresTable({
       defaultSidebarCollapsed={scoresFilterConfig.defaultSidebarCollapsed}
     >
       <div className="flex h-full w-full flex-col">
+        {showControlsInPageHeader && (
+          <TableHeaderControls
+            timeRange={timeRange}
+            setTimeRange={setTimeRange}
+          />
+        )}
         {/* Toolbar spanning full width */}
         <DataTableToolbar
           columns={columns}
@@ -961,8 +972,8 @@ export default function ScoresTable({
           ]}
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
-          timeRange={hideTimeRangePicker ? undefined : timeRange}
-          setTimeRange={hideTimeRangePicker ? undefined : setTimeRange}
+          timeRange={showControlsInPageHeader ? undefined : timeRange}
+          setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
           multiSelect={{
             selectAll,
             setSelectAll,

@@ -61,7 +61,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
   };
 
   // Fetch templates
-  const templates = api.evals.allTemplates.useQuery(
+  const templates = api.evals.latestTemplates.useQuery(
     {
       projectId,
     },
@@ -244,7 +244,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
                     setIsCreateTemplateOpen(false);
                     setCustomEvaluatorType(null);
                     setUseLlmCreateWizard(false);
-                    utils.evals.allTemplates.invalidate();
+                    utils.evals.latestTemplates.invalidate();
                     if (newTemplate) {
                       handleSelectEvaluator(newTemplate);
                     }
@@ -265,7 +265,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
                 }
                 setIsCreateTemplateOpen(false);
                 setCustomEvaluatorType(null);
-                utils.evals.allTemplates.invalidate();
+                utils.evals.latestTemplates.invalidate();
                 if (newTemplate) {
                   handleSelectEvaluator(newTemplate);
                 }

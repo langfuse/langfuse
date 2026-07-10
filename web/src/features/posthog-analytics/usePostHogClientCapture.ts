@@ -52,6 +52,17 @@ export const events = {
     "update_name",
     "search_views",
     "system_preset_selected",
+    "category_chip_open",
+    "category_chip_apply",
+    "category_preset_preview",
+    "category_preset_coming_soon_click",
+    // Fired when a chip popover closes; carries durationMs + outcome
+    // ("applied" | "cleared" | "previewed_only" | "no_interaction") so the
+    // explore → activate funnel and dwell time read from one event.
+    "category_chip_close",
+    // A bookmarked/stored system-preset id that the catalog retired — the
+    // user was shown the one-time notice and landed on the default view.
+    "retired_view_redirect",
   ],
   score: [
     "create",
@@ -123,6 +134,19 @@ export const events = {
   ],
   dashboard: [
     "clone_dashboard",
+    "home_dashboard_viewed",
+    "home_dashboard_peeked",
+    "home_dashboard_set_default",
+    "home_edit_pencil_click",
+    "locked_edit_attempt",
+    "clone_first_cancelled",
+    "clone_open_existing_click",
+    "widget_copy_first_open",
+    "widget_copied_to_project",
+    "add_widget_dialog_open",
+    "add_widget_tab_switch",
+    "widget_added",
+    "dashboard_renamed_inline",
     "chart_tab_switch",
     "date_range_changed",
     "new_widget_form_open",
@@ -155,6 +179,7 @@ export const events = {
     "new_from_trace_form_open",
     "upload_csv_button_click",
     "upload_csv_form_submit",
+    "select_observations_button_click",
     "delete",
   ],
   dataset_run: [

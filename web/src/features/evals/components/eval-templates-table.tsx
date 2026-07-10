@@ -35,7 +35,6 @@ import { DeleteEvalTemplateDialog } from "@/src/features/evals/components/delete
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { EvalReferencedEvaluators } from "@/src/features/evals/types";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { type RouterInput } from "@/src/utils/types";
 import {
@@ -71,6 +70,11 @@ export type EvalsTemplateRow = {
   usageCount?: number;
   actions?: string;
 } & TemplateValidationInput;
+
+type CloneCreateTemplateInput = Extract<
+  RouterInput["evals"]["createTemplate"],
+  { intent: "clone" }
+>;
 
 const getMaintainerLabel = (maintainer: string) =>
   maintainer.replace(/ maintained$/, "");
@@ -252,9 +256,8 @@ export default function EvalsTemplateTable({
   const [cloneTemplateId, setCloneTemplateId] = useState<string | null>(null);
   const [showReferenceUpdateDialog, setShowReferenceUpdateDialog] =
     useState(false);
-  const [pendingCloneSubmission, setPendingCloneSubmission] = useState<
-    RouterInput["evals"]["createTemplate"] | null
-  >(null);
+  const [pendingCloneSubmission, setPendingCloneSubmission] =
+    useState<CloneCreateTemplateInput | null>(null);
 
   const utils = api.useUtils();
   const templates = api.evals.templateNames.useQuery({
@@ -327,6 +330,15 @@ export default function EvalsTemplateTable({
       showErrorToast("Error cloning evaluator", error.message);
     },
   });
+
+  const submitPendingClone = (retargetUsingJobConfigs: boolean) => {
+    if (!pendingCloneSubmission) return;
+
+    createEvalTemplateMutation.mutate({
+      ...pendingCloneSubmission,
+      retargetUsingJobConfigs,
+    });
+  };
 
   useEffect(() => {
     if (templates.isSuccess) {
@@ -687,10 +699,8 @@ export default function EvalsTemplateTable({
                 cloneTemplate.data &&
                 !cloneTemplate.data.projectId
               ) {
-                setPendingCloneSubmission({
-                  ...template,
-                  cloneSourceId: cloneTemplateId,
-                });
+                if (template.intent !== "clone") return true;
+                setPendingCloneSubmission(template);
                 setShowReferenceUpdateDialog(true);
                 return false; // Prevent immediate submission
               }
@@ -715,9 +725,7 @@ export default function EvalsTemplateTable({
         onOpenChange={(open) => {
           if (!open && pendingCloneSubmission) {
             // If dialog is closed without a decision, default to not updating references
-            pendingCloneSubmission.referencedEvaluators =
-              EvalReferencedEvaluators.PERSIST;
-            createEvalTemplateMutation.mutate(pendingCloneSubmission);
+            submitPendingClone(false);
           }
           setShowReferenceUpdateDialog(open);
         }}
@@ -738,24 +746,14 @@ export default function EvalsTemplateTable({
             <Button
               variant="outline"
               onClick={() => {
-                if (pendingCloneSubmission) {
-                  // Submit with PERSIST option
-                  pendingCloneSubmission.referencedEvaluators =
-                    EvalReferencedEvaluators.PERSIST;
-                  createEvalTemplateMutation.mutate(pendingCloneSubmission);
-                }
+                submitPendingClone(false);
               }}
             >
               No, keep as is
             </Button>
             <Button
               onClick={() => {
-                if (pendingCloneSubmission) {
-                  // Submit with UPDATE option
-                  pendingCloneSubmission.referencedEvaluators =
-                    EvalReferencedEvaluators.UPDATE;
-                  createEvalTemplateMutation.mutate(pendingCloneSubmission);
-                }
+                submitPendingClone(true);
               }}
             >
               Yes, update all references

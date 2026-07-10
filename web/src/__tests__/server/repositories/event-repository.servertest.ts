@@ -4,6 +4,7 @@ import {
   getObservationsForTraceFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
   getObservationsCountFromEventsTable,
+  getObservationsCountsFromEventsTable,
   getObservationByIdFromEventsTable,
   getObservationsFromEventsTableForPublicApi,
   getObservationsCountFromEventsTableForPublicApi,
@@ -466,6 +467,95 @@ describe("Clickhouse Events Repository Test", () => {
     });
   });
 
+  maybe("getObservationsCountsFromEventsTable", () => {
+    it("should return zero counts for non-existent project", async () => {
+      const nonExistentProjectId = randomUUID();
+
+      const counts = await getObservationsCountsFromEventsTable({
+        projectId: nonExistentProjectId,
+        filter: [],
+      });
+
+      expect(counts).toEqual({ totalCount: 0, uniqueTraceCount: 0 });
+    });
+
+    it("should return total event count and unique trace count in one query", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceIds = [randomUUID(), randomUUID(), randomUUID()];
+      // 6 events across 3 distinct traces (2 events per trace)
+      const events = traceIds.flatMap((traceId, traceIndex) =>
+        Array.from({ length: 2 }, (_, i) =>
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: `counts-test-${traceIndex}-${i}`,
+          }),
+        ),
+      );
+
+      await createEventsCh(events);
+
+      const counts = await getObservationsCountsFromEventsTable({
+        projectId: uniqueProjectId,
+        filter: [],
+      });
+
+      expect(counts.totalCount).toBe(6);
+      expect(counts.uniqueTraceCount).toBe(3);
+    });
+
+    it("should apply filters to both counts", async () => {
+      const uniqueProjectId = randomUUID();
+      const matchingTraceId = randomUUID();
+      const otherTraceId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: matchingTraceId,
+          type: "SPAN",
+          name: "counts-filter-match",
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: matchingTraceId,
+          type: "SPAN",
+          name: "counts-filter-match",
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: otherTraceId,
+          type: "SPAN",
+          name: "counts-filter-other",
+        }),
+      ]);
+
+      const counts = await getObservationsCountsFromEventsTable({
+        projectId: uniqueProjectId,
+        filter: [
+          {
+            type: "string",
+            column: "name",
+            operator: "=",
+            value: "counts-filter-match",
+          },
+        ],
+      });
+
+      expect(counts.totalCount).toBe(2);
+      expect(counts.uniqueTraceCount).toBe(1);
+    });
+  });
+
   maybe("Search Query Tests", () => {
     it("should not throw when searchQuery is combined with score filter", async () => {
       const uniqueProjectId = randomUUID();
@@ -500,6 +590,169 @@ describe("Clickhouse Events Repository Test", () => {
       });
 
       expect(count).toBeGreaterThanOrEqual(0);
+    });
+
+    it("filters observations by observation-level boolean scores", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const matchingSpanId = randomUUID();
+      const otherSpanId = randomUUID();
+      const now = Date.now();
+
+      await createEventsCh([
+        createEvent({
+          id: matchingSpanId,
+          span_id: matchingSpanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "boolean-score-match",
+          start_time: now * 1000,
+        }),
+        createEvent({
+          id: otherSpanId,
+          span_id: otherSpanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "boolean-score-other",
+          start_time: now * 1000,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: matchingSpanId,
+          name: "is_hallucination",
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "True",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: otherSpanId,
+          name: "is_hallucination",
+          data_type: "BOOLEAN",
+          value: 0,
+          string_value: "False",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+      ]);
+
+      const booleanFilter: FilterCondition = {
+        type: "booleanObject",
+        column: "score_booleans",
+        operator: "=",
+        key: "is_hallucination",
+        value: true,
+      };
+
+      await waitForExpect(async () => {
+        const observations = await getObservationsWithModelDataFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [booleanFilter],
+          limit: 100,
+          offset: 0,
+        });
+        const count = await getObservationsCountFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [booleanFilter],
+        });
+
+        expect(count).toBe(1);
+        expect(observations.map((o) => o.id)).toEqual([matchingSpanId]);
+      });
+    });
+
+    it("filters observations by trace-level boolean scores", async () => {
+      const uniqueProjectId = randomUUID();
+      const matchingTraceId = randomUUID();
+      const otherTraceId = randomUUID();
+      const matchingSpanId = randomUUID();
+      const otherSpanId = randomUUID();
+      const now = Date.now();
+
+      await createEventsCh([
+        createEvent({
+          id: matchingSpanId,
+          span_id: matchingSpanId,
+          project_id: uniqueProjectId,
+          trace_id: matchingTraceId,
+          type: "SPAN",
+          name: "trace-boolean-score-match",
+          start_time: now * 1000,
+        }),
+        createEvent({
+          id: otherSpanId,
+          span_id: otherSpanId,
+          project_id: uniqueProjectId,
+          trace_id: otherTraceId,
+          type: "SPAN",
+          name: "trace-boolean-score-other",
+          start_time: now * 1000,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: matchingTraceId,
+          observation_id: null,
+          name: "passes_guardrail",
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "True",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: otherTraceId,
+          observation_id: null,
+          name: "passes_guardrail",
+          data_type: "BOOLEAN",
+          value: 0,
+          string_value: "False",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+      ]);
+
+      const booleanFilter: FilterCondition = {
+        type: "booleanObject",
+        column: "trace_score_booleans",
+        operator: "=",
+        key: "passes_guardrail",
+        value: true,
+      };
+
+      await waitForExpect(async () => {
+        const observations = await getObservationsWithModelDataFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [booleanFilter],
+          limit: 100,
+          offset: 0,
+        });
+        const count = await getObservationsCountFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [booleanFilter],
+        });
+
+        expect(count).toBe(1);
+        expect(observations.map((o) => o.id)).toEqual([matchingSpanId]);
+      });
     });
 
     it("should not throw when searchQuery is provided without filters", async () => {
@@ -657,6 +910,18 @@ describe("Clickhouse Events Repository Test", () => {
           created_at: now,
           updated_at: now,
         }),
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          name: "unrequested-filter-option-boolean",
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "True",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
       ]);
 
       await waitForExpect(async () => {
@@ -672,8 +937,74 @@ describe("Clickhouse Events Repository Test", () => {
         expect(options.traceTags).toBeUndefined();
         expect(options.scores_avg).toBeUndefined();
         expect(options.score_categories).toBeUndefined();
+        expect(options.score_booleans).toBeUndefined();
         expect(options.trace_scores_avg).toBeUndefined();
         expect(options.trace_score_categories).toBeUndefined();
+        expect(options.trace_score_booleans).toBeUndefined();
+      });
+    });
+
+    it("loads requested boolean score filter option columns", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+      const now = Date.now();
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "requested-boolean-filter-option",
+          start_time: now * 1000,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: spanId,
+          name: "requested-observation-boolean",
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "True",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: null,
+          name: "requested-trace-boolean",
+          data_type: "BOOLEAN",
+          value: 0,
+          string_value: "False",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const options = await getEventFilterOptions({
+          projectId: uniqueProjectId,
+          columns: ["score_booleans", "trace_score_booleans"],
+        });
+
+        expect(options.score_booleans).toContain(
+          "requested-observation-boolean",
+        );
+        expect(options.trace_score_booleans).toContain(
+          "requested-trace-boolean",
+        );
+        expect(options.trace_score_booleans).not.toContain(
+          "requested-observation-boolean",
+        );
       });
     });
 
@@ -744,48 +1075,6 @@ describe("Clickhouse Events Repository Test", () => {
         expect(Number(range?.count)).toBe(1);
         expect(Number(range?.min)).toBeCloseTo(1, 3);
         expect(Number(range?.max)).toBeCloseTo(1, 3);
-      });
-    });
-
-    it("uses the monitor window to scope monitor filter option queries", async () => {
-      const uniqueProjectId = randomUUID();
-      const traceId = randomUUID();
-      const now = Date.now();
-      const recentLevel = "WARNING";
-      const oldLevel = "ERROR";
-
-      await createEventsCh([
-        createEvent({
-          id: randomUUID(),
-          span_id: randomUUID(),
-          project_id: uniqueProjectId,
-          trace_id: traceId,
-          type: "SPAN",
-          name: "recent-monitor-filter-option-event",
-          level: recentLevel,
-          start_time: (now - 60 * 1000) * 1000,
-        }),
-        createEvent({
-          id: randomUUID(),
-          span_id: randomUUID(),
-          project_id: uniqueProjectId,
-          trace_id: traceId,
-          type: "SPAN",
-          name: "old-monitor-filter-option-event",
-          level: oldLevel,
-          start_time: (now - 10 * 60 * 1000) * 1000,
-        }),
-      ]);
-
-      await waitForExpect(async () => {
-        const options = await getEventFilterOptions({
-          projectId: uniqueProjectId,
-          monitorWindow: "5m",
-        });
-        const levels = options.level.map((level) => level.value);
-
-        expect(levels).toContain(recentLevel);
-        expect(levels).not.toContain(oldLevel);
       });
     });
   });
@@ -3101,21 +3390,70 @@ describe("Clickhouse Events Repository Test", () => {
       expect(result).toBeDefined();
       expect(result.length).toBe(0);
     });
+
+    it("should fetch tool call fields only when includeToolCallFields is set", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+      const storedToolCall = JSON.stringify({
+        id: "call_1",
+        arguments: JSON.stringify({ city: "Berlin" }),
+        type: "function",
+        index: 0,
+      });
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "test-tool-calls",
+          input: "tool call input",
+          output: "tool call output",
+          tool_calls: [storedToolCall],
+          tool_call_names: ["get_weather"],
+          start_time: nowMicro,
+        }),
+      ]);
+
+      const baseParams = {
+        projectId,
+        observations: [{ id: observationId, traceId }],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
+      };
+
+      const withoutToolCalls =
+        await getObservationsBatchIOFromEventsTable(baseParams);
+      expect(withoutToolCalls.length).toBe(1);
+      expect(withoutToolCalls[0]).not.toHaveProperty("toolCalls");
+      expect(withoutToolCalls[0]).not.toHaveProperty("toolCallNames");
+
+      const withToolCalls = await getObservationsBatchIOFromEventsTable({
+        ...baseParams,
+        includeToolCallFields: true,
+      });
+      expect(withToolCalls.length).toBe(1);
+      expect(withToolCalls[0]?.toolCalls).toEqual([storedToolCall]);
+      expect(withToolCalls[0]?.toolCallNames).toEqual(["get_weather"]);
+    });
   });
 
   maybe("getLatestSdkVersionInfoFromEvents", () => {
-    it("should return isOtel: false for v2 data (no scope metadata)", async () => {
+    it("should return isOtel: false for classic ingestion data (no OTel source)", async () => {
       const uniqueProjectId = randomUUID();
 
-      // v2 data has no scope key in metadata
+      // v2 SDK via classic batch ingestion: not OTel-compatible
       await createEventsCh([
         createEvent({
           project_id: uniqueProjectId,
           start_time: Date.now() * 1000,
-          metadata_names: ["version"],
-          metadata_values: ["2.x"],
-          scope_name: "",
-          scope_version: "",
+          source: "ingestion-api-dual-write",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "2.60.1",
           telemetry_sdk_language: "",
         }),
       ]);
@@ -3127,89 +3465,30 @@ describe("Clickhouse Events Repository Test", () => {
       expect(result.isOtel).toBe(false);
     });
 
-    it("should return isOtel: true with v3 version from metadata", async () => {
+    it("should return isOtel: true with attribution from the newest OTel event", async () => {
       const uniqueProjectId = randomUUID();
       const now = Date.now() * 1000;
 
-      // Insert v2 data
+      // Insert v2 data (classic ingestion, must be skipped)
       await createEventsCh([
         createEvent({
           project_id: uniqueProjectId,
           start_time: now - 10000000, // older
-          metadata_names: ["version"],
-          metadata_values: ["2.x"],
-          scope_name: "",
-          scope_version: "",
+          source: "ingestion-api-dual-write",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "2.60.1",
           telemetry_sdk_language: "",
         }),
       ]);
 
-      // Insert v3 data - SDK info in metadata as nested JSON
+      // Insert v3 data - Langfuse SDK via OTLP, attribution from headers
       await createEventsCh([
         createEvent({
           project_id: uniqueProjectId,
           start_time: now, // newer
-          metadata_names: ["resourceAttributes", "scope"],
-          metadata_values: [
-            '{"telemetry.sdk.language":"python","telemetry.sdk.name":"opentelemetry"}',
-            '{"name":"langfuse-sdk","version":"3.14.6"}',
-          ],
-          scope_name: "", // v3 has empty direct columns
-          scope_version: "",
-          telemetry_sdk_language: "",
-        }),
-      ]);
-
-      const result = await getLatestSdkVersionInfoFromEvents({
-        projectId: uniqueProjectId,
-      });
-
-      expect(result.isOtel).toBe(true);
-      expect(result.version).toBe("3.14.6");
-    });
-
-    it("should return v4 version from direct columns when available", async () => {
-      const uniqueProjectId = randomUUID();
-      const now = Date.now() * 1000;
-
-      // Insert v2 data (oldest)
-      await createEventsCh([
-        createEvent({
-          project_id: uniqueProjectId,
-          start_time: now - 20000000,
-          metadata_names: ["version"],
-          metadata_values: ["2.x"],
-          scope_name: "",
-          scope_version: "",
-          telemetry_sdk_language: "",
-        }),
-      ]);
-
-      // Insert v3 data (middle)
-      await createEventsCh([
-        createEvent({
-          project_id: uniqueProjectId,
-          start_time: now - 10000000,
-          metadata_names: ["resourceAttributes", "scope"],
-          metadata_values: [
-            '{"telemetry.sdk.language":"python"}',
-            '{"name":"langfuse-sdk","version":"3.14.6"}',
-          ],
-          scope_name: "",
-          scope_version: "",
-          telemetry_sdk_language: "",
-        }),
-      ]);
-
-      // Insert v4 data (newest) - SDK info in direct columns
-      await createEventsCh([
-        createEvent({
-          project_id: uniqueProjectId,
-          start_time: now, // newest
-          metadata_names: ["scope.name", "scope.version"],
-          metadata_values: ["langfuse-sdk", "4.2.0"],
-          scope_name: "langfuse-sdk",
-          scope_version: "4.2.0",
+          source: "otel",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "3.14.6",
           telemetry_sdk_language: "python",
         }),
       ]);
@@ -3219,28 +3498,36 @@ describe("Clickhouse Events Repository Test", () => {
       });
 
       expect(result.isOtel).toBe(true);
-      expect(result.version).toBe("4.2.0");
+      expect(result.name).toBe("python");
+      expect(result.version).toBe("3.14.6");
+      expect(result.language).toBe("python");
     });
 
-    it("should return isOtel: true for Vercel AI SDK events (OTel without Langfuse SDK)", async () => {
+    it("should match dual-write OTel events and return the newest attribution", async () => {
       const uniqueProjectId = randomUUID();
       const now = Date.now() * 1000;
 
-      // Vercel AI SDK: sent via OTel but without Langfuse SDK
-      // scope.name is "ai" (instrumentation scope), no version
-      // resourceAttributes has telemetry.sdk.name = "opentelemetry"
+      // Older direct-write event
       await createEventsCh([
         createEvent({
           project_id: uniqueProjectId,
-          start_time: now,
-          metadata_names: ["resourceAttributes", "scope"],
-          metadata_values: [
-            '{"telemetry.sdk.language":"nodejs","telemetry.sdk.name":"opentelemetry"}',
-            '{"name":"ai","attributes":{}}',
-          ],
-          scope_name: "", // No direct columns for raw OTel
-          scope_version: "",
-          telemetry_sdk_language: "",
+          start_time: now - 10000000,
+          source: "otel",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "3.14.6",
+          telemetry_sdk_language: "python",
+        }),
+      ]);
+
+      // Newest event arrived via the dual-write propagation path
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now, // newest
+          source: "otel-dual-write",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "4.2.0",
+          telemetry_sdk_language: "python",
         }),
       ]);
 
@@ -3249,9 +3536,35 @@ describe("Clickhouse Events Repository Test", () => {
       });
 
       expect(result.isOtel).toBe(true);
-      expect(result.name).toBe("ai");
-      expect(result.language).toBe("nodejs");
+      expect(result.name).toBe("python");
+      expect(result.version).toBe("4.2.0");
+    });
+
+    it("should return isOtel: true without name/version for raw OTel clients (e.g. Vercel AI SDK)", async () => {
+      const uniqueProjectId = randomUUID();
+      const now = Date.now() * 1000;
+
+      // Vercel AI SDK: sent via OTel but without Langfuse SDK headers,
+      // so ingestion attribution carries the 'unknown' sentinel
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now,
+          source: "otel",
+          ingestion_sdk_name: "unknown",
+          ingestion_sdk_version: "unknown",
+          telemetry_sdk_language: "nodejs",
+        }),
+      ]);
+
+      const result = await getLatestSdkVersionInfoFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.isOtel).toBe(true);
+      expect(result.name).toBeUndefined();
       expect(result.version).toBeUndefined();
+      expect(result.language).toBe("nodejs");
     });
   });
 

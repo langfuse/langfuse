@@ -529,7 +529,7 @@ export function TraceTimeline() {
             Name
           </span>
         </div>
-        <div className="bg-border/60 w-px shrink-0" />
+        <div className="bg-border-contrast/60 w-px shrink-0" />
         <div
           ref={scaleOuterRef}
           onPointerDown={handleScalePointerDown}
@@ -627,7 +627,7 @@ export function TraceTimeline() {
         </div>
 
         {/* Resizer: structural 1px divider with a wider invisible drag grip. */}
-        <div className="bg-border/60 relative w-px shrink-0">
+        <div className="bg-border-contrast/60 relative w-px shrink-0">
           <div
             role="separator"
             aria-orientation="vertical"

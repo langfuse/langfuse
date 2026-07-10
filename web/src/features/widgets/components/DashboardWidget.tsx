@@ -17,12 +17,7 @@ import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
-import {
-  PencilIcon,
-  TrashIcon,
-  CopyIcon,
-  GripVerticalIcon,
-} from "lucide-react";
+import { PencilIcon, TrashIcon, GripVerticalIcon } from "lucide-react";
 import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
@@ -32,6 +27,7 @@ import {
   shouldUseWidgetSSE,
   sanitizePivotTableDefaultSort,
   getWidgetMetricPresentation,
+  getWidgetMissingBucketValue,
 } from "@/src/features/widgets/utils";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
 import {
@@ -40,6 +36,9 @@ import {
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { CopyWidgetDialog } from "@/src/features/widgets/components/CopyWidgetDialog";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { Badge } from "@/src/components/ui/badge";
 
 export interface WidgetPlacement {
   id: string;
@@ -60,6 +59,8 @@ export function DashboardWidget({
   onDeleteWidget,
   dashboardOwner,
   schedulerId,
+  onLockedEditAttempt,
+  readOnly,
 }: {
   projectId: string;
   dashboardId: string;
@@ -69,9 +70,18 @@ export function DashboardWidget({
   onDeleteWidget: (tileId: string) => void;
   dashboardOwner: "LANGFUSE" | "PROJECT";
   schedulerId?: string;
+  /**
+   * Present on Langfuse-managed (read-only) dashboards: edit affordances stay
+   * visible and any edit attempt routes here (clone-first flow) instead of
+   * mutating.
+   */
+  onLockedEditAttempt?: () => void;
+  /** Pure viewing surface (e.g. Home): render no edit affordances. */
+  readOnly?: boolean;
 }) {
   const router = useRouter();
   const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
   const { isBetaEnabled } = useV4Beta();
   const widget = api.dashboardWidgets.get.useQuery(
     {
@@ -97,9 +107,17 @@ export function DashboardWidget({
       : isBetaEnabled && (widget.data?.view ?? "traces") !== "traces"
         ? "v2"
         : "v1";
-  const hasCUDAccess =
-    useHasProjectAccess({ projectId, scope: "dashboards:CUD" }) &&
-    dashboardOwner !== "LANGFUSE";
+  const hasRbacCUDAccess = useHasProjectAccess({
+    projectId,
+    scope: "dashboards:CUD",
+  });
+  const hasCUDAccess = hasRbacCUDAccess && dashboardOwner !== "LANGFUSE";
+  // Langfuse-managed dashboard, but the user could edit a clone: show the
+  // same edit affordances and route attempts through the clone-first flow.
+  const isLockedEditable =
+    hasRbacCUDAccess &&
+    dashboardOwner === "LANGFUSE" &&
+    Boolean(onLockedEditAttempt);
 
   // Initialize sort state for pivot tables
   const defaultSort =
@@ -114,6 +132,7 @@ export function DashboardWidget({
     return defaultSort || null;
   });
   const [retryCount, setRetryCount] = useState(0);
+  const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
 
   // Apply defaultSort when it becomes available (after widget data loads)
   // but only if user hasn't interacted yet
@@ -274,17 +293,45 @@ export function DashboardWidget({
       };
       const metricField = `${metric.agg}_${metric.measure}`;
       const metricValue = item[metricField];
+      const isTimeSeries = isTimeSeriesChart(widget.data.chartType);
 
       const dimensionField =
         widget.data.dimensions.slice().shift()?.field ?? "none";
+      const dimensionValue = item[dimensionField];
+
+      // A gap-filled empty bucket arrives as a row with no dimension and the
+      // metric column's type default: NULL for nullable aggregations
+      // (avg/percentiles), 0 for non-nullable ones (count/uniq/sum). Keep it
+      // as a pure bucket marker (holds the spot on the time axis) instead of
+      // inventing an "n/a" series. The 0 form is only treated as filler for
+      // additive metrics, where the marker is lossless (prepareDenseSeries
+      // re-derives the honest 0 for any series that exists); a real
+      // dimension-less avg/percentile 0 stays a visible data point. (LFE-10694)
+      const isFillerMetricValue =
+        metricValue == null ||
+        (getWidgetMissingBucketValue(metric.agg) === "zero" &&
+          Number(metricValue) === 0);
+      if (
+        isTimeSeries &&
+        (dimensionValue === null || dimensionValue === "") &&
+        isFillerMetricValue
+      ) {
+        return {
+          dimension: undefined,
+          metric: null,
+          time_dimension: item["time_dimension"],
+        };
+      }
+
       return {
         dimension:
-          item[dimensionField] !== undefined
+          dimensionValue !== undefined
             ? (() => {
-                const val = item[dimensionField];
-                if (typeof val === "string") return val;
+                const val = dimensionValue;
+                // Empty first: "" is a string, so the order matters. (LFE-10694)
                 if (val === null || val === undefined || val === "")
                   return "n/a";
+                if (typeof val === "string") return val;
                 if (Array.isArray(val)) return val.join(", ");
                 // Objects / numbers / booleans are stringified to avoid React key issues
                 return String(val);
@@ -292,7 +339,11 @@ export function DashboardWidget({
             : formatMetricName(metricField),
         metric: Array.isArray(metricValue)
           ? metricValue
-          : Number(metricValue || 0),
+          : // On a time series a missing value stays null — the chart renders
+            // it by the metric's missing-bucket semantics instead of a fake 0.
+            isTimeSeries && metricValue == null
+            ? null
+            : Number(metricValue || 0),
         time_dimension: item["time_dimension"],
       };
     });
@@ -365,6 +416,11 @@ export function DashboardWidget({
 
   const copyMutation = api.dashboardWidgets.copyToProject.useMutation({
     onSuccess: (data) => {
+      capture("dashboard:widget_copied_to_project", {
+        source_widget_id: placement.widgetId,
+        new_widget_id: data.widgetId,
+        dashboard_id: dashboardId,
+      });
       utils.dashboard.getDashboard.invalidate().then(() => {
         router.push(
           `/project/${projectId}/widgets/${data.widgetId}?dashboardId=${dashboardId}`,
@@ -385,6 +441,11 @@ export function DashboardWidget({
   };
 
   const handleDelete = () => {
+    if (isLockedEditable) {
+      // The clone-first dialog is the confirmation on locked dashboards.
+      onDeleteWidget(placement.id);
+      return;
+    }
     if (onDeleteWidget && confirm("Please confirm deletion")) {
       onDeleteWidget(placement.id);
     }
@@ -408,21 +469,49 @@ export function DashboardWidget({
 
   return (
     <div className="bg-background group flex h-full w-full flex-col overflow-hidden rounded-lg border p-4">
+      {isCopyDialogOpen && (
+        <CopyWidgetDialog
+          open={isCopyDialogOpen}
+          onOpenChange={setIsCopyDialogOpen}
+          widgetName={widget.data.name}
+          onConfirm={handleCopy}
+          isPending={copyMutation.isPending}
+        />
+      )}
       <div className="flex items-center justify-between">
-        <span className="truncate font-medium" title={widget.data.name}>
-          {widget.data.name}{" "}
-          {dashboardOwner === "PROJECT" && widget.data.owner === "LANGFUSE"
-            ? " ( 🪢 )"
-            : null}
+        <span
+          className="flex min-w-0 items-center gap-1.5 truncate font-medium"
+          title={widget.data.name}
+        >
+          <span className="truncate" title={widget.data.name}>
+            {widget.data.name}
+          </span>
+          {dashboardOwner === "PROJECT" && widget.data.owner === "LANGFUSE" && (
+            <Badge
+              variant="secondary"
+              className="shrink-0"
+              title="Maintained by Langfuse — editing creates your own copy"
+            >
+              Langfuse
+            </Badge>
+          )}
         </span>
         <div className="flex space-x-2">
-          {hasCUDAccess && (
+          {!readOnly && (hasCUDAccess || isLockedEditable) && (
             <>
               <GripVerticalIcon
                 size={16}
                 className="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:group-hover:block"
               />
-              {widget.data.owner === "PROJECT" ? (
+              {isLockedEditable ? (
+                <button
+                  onClick={onLockedEditAttempt}
+                  className="text-muted-foreground hover:text-foreground hidden group-hover:block"
+                  aria-label="Edit widget"
+                >
+                  <PencilIcon size={16} />
+                </button>
+              ) : widget.data.owner === "PROJECT" ? (
                 <button
                   onClick={handleEdit}
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
@@ -432,11 +521,17 @@ export function DashboardWidget({
                 </button>
               ) : widget.data.owner === "LANGFUSE" ? (
                 <button
-                  onClick={handleCopy}
+                  onClick={() => {
+                    capture("dashboard:widget_copy_first_open", {
+                      widget_id: placement.widgetId,
+                      dashboard_id: dashboardId,
+                    });
+                    setIsCopyDialogOpen(true);
+                  }}
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
-                  aria-label="Copy widget"
+                  aria-label="Edit widget"
                 >
-                  <CopyIcon size={16} />
+                  <PencilIcon size={16} />
                 </button>
               ) : null}
               <button
@@ -501,6 +596,9 @@ export function DashboardWidget({
               }
               isLoading={queryResult.isPending}
               metricFormatter={chartPresentation?.metricFormatter}
+              missingValue={getWidgetMissingBucketValue(
+                widget.data.metrics[0]?.agg ?? "count",
+              )}
             />
             <ChartLoadingState
               isLoading={chartLoadingState.isLoading}

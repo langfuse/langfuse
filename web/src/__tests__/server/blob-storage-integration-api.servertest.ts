@@ -39,8 +39,6 @@ const BlobStorageIntegrationResponseSchema = z.object({
   exportFrequency: z.enum(["every_20_minutes", "hourly", "daily", "weekly"]),
   enabled: z.boolean(),
   forcePathStyle: z.boolean(),
-  // Response-only PARQUET: reportable for UI-enabled projects, not creatable
-  // via the API (mirrors BlobStorageIntegrationFileTypeResponse in Fern).
   fileType: z.enum(["JSON", "CSV", "JSONL", "PARQUET"]),
   exportMode: z.enum(["FULL_HISTORY", "FROM_TODAY", "FROM_CUSTOM_DATE"]),
   exportStartDate: z.coerce.date().nullable(),
@@ -1873,7 +1871,7 @@ describe("Blob Storage Integrations API", () => {
     });
   });
 
-  describe("Parquet fileType stabilisation guards", () => {
+  describe("Parquet fileType", () => {
     const seedParquetIntegration = () =>
       prisma.blobStorageIntegration.create({
         data: {
@@ -1889,6 +1887,9 @@ describe("Blob Storage Integrations API", () => {
           forcePathStyle: false,
           fileType: "PARQUET",
           exportMode: "FULL_HISTORY",
+          // Non-legacy source so updates aren't rejected by the Cloud
+          // legacy-export-source cutoff gate (orthogonal to fileType here).
+          exportSource: "EVENTS",
         },
       });
 
@@ -1904,7 +1905,7 @@ describe("Blob Storage Integrations API", () => {
       });
     });
 
-    it("rejects PARQUET as a request fileType", async () => {
+    it("accepts PARQUET as a request fileType", async () => {
       const result = await makeAPICall(
         "PUT",
         "/api/public/integrations/blob-storage",
@@ -1915,28 +1916,33 @@ describe("Blob Storage Integrations API", () => {
         },
         createBasicAuthHeader(testApiKey, testApiSecretKey),
       );
-      expect(result.status).toBe(400);
-      expect(result.body.message).toContain("Invalid request data");
+      expect(result.status).toBe(200);
+
+      const saved = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: testProject1Id },
+      });
+      expect(saved?.fileType).toBe("PARQUET");
     });
 
-    it("rejects any PUT against a Parquet-configured integration", async () => {
+    it("allows changing the fileType of a Parquet-configured integration", async () => {
       await seedParquetIntegration();
 
       const result = await makeAPICall(
         "PUT",
         "/api/public/integrations/blob-storage",
-        { ...validBlobStorageConfig, projectId: testProject1Id },
+        {
+          ...validBlobStorageConfig,
+          projectId: testProject1Id,
+          exportSource: "OBSERVATIONS_V2",
+        },
         createBasicAuthHeader(testApiKey, testApiSecretKey),
       );
-      expect(result.status).toBe(400);
-      expect(result.body.message).toContain("managed through the Langfuse UI");
+      expect(result.status).toBe(200);
 
-      // No silent downgrade: the persisted integration is untouched.
       const saved = await prisma.blobStorageIntegration.findUnique({
         where: { projectId: testProject1Id },
       });
-      expect(saved?.fileType).toBe("PARQUET");
-      expect(saved?.compressed).toBe(true);
+      expect(saved?.fileType).toBe(validBlobStorageConfig.fileType);
     });
 
     it("GET reports fileType PARQUET for a Parquet-configured integration", async () => {
