@@ -13,7 +13,7 @@ import {
   isCodeEvalEnabled,
   isCodeEvalSourceCodeLanguageSupported,
 } from "@/src/features/evals/server/isCodeEvalEnabled";
-import { CODE_EVAL_TEMPLATE_VARIABLES } from "@/src/features/evals/utils/code-eval-template-utils";
+import { CODE_EVAL_TEMPLATE_VARIABLES } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import { deleteEvalTemplateFamily } from "@/src/features/evals/server/evalTemplateDeletion";
@@ -206,6 +206,7 @@ export async function createPublicEvaluator(params: {
             : [];
         const upgradedConfigs = configsToUpgrade.map((config) => {
           const preparedMapping = prepareVariableMappingForEvaluatorUpgrade({
+            templateType: storedEvalTemplateType,
             targetObject: config.targetObject,
             variableMapping: config.variableMapping,
             nextVariables,

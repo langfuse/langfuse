@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_PYTHON_CODE_EVAL_SOURCE,
   DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE,
+  PREVIOUS_PYTHON_CODE_EVAL_CONTRACTS,
+  PREVIOUS_TYPESCRIPT_CODE_EVAL_CONTRACTS,
   PYTHON_CODE_EVAL_CONTRACT,
   TYPESCRIPT_CODE_EVAL_CONTRACT,
   formatAndStripCodeEvalSourceForSubmit,
@@ -95,6 +97,33 @@ describe("code eval template validation", () => {
         sourceCodeLanguage: "TYPESCRIPT",
       }),
     ).toBe(source);
+  });
+
+  it("hydrates the editor without previously shipped contract versions", () => {
+    const tsSource =
+      "function evaluate(ctx: EvaluationContext): EvaluationResult { return { scores: [] }; }";
+    const pySource =
+      "def evaluate(ctx: EvaluationContext) -> EvaluationResult:\n  return EvaluationResult(scores=[])";
+
+    for (const previousContract of PREVIOUS_TYPESCRIPT_CODE_EVAL_CONTRACTS) {
+      expect(previousContract).not.toBe(TYPESCRIPT_CODE_EVAL_CONTRACT);
+      expect(
+        getCodeEvalSourceForEditor({
+          sourceCode: `${previousContract}\n\n${tsSource}`,
+          sourceCodeLanguage: "TYPESCRIPT",
+        }),
+      ).toBe(tsSource);
+    }
+
+    for (const previousContract of PREVIOUS_PYTHON_CODE_EVAL_CONTRACTS) {
+      expect(previousContract).not.toBe(PYTHON_CODE_EVAL_CONTRACT);
+      expect(
+        getCodeEvalSourceForEditor({
+          sourceCode: `${previousContract}\n\n${pySource}`,
+          sourceCodeLanguage: "PYTHON",
+        }),
+      ).toBe(pySource);
+    }
   });
 
   it("accepts the default TypeScript source", async () => {
