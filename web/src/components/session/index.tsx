@@ -18,7 +18,8 @@ import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer"
 import { Button } from "@/src/components/ui/button";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { useSession } from "next-auth/react";
-import { Download, ExternalLinkIcon } from "lucide-react";
+import { CheckIcon, CopyIcon, Download, ExternalLinkIcon } from "lucide-react";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
 import {
@@ -213,6 +214,45 @@ const SessionScores = ({
     </div>
   );
 };
+const CopySessionIdButton: React.FC<{
+  sessionId: string;
+  capture: ReturnType<typeof usePostHogClientCapture>;
+}> = ({ sessionId, capture }) => {
+  const [copied, setCopied] = useState(false);
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+    },
+    [],
+  );
+
+  const handleCopy = useCallback(() => {
+    copyTextToClipboard(sessionId);
+    capture("session_detail:copy_session_id_click");
+    setCopied(true);
+    if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+    copyTimeoutRef.current = setTimeout(() => setCopied(false), 1500);
+  }, [sessionId, capture]);
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon-xs"
+      title="Copy session ID"
+      aria-label="Copy session ID"
+      onClick={handleCopy}
+    >
+      {copied ? (
+        <CheckIcon className="text-muted-green h-4 w-4" />
+      ) : (
+        <CopyIcon className="h-4 w-4" />
+      )}
+    </Button>
+  );
+};
+
 export const SessionPage: React.FC<{
   sessionId: string;
   projectId: string;
@@ -381,6 +421,11 @@ export const SessionPage: React.FC<{
                 isPublic={session.data?.public ?? false}
                 key="publish"
                 size="icon-xs"
+              />
+              <CopySessionIdButton
+                key="copy-id"
+                sessionId={sessionId}
+                capture={capture}
               />
             </div>
           ),
