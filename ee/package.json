@@ -35,6 +35,6 @@
     "@types/node": "^24.3.0",
     "@typescript/native-preview": "7.0.0-dev.20260122.3",
     "eslint": "^9.39.2",
-    "typescript": "^5.7.2"
+    "typescript": "catalog:"
   }
 }

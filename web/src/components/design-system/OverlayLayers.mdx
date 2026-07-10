@@ -1,6 +1,9 @@
 import { Meta } from "@storybook/addon-docs/blocks";
 
-<Meta title="Design System/Overlay Layers" parameters={{ layout: "fullscreen" }} />
+<Meta
+  title="Design System/Overlay Layers"
+  parameters={{ layout: "fullscreen" }}
+/>
 
 # Overlay Layers
 
@@ -40,23 +43,40 @@ itself an isolated stacking context.
   </thead>
   <tbody>
     <tr>
-      <td><code>agent</code></td>
+      <td>
+        <code>panel</code>
+      </td>
+      <td>
+        <code>Sheet</code>, <code>Drawer</code>, and the table peek
+      </td>
+      <td>
+        docked side surfaces; above the page but below the assistant and true
+        modals
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <code>agent</code>
+      </td>
       <td>the in-app assistant window</td>
       <td>
-        persistent and draggable; floats above the page but below every
-        transient overlay
+        persistent and draggable; floats above app panels but below every true
+        modal/transient overlay
       </td>
     </tr>
     <tr>
-      <td><code>modal</code></td>
       <td>
-        <code>Dialog</code>, <code>AlertDialog</code>, <code>Sheet</code>{" "}
-        including the table peek, <code>Drawer</code>
+        <code>modal</code>
       </td>
-      <td>blocking surfaces, above the page and the assistant</td>
+      <td>
+        <code>Dialog</code> and <code>AlertDialog</code>
+      </td>
+      <td>true blocking surfaces, above app panels and the assistant</td>
     </tr>
     <tr>
-      <td><code>popover</code></td>
+      <td>
+        <code>popover</code>
+      </td>
       <td>
         <code>Popover</code>, <code>DropdownMenu</code>, <code>Select</code>,{" "}
         <code>HoverCard</code>
@@ -67,12 +87,18 @@ itself an isolated stacking context.
       </td>
     </tr>
     <tr>
-      <td><code>tooltip</code></td>
-      <td><code>Tooltip</code> and bespoke anchored tooltips</td>
+      <td>
+        <code>tooltip</code>
+      </td>
+      <td>
+        <code>Tooltip</code> and bespoke anchored tooltips
+      </td>
       <td>hints stay above their trigger, even inside a modal</td>
     </tr>
     <tr>
-      <td><code>toast</code></td>
+      <td>
+        <code>toast</code>
+      </td>
       <td>Sonner toasts</td>
       <td>last, so they always sit above everything by order alone</td>
     </tr>

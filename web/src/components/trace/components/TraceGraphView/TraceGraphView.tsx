@@ -8,10 +8,12 @@
 import { TraceGraphView as TraceGraphViewComponent } from "@/src/features/trace-graph-view/components/TraceGraphView";
 import { useTraceGraphData } from "../../contexts/TraceGraphDataContext";
 import { useActiveObservationIds } from "../../contexts/PlayheadContext";
+import { useViewPreferences } from "../../contexts/ViewPreferencesContext";
 
 export function TraceGraphView() {
   const { agentGraphData, isLoading } = useTraceGraphData();
   const activeObservationIds = useActiveObservationIds();
+  const { graphViewMode, setGraphViewMode } = useViewPreferences();
 
   if (isLoading) {
     return (
@@ -29,6 +31,8 @@ export function TraceGraphView() {
     <TraceGraphViewComponent
       agentGraphData={agentGraphData}
       activeObservationIds={activeObservationIds}
+      viewMode={graphViewMode}
+      onViewModeChange={setGraphViewMode}
     />
   );
 }

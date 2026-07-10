@@ -19,7 +19,6 @@ describe("translateOpenAIProviderOptions", () => {
       reasoning_effort: "high",
       service_tier: "flex",
       parallel_tool_calls: false,
-      prompt_cache_key: "eval-project-1",
       store: true,
     });
 
@@ -29,7 +28,6 @@ describe("translateOpenAIProviderOptions", () => {
         reasoningEffort: "high",
         serviceTier: "flex",
         parallelToolCalls: false,
-        promptCacheKey: "eval-project-1",
         store: true,
       },
     });

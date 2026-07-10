@@ -842,6 +842,25 @@ const LoadedSessionEventsPage: React.FC<{
           return keyOptions ? { ...column, keyOptions } : column;
         }
 
+        if (column.type === "booleanObject" && column.id === "score_booleans") {
+          const keyOptions = getStringFilterOptions(
+            typedFilterOptions.score_booleans,
+          );
+
+          return keyOptions ? { ...column, keyOptions } : column;
+        }
+
+        if (
+          column.type === "booleanObject" &&
+          column.id === "trace_score_booleans"
+        ) {
+          const keyOptions = getStringFilterOptions(
+            typedFilterOptions.trace_score_booleans,
+          );
+
+          return keyOptions ? { ...column, keyOptions } : column;
+        }
+
         return column;
       });
   }, [typedFilterOptions, sessionEventsFilterConfig.columnDefinitions]);
@@ -1164,6 +1183,10 @@ const LoadedSessionEventsPage: React.FC<{
               onChange={queryFilter.setFilterState}
               columnsWithCustomSelect={filterColumnsWithCustomSelect}
               label="Filter observations"
+              // Analytics (LFE-10781): session-detail observation refinement is a
+              // v3/legacy surface (the v4 events table filters via the grammar bar).
+              tableName="session-detail"
+              isV4={false}
             />
 
             {/* Separator */}

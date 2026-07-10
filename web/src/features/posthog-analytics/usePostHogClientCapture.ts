@@ -63,6 +63,7 @@ export const events = {
     // A bookmarked/stored system-preset id that the catalog retired — the
     // user was shown the one-time notice and landed on the default view.
     "retired_view_redirect",
+    "applied",
   ],
   score: [
     "create",
@@ -134,6 +135,19 @@ export const events = {
   ],
   dashboard: [
     "clone_dashboard",
+    "home_dashboard_viewed",
+    "home_dashboard_peeked",
+    "home_dashboard_set_default",
+    "home_edit_pencil_click",
+    "locked_edit_attempt",
+    "clone_first_cancelled",
+    "clone_open_existing_click",
+    "widget_copy_first_open",
+    "widget_copied_to_project",
+    "add_widget_dialog_open",
+    "add_widget_tab_switch",
+    "widget_added",
+    "dashboard_renamed_inline",
     "chart_tab_switch",
     "date_range_changed",
     "new_widget_form_open",
@@ -236,6 +250,20 @@ export const events = {
   cmd_k_menu: ["opened", "search_entered", "navigated"],
   spend_alert: ["created", "updated", "deleted"],
   sidebar: ["book_a_call_clicked", "v4_beta_toggled"],
+  // Filter/search-bar usage analytics (LFE-10781). METADATA ONLY — payloads
+  // never carry a raw filter value, search text, or AI prompt (PII). Only
+  // type/column/operator/key(field-name)/counts/lengths/booleans/enums.
+  // `isV4` on every event reflects fast-mode (v4 events table) at action time.
+  filters: [
+    "applied",
+    "cleared",
+    "facet_operator_toggled",
+    "search_submitted",
+    "search_error",
+    "ai_generate_requested",
+    "ai_generate_applied",
+    "ai_generate_failed",
+  ],
 } as const;
 
 // type that represents all possible event names, e.g. "traces:bookmark"

@@ -24,7 +24,6 @@ import type { InAppAgentWindowConversation } from "@/src/ee/features/in-app-agen
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { AIFeaturesDisabledNotice } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
 function DeleteConversationDialog({
@@ -78,7 +77,6 @@ export const InAppAiAgentButton = () => {
     setIsExpanded,
   } = useInAppAiAgent();
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
-  const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const previousPanelRectRef = useRef<DOMRect | null>(null);
@@ -128,12 +126,10 @@ export const InAppAiAgentButton = () => {
 
   const handleClick = () => {
     if (organization && !organization.aiFeaturesEnabled) {
-      setSupportDrawerOpen(false);
       setEnableDialogOpen(true);
       return;
     }
 
-    setSupportDrawerOpen(false);
     const willOpen = !open;
 
     if (willOpen) {
@@ -145,7 +141,12 @@ export const InAppAiAgentButton = () => {
 
   return (
     <>
-      <SidebarMenuButton ref={buttonRef} isActive={open} onClick={handleClick}>
+      <SidebarMenuButton
+        ref={buttonRef}
+        data-ignore-outside-interaction
+        isActive={open}
+        onClick={handleClick}
+      >
         <BotMessageSquare className="h-4 w-4" />
         Assistant
       </SidebarMenuButton>
@@ -161,9 +162,9 @@ export const InAppAiAgentButton = () => {
         >
           {(deleteConversationDialog) => (
             // The assistant window lives in the `agent` overlay layer — a
-            // <body>-level layer container that floats above page content but below
-            // every transient overlay (dropdowns, dialogs, popovers, tooltips,
-            // toasts) by DOM order alone. No z-index: layer ORDER stacks it (see
+            // <body>-level layer container that floats above page content and
+            // panel surfaces, but below true modals and transient overlays by DOM
+            // order alone. No z-index: layer ORDER stacks it (see
             // components/ui/layer.tsx). This replaces the old body portal + z-51,
             // which fought the nav-user dropdown's z-60 at <body> level.
             <Layer name="agent">

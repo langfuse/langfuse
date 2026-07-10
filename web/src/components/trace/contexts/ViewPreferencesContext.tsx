@@ -14,6 +14,10 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { type ObservationLevelType, ObservationLevel } from "@langfuse/shared";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import {
+  GRAPH_VIEW_MODES,
+  type GraphViewMode,
+} from "@/src/features/trace-graph-view/types";
 
 /** Log view ordering mode */
 export type LogViewMode = "chronological" | "tree-order";
@@ -37,6 +41,9 @@ interface ViewPreferencesContextValue {
   setShowComments: (value: boolean) => void;
   showGraph: boolean;
   setShowGraph: (value: boolean) => void;
+  /** Graph panel build mode (aggregated vs expanded "as it ran") */
+  graphViewMode: GraphViewMode;
+  setGraphViewMode: (value: GraphViewMode) => void;
   minObservationLevel: ObservationLevelType;
   setMinObservationLevel: (value: ObservationLevelType) => void;
   /** Whether trace is rendered in peek mode (e.g., table peek views) */
@@ -100,6 +107,13 @@ export function ViewPreferencesProvider({
   );
   const [showComments, setShowComments] = useLocalStorage("showComments", true);
   const [showGraph, setShowGraph] = useLocalStorage("showGraph", true);
+  const [storedGraphViewMode, setGraphViewMode] =
+    useLocalStorage<GraphViewMode>("graphViewMode", "aggregated");
+  // Sanitize persisted values: the mode enum may evolve and a stale
+  // localStorage entry must degrade to the default, not break the graph.
+  const graphViewMode = GRAPH_VIEW_MODES.includes(storedGraphViewMode)
+    ? storedGraphViewMode
+    : "aggregated";
   const [minObservationLevel, setMinObservationLevel] =
     useLocalStorage<ObservationLevelType>(
       "minObservationLevel",
@@ -135,6 +149,8 @@ export function ViewPreferencesProvider({
       setShowComments,
       showGraph,
       setShowGraph,
+      graphViewMode,
+      setGraphViewMode,
       minObservationLevel,
       setMinObservationLevel,
       isPeekMode,
@@ -161,6 +177,8 @@ export function ViewPreferencesProvider({
       setShowComments,
       showGraph,
       setShowGraph,
+      graphViewMode,
+      setGraphViewMode,
       minObservationLevel,
       setMinObservationLevel,
       isPeekMode,

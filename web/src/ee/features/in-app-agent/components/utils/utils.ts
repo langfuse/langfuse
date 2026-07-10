@@ -158,24 +158,30 @@ export function getDrawerMessages({
     }
 
     const role = message.role === "user" ? "user" : "assistant";
-    const isLoading = message.role === "reasoning";
 
-    if (isLoading) {
+    if (message.role === "reasoning") {
       flushPendingTools();
 
-      const hasLaterAssistantMessage = parsedMessages.some(
-        (message, messageIndex) =>
-          messageIndex > index && message.role === "assistant",
-      );
+      const isStreaming =
+        isRunning &&
+        !error &&
+        !hasLaterConversationMessageAfter(parsedMessages, index);
 
-      if (!isRunning || hasLaterAssistantMessage) {
+      // Adaptive thinking can emit a reasoning start/end pair without any
+      // content; a completed empty block has nothing to disclose, so only a
+      // still-streaming one is rendered (as its "Thinking..." placeholder).
+      if (!message.content.trim() && !isStreaming) {
         return;
       }
 
       mappedMessages.push({
         id: message.id,
         role,
-        content: { type: "loading" },
+        content: {
+          type: "reasoning",
+          text: message.content,
+          isStreaming,
+        },
       });
       return;
     }
@@ -341,6 +347,7 @@ export function getDrawerMessages({
     latestUserMessageIndex >= 0 &&
     latestAssistantMessage?.content.type !== "text" &&
     latestAssistantMessage?.content.type !== "loading" &&
+    latestAssistantMessage?.content.type !== "reasoning" &&
     latestAssistantMessage?.content.type !== "redirectAction"
   ) {
     if (latestAssistantMessage?.content.type === "toolGroup") {
@@ -372,6 +379,31 @@ export function getDrawerMessages({
   }
 
   return mappedMessages;
+}
+
+// A reasoning block stays live while the model is still acting on it — the
+// tool calls and tool results it triggered keep it open. It only collapses
+// once the model has visibly moved on: a newer reasoning block, an assistant
+// message with text, or a new user turn.
+function hasLaterConversationMessageAfter(
+  messages: readonly AgUiMessage[],
+  currentIndex: number,
+) {
+  return messages.some((message, messageIndex) => {
+    if (messageIndex <= currentIndex) {
+      return false;
+    }
+
+    if (message.role === "reasoning" || message.role === "user") {
+      return true;
+    }
+
+    return (
+      message.role === "assistant" &&
+      typeof message.content === "string" &&
+      message.content.trim().length > 0
+    );
+  });
 }
 
 function stringifyToolArgs(args: unknown) {
