@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -30,23 +31,6 @@ const SDK_UPGRADE_DOC_URLS = [
 ] as const;
 const SDK_UPGRADE_DISMISS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const UNKNOWN_SDK_VALUE = "unknown";
-const BACKFILL_EVENTS_TABLE_SOURCE_VALUES = [
-  "ingestion-api-backfill",
-  "otel-backfill",
-] as const;
-const PYTHON_SDK_NAMES = ["python"] as const;
-const JAVASCRIPT_SDK_NAMES = ["javascript", "js", "langfuse-js"] as const;
-
-const SDK_UPGRADE_MINIMUM_VERSIONS = [
-  {
-    sdkNames: PYTHON_SDK_NAMES,
-    minimumVersion: "5.0.0",
-  },
-  {
-    sdkNames: JAVASCRIPT_SDK_NAMES,
-    minimumVersion: "6.0.0",
-  },
-] as const;
 
 const SDK_UPGRADE_MODAL_COPY = {
   generic: {
@@ -82,12 +66,16 @@ const SDK_UPGRADE_MODAL_COPY = {
 type SdkVersionSummary = {
   sdkName: string;
   sdkVersion: string;
-  source: string;
+  canonicalSdkName: "python" | "javascript";
+  latestMajor: number;
+  major: number;
+  upgradeStatus: "outdated_major";
   count: number;
 };
 
 export function SdkUpgradeModal({ userId }: { userId: string }) {
   const projectId = useProjectIdFromURL();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const [open, setOpen] = useState(false);
   const capture = usePostHogClientCapture();
   const { copy: copyAiUpgradePrompt, isCopied: isAiUpgradePromptCopied } =
@@ -101,20 +89,20 @@ export function SdkUpgradeModal({ userId }: { userId: string }) {
   const sdkUpgradeStatus = api.events.getSdkUpgradeStatus.useQuery(
     { projectId: projectId ?? "" },
     {
-      enabled: Boolean(projectId),
+      enabled: isLangfuseCloud && Boolean(projectId),
       refetchOnWindowFocus: false,
       staleTime: 5 * 60 * 1000,
     },
   );
 
   const sdkVersionsToUpgrade = mergeSdkVersionGroups(
-    sdkUpgradeStatus.data?.sdkVersions?.filter(shouldUpgradeSdkVersion) ?? [],
+    sdkUpgradeStatus.data?.sdkVersions ?? [],
   );
   const shouldShowUpgradeModal = sdkVersionsToUpgrade.length > 0;
   const modalCopy = getSdkUpgradeModalCopy(sdkVersionsToUpgrade);
 
   useEffect(() => {
-    if (!storageKey || !shouldShowUpgradeModal) {
+    if (!isLangfuseCloud || !storageKey || !shouldShowUpgradeModal) {
       setOpen(false);
       return;
     }
@@ -125,7 +113,7 @@ export function SdkUpgradeModal({ userId }: { userId: string }) {
     }
 
     setOpen(true);
-  }, [shouldShowUpgradeModal, storageKey]);
+  }, [isLangfuseCloud, shouldShowUpgradeModal, storageKey]);
 
   const dismiss = () => {
     if (storageKey) {
@@ -167,7 +155,7 @@ export function SdkUpgradeModal({ userId }: { userId: string }) {
     dismiss();
   };
 
-  if (!projectId) return null;
+  if (!isLangfuseCloud || !projectId) return null;
 
   return (
     <Dialog
@@ -276,79 +264,6 @@ function markDismissed(storageKey: string) {
   }
 }
 
-function shouldUpgradeSdkVersion(sdk: SdkVersionSummary) {
-  if (isBackfillEventsTableSource(sdk.source)) {
-    return false;
-  }
-
-  const sdkName = sdk.sdkName.trim().toLowerCase();
-  const sdkVersion = sdk.sdkVersion.trim().toLowerCase();
-
-  if (
-    !sdkName ||
-    !sdkVersion ||
-    sdkName === UNKNOWN_SDK_VALUE ||
-    sdkVersion === UNKNOWN_SDK_VALUE
-  ) {
-    return false;
-  }
-
-  const baseVersion = extractBaseSdkVersion(sdkVersion);
-  const sdkThreshold = SDK_UPGRADE_MINIMUM_VERSIONS.find((threshold) =>
-    threshold.sdkNames.some((thresholdSdkName) => thresholdSdkName === sdkName),
-  );
-
-  if (sdkThreshold) {
-    return isVersionLessThan(baseVersion, sdkThreshold.minimumVersion) ?? false;
-  }
-
-  return false;
-}
-
-function extractBaseSdkVersion(sdkVersion: string) {
-  const version = sdkVersion.trim();
-
-  if (/^v?\d+\.\d+\.\d+(?:[-+].+)?$/i.test(version)) {
-    return version.split(/[-+]/)[0] ?? version;
-  }
-
-  const pep440Match = version.match(/^(v?\d+\.\d+\.\d+)(?:a|b|rc)\d+$/i);
-  if (pep440Match?.[1]) {
-    return pep440Match[1];
-  }
-
-  return version;
-}
-
-function isVersionLessThan(version: string, minimumVersion: string) {
-  const parsedVersion = parseVersion(version);
-  const parsedMinimum = parseVersion(minimumVersion);
-
-  if (!parsedVersion || !parsedMinimum) return null;
-
-  const [major, minor, patch] = parsedVersion;
-  const [minimumMajor, minimumMinor, minimumPatch] = parsedMinimum;
-
-  if (major !== minimumMajor) return major < minimumMajor;
-  if (minor !== minimumMinor) return minor < minimumMinor;
-  if (patch !== minimumPatch) return patch < minimumPatch;
-
-  return false;
-}
-
-function parseVersion(version: string): [number, number, number] | null {
-  const match = version.match(/^v?(\d+)\.(\d+)(?:\.(\d+))?$/);
-  if (!match) return null;
-
-  const major = Number(match[1]);
-  const minor = Number(match[2]);
-  const patch = Number(match[3] ?? 0);
-
-  if (![major, minor, patch].every(Number.isSafeInteger)) return null;
-
-  return [major, minor, patch];
-}
-
 function getSdkUpgradeModalCopy(sdkVersions: SdkVersionSummary[]) {
   if (sdkVersions.some(isPreV5JavaScriptSdkVersion)) {
     return SDK_UPGRADE_MODAL_COPY.javascriptBeforeV5;
@@ -358,7 +273,9 @@ function getSdkUpgradeModalCopy(sdkVersions: SdkVersionSummary[]) {
     return SDK_UPGRADE_MODAL_COPY.javascriptV5;
   }
 
-  if (sdkVersions.some((sdkVersion) => isPythonSdkName(sdkVersion.sdkName))) {
+  if (
+    sdkVersions.some((sdkVersion) => sdkVersion.canonicalSdkName === "python")
+  ) {
     return SDK_UPGRADE_MODAL_COPY.python;
   }
 
@@ -413,43 +330,11 @@ function getSdkUpgradeModalAnalyticsProps({
 }
 
 function isPreV5JavaScriptSdkVersion(sdk: SdkVersionSummary) {
-  const parsedVersion = parseVersion(extractBaseSdkVersion(sdk.sdkVersion));
-
-  return Boolean(
-    isJavaScriptSdkName(sdk.sdkName) && parsedVersion && parsedVersion[0] < 5,
-  );
+  return sdk.canonicalSdkName === "javascript" && sdk.major < 5;
 }
 
 function isV5OrNewerJavaScriptSdkVersion(sdk: SdkVersionSummary) {
-  const parsedVersion = parseVersion(extractBaseSdkVersion(sdk.sdkVersion));
-
-  return Boolean(
-    isJavaScriptSdkName(sdk.sdkName) && parsedVersion && parsedVersion[0] >= 5,
-  );
-}
-
-function isJavaScriptSdkName(sdkName: string) {
-  const normalizedSdkName = sdkName.trim().toLowerCase();
-
-  return JAVASCRIPT_SDK_NAMES.some(
-    (javascriptSdkName) => javascriptSdkName === normalizedSdkName,
-  );
-}
-
-function isPythonSdkName(sdkName: string) {
-  const normalizedSdkName = sdkName.trim().toLowerCase();
-
-  return PYTHON_SDK_NAMES.some(
-    (pythonSdkName) => pythonSdkName === normalizedSdkName,
-  );
-}
-
-function isBackfillEventsTableSource(source: string) {
-  const normalizedSource = source.trim().toLowerCase();
-
-  return BACKFILL_EVENTS_TABLE_SOURCE_VALUES.includes(
-    normalizedSource as (typeof BACKFILL_EVENTS_TABLE_SOURCE_VALUES)[number],
-  );
+  return sdk.canonicalSdkName === "javascript" && sdk.major >= 5;
 }
 
 function formatSdkVersion(sdk: { sdkName: string; sdkVersion: string }) {

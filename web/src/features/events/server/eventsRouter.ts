@@ -4,6 +4,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
   protectedGetTraceProcedure,
+  requireLangfuseCloud,
 } from "@/src/server/api/trpc";
 import {
   type OrderByState,
@@ -393,6 +394,7 @@ export const eventsRouter = createTRPCRouter({
       );
     }),
   getSdkUpgradeStatus: protectedProjectProcedure
+    .use(requireLangfuseCloud)
     .input(zodSchema.object({ projectId: zodSchema.string() }))
     .query(async ({ ctx }) => {
       return instrumentAsync(
