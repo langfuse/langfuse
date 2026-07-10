@@ -35,7 +35,7 @@ export async function syncOrgPlanChangeToSfdc(args: {
   );
   const parsedUpdated = CloudConfigSchema.safeParse(updatedCloudConfig);
   if (!parsedUpdated.success) {
-    // Never guess a plan from an unparseable config — skipping only delays
+    // Never guess a plan from an unparsable config — skipping only delays
     // the SFDC tier update until the next real plan change.
     logger.error(
       "[SFDC] could not parse updated cloudConfig for plan sync — skipping",
