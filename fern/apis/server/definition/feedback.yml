@@ -8,15 +8,19 @@ service:
       method: POST
       path: /feedback
       request: SubmitFeedbackRequest
-      response: SubmitFeedbackResponse
+      response:
+        status-code: 201
+        type: SubmitFeedbackResponse
 types:
   FeedbackTargetType:
     enum:
       - skill
-      - mcp-tool
+      - value: mcp-tool
+        name: McpTool
       - cli
       - docs
-      - public-api
+      - value: public-api
+        name: PublicApi
       - other
   SubmitFeedbackRequest:
     properties:
