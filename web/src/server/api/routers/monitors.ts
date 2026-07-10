@@ -18,7 +18,7 @@ import {
   UpdateMonitorSchema,
 } from "@langfuse/shared/monitors/server";
 
-/** monitorsProcedure protects every monitors route behind the deployment-level availability check (Cloud, or self-hosted with events-table writes). */
+/** monitorsProcedure protects monitor routes behand a v4Writes check. */
 const monitorsProcedure = protectedProjectProcedure.use(requireV4Writes);
 
 /** sessionContextFromCtx adapts a tRPC session into a MonitorService SessionContext. */
