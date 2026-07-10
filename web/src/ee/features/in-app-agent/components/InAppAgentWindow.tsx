@@ -90,6 +90,7 @@ export type InAppAgentWindowProps = {
   conversations: InAppAgentWindowConversation[];
   error: string | null;
   hasMoreConversations: boolean;
+  isAssistantTurnInProgress: boolean;
   isHeaderDragHandleEnabled?: boolean;
   isExpanded: boolean;
   isInputDisabled: boolean;
@@ -118,6 +119,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     conversations,
     error,
     hasMoreConversations,
+    isAssistantTurnInProgress,
     isHeaderDragHandleEnabled = false,
     isExpanded,
     isInputDisabled,
@@ -497,12 +499,15 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   nextUserMessageIndex === -1
                     ? visibleMessages.length
                     : nextUserMessageIndex;
+                const isCurrentTurnInProgress =
+                  isAssistantTurnInProgress && nextUserMessageIndex === -1;
                 const isLastMessageOfTurn = visibleMessages
                   .slice(index + 1, nextTurnStartIndex)
                   .every((nextMessage) => nextMessage.role !== "assistant");
                 const feedbackRunId =
                   message.role === "assistant" &&
                   message.content.type === "text" &&
+                  !isCurrentTurnInProgress &&
                   isLastMessageOfTurn
                     ? message.runId
                     : undefined;
