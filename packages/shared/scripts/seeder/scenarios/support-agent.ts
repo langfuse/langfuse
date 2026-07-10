@@ -339,7 +339,11 @@ const PLAN: DemoObs[] = [
     name: "stripe.create-refund",
     start: 5978,
     end: 6893,
-    input: { charge_id: "ch_3PqK9b", reason: "duplicate" },
+    input: {
+      charge_id: "ch_3PqK9b",
+      reason: "duplicate",
+      idempotency_key: "refund-cus_LqT4v8-20260709",
+    },
     output: {
       refund_id: "re_8Fj2kQ",
       status: "succeeded",
