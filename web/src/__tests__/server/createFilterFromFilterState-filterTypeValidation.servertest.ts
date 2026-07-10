@@ -48,6 +48,24 @@ describe("createFilterFromFilterState filter type validation", () => {
       clickhouseTableName: "scores",
       clickhouseSelect: "s.score_categories",
     },
+    scores: {
+      uiTableName: "Scores",
+      uiTableId: "scores",
+      clickhouseTableName: "scores",
+      clickhouseSelect: "s.scores_avg",
+    },
+    scores_avg: {
+      uiTableName: "Scores (numeric)",
+      uiTableId: "scores_avg",
+      clickhouseTableName: "scores",
+      clickhouseSelect: "s.scores_avg",
+    },
+    score_booleans: {
+      uiTableName: "Scores (boolean)",
+      uiTableId: "score_booleans",
+      clickhouseTableName: "scores",
+      clickhouseSelect: "s.score_booleans",
+    },
     eventInput: {
       uiTableName: "Input",
       uiTableId: "input",
@@ -122,6 +140,18 @@ describe("createFilterFromFilterState filter type validation", () => {
       type: "categoryOptions",
       internal: "s.score_categories",
       options: [],
+    },
+    {
+      name: "Scores (numeric)",
+      id: "scores_avg",
+      type: "numberObject",
+      internal: "s.scores_avg",
+    },
+    {
+      name: "Scores (boolean)",
+      id: "score_booleans",
+      type: "booleanObject",
+      internal: "s.score_booleans",
     },
     {
       name: "Input",
@@ -228,6 +258,47 @@ describe("createFilterFromFilterState filter type validation", () => {
       }),
     );
   });
+
+  it.each([
+    {
+      filter: {
+        type: "categoryOptions",
+        operator: "any of",
+        key: "attack_class",
+        value: ["Novel probe"],
+      },
+      expectedColumn: "s.score_categories",
+    },
+    {
+      filter: {
+        type: "numberObject",
+        operator: ">=",
+        key: "quality",
+        value: 0.5,
+      },
+      expectedColumn: "s.scores_avg",
+    },
+    {
+      filter: {
+        type: "booleanObject",
+        operator: "=",
+        key: "approved",
+        value: true,
+      },
+      expectedColumn: "s.score_booleans",
+    },
+  ] as const)(
+    "routes a legacy scores $filter.type filter to $expectedColumn",
+    ({ filter, expectedColumn }) => {
+      const [result] = createFilterFromFilterState(
+        [{ column: "scores", ...filter } as any],
+        Object.values(mappings),
+        columnDefinitions,
+      );
+
+      expect(result.apply().query).toContain(expectedColumn);
+    },
+  );
 
   it.each([
     {

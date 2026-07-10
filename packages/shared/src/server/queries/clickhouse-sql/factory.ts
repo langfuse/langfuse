@@ -32,6 +32,28 @@ export class QueryBuilderError extends Error {
   }
 }
 
+const resolveLegacyScoreFilterColumn = (
+  filter: EventsTableFilterState[number],
+  columnMapping: UiColumnMappings,
+): string => {
+  if (filter.column.toLowerCase() !== "scores") {
+    return filter.column;
+  }
+
+  const typedColumn =
+    filter.type === "categoryOptions"
+      ? "score_categories"
+      : filter.type === "numberObject"
+        ? "scores_avg"
+        : filter.type === "booleanObject"
+          ? "score_booleans"
+          : null;
+
+  return typedColumn && findUiColumnMapping(columnMapping, typedColumn)
+    ? typedColumn
+    : filter.column;
+};
+
 // This function ensures that the user only selects valid columns from the clickhouse schema.
 // The filter property in this column needs to be zod verified.
 // User input for values (e.g. project_id = <value>) are sent to Clickhouse as parameters to prevent SQL injection
@@ -45,8 +67,16 @@ export const createFilterFromFilterState = (
   );
 
   return applicableFilters.map((frontEndFilter) => {
+    const filterColumn = resolveLegacyScoreFilterColumn(
+      frontEndFilter,
+      columnMapping,
+    );
     // checks if the column exists in the clickhouse schema
-    const column = matchAndVerifyTracesUiColumn(frontEndFilter, columnMapping);
+    const column = matchAndVerifyTracesUiColumn(
+      frontEndFilter,
+      columnMapping,
+      filterColumn,
+    );
 
     if (columnDefinitions && frontEndFilter.type !== "null") {
       const colDef = columnDefinitions.find((c) => c.id === column.uiTableId);
@@ -199,14 +229,15 @@ const validateEventsTableMatchesFilter = (
 const matchAndVerifyTracesUiColumn = (
   filter: EventsTableFilterState[number],
   uiTableDefinitions: UiColumnMappings,
+  filterColumn = filter.column,
 ) => {
   // tries to match the column name to the clickhouse table name
-  const uiTable = findUiColumnMapping(uiTableDefinitions, filter.column);
+  const uiTable = findUiColumnMapping(uiTableDefinitions, filterColumn);
 
   if (!uiTable) {
-    const errorMessage = `Column ${filter.column} does not match a UI / CH table mapping.`;
+    const errorMessage = `Column ${filterColumn} does not match a UI / CH table mapping.`;
     logger.error(errorMessage, {
-      filterColumn: filter.column,
+      filterColumn,
       filterType: filter.type,
       availableColumns: uiTableDefinitions.map(
         (col) => col.uiTableId ?? col.uiTableName,
