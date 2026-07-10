@@ -40,6 +40,7 @@ import {
 } from "@/src/features/widgets/utils/import-export-utils";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
+import { isPasteablePlacementPayload } from "@/src/features/dashboard/utils/dashboard-import-export";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -174,11 +175,15 @@ export function DashboardWidget({
   const [retryCount, setRetryCount] = useState(0);
   const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
-  // Gate "Paste to the right" on the clipboard actually holding a widget,
-  // where the browser lets us check silently.
+  // Gate "Paste to the right" on the clipboard actually holding a pasteable
+  // payload, where the browser lets us check silently.
+  const isPasteablePayload = useCallback(
+    (text: string) => isPasteablePlacementPayload(text, { isBetaEnabled }),
+    [isBetaEnabled],
+  );
   const clipboardProbe = useClipboardWidgetProbe(
     isActionsMenuOpen && Boolean(onPasteWidget),
-    isBetaEnabled,
+    isPasteablePayload,
   );
 
   // Apply defaultSort when it becomes available (after widget data loads)
@@ -538,6 +543,7 @@ export function DashboardWidget({
       );
       capture("dashboard:widget_copied_to_clipboard", {
         surface: "grid_menu",
+        kind: "widget",
         widget_id: placement.widgetId,
         dashboard_id: dashboardId,
       });

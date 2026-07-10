@@ -138,6 +138,7 @@ function WidgetActionsCell({
       );
       capture("dashboard:widget_copied_to_clipboard", {
         surface: "widget_table",
+        kind: "widget",
         widget_id: widgetId,
       });
       showSuccessToast({
@@ -166,6 +167,7 @@ function WidgetActionsCell({
       });
       capture("dashboard:widget_duplicated", {
         surface: "widget_table",
+        kind: "widget",
         chart_type: exportSource.chartType,
         view: exportSource.view,
       });

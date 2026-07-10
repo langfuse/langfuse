@@ -2,10 +2,17 @@ import { HOME_DASHBOARD_PRESET_IDS } from "@langfuse/shared";
 import {
   buildDashboardExport,
   buildDashboardJsonFileName,
+  buildPresetExport,
   DASHBOARD_FILE_FORMAT_VERSION,
+  isPasteablePlacementPayload,
   parseDashboardImport,
+  parsePastedPreset,
+  PRESET_FILE_FORMAT_VERSION,
 } from "./dashboard-import-export";
-import { type WidgetExportSource } from "@/src/features/widgets/utils/import-export-utils";
+import {
+  buildWidgetExport,
+  type WidgetExportSource,
+} from "@/src/features/widgets/utils/import-export-utils";
 
 const baseWidget: WidgetExportSource = {
   name: "Trace count",
@@ -204,6 +211,64 @@ describe("parseDashboardImport", () => {
     if (result.status === "invalid") {
       expect(result.reason).toContain("preset cards");
     }
+  });
+});
+
+describe("parsePastedPreset", () => {
+  it("round-trips a preset export", () => {
+    const result = parsePastedPreset(
+      JSON.stringify(buildPresetExport(HOME_DASHBOARD_PRESET_IDS[0])),
+    );
+
+    expect(result).toEqual({
+      status: "preset",
+      presetId: HOME_DASHBOARD_PRESET_IDS[0],
+    });
+  });
+
+  it("ignores payloads without the preset envelope", () => {
+    expect(parsePastedPreset("not json")).toEqual({ status: "not-preset" });
+    expect(parsePastedPreset(JSON.stringify({ presetId: "x" }))).toEqual({
+      status: "not-preset",
+    });
+  });
+
+  it("rejects unknown preset ids and newer format versions", () => {
+    expect(
+      parsePastedPreset(JSON.stringify(buildPresetExport("from-the-future"))),
+    ).toMatchObject({ status: "invalid" });
+    expect(
+      parsePastedPreset(
+        JSON.stringify({
+          ...buildPresetExport(HOME_DASHBOARD_PRESET_IDS[0]),
+          version: PRESET_FILE_FORMAT_VERSION + 1,
+        }),
+      ),
+    ).toMatchObject({ status: "invalid" });
+  });
+});
+
+describe("isPasteablePlacementPayload", () => {
+  it("accepts widget and preset payloads, rejects everything else", () => {
+    expect(
+      isPasteablePlacementPayload(
+        JSON.stringify(buildWidgetExport(baseWidget)),
+        {
+          isBetaEnabled: false,
+        },
+      ),
+    ).toBe(true);
+    expect(
+      isPasteablePlacementPayload(
+        JSON.stringify(buildPresetExport(HOME_DASHBOARD_PRESET_IDS[0])),
+        { isBetaEnabled: false },
+      ),
+    ).toBe(true);
+    expect(
+      isPasteablePlacementPayload('{"hello": "world"}', {
+        isBetaEnabled: false,
+      }),
+    ).toBe(false);
   });
 });
 

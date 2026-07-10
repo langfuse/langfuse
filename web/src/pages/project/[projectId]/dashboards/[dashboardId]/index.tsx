@@ -71,9 +71,12 @@ import {
 import {
   buildDashboardExport,
   downloadDashboardJson,
+  isPasteablePlacementPayload,
   parseDashboardImport,
+  parsePastedPreset,
   type ParsedDashboardImport,
 } from "@/src/features/dashboard/utils/dashboard-import-export";
+import { type PresetPlacement } from "@/src/features/widgets/components/PresetDashboardWidget";
 import { readTextFromClipboard } from "@/src/utils/clipboard";
 import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
 import { extractTransferFiles } from "@/src/components/editor/fileDropPaste";
@@ -335,6 +338,91 @@ export default function DashboardDetail() {
     [insertWidgetPlacement],
   );
 
+  // Add a Langfuse Home card as a preset placement (no widget row involved).
+  // Defaults to a 6x6 tile below all existing widgets; callers can pass an
+  // explicit position (e.g. paste/duplicate next to an anchor tile).
+  const insertPresetPlacement = useCallback(
+    (
+      presetId: HomeDashboardPresetId,
+      position?: { x: number; y: number; x_size: number; y_size: number },
+    ) => {
+      const currentDefinition = localDashboardDefinitionRef.current;
+      if (!currentDefinition) return;
+
+      const maxY =
+        currentDefinition.widgets.length > 0
+          ? Math.max(...currentDefinition.widgets.map((w) => w.y + w.y_size))
+          : 0;
+
+      const newPresetPlacement: DashboardPlacement = {
+        id: uuidv4(),
+        presetId,
+        type: "preset",
+        x: position?.x ?? 0,
+        y: position?.y ?? maxY,
+        x_size: position?.x_size ?? 6,
+        y_size: position?.y_size ?? 6,
+      };
+
+      applyDashboardDefinition({
+        ...currentDefinition,
+        widgets: [...currentDefinition.widgets, newPresetPlacement],
+      });
+
+      setTimeout(() => {
+        document
+          .querySelector(`[data-placement-id="${newPresetPlacement.id}"]`)
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 150);
+    },
+    [applyDashboardDefinition],
+  );
+
+  const addPresetToDashboard = useCallback(
+    (presetId: HomeDashboardPresetId) => insertPresetPlacement(presetId),
+    [insertPresetPlacement],
+  );
+
+  // Duplicate a preset card: another placement of the same preset next to
+  // the anchor tile (no widget row involved).
+  const handleDuplicatePreset = useCallback(
+    (anchor: PresetPlacement) => {
+      capture("dashboard:widget_duplicated", {
+        surface: "grid_menu",
+        kind: "preset",
+        preset_id: anchor.presetId,
+        dashboard_id: dashboardId,
+      });
+      insertPresetPlacement(
+        anchor.presetId as HomeDashboardPresetId,
+        placementNextTo(anchor),
+      );
+    },
+    [capture, dashboardId, insertPresetPlacement],
+  );
+
+  // Place a pasted preset card (next to `anchor` when given, else at the
+  // bottom).
+  const handlePastedPreset = useCallback(
+    (
+      presetId: HomeDashboardPresetId,
+      source: "cmd_v" | "dashboard_menu" | "paste_right" | "drop",
+      anchor?: DashboardPlacement,
+    ) => {
+      capture("dashboard:widget_pasted", {
+        source,
+        kind: "preset",
+        preset_id: presetId,
+        dashboard_id: dashboardId,
+      });
+      insertPresetPlacement(
+        presetId,
+        anchor ? placementNextTo(anchor) : undefined,
+      );
+    },
+    [capture, dashboardId, insertPresetPlacement],
+  );
+
   const { mutateAsync: createWidgetAsync } =
     api.dashboardWidgets.create.useMutation();
   const { mutateAsync: deleteWidgetAsync } =
@@ -352,6 +440,7 @@ export default function DashboardDetail() {
         });
         capture("dashboard:widget_duplicated", {
           surface: "grid_menu",
+          kind: "widget",
           dashboard_id: dashboardId,
           chart_type: widget.chartType,
           view: widget.view,
@@ -395,6 +484,7 @@ export default function DashboardDetail() {
         });
         capture("dashboard:widget_pasted", {
           source,
+          kind: "widget",
           dashboard_id: dashboardId,
           chart_type: parsed.widget.chartType,
           view: parsed.widget.view,
@@ -438,6 +528,20 @@ export default function DashboardDetail() {
       }
       const parsed = parsePastedWidget(text, { isBetaEnabled });
       if (parsed.status === "not-widget") {
+        const preset = parsePastedPreset(text);
+        if (preset.status === "preset") {
+          handlePastedPreset(preset.presetId, source, anchor);
+          return;
+        }
+        if (preset.status === "invalid") {
+          capture("dashboard:widget_paste_rejected", {
+            source,
+            reason: "invalid",
+            dashboard_id: dashboardId,
+          });
+          showErrorToast("Cannot paste card", preset.reason, "WARNING");
+          return;
+        }
         capture("dashboard:widget_paste_rejected", {
           source,
           reason: "not_widget",
@@ -452,7 +556,13 @@ export default function DashboardDetail() {
       }
       await handleParsedWidgetPaste(parsed, source, anchor);
     },
-    [capture, dashboardId, handleParsedWidgetPaste, isBetaEnabled],
+    [
+      capture,
+      dashboardId,
+      handleParsedWidgetPaste,
+      handlePastedPreset,
+      isBetaEnabled,
+    ],
   );
 
   // Cmd/Ctrl+V on the dashboard pastes a copied widget. Only intercepts when
@@ -473,22 +583,49 @@ export default function DashboardDetail() {
       const text = event.clipboardData?.getData("text/plain");
       if (!text) return;
       const parsed = parsePastedWidget(text, { isBetaEnabled });
-      // Not a widget payload: leave the event alone (silent, per spec).
-      if (parsed.status === "not-widget") return;
+      if (parsed.status === "not-widget") {
+        const preset = parsePastedPreset(text);
+        // Neither widget nor preset payload: leave the event alone (silent,
+        // per spec).
+        if (preset.status === "not-preset") return;
+        event.preventDefault();
+        if (preset.status === "invalid") {
+          capture("dashboard:widget_paste_rejected", {
+            source: "cmd_v",
+            reason: "invalid",
+            dashboard_id: dashboardId,
+          });
+          showErrorToast("Cannot paste card", preset.reason, "WARNING");
+          return;
+        }
+        handlePastedPreset(preset.presetId, "cmd_v");
+        return;
+      }
       event.preventDefault();
       handleParsedWidgetPaste(parsed, "cmd_v");
     };
 
     document.addEventListener("paste", onPaste);
     return () => document.removeEventListener("paste", onPaste);
-  }, [hasCUDAccess, isBetaEnabled, handleParsedWidgetPaste]);
+  }, [
+    hasCUDAccess,
+    isBetaEnabled,
+    handleParsedWidgetPaste,
+    handlePastedPreset,
+    capture,
+    dashboardId,
+  ]);
 
   // Gate the dashboard-menu "Paste widget" item on the clipboard actually
-  // holding a widget, where the browser lets us check silently.
+  // holding a pasteable payload, where the browser lets us check silently.
   const [isDashboardMenuOpen, setIsDashboardMenuOpen] = useState(false);
+  const isPasteablePayload = useCallback(
+    (text: string) => isPasteablePlacementPayload(text, { isBetaEnabled }),
+    [isBetaEnabled],
+  );
   const clipboardProbe = useClipboardWidgetProbe(
     isDashboardMenuOpen && hasCUDAccess,
-    isBetaEnabled,
+    isPasteablePayload,
   );
 
   // Export this dashboard as a portable JSON file: the definition with each
@@ -730,6 +867,20 @@ export default function DashboardDetail() {
 
       const widgetResult = parsePastedWidget(text, { isBetaEnabled });
       if (widgetResult.status === "not-widget") {
+        const preset = parsePastedPreset(text);
+        if (preset.status === "preset") {
+          handlePastedPreset(preset.presetId, "drop");
+          return;
+        }
+        if (preset.status === "invalid") {
+          capture("dashboard:widget_paste_rejected", {
+            source: "drop",
+            reason: "invalid",
+            dashboard_id: dashboardId,
+          });
+          showErrorToast("Cannot import card", preset.reason, "WARNING");
+          return;
+        }
         capture("dashboard:widget_paste_rejected", {
           source: "drop",
           reason: "not_widget",
@@ -748,6 +899,7 @@ export default function DashboardDetail() {
       isBetaEnabled,
       handleDashboardImport,
       handleParsedWidgetPaste,
+      handlePastedPreset,
       capture,
       dashboardId,
     ],
@@ -799,42 +951,6 @@ export default function DashboardDetail() {
       document.removeEventListener("drop", onDrop);
     };
   }, [hasCUDAccess, handleDroppedFile]);
-
-  // Add a Langfuse Home card as a preset placement (no widget row involved)
-  const addPresetToDashboard = useCallback(
-    (presetId: HomeDashboardPresetId) => {
-      if (!localDashboardDefinition) return;
-
-      const maxY =
-        localDashboardDefinition.widgets.length > 0
-          ? Math.max(
-              ...localDashboardDefinition.widgets.map((w) => w.y + w.y_size),
-            )
-          : 0;
-
-      const newPresetPlacement: DashboardPlacement = {
-        id: uuidv4(),
-        presetId,
-        type: "preset",
-        x: 0,
-        y: maxY,
-        x_size: 6,
-        y_size: 6,
-      };
-
-      applyDashboardDefinition({
-        ...localDashboardDefinition,
-        widgets: [...localDashboardDefinition.widgets, newPresetPlacement],
-      });
-
-      setTimeout(() => {
-        document
-          .querySelector(`[data-placement-id="${newPresetPlacement.id}"]`)
-          ?.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 150);
-    },
-    [localDashboardDefinition, applyDashboardDefinition],
-  );
 
   const { nameOptions, tagsOptions } = useDashboardFilterOptions({
     projectId,
@@ -1348,6 +1464,9 @@ export default function DashboardDetail() {
               }
               onDuplicateWidget={
                 hasCUDAccess ? handleDuplicateWidget : undefined
+              }
+              onDuplicatePreset={
+                hasCUDAccess ? handleDuplicatePreset : undefined
               }
               onPasteWidget={
                 hasCUDAccess

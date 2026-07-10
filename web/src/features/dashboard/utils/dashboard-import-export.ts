@@ -7,6 +7,7 @@ import {
 import {
   buildWidgetExport,
   parseImportedWidgetJson,
+  parsePastedWidget,
   type WidgetExportSource,
   type WidgetImport,
 } from "@/src/features/widgets/utils/import-export-utils";
@@ -27,6 +28,82 @@ export function isLangfuseDashboardPayload(parsed: unknown): boolean {
     "$langfuseDashboard" in parsed &&
     (parsed as Record<string, unknown>).$langfuseDashboard === true
   );
+}
+
+/**
+ * Preset cards (curated Home components) have no widget configuration — the
+ * portable payload is just the preset id in its own envelope, so copy-paste
+ * works uniformly across every tile on a dashboard.
+ */
+export const PRESET_FILE_FORMAT_VERSION = 1;
+
+export function buildPresetExport(presetId: string) {
+  return {
+    $langfusePreset: true as const,
+    version: PRESET_FILE_FORMAT_VERSION,
+    presetId,
+  };
+}
+
+export type PastedPresetParseResult =
+  | { status: "not-preset" }
+  | { status: "invalid"; reason: string }
+  | { status: "preset"; presetId: HomeDashboardPresetId };
+
+export function parsePastedPreset(text: string): PastedPresetParseResult {
+  let parsedJson: unknown;
+  try {
+    parsedJson = JSON.parse(text);
+  } catch {
+    return { status: "not-preset" };
+  }
+
+  if (
+    typeof parsedJson !== "object" ||
+    parsedJson === null ||
+    (parsedJson as Record<string, unknown>).$langfusePreset !== true
+  ) {
+    return { status: "not-preset" };
+  }
+
+  const payload = parsedJson as Record<string, unknown>;
+  if (
+    typeof payload.version === "number" &&
+    payload.version > PRESET_FILE_FORMAT_VERSION
+  ) {
+    return {
+      status: "invalid",
+      reason: `This card uses format version ${payload.version}; this Langfuse version supports up to ${PRESET_FILE_FORMAT_VERSION}.`,
+    };
+  }
+
+  if (
+    typeof payload.presetId !== "string" ||
+    !(HOME_DASHBOARD_PRESET_IDS as readonly string[]).includes(payload.presetId)
+  ) {
+    return {
+      status: "invalid",
+      reason: "This preset card is not available in this Langfuse version.",
+    };
+  }
+
+  return {
+    status: "preset",
+    presetId: payload.presetId as HomeDashboardPresetId,
+  };
+}
+
+/**
+ * True when the text is a payload our paste surfaces can place on a
+ * dashboard — a widget export or a preset-card export. Used to gate "Paste"
+ * menu items via the clipboard probe.
+ */
+export function isPasteablePlacementPayload(
+  text: string,
+  params: { isBetaEnabled: boolean },
+): boolean {
+  if (parsePastedWidget(text, params).status === "widget") return true;
+  return parsePastedPreset(text).status === "preset";
 }
 
 type PlacementPosition = {
