@@ -660,7 +660,6 @@ async function getObservationsFromEventsTableInternal<T>(
     filter: baseFilter,
     searchQuery: opts.searchQuery,
     searchType: opts.searchType,
-    scoreFilterCapabilities: { observation: true, trace: true },
   });
 
   if (opts.select === "count") {

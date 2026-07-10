@@ -83,7 +83,9 @@ export const getEventsStream = async (props: {
     isTimestampFilter: (
       filterItem: FilterCondition,
     ): filterItem is TimeFilter =>
-      filterItem.column === "Start Time" && filterItem.type === "datetime",
+      (filterItem.column === "startTime" ||
+        filterItem.column === "Start Time") &&
+      filterItem.type === "datetime",
     clickhouseConfigs,
   });
 

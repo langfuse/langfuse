@@ -26,8 +26,10 @@ export type EventsStreamQuery = {
  *
  * The returned builder is intentionally unprojected so each consumer can
  * select its own row shape. Callers must add a field set or raw selection
- * before building the query. Score and comment filters are intentionally
- * excluded here to preserve the legacy stream behavior.
+ * before building the query.
+ *
+ * Score filters are applied by the shared row-selection planner. Unresolved
+ * comment filters remain excluded until the stream caller resolves them.
  */
 const buildEventsStreamQueryInternal = (
   {
@@ -41,7 +43,11 @@ const buildEventsStreamQueryInternal = (
   buildRowSelection: typeof buildEventsObservationRowSelection,
 ): EventsStreamQuery => {
   const originalFilterGroups = groupEventsObservationFilters(filter);
-  const filterConditions: FilterCondition[] = [...originalFilterGroups.events];
+  const filterConditions: FilterCondition[] = [
+    ...originalFilterGroups.events,
+    ...originalFilterGroups.observationScores,
+    ...originalFilterGroups.traceScores,
+  ];
   if (cutoffCreatedAt) {
     filterConditions.push({
       column: "startTime",
@@ -56,7 +62,6 @@ const buildEventsStreamQueryInternal = (
     filter: filterConditions,
     searchQuery,
     searchType,
-    scoreFilterCapabilities: { observation: false, trace: false },
   });
 
   queryBuilder

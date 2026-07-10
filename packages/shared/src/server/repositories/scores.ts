@@ -2110,14 +2110,18 @@ export const getDistinctScoreNames = async (p: {
     isTimestampFilter,
     clickhouseConfigs,
   } = p;
-  const scoreTimestampFilter = filter?.find(isTimestampFilter);
+  const scoreTimestampFilter = filter?.find(
+    (filterItem): filterItem is TimeFilter =>
+      isTimestampFilter(filterItem) &&
+      (filterItem.operator === ">=" || filterItem.operator === ">"),
+  );
 
   const query = `    SELECT DISTINCT
       name
     FROM scores s
     WHERE s.project_id = {projectId: String}
     AND s.created_at <= {cutoffCreatedAt: DateTime64(3)}
-    ${scoreTimestampFilter ? `AND s.timestamp >= {filterTimestamp: DateTime64(3)}` : ""}
+    ${scoreTimestampFilter ? `AND s.timestamp >= {filterTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
     AND s.data_type IN ({dataTypes: Array(String)})
   `;
 

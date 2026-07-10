@@ -20,22 +20,10 @@ const nativeFilter: FilterCondition = {
 
 const normalizeSql = (query: string) => query.replace(/\s+/g, " ").trim();
 
-const buildSelection = ({
-  filter,
-  observationScores = true,
-  traceScores = true,
-}: {
-  filter: FilterCondition[];
-  observationScores?: boolean;
-  traceScores?: boolean;
-}) => {
+const buildSelection = ({ filter }: { filter: FilterCondition[] }) => {
   const selection = buildEventsObservationRowSelection({
     projectId,
     filter,
-    scoreFilterCapabilities: {
-      observation: observationScores,
-      trace: traceScores,
-    },
   });
 
   const built = selection.queryBuilder
@@ -123,7 +111,7 @@ describe("buildEventsStreamQuery", () => {
     expect(normalizeSql(query)).toContain("FROM events_core e");
   });
 
-  it("keeps the blob-export score projection and source together", () => {
+  it("shares one bounded score dependency between filtering and projection", () => {
     const { queryBuilder } = buildEventsBlobExportStreamQuery({
       projectId,
       filter: [
@@ -133,10 +121,17 @@ describe("buildEventsStreamQuery", () => {
           operator: ">=",
           value: new Date("2025-01-02T03:04:05.678Z"),
         },
+        {
+          type: "numberObject",
+          column: "scores_avg",
+          operator: ">",
+          key: "quality",
+          value: 0.5,
+        },
       ],
       rowLimit: 7,
     });
-    const { query, params } = queryBuilder.buildWithParams();
+    const { query } = queryBuilder.buildWithParams();
 
     expect(query.match(/\bscores_agg AS \(/g)).toHaveLength(1);
     expect(query).toContain("s.scores_avg as scores_avg");
@@ -147,10 +142,12 @@ describe("buildEventsStreamQuery", () => {
     expect(query).toContain(
       "ON s.trace_id = e.trace_id AND s.observation_id = e.span_id",
     );
-    expect(params).not.toHaveProperty("startTimeFrom");
+    expect(query).toContain(
+      "AND timestamp >= {startTimeFrom: DateTime64(3)} - INTERVAL 1 HOUR",
+    );
   });
 
-  it("keeps score filters out of the legacy stream selection", () => {
+  it("applies score filters without exposing them as native event filters", () => {
     const { queryBuilder, eventOnlyFilters } = buildEventsStreamQuery({
       projectId,
       filter: [
@@ -168,7 +165,7 @@ describe("buildEventsStreamQuery", () => {
     const { params } = queryBuilder.selectFieldSet("eval").buildWithParams();
 
     expect(eventOnlyFilters).toEqual([nativeFilter]);
-    expect(Object.values(params)).not.toContain("quality");
+    expect(Object.values(params)).toContain("quality");
   });
 
   it("keeps comment filters out of the legacy stream selection", () => {
@@ -193,6 +190,69 @@ describe("buildEventsStreamQuery", () => {
 });
 
 describe("buildEventsObservationRowSelection", () => {
+  it("routes score filters and bounds both score scans from Events time", () => {
+    const startTime = new Date("2025-01-02T03:04:05.678Z");
+    const { query, params, filterGroups } = buildSelection({
+      filter: [
+        {
+          type: "datetime",
+          column: "startTime",
+          operator: ">=",
+          value: startTime,
+        },
+        {
+          type: "numberObject",
+          column: "scores_avg",
+          operator: ">",
+          key: "observation-quality",
+          value: 0.5,
+        },
+        {
+          type: "numberObject",
+          column: "trace_scores_avg",
+          operator: ">",
+          key: "trace-quality",
+          value: 0.5,
+        },
+      ],
+    });
+
+    expect(filterGroups.events).toHaveLength(1);
+    expect(filterGroups.observationScores).toHaveLength(1);
+    expect(filterGroups.traceScores).toHaveLength(1);
+    expect(Object.values(params)).toContain("observation-quality");
+    expect(Object.values(params)).toContain("trace-quality");
+    expect(query).toContain(
+      "AND timestamp >= {startTimeFrom: DateTime64(3)} - INTERVAL 1 HOUR",
+    );
+    expect(query).toContain(
+      "AND timestamp >= {startTimeFrom: DateTime64(3)} - INTERVAL 2 DAY - INTERVAL 1 HOUR",
+    );
+  });
+
+  it("does not invent score time bounds without an Events lower bound", () => {
+    const { query } = buildSelection({
+      filter: [
+        {
+          type: "numberObject",
+          column: "scores_avg",
+          operator: ">",
+          key: "observation-quality",
+          value: 0.5,
+        },
+        {
+          type: "numberObject",
+          column: "trace_scores_avg",
+          operator: ">",
+          key: "trace-quality",
+          value: 0.5,
+        },
+      ],
+    });
+
+    expect(query).not.toContain("AND timestamp >=");
+  });
+
   it.each([
     ["scores_avg", "observationScores"],
     ["trace_scores_avg", "traceScores"],
@@ -213,36 +273,6 @@ describe("buildEventsObservationRowSelection", () => {
       expect(filterGroups[expectedGroup]).toHaveLength(1);
     },
   );
-
-  it("does not apply score predicates when score filtering is disabled", () => {
-    const { params, filterGroups } = buildSelection({
-      filter: [
-        {
-          type: "numberObject",
-          column: "scores_avg",
-          operator: ">",
-          key: "observation-score",
-          value: 0,
-        },
-        {
-          type: "numberObject",
-          column: "trace_scores_avg",
-          operator: ">",
-          key: "trace-score",
-          value: 0,
-        },
-      ],
-      observationScores: false,
-      traceScores: false,
-    });
-
-    expect(filterGroups.events).toHaveLength(0);
-    expect(filterGroups.observationScores).toHaveLength(1);
-    expect(filterGroups.traceScores).toHaveLength(1);
-
-    expect(Object.values(params)).not.toContain("observation-score");
-    expect(Object.values(params)).not.toContain("trace-score");
-  });
 
   it("does not silently discard unresolved comment filters", () => {
     expect(() =>
