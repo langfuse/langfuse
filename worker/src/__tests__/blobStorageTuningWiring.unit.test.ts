@@ -34,6 +34,8 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
           }
           return undefined;
         }),
+        // Run-completion manifest write (LFE-10843); string body, no stream.
+        uploadFile: vi.fn(async () => undefined),
       }),
     },
     getTracesForBlobStorageExport: () => empty(),
