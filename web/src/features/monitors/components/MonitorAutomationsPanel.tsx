@@ -123,12 +123,13 @@ const MonitorAutomationsListCard = ({
 
   const toggleSelectedTriggerId = useCallback(
     (triggerId: string) => {
-      if (activeSelectedTriggerIds.has(triggerId)) {
-        activeSelectedTriggerIds.delete(triggerId);
+      const next = new Set(activeSelectedTriggerIds);
+      if (next.has(triggerId)) {
+        next.delete(triggerId);
       } else {
-        activeSelectedTriggerIds.add(triggerId);
+        next.add(triggerId);
       }
-      onSelectedTriggerIdsChange(Array.from(activeSelectedTriggerIds));
+      onSelectedTriggerIdsChange(Array.from(next));
     },
     [onSelectedTriggerIdsChange, activeSelectedTriggerIds],
   );
