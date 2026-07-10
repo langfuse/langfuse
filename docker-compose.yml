@@ -1,8 +1,9 @@
 # Make sure to update the credential placeholders with your own secrets.
 # We mark them with # CHANGEME in the file below.
-# In addition, we recommend to restrict inbound traffic on the host to langfuse-web (port 3000) and minio (port 9090) only.
-# All other components are bound to localhost (127.0.0.1) to only accept connections from the local machine.
-# External connections from other machines will not be able to reach these services directly.
+# All services, including langfuse-web and minio, are bound to localhost (127.0.0.1).
+# External connections from other machines will not be able to reach these services directly;
+# put a reverse proxy or tunnel (e.g. Cloudflare Tunnel) in front of langfuse-web to expose it.
+# See PRODUCTION.md for a production setup with Cloudflare Tunnel.
 services:
   langfuse-worker:
     image: docker.io/langfuse/langfuse-worker:3
@@ -74,7 +75,7 @@ services:
     restart: always
     depends_on: *langfuse-depends-on
     ports:
-      - 3000:3000
+      - 127.0.0.1:3000:3000
     environment:
       <<: *langfuse-worker-env
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-mysecret} # CHANGEME
@@ -119,7 +120,7 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-miniosecret} # CHANGEME
     ports:
-      - 9090:9000
+      - 127.0.0.1:9090:9000
       - 127.0.0.1:9091:9001
     volumes:
       - langfuse_minio_data:/data
