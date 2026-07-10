@@ -207,7 +207,7 @@ describe("BlobStorageIntegrationContainer", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("own save: updatedAt bump after update success remounts without a banner", () => {
+  it("own save: adoption rebaselines without a banner AND without remounting — post-Save typing survives", () => {
     const savedAt = new Date("2026-01-02T00:00:00Z");
     const { rerender } = render(ui({ config: savedConfig() }));
     fireEvent.change(bucketInput(), { target: { value: "self-saved-bucket" } });
@@ -219,6 +219,10 @@ describe("BlobStorageIntegrationContainer", () => {
         { projectId: "p1" },
       ),
     );
+    // User keeps typing between Save resolving and the refetch landing.
+    fireEvent.change(bucketInput(), {
+      target: { value: "self-saved-bucket-postsave-edit" },
+    });
     rerender(
       ui({
         config: savedConfig({
@@ -231,7 +235,8 @@ describe("BlobStorageIntegrationContainer", () => {
     expect(
       screen.queryByText("Configuration changed elsewhere"),
     ).not.toBeInTheDocument();
-    expect(bucketInput()).toHaveValue("self-saved-bucket"); // remounted from saved row
+    // No remount: the post-Save keystrokes are still in the field.
+    expect(bucketInput()).toHaveValue("self-saved-bucket-postsave-edit");
   });
 
   it("own-save race: poll delivering the new updatedAt before onSuccess does not flash the banner", () => {
@@ -376,5 +381,57 @@ describe("BlobStorageIntegrationContainer", () => {
       screen.getByText("Configuration changed elsewhere"),
     ).toBeInTheDocument();
     expect(bucketInput()).toHaveValue("user-a-bucket"); // draft intact
+  });
+
+  it("reload clears the own-save expectation: a later external revert banners instead of adopting", () => {
+    // A saves V1; B's V2 lands inside A's save→refetch window → banner.
+    // A clicks Reload (acknowledging V2) and edits a fresh draft. B then
+    // reverts to V1 with a later updatedAt — matching A's stale
+    // expectation. It must banner, not silently adopt over A's new draft.
+    const savedAt = new Date("2026-01-02T00:00:00Z");
+    const userBAt = new Date("2026-01-02T00:00:03Z");
+    const revertAt = new Date("2026-01-02T00:05:00Z");
+    const { rerender } = render(ui({ config: savedConfig() }));
+    fireEvent.change(bucketInput(), { target: { value: "user-a-bucket" } });
+
+    act(() => mutationOpts.update.onMutate?.({ projectId: "p1" }));
+    act(() =>
+      mutationOpts.update.onSuccess?.(
+        savedConfig({ bucketName: "user-a-bucket", updatedAt: savedAt }),
+        { projectId: "p1" },
+      ),
+    );
+    rerender(
+      ui({
+        config: savedConfig({
+          bucketName: "user-b-bucket",
+          updatedAt: userBAt,
+        }),
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Reload form (discards unsaved edits)",
+      }),
+    );
+    expect(bucketInput()).toHaveValue("user-b-bucket"); // reloaded to B's row
+    fireEvent.change(bucketInput(), {
+      target: { value: "post-reload-draft" },
+    });
+
+    // B reverts to exactly A's earlier values, later timestamp.
+    rerender(
+      ui({
+        config: savedConfig({
+          bucketName: "user-a-bucket",
+          updatedAt: revertAt,
+        }),
+      }),
+    );
+
+    expect(
+      screen.getByText("Configuration changed elsewhere"),
+    ).toBeInTheDocument(); // not silently adopted
+    expect(bucketInput()).toHaveValue("post-reload-draft"); // draft intact
   });
 });

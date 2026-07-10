@@ -112,12 +112,14 @@ export const BlobStorageIntegrationContainer = ({
   // Own-save tracking. `inFlight` is set from onMutate so a poll refetch
   // that races ahead of the mutation response cannot flash the banner for
   // the user's own change. onSuccess records the updatedAt AND the values
-  // the save wrote; a refetch is adopted silently (remount from the saved
-  // row, clearing dirty flags) only when its timestamp is at-or-after the
-  // save's (>= — worker status writes may bump the row again before our
-  // refetch lands) AND its user-configurable values equal what the save
-  // wrote. A concurrent user's save landing inside the save→refetch window
-  // fails the value check and still banners.
+  // the save wrote; a refetch is adopted silently only when its timestamp
+  // is at-or-after the save's (>= — worker status writes may bump the row
+  // again before our refetch lands) AND its user-configurable values equal
+  // what the save wrote. Adoption ONLY rebaselines the drift snapshot — it
+  // must never bump the epoch/remount, so anything the user typed between
+  // clicking Save and the refetch landing survives. A concurrent user's
+  // save landing inside the save→refetch window fails the value check and
+  // still banners.
   const [selfSave, setSelfSave] = useState<{
     inFlight: boolean;
     expectedUpdatedAt: number | null;
@@ -160,7 +162,7 @@ export const BlobStorageIntegrationContainer = ({
       identity,
       updatedAt: config?.updatedAt ?? null,
       values: comparableConfigValues(config),
-      epoch: snapshot.epoch + 1,
+      epoch: snapshot.epoch, // rebaseline only — a bump would remount and eat post-Save typing
     });
     setSelfSave(clearedSelfSave);
   }
@@ -254,14 +256,18 @@ export const BlobStorageIntegrationContainer = ({
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() =>
+                onClick={() => {
                   setSnapshot({
                     identity,
                     updatedAt: config?.updatedAt ?? null,
                     values: comparableConfigValues(config),
                     epoch: snapshot.epoch + 1,
-                  })
-                }
+                  });
+                  // The explicit reload acknowledges the current server
+                  // state — any leftover own-save expectation is stale and
+                  // must not silently adopt a later external change.
+                  setSelfSave(clearedSelfSave);
+                }}
               >
                 Reload form (discards unsaved edits)
               </Button>

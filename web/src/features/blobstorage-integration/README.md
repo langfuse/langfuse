@@ -165,9 +165,11 @@ click bumps a key epoch. Drift deliberately does NOT key on
 `updatedAt`: Prisma's `@updatedAt` bumps on every worker status write
 (runStartedAt, lastSyncAt, …) exactly while the 5s poll is active, so
 timestamps would banner on every sync. `updatedAt` is used only to
-recognize the user's own save (the mutation's returned value; any
-refetch at-or-after it adopts silently and remounts from the saved
-row). Mutation callbacks compare their
+recognize the user's own save (the mutation's returned value; a
+refetch at-or-after it whose values match the save is adopted by
+rebaselining the snapshot only — never a remount, so typing that
+continued past Save survives; the explicit Reload click also clears
+the pending expectation). Mutation callbacks compare their
 fired-with projectId against the live prop and skip toasts when
 stale (container survives client-side project switches). Field-group
 components receive the typed `control` prop and subscribe to
