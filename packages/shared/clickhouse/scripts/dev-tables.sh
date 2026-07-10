@@ -727,6 +727,102 @@ FROM events_core
 WHERE toStartOfHour(start_time) <= toStartOfHour(subtractHours(now(), 1))
 GROUP BY project_id, hour;
 
+-- Public API usage per project per hour for the DWH analytics export,
+-- sourced from system.query_log via the log_comment tags that every
+-- ClickHouse query carries (packages/shared/src/server/clickhouse/queryTags.ts,
+-- tag_schema_version=1): surface, route ('<METHOD> <pathname>'), projectId.
+--
+-- Path segments outside the known public-API route vocabulary (trace ids,
+-- prompt/dataset names, ...) are normalized to ':id' so map keys stay
+-- low-cardinality route families like 'GET /api/public/traces/:id'.
+-- ':id' (not '{id}') because the DWH raw layer lands Map columns as
+-- unquoted strings and the dbt staging parse strips '{'/'}' characters.
+-- Values count ClickHouse queries, NOT API calls: one API call can issue
+-- several ClickHouse queries (e.g. list endpoints run count + data queries),
+-- and API calls that never touch ClickHouse (e.g. Postgres-only prompt
+-- reads) do not appear at all.
+--
+-- PROD ROLLOUT: like analytics_events_core above, this view is NOT
+-- migration-managed: system.query_log is created lazily and can be disabled
+-- entirely on self-hosted deployments, so a migration referencing it could
+-- fail there. Apply it manually as CREATE OR REPLACE VIEW in every cloud
+-- region (eu, us, hipaa, jp) — replacing system.query_log with
+-- clusterAllReplicas('default', system.query_log) so the logs of all
+-- replicas are covered — and record it in the migrations doc linked in the
+-- header. Otherwise the DWH S3 export cannot pick up the entity.
+
+-- system.query_log is created lazily on the first log flush; force it into
+-- existence so the CREATE VIEW below cannot race a fresh database (CI).
+SYSTEM FLUSH LOGS;
+
+CREATE OR REPLACE VIEW analytics_public_api_usage AS
+SELECT
+  project_id,
+  toStartOfHour(event_time) AS hour,
+  sumMap(map(route, toUInt64(1))) AS count_routes
+FROM (
+  SELECT
+    JSONExtractString(log_comment, 'projectId') AS project_id,
+    event_time,
+    JSONExtractString(log_comment, 'route') AS raw_route,
+    -- Split '<METHOD> <path>' on the FIRST space only; splitByChar with
+    -- max_substrings would silently DROP everything after the limit, which
+    -- truncates paths containing spaces (e.g. unencoded prompt names).
+    position(raw_route, ' ') AS method_separator,
+    if(method_separator = 0, '', substring(raw_route, 1, method_separator - 1)) AS method,
+    if(method_separator = 0, '', substring(raw_route, method_separator + 1)) AS raw_path,
+    arrayStringConcat(
+      arrayMap(
+        segment -> if(
+          segment IN (
+            '', 'api', 'public',
+            'annotation-queues', 'assignments', 'items',
+            'comments',
+            'dataset-items', 'dataset-run-items', 'datasets', 'runs',
+            'events',
+            'experiment-items', 'experiments',
+            'generations',
+            'health', 'ready',
+            'ingestion',
+            'integrations', 'blob-storage',
+            'llm-connections',
+            'mcp',
+            'media',
+            'metrics', 'daily',
+            'models',
+            'observations',
+            'organizations', 'apiKeys', 'memberships', 'projects',
+            'otel', 'v1',
+            'prompts', 'versions',
+            'scim', 'ResourceTypes', 'Schemas', 'ServiceProviderConfig', 'Users',
+            'score-configs', 'scores',
+            'sessions',
+            'slack', 'install', 'oauth',
+            'spans', 'traces',
+            'unstable', 'dashboard-widgets', 'evaluation-rules', 'evaluators',
+            'v2', 'v3'
+          ),
+          segment,
+          ':id'
+        ),
+        splitByChar('/', splitByChar('?', raw_path)[1])
+      ),
+      '/'
+    ) AS route_path,
+    if(
+      method = '' OR route_path = '',
+      'unknown',
+      concat(method, ' ', route_path)
+    ) AS route
+  FROM system.query_log
+  WHERE type = 'QueryFinish'
+    AND JSONExtractString(log_comment, 'tag_schema_version') = '1'
+    AND JSONExtractString(log_comment, 'surface') = 'publicapi'
+    AND JSONExtractString(log_comment, 'projectId') != ''
+)
+WHERE toStartOfHour(event_time) <= toStartOfHour(subtractHours(now(), 1))
+GROUP BY project_id, hour;
+
 EOF
 
 echo "Populating development tables with sample data..."
