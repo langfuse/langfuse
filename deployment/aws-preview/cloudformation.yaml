@@ -57,6 +57,13 @@ Resources:
       IamInstanceProfile: !Ref InstanceProfileName
       ImageId: !Ref AmiId
       InstanceType: !Ref InstanceType
+      # IMDSv2 only: blocks SSRF-based credential theft from the web app,
+      # and the hop limit of 1 stops containers from reaching instance
+      # credentials at all. Host-level ECR login and SSM are unaffected.
+      MetadataOptions:
+        HttpEndpoint: enabled
+        HttpPutResponseHopLimit: 1
+        HttpTokens: required
       SecurityGroupIds:
         - !Ref SecurityGroupId
       SubnetId: !Ref SubnetId
