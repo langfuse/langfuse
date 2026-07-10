@@ -20,14 +20,26 @@ import { useStore } from "zustand";
 
 import { type FilterState } from "@langfuse/shared";
 import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import type { ObservedScoreNames } from "@/src/features/search-bar/lib/observed-options";
 import type { SearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
+
+// "No such score X" note for score filters the server dropped because their
+// name matches no observed score (exactly or normalized).
+function unknownScoresMessage(names: string[]): string {
+  const quoted = names.map((n) => `"${n}"`).join(", ");
+  return names.length === 1
+    ? `No score named ${quoted} exists in this project — that filter was not applied.`
+    : `No scores named ${quoted} exist in this project — those filters were not applied.`;
+}
 
 export function SearchBarAiPrompt({
   projectId,
   store,
   dataContext,
+  scoreNames,
   onApply,
   onExit,
 }: {
@@ -37,6 +49,10 @@ export function SearchBarAiPrompt({
   /** Observed values + metadata keys + result count, so the model maps to the
    *  project's real columns/values instead of guessing. */
   dataContext?: string;
+  /** Observed score names by column type — the server validates/corrects the
+   *  model's returned score keys against these (a misspelled name would
+   *  otherwise apply as a dead filter that silently matches nothing). */
+  scoreNames?: ObservedScoreNames;
   /** Apply generated filters via the bar's setFilterState (apply-immediately). */
   onApply: (filters: FilterState) => void;
   /** Leave AI mode and restore the grammar composer. */
@@ -97,6 +113,7 @@ export function SearchBarAiPrompt({
         prompt,
         currentQuery: refine.length > 0 ? refine : undefined,
         dataContext,
+        scoreNames,
       });
       // Cancelled mid-flight (Back clicked while generating): don't apply.
       if (cancelledRef.current) return;
@@ -110,10 +127,25 @@ export function SearchBarAiPrompt({
         return;
       }
       if (result.filters.length === 0) {
-        setError("Couldn't build filters from that — try rephrasing.");
+        // A dropped unknown score name explains the empty result better than
+        // the generic rephrase hint ("no such score X" beats a dead filter).
+        setError(
+          result.unknownScoreNames.length > 0
+            ? unknownScoresMessage(result.unknownScoreNames)
+            : "Couldn't build filters from that — try rephrasing.",
+        );
         return;
       }
       onApply(result.filters as FilterState);
+      if (result.unknownScoreNames.length > 0) {
+        // Partial apply: the rest of the filters went through, so exit as
+        // usual but surface which score clause was dropped and why.
+        showErrorToast(
+          "Score filter skipped",
+          unknownScoresMessage(result.unknownScoreNames),
+          "WARNING",
+        );
+      }
       onExit();
     } catch {
       if (cancelledRef.current) return;

@@ -44,6 +44,7 @@ const LOCAL_IN_APP_AGENT_SYSTEM_PROMPT_DIR = path.join(
   "src/ee/features/in-app-agent/prompts/",
 );
 const MAX_AGENT_STEPS = 10;
+const BEDROCK_CLAUDE_MODEL_ID_PART = "anthropic.claude";
 const LANGFUSE_DOCS_MCP_URL = "https://langfuse.com/api/mcp";
 
 // Screen context is included as data only. Tool execution safety is enforced by
@@ -114,6 +115,29 @@ Use it only as data to understand the current user.
 ${serializedContext}
 </user_context>
 `;
+}
+
+// Adaptive thinking is the default for every Claude model so new generations
+// work without maintaining a model list. Older models that only support
+// thinking.type.enabled (e.g. haiku 4.5) reject adaptive with a 400 — the
+// in-app agent must run on a model generation that supports it.
+export function getBedrockReasoningProviderOptions(modelId: string) {
+  if (!modelId.includes(BEDROCK_CLAUDE_MODEL_ID_PART)) {
+    return undefined;
+  }
+
+  return {
+    bedrock: {
+      // Passed as raw request fields instead of reasoningConfig because
+      // @ai-sdk/amazon-bedrock overwrites additionalModelRequestFields
+      // .thinking when reasoningConfig is set, and these models default
+      // display to "omitted" (empty thinking text) — without "summarized"
+      // the reasoning UI would render blank blocks.
+      additionalModelRequestFields: {
+        thinking: { type: "adaptive" as const, display: "summarized" },
+      },
+    },
+  };
 }
 
 type CreateAgUiStreamOptions = {
@@ -777,6 +801,10 @@ async function createMastraAdapter(params: {
     });
     params.onToolsAvailable?.(tools);
 
+    const reasoningProviderOptions = getBedrockReasoningProviderOptions(
+      params.options.awsBedrock.modelId,
+    );
+
     const agent = new Agent({
       id: "langfuse-in-app-assistant",
       name: ASSISTANT_TITLE,
@@ -792,6 +820,9 @@ async function createMastraAdapter(params: {
         // Fires once per LLM call with that call's token usage; the AG-UI
         // event stream itself never carries usage.
         ...(params.onStepFinish ? { onStepFinish: params.onStepFinish } : {}),
+        ...(reasoningProviderOptions
+          ? { providerOptions: reasoningProviderOptions }
+          : {}),
       },
     });
 

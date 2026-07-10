@@ -16,6 +16,7 @@ export const filterOperators = {
     "ends with",
   ],
   numberObject: ["=", ">", "<", ">=", "<="],
+  booleanObject: ["=", "<>"],
   boolean: ["=", "<>"],
   null: ["is null", "is not null"],
   positionInTrace: ["="],
@@ -80,6 +81,13 @@ export const numberObjectFilter = z.object({
   operator: z.enum(filterOperators.number),
   value: z.number(),
 });
+export const booleanObjectFilter = z.object({
+  type: z.literal("booleanObject"),
+  column: z.string(),
+  key: z.string(), // eg scores --> "is_hallucination"
+  operator: z.enum(filterOperators.booleanObject),
+  value: z.boolean(),
+});
 export const booleanFilter = z.object({
   type: z.literal("boolean"),
   column: z.string(),
@@ -126,6 +134,7 @@ export const singleFilter = z.discriminatedUnion("type", [
   arrayOptionsFilter,
   stringObjectFilter,
   numberObjectFilter,
+  booleanObjectFilter,
   booleanFilter,
   nullFilter,
   positionInTraceFilter,
@@ -158,6 +167,7 @@ export const eventsTableSingleFilter = z.discriminatedUnion("type", [
   arrayOptionsFilter,
   eventsTableStringObjectFilter,
   numberObjectFilter,
+  booleanObjectFilter,
   booleanFilter,
   nullFilter,
   positionInTraceFilter,

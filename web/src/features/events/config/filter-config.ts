@@ -288,6 +288,11 @@ export const observationEventsFilterConfig: FilterConfig = {
       label: "Numeric Scores",
     },
     {
+      type: "booleanKeyValue" as const,
+      column: "score_booleans",
+      label: "Boolean Scores",
+    },
+    {
       type: "keyValue" as const,
       column: "trace_score_categories",
       label: "Trace Categorical Scores",
@@ -296,6 +301,11 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "numericKeyValue" as const,
       column: "trace_scores_avg",
       label: "Trace Numeric Scores",
+    },
+    {
+      type: "booleanKeyValue" as const,
+      column: "trace_score_booleans",
+      label: "Trace Boolean Scores",
     },
     {
       type: "numeric" as const,

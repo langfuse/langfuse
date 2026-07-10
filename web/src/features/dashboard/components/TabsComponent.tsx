@@ -13,7 +13,9 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const capture = usePostHogClientCapture();
   return (
-    <div>
+    // Grows inside the card's flex column so tab content (charts) can absorb
+    // extra tile height on dashboards. (LFE-10813)
+    <div className="flex grow flex-col">
       <div className="sm:hidden">
         <label htmlFor="tabs" className="sr-only">
           Select a tab
@@ -59,7 +61,9 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
           </nav>
         </div>
       </div>
-      <div className="mt-4 flex flex-col">{tabs[selectedIndex]?.content}</div>
+      <div className="mt-4 flex grow flex-col">
+        {tabs[selectedIndex]?.content}
+      </div>
     </div>
   );
 };

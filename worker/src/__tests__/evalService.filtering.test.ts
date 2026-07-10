@@ -658,7 +658,7 @@ describe("test eval filtering", () => {
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 
-  test("cached trace preserves metadata for in-memory filter evaluation", async ({
+  test("cached trace preserves filterable fields for in-memory filter evaluation", async ({
     expect,
     projectId,
     traceId1,
@@ -669,13 +669,14 @@ describe("test eval filtering", () => {
     // Create a trace with metadata
     await upsertTrace({
       id: traceId1,
+      bookmarked: true,
       metadata: { tier: "premium" },
     });
 
     // Create TWO job configs so configs.length > 1, triggering the cached trace path
     // (getTraceById is called with excludeInputOutput: true)
     await configureJob({
-      scoreName: "score-with-metadata-filter",
+      scoreName: "score-with-metadata-and-boolean-filter",
       filter: [
         {
           type: "stringObject",
@@ -683,7 +684,13 @@ describe("test eval filtering", () => {
           value: "premium",
           column: "metadata",
           operator: "=",
-        },
+        } satisfies z.infer<typeof singleFilter>,
+        {
+          type: "boolean",
+          value: true,
+          column: "bookmarked",
+          operator: "=",
+        } satisfies z.infer<typeof singleFilter>,
       ],
     });
     await configureJob({
@@ -698,7 +705,7 @@ describe("test eval filtering", () => {
     });
 
     const jobs = await getJobs();
-    // Both configs should produce a job — the metadata filter should match
+    // Both configs should produce a job — both in-memory filters should match
     expect(jobs.length).toBe(2);
   }, 10_000);
 

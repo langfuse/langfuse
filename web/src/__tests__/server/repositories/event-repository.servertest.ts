@@ -4,6 +4,7 @@ import {
   getObservationsForTraceFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
   getObservationsCountFromEventsTable,
+  getObservationsCountsFromEventsTable,
   getObservationByIdFromEventsTable,
   getObservationsFromEventsTableForPublicApi,
   getObservationsCountFromEventsTableForPublicApi,
@@ -466,6 +467,95 @@ describe("Clickhouse Events Repository Test", () => {
     });
   });
 
+  maybe("getObservationsCountsFromEventsTable", () => {
+    it("should return zero counts for non-existent project", async () => {
+      const nonExistentProjectId = randomUUID();
+
+      const counts = await getObservationsCountsFromEventsTable({
+        projectId: nonExistentProjectId,
+        filter: [],
+      });
+
+      expect(counts).toEqual({ totalCount: 0, uniqueTraceCount: 0 });
+    });
+
+    it("should return total event count and unique trace count in one query", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceIds = [randomUUID(), randomUUID(), randomUUID()];
+      // 6 events across 3 distinct traces (2 events per trace)
+      const events = traceIds.flatMap((traceId, traceIndex) =>
+        Array.from({ length: 2 }, (_, i) =>
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: `counts-test-${traceIndex}-${i}`,
+          }),
+        ),
+      );
+
+      await createEventsCh(events);
+
+      const counts = await getObservationsCountsFromEventsTable({
+        projectId: uniqueProjectId,
+        filter: [],
+      });
+
+      expect(counts.totalCount).toBe(6);
+      expect(counts.uniqueTraceCount).toBe(3);
+    });
+
+    it("should apply filters to both counts", async () => {
+      const uniqueProjectId = randomUUID();
+      const matchingTraceId = randomUUID();
+      const otherTraceId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: matchingTraceId,
+          type: "SPAN",
+          name: "counts-filter-match",
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: matchingTraceId,
+          type: "SPAN",
+          name: "counts-filter-match",
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: otherTraceId,
+          type: "SPAN",
+          name: "counts-filter-other",
+        }),
+      ]);
+
+      const counts = await getObservationsCountsFromEventsTable({
+        projectId: uniqueProjectId,
+        filter: [
+          {
+            type: "string",
+            column: "name",
+            operator: "=",
+            value: "counts-filter-match",
+          },
+        ],
+      });
+
+      expect(counts.totalCount).toBe(2);
+      expect(counts.uniqueTraceCount).toBe(1);
+    });
+  });
+
   maybe("Search Query Tests", () => {
     it("should not throw when searchQuery is combined with score filter", async () => {
       const uniqueProjectId = randomUUID();
@@ -500,6 +590,169 @@ describe("Clickhouse Events Repository Test", () => {
       });
 
       expect(count).toBeGreaterThanOrEqual(0);
+    });
+
+    it("filters observations by observation-level boolean scores", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const matchingSpanId = randomUUID();
+      const otherSpanId = randomUUID();
+      const now = Date.now();
+
+      await createEventsCh([
+        createEvent({
+          id: matchingSpanId,
+          span_id: matchingSpanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "boolean-score-match",
+          start_time: now * 1000,
+        }),
+        createEvent({
+          id: otherSpanId,
+          span_id: otherSpanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "boolean-score-other",
+          start_time: now * 1000,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: matchingSpanId,
+          name: "is_hallucination",
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "True",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: otherSpanId,
+          name: "is_hallucination",
+          data_type: "BOOLEAN",
+          value: 0,
+          string_value: "False",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+      ]);
+
+      const booleanFilter: FilterCondition = {
+        type: "booleanObject",
+        column: "score_booleans",
+        operator: "=",
+        key: "is_hallucination",
+        value: true,
+      };
+
+      await waitForExpect(async () => {
+        const observations = await getObservationsWithModelDataFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [booleanFilter],
+          limit: 100,
+          offset: 0,
+        });
+        const count = await getObservationsCountFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [booleanFilter],
+        });
+
+        expect(count).toBe(1);
+        expect(observations.map((o) => o.id)).toEqual([matchingSpanId]);
+      });
+    });
+
+    it("filters observations by trace-level boolean scores", async () => {
+      const uniqueProjectId = randomUUID();
+      const matchingTraceId = randomUUID();
+      const otherTraceId = randomUUID();
+      const matchingSpanId = randomUUID();
+      const otherSpanId = randomUUID();
+      const now = Date.now();
+
+      await createEventsCh([
+        createEvent({
+          id: matchingSpanId,
+          span_id: matchingSpanId,
+          project_id: uniqueProjectId,
+          trace_id: matchingTraceId,
+          type: "SPAN",
+          name: "trace-boolean-score-match",
+          start_time: now * 1000,
+        }),
+        createEvent({
+          id: otherSpanId,
+          span_id: otherSpanId,
+          project_id: uniqueProjectId,
+          trace_id: otherTraceId,
+          type: "SPAN",
+          name: "trace-boolean-score-other",
+          start_time: now * 1000,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: matchingTraceId,
+          observation_id: null,
+          name: "passes_guardrail",
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "True",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: otherTraceId,
+          observation_id: null,
+          name: "passes_guardrail",
+          data_type: "BOOLEAN",
+          value: 0,
+          string_value: "False",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+      ]);
+
+      const booleanFilter: FilterCondition = {
+        type: "booleanObject",
+        column: "trace_score_booleans",
+        operator: "=",
+        key: "passes_guardrail",
+        value: true,
+      };
+
+      await waitForExpect(async () => {
+        const observations = await getObservationsWithModelDataFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [booleanFilter],
+          limit: 100,
+          offset: 0,
+        });
+        const count = await getObservationsCountFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [booleanFilter],
+        });
+
+        expect(count).toBe(1);
+        expect(observations.map((o) => o.id)).toEqual([matchingSpanId]);
+      });
     });
 
     it("should not throw when searchQuery is provided without filters", async () => {
@@ -657,6 +910,18 @@ describe("Clickhouse Events Repository Test", () => {
           created_at: now,
           updated_at: now,
         }),
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          name: "unrequested-filter-option-boolean",
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "True",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
       ]);
 
       await waitForExpect(async () => {
@@ -672,8 +937,74 @@ describe("Clickhouse Events Repository Test", () => {
         expect(options.traceTags).toBeUndefined();
         expect(options.scores_avg).toBeUndefined();
         expect(options.score_categories).toBeUndefined();
+        expect(options.score_booleans).toBeUndefined();
         expect(options.trace_scores_avg).toBeUndefined();
         expect(options.trace_score_categories).toBeUndefined();
+        expect(options.trace_score_booleans).toBeUndefined();
+      });
+    });
+
+    it("loads requested boolean score filter option columns", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+      const now = Date.now();
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "requested-boolean-filter-option",
+          start_time: now * 1000,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: spanId,
+          name: "requested-observation-boolean",
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "True",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: null,
+          name: "requested-trace-boolean",
+          data_type: "BOOLEAN",
+          value: 0,
+          string_value: "False",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const options = await getEventFilterOptions({
+          projectId: uniqueProjectId,
+          columns: ["score_booleans", "trace_score_booleans"],
+        });
+
+        expect(options.score_booleans).toContain(
+          "requested-observation-boolean",
+        );
+        expect(options.trace_score_booleans).toContain(
+          "requested-trace-boolean",
+        );
+        expect(options.trace_score_booleans).not.toContain(
+          "requested-observation-boolean",
+        );
       });
     });
 
@@ -3058,6 +3389,56 @@ describe("Clickhouse Events Repository Test", () => {
       // Should not return anything since projectId doesn't match
       expect(result).toBeDefined();
       expect(result.length).toBe(0);
+    });
+
+    it("should fetch tool call fields only when includeToolCallFields is set", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+      const storedToolCall = JSON.stringify({
+        id: "call_1",
+        arguments: JSON.stringify({ city: "Berlin" }),
+        type: "function",
+        index: 0,
+      });
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "test-tool-calls",
+          input: "tool call input",
+          output: "tool call output",
+          tool_calls: [storedToolCall],
+          tool_call_names: ["get_weather"],
+          start_time: nowMicro,
+        }),
+      ]);
+
+      const baseParams = {
+        projectId,
+        observations: [{ id: observationId, traceId }],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
+      };
+
+      const withoutToolCalls =
+        await getObservationsBatchIOFromEventsTable(baseParams);
+      expect(withoutToolCalls.length).toBe(1);
+      expect(withoutToolCalls[0]).not.toHaveProperty("toolCalls");
+      expect(withoutToolCalls[0]).not.toHaveProperty("toolCallNames");
+
+      const withToolCalls = await getObservationsBatchIOFromEventsTable({
+        ...baseParams,
+        includeToolCallFields: true,
+      });
+      expect(withToolCalls.length).toBe(1);
+      expect(withToolCalls[0]?.toolCalls).toEqual([storedToolCall]);
+      expect(withToolCalls[0]?.toolCallNames).toEqual(["get_weather"]);
     });
   });
 
