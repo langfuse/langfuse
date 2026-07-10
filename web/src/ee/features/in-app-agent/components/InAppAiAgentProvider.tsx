@@ -43,8 +43,9 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import {
   getInAppAgentError,
   isInAppAgentRateLimited,
+  type InAppAiAgentMessage,
 } from "@/src/ee/features/in-app-agent/components/utils/utils";
-import { type InAppAiAgentMessage } from "@/src/ee/features/in-app-agent/components/utils/utils";
+import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
@@ -933,11 +934,19 @@ function InAppAiAgentProviderInner({
     ],
   );
 
-  useEffect(() => {
-    if (!open) {
-      setIsExpanded(false);
-    }
-  }, [open]);
+  const setAgentOpen = useCallback<Dispatch<SetStateAction<boolean>>>(
+    (action) => {
+      const nextOpen = evaluateSetStateAction(action, open);
+
+      if (!nextOpen) {
+        // Collapse the drawer when closing
+        setIsExpanded(false);
+      }
+
+      setOpen(nextOpen);
+    },
+    [open, setOpen],
+  );
 
   const resumeToolApproval = useCallback(
     async (approvalId: string, approved: boolean) => {
@@ -1054,7 +1063,7 @@ function InAppAiAgentProviderInner({
     () => ({
       isAvailable: true,
       open,
-      setOpen,
+      setOpen: setAgentOpen,
       isExpanded,
       setIsExpanded,
       isRunning,
@@ -1092,10 +1101,10 @@ function InAppAiAgentProviderInner({
       open,
       pendingToolApprovals,
       rejectToolCall,
+      setAgentOpen,
       invalidateConversations,
       selectConversation,
       selectedConversationId,
-      setOpen,
       submit,
       submitFeedback,
     ],
