@@ -504,6 +504,35 @@ describe("code evaluator context completions", () => {
     }
   });
 
+  it("treats arrow-function evaluators like function declarations", () => {
+    expect(
+      runCompletionSource(
+        "const evaluate = (ctx: EvaluationContext): Eval",
+        "TYPESCRIPT",
+      )?.options.map((option) => option.label),
+    ).toEqual(["EvaluationResult"]);
+    expect(
+      runCompletionSource(
+        "const evaluate = (ctx: EvaluationContext): EvaluationResult => { return { sc",
+        "TYPESCRIPT",
+      )?.options.map((option) => option.label),
+    ).toEqual(["scores"]);
+    expect(
+      getCompletions(
+        "const evaluate = (ctx: EvaluationContext): EvaluationResult => { return { scores: [{ dataType: ",
+        "TYPESCRIPT",
+      ).labels,
+    ).toEqual(['"NUMERIC"', '"BOOLEAN"', '"CATEGORICAL"', '"TEXT"']);
+
+    // Only the evaluator's declarator counts.
+    expect(
+      getCompletions(
+        "const other = (ctx: EvaluationContext): EvaluationResult => { return { sc",
+        "TYPESCRIPT",
+      ).labels,
+    ).toBeUndefined();
+  });
+
   it("completes TypeScript score data type values inside strings", () => {
     const scorePrefix =
       "function evaluate(ctx: EvaluationContext): EvaluationResult { return { scores: [{ dataType: ";

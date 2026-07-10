@@ -503,12 +503,30 @@ function getPythonResultConstructorCompletion(
   };
 }
 
+// Mirrors the validator's hasEvaluateFunction: an evaluator may be a
+// `function evaluate` declaration or a `const evaluate = …` arrow/function
+// expression, where the authoritative name is the declarator's.
 function getFunctionName(node: SyntaxNode, context: CompletionContext) {
-  if (node.name !== "FunctionDeclaration") return null;
+  if (node.name === "FunctionDeclaration") {
+    for (let child = node.firstChild; child; child = child.nextSibling) {
+      if (child.name === "VariableDefinition") {
+        return sliceNode(context, child);
+      }
+    }
+    return null;
+  }
 
-  for (let child = node.firstChild; child; child = child.nextSibling) {
-    if (child.name === "VariableDefinition") {
-      return sliceNode(context, child);
+  if (node.name !== "ArrowFunction" && node.name !== "FunctionExpression") {
+    return null;
+  }
+  if (node.parent?.name !== "VariableDeclaration") return null;
+  for (
+    let sibling = node.prevSibling;
+    sibling && sibling.name !== ",";
+    sibling = sibling.prevSibling
+  ) {
+    if (sibling.name === "VariableDefinition") {
+      return sliceNode(context, sibling);
     }
   }
   return null;
