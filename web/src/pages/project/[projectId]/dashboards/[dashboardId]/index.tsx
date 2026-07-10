@@ -55,6 +55,23 @@ import {
   getDashboardQuerySchedulerMaxConcurrent,
   useDashboardQueryScheduler,
 } from "@/src/hooks/useDashboardQueryScheduler";
+import {
+  toWidgetCreateFields,
+  type WidgetExportSource,
+} from "@/src/features/widgets/utils/import-export-utils";
+
+// Position for a tile inserted "next to" an anchor tile: same size,
+// immediately to the right when that fits the 12-column grid, otherwise
+// directly below the anchor. Collisions are resolved by the grid layout.
+function placementNextTo(anchor: DashboardPlacement) {
+  const fitsRight = anchor.x + anchor.x_size * 2 <= 12;
+  return {
+    x: fitsRight ? anchor.x + anchor.x_size : anchor.x,
+    y: fitsRight ? anchor.y : anchor.y + anchor.y_size,
+    x_size: anchor.x_size,
+    y_size: anchor.y_size,
+  };
+}
 
 export default function DashboardDetail() {
   const router = useRouter();
@@ -226,9 +243,14 @@ export default function DashboardDetail() {
     });
   };
 
-  // Helper function to add a widget to the dashboard
-  const addWidgetToDashboard = useCallback(
-    (widget: WidgetItem) => {
+  // Helper function to add a widget placement to the dashboard. Defaults to a
+  // 6x6 tile below all existing widgets; callers can pass an explicit position
+  // (e.g. "paste to the right" of an anchor tile).
+  const insertWidgetPlacement = useCallback(
+    (
+      widgetId: string,
+      position?: { x: number; y: number; x_size: number; y_size: number },
+    ) => {
       if (!localDashboardDefinition) return;
 
       // Find the maximum y position to place the new widget at the bottom
@@ -242,12 +264,12 @@ export default function DashboardDetail() {
       // Create a new widget placement
       const newWidgetPlacement: DashboardPlacement = {
         id: uuidv4(),
-        widgetId: widget.id,
-        x: 0, // Start at left
-        y: maxY, // Place below existing widgets
-        x_size: 6, // Default size (half of 12-column grid)
-        y_size: 6, // Default height of 6 rows
+        widgetId,
         type: "widget",
+        x: position?.x ?? 0, // Default: start at left
+        y: position?.y ?? maxY, // Default: place below existing widgets
+        x_size: position?.x_size ?? 6, // Default size (half of 12-column grid)
+        y_size: position?.y_size ?? 6, // Default height of 6 rows
       };
 
       // Add the widget to the local dashboard definition
@@ -258,7 +280,7 @@ export default function DashboardDetail() {
       setLocalDashboardDefinition(updatedDefinition);
       saveDashboardChanges(updatedDefinition);
 
-      // The new widget lands at the bottom of the grid — bring it into view.
+      // The new widget may land outside the viewport — bring it into view.
       setTimeout(() => {
         document
           .querySelector(`[data-placement-id="${newWidgetPlacement.id}"]`)
@@ -270,6 +292,41 @@ export default function DashboardDetail() {
       setLocalDashboardDefinition,
       saveDashboardChanges,
     ],
+  );
+
+  const addWidgetToDashboard = useCallback(
+    (widget: WidgetItem) => insertWidgetPlacement(widget.id),
+    [insertWidgetPlacement],
+  );
+
+  const { mutateAsync: createWidgetAsync } =
+    api.dashboardWidgets.create.useMutation();
+
+  // Duplicate a tile's widget: create an independent widget row seeded from
+  // the source configuration, placed next to the source tile.
+  const handleDuplicateWidget = useCallback(
+    async (anchor: DashboardPlacement, widget: WidgetExportSource) => {
+      try {
+        const result = await createWidgetAsync({
+          projectId,
+          ...toWidgetCreateFields(widget),
+          name: `${widget.name} (Copy)`,
+        });
+        capture("dashboard:widget_duplicated", {
+          surface: "grid_menu",
+          dashboard_id: dashboardId,
+          chart_type: widget.chartType,
+          view: widget.view,
+        });
+        insertWidgetPlacement(result.widget.id, placementNextTo(anchor));
+      } catch (e) {
+        showErrorToast(
+          "Failed to duplicate widget",
+          e instanceof Error ? e.message : "Unknown error",
+        );
+      }
+    },
+    [createWidgetAsync, projectId, dashboardId, capture, insertWidgetPlacement],
   );
 
   // Add a Langfuse Home card as a preset placement (no widget row involved)
@@ -797,6 +854,9 @@ export default function DashboardDetail() {
                 isLockedEditable
                   ? () => openCloneFirst("widget_pencil")
                   : undefined
+              }
+              onDuplicateWidget={
+                hasCUDAccess ? handleDuplicateWidget : undefined
               }
             />
           </div>
