@@ -86,12 +86,12 @@
     "ch:drop": "bash clickhouse/scripts/drop.sh",
     "ch:dev-tables": "bash clickhouse/scripts/dev-tables.sh",
     "ch:reset": "pnpm run ch:down && pnpm run ch:up && pnpm run ch:seed && pnpm run ch:dev-tables",
-    "ch:seed": "dotenv -e ../../.env -- ts-node -r dotenv/config --compiler-options '{\"module\":\"CommonJS\"}' scripts/seeder/seed-clickhouse.ts",
+    "ch:seed": "dotenv -e ../../.env -- tsx scripts/seeder/seed-clickhouse.ts",
     "load:setup": "dotenv -e ../../.env -- tsx scripts/seeder/load-seed-clickhouse.ts",
     "seed:scenario": "dotenv -e ../../.env -- tsx scripts/seeder/cli.ts"
   },
   "prisma": {
-    "seed": "ts-node -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} scripts/seeder/seed-postgres.ts"
+    "seed": "dotenv -e ../../.env -- tsx scripts/seeder/seed-postgres.ts"
   },
   "dependencies": {
     "@ai-sdk/amazon-bedrock": "^5.0.8",
@@ -169,9 +169,9 @@
     "eslint": "^9.39.2",
     "prettier": "^3.8.3",
     "prisma": "^6.19.3",
-    "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
-    "typescript": "^5.7.2",
+    "tsx": "^4.20.5",
+    "typescript": "catalog:",
     "vitest": "^4.1.8"
   },
   "peerDependencies": {
