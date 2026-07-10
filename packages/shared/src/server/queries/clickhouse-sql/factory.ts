@@ -32,6 +32,14 @@ export class QueryBuilderError extends Error {
   }
 }
 
+const LEGACY_SCORE_FILTER_COLUMNS: Partial<
+  Record<EventsTableFilterState[number]["type"], string>
+> = {
+  categoryOptions: "score_categories",
+  numberObject: "scores_avg",
+  booleanObject: "score_booleans",
+};
+
 const resolveLegacyScoreFilterColumn = (
   filter: EventsTableFilterState[number],
   columnMapping: UiColumnMappings,
@@ -40,18 +48,24 @@ const resolveLegacyScoreFilterColumn = (
     return filter.column;
   }
 
-  const typedColumn =
-    filter.type === "categoryOptions"
-      ? "score_categories"
-      : filter.type === "numberObject"
-        ? "scores_avg"
-        : filter.type === "booleanObject"
-          ? "score_booleans"
-          : null;
+  const typedColumn = LEGACY_SCORE_FILTER_COLUMNS[filter.type];
 
-  return typedColumn && findUiColumnMapping(columnMapping, typedColumn)
-    ? typedColumn
-    : filter.column;
+  if (!typedColumn) {
+    throw new InvalidRequestError(
+      `Invalid filter type '${filter.type}' for legacy score column '${filter.column}'. Expected one of 'categoryOptions', 'numberObject', or 'booleanObject'.`,
+    );
+  }
+
+  // The legacy scores mapping aliases only the numeric score aggregate.
+  // Categorical and boolean filters must resolve to their typed mappings.
+  if (
+    filter.type === "numberObject" &&
+    !findUiColumnMapping(columnMapping, typedColumn)
+  ) {
+    return filter.column;
+  }
+
+  return typedColumn;
 };
 
 // This function ensures that the user only selects valid columns from the clickhouse schema.
