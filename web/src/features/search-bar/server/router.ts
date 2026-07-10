@@ -83,7 +83,11 @@ export const searchBarRouter = createTRPCRouter({
           });
         }
 
-        if (!env.LANGFUSE_AWS_BEDROCK_MODEL) {
+        const model =
+          env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL ??
+          env.LANGFUSE_AWS_BEDROCK_MODEL;
+
+        if (!model) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
             message:
@@ -123,6 +127,7 @@ export const searchBarRouter = createTRPCRouter({
               type: ChatMessageType.PublicAPICreated,
             },
           ],
+          model,
           maxTokens: 2048,
           traceSinkParams: aiTelemetryEnabled
             ? getLangfuseAITraceSinkParams({
