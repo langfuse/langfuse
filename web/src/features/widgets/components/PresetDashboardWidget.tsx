@@ -208,56 +208,56 @@ export function PresetDashboardWidget({
   return (
     <div className="group relative h-full w-full">
       <div className="h-full w-full overflow-y-auto">{renderPreset(ctx)}</div>
-      {!readOnly && (
-        <div className="bg-background/95 absolute top-2 right-2 z-10 hidden items-center gap-2 rounded-md border px-1.5 py-1 shadow-sm group-hover:flex has-data-[state=open]:flex">
-          {(hasCUDAccess || isLockedEditable) && (
-            <>
-              <GripVerticalIcon
-                size={16}
-                className="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:block"
-              />
-              <button
-                onClick={handleDelete}
-                className="text-muted-foreground hover:text-destructive"
-                aria-label="Delete widget"
+      {/* The menu (copy) stays available on read-only surfaces like Home —
+          only the edit affordances (drag, delete) are gated. */}
+      <div className="bg-background/95 absolute top-2 right-2 z-10 hidden items-center gap-2 rounded-md border px-1.5 py-1 shadow-sm group-hover:flex has-data-[state=open]:flex">
+        {!readOnly && (hasCUDAccess || isLockedEditable) && (
+          <>
+            <GripVerticalIcon
+              size={16}
+              className="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:block"
+            />
+            <button
+              onClick={handleDelete}
+              className="text-muted-foreground hover:text-destructive"
+              aria-label="Delete widget"
+            >
+              <TrashIcon size={16} />
+            </button>
+          </>
+        )}
+        <DropdownMenu onOpenChange={setIsActionsMenuOpen}>
+          <DropdownMenuTrigger asChild>
+            <button
+              className="text-muted-foreground hover:text-foreground"
+              aria-label="Widget actions"
+            >
+              <MoreVerticalIcon size={16} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={handleCopyToClipboard}>
+              <CopyIcon className="mr-2 h-4 w-4" />
+              Copy to clipboard
+            </DropdownMenuItem>
+            {onPasteWidget && (
+              <DropdownMenuItem
+                disabled={clipboardProbe === "no-widget"}
+                onClick={() => onPasteWidget(placement)}
               >
-                <TrashIcon size={16} />
-              </button>
-            </>
-          )}
-          <DropdownMenu onOpenChange={setIsActionsMenuOpen}>
-            <DropdownMenuTrigger asChild>
-              <button
-                className="text-muted-foreground hover:text-foreground"
-                aria-label="Widget actions"
-              >
-                <MoreVerticalIcon size={16} />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleCopyToClipboard}>
-                <CopyIcon className="mr-2 h-4 w-4" />
-                Copy to clipboard
+                <ClipboardPasteIcon className="mr-2 h-4 w-4" />
+                Paste to the right
               </DropdownMenuItem>
-              {onPasteWidget && (
-                <DropdownMenuItem
-                  disabled={clipboardProbe === "no-widget"}
-                  onClick={() => onPasteWidget(placement)}
-                >
-                  <ClipboardPasteIcon className="mr-2 h-4 w-4" />
-                  Paste to the right
-                </DropdownMenuItem>
-              )}
-              {onDuplicatePreset && (
-                <DropdownMenuItem onClick={() => onDuplicatePreset(placement)}>
-                  <CopyPlusIcon className="mr-2 h-4 w-4" />
-                  Duplicate
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      )}
+            )}
+            {onDuplicatePreset && (
+              <DropdownMenuItem onClick={() => onDuplicatePreset(placement)}>
+                <CopyPlusIcon className="mr-2 h-4 w-4" />
+                Duplicate
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
   );
 }
