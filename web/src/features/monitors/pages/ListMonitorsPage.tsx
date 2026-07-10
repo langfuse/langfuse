@@ -10,7 +10,6 @@ import { monitorFilterConfig } from "@/src/features/filters/config/monitors-conf
 import { MonitorPagePermissions } from "@/src/features/monitors/components/MonitorPagePermissions";
 import { MonitorsOnboarding } from "@/src/features/monitors/components/MonitorsOnboarding";
 import { MonitorsTable } from "@/src/features/monitors/components/MonitorsTable";
-import { useMonitorsAvailable } from "@/src/features/monitors/helpers/useMonitorsAvailable";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
@@ -27,9 +26,6 @@ const headerProps = {
 /** ListMonitorsPage displays the list of monitors for a project, or an onboarding splash when the project has none. */
 export default function ListMonitorsPage() {
   const projectId = useProjectIdFromURL();
-  // Don't fire the query on deployments where the server rejects monitors
-  // routes; MonitorPagePermissions renders the not-found page instead.
-  const { available: monitorsAvailable } = useMonitorsAvailable();
 
   const {
     isLoading,
@@ -37,7 +33,7 @@ export default function ListMonitorsPage() {
     data: hasMonitors,
   } = api.monitors.hasAny.useQuery(
     { projectId: projectId ?? "" },
-    { enabled: !!projectId && monitorsAvailable },
+    { enabled: !!projectId },
   );
 
   return (
