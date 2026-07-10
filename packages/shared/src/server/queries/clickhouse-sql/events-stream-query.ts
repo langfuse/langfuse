@@ -1,10 +1,16 @@
 import type { FilterCondition } from "../../../types";
 import type { TracingSearchType } from "../../../interfaces/search";
-import type { EventsQueryBuilder } from "./event-query-builder";
+import {
+  type OrderByState,
+  normalizeOrderByForTable,
+} from "../../../interfaces/orderBy";
+import { eventsTableNativeUiColumnDefinitions } from "../../tableMappings/mapEventsTable";
+import type { EventsQueryBuilder, OrderByEntry } from "./event-query-builder";
 import {
   buildEventsObservationRowSelection,
   buildEventsObservationRowSelectionForBlobExport,
 } from "./events-observation-row-selection";
+import { orderByToEntries } from "./orderby-factory";
 
 export type EventsStreamQueryInput = {
   projectId: string;
@@ -12,6 +18,7 @@ export type EventsStreamQueryInput = {
   filter: FilterCondition[] | null;
   searchQuery?: string;
   searchType?: TracingSearchType[];
+  orderBy?: OrderByState;
   rowLimit: number;
 };
 
@@ -21,6 +28,29 @@ export type EventsStreamQuery = {
 
 export type EventsBlobExportStreamQuery = EventsStreamQuery & {
   startTimeFrom: string | null;
+};
+
+export const getEventsOrderByEntries = (
+  orderBy?: OrderByState,
+): OrderByEntry[] => {
+  const normalizedOrderBy = normalizeOrderByForTable({
+    orderBy: orderBy ?? null,
+    expectedTimeColumn: "startTime",
+  });
+  const mappedEntries = orderByToEntries(
+    normalizedOrderBy,
+    eventsTableNativeUiColumnDefinitions,
+  );
+  const entries =
+    mappedEntries.length > 0
+      ? mappedEntries
+      : [{ column: "e.start_time", direction: "DESC" as const }];
+
+  return entries.some(
+    (entry) => entry.column.replaceAll('"', "") === "e.span_id",
+  )
+    ? entries
+    : [...entries, { column: "e.span_id", direction: entries[0].direction }];
 };
 
 /**
@@ -40,6 +70,7 @@ const buildEventsStreamQueryInternal = (
     filter,
     searchQuery,
     searchType,
+    orderBy,
     rowLimit,
   }: EventsStreamQueryInput,
   buildRowSelection: typeof buildEventsObservationRowSelection,
@@ -61,10 +92,13 @@ const buildEventsStreamQueryInternal = (
     searchType,
   });
 
+  const orderByEntries = getEventsOrderByEntries(orderBy);
   queryBuilder
     .whereRaw("e.is_deleted = 0")
-    .orderByDefault()
-    .limitBy("e.span_id", "e.project_id")
+    .qualifyRaw(
+      "row_number() OVER (PARTITION BY e.project_id, e.span_id ORDER BY e.event_ts DESC) = 1",
+    )
+    .orderByColumns(orderByEntries)
     .limit(rowLimit);
 
   return {

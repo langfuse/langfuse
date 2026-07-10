@@ -839,6 +839,7 @@ abstract class BaseEventsQueryBuilder<
 > extends AbstractCTEQueryBuilder {
   protected selectFields: Set<string> = new Set();
   protected projectId: string | NoProjectIdType;
+  private qualifyClauses: string[] = [];
 
   constructor(
     protected fields: TFields,
@@ -867,6 +868,17 @@ abstract class BaseEventsQueryBuilder<
     });
     if (orderByClause) {
       this.orderByClause = orderByClause;
+    }
+    return this;
+  }
+
+  /** Add a QUALIFY condition for window-function results. */
+  qualifyRaw(condition: string, params?: Record<string, any>): this {
+    if (condition.trim()) {
+      this.qualifyClauses.push(condition);
+    }
+    if (params) {
+      this.params = { ...this.params, ...params };
     }
     return this;
   }
@@ -965,6 +977,10 @@ abstract class BaseEventsQueryBuilder<
     const havingSection = this.buildHavingSection();
     if (havingSection) {
       parts.push(havingSection);
+    }
+
+    if (this.qualifyClauses.length > 0) {
+      parts.push(`QUALIFY ${this.qualifyClauses.join("\n  AND ")}`);
     }
 
     // ORDER BY

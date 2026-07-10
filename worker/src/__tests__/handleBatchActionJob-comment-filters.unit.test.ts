@@ -77,6 +77,7 @@ const idFilter = (value: string[]): FilterCondition[] => [
 ];
 const resolvedCommentFilter = idFilter(["observation-1"]);
 const emptySelectionFilter = idFilter([]);
+const eventOrderBy = { column: "name", order: "ASC" as const };
 const datasetConfig = {
   datasetId: "dataset-1",
   datasetName: "Dataset",
@@ -98,7 +99,7 @@ const createPayload = (
     actionId,
     tableName,
     cutoffCreatedAt: new Date(),
-    query: { filter: rawCommentFilter, orderBy: null },
+    query: { filter: rawCommentFilter, orderBy: eventOrderBy },
     targetId: "queue-1",
     batchActionId: "batch-action-1",
     config: datasetConfig,
@@ -126,6 +127,7 @@ describe("event batch-action comment filter wiring", () => {
       name: "Events annotation queue",
       payload: createPayload("observation-add-to-annotation-queue"),
       getStream: mocks.getEventsStreamForAnnotationQueue,
+      expectsOrderBy: true,
     },
     {
       name: "legacy Observations annotation queue",
@@ -134,6 +136,7 @@ describe("event batch-action comment filter wiring", () => {
         BatchTableNames.Observations,
       ),
       getStream: mocks.getObservationStream,
+      expectsOrderBy: false,
     },
     {
       name: "legacy Observations dataset",
@@ -142,21 +145,24 @@ describe("event batch-action comment filter wiring", () => {
         BatchTableNames.Observations,
       ),
       getStream: mocks.getObservationStream,
+      expectsOrderBy: false,
     },
     {
       name: "Events evaluation",
       payload: createPayload("observation-run-batched-evaluation"),
       getStream: mocks.getEventsStreamForEval,
+      expectsOrderBy: true,
     },
     {
       name: "Events dataset with no matches",
       payload: createPayload("observation-add-to-dataset"),
       getStream: mocks.getEventsStreamForDataset,
       noMatches: true,
+      expectsOrderBy: true,
     },
   ])(
     "resolves observation comments for $name",
-    async ({ payload, getStream, noMatches }) => {
+    async ({ payload, getStream, noMatches, expectsOrderBy }) => {
       if (noMatches) {
         mocks.applyCommentFilters.mockResolvedValue({
           filterState: [],
@@ -164,7 +170,6 @@ describe("event batch-action comment filter wiring", () => {
           matchingIds: [],
         });
       }
-
       await runBatchAction(payload);
 
       expect(mocks.applyCommentFilters).toHaveBeenCalledWith({
@@ -176,6 +181,7 @@ describe("event batch-action comment filter wiring", () => {
       expect(getStream).toHaveBeenCalledWith(
         expect.objectContaining({
           filter: noMatches ? emptySelectionFilter : resolvedCommentFilter,
+          ...(expectsOrderBy ? { orderBy: eventOrderBy } : {}),
         }),
       );
     },

@@ -93,6 +93,7 @@ export {
 export {
   buildEventsBlobExportStreamQuery,
   buildEventsStreamQuery,
+  getEventsOrderByEntries,
   type EventsStreamQuery,
   type EventsStreamQueryInput,
 } from "./clickhouse-sql/events-stream-query";

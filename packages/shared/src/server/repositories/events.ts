@@ -49,6 +49,7 @@ import {
   type ApiColumnMapping,
   ObservationPriceFields,
 } from "../queries";
+import { getEventsOrderByEntries } from "../queries/clickhouse-sql/events-stream-query";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import type { EventsTableFilterState, FilterState } from "../../types";
 import type { TracingSearchType } from "../../interfaces/search";
@@ -718,10 +719,10 @@ async function getObservationsFromEventsTableInternal<T>(
     ...filter.filter((f) => f.type !== "positionInTrace"),
   ];
 
-  const orderByEntries = orderByToEntries(
-    [orderBy ?? null],
-    eventsTableUiColumnDefinitions,
-  );
+  const orderByEntries =
+    opts.select === "rows"
+      ? getEventsOrderByEntries(orderBy)
+      : orderByToEntries([orderBy ?? null], eventsTableUiColumnDefinitions);
 
   // Build filter list from baseFilter (without positionInTrace)
   // Build query using EventsQueryBuilder

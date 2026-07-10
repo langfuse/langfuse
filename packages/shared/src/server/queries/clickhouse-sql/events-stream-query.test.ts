@@ -8,6 +8,7 @@ import {
 import {
   buildEventsBlobExportStreamQuery,
   buildEventsStreamQuery,
+  getEventsOrderByEntries,
 } from "./events-stream-query";
 
 const projectId = "project-characterization";
@@ -34,6 +35,14 @@ const buildSelection = ({ filter }: { filter: FilterCondition[] }) => {
   return { ...selection, ...built };
 };
 
+const simplifyOrderEntries = (
+  entries: ReturnType<typeof getEventsOrderByEntries>,
+) =>
+  entries.map(({ column, direction }) => ({
+    column: column.replaceAll('"', "").replace(/^e\./, ""),
+    direction,
+  }));
+
 describe("buildEventsStreamQuery", () => {
   it("builds the common event-stream selection", () => {
     const { queryBuilder } = buildEventsStreamQuery({
@@ -52,12 +61,12 @@ describe("buildEventsStreamQuery", () => {
     expect(query).toContain("e.project_id = {projectId: String}");
     expect(query).toContain("e.is_deleted = 0");
 
+    const deduplicationIndex = query.lastIndexOf("QUALIFY ");
     const orderIndex = query.lastIndexOf("ORDER BY ");
-    const deduplicationIndex = query.lastIndexOf("LIMIT 1 BY ");
     const rowLimitIndex = query.lastIndexOf("LIMIT {");
-    expect(orderIndex).toBeGreaterThan(-1);
-    expect(orderIndex).toBeLessThan(deduplicationIndex);
-    expect(deduplicationIndex).toBeLessThan(rowLimitIndex);
+    expect(deduplicationIndex).toBeGreaterThan(-1);
+    expect(deduplicationIndex).toBeLessThan(orderIndex);
+    expect(orderIndex).toBeLessThan(rowLimitIndex);
 
     expect(params).toMatchObject({
       projectId,
@@ -168,6 +177,49 @@ describe("buildEventsStreamQuery", () => {
 
     expect(Object.values(params)).toContain("quality");
   });
+
+  it.each([
+    ["timestamp", "ASC"],
+    ["createdAt", "DESC"],
+    ["startTime", "ASC"],
+  ] as const)("normalizes the %s alias to start time %s", (column, order) => {
+    expect(
+      simplifyOrderEntries(getEventsOrderByEntries({ column, order })),
+    ).toEqual([
+      { column: "start_time", direction: order },
+      { column: "span_id", direction: order },
+    ]);
+  });
+
+  it.each(["ASC", "DESC"] as const)(
+    "uses the stable ID tie-breaker for non-time ordering in %s order",
+    (order) => {
+      expect(
+        simplifyOrderEntries(
+          getEventsOrderByEntries({ column: "name", order }),
+        ),
+      ).toEqual([
+        { column: "name", direction: order },
+        { column: "span_id", direction: order },
+      ]);
+    },
+  );
+
+  it("defaults to descending start time with a stable ID tie-breaker", () => {
+    expect(simplifyOrderEntries(getEventsOrderByEntries())).toEqual([
+      { column: "start_time", direction: "DESC" },
+      { column: "span_id", direction: "DESC" },
+    ]);
+  });
+
+  it.each(["positionInTrace", "scores_avg", "trace_scores_avg"])(
+    "rejects unsupported %s ordering for the general Events stream",
+    (column) => {
+      expect(() => getEventsOrderByEntries({ column, order: "ASC" })).toThrow(
+        InvalidRequestError,
+      );
+    },
+  );
 });
 
 describe("buildEventsObservationRowSelection", () => {

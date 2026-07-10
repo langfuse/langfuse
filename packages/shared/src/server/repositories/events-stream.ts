@@ -1,4 +1,5 @@
 import { Readable } from "stream";
+import type { OrderByState } from "../../interfaces/orderBy";
 import type { FilterCondition } from "../../types";
 import type { TracingSearchType } from "../../interfaces/search";
 import { buildEventsStreamQuery } from "../queries";
@@ -14,6 +15,7 @@ export const getEventsStreamForEval = async (props: {
   filter: FilterCondition[] | null;
   searchQuery?: string;
   searchType?: TracingSearchType[];
+  orderBy?: OrderByState;
   rowLimit: number;
 }): Promise<Readable> => {
   const {
@@ -22,6 +24,7 @@ export const getEventsStreamForEval = async (props: {
     filter = [],
     searchQuery,
     searchType,
+    orderBy,
     rowLimit,
   } = props;
 
@@ -31,6 +34,7 @@ export const getEventsStreamForEval = async (props: {
     filter,
     searchQuery,
     searchType,
+    orderBy,
     rowLimit,
   });
   const { query, params: queryParams } = queryBuilder
