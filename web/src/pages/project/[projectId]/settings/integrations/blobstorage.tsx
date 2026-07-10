@@ -9,7 +9,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { deriveSyncStatus } from "@/src/features/blobstorage-integration/deriveSyncStatus";
 import { type BlobStorageSyncStatus } from "@/src/features/blobstorage-integration/types";
-import { BlobStorageIntegrationForm } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationForm";
+import { BlobStorageIntegrationContainer } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationContainer";
 import { BlobStorageStatusSection } from "@/src/features/blobstorage-integration/components/BlobStorageStatusSection";
 
 const syncStatusToBadge: Record<BlobStorageSyncStatus, string> = {
@@ -106,8 +106,8 @@ export default function BlobStorageIntegrationSettings() {
         <>
           <Header title="Configuration" className="mt-8" />
           <Card className="p-3">
-            <BlobStorageIntegrationForm
-              state={state.data?.config || undefined}
+            <BlobStorageIntegrationContainer
+              config={state.data?.config ?? null}
               projectId={projectId}
               isLoading={state.isLoading}
               isEnrichedExportAvailable={
