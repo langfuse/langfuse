@@ -1,7 +1,7 @@
 import Page from "@/src/components/layouts/page";
 import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { Plus } from "lucide-react";
+import { Plus, Sparkles } from "lucide-react";
 import EvaluatorTable from "@/src/features/evals/components/evaluator-table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
@@ -91,6 +91,18 @@ export default function EvaluatorsPage() {
           actionButtonsRight: (
             <>
               <ManageDefaultEvalModel projectId={projectId} />
+              <ActionButton
+                hasAccess={hasWriteAccess}
+                icon={<Sparkles className="h-4 w-4" />}
+                variant="outline"
+                onClick={() =>
+                  router.push(`/project/${projectId}/evals/v2/new`)
+                }
+                limitValue={countsQuery.data?.configActiveCount ?? 0}
+                limit={evaluatorLimit}
+              >
+                New setup (beta)
+              </ActionButton>
               <ActionButton
                 hasAccess={hasWriteAccess}
                 icon={<Plus className="h-4 w-4" />}

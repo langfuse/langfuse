@@ -142,6 +142,7 @@ model Project {
   Model                     Model[]
   EvalTemplate              EvalTemplate[]
   JobConfiguration          JobConfiguration[]
+  EvalRunScope              EvalRunScope[]
   JobExecution              JobExecution[]
   LlmApiKeys                LlmApiKeys[]
   PosthogIntegration        PosthogIntegration[]
@@ -1091,16 +1092,44 @@ model JobConfiguration {
   evalTemplate   EvalTemplate?         @relation(fields: [evalTemplateId], references: [id], onDelete: SetNull)
 
   scoreName       String         @map("score_name")
+  description     String?
   filter          Json
   targetObject    String         @map("target_object")
   variableMapping Json           @map("variable_mapping")
   sampling        Decimal // ratio of jobs that are executed for sampling (0..1)
   delay           Int // delay in milliseconds
   timeScope       String[]       @default(["NEW"]) @map("time_scope")
+  runScopeId      String?        @map("run_scope_id")
+  runScope        EvalRunScope?  @relation(fields: [runScopeId], references: [id], onDelete: SetNull)
   JobExecution    JobExecution[]
 
   @@index([projectId, id])
   @@map("job_configurations")
+}
+
+// Reusable target definition (target + filter + sampling) shared across
+// evaluation rules. Rules copy the values into JobConfiguration so the worker
+// keeps working unchanged, but retain the reference for reuse.
+model EvalRunScope {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  name         String
+  targetObject String   @map("target_object")
+  filter       Json
+  sampling     Decimal
+  delay        Int      @default(30000)
+  timeScope    String[] @default(["NEW"]) @map("time_scope")
+
+  jobConfigurations JobConfiguration[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+  @@map("eval_run_scopes")
 }
 
 enum JobExecutionStatus {
