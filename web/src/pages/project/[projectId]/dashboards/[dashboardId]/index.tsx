@@ -10,7 +10,6 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import type { ColumnDefinition, FilterState } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { PlusIcon, Copy } from "lucide-react";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import {
   SelectWidgetDialog,
@@ -20,7 +19,25 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { v4 as uuidv4 } from "uuid";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
+import {
+  DashboardGrid,
+  type DashboardPlacement,
+} from "@/src/features/widgets/components/DashboardGrid";
+import { CloneFirstDialog } from "@/src/features/dashboard/components/CloneFirstDialog";
+import { InlineEditText } from "@/src/components/design-system/InlineEditText/InlineEditText";
+import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import { EditDashboardDialog } from "@/src/features/dashboard/components/EditDashboardDialog";
+import {
+  LANGFUSE_HOME_DASHBOARD_ID,
+  type HomeDashboardPresetId,
+} from "@langfuse/shared";
+import { HomeIcon, Loader2, MoreVertical, PencilIcon } from "lucide-react";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
@@ -28,21 +45,16 @@ import {
 } from "@/src/utils/date-range-utils";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
+import { MultiSelect } from "@/src/features/filters/components/multi-select";
+import {
+  convertSelectedEnvironmentsToFilter,
+  useEnvironmentFilter,
+} from "@/src/hooks/useEnvironmentFilter";
 import {
   DashboardQuerySchedulerProvider,
   getDashboardQuerySchedulerMaxConcurrent,
   useDashboardQueryScheduler,
 } from "@/src/hooks/useDashboardQueryScheduler";
-
-interface WidgetPlacement {
-  id: string;
-  widgetId: string;
-  x: number;
-  y: number;
-  x_size: number;
-  y_size: number;
-  type: "widget";
-}
 
 export default function DashboardDetail() {
   const router = useRouter();
@@ -64,18 +76,50 @@ export default function DashboardDetail() {
     dashboardId,
   });
 
-  const hasCUDAccess =
-    useHasProjectAccess({
-      projectId,
-      scope: "dashboards:CUD",
-    }) && dashboard.data?.owner !== "LANGFUSE";
+  const hasRbacCUDAccess = useHasProjectAccess({
+    projectId,
+    scope: "dashboards:CUD",
+  });
+  const isLockedDashboard = dashboard.data?.owner === "LANGFUSE";
+  const hasCUDAccess = hasRbacCUDAccess && !isLockedDashboard;
+
+  // Langfuse-managed dashboards keep full edit affordances; edit attempts
+  // route through the clone-first flow instead of mutating.
+  const isLockedEditable = hasRbacCUDAccess && isLockedDashboard;
 
   // Access for cloning (independent of dashboard owner)
-  const hasCloneAccess =
-    useHasProjectAccess({
-      projectId,
-      scope: "dashboards:CUD",
-    }) && dashboard.data?.owner === "LANGFUSE";
+  const hasCloneAccess = hasRbacCUDAccess && isLockedDashboard;
+
+  // Clone-first dialog state: open + the attempted change (if any) to carry
+  // into the clone. gridResetKey remounts the grid to revert an attempted
+  // drag/resize when the user cancels.
+  const [cloneFirstState, setCloneFirstState] = useState<{
+    open: boolean;
+    pendingDefinition: { widgets: DashboardPlacement[] } | null;
+  }>({ open: false, pendingDefinition: null });
+  const [gridResetKey, setGridResetKey] = useState(0);
+
+  const openCloneFirst = useCallback(
+    (
+      attempt:
+        | "layout_change"
+        | "delete_widget"
+        | "add_widget"
+        | "widget_pencil",
+      pendingDefinition?: { widgets: DashboardPlacement[] },
+    ) => {
+      capture("dashboard:locked_edit_attempt", {
+        dashboard_id: dashboardId,
+        attempt,
+        surface: "detail",
+      });
+      setCloneFirstState({
+        open: true,
+        pendingDefinition: pendingDefinition ?? null,
+      });
+    },
+    [capture, dashboardId],
+  );
 
   // Filter state - use persistent filters from dashboard
   const [savedFilters, setSavedFilters] = useState<FilterState>([]);
@@ -95,7 +139,7 @@ export default function DashboardDetail() {
 
   // State for handling widget deletion and addition
   const [localDashboardDefinition, setLocalDashboardDefinition] = useState<{
-    widgets: WidgetPlacement[];
+    widgets: DashboardPlacement[];
   } | null>(null);
 
   // State for the widget selection dialog
@@ -104,12 +148,8 @@ export default function DashboardDetail() {
   // Mutation for updating dashboard definition
   const updateDashboardDefinition =
     api.dashboard.updateDashboardDefinition.useMutation({
+      // Saves are silent; the header shows a spinner while in flight.
       onSuccess: () => {
-        showSuccessToast({
-          title: "Dashboard updated",
-          description: "Your changes have been saved automatically",
-          duration: 2000,
-        });
         // Invalidate the dashboard query to refetch the data
         dashboard.refetch();
       },
@@ -118,15 +158,42 @@ export default function DashboardDetail() {
       },
     });
 
+  // Which dashboard is shown on this project's Home (for the "Use as Home" action)
+  const homePointer = api.dashboard.getHomeDashboard.useQuery(
+    { projectId },
+    { enabled: Boolean(projectId), retry: false },
+  );
+  const isCurrentHome =
+    (homePointer.data?.homeDashboardId ?? LANGFUSE_HOME_DASHBOARD_ID) ===
+    dashboardId;
+
+  const setHomeDashboard = api.dashboard.setHomeDashboard.useMutation({
+    onSuccess: () => {
+      utils.dashboard.getHomeDashboard.invalidate();
+    },
+    onError: (error) => {
+      showErrorToast("Failed to update home dashboard", error.message);
+    },
+  });
+
+  // Dialog for editing name + description from the ... menu
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
+  // Mutation for renaming the dashboard inline from the page header
+  const updateDashboardMetadata =
+    api.dashboard.updateDashboardMetadata.useMutation({
+      onSuccess: () => {
+        utils.dashboard.invalidate();
+      },
+      onError: (error) => {
+        showErrorToast("Error renaming dashboard", error.message);
+      },
+    });
+
   // Mutation for updating dashboard filters
   const updateDashboardFilters =
     api.dashboard.updateDashboardFilters.useMutation({
       onSuccess: () => {
-        showSuccessToast({
-          title: "Filters saved",
-          description: "Dashboard filters have been saved successfully",
-          duration: 2000,
-        });
         // Update saved state to match current state
         setSavedFilters(currentFilters);
       },
@@ -136,7 +203,7 @@ export default function DashboardDetail() {
     });
 
   const saveDashboardChanges = useDebounce(
-    (definition: { widgets: WidgetPlacement[] }) => {
+    (definition: { widgets: DashboardPlacement[] }) => {
       if (!hasCUDAccess) return;
       updateDashboardDefinition.mutate({
         projectId,
@@ -173,7 +240,7 @@ export default function DashboardDetail() {
           : 0;
 
       // Create a new widget placement
-      const newWidgetPlacement: WidgetPlacement = {
+      const newWidgetPlacement: DashboardPlacement = {
         id: uuidv4(),
         widgetId: widget.id,
         x: 0, // Start at left
@@ -190,12 +257,57 @@ export default function DashboardDetail() {
       };
       setLocalDashboardDefinition(updatedDefinition);
       saveDashboardChanges(updatedDefinition);
+
+      // The new widget lands at the bottom of the grid — bring it into view.
+      setTimeout(() => {
+        document
+          .querySelector(`[data-placement-id="${newWidgetPlacement.id}"]`)
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 150);
     },
     [
       localDashboardDefinition,
       setLocalDashboardDefinition,
       saveDashboardChanges,
     ],
+  );
+
+  // Add a Langfuse Home card as a preset placement (no widget row involved)
+  const addPresetToDashboard = useCallback(
+    (presetId: HomeDashboardPresetId) => {
+      if (!localDashboardDefinition) return;
+
+      const maxY =
+        localDashboardDefinition.widgets.length > 0
+          ? Math.max(
+              ...localDashboardDefinition.widgets.map((w) => w.y + w.y_size),
+            )
+          : 0;
+
+      const newPresetPlacement: DashboardPlacement = {
+        id: uuidv4(),
+        presetId,
+        type: "preset",
+        x: 0,
+        y: maxY,
+        x_size: 6,
+        y_size: 6,
+      };
+
+      const updatedDefinition = {
+        ...localDashboardDefinition,
+        widgets: [...localDashboardDefinition.widgets, newPresetPlacement],
+      };
+      setLocalDashboardDefinition(updatedDefinition);
+      saveDashboardChanges(updatedDefinition);
+
+      setTimeout(() => {
+        document
+          .querySelector(`[data-placement-id="${newPresetPlacement.id}"]`)
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 150);
+    },
+    [localDashboardDefinition, saveDashboardChanges],
   );
 
   const { nameOptions, tagsOptions } = useDashboardFilterOptions({
@@ -212,6 +324,24 @@ export default function DashboardDetail() {
     (value) => ({
       value,
     }),
+  );
+
+  // Dedicated environment selector, same as Home. The selection is a view
+  // setting (persisted per project for this user), merged into the widget
+  // filters but never written into the dashboard's saved filters.
+  const { selectedEnvironments, setSelectedEnvironments } =
+    useEnvironmentFilter(environmentOptionsState.environmentOptions, projectId);
+  const environmentFilter = useMemo(
+    () =>
+      convertSelectedEnvironmentsToFilter(
+        ["environment"],
+        selectedEnvironments,
+      ),
+    [selectedEnvironments],
+  );
+  const gridFilterState: FilterState = useMemo(
+    () => [...currentFilters, ...environmentFilter],
+    [currentFilters, environmentFilter],
   );
   // Filter columns for PopoverFilterBuilder
   const filterColumns: ColumnDefinition[] = [
@@ -306,7 +436,7 @@ export default function DashboardDetail() {
     if (localDashboardDefinition && widgetToAdd.data && addWidgetId) {
       if (
         !localDashboardDefinition.widgets.some(
-          (w) => w.widgetId === addWidgetId,
+          (w) => w.type === "widget" && w.widgetId === addWidgetId,
         )
       ) {
         addWidgetToDashboard(widgetToAdd.data);
@@ -338,6 +468,13 @@ export default function DashboardDetail() {
         ...localDashboardDefinition,
         widgets: updatedWidgets,
       };
+
+      if (isLockedEditable) {
+        // Carry the removal into the clone instead of mutating.
+        openCloneFirst("delete_widget", updatedDefinition);
+        return;
+      }
+
       setLocalDashboardDefinition(updatedDefinition);
       saveDashboardChanges(updatedDefinition);
     }
@@ -345,6 +482,10 @@ export default function DashboardDetail() {
 
   // Handle adding a widget
   const handleAddWidget = () => {
+    if (isLockedEditable) {
+      openCloneFirst("add_widget");
+      return;
+    }
     setIsWidgetDialogOpen(true);
   };
 
@@ -356,7 +497,7 @@ export default function DashboardDetail() {
   const mutateCloneDashboard = api.dashboard.cloneDashboard.useMutation({
     onSuccess: (data) => {
       utils.dashboard.invalidate();
-      capture("dashboard:clone_dashboard");
+      capture("dashboard:clone_dashboard", { source: "detail_clone_button" });
       // Redirect to new dashboard
       if (data?.id) {
         router.replace(
@@ -394,6 +535,7 @@ export default function DashboardDetail() {
       absoluteTimeRange?.from?.toISOString() ?? "",
       absoluteTimeRange?.to?.toISOString() ?? "",
       JSON.stringify(currentFilters),
+      selectedEnvironments.join(","),
       widgetPlacements.map((widget) => widget.id).join(","),
     ].join("|");
   }, [
@@ -402,6 +544,7 @@ export default function DashboardDetail() {
     currentFilters,
     dashboardId,
     projectId,
+    selectedEnvironments,
     widgetPlacements,
   ]);
 
@@ -424,6 +567,25 @@ export default function DashboardDetail() {
             (dashboard.data?.owner === "LANGFUSE"
               ? " (Langfuse Maintained)"
               : ""),
+          titleContent:
+            hasCUDAccess && dashboard.data ? (
+              <InlineEditText
+                value={dashboard.data.name}
+                required
+                aria-label="Rename dashboard"
+                onSave={(name) => {
+                  capture("dashboard:dashboard_renamed_inline", {
+                    dashboard_id: dashboardId,
+                  });
+                  updateDashboardMetadata.mutate({
+                    projectId,
+                    dashboardId,
+                    name,
+                    description: dashboard.data?.description ?? "",
+                  });
+                }}
+              />
+            ) : undefined,
           breadcrumb: [
             {
               name: "Dashboards",
@@ -434,8 +596,38 @@ export default function DashboardDetail() {
             description:
               dashboard.data?.description || "No description available",
           },
+          actionButtonsLeft: (
+            <>
+              <MultiSelect
+                title="Environment"
+                label="Env"
+                values={selectedEnvironments}
+                onValueChange={useDebounce(setSelectedEnvironments)}
+                options={environmentOptions}
+                className="my-0 w-auto overflow-hidden"
+              />
+              <PopoverFilterBuilder
+                columns={filterColumns}
+                filterState={currentFilters}
+                onChange={setCurrentFilters}
+              />
+            </>
+          ),
           actionButtonsRight: (
             <>
+              {(updateDashboardDefinition.isPending ||
+                updateDashboardMetadata.isPending ||
+                updateDashboardFilters.isPending ||
+                setHomeDashboard.isPending) && (
+                <span
+                  className="flex items-center"
+                  title="Saving..."
+                  role="status"
+                  aria-label="Saving"
+                >
+                  <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
+                </span>
+              )}
               {hasCUDAccess && hasUnsavedFilterChanges && (
                 <Button
                   onClick={handleSaveFilters}
@@ -447,7 +639,7 @@ export default function DashboardDetail() {
                     : "Save Filters"}
                 </Button>
               )}
-              {hasCUDAccess && (
+              {hasRbacCUDAccess && (
                 <Button onClick={handleAddWidget}>
                   <PlusIcon size={16} className="mr-1 h-4 w-4" />
                   Add Widget
@@ -455,6 +647,7 @@ export default function DashboardDetail() {
               )}
               {hasCloneAccess && (
                 <Button
+                  variant="outline"
                   onClick={handleCloneDashboard}
                   disabled={mutateCloneDashboard.isPending}
                 >
@@ -462,16 +655,104 @@ export default function DashboardDetail() {
                   Clone
                 </Button>
               )}
+              {hasRbacCUDAccess && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="More actions"
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      disabled={isCurrentHome || setHomeDashboard.isPending}
+                      onClick={() => {
+                        capture("dashboard:home_dashboard_set_default", {
+                          dashboard_id: dashboardId,
+                          source: "detail_menu",
+                        });
+                        setHomeDashboard.mutate({
+                          projectId,
+                          dashboardId:
+                            dashboardId === LANGFUSE_HOME_DASHBOARD_ID
+                              ? null
+                              : dashboardId,
+                        });
+                      }}
+                    >
+                      <HomeIcon className="mr-2 h-4 w-4" />
+                      {isCurrentHome ? "Shown on Home" : "Use as Home"}
+                    </DropdownMenuItem>
+                    {hasCUDAccess && (
+                      <DropdownMenuItem
+                        onClick={() => setIsEditDialogOpen(true)}
+                      >
+                        <PencilIcon className="mr-2 h-4 w-4" />
+                        Edit name & description
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </>
           ),
         }}
       >
+        <PageHeaderControlsPortal>
+          <TimeRangePicker
+            timeRange={timeRange}
+            onTimeRangeChange={setTimeRange}
+            timeRangePresets={dashboardTimeRangePresets}
+            className="my-0 max-w-full overflow-x-auto"
+            triggerClassName="px-2"
+            disabled={
+              lookbackLimit
+                ? {
+                    before: new Date(
+                      new Date().getTime() -
+                        lookbackLimit * 24 * 60 * 60 * 1000,
+                    ),
+                  }
+                : undefined
+            }
+          />
+        </PageHeaderControlsPortal>
         <SelectWidgetDialog
           open={isWidgetDialogOpen}
           onOpenChange={setIsWidgetDialogOpen}
           projectId={projectId}
           onSelectWidget={handleSelectWidget}
+          onSelectPreset={addPresetToDashboard}
           dashboardId={dashboardId}
+        />
+        {isEditDialogOpen && dashboard.data && (
+          <EditDashboardDialog
+            open={isEditDialogOpen}
+            onOpenChange={setIsEditDialogOpen}
+            projectId={projectId}
+            dashboardId={dashboardId}
+            initialName={dashboard.data.name}
+            initialDescription={dashboard.data.description}
+          />
+        )}
+        <CloneFirstDialog
+          open={cloneFirstState.open}
+          onOpenChange={(open) =>
+            setCloneFirstState((prev) => ({ ...prev, open }))
+          }
+          projectId={projectId}
+          dashboardId={dashboardId}
+          dashboardName={dashboard.data?.name ?? "Dashboard"}
+          pendingDefinition={cloneFirstState.pendingDefinition}
+          onCancel={() => {
+            // Revert the attempted drag/resize by remounting the grid with
+            // the unchanged definition.
+            setCloneFirstState({ open: false, pendingDefinition: null });
+            setGridResetKey((key) => key + 1);
+          }}
         />
         {dashboard.isPending || !localDashboardDefinition ? (
           <NoDataOrLoading isLoading={true} />
@@ -483,34 +764,18 @@ export default function DashboardDetail() {
           </div>
         ) : (
           <div>
-            <div className="my-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-col gap-2 lg:flex-row lg:gap-3">
-                <TimeRangePicker
-                  timeRange={timeRange}
-                  onTimeRangeChange={setTimeRange}
-                  timeRangePresets={dashboardTimeRangePresets}
-                  className="my-0 max-w-full overflow-x-auto"
-                  disabled={
-                    lookbackLimit
-                      ? {
-                          before: new Date(
-                            new Date().getTime() -
-                              lookbackLimit * 24 * 60 * 60 * 1000,
-                          ),
-                        }
-                      : undefined
-                  }
-                />
-                <PopoverFilterBuilder
-                  columns={filterColumns}
-                  filterState={currentFilters}
-                  onChange={setCurrentFilters}
-                />
-              </div>
-            </div>
             <DashboardGrid
+              key={gridResetKey}
               widgets={localDashboardDefinition.widgets}
               onChange={(updatedWidgets) => {
+                if (isLockedEditable) {
+                  // Carry the attempted layout change into the clone.
+                  openCloneFirst("layout_change", {
+                    ...localDashboardDefinition,
+                    widgets: updatedWidgets,
+                  });
+                  return;
+                }
                 setLocalDashboardDefinition({
                   ...localDashboardDefinition,
                   widgets: updatedWidgets,
@@ -520,14 +785,19 @@ export default function DashboardDetail() {
                   widgets: updatedWidgets,
                 });
               }}
-              canEdit={hasCUDAccess}
+              canEdit={hasRbacCUDAccess}
               dashboardId={dashboardId}
               projectId={projectId}
               dateRange={absoluteTimeRange}
-              filterState={currentFilters}
+              filterState={gridFilterState}
               onDeleteWidget={handleDeleteWidget}
               dashboardOwner={dashboard.data?.owner}
               getWidgetSchedulerId={getWidgetSchedulerId}
+              onLockedEditAttempt={
+                isLockedEditable
+                  ? () => openCloneFirst("widget_pencil")
+                  : undefined
+              }
             />
           </div>
         )}

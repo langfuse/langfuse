@@ -69,8 +69,10 @@ describe("buildFilterSystemPrompt", () => {
     expect(prompt).toContain("metadata");
     expect(prompt).toContain(SCORE_COLUMNS.observation.numeric);
     expect(prompt).toContain(SCORE_COLUMNS.observation.categorical);
+    expect(prompt).toContain(SCORE_COLUMNS.observation.boolean);
     expect(prompt).toContain(SCORE_COLUMNS.trace.numeric);
     expect(prompt).toContain(SCORE_COLUMNS.trace.categorical);
+    expect(prompt).toContain(SCORE_COLUMNS.trace.boolean);
   });
 
   it("omits the refine section without a current query", () => {
@@ -141,5 +143,27 @@ describe("metadata and score filters are representable", () => {
       },
     ]);
     expect(skippedFilters).toHaveLength(0);
+  });
+
+  it("boolean observation and trace scores", () => {
+    const { skippedFilters, text } = filterStateToQueryText([
+      {
+        type: "booleanObject",
+        column: SCORE_COLUMNS.observation.boolean,
+        key: "flag",
+        operator: "=",
+        value: true,
+      },
+      {
+        type: "booleanObject",
+        column: SCORE_COLUMNS.trace.boolean,
+        key: "traceFlag",
+        operator: "<>",
+        value: false,
+      },
+    ]);
+
+    expect(skippedFilters).toHaveLength(0);
+    expect(text).toBe("scores.flag:true -traceScores.traceFlag:false");
   });
 });

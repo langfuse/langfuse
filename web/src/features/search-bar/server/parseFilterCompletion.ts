@@ -26,6 +26,7 @@ const COMPATIBLE_FILTER_TYPES: Record<string, readonly string[]> = {
   boolean: ["boolean"],
   stringObject: ["stringObject"],
   numberObject: ["numberObject"],
+  booleanObject: ["booleanObject"],
   categoryOptions: ["categoryOptions", "stringOptions"],
 };
 

@@ -1,6 +1,10 @@
 {
   "ignore": [".agents/skills/**", "scripts/**", "vitest.workspace.ts"],
   "ignoreBinaries": ["vitest"],
+  // Re-enable once Knip tracks all workspace packages and catalog entries stop false-positiveing.
+  "rules": {
+    "catalog": "off",
+  },
   "ignoreWorkspaces": ["web", "worker", "packages/shared"],
   "workspaces": {
     "ee": {

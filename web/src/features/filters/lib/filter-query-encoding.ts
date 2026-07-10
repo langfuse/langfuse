@@ -95,6 +95,7 @@ export function encodeFiltersGeneric(filters: FilterState): string {
           const key =
             f.type === "numberObject" ||
             f.type === "stringObject" ||
+            f.type === "booleanObject" ||
             f.type === "categoryOptions" ||
             f.type === "positionInTrace"
               ? (f as any).key || ""
@@ -179,7 +180,7 @@ export function decodeFiltersGeneric(query: string): FilterState {
           : decodedValue === ""
             ? [""] // allow empty strings for stringOptions (i.e, filter for empty trace name)
             : [decodedValue];
-    } else if (type === "boolean") {
+    } else if (type === "boolean" || type === "booleanObject") {
       parsedValue = decodedValue === "true";
     } else {
       parsedValue = decodedValue;
@@ -198,6 +199,7 @@ export function decodeFiltersGeneric(query: string): FilterState {
       if (
         type === "categoryOptions" ||
         type === "numberObject" ||
+        type === "booleanObject" ||
         type === "stringObject" ||
         type === "positionInTrace"
       ) {
