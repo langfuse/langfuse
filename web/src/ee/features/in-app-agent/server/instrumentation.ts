@@ -65,10 +65,18 @@ type AgentRunSkillDefinition = {
   name: string;
   description?: string;
 };
+// Matches the ChatML thinking content part
+// (packages/shared/src/utils/IORepresentation/chatML/types.ts) so the trace UI
+// renders reasoning as collapsible "Thinking" blocks.
+type AgentRunThinkingPart = {
+  type: "thinking";
+  content: string;
+};
 type AgentRunChatMessage = {
   role: string;
   name?: string;
   content?: unknown;
+  thinking?: AgentRunThinkingPart[];
   tool_calls?: AgentRunToolCall[];
   tool_call_id?: string;
 };
@@ -143,7 +151,8 @@ export class InAppAgentInstrumentation {
   private readonly agentRunOutputMessages: AgentRunChatMessage[] = [];
   private readonly agentRunToolCalls: AgentRunToolCall[] = [];
   private output = "";
-  private reasoning = "";
+  private currentReasoning = "";
+  private pendingThinking: AgentRunThinkingPart[] = [];
   private completionStartTime?: Date;
   private ended = false;
   private readonly model?: string;
@@ -325,6 +334,7 @@ export class InAppAgentInstrumentation {
 
     const message = error instanceof Error ? error.message : String(error);
     this.endOpenToolSpans({ error: message }, message);
+    this.flushTrailingThinking();
     this.agentRun.update({
       name: IN_APP_AGENT_TURN_NAME,
       input: this.agentRunInput,
@@ -337,7 +347,6 @@ export class InAppAgentInstrumentation {
       statusMessage: message,
       metadata: {
         ...this.metadata,
-        ...(this.reasoning ? { reasoning: this.reasoning } : {}),
         error: message,
       },
       ...(this.prompt
@@ -362,9 +371,9 @@ export class InAppAgentInstrumentation {
     }
 
     this.endOpenToolSpans(params?.aborted ? { aborted: true } : undefined);
+    this.flushTrailingThinking();
     const metadata = {
       ...this.metadata,
-      ...(this.reasoning ? { reasoning: this.reasoning } : {}),
       ...(params?.aborted ? { aborted: true } : {}),
       ...(params?.result ? { result: params.result } : {}),
     };
@@ -415,8 +424,16 @@ export class InAppAgentInstrumentation {
       event.type === EventType.REASONING_MESSAGE_CONTENT
     ) {
       if (typeof event.delta === "string") {
-        this.reasoning += event.delta;
+        this.currentReasoning += event.delta;
       }
+      return;
+    }
+
+    if (
+      event.type === EventType.REASONING_MESSAGE_START ||
+      event.type === EventType.REASONING_MESSAGE_END
+    ) {
+      this.flushCurrentReasoning();
       return;
     }
 
@@ -469,8 +486,6 @@ export class InAppAgentInstrumentation {
       event.type === EventType.STEP_FINISHED ||
       event.type === EventType.TOOL_CALL_CHUNK ||
       event.type === EventType.REASONING_START ||
-      event.type === EventType.REASONING_MESSAGE_START ||
-      event.type === EventType.REASONING_MESSAGE_END ||
       event.type === EventType.REASONING_END ||
       event.type === EventType.REASONING_ENCRYPTED_VALUE ||
       // eslint-disable-next-line @typescript-eslint/no-deprecated
@@ -648,12 +663,56 @@ export class InAppAgentInstrumentation {
     }
   }
 
+  // Reasoning that no assistant message followed (e.g. aborted or errored
+  // turns) still gets recorded as its own thinking-only assistant message.
+  private flushTrailingThinking() {
+    const thinking = this.takePendingThinking();
+    if (!thinking) {
+      return;
+    }
+
+    this.agentRunOutputMessages.push({
+      role: "assistant",
+      content: "",
+      thinking,
+    });
+  }
+
+  private flushCurrentReasoning() {
+    if (!this.currentReasoning) {
+      return;
+    }
+
+    this.pendingThinking.push({
+      type: "thinking",
+      content: this.currentReasoning,
+    });
+    this.currentReasoning = "";
+  }
+
+  // Reasoning always precedes the assistant action it produced, so pending
+  // thinking parts attach to the next assistant output message.
+  private takePendingThinking(): AgentRunThinkingPart[] | undefined {
+    this.flushCurrentReasoning();
+
+    if (this.pendingThinking.length === 0) {
+      return undefined;
+    }
+
+    return this.pendingThinking.splice(0);
+  }
+
   private recordAssistantText(delta: string) {
     this.output += delta;
     this.completionStartTime ??= new Date();
 
+    const thinking = this.takePendingThinking();
     const lastMessage = this.agentRunOutputMessages.at(-1);
-    if (lastMessage?.role === "assistant" && !lastMessage.tool_calls?.length) {
+    if (
+      !thinking &&
+      lastMessage?.role === "assistant" &&
+      !lastMessage.tool_calls?.length
+    ) {
       lastMessage.content = `${typeof lastMessage.content === "string" ? lastMessage.content : ""}${delta}`;
       return;
     }
@@ -661,6 +720,7 @@ export class InAppAgentInstrumentation {
     this.agentRunOutputMessages.push({
       role: "assistant",
       content: delta,
+      ...(thinking ? { thinking } : {}),
     });
   }
 
@@ -682,10 +742,12 @@ export class InAppAgentInstrumentation {
       type: "function",
     };
 
+    const thinking = this.takePendingThinking();
     this.agentRunToolCalls.push(toolCall);
     this.agentRunOutputMessages.push({
       role: "assistant",
       content: "",
+      ...(thinking ? { thinking } : {}),
       tool_calls: [toolCall],
     });
 

@@ -67,6 +67,7 @@ export function ControlledInAppAgentWindow(
   return (
     <InAppAgentWindow
       error={error}
+      isAssistantTurnInProgress={isRunning || pendingToolApprovals.length > 0}
       isHeaderDragHandleEnabled={props.isHeaderDragHandleEnabled}
       isExpanded={props.isExpanded}
       isInputDisabled={isInputDisabled}

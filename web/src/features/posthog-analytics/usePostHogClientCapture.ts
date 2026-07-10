@@ -1,5 +1,6 @@
 import { type CaptureResult, type CaptureOptions } from "posthog-js";
 import { usePostHog } from "posthog-js/react";
+import { useCallback } from "react";
 
 export const V4_BETA_ENABLED_POSTHOG_PROPERTY = "v4BetaEnabled";
 
@@ -34,7 +35,17 @@ export const events = {
     "download_button_click",
     "view_mode_switch",
     "tree_panel_toggle",
+    "graph_view_toggle",
+    // Aggregated vs expanded graph build mode (LFE-10676).
+    "graph_mode_switch",
+    // Fired from the tree, timeline, graph, and search-result click handlers;
+    // `source` says which surface drove the navigation.
+    "node_selected",
   ],
+  // The shared table peek panel (opened via the `peek` URL param). Props carry
+  // `routePattern` (the Next.js route pattern, never a concrete URL) so opens
+  // can be sliced by surface without leaking ids.
+  peek: ["opened", "closed", "expand_toggle", "resized", "open_in_new_tab"],
   generations: ["export"],
   saved_views: [
     "create",
@@ -144,6 +155,12 @@ export const events = {
     "clone_open_existing_click",
     "widget_copy_first_open",
     "widget_copied_to_project",
+    "widget_json_downloaded",
+    "widget_copied_to_clipboard",
+    "widget_pasted",
+    "widget_paste_rejected",
+    "widget_duplicated",
+    "dashboard_json_imported",
     "add_widget_dialog_open",
     "add_widget_tab_switch",
     "widget_added",
@@ -274,14 +291,16 @@ type EventName = {
 export const usePostHogClientCapture = () => {
   const posthog = usePostHog();
 
-  // wrapped posthog.capture function that only allows events that are in the allowlist
-  function capture(
-    eventName: EventName,
-    properties?: Record<string, any> | null,
-    options?: CaptureOptions,
-  ): CaptureResult | void {
-    return posthog.capture(eventName, properties, options);
-  }
-
-  return capture;
+  // wrapped posthog.capture function that only allows events that are in the
+  // allowlist; stable identity so it is safe in useCallback/useMemo deps
+  return useCallback(
+    function capture(
+      eventName: EventName,
+      properties?: Record<string, any> | null,
+      options?: CaptureOptions,
+    ): CaptureResult | void {
+      return posthog.capture(eventName, properties, options);
+    },
+    [posthog],
+  );
 };
