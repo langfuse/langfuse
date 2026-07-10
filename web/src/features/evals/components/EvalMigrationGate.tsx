@@ -66,7 +66,7 @@ export function EvalMigrationGate({ children }: { children: ReactNode }) {
           />
           <FaqItem
             question="What do I need to do?"
-            answer="Upgrade your evaluators to our new observation-level evaluators. The AI assistant can do this with you — it asks for your approval before changing anything."
+            answer="Upgrade your evaluators to observation-level evaluators. The AI assistant can do this with you — it asks for your approval before changing anything."
           />
           <FaqItem
             question="Do I have to do it now?"
@@ -74,7 +74,7 @@ export function EvalMigrationGate({ children }: { children: ReactNode }) {
           />
           <FaqItem
             question="What happens if I don't?"
-            answer="Your evaluators keep running, but they are no longer actively maintained."
+            answer="Your evaluators will be shut off on October 1st, 2026. Until then, they will keep running, but they are no longer actively maintained."
           />
           <div className="flex gap-2">
             <AskAgentButton prompt={EVAL_MIGRATION_PROMPT}>
