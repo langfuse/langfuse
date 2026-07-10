@@ -505,6 +505,17 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
 
+  // Server-side execution cap (seconds) for chunk queries fired by background
+  // migrations. fireQuery aborts the HTTP connection and polls for completion,
+  // but the shared ClickHouse client otherwise derives max_execution_time from
+  // its default 30s request timeout (+5s grace), killing any chunk that needs
+  // longer than 35s on the server (#14999). 0 = unlimited.
+  LANGFUSE_BACKGROUND_MIGRATION_MAX_EXECUTION_TIME_S: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(6 * 60 * 60), // 6 hours
+
   LANGFUSE_EXPERIMENT_EVENT_PROPAGATION_PARTITION_DELAY_MINUTES: z.coerce
     .number()
     .positive()
