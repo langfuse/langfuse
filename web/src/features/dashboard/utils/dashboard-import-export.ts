@@ -271,7 +271,10 @@ export function parseDashboardImport(
   if (placements.length === 0) {
     return {
       status: "invalid",
-      reason: "The dashboard file contains no importable widgets.",
+      reason:
+        skippedPresetCount > 0
+          ? "The dashboard file only contains preset cards that are not available in this Langfuse version."
+          : "The dashboard file contains no importable widgets.",
     };
   }
 

@@ -180,6 +180,13 @@ export default function DashboardDetail() {
   const [localDashboardDefinition, setLocalDashboardDefinition] = useState<{
     widgets: DashboardPlacement[];
   } | null>(null);
+  // The async flows below (paste/duplicate/import) commit a definition change
+  // only after a network round-trip. They must compute it from this ref — the
+  // definition as of NOW — not from the state captured when the handler
+  // started, or a drag/delete/paste that landed during the await gets
+  // silently discarded.
+  const localDashboardDefinitionRef = useRef(localDashboardDefinition);
+  localDashboardDefinitionRef.current = localDashboardDefinition;
 
   // State for the widget selection dialog
   const [isWidgetDialogOpen, setIsWidgetDialogOpen] = useState(false);
@@ -254,6 +261,18 @@ export default function DashboardDetail() {
     false,
   );
 
+  // Single write path for definition changes: keeps the ref in sync for
+  // readers that commit before the next render, updates state, and schedules
+  // the debounced save.
+  const applyDashboardDefinition = useCallback(
+    (updated: { widgets: DashboardPlacement[] }) => {
+      localDashboardDefinitionRef.current = updated;
+      setLocalDashboardDefinition(updated);
+      saveDashboardChanges(updated);
+    },
+    [saveDashboardChanges],
+  );
+
   // Function to save current filters
   const handleSaveFilters = () => {
     if (!hasCUDAccess) return;
@@ -273,14 +292,15 @@ export default function DashboardDetail() {
       widgetId: string,
       position?: { x: number; y: number; x_size: number; y_size: number },
     ) => {
-      if (!localDashboardDefinition) return;
+      // Read through the ref: async callers (paste/duplicate) reach here
+      // after a network round-trip.
+      const currentDefinition = localDashboardDefinitionRef.current;
+      if (!currentDefinition) return;
 
       // Find the maximum y position to place the new widget at the bottom
       const maxY =
-        localDashboardDefinition.widgets.length > 0
-          ? Math.max(
-              ...localDashboardDefinition.widgets.map((w) => w.y + w.y_size),
-            )
+        currentDefinition.widgets.length > 0
+          ? Math.max(...currentDefinition.widgets.map((w) => w.y + w.y_size))
           : 0;
 
       // Create a new widget placement
@@ -295,12 +315,10 @@ export default function DashboardDetail() {
       };
 
       // Add the widget to the local dashboard definition
-      const updatedDefinition = {
-        ...localDashboardDefinition,
-        widgets: [...localDashboardDefinition.widgets, newWidgetPlacement],
-      };
-      setLocalDashboardDefinition(updatedDefinition);
-      saveDashboardChanges(updatedDefinition);
+      applyDashboardDefinition({
+        ...currentDefinition,
+        widgets: [...currentDefinition.widgets, newWidgetPlacement],
+      });
 
       // The new widget may land outside the viewport — bring it into view.
       setTimeout(() => {
@@ -309,11 +327,7 @@ export default function DashboardDetail() {
           ?.scrollIntoView({ behavior: "smooth", block: "center" });
       }, 150);
     },
-    [
-      localDashboardDefinition,
-      setLocalDashboardDefinition,
-      saveDashboardChanges,
-    ],
+    [applyDashboardDefinition],
   );
 
   const addWidgetToDashboard = useCallback(
@@ -323,6 +337,8 @@ export default function DashboardDetail() {
 
   const { mutateAsync: createWidgetAsync } =
     api.dashboardWidgets.create.useMutation();
+  const { mutateAsync: deleteWidgetAsync } =
+    api.dashboardWidgets.delete.useMutation();
 
   // Duplicate a tile's widget: create an independent widget row seeded from
   // the source configuration, placed next to the source tile.
@@ -368,6 +384,10 @@ export default function DashboardDetail() {
         showErrorToast("Cannot paste widget", parsed.reason, "WARNING");
         return;
       }
+      // Don't create a widget row the placement step couldn't attach — a
+      // paste firing before the dashboard definition has loaded would
+      // otherwise leave an orphan widget in the library.
+      if (!localDashboardDefinitionRef.current) return;
       try {
         const result = await createWidgetAsync({
           projectId,
@@ -527,7 +547,11 @@ export default function DashboardDetail() {
       downloadDashboardJson(exportPayload, dashboard.data.name);
       capture("dashboard:dashboard_json_downloaded", {
         dashboard_id: dashboardId,
-        widget_count: widgetIds.length,
+        // Placement count (not deduped widget ids) so the download and
+        // import events describe the same quantity.
+        widget_count: localDashboardDefinition.widgets.filter(
+          (w) => w.type === "widget",
+        ).length,
         preset_count: localDashboardDefinition.widgets.filter(
           (w) => w.type === "preset",
         ).length,
@@ -559,12 +583,12 @@ export default function DashboardDetail() {
   // file's relative layout.
   const handleDashboardImport = useCallback(
     async (imported: ParsedDashboardImport) => {
-      if (!localDashboardDefinition) return;
+      if (!localDashboardDefinitionRef.current) return;
       try {
         const widgetPlacements = imported.placements.flatMap((p) =>
           p.type === "widget" ? [p] : [],
         );
-        const createdWidgets = await Promise.all(
+        const settled = await Promise.allSettled(
           widgetPlacements.map((p) =>
             createWidgetAsync({
               projectId,
@@ -572,12 +596,36 @@ export default function DashboardDetail() {
             }),
           ),
         );
+        const createdWidgets = settled.flatMap((s) =>
+          s.status === "fulfilled" ? [s.value] : [],
+        );
+        if (createdWidgets.length !== widgetPlacements.length) {
+          // Partial failure: best-effort delete of the widgets that did get
+          // created, so no orphan rows pile up in the widget library.
+          await Promise.allSettled(
+            createdWidgets.map((created) =>
+              deleteWidgetAsync({ projectId, widgetId: created.widget.id }),
+            ),
+          );
+          const firstError = settled.find(
+            (s): s is PromiseRejectedResult => s.status === "rejected",
+          )?.reason;
+          showErrorToast(
+            "Failed to import dashboard",
+            firstError instanceof Error
+              ? firstError.message
+              : "Could not create the dashboard's widgets.",
+          );
+          return;
+        }
 
+        // Re-read the definition after the awaits: a drag/delete/paste may
+        // have landed while the widgets were being created.
+        const currentDefinition = localDashboardDefinitionRef.current;
+        if (!currentDefinition) return;
         const maxY =
-          localDashboardDefinition.widgets.length > 0
-            ? Math.max(
-                ...localDashboardDefinition.widgets.map((w) => w.y + w.y_size),
-              )
+          currentDefinition.widgets.length > 0
+            ? Math.max(...currentDefinition.widgets.map((w) => w.y + w.y_size))
             : 0;
         const minImportedY = Math.min(...imported.placements.map((p) => p.y));
         const yOffset = maxY - minImportedY;
@@ -601,12 +649,10 @@ export default function DashboardDetail() {
           },
         );
 
-        const updatedDefinition = {
-          ...localDashboardDefinition,
-          widgets: [...localDashboardDefinition.widgets, ...newPlacements],
-        };
-        setLocalDashboardDefinition(updatedDefinition);
-        saveDashboardChanges(updatedDefinition);
+        applyDashboardDefinition({
+          ...currentDefinition,
+          widgets: [...currentDefinition.widgets, ...newPlacements],
+        });
 
         capture("dashboard:dashboard_json_imported", {
           dashboard_id: dashboardId,
@@ -649,10 +695,10 @@ export default function DashboardDetail() {
       }
     },
     [
-      localDashboardDefinition,
       createWidgetAsync,
+      deleteWidgetAsync,
       projectId,
-      saveDashboardChanges,
+      applyDashboardDefinition,
       capture,
       dashboardId,
     ],
@@ -776,12 +822,10 @@ export default function DashboardDetail() {
         y_size: 6,
       };
 
-      const updatedDefinition = {
+      applyDashboardDefinition({
         ...localDashboardDefinition,
         widgets: [...localDashboardDefinition.widgets, newPresetPlacement],
-      };
-      setLocalDashboardDefinition(updatedDefinition);
-      saveDashboardChanges(updatedDefinition);
+      });
 
       setTimeout(() => {
         document
@@ -789,7 +833,7 @@ export default function DashboardDetail() {
           ?.scrollIntoView({ behavior: "smooth", block: "center" });
       }, 150);
     },
-    [localDashboardDefinition, saveDashboardChanges],
+    [localDashboardDefinition, applyDashboardDefinition],
   );
 
   const { nameOptions, tagsOptions } = useDashboardFilterOptions({
@@ -957,8 +1001,7 @@ export default function DashboardDetail() {
         return;
       }
 
-      setLocalDashboardDefinition(updatedDefinition);
-      saveDashboardChanges(updatedDefinition);
+      applyDashboardDefinition(updatedDefinition);
     }
   };
 
@@ -1285,11 +1328,7 @@ export default function DashboardDetail() {
                   });
                   return;
                 }
-                setLocalDashboardDefinition({
-                  ...localDashboardDefinition,
-                  widgets: updatedWidgets,
-                });
-                saveDashboardChanges({
+                applyDashboardDefinition({
                   ...localDashboardDefinition,
                   widgets: updatedWidgets,
                 });

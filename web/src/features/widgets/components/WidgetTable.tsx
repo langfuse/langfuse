@@ -89,10 +89,15 @@ function WidgetActionsCell({
     if (!projectId) {
       throw new Error("Project ID is missing");
     }
-    const widget = await utils.dashboardWidgets.get.fetch({
-      projectId,
-      widgetId,
-    });
+    const widget = await utils.dashboardWidgets.get.fetch(
+      {
+        projectId,
+        widgetId,
+      },
+      // Serve rapid repeat actions (double-click, copy-then-download) from
+      // the cache instead of firing a request per menu click.
+      { staleTime: 30_000 },
+    );
 
     return {
       name: widget.name,

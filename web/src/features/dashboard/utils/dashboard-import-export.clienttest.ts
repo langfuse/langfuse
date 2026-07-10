@@ -182,6 +182,29 @@ describe("parseDashboardImport", () => {
 
     expect(result.status).toBe("invalid");
   });
+
+  it("explains a dashboard whose only content is unknown preset cards", () => {
+    const result = parseDashboardImport(
+      JSON.stringify({
+        $langfuseDashboard: true,
+        version: 1,
+        name: "Future presets",
+        widgets: [
+          {
+            type: "preset",
+            presetId: "from-the-future",
+            ...basePosition,
+          },
+        ],
+      }),
+      { isBetaEnabled: false },
+    );
+
+    expect(result.status).toBe("invalid");
+    if (result.status === "invalid") {
+      expect(result.reason).toContain("preset cards");
+    }
+  });
 });
 
 describe("buildDashboardJsonFileName", () => {
