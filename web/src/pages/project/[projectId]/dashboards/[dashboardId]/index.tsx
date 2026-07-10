@@ -6,7 +6,7 @@ import Page from "@/src/components/layouts/page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import type { ColumnDefinition, FilterState } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { PlusIcon, Copy } from "lucide-react";
@@ -39,6 +39,7 @@ import {
 } from "@langfuse/shared";
 import {
   ClipboardPasteIcon,
+  FileJsonIcon,
   HomeIcon,
   Loader2,
   MoreVertical,
@@ -67,8 +68,19 @@ import {
   type PastedWidgetParseResult,
   type WidgetExportSource,
 } from "@/src/features/widgets/utils/import-export-utils";
+import {
+  buildDashboardExport,
+  downloadDashboardJson,
+  parseDashboardImport,
+  type ParsedDashboardImport,
+} from "@/src/features/dashboard/utils/dashboard-import-export";
 import { readTextFromClipboard } from "@/src/utils/clipboard";
 import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
+import { extractTransferFiles } from "@/src/components/editor/fileDropPaste";
+import { Layer } from "@/src/components/ui/layer";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { type metricAggregations } from "@langfuse/shared/query";
+import { type z } from "zod";
 
 // Position for a tile inserted "next to" an anchor tile: same size,
 // immediately to the right when that fits the 12-column grid, otherwise
@@ -344,7 +356,7 @@ export default function DashboardDetail() {
   const handleParsedWidgetPaste = useCallback(
     async (
       parsed: Exclude<PastedWidgetParseResult, { status: "not-widget" }>,
-      source: "cmd_v" | "dashboard_menu" | "paste_right",
+      source: "cmd_v" | "dashboard_menu" | "paste_right" | "drop",
       anchor?: DashboardPlacement,
     ) => {
       if (parsed.status === "invalid") {
@@ -458,6 +470,289 @@ export default function DashboardDetail() {
     isDashboardMenuOpen && hasCUDAccess,
     isBetaEnabled,
   );
+
+  // Export this dashboard as a portable JSON file: the definition with each
+  // referenced widget's configuration inlined.
+  const handleDownloadDashboardJson = useCallback(async () => {
+    if (!dashboard.data || !localDashboardDefinition) return;
+    try {
+      const widgetIds = [
+        ...new Set(
+          localDashboardDefinition.widgets.flatMap((w) =>
+            w.type === "widget" ? [w.widgetId] : [],
+          ),
+        ),
+      ];
+      const fetchedEntries = await Promise.all(
+        widgetIds.map(async (widgetId) => {
+          try {
+            const widget = await utils.dashboardWidgets.get.fetch({
+              projectId,
+              widgetId,
+            });
+            const source: WidgetExportSource = {
+              name: widget.name,
+              description: widget.description,
+              view: widget.view,
+              dimensions: widget.dimensions,
+              metrics: widget.metrics.map((metric) => ({
+                measure: metric.measure,
+                agg: metric.agg as z.infer<typeof metricAggregations>,
+              })),
+              filters: widget.filters,
+              chartType: widget.chartType,
+              chartConfig: widget.chartConfig,
+              minVersion: widget.minVersion,
+            };
+            return [widgetId, source] as const;
+          } catch {
+            // Stale placement referencing a deleted widget — skip it.
+            return [widgetId, null] as const;
+          }
+        }),
+      );
+      const widgetsById = new Map(
+        fetchedEntries.flatMap(([widgetId, source]) =>
+          source ? [[widgetId, source] as const] : [],
+        ),
+      );
+
+      const { exportPayload, skippedWidgetCount } = buildDashboardExport({
+        name: dashboard.data.name,
+        description: dashboard.data.description,
+        filters: dashboard.data.filters,
+        placements: localDashboardDefinition.widgets,
+        widgetsById,
+      });
+      downloadDashboardJson(exportPayload, dashboard.data.name);
+      capture("dashboard:dashboard_json_downloaded", {
+        dashboard_id: dashboardId,
+        widget_count: widgetIds.length,
+        preset_count: localDashboardDefinition.widgets.filter(
+          (w) => w.type === "preset",
+        ).length,
+      });
+      if (skippedWidgetCount > 0) {
+        showErrorToast(
+          "Some widgets were not exported",
+          `${skippedWidgetCount} widget(s) could not be resolved and were left out of the file.`,
+          "WARNING",
+        );
+      }
+    } catch (e) {
+      showErrorToast(
+        "Failed to export dashboard",
+        e instanceof Error ? e.message : "Unknown error",
+      );
+    }
+  }, [
+    dashboard.data,
+    localDashboardDefinition,
+    projectId,
+    utils,
+    capture,
+    dashboardId,
+  ]);
+
+  // Import a dropped dashboard file: recreate its widgets as project widgets
+  // and append the placements below the existing content, preserving the
+  // file's relative layout.
+  const handleDashboardImport = useCallback(
+    async (imported: ParsedDashboardImport) => {
+      if (!localDashboardDefinition) return;
+      try {
+        const widgetPlacements = imported.placements.flatMap((p) =>
+          p.type === "widget" ? [p] : [],
+        );
+        const createdWidgets = await Promise.all(
+          widgetPlacements.map((p) =>
+            createWidgetAsync({
+              projectId,
+              ...toWidgetCreateFields(p.widget),
+            }),
+          ),
+        );
+
+        const maxY =
+          localDashboardDefinition.widgets.length > 0
+            ? Math.max(
+                ...localDashboardDefinition.widgets.map((w) => w.y + w.y_size),
+              )
+            : 0;
+        const minImportedY = Math.min(...imported.placements.map((p) => p.y));
+        const yOffset = maxY - minImportedY;
+
+        let createdIndex = 0;
+        const newPlacements: DashboardPlacement[] = imported.placements.map(
+          (p) => {
+            const base = {
+              id: uuidv4(),
+              x: p.x,
+              y: p.y + yOffset,
+              x_size: p.x_size,
+              y_size: p.y_size,
+            };
+            if (p.type === "preset") {
+              return { ...base, type: "preset" as const, presetId: p.presetId };
+            }
+            const widgetId = createdWidgets[createdIndex]!.widget.id;
+            createdIndex += 1;
+            return { ...base, type: "widget" as const, widgetId };
+          },
+        );
+
+        const updatedDefinition = {
+          ...localDashboardDefinition,
+          widgets: [...localDashboardDefinition.widgets, ...newPlacements],
+        };
+        setLocalDashboardDefinition(updatedDefinition);
+        saveDashboardChanges(updatedDefinition);
+
+        capture("dashboard:dashboard_json_imported", {
+          dashboard_id: dashboardId,
+          widget_count: widgetPlacements.length,
+          preset_count: imported.placements.length - widgetPlacements.length,
+          skipped_preset_count: imported.skippedPresetCount,
+        });
+
+        setTimeout(() => {
+          document
+            .querySelector(`[data-placement-id="${newPlacements[0]?.id}"]`)
+            ?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 150);
+
+        showSuccessToast({
+          title: "Dashboard imported",
+          description: `Added ${newPlacements.length} widget${
+            newPlacements.length === 1 ? "" : "s"
+          } from "${imported.name}".`,
+        });
+        if (imported.removedFilters) {
+          showErrorToast(
+            "Widget filters were adjusted",
+            "Some imported filters were removed because they are not available in this view.",
+            "WARNING",
+          );
+        }
+        if (imported.skippedPresetCount > 0) {
+          showErrorToast(
+            "Some cards were skipped",
+            `${imported.skippedPresetCount} preset card(s) in the file are not available in this Langfuse version.`,
+            "WARNING",
+          );
+        }
+      } catch (e) {
+        showErrorToast(
+          "Failed to import dashboard",
+          e instanceof Error ? e.message : "Unknown error",
+        );
+      }
+    },
+    [
+      localDashboardDefinition,
+      createWidgetAsync,
+      projectId,
+      saveDashboardChanges,
+      capture,
+      dashboardId,
+    ],
+  );
+
+  // A dropped file may be a dashboard export or a single widget export.
+  const handleDroppedFile = useCallback(
+    async (file: File) => {
+      const text = await file.text();
+
+      const dashboardResult = parseDashboardImport(text, { isBetaEnabled });
+      if (dashboardResult.status === "dashboard") {
+        await handleDashboardImport(dashboardResult.dashboard);
+        return;
+      }
+      if (dashboardResult.status === "invalid") {
+        capture("dashboard:widget_paste_rejected", {
+          source: "drop",
+          reason: "invalid",
+          dashboard_id: dashboardId,
+        });
+        showErrorToast(
+          "Cannot import dashboard",
+          dashboardResult.reason,
+          "WARNING",
+        );
+        return;
+      }
+
+      const widgetResult = parsePastedWidget(text, { isBetaEnabled });
+      if (widgetResult.status === "not-widget") {
+        capture("dashboard:widget_paste_rejected", {
+          source: "drop",
+          reason: "not_widget",
+          dashboard_id: dashboardId,
+        });
+        showErrorToast(
+          "Unsupported file",
+          "Only Langfuse dashboard or widget JSON files can be dropped here.",
+          "WARNING",
+        );
+        return;
+      }
+      await handleParsedWidgetPaste(widgetResult, "drop");
+    },
+    [
+      isBetaEnabled,
+      handleDashboardImport,
+      handleParsedWidgetPaste,
+      capture,
+      dashboardId,
+    ],
+  );
+
+  // Page-wide drop target: dragging a file over the dashboard shows an
+  // overlay; dropping imports it.
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const dragDepthRef = useRef(0);
+
+  useEffect(() => {
+    if (!hasCUDAccess) return;
+
+    const isFileDrag = (event: DragEvent) =>
+      Array.from(event.dataTransfer?.types ?? []).includes("Files");
+
+    const onDragEnter = (event: DragEvent) => {
+      if (!isFileDrag(event)) return;
+      dragDepthRef.current += 1;
+      setIsDraggingFile(true);
+    };
+    const onDragOver = (event: DragEvent) => {
+      if (!isFileDrag(event)) return;
+      // Required for the drop event to fire.
+      event.preventDefault();
+    };
+    const onDragLeave = (event: DragEvent) => {
+      if (!isFileDrag(event)) return;
+      dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+      if (dragDepthRef.current === 0) setIsDraggingFile(false);
+    };
+    const onDrop = (event: DragEvent) => {
+      dragDepthRef.current = 0;
+      setIsDraggingFile(false);
+      if (!isFileDrag(event)) return;
+      event.preventDefault();
+      const file = extractTransferFiles(event.dataTransfer)[0];
+      if (file) handleDroppedFile(file);
+    };
+
+    document.addEventListener("dragenter", onDragEnter);
+    document.addEventListener("dragover", onDragOver);
+    document.addEventListener("dragleave", onDragLeave);
+    document.addEventListener("drop", onDrop);
+    return () => {
+      document.removeEventListener("dragenter", onDragEnter);
+      document.removeEventListener("dragover", onDragOver);
+      document.removeEventListener("dragleave", onDragLeave);
+      document.removeEventListener("drop", onDrop);
+    };
+  }, [hasCUDAccess, handleDroppedFile]);
 
   // Add a Langfuse Home card as a preset placement (no widget row involved)
   const addPresetToDashboard = useCallback(
@@ -884,6 +1179,10 @@ export default function DashboardDetail() {
                       <HomeIcon className="mr-2 h-4 w-4" />
                       {isCurrentHome ? "Shown on Home" : "Use as Home"}
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleDownloadDashboardJson}>
+                      <FileJsonIcon className="mr-2 h-4 w-4" />
+                      Download as JSON
+                    </DropdownMenuItem>
                     {hasCUDAccess && (
                       <DropdownMenuItem
                         onClick={() => setIsEditDialogOpen(true)}
@@ -918,6 +1217,18 @@ export default function DashboardDetail() {
             }
           />
         </PageHeaderControlsPortal>
+        {isDraggingFile && (
+          <Layer name="modal">
+            <div className="bg-background/80 pointer-events-none fixed inset-0 flex items-center justify-center backdrop-blur-xs">
+              <div className="border-primary bg-background rounded-lg border-2 border-dashed px-8 py-6 text-center shadow-lg">
+                <p className="font-medium">Drop to import</p>
+                <p className="text-muted-foreground text-sm">
+                  Langfuse dashboard or widget JSON
+                </p>
+              </div>
+            </div>
+          </Layer>
+        )}
         <SelectWidgetDialog
           open={isWidgetDialogOpen}
           onOpenChange={setIsWidgetDialogOpen}
