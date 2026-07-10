@@ -2266,6 +2266,101 @@ describe("OTel Resource Span Mapping", () => {
       ).toBeUndefined();
     });
 
+    it("should subtract gen_ai.usage.input_cached_tokens / input_cache_creation from inclusive input tokens", async () => {
+      // Integrators reading the Langfuse docs emit Langfuse's canonical usage
+      // keys through the gen_ai.usage.* namespace. They must be treated as
+      // cache aliases like gen_ai.usage.cache_read.input_tokens, otherwise the
+      // inclusive input stays unreduced and cached tokens count twice
+      // (github.com/langfuse/langfuse/issues/12306).
+      const traceId = "abcdef1234567890abcdef1234567892";
+
+      const langfuseKeysSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "telemetry.sdk.language",
+              value: { stringValue: "python" },
+            },
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "custom-instrumentation",
+              version: "1.0.0",
+              attributes: [],
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("80854cd6bd218bf7", "hex"),
+                name: "langfuse-usage-keys-cache-test",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: {
+                      intValue: { low: 50000, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: { intValue: { low: 200, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.input_cached_tokens",
+                    value: {
+                      intValue: { low: 40000, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.input_cache_creation",
+                    value: {
+                      intValue: { low: 5000, high: 0, unsigned: false },
+                    },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        langfuseKeysSpan,
+        new Set(),
+      );
+
+      const observationEvent = events.find((e) => e.type === "span-create");
+
+      expect(observationEvent).toBeDefined();
+      // input must be the uncached remainder: 50000 - 40000 - 5000 = 5000
+      expect(observationEvent?.body.usageDetails.input).toBe(5000);
+      expect(observationEvent?.body.usageDetails.output).toBe(200);
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(
+        40000,
+      );
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(
+        5000,
+      );
+    });
+
     it("should prepend gen_ai.system_instructions to pydantic_ai.all_messages input when system message is absent", async () => {
       const traceId = "9d7aa9a729def1eadc0b2063ca4ebeb4";
 
@@ -2871,13 +2966,13 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
-        "should extract promptName on observation from langfuse.prompt.name",
+        "should not extract promptName from langfuse.prompt.name on non-generation observation",
         {
           entity: "observation",
           otelAttributeKey: "langfuse.prompt.name",
           otelAttributeValue: { stringValue: "test" },
           entityAttributeKey: "promptName",
-          entityAttributeValue: "test",
+          entityAttributeValue: null,
         },
       ],
       [
@@ -3784,6 +3879,111 @@ describe("OTel Resource Span Mapping", () => {
       },
     );
 
+    describe("prompt linking gated to GENERATION observations", () => {
+      const buildResourceSpan = (attributes: Record<string, any>[]) => ({
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                attributes,
+              },
+            ],
+          },
+        ],
+      });
+
+      const promptAttributes = [
+        {
+          key: "langfuse.observation.prompt.name",
+          value: { stringValue: "my-prompt" },
+        },
+        {
+          key: "langfuse.observation.prompt.version",
+          value: { intValue: { low: 1, high: 0, unsigned: false } },
+        },
+      ];
+
+      it.each([["agent"], ["tool"], ["span"]])(
+        "should not map prompt attributes on %s observations",
+        async (observationType: string) => {
+          const resourceSpan = buildResourceSpan([
+            {
+              key: "langfuse.observation.type",
+              value: { stringValue: observationType },
+            },
+            ...promptAttributes,
+          ]);
+
+          const events = await convertOtelSpanToIngestionEvent(
+            resourceSpan,
+            new Set(),
+          );
+          const observation = events.find((e) => e.type !== "trace-create");
+          expect(observation?.type).toBe(`${observationType}-create`);
+          expect(observation?.body.promptName).toBeNull();
+          expect(observation?.body.promptVersion).toBeNull();
+
+          const processor = createTestOtelProcessor();
+          const eventInputs = processor.processToEvent([resourceSpan]);
+          expect(eventInputs).toHaveLength(1);
+          expect(eventInputs[0].promptName).toBeNull();
+          expect(eventInputs[0].promptVersion).toBeNull();
+        },
+      );
+
+      it("should map prompt attributes on generation observations", async () => {
+        const resourceSpan = buildResourceSpan([
+          {
+            key: "langfuse.observation.type",
+            value: { stringValue: "generation" },
+          },
+          ...promptAttributes,
+        ]);
+
+        const events = await convertOtelSpanToIngestionEvent(
+          resourceSpan,
+          new Set(),
+        );
+        const observation = events.find((e) => e.type !== "trace-create");
+        expect(observation?.type).toBe("generation-create");
+        expect(observation?.body.promptName).toBe("my-prompt");
+        expect(observation?.body.promptVersion).toBe(1);
+
+        const processor = createTestOtelProcessor();
+        const eventInputs = processor.processToEvent([resourceSpan]);
+        expect(eventInputs).toHaveLength(1);
+        expect(eventInputs[0].promptName).toBe("my-prompt");
+        expect(eventInputs[0].promptVersion).toBe(1);
+      });
+
+      it("should map legacy langfuse.prompt.name attributes on generation observations", async () => {
+        const resourceSpan = buildResourceSpan([
+          {
+            key: "gen_ai.request.model",
+            value: { stringValue: "gpt-4o" },
+          },
+          {
+            key: "langfuse.prompt.name",
+            value: { stringValue: "my-prompt" },
+          },
+          {
+            key: "langfuse.prompt.version",
+            value: { intValue: { low: 2, high: 0, unsigned: false } },
+          },
+        ]);
+
+        const events = await convertOtelSpanToIngestionEvent(
+          resourceSpan,
+          new Set(),
+        );
+        const observation = events.find((e) => e.type !== "trace-create");
+        expect(observation?.type).toBe("generation-create");
+        expect(observation?.body.promptName).toBe("my-prompt");
+        expect(observation?.body.promptVersion).toBe(2);
+      });
+    });
+
     // Regression: OTLP/JSON exporters (e.g. the OpenTelemetry PHP SDK) send
     // int64 resource attributes as decimal strings (intValue: "7") rather than
     // the Long object produced by the protobuf decoder. Previously these were
@@ -4381,6 +4581,156 @@ describe("OTel Resource Span Mapping", () => {
       expect(observation?.body.metadata?.attributes?.custom_attribute).toBe(
         "should_be_preserved",
       );
+    });
+
+    // GenAI semantic conventions v1.37+ record prompts/completions on a
+    // gen_ai.client.inference.operation.details span event (e.g. Hindsight)
+    it("should extract input/output from gen_ai.client.inference.operation.details span event", async () => {
+      const inputMessages = JSON.stringify([
+        {
+          role: "user",
+          parts: [{ type: "text", content: "What is the capital of France?" }],
+        },
+      ]);
+      const outputMessages = JSON.stringify([
+        {
+          role: "assistant",
+          parts: [{ type: "text", content: "Paris" }],
+          finish_reason: "stop",
+        },
+      ]);
+
+      const resourceSpan = {
+        resource: {},
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                attributes: [
+                  {
+                    key: "gen_ai.operation.name",
+                    value: { stringValue: "chat" },
+                  },
+                  {
+                    key: "gen_ai.request.model",
+                    value: { stringValue: "gpt-4o-mini" },
+                  },
+                ],
+                events: [
+                  {
+                    timeUnixNano: {
+                      low: 1327691067,
+                      high: 404677085,
+                      unsigned: true,
+                    },
+                    name: "gen_ai.client.inference.operation.details",
+                    attributes: [
+                      {
+                        key: "gen_ai.input.messages",
+                        value: { stringValue: inputMessages },
+                      },
+                      {
+                        key: "gen_ai.output.messages",
+                        value: { stringValue: outputMessages },
+                      },
+                      {
+                        key: "gen_ai.system_instructions",
+                        value: { stringValue: "You are a helpful assistant." },
+                      },
+                      {
+                        key: "gen_ai.response.finish_reasons",
+                        value: { stringValue: JSON.stringify(["stop"]) },
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const langfuseEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+
+      const observation = langfuseEvents.find(
+        (e) => e.type.endsWith("-create") && e.type !== "trace-create",
+      );
+
+      // Input contains the chat history with system instructions prepended
+      expect(observation?.body.input).toBeDefined();
+      const inputParsed =
+        typeof observation?.body.input === "string"
+          ? JSON.parse(observation.body.input)
+          : observation?.body.input;
+      expect(Array.isArray(inputParsed)).toBe(true);
+      expect(inputParsed[0]).toEqual({
+        role: "system",
+        content: "You are a helpful assistant.",
+      });
+      expect(inputParsed[1].role).toBe("user");
+      expect(inputParsed[1].parts[0].content).toBe(
+        "What is the capital of France?",
+      );
+
+      // Output contains the model response messages
+      expect(observation?.body.output).toBeDefined();
+      const outputParsed =
+        typeof observation?.body.output === "string"
+          ? JSON.parse(observation.body.output)
+          : observation?.body.output;
+      expect(Array.isArray(outputParsed)).toBe(true);
+      expect(outputParsed[0].role).toBe("assistant");
+      expect(outputParsed[0].parts[0].content).toBe("Paris");
+    });
+
+    it("should extract output from gen_ai.client.inference.operation.details span event without system instructions", async () => {
+      const outputMessages = JSON.stringify([
+        {
+          role: "assistant",
+          parts: [{ type: "text", content: "Hello!" }],
+          finish_reason: "stop",
+        },
+      ]);
+
+      const resourceSpan = {
+        resource: {},
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                events: [
+                  {
+                    name: "gen_ai.client.inference.operation.details",
+                    attributes: [
+                      {
+                        key: "gen_ai.output.messages",
+                        value: { stringValue: outputMessages },
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const langfuseEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+
+      const observation = langfuseEvents.find(
+        (e) => e.type.endsWith("-create") && e.type !== "trace-create",
+      );
+
+      expect(observation?.body.input).toBeFalsy();
+      expect(observation?.body.output).toBe(outputMessages);
     });
 
     it("should move gen_ai.tool.definitions from metadata to observation input", async () => {

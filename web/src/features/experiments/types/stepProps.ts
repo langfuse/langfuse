@@ -77,9 +77,6 @@ export type DatasetState = {
 };
 
 export type EvaluatorState = {
-  activeEvaluators: string[];
-  pausedEvaluators: string[];
-  evaluatorTargetObjects: Record<string, string>;
   evalTemplates: EvalTemplate[];
   activeEvaluatorNames: string[];
   selectedEvaluatorData: EvaluatorData | null;
@@ -88,7 +85,6 @@ export type EvaluatorState = {
   handleCloseEvaluatorForm: () => void;
   handleEvaluatorSuccess: () => void;
   handleSelectEvaluator: (templateId: string) => void;
-  handleEvaluatorToggled: () => void;
   preprocessFormValues: (values: any) => any;
 };
 

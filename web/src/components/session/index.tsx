@@ -75,6 +75,7 @@ import { downloadSessionAsJson } from "@/src/components/session/actions/download
 import { SessionDetailStoreProvider } from "@/src/components/session/SessionDetailStoreProvider";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { createSessionDetailStore } from "@/src/components/session/sessionDetailStore";
+import { useHistoryEntryRevisit } from "@/src/components/session/useHistoryEntryRevisit";
 import {
   areDetailPageListsEqual,
   asCommentCounts,
@@ -841,6 +842,25 @@ const LoadedSessionEventsPage: React.FC<{
           return keyOptions ? { ...column, keyOptions } : column;
         }
 
+        if (column.type === "booleanObject" && column.id === "score_booleans") {
+          const keyOptions = getStringFilterOptions(
+            typedFilterOptions.score_booleans,
+          );
+
+          return keyOptions ? { ...column, keyOptions } : column;
+        }
+
+        if (
+          column.type === "booleanObject" &&
+          column.id === "trace_score_booleans"
+        ) {
+          const keyOptions = getStringFilterOptions(
+            typedFilterOptions.trace_score_booleans,
+          );
+
+          return keyOptions ? { ...column, keyOptions } : column;
+        }
+
         return column;
       });
   }, [typedFilterOptions, sessionEventsFilterConfig.columnDefinitions]);
@@ -919,10 +939,15 @@ const LoadedSessionEventsPage: React.FC<{
     currentExpandedFilters: queryFilter.expanded,
   });
 
+  // Auto-apply path only (the drawer's user-driven preset selection has its
+  // own handler). Writes with `replaceIn`: this is the page deciding its own
+  // default, not a user step — pushing would leave the pre-default URL as a
+  // history entry that Back lands on and that re-applies the default, making
+  // Back bounce forward (LFE-10715).
   const applySystemPreset = useCallback(
     (preset: SessionDetailSystemPreset) => {
-      viewControllers.handleSetViewId(preset.id);
-      queryFilter.setFilterState(preset.filters);
+      viewControllers.handleSetViewId(preset.id, { updateType: "replaceIn" });
+      queryFilter.setFilterState(preset.filters, { updateType: "replaceIn" });
     },
     [queryFilter, viewControllers],
   );
@@ -983,18 +1008,35 @@ const LoadedSessionEventsPage: React.FC<{
     const shouldRecover =
       filterMatchedView.id === initialViewIdRef.current ||
       visibleFilterState.length > 0;
-    if (shouldRecover) viewControllers.handleSetViewId(filterMatchedView.id);
+    // replaceIn: recovery is a programmatic correction of the current URL —
+    // pushing would mint a viewId-less history entry that Back re-triggers
+    // (the filter survives in sessionStorage, so this effect re-fires on any
+    // pop to a param-less URL — LFE-10715).
+    if (shouldRecover)
+      viewControllers.handleSetViewId(filterMatchedView.id, {
+        updateType: "replaceIn",
+      });
   }, [isViewLoading, selectedViewId, visibleFilterState, viewControllers]);
+
+  // Whether this arrival is a Back/Forward revisit of an existing history
+  // entry rather than a fresh navigation. Keyed to sessionId so in-place
+  // prev/next session navigation re-decides, mirroring initialViewIdRef.
+  const arrivedOnVisitedHistoryEntry = useHistoryEntryRevisit(sessionId);
 
   // Fresh load with nothing in the URL → apply the default view. Skipped on
   // reload/shared-link (a viewId was in the URL) so the recovery effect above,
   // not the default, decides the view — otherwise "All observations" would be
-  // silently replaced by the default on every reload.
+  // silently replaced by the default on every reload. Also skipped when the
+  // user arrived via Back/Forward: a revisited entry's param-less URL is a
+  // recorded "no view" state, not a fresh arrival, and re-applying the
+  // default would overwrite what the user deliberately left there
+  // (LFE-10715).
   useEffect(() => {
     if (defaultPresetAppliedRef.current) return;
     if (isViewLoading) return; // Wait for view manager to initialize
     if (selectedViewId) return;
     if (initialViewIdRef.current) return;
+    if (arrivedOnVisitedHistoryEntry) return;
     const presetToApply = getSessionDetailPresetToApply({
       selectedViewId: null,
       hasFilters: visibleFilterState.length > 0,
@@ -1002,7 +1044,13 @@ const LoadedSessionEventsPage: React.FC<{
     if (!presetToApply) return;
     defaultPresetAppliedRef.current = true;
     applySystemPreset(presetToApply);
-  }, [applySystemPreset, isViewLoading, selectedViewId, visibleFilterState]);
+  }, [
+    applySystemPreset,
+    arrivedOnVisitedHistoryEntry,
+    isViewLoading,
+    selectedViewId,
+    visibleFilterState,
+  ]);
 
   const virtualizer = useVirtualizer({
     count: traces?.length ?? 0,
@@ -1135,6 +1183,10 @@ const LoadedSessionEventsPage: React.FC<{
               onChange={queryFilter.setFilterState}
               columnsWithCustomSelect={filterColumnsWithCustomSelect}
               label="Filter observations"
+              // Analytics (LFE-10781): session-detail observation refinement is a
+              // v3/legacy surface (the v4 events table filters via the grammar bar).
+              tableName="session-detail"
+              isV4={false}
             />
 
             {/* Separator */}

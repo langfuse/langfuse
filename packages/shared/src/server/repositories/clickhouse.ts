@@ -4,8 +4,8 @@ import {
   clickhouseClient,
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
+  EXCEPTION_TAG_HEADER_NAME,
 } from "../clickhouse/client";
-import { EXCEPTION_TAG_HEADER_NAME } from "@clickhouse/client-common";
 import { ClickhouseExecExceptionTagTransform } from "./clickhouseExecExceptionTag";
 import { logger } from "../logger";
 import { getTracer, instrumentAsync } from "../instrumentation";

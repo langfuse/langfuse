@@ -25,6 +25,7 @@ import {
   shouldSkipObservationsFinal,
   EventsQueryBuilder,
   eventsScoresAggregation,
+  scoreBooleansAggregation,
 } from "@langfuse/shared/src/server";
 import { Readable } from "stream";
 import { env } from "../../env";
@@ -170,7 +171,9 @@ export const getObservationStream = async (
           groupArrayIf(
             tuple(name, string_value, data_type),
             data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)
-          ) AS score_categories_tuples
+          ) AS score_categories_tuples,
+          -- boolean score existence entries for booleanObject filters (has())
+          ${scoreBooleansAggregation()} AS score_booleans
         FROM (
           SELECT
             trace_id,

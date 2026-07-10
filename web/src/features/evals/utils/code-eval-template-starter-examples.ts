@@ -1,8 +1,17 @@
-export const TYPESCRIPT_CODE_EVAL_CONTRACT = `type EvaluationContext = {
+export const TYPESCRIPT_CODE_EVAL_CONTRACT = `type ToolCall = {
+  id: string;
+  name: string;
+  arguments: unknown;
+  type: string;
+  index: number;
+};
+
+type EvaluationContext = {
   observation: {
     input: any;
     output: any;
     metadata: any;
+    toolCalls: ToolCall[];
   };
   experiment:
     | {
@@ -51,8 +60,17 @@ export const DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE = `function evaluate(ctx: Evalu
   };
 }`;
 
-export const PYTHON_CODE_EVAL_CONTRACT = `from dataclasses import dataclass
+export const PYTHON_CODE_EVAL_CONTRACT = `from dataclasses import dataclass, field
 from typing import Any
+
+
+@dataclass
+class ToolCall:
+    id: str = ""
+    name: str = ""
+    arguments: Any = None
+    type: str = ""
+    index: int = 0
 
 
 @dataclass
@@ -60,6 +78,7 @@ class ObservationContext:
     input: Any = None
     output: Any = None
     metadata: Any = None
+    tool_calls: list[ToolCall] = field(default_factory=list)
 
 
 @dataclass
@@ -109,6 +128,205 @@ export const DEFAULT_PYTHON_CODE_EVAL_SOURCE = `def evaluate(ctx: EvaluationCont
     ]
   )`;
 
+// Contract versions previously shipped and possibly embedded verbatim in
+// stored template sources (the public API stores sourceCode as-is, and full
+// docs examples get pasted into the editor). When changing a contract above,
+// append the outgoing text here so sources saved under it keep stripping
+// cleanly in the editor.
+export const PREVIOUS_TYPESCRIPT_CODE_EVAL_CONTRACTS: string[] = [
+  // pre-ToolCall (before tool calls were passed to code evaluators)
+  `type EvaluationContext = {
+  observation: {
+    input: any;
+    output: any;
+    metadata: any;
+  };
+  experiment:
+    | {
+        itemExpectedOutput: any;
+        itemMetadata: any;
+      }
+    | undefined;
+};
+
+type ScoreBase = {
+  name: string;
+  comment?: string;
+  configId?: string | null;
+  metadata?: Record<string, unknown>;
+};
+
+type NumericScore = ScoreBase & { dataType: "NUMERIC"; value: number };
+type BooleanScore = ScoreBase & { dataType: "BOOLEAN"; value: boolean };
+type CategoricalScore = ScoreBase & { dataType: "CATEGORICAL"; value: string };
+type TextScore = ScoreBase & { dataType: "TEXT"; value: string };
+
+type Score = NumericScore | BooleanScore | CategoricalScore | TextScore;
+
+type EvaluationResult = {
+  scores: Score[];
+};
+`,
+  // original code-eval release (JSDoc-annotated contract, cf24ee840)
+  `/**
+ * The data Langfuse passes to a code evaluator.
+ */
+type EvaluationContext = {
+  /**
+   * The observation selected by the evaluator target.
+   */
+  observation: {
+    /**
+     * The input recorded on the observation.
+     */
+    input: any;
+    /**
+     * The output recorded on the observation.
+     */
+    output: any;
+    /**
+     * The metadata recorded on the observation.
+     */
+    metadata: any;
+  };
+  /**
+   * Experiment item data. Present when the evaluator runs on an experiment.
+   */
+  experiment:
+    | {
+        /**
+         * The expected output from the experiment item.
+         */
+        itemExpectedOutput: any;
+        /**
+         * The metadata from the experiment item.
+         */
+        itemMetadata: any;
+      }
+    | undefined;
+};
+
+/**
+ * A Langfuse score returned by a code evaluator.
+ */
+type ScoreBase = {
+  /**
+   * The score name.
+   */
+  name: string;
+  /**
+   * The reasoning or explanation stored with the score.
+   */
+  comment?: string;
+  /**
+   * The score config id to attach to the score.
+   */
+  configId?: string | null;
+  /**
+   * Extra metadata stored with the score.
+   */
+  metadata?: Record<string, unknown>;
+};
+
+type NumericScore = ScoreBase & {
+  /**
+   * The Langfuse score data type.
+   */
+  dataType: "NUMERIC";
+  /**
+   * The score value.
+   */
+  value: number;
+};
+
+type BooleanScore = ScoreBase & {
+  /**
+   * The Langfuse score data type.
+   */
+  dataType: "BOOLEAN";
+  /**
+   * The score value.
+   */
+  value: boolean;
+};
+
+type CategoricalScore = ScoreBase & {
+  /**
+   * The Langfuse score data type.
+   */
+  dataType: "CATEGORICAL";
+  /**
+   * The score value.
+   */
+  value: string;
+};
+
+type TextScore = ScoreBase & {
+  /**
+   * The Langfuse score data type.
+   */
+  dataType: "TEXT";
+  /**
+   * The score value.
+   */
+  value: string;
+};
+
+type Score = NumericScore | BooleanScore | CategoricalScore | TextScore;
+
+/**
+ * The value returned by evaluate.
+ */
+type EvaluationResult = {
+  /**
+   * One or more Langfuse scores to create for the target observation.
+   */
+  scores: Score[];
+};
+`,
+];
+
+export const PREVIOUS_PYTHON_CODE_EVAL_CONTRACTS: string[] = [
+  // pre-ToolCall (before tool calls were passed to code evaluators)
+  `from dataclasses import dataclass
+from typing import Any
+
+
+@dataclass
+class ObservationContext:
+    input: Any = None
+    output: Any = None
+    metadata: Any = None
+
+
+@dataclass
+class ExperimentContext:
+    item_expected_output: Any = None
+    item_metadata: Any = None
+
+
+@dataclass
+class EvaluationContext:
+    observation: ObservationContext
+    experiment: ExperimentContext | None = None
+
+
+@dataclass
+class Score:
+    value: int | float | str | bool
+    name: str
+    data_type: str | None = None
+    comment: str | None = None
+    config_id: str | None = None
+    metadata: dict[str, Any] | None = None
+
+
+@dataclass
+class EvaluationResult:
+    scores: list[Score]
+`,
+];
+
 export type CodeEvalSourceCodeLanguage = "PYTHON" | "TYPESCRIPT";
 
 export function getDefaultCodeEvalSource(
@@ -142,14 +360,22 @@ function stripCodeEvalContract({
   sourceCode: string;
   sourceCodeLanguage: CodeEvalSourceCodeLanguage;
 }) {
-  const contract =
+  // Sources stored before a contract bump embed the outgoing contract text,
+  // so try every shipped version, newest first.
+  const contracts =
     sourceCodeLanguage === "PYTHON"
-      ? PYTHON_CODE_EVAL_CONTRACT
-      : TYPESCRIPT_CODE_EVAL_CONTRACT;
+      ? [PYTHON_CODE_EVAL_CONTRACT, ...PREVIOUS_PYTHON_CODE_EVAL_CONTRACTS]
+      : [
+          TYPESCRIPT_CODE_EVAL_CONTRACT,
+          ...PREVIOUS_TYPESCRIPT_CODE_EVAL_CONTRACTS,
+        ];
   const source = sourceCode.trimStart();
+  const matchedContract = contracts.find((contract) =>
+    source.startsWith(contract),
+  );
 
-  return source.startsWith(contract)
-    ? source.slice(contract.length).trimStart()
+  return matchedContract
+    ? source.slice(matchedContract.length).trimStart()
     : source;
 }
 

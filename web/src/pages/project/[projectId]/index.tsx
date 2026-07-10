@@ -1,29 +1,24 @@
 import { useRouter } from "next/router";
-import { GenerationLatencyChart } from "@/src/features/dashboard/components/LatencyChart";
-import { ChartScores } from "@/src/features/dashboard/components/ChartScores";
-import { TracesBarListChart } from "@/src/features/dashboard/components/TracesBarListChart";
-import { ModelCostTable } from "@/src/features/dashboard/components/ModelCostTable";
-import { ScoresTable } from "@/src/features/dashboard/components/ScoresTable";
-import { ModelUsageChart } from "@/src/features/dashboard/components/ModelUsageChart";
-import { TracesAndObservationsTimeSeriesChart } from "@/src/features/dashboard/components/TracesTimeSeriesChart";
-import { UserChart } from "@/src/features/dashboard/components/UserChart";
+import { api } from "@/src/utils/api";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { useDashboardFilterOptions } from "@/src/hooks/useDashboardFilterOptions";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { type ColumnDefinition, type FilterState } from "@langfuse/shared";
+import {
+  LANGFUSE_HOME_DASHBOARD_DEFINITION,
+  LANGFUSE_HOME_DASHBOARD_ID,
+  type ColumnDefinition,
+  type FilterState,
+} from "@langfuse/shared";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { LatencyTables } from "@/src/features/dashboard/components/LatencyTables";
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { StringParam, useQueryParam } from "use-query-params";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
-  findClosestDashboardInterval,
   toAbsoluteTimeRange,
-  type DashboardDateRangeAggregationOption,
 } from "@/src/utils/date-range-utils";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { ScoreAnalytics } from "@/src/features/dashboard/components/score-analytics/ScoreAnalytics";
 import SetupTracingButton from "@/src/features/setup/components/SetupTracingButton";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import Page from "@/src/components/layouts/page";
@@ -41,33 +36,26 @@ import {
   getDashboardQuerySchedulerMaxConcurrent,
   useDashboardQueryScheduler,
 } from "@/src/hooks/useDashboardQueryScheduler";
-
-const HOME_DASHBOARD_CARD_IDS = {
-  traces: "home:traces",
-  modelCosts: "home:model-costs",
-  scoresTable: "home:scores-table",
-  tracesTimeSeries: "home:traces-time-series",
-  modelUsage: "home:model-usage",
-  users: "home:users",
-  chartScores: "home:chart-scores",
-  latencyTables: "home:latency-tables",
-  generationLatency: "home:generation-latency",
-  scoreAnalytics: "home:score-analytics",
-} as const;
-
-// Shared across the home time-series charts so hovering one moves the time
-// crosshair on all of them (they share one time range + granularity). (LFE-10549)
-const HOME_DASHBOARD_SYNC_ID = "home-dashboard-timeseries";
+import Link from "next/link";
+import { PencilIcon } from "lucide-react";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { Button } from "@/src/components/ui/button";
+import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
+import { HomeDashboardSelect } from "@/src/features/dashboard/components/HomeDashboardSelect";
 
 export default function Dashboard() {
   const router = useRouter();
+  const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
   const projectId = router.query.projectId as string;
   const { timeRange, setTimeRange } = useDashboardDateRange();
   const { isBetaEnabled } = useV4Beta();
   const metricsVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
 
   const absoluteTimeRange = useMemo(
-    () => toAbsoluteTimeRange(timeRange),
+    () => toAbsoluteTimeRange(timeRange) ?? undefined,
     [timeRange],
   );
 
@@ -132,48 +120,122 @@ export default function Dashboard() {
 
   const dashboardTimeRangePresets = DASHBOARD_AGGREGATION_OPTIONS;
 
-  const agg = useMemo(() => {
-    if ("range" in timeRange) {
-      return timeRange.range as DashboardDateRangeAggregationOption;
-    }
-
-    return findClosestDashboardInterval(timeRange) ?? "last7Days";
-  }, [timeRange]);
-
-  const fromTimestamp = absoluteTimeRange?.from
-    ? absoluteTimeRange.from
-    : new Date(new Date().getTime() - 1000);
-  const toTimestamp = absoluteTimeRange?.to ? absoluteTimeRange.to : new Date();
-  const timeFilter = [
-    {
-      type: "datetime" as const,
-      column: "startTime",
-      operator: ">" as const,
-      value: fromTimestamp,
-    },
-    {
-      type: "datetime" as const,
-      column: "startTime",
-      operator: "<" as const,
-      value: toTimestamp,
-    },
-  ];
-
-  const environmentFilter = convertSelectedEnvironmentsToFilter(
-    ["environment"],
-    selectedEnvironments,
+  const environmentFilter = useMemo(
+    () =>
+      convertSelectedEnvironmentsToFilter(
+        ["environment"],
+        selectedEnvironments,
+      ),
+    [selectedEnvironments],
   );
 
-  const mergedFilterState: FilterState = [
-    ...userFilterState,
-    ...timeFilter,
-    ...environmentFilter,
-  ];
   const isDashboardDataReady = environmentOptionsState.isReady;
+
+  // Home renders the project's selected dashboard (Project.homeDashboardId);
+  // unset/missing pointers resolve server-side to the Langfuse-curated
+  // default. Fall back to the shared constant so Home still renders when the
+  // curated row does not exist yet (e.g. worker has not run against this DB).
+  const homeDashboard = api.dashboard.getHomeDashboard.useQuery(
+    { projectId },
+    { enabled: Boolean(projectId), retry: false },
+  );
+  const appliedDefaultId =
+    homeDashboard.data?.homeDashboardId ?? LANGFUSE_HOME_DASHBOARD_ID;
+
+  // Selecting in the picker "peeks" a dashboard on Home — tracked in the URL
+  // (?dashboard=...) so the state is explicit and linkable; the bare URL
+  // always shows the project default. "Set default" persists for the project.
+  const [peekParam, setPeekParam] = useQueryParam("dashboard", StringParam);
+  const peekId = peekParam && peekParam !== appliedDefaultId ? peekParam : null;
+  const setPeekId = useCallback(
+    (id: string | null) => {
+      // replaceIn: peeking is view state, not a navigation history entry
+      setPeekParam(id ?? undefined, "replaceIn");
+    },
+    [setPeekParam],
+  );
+  const peekQuery = api.dashboard.getDashboard.useQuery(
+    { projectId, dashboardId: peekId ?? "" },
+    { enabled: Boolean(projectId) && Boolean(peekId), retry: false },
+  );
+
+  const displayedDashboard = peekId
+    ? (peekQuery.data ?? null)
+    : (homeDashboard.data?.dashboard ?? null);
+  const dashboardId =
+    displayedDashboard?.id ?? peekId ?? LANGFUSE_HOME_DASHBOARD_ID;
+  const dashboardName = displayedDashboard?.name ?? "Langfuse Home";
+  const dashboardOwner = displayedDashboard?.owner ?? "LANGFUSE";
+  // Show a loading state until the home resolution (or peek fetch) settles —
+  // rendering the curated fallback early would flash the wrong layout and
+  // fire its widget queries whenever the project default is a different
+  // dashboard. The constant fallback only renders once the query has settled
+  // without a dashboard (curated row missing / no read access).
+  const isResolvingDashboard = peekId
+    ? peekQuery.isPending
+    : homeDashboard.isPending;
+
+  const hasRbacCUDAccess = useHasProjectAccess({
+    projectId,
+    scope: "dashboards:CUD",
+  });
+
+  // Silent on success: the "Set default" button disappearing is the feedback.
+  const setHomeDashboard = api.dashboard.setHomeDashboard.useMutation({
+    onSuccess: () => {
+      utils.dashboard.getHomeDashboard.invalidate();
+      setPeekId(null);
+    },
+    onError: (e) => {
+      showErrorToast("Failed to set the default Home dashboard", e.message);
+    },
+  });
+
+  // Usage analytics: which dashboard Home actually shows (default vs peek)
+  const viewedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!displayedDashboard || viewedRef.current === displayedDashboard.id)
+      return;
+    viewedRef.current = displayedDashboard.id;
+    capture("dashboard:home_dashboard_viewed", {
+      dashboard_id: displayedDashboard.id,
+      dashboard_owner: displayedDashboard.owner,
+      is_peek: Boolean(peekId),
+      is_curated_default: !peekId && !homeDashboard.data?.homeDashboardId,
+    });
+  }, [
+    displayedDashboard,
+    peekId,
+    homeDashboard.data?.homeDashboardId,
+    capture,
+  ]);
+
+  // Home is a viewing surface: no in-place editing (that lives in the
+  // Dashboards section, one pencil click away).
+  const definition =
+    displayedDashboard?.definition ?? LANGFUSE_HOME_DASHBOARD_DEFINITION;
+
+  // The dashboard's saved filters apply as the base (like the detail page),
+  // with Home's own user/environment filters on top.
+  const gridFilterState: FilterState = useMemo(
+    () => [
+      ...(displayedDashboard?.filters ?? []),
+      ...userFilterState,
+      ...environmentFilter,
+    ],
+    [displayedDashboard?.filters, userFilterState, environmentFilter],
+  );
+
+  const getWidgetSchedulerId = useCallback(
+    (widgetPlacementId: string) =>
+      `${projectId}:${dashboardId}:${widgetPlacementId}`,
+    [projectId, dashboardId],
+  );
 
   const schedulerResetKey = useMemo(() => {
     return [
       projectId,
+      dashboardId,
       metricsVersion,
       absoluteTimeRange?.from?.toISOString() ?? "",
       absoluteTimeRange?.to?.toISOString() ?? "",
@@ -183,6 +245,7 @@ export default function Dashboard() {
   }, [
     absoluteTimeRange?.from,
     absoluteTimeRange?.to,
+    dashboardId,
     metricsVersion,
     projectId,
     selectedEnvironments,
@@ -193,7 +256,6 @@ export default function Dashboard() {
     maxConcurrent: getDashboardQuerySchedulerMaxConcurrent(timeRange),
     resetKey: schedulerResetKey,
   });
-  const homeSchedulerIdPrefix = `${projectId}:`;
 
   return (
     <DashboardQuerySchedulerProvider
@@ -221,11 +283,71 @@ export default function Dashboard() {
                 columns={filterColumns}
                 filterState={userFilterState}
                 onChange={useDebounce(setUserFilterState)}
+                // Analytics (LFE-10781): project-home dashboard filter — a
+                // v3/legacy surface (not the v4 events table).
+                tableName="home-dashboard"
+                isV4={false}
               />
             </>
           ),
           actionButtonsRight: (
             <>
+              <HomeDashboardSelect
+                projectId={projectId}
+                value={dashboardId}
+                defaultDashboardId={appliedDefaultId}
+                onValueChange={(id) => {
+                  capture("dashboard:home_dashboard_peeked", {
+                    dashboard_id: id,
+                    is_default: id === appliedDefaultId,
+                  });
+                  setPeekId(id === appliedDefaultId ? null : id);
+                }}
+                currentDashboardName={dashboardName}
+              />
+              {Boolean(peekId) && hasRbacCUDAccess && (
+                <Button
+                  variant="outline"
+                  loading={setHomeDashboard.isPending}
+                  title="Show this dashboard on Home for everyone in this project"
+                  onClick={() => {
+                    capture("dashboard:home_dashboard_set_default", {
+                      dashboard_id: dashboardId,
+                      source: "home_selector",
+                    });
+                    setHomeDashboard.mutate({
+                      projectId,
+                      dashboardId:
+                        dashboardId === LANGFUSE_HOME_DASHBOARD_ID
+                          ? null
+                          : dashboardId,
+                    });
+                  }}
+                >
+                  Set default
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="icon"
+                title="Edit this dashboard in Dashboards"
+                asChild
+              >
+                <Link
+                  href={`/project/${projectId}/dashboards/${encodeURIComponent(dashboardId)}`}
+                  onClick={() =>
+                    capture("dashboard:home_edit_pencil_click", {
+                      dashboard_id: dashboardId,
+                      dashboard_owner: dashboardOwner,
+                    })
+                  }
+                >
+                  <PencilIcon className="h-4 w-4" />
+                  <span className="sr-only">
+                    Edit this dashboard in Dashboards
+                  </span>
+                </Link>
+              </Button>
               <SetupTracingButton />
             </>
           ),
@@ -250,118 +372,22 @@ export default function Dashboard() {
             }
           />
         </PageHeaderControlsPortal>
-        {!isDashboardDataReady ? (
+        {!isDashboardDataReady || isResolvingDashboard ? (
           <NoDataOrLoading isLoading />
         ) : (
-          <div className="grid w-full grid-cols-1 gap-3 overflow-hidden lg:grid-cols-2 xl:grid-cols-6">
-            <TracesBarListChart
-              className="col-span-1 xl:col-span-2"
-              projectId={projectId}
-              globalFilterState={[...userFilterState, ...environmentFilter]}
-              fromTimestamp={fromTimestamp}
-              toTimestamp={toTimestamp}
-              isLoading={environmentOptionsState.isPending}
-              metricsVersion={metricsVersion}
-              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.traces}`}
-            />
-            <ModelCostTable
-              className="col-span-1 xl:col-span-2"
-              projectId={projectId}
-              globalFilterState={[...userFilterState, ...environmentFilter]}
-              fromTimestamp={fromTimestamp}
-              toTimestamp={toTimestamp}
-              isLoading={environmentOptionsState.isPending}
-              metricsVersion={metricsVersion}
-              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.modelCosts}`}
-            />
-            <ScoresTable
-              className="col-span-1 xl:col-span-2"
-              projectId={projectId}
-              globalFilterState={mergedFilterState}
-              isLoading={environmentOptionsState.isPending}
-              metricsVersion={metricsVersion}
-            />
-            <TracesAndObservationsTimeSeriesChart
-              className="col-span-1 xl:col-span-3"
-              projectId={projectId}
-              globalFilterState={[...userFilterState, ...environmentFilter]}
-              fromTimestamp={fromTimestamp}
-              toTimestamp={toTimestamp}
-              agg={agg}
-              isLoading={environmentOptionsState.isPending}
-              metricsVersion={metricsVersion}
-              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.tracesTimeSeries}`}
-              syncId={HOME_DASHBOARD_SYNC_ID}
-            />
-            <ModelUsageChart
-              className="col-span-1 min-h-24 xl:col-span-3"
-              projectId={projectId}
-              globalFilterState={mergedFilterState}
-              fromTimestamp={fromTimestamp}
-              toTimestamp={toTimestamp}
-              userAndEnvFilterState={[...userFilterState, ...environmentFilter]}
-              agg={agg}
-              isLoading={environmentOptionsState.isPending}
-              metricsVersion={metricsVersion}
-              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.modelUsage}`}
-              syncId={HOME_DASHBOARD_SYNC_ID}
-            />
-            <UserChart
-              className="col-span-1 xl:col-span-3"
-              projectId={projectId}
-              globalFilterState={[...userFilterState, ...environmentFilter]}
-              fromTimestamp={fromTimestamp}
-              toTimestamp={toTimestamp}
-              isLoading={environmentOptionsState.isPending}
-              metricsVersion={metricsVersion}
-              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.users}`}
-            />
-            <ChartScores
-              className="col-span-1 xl:col-span-3"
-              agg={agg}
-              projectId={projectId}
-              globalFilterState={[...userFilterState, ...environmentFilter]}
-              fromTimestamp={fromTimestamp}
-              toTimestamp={toTimestamp}
-              isLoading={environmentOptionsState.isPending}
-              metricsVersion={metricsVersion}
-              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.chartScores}`}
-              syncId={HOME_DASHBOARD_SYNC_ID}
-            />
-            <LatencyTables
-              projectId={projectId}
-              globalFilterState={[...userFilterState, ...environmentFilter]}
-              fromTimestamp={fromTimestamp}
-              toTimestamp={toTimestamp}
-              isLoading={environmentOptionsState.isPending}
-              metricsVersion={metricsVersion}
-              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.latencyTables}`}
-            />
-            <GenerationLatencyChart
-              className="col-span-1 flex-auto justify-between lg:col-span-full"
-              projectId={projectId}
-              agg={agg}
-              globalFilterState={[...userFilterState, ...environmentFilter]}
-              fromTimestamp={fromTimestamp}
-              toTimestamp={toTimestamp}
-              isLoading={environmentOptionsState.isPending}
-              metricsVersion={metricsVersion}
-              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.generationLatency}`}
-              syncId={HOME_DASHBOARD_SYNC_ID}
-            />
-            <ScoreAnalytics
-              className="col-span-1 flex-auto justify-between lg:col-span-full"
-              agg={agg}
-              projectId={projectId}
-              globalFilterState={[...userFilterState, ...environmentFilter]}
-              fromTimestamp={fromTimestamp}
-              toTimestamp={toTimestamp}
-              isLoading={environmentOptionsState.isPending}
-              metricsVersion={metricsVersion}
-              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.scoreAnalytics}`}
-              syncId={HOME_DASHBOARD_SYNC_ID}
-            />
-          </div>
+          <DashboardGrid
+            widgets={definition.widgets}
+            onChange={() => undefined}
+            canEdit={false}
+            dashboardId={dashboardId}
+            projectId={projectId}
+            dateRange={absoluteTimeRange}
+            filterState={gridFilterState}
+            onDeleteWidget={() => undefined}
+            dashboardOwner={dashboardOwner}
+            getWidgetSchedulerId={getWidgetSchedulerId}
+            readOnly
+          />
         )}
       </Page>
     </DashboardQuerySchedulerProvider>

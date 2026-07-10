@@ -3,17 +3,16 @@ import {
   commaSeparatedEnumArray,
   eventsTableSingleFilter,
   InvalidRequestError,
+  optionalJsonParam,
   optionalCommaSeparatedStringArray,
   publicApiPaginationLimitZod,
   type EventsTableFilterState,
 } from "@langfuse/shared";
 import { z } from "zod";
 
-export const EXPERIMENT_FIELD_GROUPS = ["core", "metadata", "scores"] as const;
-export const ExperimentFieldGroup = z.enum(EXPERIMENT_FIELD_GROUPS);
-export type ExperimentFieldGroup = z.infer<typeof ExperimentFieldGroup>;
+const EXPERIMENT_FIELD_GROUPS = ["core", "metadata", "scores"] as const;
 
-export const EXPERIMENT_ITEM_FIELD_GROUPS = [
+const EXPERIMENT_ITEM_FIELD_GROUPS = [
   "core",
   "dataset",
   "io",
@@ -22,12 +21,10 @@ export const EXPERIMENT_ITEM_FIELD_GROUPS = [
   "experimentMetadata",
   "scores",
 ] as const;
-export const ExperimentItemFieldGroup = z.enum(EXPERIMENT_ITEM_FIELD_GROUPS);
-export type ExperimentItemFieldGroup = z.infer<typeof ExperimentItemFieldGroup>;
 
-const EXPERIMENT_FILTER_COLUMNS = ["id", "name", "datasetId"] as const;
+export const EXPERIMENT_FILTER_COLUMNS = ["id", "name", "datasetId"] as const;
 const ExperimentFilterColumn = z.enum(EXPERIMENT_FILTER_COLUMNS);
-const EXPERIMENT_ITEM_FILTER_COLUMNS = [
+export const EXPERIMENT_ITEM_FILTER_COLUMNS = [
   "experimentId",
   "experimentName",
   "experimentItemId",
@@ -53,7 +50,7 @@ const experimentItemFilterState = z
   )
   .transform((filters) => filters as EventsTableFilterState);
 
-const encodedCursorString = z
+export const EncodedExperimentsCursorString = z
   .string()
   .describe("Base64url-encoded cursor for pagination");
 
@@ -68,7 +65,7 @@ const decodeCursor = (value: string) => {
 
 // Shared by /experiments and /experiment-items; summaries pagination does not
 // use lastTraceId today but carries it so both endpoints share one cursor.
-export const ExperimentCursorV1 = z.discriminatedUnion("v", [
+const ExperimentCursorV1 = z.discriminatedUnion("v", [
   z.object({
     v: z.literal(1),
     lastTime: z.string(),
@@ -78,11 +75,9 @@ export const ExperimentCursorV1 = z.discriminatedUnion("v", [
   }),
 ]);
 
-export type ExperimentCursorV1Type = z.infer<typeof ExperimentCursorV1>;
+type ExperimentCursorV1Type = z.infer<typeof ExperimentCursorV1>;
 
-export const EncodedExperimentsCursorString = encodedCursorString;
-
-export const EncodedExperimentCursorV1 = z
+const EncodedExperimentCursorV1 = z
   .string()
   .transform(decodeCursor)
   .pipe(ExperimentCursorV1);
@@ -91,6 +86,21 @@ const experimentScoreLimitZod = z.preprocess(
   (value) => (value === "" ? undefined : value),
   z.coerce.number().int().gte(1).lte(50).default(50),
 );
+
+const experimentFieldsZod = commaSeparatedEnumArray(EXPERIMENT_FIELD_GROUPS, [
+  "core",
+]).describe(
+  `Response field groups to include. Available groups: ${EXPERIMENT_FIELD_GROUPS.join(", ")}.`,
+);
+
+const experimentItemFieldsZod = commaSeparatedEnumArray(
+  EXPERIMENT_ITEM_FIELD_GROUPS,
+  ["core", "dataset"],
+).describe(
+  `Response field groups to include. Available groups: ${EXPERIMENT_ITEM_FIELD_GROUPS.join(", ")}.`,
+);
+
+const optionalStringArrayZod = z.array(z.string()).optional();
 
 export const encodeExperimentCursor = (
   cursor: ExperimentCursorV1Type,
@@ -105,67 +115,76 @@ export const encodeExperimentCursor = (
     }),
   ).toString("base64url");
 
-export const GetExperimentsV1Query = z.object({
-  fields: commaSeparatedEnumArray(EXPERIMENT_FIELD_GROUPS, ["core"]),
+export const GetExperimentsV1ParsedQuery = z.object({
+  fields: experimentFieldsZod,
   limit: publicApiPaginationLimitZod,
   scoreLimit: experimentScoreLimitZod,
   cursor: EncodedExperimentCursorV1.optional(),
   fromStartTime: z.iso.datetime({ offset: true }),
   toStartTime: z.iso.datetime({ offset: true }).optional(),
-  id: optionalCommaSeparatedStringArray,
-  name: optionalCommaSeparatedStringArray,
-  datasetId: optionalCommaSeparatedStringArray,
-  filter: z
-    .string()
-    .optional()
-    .transform((str) => {
-      if (!str) return undefined;
-      try {
-        return JSON.parse(str);
-      } catch (error) {
-        if (error instanceof InvalidRequestError) throw error;
-        throw new InvalidRequestError("Invalid JSON in filter parameter");
-      }
-    })
-    .pipe(experimentFilterState.optional()),
+  id: optionalStringArrayZod,
+  name: optionalStringArrayZod,
+  datasetId: optionalStringArrayZod,
+  filter: experimentFilterState.optional(),
 });
 
-export type GetExperimentsV1QueryType = z.infer<typeof GetExperimentsV1Query>;
+export const GetExperimentsV1Query = z
+  .object({
+    fields: experimentFieldsZod,
+    limit: publicApiPaginationLimitZod,
+    scoreLimit: experimentScoreLimitZod,
+    cursor: EncodedExperimentsCursorString.optional(),
+    fromStartTime: z.iso.datetime({ offset: true }),
+    toStartTime: z.iso.datetime({ offset: true }).optional(),
+    id: optionalCommaSeparatedStringArray,
+    name: optionalCommaSeparatedStringArray,
+    datasetId: optionalCommaSeparatedStringArray,
+    filter: optionalJsonParam(experimentFilterState, "filter"),
+  })
+  .transform((query) => GetExperimentsV1ParsedQuery.parse(query));
 
-export const GetExperimentItemsV1Query = z.object({
-  fields: commaSeparatedEnumArray(EXPERIMENT_ITEM_FIELD_GROUPS, [
-    "core",
-    "dataset",
-  ]),
-  limit: publicApiPaginationLimitZod,
-  scoreLimit: experimentScoreLimitZod,
-  cursor: EncodedExperimentCursorV1.optional(),
-  fromStartTime: z.iso.datetime({ offset: true }),
-  toStartTime: z.iso.datetime({ offset: true }).optional(),
-  experimentId: optionalCommaSeparatedStringArray,
-  experimentName: optionalCommaSeparatedStringArray,
-  experimentItemId: optionalCommaSeparatedStringArray,
-  datasetId: optionalCommaSeparatedStringArray,
-  filter: z
-    .string()
-    .optional()
-    .transform((str) => {
-      if (!str) return undefined;
-      try {
-        return JSON.parse(str);
-      } catch (error) {
-        if (error instanceof InvalidRequestError) throw error;
-        throw new InvalidRequestError("Invalid JSON in filter parameter");
-      }
-    })
-    .pipe(experimentItemFilterState.optional()),
-});
-
-export type GetExperimentItemsV1QueryType = z.infer<
-  typeof GetExperimentItemsV1Query
+export type GetExperimentsV1QueryType = z.infer<
+  typeof GetExperimentsV1ParsedQuery
 >;
 
-export const ExperimentV1 = z
+export const GetExperimentItemsV1ParsedQueryBase = z.object({
+  fields: experimentItemFieldsZod,
+  limit: publicApiPaginationLimitZod,
+  scoreLimit: experimentScoreLimitZod,
+  cursor: EncodedExperimentCursorV1.optional(),
+  fromStartTime: z.iso.datetime({ offset: true }),
+  toStartTime: z.iso.datetime({ offset: true }).optional(),
+  experimentId: optionalStringArrayZod,
+  experimentName: optionalStringArrayZod,
+  experimentItemId: optionalStringArrayZod,
+  datasetId: optionalStringArrayZod,
+  filter: experimentItemFilterState.optional(),
+});
+
+export const GetExperimentItemsV1ParsedQuery =
+  GetExperimentItemsV1ParsedQueryBase;
+
+export const GetExperimentItemsV1Query = z
+  .object({
+    fields: experimentItemFieldsZod,
+    limit: publicApiPaginationLimitZod,
+    scoreLimit: experimentScoreLimitZod,
+    cursor: EncodedExperimentsCursorString.optional(),
+    fromStartTime: z.iso.datetime({ offset: true }),
+    toStartTime: z.iso.datetime({ offset: true }).optional(),
+    experimentId: optionalCommaSeparatedStringArray,
+    experimentName: optionalCommaSeparatedStringArray,
+    experimentItemId: optionalCommaSeparatedStringArray,
+    datasetId: optionalCommaSeparatedStringArray,
+    filter: optionalJsonParam(experimentItemFilterState, "filter"),
+  })
+  .transform((query) => GetExperimentItemsV1ParsedQuery.parse(query));
+
+export type GetExperimentItemsV1QueryType = z.infer<
+  typeof GetExperimentItemsV1ParsedQuery
+>;
+
+const ExperimentV1 = z
   .object({
     id: z.string(),
     name: z.string(),
@@ -188,11 +207,7 @@ export const GetExperimentsV1Response = z
   })
   .strict();
 
-export type GetExperimentsV1ResponseType = z.infer<
-  typeof GetExperimentsV1Response
->;
-
-export const ExperimentItemV1 = z
+const ExperimentItemV1 = z
   .object({
     id: z.string(),
     traceId: z.string(),
@@ -227,7 +242,3 @@ export const GetExperimentItemsV1Response = z
     }),
   })
   .strict();
-
-export type GetExperimentItemsV1ResponseType = z.infer<
-  typeof GetExperimentItemsV1Response
->;

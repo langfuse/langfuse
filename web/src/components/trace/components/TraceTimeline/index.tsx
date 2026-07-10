@@ -39,6 +39,8 @@ import {
   useShowPlayhead,
 } from "../../contexts/PlayheadContext";
 import { useHandlePrefetchObservation } from "../../hooks/useHandlePrefetchObservation";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useTraceAnalyticsDimensions } from "../../hooks/useTraceAnalyticsDimensions";
 import { flattenTreeWithTimelineMetrics } from "./timeline-flattening";
 import {
   calculateStepSize,
@@ -237,6 +239,8 @@ export function TraceTimeline() {
     colorCodeMetrics,
   } = useViewPreferences();
   const { handleHover } = useHandlePrefetchObservation();
+  const capture = usePostHogClientCapture();
+  const analyticsDimensions = useTraceAnalyticsDimensions();
   // Optional (null in the mobile layout): reopen the detail panel on select.
   const layout = useDesktopLayoutContextOptional();
 
@@ -501,12 +505,16 @@ export function TraceTimeline() {
   // TimelineRows.tsx — stable references keep the memo boundary effective).
   const handleSelectNode = useCallback(
     (nodeId: string) => {
+      capture("trace_detail:node_selected", {
+        source: "timeline",
+        ...analyticsDimensions,
+      });
       setSelectedNodeId(nodeId);
       // Reopen the detail panel on any select — including re-clicking the
       // already-selected row, where the URL param wouldn't fire an effect.
       layout?.expandDetailPanel();
     },
-    [setSelectedNodeId, layout],
+    [setSelectedNodeId, layout, capture, analyticsDimensions],
   );
   const handleHoverNode = useCallback(
     (node: TreeNode) => {
@@ -529,7 +537,7 @@ export function TraceTimeline() {
             Name
           </span>
         </div>
-        <div className="bg-border/60 w-px shrink-0" />
+        <div className="bg-border-contrast/60 w-px shrink-0" />
         <div
           ref={scaleOuterRef}
           onPointerDown={handleScalePointerDown}
@@ -627,7 +635,7 @@ export function TraceTimeline() {
         </div>
 
         {/* Resizer: structural 1px divider with a wider invisible drag grip. */}
-        <div className="bg-border/60 relative w-px shrink-0">
+        <div className="bg-border-contrast/60 relative w-px shrink-0">
           <div
             role="separator"
             aria-orientation="vertical"

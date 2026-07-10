@@ -236,6 +236,7 @@ export default function SessionsTable({
       ) ?? undefined;
 
     const scoresNumeric = filterOptions.data?.scores_avg ?? undefined;
+    const scoresBoolean = filterOptions.data?.score_booleans ?? undefined;
 
     return {
       bookmarked: ["Bookmarked", "Not bookmarked"],
@@ -256,6 +257,7 @@ export default function SessionsTable({
       totalCost: [],
       score_categories: scoreCategories,
       scores_avg: scoresNumeric,
+      score_booleans: scoresBoolean,
     };
   }, [environmentOptions, filterOptions.data]);
 
