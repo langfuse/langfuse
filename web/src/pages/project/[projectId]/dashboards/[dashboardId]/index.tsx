@@ -37,7 +37,13 @@ import {
   LANGFUSE_HOME_DASHBOARD_ID,
   type HomeDashboardPresetId,
 } from "@langfuse/shared";
-import { HomeIcon, Loader2, MoreVertical, PencilIcon } from "lucide-react";
+import {
+  ClipboardPasteIcon,
+  HomeIcon,
+  Loader2,
+  MoreVertical,
+  PencilIcon,
+} from "lucide-react";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
@@ -56,9 +62,13 @@ import {
   useDashboardQueryScheduler,
 } from "@/src/hooks/useDashboardQueryScheduler";
 import {
+  parsePastedWidget,
   toWidgetCreateFields,
+  type PastedWidgetParseResult,
   type WidgetExportSource,
 } from "@/src/features/widgets/utils/import-export-utils";
+import { readTextFromClipboard } from "@/src/utils/clipboard";
+import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
 
 // Position for a tile inserted "next to" an anchor tile: same size,
 // immediately to the right when that fits the 12-column grid, otherwise
@@ -327,6 +337,126 @@ export default function DashboardDetail() {
       }
     },
     [createWidgetAsync, projectId, dashboardId, capture, insertWidgetPlacement],
+  );
+
+  // Recreate a parsed clipboard widget as a project widget and place it on
+  // the dashboard (next to `anchor` when given, else at the bottom).
+  const handleParsedWidgetPaste = useCallback(
+    async (
+      parsed: Exclude<PastedWidgetParseResult, { status: "not-widget" }>,
+      source: "cmd_v" | "dashboard_menu" | "paste_right",
+      anchor?: DashboardPlacement,
+    ) => {
+      if (parsed.status === "invalid") {
+        capture("dashboard:widget_paste_rejected", {
+          source,
+          reason: "invalid",
+          dashboard_id: dashboardId,
+        });
+        showErrorToast("Cannot paste widget", parsed.reason, "WARNING");
+        return;
+      }
+      try {
+        const result = await createWidgetAsync({
+          projectId,
+          ...toWidgetCreateFields(parsed.widget),
+        });
+        capture("dashboard:widget_pasted", {
+          source,
+          dashboard_id: dashboardId,
+          chart_type: parsed.widget.chartType,
+          view: parsed.widget.view,
+        });
+        insertWidgetPlacement(
+          result.widget.id,
+          anchor ? placementNextTo(anchor) : undefined,
+        );
+        if (parsed.removedFilters) {
+          showErrorToast(
+            "Widget filters were adjusted",
+            "Some pasted filters were removed because they are not available in this view.",
+            "WARNING",
+          );
+        }
+      } catch (e) {
+        showErrorToast(
+          "Failed to paste widget",
+          e instanceof Error ? e.message : "Unknown error",
+        );
+      }
+    },
+    [capture, createWidgetAsync, dashboardId, insertWidgetPlacement, projectId],
+  );
+
+  // Menu-driven paste ("Paste widget" / "Paste to the right"): read the
+  // clipboard and reject non-widget payloads visibly.
+  const pasteWidgetFromClipboard = useCallback(
+    async (
+      source: "dashboard_menu" | "paste_right",
+      anchor?: DashboardPlacement,
+    ) => {
+      const text = await readTextFromClipboard();
+      if (text === null) {
+        showErrorToast(
+          "Clipboard unavailable",
+          "Your browser did not allow reading the clipboard. Paste with Cmd/Ctrl+V on the dashboard instead.",
+          "WARNING",
+        );
+        return;
+      }
+      const parsed = parsePastedWidget(text, { isBetaEnabled });
+      if (parsed.status === "not-widget") {
+        capture("dashboard:widget_paste_rejected", {
+          source,
+          reason: "not_widget",
+          dashboard_id: dashboardId,
+        });
+        showErrorToast(
+          "No widget in clipboard",
+          "The clipboard does not contain a Langfuse widget JSON. Copy one via a widget's ⋯ menu first.",
+          "WARNING",
+        );
+        return;
+      }
+      await handleParsedWidgetPaste(parsed, source, anchor);
+    },
+    [capture, dashboardId, handleParsedWidgetPaste, isBetaEnabled],
+  );
+
+  // Cmd/Ctrl+V on the dashboard pastes a copied widget. Only intercepts when
+  // the clipboard actually holds a Langfuse widget payload and the paste is
+  // not aimed at a text input.
+  useEffect(() => {
+    if (!hasCUDAccess) return;
+
+    const onPaste = (event: ClipboardEvent) => {
+      if (event.defaultPrevented) return;
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        target.closest("input, textarea, select, [contenteditable]")
+      ) {
+        return;
+      }
+      const text = event.clipboardData?.getData("text/plain");
+      if (!text) return;
+      const parsed = parsePastedWidget(text, { isBetaEnabled });
+      // Not a widget payload: leave the event alone (silent, per spec).
+      if (parsed.status === "not-widget") return;
+      event.preventDefault();
+      handleParsedWidgetPaste(parsed, "cmd_v");
+    };
+
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+  }, [hasCUDAccess, isBetaEnabled, handleParsedWidgetPaste]);
+
+  // Gate the dashboard-menu "Paste widget" item on the clipboard actually
+  // holding a widget, where the browser lets us check silently.
+  const [isDashboardMenuOpen, setIsDashboardMenuOpen] = useState(false);
+  const clipboardProbe = useClipboardWidgetProbe(
+    isDashboardMenuOpen && hasCUDAccess,
+    isBetaEnabled,
   );
 
   // Add a Langfuse Home card as a preset placement (no widget row involved)
@@ -713,7 +843,7 @@ export default function DashboardDetail() {
                 </Button>
               )}
               {hasRbacCUDAccess && (
-                <DropdownMenu>
+                <DropdownMenu onOpenChange={setIsDashboardMenuOpen}>
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="ghost"
@@ -724,6 +854,17 @@ export default function DashboardDetail() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    {hasCUDAccess && (
+                      <DropdownMenuItem
+                        disabled={clipboardProbe === "no-widget"}
+                        onClick={() =>
+                          pasteWidgetFromClipboard("dashboard_menu")
+                        }
+                      >
+                        <ClipboardPasteIcon className="mr-2 h-4 w-4" />
+                        Paste widget
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem
                       disabled={isCurrentHome || setHomeDashboard.isPending}
                       onClick={() => {
@@ -857,6 +998,13 @@ export default function DashboardDetail() {
               }
               onDuplicateWidget={
                 hasCUDAccess ? handleDuplicateWidget : undefined
+              }
+              onPasteWidget={
+                hasCUDAccess
+                  ? (anchor) => {
+                      pasteWidgetFromClipboard("paste_right", anchor);
+                    }
+                  : undefined
               }
             />
           </div>

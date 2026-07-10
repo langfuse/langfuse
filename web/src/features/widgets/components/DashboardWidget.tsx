@@ -39,6 +39,7 @@ import {
   type WidgetExportSource,
 } from "@/src/features/widgets/utils/import-export-utils";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -172,6 +173,13 @@ export function DashboardWidget({
   });
   const [retryCount, setRetryCount] = useState(0);
   const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
+  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
+  // Gate "Paste to the right" on the clipboard actually holding a widget,
+  // where the browser lets us check silently.
+  const clipboardProbe = useClipboardWidgetProbe(
+    isActionsMenuOpen && Boolean(onPasteWidget),
+    isBetaEnabled,
+  );
 
   // Apply defaultSort when it becomes available (after widget data loads)
   // but only if user hasn't interacted yet
@@ -628,7 +636,7 @@ export function DashboardWidget({
               </button>
             </>
           )}
-          <DropdownMenu>
+          <DropdownMenu onOpenChange={setIsActionsMenuOpen}>
             <DropdownMenuTrigger asChild>
               <button
                 className="text-muted-foreground hover:text-foreground hidden group-hover:block data-[state=open]:block"
@@ -643,7 +651,10 @@ export function DashboardWidget({
                 Copy to clipboard
               </DropdownMenuItem>
               {onPasteWidget && (
-                <DropdownMenuItem onClick={() => onPasteWidget(placement)}>
+                <DropdownMenuItem
+                  disabled={clipboardProbe === "no-widget"}
+                  onClick={() => onPasteWidget(placement)}
+                >
                   <ClipboardPasteIcon className="mr-2 h-4 w-4" />
                   Paste to the right
                 </DropdownMenuItem>
