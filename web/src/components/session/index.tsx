@@ -19,7 +19,7 @@ import { Button } from "@/src/components/ui/button";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { useSession } from "next-auth/react";
 import { CheckIcon, CopyIcon, Download, ExternalLinkIcon } from "lucide-react";
-import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
 import {
@@ -218,23 +218,7 @@ const CopySessionIdButton: React.FC<{
   sessionId: string;
   capture: ReturnType<typeof usePostHogClientCapture>;
 }> = ({ sessionId, capture }) => {
-  const [copied, setCopied] = useState(false);
-  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(
-    () => () => {
-      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-    },
-    [],
-  );
-
-  const handleCopy = useCallback(() => {
-    copyTextToClipboard(sessionId);
-    capture("session_detail:copy_session_id_click");
-    setCopied(true);
-    if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-    copyTimeoutRef.current = setTimeout(() => setCopied(false), 1500);
-  }, [sessionId, capture]);
+  const { copy, isCopied } = useCopyToClipboard();
 
   return (
     <Button
@@ -242,9 +226,12 @@ const CopySessionIdButton: React.FC<{
       size="icon-xs"
       title="Copy session ID"
       aria-label="Copy session ID"
-      onClick={handleCopy}
+      onClick={async () => {
+        capture("session_detail:copy_session_id_click");
+        await copy(sessionId);
+      }}
     >
-      {copied ? (
+      {isCopied ? (
         <CheckIcon className="text-muted-green h-4 w-4" />
       ) : (
         <CopyIcon className="h-4 w-4" />
