@@ -1306,7 +1306,7 @@ describe("createAgUiStream", () => {
     );
   });
 
-  it("aborts rejected tools after streaming the rejected tool result", async () => {
+  it("continues after rejected tools and asks the user how to proceed", async () => {
     const { createAgUiStream } =
       await import("@/src/ee/features/in-app-agent/server/agent");
     const input = createToolApprovalResumeInput(false);
@@ -1314,6 +1314,25 @@ describe("createAgUiStream", () => {
     adapterEvents.items = [
       {
         type: EventType.RUN_STARTED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+      {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId: "assistant-message-1",
+        role: "assistant",
+      },
+      {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: "assistant-message-1",
+        delta: "The action was not completed. How would you like to continue?",
+      },
+      {
+        type: EventType.TEXT_MESSAGE_END,
+        messageId: "assistant-message-1",
+      },
+      {
+        type: EventType.RUN_FINISHED,
         threadId: input.threadId,
         runId: input.runId,
       },
@@ -1339,7 +1358,6 @@ describe("createAgUiStream", () => {
           publicKey: "pk",
           secretKey: "sk",
           userAccess: defaultInAppAgentUserAccess,
-          runOverride: "run-override",
         },
         redirectAction: {
           projectId: "project-1",
@@ -1354,9 +1372,39 @@ describe("createAgUiStream", () => {
       streamedEvents.push(event);
     });
 
-    expect(adapterEvents.inputs).toEqual([]);
-    expect(vi.mocked(MCPClient)).not.toHaveBeenCalled();
-    expect(vi.mocked(Agent)).not.toHaveBeenCalled();
+    expect(adapterEvents.inputs).toEqual([
+      expect.objectContaining({
+        forwardedProps: {},
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            id: "tool-call-1-approval-tool-call",
+            role: "assistant",
+            toolCalls: [
+              expect.objectContaining({
+                id: "tool-call-1",
+              }),
+            ],
+          }),
+          expect.objectContaining({
+            id: "tool-call-1-approval-tool-result",
+            role: "tool",
+            toolCallId: "tool-call-1",
+            content: "Tool call was not approved by the user.",
+            error: "Tool call was not approved by the user.",
+          }),
+          expect.objectContaining({
+            id: "tool-call-1-approval-rejection-guidance",
+            role: "developer",
+            content: expect.stringContaining(
+              "ask the user how they would like to continue",
+            ),
+          }),
+        ]),
+      }),
+    ]);
+    expect(adapterEvents.createScoreConfigExecute).not.toHaveBeenCalled();
+    expect(vi.mocked(MCPClient)).toHaveBeenCalledOnce();
+    expect(vi.mocked(Agent)).toHaveBeenCalledOnce();
     expect(persistedEvents).toEqual([
       {
         type: EventType.RUN_STARTED,
@@ -1390,6 +1438,25 @@ describe("createAgUiStream", () => {
         content: "Tool call was not approved by the user.",
         role: "tool",
         error: "Tool call was not approved by the user.",
+      },
+      {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId: "assistant-message-1",
+        role: "assistant",
+      },
+      {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: "assistant-message-1",
+        delta: "The action was not completed. How would you like to continue?",
+      },
+      {
+        type: EventType.TEXT_MESSAGE_END,
+        messageId: "assistant-message-1",
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        threadId: input.threadId,
+        runId: input.runId,
       },
     ]);
     expect(streamedEvents).toEqual(persistedEvents);
