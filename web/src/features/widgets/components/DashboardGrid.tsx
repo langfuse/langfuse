@@ -99,11 +99,19 @@ export function DashboardGrid({
   readOnly?: boolean;
 }) {
   const { containerRef, width } = useDebouncedContainerWidth(200);
-  // Rows stay 16:9-proportional to column width
-  const rowHeight = width !== null ? ((width / 12) * 9) / 16 : 150;
+  // Rows stay 16:9-proportional to column width, with a floor so tiles keep a
+  // usable height on narrow screens — below the floor, widget content (chart
+  // floors, table rows) no longer fits and tiles scroll internally; the grid
+  // grows vertically instead. (LFE-10813)
+  const MIN_ROW_HEIGHT = 58;
+  const rowHeight =
+    width !== null ? Math.max(MIN_ROW_HEIGHT, ((width / 12) * 9) / 16) : 150;
 
-  // Detect if screen is medium or smaller (1024px and below)
-  const isSmallScreen = useMediaQuery("(max-width: 1024px)");
+  // Detect if screen is medium or smaller (below 1024px). Exact complement of
+  // Tailwind's `lg:` breakpoint: widget content uses `lg:` variants for its
+  // grid-mode sizing (e.g. smaller chart flex bases that rely on grow), so the
+  // stacked layout must never overlap them. (LFE-10813)
+  const isSmallScreen = useMediaQuery("(max-width: 1023.98px)");
 
   // Convert WidgetPlacement to react-grid-layout format
   const layout = widgets.map((w) => ({
