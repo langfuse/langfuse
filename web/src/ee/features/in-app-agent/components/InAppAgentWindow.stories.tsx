@@ -508,6 +508,7 @@ const meta = preview.meta({
     conversations,
     hasMoreConversations: false,
     isLoadingMoreConversations: false,
+    isAssistantTurnInProgress: false,
     selectedConversationId: undefined,
     onDeleteConversation: fn(),
     onLoadMoreConversations: fn(),
@@ -847,6 +848,90 @@ export const LoadingAfterToolCall = meta.story({
         },
       },
     ],
+  },
+});
+
+export const FeedbackControlsWaitForTurnEnd = meta.story({
+  name: "(Test) Feedback Controls Wait For Turn End",
+  args: {
+    selectedConversationId: "conversation-1",
+    isInputDisabled: true,
+    isAssistantTurnInProgress: true,
+    onSubmitFeedback: fn(),
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Summarize recent ingestion errors.",
+        },
+      },
+      {
+        id: "assistant-1",
+        runId: "run-1",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "I found a cluster of ingestion errors around malformed JSON payloads",
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    await canvas.findByText(
+      "I found a cluster of ingestion errors around malformed JSON payloads",
+    );
+
+    await waitFor(() => {
+      expect(
+        canvas.queryByRole("button", { name: "Good response" }),
+      ).not.toBeInTheDocument();
+      expect(
+        canvas.queryByRole("button", { name: "Bad response" }),
+      ).not.toBeInTheDocument();
+    });
+  },
+});
+
+export const FeedbackControlsShowAfterTurnEnd = meta.story({
+  name: "(Test) Feedback Controls Show After Turn End",
+  args: {
+    selectedConversationId: "conversation-1",
+    isInputDisabled: false,
+    isAssistantTurnInProgress: false,
+    onSubmitFeedback: fn(),
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Summarize recent ingestion errors.",
+        },
+      },
+      {
+        id: "assistant-1",
+        runId: "run-1",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "The errors were caused by malformed JSON payloads.",
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(
+      canvas.findByRole("button", { name: "Good response" }),
+    ).resolves.toBeInTheDocument();
+    await expect(
+      canvas.findByRole("button", { name: "Bad response" }),
+    ).resolves.toBeInTheDocument();
   },
 });
 

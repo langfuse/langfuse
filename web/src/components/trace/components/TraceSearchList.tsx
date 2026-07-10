@@ -12,6 +12,8 @@ import { useSearch } from "../contexts/SearchContext";
 import { useSelection } from "../contexts/SelectionContext";
 import { useHandlePrefetchObservation } from "../hooks/useHandlePrefetchObservation";
 import { useDesktopLayoutContextOptional } from "./_layout/TraceLayoutDesktop";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useTraceAnalyticsDimensions } from "../hooks/useTraceAnalyticsDimensions";
 import { VirtualizedList } from "./_shared/VirtualizedList";
 import { TraceSearchListItem } from "./TraceSearchListItem";
 import { Button } from "@/src/components/ui/button";
@@ -22,10 +24,18 @@ export function TraceSearchList() {
   const { searchQuery, setSearchInputValue } = useSearch();
   const { selectedNodeId, setSelectedNodeId } = useSelection();
   const { handleHover } = useHandlePrefetchObservation();
+  const capture = usePostHogClientCapture();
+  const analyticsDimensions = useTraceAnalyticsDimensions();
   // Optional (null on mobile): reopen the detail panel on select, including
   // re-selecting the already-selected result.
   const layout = useDesktopLayoutContextOptional();
   const handleSelectItem = (id: string | null) => {
+    if (id) {
+      capture("trace_detail:node_selected", {
+        source: "search",
+        ...analyticsDimensions,
+      });
+    }
     setSelectedNodeId(id);
     layout?.expandDetailPanel();
   };

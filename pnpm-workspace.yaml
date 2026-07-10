@@ -12,6 +12,7 @@ catalog:
   "@aws-sdk/credential-providers": 3.1056.0
   "@aws-sdk/lib-storage": 3.1056.0
   "@aws-sdk/s3-request-presigner": 3.1056.0
+  typescript: ^6.0.3
 # 5 day delay for new dep upgrades to reduce supply chain attack risk
 minimumReleaseAge: 7200
 # the exclusions are temporary so that we can set the 5 day limit without downgrading packages.

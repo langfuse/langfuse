@@ -87,3 +87,9 @@ export {
   eventsTracesScoresAggregation,
   scoreBooleansAggregation,
 } from "./clickhouse-sql/query-fragments";
+export {
+  buildEventsStreamQuery,
+  eventSearchCondition,
+  type EventsStreamQuery,
+  type EventsStreamQueryInput,
+} from "./clickhouse-sql/events-stream-query";
