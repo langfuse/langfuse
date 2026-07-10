@@ -689,10 +689,21 @@ describe("InAppAgentInstrumentation", () => {
     );
   });
 
-  it("records reasoning text in agent generation metadata", () => {
+  it("records reasoning as thinking parts on the assistant output messages", () => {
     const instrumentation = createInstrumentation();
+    const toolCall = {
+      id: "tool-1",
+      name: "listObservations",
+      arguments: '{"limit":10}',
+      type: "function",
+    };
+    const toolOutput = { traces: [{ id: "trace-1" }] };
 
     instrumentation.recordEvents([
+      {
+        type: EventType.REASONING_MESSAGE_START,
+        messageId: "reasoning-1",
+      },
       {
         type: EventType.REASONING_MESSAGE_CONTENT,
         messageId: "reasoning-1",
@@ -702,6 +713,42 @@ describe("InAppAgentInstrumentation", () => {
         type: EventType.REASONING_MESSAGE_CHUNK,
         messageId: "reasoning-1",
         delta: "filters",
+      },
+      {
+        type: EventType.REASONING_MESSAGE_END,
+        messageId: "reasoning-1",
+      },
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "tool-1",
+        toolCallName: "listObservations",
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: "tool-1",
+        delta: '{"limit":10}',
+      },
+      {
+        type: EventType.TOOL_CALL_END,
+        toolCallId: "tool-1",
+      },
+      {
+        type: EventType.TOOL_CALL_RESULT,
+        toolCallId: "tool-1",
+        content: JSON.stringify(toolOutput),
+      },
+      {
+        type: EventType.REASONING_MESSAGE_START,
+        messageId: "reasoning-2",
+      },
+      {
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: "reasoning-2",
+        delta: "Drafting the answer",
+      },
+      {
+        type: EventType.REASONING_MESSAGE_END,
+        messageId: "reasoning-2",
       },
       {
         type: EventType.TEXT_MESSAGE_CONTENT,
@@ -717,11 +764,58 @@ describe("InAppAgentInstrumentation", () => {
         name: "agent-turn",
         input: expectedAgentRunInput,
         output: {
-          messages: [{ role: "assistant", content: "Done" }],
+          messages: [
+            {
+              role: "assistant",
+              content: "",
+              thinking: [{ type: "thinking", content: "Checking filters" }],
+              tool_calls: [toolCall],
+            },
+            { role: "tool", tool_call_id: "tool-1", content: toolOutput },
+            {
+              role: "assistant",
+              content: "Done",
+              thinking: [{ type: "thinking", content: "Drafting the answer" }],
+            },
+          ],
           text: "Done",
+          tool_calls: [toolCall],
         },
         completionStartTime: expect.any(Date),
-        metadata: expect.objectContaining({ reasoning: "Checking filters" }),
+      }),
+    );
+    const updateArg = mocks.agentGeneration.update.mock.calls.at(-1)?.[0] as {
+      metadata?: Record<string, unknown>;
+    };
+    expect(updateArg.metadata).not.toHaveProperty("reasoning");
+  });
+
+  it("records reasoning without a following assistant message as its own thinking message", () => {
+    const instrumentation = createInstrumentation();
+
+    instrumentation.recordEvents([
+      {
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: "reasoning-1",
+        delta: "Checking filters",
+      },
+      {
+        type: EventType.RUN_FINISHED,
+      },
+    ]);
+
+    expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "agent-turn",
+        output: {
+          messages: [
+            {
+              role: "assistant",
+              content: "",
+              thinking: [{ type: "thinking", content: "Checking filters" }],
+            },
+          ],
+        },
       }),
     );
   });
