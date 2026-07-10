@@ -610,10 +610,15 @@ function isEvaluateReturnObject(
   object: SyntaxNode,
   context: CompletionContext,
 ) {
-  const returnStatement = unwrapExpressionParent(object.parent);
-  if (returnStatement?.name !== "ReturnStatement") return false;
+  const container = unwrapExpressionParent(object.parent);
+  // Expression-body arrows return without a ReturnStatement:
+  // `const evaluate = (ctx) => ({ scores: [] })`.
+  if (container && SCOPE_NODES.has(container.name)) {
+    return getFunctionName(container, context) === "evaluate";
+  }
+  if (container?.name !== "ReturnStatement") return false;
 
-  for (let node = returnStatement.parent; node; node = node.parent) {
+  for (let node = container.parent; node; node = node.parent) {
     if (SCOPE_NODES.has(node.name)) {
       return getFunctionName(node, context) === "evaluate";
     }

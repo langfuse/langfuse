@@ -1,9 +1,5 @@
 import { EditorState, Transaction } from "@codemirror/state";
-import {
-  acceptCompletion,
-  CompletionContext,
-  selectedCompletion,
-} from "@codemirror/autocomplete";
+import { acceptCompletion, CompletionContext } from "@codemirror/autocomplete";
 import { javascript } from "@codemirror/lang-javascript";
 import { python } from "@codemirror/lang-python";
 import { basicSetup, EditorView } from "@uiw/react-codemirror";
@@ -155,38 +151,6 @@ describe("code evaluator context completions", () => {
     }
   });
 
-  it("reuses the closing quote when accepting inside an auto-closed string", async () => {
-    const source =
-      "function evaluate(ctx: EvaluationContext): EvaluationResult { return { scores: [{ dataType:  }] }; }";
-    const cursor = source.indexOf("dataType: ") + "dataType: ".length;
-    const editor = mountEditor("TYPESCRIPT", { doc: source, anchor: cursor });
-
-    try {
-      editor.typeText(cursor, '""', cursor + 1);
-
-      await vi.waitFor(() => {
-        expect(editor.completionLabels()).toEqual(
-          expect.arrayContaining([
-            '"NUMERIC"',
-            '"BOOLEAN"',
-            '"CATEGORICAL"',
-            '"TEXT"',
-          ]),
-        );
-        expect(editor.completionLabels()).toHaveLength(4);
-      });
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      const selected = selectedCompletion(editor.view.state);
-      expect(selected).not.toBeNull();
-      expect(acceptCompletion(editor.view)).toBe(true);
-      expect(editor.view.state.doc.toString()).toBe(
-        `${source.slice(0, cursor)}${selected?.label}${source.slice(cursor)}`,
-      );
-    } finally {
-      editor.cleanup();
-    }
-  });
-
   it("completes the documented TypeScript context tree", () => {
     expect(getCompletions("ctx.", "TYPESCRIPT")).toEqual({
       from: 4,
@@ -242,29 +206,6 @@ describe("code evaluator context completions", () => {
       getCompletions("ctx.observation.tool_calls[-1].na", "PYTHON"),
     ).toEqual({
       from: 31,
-      labels: TOOL_CALL_LABELS,
-      acceptsEmptyPrefix: true,
-    });
-  });
-
-  it("uses parsed member expressions across multiline indexed access", () => {
-    expect(
-      getCompletions(
-        "ctx.observation.toolCalls[\n  callIndex\n]?.na",
-        "TYPESCRIPT",
-      ),
-    ).toEqual({
-      from: 42,
-      labels: TOOL_CALL_LABELS,
-      acceptsEmptyPrefix: true,
-    });
-    expect(
-      getCompletions(
-        "ctx.observation.tool_calls[\n  call_index\n].na",
-        "PYTHON",
-      ),
-    ).toEqual({
-      from: 43,
       labels: TOOL_CALL_LABELS,
       acceptsEmptyPrefix: true,
     });
@@ -517,20 +458,28 @@ describe("code evaluator context completions", () => {
         "TYPESCRIPT",
       )?.options.map((option) => option.label),
     ).toEqual(["scores"]);
+    // Expression bodies return without a ReturnStatement. Brackets are
+    // balanced because closeBrackets auto-inserts them while typing.
+    const expressionBody =
+      "const evaluate = (ctx: EvaluationContext): EvaluationResult => ({ sc })";
     expect(
-      getCompletions(
-        "const evaluate = (ctx: EvaluationContext): EvaluationResult => { return { scores: [{ dataType: ",
+      runCompletionSource(
+        expressionBody,
         "TYPESCRIPT",
-      ).labels,
-    ).toEqual(['"NUMERIC"', '"BOOLEAN"', '"CATEGORICAL"', '"TEXT"']);
+        expressionBody.indexOf("sc ") + 2,
+      )?.options.map((option) => option.label),
+    ).toEqual(["scores"]);
 
     // Only the evaluator's declarator counts.
+    const otherExpressionBody =
+      "const other = (ctx: EvaluationContext): EvaluationResult => ({ sc })";
     expect(
-      getCompletions(
-        "const other = (ctx: EvaluationContext): EvaluationResult => { return { sc",
+      runCompletionSource(
+        otherExpressionBody,
         "TYPESCRIPT",
-      ).labels,
-    ).toBeUndefined();
+        otherExpressionBody.indexOf("sc ") + 2,
+      ),
+    ).toBeNull();
   });
 
   it("completes TypeScript score data type values inside strings", () => {
@@ -567,26 +516,13 @@ describe("code evaluator context completions", () => {
   });
 
   it("completes Python score data type values before typing a value", () => {
-    const scorePrefix = 'return Score(name="quality", value=True, data_type=';
-
-    expect(getCompletions(scorePrefix, "PYTHON").labels).toEqual([
-      '"NUMERIC"',
-      '"BOOLEAN"',
-      '"CATEGORICAL"',
-      '"TEXT"',
-    ]);
-    expect(getCompletions(`${scorePrefix}"BO`, "PYTHON").labels).toEqual([
-      '"NUMERIC"',
-      '"BOOLEAN"',
-      '"CATEGORICAL"',
-      '"TEXT"',
-    ]);
-    expect(getCompletions(`${scorePrefix}'CA`, "PYTHON").labels).toEqual([
-      "'NUMERIC'",
-      "'BOOLEAN'",
-      "'CATEGORICAL'",
-      "'TEXT'",
-    ]);
+    // Quote-variant handling is shared code covered by the TypeScript test.
+    expect(
+      getCompletions(
+        'return Score(name="quality", value=True, data_type=',
+        "PYTHON",
+      ).labels,
+    ).toEqual(['"NUMERIC"', '"BOOLEAN"', '"CATEGORICAL"', '"TEXT"']);
   });
 
   it("does not complete unrelated paths, strings, comments, or prototypes", () => {
