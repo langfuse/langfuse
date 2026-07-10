@@ -636,7 +636,6 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       }
 
       const files = await s3StorageService.listFiles(s3Prefix);
-      // Exclude the run-completion manifest (LFE-10843) from the table-file count.
       const projectFiles = files.filter(
         (f) => f.file.includes(projectId) && !f.file.includes("/manifests/"),
       );
@@ -644,8 +643,6 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       // Should have 4 files (traces, observations, scores, events)
       expect(projectFiles).toHaveLength(4);
 
-      // The run manifest lists all 4 files, the export window, and per-file
-      // format; its presence is the run's commit point.
       const manifestFile = files.find((f) => f.file.includes("/manifests/"));
       expect(manifestFile).toBeDefined();
       const manifest = JSON.parse(
@@ -1067,7 +1064,6 @@ describe("BlobStorageIntegrationProcessingJob", () => {
 
         // Get files for this file type
         const files = await s3StorageService.listFiles(prefix);
-        // Exclude the run-completion manifest (LFE-10843) from the table-file count.
         const projectFiles = files.filter(
           (f) =>
             f.file.includes(projectId) &&
@@ -1669,7 +1665,6 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         } as Job);
 
         const files = await s3StorageService.listFiles(s3Prefix);
-        // Exclude the JSON run manifest (LFE-10843) from the extension check.
         const projectFiles = files.filter(
           (f) => f.file.includes(projectId) && !f.file.includes("/manifests/"),
         );
@@ -1724,7 +1719,6 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         } as Job);
 
         const files = await s3StorageService.listFiles(s3Prefix);
-        // Exclude the JSON run manifest (LFE-10843) from the extension check.
         const projectFiles = files.filter(
           (f) => f.file.includes(projectId) && !f.file.includes("/manifests/"),
         );
@@ -1789,7 +1783,6 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         } as Job);
 
         const files = await s3StorageService.listFiles(s3Prefix);
-        // Exclude the JSON run manifest (LFE-10843) from the extension check.
         const projectFiles = files.filter(
           (f) => f.file.includes(projectId) && !f.file.includes("/manifests/"),
         );
@@ -1802,9 +1795,8 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     );
   });
 
-  // LFE-10843: every successful run writes a structured manifest as its last
-  // object (commit point). Uses the non-enriched TRACES_OBSERVATIONS source so
-  // it runs on every CI leg, independent of the V4-preview opt-in.
+  // Uses the non-enriched TRACES_OBSERVATIONS source so it runs on every CI
+  // leg, independent of the V4-preview opt-in.
   describe("run-completion manifest (LFE-10843)", () => {
     maybeIt(
       "writes a manifest listing every file, the window, and per-file format",
@@ -1878,7 +1870,6 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         );
         expect(tableFiles).toHaveLength(3); // scores, traces, observations
 
-        // Manifest key: {prefix}{projectId}/manifests/{maxTimestamp}.json
         const manifestFile = files.find((f) => f.file.includes("/manifests/"));
         expect(manifestFile).toBeDefined();
         expect(manifestFile!.file).toContain(
@@ -1896,13 +1887,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           new Set(["scores", "traces", "observations"]),
         );
 
-        // Files list matches exactly the uploaded table objects.
         expect(
           new Set(manifest.files.map((f: { key: string }) => f.key)),
         ).toEqual(new Set(tableFiles.map((f) => f.file)));
 
-        // Per-file format for a text export: uncompressed JSONL with a counted
-        // row count.
         const tracesEntry = manifest.files.find(
           (f: { table: string }) => f.table === "traces",
         );
@@ -1912,7 +1900,6 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         expect(tracesEntry.rowCount).toBe(1);
         expect(typeof tracesEntry.sizeBytes).toBe("number");
 
-        // Window is populated and maxTimestamp mirrors the window bound.
         expect(typeof manifest.window.minTimestamp).toBe("string");
         expect(manifest.maxTimestamp).toBe(manifest.window.maxTimestamp);
         expect(typeof manifest.createdAt).toBe("string");
@@ -2265,7 +2252,6 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       } as Job);
 
       const files = await s3StorageService.listFiles(s3Prefix);
-      // Exclude the JSON run manifest (LFE-10843) from the parquet-only checks.
       const projectFiles = files.filter(
         (f) => f.file.includes(projectId) && !f.file.includes("/manifests/"),
       );
@@ -2277,8 +2263,6 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         expect(f.file).not.toContain(".gz");
       }
 
-      // The parquet run manifest reports rowCount: null (binary stream, no
-      // per-row count) and PARQUET file type for every listed file (LFE-10843).
       const manifestFile = files.find((f) => f.file.includes("/manifests/"));
       expect(manifestFile).toBeDefined();
       const manifest = JSON.parse(

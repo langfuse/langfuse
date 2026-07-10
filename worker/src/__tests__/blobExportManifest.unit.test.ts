@@ -72,7 +72,6 @@ describe("blob export manifest builders (LFE-10843)", () => {
     expect(manifest.createdAt).toBe("2026-07-10T10:00:05.000Z");
     expect(manifest.tables).toEqual(["scores", "traces", "observations"]);
     expect(manifest.files).toHaveLength(3);
-    // Round-trips through JSON without surprises.
     expect(JSON.parse(JSON.stringify(manifest))).toEqual(manifest);
   });
 

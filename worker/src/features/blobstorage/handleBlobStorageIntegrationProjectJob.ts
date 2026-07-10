@@ -318,8 +318,7 @@ const createRawJsonlNewlineTransform = (): Transform =>
     },
   });
 
-// Shared connection config for every object written by a run (table files and
-// the run-completion manifest). KMS SSE is not supported for this integration.
+// KMS SSE is not supported for this integration.
 type BlobStorageConnectionConfig = {
   bucketName: string;
   endpoint: string | null;
@@ -452,8 +451,6 @@ const processBlobStorageExport = async (config: {
       // Outside the try so the catch can distinguish a real upload success from
       // a failure.
       let uploadSucceeded = false;
-      // Populated at the upload boundary; returned to the caller so the run can
-      // list every file in its completion manifest (LFE-10843).
       let manifestFile: BlobExportManifestFile | undefined;
       let heartbeat: ReturnType<typeof setInterval> | undefined;
 
@@ -489,8 +486,6 @@ const processBlobStorageExport = async (config: {
             ? "passthrough"
             : "standard";
 
-        // Shared stem with the run manifest key, so a run's files and its
-        // manifest sort together under the project prefix.
         const timestamp = formatBlobExportTimestamp(config.maxTimestamp);
         // Parquet: fixed `.parquet` extension (no `.gz`) and Parquet content type.
         const extension = parquetEligible
@@ -807,9 +802,8 @@ const processBlobStorageExport = async (config: {
             ? BlobExportFormat.PARQUET
             : resolveBlobExportFormat(config.fileType, config.compressed);
 
-          // Record this file for the run manifest. rowCount is null on the
-          // parquet path (binary stream has no per-row boundaries, so
-          // sourceStats.rows stays 0 and would misreport as an empty file).
+          // rowCount null on parquet: sourceStats.rows stays 0 for the binary
+          // stream and would misreport as an empty file.
           manifestFile = {
             key: filePath,
             table: config.table,
@@ -1069,8 +1063,7 @@ const processBlobStorageExport = async (config: {
         span.setAttribute("blob.eventLoopDelay.meanMs", Math.round(meanMs));
       }
 
-      // Only reached on the success path (the catch above rethrows), so the
-      // entry is always populated here.
+      // Always populated on the success path (the catch above rethrows).
       if (!manifestFile) {
         throw new Error(
           `[BLOB INTEGRATION] Missing manifest entry after a successful ${config.table} export for project ${config.projectId}`,
@@ -1081,9 +1074,8 @@ const processBlobStorageExport = async (config: {
   );
 };
 
-// Writes the run-completion manifest (LFE-10843). The manifest is a small JSON
-// body, so it uses the single-shot uploadFile (string body) rather than the
-// buffered multipart path the table streams use.
+// Small JSON body, so single-shot uploadFile instead of the buffered multipart
+// path the table streams use.
 const writeBlobExportManifest = async (params: {
   connection: BlobStorageConnectionConfig;
   prefix?: string;
@@ -1111,7 +1103,7 @@ const writeBlobExportManifest = async (params: {
   await storageService.uploadFile({
     fileName: key,
     fileType: "application/json; charset=utf-8",
-    // Trailing newline keeps the object POSIX-line friendly for shell tooling.
+    // Trailing newline for POSIX-friendly shell tooling.
     data: JSON.stringify(manifest, null, 2) + "\n",
   });
 
@@ -1325,7 +1317,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
-    // Files written by this run, collected for the completion manifest below.
     let runFiles: BlobExportManifestFile[];
     if (isTraceOnlyProject) {
       // Only process traces table for projects in the trace-only list (legacy behavior)
@@ -1375,13 +1366,9 @@ export const handleBlobStorageIntegrationProjectJob = async (
       runFiles = await Promise.all(processPromises);
     }
 
-    // Write the run-completion manifest as the LAST object of the run — its
-    // presence is the run's commit point. Strictly after every table upload
-    // succeeded (the awaits above), so consumers subscribing to native
-    // object-created events on the `manifests/` prefix get a run-level
-    // completion signal and can verify they can read every listed file
-    // (LFE-10843). A failure here throws into the catch below, so lastSyncAt is
-    // not advanced and the run retries — table files are simply overwritten.
+    // The manifest is the run's commit point: written strictly after every
+    // table upload succeeded. A failure here fails the run, so lastSyncAt does
+    // not advance and the retry idempotently overwrites the table files.
     await writeBlobExportManifest({
       connection: executionConfig,
       prefix: blobStorageIntegration.prefix || undefined,
