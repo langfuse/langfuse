@@ -145,13 +145,31 @@ jobs:
               return pr;
             };
 
+            // Single source of truth for who may use previews. Same list
+            // gates the /preview comments, workflow_dispatch, and (in the
+            // separate autodeploy_gate job) pull_request_target auto-deploy.
+            const allowlist = (process.env.AWS_PREVIEW_ALLOWED_USERS || "")
+              .split(/[\s,]+/)
+              .filter(Boolean)
+              .map((u) => u.toLowerCase());
+            const isAllowed = (login) =>
+              !!login && allowlist.includes(login.toLowerCase());
+
             if (context.eventName === "schedule") {
               command = "reap";
             } else if (context.eventName === "workflow_dispatch") {
               command = context.payload.inputs.action;
               prNumber = context.payload.inputs.pr_number || "";
               actor = context.actor;
-              if (!["stop-all", "reap"].includes(command)) {
+              if (["stop-all", "reap"].includes(command)) {
+                // Account-wide manual ops: allowlisted operators only.
+                if (!isAllowed(context.actor)) {
+                  core.setFailed(
+                    `${context.actor} is not on the preview allowlist.`,
+                  );
+                  return;
+                }
+              } else {
                 if (!prNumber) {
                   core.setFailed("pr_number is required for per-PR actions.");
                   return;
@@ -161,7 +179,22 @@ jobs:
                   core.setFailed("AWS previews are not available for fork PRs.");
                   return;
                 }
+                // Authorize the dispatcher OR the PR author. The auto-deploy
+                // gate dispatches via the API, where the actor may be the
+                // Actions bot rather than a person, so the allowlisted PR
+                // author is what authorizes those runs. A forged dispatch can
+                // therefore only ever act on an allowlisted author's own PR.
+                if (!isAllowed(context.actor) && !isAllowed(pr.user.login)) {
+                  core.setFailed(
+                    "Not authorized: neither the dispatcher nor the PR author " +
+                      "is on the preview allowlist.",
+                  );
+                  return;
+                }
                 headSha = pr.head.sha;
+                // Attribute the running-env slot to the PR author when they
+                // are the allowlisted party (the normal auto-deploy case).
+                actor = isAllowed(pr.user.login) ? pr.user.login : context.actor;
               }
             } else if (context.eventName === "issue_comment") {
               const body = (context.payload.comment.body || "").trim();
@@ -186,15 +219,8 @@ jobs:
                 return;
               }
 
-              // Single source of truth for who may use previews: the
-              // AWS_PREVIEW_ALLOWED_USERS allowlist (same list gates
-              // pull_request_target auto-deploy). Empty list = nobody.
-              const allowed = (process.env.AWS_PREVIEW_ALLOWED_USERS || "")
-                .split(/[\s,]+/)
-                .filter(Boolean)
-                .map((u) => u.toLowerCase());
-              const commenter = context.payload.comment.user.login.toLowerCase();
-              if (!allowed.includes(commenter)) {
+              // Allowlist gate (shared with dispatch and auto-deploy).
+              if (!isAllowed(context.payload.comment.user.login)) {
                 await reply(
                   "`/preview` commands are limited to the preview allowlist. " +
                     "Ask an admin to add your GitHub username to the " +

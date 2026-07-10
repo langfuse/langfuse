@@ -12,8 +12,9 @@ variables this workflow expects.
 ## Access: the allowlist
 
 A single repository variable, `AWS_PREVIEW_ALLOWED_USERS` (space- or
-comma-separated GitHub logins), controls who may use previews. It governs both
-the auto-deploy trigger and the manual commands. It defaults to `maxdeichmann`
+comma-separated GitHub logins), controls who may use previews. It governs every
+entry point — auto-deploy on PRs, `/preview` comments, and manual
+`workflow_dispatch` runs. It defaults to `maxdeichmann`
 (the initial owner); set the variable in
 Settings → Secrets and variables → Actions → Variables to add or replace users
 without a code change. (Previews as a whole stay dormant until the
