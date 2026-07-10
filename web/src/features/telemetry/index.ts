@@ -4,10 +4,13 @@ import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { v4 as uuidv4 } from "uuid";
 import {
   getDatasetRunItemCountsByProjectInCreationInterval,
+  getIngestionSdkUsageInCreationInterval,
   getObservationCountsByProjectInCreationInterval,
   getScoreCountsByProjectInCreationInterval,
   getTraceCountsByProjectInCreationInterval,
+  type IngestionSdkUsageSummary,
   logger,
+  summarizeIngestionSdkUsage,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 
@@ -237,6 +240,21 @@ async function posthogTelemetry({
       0,
     );
 
+    // Predominant ingested SDK (python/javascript) and version, from the v4
+    // events table; noop on deployments without events_core
+    let ingestionSdkUsage: IngestionSdkUsageSummary | null = null;
+    try {
+      const sdkUsageRows = await getIngestionSdkUsageInCreationInterval({
+        start: startTimeframe ?? new Date(0),
+        end: endTimeframe,
+      });
+      ingestionSdkUsage = sdkUsageRows
+        ? summarizeIngestionSdkUsage(sdkUsageRows)
+        : null;
+    } catch (error) {
+      logger.warn("Telemetry failed to read ingestion SDK usage", error);
+    }
+
     // Domains (no PII)
     const domains = await prisma.$queryRaw<Array<{ domain: string }>>`
       SELECT
@@ -267,11 +285,29 @@ async function posthogTelemetry({
         endTimeframe: endTimeframe.toISOString(),
         eeLicenseKey: env.LANGFUSE_EE_LICENSE_KEY,
         langfuseCloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+        ...(ingestionSdkUsage?.python && {
+          pythonSdkPredominantVersion:
+            ingestionSdkUsage.python.predominantVersion,
+          pythonSdkEventCount: ingestionSdkUsage.python.eventCount,
+        }),
+        ...(ingestionSdkUsage?.javascript && {
+          javascriptSdkPredominantVersion:
+            ingestionSdkUsage.javascript.predominantVersion,
+          javascriptSdkEventCount: ingestionSdkUsage.javascript.eventCount,
+        }),
         $set: {
           environment: process.env.NODE_ENV,
           userDomains: domains,
           docker: true,
           langfuseVersion: VERSION,
+          ...(ingestionSdkUsage?.python && {
+            pythonSdkPredominantVersion:
+              ingestionSdkUsage.python.predominantVersion,
+          }),
+          ...(ingestionSdkUsage?.javascript && {
+            javascriptSdkPredominantVersion:
+              ingestionSdkUsage.javascript.predominantVersion,
+          }),
         },
       },
     });

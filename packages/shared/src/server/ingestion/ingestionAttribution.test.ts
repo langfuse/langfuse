@@ -5,6 +5,7 @@ import {
   classifyIngestionSdkVersion,
   createIngestionAttribution,
   createUnknownSdkIngestionAttribution,
+  summarizeIngestionSdkUsage,
   UNKNOWN_INGESTION_SDK_VALUE,
 } from "./ingestionAttribution";
 
@@ -145,4 +146,59 @@ describe("ingestion attribution", () => {
       );
     },
   );
+});
+
+describe("summarizeIngestionSdkUsage", () => {
+  it("aggregates per canonical SDK and picks the predominant version", () => {
+    expect(
+      summarizeIngestionSdkUsage([
+        { sdkName: "python", sdkVersion: "3.4.0", count: 10 },
+        { sdkName: "langfuse-python", sdkVersion: "3.4.0", count: 5 },
+        { sdkName: "python", sdkVersion: "2.60.0", count: 8 },
+        { sdkName: "@langfuse/tracing", sdkVersion: "5.1.2", count: 3 },
+        { sdkName: "langfuse-js", sdkVersion: "5.1.2", count: 2 },
+        { sdkName: "@langfuse/openai", sdkVersion: "4.0.0", count: 4 },
+      ]),
+    ).toEqual({
+      python: { predominantVersion: "3.4.0", eventCount: 23 },
+      javascript: { predominantVersion: "5.1.2", eventCount: 9 },
+    });
+  });
+
+  it("folds pre-release suffixes into their base version", () => {
+    expect(
+      summarizeIngestionSdkUsage([
+        { sdkName: "python", sdkVersion: "3.4.0-rc.1", count: 3 },
+        { sdkName: "python", sdkVersion: "3.4.0", count: 3 },
+        { sdkName: "python", sdkVersion: "3.3.0", count: 5 },
+      ]),
+    ).toEqual({
+      python: { predominantVersion: "3.4.0", eventCount: 11 },
+    });
+  });
+
+  it("drops unknown and unsupported SDK rows", () => {
+    expect(
+      summarizeIngestionSdkUsage([
+        {
+          sdkName: UNKNOWN_INGESTION_SDK_VALUE,
+          sdkVersion: "1.0.0",
+          count: 100,
+        },
+        {
+          sdkName: "python",
+          sdkVersion: UNKNOWN_INGESTION_SDK_VALUE,
+          count: 100,
+        },
+        { sdkName: "ruby", sdkVersion: "1.0.0", count: 100 },
+        { sdkName: "python", sdkVersion: "3.4.0", count: 1 },
+      ]),
+    ).toEqual({
+      python: { predominantVersion: "3.4.0", eventCount: 1 },
+    });
+  });
+
+  it("returns an empty summary for no rows", () => {
+    expect(summarizeIngestionSdkUsage([])).toEqual({});
+  });
 });

@@ -158,6 +158,59 @@ export const classifyIngestionSdkVersion = (params: {
   };
 };
 
+export type IngestionSdkUsageRow = {
+  sdkName: string;
+  sdkVersion: string;
+  count: number;
+};
+
+export type IngestionSdkUsageSummary = Partial<
+  Record<
+    IngestionSdkCanonicalName,
+    { predominantVersion: string; eventCount: number }
+  >
+>;
+
+/**
+ * Collapses raw (sdkName, sdkVersion, count) rows into per-canonical-SDK
+ * usage: total event count plus the version that ingested the most events.
+ * Rows from non-Langfuse clients (unknown/unsupported SDK names or versions)
+ * are dropped; pre-release suffixes are folded into their base version.
+ */
+export const summarizeIngestionSdkUsage = (
+  rows: IngestionSdkUsageRow[],
+): IngestionSdkUsageSummary => {
+  const versionCounts = new Map<
+    IngestionSdkCanonicalName,
+    Map<string, number>
+  >();
+
+  for (const row of rows) {
+    const canonicalSdkName = normalizeIngestionSdkName(row.sdkName);
+    if (!canonicalSdkName) continue;
+
+    const version = extractBaseIngestionSdkVersion(row.sdkVersion);
+    if (!version || version === UNKNOWN_INGESTION_SDK_VALUE) continue;
+
+    const counts = versionCounts.get(canonicalSdkName) ?? new Map();
+    counts.set(version, (counts.get(version) ?? 0) + row.count);
+    versionCounts.set(canonicalSdkName, counts);
+  }
+
+  const summary: IngestionSdkUsageSummary = {};
+  for (const [canonicalSdkName, counts] of versionCounts) {
+    const [predominantVersion] = [...counts.entries()].sort(
+      (a, b) => b[1] - a[1] || b[0].localeCompare(a[0]),
+    )[0]!;
+    summary[canonicalSdkName] = {
+      predominantVersion,
+      eventCount: [...counts.values()].reduce((acc, curr) => acc + curr, 0),
+    };
+  }
+
+  return summary;
+};
+
 export const createIngestionAttribution = (params: {
   headers?: IngestionHeaderMap;
   authCheck: AuthHeaderValidVerificationResult;

@@ -11,6 +11,7 @@ import {
   updateEvents,
   getTraceByIdFromEventsTable,
   getObservationsBatchIOFromEventsTable,
+  getIngestionSdkUsageInCreationInterval,
   getLatestSdkVersionInfoFromEvents,
   getTracesIdentifierForSessionFromEvents,
   getEventsFilterOptionsForColumns,
@@ -3515,6 +3516,68 @@ describe("Clickhouse Events Repository Test", () => {
       expect(result.name).toBeUndefined();
       expect(result.version).toBeUndefined();
       expect(result.language).toBe("nodejs");
+    });
+  });
+
+  maybe("getIngestionSdkUsageInCreationInterval", () => {
+    it("aggregates SDK usage by name and version within the interval", async () => {
+      const now = Date.now();
+      // The query is instance-wide (no project filter), so isolate this
+      // test's rows via a unique version string
+      const uniqueVersion = `9.9.9+${randomUUID()}`;
+
+      await createEventsCh([
+        createEvent({
+          project_id: randomUUID(),
+          ingestion_sdk_name: "langfuse-python",
+          ingestion_sdk_version: uniqueVersion,
+        }),
+        createEvent({
+          project_id: randomUUID(),
+          ingestion_sdk_name: "langfuse-python",
+          ingestion_sdk_version: uniqueVersion,
+        }),
+      ]);
+
+      const rows = await getIngestionSdkUsageInCreationInterval({
+        start: new Date(now - 60 * 60 * 1000),
+        end: new Date(now + 60 * 60 * 1000),
+      });
+
+      expect(rows).not.toBeNull();
+      expect(rows).toContainEqual({
+        sdkName: "langfuse-python",
+        sdkVersion: uniqueVersion,
+        count: 2,
+      });
+      // 'unknown' sentinel rows (raw OTel clients) are excluded
+      for (const row of rows!) {
+        expect(row.sdkName).not.toBe("unknown");
+        expect(row.sdkVersion).not.toBe("unknown");
+      }
+    });
+
+    it("excludes events created outside the interval", async () => {
+      const now = Date.now();
+      const uniqueVersion = `9.9.9+${randomUUID()}`;
+
+      await createEventsCh([
+        createEvent({
+          project_id: randomUUID(),
+          ingestion_sdk_name: "langfuse-python",
+          ingestion_sdk_version: uniqueVersion,
+        }),
+      ]);
+
+      const rows = await getIngestionSdkUsageInCreationInterval({
+        start: new Date(now - 2 * 60 * 60 * 1000),
+        end: new Date(now - 60 * 60 * 1000),
+      });
+
+      expect(rows).not.toBeNull();
+      expect(
+        rows!.find((row) => row.sdkVersion === uniqueVersion),
+      ).toBeUndefined();
     });
   });
 
