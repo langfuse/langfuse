@@ -97,6 +97,27 @@ export const formatTokenCounts = (
     : `${numberFormatter(inputUsage ?? 0, 0)} → ${numberFormatter(outputUsage ?? 0, 0)} (∑ ${numberFormatter(totalUsage ?? 0, 0)})`;
 };
 
+/**
+ * Output tokens / generation window (completion start → end).
+ * Matches Metrics `outputTokensPerSecond`: excludes time-to-first-token.
+ */
+export const getOutputTokensPerSecond = (
+  outputUsage?: number | null,
+  latency?: number | null,
+  timeToFirstToken?: number | null,
+): number | undefined => {
+  if (!outputUsage || latency == null || timeToFirstToken == null) {
+    return undefined;
+  }
+
+  const generationSeconds = latency - timeToFirstToken;
+  if (generationSeconds <= 0) {
+    return undefined;
+  }
+
+  return Number((outputUsage / generationSeconds).toFixed(1));
+};
+
 export function randomIntFromInterval(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1) + min);
 }
