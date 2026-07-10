@@ -76,15 +76,26 @@ export const BlobStorageIntegrationContainer = ({
   // value set on the SAME identity means someone else saved — surface a
   // banner, never discard the draft without an explicit click. `epoch`
   // remounts the form on that click.
-  const identity = `${projectId}:${config ? "configured" : "new"}`;
+  // The identity treats "inputs not yet resolved" as its own state: the
+  // snapshot taken during the loading render is baked against the fallback
+  // availability (isEnrichedExportAvailable defaults false while the query
+  // loads), which would otherwise read as drift on a never-configured
+  // project once availability resolves and flips the exportSource default.
+  const inputsResolved = !isLoading && project != null;
+  const identity = inputsResolved
+    ? `${projectId}:${config ? "configured" : "new"}`
+    : "unresolved";
   const comparableConfigValues = (
     c: Partial<BlobStorageIntegration> | null,
   ) => {
     const v = buildBlobStorageFormValues(c ?? undefined, availability);
-    // Field-group order is a persistence detail, not a config difference.
     return JSON.stringify({
       ...v,
+      // Field-group order is a persistence detail, not a config difference.
       exportFieldGroups: [...(v.exportFieldGroups ?? [])].sort(),
+      // Never part of the comparison: the GET omits it, while the mutation
+      // returns the encrypted value — the two sources must normalize equal.
+      secretAccessKey: null,
     });
   };
   const [snapshot, setSnapshot] = useState<{
@@ -100,17 +111,23 @@ export const BlobStorageIntegrationContainer = ({
   });
   // Own-save tracking. `inFlight` is set from onMutate so a poll refetch
   // that races ahead of the mutation response cannot flash the banner for
-  // the user's own change. onSuccess records the updatedAt the save wrote;
-  // any refetch at or after it (>= — worker status writes may bump the row
-  // again before our refetch lands) is adopted silently: remount from the
-  // saved row, clearing dirty flags. A value change WITHOUT a pending
-  // expectation is a genuine concurrent edit and banners, so a leftover
-  // expectation cannot swallow an external edit that arrives after the
-  // post-save refetch has cleared it.
+  // the user's own change. onSuccess records the updatedAt AND the values
+  // the save wrote; a refetch is adopted silently (remount from the saved
+  // row, clearing dirty flags) only when its timestamp is at-or-after the
+  // save's (>= — worker status writes may bump the row again before our
+  // refetch lands) AND its user-configurable values equal what the save
+  // wrote. A concurrent user's save landing inside the save→refetch window
+  // fails the value check and still banners.
   const [selfSave, setSelfSave] = useState<{
     inFlight: boolean;
     expectedUpdatedAt: number | null;
-  }>({ inFlight: false, expectedUpdatedAt: null });
+    expectedValues: string | null;
+  }>({ inFlight: false, expectedUpdatedAt: null, expectedValues: null });
+  const clearedSelfSave = {
+    inFlight: false,
+    expectedUpdatedAt: null,
+    expectedValues: null,
+  };
 
   // Render-phase state adjustment (React's derive-state-from-props pattern):
   // identity changes rebaseline the snapshot before anything is compared.
@@ -122,7 +139,7 @@ export const BlobStorageIntegrationContainer = ({
       epoch: 0,
     });
     if (selfSave.inFlight || selfSave.expectedUpdatedAt != null)
-      setSelfSave({ inFlight: false, expectedUpdatedAt: null });
+      setSelfSave(clearedSelfSave);
   }
 
   const configUpdatedAt = config?.updatedAt
@@ -135,7 +152,8 @@ export const BlobStorageIntegrationContainer = ({
     snapshot.identity === identity &&
     selfSave.expectedUpdatedAt != null &&
     configUpdatedAt != null &&
-    configUpdatedAt >= selfSave.expectedUpdatedAt;
+    configUpdatedAt >= selfSave.expectedUpdatedAt &&
+    comparableConfigValues(config) === selfSave.expectedValues;
 
   if (adoptingSelfSave) {
     setSnapshot({
@@ -144,7 +162,7 @@ export const BlobStorageIntegrationContainer = ({
       values: comparableConfigValues(config),
       epoch: snapshot.epoch + 1,
     });
-    setSelfSave({ inFlight: false, expectedUpdatedAt: null });
+    setSelfSave(clearedSelfSave);
   }
   const hasDrift = valuesChanged && !selfSave.inFlight && !adoptingSelfSave;
 
@@ -154,12 +172,16 @@ export const BlobStorageIntegrationContainer = ({
   // correct even after a switch.
   const mut = api.blobStorageIntegration.update.useMutation({
     onMutate: () => {
-      setSelfSave({ inFlight: true, expectedUpdatedAt: null });
+      setSelfSave({
+        inFlight: true,
+        expectedUpdatedAt: null,
+        expectedValues: null,
+      });
     },
     onSuccess: (data, variables) => {
       utils.blobStorageIntegration.invalidate();
       if (variables.projectId !== projectIdRef.current) {
-        setSelfSave({ inFlight: false, expectedUpdatedAt: null }); // stale
+        setSelfSave(clearedSelfSave); // stale
         return;
       }
       setSelfSave({
@@ -167,10 +189,11 @@ export const BlobStorageIntegrationContainer = ({
         expectedUpdatedAt: data?.updatedAt
           ? new Date(data.updatedAt).getTime()
           : null,
+        expectedValues: data ? comparableConfigValues(data) : null,
       });
     },
     onError: (error, variables) => {
-      setSelfSave({ inFlight: false, expectedUpdatedAt: null });
+      setSelfSave(clearedSelfSave);
       if (variables.projectId !== projectIdRef.current) return; // stale
       showErrorToast("Failed to save integration", error.message);
     },
@@ -201,7 +224,7 @@ export const BlobStorageIntegrationContainer = ({
 
   // The form is never mounted before its inputs resolve, so there is no
   // mid-flight reset to protect a draft from.
-  if (isLoading || !project) {
+  if (!inputsResolved) {
     return (
       <div className="space-y-3">
         <Skeleton className="h-9 w-full" />

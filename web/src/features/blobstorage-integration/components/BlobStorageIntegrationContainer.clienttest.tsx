@@ -215,7 +215,7 @@ describe("BlobStorageIntegrationContainer", () => {
     act(() => mutationOpts.update.onMutate?.({ projectId: "p1" }));
     act(() =>
       mutationOpts.update.onSuccess?.(
-        { updatedAt: savedAt },
+        savedConfig({ bucketName: "self-saved-bucket", updatedAt: savedAt }),
         { projectId: "p1" },
       ),
     );
@@ -252,10 +252,10 @@ describe("BlobStorageIntegrationContainer", () => {
     ).not.toBeInTheDocument(); // no flash while in flight
     expect(bucketInput()).toHaveValue("racy-bucket"); // draft untouched
 
-    // Mutation response arrives; its updatedAt matches → silent adoption.
+    // Mutation response arrives; its updatedAt and values match → adoption.
     act(() =>
       mutationOpts.update.onSuccess?.(
-        { updatedAt: savedAt },
+        savedConfig({ bucketName: "racy-bucket", updatedAt: savedAt }),
         { projectId: "p1" },
       ),
     );
@@ -277,7 +277,7 @@ describe("BlobStorageIntegrationContainer", () => {
     act(() => mutationOpts.update.onMutate?.({ projectId: "p1" }));
     act(() =>
       mutationOpts.update.onSuccess?.(
-        { updatedAt: savedAt },
+        savedConfig({ bucketName: "self-saved-bucket", updatedAt: savedAt }),
         { projectId: "p1" },
       ),
     );
@@ -307,10 +307,9 @@ describe("BlobStorageIntegrationContainer", () => {
 
     act(() => mutationOpts.update.onMutate?.({ projectId: "p1" }));
     act(() =>
-      mutationOpts.update.onSuccess?.(
-        { updatedAt: savedAt },
-        { projectId: "p1" },
-      ),
+      mutationOpts.update.onSuccess?.(savedConfig({ updatedAt: savedAt }), {
+        projectId: "p1",
+      }),
     );
 
     fireEvent.change(bucketInput(), { target: { value: "my-draft" } });
@@ -327,5 +326,55 @@ describe("BlobStorageIntegrationContainer", () => {
       screen.getByText("Configuration changed elsewhere"),
     ).toBeInTheDocument(); // still banners
     expect(bucketInput()).toHaveValue("my-draft"); // draft intact
+  });
+
+  it("first visit: availability resolving after the loading render does not banner", () => {
+    // While the query loads, the page passes isEnrichedExportAvailable=false
+    // (the ?? false fallback); once resolved it may flip to true, changing
+    // the exportSource default for a never-configured project. That
+    // transition must rebaseline, not read as drift.
+    const { rerender } = render(
+      ui({ isLoading: true, config: null, isEnrichedExportAvailable: false }),
+    );
+    rerender(
+      ui({ isLoading: false, config: null, isEnrichedExportAvailable: true }),
+    );
+
+    expect(
+      screen.queryByText("Configuration changed elsewhere"),
+    ).not.toBeInTheDocument();
+    expect(bucketInput()).toHaveValue(""); // blank new-config form
+  });
+
+  it("concurrent save landing inside the save→refetch window still banners", () => {
+    // User B's save reaches the server after A's save but before A's
+    // post-save refetch: the refetch carries B's values with a LATER
+    // updatedAt. Timestamp alone would adopt it silently; the value check
+    // must keep the banner.
+    const savedAt = new Date("2026-01-02T00:00:00Z");
+    const userBAt = new Date("2026-01-02T00:00:03Z");
+    const { rerender } = render(ui({ config: savedConfig() }));
+    fireEvent.change(bucketInput(), { target: { value: "user-a-bucket" } });
+
+    act(() => mutationOpts.update.onMutate?.({ projectId: "p1" }));
+    act(() =>
+      mutationOpts.update.onSuccess?.(
+        savedConfig({ bucketName: "user-a-bucket", updatedAt: savedAt }),
+        { projectId: "p1" },
+      ),
+    );
+    rerender(
+      ui({
+        config: savedConfig({
+          bucketName: "user-b-bucket",
+          updatedAt: userBAt,
+        }),
+      }),
+    );
+
+    expect(
+      screen.getByText("Configuration changed elsewhere"),
+    ).toBeInTheDocument();
+    expect(bucketInput()).toHaveValue("user-a-bucket"); // draft intact
   });
 });
