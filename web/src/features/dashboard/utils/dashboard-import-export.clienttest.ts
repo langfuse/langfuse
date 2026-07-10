@@ -1,7 +1,6 @@
 import { HOME_DASHBOARD_PRESET_IDS } from "@langfuse/shared";
 import {
   buildDashboardExport,
-  buildDashboardJsonFileName,
   buildPresetExport,
   DASHBOARD_FILE_FORMAT_VERSION,
   isPasteablePlacementPayload,
@@ -269,14 +268,5 @@ describe("isPasteablePlacementPayload", () => {
         isBetaEnabled: false,
       }),
     ).toBe(false);
-  });
-});
-
-describe("buildDashboardJsonFileName", () => {
-  it("builds a file-safe name with a dashboard fallback", () => {
-    expect(buildDashboardJsonFileName("My Dashboard!")).toBe(
-      "my-dashboard.json",
-    );
-    expect(buildDashboardJsonFileName("  ")).toBe("dashboard.json");
   });
 });

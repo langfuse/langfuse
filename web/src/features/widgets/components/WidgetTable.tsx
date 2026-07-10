@@ -141,11 +141,6 @@ function WidgetActionsCell({
         kind: "widget",
         widget_id: widgetId,
       });
-      showSuccessToast({
-        title: "Widget copied",
-        description:
-          "Widget configuration copied to clipboard. Paste it on any dashboard.",
-      });
     } catch (error) {
       showErrorToast(
         "Failed to copy widget",

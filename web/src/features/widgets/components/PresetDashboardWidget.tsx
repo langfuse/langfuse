@@ -22,7 +22,6 @@ import {
 } from "@/src/features/dashboard/utils/dashboard-import-export";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
 import {
@@ -190,11 +189,6 @@ export function PresetDashboardWidget({
         kind: "preset",
         preset_id: placement.presetId,
         dashboard_id: dashboardId,
-      });
-      showSuccessToast({
-        title: "Card copied",
-        description:
-          "Card configuration copied to clipboard. Paste it on any dashboard.",
       });
     } catch {
       showErrorToast("Copy failed", "Could not write to the clipboard.");

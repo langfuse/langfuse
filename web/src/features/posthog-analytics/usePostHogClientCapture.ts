@@ -148,7 +148,6 @@ export const events = {
     "widget_pasted",
     "widget_paste_rejected",
     "widget_duplicated",
-    "dashboard_json_downloaded",
     "dashboard_json_imported",
     "add_widget_dialog_open",
     "add_widget_tab_switch",

@@ -39,7 +39,6 @@ import {
 } from "@langfuse/shared";
 import {
   ClipboardPasteIcon,
-  FileJsonIcon,
   HomeIcon,
   Loader2,
   MoreVertical,
@@ -69,21 +68,18 @@ import {
   type WidgetExportSource,
 } from "@/src/features/widgets/utils/import-export-utils";
 import {
-  buildDashboardExport,
-  downloadDashboardJson,
   isPasteablePlacementPayload,
   parseDashboardImport,
   parsePastedPreset,
   type ParsedDashboardImport,
 } from "@/src/features/dashboard/utils/dashboard-import-export";
 import { type PresetPlacement } from "@/src/features/widgets/components/PresetDashboardWidget";
+import { pushDownForInsertion } from "@/src/features/widgets/utils/grid-placement";
 import { readTextFromClipboard } from "@/src/utils/clipboard";
 import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
 import { extractTransferFiles } from "@/src/components/editor/fileDropPaste";
 import { Layer } from "@/src/components/ui/layer";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { type metricAggregations } from "@langfuse/shared/query";
-import { type z } from "zod";
 
 // Position for a tile inserted "next to" an anchor tile: same size,
 // immediately to the right when that fits the 12-column grid, otherwise
@@ -317,10 +313,15 @@ export default function DashboardDetail() {
         y_size: position?.y_size ?? 6, // Default height of 6 rows
       };
 
-      // Add the widget to the local dashboard definition
+      // An explicit position may target an occupied slot ("paste to the
+      // right") — push the tiles in the way below it; bottom inserts are
+      // collision-free by construction.
+      const existingWidgets = position
+        ? pushDownForInsertion(currentDefinition.widgets, newWidgetPlacement)
+        : currentDefinition.widgets;
       applyDashboardDefinition({
         ...currentDefinition,
-        widgets: [...currentDefinition.widgets, newWidgetPlacement],
+        widgets: [...existingWidgets, newWidgetPlacement],
       });
 
       // The new widget may land outside the viewport — bring it into view.
@@ -364,9 +365,13 @@ export default function DashboardDetail() {
         y_size: position?.y_size ?? 6,
       };
 
+      // See insertWidgetPlacement: anchored inserts displace occupying tiles.
+      const existingWidgets = position
+        ? pushDownForInsertion(currentDefinition.widgets, newPresetPlacement)
+        : currentDefinition.widgets;
       applyDashboardDefinition({
         ...currentDefinition,
-        widgets: [...currentDefinition.widgets, newPresetPlacement],
+        widgets: [...existingWidgets, newPresetPlacement],
       });
 
       setTimeout(() => {
@@ -627,93 +632,6 @@ export default function DashboardDetail() {
     isDashboardMenuOpen && hasCUDAccess,
     isPasteablePayload,
   );
-
-  // Export this dashboard as a portable JSON file: the definition with each
-  // referenced widget's configuration inlined.
-  const handleDownloadDashboardJson = useCallback(async () => {
-    if (!dashboard.data || !localDashboardDefinition) return;
-    try {
-      const widgetIds = [
-        ...new Set(
-          localDashboardDefinition.widgets.flatMap((w) =>
-            w.type === "widget" ? [w.widgetId] : [],
-          ),
-        ),
-      ];
-      const fetchedEntries = await Promise.all(
-        widgetIds.map(async (widgetId) => {
-          try {
-            const widget = await utils.dashboardWidgets.get.fetch({
-              projectId,
-              widgetId,
-            });
-            const source: WidgetExportSource = {
-              name: widget.name,
-              description: widget.description,
-              view: widget.view,
-              dimensions: widget.dimensions,
-              metrics: widget.metrics.map((metric) => ({
-                measure: metric.measure,
-                agg: metric.agg as z.infer<typeof metricAggregations>,
-              })),
-              filters: widget.filters,
-              chartType: widget.chartType,
-              chartConfig: widget.chartConfig,
-              minVersion: widget.minVersion,
-            };
-            return [widgetId, source] as const;
-          } catch {
-            // Stale placement referencing a deleted widget — skip it.
-            return [widgetId, null] as const;
-          }
-        }),
-      );
-      const widgetsById = new Map(
-        fetchedEntries.flatMap(([widgetId, source]) =>
-          source ? [[widgetId, source] as const] : [],
-        ),
-      );
-
-      const { exportPayload, skippedWidgetCount } = buildDashboardExport({
-        name: dashboard.data.name,
-        description: dashboard.data.description,
-        filters: dashboard.data.filters,
-        placements: localDashboardDefinition.widgets,
-        widgetsById,
-      });
-      downloadDashboardJson(exportPayload, dashboard.data.name);
-      capture("dashboard:dashboard_json_downloaded", {
-        dashboard_id: dashboardId,
-        // Placement count (not deduped widget ids) so the download and
-        // import events describe the same quantity.
-        widget_count: localDashboardDefinition.widgets.filter(
-          (w) => w.type === "widget",
-        ).length,
-        preset_count: localDashboardDefinition.widgets.filter(
-          (w) => w.type === "preset",
-        ).length,
-      });
-      if (skippedWidgetCount > 0) {
-        showErrorToast(
-          "Some widgets were not exported",
-          `${skippedWidgetCount} widget(s) could not be resolved and were left out of the file.`,
-          "WARNING",
-        );
-      }
-    } catch (e) {
-      showErrorToast(
-        "Failed to export dashboard",
-        e instanceof Error ? e.message : "Unknown error",
-      );
-    }
-  }, [
-    dashboard.data,
-    localDashboardDefinition,
-    projectId,
-    utils,
-    capture,
-    dashboardId,
-  ]);
 
   // Import a dropped dashboard file: recreate its widgets as project widgets
   // and append the placements below the existing content, preserving the
@@ -1337,10 +1255,6 @@ export default function DashboardDetail() {
                     >
                       <HomeIcon className="mr-2 h-4 w-4" />
                       {isCurrentHome ? "Shown on Home" : "Use as Home"}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleDownloadDashboardJson}>
-                      <FileJsonIcon className="mr-2 h-4 w-4" />
-                      Download as JSON
                     </DropdownMenuItem>
                     {hasCUDAccess && (
                       <DropdownMenuItem

@@ -31,7 +31,6 @@ import {
 import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { downloadChartDataCsv } from "@/src/features/widgets/chart-library/downloadChartDataCsv";
 import {
   buildWidgetExport,
@@ -546,11 +545,6 @@ export function DashboardWidget({
         kind: "widget",
         widget_id: placement.widgetId,
         dashboard_id: dashboardId,
-      });
-      showSuccessToast({
-        title: "Widget copied",
-        description:
-          "Widget configuration copied to clipboard. Paste it on any dashboard.",
       });
     } catch {
       showErrorToast("Copy failed", "Could not write to the clipboard.");

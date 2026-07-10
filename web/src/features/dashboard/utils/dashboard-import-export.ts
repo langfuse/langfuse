@@ -154,10 +154,12 @@ export type DashboardExportPlacement =
   | ({ type: "preset"; presetId: string } & PlacementPosition);
 
 /**
- * The canonical dashboard export shape: dashboard metadata plus each
- * placement with its widget's portable configuration inlined. Placements
- * whose widget row cannot be resolved (stale references) are skipped and
- * counted.
+ * The canonical dashboard file shape accepted by drag-drop import: dashboard
+ * metadata plus each placement with its widget's portable configuration
+ * inlined. There is deliberately no in-app dashboard download (widget-level
+ * export covers sharing; Clone covers same-project duplication) — this
+ * builder documents the format and backs the import round-trip tests.
+ * Placements whose widget cannot be resolved are skipped and counted.
  */
 export function buildDashboardExport(params: {
   name: string;
@@ -207,33 +209,6 @@ export function buildDashboardExport(params: {
     },
     skippedWidgetCount,
   };
-}
-
-export function buildDashboardJsonFileName(dashboardName: string) {
-  const fileSafeName = dashboardName
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-
-  return `${fileSafeName || "dashboard"}.json`;
-}
-
-export function downloadDashboardJson(
-  exportPayload: Record<string, unknown>,
-  dashboardName: string,
-) {
-  const blob = new Blob([JSON.stringify(exportPayload, null, 2)], {
-    type: "application/json",
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = buildDashboardJsonFileName(dashboardName);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 }
 
 export type ParsedDashboardImportPlacement =
