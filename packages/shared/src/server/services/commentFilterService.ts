@@ -1,4 +1,5 @@
 import type { PrismaClient } from "../../db";
+import { InvalidRequestError } from "../../errors";
 import { type singleFilter } from "../../interfaces/filters";
 import {
   type CommentObjectType,
@@ -26,8 +27,8 @@ export function validateObjectIdCount(
 ): void {
   if (objectIds.length > COMMENT_FILTER_THRESHOLD) {
     const objectTypePlural = objectType.toLowerCase() + "s";
-    throw new Error(
-      `Comment filter matches ${objectIds.length.toLocaleString()} ${objectTypePlural} (limit: ${COMMENT_FILTER_THRESHOLD.toLocaleString()}). Please add additional filters to narrow your search.`,
+    throw new InvalidRequestError(
+      `Comment filter matches ${objectIds.length.toLocaleString("en-US")} ${objectTypePlural} (limit: ${COMMENT_FILTER_THRESHOLD.toLocaleString("en-US")}). Please add additional filters to narrow your search.`,
     );
   }
 }
@@ -123,7 +124,7 @@ export async function applyCommentFilters({
   }
 
   let objectIdsFromComments: string[] = [];
-  const hasCommentCountFilters = commentCountFilters.length > 0;
+  let shouldIntersectWithCommentCountIds = commentCountFilters.length > 0;
 
   // Remove comment filters from filterState
   const updatedFilterState = filterState.filter(
@@ -164,6 +165,16 @@ export async function applyCommentFilters({
             matchingIds: null,
           };
         }
+        // Only the lower-bound predicates that are no-ops for non-negative
+        // counts can safely be discarded before applying the content filter.
+        const commentCountFilterIsNoop =
+          numberFilters.length === commentCountFilters.length &&
+          numberFilters.every(
+            (filter) =>
+              (filter.operator === ">=" && filter.value <= 0) ||
+              (filter.operator === ">" && filter.value < 0),
+          );
+        shouldIntersectWithCommentCountIds = !commentCountFilterIsNoop;
         // Continue to content filter handling below
       } else {
         // Get IDs that EXCEED the upper bound (to exclude them)
@@ -290,8 +301,7 @@ export async function applyCommentFilters({
     validateObjectIdCount(contentObjectIds, objectType);
 
     // Intersect with comment count results if present
-    if (hasCommentCountFilters) {
-      // Always intersect if comment count filters were processed
+    if (shouldIntersectWithCommentCountIds) {
       objectIdsFromComments = objectIdsFromComments.filter((id) =>
         contentObjectIds.includes(id),
       );

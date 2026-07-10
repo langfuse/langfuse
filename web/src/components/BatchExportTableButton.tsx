@@ -31,6 +31,25 @@ export type BatchExportTableButtonProps = {
   searchType?: any;
 };
 
+export const getBatchExportWarningMessage = (
+  tableName: BatchExportTableName,
+): string | null => {
+  switch (tableName) {
+    case BatchTableNames.Traces:
+      return "Note: Filters on observation-level columns (Level, Tokens, Cost, Latency) and Comments are not included in trace exports. You may receive more data than expected.";
+    case BatchTableNames.Observations:
+      return "Note: Filters on trace-level columns (Trace Name, Trace Tags, User ID, Trace Environment) and Comments are not included in observation exports. You may receive more data than expected.";
+    case BatchTableNames.Sessions:
+      return "Note: Filters on Comments are not included in session exports. You may receive more data than expected.";
+    case BatchTableNames.AuditLogs:
+      return "Note: Filters are not applied to audit log exports. All audit logs for this project will be exported.";
+    default:
+      // Scores, events, dataset run items, and dataset items support their
+      // advertised filters.
+      return null;
+  }
+};
+
 export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
   props,
 ) => {
@@ -74,25 +93,7 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
 
   if (!hasAccess) return null;
 
-  const getWarningMessage = () => {
-    switch (props.tableName) {
-      case BatchTableNames.Traces:
-        return "Note: Filters on observation-level columns (Level, Tokens, Cost, Latency) and Comments are not included in trace exports. You may receive more data than expected.";
-      case BatchTableNames.Observations:
-        return "Note: Filters on trace-level columns (Trace Name, Trace Tags, User ID, Trace Environment) and Comments are not included in observation exports. You may receive more data than expected.";
-      case BatchTableNames.Events:
-        return "Note: Filters on Comments are not included in event exports. You may receive more data than expected.";
-      case BatchTableNames.Sessions:
-        return "Note: Filters on Comments are not included in session exports. You may receive more data than expected.";
-      case BatchTableNames.AuditLogs:
-        return "Note: Filters are not applied to audit log exports. All audit logs for this project will be exported.";
-      default:
-        // Note: for Scores, DatasetRunItems, DatasetItems, filters should work as expected
-        return null;
-    }
-  };
-
-  const warningMessage = getWarningMessage();
+  const warningMessage = getBatchExportWarningMessage(props.tableName);
 
   return (
     <DropdownMenu>
