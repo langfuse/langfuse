@@ -764,4 +764,83 @@ describe("experiment tool config (#14904)", () => {
     expect(call).toBeDefined();
     expect(call).not.toHaveProperty("tools");
   });
+
+  test("warns when prompt tool_choice cannot be forwarded", async () => {
+    const mockLogger = vi.mocked(logger);
+    const { projectId } = await createOrgProjectAndApiKey();
+    const datasetId = randomUUID();
+    const runId = randomUUID();
+    const promptId = randomUUID();
+
+    await prisma.prompt.create({
+      data: {
+        id: promptId,
+        projectId,
+        name: "Weather Prompt",
+        prompt: [{ role: "user", content: "Weather in {{city}}?" }],
+        type: "chat",
+        version: 1,
+        createdBy: "test-user",
+        config: {
+          tools: [
+            {
+              name: "get_weather",
+              description: "Get the current weather for a city",
+              parameters: {
+                type: "object",
+                properties: { city: { type: "string" } },
+                required: ["city"],
+              },
+            },
+          ],
+          tool_choice: "required",
+        },
+      },
+    });
+
+    await prisma.dataset.create({
+      data: { id: datasetId, projectId, name: "Tool Choice Dataset" },
+    });
+
+    await prisma.datasetRuns.create({
+      data: {
+        id: runId,
+        name: "Tool Choice Run",
+        projectId,
+        datasetId,
+        metadata: {
+          prompt_id: promptId,
+          provider: "openai",
+          model: "gpt-3.5-turbo",
+          model_params: { temperature: 0 },
+        },
+      },
+    });
+
+    await createDatasetItem({ projectId, datasetId, input: { city: "Paris" } });
+
+    await prisma.llmApiKeys.create({
+      data: {
+        id: randomUUID(),
+        projectId,
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        displaySecretKey: "test-key",
+        secretKey: encrypt("test-key"),
+      },
+    });
+
+    const result = await createExperimentJobClickhouse({
+      event: { projectId, datasetId, runId },
+    });
+
+    expect(result).toEqual({ success: true });
+    // Tools are still forwarded, but the unsupported tool_choice is flagged.
+    expect(vi.mocked(fetchLLMCompletion)).toHaveBeenCalledWith(
+      expect.objectContaining({ tools: expect.any(Array) }),
+    );
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("tool_choice"),
+    );
+  });
 });

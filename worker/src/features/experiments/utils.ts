@@ -228,7 +228,10 @@ export async function validateAndSetupExperiment(
   // validate it here so it can be forwarded to the LLM call; invalid or absent
   // configs fall back to no tools. (GitHub #14904)
   const promptToolsResult = z
-    .object({ tools: z.array(LLMToolDefinitionSchema) })
+    .object({
+      tools: z.array(LLMToolDefinitionSchema),
+      tool_choice: z.unknown().optional(),
+    })
     .safeParse(prompt.config);
   const promptTools = promptToolsResult.success
     ? promptToolsResult.data.tools
@@ -246,6 +249,24 @@ export async function validateAndSetupExperiment(
     );
   }
   const tools = hasStructuredOutput ? [] : promptTools;
+
+  // fetchLLMCompletion does not accept tool_choice yet, so a non-default value
+  // set on the prompt (e.g. "required"/"none") has no effect in experiments.
+  // Warn so it is discoverable instead of silently dropped. (GitHub #14904)
+  const promptToolChoice = promptToolsResult.success
+    ? promptToolsResult.data.tool_choice
+    : undefined;
+  if (
+    tools.length > 0 &&
+    promptToolChoice !== undefined &&
+    promptToolChoice !== "auto"
+  ) {
+    logger.warn(
+      `Experiment run ${runId}: prompt tool_choice ${JSON.stringify(
+        promptToolChoice,
+      )} is not applied; experiments do not forward tool_choice.`,
+    );
+  }
 
   return {
     datasetRun,
