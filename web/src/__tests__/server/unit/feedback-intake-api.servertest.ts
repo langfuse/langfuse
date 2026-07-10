@@ -12,7 +12,7 @@ vi.mock("@/src/features/feedback/server/FeedbackService", () => ({
   submitFeedback: mockSubmitFeedback,
 }));
 
-import handler from "@/src/pages/api/feedback";
+import handler from "@/src/pages/api/feedback/docs-mcp";
 
 const token = "a".repeat(32);
 const body = {
@@ -31,7 +31,7 @@ const createRequest = (authorization = `Bearer ${token}`) =>
     body,
   });
 
-describe("POST /api/feedback", () => {
+describe("POST /api/feedback/docs-mcp", () => {
   const originalToken = (env as any).LANGFUSE_FEEDBACK_INTAKE_TOKEN;
 
   beforeEach(() => {

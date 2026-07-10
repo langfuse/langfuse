@@ -1,7 +1,7 @@
-import feedbackApiHandler from "@/src/features/feedback/server/feedbackHandler";
+import docsMcpFeedbackHandler from "@/src/features/feedback/server/docsMcpFeedbackHandler";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 
-export default withMiddlewares({ POST: feedbackApiHandler });
+export default withMiddlewares({ POST: docsMcpFeedbackHandler });
 
 export const config = {
   api: {
