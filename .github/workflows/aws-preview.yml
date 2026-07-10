@@ -7,18 +7,19 @@ name: AWS PR Preview
 #   /preview resume    start the instance again
 #   /preview destroy   delete the CloudFormation stack and preview images
 #
-# Comment `/preview deploy` to build the PR head and (re)deploy its preview;
-# run it again after pushing commits to refresh a running preview. Each
-# engineer may have at most 5 previews running at once (best-effort,
-# PreviewOwner tag). A housekeeping schedule stops previews that have been
-# idle (low CPU) for several hours, destroys previews whose PR is closed,
-# and destroys previews stopped for more than 7 days.
+# PRs opened by an allowlisted author (AWS_PREVIEW_ALLOWED_USERS) auto-deploy
+# and refresh on every push. Anyone on the allowlist can also drive previews
+# manually with the /preview comments above. Each engineer may have at most 5
+# previews running at once (best-effort, PreviewOwner tag). A housekeeping
+# schedule stops previews idle (low CPU) for several hours, destroys previews
+# whose PR is closed, and destroys previews stopped for more than 7 days.
 #
 # All AWS-touching jobs run only from the default branch: the OIDC role's
 # trust policy accepts only the refs/heads/main subject, so unreviewed
-# pull-request workflow code can never assume it. That is why this workflow
-# is not triggered by `pull_request` — PR lifecycle (refresh on push,
-# cleanup on close) is handled by /preview commands and reconciliation.
+# pull-request workflow code can never assume it. Auto-deploy therefore uses
+# `pull_request_target` (which runs this reviewed, default-branch workflow,
+# not the PR's) purely to check the allowlist and then dispatch the deploy
+# back onto the default branch — the gate job never touches AWS or PR code.
 #
 # The shared AWS foundation (VPC, ECR, Route53 zone, IAM roles) is managed
 # in Langfuse's internal infrastructure repository.
@@ -26,6 +27,13 @@ name: AWS PR Preview
 on:
   issue_comment:
     types: [created]
+  pull_request_target:
+    # Auto-deploy previews for allowlisted authors. pull_request_target runs
+    # THIS (default-branch, reviewed) workflow definition — never the PR's —
+    # so an untrusted PR cannot alter the gate or the allowlist. The gate job
+    # holds no AWS access and never checks out PR code; it only dispatches the
+    # main-branch deploy, which assumes AWS as refs/heads/main (unchanged).
+    types: [opened, synchronize, reopened]
   schedule:
     # Housekeeping: stop idle previews, destroy previews for closed PRs,
     # destroy previews stopped > 7 days.
@@ -54,6 +62,10 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  # Space/comma-separated GitHub logins allowed to use previews (both the
+  # /preview comment commands and pull_request_target auto-deploy). Empty =
+  # nobody, so previews stay dormant until this is populated.
+  AWS_PREVIEW_ALLOWED_USERS: ${{ vars.AWS_PREVIEW_ALLOWED_USERS }}
   AWS_PREVIEW_CLOUDFORMATION_ROLE_ARN: ${{ vars.AWS_PREVIEW_CLOUDFORMATION_ROLE_ARN }}
   AWS_PREVIEW_DOMAIN_NAME: ${{ vars.AWS_PREVIEW_DOMAIN_NAME }}
   AWS_PREVIEW_HOSTED_ZONE_ID: ${{ vars.AWS_PREVIEW_HOSTED_ZONE_ID }}
@@ -173,11 +185,19 @@ jobs:
                 return;
               }
 
-              const association = context.payload.comment.author_association;
-              if (!["OWNER", "MEMBER", "COLLABORATOR"].includes(association)) {
+              // Single source of truth for who may use previews: the
+              // AWS_PREVIEW_ALLOWED_USERS allowlist (same list gates
+              // pull_request_target auto-deploy). Empty list = nobody.
+              const allowed = (process.env.AWS_PREVIEW_ALLOWED_USERS || "")
+                .split(/[\s,]+/)
+                .filter(Boolean)
+                .map((u) => u.toLowerCase());
+              const commenter = context.payload.comment.user.login.toLowerCase();
+              if (!allowed.includes(commenter)) {
                 await reply(
-                  "Only maintainers can run `/preview` commands. " +
-                    `(author association: ${association})`,
+                  "`/preview` commands are limited to the preview allowlist. " +
+                    "Ask an admin to add your GitHub username to the " +
+                    "`AWS_PREVIEW_ALLOWED_USERS` repository variable.",
                 );
                 return;
               }
@@ -212,6 +232,53 @@ jobs:
             core.setOutput("pr_number", prNumber);
             core.setOutput("head_sha", headSha);
             core.setOutput("actor", actor);
+
+  autodeploy_gate:
+    name: Auto-deploy gate (allowlisted PRs)
+    runs-on: ubuntu-latest
+    if: vars.AWS_PREVIEW_ROLE_ARN != '' && github.event_name == 'pull_request_target'
+    permissions:
+      actions: write        # dispatch the main-branch deploy
+      pull-requests: read
+    steps:
+      - name: Dispatch deploy for allowlisted, same-repo PRs
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+
+            // Only allowlisted authors. This runs from the default branch
+            // (pull_request_target), so the PR cannot tamper with this check.
+            const allowed = (process.env.AWS_PREVIEW_ALLOWED_USERS || "")
+              .split(/[\s,]+/)
+              .filter(Boolean)
+              .map((u) => u.toLowerCase());
+            const author = pr.user.login.toLowerCase();
+            if (!allowed.includes(author)) {
+              core.info(`Author ${author} is not on the preview allowlist; skipping.`);
+              return;
+            }
+
+            // Same-repo branches only. The deploy checks out and builds the PR
+            // head with AWS credentials present, so we do not auto-build code
+            // pushed from a fork. Allowlisted collaborators have write access
+            // and should push a branch to this repo for an auto-preview.
+            const { owner, repo } = context.repo;
+            if (pr.head.repo.full_name !== `${owner}/${repo}`) {
+              core.info("Fork PR; auto-deploy is limited to same-repo branches.");
+              return;
+            }
+
+            // Hand off to the existing deploy path on the default branch, so
+            // AWS is only ever assumed from a refs/heads/main run.
+            await github.rest.actions.createWorkflowDispatch({
+              owner,
+              repo,
+              workflow_id: "aws-preview.yml",
+              ref: context.payload.repository.default_branch,
+              inputs: { action: "deploy", pr_number: String(pr.number) },
+            });
+            core.info(`Dispatched deploy for PR #${pr.number} (author ${author}).`);
 
   deploy_gate:
     name: Check deploy preconditions

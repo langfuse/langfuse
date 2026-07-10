@@ -9,10 +9,27 @@ Route53 zone, GitHub OIDC role, CloudFormation service role, and EC2 instance
 profile, and exposes an output listing the `AWS_PREVIEW_*` GitHub repository
 variables this workflow expects.
 
+## Access: the allowlist
+
+A single repository variable, `AWS_PREVIEW_ALLOWED_USERS` (space- or
+comma-separated GitHub logins), controls who may use previews. It governs both
+the auto-deploy trigger and the manual commands. Empty or unset means nobody —
+previews stay dormant until it is populated. Edit it in
+Settings → Secrets and variables → Actions → Variables.
+
+## Auto-deploy on PRs
+
+When an allowlisted author opens (or pushes to, or reopens) a **same-repo**
+pull request, its preview is deployed automatically and refreshed on each push.
+Fork PRs are not auto-built; an allowlisted collaborator should push a branch to
+this repo instead. This uses a `pull_request_target` gate that runs the
+reviewed default-branch workflow — it only checks the allowlist and then
+dispatches the normal deploy on `main`, so unreviewed PR code never runs with
+AWS credentials.
+
 ## Commands
 
-Previews are driven by PR comments from maintainers (members, owners, and
-collaborators):
+Anyone on the allowlist can also drive previews manually by commenting:
 
 | Command | Effect |
 | --- | --- |
@@ -21,7 +38,8 @@ collaborators):
 | `/preview resume` | Start the instance again with the previously deployed images |
 | `/preview destroy` | Delete the CloudFormation stack and the PR's ECR image tags |
 
-Comment commands only work once the workflow exists on the default branch.
+Auto-deploy and comment commands only work once the workflow exists on the
+default branch.
 
 ## Lifecycle
 
