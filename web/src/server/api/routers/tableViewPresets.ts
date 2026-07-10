@@ -16,6 +16,7 @@ import {
   ClearDefaultViewInput,
   DefaultViewAssignmentsSchema,
   TableViewPresetsNamesCreatorListSchema,
+  isSystemTableViewPresetId,
 } from "@langfuse/shared/src/server";
 import {
   LangfuseConflictError,
@@ -109,6 +110,12 @@ export const TableViewPresetsRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "TableViewPresets:CUD",
       });
+
+      // System presets are frontend-defined and have no table_view_presets row.
+      // Treat their deletion as an idempotent no-op without clearing defaults.
+      if (isSystemTableViewPresetId(input.tableViewPresetsId)) {
+        return { success: true };
+      }
 
       // Keep deletion idempotent so stale clients can safely repeat it.
       await ctx.prisma.$transaction(async (tx) => {

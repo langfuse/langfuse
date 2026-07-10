@@ -100,4 +100,68 @@ describe("table view presets tRPC", () => {
       prisma.defaultView.count({ where: { viewId: preset.id, projectId } }),
     ).resolves.toBe(0);
   });
+
+  it("preserves defaults for system preset ids", async () => {
+    const { caller, projectId } = await prepare();
+    const user = await prisma.user.create({
+      data: { email: `system-default-${randomUUID()}@example.com` },
+    });
+    const systemPresetId = "__langfuse_errors_only";
+
+    await prisma.defaultView.createMany({
+      data: [
+        {
+          projectId,
+          userId: null,
+          viewName: TableViewPresetTableName.ObservationsEvents,
+          viewId: systemPresetId,
+        },
+        {
+          projectId,
+          userId: user.id,
+          viewName: TableViewPresetTableName.ObservationsEvents,
+          viewId: systemPresetId,
+        },
+      ],
+    });
+
+    await expect(
+      caller.TableViewPresets.delete({
+        projectId,
+        tableViewPresetsId: systemPresetId,
+      }),
+    ).resolves.toEqual({ success: true });
+
+    await expect(
+      prisma.defaultView.count({
+        where: { projectId, viewId: systemPresetId },
+      }),
+    ).resolves.toBe(2);
+  });
+
+  it("cleans dangling defaults for a missing user preset", async () => {
+    const { caller, projectId } = await prepare();
+    const missingPresetId = `missing-preset-${randomUUID()}`;
+    await prisma.defaultView.create({
+      data: {
+        projectId,
+        userId: null,
+        viewName: TableViewPresetTableName.ObservationsEvents,
+        viewId: missingPresetId,
+      },
+    });
+
+    await expect(
+      caller.TableViewPresets.delete({
+        projectId,
+        tableViewPresetsId: missingPresetId,
+      }),
+    ).resolves.toEqual({ success: true });
+
+    await expect(
+      prisma.defaultView.count({
+        where: { projectId, viewId: missingPresetId },
+      }),
+    ).resolves.toBe(0);
+  });
 });
