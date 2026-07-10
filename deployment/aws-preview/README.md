@@ -33,8 +33,10 @@ Comment commands only work once the workflow exists on the default branch.
   `https://pr-<number>.<preview domain>`.
 - An Elastic IP keeps the address stable across stop/resume, so DNS and the
   TLS certificate survive.
-- Pushing new commits auto-updates a preview only if it is already deployed
-  and running; stopped previews stay stopped.
+- To pick up new commits, comment `/preview deploy` again — this rebuilds and
+  refreshes a running preview in place. (There is no silent auto-deploy on
+  push: every AWS action runs only from reviewed default-branch workflow code,
+  so `pull_request`-triggered runs are intentionally not used.)
 - Each engineer may have at most 5 previews running at once, attributed to
   whoever's command made the env run (`PreviewOwner` tag). The limit is
   best-effort; commands beyond it are rejected with a comment listing your
@@ -43,11 +45,13 @@ Comment commands only work once the workflow exists on the default branch.
   are stopped automatically — data and URL survive, `/preview resume` brings
   them back. Actively used envs, overnight soak tests, and demos keep
   running. A manual stop-all exists as workflow dispatch for emergencies.
-- Housekeeping also destroys previews that have been stopped for more than
-  7 days. Closing the PR destroys the preview and deletes its images. ECR
+- Housekeeping also destroys previews whose PR is closed (reconciled every
+  2 hours) and previews that have been stopped for more than 7 days. ECR
   images also expire 14 days after push, so a long-paused preview may need a
   fresh `/preview deploy`.
-- Fork PRs are skipped entirely.
+- Fork PRs are skipped entirely, and only reviewed default-branch workflow
+  code can assume the AWS role (the OIDC trust accepts only the
+  `refs/heads/main` subject).
 
 Preview data must stay synthetic: the login and API keys are posted publicly
 on the PR, so anyone on the internet can sign in to a running preview. Never

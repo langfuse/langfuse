@@ -7,11 +7,18 @@ name: AWS PR Preview
 #   /preview resume    start the instance again
 #   /preview destroy   delete the CloudFormation stack and preview images
 #
-# Pushing new commits updates a preview only if one is already deployed and
-# running. Closing the PR destroys the preview. Each engineer may have at
-# most 5 previews running at once (best-effort, PreviewOwner tag). A
-# housekeeping schedule stops previews that have been idle (low CPU) for
-# several hours and destroys previews stopped for more than 7 days.
+# Comment `/preview deploy` to build the PR head and (re)deploy its preview;
+# run it again after pushing commits to refresh a running preview. Each
+# engineer may have at most 5 previews running at once (best-effort,
+# PreviewOwner tag). A housekeeping schedule stops previews that have been
+# idle (low CPU) for several hours, destroys previews whose PR is closed,
+# and destroys previews stopped for more than 7 days.
+#
+# All AWS-touching jobs run only from the default branch: the OIDC role's
+# trust policy accepts only the refs/heads/main subject, so unreviewed
+# pull-request workflow code can never assume it. That is why this workflow
+# is not triggered by `pull_request` — PR lifecycle (refresh on push,
+# cleanup on close) is handled by /preview commands and reconciliation.
 #
 # The shared AWS foundation (VPC, ECR, Route53 zone, IAM roles) is managed
 # in Langfuse's internal infrastructure repository.
@@ -19,10 +26,9 @@ name: AWS PR Preview
 on:
   issue_comment:
     types: [created]
-  pull_request:
-    types: [synchronize, closed]
   schedule:
-    # Housekeeping: stop idle previews, destroy previews stopped > 7 days.
+    # Housekeeping: stop idle previews, destroy previews for closed PRs,
+    # destroy previews stopped > 7 days.
     - cron: "17 */2 * * *"
   workflow_dispatch:
     inputs:
@@ -75,7 +81,6 @@ jobs:
       ((github.event_name == 'issue_comment' &&
       github.event.issue.pull_request &&
       startsWith(github.event.comment.body, '/preview')) ||
-      github.event_name == 'pull_request' ||
       github.event_name == 'schedule' ||
       github.event_name == 'workflow_dispatch')
     permissions:
@@ -145,17 +150,6 @@ jobs:
                 }
                 headSha = pr.head.sha;
               }
-            } else if (context.eventName === "pull_request") {
-              const pr = context.payload.pull_request;
-              prNumber = String(pr.number);
-              if (pr.head.repo.full_name !== sameRepo) {
-                core.info("Skipping: fork pull request.");
-              } else if (context.payload.action === "closed") {
-                command = "destroy";
-              } else {
-                command = "sync";
-                headSha = pr.head.sha;
-              }
             } else if (context.eventName === "issue_comment") {
               const body = (context.payload.comment.body || "").trim();
               const match = body.match(/^\/preview(?:\s+([a-z-]+))?/i);
@@ -223,7 +217,7 @@ jobs:
     name: Check deploy preconditions
     runs-on: ubuntu-latest
     needs: context
-    if: contains(fromJSON('["deploy", "sync"]'), needs.context.outputs.command)
+    if: needs.context.outputs.command == 'deploy'
     permissions:
       id-token: write
       issues: write
@@ -241,7 +235,6 @@ jobs:
         id: gate
         env:
           ACTOR: ${{ needs.context.outputs.actor }}
-          COMMAND: ${{ needs.context.outputs.command }}
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ needs.context.outputs.pr_number }}
         run: |
@@ -260,21 +253,8 @@ jobs:
               --output text)"
           fi
 
-          if [ "${COMMAND}" = "sync" ]; then
-            # Push events only refresh previews that were explicitly deployed
-            # and are currently running. Stopped previews stay stopped, and no
-            # per-engineer slot changes hands.
-            if [ "${instance_state}" = "running" ]; then
-              echo "proceed=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "Preview instance is ${instance_state}; skipping auto-update."
-              echo "proceed=false" >> "$GITHUB_OUTPUT"
-            fi
-            exit 0
-          fi
-
-          # Re-check PR state at execution time: a deploy queued behind the
-          # close-triggered destroy must not recreate the preview stack for
+          # Re-check PR state at execution time: a deploy queued behind a
+          # close/reconcile destroy must not recreate the preview stack for
           # a PR that is now closed (nothing would ever clean it up again).
           pr_state="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .state)"
           if [ "${pr_state}" != "open" ]; then
@@ -1099,6 +1079,67 @@ jobs:
               fi
             fi
           done <<< "${instances}"
+
+      - name: Destroy previews for closed PRs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # Reconciliation replaces the old pull_request:closed teardown: this
+          # runs from the default branch, so no unreviewed PR workflow code is
+          # ever trusted with the preview role. Worst-case cleanup latency is
+          # one housekeeping interval (2h).
+          instances="$(aws ec2 describe-instances \
+            --filters \
+              "Name=tag:Project,Values=langfuse-preview" \
+              "Name=instance-state-name,Values=pending,running,stopping,stopped" \
+            --query "Reservations[].Instances[].[Tags[?Key=='PullRequest'] | [0].Value, Tags[?Key=='aws:cloudformation:stack-name'] | [0].Value]" \
+            --output text)"
+
+          if [ -z "${instances}" ]; then
+            echo "No preview instances."
+          else
+            while read -r pr_number stack_name; do
+              [ -z "${pr_number}" ] || [ "${pr_number}" = "None" ] && continue
+              case "${stack_name}" in
+                langfuse-preview-pr-*) ;;
+                *)
+                  echo "Skipping unexpected stack name '${stack_name}'."
+                  continue
+                  ;;
+              esac
+
+              pr_state="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${pr_number}" --jq .state 2>/dev/null || echo "unknown")"
+              if [ "${pr_state}" != "closed" ]; then
+                continue
+              fi
+
+              echo "Destroying ${stack_name}: PR ${pr_number} is closed."
+              aws cloudformation delete-stack --stack-name "${stack_name}"
+              aws cloudformation wait stack-delete-complete --stack-name "${stack_name}"
+
+              for repository_url in \
+                "${AWS_PREVIEW_WEB_ECR_REPOSITORY_URL}" \
+                "${AWS_PREVIEW_WORKER_ECR_REPOSITORY_URL}"; do
+                repository_name="${repository_url#*/}"
+                image_ids="$(aws ecr list-images \
+                  --repository-name "${repository_name}" \
+                  --filter tagStatus=TAGGED \
+                  --query "imageIds[?starts_with(imageTag, 'pr-${pr_number}-')]" \
+                  --output json)"
+                if [ "${image_ids}" != "[]" ]; then
+                  aws ecr batch-delete-image \
+                    --repository-name "${repository_name}" \
+                    --image-ids "${image_ids}" >/dev/null
+                fi
+              done
+
+              gh pr comment "${pr_number}" --repo "${GITHUB_REPOSITORY}" \
+                --body "🗑️ AWS preview destroyed because the PR is closed. Reopen and \`/preview deploy\` to recreate." \
+                || echo "Could not comment on PR ${pr_number}."
+            done <<< "${instances}"
+          fi
 
       - name: Destroy previews stopped for more than 7 days
         env:
