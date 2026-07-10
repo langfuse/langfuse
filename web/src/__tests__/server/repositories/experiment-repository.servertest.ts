@@ -778,6 +778,88 @@ describe("Clickhouse Experiment Repository Test", () => {
       expect(excludedExperiment).toBeUndefined(); // avg = 0.5 < 0.6
     });
 
+    it("should filter experiments by boolean trace scores", async () => {
+      const experimentIdWithTrueScore = randomUUID();
+      const experimentIdWithFalseScore = randomUUID();
+      const experimentIdWithoutScore = randomUUID();
+      const datasetId = randomUUID();
+      const scoreName = `passes_guardrail_${randomUUID()}`;
+
+      const now = new Date().getTime();
+
+      const traceIdWithTrueScore = randomUUID();
+      const traceIdWithFalseScore = randomUUID();
+      const traceIdWithoutScore = randomUUID();
+
+      const makeExperimentEvent = (experimentId: string, traceId: string) => {
+        const rootSpanId = randomUUID();
+        return createEvent({
+          id: randomUUID(),
+          span_id: rootSpanId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "test-generation",
+          experiment_id: experimentId,
+          experiment_name: `boolean-score-filter-${experimentId}`,
+          experiment_metadata_names: [],
+          experiment_metadata_values: [],
+          experiment_dataset_id: datasetId,
+          experiment_item_id: randomUUID(),
+          experiment_item_version: null,
+          experiment_item_root_span_id: rootSpanId,
+          start_time: now * 1000,
+        });
+      };
+
+      await createEventsCh([
+        makeExperimentEvent(experimentIdWithTrueScore, traceIdWithTrueScore),
+        makeExperimentEvent(experimentIdWithFalseScore, traceIdWithFalseScore),
+        makeExperimentEvent(experimentIdWithoutScore, traceIdWithoutScore),
+      ]);
+
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceIdWithTrueScore,
+          observation_id: null,
+          name: scoreName,
+          value: 1,
+          string_value: "True",
+          data_type: "BOOLEAN",
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceIdWithFalseScore,
+          observation_id: null,
+          name: scoreName,
+          value: 0,
+          string_value: "False",
+          data_type: "BOOLEAN",
+        }),
+      ]);
+
+      const result = await getExperimentsFromEvents({
+        projectId,
+        filter: [
+          {
+            column: "trace_score_booleans",
+            type: "booleanObject",
+            key: scoreName,
+            operator: "=",
+            value: true,
+          },
+        ],
+        limit: 1000,
+        page: 0,
+      });
+
+      const resultIds = result.map((e) => e.id);
+      expect(resultIds).toContain(experimentIdWithTrueScore);
+      expect(resultIds).not.toContain(experimentIdWithFalseScore);
+      expect(resultIds).not.toContain(experimentIdWithoutScore);
+    });
+
     it("should filter experiments by name with equals operator", async () => {
       const experimentId1 = randomUUID();
       const experimentName1 = "exact-match-name-" + randomUUID();
@@ -1162,9 +1244,11 @@ describe("Clickhouse Experiment Repository Test", () => {
       expect(result).toEqual({
         obs_scores_avg: [],
         obs_score_categories: [],
+        obs_score_booleans: [],
         obs_score_columns: [],
         trace_scores_avg: [],
         trace_score_categories: [],
+        trace_score_booleans: [],
         trace_score_columns: [],
       });
     });
@@ -1178,9 +1262,11 @@ describe("Clickhouse Experiment Repository Test", () => {
       expect(result).toEqual({
         obs_scores_avg: [],
         obs_score_categories: [],
+        obs_score_booleans: [],
         obs_score_columns: [],
         trace_scores_avg: [],
         trace_score_categories: [],
+        trace_score_booleans: [],
         trace_score_columns: [],
       });
     });

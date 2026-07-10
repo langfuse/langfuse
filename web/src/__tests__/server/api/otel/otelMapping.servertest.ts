@@ -2966,13 +2966,13 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
-        "should extract promptName on observation from langfuse.prompt.name",
+        "should not extract promptName from langfuse.prompt.name on non-generation observation",
         {
           entity: "observation",
           otelAttributeKey: "langfuse.prompt.name",
           otelAttributeValue: { stringValue: "test" },
           entityAttributeKey: "promptName",
-          entityAttributeValue: "test",
+          entityAttributeValue: null,
         },
       ],
       [
@@ -3878,6 +3878,111 @@ describe("OTel Resource Span Mapping", () => {
         ).toEqual(spec.entityAttributeValue);
       },
     );
+
+    describe("prompt linking gated to GENERATION observations", () => {
+      const buildResourceSpan = (attributes: Record<string, any>[]) => ({
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                attributes,
+              },
+            ],
+          },
+        ],
+      });
+
+      const promptAttributes = [
+        {
+          key: "langfuse.observation.prompt.name",
+          value: { stringValue: "my-prompt" },
+        },
+        {
+          key: "langfuse.observation.prompt.version",
+          value: { intValue: { low: 1, high: 0, unsigned: false } },
+        },
+      ];
+
+      it.each([["agent"], ["tool"], ["span"]])(
+        "should not map prompt attributes on %s observations",
+        async (observationType: string) => {
+          const resourceSpan = buildResourceSpan([
+            {
+              key: "langfuse.observation.type",
+              value: { stringValue: observationType },
+            },
+            ...promptAttributes,
+          ]);
+
+          const events = await convertOtelSpanToIngestionEvent(
+            resourceSpan,
+            new Set(),
+          );
+          const observation = events.find((e) => e.type !== "trace-create");
+          expect(observation?.type).toBe(`${observationType}-create`);
+          expect(observation?.body.promptName).toBeNull();
+          expect(observation?.body.promptVersion).toBeNull();
+
+          const processor = createTestOtelProcessor();
+          const eventInputs = processor.processToEvent([resourceSpan]);
+          expect(eventInputs).toHaveLength(1);
+          expect(eventInputs[0].promptName).toBeNull();
+          expect(eventInputs[0].promptVersion).toBeNull();
+        },
+      );
+
+      it("should map prompt attributes on generation observations", async () => {
+        const resourceSpan = buildResourceSpan([
+          {
+            key: "langfuse.observation.type",
+            value: { stringValue: "generation" },
+          },
+          ...promptAttributes,
+        ]);
+
+        const events = await convertOtelSpanToIngestionEvent(
+          resourceSpan,
+          new Set(),
+        );
+        const observation = events.find((e) => e.type !== "trace-create");
+        expect(observation?.type).toBe("generation-create");
+        expect(observation?.body.promptName).toBe("my-prompt");
+        expect(observation?.body.promptVersion).toBe(1);
+
+        const processor = createTestOtelProcessor();
+        const eventInputs = processor.processToEvent([resourceSpan]);
+        expect(eventInputs).toHaveLength(1);
+        expect(eventInputs[0].promptName).toBe("my-prompt");
+        expect(eventInputs[0].promptVersion).toBe(1);
+      });
+
+      it("should map legacy langfuse.prompt.name attributes on generation observations", async () => {
+        const resourceSpan = buildResourceSpan([
+          {
+            key: "gen_ai.request.model",
+            value: { stringValue: "gpt-4o" },
+          },
+          {
+            key: "langfuse.prompt.name",
+            value: { stringValue: "my-prompt" },
+          },
+          {
+            key: "langfuse.prompt.version",
+            value: { intValue: { low: 2, high: 0, unsigned: false } },
+          },
+        ]);
+
+        const events = await convertOtelSpanToIngestionEvent(
+          resourceSpan,
+          new Set(),
+        );
+        const observation = events.find((e) => e.type !== "trace-create");
+        expect(observation?.type).toBe("generation-create");
+        expect(observation?.body.promptName).toBe("my-prompt");
+        expect(observation?.body.promptVersion).toBe(2);
+      });
+    });
 
     // Regression: OTLP/JSON exporters (e.g. the OpenTelemetry PHP SDK) send
     // int64 resource attributes as decimal strings (intValue: "7") rather than

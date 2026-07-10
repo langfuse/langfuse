@@ -310,6 +310,7 @@ export default function ScoresTable({
           value: sv.value,
           count: sv.count !== undefined ? Number(sv.count) : undefined,
         })) ?? undefined,
+      booleanValue: filterOptions.data?.booleanValue ?? undefined,
       traceName:
         filterOptions.data?.traceName?.map((tn) => ({
           value: tn.value,

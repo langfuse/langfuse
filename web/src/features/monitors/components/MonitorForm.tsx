@@ -1037,7 +1037,7 @@ const NoDataField = ({
             Keep the previous
             <Badge
               variant="secondary"
-              className="w-20 justify-center bg-slate-500 py-1 text-slate-50 hover:bg-slate-500"
+              className="bg-muted-foreground text-background hover:bg-muted-foreground w-20 justify-center py-1"
             >
               SEVERITY
             </Badge>

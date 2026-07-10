@@ -310,6 +310,37 @@ describe("in-app agent public API route auth", () => {
     });
   });
 
+  it("does not create a mutating tool override for rejected approvals", async () => {
+    await withInAppAgentCloudEnv(async () => {
+      const { project, userId } = await setupInAppAgentProjectSession();
+      const conversationId = `conversation-${randomUUID()}`;
+      const forwardedProps = createResumeForwardedProps(false);
+      await seedPendingToolApproval({
+        projectId: project.id,
+        conversationId,
+        userId,
+        approvalRequest: forwardedProps.command.resume.approvalRequest,
+      });
+
+      const { response } = await callInAppAgentRoute({
+        projectId: project.id,
+        conversationId,
+        forwardedProps,
+      });
+
+      expect(response.status).toBe(200);
+      expect(agentMocks.createAgUiStream).toHaveBeenCalledWith(
+        expect.objectContaining({
+          options: expect.objectContaining({
+            langfuseMcp: expect.objectContaining({
+              runOverride: undefined,
+            }),
+          }),
+        }),
+      );
+    });
+  });
+
   it("rejects mutated resume forwarded props without consuming the pending approval", async () => {
     await withInAppAgentCloudEnv(async () => {
       const { project, userId } = await setupInAppAgentProjectSession();
@@ -483,6 +514,40 @@ describe("in-app agent public API route auth", () => {
         }),
       ).resolves.toBe(false);
       expect(agentMocks.createAgUiStream).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("does not restore a rejected approval when stream initialization fails", async () => {
+    await withInAppAgentCloudEnv(async () => {
+      const { project, userId } = await setupInAppAgentProjectSession();
+      const conversationId = `conversation-${randomUUID()}`;
+      const forwardedProps = createResumeForwardedProps(false);
+      await seedPendingToolApproval({
+        projectId: project.id,
+        conversationId,
+        userId,
+        approvalRequest: forwardedProps.command.resume.approvalRequest,
+      });
+
+      agentMocks.createAgUiStream.mockRejectedValueOnce(
+        new Error("stream init failed"),
+      );
+
+      await expect(
+        callInAppAgentRoute({
+          projectId: project.id,
+          conversationId,
+          runId: "client-run-rejected-failed",
+          forwardedProps,
+        }),
+      ).rejects.toThrow("stream init failed");
+      await expect(
+        pendingToolApprovalExists({
+          projectId: project.id,
+          conversationId,
+          toolCallId: forwardedProps.command.resume.approvalRequest.toolCallId,
+        }),
+      ).resolves.toBe(false);
     });
   });
 
@@ -1004,11 +1069,11 @@ async function setupInAppAgentProjectSession() {
   return { org, project, userId };
 }
 
-function createResumeForwardedProps() {
+function createResumeForwardedProps(approved = true) {
   return {
     command: {
       resume: {
-        approved: true,
+        approved,
         approvalRequest: {
           type: "tool_approval_request" as const,
           toolCallId: `tool-call-${randomUUID()}`,

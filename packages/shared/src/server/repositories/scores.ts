@@ -1056,6 +1056,49 @@ export const getNumericScoresGroupedByName = async (
   return rows;
 };
 
+export const getBooleanScoresGroupedByName = async (
+  projectId: string,
+  filter?: FilterState,
+) => {
+  const chFilter = filter
+    ? createFilterFromFilterState(
+        filter,
+        scoresColumnsTableUiColumnDefinitions,
+        scoresTableCols,
+      )
+    : undefined;
+
+  const filterRes = chFilter ? new FilterList(chFilter).apply() : undefined;
+
+  const query = `
+      select
+        name as name
+      from scores s
+      WHERE s.project_id = {projectId: String}
+      AND s.data_type = 'BOOLEAN'
+      AND s.string_value IS NOT NULL
+      AND s.string_value != ''
+      ${filterRes?.query ? `AND ${filterRes.query}` : ""}
+      GROUP BY name
+      ORDER BY count() desc
+      LIMIT ${FILTER_OPTION_SCORE_NAME_LIMIT};
+    `;
+
+  const rows = await queryClickhouse<{
+    name: string;
+  }>({
+    query: query,
+    params: {
+      projectId: projectId,
+      ...(filterRes ? filterRes.params : {}),
+    },
+    tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
+  });
+
+  return rows;
+};
+
 export const getCategoricalScoresGroupedByName = async (
   projectId: string,
   filter?: FilterState,

@@ -19,6 +19,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { StringNoHTMLNonEmpty } from "@langfuse/shared";
+import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
 
 export const projectsRouter = createTRPCRouter({
   create: protectedOrganizationProcedure
@@ -304,4 +305,23 @@ export const projectsRouter = createTRPCRouter({
       z.object({ projectId: z.string(), fromTimestamp: z.date().optional() }),
     )
     .query(async ({ input }) => getEnvironmentsForProject(input)),
+
+  // Admin-only fallback for useProject: returns the project and its org in the
+  // same shape as session.user.organizations[number], since admins are not
+  // members of customer projects and have no session entry.
+  byId: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx }) => {
+      const organization = await buildAdminOrgContext(ctx);
+      const project = organization?.projects.find(
+        (p) => p.id === ctx.session.projectId,
+      );
+      if (!organization || !project) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Project not found",
+        });
+      }
+      return { project, organization };
+    }),
 });

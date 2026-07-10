@@ -21,6 +21,7 @@ import {
 } from "./langQ";
 import {
   FIELDS,
+  SCORE_COLUMNS,
   nullableFields,
   resolveField,
   type FieldDef,
@@ -483,9 +484,17 @@ function keyPathOptions(
     };
   }
   const numericColumn =
-    kind.level === "trace" ? "trace_scores_avg" : "scores_avg";
+    kind.level === "trace"
+      ? SCORE_COLUMNS.trace.numeric
+      : SCORE_COLUMNS.observation.numeric;
   const categoricalColumn =
-    kind.level === "trace" ? "trace_score_categories" : "score_categories";
+    kind.level === "trace"
+      ? SCORE_COLUMNS.trace.categorical
+      : SCORE_COLUMNS.observation.categorical;
+  const booleanColumn =
+    kind.level === "trace"
+      ? SCORE_COLUMNS.trace.boolean
+      : SCORE_COLUMNS.observation.boolean;
   const seen = new Map<string, string>();
   for (const o of observedValues(observed, numericColumn))
     seen.set(o.value, "numeric score");
@@ -493,6 +502,14 @@ function keyPathOptions(
     seen.set(
       o.value,
       seen.has(o.value) ? "numeric + categorical score" : "categorical score",
+    );
+  }
+  for (const o of observedValues(observed, booleanColumn)) {
+    seen.set(
+      o.value,
+      seen.has(o.value)
+        ? `${seen.get(o.value)} + boolean score`
+        : "boolean score",
     );
   }
   const options = [...seen.entries()].map(([name, detail]) => ({
@@ -595,16 +612,28 @@ function valueStageSections(input: ValueStageInput): {
 
     case "scores": {
       const numericColumn =
-        ref.level === "trace" ? "trace_scores_avg" : "scores_avg";
+        ref.level === "trace"
+          ? SCORE_COLUMNS.trace.numeric
+          : SCORE_COLUMNS.observation.numeric;
       const categoricalColumn =
-        ref.level === "trace" ? "trace_score_categories" : "score_categories";
-      // Routing a `scores.<name>:` value needs both score-name columns; request
-      // and show a loading row while either is still streaming in.
-      if (columnPending(numericColumn) || columnPending(categoricalColumn)) {
+        ref.level === "trace"
+          ? SCORE_COLUMNS.trace.categorical
+          : SCORE_COLUMNS.observation.categorical;
+      const booleanColumn =
+        ref.level === "trace"
+          ? SCORE_COLUMNS.trace.boolean
+          : SCORE_COLUMNS.observation.boolean;
+      // Routing a `scores.<name>:` value needs all three score-name columns;
+      // request and show a loading row while any is still streaming in.
+      if (
+        columnPending(numericColumn) ||
+        columnPending(categoricalColumn) ||
+        columnPending(booleanColumn)
+      ) {
         return {
           sections: [],
           loading: true,
-          requestColumns: [numericColumn, categoricalColumn],
+          requestColumns: [numericColumn, categoricalColumn, booleanColumn],
         };
       }
       // Quoted for the example shown in the compare-op tooltip — a spaced score
@@ -617,11 +646,31 @@ function valueStageSections(input: ValueStageInput): {
       const isNumeric = observedValues(observed, numericColumn).some(
         (o) => o.value === ref.key,
       );
+      const isBoolean = observedValues(observed, booleanColumn).some(
+        (o) => o.value === ref.key,
+      );
       const categories = observedValues(
         observed,
         `${categoricalColumn}.${ref.key}`,
       );
       const sections: CompletionSection[] = [];
+      if (isBoolean) {
+        const all = [
+          {
+            id: "value:true",
+            kind: "value" as const,
+            label: "true",
+            value: "true",
+          },
+          {
+            id: "value:false",
+            kind: "value" as const,
+            label: "false",
+            value: "false",
+          },
+        ];
+        sections.push(...section(SECTION_VALUES, valueOptions(all, typed)));
+      }
       if (categories.length > 0) {
         const all = categories.map((o) => ({
           id: `value:${o.value}`,
@@ -632,7 +681,11 @@ function valueStageSections(input: ValueStageInput): {
         }));
         sections.push(...section(SECTION_VALUES, valueOptions(all, typed)));
       }
-      if ((isNumeric || categories.length === 0) && typed.length === 0) {
+      if (
+        !isBoolean &&
+        (isNumeric || categories.length === 0) &&
+        typed.length === 0
+      ) {
         sections.push(
           ...section(
             SECTION_COMPARE_OPS,
@@ -991,28 +1044,31 @@ export function planInputCompletions(
     // Dot paths (metadata./scores./traceScores.) suggest observed keys.
     const path = pathKindOf(keyPart);
     if (path !== null) {
-      // Score-name suggestions need both score-name columns; request and show a
-      // loading row while they stream in (lazy mode). Metadata keys are not
-      // server-enumerated — they come from the client-side observed-metadata
+      // Score-name suggestions need all three score-name columns; request and
+      // show a loading row while they stream in (lazy mode). Metadata keys are
+      // not server-enumerated — they come from the client-side observed-metadata
       // map (lib/metadata-paths.ts) — so there is nothing to request there.
       if (path.kind.canonical !== "metadata.") {
-        const numericColumn =
-          path.kind.level === "trace" ? "trace_scores_avg" : "scores_avg";
-        const categoricalColumn =
+        const scoreColumns =
           path.kind.level === "trace"
-            ? "trace_score_categories"
-            : "score_categories";
+            ? SCORE_COLUMNS.trace
+            : SCORE_COLUMNS.observation;
+        const scoreNameColumns = [
+          scoreColumns.numeric,
+          scoreColumns.categorical,
+          scoreColumns.boolean,
+        ];
         const scorePending = (column: string): boolean =>
           !ctx.erroredColumns?.has(column) &&
           (ctx.observed === undefined || !(column in ctx.observed));
-        if (scorePending(numericColumn) || scorePending(categoricalColumn)) {
+        if (scoreNameColumns.some(scorePending)) {
           return {
             stage: "field",
             from: bodyStart,
             to,
             loading: true,
             sections: [],
-            requestColumns: [numericColumn, categoricalColumn],
+            requestColumns: scoreNameColumns,
           };
         }
       }

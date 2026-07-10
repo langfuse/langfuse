@@ -16,6 +16,7 @@ import {
   type MonitorQueueEventInput,
   MonitorWebhookQueueEventSchema,
 } from "../features/monitors/scheduler/types";
+import { ProjectNotificationWebhookQueueEventSchema } from "./notifications/types";
 
 export type { MonitorQueueEvent, MonitorQueueEventInput };
 
@@ -283,10 +284,11 @@ export const promptVersionWebhookEnvelopeSchema = z.object({
     .optional(),
 });
 
-/** WebhookOutboundEnvelopeSchema is the WebhookInput.payload contract: a discriminated union over `type`. The monitor-alert variant is the unified envelope (queue payload = HTTP outbound body); the prompt-version variant keeps its original dispatch-time wrap. */
+/** WebhookOutboundEnvelopeSchema is the WebhookInput.payload contract: a discriminated union over `type`. The monitor-alert and system variants are unified envelopes (queue payload = HTTP outbound body); the prompt-version variant keeps its original dispatch-time wrap. */
 export const WebhookOutboundEnvelopeSchema = z.discriminatedUnion("type", [
   promptVersionWebhookEnvelopeSchema,
   MonitorWebhookQueueEventSchema,
+  ProjectNotificationWebhookQueueEventSchema,
 ]);
 
 export const WebhookInputSchema = z.object({

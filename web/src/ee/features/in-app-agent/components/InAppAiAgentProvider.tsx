@@ -454,6 +454,14 @@ function InAppAiAgentProviderInner({
             return nextApprovals;
           });
         },
+        onToolCallResultEvent: ({ event }) => {
+          updatePendingToolApprovals((currentApprovals) =>
+            currentApprovals.filter(
+              (approval) =>
+                approval.approvalRequest.toolCallId !== event.toolCallId,
+            ),
+          );
+        },
         onRunErrorEvent: ({ event }) => {
           if (intentionalAbortRef.current) {
             return;

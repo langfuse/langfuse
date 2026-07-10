@@ -707,7 +707,9 @@ export function SearchComposer({
       // it reveals the invalid draft and returns null. On success it returns the
       // CANONICAL committed text in its RESTING form (trailing space when
       // non-empty) — the same text the resetTo effect re-derives.
-      const committedText = commitToFilterState();
+      const committedText = commitToFilterState(
+        advanceToTrailingSpace ? "enter" : "blur",
+      );
       if (committedText === null) return;
       setHighlightedOptionId(null);
       // Close the undo-coalesce window at the commit boundary, mirroring undo()/
@@ -756,7 +758,7 @@ export function SearchComposer({
   // (the `commit` path above) or blur. writeDraft ran synchronously, so the
   // freshly-set draftValid is current here.
   const commitStructuredEdit = React.useCallback(() => {
-    if (storeApi.getState().draftValid) commitToFilterState();
+    if (storeApi.getState().draftValid) commitToFilterState("pick");
   }, [storeApi, commitToFilterState]);
 
   const pickOption = React.useCallback(
@@ -776,7 +778,7 @@ export function SearchComposer({
         // reveal the red invalid state instead of silently no-op'ing (e.g. a
         // recent stored before a grammar tightening, or a since-retyped score).
         const state = storeApi.getState();
-        if (state.draftValid) commitToFilterState();
+        if (state.draftValid) commitToFilterState("pick");
         else state.actions.revealInvalid();
         setAutocompleteOpen(false);
         return;

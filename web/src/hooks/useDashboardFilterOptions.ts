@@ -80,14 +80,17 @@ export function useDashboardFilterOptions({
     [absoluteTimeRange],
   );
 
+  // Gate on projectId: on a direct URL load the first render happens before
+  // the router query hydrates, and firing with projectId=undefined surfaces
+  // a "Bad Request" toast.
   const traceFilterOptions = api.traces.filterOptions.useQuery(
     { projectId, timestampFilter: traceTimestampFilter },
-    { ...commonQueryOptions, enabled: !isBetaEnabled },
+    { ...commonQueryOptions, enabled: Boolean(projectId) && !isBetaEnabled },
   );
 
   const eventsFilterOptions = api.events.filterOptions.useQuery(
     { projectId, startTimeFilter },
-    { ...commonQueryOptions, enabled: isBetaEnabled },
+    { ...commonQueryOptions, enabled: Boolean(projectId) && isBetaEnabled },
   );
 
   const nameOptions = useMemo(
