@@ -33,3 +33,8 @@ export const useLangfuseCloudRegion = (): {
     region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
   };
 };
+
+export const useLangfuseV4WriteMode = () => {
+  const session = useSession();
+  return session.data?.environment.v4WriteMode ?? null;
+};
