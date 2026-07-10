@@ -465,6 +465,14 @@ export function useTableViewManager({
       return;
     }
 
+    // Wait for the default-view query to resolve before applying, so the
+    // trigger is classified correctly. `getDefault` and `getById` race with no
+    // ordering; if `getById` wins (cold cache, a bookmark of the default view,
+    // session-restore), `defaultViewId` is still undefined here and a
+    // default-view restore would be mislabeled `permalink` — permanently, since
+    // the `isInitializedRef` guard makes this a one-shot (LFE-10781 review).
+    if (isDefaultLoading) return;
+
     // Track permalink visit
     capture("saved_views:permalink_visit", {
       tableName,
@@ -498,6 +506,7 @@ export function useTableViewManager({
     storedViewId,
     setStoredViewId,
     defaultViewId,
+    isDefaultLoading,
   ]);
 
   useEffect(() => {

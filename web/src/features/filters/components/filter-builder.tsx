@@ -171,6 +171,13 @@ export function PopoverFilterBuilder({
       const validFilters = getValidFilters(newState);
       onChange(validFilters);
       const prevCount = prevValidCountRef.current;
+      // A row was actually removed (clear-all X → []; or a single row X). This
+      // is the ONLY thing that counts as a clear: a valid count that drops
+      // because a row went transiently invalid mid-edit (changing a row's column
+      // sets value:undefined → fails safeParse) keeps the SAME row count and
+      // must NOT emit `filters:cleared` — the user is refining, not clearing
+      // (LFE-10781 review).
+      const rowsRemoved = newState.length < prev.length;
       // Analytics (LFE-10781). METADATA ONLY — we report the changed filter's
       // shape + counts, never a raw value. Count semantics match the sidebar:
       // `conditionCount` = TOTAL applied conditions across ALL columns;
@@ -195,9 +202,9 @@ export function PopoverFilterBuilder({
             isV4,
           });
         }
-      } else if (validFilters.length < prevCount) {
-        // A shrink — the clear-all X buttons (setWipFilterState([])) or removing
-        // a row. Mirrors the sidebar's clearAll → `filters:cleared`.
+      } else if (validFilters.length < prevCount && rowsRemoved) {
+        // A real clear — the clear-all X buttons (setWipFilterState([])) or
+        // removing a row. NOT a transient mid-column-change invalid shrink.
         capture("filters:cleared", {
           surface: "filter_builder",
           tableName,

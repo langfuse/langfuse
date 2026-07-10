@@ -911,16 +911,34 @@ export function useSidebarFilterState(
   // review): `conditionCount` = TOTAL applied conditions across ALL columns
   // (whole-filter complexity); `columnConditionCount` = rows this column
   // produced (a numeric range is 2: >= and <=); `valueCount` = selected options
-  // in the primary condition.
+  // in the attributed condition.
+  //
+  // `prev` (the pre-change state) lets us attribute the event to the row the
+  // user JUST added/changed rather than the oldest one on the column — critical
+  // for keyed facets (metadata / scores) that hold several rows per column
+  // (adding `metadata.env` on top of `metadata.user_id` must report `env`, not
+  // `user_id`). We pick the entry absent from `prev` (added or value-changed);
+  // failing that, the last (appended) entry. The identity used to match rows
+  // includes the raw value but is only ever compared locally — it is NEVER put
+  // on the event payload.
   const emitFilterApplied = useCallback(
     (
       surface: "sidebar" | "filter_builder",
       column: string,
       next: FilterState,
+      prev?: FilterState,
     ) => {
       const colFilters = next.filter((f) => f.column === column);
       if (colFilters.length === 0) return;
-      const primary = colFilters[0];
+      const identity = (f: FilterState[number]): string =>
+        `${"key" in f ? f.key : ""} ${f.operator} ${JSON.stringify(
+          "value" in f ? f.value : null,
+        )}`;
+      const prevIdentities = new Set(
+        (prev ?? []).filter((f) => f.column === column).map((f) => identity(f)),
+      );
+      const changed = colFilters.find((f) => !prevIdentities.has(identity(f)));
+      const primary = changed ?? colFilters[colFilters.length - 1];
       capture("filters:applied", {
         surface,
         tableName: config.tableName,
@@ -1596,7 +1614,12 @@ export function useSidebarFilterState(
 
               setFilterState(newFilters);
               // Analytics (LFE-10781): keyed metadata/category-score facet apply.
-              emitFilterApplied("sidebar", facet.column, newFilters);
+              emitFilterApplied(
+                "sidebar",
+                facet.column,
+                newFilters,
+                filterState,
+              );
             },
             onReset: () => {
               // Remove all categoryOptions filters for this column
@@ -1705,7 +1728,12 @@ export function useSidebarFilterState(
 
               setFilterState(newFilters);
               // Analytics (LFE-10781): keyed numeric-score facet apply.
-              emitFilterApplied("sidebar", facet.column, newFilters);
+              emitFilterApplied(
+                "sidebar",
+                facet.column,
+                newFilters,
+                filterState,
+              );
             },
             onReset: () => {
               // Remove all numberObject filters for this column
@@ -1865,7 +1893,12 @@ export function useSidebarFilterState(
 
               setFilterState(newFilters);
               // Analytics (LFE-10781): keyed metadata/string-score facet apply.
-              emitFilterApplied("sidebar", facet.column, newFilters);
+              emitFilterApplied(
+                "sidebar",
+                facet.column,
+                newFilters,
+                filterState,
+              );
             },
             onReset: () => {
               // Remove all stringObject filters for this column
