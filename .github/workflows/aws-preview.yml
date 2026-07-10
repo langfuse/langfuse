@@ -63,9 +63,10 @@ concurrency:
 
 env:
   # Space/comma-separated GitHub logins allowed to use previews (both the
-  # /preview comment commands and pull_request_target auto-deploy). Empty =
-  # nobody, so previews stay dormant until this is populated.
-  AWS_PREVIEW_ALLOWED_USERS: ${{ vars.AWS_PREVIEW_ALLOWED_USERS }}
+  # /preview comment commands and pull_request_target auto-deploy). Defaults
+  # to the single initial owner; set the AWS_PREVIEW_ALLOWED_USERS repository
+  # variable to override (add or replace users) without a code change.
+  AWS_PREVIEW_ALLOWED_USERS: ${{ vars.AWS_PREVIEW_ALLOWED_USERS || 'maxdeichmann' }}
   AWS_PREVIEW_CLOUDFORMATION_ROLE_ARN: ${{ vars.AWS_PREVIEW_CLOUDFORMATION_ROLE_ARN }}
   AWS_PREVIEW_DOMAIN_NAME: ${{ vars.AWS_PREVIEW_DOMAIN_NAME }}
   AWS_PREVIEW_HOSTED_ZONE_ID: ${{ vars.AWS_PREVIEW_HOSTED_ZONE_ID }}

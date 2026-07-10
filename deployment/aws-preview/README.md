@@ -13,9 +13,11 @@ variables this workflow expects.
 
 A single repository variable, `AWS_PREVIEW_ALLOWED_USERS` (space- or
 comma-separated GitHub logins), controls who may use previews. It governs both
-the auto-deploy trigger and the manual commands. Empty or unset means nobody —
-previews stay dormant until it is populated. Edit it in
-Settings → Secrets and variables → Actions → Variables.
+the auto-deploy trigger and the manual commands. It defaults to `maxdeichmann`
+(the initial owner); set the variable in
+Settings → Secrets and variables → Actions → Variables to add or replace users
+without a code change. (Previews as a whole stay dormant until the
+`AWS_PREVIEW_ROLE_ARN` variable is set, regardless of the allowlist.)
 
 ## Auto-deploy on PRs
 
