@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
+  AnalyticsIntegrationExportSource,
+  BlobStorageExportMode,
   BlobStorageIntegrationFileType,
   BlobStorageIntegrationType,
   type BlobStorageIntegration,
@@ -163,5 +165,88 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
       }),
       expect.anything(),
     );
+  });
+
+  it("provider switch to S3-compatible reveals endpoint and force-path-style fields", async () => {
+    render(ui("p1:new", buildBlobStorageFormValues(undefined, availability)));
+    expect(screen.queryByText("Endpoint URL")).not.toBeInTheDocument();
+    expect(screen.queryByText("Force Path Style")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole("combobox")[0]);
+    fireEvent.click(
+      await screen.findByRole("option", { name: "S3 Compatible Storage" }),
+    );
+
+    expect(screen.getByText("Endpoint URL")).toBeInTheDocument();
+    expect(screen.getByText("Force Path Style")).toBeInTheDocument();
+  });
+
+  it("non-Parquet file type shows the gzip toggle; Parquet hides it", () => {
+    const { rerender } = render(
+      ui(
+        "a",
+        buildBlobStorageFormValues(
+          { fileType: BlobStorageIntegrationFileType.JSONL },
+          availability,
+        ),
+      ),
+    );
+    expect(screen.getByText("Gzip Compression")).toBeInTheDocument();
+
+    rerender(ui("b", buildBlobStorageFormValues(undefined, availability)));
+    expect(screen.queryByText("Gzip Compression")).not.toBeInTheDocument();
+  });
+
+  it("custom-date export mode reveals the start date field", () => {
+    render(
+      ui(
+        "a",
+        buildBlobStorageFormValues(
+          {
+            exportMode: BlobStorageExportMode.FROM_CUSTOM_DATE,
+            exportStartDate: new Date("2025-01-01T00:00:00Z"),
+          },
+          availability,
+        ),
+      ),
+    );
+    expect(screen.getByLabelText("Export Start Date")).toHaveValue(
+      "2025-01-01",
+    );
+  });
+
+  it("blocks save when the persisted export source is not selectable (LFE-10296)", async () => {
+    const blocked: ExportSourceAvailability = {
+      eventsExportAvailable: false,
+      forceEventsExport: false,
+    };
+    const onSubmit = vi.fn();
+    render(
+      <TooltipProvider>
+        <BlobStorageIntegrationForm
+          initialValues={buildBlobStorageFormValues(
+            {
+              exportSource: AnalyticsIntegrationExportSource.EVENTS,
+              bucketName: "valid-bucket",
+            },
+            blocked,
+          )}
+          availability={blocked}
+          persistedExportSource={AnalyticsIntegrationExportSource.EVENTS}
+          isParquetOverride={false}
+          isSaving={false}
+          onSubmit={onSubmit}
+        />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(
+      await screen.findByText(
+        "This export source is not available on this deployment. Select an available export source to save.",
+      ),
+    ).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });

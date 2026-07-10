@@ -158,9 +158,16 @@ changes (project switch, create, delete) remount the form; same-entity
 refetches (5s status poll, post-save invalidation) keep the key stable
 and therefore can never wipe or leak a draft. Consequence, by design:
 clean fields do not live-update from background refetches while the
-form is mounted. Field-group components receive the typed `control`
-prop and subscribe to individual fields with `useWatch`; there is no
-local Zustand store and no feature `useEffect`.
+form is mounted. Instead, a refetched `updatedAt` differing from the
+mounted snapshot (someone else saved) surfaces a non-destructive
+drift banner whose explicit "Reload form" click bumps a key epoch;
+the user's own save adopts the bumped `updatedAt` silently and
+remounts from the saved row. Mutation callbacks compare their
+fired-with projectId against the live prop and skip toasts when
+stale (container survives client-side project switches). Field-group
+components receive the typed `control` prop and subscribe to
+individual fields with `useWatch`; there is no local Zustand store
+and no feature `useEffect`.
 
 **Performance boundaries**: a keystroke or select change rerenders only
 the field-group component watching that field. The form layer reads no

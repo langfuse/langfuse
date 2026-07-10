@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -23,9 +24,10 @@ import { BlobStorageIntegrationForm } from "@/src/features/blobstorage-integrati
 // derivation, the four mutations, and the entity-action buttons. The form
 // below it is a disposable draft: it is not mounted until every input has
 // resolved, and it is remounted (via key) whenever the entity identity
-// changes — project switch, create, delete. Background refetches of the
-// same entity (status poll, post-save invalidation) keep the key stable so
-// they can never touch a draft in progress.
+// changes — project switch, create, delete — or the user explicitly reloads
+// after a concurrent edit. Background refetches of the same entity (status
+// poll, post-save invalidation) keep the key stable so they can never touch
+// a draft in progress.
 export const BlobStorageIntegrationContainer = ({
   config,
   projectId,
@@ -40,6 +42,12 @@ export const BlobStorageIntegrationContainer = ({
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { project } = useQueryProject();
+
+  // The container survives a client-side project switch; mutation callbacks
+  // compare the projectId they were fired with against the live prop and
+  // skip UI feedback when they no longer match (stale resolution).
+  const projectIdRef = useRef(projectId);
+  projectIdRef.current = projectId;
 
   const isPostCutoffCloud =
     project?.createdAt != null &&
@@ -58,12 +66,63 @@ export const BlobStorageIntegrationContainer = ({
     [eventsExportAvailable, forceEventsExport],
   );
 
+  // Concurrent-edit drift detection. The form freezes a snapshot at mount;
+  // `snapshot` records which entity identity and updatedAt that snapshot was
+  // built from. A differing refetched updatedAt on the SAME identity means
+  // someone else saved — surface a banner, never discard the draft without
+  // an explicit click. `epoch` remounts the form on that click.
+  const identity = `${projectId}:${config ? "configured" : "new"}`;
+  const [snapshot, setSnapshot] = useState<{
+    identity: string;
+    updatedAt: Date | null;
+    epoch: number;
+  }>({ identity, updatedAt: config?.updatedAt ?? null, epoch: 0 });
+  // Set on own-save success so the resulting updatedAt bump is adopted
+  // (remount from the just-saved row, clearing dirty flags) instead of
+  // showing the banner against the user's own change.
+  const [pendingSelfSave, setPendingSelfSave] = useState(false);
+
+  // Render-phase state adjustment (React's derive-state-from-props pattern):
+  // identity changes rebaseline the snapshot before anything is compared.
+  if (snapshot.identity !== identity) {
+    setSnapshot({ identity, updatedAt: config?.updatedAt ?? null, epoch: 0 });
+    if (pendingSelfSave) setPendingSelfSave(false);
+  }
+
+  const configUpdatedAt = config?.updatedAt
+    ? new Date(config.updatedAt).getTime()
+    : null;
+  const snapshotUpdatedAt = snapshot.updatedAt
+    ? new Date(snapshot.updatedAt).getTime()
+    : null;
+  const updatedAtChanged =
+    snapshot.identity === identity &&
+    configUpdatedAt != null &&
+    snapshotUpdatedAt != null &&
+    configUpdatedAt !== snapshotUpdatedAt;
+
+  if (updatedAtChanged && pendingSelfSave) {
+    setSnapshot({
+      identity,
+      updatedAt: config?.updatedAt ?? null,
+      epoch: snapshot.epoch + 1,
+    });
+    setPendingSelfSave(false);
+  }
+  const hasDrift = updatedAtChanged && !pendingSelfSave;
+
   const utils = api.useUtils();
+  // invalidate() stays unguarded everywhere: the query cache is keyed per
+  // projectId, so refreshing the fired-for project in the background is
+  // correct even after a switch.
   const mut = api.blobStorageIntegration.update.useMutation({
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       utils.blobStorageIntegration.invalidate();
+      if (variables.projectId !== projectIdRef.current) return; // stale
+      setPendingSelfSave(true);
     },
-    onError: (error) => {
+    onError: (error, variables) => {
+      if (variables.projectId !== projectIdRef.current) return; // stale
       showErrorToast("Failed to save integration", error.message);
     },
   });
@@ -78,13 +137,15 @@ export const BlobStorageIntegrationContainer = ({
     },
   });
   const mutValidate = api.blobStorageIntegration.validate.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
+      if (variables.projectId !== projectIdRef.current) return; // stale
       showSuccessToast({
         title: data.message,
         description: `Test file: ${data.testFileName}`,
       });
     },
-    onError: (error) => {
+    onError: (error, variables) => {
+      if (variables.projectId !== projectIdRef.current) return; // stale
       showErrorToast("Validation failed", error.message);
     },
   });
@@ -110,65 +171,92 @@ export const BlobStorageIntegrationContainer = ({
   };
 
   return (
-    <BlobStorageIntegrationForm
-      // Draft lifetime = entity identity. Deliberately NOT updatedAt:
-      // exists→exists refetches (5s status poll, post-update refetch) must
-      // not remount, so mid-save typing survives. Delete flips
-      // configured→new and remounts blank; create flips new→configured and
-      // remounts from the saved row (clearing stale dirty flags).
-      key={`${projectId}:${config ? "configured" : "new"}`}
-      initialValues={buildBlobStorageFormValues(
-        config ?? undefined,
-        availability,
+    <>
+      {hasDrift && (
+        <Alert className="mb-4">
+          <AlertTitle>Configuration changed elsewhere</AlertTitle>
+          <AlertDescription>
+            The saved configuration was updated in another tab or by another
+            user. Your unsaved edits are kept until you reload.
+            <div className="mt-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() =>
+                  setSnapshot({
+                    identity,
+                    updatedAt: config?.updatedAt ?? null,
+                    epoch: snapshot.epoch + 1,
+                  })
+                }
+              >
+                Reload form (discards unsaved edits)
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
       )}
-      availability={availability}
-      persistedExportSource={config?.exportSource}
-      isParquetOverride={parquetEnabledFromTuning(config?.exportTuning)}
-      isSaving={mut.isPending}
-      onSubmit={handleSubmit}
-    >
-      <Button
-        variant="secondary"
-        loading={mutValidate.isPending}
-        disabled={!config}
-        title="Test your saved configuration by uploading a small test file to your storage"
-        onClick={() => {
-          mutValidate.mutate({ projectId });
-        }}
+      <BlobStorageIntegrationForm
+        // Draft lifetime = entity identity (+ explicit reload epoch).
+        // Deliberately NOT updatedAt: exists→exists refetches (5s status
+        // poll, post-update refetch) must not remount, so mid-save typing
+        // survives. Delete flips configured→new and remounts blank; create
+        // flips new→configured and remounts from the saved row (clearing
+        // stale dirty flags).
+        key={`${identity}:${snapshot.epoch}`}
+        initialValues={buildBlobStorageFormValues(
+          config ?? undefined,
+          availability,
+        )}
+        availability={availability}
+        persistedExportSource={config?.exportSource}
+        isParquetOverride={parquetEnabledFromTuning(config?.exportTuning)}
+        isSaving={mut.isPending}
+        onSubmit={handleSubmit}
       >
-        Validate
-      </Button>
-      <Button
-        variant="secondary"
-        loading={mutRunNow.isPending}
-        disabled={!config?.enabled}
-        title="Trigger an immediate export of all data since the last sync"
-        onClick={() => {
-          if (
-            confirm(
-              "Are you sure you want to run the blob storage export now? This will export all data since the last sync.",
+        <Button
+          variant="secondary"
+          loading={mutValidate.isPending}
+          disabled={!config}
+          title="Test your saved configuration by uploading a small test file to your storage"
+          onClick={() => {
+            mutValidate.mutate({ projectId });
+          }}
+        >
+          Validate
+        </Button>
+        <Button
+          variant="secondary"
+          loading={mutRunNow.isPending}
+          disabled={!config?.enabled}
+          title="Trigger an immediate export of all data since the last sync"
+          onClick={() => {
+            if (
+              confirm(
+                "Are you sure you want to run the blob storage export now? This will export all data since the last sync.",
+              )
             )
-          )
-            mutRunNow.mutate({ projectId });
-        }}
-      >
-        Run Now
-      </Button>
-      <Button
-        variant="ghost"
-        loading={mutDelete.isPending}
-        disabled={!config}
-        onClick={() => {
-          if (
-            confirm(
-              "Are you sure you want to reset the Blob Storage integration for this project?",
+              mutRunNow.mutate({ projectId });
+          }}
+        >
+          Run Now
+        </Button>
+        <Button
+          variant="ghost"
+          loading={mutDelete.isPending}
+          disabled={!config}
+          onClick={() => {
+            if (
+              confirm(
+                "Are you sure you want to reset the Blob Storage integration for this project?",
+              )
             )
-          )
-            mutDelete.mutate({ projectId });
-        }}
-      >
-        Reset
-      </Button>
-    </BlobStorageIntegrationForm>
+              mutDelete.mutate({ projectId });
+          }}
+        >
+          Reset
+        </Button>
+      </BlobStorageIntegrationForm>
+    </>
   );
 };
