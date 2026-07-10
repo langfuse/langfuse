@@ -168,3 +168,189 @@ describe("parseGeneratedFilters", () => {
     expect(droppedCount).toBe(0);
   });
 });
+
+describe("parseGeneratedFilters — score-name validation", () => {
+  // The observed score names by column type, as the client threads them from
+  // filterOptions. A field left undefined means "not loaded" → no enforcement
+  // for that column.
+  const scoreNames = {
+    numeric: ["helpfulness-rating", "accuracy"],
+    categorical: ["sentiment"],
+    traceNumeric: ["overall-quality"],
+    traceCategorical: ["Hallucination Check"],
+  };
+
+  const numericScoreFilter = (key: string) => ({
+    type: "numberObject",
+    column: "scores_avg",
+    key,
+    operator: ">",
+    value: 0.8,
+  });
+
+  it("keeps an exactly-matching score name untouched", () => {
+    const completion = JSON.stringify([numericScoreFilter("accuracy")]);
+    const { filters, droppedCount, unknownScoreNames } = parseGeneratedFilters(
+      completion,
+      scoreNames,
+    );
+    expect(filters).toHaveLength(1);
+    expect(filters[0]).toMatchObject({ key: "accuracy" });
+    expect(droppedCount).toBe(0);
+    expect(unknownScoreNames).toEqual([]);
+  });
+
+  it("corrects underscore notation to the real hyphenated score name", () => {
+    // The motivating bug: the user wrote `helpfulness_rating`, the real score
+    // is `helpfulness-rating`, and the dead filter silently returned zero rows.
+    const completion = JSON.stringify([
+      numericScoreFilter("helpfulness_rating"),
+    ]);
+    const { filters, queryText, droppedCount, unknownScoreNames } =
+      parseGeneratedFilters(completion, scoreNames);
+    expect(filters).toHaveLength(1);
+    expect(filters[0]).toMatchObject({
+      column: "scores_avg",
+      key: "helpfulness-rating",
+    });
+    expect(queryText).toContain("helpfulness-rating");
+    expect(droppedCount).toBe(0);
+    expect(unknownScoreNames).toEqual([]);
+  });
+
+  it("corrects case/space/separator variants, preserving the column's level", () => {
+    const completion = JSON.stringify([
+      {
+        type: "categoryOptions",
+        column: "trace_score_categories",
+        key: "hallucination_check",
+        operator: "any of",
+        value: ["faithful"],
+      },
+      {
+        type: "numberObject",
+        column: "trace_scores_avg",
+        key: "Overall Quality",
+        operator: "<",
+        value: 0.5,
+      },
+    ]);
+    const { filters, droppedCount } = parseGeneratedFilters(
+      completion,
+      scoreNames,
+    );
+    expect(filters).toHaveLength(2);
+    expect(filters[0]).toMatchObject({
+      column: "trace_score_categories",
+      key: "Hallucination Check",
+    });
+    expect(filters[1]).toMatchObject({
+      column: "trace_scores_avg",
+      key: "overall-quality",
+    });
+    expect(droppedCount).toBe(0);
+  });
+
+  it("drops an unknown score name, reports it, and keeps valid siblings", () => {
+    const completion = JSON.stringify([
+      numericScoreFilter("nonexistent_score"),
+      {
+        type: "stringOptions",
+        column: "level",
+        operator: "any of",
+        value: ["ERROR"],
+      },
+    ]);
+    const { filters, droppedCount, unknownScoreNames } = parseGeneratedFilters(
+      completion,
+      scoreNames,
+    );
+    expect(filters).toHaveLength(1);
+    expect(filters[0]?.column).toBe("level");
+    expect(droppedCount).toBe(1);
+    expect(unknownScoreNames).toEqual(["nonexistent_score"]);
+  });
+
+  it("does not rescue a name across score types (numeric stays numeric)", () => {
+    // `sentiment` exists only as a categorical score; a numberObject filter on
+    // it cannot be corrected in place (operator/value shapes differ), so it is
+    // dropped and reported rather than silently retyped.
+    const completion = JSON.stringify([numericScoreFilter("sentiment")]);
+    const { filters, droppedCount, unknownScoreNames } = parseGeneratedFilters(
+      completion,
+      scoreNames,
+    );
+    expect(filters).toHaveLength(0);
+    expect(droppedCount).toBe(1);
+    expect(unknownScoreNames).toEqual(["sentiment"]);
+  });
+
+  it("drops when the normalized name is ambiguous between two real scores", () => {
+    const completion = JSON.stringify([numericScoreFilter("My Score")]);
+    const { filters, unknownScoreNames } = parseGeneratedFilters(completion, {
+      ...scoreNames,
+      numeric: ["my-score", "my_score"],
+    });
+    expect(filters).toHaveLength(0);
+    expect(unknownScoreNames).toEqual(["My Score"]);
+  });
+
+  it("still keeps an exact match when its normalization is ambiguous", () => {
+    const completion = JSON.stringify([numericScoreFilter("my_score")]);
+    const { filters, unknownScoreNames } = parseGeneratedFilters(completion, {
+      ...scoreNames,
+      numeric: ["my-score", "my_score"],
+    });
+    expect(filters).toHaveLength(1);
+    expect(filters[0]).toMatchObject({ key: "my_score" });
+    expect(unknownScoreNames).toEqual([]);
+  });
+
+  it("skips enforcement for a column whose name set was not provided", () => {
+    // Only the numeric sets are loaded; the categorical filter passes through
+    // unvalidated (its filter-options column has not loaded on the client).
+    const completion = JSON.stringify([
+      {
+        type: "categoryOptions",
+        column: "score_categories",
+        key: "anything_goes",
+        operator: "any of",
+        value: ["yes"],
+      },
+    ]);
+    const { filters, unknownScoreNames } = parseGeneratedFilters(completion, {
+      numeric: ["accuracy"],
+    });
+    expect(filters).toHaveLength(1);
+    expect(filters[0]).toMatchObject({ key: "anything_goes" });
+    expect(unknownScoreNames).toEqual([]);
+  });
+
+  it("skips enforcement entirely when no score-name context is passed", () => {
+    const completion = JSON.stringify([numericScoreFilter("anything_goes")]);
+    const { filters, unknownScoreNames } = parseGeneratedFilters(completion);
+    expect(filters).toHaveLength(1);
+    expect(filters[0]).toMatchObject({ key: "anything_goes" });
+    expect(unknownScoreNames).toEqual([]);
+  });
+
+  it("drops every score filter when the loaded set is empty (project has none)", () => {
+    const completion = JSON.stringify([numericScoreFilter("accuracy")]);
+    const { filters, droppedCount, unknownScoreNames } = parseGeneratedFilters(
+      completion,
+      { ...scoreNames, numeric: [] },
+    );
+    expect(filters).toHaveLength(0);
+    expect(droppedCount).toBe(1);
+    expect(unknownScoreNames).toEqual(["accuracy"]);
+  });
+
+  it("dedupes repeated unknown names in the report", () => {
+    const completion = JSON.stringify([
+      numericScoreFilter("ghost_score"),
+      { ...numericScoreFilter("ghost_score"), operator: "<", value: 0.2 },
+    ]);
+    const { unknownScoreNames } = parseGeneratedFilters(completion, scoreNames);
+    expect(unknownScoreNames).toEqual(["ghost_score"]);
+  });
+});

@@ -112,7 +112,10 @@ import { useSearchBarEnabled } from "@/src/features/search-bar/hooks/useSearchBa
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
-import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import {
+  observedScoreNamesFromOptions,
+  toObservedOptions,
+} from "@/src/features/search-bar/lib/observed-options";
 import { CategoryPresetChips } from "@/src/features/events/components/CategoryPresetChips";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import { withMetadataPathOptions } from "@/src/features/search-bar/lib/metadata-paths";
@@ -687,6 +690,19 @@ export default function ObservationsEventsTable({
           : null,
     });
   }, [searchBarMode, observedOptions, observations.rows, observations.status]);
+
+  // Observed score names by column type for the AI endpoint's score-name
+  // guardrail: the server validates/corrects the score keys the model returns
+  // against these. Structured (not re-parsed from the flattened dataContext
+  // above), and each set stays undefined until its filter-options column has
+  // loaded, so an in-flight fetch never makes a real score name look unknown.
+  const aiScoreNames = useMemo(
+    () =>
+      searchBarMode
+        ? observedScoreNamesFromOptions(observedOptions)
+        : undefined,
+    [searchBarMode, observedOptions],
+  );
 
   const { scoreColumns, isLoading: isColumnLoading } =
     useScoreColumns<EventsTableRow>({
@@ -1691,6 +1707,7 @@ export default function ObservationsEventsTable({
                 onApplyFilters={searchBarApplyFilters}
                 onRequestColumns={requestColumns}
                 aiDataContext={aiDataContext}
+                aiScoreNames={aiScoreNames}
               />
             )}
             {/* Toolbar spanning full width */}
