@@ -230,7 +230,22 @@ export async function validateAndSetupExperiment(
   const promptToolsResult = z
     .object({ tools: z.array(LLMToolDefinitionSchema) })
     .safeParse(prompt.config);
-  const tools = promptToolsResult.success ? promptToolsResult.data.tools : [];
+  const promptTools = promptToolsResult.success
+    ? promptToolsResult.data.tools
+    : [];
+
+  // fetchLLMCompletion cannot combine tools with a structured-output schema:
+  // the structured-output branch short-circuits before tools are applied. Drop
+  // tools when a schema is set and warn, rather than ignoring them silently.
+  const hasStructuredOutput = Boolean(
+    validatedRunMetadata.data.structured_output_schema,
+  );
+  if (promptTools.length > 0 && hasStructuredOutput) {
+    logger.warn(
+      `Experiment run ${runId}: ignoring prompt tools because a structured output schema is set; fetchLLMCompletion cannot use both.`,
+    );
+  }
+  const tools = hasStructuredOutput ? [] : promptTools;
 
   return {
     datasetRun,
