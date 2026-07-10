@@ -1,8 +1,74 @@
-import { Readable } from "stream";
+import { createHash } from "node:crypto";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import { Readable } from "node:stream";
 
 import { describe, expect, it, vi } from "vitest";
 
 import { StorageServiceFactory } from "./StorageService";
+
+describe("S3StorageService DeleteObjects checksum", () => {
+  it("sends Content-MD5 for multi-object deletes", async () => {
+    let requestCount = 0;
+    const server = createServer((request, response) => {
+      const chunks: Buffer[] = [];
+
+      request.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+      request.on("end", () => {
+        requestCount += 1;
+        const body = Buffer.concat(chunks);
+        const expectedMd5 = createHash("md5").update(body).digest("base64");
+
+        if (request.headers["content-md5"] !== expectedMd5) {
+          response.writeHead(400, { "content-type": "application/xml" });
+          response.end(
+            "<Error><Code>MissingContentMD5</Code>" +
+              "<Message>Missing required header for this request: Content-Md5.</Message></Error>",
+          );
+          return;
+        }
+
+        response.writeHead(200, { "content-type": "application/xml" });
+        response.end(
+          '<?xml version="1.0" encoding="UTF-8"?>' +
+            '<DeleteResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"/>',
+        );
+      });
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", resolve);
+    });
+
+    try {
+      const { port } = server.address() as AddressInfo;
+      const storageService = StorageServiceFactory.getInstance({
+        accessKeyId: "test-access-key",
+        secretAccessKey: "test-secret-key",
+        bucketName: "test-bucket",
+        endpoint: `http://127.0.0.1:${port}`,
+        region: "us-east-1",
+        forcePathStyle: true,
+        awsSse: undefined,
+        awsSseKmsKeyId: undefined,
+      });
+
+      await (
+        storageService as unknown as {
+          deleteFilesNonRetrying(paths: string[]): Promise<void>;
+        }
+      ).deleteFilesNonRetrying(["first.json", "second.json"]);
+
+      expect(requestCount).toBe(1);
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+});
 
 /**
  * Regression tests for the Azure Blob download path.

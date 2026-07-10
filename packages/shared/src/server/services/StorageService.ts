@@ -1,5 +1,6 @@
 import { Readable } from "stream";
 import {
+  ChecksumAlgorithm,
   DeleteObjectsCommand,
   GetObjectCommand,
   ListObjectsV2Command,
@@ -941,6 +942,7 @@ class S3StorageService implements StorageService {
       for (const chunk of chunks) {
         const command = new DeleteObjectsCommand({
           Bucket: this.bucketName,
+          ChecksumAlgorithm: ChecksumAlgorithm.MD5,
           Delete: {
             Objects: chunk.map((path) => ({ Key: path })),
             Quiet: true,
