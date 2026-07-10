@@ -283,6 +283,10 @@ export default function Dashboard() {
                 columns={filterColumns}
                 filterState={userFilterState}
                 onChange={useDebounce(setUserFilterState)}
+                // Analytics (LFE-10781): project-home dashboard filter — a
+                // v3/legacy surface (not the v4 events table).
+                tableName="home-dashboard"
+                isV4={false}
               />
             </>
           ),
