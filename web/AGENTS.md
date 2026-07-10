@@ -62,7 +62,8 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 
 - Shared browser-review workflow for user-visible frontend changes:
   [`../.agents/skills/frontend-browser-review/SKILL.md`](../.agents/skills/frontend-browser-review/SKILL.md)
-- Large frontend feature, virtualized-list, and local state architecture:
+- Large frontend feature, virtualized-list, local state, and React
+  effect-free data-flow architecture:
   [`../.agents/skills/frontend-large-feature-architecture/SKILL.md`](../.agents/skills/frontend-large-feature-architecture/SKILL.md)
 - React composition and component API design:
   [`web/.agents/skills/vercel-composition-patterns/SKILL.md`](.agents/skills/vercel-composition-patterns/SKILL.md)
@@ -75,9 +76,12 @@ Read these package-local skills before substantial frontend refactors when the
 task involves component composition, reusable component APIs, rendering
 performance, virtualized lists, local feature stores, bundle size,
 React/Next.js performance patterns, or browser-based signoff of user-visible
-changes. When adding a meaningful user action (button, handler, form,
-mutation, feature surface), read the PostHog instrumentation skill and decide
-explicitly whether the action should emit an analytics event.
+changes. If you are about to write a `useEffect` or wire form initial values
+from loaded data, read the frontend-large-feature-architecture skill first —
+most effects that derive or sync state should not exist. When adding a
+meaningful user action (button, handler, form, mutation, feature surface),
+read the PostHog instrumentation skill and decide explicitly whether the
+action should emit an analytics event.
 
 ## Web Conventions
 
