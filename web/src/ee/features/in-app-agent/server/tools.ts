@@ -438,7 +438,7 @@ export function createSandboxTools(sandbox: InAppAgentSandbox) {
       description: "Run a shell command.",
       inputSchema: z.object({
         command: z.string().min(1),
-        timeoutMs: z.number().int().positive().max(120_000).optional(),
+        timeoutMs: z.number().int().positive().max(120_000).default(120_000),
       }),
       execute: async ({ command, timeoutMs }) =>
         sandbox.bash({ command, timeoutMs }),

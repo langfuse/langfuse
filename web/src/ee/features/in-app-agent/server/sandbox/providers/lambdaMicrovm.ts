@@ -16,6 +16,7 @@ import { z } from "zod";
 import type { SandboxFile, SandboxProvider, SandboxSession } from "../types";
 
 const DEFAULT_AUTH_TOKEN_EXPIRATION_MINUTES = 30;
+const AUTH_TOKEN_REFRESH_BUFFER_MS = 60_000;
 const DEFAULT_SANDBOX_SERVER_PORT = 5000;
 const DEFAULT_SUSPEND_AFTER_IDLE_SECONDS = 60;
 const DEFAULT_TERMINATE_AFTER_SUSPEND_SECONDS = 8 * 60 * 60;
@@ -42,6 +43,11 @@ type LambdaMicrovmOperation =
   | { operation: "bash"; command: string; timeoutMs?: number };
 
 type LambdaMicrovmSession = {
+  endpoint: string;
+  authToken?: {
+    value: string;
+    expiresAtMs: number;
+  };
   toolCallFiles: ReadonlyArray<SandboxFile>;
 };
 
@@ -100,10 +106,12 @@ export function createLambdaMicrovmSandboxProvider(params: {
           endpoint: existing.endpoint,
         });
 
-        sessions.set(
-          request.sessionId,
-          sessions.get(request.sessionId) ?? { toolCallFiles: [] },
-        );
+        const session = sessions.get(request.sessionId);
+        sessions.set(request.sessionId, {
+          ...session,
+          endpoint: existing.endpoint,
+          toolCallFiles: session?.toolCallFiles ?? [],
+        });
         logger.debug("[Lambda MicroVM Sandbox] reusing existing session", {
           conversationId: request.conversationId,
           sessionId: request.sessionId,
@@ -140,7 +148,10 @@ export function createLambdaMicrovmSandboxProvider(params: {
       ),
     );
 
-    sessions.set(microvm.microvmId, { toolCallFiles: [] });
+    sessions.set(microvm.microvmId, {
+      endpoint: microvm.endpoint,
+      toolCallFiles: [],
+    });
     await waitForBridge({
       client,
       microvmId: microvm.microvmId,
@@ -161,32 +172,34 @@ export function createLambdaMicrovmSandboxProvider(params: {
     operation: LambdaMicrovmOperation,
   ) => {
     const session = getSession(sessions, sessionId);
-    const microvm = await getMicrovm(client, sessionId);
-    if (!microvm) {
-      throw new Error(`Missing sandbox session: ${sessionId}`);
+    if (
+      !session.authToken ||
+      session.authToken.expiresAtMs - AUTH_TOKEN_REFRESH_BUFFER_MS <= Date.now()
+    ) {
+      session.authToken = await createMicrovmAuthToken({
+        client,
+        microvmId: sessionId,
+        endpoint: session.endpoint,
+      });
     }
 
     logger.debug("[Lambda MicroVM Sandbox] executing operation", {
       sessionId,
       operation: operation.operation,
-      endpoint: microvm.endpoint,
-      normalizedEndpoint: normalizeEndpoint(microvm.endpoint),
-      endpointPort: getEndpointPort(microvm.endpoint),
+      endpoint: session.endpoint,
+      normalizedEndpoint: normalizeEndpoint(session.endpoint),
+      endpointPort: getEndpointPort(session.endpoint),
       sandboxServerPort: DEFAULT_SANDBOX_SERVER_PORT,
     });
 
     const response = await fetch(
-      `${normalizeEndpoint(microvm.endpoint)}/sandbox`,
+      `${normalizeEndpoint(session.endpoint)}/sandbox`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-aws-proxy-port": String(DEFAULT_SANDBOX_SERVER_PORT),
-          "X-aws-proxy-auth": await createMicrovmAuthToken({
-            client,
-            microvmId: sessionId,
-            endpoint: microvm.endpoint,
-          }),
+          "X-aws-proxy-auth": session.authToken.value,
         },
         body: JSON.stringify({
           ...operation,
@@ -200,9 +213,9 @@ export function createLambdaMicrovmSandboxProvider(params: {
       logger.debug("[Lambda MicroVM Sandbox] operation request failed", {
         sessionId,
         operation: operation.operation,
-        endpoint: microvm.endpoint,
-        normalizedEndpoint: normalizeEndpoint(microvm.endpoint),
-        endpointPort: getEndpointPort(microvm.endpoint),
+        endpoint: session.endpoint,
+        normalizedEndpoint: normalizeEndpoint(session.endpoint),
+        endpointPort: getEndpointPort(session.endpoint),
         sandboxServerPort: DEFAULT_SANDBOX_SERVER_PORT,
         status: response.status,
         statusText: response.statusText,
@@ -352,7 +365,7 @@ async function waitForBridge(params: {
         {
           headers: {
             "X-aws-proxy-port": String(DEFAULT_SANDBOX_SERVER_PORT),
-            "X-aws-proxy-auth": await createMicrovmAuthToken(params),
+            "X-aws-proxy-auth": (await createMicrovmAuthToken(params)).value,
           },
         },
       );
@@ -417,7 +430,10 @@ async function createMicrovmAuthToken(params: {
     authTokenKeys: Object.keys(response.authToken ?? {}),
   });
 
-  return token;
+  return {
+    value: token,
+    expiresAtMs: Date.now() + DEFAULT_AUTH_TOKEN_EXPIRATION_MINUTES * 60 * 1000,
+  };
 }
 
 async function getMicrovm(client: LambdaMicrovmsClient, microvmId: string) {

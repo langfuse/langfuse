@@ -111,7 +111,7 @@ describe("in-app agent sandbox", () => {
 
     expect(files).toEqual([
       {
-        path: "tool_calls/2026-07-02T12-00-00.000Z_langfuse_getHealth.json",
+        path: "tool_calls/2026-07-02T12-00-00.000Z_langfuse_getHealth_tool-call-1.json",
         content: JSON.stringify(
           {
             request: { projectId: "project-1" },
@@ -122,6 +122,53 @@ describe("in-app agent sandbox", () => {
           2,
         ),
       },
+    ]);
+  });
+
+  it("keeps repeated same-name tool calls with identical timestamps", () => {
+    const createdAt = new Date("2026-07-02T12:00:00.000Z");
+    const files = getSandboxToolCallFiles([
+      {
+        createdAt,
+        runId: "run-1",
+        event: {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: "tool-call-1",
+          toolCallName: "langfuse_getHealth",
+        },
+      },
+      {
+        createdAt,
+        runId: "run-1",
+        event: {
+          type: EventType.TOOL_CALL_RESULT,
+          toolCallId: "tool-call-1",
+          content: '{"status":"ok"}',
+        },
+      },
+      {
+        createdAt,
+        runId: "run-1",
+        event: {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: "tool-call-2",
+          toolCallName: "langfuse_getHealth",
+        },
+      },
+      {
+        createdAt,
+        runId: "run-1",
+        event: {
+          type: EventType.TOOL_CALL_RESULT,
+          toolCallId: "tool-call-2",
+          content: '{"status":"ok"}',
+        },
+      },
+    ]);
+
+    expect(files.map((file) => file.path)).toEqual([
+      "tool_calls/2026-07-02T12-00-00.000Z_langfuse_getHealth_tool-call-1.json",
+      "tool_calls/2026-07-02T12-00-00.000Z_langfuse_getHealth_tool-call-2.json",
     ]);
   });
 });

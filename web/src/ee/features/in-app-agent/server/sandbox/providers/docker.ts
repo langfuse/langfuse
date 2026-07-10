@@ -86,7 +86,7 @@ export async function createDockerSandboxProvider(params: {
     } catch (error) {
       if (isMissingDockerImageError(error)) {
         throw new Error(
-          `Missing local sandbox image ${params.image}. Re-run \`bash scripts/codex/setup.sh\` or run \`pnpm turbo run build:image-docker-image --filter @repo/in-app-agent-sandbox-runtime --force\`.`,
+          `Missing local sandbox image ${params.image}. Re-run \`bash scripts/codex/setup.sh\` or run \`pnpm turbo run build:docker-image --filter @repo/in-app-agent-sandbox-runtime --force\`.`,
         );
       }
 

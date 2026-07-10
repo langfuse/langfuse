@@ -730,6 +730,12 @@ export async function createAgUiStream(params: {
             "Error while marking agent stream as aborted",
           ),
         )
+        .then(() =>
+          runTerminalCallback(
+            runOnFinish,
+            "Error while running agent stream finish callback after cancel",
+          ),
+        )
         .then(() => {
           closed = true;
         })

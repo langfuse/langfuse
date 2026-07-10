@@ -389,7 +389,7 @@ export function getSandboxToolCallFiles(
 
     drafts.delete(toolCallId);
     files.push({
-      path: `tool_calls/${formatSandboxToolCallTimestamp(draft.createdAt)}_${draft.toolName}.json`,
+      path: `tool_calls/${formatSandboxToolCallTimestamp(draft.createdAt)}_${draft.toolName}_${toolCallId}.json`,
       content: JSON.stringify(
         {
           request: parseSandboxToolCallValue(draft.request),

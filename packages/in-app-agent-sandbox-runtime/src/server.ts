@@ -22,6 +22,7 @@ const SERVER_PORT = 5000;
 const WORKSPACE_ROOT = "/workspace";
 const TOOL_CALLS_ROOT = path.join(WORKSPACE_ROOT, "tool_calls");
 const MICROVM_RUNTIME_HOOKS_ROOT = "/aws/lambda-microvms/runtime/v1";
+const MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024;
 let requestCounter = 0;
 
 const server = createServer(async (request, response) => {
@@ -209,7 +210,15 @@ async function editOperation(body: EditSandboxOperation, requestId: string) {
     }
   }
 
-  const replaced = current.includes(body.oldText);
+  const firstMatch = current.indexOf(body.oldText);
+  const replaced = firstMatch !== -1;
+  if (
+    replaced &&
+    current.indexOf(body.oldText, firstMatch + body.oldText.length) !== -1
+  ) {
+    throw new Error(`Sandbox edit target is ambiguous: ${body.path}`);
+  }
+
   if (replaced) {
     await writeFile(
       filePath,
@@ -431,11 +440,33 @@ function resolveSandboxPath(requestPath: string) {
 function readJsonBody(request: IncomingMessage) {
   return new Promise<unknown>((resolve, reject) => {
     let body = "";
+    let bytesRead = 0;
+    let rejected = false;
 
     request.on("data", (chunk: Buffer | string) => {
+      if (rejected) {
+        return;
+      }
+
+      bytesRead += Buffer.byteLength(chunk);
+      if (bytesRead > MAX_REQUEST_BODY_BYTES) {
+        rejected = true;
+        reject(
+          new Error(
+            `Sandbox request body exceeds ${MAX_REQUEST_BODY_BYTES} bytes`,
+          ),
+        );
+        request.destroy();
+        return;
+      }
+
       body += chunk.toString("utf8");
     });
     request.on("end", () => {
+      if (rejected) {
+        return;
+      }
+
       try {
         resolve(body ? (JSON.parse(body) as unknown) : {});
       } catch (error) {
