@@ -55,12 +55,13 @@ const validBody = {
   referenceUrl: "https://langfuse.com/docs",
 };
 
-const createRequest = (body: unknown) =>
+const createRequest = (body: unknown, client?: string) =>
   createMocks<NextApiRequest, NextApiResponse>({
     method: "POST",
     headers: {
       authorization: "Basic test",
       "content-type": "application/json",
+      ...(client ? { "x-langfuse-client": client } : {}),
     },
     body,
   });
@@ -92,7 +93,22 @@ describe("POST /api/public/feedback", () => {
     });
     expect(mockSubmitFeedback).toHaveBeenCalledWith({
       input: validBody,
-      authScope: validScope,
+      context: validScope,
+      source: "public-api",
+    });
+    expect(mockRateLimitRequest).toHaveBeenCalledWith(validScope, "feedback");
+  });
+
+  it("classifies CLI submissions from the existing client header", async () => {
+    const { req, res } = createRequest(validBody, "cli");
+
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(201);
+    expect(mockSubmitFeedback).toHaveBeenCalledWith({
+      input: validBody,
+      context: validScope,
+      source: "langfuse-cli",
     });
   });
 

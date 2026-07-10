@@ -1,12 +1,20 @@
 import { randomUUID } from "node:crypto";
 import { ServiceUnavailableError } from "@langfuse/shared";
+import { recordIncrement } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import type {
   PostFeedbackBodyType,
   PostFeedbackResponseType,
 } from "@/src/features/public-api/types/feedback";
+import { enforceFeedbackRateLimit } from "./FeedbackRateLimitService";
 
-type FeedbackAuthScope = {
+export type FeedbackSource =
+  | "langfuse-docs-mcp"
+  | "langfuse-mcp"
+  | "langfuse-cli"
+  | "public-api";
+
+type FeedbackContext = {
   projectId: string;
   orgId: string;
 };
@@ -32,6 +40,10 @@ type SlackBlock =
     }
   | {
       type: "divider";
+    }
+  | {
+      type: "context";
+      elements: SlackTextObject[];
     };
 
 type SlackPayload = {
@@ -85,40 +97,67 @@ const appendPlainTextSection = (
 const getDataRegion = (): string =>
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? "self-hosted";
 
+const feedbackSourceLabel: Record<FeedbackSource, string> = {
+  "langfuse-docs-mcp": "Langfuse Docs MCP",
+  "langfuse-mcp": "Langfuse MCP",
+  "langfuse-cli": "Langfuse CLI",
+  "public-api": "Public API",
+};
+
 export const buildFeedbackSlackMessage = ({
   id,
   input,
-  authScope,
+  source,
+  context,
 }: {
   id: string;
   input: PostFeedbackBodyType;
-  authScope: FeedbackAuthScope;
+  source: FeedbackSource;
+  context?: FeedbackContext;
 }): FeedbackSlackMessage => {
   const blocks: SlackBlock[] = [
     {
       type: "header",
       text: {
         type: "plain_text",
-        text: "Langfuse Feedback",
+        text: "New Langfuse feedback",
         emoji: false,
       },
     },
     {
       type: "section",
       fields: [
-        plainText(`Feedback ID\n${id}`, SLACK_FIELD_TEXT_LIMIT),
+        plainText(
+          `Source\n${feedbackSourceLabel[source]}`,
+          SLACK_FIELD_TEXT_LIMIT,
+        ),
         plainText(`Target type\n${input.targetType}`, SLACK_FIELD_TEXT_LIMIT),
         plainText(`Target\n${input.target}`, SLACK_FIELD_TEXT_LIMIT),
-        plainText(`Data region\n${getDataRegion()}`, SLACK_FIELD_TEXT_LIMIT),
-        plainText(`Project ID\n${authScope.projectId}`, SLACK_FIELD_TEXT_LIMIT),
-        plainText(`Org ID\n${authScope.orgId}`, SLACK_FIELD_TEXT_LIMIT),
+        plainText(`Intake region\n${getDataRegion()}`, SLACK_FIELD_TEXT_LIMIT),
       ],
     },
+    { type: "divider" },
   ];
 
   appendPlainTextSection(blocks, "Feedback", input.feedback);
   appendPlainTextSection(blocks, "Goal / use case", input.goal);
   appendPlainTextSection(blocks, "Reference URL", input.referenceUrl);
+
+  blocks.push({
+    type: "context",
+    elements: [
+      plainText(`Feedback ID: ${id}`, SLACK_FIELD_TEXT_LIMIT),
+      ...(context
+        ? [
+            plainText(`Org ID: ${context.orgId}`, SLACK_FIELD_TEXT_LIMIT),
+            plainText(
+              `Project ID: ${context.projectId}`,
+              SLACK_FIELD_TEXT_LIMIT,
+            ),
+          ]
+        : []),
+    ],
+  });
 
   return {
     text: `New Langfuse feedback ${id}`,
@@ -135,11 +174,18 @@ const getFeedbackWebhookUrl = (): string => {
     throw new ServiceUnavailableError("Feedback Slack sink is not configured");
   }
 
-  const parsed = new URL(webhookUrl);
-  if (
+  let parsed: URL;
+  try {
+    parsed = new URL(webhookUrl);
+  } catch {
+    throw new ServiceUnavailableError("Feedback Slack sink is misconfigured");
+  }
+
+  const requiresHttps = env.NODE_ENV === "production";
+  const isInvalidCloudSink =
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-    (parsed.protocol !== "https:" || parsed.hostname !== "hooks.slack.com")
-  ) {
+    (parsed.protocol !== "https:" || parsed.hostname !== "hooks.slack.com");
+  if ((requiresHttps && parsed.protocol !== "https:") || isInvalidCloudSink) {
     throw new ServiceUnavailableError("Feedback Slack sink is misconfigured");
   }
 
@@ -148,14 +194,18 @@ const getFeedbackWebhookUrl = (): string => {
 
 export const submitFeedback = async ({
   input,
-  authScope,
+  source,
+  context,
 }: {
   input: PostFeedbackBodyType;
-  authScope: FeedbackAuthScope;
+  source: FeedbackSource;
+  context?: FeedbackContext;
 }): Promise<PostFeedbackResponseType> => {
+  await enforceFeedbackRateLimit({ source, orgId: context?.orgId });
+
   const id = randomUUID();
   const webhookUrl = getFeedbackWebhookUrl();
-  const payload = buildFeedbackSlackMessage({ id, input, authScope });
+  const payload = buildFeedbackSlackMessage({ id, input, source, context });
 
   let response: Response;
   try {
@@ -169,12 +219,25 @@ export const submitFeedback = async ({
       body: JSON.stringify(payload),
     });
   } catch {
+    recordIncrement("langfuse.feedback.submission", 1, {
+      source,
+      outcome: "sink_failed",
+    });
     throw new ServiceUnavailableError("Feedback Slack sink request failed");
   }
 
   if (!response.ok) {
+    recordIncrement("langfuse.feedback.submission", 1, {
+      source,
+      outcome: "sink_failed",
+    });
     throw new ServiceUnavailableError("Feedback Slack sink rejected message");
   }
+
+  recordIncrement("langfuse.feedback.submission", 1, {
+    source,
+    outcome: "accepted",
+  });
 
   return { id };
 };

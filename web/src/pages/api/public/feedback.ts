@@ -12,6 +12,7 @@ export default withMiddlewares({
     bodySchema: PostFeedbackBody,
     responseSchema: PostFeedbackResponse,
     successStatusCode: 201,
+    rateLimitResource: "feedback",
     redactLogBody: (body) => {
       const candidate =
         typeof body === "object" && body !== null
@@ -25,7 +26,22 @@ export default withMiddlewares({
         target: candidate.target,
       };
     },
-    fn: async ({ body, auth }) =>
-      await submitFeedback({ input: body, authScope: auth.scope }),
+    fn: async ({ body, auth, req }) =>
+      await submitFeedback({
+        input: body,
+        context: auth.scope,
+        source:
+          req.headers["x-langfuse-client"] === "cli"
+            ? "langfuse-cli"
+            : "public-api",
+      }),
   }),
 });
+
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "16kb",
+    },
+  },
+};

@@ -73,8 +73,8 @@ export const env = createEnv({
           : [],
       ),
     NEXTAUTH_COOKIE_DOMAIN: z.string().optional(),
-    LANGFUSE_TEAM_SLACK_WEBHOOK: z.url().optional(),
     LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK: z.url().optional(),
+    LANGFUSE_FEEDBACK_INTAKE_TOKEN: z.string().min(32).optional(),
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK: z.url().optional(),
     LANGFUSE_ADMIN_ACCESS_WEBHOOK: z.url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
@@ -545,9 +545,10 @@ export const env = createEnv({
     LANGFUSE_AWS_BEDROCK_REGION: process.env.LANGFUSE_AWS_BEDROCK_REGION,
     LANGFUSE_IN_APP_AGENT_AWS_PROFILE:
       process.env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE,
-    LANGFUSE_TEAM_SLACK_WEBHOOK: process.env.LANGFUSE_TEAM_SLACK_WEBHOOK,
     LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK:
       process.env.LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK,
+    LANGFUSE_FEEDBACK_INTAKE_TOKEN:
+      process.env.LANGFUSE_FEEDBACK_INTAKE_TOKEN,
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK:
       process.env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK,
     LANGFUSE_ADMIN_ACCESS_WEBHOOK: process.env.LANGFUSE_ADMIN_ACCESS_WEBHOOK,

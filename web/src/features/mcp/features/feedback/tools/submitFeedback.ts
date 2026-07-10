@@ -23,7 +23,8 @@ export const [submitFeedbackTool, handleSubmitFeedback] = defineTool({
       fn: async () =>
         await submitFeedback({
           input,
-          authScope: {
+          source: "langfuse-mcp",
+          context: {
             projectId: context.projectId,
             orgId: context.orgId,
           },

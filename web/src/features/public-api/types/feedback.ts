@@ -38,6 +38,9 @@ export const PostFeedbackBody = z
     referenceUrl: z
       .url()
       .max(2048)
+      .refine((url) => ["http:", "https:"].includes(new URL(url).protocol), {
+        message: "referenceUrl must use http or https",
+      })
       .optional()
       .describe("Optional URL reference. Langfuse stores it as text only."),
   })

@@ -34,7 +34,7 @@ types:
         docs: Optional user-approved goal or use case they were trying to achieve. Must be between 1 and 1500 characters when provided. Do not include secrets, customer data, trace payloads, or broad unrelated context.
       referenceUrl:
         type: optional<string>
-        docs: Optional reference URL. Langfuse stores it as text for triage and does not fetch it.
+        docs: Optional HTTP(S) reference URL. Langfuse stores it as text for triage and does not fetch it.
   SubmitFeedbackResponse:
     properties:
       id:

@@ -46,10 +46,11 @@ describe("MCP submitFeedback tool", () => {
         target: "submitFeedback",
         feedback: "The tool is easy to find.",
       },
-      authScope: {
+      context: {
         projectId: "project-1",
         orgId: "org-1",
       },
+      source: "langfuse-mcp",
     });
 
     mockSubmitFeedback.mockRejectedValueOnce(
@@ -67,10 +68,10 @@ describe("MCP submitFeedback tool", () => {
       );
       throw new Error("Expected submitFeedback to throw");
     } catch (error) {
-      expect(error).toMatchObject({ code: ErrorCode.InvalidRequest });
+      expect(error).toMatchObject({ code: ErrorCode.InternalError });
       expect(error).toBeInstanceOf(Error);
       expect((error as Error).message).toContain(
-        "Feedback Slack sink rejected message",
+        "An internal server error occurred. Please try again later.",
       );
     }
   });
