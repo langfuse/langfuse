@@ -34,7 +34,8 @@ import {
   type Filter,
   FilterList,
   FullEventsObservations,
-  eventSearchCondition,
+  buildEventsObservationRowSelection,
+  extractTimeFilter,
   orderByToClickhouseSql,
   orderByToEntries,
   createPublicApiObservationsColumnMapping,
@@ -51,7 +52,6 @@ import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import type { EventsTableFilterState, FilterState } from "../../types";
 import type { TracingSearchType } from "../../interfaces/search";
 import {
-  eventsScoresAggregation,
   eventsSessionsAggregation,
   eventsTraceMetadata,
   eventsTracesAggregation,
@@ -299,31 +299,6 @@ async function enrichObservationsWithTraceFields(
         : null,
     };
   });
-}
-
-/**
- * Internal helper: extract and convert time filter from FilterList
- * Common pattern: find time filter and convert to ClickHouse DateTime format
- */
-export function extractTimeFilter(
-  filter: FilterList,
-  tableName: "events_proto" | "traces" = "events_proto",
-  fieldName: "start_time" | "timestamp" = "start_time",
-  prefix?: "e" | "t",
-): string | null {
-  const timeFilter = filter.find(
-    (f) =>
-      // For events tables, match any events_* prefix (events_proto, events_core, events_full)
-      (tableName === "events_proto"
-        ? f.clickhouseTable.startsWith("events_")
-        : f.clickhouseTable === tableName) &&
-      f.field === (prefix ? `${prefix}.${fieldName}` : fieldName) &&
-      (f.operator === ">=" || f.operator === ">"),
-  );
-
-  return timeFilter
-    ? convertDateToClickhouseDateTime((timeFilter as DateTimeFilter).value)
-    : null;
 }
 
 /**
@@ -599,46 +574,20 @@ async function getObservationsFromEventsTableInternal<T>(
     ...filter.filter((f) => f.type !== "positionInTrace"),
   ];
 
-  // Build filter list from baseFilter (without positionInTrace)
-  const observationsFilter = new FilterList(
-    createFilterFromFilterState(
-      baseFilter,
-      eventsTableUiColumnDefinitions,
-      eventsTableCols,
-    ),
-  );
-
-  const startTimeFrom = extractTimeFilter(observationsFilter);
-  const hasObservationScoresFilter = baseFilter.some((f) => {
-    const column = f.column.toLowerCase();
-    return (
-      column === "scores" ||
-      column === "scores_avg" ||
-      column === "score_categories" ||
-      column === "score_booleans" ||
-      column === "scores (numeric)" ||
-      column === "scores (categorical)" ||
-      column === "scores (boolean)"
-    );
-  });
-  const hasTraceScoresFilter = baseFilter.some((f) => {
-    const column = f.column.toLowerCase();
-    return (
-      column === "trace_scores_avg" ||
-      column === "trace_score_categories" ||
-      column === "trace_score_booleans" ||
-      column === "trace scores (numeric)" ||
-      column === "trace scores (categorical)" ||
-      column === "trace scores (boolean)"
-    );
-  });
   const orderByEntries = orderByToEntries(
     [orderBy ?? null],
     eventsTableUiColumnDefinitions,
   );
 
+  // Build filter list from baseFilter (without positionInTrace)
   // Build query using EventsQueryBuilder
-  const queryBuilder = new EventsQueryBuilder({ projectId });
+  const { queryBuilder, search } = buildEventsObservationRowSelection({
+    projectId,
+    filter: baseFilter,
+    searchQuery: opts.searchQuery,
+    searchType: opts.searchType,
+    scoreFilterCapabilities: { observation: true, trace: true },
+  });
 
   if (opts.select === "count") {
     queryBuilder.selectFieldSet("count");
@@ -665,10 +614,6 @@ async function getObservationsFromEventsTableInternal<T>(
     }
   }
 
-  const search = eventSearchCondition({
-    query: opts.searchQuery,
-    searchType: opts.searchType,
-  });
   const isTraceDeleteCursorSelect = opts.select === "trace-delete-cursor";
 
   // Handle positionInTrace via CTE with ROW_NUMBER()
@@ -716,34 +661,6 @@ async function getObservationsFromEventsTableInternal<T>(
   }
 
   queryBuilder
-    .when(hasObservationScoresFilter, (b) =>
-      b.withCTE(
-        "scores_agg",
-        eventsScoresAggregation({ projectId, startTimeFrom }),
-      ),
-    )
-    .when(hasTraceScoresFilter, (b) =>
-      b.withCTE(
-        "trace_scores_agg",
-        eventsTracesScoresAggregation({
-          projectId,
-          startTimeFrom,
-          hasScoreAggregationFilters: true,
-        }),
-      ),
-    )
-    .when(hasObservationScoresFilter, (b) =>
-      b.leftJoin("scores_agg AS s", "ON s.observation_id = e.span_id"),
-    )
-    .when(hasTraceScoresFilter, (b) =>
-      b.leftJoin(
-        "trace_scores_agg AS ts",
-        "ON ts.trace_id = e.trace_id AND ts.project_id = e.project_id",
-      ),
-    )
-    .when(search.requiresEventsFull, (b) => b.forceFullTable())
-    .applyFilters(observationsFilter)
-    .where(search)
     .when(isTraceDeleteCursorSelect, (b) =>
       applyObservationsCursorFilter(opts.cursor, b),
     )
