@@ -67,23 +67,46 @@ export const BlobStorageIntegrationContainer = ({
   );
 
   // Concurrent-edit drift detection. The form freezes a snapshot at mount;
-  // `snapshot` records which entity identity and updatedAt that snapshot was
-  // built from. A differing refetched updatedAt on the SAME identity means
-  // someone else saved — surface a banner, never discard the draft without
-  // an explicit click. `epoch` remounts the form on that click.
+  // `snapshot` records the entity identity and the user-configurable field
+  // values that snapshot was built from. Drift compares those FORM VALUES,
+  // not `updatedAt`: Prisma's @updatedAt bumps on every worker status write
+  // (runStartedAt, lastSyncAt, nextSyncAt, lastError — many times per sync,
+  // exactly while the 5s poll is active), so timestamps alone would banner
+  // on every active sync with no concurrent editor. A differing refetched
+  // value set on the SAME identity means someone else saved — surface a
+  // banner, never discard the draft without an explicit click. `epoch`
+  // remounts the form on that click.
   const identity = `${projectId}:${config ? "configured" : "new"}`;
+  const comparableConfigValues = (
+    c: Partial<BlobStorageIntegration> | null,
+  ) => {
+    const v = buildBlobStorageFormValues(c ?? undefined, availability);
+    // Field-group order is a persistence detail, not a config difference.
+    return JSON.stringify({
+      ...v,
+      exportFieldGroups: [...(v.exportFieldGroups ?? [])].sort(),
+    });
+  };
   const [snapshot, setSnapshot] = useState<{
     identity: string;
     updatedAt: Date | null;
+    values: string;
     epoch: number;
-  }>({ identity, updatedAt: config?.updatedAt ?? null, epoch: 0 });
+  }>({
+    identity,
+    updatedAt: config?.updatedAt ?? null,
+    values: comparableConfigValues(config),
+    epoch: 0,
+  });
   // Own-save tracking. `inFlight` is set from onMutate so a poll refetch
   // that races ahead of the mutation response cannot flash the banner for
-  // the user's own change. onSuccess records the exact updatedAt the save
-  // wrote, and ONLY that value is adopted silently (remount from the saved
-  // row, clearing dirty flags) — any other new updatedAt is a genuine
-  // concurrent edit and still banners, so a leftover expectation can never
-  // swallow an external edit.
+  // the user's own change. onSuccess records the updatedAt the save wrote;
+  // any refetch at or after it (>= — worker status writes may bump the row
+  // again before our refetch lands) is adopted silently: remount from the
+  // saved row, clearing dirty flags. A value change WITHOUT a pending
+  // expectation is a genuine concurrent edit and banners, so a leftover
+  // expectation cannot swallow an external edit that arrives after the
+  // post-save refetch has cleared it.
   const [selfSave, setSelfSave] = useState<{
     inFlight: boolean;
     expectedUpdatedAt: number | null;
@@ -92,7 +115,12 @@ export const BlobStorageIntegrationContainer = ({
   // Render-phase state adjustment (React's derive-state-from-props pattern):
   // identity changes rebaseline the snapshot before anything is compared.
   if (snapshot.identity !== identity) {
-    setSnapshot({ identity, updatedAt: config?.updatedAt ?? null, epoch: 0 });
+    setSnapshot({
+      identity,
+      updatedAt: config?.updatedAt ?? null,
+      values: comparableConfigValues(config),
+      epoch: 0,
+    });
     if (selfSave.inFlight || selfSave.expectedUpdatedAt != null)
       setSelfSave({ inFlight: false, expectedUpdatedAt: null });
   }
@@ -100,31 +128,25 @@ export const BlobStorageIntegrationContainer = ({
   const configUpdatedAt = config?.updatedAt
     ? new Date(config.updatedAt).getTime()
     : null;
-  const snapshotUpdatedAt = snapshot.updatedAt
-    ? new Date(snapshot.updatedAt).getTime()
-    : null;
-  const updatedAtChanged =
+  const valuesChanged =
     snapshot.identity === identity &&
-    configUpdatedAt != null &&
-    snapshotUpdatedAt != null &&
-    configUpdatedAt !== snapshotUpdatedAt;
-
-  if (
-    updatedAtChanged &&
+    comparableConfigValues(config) !== snapshot.values;
+  const adoptingSelfSave =
+    snapshot.identity === identity &&
     selfSave.expectedUpdatedAt != null &&
-    configUpdatedAt === selfSave.expectedUpdatedAt
-  ) {
+    configUpdatedAt != null &&
+    configUpdatedAt >= selfSave.expectedUpdatedAt;
+
+  if (adoptingSelfSave) {
     setSnapshot({
       identity,
       updatedAt: config?.updatedAt ?? null,
+      values: comparableConfigValues(config),
       epoch: snapshot.epoch + 1,
     });
     setSelfSave({ inFlight: false, expectedUpdatedAt: null });
   }
-  const hasDrift =
-    updatedAtChanged &&
-    !selfSave.inFlight &&
-    configUpdatedAt !== selfSave.expectedUpdatedAt;
+  const hasDrift = valuesChanged && !selfSave.inFlight && !adoptingSelfSave;
 
   const utils = api.useUtils();
   // invalidate() stays unguarded everywhere: the query cache is keyed per
@@ -213,6 +235,7 @@ export const BlobStorageIntegrationContainer = ({
                   setSnapshot({
                     identity,
                     updatedAt: config?.updatedAt ?? null,
+                    values: comparableConfigValues(config),
                     epoch: snapshot.epoch + 1,
                   })
                 }

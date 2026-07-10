@@ -155,7 +155,29 @@ describe("BlobStorageIntegrationContainer", () => {
     expect(showSuccessToast).toHaveBeenCalledTimes(1); // no second toast
   });
 
-  it("drift banner: external updatedAt change shows the banner, keeps the draft, reload remounts", () => {
+  it("worker status write: updatedAt bump without config-field changes does NOT banner", () => {
+    // Prisma @updatedAt bumps on every worker write (runStartedAt,
+    // lastSyncAt, ...) while the 5s poll is active — must not read as drift.
+    const { rerender } = render(ui({ config: savedConfig() }));
+    fireEvent.change(bucketInput(), { target: { value: "my-draft" } });
+
+    rerender(
+      ui({
+        config: savedConfig({
+          updatedAt: new Date("2026-01-02T00:00:00Z"),
+          lastSyncAt: new Date("2026-01-02T00:00:00Z"),
+          runStartedAt: null,
+        }),
+      }),
+    );
+
+    expect(
+      screen.queryByText("Configuration changed elsewhere"),
+    ).not.toBeInTheDocument();
+    expect(bucketInput()).toHaveValue("my-draft"); // draft intact
+  });
+
+  it("drift banner: external config change shows the banner, keeps the draft, reload remounts", () => {
     const { rerender } = render(ui({ config: savedConfig() }));
     fireEvent.change(bucketInput(), { target: { value: "my-draft" } });
 
@@ -243,9 +265,44 @@ describe("BlobStorageIntegrationContainer", () => {
     expect(bucketInput()).toHaveValue("racy-bucket");
   });
 
-  it("leftover own-save expectation cannot swallow a different external edit", () => {
+  it("own save + worker bump: refetch with a LATER updatedAt still adopts silently", () => {
+    // Worker status writes can bump the row again between the save and its
+    // refetch; adoption is >= the expected updatedAt, so the user's own
+    // save never turns into a drift banner.
     const savedAt = new Date("2026-01-02T00:00:00Z");
-    const externalAt = new Date("2026-01-03T00:00:00Z");
+    const workerBumpAt = new Date("2026-01-02T00:00:05Z");
+    const { rerender } = render(ui({ config: savedConfig() }));
+    fireEvent.change(bucketInput(), { target: { value: "self-saved-bucket" } });
+
+    act(() => mutationOpts.update.onMutate?.({ projectId: "p1" }));
+    act(() =>
+      mutationOpts.update.onSuccess?.(
+        { updatedAt: savedAt },
+        { projectId: "p1" },
+      ),
+    );
+    rerender(
+      ui({
+        config: savedConfig({
+          bucketName: "self-saved-bucket",
+          updatedAt: workerBumpAt,
+          runStartedAt: new Date("2026-01-02T00:00:05Z"),
+        }),
+      }),
+    );
+
+    expect(
+      screen.queryByText("Configuration changed elsewhere"),
+    ).not.toBeInTheDocument();
+    expect(bucketInput()).toHaveValue("self-saved-bucket");
+  });
+
+  it("pre-save drift arriving after save success still banners (not adopted)", () => {
+    // Drift existed before the user saved; the drifted row (older
+    // updatedAt than the save) lands after onSuccess. It must not be
+    // silently adopted as the user's own save.
+    const driftAt = new Date("2026-01-01T12:00:00Z"); // before savedAt
+    const savedAt = new Date("2026-01-02T00:00:00Z");
     const { rerender } = render(ui({ config: savedConfig() }));
 
     act(() => mutationOpts.update.onMutate?.({ projectId: "p1" }));
@@ -256,14 +313,12 @@ describe("BlobStorageIntegrationContainer", () => {
       ),
     );
 
-    // The post-save refetch never delivered savedAt (e.g. it failed); the
-    // next thing to arrive is a concurrent edit with a DIFFERENT updatedAt.
     fireEvent.change(bucketInput(), { target: { value: "my-draft" } });
     rerender(
       ui({
         config: savedConfig({
           bucketName: "changed-elsewhere",
-          updatedAt: externalAt,
+          updatedAt: driftAt,
         }),
       }),
     );

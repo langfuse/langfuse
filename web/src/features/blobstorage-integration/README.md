@@ -158,11 +158,16 @@ changes (project switch, create, delete) remount the form; same-entity
 refetches (5s status poll, post-save invalidation) keep the key stable
 and therefore can never wipe or leak a draft. Consequence, by design:
 clean fields do not live-update from background refetches while the
-form is mounted. Instead, a refetched `updatedAt` differing from the
-mounted snapshot (someone else saved) surfaces a non-destructive
-drift banner whose explicit "Reload form" click bumps a key epoch;
-the user's own save adopts the bumped `updatedAt` silently and
-remounts from the saved row. Mutation callbacks compare their
+form is mounted. Instead, a refetch whose **user-configurable field
+values** differ from the mounted snapshot (someone else saved)
+surfaces a non-destructive drift banner whose explicit "Reload form"
+click bumps a key epoch. Drift deliberately does NOT key on
+`updatedAt`: Prisma's `@updatedAt` bumps on every worker status write
+(runStartedAt, lastSyncAt, …) exactly while the 5s poll is active, so
+timestamps would banner on every sync. `updatedAt` is used only to
+recognize the user's own save (the mutation's returned value; any
+refetch at-or-after it adopts silently and remounts from the saved
+row). Mutation callbacks compare their
 fired-with projectId against the live prop and skip toasts when
 stale (container survives client-side project switches). Field-group
 components receive the typed `control` prop and subscribe to
