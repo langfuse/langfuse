@@ -832,7 +832,7 @@ describe("createAgUiStream", () => {
           version: 2,
         },
       }),
-      model: "test-model",
+      model: "eu.anthropic.claude-opus-4-8",
     });
     const onStepFinish = agentConfig?.defaultOptions?.onStepFinish as
       | ((event: unknown) => void)
