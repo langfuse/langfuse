@@ -34,9 +34,11 @@ type AppliedDimensionType = {
   table: string;
   sql: string;
   alias?: string;
+  field?: string;
   relationTable?: string;
   aggregationFunction?: string;
   explodeArray?: boolean;
+  explodeRestrictionParam?: string;
   pairExpand?: { valuesSql: string; valueAlias: string };
 };
 
@@ -281,10 +283,60 @@ export class QueryBuilder {
       return {
         ...dim,
         table: dim.relationTable || view.name,
+        field: dimension.field,
         explodeArray: dim.explodeArray,
         pairExpand: dim.pairExpand,
       };
     });
+  }
+
+  /**
+   * Couples positive array filters to exploded array dimensions.
+   *
+   * Array filters keep whole entities: a trace matching `tags any of [a, b]`
+   * keeps ALL its tags, so a breakdown by the exploded dimension would still
+   * show co-occurring elements the user never selected. When the same column
+   * is both exploded and positively filtered ("any of" / "all of"), restrict
+   * the exploded elements to the union of the selected values so the breakdown
+   * shows exactly those. "none of" excludes entities and must not restrict the
+   * surviving entities' elements.
+   */
+  private applyExplodeRestrictions(
+    appliedDimensions: AppliedDimensionType[],
+    filters: z.infer<typeof queryModel>["filters"],
+    parameters: Record<string, unknown>,
+  ): void {
+    for (const dimension of appliedDimensions) {
+      if (!dimension.explodeArray || !dimension.field) continue;
+      const positiveValues = filters
+        .filter(
+          (filter) =>
+            filter.column === dimension.field &&
+            filter.type === "arrayOptions" &&
+            (filter.operator === "any of" || filter.operator === "all of") &&
+            Array.isArray(filter.value),
+        )
+        .flatMap((filter) => filter.value as string[]);
+      if (positiveValues.length === 0) continue;
+      const paramName = `explodeRestrict_${dimension.alias ?? dimension.field}`;
+      parameters[paramName] = Array.from(new Set(positiveValues));
+      dimension.explodeRestrictionParam = paramName;
+    }
+  }
+
+  /**
+   * SELECT part for an exploded array dimension: arrayJoin over the source
+   * expression, restricted to positively filtered values when coupled via
+   * applyExplodeRestrictions.
+   */
+  private buildExplodedSelectPart(
+    dimension: AppliedDimensionType,
+    source: string,
+  ): string {
+    const exploded = dimension.explodeRestrictionParam
+      ? `arrayJoin(arrayIntersect(${source}, {${dimension.explodeRestrictionParam}: Array(String)}))`
+      : `arrayJoin(${source})`;
+    return `${exploded} as ${dimension.alias ?? dimension.sql}`;
   }
 
   private mapMetrics(
@@ -1030,9 +1082,11 @@ export class QueryBuilder {
           if (dimension.pairExpand) {
             return `${dimension.alias} as ${dimension.alias ?? dimension.sql}`;
           }
-          // Explode array dimensions using arrayJoin
+          // Explode array dimensions using arrayJoin. Dimensions with an
+          // aggregationFunction were handled above: they aggregate to an array
+          // here and explode in the outer SELECT (buildOuterDimensionsPart).
           if (dimension.explodeArray) {
-            return `arrayJoin(${dimension.sql}) as ${dimension.alias ?? dimension.sql}`;
+            return this.buildExplodedSelectPart(dimension, dimension.sql);
           }
           // Default: wrap in any()
           return `any(${dimension.sql}) as ${dimension.alias ?? dimension.sql}`;
@@ -1096,9 +1150,11 @@ export class QueryBuilder {
 
     // Build inner GROUP BY - include exploded array dimensions (they must be in GROUP BY after arrayJoin)
     // Also include pairExpand dimensions (their key column is in scope after ARRAY JOIN clause)
+    // aggregationFunction dimensions aggregate here and explode in the outer
+    // SELECT, so they must stay out of the inner GROUP BY.
     const groupByParts = [projectIdSql, idSql];
     for (const dim of appliedDimensions) {
-      if (dim.explodeArray || dim.pairExpand) {
+      if ((dim.explodeArray && !dim.aggregationFunction) || dim.pairExpand) {
         groupByParts.push(dim.alias ?? dim.sql);
       }
     }
@@ -1122,10 +1178,17 @@ export class QueryBuilder {
     // Add regular dimensions
     if (appliedDimensions.length > 0) {
       dimensions += `${appliedDimensions
-        .map(
-          (dimension) =>
-            `${dimension.alias ?? dimension.sql} as ${dimension.alias || dimension.sql}`,
-        )
+        .map((dimension) => {
+          // aggregationFunction + explodeArray: the inner SELECT aggregated
+          // the arrays per entity; explode the aggregated array here.
+          if (dimension.explodeArray && dimension.aggregationFunction) {
+            return this.buildExplodedSelectPart(
+              dimension,
+              dimension.alias ?? dimension.sql,
+            );
+          }
+          return `${dimension.alias ?? dimension.sql} as ${dimension.alias || dimension.sql}`;
+        })
         .join(",\n")},`;
     }
 
@@ -1319,7 +1382,7 @@ export class QueryBuilder {
               return `${d.alias} as ${d.alias ?? d.sql}`;
             }
             if (d.explodeArray) {
-              return `arrayJoin(${d.sql}) as ${d.alias ?? d.sql}`;
+              return this.buildExplodedSelectPart(d, d.sql);
             }
             return `${d.sql} as ${d.alias ?? d.sql}`;
           })
@@ -1570,6 +1633,10 @@ export class QueryBuilder {
         }
       }
     }
+
+    // Couple positive array filters to exploded array dimensions (e.g. a
+    // "tags any of" filter restricts a tags breakdown to the selected tags).
+    this.applyExplodeRestrictions(appliedDimensions, query.filters, parameters);
 
     // Create filters: normal WHERE filters + raw WHERE parts (filterSql pruning + exact match)
     const { whereFilters, whereRawParts } = this.mapFilters(
