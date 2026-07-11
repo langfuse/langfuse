@@ -89,6 +89,12 @@ Always fetch pricing from the provider's official docs before editing.
   Long context prices: sol $10/$1.00/$45, terra $5/$0.50/$22.50, luna $2/$0.20/$9
   per MTok input/cached/output. Added Large Context (>272K) tiers to the pricing file in
   July 2026. The threshold of 272K is unique to this family; most other models use 200K.
+- **GPT-5.3-Codex (added July 2026)** — OpenAI specialized agentic coding model.
+  API model ID: `gpt-5.3-codex` (undated alias only; no dated snapshot at launch).
+  Standard pricing: $1.75/$0.175/$14.00 per MTok input/cached/output. No long-context tier.
+  Context window: 400K tokens, max output: 128K tokens. Not a chain-of-thought reasoning
+  model (no `output_reasoning_tokens` pricing listed). Individual model page:
+  `https://developers.openai.com/api/docs/models/gpt-5.3-codex`.
 
 Capture:
 
