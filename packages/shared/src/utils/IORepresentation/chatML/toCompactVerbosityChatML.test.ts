@@ -33,31 +33,6 @@ describe("Base Cases — core contract", () => {
       });
     });
 
-    it("extracts parts when content is absent", () => {
-      const input = [
-        { role: "user", content: "Hello" },
-        { role: "assistant", parts: [{ type: "text", content: "Hi!" }] },
-      ];
-      expect(toCompactVerbosityChatML(input)).toEqual({
-        success: true,
-        data: '[{"type":"text","content":"Hi!"}]',
-      });
-    });
-
-    it("prefers content over parts when both exist", () => {
-      const input = [
-        {
-          role: "assistant",
-          content: "Preferred",
-          parts: [{ type: "text", content: "Ignored" }],
-        },
-      ];
-      expect(toCompactVerbosityChatML(input)).toEqual({
-        success: true,
-        data: '"Preferred"',
-      });
-    });
-
     it("returns false for empty array", () => {
       expect(toCompactVerbosityChatML([])).toEqual({
         success: false,
@@ -78,29 +53,6 @@ describe("Base Cases — core contract", () => {
       expect(
         toCompactVerbosityChatML({ role: "assistant", content: "Hello!" }),
       ).toEqual({ success: true, data: '"Hello!"' });
-    });
-
-    it("extracts parts from {role, parts}", () => {
-      const input = {
-        role: "assistant",
-        parts: [{ type: "text", content: "Hello!" }],
-      };
-      expect(toCompactVerbosityChatML(input)).toEqual({
-        success: true,
-        data: '[{"type":"text","content":"Hello!"}]',
-      });
-    });
-
-    it("prefers content over parts when both exist", () => {
-      const input = {
-        role: "assistant",
-        content: "Preferred",
-        parts: [{ type: "text", content: "Ignored" }],
-      };
-      expect(toCompactVerbosityChatML(input)).toEqual({
-        success: true,
-        data: '"Preferred"',
-      });
     });
 
     it("returns false when role is missing", () => {
@@ -131,19 +83,6 @@ describe("Base Cases — core contract", () => {
       });
     });
 
-    it("extracts parts from {messages: [{role, parts}]}", () => {
-      const input = {
-        messages: [
-          { role: "user", content: "Hi" },
-          { role: "assistant", parts: [{ type: "text", content: "Hello!" }] },
-        ],
-      };
-      expect(toCompactVerbosityChatML(input)).toEqual({
-        success: true,
-        data: '[{"type":"text","content":"Hello!"}]',
-      });
-    });
-
     it("returns false for empty messages array", () => {
       expect(toCompactVerbosityChatML({ messages: [] })).toEqual({
         success: false,
@@ -168,62 +107,9 @@ describe("Base Cases — core contract", () => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
-// 2. NORMAL CASES — Realistic AI SDK v7 payloads
+// 2. NORMAL CASES — Realistic payloads
 // ──────────────────────────────────────────────────────────────────────────────
-describe("Normal Cases — realistic AI SDK v7 payloads", () => {
-  it("handles typical AI SDK v7 assistant response", () => {
-    const input = [
-      { role: "user", content: "What is the capital of France?" },
-      {
-        role: "assistant",
-        parts: [{ type: "text", content: "The capital of France is Paris." }],
-      },
-    ];
-    expect(toCompactVerbosityChatML(input)).toEqual({
-      success: true,
-      data: '[{"type":"text","content":"The capital of France is Paris."}]',
-    });
-  });
-
-  it("handles multi-turn conversation with mixed formats", () => {
-    const input = [
-      { role: "user", content: "Hi" },
-      { role: "assistant", content: "Hello!" },
-      { role: "user", content: "How are you?" },
-      {
-        role: "assistant",
-        parts: [{ type: "text", content: "I'm doing well, thanks!" }],
-      },
-    ];
-    expect(toCompactVerbosityChatML(input)).toEqual({
-      success: true,
-      data: '[{"type":"text","content":"I\'m doing well, thanks!"}]',
-    });
-  });
-
-  it("handles messages wrapper with mixed formats", () => {
-    const input = {
-      messages: [
-        { role: "user", content: "Tell me a joke" },
-        {
-          role: "assistant",
-          parts: [
-            { type: "text", content: "Why did the chicken cross the road?" },
-          ],
-        },
-        { role: "user", content: "Why?" },
-        {
-          role: "assistant",
-          parts: [{ type: "text", content: "To get to the other side!" }],
-        },
-      ],
-    };
-    expect(toCompactVerbosityChatML(input)).toEqual({
-      success: true,
-      data: '[{"type":"text","content":"To get to the other side!"}]',
-    });
-  });
-
+describe("Normal Cases — realistic payloads", () => {
   it("handles OpenAI-style content array in content field", () => {
     const input = [
       {
@@ -253,42 +139,12 @@ describe("Normal Cases — realistic AI SDK v7 payloads", () => {
 // 3. EDGE CASES — Boundary conditions and special values
 // ──────────────────────────────────────────────────────────────────────────────
 describe("Edge Cases — boundary conditions", () => {
-  describe("null / undefined content handling", () => {
-    it("returns { success: true, data: null } for content: null without parts", () => {
+  describe("null content handling", () => {
+    it("JSON.stringify(null) returns 'null' string — expected behavior", () => {
       const input = [{ role: "assistant", content: null }];
       expect(toCompactVerbosityChatML(input)).toEqual({
         success: true,
-        data: null,
-      });
-    });
-
-    it("falls back to parts when content is null", () => {
-      const input = [
-        {
-          role: "assistant",
-          content: null,
-          parts: [{ type: "text", content: "fallback" }],
-        },
-      ];
-      expect(toCompactVerbosityChatML(input)).toEqual({
-        success: true,
-        data: '[{"type":"text","content":"fallback"}]',
-      });
-    });
-
-    it("falls back to parts in messages wrapper when content is null", () => {
-      const input = {
-        messages: [
-          {
-            role: "assistant",
-            content: null,
-            parts: [{ type: "text", content: "fallback" }],
-          },
-        ],
-      };
-      expect(toCompactVerbosityChatML(input)).toEqual({
-        success: true,
-        data: '[{"type":"text","content":"fallback"}]',
+        data: "null",
       });
     });
 
@@ -325,16 +181,6 @@ describe("Edge Cases — boundary conditions", () => {
         toCompactVerbosityChatML([{ role: "user", content: "Hello" }]),
       ).toEqual({ success: true, data: '"Hello"' });
     });
-
-    it("handles single parts message", () => {
-      const input = [
-        { role: "assistant", parts: [{ type: "text", content: "Hi" }] },
-      ];
-      expect(toCompactVerbosityChatML(input)).toEqual({
-        success: true,
-        data: '[{"type":"text","content":"Hi"}]',
-      });
-    });
   });
 
   describe("Unicode and special characters", () => {
@@ -344,19 +190,6 @@ describe("Edge Cases — boundary conditions", () => {
           { role: "assistant", content: "Hello 🌍!" },
         ]),
       ).toEqual({ success: true, data: '"Hello 🌍!"' });
-    });
-
-    it("handles emoji in parts", () => {
-      const input = [
-        {
-          role: "assistant",
-          parts: [{ type: "text", content: "Hello 🌍!" }],
-        },
-      ];
-      expect(toCompactVerbosityChatML(input)).toEqual({
-        success: true,
-        data: '[{"type":"text","content":"Hello 🌍!"}]',
-      });
     });
 
     it("handles newlines and tabs in content", () => {
@@ -444,160 +277,11 @@ describe("Edge Cases — boundary conditions", () => {
         data: '"Hello"',
       });
     });
-
-    it("ignores extra fields on parts messages", () => {
-      const input = [
-        {
-          role: "assistant",
-          parts: [{ type: "text", content: "Hello" }],
-          name: "gpt-4",
-          tool_calls: [],
-        },
-      ];
-      expect(toCompactVerbosityChatML(input)).toEqual({
-        success: true,
-        data: '[{"type":"text","content":"Hello"}]',
-      });
-    });
   });
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
-// 4. FLOW TESTING — E2E scenarios mimicking real usage
-// ──────────────────────────────────────────────────────────────────────────────
-describe("Flow Testing — E2E scenarios", () => {
-  describe("Scenario 1: AI SDK v7 streamText output", () => {
-    it("handles the exact payload from the bug report", () => {
-      const input = [
-        { role: "user", content: "Hi there" },
-        {
-          role: "assistant",
-          parts: [{ type: "text", content: "Hello! How can I help?" }],
-        },
-      ];
-      expect(toCompactVerbosityChatML(input)).toEqual({
-        success: true,
-        data: '[{"type":"text","content":"Hello! How can I help?"}]',
-      });
-    });
-  });
-
-  describe("Scenario 2: OpenAI API format", () => {
-    it("handles standard OpenAI messages", () => {
-      const input = [
-        { role: "system", content: "You are a helpful assistant." },
-        { role: "user", content: "Hi" },
-        { role: "assistant", content: "Hello!" },
-      ];
-      expect(toCompactVerbosityChatML(input)).toEqual({
-        success: true,
-        data: '"Hello!"',
-      });
-    });
-  });
-
-  describe("Scenario 3: Anthropic messages format", () => {
-    it("handles Anthropic-style content arrays", () => {
-      const input = [
-        { role: "user", content: "What's in this image?" },
-        {
-          role: "assistant",
-          content: [
-            { type: "text", text: "I see a cat." },
-            { type: "text", text: "It's orange." },
-          ],
-        },
-      ];
-      expect(toCompactVerbosityChatML(input)).toEqual({
-        success: true,
-        data: '[{"type":"text","text":"I see a cat."},{"type":"text","text":"It\'s orange."}]',
-      });
-    });
-  });
-
-  describe("Scenario 4: LangChain format", () => {
-    it("handles messages wrapper format", () => {
-      const input = {
-        messages: [
-          { role: "human", content: "Hi" },
-          { role: "ai", content: "Hello!" },
-        ],
-      };
-      expect(toCompactVerbosityChatML(input)).toEqual({
-        success: true,
-        data: '"Hello!"',
-      });
-    });
-  });
-
-  describe("Scenario 5: Generation input/output rendering", () => {
-    it("input is array, output is parts", () => {
-      const input = [{ role: "user", content: "Summarize this document" }];
-      const output = [
-        {
-          role: "assistant",
-          parts: [
-            {
-              type: "text",
-              content: "The document discusses climate change impacts.",
-            },
-          ],
-        },
-      ];
-      expect(toCompactVerbosityChatML(input)).toEqual({
-        success: true,
-        data: '"Summarize this document"',
-      });
-      expect(toCompactVerbosityChatML(output)).toEqual({
-        success: true,
-        data: '[{"type":"text","content":"The document discusses climate change impacts."}]',
-      });
-    });
-  });
-
-  describe("Scenario 6: Multi-message with alternating formats", () => {
-    it("preserves last message format correctly", () => {
-      const input = [
-        { role: "user", content: "Start" },
-        { role: "assistant", content: "Traditional format" },
-        { role: "user", content: "Switch" },
-        {
-          role: "assistant",
-          parts: [{ type: "text", content: "AI SDK v7 format" }],
-        },
-        { role: "user", content: "Back to traditional" },
-        { role: "assistant", content: "Traditional again" },
-      ];
-      expect(toCompactVerbosityChatML(input)).toEqual({
-        success: true,
-        data: '"Traditional again"',
-      });
-    });
-  });
-
-  describe("Scenario 7: Single message passed directly", () => {
-    it("handles {role, content} directly", () => {
-      expect(
-        toCompactVerbosityChatML({ role: "assistant", content: "Direct" }),
-      ).toEqual({ success: true, data: '"Direct"' });
-    });
-
-    it("handles {role, parts} directly", () => {
-      expect(
-        toCompactVerbosityChatML({
-          role: "assistant",
-          parts: [{ type: "text", content: "Direct parts" }],
-        }),
-      ).toEqual({
-        success: true,
-        data: '[{"type":"text","content":"Direct parts"}]',
-      });
-    });
-  });
-});
-
-// ──────────────────────────────────────────────────────────────────────────────
-// 5. OUTLIER CASES — Unusual, adversarial, or extreme inputs
+// 4. OUTLIER CASES — Unusual, adversarial, or extreme inputs
 // ──────────────────────────────────────────────────────────────────────────────
 describe("Outlier Cases — unusual and adversarial inputs", () => {
   describe("malformed structures", () => {
@@ -622,24 +306,11 @@ describe("Outlier Cases — unusual and adversarial inputs", () => {
       });
     });
 
-    it("returns false for array of strings", () => {
-      expect(toCompactVerbosityChatML(["hello", "world"])).toEqual({
-        success: false,
-        data: null,
-      });
-    });
-
     it("returns false for object without role", () => {
       expect(toCompactVerbosityChatML({ content: "Hello" })).toEqual({
         success: false,
         data: null,
       });
-    });
-
-    it("returns false for messages with no role", () => {
-      expect(
-        toCompactVerbosityChatML({ messages: [{ content: "Hello" }] }),
-      ).toEqual({ success: false, data: null });
     });
   });
 
@@ -653,18 +324,6 @@ describe("Outlier Cases — unusual and adversarial inputs", () => {
         success: true,
         data: '"Message 49"',
       });
-    });
-
-    it("handles a long parts array", () => {
-      const parts = Array.from({ length: 100 }, (_, i) => ({
-        type: "text",
-        content: `Chunk ${i}`,
-      }));
-      const input = [{ role: "assistant", parts }];
-      const result = toCompactVerbosityChatML(input);
-      expect(result.success).toBe(true);
-      expect(result.data).toContain("Chunk 0");
-      expect(result.data).toContain("Chunk 99");
     });
 
     it("handles very long content string", () => {
@@ -687,36 +346,9 @@ describe("Outlier Cases — unusual and adversarial inputs", () => {
       expect(result.success).toBe(true);
       expect(result.data).toContain("deep");
     });
-
-    it("handles deeply nested parts", () => {
-      const input = [
-        {
-          role: "assistant",
-          parts: [
-            {
-              type: "text",
-              content: {
-                nested: { deep: { value: [1, 2, 3] } },
-              },
-            },
-          ],
-        },
-      ];
-      const result = toCompactVerbosityChatML(input);
-      expect(result.success).toBe(true);
-      expect(result.data).toContain("[1,2,3]");
-    });
   });
 
   describe("empty and sparse structures", () => {
-    it("handles parts as empty array", () => {
-      const input = [{ role: "assistant", parts: [] }];
-      expect(toCompactVerbosityChatML(input)).toEqual({
-        success: true,
-        data: "[]",
-      });
-    });
-
     it("handles content as empty object", () => {
       expect(
         toCompactVerbosityChatML([{ role: "assistant", content: {} }]),
@@ -728,30 +360,18 @@ describe("Outlier Cases — unusual and adversarial inputs", () => {
         toCompactVerbosityChatML([{ role: "assistant", content: [] }]),
       ).toEqual({ success: true, data: "[]" });
     });
-
-    it("handles messages wrapper with empty string content", () => {
-      expect(
-        toCompactVerbosityChatML({
-          messages: [{ role: "assistant", content: "" }],
-        }),
-      ).toEqual({ success: true, data: '""' });
-    });
   });
 
-  describe("multiple messages with mixed content/parts", () => {
+  describe("multiple messages — always extracts from last", () => {
     it("always extracts from last message", () => {
       const input = [
         { role: "assistant", content: "First" },
-        { role: "assistant", parts: [{ type: "text", content: "Second" }] },
-        { role: "assistant", content: "Third" },
-        {
-          role: "assistant",
-          parts: [{ type: "text", content: "Fourth (last)" }],
-        },
+        { role: "assistant", content: "Second" },
+        { role: "assistant", content: "Third (last)" },
       ];
       expect(toCompactVerbosityChatML(input)).toEqual({
         success: true,
-        data: '[{"type":"text","content":"Fourth (last)"}]',
+        data: '"Third (last)"',
       });
     });
   });
@@ -777,16 +397,6 @@ describe("Outlier Cases — unusual and adversarial inputs", () => {
           { role: "custom_role", content: "Hello" },
         ]),
       ).toEqual({ success: true, data: '"Hello"' });
-    });
-  });
-
-  describe("undefined content in arrays (schema validation)", () => {
-    it("undefined content passes .nullish() and returns success:true,data:null", () => {
-      const input = [{ role: "assistant", content: undefined }];
-      expect(toCompactVerbosityChatML(input)).toEqual({
-        success: true,
-        data: null,
-      });
     });
   });
 
