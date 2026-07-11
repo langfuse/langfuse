@@ -290,8 +290,6 @@ const getDatasetRunsTableInternal = async <T>(
     runIds,
   );
 
-  const baseFilter = datasetRunItemsFilter.apply();
-
   const scoresFilter = new FilterList([
     new StringFilter({
       clickhouseTable: "scores",
@@ -358,9 +356,10 @@ const getDatasetRunsTableInternal = async <T>(
         FROM scores s FINAL
         WHERE ${appliedScoresFilter.query}
         AND s.trace_id IN (
-          SELECT dri.trace_id
-          FROM dataset_run_items_rmt dri
-          WHERE ${baseFilter.query}
+          SELECT trace_id
+          FROM dataset_run_items_rmt
+          WHERE project_id = {projectId: String}
+            AND dataset_id = {datasetId: String}
         )
         GROUP BY
           project_id,
@@ -387,22 +386,25 @@ const getDatasetRunsTableInternal = async <T>(
       FROM observations o
       WHERE o.project_id = {projectId: String}
         AND o.start_time >= (
-          SELECT min(dri.dataset_run_created_at) - INTERVAL 1 DAY 
-          FROM dataset_run_items_rmt dri 
-          WHERE ${baseFilter.query}
+          SELECT min(dataset_run_created_at) - INTERVAL 1 DAY 
+          FROM dataset_run_items_rmt
+          WHERE project_id = {projectId: String}
+            AND dataset_id = {datasetId: String}
         )
         AND o.start_time <= (
-          SELECT max(dri.dataset_run_created_at) + INTERVAL 1 DAY 
-          FROM dataset_run_items_rmt dri 
-          WHERE ${baseFilter.query}
+          SELECT max(dataset_run_created_at) + INTERVAL 1 DAY 
+          FROM dataset_run_items_rmt
+          WHERE project_id = {projectId: String}
+            AND dataset_id = {datasetId: String}
         )
-        AND o.trace_id in  (
-          SELECT dri.trace_id
-          FROM dataset_run_items_rmt dri 
-          WHERE ${baseFilter.query}
+        AND o.trace_id IN (
+          SELECT trace_id
+          FROM dataset_run_items_rmt
+          WHERE project_id = {projectId: String}
+            AND dataset_id = {datasetId: String}
         )
       ORDER BY o.event_ts DESC
-      LIMIT 1 by id, project_id
+      LIMIT 1 BY id, project_id
     ),
   `;
 
@@ -410,7 +412,9 @@ const getDatasetRunsTableInternal = async <T>(
     dataset_run_items_deduped AS (
       SELECT *
       FROM dataset_run_items_rmt dri
-      WHERE ${baseFilter.query}
+      WHERE dri.project_id = {projectId: String}
+        AND dri.dataset_id = {datasetId: String}
+        ${runIds && runIds.length > 0 ? `AND dri.dataset_run_id IN ({runIds: Array(String)})` : ""}
       ORDER BY dri.created_at DESC
       LIMIT 1 BY dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id
     ),
@@ -466,7 +470,6 @@ const getDatasetRunsTableInternal = async <T>(
         AND dri.dataset_id = tm.dataset_id
         AND dri.dataset_run_id = tm.dataset_run_id
         AND dri.dataset_item_id = tm.dataset_item_id
-      WHERE ${baseFilter.query}
       GROUP BY dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_run_name, dri.dataset_run_description, dri.dataset_run_metadata, dri.dataset_run_created_at
     )
   `;
@@ -493,7 +496,6 @@ const getDatasetRunsTableInternal = async <T>(
       datasetId,
       ...(runIds && runIds.length > 0 ? { runIds } : {}),
       ...appliedScoresFilter.params,
-      ...baseFilter.params,
       ...appliedFilter.params,
       ...(limit !== undefined && offset !== undefined ? { limit, offset } : {}),
     },
