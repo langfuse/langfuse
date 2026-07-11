@@ -374,6 +374,11 @@ const getDatasetRunsTableInternal = async <T>(
     ),
   `;
 
+  const runIdsFilter =
+    runIds && runIds.length > 0
+      ? `AND dri.dataset_run_id IN ({runIds: Array(String)})`
+      : "";
+
   const filteredObservationsCte = `
    observations_filtered AS (
       SELECT
@@ -387,21 +392,24 @@ const getDatasetRunsTableInternal = async <T>(
       WHERE o.project_id = {projectId: String}
         AND o.start_time >= (
           SELECT min(dataset_run_created_at) - INTERVAL 1 DAY 
-          FROM dataset_run_items_rmt
-          WHERE project_id = {projectId: String}
-            AND dataset_id = {datasetId: String}
+          FROM dataset_run_items_rmt dri
+          WHERE dri.project_id = {projectId: String}
+            AND dri.dataset_id = {datasetId: String}
+            ${runIdsFilter}
         )
         AND o.start_time <= (
           SELECT max(dataset_run_created_at) + INTERVAL 1 DAY 
-          FROM dataset_run_items_rmt
-          WHERE project_id = {projectId: String}
-            AND dataset_id = {datasetId: String}
+          FROM dataset_run_items_rmt dri
+          WHERE dri.project_id = {projectId: String}
+            AND dri.dataset_id = {datasetId: String}
+            ${runIdsFilter}
         )
         AND o.trace_id IN (
-          SELECT trace_id
-          FROM dataset_run_items_rmt
-          WHERE project_id = {projectId: String}
-            AND dataset_id = {datasetId: String}
+          SELECT dri.trace_id
+          FROM dataset_run_items_rmt dri
+          WHERE dri.project_id = {projectId: String}
+            AND dri.dataset_id = {datasetId: String}
+            ${runIdsFilter}
         )
       ORDER BY o.event_ts DESC
       LIMIT 1 BY id, project_id
@@ -414,7 +422,7 @@ const getDatasetRunsTableInternal = async <T>(
       FROM dataset_run_items_rmt dri
       WHERE dri.project_id = {projectId: String}
         AND dri.dataset_id = {datasetId: String}
-        ${runIds && runIds.length > 0 ? `AND dri.dataset_run_id IN ({runIds: Array(String)})` : ""}
+        ${runIdsFilter}
       ORDER BY dri.created_at DESC
       LIMIT 1 BY dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id
     ),
