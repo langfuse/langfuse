@@ -155,11 +155,25 @@ describe("toCompactVerbosityChatML", () => {
       });
     });
 
-    it("handles message with null content", () => {
+    it("handles message with null content and no parts", () => {
       const input = [{ role: "assistant", content: null }];
       expect(toCompactVerbosityChatML(input)).toEqual({
         success: true,
-        data: "null",
+        data: null,
+      });
+    });
+
+    it("falls back to parts when content is null", () => {
+      const input = [
+        {
+          role: "assistant",
+          content: null,
+          parts: [{ type: "text", content: "fallback" }],
+        },
+      ];
+      expect(toCompactVerbosityChatML(input)).toEqual({
+        success: true,
+        data: '[{"type":"text","content":"fallback"}]',
       });
     });
 
@@ -171,7 +185,7 @@ describe("toCompactVerbosityChatML", () => {
       });
     });
 
-    it("handles tool call messages", () => {
+    it("handles tool call messages with null content and no parts", () => {
       const input = [
         {
           role: "assistant",
@@ -187,7 +201,7 @@ describe("toCompactVerbosityChatML", () => {
       ];
       expect(toCompactVerbosityChatML(input)).toEqual({
         success: true,
-        data: "null",
+        data: null,
       });
     });
   });

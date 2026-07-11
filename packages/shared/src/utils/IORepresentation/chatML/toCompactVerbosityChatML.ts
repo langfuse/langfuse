@@ -11,11 +11,22 @@ import { SimpleChatMlArraySchema } from "./types";
  * 4. Otherwise: null
  *
  * Supports AI SDK v7 messages with { role, parts } format by falling back
- * to parts when content is not present.
+ * to parts when content is not present or is null.
  *
  * @param io - The input or output data to extract compact representation from
  * @returns Compact string representation or null if no data
  */
+function contentOrParts(
+  content: unknown,
+  obj: Record<string, unknown>,
+): string | null {
+  return (
+    (content != null ? JSON.stringify(content) : undefined) ??
+    JSON.stringify(obj.parts) ??
+    null
+  );
+}
+
 export function toCompactVerbosityChatML(io: unknown): {
   success: boolean;
   data: string | null;
@@ -30,27 +41,29 @@ export function toCompactVerbosityChatML(io: unknown): {
         const lastMessage = parsed.data[parsed.data.length - 1];
         return {
           success: true,
-          data:
-            JSON.stringify(lastMessage.content) ??
-            JSON.stringify((lastMessage as Record<string, unknown>).parts) ??
-            null,
+          data: contentOrParts(
+            lastMessage.content,
+            lastMessage as Record<string, unknown>,
+          ),
         };
       }
       return { success: false, data: null };
     }
 
-    // Case 2: Single message object with role+content
+    // Case 2: Single message object with role+content or role+parts
     if (io && typeof io === "object" && !Array.isArray(io)) {
       const obj = io as Record<string, unknown>;
 
-      // Check for direct role+content structure
-      if (
-        "role" in obj &&
-        typeof obj.role === "string" &&
-        "content" in obj &&
-        obj.content !== undefined
-      ) {
-        return { success: true, data: JSON.stringify(obj.content) ?? null };
+      if ("role" in obj && typeof obj.role === "string") {
+        if ("content" in obj && obj.content !== undefined) {
+          return {
+            success: true,
+            data: contentOrParts(obj.content, obj),
+          };
+        }
+        if ("parts" in obj && Array.isArray(obj.parts)) {
+          return { success: true, data: JSON.stringify(obj.parts) ?? null };
+        }
       }
 
       // Case 3: Object with 'messages' key
@@ -61,10 +74,10 @@ export function toCompactVerbosityChatML(io: unknown): {
           const lastMessage = parsed.data[parsed.data.length - 1];
           return {
             success: true,
-            data:
-              JSON.stringify(lastMessage.content) ??
-              JSON.stringify((lastMessage as Record<string, unknown>).parts) ??
-              null,
+            data: contentOrParts(
+              lastMessage.content,
+              lastMessage as Record<string, unknown>,
+            ),
           };
         }
       }
