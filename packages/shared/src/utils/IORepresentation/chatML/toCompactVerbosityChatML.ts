@@ -10,6 +10,9 @@ import { SimpleChatMlArraySchema } from "./types";
  * 3. Object with 'messages' key: {messages: [...]}
  * 4. Otherwise: null
  *
+ * Supports AI SDK v7 messages with { role, parts } format by falling back
+ * to parts when content is not present.
+ *
  * @param io - The input or output data to extract compact representation from
  * @returns Compact string representation or null if no data
  */
@@ -27,7 +30,10 @@ export function toCompactVerbosityChatML(io: unknown): {
         const lastMessage = parsed.data[parsed.data.length - 1];
         return {
           success: true,
-          data: JSON.stringify(lastMessage.content) ?? null,
+          data:
+            JSON.stringify(lastMessage.content) ??
+            JSON.stringify((lastMessage as Record<string, unknown>).parts) ??
+            null,
         };
       }
       return { success: false, data: null };
@@ -55,7 +61,10 @@ export function toCompactVerbosityChatML(io: unknown): {
           const lastMessage = parsed.data[parsed.data.length - 1];
           return {
             success: true,
-            data: JSON.stringify(lastMessage.content) ?? null,
+            data:
+              JSON.stringify(lastMessage.content) ??
+              JSON.stringify((lastMessage as Record<string, unknown>).parts) ??
+              null,
           };
         }
       }
