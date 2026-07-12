@@ -43,9 +43,10 @@ export function getSafeRedirectPath(
   }
 
   // Strip ASCII control characters (0x00-0x1F, 0x7F) to defend against
-  // newline injection (HTTP header / log forging), null-byte injection
-  // (path-extension confusion), and RTL-override injection (link
-  // disguise). These characters are not valid in URL paths per RFC 3986.
+  // newline injection (HTTP header / log forging) and null-byte injection
+  // (path-extension confusion). These characters are not valid in URL
+  // paths per RFC 3986. Unicode bidi-formatting characters (e.g.
+  // U+202E RTL-override) are intentionally out of scope for this fix.
   const sanitized = trimmed.replace(/[\x00-\x1F\x7F]/g, "");
 
   if (!sanitized) {

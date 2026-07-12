@@ -286,11 +286,19 @@ describe("getSafeRedirectPath", () => {
     });
 
     it("should fall back to safe default when path is only control characters", () => {
-      // A path that is nothing but control characters is fully stripped
-      // to empty, so the safe default is returned.
+      // A path that is nothing but ASCII control characters is fully
+      // stripped to empty, so the safe default is returned.
       expect(getSafeRedirectPath("\n")).toBe("/");
-      expect(getSafeRedirectPath("\u202e")).toBe("/");
       expect(getSafeRedirectPath("\u0000\u0000")).toBe("/");
+    });
+
+    it("should fall back to safe default for path with no leading slash after stripping", () => {
+      // U+202E (RTL-override) is not stripped by this fix, but it
+      // also doesn't start with "/" so the safe default is returned.
+      // This case is documented separately from the control-character
+      // case above because the rejection happens at the startWith("/")
+      // guard, not in the strip step.
+      expect(getSafeRedirectPath("\u202e")).toBe("/");
     });
 
     it("should preserve internal whitespace", () => {
