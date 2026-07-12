@@ -1,0 +1,173 @@
+name: AWS preview build
+
+# Build the PR's web + worker images and push them to ECR as pr-<n>-<sha>.
+# The Argo CD ApplicationSet in the infrastructure repo deploys whichever image
+# tag exists for a labeled PR; this workflow only builds and pushes, then posts
+# the preview URL on the PR.
+#
+# Authorization is intentionally stricter than "the PR is labeled": the
+# `preview` label can be applied by any org member, but this job builds the PR
+# AUTHOR's code with an AWS (ECR push) credential, so it also requires the PR
+# author to be on AWS_PREVIEW_ALLOWED_USERS. Fork PRs cannot mint an OIDC token
+# (public repo, read-only token), so they can never push regardless — and the
+# ECR-push role's trust policy is additionally scoped to event_name=pull_request.
+on:
+  pull_request:
+    types: [labeled, synchronize, reopened]
+
+permissions: {}
+
+concurrency:
+  group: preview-build-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  authorize:
+    name: Authorize
+    runs-on: ubuntu-latest
+    # AWS_PREVIEW_ECR_PUSH_ROLE_ARN doubles as the feature flag: unset => the
+    # whole workflow no-ops instead of failing on every labeled PR.
+    if: >-
+      vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != '' &&
+      contains(github.event.pull_request.labels.*.name, 'preview') &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      pull-requests: read
+    outputs:
+      authorized: ${{ steps.gate.outputs.authorized }}
+    steps:
+      - name: Require an allowlisted PR author
+        id: gate
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          ALLOWED_USERS: ${{ vars.AWS_PREVIEW_ALLOWED_USERS }}
+        with:
+          script: |
+            const author = context.payload.pull_request.user.login.toLowerCase();
+            const allowed = (process.env.ALLOWED_USERS || "")
+              .split(/[\s,]+/)
+              .filter(Boolean)
+              .map((u) => u.toLowerCase());
+            const ok = allowed.includes(author);
+            if (!ok) {
+              core.warning(
+                `PR author ${author} is not on the preview allowlist; not building. ` +
+                  "Ask an admin to add the author to AWS_PREVIEW_ALLOWED_USERS.",
+              );
+            }
+            core.setOutput("authorized", ok ? "true" : "false");
+
+  build:
+    name: Build and push preview images
+    needs: authorize
+    if: needs.authorize.outputs.authorized == 'true'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    steps:
+      - name: Checkout PR head (build context only)
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Resolve image tags and preview metadata
+        id: meta
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          WEB_REPO: ${{ vars.AWS_PREVIEW_WEB_ECR_REPOSITORY_URL }}
+          WORKER_REPO: ${{ vars.AWS_PREVIEW_WORKER_ECR_REPOSITORY_URL }}
+          DOMAIN_NAME: ${{ vars.AWS_PREVIEW_DOMAIN_NAME }}
+        run: |
+          set -euo pipefail
+          commit_sha="$(git rev-parse HEAD)"
+          short_sha="${commit_sha:0:12}"
+          image_tag="pr-${PR_NUMBER}-${short_sha}"
+          {
+            echo "commit_sha=${commit_sha}"
+            echo "image_tag=${image_tag}"
+            echo "web_image=${WEB_REPO}:${image_tag}"
+            echo "worker_image=${WORKER_REPO}:${image_tag}"
+            echo "preview_host=pr-${PR_NUMBER}.${DOMAIN_NAME}"
+            # Deterministic, intentionally-public login + API keys (synthetic
+            # data only). The real crypto secrets (ENCRYPTION_KEY/SALT/NEXTAUTH,
+            # DB passwords) are generated randomly in-cluster by the chart's
+            # pre-sync hook and never leave the namespace.
+            echo "login_email=preview-${PR_NUMBER}@langfuse.local"
+            echo "login_password=langfuse-preview-${PR_NUMBER}"
+            echo "public_key=pk-lf-preview-${PR_NUMBER}"
+            echo "secret_key=sk-lf-preview-${PR_NUMBER}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Mark preview building
+        uses: ./.github/actions/preview-comment
+        with:
+          pr-number: ${{ github.event.pull_request.number }}
+          body: |
+            ### 🟡 AWS preview building
+
+            Building images for `${{ steps.meta.outputs.commit_sha }}` (first build ~15–20 min).
+            Argo CD deploys the preview once the push completes; it may briefly
+            show `ImagePullBackOff` until this image propagates.
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          aws-region: ${{ vars.AWS_PREVIEW_REGION }}
+          role-to-assume: ${{ vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN }}
+
+      - name: Login to AWS ECR
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
+
+      - name: Build and push preview images
+        env:
+          COMMIT_SHA: ${{ steps.meta.outputs.commit_sha }}
+          WEB_IMAGE: ${{ steps.meta.outputs.web_image }}
+          WORKER_IMAGE: ${{ steps.meta.outputs.worker_image }}
+        run: |
+          set -euo pipefail
+
+          docker build \
+            --build-arg NEXT_PUBLIC_BUILD_ID="${COMMIT_SHA}" \
+            --build-arg NEXT_PUBLIC_SIGN_UP_DISABLED=true \
+            -f ./web/Dockerfile \
+            -t "${WEB_IMAGE}" \
+            .
+          docker push "${WEB_IMAGE}"
+
+          docker build \
+            --build-arg NEXT_PUBLIC_BUILD_ID="${COMMIT_SHA}" \
+            -f ./worker/Dockerfile \
+            -t "${WORKER_IMAGE}" \
+            .
+          docker push "${WORKER_IMAGE}"
+
+      - name: Mark preview image pushed
+        uses: ./.github/actions/preview-comment
+        with:
+          pr-number: ${{ github.event.pull_request.number }}
+          body: |
+            ### 🟢 AWS preview image pushed
+
+            Argo CD is rolling it out — the environment is usually ready within a
+            few minutes of this comment.
+
+            **URL:** https://${{ steps.meta.outputs.preview_host }}
+            **Login:** `${{ steps.meta.outputs.login_email }}` / `${{ steps.meta.outputs.login_password }}`
+            **API keys:** `${{ steps.meta.outputs.public_key }}` / `${{ steps.meta.outputs.secret_key }}`
+            **Commit:** ${{ steps.meta.outputs.commit_sha }}
+
+            Synthetic preview data only — never enter a real credential. Remove
+            the `preview` label or close the PR to destroy the environment.
+
+      - name: Report failure
+        if: failure()
+        uses: ./.github/actions/preview-comment
+        with:
+          pr-number: ${{ github.event.pull_request.number }}
+          body: |
+            ### ⚠️ AWS preview build failed
+
+            The image build/push failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
