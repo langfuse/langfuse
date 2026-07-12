@@ -88,6 +88,33 @@ services:
       LANGFUSE_INIT_USER_NAME: ${LANGFUSE_INIT_USER_NAME:-}
       LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_INIT_USER_PASSWORD:-}
 
+  # Optional Go sidecar serving GET /api/public/v2/observations with the same
+  # contract as langfuse-web, optimized for high-throughput reads. Opt-in via
+  # `docker compose --profile go-observations-api up` and set
+  # LANGFUSE_GO_OBSERVATIONS_API_URL=http://langfuse-observations-api:3210 plus
+  # LANGFUSE_INTERNAL_API_SECRET on langfuse-web to route traffic to it.
+  langfuse-observations-api:
+    profiles: ["go-observations-api"]
+    build:
+      dockerfile: ./Dockerfile
+      context: ./go/observations-api
+    restart: always
+    depends_on: *langfuse-depends-on
+    ports:
+      - 3210:3210
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/postgres}
+      SALT: ${SALT:-mysalt} # CHANGEME - must match langfuse-web
+      CLICKHOUSE_NATIVE_URL: ${CLICKHOUSE_NATIVE_URL:-clickhouse://clickhouse:9000}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse} # CHANGEME
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_AUTH: ${REDIS_AUTH:-myredissecret} # CHANGEME
+      LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: ${LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN:-false}
+      LANGFUSE_WEB_INTERNAL_URL: ${LANGFUSE_WEB_INTERNAL_URL:-http://langfuse-web:3000}
+      LANGFUSE_INTERNAL_API_SECRET: ${LANGFUSE_INTERNAL_API_SECRET:-} # CHANGEME - must match langfuse-web
+
   clickhouse:
     image: docker.io/clickhouse/clickhouse-server
     restart: always

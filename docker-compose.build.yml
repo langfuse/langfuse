@@ -86,6 +86,34 @@ services:
       start_period: 60s
       start_interval: 2s
 
+  langfuse-observations-api:
+    build:
+      dockerfile: ./Dockerfile
+      context: ./go/observations-api
+    depends_on: *langfuse-depends-on
+    ports:
+      - "3210:3210"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/postgres}
+      SALT: ${SALT:-mysalt}
+      CLICKHOUSE_NATIVE_URL: ${CLICKHOUSE_NATIVE_URL:-clickhouse://clickhouse:9000}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_AUTH: ${REDIS_AUTH:-myredissecret}
+      LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: ${LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN:-true}
+      LANGFUSE_WEB_INTERNAL_URL: ${LANGFUSE_WEB_INTERNAL_URL:-http://langfuse-web:3000}
+      LANGFUSE_INTERNAL_API_SECRET: ${LANGFUSE_INTERNAL_API_SECRET:-mysecret}
+    restart: always
+    healthcheck:
+      test: ["CMD", "/usr/bin/observations-api", "healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+      start_interval: 2s
+
   clickhouse:
     image: docker.io/clickhouse/clickhouse-server
     user: "101:101"

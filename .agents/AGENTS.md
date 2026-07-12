@@ -45,6 +45,7 @@ langfuse/
 |- worker/                  # Queue consumers and background processing
 |- packages/shared/         # Shared domain, DB, queue contracts, repositories
 |- ee/                      # Enterprise package consumed by web
+|- go/observations-api/     # Go sidecar for GET /api/public/v2/observations
 |- generated/               # Generated API clients (do not hand-edit)
 |- fern/                    # API definition sources
 `- scripts/                 # Repo scripts

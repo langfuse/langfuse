@@ -121,12 +121,27 @@ const nextConfig = {
   output: "standalone",
 
   async rewrites() {
-    return [
-      {
-        source: "/.well-known/mcp.json",
-        destination: "/api/well-known/mcp.json",
-      },
-    ];
+    // Optional: route the v2 observations API to the Go sidecar service.
+    // beforeFiles is required so the rewrite wins over the filesystem route
+    // at web/src/pages/api/public/v2/observations. Unset the env var to fall
+    // back to the Node implementation instantly (rollback lever).
+    const goObservationsApiUrl = process.env.LANGFUSE_GO_OBSERVATIONS_API_URL;
+    return {
+      beforeFiles: goObservationsApiUrl
+        ? [
+            {
+              source: "/api/public/v2/observations",
+              destination: `${goObservationsApiUrl.replace(/\/$/, "")}/api/public/v2/observations`,
+            },
+          ]
+        : [],
+      afterFiles: [
+        {
+          source: "/.well-known/mcp.json",
+          destination: "/api/well-known/mcp.json",
+        },
+      ],
+    };
   },
 
   async headers() {
@@ -296,6 +311,6 @@ const sentryConfig = withSentryConfig(nextConfig, {
       removeDebugLogging: true,
     },
   },
-  });
+});
 
 export default sentryConfig;

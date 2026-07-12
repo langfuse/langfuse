@@ -424,6 +424,10 @@ jobs:
         run: |
           curl --retry 10 --retry-delay 2 --retry-all-errors --silent --show-error --fail \
             http://localhost:3000/api/public/health
+      - name: Check observations-api health
+        run: |
+          curl --retry 10 --retry-delay 2 --retry-all-errors --silent --show-error --fail \
+            http://localhost:3210/health
       - name: Capture docker diagnostics on failure
         if: failure()
         run: |
@@ -437,7 +441,7 @@ jobs:
 
           ss -ltnp | tee /tmp/docker-diagnostics/host-listeners.txt || true
 
-          for service in langfuse-web langfuse-worker postgres redis minio clickhouse; do
+          for service in langfuse-web langfuse-worker langfuse-observations-api postgres redis minio clickhouse; do
             container_id="$(docker compose -f "$DOCKER_COMPOSE_FILE" ps -q "$service" || true)"
             if [ -z "$container_id" ]; then
               echo "No container found for ${service}" | tee -a /tmp/docker-diagnostics/missing-containers.txt
@@ -1011,6 +1015,128 @@ jobs:
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e:server
 
+  tests-go-observations-api:
+    timeout-minutes: 30
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    needs:
+      - pre-job
+    # pre-job only runs on push events; everywhere else it resolves as skipped
+    # at run creation, so this job starts immediately (!cancelled() lets the
+    # condition evaluate despite the skipped dependency).
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    env:
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # zizmor: ignore[cache-poisoning] go-service test dependency cache only; no released artifacts are built or published from this cached state
+        with:
+          go-version-file: go/observations-api/go.mod
+          cache-dependency-path: go/observations-api/go.sum
+      - name: Go format, vet, unit tests
+        working-directory: go/observations-api
+        run: |
+          test -z "$(gofmt -l .)" || { echo "gofmt violations:"; gofmt -l .; exit 1; }
+          go vet ./...
+          go test ./...
+      - name: Build observations-api binary and Docker image
+        working-directory: go/observations-api
+        run: |
+          CGO_ENABLED=0 go build -o /tmp/observations-api ./cmd/server
+          docker build -t langfuse/observations-api:ci .
+      - name: Login to Docker Hub
+        if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
+          password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.10.0
+      - name: Use Node.js ${{ env.NODE_VERSION }} without cache
+        if: env.CI_CACHE_ALLOWED != 'true'
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] go-service parity test dependency cache only; no released artifacts are built or published from this cached state
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+      - name: install dependencies
+        run: |
+          pnpm install
+      - name: Load default env
+        run: |
+          cp .env.dev.example .env
+          echo 'LANGFUSE_INTERNAL_API_SECRET=ci-internal-secret' >> .env
+          echo 'LANGFUSE_GO_OBSERVATIONS_API_URL=http://localhost:3210' >> .env
+      - name: Install golang-migrate for Clickhouse migrations in background
+        run: |
+          (
+            set -e
+            curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+              --output migrate.linux-amd64.tar.gz \
+              https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+            tar xzf migrate.linux-amd64.tar.gz
+            sudo mv migrate /usr/bin/migrate
+            touch /tmp/migrate-installed
+          ) > /tmp/migrate-install.log 2>&1 &
+      - name: Start dev containers in background
+        run: |
+          (set +e; docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
+      - name: Build web
+        run: pnpm run build
+        env:
+          NODE_OPTIONS: --max_old_space_size=8192
+          # TypeScript is checked explicitly in the lint job; skip duplicate
+          # Next.js type checks in test builds to reduce CI runtime.
+          NEXT_IGNORE_BUILD_ERRORS: "true"
+      - name: Wait for dev containers
+        run: |
+          timeout 300 bash -c 'until [ -f /tmp/compose-up.exit ]; do sleep 1; done' \
+            || { echo "Timed out waiting for background docker compose up"; cat /tmp/compose-up.log; exit 1; }
+          cat /tmp/compose-up.log
+          exit "$(cat /tmp/compose-up.exit)"
+      - name: Migrate DB
+        run: |
+          timeout 120 bash -c 'until [ -f /tmp/migrate-installed ]; do sleep 1; done' \
+            || { cat /tmp/migrate-install.log; exit 1; }
+          pnpm run db:migrate
+          pnpm --filter=shared run ch:up
+      - name: Start observations-api and web server
+        run: |
+          set -a; source .env; set +a
+          LANGFUSE_WEB_INTERNAL_URL=http://localhost:3000 \
+          CLICKHOUSE_NATIVE_URL=clickhouse://localhost:9000 \
+            /tmp/observations-api > /tmp/observations-api.log 2>&1 &
+          (pnpm run start&)
+      - name: Check observations-api health
+        run: |
+          timeout 30 bash -c 'until curl -f http://localhost:3210/health; do sleep 2; done' \
+            || { cat /tmp/observations-api.log; exit 1; }
+      - name: Check server health
+        run: |
+          timeout 60 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
+      - name: Run v2 observations contract tests through the Go service
+        # LANGFUSE_GO_OBSERVATIONS_API_URL makes the web server proxy
+        # /api/public/v2/observations to the Go sidecar, so the existing
+        # behavioral test suite exercises the Go implementation end to end.
+        run: pnpm --filter=web run test src/__tests__/server/observations-api-v2.servertest.ts
+      - name: Run Redis rate-limit interop tests
+        working-directory: go/observations-api
+        env:
+          OBSERVATIONS_API_REDIS_ADDR: 127.0.0.1:6379
+          OBSERVATIONS_API_REDIS_AUTH: myredissecret
+        run: go test ./internal/ratelimit/
+      - name: Print observations-api logs on failure
+        if: failure()
+        run: cat /tmp/observations-api.log || true
+
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -1028,6 +1154,7 @@ jobs:
         e2e-tests,
         test-docker-build,
         e2e-server-tests,
+        tests-go-observations-api,
       ]
     if: always()
     outputs:

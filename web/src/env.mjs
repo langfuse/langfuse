@@ -372,6 +372,10 @@ export const env = createEnv({
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
+    // Shared secret for internal service-to-service endpoints (e.g. the Go
+    // observations-api sidecar delegating API-key verification). The internal
+    // endpoints return 404 when unset.
+    LANGFUSE_INTERNAL_API_SECRET: z.string().optional(),
 
     LANGFUSE_INIT_ORG_ID: z.string().optional(),
     LANGFUSE_INIT_ORG_NAME: z.string().optional(),
@@ -826,6 +830,7 @@ export const env = createEnv({
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
     SENTRY_CSP_REPORT_URI: process.env.SENTRY_CSP_REPORT_URI,
     LANGFUSE_RATE_LIMITS_ENABLED: process.env.LANGFUSE_RATE_LIMITS_ENABLED,
+    LANGFUSE_INTERNAL_API_SECRET: process.env.LANGFUSE_INTERNAL_API_SECRET,
     // provisioning
     LANGFUSE_INIT_ORG_ID: process.env.LANGFUSE_INIT_ORG_ID,
     LANGFUSE_INIT_ORG_NAME: process.env.LANGFUSE_INIT_ORG_NAME,
