@@ -91,14 +91,16 @@ jobs:
             echo "web_image=${WEB_REPO}:${image_tag}"
             echo "worker_image=${WORKER_REPO}:${image_tag}"
             echo "preview_host=pr-${PR_NUMBER}.${DOMAIN_NAME}"
-            # Deterministic, intentionally-public login + API keys (synthetic
-            # data only). The real crypto secrets (ENCRYPTION_KEY/SALT/NEXTAUTH,
-            # DB passwords) are generated randomly in-cluster by the chart's
-            # pre-sync hook and never leave the namespace.
-            echo "login_email=preview-${PR_NUMBER}@langfuse.local"
-            echo "login_password=langfuse-preview-${PR_NUMBER}"
-            echo "public_key=pk-lf-preview-${PR_NUMBER}"
-            echo "secret_key=sk-lf-preview-${PR_NUMBER}"
+            # Shared, intentionally-public seed login + API keys (synthetic data
+            # only) — must match the LANGFUSE_INIT_* values in the preview chart
+            # (k8s/preview/chart/values.yaml). Each preview is its own isolated
+            # DB, so a shared seed identity is fine. The real crypto secrets
+            # (ENCRYPTION_KEY/SALT/NEXTAUTH, DB passwords) are generated randomly
+            # in-cluster by the chart's pre-sync hook and never leave the namespace.
+            echo "login_email=preview@langfuse.local"
+            echo "login_password=langfuse-preview"
+            echo "public_key=pk-lf-preview"
+            echo "secret_key=sk-lf-preview"
           } >> "$GITHUB_OUTPUT"
 
       - name: Mark preview building
