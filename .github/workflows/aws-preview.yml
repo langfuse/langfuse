@@ -9,8 +9,11 @@ name: AWS PR Preview
 #
 # PRs opened by an allowlisted author (AWS_PREVIEW_ALLOWED_USERS) auto-deploy;
 # subsequent pushes refresh the preview only if it is already running (a push
-# never resurrects one stopped via /preview stop). Anyone on the allowlist can also drive previews
-# manually with the /preview comments above. Each engineer may have at most 5
+# never resurrects one stopped via /preview stop). Allowlisted users drive
+# previews manually with the /preview comments above; because /preview deploy
+# builds the PR author's code with cloud credentials, it also requires the PR
+# author to be allowlisted (stop/resume/destroy do not). Each engineer may
+# have at most 5
 # previews running at once (best-effort, PreviewOwner tag). A housekeeping
 # schedule stops previews idle (low CPU) for several hours, destroys previews
 # whose PR is closed, and destroys previews stopped for more than 7 days.
@@ -201,6 +204,18 @@ jobs:
                   );
                   return;
                 }
+                // deploy builds the PR author's code with cloud credentials,
+                // so the author must be allowlisted — mirroring the comment
+                // path and the auto-deploy gate. Auto-deploy only ever
+                // dispatches allowlisted authors, so this never blocks it.
+                if (command === "deploy" && !isAllowed(pr.user.login)) {
+                  core.setFailed(
+                    "deploy builds the PR author's code with cloud " +
+                      "credentials, so the PR author must be on the preview " +
+                      "allowlist.",
+                  );
+                  return;
+                }
                 headSha = pr.head.sha;
                 // Attribute the running-env slot to the PR author when they
                 // are the allowlisted party (the normal auto-deploy case).
@@ -247,6 +262,21 @@ jobs:
               if (pr.state !== "open" && parsed !== "destroy") {
                 await reply(
                   "This PR is closed; only `/preview destroy` is available.",
+                );
+                return;
+              }
+
+              // Deploy builds the PR author's code with cloud credentials, so
+              // the author (not just the commenter) must be on the allowlist,
+              // mirroring the auto-deploy gate. stop/resume/destroy touch no PR
+              // code, so an allowlisted commenter alone may run them.
+              if (parsed === "deploy" && !isAllowed(pr.user.login)) {
+                await reply(
+                  "`/preview deploy` builds the PR author's code with cloud " +
+                    "credentials, so it is limited to PRs whose author is on " +
+                    "the preview allowlist. Ask an admin to add @" +
+                    pr.user.login +
+                    " to the `AWS_PREVIEW_ALLOWED_USERS` repository variable.",
                 );
                 return;
               }
