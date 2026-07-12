@@ -22,6 +22,11 @@ name: AWS PR Preview
 # not the PR's) purely to check the allowlist and then dispatch the deploy
 # back onto the default branch — the gate job never touches AWS or PR code.
 #
+# The per-step shell lives in deployment/aws-preview/scripts/*.sh. Every job
+# checks those scripts out from the DEFAULT BRANCH (never the PR head), so the
+# deploy logic stays reviewed code even in the deploy job, which additionally
+# checks out the PR head purely as the Docker build context.
+#
 # The shared AWS foundation (VPC, ECR, Route53 zone, IAM roles) is managed
 # in Langfuse's internal infrastructure repository.
 
@@ -333,9 +338,18 @@ jobs:
       id-token: write
       issues: write
       pull-requests: write
+    env:
+      SCRIPTS: deployment/aws-preview/scripts
     outputs:
       proceed: ${{ steps.gate.outputs.proceed }}
     steps:
+      - name: Checkout preview logic from the default branch
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.repository.default_branch || 'main' }}
+          sparse-checkout: deployment/aws-preview/scripts
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
         with:
@@ -349,71 +363,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ needs.context.outputs.pr_number }}
           REFRESH_ONLY: ${{ github.event.inputs.refresh_only }}
-        run: |
-          set -euo pipefail
-
-          stack_name="langfuse-preview-pr-${PR_NUMBER}"
-          instance_id="$(aws cloudformation describe-stacks \
-            --stack-name "${stack_name}" \
-            --query "Stacks[0].Outputs[?OutputKey=='InstanceId'].OutputValue" \
-            --output text 2>/dev/null || true)"
-          instance_state="absent"
-          if [ -n "${instance_id}" ] && [ "${instance_id}" != "None" ]; then
-            instance_state="$(aws ec2 describe-instances \
-              --instance-ids "${instance_id}" \
-              --query "Reservations[0].Instances[0].State.Name" \
-              --output text)"
-          fi
-
-          # Re-check PR state at execution time: a deploy queued behind a
-          # close/reconcile destroy must not recreate the preview stack for
-          # a PR that is now closed (nothing would ever clean it up again).
-          pr_state="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .state)"
-          if [ "${pr_state}" != "open" ]; then
-            echo "PR ${PR_NUMBER} is ${pr_state}; not deploying."
-            echo "proceed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # Push-triggered auto-deploy (refresh_only) may only refresh a preview
-          # that is already running — it must never create or resurrect one.
-          # This keeps /preview stop sticky and matches the documented contract
-          # ("pushing refreshes only if already deployed and running"). Opening
-          # a PR and explicit /preview deploy leave refresh_only unset/false.
-          if [ "${REFRESH_ONLY:-}" = "true" ] \
-            && [ "${instance_state}" != "running" ] \
-            && [ "${instance_state}" != "pending" ]; then
-            echo "PR ${PR_NUMBER} preview is ${instance_state}; push refresh skipped."
-            echo "proceed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # Refreshing an already-running env does not consume a new slot.
-          if [ "${instance_state}" = "running" ] || [ "${instance_state}" = "pending" ]; then
-            echo "proceed=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # Per-engineer limit: at most 5 running envs, attributed by the
-          # PreviewOwner tag. Best-effort — concurrent commands can race.
-          running="$(aws ec2 describe-instances \
-            --filters \
-              "Name=tag:Project,Values=langfuse-preview" \
-              "Name=tag:PreviewOwner,Values=${ACTOR}" \
-              "Name=instance-state-name,Values=pending,running" \
-            --query "Reservations[].Instances[].[Tags[?Key=='PullRequest'] | [0].Value]" \
-            --output text | grep -v '^$' || true)"
-          count="$(printf '%s' "${running}" | grep -c . || true)"
-
-          if [ "${count}" -ge 5 ]; then
-            pr_list="$(printf '%s\n' "${running}" | sed 's/^/#/' | paste -sd ', ' -)"
-            gh pr comment "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}" \
-              --body "@${ACTOR} you already have ${count} running previews (PRs ${pr_list}). Stop or destroy one first (\`/preview stop\` / \`/preview destroy\`), then retry."
-            echo "proceed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "proceed=true" >> "$GITHUB_OUTPUT"
+        run: bash "$SCRIPTS/deploy-gate.sh"
 
   deploy:
     name: Deploy AWS preview
@@ -425,6 +375,10 @@ jobs:
       id-token: write
       issues: write
       pull-requests: write
+    env:
+      # Deploy logic is sourced from the default-branch checkout below, never
+      # from the PR head (which is checked out only as the Docker build context).
+      SCRIPTS: .preview-ci/deployment/aws-preview/scripts
     steps:
       - name: Checkout preview ref
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -432,35 +386,16 @@ jobs:
           persist-credentials: false
           ref: ${{ needs.context.outputs.head_sha }}
 
+      - name: Checkout preview logic from the default branch
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.repository.default_branch || 'main' }}
+          sparse-checkout: deployment/aws-preview/scripts
+          path: .preview-ci
+
       - name: Validate preview configuration
-        run: |
-          set -euo pipefail
-
-          required_vars=(
-            AWS_PREVIEW_CLOUDFORMATION_ROLE_ARN
-            AWS_PREVIEW_DOMAIN_NAME
-            AWS_PREVIEW_HOSTED_ZONE_ID
-            AWS_PREVIEW_INSTANCE_PROFILE_NAME
-            AWS_PREVIEW_REGION
-            AWS_PREVIEW_ROLE_ARN
-            AWS_PREVIEW_SECURITY_GROUP_ID
-            AWS_PREVIEW_SUBNET_ID
-            AWS_PREVIEW_WEB_ECR_REPOSITORY_URL
-            AWS_PREVIEW_WORKER_ECR_REPOSITORY_URL
-          )
-
-          missing=()
-          for var_name in "${required_vars[@]}"; do
-            if [ -z "${!var_name}" ]; then
-              missing+=("${var_name}")
-            fi
-          done
-
-          if [ "${#missing[@]}" -gt 0 ]; then
-            printf 'Missing required GitHub repository variables:\n'
-            printf '  - %s\n' "${missing[@]}"
-            exit 1
-          fi
+        run: bash "$SCRIPTS/validate-config.sh"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
@@ -475,238 +410,32 @@ jobs:
         id: preview
         env:
           PR_NUMBER: ${{ needs.context.outputs.pr_number }}
-        run: |
-          set -euo pipefail
-
-          pr_number="${PR_NUMBER}"
-          commit_sha="$(git rev-parse HEAD)"
-          short_sha="${commit_sha:0:12}"
-          stack_name="langfuse-preview-pr-${pr_number}"
-          image_tag="pr-${pr_number}-${short_sha}"
-          preview_host="pr-${pr_number}.${AWS_PREVIEW_DOMAIN_NAME}"
-          ecr_registry="${AWS_PREVIEW_WEB_ECR_REPOSITORY_URL%%/*}"
-
-          # Per-preview secret root. Every preview secret below is HMAC-derived
-          # from this random seed, so none is computable from this public repo
-          # (a plain sha256 of "<name>-<pr>" was). The seed is generated once on
-          # first deploy and persisted in AWS Secrets Manager, then reused on
-          # every redeploy and stop/resume so the derived secrets stay stable:
-          # Postgres and ClickHouse bake their password into the data volume at
-          # first init, so a changed secret against a surviving volume would lock
-          # the stack out of its own database.
-          seed_name="langfuse-preview/pr-${pr_number}/seed"
-          if seed="$(aws secretsmanager get-secret-value --secret-id "${seed_name}" \
-            --query "SecretString" --output text 2>/tmp/seed_err)"; then
-            echo "Reusing existing secret seed for PR ${pr_number}."
-          elif grep -q "ResourceNotFoundException" /tmp/seed_err; then
-            echo "Generating a new secret seed for PR ${pr_number}."
-            seed="$(openssl rand -hex 32)"
-            # create-secret fails if a concurrent deploy already created the
-            # seed; re-read the winner instead of clobbering it.
-            if ! aws secretsmanager create-secret --name "${seed_name}" \
-              --secret-string "${seed}" 2>/tmp/seed_put_err; then
-              if grep -q "ResourceExistsException" /tmp/seed_put_err; then
-                seed="$(aws secretsmanager get-secret-value --secret-id "${seed_name}" \
-                  --query "SecretString" --output text)"
-              else
-                cat /tmp/seed_put_err >&2
-                exit 1
-              fi
-            fi
-          else
-            # Fail closed: an unreadable (but not absent) seed must never fall
-            # through to regeneration — new secrets against a surviving volume
-            # would brick the preview. Throttling/permission/KMS errors land here.
-            echo "Secret seed for PR ${pr_number} is unreadable and not absent; refusing to regenerate." >&2
-            cat /tmp/seed_err >&2
-            exit 1
-          fi
-          echo "::add-mask::${seed}"
-
-          # HMAC-SHA256(seed, label) -> 64 hex chars: exactly the ENCRYPTION_KEY
-          # format (256-bit hex, per `openssl rand -hex 32`), and hex keeps
-          # connection strings free of URL/shell-special characters.
-          derive() {
-            printf '%s' "$1" | openssl dgst -sha256 -hmac "${seed}" | awk '{print $NF}'
-          }
-
-          postgres_password="$(derive postgres)"
-          clickhouse_password="$(derive clickhouse)"
-          redis_auth="$(derive redis)"
-          minio_password="$(derive minio)"
-          nextauth_secret="$(derive nextauth)"
-          salt="$(derive salt)"
-          encryption_key="$(derive encryption)"
-          login_password="$(derive login)"
-          public_key="pk-lf-preview-${pr_number}"
-          secret_key="sk-lf-preview-$(derive apikey)"
-
-          for value in \
-            "${postgres_password}" \
-            "${clickhouse_password}" \
-            "${redis_auth}" \
-            "${minio_password}" \
-            "${nextauth_secret}" \
-            "${salt}" \
-            "${encryption_key}" \
-            "${login_password}" \
-            "${secret_key}"; do
-            echo "::add-mask::${value}"
-          done
-
-          {
-            echo "clickhouse_password=${clickhouse_password}"
-            echo "commit_sha=${commit_sha}"
-            echo "ecr_registry=${ecr_registry}"
-            echo "encryption_key=${encryption_key}"
-            echo "image_tag=${image_tag}"
-            echo "login_email=preview-${pr_number}@langfuse.local"
-            echo "login_password=${login_password}"
-            echo "minio_password=${minio_password}"
-            echo "nextauth_secret=${nextauth_secret}"
-            echo "postgres_password=${postgres_password}"
-            echo "preview_host=${preview_host}"
-            echo "pr_number=${pr_number}"
-            echo "public_key=${public_key}"
-            echo "redis_auth=${redis_auth}"
-            echo "salt=${salt}"
-            echo "secret_key=${secret_key}"
-            echo "short_sha=${short_sha}"
-            echo "stack_name=${stack_name}"
-            echo "web_image=${AWS_PREVIEW_WEB_ECR_REPOSITORY_URL}:${image_tag}"
-            echo "worker_image=${AWS_PREVIEW_WORKER_ECR_REPOSITORY_URL}:${image_tag}"
-          } >> "$GITHUB_OUTPUT"
+        run: bash "$SCRIPTS/resolve-metadata.sh"
 
       - name: Build and push preview images
         env:
           COMMIT_SHA: ${{ steps.preview.outputs.commit_sha }}
           WEB_IMAGE: ${{ steps.preview.outputs.web_image }}
           WORKER_IMAGE: ${{ steps.preview.outputs.worker_image }}
-        run: |
-          set -euo pipefail
-
-          docker build \
-            --build-arg NEXT_PUBLIC_BUILD_ID="${COMMIT_SHA}" \
-            --build-arg NEXT_PUBLIC_SIGN_UP_DISABLED=true \
-            -f ./web/Dockerfile \
-            -t "${WEB_IMAGE}" \
-            .
-          docker push "${WEB_IMAGE}"
-
-          docker build \
-            --build-arg NEXT_PUBLIC_BUILD_ID="${COMMIT_SHA}" \
-            -f ./worker/Dockerfile \
-            -t "${WORKER_IMAGE}" \
-            .
-          docker push "${WORKER_IMAGE}"
+        run: bash "$SCRIPTS/build-images.sh"
 
       - name: Deploy preview host stack
         env:
           ACTOR: ${{ needs.context.outputs.actor }}
           PR_NUMBER: ${{ steps.preview.outputs.pr_number }}
           STACK_NAME: ${{ steps.preview.outputs.stack_name }}
-        run: |
-          set -euo pipefail
-
-          # A stack stuck in a failed create state cannot be updated;
-          # delete it and start fresh.
-          status="$(aws cloudformation describe-stacks \
-            --stack-name "${STACK_NAME}" \
-            --query "Stacks[0].StackStatus" \
-            --output text 2>/dev/null || true)"
-          case "${status}" in
-            ROLLBACK_COMPLETE|ROLLBACK_FAILED|CREATE_FAILED)
-              echo "Stack is in ${status}; deleting before redeploy."
-              aws cloudformation delete-stack --stack-name "${STACK_NAME}"
-              aws cloudformation wait stack-delete-complete --stack-name "${STACK_NAME}"
-              ;;
-          esac
-
-          overrides=(
-            PreviewName="${STACK_NAME}"
-            PullRequestNumber="${PR_NUMBER}"
-            SubnetId="${AWS_PREVIEW_SUBNET_ID}"
-            SecurityGroupId="${AWS_PREVIEW_SECURITY_GROUP_ID}"
-            InstanceProfileName="${AWS_PREVIEW_INSTANCE_PROFILE_NAME}"
-            HostedZoneId="${AWS_PREVIEW_HOSTED_ZONE_ID}"
-            DomainName="${AWS_PREVIEW_DOMAIN_NAME}"
-            InstanceType="${AWS_PREVIEW_INSTANCE_TYPE}"
-            VolumeSizeGb="${AWS_PREVIEW_VOLUME_SIZE_GB}"
-          )
-          # Push-triggered refreshes have no actor and keep the previous
-          # owner (omitted parameters retain their value on stack updates).
-          if [ -n "${ACTOR}" ]; then
-            overrides+=(PreviewOwner="${ACTOR}")
-          fi
-
-          aws cloudformation deploy \
-            --stack-name "${STACK_NAME}" \
-            --template-file deployment/aws-preview/cloudformation.yaml \
-            --role-arn "${AWS_PREVIEW_CLOUDFORMATION_ROLE_ARN}" \
-            --no-fail-on-empty-changeset \
-            --parameter-overrides "${overrides[@]}" \
-            --tags \
-              Project=langfuse-preview \
-              PullRequest="${PR_NUMBER}" \
-              PreviewManagedBy=github-actions
+        run: bash "$SCRIPTS/deploy-stack.sh"
 
       - name: Resolve preview host
         id: host
         env:
           STACK_NAME: ${{ steps.preview.outputs.stack_name }}
-        run: |
-          set -euo pipefail
-
-          instance_id="$(aws cloudformation describe-stacks \
-            --stack-name "${STACK_NAME}" \
-            --query "Stacks[0].Outputs[?OutputKey=='InstanceId'].OutputValue" \
-            --output text)"
-          public_ip="$(aws cloudformation describe-stacks \
-            --stack-name "${STACK_NAME}" \
-            --query "Stacks[0].Outputs[?OutputKey=='PublicIp'].OutputValue" \
-            --output text)"
-
-          # An explicit /preview deploy on a stopped preview boots it again.
-          state="$(aws ec2 describe-instances \
-            --instance-ids "${instance_id}" \
-            --query "Reservations[0].Instances[0].State.Name" \
-            --output text)"
-          if [ "${state}" = "stopping" ]; then
-            aws ec2 wait instance-stopped --instance-ids "${instance_id}"
-            state="stopped"
-          fi
-          if [ "${state}" != "running" ] && [ "${state}" != "pending" ]; then
-            aws ec2 start-instances --instance-ids "${instance_id}"
-          fi
-          aws ec2 wait instance-running --instance-ids "${instance_id}"
-
-          # A deployed env is running again; it is no longer reapable.
-          aws ec2 delete-tags --resources "${instance_id}" --tags Key=StoppedAt
-
-          echo "instance_id=${instance_id}" >> "$GITHUB_OUTPUT"
-          echo "public_ip=${public_ip}" >> "$GITHUB_OUTPUT"
+        run: bash "$SCRIPTS/resolve-host.sh"
 
       - name: Wait for SSM
         env:
           INSTANCE_ID: ${{ steps.host.outputs.instance_id }}
-        run: |
-          set -euo pipefail
-
-          for _ in $(seq 1 60); do
-            ping_status="$(aws ssm describe-instance-information \
-              --filters "Key=InstanceIds,Values=${INSTANCE_ID}" \
-              --query "InstanceInformationList[0].PingStatus" \
-              --output text 2>/dev/null || true)"
-
-            if [ "${ping_status}" = "Online" ]; then
-              exit 0
-            fi
-
-            sleep 5
-          done
-
-          echo "Instance ${INSTANCE_ID} did not become available in SSM."
-          exit 1
+        run: bash "$SCRIPTS/wait-ssm.sh"
 
       - name: Deploy containers through SSM
         env:
@@ -727,109 +456,12 @@ jobs:
           SECRET_KEY: ${{ steps.preview.outputs.secret_key }}
           WEB_IMAGE: ${{ steps.preview.outputs.web_image }}
           WORKER_IMAGE: ${{ steps.preview.outputs.worker_image }}
-        run: |
-          set -euo pipefail
-
-          env_file="$(mktemp)"
-          cat > "${env_file}" <<EOF
-          AWS_REGION=${AWS_PREVIEW_REGION}
-          CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
-          ECR_REGISTRY=${ECR_REGISTRY}
-          ENCRYPTION_KEY=${ENCRYPTION_KEY}
-          LANGFUSE_INIT_ORG_ID=preview-org-${PR_NUMBER}
-          LANGFUSE_INIT_ORG_NAME=Preview-PR-${PR_NUMBER}
-          LANGFUSE_INIT_PROJECT_ID=preview-project-${PR_NUMBER}
-          LANGFUSE_INIT_PROJECT_NAME=Preview-Project
-          LANGFUSE_INIT_PROJECT_PUBLIC_KEY=${PUBLIC_KEY}
-          LANGFUSE_INIT_PROJECT_SECRET_KEY=${SECRET_KEY}
-          LANGFUSE_INIT_USER_EMAIL=${LOGIN_EMAIL}
-          LANGFUSE_INIT_USER_NAME=Preview-User
-          LANGFUSE_INIT_USER_PASSWORD=${LOGIN_PASSWORD}
-          MINIO_ROOT_PASSWORD=${MINIO_PASSWORD}
-          NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
-          POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-          PREVIEW_HOST=${PREVIEW_HOST}
-          REDIS_AUTH=${REDIS_AUTH}
-          SALT=${SALT}
-          WEB_IMAGE=${WEB_IMAGE}
-          WORKER_IMAGE=${WORKER_IMAGE}
-          EOF
-
-          env_b64="$(base64 -w0 "${env_file}")"
-
-          # SSM parameters must be JSON: the base64 blob and the shell snippets
-          # below contain commas and pipes that the "commands=..." shorthand
-          # mis-parses (AWS CLI ParamValidationError). A file:// JSON document
-          # passes each command through verbatim.
-          params_file="$(mktemp)"
-          cat > "${params_file}" <<JSON
-          {"commands":[
-          "mkdir -p /opt/langfuse-preview",
-          "echo ${env_b64} | base64 -d > /opt/langfuse-preview/deploy.env",
-          "chmod 600 /opt/langfuse-preview/deploy.env",
-          "for i in \$(seq 1 60); do test -x /opt/langfuse-preview/deploy.sh && break || sleep 5; done",
-          "test -x /opt/langfuse-preview/deploy.sh",
-          "/opt/langfuse-preview/deploy.sh"
-          ]}
-          JSON
-
-          command_id="$(aws ssm send-command \
-            --document-name "AWS-RunShellScript" \
-            --instance-ids "${INSTANCE_ID}" \
-            --comment "Deploy Langfuse PR ${PR_NUMBER} preview" \
-            --parameters "file://${params_file}" \
-            --query "Command.CommandId" \
-            --output text)"
-
-          # Poll for completion rather than `aws ssm wait command-executed`,
-          # whose ~100s default (5s x 20 attempts) is far shorter than a cold
-          # deploy: the bundled cloud-init wait, ECR login, ~7 image pulls, and
-          # six container-readiness gates in deploy.sh run for several minutes.
-          # The short waiter would fail the step spuriously while the on-host
-          # deploy is still succeeding.
-          deploy_ok=false
-          for _ in $(seq 1 120); do
-            status="$(aws ssm get-command-invocation \
-              --command-id "${command_id}" \
-              --instance-id "${INSTANCE_ID}" \
-              --query "Status" --output text 2>/dev/null || echo "Pending")"
-            case "${status}" in
-              Success)
-                deploy_ok=true
-                break
-                ;;
-              Cancelled | TimedOut | Failed)
-                break
-                ;;
-            esac
-            sleep 10
-          done
-
-          if [ "${deploy_ok}" != "true" ]; then
-            aws ssm get-command-invocation \
-              --command-id "${command_id}" \
-              --instance-id "${INSTANCE_ID}" \
-              --query "{Status:Status,Stdout:StandardOutputContent,Stderr:StandardErrorContent}" \
-              --output json
-            exit 1
-          fi
+        run: bash "$SCRIPTS/deploy-containers.sh"
 
       - name: Check preview health
         env:
           PREVIEW_HOST: ${{ steps.preview.outputs.preview_host }}
-        run: |
-          set -euo pipefail
-
-          # TLS certificate issuance on first deploy can take a minute.
-          for _ in $(seq 1 90); do
-            if curl -fsS --max-time 10 "https://${PREVIEW_HOST}/api/public/health" >/dev/null; then
-              exit 0
-            fi
-            sleep 5
-          done
-
-          echo "Preview did not become healthy."
-          exit 1
+        run: bash "$SCRIPTS/check-health.sh"
 
       - name: Update status comment
         uses: ./.github/actions/aws-preview-comment
@@ -867,13 +499,17 @@ jobs:
       id-token: write
       issues: write
       pull-requests: write
+    env:
+      SCRIPTS: deployment/aws-preview/scripts
     steps:
-      - name: Checkout composite actions
+      - name: Checkout preview logic and composite actions
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
-          ref: ${{ github.event.repository.default_branch }}
-          sparse-checkout: .github
+          ref: ${{ github.event.repository.default_branch || 'main' }}
+          sparse-checkout: |
+            .github
+            deployment/aws-preview/scripts
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
@@ -885,26 +521,7 @@ jobs:
         id: stop
         env:
           PR_NUMBER: ${{ needs.context.outputs.pr_number }}
-        run: |
-          set -euo pipefail
-
-          stack_name="langfuse-preview-pr-${PR_NUMBER}"
-          instance_id="$(aws cloudformation describe-stacks \
-            --stack-name "${stack_name}" \
-            --query "Stacks[0].Outputs[?OutputKey=='InstanceId'].OutputValue" \
-            --output text 2>/dev/null || true)"
-
-          if [ -z "${instance_id}" ] || [ "${instance_id}" = "None" ]; then
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          aws ec2 stop-instances --instance-ids "${instance_id}"
-          aws ec2 wait instance-stopped --instance-ids "${instance_id}"
-          # The reaper destroys envs stopped for more than 7 days.
-          aws ec2 create-tags --resources "${instance_id}" \
-            --tags "Key=StoppedAt,Value=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          echo "exists=true" >> "$GITHUB_OUTPUT"
+        run: bash "$SCRIPTS/stop.sh"
 
       - name: Update status comment
         if: steps.stop.outputs.exists == 'true'
@@ -945,13 +562,17 @@ jobs:
       id-token: write
       issues: write
       pull-requests: write
+    env:
+      SCRIPTS: deployment/aws-preview/scripts
     steps:
-      - name: Checkout composite actions
+      - name: Checkout preview logic and composite actions
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
-          ref: ${{ github.event.repository.default_branch }}
-          sparse-checkout: .github
+          ref: ${{ github.event.repository.default_branch || 'main' }}
+          sparse-checkout: |
+            .github
+            deployment/aws-preview/scripts
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
@@ -965,79 +586,13 @@ jobs:
           ACTOR: ${{ needs.context.outputs.actor }}
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ needs.context.outputs.pr_number }}
-        run: |
-          set -euo pipefail
-
-          stack_name="langfuse-preview-pr-${PR_NUMBER}"
-          instance_id="$(aws cloudformation describe-stacks \
-            --stack-name "${stack_name}" \
-            --query "Stacks[0].Outputs[?OutputKey=='InstanceId'].OutputValue" \
-            --output text 2>/dev/null || true)"
-
-          if [ -z "${instance_id}" ] || [ "${instance_id}" = "None" ]; then
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "allowed=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          state="$(aws ec2 describe-instances \
-            --instance-ids "${instance_id}" \
-            --query "Reservations[0].Instances[0].State.Name" \
-            --output text)"
-
-          # Per-engineer limit: resuming takes one of the actor's 5 running
-          # slots (unless this env is already running).
-          if [ "${state}" != "running" ] && [ "${state}" != "pending" ]; then
-            running="$(aws ec2 describe-instances \
-              --filters \
-                "Name=tag:Project,Values=langfuse-preview" \
-                "Name=tag:PreviewOwner,Values=${ACTOR}" \
-                "Name=instance-state-name,Values=pending,running" \
-              --query "Reservations[].Instances[].[Tags[?Key=='PullRequest'] | [0].Value]" \
-              --output text | grep -v '^$' || true)"
-            count="$(printf '%s' "${running}" | grep -c . || true)"
-
-            if [ "${count}" -ge 5 ]; then
-              pr_list="$(printf '%s\n' "${running}" | sed 's/^/#/' | paste -sd ', ' -)"
-              gh pr comment "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}" \
-                --body "@${ACTOR} you already have ${count} running previews (PRs ${pr_list}). Stop or destroy one first (\`/preview stop\` / \`/preview destroy\`), then retry."
-              echo "exists=true" >> "$GITHUB_OUTPUT"
-              echo "allowed=false" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-          fi
-
-          aws ec2 start-instances --instance-ids "${instance_id}"
-          aws ec2 wait instance-running --instance-ids "${instance_id}"
-
-          # The resumer now owns this env's running slot.
-          aws ec2 delete-tags --resources "${instance_id}" --tags Key=StoppedAt
-          aws ec2 create-tags --resources "${instance_id}" \
-            --tags "Key=PreviewOwner,Value=${ACTOR}"
-
-          echo "exists=true" >> "$GITHUB_OUTPUT"
-          echo "allowed=true" >> "$GITHUB_OUTPUT"
+        run: bash "$SCRIPTS/resume.sh"
 
       - name: Wait for preview health
         if: steps.start.outputs.exists == 'true' && steps.start.outputs.allowed == 'true'
         env:
           PR_NUMBER: ${{ needs.context.outputs.pr_number }}
-        run: |
-          set -euo pipefail
-
-          preview_host="pr-${PR_NUMBER}.${AWS_PREVIEW_DOMAIN_NAME}"
-
-          # Containers restart automatically on boot (docker restart policy);
-          # give the stack a few minutes to come back.
-          for _ in $(seq 1 90); do
-            if curl -fsS --max-time 10 "https://${preview_host}/api/public/health" >/dev/null; then
-              exit 0
-            fi
-            sleep 5
-          done
-
-          echo "Preview did not become healthy after resume."
-          exit 1
+        run: bash "$SCRIPTS/check-health.sh"
 
       - name: Update status comment
         if: steps.start.outputs.exists == 'true' && steps.start.outputs.allowed == 'true'
@@ -1081,13 +636,17 @@ jobs:
       id-token: write
       issues: write
       pull-requests: write
+    env:
+      SCRIPTS: deployment/aws-preview/scripts
     steps:
-      - name: Checkout composite actions
+      - name: Checkout preview logic and composite actions
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
-          ref: ${{ github.event.repository.default_branch }}
-          sparse-checkout: .github
+          ref: ${{ github.event.repository.default_branch || 'main' }}
+          sparse-checkout: |
+            .github
+            deployment/aws-preview/scripts
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
@@ -1095,57 +654,11 @@ jobs:
           aws-region: ${{ env.AWS_PREVIEW_REGION }}
           role-to-assume: ${{ env.AWS_PREVIEW_ROLE_ARN }}
 
-      - name: Delete preview stack
+      - name: Delete preview stack, images, and secret seed
         id: delete
         env:
           PR_NUMBER: ${{ needs.context.outputs.pr_number }}
-        run: |
-          set -euo pipefail
-
-          stack_name="langfuse-preview-pr-${PR_NUMBER}"
-
-          if aws cloudformation describe-stacks --stack-name "${stack_name}" >/dev/null 2>&1; then
-            aws cloudformation delete-stack --stack-name "${stack_name}"
-            aws cloudformation wait stack-delete-complete --stack-name "${stack_name}"
-            echo "existed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "Preview stack ${stack_name} does not exist."
-            echo "existed=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Delete preview images
-        env:
-          PR_NUMBER: ${{ needs.context.outputs.pr_number }}
-        run: |
-          set -euo pipefail
-
-          for repository_url in \
-            "${AWS_PREVIEW_WEB_ECR_REPOSITORY_URL}" \
-            "${AWS_PREVIEW_WORKER_ECR_REPOSITORY_URL}"; do
-            repository_name="${repository_url#*/}"
-            image_ids="$(aws ecr list-images \
-              --repository-name "${repository_name}" \
-              --filter tagStatus=TAGGED \
-              --query "imageIds[?starts_with(imageTag, 'pr-${PR_NUMBER}-')]" \
-              --output json)"
-
-            if [ "${image_ids}" != "[]" ]; then
-              aws ecr batch-delete-image \
-                --repository-name "${repository_name}" \
-                --image-ids "${image_ids}" >/dev/null
-              echo "Deleted preview images from ${repository_name}."
-            fi
-          done
-
-      - name: Delete preview secret seed
-        env:
-          PR_NUMBER: ${{ needs.context.outputs.pr_number }}
-        run: |
-          set -euo pipefail
-
-          aws secretsmanager delete-secret --secret-id "langfuse-preview/pr-${PR_NUMBER}/seed" \
-            --force-delete-without-recovery 2>/dev/null \
-            || echo "No secret seed for PR ${PR_NUMBER}."
+        run: bash "$SCRIPTS/destroy.sh"
 
       - name: Update status comment
         if: steps.delete.outputs.existed == 'true'
@@ -1177,7 +690,16 @@ jobs:
       id-token: write
       issues: write
       pull-requests: write
+    env:
+      SCRIPTS: deployment/aws-preview/scripts
     steps:
+      - name: Checkout preview logic from the default branch
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.repository.default_branch || 'main' }}
+          sparse-checkout: deployment/aws-preview/scripts
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
         with:
@@ -1187,35 +709,7 @@ jobs:
       - name: Stop running preview instances
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-
-          instances="$(aws ec2 describe-instances \
-            --filters \
-              "Name=tag:Project,Values=langfuse-preview" \
-              "Name=instance-state-name,Values=running" \
-            --query "Reservations[].Instances[].[InstanceId, Tags[?Key=='PullRequest'] | [0].Value]" \
-            --output text)"
-
-          if [ -z "${instances}" ]; then
-            echo "No running preview instances."
-            exit 0
-          fi
-
-          stopped_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          while read -r instance_id pr_number; do
-            [ -z "${instance_id}" ] && continue
-            echo "Stopping ${instance_id} (PR ${pr_number})"
-            aws ec2 stop-instances --instance-ids "${instance_id}"
-            aws ec2 create-tags --resources "${instance_id}" \
-              --tags "Key=StoppedAt,Value=${stopped_at}"
-
-            if [ -n "${pr_number}" ] && [ "${pr_number}" != "None" ]; then
-              gh pr comment "${pr_number}" --repo "${GITHUB_REPOSITORY}" \
-                --body "⏸️ AWS preview stopped by a manual stop-all. Resume with \`/preview resume\`." \
-                || echo "Could not comment on PR ${pr_number}."
-            fi
-          done <<< "${instances}"
+        run: bash "$SCRIPTS/stop-all.sh"
 
   reap:
     name: Preview housekeeping
@@ -1226,7 +720,16 @@ jobs:
       id-token: write
       issues: write
       pull-requests: write
+    env:
+      SCRIPTS: deployment/aws-preview/scripts
     steps:
+      - name: Checkout preview logic from the default branch
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.repository.default_branch || 'main' }}
+          sparse-checkout: deployment/aws-preview/scripts
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
         with:
@@ -1236,216 +739,14 @@ jobs:
       - name: Stop idle running previews
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-
-          start_time="$(date -u -d "${AWS_PREVIEW_IDLE_HOURS} hours ago" +%Y-%m-%dT%H:%M:%SZ)"
-          end_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          cutoff_epoch="$(( $(date -u +%s) - AWS_PREVIEW_IDLE_HOURS * 3600 ))"
-
-          instances="$(aws ec2 describe-instances \
-            --filters \
-              "Name=tag:Project,Values=langfuse-preview" \
-              "Name=instance-state-name,Values=running" \
-            --query "Reservations[].Instances[].[InstanceId, LaunchTime, Tags[?Key=='PullRequest'] | [0].Value]" \
-            --output text)"
-
-          if [ -z "${instances}" ]; then
-            echo "No running preview instances."
-            exit 0
-          fi
-
-          stopped_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          while read -r instance_id launch_time pr_number; do
-            [ -z "${instance_id}" ] && continue
-
-            # Grace period: instances started less than the idle window ago
-            # are left alone (LaunchTime resets on every start).
-            launch_epoch="$(date -u -d "${launch_time}" +%s 2>/dev/null || echo 0)"
-            if [ "${launch_epoch}" -eq 0 ] || [ "${launch_epoch}" -gt "${cutoff_epoch}" ]; then
-              continue
-            fi
-
-            # Idle = no 5-minute window above the CPU threshold. Real usage
-            # (UI clicks, SDK ingestion) spikes CPU well above the stack's
-            # baseline of background polling and merges.
-            max_cpu="$(aws cloudwatch get-metric-statistics \
-              --namespace AWS/EC2 \
-              --metric-name CPUUtilization \
-              --dimensions "Name=InstanceId,Value=${instance_id}" \
-              --start-time "${start_time}" \
-              --end-time "${end_time}" \
-              --period 300 \
-              --statistics Maximum \
-              --query "max(Datapoints[].Maximum)" \
-              --output text)"
-
-            # No datapoints means no evidence; never stop without evidence.
-            if [ -z "${max_cpu}" ] || [ "${max_cpu}" = "None" ]; then
-              continue
-            fi
-
-            if awk -v cpu="${max_cpu}" -v limit="${AWS_PREVIEW_IDLE_CPU_MAX}" 'BEGIN { exit !(cpu < limit) }'; then
-              echo "Stopping ${instance_id} (PR ${pr_number}): max CPU ${max_cpu}% over ${AWS_PREVIEW_IDLE_HOURS}h"
-              aws ec2 stop-instances --instance-ids "${instance_id}"
-              aws ec2 create-tags --resources "${instance_id}" \
-                --tags "Key=StoppedAt,Value=${stopped_at}"
-
-              if [ -n "${pr_number}" ] && [ "${pr_number}" != "None" ]; then
-                gh pr comment "${pr_number}" --repo "${GITHUB_REPOSITORY}" \
-                  --body "⏸️ AWS preview stopped after ~${AWS_PREVIEW_IDLE_HOURS}h without activity. Data and URL are kept; resume with \`/preview resume\`." \
-                  || echo "Could not comment on PR ${pr_number}."
-              fi
-            fi
-          done <<< "${instances}"
+        run: bash "$SCRIPTS/reap-idle.sh"
 
       - name: Destroy previews for closed PRs
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-
-          # Reconciliation replaces the old pull_request:closed teardown: this
-          # runs from the default branch, so no unreviewed PR workflow code is
-          # ever trusted with the preview role. Worst-case cleanup latency is
-          # one housekeeping interval (2h).
-          instances="$(aws ec2 describe-instances \
-            --filters \
-              "Name=tag:Project,Values=langfuse-preview" \
-              "Name=instance-state-name,Values=pending,running,stopping,stopped" \
-            --query "Reservations[].Instances[].[Tags[?Key=='PullRequest'] | [0].Value, Tags[?Key=='aws:cloudformation:stack-name'] | [0].Value]" \
-            --output text)"
-
-          if [ -z "${instances}" ]; then
-            echo "No preview instances."
-          else
-            while read -r pr_number stack_name; do
-              [ -z "${pr_number}" ] || [ "${pr_number}" = "None" ] && continue
-              case "${stack_name}" in
-                langfuse-preview-pr-*) ;;
-                *)
-                  echo "Skipping unexpected stack name '${stack_name}'."
-                  continue
-                  ;;
-              esac
-
-              pr_state="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${pr_number}" --jq .state 2>/dev/null || echo "unknown")"
-              if [ "${pr_state}" != "closed" ]; then
-                continue
-              fi
-
-              echo "Destroying ${stack_name}: PR ${pr_number} is closed."
-              # Isolate each teardown in a subshell so one stuck/failed
-              # deletion doesn't abort the whole batch under set -e.
-              if ! (
-                set -e
-                aws cloudformation delete-stack --stack-name "${stack_name}"
-                aws cloudformation wait stack-delete-complete --stack-name "${stack_name}"
-
-                for repository_url in \
-                  "${AWS_PREVIEW_WEB_ECR_REPOSITORY_URL}" \
-                  "${AWS_PREVIEW_WORKER_ECR_REPOSITORY_URL}"; do
-                  repository_name="${repository_url#*/}"
-                  image_ids="$(aws ecr list-images \
-                    --repository-name "${repository_name}" \
-                    --filter tagStatus=TAGGED \
-                    --query "imageIds[?starts_with(imageTag, 'pr-${pr_number}-')]" \
-                    --output json)"
-                  if [ "${image_ids}" != "[]" ]; then
-                    aws ecr batch-delete-image \
-                      --repository-name "${repository_name}" \
-                      --image-ids "${image_ids}" >/dev/null
-                  fi
-                done
-
-                aws secretsmanager delete-secret --secret-id "langfuse-preview/pr-${pr_number}/seed" --force-delete-without-recovery 2>/dev/null || true
-              ); then
-                echo "Failed to reap ${stack_name}; continuing with the next stack."
-                continue
-              fi
-
-              gh pr comment "${pr_number}" --repo "${GITHUB_REPOSITORY}" \
-                --body "🗑️ AWS preview destroyed because the PR is closed. Reopen and \`/preview deploy\` to recreate." \
-                || echo "Could not comment on PR ${pr_number}."
-            done <<< "${instances}"
-          fi
+        run: bash "$SCRIPTS/reap-closed.sh"
 
       - name: Destroy previews stopped for more than 7 days
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-
-          cutoff="$(date -u -d '7 days ago' +%s)"
-
-          instances="$(aws ec2 describe-instances \
-            --filters \
-              "Name=tag:Project,Values=langfuse-preview" \
-              "Name=instance-state-name,Values=stopped" \
-              "Name=tag-key,Values=StoppedAt" \
-            --query "Reservations[].Instances[].[InstanceId, Tags[?Key=='StoppedAt'] | [0].Value, Tags[?Key=='PullRequest'] | [0].Value, Tags[?Key=='aws:cloudformation:stack-name'] | [0].Value]" \
-            --output text)"
-
-          if [ -z "${instances}" ]; then
-            echo "No stopped previews with a StoppedAt tag."
-            exit 0
-          fi
-
-          while read -r instance_id stopped_at pr_number stack_name; do
-            [ -z "${instance_id}" ] && continue
-
-            stopped_epoch="$(date -u -d "${stopped_at}" +%s 2>/dev/null || echo 0)"
-            if [ "${stopped_epoch}" -eq 0 ]; then
-              echo "Skipping ${instance_id}: unparseable StoppedAt '${stopped_at}'."
-              continue
-            fi
-            if [ "${stopped_epoch}" -gt "${cutoff}" ]; then
-              continue
-            fi
-            case "${stack_name}" in
-              langfuse-preview-pr-*) ;;
-              *)
-                echo "Skipping ${instance_id}: unexpected stack name '${stack_name}'."
-                continue
-                ;;
-            esac
-
-            echo "Reaping ${stack_name} (stopped since ${stopped_at})"
-            # Isolate each teardown in a subshell so one stuck/failed deletion
-            # doesn't abort the whole batch under set -e.
-            if ! (
-              set -e
-              aws cloudformation delete-stack --stack-name "${stack_name}"
-              aws cloudformation wait stack-delete-complete --stack-name "${stack_name}"
-
-              if [ -n "${pr_number}" ] && [ "${pr_number}" != "None" ]; then
-                for repository_url in \
-                  "${AWS_PREVIEW_WEB_ECR_REPOSITORY_URL}" \
-                  "${AWS_PREVIEW_WORKER_ECR_REPOSITORY_URL}"; do
-                  repository_name="${repository_url#*/}"
-                  image_ids="$(aws ecr list-images \
-                    --repository-name "${repository_name}" \
-                    --filter tagStatus=TAGGED \
-                    --query "imageIds[?starts_with(imageTag, 'pr-${pr_number}-')]" \
-                    --output json)"
-
-                  if [ "${image_ids}" != "[]" ]; then
-                    aws ecr batch-delete-image \
-                      --repository-name "${repository_name}" \
-                      --image-ids "${image_ids}" >/dev/null
-                  fi
-                done
-              fi
-
-              aws secretsmanager delete-secret --secret-id "langfuse-preview/pr-${pr_number}/seed" --force-delete-without-recovery 2>/dev/null || true
-            ); then
-              echo "Failed to reap ${stack_name}; continuing with the next stack."
-              continue
-            fi
-
-            if [ -n "${pr_number}" ] && [ "${pr_number}" != "None" ]; then
-              gh pr comment "${pr_number}" --repo "${GITHUB_REPOSITORY}" \
-                --body "🗑️ AWS preview destroyed after 7 days stopped. Recreate with \`/preview deploy\`." \
-                || echo "Could not comment on PR ${pr_number}."
-            fi
-          done <<< "${instances}"
+        run: bash "$SCRIPTS/reap-stale.sh"
