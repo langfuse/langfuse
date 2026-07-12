@@ -645,6 +645,7 @@ const LoadedSessionEventsPage: React.FC<{
   const router = useRouter();
   const { setDetailPageList, detailPagelists } = useDetailPageLists();
   const userSession = useSession();
+  const capture = usePostHogClientCapture();
   const parentRef = useRef<HTMLDivElement>(null);
   const defaultPresetAppliedRef = useRef(false);
 
@@ -1120,6 +1121,11 @@ const LoadedSessionEventsPage: React.FC<{
                 isPublic={session.public}
                 key="publish"
                 size="icon-xs"
+              />
+              <CopySessionIdButton
+                key="copy-id"
+                sessionId={sessionId}
+                capture={capture}
               />
             </div>
           ),
