@@ -756,11 +756,28 @@ jobs:
           EOF
 
           env_b64="$(base64 -w0 "${env_file}")"
+
+          # SSM parameters must be JSON: the base64 blob and the shell snippets
+          # below contain commas and pipes that the "commands=..." shorthand
+          # mis-parses (AWS CLI ParamValidationError). A file:// JSON document
+          # passes each command through verbatim.
+          params_file="$(mktemp)"
+          cat > "${params_file}" <<JSON
+          {"commands":[
+          "mkdir -p /opt/langfuse-preview",
+          "echo ${env_b64} | base64 -d > /opt/langfuse-preview/deploy.env",
+          "chmod 600 /opt/langfuse-preview/deploy.env",
+          "for i in \$(seq 1 60); do test -x /opt/langfuse-preview/deploy.sh && break || sleep 5; done",
+          "test -x /opt/langfuse-preview/deploy.sh",
+          "/opt/langfuse-preview/deploy.sh"
+          ]}
+          JSON
+
           command_id="$(aws ssm send-command \
             --document-name "AWS-RunShellScript" \
             --instance-ids "${INSTANCE_ID}" \
             --comment "Deploy Langfuse PR ${PR_NUMBER} preview" \
-            --parameters "commands=mkdir -p /opt/langfuse-preview,echo ${env_b64} | base64 -d > /opt/langfuse-preview/deploy.env,chmod 600 /opt/langfuse-preview/deploy.env,for i in \$(seq 1 60); do test -x /opt/langfuse-preview/deploy.sh && break || sleep 5; done,test -x /opt/langfuse-preview/deploy.sh,/opt/langfuse-preview/deploy.sh" \
+            --parameters "file://${params_file}" \
             --query "Command.CommandId" \
             --output text)"
 
