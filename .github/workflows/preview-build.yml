@@ -131,20 +131,40 @@ jobs:
         run: |
           set -euo pipefail
 
-          docker build \
-            --build-arg NEXT_PUBLIC_BUILD_ID="${COMMIT_SHA}" \
-            --build-arg NEXT_PUBLIC_SIGN_UP_DISABLED=true \
-            -f ./web/Dockerfile \
-            -t "${WEB_IMAGE}" \
-            .
-          docker push "${WEB_IMAGE}"
+          # The preview ECR repos are tag-IMMUTABLE, so re-pushing an existing
+          # tag fails. Tags embed the commit SHA, so an existing tag is byte-for-
+          # byte the same image — skip build+push if it is already there (this
+          # makes workflow re-runs on an unchanged commit idempotent).
+          image_present() {
+            local image="$1" repo tag
+            repo="${image%:*}"; repo="${repo##*/}"
+            tag="${image##*:}"
+            aws ecr describe-images --repository-name "${repo}" \
+              --image-ids imageTag="${tag}" >/dev/null 2>&1
+          }
 
-          docker build \
-            --build-arg NEXT_PUBLIC_BUILD_ID="${COMMIT_SHA}" \
-            -f ./worker/Dockerfile \
-            -t "${WORKER_IMAGE}" \
-            .
-          docker push "${WORKER_IMAGE}"
+          if image_present "${WEB_IMAGE}"; then
+            echo "${WEB_IMAGE} already present — skipping."
+          else
+            docker build \
+              --build-arg NEXT_PUBLIC_BUILD_ID="${COMMIT_SHA}" \
+              --build-arg NEXT_PUBLIC_SIGN_UP_DISABLED=true \
+              -f ./web/Dockerfile \
+              -t "${WEB_IMAGE}" \
+              .
+            docker push "${WEB_IMAGE}"
+          fi
+
+          if image_present "${WORKER_IMAGE}"; then
+            echo "${WORKER_IMAGE} already present — skipping."
+          else
+            docker build \
+              --build-arg NEXT_PUBLIC_BUILD_ID="${COMMIT_SHA}" \
+              -f ./worker/Dockerfile \
+              -t "${WORKER_IMAGE}" \
+              .
+            docker push "${WORKER_IMAGE}"
+          fi
 
       - name: Mark preview image pushed
         uses: ./.github/actions/preview-comment
