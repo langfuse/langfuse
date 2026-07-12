@@ -141,8 +141,13 @@ const OpenAICompletionUsageSchema = z
     if (prompt_tokens_details) {
       for (const [key, value] of Object.entries(prompt_tokens_details)) {
         if (value !== null && value !== undefined) {
-          result[`input_${key}`] = value;
-          result.input = Math.max(result.input - (value ?? 0), 0);
+          // Cap each sub-count at the remaining parent budget so the detail
+          // buckets plus the residual always sum back to the parent and never
+          // go negative, even when a provider reports a sub-count larger than
+          // its parent (e.g. a details entry exceeding prompt_tokens).
+          const capped = Math.min(value, result.input);
+          result[`input_${key}`] = capped;
+          result.input -= capped;
         }
       }
     }
@@ -150,8 +155,13 @@ const OpenAICompletionUsageSchema = z
     if (completion_tokens_details) {
       for (const [key, value] of Object.entries(completion_tokens_details)) {
         if (value !== null && value !== undefined) {
-          result[`output_${key}`] = value;
-          result.output = Math.max(result.output - (value ?? 0), 0);
+          // Cap each sub-count at the remaining parent budget so the detail
+          // buckets plus the residual always sum back to the parent and never
+          // go negative, even when a provider reports a sub-count larger than
+          // its parent (e.g. reasoning_tokens exceeding completion_tokens).
+          const capped = Math.min(value, result.output);
+          result[`output_${key}`] = capped;
+          result.output -= capped;
         }
       }
     }
@@ -196,8 +206,13 @@ const OpenAIResponseUsageSchema = z
     if (input_tokens_details) {
       for (const [key, value] of Object.entries(input_tokens_details)) {
         if (value !== null && value !== undefined) {
-          result[`input_${key}`] = value;
-          result.input = Math.max(result.input - (value ?? 0), 0);
+          // Cap each sub-count at the remaining parent budget so the detail
+          // buckets plus the residual always sum back to the parent and never
+          // go negative, even when a provider reports a sub-count larger than
+          // its parent (e.g. a details entry exceeding prompt_tokens).
+          const capped = Math.min(value, result.input);
+          result[`input_${key}`] = capped;
+          result.input -= capped;
         }
       }
     }
@@ -205,8 +220,13 @@ const OpenAIResponseUsageSchema = z
     if (output_tokens_details) {
       for (const [key, value] of Object.entries(output_tokens_details)) {
         if (value !== null && value !== undefined) {
-          result[`output_${key}`] = value;
-          result.output = Math.max(result.output - (value ?? 0), 0);
+          // Cap each sub-count at the remaining parent budget so the detail
+          // buckets plus the residual always sum back to the parent and never
+          // go negative, even when a provider reports a sub-count larger than
+          // its parent (e.g. reasoning_tokens exceeding completion_tokens).
+          const capped = Math.min(value, result.output);
+          result[`output_${key}`] = capped;
+          result.output -= capped;
         }
       }
     }
