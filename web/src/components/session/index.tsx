@@ -216,8 +216,8 @@ const SessionScores = ({
 };
 const CopySessionIdButton: React.FC<{
   sessionId: string;
-  capture: ReturnType<typeof usePostHogClientCapture>;
-}> = ({ sessionId, capture }) => {
+}> = ({ sessionId }) => {
+  const capture = usePostHogClientCapture();
   const { copy, isCopied } = useCopyToClipboard();
 
   return (
@@ -409,11 +409,7 @@ export const SessionPage: React.FC<{
                 key="publish"
                 size="icon-xs"
               />
-              <CopySessionIdButton
-                key="copy-id"
-                sessionId={sessionId}
-                capture={capture}
-              />
+              <CopySessionIdButton key="copy-id" sessionId={sessionId} />
             </div>
           ),
           actionButtonsRight: (
@@ -645,7 +641,6 @@ const LoadedSessionEventsPage: React.FC<{
   const router = useRouter();
   const { setDetailPageList, detailPagelists } = useDetailPageLists();
   const userSession = useSession();
-  const capture = usePostHogClientCapture();
   const parentRef = useRef<HTMLDivElement>(null);
   const defaultPresetAppliedRef = useRef(false);
 
@@ -1122,11 +1117,7 @@ const LoadedSessionEventsPage: React.FC<{
                 key="publish"
                 size="icon-xs"
               />
-              <CopySessionIdButton
-                key="copy-id"
-                sessionId={sessionId}
-                capture={capture}
-              />
+              <CopySessionIdButton key="copy-id" sessionId={sessionId} />
             </div>
           ),
           actionButtonsRight: (
