@@ -81,6 +81,10 @@ export function stripBasePath(path: string): string {
     return path;
   }
 
-  const stripped = path.slice(basePath.length) || "/";
+  // Strip ASCII control characters (0x00-0x1F, 0x7F) before further
+  // processing. See getSafeRedirectPath for the rationale.
+  const cleaned = path.replace(/[\x00-\x1F\x7F]/g, "");
+
+  const stripped = cleaned.slice(basePath.length) || "/";
   return stripped.startsWith("/") ? stripped : `/${stripped}`;
 }

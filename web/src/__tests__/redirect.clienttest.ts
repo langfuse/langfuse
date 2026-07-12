@@ -290,6 +290,27 @@ describe("stripBasePath", () => {
       expect(stripBasePath("/apps/apps/dashboard")).toBe("/apps/dashboard");
     });
 
+    it("strips ASCII control characters from the path", () => {
+      // Newline (header-injection vector)
+      expect(stripBasePath("/apps\n/dashboard")).toBe("/dashboard");
+      // CRLF
+      expect(stripBasePath("/apps\r\n/dashboard")).toBe("/dashboard");
+      // Null byte (path-extension confusion)
+      expect(stripBasePath("/apps\u0000/dashboard")).toBe("/dashboard");
+      // DEL (0x7F)
+      expect(stripBasePath("/apps\u007F/dashboard")).toBe("/dashboard");
+      // Multiple control chars in one path
+      expect(stripBasePath("/apps\n\r\u0000/dashboard")).toBe("/dashboard");
+    });
+
+    it("does NOT strip Unicode bidi-formatting characters outside the C0 range", () => {
+      // U+202E (RTL-override) is intentionally out of scope for this fix;
+      // it lives at 0x202E, beyond the 0x00-0x1F / 0x7F regex scope. The
+      // result still has a leading "/" so it survives the path-vs-leading-
+      // slash guard; downstream code decides whether to display it.
+      expect(stripBasePath("/apps\u202E/dashboard")).toBe("/\u202E/dashboard");
+    });
+
     it("leaves paths without basePath untouched", () => {
       expect(stripBasePath("/no-base")).toBe("/no-base");
     });
