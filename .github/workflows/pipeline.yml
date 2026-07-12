@@ -1108,6 +1108,20 @@ jobs:
             || { cat /tmp/migrate-install.log; exit 1; }
           pnpm run db:migrate
           pnpm --filter=shared run ch:up
+      - name: Provide ClickHouse client via dev container for dev-tables setup
+        # The clickhouse-server container already ships the client binary;
+        # a shim avoids re-downloading the ~300MB client package every run.
+        run: |
+          sudo tee /usr/local/bin/clickhouse > /dev/null <<'EOF'
+          #!/bin/bash
+          exec docker exec -i langfuse-clickhouse clickhouse "$@"
+          EOF
+          sudo chmod +x /usr/local/bin/clickhouse
+      - name: Setup Dev Tables
+        # Creates the events_core/events_full tables the v2 observations API
+        # reads (not part of the ch:up migrations).
+        run: |
+          pnpm --filter=shared ch:dev-tables
       - name: Start observations-api and web server
         run: |
           set -a; source .env; set +a
