@@ -194,7 +194,7 @@ export default function EnterpriseSsoRequiredPage() {
               Contact{" "}
               <a
                 href="mailto:support@langfuse.com"
-                className="text-primary-accent hover:text-hover-primary-accent"
+                className="text-link hover:text-link-hover"
               >
                 support@langfuse.com
               </a>{" "}
@@ -204,7 +204,7 @@ export default function EnterpriseSsoRequiredPage() {
           <div className="text-muted-foreground mt-6 text-center text-sm">
             <Link
               href="/auth/sign-in"
-              className="text-primary-accent hover:text-hover-primary-accent"
+              className="text-link hover:text-link-hover"
             >
               Back to other sign-in options
             </Link>
@@ -215,7 +215,7 @@ export default function EnterpriseSsoRequiredPage() {
           Need help? Contact{" "}
           <a
             href="mailto:support@langfuse.com"
-            className="text-primary-accent hover:text-hover-primary-accent"
+            className="text-link hover:text-link-hover"
           >
             support@langfuse.com
           </a>

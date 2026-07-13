@@ -155,7 +155,6 @@ export function parseInAppAgentInterruptEvent(
 export type ManualToolApprovalRunInput = {
   input: AgUiRunAgentInput;
   syntheticEvents: AgUiEvent[];
-  shouldContinue: boolean;
   toolCallApproval?: {
     toolCallId: string;
     status: "approved" | "rejected";
@@ -172,14 +171,30 @@ export async function createManualToolApprovalRunInput(params: {
   const forwardedProps = getResumeForwardedProps(params.input);
 
   if (!forwardedProps) {
-    return { input: params.input, syntheticEvents: [], shouldContinue: true };
+    return { input: params.input, syntheticEvents: [] };
   }
 
   const { approved, approvalRequest } = forwardedProps.command.resume;
   if (!approved) {
+    const assistantMessage =
+      createManualToolCallAssistantMessage(approvalRequest);
+    const toolMessage: AgUiMessage = {
+      id: createManualToolResultMessageId(approvalRequest),
+      role: "tool",
+      content: MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE,
+      toolCallId: approvalRequest.toolCallId,
+      error: MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE,
+    };
+
     return {
       input: {
         ...params.input,
+        messages: [
+          ...params.input.messages,
+          assistantMessage,
+          toolMessage,
+          createToolRejectionGuidanceMessage(approvalRequest),
+        ],
         forwardedProps: {},
       },
       syntheticEvents: createManualToolApprovalEvents({
@@ -187,7 +202,6 @@ export async function createManualToolApprovalRunInput(params: {
         toolResultContent: MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE,
         toolError: MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE,
       }),
-      shouldContinue: false,
       toolCallApproval: {
         toolCallId: approvalRequest.toolCallId,
         status: "rejected",
@@ -235,11 +249,25 @@ export async function createManualToolApprovalRunInput(params: {
       forwardedProps: {},
     },
     syntheticEvents,
-    shouldContinue: true,
     toolCallApproval: {
       toolCallId: approvalRequest.toolCallId,
       status: "approved",
     },
+  };
+}
+
+function createToolRejectionGuidanceMessage(
+  approvalRequest: InAppAgentToolApprovalRequest,
+): AgUiMessage {
+  return {
+    id: `${approvalRequest.toolCallId}-approval-rejection-guidance`,
+    role: "developer",
+    content: [
+      `The user declined the proposed tool call ${approvalRequest.toolName}.`,
+      "The action was not completed.",
+      "Do not retry this tool call or attempt an equivalent action unless the user explicitly requests it.",
+      "Briefly acknowledge that the action was not completed and ask the user how they would like to continue.",
+    ].join("\n"),
   };
 }
 

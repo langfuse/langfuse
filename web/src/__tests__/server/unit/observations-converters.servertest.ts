@@ -11,6 +11,7 @@ vi.mock("@langfuse/shared/src/db", () => ({ prisma: {} }));
 import {
   type EventsObservationRecordReadType,
   convertEventsObservation,
+  DEFAULT_RENDERING_PROPS,
 } from "@langfuse/shared/src/server";
 
 const TRACE_CONTEXT_FIELDS = [
@@ -67,7 +68,11 @@ describe("convertEventsObservation", () => {
         // did not request the trace_context field group
       };
 
-      const result = convertEventsObservation(record, undefined, false);
+      const result = convertEventsObservation(
+        record,
+        DEFAULT_RENDERING_PROPS,
+        false,
+      );
 
       for (const field of TRACE_CONTEXT_FIELDS) {
         expect(
@@ -93,7 +98,11 @@ describe("convertEventsObservation", () => {
         public: false,
       };
 
-      const result = convertEventsObservation(record, undefined, false);
+      const result = convertEventsObservation(
+        record,
+        DEFAULT_RENDERING_PROPS,
+        false,
+      );
 
       expect(result).toHaveProperty("userId", null);
       expect(result).toHaveProperty("sessionId", null);
@@ -120,7 +129,11 @@ describe("convertEventsObservation", () => {
         public: true,
       };
 
-      const result = convertEventsObservation(record, undefined, false);
+      const result = convertEventsObservation(
+        record,
+        DEFAULT_RENDERING_PROPS,
+        false,
+      );
 
       expect(result).toHaveProperty("userId", "user-42");
       expect(result).toHaveProperty("sessionId", "session-99");
@@ -139,10 +152,16 @@ describe("convertEventsObservation", () => {
         session_id: null,
         trace_name: null,
         release: null,
-        tags: null,
+        // The V1 read path can surface a null tags column; the insert-oriented
+        // type only allows string[], so keep the null fixture via a cast.
+        tags: null as unknown as string[],
       });
 
-      const result = convertEventsObservation(record, undefined, true);
+      const result = convertEventsObservation(
+        record,
+        DEFAULT_RENDERING_PROPS,
+        true,
+      );
 
       expect(result).toHaveProperty("userId", null);
       expect(result).toHaveProperty("sessionId", null);

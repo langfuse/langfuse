@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useMemo, useRef } from "react";
 import { useRouter } from "next/router";
 import { type LucideIcon, Plus } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
@@ -327,12 +327,6 @@ export const MonitorForm = ({
     ],
     [monitorWindow],
   );
-
-  // Push the live name up to the host (e.g. the edit page header) so the page
-  // title can mirror it as the user types instead of waiting for save.
-  useEffect(() => {
-    onNameChange?.(watched.name ?? "");
-  }, [watched.name, onNameChange]);
 
   /** eventsFilterOptions loads the events v2 filter dictionary (environments, tags, models, …) for the picked view. */
   const eventsFilterOptions = api.events.filterOptions.useQuery(
@@ -849,6 +843,10 @@ export const MonitorForm = ({
                           disabled={!hasAccess}
                           {...field}
                           value={field.value ?? ""}
+                          onChange={(e) => {
+                            field.onChange(e);
+                            onNameChange?.(e.target.value ?? "");
+                          }}
                         />
                       </FormControl>
                       <FormMessage />
@@ -1037,7 +1035,7 @@ const NoDataField = ({
             Keep the previous
             <Badge
               variant="secondary"
-              className="w-20 justify-center bg-slate-500 py-1 text-slate-50 hover:bg-slate-500"
+              className="bg-muted-foreground text-background hover:bg-muted-foreground w-20 justify-center py-1"
             >
               SEVERITY
             </Badge>

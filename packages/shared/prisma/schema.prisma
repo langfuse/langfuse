@@ -132,6 +132,10 @@ model Project {
   retentionDays             Int?                        @map("retention_days")
   hasTraces                 Boolean                     @default(false) @map("has_traces")
   metadata                  Json?
+  // Which dashboard renders on the project home page; null = the
+  // Langfuse-curated default (LANGFUSE_HOME_DASHBOARD_ID).
+  homeDashboardId           String?                     @map("home_dashboard_id")
+  homeDashboard             Dashboard?                  @relation("ProjectHomeDashboard", fields: [homeDashboardId], references: [id], onDelete: SetNull)
   projectMembers            ProjectMembership[]
   organization              Organization                @relation(fields: [orgId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   apiKeys                   ApiKey[]
@@ -1067,6 +1071,8 @@ enum JobConfigState {
 
 enum EvaluatorBlockReason {
   LLM_CONNECTION_AUTH_INVALID
+  LLM_CONNECTION_BILLING_EXHAUSTED
+  LLM_CONNECTION_ENDPOINT_UNREACHABLE
   LLM_CONNECTION_MISSING
   DEFAULT_EVAL_MODEL_MISSING
   EVAL_MODEL_CONFIG_INVALID
@@ -1537,6 +1543,8 @@ model Dashboard {
 
   definition Json @map("definition")
   filters    Json @default("[]") @map("filters")
+
+  homeDashboardProjects Project[] @relation("ProjectHomeDashboard")
 
   @@map("dashboards")
 }

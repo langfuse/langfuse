@@ -300,7 +300,7 @@ describe("MCP public API tools", () => {
         queueId: queue.id,
         objectId: uuidv4(),
         objectType: "TRACE",
-      },
+      } as unknown as Parameters<typeof handleCreateAnnotationQueueItem>[0],
       context,
     )) as { id: string; status: string };
     expect(queueItem.status).toBe("PENDING");
@@ -379,7 +379,7 @@ describe("MCP public API tools", () => {
     ).resolves.toBe(assignmentAuditLogCount + 1);
 
     const auditLogCreateSpy = vi
-      .spyOn(prisma.auditLog, "create")
+      .spyOn(prisma, "$transaction")
       .mockRejectedValueOnce(new Error("audit failed"));
 
     try {
@@ -727,7 +727,12 @@ describe("MCP public API tools", () => {
   it("covers health public API route and cross-project recent-event checks", async () => {
     const { context } = await createMcpTestSetup();
 
-    await expect(handleGetHealth({}, context)).resolves.toMatchObject({
+    await expect(
+      handleGetHealth(
+        {} as unknown as Parameters<typeof handleGetHealth>[0],
+        context,
+      ),
+    ).resolves.toMatchObject({
       status: "OK",
       version: expect.any(String),
     });
@@ -750,7 +755,12 @@ describe("MCP public API tools", () => {
     ]);
 
     await expect(
-      handleGetHealth({ failIfNoRecentEvents: true }, context),
+      handleGetHealth(
+        { failIfNoRecentEvents: true } as unknown as Parameters<
+          typeof handleGetHealth
+        >[0],
+        context,
+      ),
     ).resolves.toMatchObject({
       status: "OK",
       version: expect.any(String),
@@ -852,7 +862,7 @@ describe("MCP public API tools", () => {
         dataType: "NUMERIC",
         numericMinValue: 0,
         numericMaxValue: 1,
-      },
+      } as unknown as Parameters<typeof handleCreateScoreConfig>[0],
       context,
     )) as { id: string; name: string };
     expect(scoreConfig.name).toBe(scoreConfigName);

@@ -316,6 +316,8 @@ export default function TracesTable({
 
     const scoresNumeric =
       traceFilterOptionsResponse.data?.scores_avg ?? undefined;
+    const scoresBoolean =
+      traceFilterOptionsResponse.data?.score_booleans ?? undefined;
 
     return {
       traceName:
@@ -350,6 +352,7 @@ export default function TracesTable({
       totalCost: [],
       score_categories: scoreCategories,
       scores_avg: scoresNumeric,
+      score_booleans: scoresBoolean,
     };
   }, [environmentFilterOptions.data, traceFilterOptionsResponse.data]);
 
@@ -395,8 +398,13 @@ export default function TracesTable({
     dateRangeFilter,
   );
 
-  // Use external filter state if provided, otherwise use combined filter state
-  const filterState = externalFilterState || combinedFilterState;
+  // Use external filter state if provided, otherwise use combined filter
+  // state. Even with an external filter, still apply the date-range bound so
+  // callers that pass an externalDateRange (e.g. the eval preview's "last 24
+  // hours" window) have it honored for the row query, not just score columns.
+  const filterState = externalFilterState
+    ? externalFilterState.concat(dateRangeFilter)
+    : combinedFilterState;
 
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",
@@ -591,6 +599,15 @@ export default function TracesTable({
     compactNumberFormatter(Object.keys(selectedRows).length)
   );
 
+  // Select-all deletes persist the raw filterState into the batch action, but
+  // comment filters resolve via Postgres at read time and the server rejects
+  // such dispatches, so disable the action up front with a clear reason.
+  // Column ids mirror the traces.deleteMany guard in
+  // web/src/server/api/routers/traces.ts.
+  const hasCommentFilter = filterState.some(
+    (f) => f.column === "commentCount" || f.column === "commentContent",
+  );
+
   const tableActions: TableAction[] = [
     ...(hasTraceDeletionEntitlement
       ? [
@@ -599,6 +616,9 @@ export default function TracesTable({
             type: BatchActionType.Delete,
             label: "Delete Traces",
             description: `This action permanently deletes ${displayCount} traces and cannot be undone. Trace deletion happens asynchronously and may take up to 24 hours.`,
+            disabled: selectAll && hasCommentFilter,
+            disabledReason:
+              "Batch deletion does not support comment filters. Remove the comment filter to delete.",
             accessCheck: {
               scope: "traces:delete",
               entitlement: "trace-deletion",

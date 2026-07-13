@@ -26,6 +26,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { cn } from "@/src/utils/tailwind";
+import { formatApproximateDuration } from "@/src/utils/dates";
 import {
   InAppAgentMessage,
   type InAppAgentMessageContent,
@@ -33,6 +34,10 @@ import {
 } from "./InAppAgentMessage";
 import type { InAppAgentMessageFeedbackValue } from "@/src/ee/features/in-app-agent/schema";
 import { InAppAgentToolCallCard } from "@/src/ee/features/in-app-agent/components/InAppAgentToolCallCard";
+import {
+  type InAppAgentError,
+  isInAppAgentRateLimited,
+} from "@/src/ee/features/in-app-agent/components/utils/utils";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
@@ -88,8 +93,9 @@ type InAppAgentWindowCloseButtonProps =
 
 export type InAppAgentWindowProps = {
   conversations: InAppAgentWindowConversation[];
-  error: string | null;
+  error: InAppAgentError | null;
   hasMoreConversations: boolean;
+  isAssistantTurnInProgress: boolean;
   isHeaderDragHandleEnabled?: boolean;
   isExpanded: boolean;
   isInputDisabled: boolean;
@@ -113,14 +119,79 @@ export type InAppAgentWindowProps = {
   selectedConversationId: string | undefined;
 } & InAppAgentWindowCloseButtonProps;
 
+function InAppAgentRateLimitError({
+  error,
+  isExpanded,
+}: {
+  error: Extract<InAppAgentError, { type: "rate_limit" }>;
+  isExpanded: boolean;
+}) {
+  const [secondsRemaining, setSecondsRemaining] = useState(() =>
+    Math.ceil((error.retryAt - Date.now()) / 1_000),
+  );
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      const secondsRemaining = Math.ceil((error.retryAt - Date.now()) / 1_000);
+      setSecondsRemaining(secondsRemaining);
+
+      if (secondsRemaining <= 1) {
+        window.clearInterval(interval);
+      }
+    }, 1_000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [error.retryAt]);
+
+  return (
+    <div
+      role="alert"
+      className={cn(
+        "border-border bg-muted/60 text-foreground rounded-lg border px-2 py-1",
+        isExpanded ? "text-sm" : "text-xs",
+      )}
+    >
+      <div className="space-y-0.5">
+        <p className="font-medium">
+          You&apos;ve reached the assistant request limit
+        </p>
+        <p>Try again in about {formatApproximateDuration(secondsRemaining)}.</p>
+      </div>
+    </div>
+  );
+}
+
+function InAppAgentGenericError({
+  error,
+  isExpanded,
+}: {
+  error: Extract<InAppAgentError, { type: "generic" }>;
+  isExpanded: boolean;
+}) {
+  return (
+    <div
+      role="alert"
+      className={cn(
+        "border-destructive/40 dark:bg-destructive dark:border-destructive-foreground/20 bg-destructive/10 dark:text-destructive-foreground text-destructive rounded-lg border px-2 py-1",
+        isExpanded ? "text-sm" : "text-xs",
+      )}
+    >
+      {error.message}
+    </div>
+  );
+}
+
 export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const {
     conversations,
     error,
     hasMoreConversations,
+    isAssistantTurnInProgress,
     isHeaderDragHandleEnabled = false,
     isExpanded,
-    isInputDisabled,
+    isInputDisabled: baseIsInputDisabled,
     isLoadingMoreConversations,
     messages,
     onDeleteConversation,
@@ -135,6 +206,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onSubmitFeedback,
     selectedConversationId,
   } = props;
+  const isRateLimited = isInAppAgentRateLimited(error);
+  const isInputDisabled = baseIsInputDisabled || isRateLimited;
   const viewportRef = useRef<HTMLDivElement>(null);
   const isAutoScrollAttachedRef = useRef(true);
   const previousScrollTopRef = useRef(0);
@@ -271,7 +344,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 size="icon"
                 className="size-6 shrink-0"
                 onClick={onNewConversation}
-                disabled={isInputDisabled}
+                disabled={baseIsInputDisabled}
                 aria-label="Start new conversation"
               >
                 <Plus className="size-3" />
@@ -297,7 +370,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     variant="ghost"
                     size="icon"
                     className="size-6 shrink-0"
-                    disabled={isInputDisabled}
+                    disabled={baseIsInputDisabled}
                     aria-label="Conversation history"
                   >
                     <History className="size-3" />
@@ -344,7 +417,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                         variant="ghost"
                         size="icon-xs"
                         className="text-muted-foreground hover:text-destructive -mr-1.5 shrink-0"
-                        disabled={isInputDisabled}
+                        disabled={baseIsInputDisabled}
                         aria-label="Delete conversation"
                         onClick={(event) => {
                           event.preventDefault();
@@ -486,7 +559,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               {visibleMessages.map((message, index) => {
                 const hasFullWidthContent =
                   message.content.type === "toolGroup" ||
-                  message.content.type === "redirectAction";
+                  message.content.type === "redirectAction" ||
+                  message.content.type === "reasoning";
 
                 const nextUserMessageIndex = visibleMessages.findIndex(
                   (nextMessage, nextIndex) =>
@@ -496,12 +570,15 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   nextUserMessageIndex === -1
                     ? visibleMessages.length
                     : nextUserMessageIndex;
+                const isCurrentTurnInProgress =
+                  isAssistantTurnInProgress && nextUserMessageIndex === -1;
                 const isLastMessageOfTurn = visibleMessages
                   .slice(index + 1, nextTurnStartIndex)
                   .every((nextMessage) => nextMessage.role !== "assistant");
                 const feedbackRunId =
                   message.role === "assistant" &&
                   message.content.type === "text" &&
+                  !isCurrentTurnInProgress &&
                   isLastMessageOfTurn
                     ? message.runId
                     : undefined;
@@ -519,7 +596,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       role={message.role}
                       content={message.content}
                       isCompact={!isExpanded}
-                      isFeedbackDisabled={isInputDisabled}
+                      isFeedbackDisabled={baseIsInputDisabled}
                       onSubmitFeedback={
                         feedbackRunId
                           ? (params) =>
@@ -536,17 +613,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               })}
             </ol>
 
-            {error ? (
-              <div
-                role="alert"
-                className={cn(
-                  "border-destructive/40 dark:bg-destructive dark:border-destructive-foreground/20 bg-destructive/10 dark:text-destructive-foreground text-destructive rounded-lg border px-2 py-1",
-                  isExpanded ? "text-sm" : "text-xs",
-                )}
-              >
-                {error}
-              </div>
-            ) : null}
+            {error?.type === "generic" && (
+              <InAppAgentGenericError error={error} isExpanded={isExpanded} />
+            )}
           </div>
         </div>
         {pendingToolCalls.length > 0 ? (
@@ -567,6 +636,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   key={`${tool.approval?.id ?? tool.name}-${index}`}
                   tool={tool}
                   isCompact={!isExpanded}
+                  isDisabled={isRateLimited}
                   onApproveToolCall={onApproveToolCall}
                   onRejectToolCall={onRejectToolCall}
                 />
@@ -574,6 +644,11 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             </div>
           </div>
         ) : null}
+        {error?.type === "rate_limit" && (
+          <div className="p-2">
+            <InAppAgentRateLimitError error={error} isExpanded={isExpanded} />
+          </div>
+        )}
         <div
           className={cn(
             "p-1.5",
@@ -619,7 +694,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               placeholder="Ask the assistant a question..."
               rows={1}
               className={cn(
-                "bg-background placeholder:text-muted-foreground w-full flex-1 resize-none overflow-y-auto rounded-md text-sm leading-5 disabled:cursor-not-allowed disabled:opacity-60",
+                "bg-background placeholder:text-foreground-tertiary w-full flex-1 resize-none overflow-y-auto rounded-md text-sm leading-5 disabled:cursor-not-allowed disabled:opacity-60",
                 isExpanded
                   ? "max-h-40 min-h-14 border-none ring-0"
                   : "border-input max-h-40 min-h-8 px-3 py-1",

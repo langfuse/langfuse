@@ -51,12 +51,18 @@ export type SpanCtx = {
 
 type AsyncCallbackFn<T> = (span: opentelemetry.Span) => Promise<T>;
 
+/** instrumentAsync runs an async callback inside a fresh OTel span. */
 export async function instrumentAsync<T>(
   ctx: SpanCtx,
   callback: AsyncCallbackFn<T>,
 ): Promise<T> {
   const activeContext = ctx.startNewTrace
-    ? opentelemetry.ROOT_CONTEXT
+    ? // Sever the parent trace but carry baggage onto the new root.
+      opentelemetry.propagation.setBaggage(
+        opentelemetry.ROOT_CONTEXT,
+        opentelemetry.propagation.getBaggage(opentelemetry.context.active()) ??
+          opentelemetry.propagation.createBaggage(),
+      )
     : ctx.traceContext
       ? opentelemetry.propagation.extract(
           opentelemetry.context.active(),
@@ -95,12 +101,18 @@ export async function instrumentAsync<T>(
 
 type SyncCallbackFn<T> = (span: opentelemetry.Span) => T;
 
+/** instrumentSync runs a callback inside a fresh OTel span. */
 export function instrumentSync<T>(
   ctx: SpanCtx,
   callback: SyncCallbackFn<T>,
 ): T {
   const activeContext = ctx.startNewTrace
-    ? opentelemetry.ROOT_CONTEXT
+    ? // Sever the parent trace but carry baggage onto the new root.
+      opentelemetry.propagation.setBaggage(
+        opentelemetry.ROOT_CONTEXT,
+        opentelemetry.propagation.getBaggage(opentelemetry.context.active()) ??
+          opentelemetry.propagation.createBaggage(),
+      )
     : ctx.traceContext
       ? opentelemetry.propagation.extract(
           opentelemetry.context.active(),
