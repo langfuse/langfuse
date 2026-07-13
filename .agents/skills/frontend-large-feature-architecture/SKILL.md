@@ -35,11 +35,14 @@ UI is a pure function of state. Do not use `useEffect` to derive, prepare, or
 sync data:
 
 - Derived values are computed in render (`const title = data?.name ?? ""`),
-  never mirrored into state by an effect.
+  never mirrored into state by an effect. Client state that refers to server
+  data stores only the user's intent (an id) and derives the effective value
+  by merging with query data in render.
 - When loaded data seeds editable state, split the component: an outer
-  data-preparer/controller fetches and renders a `<Spinner />` while loading;
-  the inner component receives the loaded value as an `initialValue` prop and
-  seeds `useState(initialValue)`. Do not render UI before its data is ready.
+  data-preparer/controller fetches and renders a loading state (prefer a
+  skeleton; `<Spinner />` as minimal fallback); the inner component receives
+  the loaded value as an `initialValue` prop and seeds `useState(initialValue)`.
+  Do not render UI before its data is ready.
 - Define a form only where all initial values are already prepared; if data is
   still loading, the form lives deeper in the tree.
 - Complex actions live outside React as plain functions using the store or
