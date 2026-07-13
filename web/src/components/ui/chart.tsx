@@ -103,7 +103,9 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
       /^(rgb|rgba|hsl|hsla|oklch|lab|lch)\([a-zA-Z0-9\s,.%/+()-]+\)$/.test(
         trimmedValue,
       ) ||
-      /^var\(--[a-zA-Z0-9_-]+\)$/.test(trimmedValue) ||
+      /^var\(--[a-zA-Z0-9_-]+(?:\s*,\s*[a-zA-Z0-9\s,.%/#()_-]+)?\)$/.test(
+        trimmedValue,
+      ) ||
       /^[a-zA-Z]+$/.test(trimmedValue)
     );
   };
