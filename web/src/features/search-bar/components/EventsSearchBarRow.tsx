@@ -15,6 +15,7 @@
 
 import * as React from "react";
 
+import { cn } from "@/src/utils/tailwind";
 import { type FilterState } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
@@ -34,6 +35,7 @@ export function EventsSearchBarRow({
   onApplyFilters,
   onRequestColumns,
   aiDataContext,
+  className,
 }: {
   projectId: string;
   store: SearchBarStore;
@@ -58,6 +60,9 @@ export function EventsSearchBarRow({
   /** Project data context (observed values + metadata keys + result count) for
    *  the AI prompt — built by EventsTable from filterOptions + visible rows. */
   aiDataContext?: string;
+  /** Overrides the wrapper padding when the row is embedded outside a table
+   *  toolbar (e.g. inside a form), where the toolbar-aligned inset is off. */
+  className?: string;
 }) {
   const [aiOpen, setAiOpen] = React.useState(false);
   const { isLangfuseCloud } = useLangfuseCloudRegion();
@@ -75,7 +80,7 @@ export function EventsSearchBarRow({
   }, [onRequestColumns]);
 
   return (
-    <div className="min-w-0 px-2 pt-2 pb-1">
+    <div className={cn("min-w-0 px-2 pt-2 pb-1", className)}>
       {aiOpen && aiAvailable ? (
         <SearchBarAiPrompt
           projectId={projectId}

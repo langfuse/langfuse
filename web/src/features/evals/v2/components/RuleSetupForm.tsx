@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, FlaskConical } from "lucide-react";
 import { z } from "zod";
 
 import { Badge } from "@/src/components/ui/badge";
@@ -15,17 +15,15 @@ import {
 } from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/src/components/ui/resizable";
 import { Separator } from "@/src/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { CodeEvalTemplateFormBody } from "@/src/features/evals/components/code-eval-template-form-body";
 import { EvaluationPromptPreview } from "@/src/features/evals/components/evaluation-prompt-preview";
 import { type PreviewData } from "@/src/features/evals/hooks/usePreviewData";
+import {
+  SampleCompanion,
+  useIsWideScreen,
+} from "@/src/features/evals/v2/components/SampleCompanion";
 import { useEvaluationModel } from "@/src/features/evals/hooks/useEvaluationModel";
 import {
   DEFAULT_PYTHON_CODE_EVAL_SOURCE,
@@ -51,18 +49,23 @@ import {
   SampleTracePanel,
   SampleTraceSelector,
 } from "@/src/features/evals/v2/components/SampleTracePanel";
+import { SetupStep } from "@/src/features/evals/v2/components/SetupStep";
 import {
   buildScoreOutputDefinition,
   ScoreOutputSection,
   toScoreOutputFormState,
   type ScoreOutputFormState,
 } from "@/src/features/evals/v2/components/ScoreOutputSection";
+import { ScopePreviewTable } from "@/src/features/evals/v2/components/ScopePreviewTable";
 import {
-  TestRunSection,
+  TestRunButton,
+  TestRunResult,
+  useTestRunMutation,
   type TestRunPayload,
 } from "@/src/features/evals/v2/components/TestRunSection";
 import {
   VariableMappingContent,
+  VariableMappingList,
   type VariableFieldState,
 } from "@/src/features/evals/v2/components/VariableMappingPopover";
 import { useSourceObject } from "@/src/features/evals/v2/lib/useSourceObject";
@@ -165,6 +168,13 @@ export function RuleSetupForm({
   );
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
 
+  // Sample+test companion: docked rail on wide screens, sheet (opened from
+  // the action bar) below. The test mutation lives here so the trigger
+  // (header) and the result (footer) share state.
+  const isWideScreen = useIsWideScreen();
+  const [sampleSheetOpen, setSampleSheetOpen] = useState(false);
+  const testRun = useTestRunMutation();
+
   // Which save button was clicked last — drives the pending spinner.
   const [pendingStatus, setPendingStatus] = useState<SaveStatus | null>(null);
   // Save was requested while an existing shared scope has local edits.
@@ -230,9 +240,24 @@ export function RuleSetupForm({
     }
   }, [selectedTraceId, traceOptions]);
 
-  const selectedTraceTimestamp = traceOptions.find(
-    (t) => t.id === selectedTraceId,
-  )?.timestamp;
+  // A trace picked from the scope preview may not be among the recent trace
+  // options, so its timestamp is carried separately.
+  const [pickedTraceTimestamp, setPickedTraceTimestamp] = useState<Date | null>(
+    null,
+  );
+
+  const selectedTraceTimestamp =
+    traceOptions.find((t) => t.id === selectedTraceId)?.timestamp ??
+    pickedTraceTimestamp ??
+    undefined;
+
+  const handleSelectTraceFromPreview = (
+    traceId: string,
+    timestamp: Date | null,
+  ) => {
+    setSelectedTraceId(traceId);
+    setPickedTraceTimestamp(timestamp);
+  };
 
   const traceDetails = api.traces.byIdWithObservationsAndScores.useQuery(
     {
@@ -305,8 +330,9 @@ export function RuleSetupForm({
       jsonSelector: null,
     };
 
-  // Mapping health per variable against the sample data: green when the
-  // mapping extracts a non-empty value, red when it errors or comes up empty.
+  // Mapping health per variable against the sample data: connected when the
+  // mapping extracts a non-empty value, broken (with the error message for
+  // the hover tooltip) when it errors or comes up empty.
   const variableStatus = useMemo(() => {
     if (!sourceObject) return undefined;
     const status: Record<string, VariableMappingStatus> = {};
@@ -317,7 +343,14 @@ export function RuleSetupForm({
         fieldState?.selectedColumnId ?? defaultColumnFor(variable),
         fieldState?.jsonSelector ?? undefined,
       );
-      status[variable] = error || !value ? "invalid" : "valid";
+      status[variable] = error
+        ? { status: "invalid", message: error.message }
+        : !value
+          ? {
+              status: "invalid",
+              message: "The mapping resolves to an empty value in the sample.",
+            }
+          : { status: "valid" };
     }
     return status;
   }, [sourceObject, variables, variableFields]);
@@ -604,33 +637,184 @@ export function RuleSetupForm({
             {maintainer}
           </Badge>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={isSaving}
-            loading={isSaving && pendingStatus === "INACTIVE"}
-            onClick={() => handleSave("INACTIVE")}
-          >
-            Save as draft
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            disabled={isSaving}
-            loading={isSaving && pendingStatus === "ACTIVE"}
-            onClick={() => handleSave("ACTIVE")}
-          >
-            Save
-          </Button>
-        </div>
       </div>
 
-      <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
-        <ResizablePanel defaultSize={58} minSize={35} className="min-w-0">
-          <div className="flex h-full flex-col gap-6 overflow-y-auto p-4">
-            <div className="flex flex-col gap-4">
+      <div className="flex min-h-0 flex-1">
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+          <div className="flex min-w-0 flex-col px-6 py-6">
+            <SetupStep number={1} title="Choose where it runs">
+              <RunScopeSection
+                projectId={projectId}
+                scope={scope}
+                onChange={setScope}
+              />
+              {scope.targetObject !== "experiment" && (
+                <div className="flex flex-col gap-2">
+                  <Label>Preview</Label>
+                  <p className="text-muted-foreground text-sm">
+                    Sample over the last 24 hours that match these filters —
+                    click a row to use its trace as the sample.
+                  </p>
+                  <ScopePreviewTable
+                    projectId={projectId}
+                    filterState={scope.filterState}
+                    onSelectTrace={handleSelectTraceFromPreview}
+                  />
+                </div>
+              )}
+            </SetupStep>
+
+            <SetupStep number={2} title="Define the evaluation">
+              <div className="flex flex-col gap-2">
+                <p className="text-muted-foreground text-sm">
+                  How scores are produced: an LLM judging with a prompt, or your
+                  own Python or TypeScript code.
+                </p>
+                <Tabs
+                  value={tab}
+                  onValueChange={(value) => setTab(value as EvaluatorTab)}
+                >
+                  <TabsList>
+                    <TabsTrigger value="llm">LLM-as-a-judge</TabsTrigger>
+                    <TabsTrigger value="python">Python</TabsTrigger>
+                    <TabsTrigger value="typescript">TypeScript</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+
+              {isCodeMode ? (
+                <div className="flex flex-col gap-2">
+                  <p className="text-sm font-medium">Code</p>
+                  <p className="text-muted-foreground text-sm">
+                    Computes the score for each matching item — it receives the
+                    data and returns a value.
+                  </p>
+                  <CodeEvalTemplateFormBody
+                    sourceCode={tab === "python" ? pythonCode : typescriptCode}
+                    sourceCodeLanguage={
+                      tab === "python" ? "PYTHON" : "TYPESCRIPT"
+                    }
+                    onSourceCodeChange={
+                      tab === "python" ? setPythonCode : setTypescriptCode
+                    }
+                    editable
+                    validationResult={null}
+                  />
+                </div>
+              ) : (
+                <>
+                  <div className="flex flex-col gap-2">
+                    <p className="text-sm font-medium">Model</p>
+                    <p className="text-muted-foreground text-sm">
+                      The LLM that acts as the judge. The project default keeps
+                      all evaluators on one model, managed in a single place.
+                    </p>
+                    <JudgeModelSection
+                      projectId={projectId}
+                      mode={judgeModelMode}
+                      onModeChange={setJudgeModelMode}
+                      modelParamsContext={{
+                        modelParams,
+                        availableModels,
+                        availableProviders,
+                        providerModelCombinations,
+                        updateModelParamValue,
+                        setModelParamEnabled,
+                      }}
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <p className="text-sm font-medium">Prompt</p>
+                    <p className="text-muted-foreground text-sm">
+                      {
+                        "The judge's instructions. {{variables}} pull in the data being evaluated — map them in the next step."
+                      }
+                    </p>
+                    <PromptVariableEditor
+                      value={prompt}
+                      onChange={setPrompt}
+                      variableStatus={variableStatus}
+                      showPreviewToggle={isTraceTarget}
+                      previewEnabled={previewEnabled && isTraceTarget}
+                      onPreviewEnabledChange={setPreviewEnabled}
+                      previewSlot={
+                        previewData ? (
+                          // Match the editor's typography (app font, text-sm)
+                          // so toggling the preview doesn't change how the
+                          // prompt reads.
+                          <div className="[&_pre]:font-sans [&_pre]:text-sm">
+                            <EvaluationPromptPreview
+                              previewData={previewData}
+                              projectId={projectId}
+                              evalTemplate={
+                                { prompt } as unknown as EvalTemplate
+                              }
+                              variableMapping={traceMapping}
+                              isLoading={traceDetails.isLoading}
+                              showControls={false}
+                              className="min-h-0"
+                            />
+                          </div>
+                        ) : (
+                          <p className="text-muted-foreground rounded-md border p-3 text-sm">
+                            Select a sample trace in the sample widget to
+                            preview the interpolated prompt.
+                          </p>
+                        )
+                      }
+                      renderVariableContent={(variable) => (
+                        <VariableMappingContent
+                          variable={variable}
+                          fieldState={getVariableFieldState(variable)}
+                          sourceObject={sourceObject}
+                          targetObject={targetObject}
+                          onChange={(next) =>
+                            setVariableFields((prev) => ({
+                              ...prev,
+                              [variable]: next,
+                            }))
+                          }
+                        />
+                      )}
+                    />
+                  </div>
+
+                  <div>
+                    <ScoreOutputSection
+                      state={outputState}
+                      onChange={setOutputState}
+                    />
+                  </div>
+                </>
+              )}
+            </SetupStep>
+
+            {!isCodeMode && (
+              <SetupStep number={3} title="Map variables to data">
+                <p className="text-muted-foreground text-sm">
+                  Map the prompt&apos;s template variables to fields of the data
+                  it runs on. Values are previewed against the selected sample.
+                </p>
+                <VariableMappingList
+                  variables={variables}
+                  getFieldState={getVariableFieldState}
+                  sourceObject={sourceObject}
+                  onChange={(variable, next) =>
+                    setVariableFields((prev) => ({
+                      ...prev,
+                      [variable]: next,
+                    }))
+                  }
+                />
+              </SetupStep>
+            )}
+
+            <SetupStep
+              number={isCodeMode ? 3 : 4}
+              title="Describe the evaluator"
+              isLast
+            >
               <div className="flex flex-col gap-2">
                 <Label htmlFor="score-name">Evaluator name</Label>
                 <Input
@@ -648,6 +832,9 @@ export function RuleSetupForm({
                 <Label htmlFor="evaluator-description">
                   Description (optional)
                 </Label>
+                <p className="text-muted-foreground text-sm">
+                  Helps your team understand what this evaluator checks.
+                </p>
                 <Input
                   id="evaluator-description"
                   placeholder="What does this evaluator score?"
@@ -655,179 +842,96 @@ export function RuleSetupForm({
                   onChange={(e) => setDescription(e.target.value)}
                 />
               </div>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <p className="text-sm font-medium">Evaluator type</p>
-              <Tabs
-                value={tab}
-                onValueChange={(value) => setTab(value as EvaluatorTab)}
-              >
-                <TabsList>
-                  <TabsTrigger value="llm">LLM-as-a-judge</TabsTrigger>
-                  <TabsTrigger value="python">Python</TabsTrigger>
-                  <TabsTrigger value="typescript">TypeScript</TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
-
-            {isCodeMode ? (
-              <div className="flex flex-col gap-2">
-                <p className="text-sm font-medium">Code</p>
-                <CodeEvalTemplateFormBody
-                  sourceCode={tab === "python" ? pythonCode : typescriptCode}
-                  sourceCodeLanguage={
-                    tab === "python" ? "PYTHON" : "TYPESCRIPT"
-                  }
-                  onSourceCodeChange={
-                    tab === "python" ? setPythonCode : setTypescriptCode
-                  }
-                  editable
-                  validationResult={null}
-                />
-              </div>
-            ) : (
-              <>
-                <div className="flex flex-col gap-2">
-                  <p className="text-sm font-medium">Model</p>
-                  <JudgeModelSection
-                    projectId={projectId}
-                    mode={judgeModelMode}
-                    onModeChange={setJudgeModelMode}
-                    modelParamsContext={{
-                      modelParams,
-                      availableModels,
-                      availableProviders,
-                      providerModelCombinations,
-                      updateModelParamValue,
-                      setModelParamEnabled,
-                    }}
-                  />
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium">Prompt</p>
-                    {isTraceTarget && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-muted-foreground text-sm">
-                          Preview with sample trace
-                        </span>
-                        <Switch
-                          checked={previewEnabled}
-                          onCheckedChange={setPreviewEnabled}
-                          aria-label="Preview interpolated prompt"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex flex-col gap-2">
-                    {previewEnabled && isTraceTarget ? (
-                      previewData ? (
-                        <EvaluationPromptPreview
-                          previewData={previewData}
-                          projectId={projectId}
-                          evalTemplate={{ prompt } as unknown as EvalTemplate}
-                          variableMapping={traceMapping}
-                          isLoading={traceDetails.isLoading}
-                          showControls={false}
-                          className="min-h-0"
-                        />
-                      ) : (
-                        <p className="text-muted-foreground rounded-md border p-3 text-sm">
-                          Select a sample trace on the right to preview the
-                          interpolated prompt.
-                        </p>
-                      )
-                    ) : (
-                      <PromptVariableEditor
-                        value={prompt}
-                        onChange={setPrompt}
-                        variableStatus={variableStatus}
-                        renderVariableContent={(variable) => (
-                          <VariableMappingContent
-                            variable={variable}
-                            fieldState={getVariableFieldState(variable)}
-                            sourceObject={sourceObject}
-                            targetObject={targetObject}
-                            onChange={(next) =>
-                              setVariableFields((prev) => ({
-                                ...prev,
-                                [variable]: next,
-                              }))
-                            }
-                          />
-                        )}
-                      />
-                    )}
-
-                    <p className="text-muted-foreground text-sm">
-                      {"Click a {{variable}} to map it to your data."}
-                    </p>
-                  </div>
-                </div>
-
-                <div>
-                  <ScoreOutputSection
-                    state={outputState}
-                    onChange={setOutputState}
-                  />
-                </div>
-              </>
-            )}
+            </SetupStep>
           </div>
-        </ResizablePanel>
+        </div>
 
-        <ResizableHandle />
-
-        <ResizablePanel defaultSize={42} minSize={25} className="min-w-0">
-          <div className="flex h-full flex-col gap-6 overflow-y-auto p-4">
-            <section className="flex flex-col gap-3">
-              <p className="text-sm font-medium">Where it runs</p>
-              <RunScopeSection
+        {/* Sample + test companion: testing is a feedback loop for every
+            step, so it docks as a full-height sidebar on wide screens and
+            becomes a sheet (opened from the action bar) on smaller ones. */}
+        <SampleCompanion
+          title={
+            targetObject === "event" ? "Sample observation" : "Sample trace"
+          }
+          headerControls={
+            targetObject !== "experiment" ? (
+              <SampleTraceSelector
                 projectId={projectId}
-                scope={scope}
-                onChange={setScope}
+                traces={traceOptions}
+                selectedTraceId={selectedTraceId}
+                onSelectTraceId={setSelectedTraceId}
               />
-            </section>
-
-            <TestRunSection
-              title={
-                targetObject === "event" ? "Sample observation" : "Sample trace"
-              }
-              headerControls={
-                targetObject !== "experiment" ? (
-                  <SampleTraceSelector
-                    projectId={projectId}
-                    traces={traceOptions}
-                    selectedTraceId={selectedTraceId}
-                    onSelectTraceId={setSelectedTraceId}
-                  />
-                ) : undefined
-              }
+            ) : undefined
+          }
+          isWide={isWideScreen}
+          sheetOpen={sampleSheetOpen}
+          onSheetOpenChange={setSampleSheetOpen}
+          headerActions={
+            <TestRunButton
+              testRun={testRun}
               getPayload={getTestPayload}
               disabledReason={testDisabledReason}
               codeMode={isCodeMode}
-            >
-              {targetObject === "experiment" ? (
-                <p className="text-muted-foreground text-sm">
-                  Experiment previews aren&apos;t wired in this prototype.
-                </p>
-              ) : (
-                <SampleTracePanel
-                  projectId={projectId}
-                  traces={traceOptions}
-                  isLoadingTraces={sampleTraces.isLoading}
-                  previewData={previewData}
-                  isLoadingPreview={traceDetails.isLoading}
-                  targetObject={targetObject}
-                />
-              )}
-            </TestRunSection>
-          </div>
-        </ResizablePanel>
-      </ResizablePanelGroup>
+            />
+          }
+          footer={
+            !isCodeMode && (testRun.data || testRun.error) ? (
+              <TestRunResult testRun={testRun} codeMode={isCodeMode} />
+            ) : undefined
+          }
+        >
+          {targetObject === "experiment" ? (
+            <p className="text-muted-foreground text-sm">
+              Experiment previews aren&apos;t wired in this prototype.
+            </p>
+          ) : (
+            <SampleTracePanel
+              projectId={projectId}
+              traces={traceOptions}
+              isLoadingTraces={sampleTraces.isLoading}
+              previewData={previewData}
+              isLoadingPreview={traceDetails.isLoading}
+              targetObject={targetObject}
+            />
+          )}
+        </SampleCompanion>
+      </div>
+
+      {/* Fixed action bar (Datadog-style): always visible while the steps
+          scroll. */}
+      <div className="bg-background flex shrink-0 items-center justify-end gap-2 border-t px-4 py-2">
+        {isWideScreen === false && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mr-auto"
+            onClick={() => setSampleSheetOpen(true)}
+          >
+            <FlaskConical className="mr-1.5 h-3.5 w-3.5" />
+            Sample &amp; test
+          </Button>
+        )}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={isSaving}
+          loading={isSaving && pendingStatus === "INACTIVE"}
+          onClick={() => handleSave("INACTIVE")}
+        >
+          Save as draft
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          disabled={isSaving}
+          loading={isSaving && pendingStatus === "ACTIVE"}
+          onClick={() => handleSave("ACTIVE")}
+        >
+          Save
+        </Button>
+      </div>
 
       <Dialog
         open={scopeDialogStatus !== null}

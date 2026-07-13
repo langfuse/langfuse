@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { ChevronsUpDown } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import {
   Command,
   CommandGroup,
@@ -73,7 +74,7 @@ function JsonPathCombobox({
           type="button"
           variant="outline"
           size="sm"
-          className="w-full justify-between font-mono text-xs font-normal"
+          className="h-8 w-full items-center justify-between text-sm font-normal"
         >
           <span className="truncate" title={value ?? FULL_VALUE_LABEL}>
             {value ?? FULL_VALUE_LABEL}
@@ -121,6 +122,142 @@ function JsonPathCombobox({
         </Command>
       </PopoverContent>
     </Popover>
+  );
+}
+
+/**
+ * One-line mapping row for the "Map variables to data" step: "Map {{var}} to
+ * [field] [JSONPath]" with the extracted sample value previewed below.
+ */
+function VariableMappingRow({
+  variable,
+  fieldState,
+  sourceObject,
+  onChange,
+}: {
+  variable: string;
+  fieldState: VariableFieldState;
+  sourceObject: Record<string, unknown> | null;
+  onChange: (next: VariableFieldState) => void;
+}) {
+  const suggestions = useMemo(() => {
+    if (!sourceObject) return [];
+    return buildJsonPathSuggestions(sourceObject[fieldState.selectedColumnId]);
+  }, [sourceObject, fieldState.selectedColumnId]);
+
+  const extractedPreview = useMemo(() => {
+    if (!sourceObject) return null;
+    const { value, error } = extractValueFromObjectAsString(
+      sourceObject,
+      fieldState.selectedColumnId,
+      fieldState.jsonSelector ?? undefined,
+    );
+    if (error) return { error: error.message };
+    return { value };
+  }, [sourceObject, fieldState]);
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-2">
+        <span className="text-muted-foreground shrink-0 text-sm">Map</span>
+        <span
+          className={cn(
+            "shrink-0 font-mono text-sm font-medium",
+            getVariableColor(0),
+          )}
+        >
+          {variable}
+        </span>
+        <span className="text-muted-foreground shrink-0 text-sm">to</span>
+        <Select
+          value={fieldState.selectedColumnId}
+          onValueChange={(value) =>
+            onChange({ ...fieldState, selectedColumnId: value })
+          }
+        >
+          <SelectTrigger className="h-8 w-36 shrink-0">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {MAPPABLE_COLUMNS.map((col) => (
+              <SelectItem key={col.id} value={col.id}>
+                {col.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="min-w-0 flex-1">
+          <JsonPathCombobox
+            value={fieldState.jsonSelector}
+            suggestions={suggestions}
+            onSelect={(jsonSelector) =>
+              onChange({ ...fieldState, jsonSelector })
+            }
+          />
+        </div>
+      </div>
+
+      {sourceObject ? (
+        extractedPreview?.error ? (
+          <p className="border-destructive/40 text-destructive rounded-md border p-2 text-xs">
+            {extractedPreview.error}
+          </p>
+        ) : extractedPreview?.value ? (
+          <div className="max-h-56 overflow-y-auto">
+            <PrettyJsonView
+              json={extractedPreview.value}
+              currentView="json"
+              collapseStringsAfterLength={250}
+            />
+          </div>
+        ) : (
+          <p className="text-muted-foreground rounded-md border p-2 text-xs">
+            empty
+          </p>
+        )
+      ) : (
+        <p className="text-muted-foreground text-xs">
+          No sample data — select a trace in the sample widget.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The "Map variables to data" step body: one mapping row per prompt variable,
+ * each previewing the value it extracts from the selected sample.
+ */
+export function VariableMappingList({
+  variables,
+  getFieldState,
+  sourceObject,
+  onChange,
+}: {
+  variables: string[];
+  getFieldState: (variable: string) => VariableFieldState;
+  sourceObject: Record<string, unknown> | null;
+  onChange: (variable: string, next: VariableFieldState) => void;
+}) {
+  if (variables.length === 0) {
+    return (
+      <p className="text-muted-foreground text-sm">
+        {"No {{variables}} in the prompt yet — add one in the previous step."}
+      </p>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-4">
+      {variables.map((variable) => (
+        <VariableMappingRow
+          key={variable}
+          variable={variable}
+          fieldState={getFieldState(variable)}
+          sourceObject={sourceObject}
+          onChange={(next) => onChange(variable, next)}
+        />
+      ))}
+    </div>
   );
 }
 

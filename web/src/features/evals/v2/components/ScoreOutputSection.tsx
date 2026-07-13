@@ -1,4 +1,5 @@
-import { Plus, X } from "lucide-react";
+import { useState } from "react";
+import { ChevronDown, Plus, X } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -11,6 +12,7 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { Textarea } from "@/src/components/ui/textarea";
+import { cn } from "@/src/utils/tailwind";
 import {
   getDefaultOutputDefinitionFormValues,
   shouldReplaceDefaultOutputDefinitionField,
@@ -103,6 +105,8 @@ export function ScoreOutputSection({
   state: ScoreOutputFormState;
   onChange: (next: ScoreOutputFormState) => void;
 }) {
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
   const handleDataTypeChange = (dataType: ScoreOutputDataType) => {
     // Swap in the matching default copy when the user has not customized it.
     const defaults = getDefaultOutputDefinitionFormValues({
@@ -153,20 +157,12 @@ export function ScoreOutputSection({
         </Select>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <Label>Score description</Label>
-        <Textarea
-          className="min-h-16"
-          value={state.scoreDescription}
-          onChange={(e) =>
-            onChange({ ...state, scoreDescription: e.target.value })
-          }
-        />
-      </div>
-
       {state.dataType === ScoreDataTypeEnum.CATEGORICAL && (
         <div className="flex flex-col gap-2">
           <Label>Categories (at least 2)</Label>
+          <p className="text-muted-foreground text-sm">
+            The fixed set of labels the judge must pick from.
+          </p>
           {state.categories.map((category, index) => (
             <div key={index} className="flex items-center gap-2">
               <Input
@@ -208,15 +204,54 @@ export function ScoreOutputSection({
         </div>
       )}
 
-      <div className="flex flex-col gap-2">
-        <Label>Reasoning description</Label>
-        <Textarea
-          className="min-h-16"
-          value={state.reasoningDescription}
-          onChange={(e) =>
-            onChange({ ...state, reasoningDescription: e.target.value })
-          }
-        />
+      <div className="flex flex-col gap-4">
+        <button
+          type="button"
+          className="flex w-fit items-center gap-1 text-sm font-medium"
+          aria-expanded={advancedOpen}
+          onClick={() => setAdvancedOpen((prev) => !prev)}
+        >
+          <ChevronDown
+            className={cn(
+              "text-muted-foreground h-4 w-4 transition-transform",
+              !advancedOpen && "-rotate-90",
+            )}
+          />
+          Advanced
+        </button>
+
+        {advancedOpen && (
+          <>
+            <div className="flex flex-col gap-2">
+              <Label>Score description</Label>
+              <p className="text-muted-foreground text-sm">
+                Tells the judge what the score should express and how to use the
+                scale.
+              </p>
+              <Textarea
+                className="min-h-16"
+                value={state.scoreDescription}
+                onChange={(e) =>
+                  onChange({ ...state, scoreDescription: e.target.value })
+                }
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label>Reasoning description</Label>
+              <p className="text-muted-foreground text-sm">
+                Tells the judge what its written reasoning should cover.
+              </p>
+              <Textarea
+                className="min-h-16"
+                value={state.reasoningDescription}
+                onChange={(e) =>
+                  onChange({ ...state, reasoningDescription: e.target.value })
+                }
+              />
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

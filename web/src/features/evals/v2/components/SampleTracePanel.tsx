@@ -4,13 +4,6 @@ import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type PreviewData } from "@/src/features/evals/hooks/usePreviewData";
 import {
@@ -110,8 +103,8 @@ export type SampleTraceOption = {
 };
 
 /**
- * Compact trace picker (prev/next + timestamp select + trace link) rendered
- * inline in the section header, next to the section title.
+ * Compact trace controls (open trace + prev/next) rendered inline in the
+ * companion header, next to the title.
  */
 export function SampleTraceSelector({
   projectId,
@@ -136,10 +129,32 @@ export function SampleTraceSelector({
 
   return (
     <div className="flex min-w-0 items-center gap-1">
+      {selectedTraceId && (
+        <Button
+          asChild
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          title={
+            selected
+              ? `Open trace from ${selected.timestamp.toLocaleString()}`
+              : "Open trace"
+          }
+        >
+          <Link
+            href={`/project/${projectId}/traces/${selectedTraceId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+          </Link>
+        </Button>
+      )}
       <Button
         type="button"
         variant="ghost"
         size="icon-xs"
+        title="Previous trace"
         disabled={selectedIndex <= 0}
         onClick={() => goTo(-1)}
       >
@@ -149,43 +164,47 @@ export function SampleTraceSelector({
         type="button"
         variant="ghost"
         size="icon-xs"
+        title="Next trace"
         disabled={selectedIndex < 0 || selectedIndex >= traces.length - 1}
         onClick={() => goTo(1)}
       >
         <ChevronRight className="h-3.5 w-3.5" />
       </Button>
-      <Select value={selectedTraceId ?? ""} onValueChange={onSelectTraceId}>
-        <SelectTrigger className="h-6 w-fit shrink-0 gap-1 px-2 text-xs">
-          {/* Short label in the trigger; full timestamps in the dropdown. */}
-          <SelectValue placeholder="Select a trace...">
-            {selected
-              ? selected.timestamp.toLocaleString(undefined, {
-                  month: "numeric",
-                  day: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })
-              : null}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          {traces.map((t) => (
-            <SelectItem key={t.id} value={t.id} className="text-xs">
-              {t.timestamp.toLocaleString()}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      {selectedTraceId && (
-        <Button asChild type="button" variant="ghost" size="icon-xs">
-          <Link
-            href={`/project/${projectId}/traces/${selectedTraceId}`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-          </Link>
-        </Button>
+    </div>
+  );
+}
+
+/**
+ * One labeled slice of the sample: a demoted uppercase caption so the value
+ * dominates, and a slim placeholder row for empty values instead of a
+ * full-height JSON box. Values render as plain (non-formatted) JSON.
+ */
+function SampleSection({
+  label,
+  value,
+  collapsedByDefault = false,
+}: {
+  label: string;
+  value: unknown;
+  collapsedByDefault?: boolean;
+}) {
+  const isEmpty = value === null || value === undefined || value === "";
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+        {label}
+      </p>
+      {isEmpty ? (
+        <p className="text-muted-foreground rounded-md border border-dashed px-2 py-1 text-xs italic">
+          empty
+        </p>
+      ) : (
+        <PrettyJsonView
+          json={value}
+          currentView="json"
+          externalExpansionState={collapsedByDefault ? false : undefined}
+          collapseStringsAfterLength={250}
+        />
       )}
     </div>
   );
@@ -229,27 +248,16 @@ export function SampleTracePanel({
       {isLoadingPreview || display.isLoading ? (
         <Skeleton className="h-40 w-full" />
       ) : trace ? (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           {display.note && (
             <p className="text-muted-foreground text-xs">{display.note}</p>
           )}
-          <PrettyJsonView
-            json={display.input}
-            title="Input"
-            currentView="pretty"
-            collapseStringsAfterLength={250}
-          />
-          <PrettyJsonView
-            json={display.output}
-            title="Output"
-            currentView="pretty"
-            collapseStringsAfterLength={250}
-          />
-          <PrettyJsonView
-            json={display.metadata}
-            title="Metadata"
-            currentView="pretty"
-            collapseStringsAfterLength={250}
+          <SampleSection label="Input" value={display.input} />
+          <SampleSection label="Output" value={display.output} />
+          <SampleSection
+            label="Metadata"
+            value={display.metadata}
+            collapsedByDefault
           />
         </div>
       ) : (

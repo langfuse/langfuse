@@ -25,6 +25,9 @@ export type CatalogCategory = {
   key: string;
   label: string;
   description: string;
+  icon: LucideIcon;
+  /** Tint for template icon tiles of this category. */
+  iconClassName: string;
 };
 
 export const CATALOG_CATEGORIES: CatalogCategory[] = [
@@ -32,28 +35,42 @@ export const CATALOG_CATEGORIES: CatalogCategory[] = [
     key: "quality",
     label: "Quality",
     description: "Core output quality checks for any LLM generation.",
+    icon: Gauge,
+    iconClassName: "bg-sky-500/10 text-sky-700 dark:text-sky-400",
   },
   {
     key: "safety",
     label: "Safety & Security",
     description: "Catch harmful, risky, or out-of-bounds behavior.",
+    icon: Shield,
+    iconClassName: "bg-rose-500/10 text-rose-700 dark:text-rose-400",
   },
   {
     key: "rag",
     label: "RAG",
     description: "Judge retrieved context and how well answers are grounded.",
+    icon: FileSearch,
+    iconClassName: "bg-violet-500/10 text-violet-700 dark:text-violet-400",
   },
   {
     key: "conversation",
     label: "Conversation",
     description: "Signals from multi-turn chats and agent conversations.",
+    icon: MessagesSquare,
+    iconClassName: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
   },
   {
     key: "other",
     label: "Other",
     description: "Custom criteria and task-specific checks.",
+    icon: Sparkles,
+    iconClassName: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
   },
 ];
+
+export const getCategoryIconClasses = (categoryKey: string): string =>
+  CATALOG_CATEGORIES.find((c) => c.key === categoryKey)?.iconClassName ??
+  "bg-muted text-muted-foreground";
 
 export type CatalogMeta = {
   /** Key of a CATALOG_CATEGORIES entry. */

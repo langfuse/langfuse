@@ -193,6 +193,16 @@ export type EventsTableProps = {
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
   limitRows?: number;
+  /**
+   * When set (embedded previews), overrides the stored column visibility:
+   * listed column ids are shown, every other column is hidden.
+   */
+  externalColumnVisibility?: Record<string, boolean>;
+  /**
+   * When set (embedded previews), row clicks call this instead of opening
+   * the peek view.
+   */
+  onExternalRowClick?: (row: EventsTableRow) => void;
   sessionId?: string;
   /**
    * When true, render the time-range picker and auto-refresh button in the
@@ -236,6 +246,8 @@ export default function ObservationsEventsTable({
   externalFilterState,
   externalDateRange,
   limitRows,
+  externalColumnVisibility,
+  onExternalRowClick,
   sessionId,
   showControlsInPageHeader = false,
 }: EventsTableProps) {
@@ -1417,6 +1429,27 @@ export default function ObservationsEventsTable({
       columns,
     );
 
+  // Embedded previews pin an explicit column set instead of the stored
+  // visibility: listed ids are shown, every other column is hidden.
+  const effectiveColumnVisibility = externalColumnVisibility
+    ? (() => {
+        const visibility: Record<string, boolean> = {};
+        const collect = (defs: LangfuseColumnDef<EventsTableRow>[]) => {
+          for (const def of defs) {
+            const id =
+              def.id ??
+              ("accessorKey" in def && typeof def.accessorKey === "string"
+                ? def.accessorKey
+                : undefined);
+            if (id) visibility[id] = externalColumnVisibility[id] ?? false;
+            if (def.columns) collect(def.columns);
+          }
+        };
+        collect(columns);
+        return visibility;
+      })()
+    : columnVisibility;
+
   const [columnOrder, setColumnOrder] = useColumnOrder<EventsTableRow>(
     `eventsColumnOrder-${projectId}`,
     columns,
@@ -1649,7 +1682,7 @@ export default function ObservationsEventsTable({
                 "name",
                 "promptName",
               ]}
-              columnVisibility={columnVisibility}
+              columnVisibility={effectiveColumnVisibility}
               setColumnVisibility={setColumnVisibilityState}
               columnOrder={columnOrder}
               setColumnOrder={setColumnOrder}
@@ -1805,10 +1838,14 @@ export default function ObservationsEventsTable({
               orderBy={orderByState}
               columnOrder={columnOrder}
               onColumnOrderChange={setColumnOrder}
-              columnVisibility={columnVisibility}
+              columnVisibility={effectiveColumnVisibility}
               onColumnVisibilityChange={setColumnVisibilityState}
               rowHeight={rowHeight}
               onRowClick={(row, event) => {
+                if (onExternalRowClick) {
+                  onExternalRowClick(row);
+                  return;
+                }
                 // Handle Command/Ctrl+click to open observation in new tab
                 if (event && (event.metaKey || event.ctrlKey)) {
                   // Prevent the default peek behavior

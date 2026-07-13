@@ -108,6 +108,24 @@ export const evalsV2Router = createTRPCRouter({
       });
     }),
 
+  // Latest version of each template the project created itself — powers the
+  // gallery's "Clone from existing" section, mirroring the catalog shape.
+  projectTemplates: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalTemplate:read",
+      });
+
+      return ctx.prisma.evalTemplate.findMany({
+        where: { projectId: input.projectId },
+        orderBy: [{ name: "asc" }, { version: "desc" }],
+        distinct: ["name"],
+      });
+    }),
+
   runScopes: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {

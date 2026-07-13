@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import {
   Decoration,
   type DecorationSet,
@@ -7,31 +8,96 @@ import {
   ViewPlugin,
   type ViewUpdate,
   type ReactCodeMirrorRef,
+  WidgetType,
 } from "@uiw/react-codemirror";
 
 import { CodeMirrorEditor } from "@/src/components/editor";
+import { Button } from "@/src/components/ui/button";
 import {
   Popover,
   PopoverAnchor,
   PopoverContent,
 } from "@/src/components/ui/popover";
+import { cn } from "@/src/utils/tailwind";
+
+// Prompts are prose, not code: use the app font instead of the editor's
+// monospace default (which lives on .cm-scroller), and match the text inset
+// of the neighboring form controls (px-3 triggers) instead of the editor's
+// narrow code gutter padding.
+const promptFontTheme = EditorView.theme({
+  ".cm-scroller": { fontFamily: "inherit" },
+  ".cm-content": { padding: "8px 0" },
+  ".cm-line": { padding: "0 12px" },
+});
 
 /** Mapping health of a variable against the selected sample data. */
-export type VariableMappingStatus = "valid" | "invalid";
+export type VariableMappingStatus = {
+  status: "valid" | "invalid";
+  /** Error shown on hover when the variable is not connected to the data. */
+  message?: string;
+};
 
-// Pill styling for {{variable}} tokens — rendered inline in the editor and
-// clickable to open the mapping popover. Each pill carries an optional status
-// class that renders a green/red dot for the mapping health.
+/** Right-side "×" that deletes the {{variable}} token from the prompt. */
+class VariableDeleteWidget extends WidgetType {
+  constructor(
+    private readonly from: number,
+    private readonly to: number,
+  ) {
+    super();
+  }
+
+  eq(other: VariableDeleteWidget) {
+    return other.from === this.from && other.to === this.to;
+  }
+
+  toDOM(view: EditorView) {
+    const button = document.createElement("span");
+    button.className = "cm-eval-variable-delete";
+    button.textContent = "×";
+    button.title = "Remove variable";
+    // Keep the caret where it is; deletion is the only effect.
+    button.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      view.dispatch({ changes: { from: this.from, to: this.to } });
+      view.focus();
+    });
+    return button;
+  }
+}
+
+// Pill styling for {{variable}} tokens — a left status icon (with the error
+// on hover), the clickable variable body, and a right "×" delete control.
 function createVariableHighlighter(
   getStatus: (variable: string) => VariableMappingStatus | undefined,
 ) {
   const decorator = new MatchDecorator({
     regexp: /{{\s*([\w.]+)\s*}}/g,
-    decoration: (match) => {
+    decorate: (add, from, to, match) => {
       const status = getStatus(match[1]);
-      return Decoration.mark({
-        class: `cm-eval-variable${status ? ` cm-eval-variable-${status}` : ""}`,
-      });
+      add(
+        from,
+        to,
+        Decoration.mark({
+          class: `cm-eval-variable${status ? ` cm-eval-variable-${status.status}` : ""}`,
+          attributes:
+            status?.status === "invalid" && status.message
+              ? { title: status.message }
+              : undefined,
+        }),
+      );
+      add(
+        to,
+        to,
+        Decoration.widget({
+          widget: new VariableDeleteWidget(from, to),
+          side: 1,
+        }),
+      );
     },
   });
   return ViewPlugin.fromClass(
@@ -49,36 +115,72 @@ function createVariableHighlighter(
 }
 
 const variableTheme = EditorView.baseTheme({
+  // Button-like pill split in two merged halves: the variable body (with a
+  // status icon on its left edge) and a "×" delete control on the right.
   ".cm-eval-variable": {
-    borderRadius: "4px",
-    padding: "1px 3px",
+    borderRadius: "6px 0 0 6px",
+    padding: "1px 4px 1px 6px",
     cursor: "pointer",
-    fontWeight: "500",
+    fontWeight: "600",
+    whiteSpace: "nowrap",
+  },
+  ".cm-eval-variable-delete": {
+    cursor: "pointer",
+    padding: "1px 5px 1px 2px",
+    borderRadius: "0 6px 6px 0",
+    fontSize: "inherit",
+    lineHeight: "inherit",
+    userSelect: "none",
+    webkitUserSelect: "none",
+  },
+  ".cm-eval-variable-delete:hover": {
+    color: "#ef4444",
   },
   "&light .cm-eval-variable": {
-    backgroundColor: "rgba(59, 130, 246, 0.12)",
+    backgroundColor: "rgba(59, 130, 246, 0.14)",
     color: "#1d4ed8",
-    border: "1px solid rgba(59, 130, 246, 0.25)",
+    border: "1px solid rgba(59, 130, 246, 0.45)",
+    borderRight: "none",
+    boxShadow: "0 1px 1px rgba(0, 0, 0, 0.05)",
+  },
+  "&light .cm-eval-variable:hover": {
+    backgroundColor: "rgba(59, 130, 246, 0.25)",
+  },
+  "&light .cm-eval-variable-delete": {
+    backgroundColor: "rgba(59, 130, 246, 0.14)",
+    color: "rgba(29, 78, 216, 0.6)",
+    border: "1px solid rgba(59, 130, 246, 0.45)",
+    borderLeft: "none",
+    boxShadow: "0 1px 1px rgba(0, 0, 0, 0.05)",
   },
   "&dark .cm-eval-variable": {
-    backgroundColor: "rgba(96, 165, 250, 0.18)",
+    backgroundColor: "rgba(96, 165, 250, 0.2)",
     color: "#93c5fd",
-    border: "1px solid rgba(96, 165, 250, 0.3)",
+    border: "1px solid rgba(96, 165, 250, 0.5)",
+    borderRight: "none",
   },
-  ".cm-eval-variable-valid::after, .cm-eval-variable-invalid::after": {
-    content: '""',
-    display: "inline-block",
-    width: "6px",
-    height: "6px",
-    borderRadius: "9999px",
-    marginLeft: "4px",
-    verticalAlign: "middle",
+  "&dark .cm-eval-variable:hover": {
+    backgroundColor: "rgba(96, 165, 250, 0.32)",
   },
-  ".cm-eval-variable-valid::after": {
-    backgroundColor: "#22c55e",
+  "&dark .cm-eval-variable-delete": {
+    backgroundColor: "rgba(96, 165, 250, 0.2)",
+    color: "rgba(147, 197, 253, 0.6)",
+    border: "1px solid rgba(96, 165, 250, 0.5)",
+    borderLeft: "none",
   },
-  ".cm-eval-variable-invalid::after": {
-    backgroundColor: "#ef4444",
+  // Left status icon: connected (✓) or broken (!) — the error text itself is
+  // in the mark's title attribute, shown on hover.
+  ".cm-eval-variable-valid::before, .cm-eval-variable-invalid::before": {
+    marginRight: "4px",
+    fontWeight: "700",
+  },
+  ".cm-eval-variable-valid::before": {
+    content: '"✓"',
+    color: "#16a34a",
+  },
+  ".cm-eval-variable-invalid::before": {
+    content: '"!"',
+    color: "#ef4444",
   },
 });
 
@@ -116,6 +218,10 @@ export function PromptVariableEditor({
   onChange,
   variableStatus,
   renderVariableContent,
+  previewEnabled = false,
+  onPreviewEnabledChange,
+  showPreviewToggle = false,
+  previewSlot,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -123,6 +229,12 @@ export function PromptVariableEditor({
   variableStatus?: Record<string, VariableMappingStatus>;
   /** Popover body for the clicked variable (mapping controls). */
   renderVariableContent: (variable: string) => ReactNode;
+  /** When true, render previewSlot instead of the editor (toolbar stays). */
+  previewEnabled?: boolean;
+  onPreviewEnabledChange?: (enabled: boolean) => void;
+  showPreviewToggle?: boolean;
+  /** Interpolated-prompt preview rendered in place of the editor. */
+  previewSlot?: ReactNode;
 }) {
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
   const [active, setActive] = useState<ActiveVariable | null>(null);
@@ -148,6 +260,10 @@ export function PromptVariableEditor({
     () => undefined,
   );
   handleClickRef.current = (event, view) => {
+    // The delete control removes the variable — no mapping popover for it.
+    if ((event.target as HTMLElement).closest(".cm-eval-variable-delete")) {
+      return;
+    }
     const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
     if (pos === null) return;
     const line = view.state.doc.lineAt(pos);
@@ -180,24 +296,83 @@ export function PromptVariableEditor({
     return [
       createVariableHighlighter((variable) => status[variable]),
       variableTheme,
+      promptFontTheme,
       EditorView.domEventHandlers({
         click: (event, view) => handleClickRef.current(event, view),
       }),
     ];
   }, [statusKey]);
 
+  // Inserts a {{variable}} template at the cursor (replacing any selection)
+  // and selects the placeholder name so the user can type over it.
+  const insertVariable = () => {
+    const view = editorRef.current?.view;
+    if (!view) return;
+    const { from, to } = view.state.selection.main;
+    const placeholder = "variable";
+    view.dispatch({
+      changes: { from, to, insert: `{{${placeholder}}}` },
+      selection: { anchor: from + 2, head: from + 2 + placeholder.length },
+    });
+    view.focus();
+  };
+
   return (
-    <div className="relative">
-      <CodeMirrorEditor
-        value={value}
-        onChange={onChange}
-        editable
-        mode="prompt"
-        minHeight={280}
-        maxHeight="50dvh"
-        editorRef={editorRef}
-        extensions={extensions}
-      />
+    <div className="flex flex-col gap-2">
+      {previewEnabled && previewSlot ? (
+        previewSlot
+      ) : (
+        <CodeMirrorEditor
+          value={value}
+          onChange={onChange}
+          editable
+          mode="prompt"
+          minHeight={280}
+          maxHeight="50dvh"
+          lineNumbers={false}
+          editorRef={editorRef}
+          extensions={extensions}
+          className="rounded-b-none text-sm"
+        />
+      )}
+
+      {/* Toolbar attached below the prompt, left-aligned. The preview brings
+          its own frame, so the toolbar detaches into a standalone bar there. */}
+      <div
+        className={cn(
+          "bg-muted/50 flex items-center gap-2 border px-1.5 py-1",
+          previewEnabled ? "rounded-md" : "-mt-2 rounded-b-md border-t-0",
+        )}
+      >
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-6 px-2 text-xs"
+          disabled={previewEnabled}
+          onClick={insertVariable}
+        >
+          <span className="mr-1.5 font-mono text-[10px]">{"{{x}}"}</span>
+          Add variable
+        </Button>
+        {showPreviewToggle && (
+          <Button
+            type="button"
+            variant={previewEnabled ? "secondary" : "ghost"}
+            size="sm"
+            className="h-6 px-2 text-xs"
+            onClick={() => onPreviewEnabledChange?.(!previewEnabled)}
+          >
+            {previewEnabled ? (
+              <EyeOff className="mr-1.5 h-3.5 w-3.5" />
+            ) : (
+              <Eye className="mr-1.5 h-3.5 w-3.5" />
+            )}
+            Preview with sample trace
+          </Button>
+        )}
+      </div>
+
       <Popover
         open={Boolean(active)}
         onOpenChange={(open) => {
