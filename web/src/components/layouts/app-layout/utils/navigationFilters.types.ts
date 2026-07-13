@@ -25,6 +25,8 @@ export type NavigationFilterContext = {
   entitlements: Entitlement[];
   /** UI customization settings (enterprise feature) */
   uiCustomization: { visibleModules: string[] } | null;
+  /** Whether the deployment is a Langfuse Cloud environment */
+  isLangfuseCloud: boolean;
   /** Current router path for active state detection */
   currentPath: string;
 };

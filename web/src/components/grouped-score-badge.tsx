@@ -65,56 +65,62 @@ const ScoreGroupBadge = <
     <Badge
       variant="tertiary"
       key={name}
-      className={`flex items-center gap-1 ${compact ? "px-1.5 leading-tight" : "px-2.5"} text-xs font-normal${badgeClassName ? " " + badgeClassName : ""}`}
+      className={`flex max-w-full min-w-0 items-center gap-1 ${compact ? "px-1.5 leading-tight" : "px-2.5"} text-xs font-normal${badgeClassName ? " " + badgeClassName : ""}`}
     >
       <div
-        className={`w-fit max-w-20 truncate ${compact ? "leading-tight" : ""}`}
+        className={`w-fit max-w-20 shrink-0 truncate ${compact ? "leading-tight" : ""}`}
         title={name}
       >
         {name}:
       </div>
-      <div className="flex items-center gap-1 text-nowrap">
-        {scores.map((s, i) => (
-          <span
-            key={i}
-            className="group/score ml-1 flex items-center gap-1 rounded-sm first:ml-0"
-          >
-            {s.stringValue ?? s.value?.toFixed(2) ?? ""}
-            {s.comment && (
-              <HoverCard>
-                <HoverCardTrigger className="inline-block">
-                  <MessageCircleMoreIcon className="mb-[0.0625rem] !size-3" />
-                </HoverCardTrigger>
-                <HoverCardContent className="max-h-[50dvh] overflow-y-auto whitespace-normal break-normal text-xs">
-                  <p className="whitespace-pre-wrap">{s.comment}</p>
-                  {"executionTraceId" in s &&
-                    s.executionTraceId &&
-                    projectId && (
-                      <Link
-                        href={`/project/${projectId}/traces/${encodeURIComponent(s.executionTraceId)}`}
-                        className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
-                        target="_blank"
-                      >
-                        <ExternalLinkIcon className="h-3 w-3" />
-                        View execution trace
-                      </Link>
-                    )}
-                </HoverCardContent>
-              </HoverCard>
-            )}
-            {hasMetadata(s) && (
-              <HoverCard>
-                <HoverCardTrigger className="inline-block">
-                  <BracesIcon className="mb-[0.0625rem] !size-3" />
-                </HoverCardTrigger>
-                <HoverCardContent className="max-h-[50dvh] overflow-y-auto whitespace-normal break-normal rounded-md border-none p-0 text-xs">
-                  <JSONView codeClassName="!rounded-md" json={s.metadata} />
-                </HoverCardContent>
-              </HoverCard>
-            )}
-            <span className="group-last/score:hidden">,</span>
-          </span>
-        ))}
+      <div className="flex min-w-0 items-center gap-1 text-nowrap">
+        {scores.map((s, i) => {
+          const scoreDisplayValue = s.stringValue ?? s.value?.toFixed(2) ?? "";
+
+          return (
+            <span
+              key={i}
+              className="group/score ml-1 flex min-w-0 items-center gap-1 rounded-sm first:ml-0"
+            >
+              <span className="truncate" title={scoreDisplayValue}>
+                {scoreDisplayValue}
+              </span>
+              {s.comment && (
+                <HoverCard>
+                  <HoverCardTrigger className="inline-block shrink-0">
+                    <MessageCircleMoreIcon className="mb-0.25 size-3!" />
+                  </HoverCardTrigger>
+                  <HoverCardContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
+                    <p className="whitespace-pre-wrap">{s.comment}</p>
+                    {"executionTraceId" in s &&
+                      s.executionTraceId &&
+                      projectId && (
+                        <Link
+                          href={`/project/${projectId}/traces/${encodeURIComponent(s.executionTraceId)}`}
+                          className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
+                          target="_blank"
+                        >
+                          <ExternalLinkIcon className="h-3 w-3" />
+                          View execution trace
+                        </Link>
+                      )}
+                  </HoverCardContent>
+                </HoverCard>
+              )}
+              {hasMetadata(s) && (
+                <HoverCard>
+                  <HoverCardTrigger className="inline-block shrink-0">
+                    <BracesIcon className="mb-0.25 size-3!" />
+                  </HoverCardTrigger>
+                  <HoverCardContent className="max-h-[50dvh] overflow-y-auto rounded-md border-none p-0 text-xs break-normal whitespace-normal">
+                    <JSONView codeClassName="rounded-md!" json={s.metadata} />
+                  </HoverCardContent>
+                </HoverCard>
+              )}
+              <span className="group-last/score:hidden">,</span>
+            </span>
+          );
+        })}
       </div>
     </Badge>
   );

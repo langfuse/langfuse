@@ -1,8 +1,10 @@
 import { prisma } from "../../db";
-import { redis, safeMultiDel } from "..";
+import { redis, safeMultiDel, scanKeys } from "..";
 import { logger } from "../logger";
+import type { Cluster, Redis } from "ioredis";
 
 import { type ApiKey } from "../../db";
+import { API_KEY_CACHE_PATTERN, createApiKeyCacheKey } from "./apiKeyCache";
 
 /**
  * Invalidate cached API keys from Redis cache
@@ -22,6 +24,7 @@ import { type ApiKey } from "../../db";
 export async function invalidateCachedApiKeys(
   apiKeys: ApiKey[],
   identifier: string,
+  redisClient: Redis | Cluster | null = redis,
 ) {
   const hashKeys = apiKeys.map((key) => key.fastHashedSecretKey);
 
@@ -33,10 +36,10 @@ export async function invalidateCachedApiKeys(
     return;
   }
 
-  if (redis) {
+  if (redisClient) {
     logger.info(`Invalidating API keys in redis for ${identifier}`);
-    const keysToDelete = filteredHashKeys.map((hash) => `api-key:${hash}`);
-    await safeMultiDel(redis, keysToDelete);
+    const keysToDelete = filteredHashKeys.map(createApiKeyCacheKey);
+    await safeMultiDel(redisClient, keysToDelete);
   }
 }
 
@@ -53,7 +56,10 @@ export async function invalidateCachedApiKeys(
  *
  * @param orgId - The organization ID whose API keys should be invalidated from cache
  */
-export async function invalidateCachedOrgApiKeys(orgId: string): Promise<void> {
+export async function invalidateCachedOrgApiKeys(
+  orgId: string,
+  redisClient: Redis | Cluster | null = redis,
+): Promise<void> {
   const apiKeys = await prisma.apiKey.findMany({
     where: {
       OR: [
@@ -76,10 +82,10 @@ export async function invalidateCachedOrgApiKeys(orgId: string): Promise<void> {
     return;
   }
 
-  if (redis) {
+  if (redisClient) {
     logger.info(`Invalidating API keys in redis for org ${orgId}`);
-    const keysToDelete = hashKeys.map((hash) => `api-key:${hash}`);
-    await safeMultiDel(redis, keysToDelete);
+    const keysToDelete = hashKeys.map(createApiKeyCacheKey);
+    await safeMultiDel(redisClient, keysToDelete);
   }
 }
 
@@ -94,6 +100,7 @@ export async function invalidateCachedOrgApiKeys(orgId: string): Promise<void> {
  */
 export async function invalidateCachedProjectApiKeys(
   projectId: string,
+  redisClient: Redis | Cluster | null = redis,
 ): Promise<void> {
   const apiKeys = await prisma.apiKey.findMany({
     where: {
@@ -111,9 +118,38 @@ export async function invalidateCachedProjectApiKeys(
     return;
   }
 
-  if (redis) {
+  if (redisClient) {
     logger.info(`Invalidating API keys in redis for project ${projectId}`);
-    const keysToDelete = hashKeys.map((hash) => `api-key:${hash}`);
-    await safeMultiDel(redis, keysToDelete);
+    const keysToDelete = hashKeys.map(createApiKeyCacheKey);
+    await safeMultiDel(redisClient, keysToDelete);
   }
+}
+
+/**
+ * Invalidate every cached API key entry from Redis.
+ *
+ * This removes only API key cache entries, including cached misses, and does not
+ * delete or modify API keys in the database.
+ *
+ * @returns Number of cache entries invalidated
+ */
+export async function invalidateAllCachedApiKeys(
+  redisClient: Redis | Cluster | null = redis,
+): Promise<number> {
+  if (!redisClient) {
+    logger.info("No redis client available to invalidate cached API keys");
+    return 0;
+  }
+
+  const keysToDelete = await scanKeys(redisClient, API_KEY_CACHE_PATTERN);
+
+  if (keysToDelete.length === 0) {
+    logger.info("No cached API keys to invalidate");
+    return 0;
+  }
+
+  await safeMultiDel(redisClient, keysToDelete);
+  logger.info(`Invalidated ${keysToDelete.length} cached API keys in redis`);
+
+  return keysToDelete.length;
 }

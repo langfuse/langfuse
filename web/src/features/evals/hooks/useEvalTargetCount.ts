@@ -1,8 +1,6 @@
 import { api } from "@/src/utils/api";
-import {
-  type EvalFormType,
-  isTraceTarget,
-} from "@/src/features/evals/utils/evaluator-form-utils";
+import { type EvalFormType } from "@/src/features/evals/utils/evaluator-form-utils";
+import { isTraceTarget } from "@/src/features/evals/utils/typeHelpers";
 
 interface UseEvalTargetCountProps {
   projectId: string;
@@ -35,8 +33,6 @@ export function useEvalTargetCount({
     searchQuery: null,
     searchType: ["id" as const],
     orderBy: null,
-    page: 0,
-    limit: 1,
   };
 
   const tracesCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter, {

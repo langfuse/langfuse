@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { LoaderCircle } from "lucide-react";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
 import {
   Command,
@@ -49,7 +49,7 @@ export function MentionAutocomplete({
 
   return (
     <div
-      className="absolute bottom-full left-0 right-0 z-50 mb-1"
+      className="absolute right-0 bottom-full left-0 z-50 mb-1"
       role="region"
       aria-label="User mention suggestions"
     >
@@ -68,7 +68,7 @@ export function MentionAutocomplete({
               role="status"
               aria-live="polite"
             >
-              <LoaderCircle className="h-4 w-4 animate-spin" />
+              <Spinner size="sm" />
               <span className="sr-only">Loading users...</span>
             </div>
           )}
@@ -81,6 +81,7 @@ export function MentionAutocomplete({
                 {displayedUsers.map((user, index) => {
                   const displayName = user.name || user.email || "User";
                   const isSelected = index === selectedIndex;
+                  const userLabel = user.name || "Unknown";
                   return (
                     <CommandItem
                       key={user.id}
@@ -97,12 +98,15 @@ export function MentionAutocomplete({
                           {user.name ? user.name[0] : user.email?.[0] || "U"}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="flex-1 overflow-hidden text-foreground">
-                        <div className="truncate font-medium">
-                          {user.name || "Unknown"}
+                      <div className="text-foreground flex-1 overflow-hidden">
+                        <div className="truncate font-medium" title={userLabel}>
+                          {userLabel}
                         </div>
                         {user.email && (
-                          <div className="truncate text-xs text-muted-foreground">
+                          <div
+                            className="text-muted-foreground truncate text-xs"
+                            title={user.email}
+                          >
                             {user.email}
                           </div>
                         )}
@@ -113,7 +117,7 @@ export function MentionAutocomplete({
               </CommandGroup>
               {remainingCount > 0 && (
                 <div
-                  className="border-t px-2 py-2 text-xs text-muted-foreground"
+                  className="text-muted-foreground border-t px-2 py-2 text-xs"
                   role="status"
                   aria-live="polite"
                 >

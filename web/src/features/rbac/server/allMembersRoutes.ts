@@ -10,7 +10,7 @@ import {
 import { paginationZod, type PrismaClient, Role } from "@langfuse/shared";
 import { formatAuthProviderName } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 const orgLevelMemberQuery = z.object({
   orgId: z.string(),
@@ -29,7 +29,7 @@ async function getMembers(
   query:
     | z.infer<typeof orgLevelMemberQuery>
     | (z.infer<typeof projectLevelMemberQuery> & { orgId: string }),
-  showAllOrgMembers: boolean = true,
+  showAllOrgMembers = true,
 ) {
   // Build common where clause to ensure consistency between findMany and count queries
   const whereClause = {

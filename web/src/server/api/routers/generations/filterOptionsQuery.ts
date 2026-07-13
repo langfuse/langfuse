@@ -1,9 +1,14 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
-import { timeFilter, type ObservationOptions } from "@langfuse/shared";
+import {
+  ObservationType,
+  timeFilter,
+  type ObservationOptions,
+} from "@langfuse/shared";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import {
   getCategoricalScoresGroupedByName,
+  getBooleanScoresGroupedByName,
   getObservationsGroupedByModel,
   getObservationsGroupedByModelId,
   getObservationsGroupedByName,
@@ -21,6 +26,9 @@ export const filterOptionsQuery = protectedProjectProcedure
     z.object({
       projectId: z.string(),
       startTimeFilter: z.array(timeFilter).optional(),
+      observationType: z
+        .union([z.enum(ObservationType), z.literal("ALL")])
+        .default("GENERATION"),
     }),
   )
   .query(async ({ input }) => {
@@ -61,6 +69,7 @@ export const filterOptionsQuery = protectedProjectProcedure
     const [
       numericScoreNames,
       categoricalScoreNames,
+      booleanScoreNames,
       model,
       name,
       promptNames,
@@ -74,10 +83,15 @@ export const filterOptionsQuery = protectedProjectProcedure
       getNumericScoresGroupedByName(input.projectId, traceTimestampFilters),
       // categorical scores
       getCategoricalScoresGroupedByName(input.projectId, traceTimestampFilters),
+      getBooleanScoresGroupedByName(input.projectId, traceTimestampFilters),
       //model
       getObservationsGroupedByModel(input.projectId, startTimeFilter ?? []),
       //name
-      getObservationsGroupedByName(input.projectId, startTimeFilter ?? []),
+      getObservationsGroupedByName(
+        input.projectId,
+        startTimeFilter ?? [],
+        input.observationType === "ALL" ? null : input.observationType,
+      ),
       //prompt name
       getObservationsGroupedByPromptName(
         input.projectId,
@@ -118,6 +132,7 @@ export const filterOptionsQuery = protectedProjectProcedure
         })),
       scores_avg: numericScoreNames.map((score) => score.name),
       score_categories: categoricalScoreNames,
+      score_booleans: booleanScoreNames.map((score) => score.name),
       promptName: promptNames
         .filter((i) => i.promptName !== null)
         .map((i) => ({

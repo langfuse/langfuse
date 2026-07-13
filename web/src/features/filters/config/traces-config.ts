@@ -1,12 +1,17 @@
 import { tracesTableCols } from "@langfuse/shared";
-import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import {
+  omitFilterFacets,
+  type FilterConfig,
+} from "@/src/features/filters/lib/filter-config";
+
+export type TraceOmittableFilterColumn = "userId" | "sessionId";
 
 export const traceFilterConfig: FilterConfig = {
   tableName: "traces",
 
   columnDefinitions: tracesTableCols,
 
-  defaultExpanded: ["environment", "name"],
+  defaultExpanded: ["environment", "traceName"],
 
   facets: [
     {
@@ -16,7 +21,7 @@ export const traceFilterConfig: FilterConfig = {
     },
     {
       type: "categorical" as const,
-      column: "name",
+      column: "traceName",
       label: "Trace Name",
     },
     {
@@ -33,6 +38,13 @@ export const traceFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "sessionId",
       label: "Session ID",
+    },
+    {
+      // Tags are a primary, user-defined filter — keep them near the identity
+      // facets at the top of the sidebar rather than buried mid-list (LFE-10494).
+      type: "categorical" as const,
+      column: "traceTags",
+      label: "Tags",
     },
     {
       type: "stringKeyValue" as const,
@@ -67,11 +79,6 @@ export const traceFilterConfig: FilterConfig = {
       type: "string" as const,
       column: "commentContent",
       label: "Comment Content",
-    },
-    {
-      type: "categorical" as const,
-      column: "tags",
-      label: "Tags",
     },
     {
       type: "categorical" as const,
@@ -141,5 +148,16 @@ export const traceFilterConfig: FilterConfig = {
       column: "scores_avg",
       label: "Numeric Scores",
     },
+    {
+      type: "booleanKeyValue" as const,
+      column: "score_booleans",
+      label: "Boolean Scores",
+    },
   ],
 };
+
+export function getTraceFilterConfig(
+  omittedFilter: TraceOmittableFilterColumn[] = [],
+): FilterConfig {
+  return omitFilterFacets(traceFilterConfig, omittedFilter);
+}

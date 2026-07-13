@@ -1,6 +1,5 @@
-import z from "zod/v4";
 import { JSONPath } from "jsonpath-plus";
-import { variableMapping } from "./types";
+import { parseJsonPrioritised } from "../../utils/json";
 
 /**
  * Parses an unknown value to a string representation
@@ -39,65 +38,97 @@ function parseMultiEncodedJson(value: unknown): unknown {
     return value;
   }
 
-  try {
-    const parsed = JSON.parse(value);
+  const parsed = parseJsonPrioritised(value);
 
-    // If result is still a string, it might be double-encoded - recurse
-    if (typeof parsed === "string") {
-      return parseMultiEncodedJson(parsed);
-    }
-
-    return parsed;
-  } catch {
-    // If parsing fails, return original value
+  // If parsing fails, parseJsonPrioritised returns the original string.
+  // Stop here to avoid recursing forever on plain strings.
+  if (parsed === value || parsed === undefined) {
     return value;
   }
+
+  // If result is still a string, it might be double-encoded - recurse
+  if (typeof parsed === "string") {
+    return parseMultiEncodedJson(parsed);
+  }
+
+  return parsed;
 }
 
 function parseJsonDefault(selectedColumn: unknown, jsonSelector: string) {
-  // selectedColumn should already be preprocessed by preprocessObjectWithJsonFields
-  // so we can directly use it with JSONPath
+  // JSONPath can only query objects/arrays — return primitives as-is
+  if (typeof selectedColumn !== "object" || selectedColumn === null) {
+    return selectedColumn;
+  }
+
   const result = JSONPath({
     path: jsonSelector,
     json: selectedColumn as any, // JSONPath accepts unknown but types are strict
+    eval: false,
   });
 
-  return Array.isArray(result) && result.length > 0 ? result[0] : undefined;
+  if (!Array.isArray(result) || result.length === 0) {
+    return undefined;
+  }
+
+  // For single-match queries (e.g. $.name), return the unwrapped value.
+  // For multi-match queries (e.g. $[1:], $[*].name), return the full array.
+  return result.length === 1 ? result[0] : result;
 }
 
 export function extractValueFromObject(
   obj: Record<string, unknown>,
-  mapping: z.infer<typeof variableMapping>,
+  selectedColumnId: string,
+  jsonSelector?: string,
   parseJson?: (selectedColumn: unknown, jsonSelector: string) => unknown,
-): { value: string; error: Error | null } {
-  let selectedColumn = obj[mapping.selectedColumnId];
-
-  // Simple preprocessing: attempt to parse to valid JSON object
-  if (typeof selectedColumn === "string") {
-    selectedColumn = parseMultiEncodedJson(selectedColumn);
-  }
+): { value: unknown; error: Error | null } {
+  const selectedColumn = obj[selectedColumnId];
 
   const jsonParser = parseJson || parseJsonDefault;
 
   let jsonSelectedColumn;
   let error: Error | null = null;
 
-  if (mapping.jsonSelector && selectedColumn) {
+  if (jsonSelector && selectedColumn) {
+    // Only parse multi-encoded JSON when a selector is present — avoids
+    // mutating formatting (e.g. whitespace) for the no-selector passthrough.
+    const parsed =
+      typeof selectedColumn === "string"
+        ? parseMultiEncodedJson(selectedColumn)
+        : selectedColumn;
+
     try {
-      jsonSelectedColumn = jsonParser(selectedColumn, mapping.jsonSelector);
+      jsonSelectedColumn = jsonParser(parsed, jsonSelector);
     } catch (err) {
       error =
         err instanceof Error
           ? err
           : new Error("There was an unknown error parsing the JSON");
-      jsonSelectedColumn = selectedColumn; // Fallback to original value
+      jsonSelectedColumn = selectedColumn; // Fallback to raw original value
     }
   } else {
     jsonSelectedColumn = selectedColumn;
   }
 
-  return {
-    value: parseUnknownToString(jsonSelectedColumn),
-    error,
-  };
+  return { value: jsonSelectedColumn, error };
+}
+
+/**
+ * Backwards-compatible extraction for UI prompt previews and LLM prompt
+ * rendering. `extractValueFromObject` preserves typed values for code eval;
+ * this wrapper keeps the previous string-only behavior for prompt surfaces.
+ */
+export function extractValueFromObjectAsString(
+  obj: Record<string, unknown>,
+  selectedColumnId: string,
+  jsonSelector?: string,
+  parseJson?: (selectedColumn: unknown, jsonSelector: string) => unknown,
+): { value: string; error: Error | null } {
+  const { value, error } = extractValueFromObject(
+    obj,
+    selectedColumnId,
+    jsonSelector,
+    parseJson,
+  );
+
+  return { value: parseUnknownToString(value), error };
 }

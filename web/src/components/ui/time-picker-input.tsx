@@ -10,8 +10,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { cn } from "@/src/utils/tailwind";
 
-export interface TimePickerInputProps
-  extends React.InputHTMLAttributes<HTMLInputElement> {
+export interface TimePickerInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   picker: TimePickerType;
   date: Date | undefined;
   setDate: (date: Date | undefined) => void;
@@ -104,7 +103,7 @@ const TimePickerInput = React.forwardRef<
         id={id || picker}
         name={name || picker}
         className={cn(
-          "size-7 min-w-0 p-0 text-center tabular-nums caret-transparent focus:bg-accent focus:text-accent-foreground [&::-webkit-inner-spin-button]:appearance-none",
+          "focus:bg-accent focus:text-accent-foreground size-7 min-w-0 p-0 text-center tabular-nums caret-transparent [&::-webkit-inner-spin-button]:appearance-none",
           className,
         )}
         value={value || calculatedValue}

@@ -47,9 +47,12 @@ import {
   getPlaygroundEventBus,
   useWindowCoordination,
 } from "@/src/features/playground/page/hooks/useWindowCoordination";
+import { useSyncMessageSearchMessages } from "@/src/components/ChatMessages/MessageSearch";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
+import { STREAMING_PREF_KEY } from "@/src/features/playground/page/storage/keys";
 
 type PlaygroundContextType = {
+  windowId: string;
   promptVariables: PromptVariable[];
   updatePromptVariableValue: (variable: string, value: string) => void;
   deletePromptVariable: (variable: string) => void;
@@ -65,11 +68,23 @@ type PlaygroundContextType = {
   setStructuredOutputSchema: (schema: PlaygroundSchema | null) => void;
 
   output: string;
+  outputReasoning: string;
   outputJson: string;
   outputToolCalls: LLMToolCall[];
 
   handleSubmit: (streaming?: boolean) => Promise<void>;
   isStreaming: boolean;
+
+  // Scroll-into-view for a freshly appended message (LFE-6864). ChatMessages
+  // owns the row/editor registry and registers its scroll helper here; append
+  // sites outside AddMessageButton (e.g. GenerationOutput's "Add to messages")
+  // call scrollToMessage so the new row lands in view rather than below the
+  // fold. Pass focus=false to scroll without stealing focus into the new
+  // editor (the default true keeps the Add-message button focusing behavior).
+  scrollToMessage: (id: string, focus?: boolean) => void;
+  registerScrollToMessage: (
+    fn: ((id: string, focus?: boolean) => void) | null,
+  ) => void;
 } & ModelParamsContext &
   MessagesContext;
 
@@ -87,10 +102,13 @@ export const usePlaygroundContext = () => {
   return context;
 };
 
+export const useOptionalPlaygroundContext = () => useContext(PlaygroundContext);
+
 export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   children,
   windowId,
 }) => {
+  const effectiveWindowId = windowId || MULTI_WINDOW_CONFIG.DEFAULT_WINDOW_ID;
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
   const { playgroundCache, setPlaygroundCache } = usePlaygroundCache(windowId);
@@ -99,6 +117,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     PlaceholderMessageFillIn[]
   >([]);
   const [output, setOutput] = useState("");
+  const [outputReasoning, setOutputReasoning] = useState("");
   const [outputToolCalls, setOutputToolCalls] = useState<LLMToolCall[]>([]);
   const [outputJson, setOutputJson] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -129,6 +148,22 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     providerModelCombinations,
   } = useModelParams(windowId);
   const { registerWindow, unregisterWindow } = useWindowCoordination();
+
+  // ChatMessages registers its scroll-into-view helper here so sibling append
+  // sites (e.g. GenerationOutput) can scroll a newly added message into view
+  // (LFE-6864).
+  const scrollToMessageRef = useRef<
+    ((id: string, focus?: boolean) => void) | null
+  >(null);
+  const registerScrollToMessage = useCallback(
+    (fn: ((id: string, focus?: boolean) => void) | null) => {
+      scrollToMessageRef.current = fn;
+    },
+    [],
+  );
+  const scrollToMessage = useCallback((id: string, focus = true) => {
+    scrollToMessageRef.current?.(id, focus);
+  }, []);
 
   const toolCallIds = messages.reduce((acc, m) => {
     if (m.type === ChatMessageType.AssistantToolCall) {
@@ -231,6 +266,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   }, [messages]);
 
   useEffect(updatePromptVariables, [messages, updatePromptVariables]);
+  useSyncMessageSearchMessages(effectiveWindowId, messages);
 
   const addMessage: PlaygroundContextType["addMessage"] = useCallback(
     (message) => {
@@ -260,7 +296,12 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
           ...toolResultMessages,
         ]);
 
-        return toolCallMessage;
+        // Return the last appended row so callers scroll to the newest content:
+        // for a tool-call add we append the tool-call row plus one ToolResult
+        // placeholder per tool call, and the final placeholder is what should
+        // land in view (LFE-6864). Falls back to the tool-call row when there
+        // are no tool calls.
+        return toolResultMessages.at(-1) ?? toolCallMessage;
       } else if (message.type === ChatMessageType.Placeholder) {
         const placeholderMessage = {
           ...message,
@@ -268,12 +309,11 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         } as ChatMessageWithId;
         setMessages((prev) => [...prev, placeholderMessage]);
         return placeholderMessage;
-      } else {
-        const newMessage = createEmptyMessage(message);
-        setMessages((prev) => [...prev, newMessage]);
-
-        return newMessage;
       }
+      const newMessage = createEmptyMessage(message);
+      setMessages((prev) => [...prev, newMessage]);
+
+      return newMessage;
     },
     [],
   );
@@ -310,6 +350,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
       try {
         setIsStreaming(true);
         setOutput("");
+        setOutputReasoning("");
         setOutputJson("");
         setOutputToolCalls([]);
 
@@ -363,6 +404,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
 
           setOutput(displayContent);
           setOutputToolCalls(completion.tool_calls);
+          if (completion.reasoning) setOutputReasoning(completion.reasoning);
 
           response = JSON.stringify(completion, null, 2);
         } else if (structuredOutputSchema) {
@@ -388,12 +430,14 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
               setOutput(response);
             }
           } else {
-            response = await getChatCompletionNonStreaming(
+            const result = await getChatCompletionNonStreaming(
               projectId,
               finalMessages,
               modelParams,
             );
-            setOutput(response);
+            response = result.content;
+            setOutput(result.content);
+            if (result.reasoning) setOutputReasoning(result.reasoning);
           }
         }
 
@@ -547,7 +591,6 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   // This effect registers the window with the global coordination system
   // and sets up event listeners for global actions like "Run All" and "Stop All"
   useEffect(() => {
-    const effectiveWindowId = windowId || MULTI_WINDOW_CONFIG.DEFAULT_WINDOW_ID;
     const playgroundEventBus = getPlaygroundEventBus();
 
     const playgroundHandle: PlaygroundHandle = {
@@ -578,8 +621,19 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         });
 
         if (hasAnyContent) {
-          // Window has content - let it execute and show any validation errors
-          handleSubmit(true).catch((err) => console.error(err));
+          // Read streaming preference from localStorage (same key as SubmitButton in Messages.tsx)
+          const defaultStreaming =
+            env.NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT ===
+            "true";
+          let streaming = defaultStreaming;
+          try {
+            const raw = localStorage.getItem(STREAMING_PREF_KEY);
+            if (raw !== null) streaming = JSON.parse(raw);
+          } catch {
+            // malformed localStorage value — fall back to default
+          }
+
+          handleSubmit(streaming).catch((err) => console.error(err));
         }
         // If no content, skip silently
       }
@@ -614,7 +668,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
       );
     };
   }, [
-    windowId,
+    effectiveWindowId,
     handleSubmit,
     registerWindow,
     unregisterWindow,
@@ -632,12 +686,12 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     playgroundEventBus.dispatchEvent(
       new CustomEvent(PLAYGROUND_EVENTS.WINDOW_EXECUTION_STATE_CHANGE, {
         detail: {
-          windowId: windowId || MULTI_WINDOW_CONFIG.DEFAULT_WINDOW_ID,
+          windowId: effectiveWindowId,
           isStreaming,
         },
       }),
     );
-  }, [windowId, isStreaming]);
+  }, [effectiveWindowId, isStreaming]);
 
   // Notify when model configuration changes
   useEffect(() => {
@@ -645,18 +699,19 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     playgroundEventBus.dispatchEvent(
       new CustomEvent(PLAYGROUND_EVENTS.WINDOW_MODEL_CONFIG_CHANGE, {
         detail: {
-          windowId: windowId || MULTI_WINDOW_CONFIG.DEFAULT_WINDOW_ID,
+          windowId: effectiveWindowId,
           hasModel: Boolean(
             modelParams.provider.value && modelParams.model.value,
           ),
         },
       }),
     );
-  }, [windowId, modelParams.provider.value, modelParams.model.value]);
+  }, [effectiveWindowId, modelParams.provider.value, modelParams.model.value]);
 
   return (
     <PlaygroundContext.Provider
       value={{
+        windowId: effectiveWindowId,
         promptVariables,
         updatePromptVariableValue,
         deletePromptVariable,
@@ -684,10 +739,13 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         providerModelCombinations,
 
         output,
+        outputReasoning,
         outputJson,
         outputToolCalls,
         handleSubmit,
         isStreaming,
+        scrollToMessage,
+        registerScrollToMessage,
 
         availableProviders,
         availableModels,
@@ -703,8 +761,8 @@ async function getChatCompletionWithTools(
   messages: ChatMessageWithIdNoPlaceholders[],
   modelParams: UIModelParams,
   tools: unknown[],
-  streaming: boolean = false,
-): Promise<ToolCallResponse> {
+  streaming = false,
+): Promise<ToolCallResponse & { reasoning?: string }> {
   if (!projectId) throw Error("Project ID is not set");
 
   const body = JSON.stringify({
@@ -737,7 +795,10 @@ async function getChatCompletionWithTools(
         JSON.stringify(responseData, null, 2),
     );
 
-  return parsed.data;
+  return {
+    ...parsed.data,
+    ...(responseData.reasoning ? { reasoning: responseData.reasoning } : {}),
+  };
 }
 
 async function getChatCompletionWithStructuredOutput(
@@ -745,7 +806,7 @@ async function getChatCompletionWithStructuredOutput(
   messages: ChatMessageWithId[],
   modelParams: UIModelParams,
   structuredOutputSchema: PlaygroundSchema | null,
-  streaming: boolean = false,
+  streaming = false,
 ): Promise<string> {
   if (!projectId) throw Error("Project ID is not set");
 
@@ -846,7 +907,7 @@ async function getChatCompletionNonStreaming(
   projectId: string | undefined,
   messages: ChatMessageWithId[],
   modelParams: UIModelParams,
-): Promise<string> {
+): Promise<{ content: string; reasoning?: string }> {
   if (!projectId) {
     throw new Error("Project ID is not set");
   }
@@ -880,7 +941,10 @@ async function getChatCompletionNonStreaming(
   }
 
   const responseData = await result.json();
-  return responseData.content || "";
+  return {
+    content: responseData.content || "",
+    reasoning: responseData.reasoning,
+  };
 }
 
 function getFinalMessages(

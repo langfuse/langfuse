@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -10,18 +10,18 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { Slider } from "@/src/components/ui/slider";
-import { Switch } from "@/src/components/ui/switch";
 import { CreateLLMApiKeyDialog } from "@/src/features/public-api/components/CreateLLMApiKeyDialog";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { cn } from "@/src/utils/tailwind";
 import {
   type JSONObject,
   JSONObjectSchema,
-  type LLMAdapter,
+  LLMAdapter,
   type supportedModels,
   type UIModelParams,
 } from "@langfuse/shared";
-import { InfoIcon, Settings2 } from "lucide-react";
+import { InfoIcon, PlusIcon, Settings2 } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -36,6 +36,7 @@ import {
 import { LLMApiKeyComponent } from "./LLMApiKeyComponent";
 import { FormDescription } from "@/src/components/ui/form";
 import { CodeMirrorEditor } from "../editor";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 
 export type ModelParamsContext = {
   modelParams: UIModelParams;
@@ -71,8 +72,13 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
   const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
   const [modelSettingsUsed, setModelSettingsUsed] = useState(false);
 
+  // Standalone dialog for the "no providers yet" empty state (renders its own
+  // trigger button, not inside a dropdown).
   const [createLlmApiKeyDialogOpen, setCreateLlmApiKeyDialogOpen] =
     useState(false);
+  // Coordinates the inline "Add LLM Connection" action inside the combined
+  // provider/model Select (compact layout) — see useAddLlmConnectionSelect.
+  const providerSelect = useAddLlmConnectionSelect();
 
   useEffect(() => {
     const hasEnabledModelSetting = Object.keys(modelParams).some(
@@ -121,7 +127,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
         >
           <Settings2 size={14} />
           {modelSettingsUsed && (
-            <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-primary" />
+            <div className="bg-primary absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full" />
           )}
         </Button>
       </PopoverTrigger>
@@ -132,7 +138,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
       >
         <div className="mb-3">
           <h4 className="mb-1 text-sm font-medium">Model Advanced Settings</h4>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-muted-foreground text-xs">
             Configure advanced parameters for your model.
           </p>
         </div>
@@ -176,6 +182,22 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
             tooltip="An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered. We generally recommend altering this or temperature but not both."
             updateModelParam={updateModelParamValue}
           />
+          {modelParams.adapter.value === LLMAdapter.VertexAI &&
+            modelParams.maxReasoningTokens && (
+              <ModelParamsSlider
+                title="Max. Reasoning Tokens"
+                modelParamsKey="maxReasoningTokens"
+                formDisabled={formDisabled}
+                enabled={modelParams.maxReasoningTokens.enabled}
+                setModelParamEnabled={setModelParamEnabled}
+                value={modelParams.maxReasoningTokens.value}
+                min={-1}
+                max={24576}
+                step={1}
+                tooltip="Maximum tokens for model thinking/reasoning. Set to -1 for default (auto) thinking, 0 to disable. Only supported on Gemini 2.5+ models."
+                updateModelParam={updateModelParamValue}
+              />
+            )}
           <ProviderOptionsInput
             value={modelParams.providerOptions.value}
             formDisabled={formDisabled}
@@ -209,12 +231,17 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
     };
 
     return (
-      <div className="flex flex-col space-y-2 pb-1 pr-1 pt-2">
+      <div className="flex flex-col space-y-2 pt-2 pr-1 pb-1">
         <div className="flex items-center gap-2">
           <div className="min-w-0 flex-1 space-y-1">
             <Select
+              open={providerSelect.selectOpen}
+              onOpenChange={providerSelect.setSelectOpen}
               disabled={formDisabled}
-              onValueChange={handleCombinedSelection}
+              onValueChange={(value) => {
+                providerSelect.notifySelection();
+                handleCombinedSelection(value);
+              }}
               value={currentCombinedValue}
             >
               <SelectTrigger className="h-8">
@@ -226,24 +253,29 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
                     {option}
                   </SelectItem>
                 ))}
-                <SelectSeparator />
-                <CreateLLMApiKeyDialog
-                  open={createLlmApiKeyDialogOpen}
-                  setOpen={setCreateLlmApiKeyDialogOpen}
+                <AddLlmConnectionSelectAction
+                  onOpen={providerSelect.openConnectionDialog}
                 />
               </SelectContent>
             </Select>
+            {/* Dialog lives OUTSIDE the SelectContent so closing the Select does
+                not unmount it (see useAddLlmConnectionSelect). */}
+            <CreateLLMApiKeyDialog
+              hideTrigger
+              open={providerSelect.dialogOpen}
+              setOpen={providerSelect.handleDialogOpenChange}
+            />
             {modelParamsDescription ? (
               <FormDescription className="mt-1 text-xs">
                 {modelParamsDescription}
               </FormDescription>
             ) : undefined}
           </div>
-          <div className="flex-shrink-0">{SettingsButton}</div>
+          <div className="shrink-0">{SettingsButton}</div>
         </div>
 
         {modelParams.model.value?.startsWith("o1-") ? (
-          <p className="mt-1 text-xs text-dark-yellow">
+          <p className="text-dark-yellow mt-1 text-xs">
             For {modelParams.model.value}, the system message and the
             temperature, max_tokens and top_p setting are not supported while it
             is in beta.{" "}
@@ -263,7 +295,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
   // Vertical layout (default) - existing behavior
   return (
     <div
-      className={cn("flex flex-col", !isEmbedded && "space-y-2 pb-1 pr-1 pt-2")}
+      className={cn("flex flex-col", !isEmbedded && "space-y-2 pt-2 pr-1 pb-1")}
     >
       {!isEmbedded ? (
         <div className="flex items-center justify-between">
@@ -321,21 +353,35 @@ const ModelParamsSelect = ({
   modelParamsDescription,
   layout = "vertical",
 }: ModelParamsSelectProps) => {
-  const [createLlmApiKeyDialogOpen, setCreateLlmApiKeyDialogOpen] =
-    useState(false);
+  const providerSelect = useAddLlmConnectionSelect();
+
+  const handleValueChange = (next: string) => {
+    providerSelect.notifySelection();
+    updateModelParam(
+      modelParamsKey,
+      next as (typeof supportedModels)[LLMAdapter][number],
+    );
+  };
+
+  // Dialog lives OUTSIDE the SelectContent so closing the Select does not
+  // unmount it (see useAddLlmConnectionSelect).
+  const connectionDialog = (
+    <CreateLLMApiKeyDialog
+      hideTrigger
+      open={providerSelect.dialogOpen}
+      setOpen={providerSelect.handleDialogOpenChange}
+    />
+  );
 
   // Compact layout - simplified, space-efficient (no individual labels)
   if (layout === "compact") {
     return (
       <div className="space-y-1">
         <Select
+          open={providerSelect.selectOpen}
+          onOpenChange={providerSelect.setSelectOpen}
           disabled={disabled}
-          onValueChange={(value) =>
-            updateModelParam(
-              modelParamsKey,
-              value as (typeof supportedModels)[LLMAdapter][number],
-            )
-          }
+          onValueChange={handleValueChange}
           value={value}
         >
           <SelectTrigger className="h-8">
@@ -347,13 +393,12 @@ const ModelParamsSelect = ({
                 {option}
               </SelectItem>
             ))}
-            <SelectSeparator />
-            <CreateLLMApiKeyDialog
-              open={createLlmApiKeyDialogOpen}
-              setOpen={setCreateLlmApiKeyDialogOpen}
+            <AddLlmConnectionSelectAction
+              onOpen={providerSelect.openConnectionDialog}
             />
           </SelectContent>
         </Select>
+        {connectionDialog}
         {modelParamsDescription ? (
           <FormDescription className="mt-1 text-xs">
             {modelParamsDescription}
@@ -366,7 +411,7 @@ const ModelParamsSelect = ({
   // Vertical layout (default) - existing behavior
   return (
     <div className="flex items-center gap-4">
-      <div className="w-24 flex-shrink-0">
+      <div className="w-24 shrink-0">
         <p
           className={cn(
             "text-xs font-semibold",
@@ -378,13 +423,10 @@ const ModelParamsSelect = ({
       </div>
       <div className="flex-1">
         <Select
+          open={providerSelect.selectOpen}
+          onOpenChange={providerSelect.setSelectOpen}
           disabled={disabled}
-          onValueChange={(value) =>
-            updateModelParam(
-              modelParamsKey,
-              value as (typeof supportedModels)[LLMAdapter][number],
-            )
-          }
+          onValueChange={handleValueChange}
           value={value}
         >
           <SelectTrigger>
@@ -396,13 +438,12 @@ const ModelParamsSelect = ({
                 {option}
               </SelectItem>
             ))}
-            <SelectSeparator />
-            <CreateLLMApiKeyDialog
-              open={createLlmApiKeyDialogOpen}
-              setOpen={setCreateLlmApiKeyDialogOpen}
+            <AddLlmConnectionSelectAction
+              onOpen={providerSelect.openConnectionDialog}
             />
           </SelectContent>
         </Select>
+        {connectionDialog}
         {modelParamsDescription ? (
           <FormDescription className="mt-1 text-xs">
             {modelParamsDescription}
@@ -513,10 +554,7 @@ const ProviderOptionsInput = ({
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <div
-      className="space-y-3"
-      title="Additional options to pass to the invocation. Please check your provider's API reference for supported values."
-    >
+    <div className="space-y-3">
       <div className="flex flex-row">
         <div className="flex-1 flex-row space-x-1">
           <span
@@ -529,7 +567,7 @@ const ProviderOptionsInput = ({
           </span>
           <Tooltip>
             <TooltipTrigger>
-              <InfoIcon className="size-3 text-muted-foreground" />
+              <InfoIcon className="text-muted-foreground size-3" />
             </TooltipTrigger>
             <TooltipContent className="max-w-[200px] p-2">
               Additional options to pass to the invocation. Please check your
@@ -540,7 +578,7 @@ const ProviderOptionsInput = ({
         <div className="flex flex-row space-x-3">
           {setModelParamEnabled ? (
             <Switch
-              title={`Control sending the additional options parameter`}
+              title="Control sending the additional options parameter"
               disabled={formDisabled}
               checked={enabled}
               onCheckedChange={(checked) => {
@@ -568,7 +606,6 @@ const ProviderOptionsInput = ({
             }}
             editable={enabled && !formDisabled}
             mode="json"
-            minHeight="none"
             lineNumbers={false}
           />
           {error && (
@@ -581,3 +618,78 @@ const ProviderOptionsInput = ({
     </div>
   );
 };
+
+/**
+ * Coordinates a provider/model `Select` that offers an inline "Add LLM
+ * Connection" action which opens the {@link CreateLLMApiKeyDialog}.
+ *
+ * A dropdown should not stay open while it spawns a modal (see the overlay
+ * lifecycle note in web/AGENTS.md): the still-open Radix Select content sits in
+ * the `popover` layer, above the `modal` layer, so it would paint over the
+ * dialog and the two focus/dismiss scopes would fight. We therefore control the
+ * Select's open state, close it as the dialog opens, and — because a Radix
+ * Select unmounts its content when it closes (which would tear down a dialog
+ * nested inside it) — the dialog is rendered as a SIBLING of the Select, not a
+ * child of its content.
+ *
+ * When the dialog closes we reopen the dropdown, but only if the user hasn't
+ * committed a selection in the meantime, so they can finish the pick they came
+ * for (e.g. choose the connection they just added).
+ */
+function useAddLlmConnectionSelect() {
+  const [selectOpen, setSelectOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const madeSelectionRef = useRef(false);
+
+  const openConnectionDialog = useCallback(() => {
+    madeSelectionRef.current = false;
+    setSelectOpen(false);
+    setDialogOpen(true);
+  }, []);
+
+  const handleDialogOpenChange = useCallback((open: boolean) => {
+    setDialogOpen(open);
+    if (!open && !madeSelectionRef.current) {
+      setSelectOpen(true);
+    }
+  }, []);
+
+  const notifySelection = useCallback(() => {
+    madeSelectionRef.current = true;
+  }, []);
+
+  return {
+    selectOpen,
+    setSelectOpen,
+    dialogOpen,
+    openConnectionDialog,
+    handleDialogOpenChange,
+    notifySelection,
+  };
+}
+
+/**
+ * The inline "Add LLM Connection" action rendered at the bottom of a provider
+ * Select. Gated by `llmApiKeys:create` so we don't show a dead button (and so we
+ * don't leave a dangling separator) for users without access. On click it hands
+ * off to the coordinator, which closes the dropdown before opening the dialog.
+ */
+function AddLlmConnectionSelectAction({ onOpen }: { onOpen: () => void }) {
+  const projectId = useProjectIdFromURL();
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "llmApiKeys:create",
+  });
+
+  if (!hasAccess) return null;
+
+  return (
+    <>
+      <SelectSeparator />
+      <Button type="button" variant="secondary" onClick={onOpen}>
+        <PlusIcon className="mr-1.5 -ml-0.5 h-5 w-5" aria-hidden="true" />
+        Add LLM Connection
+      </Button>
+    </>
+  );
+}

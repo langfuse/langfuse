@@ -1,39 +1,7 @@
-import { useState, useCallback, useMemo } from "react";
-import { type EvalTemplate } from "@langfuse/shared";
+import { useState, useCallback } from "react";
+import { type EvalTemplate, EvalTemplateType } from "@langfuse/shared";
 import { type RouterOutputs } from "@/src/utils/api";
 import { type PartialConfig } from "@/src/features/evals/types";
-import { partition } from "lodash";
-
-const partitionEvaluators = (
-  evaluators: RouterOutputs["evals"]["jobConfigsByTarget"] | undefined,
-  datasetId: string,
-): { activeEvaluators: string[]; pausedEvaluators: string[] } => {
-  const filteredEvaluators =
-    evaluators?.filter(({ filter }) => {
-      if (filter?.length === 0) return true;
-      return filter?.some(
-        ({ type, value }) =>
-          type === "stringOptions" && value.includes(datasetId),
-      );
-    }) || [];
-
-  const [activeEvaluators, pausedEvaluators] = partition(
-    filteredEvaluators,
-    (evaluator) => evaluator.status === "ACTIVE",
-  );
-
-  const activeIds = activeEvaluators.map(
-    (evaluator) => evaluator.evalTemplateId,
-  );
-  const inactiveIds = pausedEvaluators.map(
-    (evaluator) => evaluator.evalTemplateId,
-  );
-
-  return {
-    activeEvaluators: activeIds,
-    pausedEvaluators: inactiveIds,
-  };
-};
 
 interface UseExperimentEvaluatorDataProps {
   datasetId: string;
@@ -83,8 +51,11 @@ export function useExperimentEvaluatorData({
           ...config,
           evalTemplate: {
             ...config.evalTemplate,
-            outputSchema: config.evalTemplate
-              .outputSchema as EvalTemplate["outputSchema"],
+            type: EvalTemplateType.LLM_AS_JUDGE,
+            sourceCode: null,
+            sourceCodeLanguage: null,
+            outputDefinition: config.evalTemplate
+              .outputDefinition as EvalTemplate["outputDefinition"],
           },
         } as PartialConfig & { evalTemplate: EvalTemplate };
 
@@ -135,7 +106,7 @@ export function useExperimentEvaluatorData({
   const handleEvaluatorSuccess = useCallback(() => {
     setShowEvaluatorForm(false);
     setSelectedEvaluatorData(null);
-    void refetchEvaluators();
+    refetchEvaluators();
   }, [refetchEvaluators]);
 
   // Handle when a user selects an evaluator from the template selector
@@ -151,16 +122,10 @@ export function useExperimentEvaluatorData({
     [prepareEvaluatorData],
   );
 
-  const { activeEvaluators, pausedEvaluators } = useMemo(() => {
-    return partitionEvaluators(evaluatorsData, datasetId);
-  }, [evaluatorsData, datasetId]);
-
   return {
     // State
     selectedEvaluatorData,
     showEvaluatorForm,
-    activeEvaluators,
-    pausedEvaluators,
 
     // Handlers
     handleConfigureEvaluator,

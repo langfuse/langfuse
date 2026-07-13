@@ -1,10 +1,6 @@
 import { Queue } from "bullmq";
 import { QueueName, QueueJobs } from "../queues";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
 
 export class BlobStorageIntegrationQueue {
@@ -15,15 +11,12 @@ export class BlobStorageIntegrationQueue {
       return BlobStorageIntegrationQueue.instance;
     }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
-    BlobStorageIntegrationQueue.instance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
+      QueueName.BlobStorageIntegrationQueue,
+    );
+    BlobStorageIntegrationQueue.instance = queueOptionsWithRedis
       ? new Queue(QueueName.BlobStorageIntegrationQueue, {
-          connection: newRedis,
-          prefix: getQueuePrefix(QueueName.BlobStorageIntegrationQueue),
+          ...queueOptionsWithRedis,
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100,
@@ -42,12 +35,26 @@ export class BlobStorageIntegrationQueue {
 
     if (BlobStorageIntegrationQueue.instance) {
       logger.debug("Scheduling jobs for BlobStorageIntegrationQueue");
+      // Remove the old hourly cron pattern - BullMQ keys repeatable jobs by
+      // name + pattern, so changing the pattern creates a second schedule
+      // while the old one keeps firing.
+      BlobStorageIntegrationQueue.instance
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- Existing repeatable-job cleanup; job scheduler migration should be handled separately.
+        .removeRepeatable(QueueJobs.BlobStorageIntegrationJob, {
+          pattern: "20 * * * *",
+        })
+        .catch((err) => {
+          logger.error(
+            "Error removing legacy BlobStorageIntegrationJob schedule",
+            err,
+          );
+        });
       BlobStorageIntegrationQueue.instance
         .add(
           QueueJobs.BlobStorageIntegrationJob,
           {},
           {
-            repeat: { pattern: "20 * * * *" }, // every hour at 20 minutes past
+            repeat: { pattern: "*/20 * * * *" }, // every 20 minutes
           },
         )
         .catch((err) => {

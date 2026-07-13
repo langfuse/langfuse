@@ -1,6 +1,6 @@
-import z from "zod/v4";
+import z from "zod";
 import { StringNoHTML, StringNoHTMLNonEmpty } from "../../utils/zod";
-import { BooleanData, CategoricalData, NumericData } from "../../domain";
+import { CategoricalData, TextData, NumericData } from "../../domain";
 
 const ScoreTargetTrace = z.object({
   type: z.literal("trace"),
@@ -40,13 +40,36 @@ const UpdateAnnotationScoreBase = CreateAnnotationScoreBase.extend({
   id: z.string(),
 });
 
+const AnnotationBooleanData = z.object({
+  stringValue: z.enum(["True", "False"]),
+  dataType: z.literal("BOOLEAN"),
+});
+
+// The router persists `value` and `stringValue` verbatim, and the two feed
+// different filter paths (scores_avg vs score_booleans) — derive `value` from
+// the label so a crafted request cannot store an inconsistent pair like
+// { stringValue: "True", value: 0 }.
+const deriveBooleanValue = <
+  T extends { dataType: string; stringValue?: string | null; value: number },
+>(
+  data: T,
+): T =>
+  data.dataType === "BOOLEAN"
+    ? { ...data, value: data.stringValue === "True" ? 1 : 0 }
+    : data;
+
 /**
  * CreateAnnotationScoreData is only used for annotation scores created via the UI.
  * For langfuse score types please refer to `web/src/features/public-api/types/scores.ts`
  */
 export const CreateAnnotationScoreData = CreateAnnotationScoreBase.and(
-  z.discriminatedUnion("dataType", [NumericData, CategoricalData, BooleanData]),
-);
+  z.discriminatedUnion("dataType", [
+    NumericData,
+    CategoricalData,
+    AnnotationBooleanData,
+    TextData,
+  ]),
+).transform(deriveBooleanValue);
 
 export type CreateAnnotationScoreData = z.infer<
   typeof CreateAnnotationScoreData
@@ -57,8 +80,13 @@ export type CreateAnnotationScoreData = z.infer<
  * For langfuse score types please refer to `web/src/features/public-api/types/scores.ts`
  */
 export const UpdateAnnotationScoreData = UpdateAnnotationScoreBase.and(
-  z.discriminatedUnion("dataType", [NumericData, CategoricalData, BooleanData]),
-);
+  z.discriminatedUnion("dataType", [
+    NumericData,
+    CategoricalData,
+    AnnotationBooleanData,
+    TextData,
+  ]),
+).transform(deriveBooleanValue);
 
 export type UpdateAnnotationScoreData = z.infer<
   typeof UpdateAnnotationScoreData

@@ -1,4 +1,5 @@
 export * from "./constants";
+export { decodeUnicodeEscapesOnly } from "./utils/unicode";
 export * from "./interfaces/filters";
 export * from "./interfaces/orderBy";
 export * from "./interfaces/cloudConfigSchema";
@@ -17,6 +18,7 @@ export * from "./utils/typeChecks";
 export * from "./utils/prompts";
 export * from "./utils/jsonSchemaValidation";
 export * from "./utils/chatml";
+export * from "./utils/math";
 export * from "./features/entitlements/plans";
 export * from "./interfaces/rate-limits";
 export * from "./tableDefinitions/typeHelpers";
@@ -24,13 +26,18 @@ export * from "./domain/webhooks";
 export * from "./domain/dataset-run-items";
 export * from "./domain/dataset-items";
 export * from "./domain/score-configs";
+export * from "./domain/home-dashboard";
 
 // llm api
 export * from "./server/llm/types";
 
 // evals
 export * from "./features/evals/types";
+export * from "./features/evals/outputDefinition";
 export * from "./features/evals/utilities";
+export * from "./features/evals/observationForEval";
+export * from "./features/evals/evalConfigBlocking";
+export * from "./features/evals/validateEvaluatorFilters";
 // table actions
 export * from "./features/batchExport/types";
 export * from "./features/batchAction/types";
@@ -74,7 +81,6 @@ export {
 
 // export db types only
 export * from "@prisma/client";
-export { type DB } from "../prisma/generated/types";
 export * from "./server/repositories/types";
 
 // metadata conversion
@@ -91,3 +97,17 @@ export * from "./domain";
 
 // io representation
 export * from "./utils/IORepresentation";
+export * from "./utils/mediaReferences";
+
+// analytics integrations (client-safe)
+export * from "./features/analytics-integrations";
+export {
+  ChartConfigSchema,
+  DimensionSchema,
+  MetricSchema,
+} from "./server/services/DashboardService/types";
+
+// query (dashboard / monitor data model)
+export * from "./features/query/types";
+export * from "./features/query/dataModel";
+export * from "./features/query/validateQuery";

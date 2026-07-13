@@ -6,6 +6,7 @@ import {
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
 } from "../repositories/definitions";
+import { UNKNOWN_INGESTION_SDK_VALUE } from "../ingestion/ingestionAttribution";
 
 export const createTrace = (
   trace: Partial<TraceRecordInsertType>,
@@ -112,7 +113,7 @@ export const createTraceScore = (
     id: v4(),
     project_id: v4(),
     trace_id: v4(),
-    observation_id: v4(),
+    observation_id: null, // Trace-level scores must have observation_id as null by default
     environment: "default",
     name: "test-score" + v4(),
     timestamp: Date.now(),
@@ -126,6 +127,9 @@ export const createTraceScore = (
     created_at: Date.now(),
     updated_at: Date.now(),
     event_ts: Date.now(),
+    ingestion_api_key: "",
+    ingestion_sdk_name: UNKNOWN_INGESTION_SDK_VALUE,
+    ingestion_sdk_version: UNKNOWN_INGESTION_SDK_VALUE,
     is_deleted: 0,
     ...score,
     session_id: null,
@@ -152,6 +156,9 @@ export const createSessionScore = (
     created_at: Date.now(),
     updated_at: Date.now(),
     event_ts: Date.now(),
+    ingestion_api_key: "",
+    ingestion_sdk_name: UNKNOWN_INGESTION_SDK_VALUE,
+    ingestion_sdk_version: UNKNOWN_INGESTION_SDK_VALUE,
     is_deleted: 0,
     ...score,
     observation_id: null,
@@ -179,6 +186,9 @@ export const createDatasetRunScore = (
     created_at: Date.now(),
     updated_at: Date.now(),
     event_ts: Date.now(),
+    ingestion_api_key: "",
+    ingestion_sdk_name: UNKNOWN_INGESTION_SDK_VALUE,
+    ingestion_sdk_version: UNKNOWN_INGESTION_SDK_VALUE,
     is_deleted: 0,
     ...score,
     observation_id: null,
@@ -188,10 +198,19 @@ export const createDatasetRunScore = (
 };
 
 export const createEvent = (
-  event: Partial<EventRecordInsertType>,
+  event: Partial<EventRecordInsertType> & {
+    metadata_values?: (string | null | undefined)[];
+  },
 ): EventRecordInsertType => {
   const spanId = v4();
   const now = Date.now() * 1000; // Convert to micro
+
+  // Extract metadata array overrides before spreading to prevent undefined from clobbering defaults
+  const {
+    metadata_values: metadataValuesAlias,
+    metadata_names: metadataNamesOverride,
+    ...eventOverrides
+  } = event;
 
   // Default metadata to populate arrays from
   const defaultMetadata: Record<string, string> = {
@@ -199,16 +218,10 @@ export const createEvent = (
     server: "Node",
   };
 
-  // Merge default metadata with any provided metadata
-  const finalMetadata: Record<string, string> = {
-    ...defaultMetadata,
-    ...event.metadata,
-  };
-
   // Extract metadata keys and values in sorted order for deterministic array population
-  const sortedKeys = Object.keys(finalMetadata).sort();
+  const sortedKeys = Object.keys(defaultMetadata).sort();
   const metadataNames = sortedKeys;
-  const metadataValues = sortedKeys.map((key) => finalMetadata[key]);
+  const metadataValues = sortedKeys.map((key) => defaultMetadata[key]);
 
   return {
     // Identifiers
@@ -229,6 +242,7 @@ export const createEvent = (
 
     user_id: null,
     session_id: null,
+    is_app_root: false,
 
     level: "DEFAULT",
     status_message: null,
@@ -258,10 +272,9 @@ export const createEvent = (
     input: "Hello World",
     output: "Hello John",
 
-    // Metadata - populate both JSON and array columns
-    metadata: finalMetadata,
-    metadata_names: metadataNames,
-    metadata_raw_values: metadataValues,
+    // Metadata
+    metadata_names: metadataNamesOverride ?? metadataNames,
+    metadata_values: metadataValuesAlias ?? metadataValues,
 
     // Experiment properties
     experiment_id: null,
@@ -286,6 +299,9 @@ export const createEvent = (
     telemetry_sdk_language: null,
     telemetry_sdk_name: null,
     telemetry_sdk_version: null,
+    ingestion_api_key: "pk-lf-1234567890",
+    ingestion_sdk_name: "langfuse-js",
+    ingestion_sdk_version: "5.0.1",
 
     // Generic props
     blob_storage_file_path: "",
@@ -300,6 +316,6 @@ export const createEvent = (
     updated_at: now,
     event_ts: now,
 
-    ...event,
+    ...eventOverrides,
   };
 };

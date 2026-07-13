@@ -1,39 +1,67 @@
-import { type z } from "zod/v4";
-import { z as zodSchema } from "zod/v4";
+import { type z } from "zod";
+import { z as zodSchema } from "zod";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
+  protectedGetTraceProcedure,
 } from "@/src/server/api/trpc";
 import {
-  type Observation,
   type OrderByState,
+  normalizeOrderByForTable,
   paginationZod,
   timeFilter,
 } from "@langfuse/shared";
+import {
+  toDomainArrayWithStringifiedMetadata,
+  toDomainWithStringifiedMetadata,
+  type MetadataDomainClient,
+} from "@/src/utils/clientSideDomainTypes";
 import { EventsTableOptions } from "./types";
 import {
   getEventList,
   getEventCount,
   getEventFilterOptions,
   getEventBatchIO,
+  EVENT_FILTER_OPTIONS_COLUMNS,
 } from "./eventsService";
-import { instrumentAsync } from "@langfuse/shared/src/server";
+import {
+  instrumentAsync,
+  getScoresAndCorrectionsForTraces,
+  convertDateToClickhouseDateTime,
+  getAgentGraphDataFromEventsTable,
+  getObservationsForTraceFromEventsTable,
+  MAX_OBSERVATIONS_PER_TRACE,
+  applyCommentFilters,
+  getLatestSdkVersionInfoFromEvents,
+} from "@langfuse/shared/src/server";
+
+import {
+  AgentGraphDataSchema,
+  type AgentGraphDataResponse,
+} from "@/src/features/trace-graph-view/types";
 import type * as opentelemetry from "@opentelemetry/api";
 
 const GetAllEventsInput = EventsTableOptions.extend({
   ...paginationZod,
 });
 
-export type EventBatchIOOutput = Pick<
-  Observation,
-  "id" | "input" | "output" | "metadata"
->;
+export type EventBatchIOOutput = {
+  id: string;
+  input: string | null;
+  output: string | null;
+  metadata: MetadataDomainClient;
+};
 
 export type GetAllEventsInput = z.infer<typeof GetAllEventsInput>;
 
 const GetEventFilterOptionsInput = zodSchema.object({
   projectId: zodSchema.string(),
   startTimeFilter: zodSchema.array(timeFilter).optional(),
+  isRootObservation: zodSchema.boolean().optional(),
+  hasParentObservation: zodSchema.boolean().optional(),
+  columns: zodSchema
+    .array(zodSchema.enum(EVENT_FILTER_OPTIONS_COLUMNS))
+    .optional(),
 });
 
 export type GetEventFilterOptionsInput = z.infer<
@@ -42,14 +70,22 @@ export type GetEventFilterOptionsInput = z.infer<
 
 export const BatchIOInput = zodSchema.object({
   projectId: zodSchema.string(),
-  observations: zodSchema.array(
-    zodSchema.object({
-      id: zodSchema.string(),
-      traceId: zodSchema.string(),
-    }),
-  ),
+  observations: zodSchema
+    .array(
+      zodSchema.object({
+        id: zodSchema.string(),
+        traceId: zodSchema.string(),
+      }),
+    )
+    // Bounds the unbounded-LIMIT ClickHouse read; the largest legitimate
+    // caller is one table page (max 50 rows), eval previews send one row.
+    .max(500),
   minStartTime: zodSchema.date(),
   maxStartTime: zodSchema.date(),
+  truncated: zodSchema.boolean().optional(), // Defaults to true for performance
+  includeToolCalls: zodSchema.boolean().optional(), // Defaults to false; tool-call arrays can be large
+  // Opts into trace-level auth (public traces) in protectedGetTraceProcedure
+  traceId: zodSchema.string().optional(),
 });
 
 export type BatchIOInput = z.infer<typeof BatchIOInput>;
@@ -58,19 +94,34 @@ export const eventsRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(GetAllEventsInput)
     .query(async ({ input, ctx }) => {
+      const { filterState, hasNoMatches } = await applyCommentFilters({
+        filterState: input.filter ?? [],
+        prisma: ctx.prisma,
+        projectId: ctx.session.projectId,
+        objectType: "OBSERVATION",
+      });
+
+      if (hasNoMatches) {
+        return { observations: [], hasMore: false };
+      }
+
       return instrumentAsync(
         {
           name: "get-event-list-trpc",
         },
         async (span) => {
-          addAttributesToSpan({ span, input, orderBy: input.orderBy });
+          const normalizedOrderBy = normalizeOrderByForTable({
+            orderBy: input.orderBy,
+            expectedTimeColumn: "startTime",
+          });
+          addAttributesToSpan({ span, input, orderBy: normalizedOrderBy });
 
           return getEventList({
             projectId: ctx.session.projectId,
-            filter: input.filter ?? [],
+            filter: filterState,
             searchQuery: input.searchQuery ?? undefined,
             searchType: input.searchType,
-            orderBy: input.orderBy,
+            orderBy: normalizedOrderBy,
             page: input.page,
             limit: input.limit,
           });
@@ -78,31 +129,41 @@ export const eventsRouter = createTRPCRouter({
       );
     }),
   countAll: protectedProjectProcedure
-    .input(GetAllEventsInput)
+    .input(EventsTableOptions)
     .query(async ({ input, ctx }) => {
+      const { filterState, hasNoMatches } = await applyCommentFilters({
+        filterState: input.filter ?? [],
+        prisma: ctx.prisma,
+        projectId: ctx.session.projectId,
+        objectType: "OBSERVATION",
+      });
+
+      if (hasNoMatches) {
+        return { totalCount: 0, uniqueTraceCount: 0 };
+      }
+
       return instrumentAsync(
         {
           name: "get-event-count-trpc",
         },
         async (span) => {
-          addAttributesToSpan({ span, input, orderBy: input.orderBy });
+          const normalizedOrderBy = normalizeOrderByForTable({
+            orderBy: input.orderBy,
+            expectedTimeColumn: "startTime",
+          });
+          addAttributesToSpan({ span, input, orderBy: normalizedOrderBy });
           return getEventCount({
             projectId: ctx.session.projectId,
-            filter: input.filter ?? [],
+            filter: filterState,
             searchQuery: input.searchQuery ?? undefined,
             searchType: input.searchType,
-            orderBy: input.orderBy,
+            orderBy: normalizedOrderBy,
           });
         },
       );
     }),
   filterOptions: protectedProjectProcedure
-    .input(
-      zodSchema.object({
-        projectId: zodSchema.string(),
-        startTimeFilter: zodSchema.array(timeFilter).optional(),
-      }),
-    )
+    .input(GetEventFilterOptionsInput)
     .query(async ({ input }) => {
       return instrumentAsync(
         {
@@ -114,24 +175,225 @@ export const eventsRouter = createTRPCRouter({
           return getEventFilterOptions({
             projectId: input.projectId,
             startTimeFilter: input.startTimeFilter,
+            isRootObservation:
+              input.isRootObservation ??
+              (input.hasParentObservation !== undefined
+                ? !input.hasParentObservation
+                : undefined), // backward compat for legacy hasParentObservation filterOption
+            columns: input.columns,
           });
         },
       );
     }),
-  batchIO: protectedProjectProcedure
+  batchIO: protectedGetTraceProcedure
     .input(BatchIOInput)
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       return instrumentAsync(
         { name: "get-event-batch-io-trpc" },
         async (span) => {
           span.setAttribute("project_id", input.projectId);
           span.setAttribute("observation_count", input.observations.length);
 
-          return getEventBatchIO({
+          // the middleware only authorized access to input.traceId (which may
+          // merely be public) — never fetch other traces' observations through it
+          const observations = input.traceId
+            ? input.observations.filter((o) => o.traceId === input.traceId)
+            : input.observations;
+
+          const batchIO = await getEventBatchIO({
+            projectId: input.projectId,
+            observations,
+            minStartTime: input.minStartTime,
+            maxStartTime: input.maxStartTime,
+            truncated: input.truncated,
+            includeToolCallFields: input.includeToolCalls,
+          });
+
+          return batchIO.map(toDomainWithStringifiedMetadata);
+        },
+      );
+    }),
+  experimentBatchIO: protectedProjectProcedure
+    .input(BatchIOInput)
+    .query(async ({ input, ctx }) => {
+      return instrumentAsync(
+        { name: "get-experiment-batch-io-trpc" },
+        async (span) => {
+          span.setAttribute("project_id", input.projectId);
+          span.setAttribute("observation_count", input.observations.length);
+
+          const batchIO = await getEventBatchIO({
             projectId: ctx.session.projectId,
             observations: input.observations,
             minStartTime: input.minStartTime,
             maxStartTime: input.maxStartTime,
+            truncated: input.truncated,
+            includeExperimentFields: true,
+            includeToolCallFields: input.includeToolCalls,
+          });
+
+          return batchIO.map(toDomainWithStringifiedMetadata);
+        },
+      );
+    }),
+  /**
+   * Fetch scores and corrections for a trace.
+   * Used by the v4 trace detail view where trace data comes from events table.
+   */
+  scoresForTrace: protectedGetTraceProcedure
+    .input(
+      zodSchema.object({
+        projectId: zodSchema.string(),
+        traceId: zodSchema.string(),
+        timestamp: zodSchema.date().optional(),
+      }),
+    )
+    .query(async ({ input }) => {
+      return instrumentAsync(
+        { name: "get-events-scores-for-trace-trpc" },
+        async (span) => {
+          span.setAttribute("project_id", input.projectId);
+          span.setAttribute("trace_id", input.traceId);
+
+          return getScoresAndCorrectionsForTraces({
+            projectId: input.projectId,
+            traceIds: [input.traceId],
+            timestamp: input.timestamp,
+          });
+        },
+      );
+    }),
+  /**
+   * Fetch all observations for a trace from the events table.
+   * Returns up to MAX_OBSERVATIONS_PER_TRACE observations.
+   * Sets cutoffObservationsAfterMaxCount=true if trace exceeds the cap.
+   */
+  byTraceId: protectedGetTraceProcedure
+    .input(
+      zodSchema.object({
+        projectId: zodSchema.string(),
+        traceId: zodSchema.string(),
+        timestamp: zodSchema.date().optional(),
+      }),
+    )
+    .query(async ({ input }) => {
+      return instrumentAsync(
+        { name: "get-events-by-trace-id-trpc" },
+        async (span) => {
+          span.setAttribute("project_id", input.projectId);
+          span.setAttribute("trace_id", input.traceId);
+
+          const { observations, totalCount } =
+            await getObservationsForTraceFromEventsTable({
+              projectId: input.projectId,
+              traceId: input.traceId,
+              timestamp: input.timestamp,
+            });
+
+          return {
+            observations: toDomainArrayWithStringifiedMetadata(observations),
+            cutoffObservationsAfterMaxCount:
+              totalCount > MAX_OBSERVATIONS_PER_TRACE,
+          };
+        },
+      );
+    }),
+  /**
+   * Fetch agent graph data from events table.
+   * Used by v4 events-based trace detail view for graph visualization.
+   * Returns same shape as traces.getAgentGraphData for frontend compatibility.
+   */
+  getAgentGraphData: protectedGetTraceProcedure
+    .input(
+      zodSchema.object({
+        projectId: zodSchema.string(),
+        traceId: zodSchema.string(),
+        minStartTime: zodSchema.string(),
+        maxStartTime: zodSchema.string(),
+      }),
+    )
+    .query(async ({ input }): Promise<Required<AgentGraphDataResponse>[]> => {
+      return instrumentAsync(
+        { name: "get-events-agent-graph-data-trpc" },
+        async (span) => {
+          span.setAttribute("project_id", input.projectId);
+          span.setAttribute("trace_id", input.traceId);
+
+          const { traceId, minStartTime, maxStartTime } = input;
+
+          const chMinStartTime = convertDateToClickhouseDateTime(
+            new Date(minStartTime),
+          );
+          const chMaxStartTime = convertDateToClickhouseDateTime(
+            new Date(maxStartTime),
+          );
+
+          const records = await getAgentGraphDataFromEventsTable({
+            projectId: input.projectId,
+            traceId,
+            chMinStartTime,
+            chMaxStartTime,
+          });
+
+          // Transform to AgentGraphDataResponse format
+          // TODO: Extract this transformation logic into a shared utility
+          // (duplicated from traces.getAgentGraphData in traces.ts)
+          const result = records
+            .map((r) => {
+              const parsed = AgentGraphDataSchema.safeParse(r);
+              if (!parsed.success) {
+                return null;
+              }
+
+              const data = parsed.data;
+              const hasLangGraphData = data.step != null && data.node != null;
+              const hasAgentData = data.type !== "EVENT";
+
+              if (hasLangGraphData) {
+                return {
+                  id: data.id,
+                  node: data.node,
+                  step: data.step,
+                  parentObservationId: data.parent_observation_id || null,
+                  name: data.name,
+                  startTime: data.start_time,
+                  endTime: data.end_time || undefined,
+                  observationType: data.type,
+                };
+              } else if (hasAgentData) {
+                return {
+                  id: data.id,
+                  node: data.name,
+                  step: 0,
+                  parentObservationId: data.parent_observation_id || null,
+                  name: data.name,
+                  startTime: data.start_time,
+                  endTime: data.end_time || undefined,
+                  observationType: data.type,
+                };
+              }
+
+              return null;
+            })
+            .filter((r): r is Required<AgentGraphDataResponse> => Boolean(r));
+
+          return result;
+        },
+      );
+    }),
+  /**
+   * Get SDK metadata for a project.
+   * Returns info about the SDK being used (name, version, language).
+   */
+  getSdkVersionInfo: protectedProjectProcedure
+    .input(zodSchema.object({ projectId: zodSchema.string() }))
+    .query(async ({ input }) => {
+      return instrumentAsync(
+        { name: "get-sdk-metadata-trpc" },
+        async (span) => {
+          span.setAttribute("project_id", input.projectId);
+          return getLatestSdkVersionInfoFromEvents({
+            projectId: input.projectId,
           });
         },
       );
@@ -168,7 +430,9 @@ export const addAttributesToSpan = ({
     }
 
     input.filter.forEach((f) => {
-      span.setAttribute(f.column, f.value.toString());
+      if (f.value !== undefined) {
+        span.setAttribute(f.column, String(f.value));
+      }
     });
   }
 

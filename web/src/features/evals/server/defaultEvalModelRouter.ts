@@ -3,9 +3,19 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { z } from "zod/v4";
-import { ZodModelConfig } from "@langfuse/shared";
-import { DefaultEvalModelService } from "@langfuse/shared/src/server";
+import { z } from "zod";
+import { findDefaultModelEvalTemplateIds } from "./evaluatorRepository";
+import {
+  EvaluatorBlockReason,
+  ZodModelConfig,
+  getEvaluatorBlockMetadata,
+} from "@langfuse/shared";
+import {
+  DefaultEvalModelService,
+  blockEvaluatorConfigsInTx,
+  EvaluatorBlockSource,
+  finalizeBlockedEvaluatorConfigBlocks,
+} from "@langfuse/shared/src/server";
 
 export const defaultEvalModelRouter = createTRPCRouter({
   fetchDefaultModel: protectedProjectProcedure
@@ -47,24 +57,24 @@ export const defaultEvalModelRouter = createTRPCRouter({
         scope: "evalDefaultModel:CUD",
       });
 
-      // Invalidate all eval jobs that rely on the default model
-      return ctx.prisma.$transaction(async (tx) => {
-        const evalTemplates = await tx.evalTemplate.findMany({
-          where: {
-            OR: [{ projectId: input.projectId }, { projectId: null }],
-            provider: null,
-            model: null,
-          },
+      const result = await ctx.prisma.$transaction(async (tx) => {
+        const evalTemplateIds = await findDefaultModelEvalTemplateIds({
+          tx,
+          projectId: input.projectId,
         });
 
-        await tx.jobConfiguration.updateMany({
+        const blockResult = await blockEvaluatorConfigsInTx({
+          tx,
+          projectId: input.projectId,
           where: {
-            evalTemplateId: { in: evalTemplates.map((et) => et.id) },
-            projectId: input.projectId,
+            evalTemplateId: {
+              in: evalTemplateIds,
+            },
           },
-          data: {
-            status: "INACTIVE",
-          },
+          blockReason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
+          blockMessage: getEvaluatorBlockMetadata(
+            EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
+          ).message,
         });
 
         // Delete the default model within the transaction
@@ -75,7 +85,18 @@ export const defaultEvalModelRouter = createTRPCRouter({
           },
         });
 
-        return { success: true };
+        return blockResult;
       });
+
+      await finalizeBlockedEvaluatorConfigBlocks({
+        projectId: input.projectId,
+        source: EvaluatorBlockSource.DEFAULT_EVAL_MODEL_DELETION,
+        blockedByReason: {
+          [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]:
+            result.blockedJobConfigIds,
+        },
+      });
+
+      return { success: true };
     }),
 });

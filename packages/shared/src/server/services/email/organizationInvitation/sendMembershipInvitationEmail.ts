@@ -1,6 +1,5 @@
-import { createTransport } from "nodemailer";
-import { parseConnectionUrl } from "nodemailer/lib/shared/index.js";
 import { render } from "@react-email/render";
+import { createMailTransport } from "../transport";
 
 import MembershipInvitationTemplate from "./MembershipInvitationEmailTemplate";
 import { logger } from "../../../logger";
@@ -10,6 +9,7 @@ const langfuseUrls = {
   EU: "https://cloud.langfuse.com",
   STAGING: "https://staging.langfuse.com",
   HIPAA: "https://hipaa.cloud.langfuse.com",
+  JP: "https://jp.cloud.langfuse.com",
 };
 
 type SendMembershipInvitationParams = {
@@ -50,6 +50,7 @@ export const sendMembershipInvitationEmail = async ({
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "US" ||
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU" ||
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "HIPAA" ||
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "JP" ||
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
       ? langfuseUrls[env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION]
       : env.NEXTAUTH_URL;
@@ -68,7 +69,7 @@ export const sendMembershipInvitationEmail = async ({
     : `${authUrl}/auth/sign-up?targetPath=${encodeURIComponent(`/organization/${orgId}`)}&email=${encodeURIComponent(to)}`;
 
   try {
-    const mailer = createTransport(parseConnectionUrl(env.SMTP_CONNECTION_URL));
+    const mailer = createMailTransport(env.SMTP_CONNECTION_URL);
 
     const htmlTemplate = await render(
       MembershipInvitationTemplate({

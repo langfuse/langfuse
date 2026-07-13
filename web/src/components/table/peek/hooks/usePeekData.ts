@@ -1,4 +1,4 @@
-import { api } from "@/src/utils/api";
+import { useTraceDetailData } from "@/src/components/trace/useTraceDetailData";
 
 type UsePeekDataProps = {
   projectId: string;
@@ -6,24 +6,13 @@ type UsePeekDataProps = {
   timestamp?: Date;
 };
 
+/**
+ * Peek's trace-data hook — a thin wrapper over the shared
+ * {@link useTraceDetailData} so the peek and the standalone trace page fetch
+ * through one place. Callers read `data` / `isLoading`.
+ */
 export const usePeekData = ({
   projectId,
   traceId,
   timestamp,
-}: UsePeekDataProps) => {
-  return api.traces.byIdWithObservationsAndScores.useQuery(
-    {
-      traceId: traceId as string,
-      projectId,
-      timestamp,
-    },
-    {
-      enabled: !!traceId,
-      retry(failureCount, error) {
-        if (error.data?.code === "UNAUTHORIZED") return false;
-        return failureCount < 3;
-      },
-      staleTime: 60 * 1000, // 1 minute
-    },
-  );
-};
+}: UsePeekDataProps) => useTraceDetailData({ projectId, traceId, timestamp });

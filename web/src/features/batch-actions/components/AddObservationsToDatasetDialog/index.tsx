@@ -9,7 +9,6 @@ import {
   DialogFooter,
 } from "@/src/components/ui/dialog";
 import { ChevronLeft } from "lucide-react";
-import type { BatchActionQuery } from "@langfuse/shared";
 
 // Step components
 import { DatasetChoiceStep } from "./DatasetChoiceStep";
@@ -20,21 +19,15 @@ import { FinalPreviewStep } from "./FinalPreviewStep";
 import { StatusStep } from "./StatusStep";
 
 // Hook
-import { useAddToDatasetWizard } from "./useAddToDatasetWizard";
+import {
+  useAddToDatasetWizard,
+  type UseAddToDatasetWizardProps,
+} from "./useAddToDatasetWizard";
 
 type AddObservationsToDatasetDialogProps = {
   projectId: string;
-  selectedObservationIds: string[];
-  query: BatchActionQuery;
-  selectAll: boolean;
-  totalCount: number;
   onClose: () => void;
-  exampleObservation: {
-    id: string;
-    traceId: string;
-    startTime?: Date;
-  };
-};
+} & UseAddToDatasetWizardProps;
 
 export function AddObservationsToDatasetDialog(
   props: AddObservationsToDatasetDialogProps,
@@ -171,7 +164,7 @@ export function AddObservationsToDatasetDialog(
         {/* Footer with navigation buttons */}
         {step !== "status" && step !== "choice" && (
           <DialogFooter className="flex justify-between">
-            <div className="flex-grow">
+            <div className="grow">
               {showBackButton && (
                 <Button type="button" variant="ghost" onClick={goBack}>
                   <ChevronLeft className="mr-1 h-4 w-4" />

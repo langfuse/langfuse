@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import {
   Card,
   CardContent,
@@ -16,10 +16,10 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { Separator } from "@/src/components/ui/separator";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { useRouter } from "next/router";
-import { z } from "zod/v4";
-import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { type Control, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Form,
@@ -34,17 +34,26 @@ import { api } from "@/src/utils/api";
 import {
   type AutomationDomain,
   type ActionTypes,
+  ActionTypeSchema,
+  type FilterState,
   type JobConfigState,
+  ProjectNotificationEventTypeSchema,
+  TriggerEventSource,
+  TriggerEventSourceSchema,
   webhookActionFilterOptions,
 } from "@langfuse/shared";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { DeleteAutomationButton } from "./DeleteAutomationButton";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { ActionHandlerRegistry } from "./actions";
 import { webhookSchema } from "./actions/WebhookActionForm";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import Link from "next/link";
+import { Info } from "lucide-react";
 
 // Define Slack action schema
 const slackSchema = z.object({
@@ -55,44 +64,296 @@ const slackSchema = z.object({
 
 // Define GitHub Dispatch action schema
 const githubDispatchSchema = z.object({
-  url: z.string().url("Invalid URL"),
+  url: z.url("Invalid URL"),
   eventType: z.string().min(1, "Event type is required").max(100),
   githubToken: z.string(),
   displayGitHubToken: z.string().optional(),
 });
 
-// Define the TriggerEventSource enum directly in this file to match the backend
-enum TriggerEventSource {
-  Prompt = "prompt",
-}
+/** promptEventActionDefaults is the default eventAction set for a fresh prompt-source automation. */
+const promptEventActionDefaults: string[] = ["created", "updated", "deleted"];
+
+/** projectNotificationName derives the auto-generated channel name from the destination — the name field is hidden for this source. */
+const projectNotificationName = (data: FormValues): string => {
+  if (data.actionType === "SLACK") return `Slack #${data.slack.channelName}`;
+  if (data.actionType === "WEBHOOK") {
+    try {
+      return `Webhook ${new URL(data.webhook.url).hostname}`;
+    } catch {
+      return "Webhook";
+    }
+  }
+  return "Project notification";
+};
+
+/** CreateAutomationPrefill pre-fills the create-automation form from a deep link. */
+export type CreateAutomationPrefill = {
+  eventSource?: TriggerEventSource;
+  filter?: FilterState;
+  actionType?: ActionTypes;
+  /** redirectUrl is a same-origin path the caller wants to return to after the automation is saved. */
+  redirectUrl?: string;
+};
+
+/** isSameOriginRedirect resolves a candidate URL against the current Next-rendered origin and accepts it only if the resulting origin still matches; falls back to path-only validation during SSR where `window` is absent. */
+const isSameOriginRedirect = (url: string): boolean => {
+  if (url.startsWith("//")) return false;
+  if (typeof window === "undefined") {
+    // Without window we cannot resolve absolute URLs; trust relative paths only.
+    return url.startsWith("/") && !url.includes("\\");
+  }
+  try {
+    const resolved = new URL(url, window.location.origin);
+    return resolved.origin === window.location.origin;
+  } catch {
+    return false;
+  }
+};
+
+/** safeRedirectPath defends against open-redirect by requiring the URL to resolve back to the current origin. */
+const safeRedirectPath = z.string().refine(isSameOriginRedirect, {
+  message: "redirectUrl must resolve to the same origin",
+});
+
+/** createAutomationPrefillSchema validates a decoded prefill payload. */
+const createAutomationPrefillSchema = z.object({
+  eventSource: TriggerEventSourceSchema.optional(),
+  filter: z.array(z.any()).optional(),
+  actionType: ActionTypeSchema.optional(),
+  redirectUrl: safeRedirectPath.optional(),
+});
+
+/** parseCreateAutomationPrefill decodes a base64url JSON blob into a typed prefill; returns {} when absent or malformed. */
+export const parseCreateAutomationPrefill = (
+  raw: string | null | undefined,
+): CreateAutomationPrefill => {
+  if (!raw) return {};
+  try {
+    const padded = raw.replace(/-/g, "+").replace(/_/g, "/");
+    const binary = atob(padded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const decoded = new TextDecoder().decode(bytes);
+    const result = createAutomationPrefillSchema.safeParse(JSON.parse(decoded));
+    return result.success ? (result.data as CreateAutomationPrefill) : {};
+  } catch {
+    return {};
+  }
+};
+
+/** serializeCreateAutomationPrefill encodes a typed prefill as a base64url JSON blob for a single URL query param, UTF-8-safe so non-ASCII tags don't throw at btoa. */
+const serializeCreateAutomationPrefill = (
+  prefill: CreateAutomationPrefill,
+): string => {
+  const bytes = new TextEncoder().encode(JSON.stringify(prefill));
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++)
+    binary += String.fromCharCode(bytes[i]);
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+};
+
+/** automationCreateHref builds the deep-link to the automations create form, prefilling eventSource as Monitor and (optionally) the chosen actionType + a same-origin redirectUrl to return to after save. */
+export const automationCreateHref = (
+  projectId: string,
+  actionType?: ActionTypes,
+  redirectUrl?: string,
+): string => {
+  const prefill = serializeCreateAutomationPrefill({
+    eventSource: TriggerEventSource.Monitor,
+    ...(actionType ? { actionType } : {}),
+    ...(redirectUrl ? { redirectUrl } : {}),
+  });
+  const params = new URLSearchParams({ view: "create", prefill });
+  return `/project/${projectId}/automations?${params.toString()}`;
+};
 
 // Define schemas for form validation
 const baseFormSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
   eventSource: z.string().min(1, "Event source is required"),
-  eventAction: z
-    .array(z.string())
-    .min(1, "At least one event action is required"),
+  eventAction: z.array(z.string()),
   status: z.enum(["ACTIVE", "INACTIVE"]),
   filter: z.array(z.any()).optional(),
 });
 
-const formSchema = z.discriminatedUnion("actionType", [
-  baseFormSchema.extend({
-    actionType: z.literal("WEBHOOK"),
-    webhook: webhookSchema,
-  }),
-  baseFormSchema.extend({
-    actionType: z.literal("SLACK"),
-    slack: slackSchema,
-  }),
-  baseFormSchema.extend({
-    actionType: z.literal("GITHUB_DISPATCH"),
-    githubDispatch: githubDispatchSchema,
-  }),
-]);
+const formSchema = z
+  .discriminatedUnion("actionType", [
+    baseFormSchema.extend({
+      actionType: z.literal("WEBHOOK"),
+      webhook: webhookSchema,
+    }),
+    baseFormSchema.extend({
+      actionType: z.literal("SLACK"),
+      slack: slackSchema,
+    }),
+    baseFormSchema.extend({
+      actionType: z.literal("GITHUB_DISPATCH"),
+      githubDispatch: githubDispatchSchema,
+    }),
+  ])
+  .superRefine((data, ctx) => {
+    // Prompt-source triggers require at least one event action; monitor and
+    // project-notification sources don't use this field (project-notification
+    // triggers are match-all).
+    if (
+      data.eventSource === TriggerEventSource.Prompt &&
+      data.eventAction.length === 0
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["eventAction"],
+        message: "At least one event action is required",
+      });
+    }
+  });
 
 type FormValues = z.infer<typeof formSchema>;
+
+/** EventSourceField renders the trigger source picker and routes changes through onSourceChange so the parent can reset dependent fields. */
+const EventSourceField = ({
+  control,
+  onSourceChange,
+  disabled,
+}: {
+  control: Control<FormValues>;
+  onSourceChange: (value: TriggerEventSource) => void;
+  disabled: boolean;
+}) => {
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  return (
+    <FormField
+      control={control}
+      name="eventSource"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>Event Source</FormLabel>
+          <Select
+            onValueChange={(value) =>
+              onSourceChange(value as TriggerEventSource)
+            }
+            value={field.value}
+            disabled={disabled}
+          >
+            <FormControl>
+              <SelectTrigger>
+                <SelectValue placeholder="Select an event source" />
+              </SelectTrigger>
+            </FormControl>
+            <SelectContent>
+              <SelectItem value={TriggerEventSource.Prompt}>Prompt</SelectItem>
+              {(isLangfuseCloud ||
+                field.value === TriggerEventSource.Monitor) && (
+                <SelectItem value={TriggerEventSource.Monitor}>
+                  Monitor
+                </SelectItem>
+              )}
+              <SelectItem disabled={true} value="planned">
+                More coming soon...
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          <FormDescription>
+            The event that triggers this automation.
+          </FormDescription>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+};
+
+/** PromptTriggerFields renders the eventAction picker and inline filter builder for prompt-source automations. */
+const PromptTriggerFields = ({
+  control,
+  disabled,
+}: {
+  control: Control<FormValues>;
+  disabled: boolean;
+}) => (
+  <>
+    <FormField
+      control={control}
+      name="eventAction"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>Event Action</FormLabel>
+          <FormControl>
+            <MultiSelect
+              title="Event Actions"
+              label="Actions"
+              values={field.value}
+              onValueChange={field.onChange}
+              options={[
+                {
+                  value: "created",
+                  description: "Whenever a new prompt version is created",
+                },
+                {
+                  value: "updated",
+                  description:
+                    "Whenever tags or labels on a prompt version are updated",
+                },
+                {
+                  value: "deleted",
+                  description: "Whenever a prompt version is deleted",
+                },
+              ]}
+              className="my-0 w-auto overflow-hidden"
+              disabled={disabled}
+              labelTruncateCutOff={4}
+            />
+          </FormControl>
+          <FormDescription>
+            The actions on the event source that trigger this automation.
+          </FormDescription>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+    <FormField
+      control={control}
+      name="filter"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>Filter</FormLabel>
+          <FormControl>
+            <InlineFilterBuilder
+              columns={webhookActionFilterOptions()}
+              filterState={field.value || []}
+              onChange={field.onChange}
+              disabled={disabled}
+            />
+          </FormControl>
+          <FormDescription>
+            Add conditions to narrow down when this trigger fires.
+          </FormDescription>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  </>
+);
+
+/** MonitorTriggerFields renders an info card explaining that monitors connect to this automation via the create-monitor page. */
+const MonitorTriggerFields = ({ projectId }: { projectId: string }) => (
+  <Alert>
+    <Info className="h-4 w-4" />
+    <AlertTitle>How Monitors Connect</AlertTitle>
+    <AlertDescription>
+      Add this automation to a monitor from the{" "}
+      <Link
+        href={`/project/${projectId}/monitors/new`}
+        className="text-primary underline underline-offset-2"
+      >
+        create monitors page
+      </Link>
+      .
+    </AlertDescription>
+  </Alert>
+);
 
 interface AutomationFormProps {
   projectId: string;
@@ -102,8 +363,15 @@ interface AutomationFormProps {
     actionType?: "WEBHOOK" | "GITHUB_DISPATCH",
   ) => void;
   onCancel?: () => void;
+  /** automation is the existing record being edited. Mutually exclusive with prefill in practice. */
   automation?: AutomationDomain;
   isEditing?: boolean;
+  /** prefill is the pre-parsed deep-link payload (decoded by the caller). Ignored when automation is set. */
+  prefill?: CreateAutomationPrefill | null;
+  /** lockedEventSource fixes the trigger source and hides the source picker (e.g. the project-notifications settings section). */
+  lockedEventSource?: TriggerEventSource;
+  /** allowedActionTypes restricts the action-type picker; defaults to all registered action types. */
+  allowedActionTypes?: ActionTypes[];
 }
 
 export const AutomationForm = ({
@@ -112,9 +380,11 @@ export const AutomationForm = ({
   onCancel,
   automation,
   isEditing = false,
+  prefill,
+  lockedEventSource,
+  allowedActionTypes,
 }: AutomationFormProps) => {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<string>("webhook");
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "automations:CUD",
@@ -140,42 +410,67 @@ export const AutomationForm = ({
     },
   );
 
+  // Prefill is empty when editing an existing automation; otherwise the caller-decoded payload is used directly.
+  const parsedPrefill: CreateAutomationPrefill = automation
+    ? {}
+    : (prefill ?? {});
+
   // Get the action type for the form when editing
-  const getActionType = () => {
-    if (automation?.action?.type) {
-      return automation.action.type as ActionTypes;
-    }
-    return "WEBHOOK";
-  };
+  const getActionType = (): ActionTypes =>
+    (automation?.action.type as ActionTypes | undefined) ??
+    parsedPrefill.actionType ??
+    "WEBHOOK";
 
   // Get default values based on action type
   const getDefaultValues = (): FormValues => {
     const actionType = getActionType();
-    const today = new Date().toLocaleString("sv").split("T")[0]; // YYYY-MM-DD
+
+    const resolvedEventSource: TriggerEventSource =
+      automation?.trigger.eventSource ??
+      lockedEventSource ??
+      parsedPrefill.eventSource ??
+      TriggerEventSource.Prompt;
+
+    const resolvedEventAction: string[] =
+      automation?.trigger.eventActions ??
+      (resolvedEventSource === TriggerEventSource.Prompt
+        ? promptEventActionDefaults
+        : resolvedEventSource === TriggerEventSource.ProjectNotification
+          ? // New channels start with every event enabled; the per-event
+            // toggles in the settings section manage them afterwards.
+            [...ProjectNotificationEventTypeSchema.options]
+          : []);
+
+    const resolvedFilter: FilterState =
+      automation?.trigger.filter ?? parsedPrefill.filter ?? [];
 
     const baseValues = {
+      // Project-notification names are auto-generated at submit; seed a
+      // non-empty placeholder so the hidden field passes validation.
       name:
-        isEditing && automation ? automation.name : `${actionType} ${today}`,
-      eventSource: automation
-        ? automation.trigger.eventSource
-        : TriggerEventSource.Prompt,
-      eventAction: automation
-        ? automation.trigger.eventActions
-        : ["created", "updated", "deleted"],
+        isEditing && automation
+          ? automation.name
+          : resolvedEventSource === TriggerEventSource.ProjectNotification
+            ? "Project notification"
+            : "",
+      eventSource: resolvedEventSource,
+      eventAction: resolvedEventAction,
       status: (isEditing && automation
         ? automation.trigger.status
         : "ACTIVE") as "ACTIVE" | "INACTIVE",
-      filter: automation ? automation.trigger.filter || [] : [],
+      filter: resolvedFilter,
     };
 
     if (actionType === "WEBHOOK") {
       // Use action handler to get default values with proper typing
       const handler = ActionHandlerRegistry.getHandler("WEBHOOK");
-      const webhookDefaults = handler.getDefaultValues(automation);
+      const webhookDefaults = handler.getDefaultValues(
+        automation,
+        resolvedEventSource,
+      );
       return {
         ...baseValues,
         actionType: "WEBHOOK" as const,
-        eventSource: TriggerEventSource.Prompt,
         webhook: {
           url: webhookDefaults.webhook.url || "",
           headers: webhookDefaults.webhook.headers || [],
@@ -191,7 +486,6 @@ export const AutomationForm = ({
       return {
         ...baseValues,
         actionType: "SLACK" as const,
-        eventSource: TriggerEventSource.Prompt,
         slack: {
           channelId: slackDefaults.slack.channelId || "",
           channelName: slackDefaults.slack.channelName || "",
@@ -205,7 +499,6 @@ export const AutomationForm = ({
       return {
         ...baseValues,
         actionType: "GITHUB_DISPATCH" as const,
-        eventSource: TriggerEventSource.Prompt,
         githubDispatch: {
           url: githubDefaults.githubDispatch.url || "",
           eventType: githubDefaults.githubDispatch.eventType || "",
@@ -214,9 +507,8 @@ export const AutomationForm = ({
             githubDefaults.githubDispatch.displayGitHubToken || undefined,
         },
       };
-    } else {
-      throw new Error("Invalid action type");
     }
+    throw new Error("Invalid action type");
   };
 
   // Initialize form with default values or values from existing automation
@@ -224,13 +516,6 @@ export const AutomationForm = ({
     resolver: zodResolver(formSchema),
     defaultValues: getDefaultValues(),
   });
-
-  // Set the active tab based on the action type
-  useEffect(() => {
-    if (isEditing && automation?.action?.type) {
-      setActiveTab(automation.action.type.toLowerCase());
-    }
-  }, [isEditing, automation]);
 
   // Handle form submission
   const onSubmit = async (data: FormValues) => {
@@ -256,12 +541,20 @@ export const AutomationForm = ({
 
     const actionConfig = handler.buildActionConfig(data);
 
+    // Project-notification names are auto-generated from the destination (the
+    // name field is hidden for this source; regenerated on every save so the
+    // name follows destination edits).
+    const resolvedName =
+      data.eventSource === TriggerEventSource.ProjectNotification
+        ? projectNotificationName(data)
+        : data.name;
+
     if (isEditing && automation) {
       // Update existing automation
       await updateAutomationMutation.mutateAsync({
         projectId,
         automationId: automation.id,
-        name: data.name,
+        name: resolvedName,
         eventSource: data.eventSource,
         eventAction: data.eventAction,
         filter: data.filter && data.filter.length > 0 ? data.filter : null,
@@ -272,7 +565,7 @@ export const AutomationForm = ({
 
       showSuccessToast({
         title: "Automation Updated",
-        description: `Successfully updated automation "${data.name}".`,
+        description: `Successfully updated automation "${resolvedName}".`,
       });
 
       onSuccess?.(automation.id);
@@ -280,7 +573,7 @@ export const AutomationForm = ({
       // Create new automation
       const result = await createAutomationMutation.mutateAsync({
         projectId,
-        name: data.name,
+        name: resolvedName,
         eventSource: data.eventSource,
         eventAction: data.eventAction,
         filter: data.filter && data.filter.length > 0 ? data.filter : null,
@@ -291,7 +584,7 @@ export const AutomationForm = ({
 
       showSuccessToast({
         title: "Automation Created",
-        description: `Successfully created automation "${data.name}".`,
+        description: `Successfully created automation "${resolvedName}".`,
       });
 
       onSuccess?.(
@@ -308,12 +601,14 @@ export const AutomationForm = ({
 
   // Update required fields based on action type
   const handleActionTypeChange = (value: ActionTypes) => {
-    setActiveTab(value.toLowerCase());
     form.setValue("actionType", value);
 
     if (value === "WEBHOOK") {
       const handler = ActionHandlerRegistry.getHandler("WEBHOOK");
-      const defaultValues = handler.getDefaultValues();
+      const defaultValues = handler.getDefaultValues(
+        undefined,
+        form.getValues("eventSource") as TriggerEventSource,
+      );
       form.setValue("webhook", defaultValues.webhook);
     } else if (value === "SLACK") {
       const handler = ActionHandlerRegistry.getHandler("SLACK");
@@ -323,12 +618,6 @@ export const AutomationForm = ({
       const handler = ActionHandlerRegistry.getHandler("GITHUB_DISPATCH");
       const defaultValues = handler.getDefaultValues();
       form.setValue("githubDispatch", defaultValues.githubDispatch);
-    }
-
-    // If we are creating a new automation, update the default name
-    if (!automation) {
-      const today = new Date().toLocaleString("sv").split("T")[0];
-      form.setValue("name", `${value} ${today}`);
     }
   };
 
@@ -354,10 +643,29 @@ export const AutomationForm = ({
 
   const currentActionHandler = getCurrentActionHandler();
 
+  /** watchedEventSource drives the conditional trigger UI (prompt → filter builder, monitor → tag picker). */
+  const watchedEventSource = form.watch("eventSource") as TriggerEventSource;
+
+  // Project-notification channels are deliberately minimal: match-all trigger
+  // (no trigger card), auto-generated name, no status toggle.
+  const isProjectNotification =
+    watchedEventSource === TriggerEventSource.ProjectNotification;
+
+  /** handleEventSourceChange resets eventAction + filter to defaults appropriate for the picked source. */
+  const handleEventSourceChange = (value: TriggerEventSource) => {
+    form.setValue("eventSource", value);
+    if (value === TriggerEventSource.Monitor) {
+      form.setValue("eventAction", []);
+    } else {
+      form.setValue("eventAction", promptEventActionDefaults);
+    }
+    form.setValue("filter", []);
+  };
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        {isEditing && (
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-6">
+        {isEditing && !isProjectNotification && (
           <div className="mb-6 flex items-center gap-4">
             <div className="flex-1">
               <FormField
@@ -370,8 +678,9 @@ export const AutomationForm = ({
                       <Input
                         placeholder="Automation name"
                         {...field}
+                        autoFocus={!automation}
                         disabled={!hasAccess || !isEditing}
-                        className="rounded-none border-0 border-b border-border bg-transparent px-0 text-2xl font-semibold focus-visible:ring-0 focus-visible:ring-offset-0"
+                        className="border-border rounded-none border-0 border-b bg-transparent px-0 text-2xl font-semibold focus-visible:ring-0 focus-visible:ring-offset-0"
                       />
                     </FormControl>
                     <FormMessage />
@@ -401,114 +710,34 @@ export const AutomationForm = ({
           </div>
         )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Trigger</CardTitle>
-            <CardDescription>
-              Configure when this automation should run.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <FormField
-              control={form.control}
-              name="eventSource"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Event Source</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    value={field.value}
-                    disabled={!hasAccess || !isEditing}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select an event source" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value={TriggerEventSource.Prompt}>
-                        Prompt
-                      </SelectItem>
-                      <SelectItem disabled={true} value="planned">
-                        More coming soon...
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormDescription>
-                    The event that triggers this automation.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
+        {/* Project-notification triggers are match-all, so there is nothing to configure. */}
+        {!isProjectNotification && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Trigger</CardTitle>
+              <CardDescription>
+                Configure when this automation should run.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!lockedEventSource && (
+                <EventSourceField
+                  control={form.control}
+                  onSourceChange={handleEventSourceChange}
+                  disabled={!hasAccess || !isEditing}
+                />
               )}
-            />
-            <FormField
-              control={form.control}
-              name="eventAction"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Event Action</FormLabel>
-                  <FormControl>
-                    <MultiSelect
-                      title="Event Actions"
-                      label="Actions"
-                      values={field.value}
-                      onValueChange={field.onChange}
-                      options={[
-                        {
-                          value: "created",
-                          description:
-                            "Whenever a new prompt version is created",
-                        },
-                        {
-                          value: "updated",
-                          description:
-                            "Whenever tags or labels on a prompt version are updated",
-                        },
-                        {
-                          value: "deleted",
-                          description: "Whenever a prompt version is deleted",
-                        },
-                      ]}
-                      className="my-0 w-auto overflow-hidden"
-                      disabled={!hasAccess || !isEditing}
-                      labelTruncateCutOff={4}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    The actions on the event source that trigger this
-                    automation.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
+              {watchedEventSource === TriggerEventSource.Monitor ? (
+                <MonitorTriggerFields projectId={projectId} />
+              ) : (
+                <PromptTriggerFields
+                  control={form.control}
+                  disabled={!hasAccess || !isEditing}
+                />
               )}
-            />
-            <FormField
-              control={form.control}
-              name="filter"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Filter</FormLabel>
-                  <FormControl>
-                    <InlineFilterBuilder
-                      columns={webhookActionFilterOptions()}
-                      filterState={field.value || []}
-                      onChange={field.onChange}
-                      disabled={
-                        activeTab === "annotation_queue" ||
-                        !hasAccess ||
-                        !isEditing
-                      }
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Add conditions to narrow down when this trigger fires.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>
@@ -535,19 +764,20 @@ export const AutomationForm = ({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {ActionHandlerRegistry.getAllActionTypes().map(
-                        (actionType) => (
-                          <SelectItem key={actionType} value={actionType}>
-                            {actionType === "WEBHOOK"
-                              ? "Webhook"
-                              : actionType === "SLACK"
-                                ? "Slack"
-                                : actionType === "GITHUB_DISPATCH"
-                                  ? "GitHub Dispatch"
-                                  : "Annotation Queue"}
-                          </SelectItem>
-                        ),
-                      )}
+                      {(
+                        allowedActionTypes ??
+                        ActionHandlerRegistry.getAllActionTypes()
+                      ).map((actionType) => (
+                        <SelectItem key={actionType} value={actionType}>
+                          {actionType === "WEBHOOK"
+                            ? "Webhook"
+                            : actionType === "SLACK"
+                              ? "Slack"
+                              : actionType === "GITHUB_DISPATCH"
+                                ? "GitHub Dispatch"
+                                : "Annotation Queue"}
+                        </SelectItem>
+                      ))}
                       <SelectItem disabled={true} value="planned">
                         More coming soon...
                       </SelectItem>
@@ -575,20 +805,24 @@ export const AutomationForm = ({
 
         {isEditing && (
           <div className="flex justify-between gap-3">
-            {isEditing && automation?.trigger.id && automation?.action.id && (
-              <div>
-                <DeleteAutomationButton
-                  projectId={projectId}
-                  automationId={automation.id}
-                  variant="button"
-                  onSuccess={() => {
-                    utils.automations.invalidate();
-                    router.push(`/project/${projectId}/settings/automations`);
-                  }}
-                />
-              </div>
-            )}
-            <div className="flex-grow"></div>
+            {/* Project-notification channels are deleted from the channel list; the in-form delete redirects to the automations page. */}
+            {isEditing &&
+              !isProjectNotification &&
+              automation?.trigger.id &&
+              automation?.action.id && (
+                <div>
+                  <DeleteAutomationButton
+                    projectId={projectId}
+                    automationId={automation.id}
+                    variant="button"
+                    onSuccess={() => {
+                      utils.automations.invalidate();
+                      router.push(`/project/${projectId}/settings/automations`);
+                    }}
+                  />
+                </div>
+              )}
+            <div className="grow"></div>
             <div className="flex gap-3">
               <Button type="button" variant="outline" onClick={handleCancel}>
                 Cancel

@@ -1,4 +1,10 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 
 interface CommandMenuContextType {
   open: boolean;
@@ -12,8 +18,12 @@ const CommandMenuContext = createContext<CommandMenuContextType | undefined>(
 export function CommandMenuProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
 
+  const value = useMemo(() => {
+    return { open, setOpen };
+  }, [open]);
+
   return (
-    <CommandMenuContext.Provider value={{ open, setOpen }}>
+    <CommandMenuContext.Provider value={value}>
       {children}
     </CommandMenuContext.Provider>
   );

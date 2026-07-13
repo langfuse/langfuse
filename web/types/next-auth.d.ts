@@ -23,6 +23,12 @@ declare module "next-auth" {
       enableExperimentalFeatures: boolean;
       // Enables features that are only available under an enterprise/commercial license when self-hosting Langfuse
       selfHostedInstancePlan: Plan | null;
+      // V4 migration write mode. Mirrors LANGFUSE_MIGRATION_V4_WRITE_MODE so the
+      // client can tell whether the legacy traces/observations tables are still
+      // written and gate the V4 preview / legacy experiences accordingly.
+      // Optional so existing session mocks need not set it; the real session
+      // callback always populates it.
+      v4WriteMode?: "legacy" | "dual" | "events_only";
     };
   }
 
@@ -33,6 +39,8 @@ declare module "next-auth" {
     emailSupportHash?: string | null;
     image?: PrismaUser["image"];
     admin?: PrismaUser["admin"];
+    v4BetaEnabled?: boolean;
+    canToggleV4?: boolean;
     emailVerified?: string | null; // iso datetime string, need to stringify as JWT & useSession do not support Date objects
     canCreateOrganizations: boolean; // default true, allowlist can be set via LANGFUSE_ALLOWED_ORGANIZATION_CREATORS
     organizations: {
@@ -43,16 +51,20 @@ declare module "next-auth" {
       plan: Plan;
       metadata: Record<string, unknown>;
       aiFeaturesEnabled: boolean;
+      aiTelemetryEnabled: boolean;
       projects: {
         id: PrismaProject["id"];
         name: PrismaProject["name"];
         deletedAt: PrismaProject["deletedAt"];
         retentionDays: PrismaProject["retentionDays"];
+        hasTraces: PrismaProject["hasTraces"];
         metadata: Record<string, unknown>;
         role: Role; // include only projects where user has a role
+        createdAt: string; // iso datetime string — JWT does not support Date objects
       }[];
     }[];
     featureFlags: Flags;
+    hasPassword?: boolean;
   }
 }
 

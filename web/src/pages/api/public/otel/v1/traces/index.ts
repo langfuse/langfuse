@@ -2,13 +2,17 @@ import { withMiddlewares } from "@/src/features/public-api/server/withMiddleware
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   logger,
+  markProjectIngestFailure,
   OtelIngestionProcessor,
   markProjectAsOtelUser,
+  createIngestionAttribution,
+  getLangfuseHeaderValue,
 } from "@langfuse/shared/src/server";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 import { gunzip } from "node:zlib";
 import { ForbiddenError } from "@langfuse/shared";
+import { env } from "@/src/env.mjs";
 
 export const config = {
   api: {
@@ -103,14 +107,82 @@ export default withMiddlewares({
         return {};
       }
 
+      // Warn on oversized OTEL request bodies (16MB threshold)
+      const bodyBytes = body.byteLength;
+      if (bodyBytes > 16 * 1024 * 1024) {
+        let spanCount = 0;
+        for (const rs of resourceSpans) {
+          for (const ss of rs?.scopeSpans ?? []) {
+            spanCount += ss?.spans?.length ?? 0;
+          }
+        }
+        logger.warn("OTEL request body exceeds 16MB", {
+          projectId: auth.scope.projectId,
+          bodyBytes,
+          spanCount,
+        });
+      }
+
+      // Extract SDK headers for write path decision (supports both hyphen and underscore formats)
+      const attribution = createIngestionAttribution({
+        headers: req.headers,
+        authCheck: auth,
+      });
+      const ingestionVersion = getLangfuseHeaderValue(
+        req.headers,
+        "x-langfuse-ingestion-version",
+      );
+
+      // Reject unsupported future ingestion versions (> 4)
+      // Lower versions are valid but use dual write (path A)
+      const parsedIngestionVersion = ingestionVersion
+        ? parseInt(ingestionVersion, 10)
+        : undefined;
+      if (
+        parsedIngestionVersion !== undefined &&
+        (isNaN(parsedIngestionVersion) || parsedIngestionVersion > 4)
+      ) {
+        res.status(400);
+        return {
+          error: `Unsupported x-langfuse-ingestion-version: "${ingestionVersion}". Maximum supported: "4".`,
+        };
+      }
+
+      // Extract headers to propagate for ingestion masking
+      const propagatedHeaderNames =
+        env.LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS;
+      const propagatedHeaders: Record<string, string> = {};
+      for (const headerName of propagatedHeaderNames) {
+        const value = req.headers[headerName];
+        if (typeof value === "string") {
+          propagatedHeaders[headerName] = value;
+        }
+      }
+
       const processor = new OtelIngestionProcessor({
         projectId: auth.scope.projectId,
         publicKey: auth.scope.publicKey,
+        orgId: auth.scope.orgId,
+        propagatedHeaders:
+          Object.keys(propagatedHeaders).length > 0
+            ? propagatedHeaders
+            : undefined,
+        sdkName: attribution.ingestionSdkName,
+        sdkVersion: attribution.ingestionSdkVersion,
+        ingestionVersion,
       });
 
       // At this point, we have the raw OpenTelemetry Span body. We upload the full batch to S3
       // and the OtelIngestionProcessor logic will handle processing in the worker container.
-      return processor.publishToOtelIngestionQueue(resourceSpans);
+      try {
+        return await processor.publishToOtelIngestionQueue(resourceSpans);
+      } catch (error) {
+        markProjectIngestFailure(auth.scope.projectId, {
+          source: "public_otel_api",
+          reason: "publish_failed",
+        });
+        throw error;
+      }
     },
   }),
 });

@@ -1,7 +1,16 @@
 import { useMemo, useEffect, useRef } from "react";
-import { ArrowDown, AlertCircle, CheckCircle2 } from "lucide-react";
+import {
+  ArrowDown,
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle2,
+} from "lucide-react";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import {
+  IssueList,
+  IssueItem,
+} from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/components/IssueBanner";
 import type {
   FieldMappingConfig,
   SourceField,
@@ -11,6 +20,8 @@ import type {
 import {
   applyFieldMappingConfig,
   validateFieldAgainstSchema,
+  type JsonPathMissInfo,
+  type JsonPathErrorInfo,
 } from "@langfuse/shared";
 
 type MappingPreviewPanelProps = {
@@ -55,11 +66,16 @@ export function MappingPreviewPanel({
     return observationData[defaultSourceField];
   }, [observationData, config, defaultSourceField]);
 
-  // Compute result data
-  const resultData = useMemo(() => {
-    if (!observationData) return null;
+  // Compute result data and collect JSONPath misses / syntax errors
+  const { resultData, jsonPathMisses, jsonPathErrors } = useMemo(() => {
+    if (!observationData)
+      return {
+        resultData: null,
+        jsonPathMisses: [] as JsonPathMissInfo[],
+        jsonPathErrors: [] as JsonPathErrorInfo[],
+      };
 
-    return applyFieldMappingConfig({
+    const result = applyFieldMappingConfig({
       observation: {
         input: observationData.input,
         output: observationData.output,
@@ -68,11 +84,31 @@ export function MappingPreviewPanel({
       config,
       defaultSourceField,
     });
+
+    return {
+      resultData: result.value,
+      jsonPathMisses: result.misses,
+      jsonPathErrors: result.errors,
+    };
   }, [observationData, config, defaultSourceField]);
 
-  // Validate result against schema
+  // Validate result against schema, and treat JSONPath syntax errors as validation failures
   const validationResult = useMemo(() => {
-    // Skip validation if no schema or "none" mode
+    const jsonPathErrorItems: SchemaValidationError[] = jsonPathErrors.map(
+      (err) => ({
+        path: err.mappingKey
+          ? `${err.sourceField} (key: "${err.mappingKey}")`
+          : err.sourceField,
+        message: `Invalid JSONPath "${err.jsonPath}": ${err.message}`,
+      }),
+    );
+
+    // Any JSONPath syntax error blocks the mapping regardless of schema
+    if (jsonPathErrorItems.length > 0) {
+      return { isValid: false, errors: jsonPathErrorItems };
+    }
+
+    // Skip schema validation if no schema or "none" mode
     if (!hasSchema || config.mode === "none") {
       return { isValid: true, errors: [] as SchemaValidationError[] };
     }
@@ -100,10 +136,10 @@ export function MappingPreviewPanel({
         })),
       };
     } catch {
-      // If validation fails to run, treat as valid (don't block on validation errors)
+      // If schema validation fails to run, treat as valid (don't block on validation errors)
       return { isValid: true, errors: [] as SchemaValidationError[] };
     }
-  }, [hasSchema, config.mode, resultData, schema]);
+  }, [hasSchema, config.mode, resultData, schema, jsonPathErrors]);
 
   // Track previous validation state to avoid redundant callbacks
   const prevValidationRef = useRef<{
@@ -156,7 +192,7 @@ export function MappingPreviewPanel({
       <div className="space-y-4">
         <div>
           <h3 className="text-sm font-semibold">Preview</h3>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-muted-foreground text-xs">
             Sample from first observation
           </p>
         </div>
@@ -171,12 +207,12 @@ export function MappingPreviewPanel({
       <div className="space-y-4">
         <div>
           <h3 className="text-sm font-semibold">Preview</h3>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-muted-foreground text-xs">
             Sample from first observation
           </p>
         </div>
-        <div className="flex h-64 items-center justify-center rounded-md border bg-muted/30 p-4">
-          <p className="text-sm text-muted-foreground">
+        <div className="bg-muted/30 flex h-64 items-center justify-center rounded-md border p-4">
+          <p className="text-muted-foreground text-sm">
             No observation data available
           </p>
         </div>
@@ -188,75 +224,106 @@ export function MappingPreviewPanel({
     <div className="space-y-2">
       <div>
         <h3 className="text-sm font-semibold">Preview</h3>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-muted-foreground text-xs">
           Sample from first observation
         </p>
       </div>
 
       {/* Source data */}
       <div className="space-y-2">
-        <p className="text-xs font-medium text-muted-foreground">
+        <p className="text-muted-foreground text-xs font-medium">
           Source: {sourceLabel}
         </p>
-        <div className="max-h-[21vh] overflow-auto rounded-md border bg-muted/30">
+        <div className="bg-muted/30 max-h-[21vh] overflow-auto rounded-md border">
           <JSONView json={sourceData} className="text-xs" />
         </div>
       </div>
 
       {/* Arrow */}
       <div className="flex justify-center">
-        <ArrowDown className="h-6 w-6 text-muted-foreground" />
+        <ArrowDown className="text-muted-foreground h-6 w-6" />
       </div>
 
       {/* Result data */}
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <p className="text-xs font-medium text-muted-foreground">
+          <p className="text-muted-foreground text-xs font-medium">
             Result: Dataset Item {fieldLabel}
           </p>
           {/* Validation status indicator */}
-          {hasSchema && config.mode !== "none" && (
+          {config.mode !== "none" && (
             <div className="flex items-center gap-1">
-              {validationResult.isValid ? (
+              {jsonPathErrors.length > 0 ||
+              (hasSchema && !validationResult.isValid) ? (
+                <AlertCircle className="text-destructive h-3.5 w-3.5" />
+              ) : jsonPathMisses.length > 0 ? (
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-500" />
+              ) : hasSchema ? (
                 <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
-              ) : (
-                <AlertCircle className="h-3.5 w-3.5 text-destructive" />
-              )}
+              ) : null}
             </div>
           )}
         </div>
         <div
-          className={`max-h-[21vh] overflow-auto rounded-md border bg-background ${
-            hasSchema && !validationResult.isValid && config.mode !== "none"
+          className={`bg-background max-h-[21vh] overflow-auto rounded-md border ${
+            (jsonPathErrors.length > 0 ||
+              (hasSchema && !validationResult.isValid)) &&
+            config.mode !== "none"
               ? "border-destructive"
-              : ""
+              : jsonPathMisses.length > 0 && config.mode !== "none"
+                ? "border-amber-500/50"
+                : ""
           }`}
         >
           {config.mode === "none" ? (
-            <div className="p-3 text-xs italic text-muted-foreground">null</div>
+            <div className="text-muted-foreground p-3 text-xs italic">null</div>
           ) : (
             <JSONView json={resultData} className="text-xs" />
           )}
         </div>
 
-        {/* Validation errors */}
+        {/* JSONPath syntax errors (always blocking) */}
+        {jsonPathErrors.length > 0 && config.mode !== "none" && (
+          <IssueList variant="error" title="Invalid JSONPath:">
+            {jsonPathErrors.map((err, idx) => (
+              <IssueItem key={idx}>
+                <span className="font-mono">{err.jsonPath}</span>
+                {err.mappingKey ? ` (key: "${err.mappingKey}")` : ""}:{" "}
+                {err.message}
+              </IssueItem>
+            ))}
+          </IssueList>
+        )}
+
+        {/* Schema validation errors (only when no blocking JSONPath errors) */}
         {hasSchema &&
-          !validationResult.isValid &&
+          jsonPathErrors.length === 0 &&
           validationResult.errors.length > 0 && (
-            <div className="max-h-[5vh] overflow-y-auto rounded-md border border-destructive/50 bg-destructive/10 p-2">
-              <p className="mb-1 text-xs font-medium text-destructive">
-                Schema validation errors:
-              </p>
-              <ul className="space-y-0.5">
-                {validationResult.errors.map((error, idx) => (
-                  <li key={idx} className="text-xs text-destructive">
-                    <span className="font-mono">{error.path || "root"}</span>:{" "}
-                    {error.message}
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <IssueList variant="error" title="Schema validation errors:">
+              {validationResult.errors.map((error, idx) => (
+                <IssueItem key={idx}>
+                  <span className="font-mono">{error.path || "root"}</span>:{" "}
+                  {error.message}
+                </IssueItem>
+              ))}
+            </IssueList>
           )}
+
+        {/* JSONPath warnings */}
+        {jsonPathMisses.length > 0 && config.mode !== "none" && (
+          <IssueList
+            variant="warning"
+            title="JSONPath warnings (preview observation):"
+          >
+            {jsonPathMisses.map((miss, idx) => (
+              <IssueItem key={idx}>
+                <span className="font-mono">{miss.jsonPath}</span> did not match
+                any data in {miss.sourceField}
+                {miss.mappingKey ? ` (key: "${miss.mappingKey}")` : ""}
+              </IssueItem>
+            ))}
+          </IssueList>
+        )}
       </div>
     </div>
   );

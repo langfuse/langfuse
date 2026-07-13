@@ -1,9 +1,10 @@
-import { Prompt, PrismaClient } from "@prisma/client";
 import { Redis, Cluster } from "ioredis";
+import { randomBytes } from "crypto";
 import { env } from "../../../env";
 import { logger } from "../../logger";
 import { escapeRegex } from "./utils";
-import { safeMultiDel } from "../../redis/redis";
+import { LangfuseConflictError } from "../../../errors";
+import { type Prisma, type PrismaClient, type Prompt } from "../../../db";
 import {
   PromptGraph,
   PromptParams,
@@ -14,16 +15,20 @@ import {
 } from "./types";
 
 import { ParsedPromptDependencyTag } from "../../../features/prompts/parsePromptDependencyTags";
-import { PRODUCTION_LABEL } from "../../../features/prompts/constants";
 
 export const MAX_PROMPT_NESTING_DEPTH = 5;
+type PrismaClientOrTransaction = PrismaClient | Prisma.TransactionClient;
 
 export class PromptService {
   private cacheEnabled: boolean;
   private ttlSeconds: number;
 
+  // Epoch keys live much longer than cache entries. 7 days gives inactive
+  // projects plenty of time while still cleaning up eventually.
+  private epochTtlSeconds = 7 * 24 * 60 * 60;
+
   constructor(
-    private prisma: PrismaClient,
+    private prisma: PrismaClientOrTransaction,
     private redis: Redis | Cluster | null,
 
     private metricIncrementer?: // used for otel metrics
@@ -42,7 +47,11 @@ export class PromptService {
   }
 
   public async getPrompt(params: PromptParams): Promise<PromptResult | null> {
-    if (await this.shouldUseCache(params)) {
+    if (params.resolve === false) {
+      return this.getRawPrompt(params);
+    }
+
+    if (this.cacheEnabled) {
       const cachedPrompt = await this.getCachedPrompt(params);
 
       this.incrementMetric(
@@ -60,7 +69,7 @@ export class PromptService {
 
     const dbPrompt = await this.getDbPrompt(params);
 
-    if ((await this.shouldUseCache(params)) && dbPrompt) {
+    if (this.cacheEnabled && dbPrompt) {
       await this.cachePrompt({ ...params, prompt: dbPrompt });
 
       this.logDebug("Successfully cached prompt for params", params);
@@ -74,22 +83,37 @@ export class PromptService {
   private async getDbPrompt(
     params: PromptParams,
   ): Promise<PromptResult | null> {
+    return this.resolvePrompt(await this.findPrompt(params));
+  }
+
+  private async getRawPrompt(
+    params: PromptParams,
+  ): Promise<PromptResult | null> {
+    const prompt = await this.findPrompt(params);
+
+    if (!prompt) return null;
+
+    return {
+      ...prompt,
+      resolutionGraph: null,
+    };
+  }
+
+  private async findPrompt(params: PromptParams): Promise<Prompt | null> {
     const { projectId, promptName, version, label } = params;
 
     if (version) {
-      const prompt = await this.prisma.prompt.findFirst({
+      return this.prisma.prompt.findFirst({
         where: {
           projectId,
           name: promptName,
           version,
         },
       });
-
-      return this.resolvePrompt(prompt);
     }
 
     if (label) {
-      const prompt = await this.prisma.prompt.findFirst({
+      return this.prisma.prompt.findFirst({
         where: {
           projectId,
           name: promptName,
@@ -98,8 +122,6 @@ export class PromptService {
           },
         },
       });
-
-      return this.resolvePrompt(prompt);
     }
 
     this.logError("Invalid prompt params", params);
@@ -121,29 +143,17 @@ export class PromptService {
       ...prompt,
       prompt: promptGraph.resolvedPrompt,
       resolutionGraph: promptGraph.graph,
-      // Compute isActive based on labels (deprecated field in DB)
-      isActive: prompt.labels.includes(PRODUCTION_LABEL),
     };
-  }
-
-  private async shouldUseCache(params: PromptParams): Promise<boolean> {
-    if (!this.cacheEnabled) return false;
-
-    const isLocked = await this.isCacheLocked(params);
-
-    if (isLocked) {
-      this.logInfo("Cache is locked for params", params);
-    }
-
-    return !isLocked;
   }
 
   private async getCachedPrompt(
     params: PromptParams,
   ): Promise<PromptResult | null> {
     try {
-      const key = this.getCacheKey(params);
-      const value = await this.redis?.getex(key, "EX", this.ttlSeconds);
+      const key = await this.getCacheKey(params);
+      if (!key) return null;
+
+      const value = await this.redis?.get(key);
 
       if (value) return JSON.parse(value) as PromptResult;
     } catch (e) {
@@ -155,120 +165,72 @@ export class PromptService {
 
   private async cachePrompt(params: PromptParams & { prompt: PromptResult }) {
     try {
-      const keyIndexKey = this.getKeyIndexKey(params);
-      const key = this.getCacheKey(params);
+      const key = await this.getCacheKey(params);
+      if (!key) return;
+
       const value = JSON.stringify(params.prompt);
 
-      await this.redis?.sadd(keyIndexKey, key);
       await this.redis?.set(key, value, "EX", this.ttlSeconds);
     } catch (e) {
       this.logError("Error caching prompt", e);
     }
   }
 
-  /**
-   * Lock the cache so reads will go to the database and not to Redis
-   *
-   * This is useful in order to return consistent data during the
-   * invalidation of the cache where we are looping through the relevant cache keys
-   */
-  public async lockCache(
-    params: Pick<PromptParams, "projectId" | "promptName">,
-  ): Promise<void> {
-    if (!this.cacheEnabled) return;
-
-    const lockKey = this.getLockKey(params);
-
-    try {
-      await this.redis?.setex(lockKey, 30, "locked");
-    } catch (e) {
-      this.logError("Error locking cache key prefix", lockKey, e);
-
-      throw e;
-    }
-  }
-
-  public async unlockCache(
-    params: Pick<PromptParams, "projectId" | "promptName">,
-  ): Promise<void> {
-    if (!this.cacheEnabled) return;
-
-    const lockKey = this.getLockKey(params);
-
-    try {
-      await this.redis?.del(lockKey);
-    } catch (e) {
-      this.logError("Error unlocking cache key prefix", lockKey, e);
-
-      // Don't re-throw error as lock TTL is short and it's not critical
-    }
-  }
-
-  private async isCacheLocked(
-    params: Pick<PromptParams, "projectId" | "promptName">,
-  ): Promise<boolean> {
-    const lockKey = this.getLockKey(params);
-
-    try {
-      return Boolean(await this.redis?.exists(lockKey));
-    } catch (e) {
-      this.logError("Error checking if cache is locked", lockKey, e);
-
-      return false;
-    }
-  }
-
-  private getLockKey(
-    params: Pick<PromptParams, "projectId" | "promptName">,
-  ): string {
-    // Important to *pre*fix LOCK as otherwise it would be deleted by deleteKeysByPrefix
-    return `LOCK:prompt:${params.projectId}`;
-  }
-
   public async invalidateCache(
-    params: Pick<PromptParams, "projectId" | "promptName">,
+    params: Pick<PromptParams, "projectId">,
   ): Promise<void> {
     if (!this.cacheEnabled) return;
 
-    const keyIndexKey = this.getKeyIndexKey(params);
-    const keys = await this.redis?.smembers(keyIndexKey);
-
-    /*
-     * Previously, the cache key index was based on both projectId and promptName.
-     * Now with prompt composability, we only use projectId for the key index.
-     * When invalidating the cache, we delete all keys for a projectId.
-     * For backwards compatibility, we also clear any existing entries in the old
-     * key index format (projectId + promptName) to ensure consistent caching.
-     */
-    const legacyKeyIndexKey = `${keyIndexKey}:${params.promptName}`;
-    const legacyKeys = await this.redis?.smembers(legacyKeyIndexKey);
-
-    // Delete all keys for the prefix and the key index using safe multi-delete
-    const keysToDelete = [
-      ...(keys ?? []),
-      keyIndexKey,
-      ...(legacyKeys ?? []),
-      legacyKeyIndexKey,
-    ];
-    await safeMultiDel(this.redis, keysToDelete);
+    // Rotate the epoch token to move all prompt reads/writes to a fresh namespace.
+    // Old keys remain untouched and naturally expire via TTL.
+    await this.redis?.set(
+      this.getEpochKey(params),
+      this.newEpochToken(),
+      "EX",
+      this.epochTtlSeconds,
+    );
   }
 
-  private getCacheKey(params: PromptParams): string {
-    const prefix = this.getCacheKeyPrefix(params);
+  private async getCacheKey(params: PromptParams): Promise<string | null> {
+    const epoch = await this.getOrCreateEpoch(params);
+    if (!epoch) return null;
+
+    const prefix = this.getCacheKeyPrefix(params, epoch);
 
     return `${prefix}:${params.version ?? params.label}`;
   }
 
   private getCacheKeyPrefix(
     params: Pick<PromptParams, "projectId" | "promptName">,
+    epoch: string,
   ): string {
-    return `prompt:${params.projectId}:${params.promptName}`;
+    return `prompt:${params.projectId}:${epoch}:${params.promptName}`;
   }
 
-  private getKeyIndexKey(
-    params: Pick<PromptParams, "projectId" | "promptName">,
-  ): string {
-    return `prompt_key_index:${params.projectId}`;
+  private getEpochKey(params: Pick<PromptParams, "projectId">): string {
+    // Important: epoch is project-scoped (not prompt-scoped) because resolved prompts
+    // can include transitive dependencies across multiple prompt names.
+    return `prompt_cache_epoch:${params.projectId}`;
+  }
+
+  private newEpochToken(): string {
+    // 48 bits of entropy in a compact URL-safe string (8 chars).
+    return randomBytes(6).toString("base64url");
+  }
+
+  private async getOrCreateEpoch(
+    params: Pick<PromptParams, "projectId">,
+  ): Promise<string | null> {
+    const epochKey = this.getEpochKey(params);
+
+    const currentEpoch = await this.redis?.get(epochKey);
+    if (currentEpoch) return currentEpoch;
+
+    const newEpoch = this.newEpochToken();
+    await this.redis?.set(epochKey, newEpoch, "EX", this.epochTtlSeconds, "NX");
+
+    // Return the winner value in case multiple requests initialize concurrently.
+    return (await this.redis?.get(epochKey)) ?? newEpoch;
   }
 
   public async buildAndResolvePromptGraph(params: {
@@ -296,7 +258,7 @@ export class PromptService {
       ) => {
         // Nesting depth check
         if (level >= MAX_PROMPT_NESTING_DEPTH) {
-          throw Error(
+          throw new LangfuseConflictError(
             `Maximum nesting depth exceeded (${MAX_PROMPT_NESTING_DEPTH})`,
           );
         }
@@ -307,7 +269,7 @@ export class PromptService {
           (currentPrompt.name === parentPrompt.name &&
             currentPrompt.id !== parentPrompt.id) // ensure that the parent prompt cannot reference a prompt of the same name but different version
         ) {
-          throw Error(
+          throw new LangfuseConflictError(
             `Circular dependency detected involving prompt '${currentPrompt.name}' version ${currentPrompt.version}`,
           );
         }
@@ -329,15 +291,27 @@ export class PromptService {
                 childVersion: true,
               },
             })
-          ).map(
-            (dep) =>
-              ({
+          ).map((dep) => {
+            if (dep.childVersion !== null) {
+              return {
                 name: dep.childName,
-                ...(dep.childVersion
-                  ? { type: "version", version: dep.childVersion }
-                  : { type: "label", label: dep.childLabel }),
-              }) as ParsedPromptDependencyTag,
-          );
+                type: "version",
+                version: dep.childVersion,
+              } as ParsedPromptDependencyTag;
+            }
+
+            if (dep.childLabel !== null) {
+              return {
+                name: dep.childName,
+                type: "label",
+                label: dep.childLabel,
+              } as ParsedPromptDependencyTag;
+            }
+
+            throw new LangfuseConflictError(
+              `Prompt dependency is malformed: ${dep.childName}`,
+            );
+          });
         }
 
         if (promptDependencies && promptDependencies.length) {
@@ -359,9 +333,13 @@ export class PromptService {
             const logName = `${dep.name} - ${dep.type} ${dep.type === "version" ? dep.version : dep.label}`;
 
             if (!depPrompt)
-              throw Error(`Prompt dependency not found: ${logName}`);
+              throw new LangfuseConflictError(
+                `Prompt dependency not found: ${logName}`,
+              );
             if (depPrompt.type !== "text")
-              throw Error(`Prompt dependency is not a text prompt: ${logName}`);
+              throw new LangfuseConflictError(
+                `Prompt dependency is not a text prompt: ${logName}`,
+              );
 
             // side-effect: populate adjacency list to return later as well
             graph.dependencies[currentPrompt.id] ??= []; // initializes an empty list if it does not exist yet
@@ -398,11 +376,11 @@ export class PromptService {
           seen.delete(currentPrompt.id);
 
           return JSON.parse(resolvedPrompt);
-        } else {
-          seen.delete(currentPrompt.id);
-
-          return currentPrompt.prompt;
         }
+
+        seen.delete(currentPrompt.id);
+
+        return currentPrompt.prompt;
       };
 
       const resolvedPrompt = await resolve(parentPrompt, dependencies, 0);
@@ -422,15 +400,11 @@ export class PromptService {
     logger.error(`[PromptService] ${message}`, ...args);
   }
 
-  private logInfo(message: string, ...args: any[]) {
-    logger.info(`[PromptService] ${message}`, ...args);
-  }
-
   private logDebug(message: string, ...args: any[]) {
     logger.debug(`[PromptService] ${message}`, ...args);
   }
 
-  private incrementMetric(name: PromptServiceMetrics, value: number = 1) {
+  private incrementMetric(name: PromptServiceMetrics, value = 1) {
     try {
       this.metricIncrementer?.(name, value);
     } catch (e) {

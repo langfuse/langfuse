@@ -83,7 +83,7 @@ export function useFilteredNavigation(
   const router = useRouter();
   const entitlements = useEntitlements();
   const uiCustomization = useUiCustomization();
-  const { isLangfuseCloud, region } = useLangfuseCloudRegion();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
 
   const routerProjectId = router.query.projectId as string | undefined;
   const routerOrganizationId = router.query.organizationId as
@@ -98,11 +98,10 @@ export function useFilteredNavigation(
       session,
       enableExperimentalFeatures:
         session?.environment?.enableExperimentalFeatures ?? false,
-      cloudAdmin: Boolean(
-        session?.user?.admin && isLangfuseCloud && region !== "DEV",
-      ),
+      cloudAdmin: Boolean(session?.user?.admin && isLangfuseCloud),
       entitlements,
       uiCustomization,
+      isLangfuseCloud,
       currentPath: router.asPath,
     }),
     [
@@ -113,7 +112,6 @@ export function useFilteredNavigation(
       uiCustomization,
       router.asPath,
       isLangfuseCloud,
-      region,
     ],
   );
 

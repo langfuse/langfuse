@@ -1,6 +1,12 @@
 import type { NormalizerContext, ProviderAdapter } from "../types";
-import { removeNullFields, parseMetadata, getNestedProperty } from "../helpers";
-import { z } from "zod/v4";
+import {
+  removeNullFields,
+  parseMetadata,
+  getNestedProperty,
+  attachToolDefinitionsToMessages,
+  normalizeToolDefinitionsForChatMl,
+} from "../helpers";
+import { z } from "zod";
 
 /**
  * Pydantic AI adapter
@@ -22,15 +28,34 @@ const PydanticAIMessagesSchema = z.array(
 );
 
 /**
- * Extract tool calls, text, and tool responses from parts array
+ * Thinking part structure
+ */
+type ThinkingPart = {
+  content: string;
+  signature?: string;
+};
+
+/**
+ * Redacted thinking part structure
+ */
+type RedactedThinkingPart = {
+  data: string;
+};
+
+/**
+ * Extract tool calls, text, thinking, and tool responses from parts array
  */
 function extractFromParts(parts: unknown[]): {
   toolCalls: Array<Record<string, unknown>>;
   toolResponses: Array<Record<string, unknown>>;
+  thinkingParts: ThinkingPart[];
+  redactedThinkingParts: RedactedThinkingPart[];
   text: string;
 } {
   const toolCalls: Array<Record<string, unknown>> = [];
   const toolResponses: Array<Record<string, unknown>> = [];
+  const thinkingParts: ThinkingPart[] = [];
+  const redactedThinkingParts: RedactedThinkingPart[] = [];
   const textParts: string[] = [];
 
   for (const part of parts) {
@@ -39,6 +64,25 @@ function extractFromParts(parts: unknown[]): {
 
     if (p.type === "text" && typeof p.content === "string") {
       textParts.push(p.content);
+    } else if (p.type === "thinking") {
+      // Handle thinking parts - content can be in 'content' or 'thinking' field
+      const thinkingContent =
+        typeof p.content === "string"
+          ? p.content
+          : typeof p.thinking === "string"
+            ? p.thinking
+            : "";
+      if (thinkingContent) {
+        thinkingParts.push({
+          content: thinkingContent,
+          signature: typeof p.signature === "string" ? p.signature : undefined,
+        });
+      }
+    } else if (p.type === "redacted_thinking") {
+      // Handle redacted/encrypted thinking
+      if (typeof p.data === "string") {
+        redactedThinkingParts.push({ data: p.data });
+      }
     } else if (p.type === "tool_call") {
       toolCalls.push({
         id: p.id,
@@ -60,7 +104,13 @@ function extractFromParts(parts: unknown[]): {
     }
   }
 
-  return { toolCalls, toolResponses, text: textParts.join("") };
+  return {
+    toolCalls,
+    toolResponses,
+    thinkingParts,
+    redactedThinkingParts,
+    text: textParts.join(""),
+  };
 }
 
 /**
@@ -123,10 +173,32 @@ function normalizeMessage(
     return removeNullFields(message);
   }
 
-  const { toolCalls, toolResponses, text } = extractFromParts(message.parts);
+  const {
+    toolCalls,
+    toolResponses,
+    thinkingParts,
+    redactedThinkingParts,
+    text,
+  } = extractFromParts(message.parts);
 
   // Extract other fields (exclude role and parts)
   const { role: _role, parts: _parts, ...rest } = message;
+
+  // Build thinking fields if present
+  const thinkingFields: Record<string, unknown> = {};
+  if (thinkingParts.length > 0) {
+    thinkingFields.thinking = thinkingParts.map((t) => ({
+      type: "thinking" as const,
+      content: t.content,
+      ...(t.signature ? { signature: t.signature } : {}),
+    }));
+  }
+  if (redactedThinkingParts.length > 0) {
+    thinkingFields.redacted_thinking = redactedThinkingParts.map((t) => ({
+      type: "redacted_thinking" as const,
+      data: t.data,
+    }));
+  }
 
   // Assistant message with tool calls
   if (message.role === "assistant" && toolCalls.length > 0) {
@@ -134,6 +206,7 @@ function normalizeMessage(
       role: "assistant",
       content: text || "",
       tool_calls: toolCalls,
+      ...thinkingFields,
       ...rest,
     });
   }
@@ -148,10 +221,11 @@ function normalizeMessage(
     );
   }
 
-  // Regular text message
+  // Regular text message (may include thinking for assistant messages)
   return removeNullFields({
     role: message.role,
     content: text || "",
+    ...thinkingFields,
     ...rest,
   });
 }
@@ -173,10 +247,7 @@ function preprocessData(data: unknown, ctx: NormalizerContext): unknown {
     // Extract and attach tool definitions from metadata
     const tools = extractToolDefinitions(ctx.metadata);
     if (tools.length > 0) {
-      return normalized.map((msg) => ({
-        ...(msg as Record<string, unknown>),
-        tools,
-      }));
+      return attachToolDefinitionsToMessages(normalized, tools);
     }
 
     return normalized;
@@ -185,11 +256,21 @@ function preprocessData(data: unknown, ctx: NormalizerContext): unknown {
   // messages wrapper
   if (typeof data === "object" && "messages" in data) {
     const obj = data as Record<string, unknown>;
+    const messages = Array.isArray(obj.messages)
+      ? normalizeMessages(obj.messages)
+      : obj.messages;
+    const tools = normalizeToolDefinitionsForChatMl(obj.tools);
+
+    if (Array.isArray(messages) && tools.length > 0) {
+      return {
+        ...obj,
+        messages: attachToolDefinitionsToMessages(messages, tools),
+      };
+    }
+
     return {
       ...obj,
-      messages: Array.isArray(obj.messages)
-        ? normalizeMessages(obj.messages)
-        : obj.messages,
+      messages,
     };
   }
 

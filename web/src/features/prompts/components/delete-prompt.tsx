@@ -19,7 +19,7 @@ export function DeletePrompt({ promptName }: { promptName: string }) {
 
   const mutDeletePrompt = api.prompts.delete.useMutation({
     onSuccess: () => {
-      void utils.prompts.invalidate();
+      utils.prompts.invalidate();
       setError(null);
       setIsOpen(false);
     },
@@ -36,11 +36,11 @@ export function DeletePrompt({ promptName }: { promptName: string }) {
         </Button>
       </PopoverTrigger>
       <PopoverContent>
-        <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
+        <h2 className="mb-3 font-semibold">Please confirm</h2>
         <p className="mb-3 text-sm">
           This action permanently deletes this prompt. All requests to fetch
           prompt{" "}
-          <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold">
+          <code className="bg-muted relative rounded px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold">
             {promptName}
           </code>{" "}
           will error.
@@ -63,7 +63,7 @@ export function DeletePrompt({ promptName }: { promptName: string }) {
               }
               setError(null);
 
-              void mutDeletePrompt.mutate({
+              mutDeletePrompt.mutate({
                 projectId,
                 promptName,
               });

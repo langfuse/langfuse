@@ -1,6 +1,12 @@
 import { observationsTableCols } from "@langfuse/shared";
-import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import {
+  omitFilterFacets,
+  type FilterConfig,
+} from "@/src/features/filters/lib/filter-config";
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
+import { renderFilterIcon } from "@/src/components/ItemBadge";
+
+export type ObservationsOmittableFilterColumn = "model" | "promptName";
 
 /**
  * Maps frontend column IDs to backend-expected column IDs
@@ -27,6 +33,7 @@ export const observationFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "type",
       label: "Type",
+      renderIcon: renderFilterIcon,
     },
     {
       type: "categorical" as const,
@@ -37,6 +44,13 @@ export const observationFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "traceName",
       label: "Trace Name",
+    },
+    {
+      // Tags are a primary, user-defined filter — keep them near the identity
+      // facets at the top of the sidebar rather than buried mid-list (LFE-10494).
+      type: "categorical" as const,
+      column: "tags",
+      label: "Trace Tags",
     },
     {
       type: "categorical" as const,
@@ -57,11 +71,6 @@ export const observationFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "promptName",
       label: "Prompt Name",
-    },
-    {
-      type: "categorical" as const,
-      column: "tags",
-      label: "Trace Tags",
     },
     {
       type: "stringKeyValue" as const,
@@ -137,12 +146,12 @@ export const observationFilterConfig: FilterConfig = {
     {
       type: "categorical" as const,
       column: "toolNames",
-      label: "Available Tool Names",
+      label: "Tool Names (Available)",
     },
     {
       type: "categorical" as const,
       column: "calledToolNames",
-      label: "Called Tool Names",
+      label: "Tool Names (Called)",
     },
     {
       type: "numeric" as const,
@@ -169,6 +178,11 @@ export const observationFilterConfig: FilterConfig = {
       label: "Numeric Scores",
     },
     {
+      type: "booleanKeyValue" as const,
+      column: "score_booleans",
+      label: "Boolean Scores",
+    },
+    {
       type: "numeric" as const,
       column: "commentCount",
       label: "Comment Count",
@@ -182,3 +196,9 @@ export const observationFilterConfig: FilterConfig = {
     },
   ],
 };
+
+export function getObservationsFilterConfig(
+  omittedFilter: ObservationsOmittableFilterColumn[] = [],
+): FilterConfig {
+  return omitFilterFacets(observationFilterConfig, omittedFilter);
+}

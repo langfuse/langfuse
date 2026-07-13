@@ -1,5 +1,5 @@
 import safeRegex from "safe-regex2";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 /**
  * Shared validation for pricing tier regex patterns and conditions

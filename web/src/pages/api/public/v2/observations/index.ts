@@ -1,5 +1,5 @@
 import { getObservationsV2FromEventsTableForPublicApi } from "@langfuse/shared/src/server";
-import { NotImplementedError } from "@langfuse/shared";
+import { LangfuseNotFoundError } from "@langfuse/shared";
 
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
@@ -14,12 +14,13 @@ import {
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Observations V2",
+    allowInAppAgentKey: true,
     querySchema: GetObservationsV2Query,
     responseSchema: GetObservationsV2Response,
     fn: async ({ query, auth }) => {
-      if (env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS !== "true") {
-        throw new NotImplementedError(
-          "v2 APIs are currently in beta and only available on Langfuse Cloud",
+      if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") {
+        throw new LangfuseNotFoundError(
+          "The observations v2 API is only available in a Langfuse v4 write mode. Learn more at: https://langfuse.com/docs/v4",
         );
       }
 
@@ -42,7 +43,6 @@ export default withMiddlewares({
         toStartTime: query.toStartTime ?? undefined,
         version: query.version ?? undefined,
         advancedFilters: query.filter,
-        parseIoAsJson: query.parseIoAsJson ?? false,
         cursor: query.cursor ?? undefined,
         fields: fieldGroups,
         expandMetadataKeys,
@@ -58,13 +58,18 @@ export default withMiddlewares({
       const hasMore = items.length > query.limit;
       const dataToReturn = hasMore ? items.slice(0, query.limit) : items;
 
-      // Convert empty parent_observation_id to null for consistency with v1
-      const transformedItems = dataToReturn.map((item) => {
-        if (item.parentObservationId === "") {
-          return { ...item, parentObservationId: null };
-        }
-        return item;
-      });
+      // Normalize for the wire format:
+      // - empty parent_observation_id -> null (v1 parity)
+      // - Decimal price fields -> string (preserves original v2 wire format; v1 emits numbers via .toNumber())
+      const transformedItems = dataToReturn.map((item) => ({
+        ...item,
+        parentObservationId:
+          item.parentObservationId === "" ? null : item.parentObservationId,
+        modelId: item.modelId ?? null,
+        inputPrice: item.inputPrice?.toString() ?? null,
+        outputPrice: item.outputPrice?.toString() ?? null,
+        totalPrice: item.totalPrice?.toString() ?? null,
+      }));
 
       // Generate cursor if there are more results
       const lastItemIdx = dataToReturn.length - 1;

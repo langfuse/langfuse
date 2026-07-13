@@ -6,7 +6,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { JSONSchemaEditor } from "@/src/components/JSONSchemaEditor";
 
 type DatasetSchemaInputProps = {
@@ -57,7 +57,7 @@ export const DatasetSchemaInput: React.FC<DatasetSchemaInputProps> = ({
       <div className="flex items-center justify-between">
         <FormLabel>{label}</FormLabel>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">
+          <span className="text-muted-foreground text-sm">
             {isEnabled ? "Enabled" : "Disabled"}
           </span>
           <Switch

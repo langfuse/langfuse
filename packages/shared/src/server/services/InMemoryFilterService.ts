@@ -1,5 +1,6 @@
 import { FilterCondition, FilterState } from "../../types";
 import { logger } from "../logger";
+import { encodeBooleanScoreEntry } from "../queries/clickhouse-sql/clickhouse-filter";
 
 export class InMemoryFilterService {
   /**
@@ -102,8 +103,19 @@ export class InMemoryFilterService {
           condition.value,
           operator,
         );
+      case "booleanObject":
+        return this.evaluateBooleanObjectFilter(
+          fieldValue,
+          condition.key,
+          condition.value,
+          operator,
+        );
       case "null":
         return this.evaluateNullFilter(fieldValue, operator);
+      case "positionInTrace":
+        // Position filters are applied after all other filters in DB queries.
+        // Ignore them in in-memory filtering.
+        return true;
       default:
         logger.error("Unsupported filter type for in-memory evaluation", {
           type,
@@ -364,13 +376,45 @@ export class InMemoryFilterService {
     }
   }
 
+  private static evaluateBooleanObjectFilter(
+    fieldValue: unknown,
+    key: string,
+    filterValue: boolean,
+    operator: string,
+  ): boolean {
+    // Same encoding as the score_booleans ClickHouse aggregation — callers
+    // must supply pre-lowercased `name:true|false` entries via their field
+    // mapper (raw score string_value is "True"/"False" and would not match).
+    const target = encodeBooleanScoreEntry(key, filterValue);
+    const hasValue = Array.isArray(fieldValue)
+      ? fieldValue.map(String).includes(target)
+      : false;
+
+    switch (operator) {
+      case "=":
+        return hasValue;
+      case "<>":
+        return !hasValue;
+      default:
+        logger.error("Unsupported booleanObject filter operator", {
+          operator,
+          filterValue,
+          fieldValue,
+          key,
+        });
+        return false;
+    }
+  }
+
   private static evaluateNullFilter(
     fieldValue: unknown,
     operator: string,
   ): boolean {
     switch (operator) {
       case "is null":
-        return fieldValue === null || fieldValue === undefined;
+        return (
+          fieldValue === null || fieldValue === undefined || fieldValue === ""
+        );
       case "is not null":
         return fieldValue !== null && fieldValue !== undefined;
       default:

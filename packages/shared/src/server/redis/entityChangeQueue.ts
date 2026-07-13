@@ -1,10 +1,6 @@
 import { Queue } from "bullmq";
 import { QueueName, TQueueJobTypes } from "../queues";
-import {
-  createNewRedisInstance,
-  getQueuePrefix,
-  redisQueueRetryOptions,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
 
 export class EntityChangeQueue {
@@ -17,17 +13,14 @@ export class EntityChangeQueue {
   > | null {
     if (EntityChangeQueue.instance) return EntityChangeQueue.instance;
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
-    EntityChangeQueue.instance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
+      QueueName.EntityChangeQueue,
+    );
+    EntityChangeQueue.instance = queueOptionsWithRedis
       ? new Queue<TQueueJobTypes[QueueName.EntityChangeQueue]>(
           QueueName.EntityChangeQueue,
           {
-            connection: newRedis,
-            prefix: getQueuePrefix(QueueName.EntityChangeQueue),
+            ...queueOptionsWithRedis,
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 100_000,

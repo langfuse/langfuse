@@ -18,12 +18,13 @@ import {
 import Link from "next/link";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { Button } from "@/src/components/ui/button";
+import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { parseJsonPrioritised } from "@langfuse/shared";
 import { ActionButton } from "@/src/components/ActionButton";
 import { type MetadataDomainClient } from "@/src/utils/clientSideDomainTypes";
+import { type Prisma } from "@langfuse/shared";
 
 /**
  * Component for creating a new dataset item from an existing object.
@@ -39,22 +40,30 @@ export const NewDatasetItemFromExistingObject = (props: {
   traceId?: string;
   observationId?: string;
   fromDatasetId?: string;
-  input: string | null;
-  output: string | null;
+  input: Prisma.JsonValue | null;
+  output: Prisma.JsonValue | null;
   metadata: MetadataDomainClient;
   isCopyItem?: boolean;
-  buttonVariant?: "outline" | "secondary";
-  size?: "default" | "sm" | "xs" | "lg" | "icon" | "icon-xs" | "icon-sm";
+  buttonVariant?: ButtonProps["variant"];
+  size?: ButtonProps["size"];
 }) => {
-  const parsedInput =
-    props.input && typeof props.input === "string"
-      ? (parseJsonPrioritised(props.input) ?? null)
-      : null;
+  const normalizePrefillValue = (
+    value: Prisma.JsonValue | null,
+  ): Prisma.JsonValue | null => {
+    if (value === null || value === undefined) {
+      return null;
+    }
 
-  const parsedOutput =
-    props.output && typeof props.output === "string"
-      ? (parseJsonPrioritised(props.output) ?? null)
-      : null;
+    if (typeof value === "string") {
+      const parsed = parseJsonPrioritised(value);
+      return parsed !== undefined ? parsed : value;
+    }
+
+    return value;
+  };
+
+  const parsedInput = normalizePrefillValue(props.input);
+  const parsedOutput = normalizePrefillValue(props.output);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
@@ -131,7 +140,7 @@ export const NewDatasetItemFromExistingObject = (props: {
                   setIsFormOpen(true);
                 }}
               >
-                <PlusIcon size={16} className={cn("mr-2")} aria-hidden="true" />
+                <PlusIcon size={16} className="mr-2" aria-hidden="true" />
                 Add to more datasets
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -152,7 +161,7 @@ export const NewDatasetItemFromExistingObject = (props: {
           {hasAccess ? (
             <PlusIcon
               className={cn(
-                "-ml-0.5 mr-1.5",
+                "mr-1.5 -ml-0.5",
                 buttonSize === "sm" ? "h-3.5 w-3.5" : "h-4 w-4",
               )}
               aria-hidden="true"
@@ -160,7 +169,7 @@ export const NewDatasetItemFromExistingObject = (props: {
           ) : null}
           Add to datasets
           {!hasAccess ? (
-            <LockIcon className={cn("ml-1.5 h-3 w-3")} aria-hidden="true" />
+            <LockIcon className="ml-1.5 h-3 w-3" aria-hidden="true" />
           ) : null}
         </Button>
       )}

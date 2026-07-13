@@ -6,18 +6,35 @@ import {
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { TokenUsageBadge } from "@/src/components/token-usage-badge";
-import { NumberParam, useQueryParams, withDefault } from "use-query-params";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import {
-  observationFilterConfig,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  useRef,
+  useCallback,
+} from "react";
+import { TokenUsageBadge } from "@/src/components/token-usage-badge";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { usePaginationState } from "@/src/hooks/usePaginationState";
+import {
+  type UseSidebarFilterStateOptions,
+  useSidebarFilterState,
+} from "@/src/features/filters/hooks/useSidebarFilterState";
+import {
+  getObservationsFilterConfig,
   OBSERVATION_COLUMN_TO_BACKEND_KEY,
+  type ObservationsOmittableFilterColumn,
 } from "@/src/features/filters/config/observations-config";
+import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import {
+  TableBadgeLoadingCell,
+  TableIconBadgeLoadingCell,
+  TableTextLoadingCell,
+} from "@/src/components/table/loading-cells";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
   type ObservationLevelType,
@@ -29,6 +46,8 @@ import {
   BatchActionType,
   ActionId,
   type TimeFilter,
+  type OrderByState,
+  type TracingSearchType,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
@@ -37,7 +56,12 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { MemoizedIOTableCell } from "../../ui/IOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import {
+  toAbsoluteTimeRange,
+  type TableDateRange,
+} from "@/src/utils/date-range-utils";
+import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { type ScoreAggregate } from "@langfuse/shared";
 import TagList from "@/src/features/tag/components/TagList";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
@@ -45,23 +69,23 @@ import { BatchExportTableButton } from "@/src/components/BatchExportTableButton"
 import {
   BreakdownTooltip,
   calculateAggregatedUsage,
-} from "@/src/components/trace2/components/_shared/BreakdownToolTip";
-import { InfoIcon, PlusCircle } from "lucide-react";
-import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog";
+} from "@/src/components/trace/components/_shared/BreakdownToolTip";
+import { InfoIcon } from "lucide-react";
+import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Badge } from "@/src/components/ui/badge";
-import { type RowSelectionState, type Row } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { Skeleton } from "@/src/components/ui/skeleton";
-import { PeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
+import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import {
+  detailPageListKeys,
+  useDetailPageLists,
+} from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useRouter } from "next/router";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
-import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
@@ -70,10 +94,17 @@ import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
 import useSessionStorage from "@/src/components/useSessionStorage";
+import { buildTraceDetailPath } from "@/src/utils/navigation";
+import { getSafeRedirectPath } from "@/src/utils/redirect";
 import {
   type RefreshInterval,
   REFRESH_INTERVALS,
 } from "@/src/components/table/data-table-refresh-button";
+import {
+  ObservationsTableStoreProvider,
+  useObservationsTableStore,
+} from "@/src/features/tracing-tables/observations/ObservationsTableStoreProvider";
+import { useObservationsTableView } from "@/src/features/tracing-tables/observations/useObservationsTableView";
 
 export type ObservationsTableRow = {
   // Shown by default
@@ -125,7 +156,19 @@ export type ObservationsTableProps = {
   promptName?: string;
   promptVersion?: number;
   modelId?: string;
-  omittedFilter?: string[];
+  omittedFilter?: ObservationsOmittableFilterColumn[];
+  // External control props for embedded preview tables
+  hideControls?: boolean;
+  externalFilterState?: FilterState;
+  externalDateRange?: TableDateRange;
+  limitRows?: number;
+  /**
+   * When true, render the time-range picker and auto-refresh button in the
+   * page header (next to the title) via the header controls slot, instead of
+   * inside the table toolbar. Only used when the table is the primary content
+   * of a `Page`.
+   */
+  showControlsInPageHeader?: boolean;
 };
 
 export default function ObservationsTable({
@@ -133,13 +176,28 @@ export default function ObservationsTable({
   promptName,
   promptVersion,
   modelId,
+  omittedFilter = [],
+  hideControls = false,
+  externalFilterState,
+  externalDateRange,
+  limitRows,
+  showControlsInPageHeader = false,
 }: ObservationsTableProps) {
+  const peekContext = usePeekTableState();
+
+  const observationsFilterConfig = useMemo(
+    () => getObservationsFilterConfig(omittedFilter),
+    [omittedFilter],
+  );
+
   const router = useRouter();
   const { viewId } = router.query;
   const utils = api.useUtils();
 
   const { setDetailPageList } = useDetailPageLists();
-  const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
+  const { store: observationsTableStore } = useObservationsTableView({
+    projectId,
+  });
   const [rawRefreshInterval, setRawRefreshInterval] =
     useSessionStorage<RefreshInterval>(
       `tableRefreshInterval-${projectId}`,
@@ -161,6 +219,7 @@ export default function ObservationsTable({
   );
 
   const [refreshTick, setRefreshTick] = useState(0);
+  const [manualRefreshTrigger, setManualRefreshTrigger] = useState(0); // resets the interval when manual refresh is called
 
   // Auto-increment refresh tick to force date range recalculation
   useEffect(() => {
@@ -169,11 +228,12 @@ export default function ObservationsTable({
       setRefreshTick((t) => t + 1);
     }, refreshInterval);
     return () => clearInterval(id);
-  }, [refreshInterval]);
+  }, [refreshInterval, manualRefreshTrigger]);
 
   const handleRefresh = useCallback(() => {
     setRefreshTick((t) => t + 1);
-    void Promise.all([
+    setManualRefreshTrigger((t) => t + 1);
+    Promise.all([
       utils.generations.all.invalidate(),
       utils.generations.countAll.invalidate(),
       utils.generations.filterOptions.invalidate(),
@@ -182,19 +242,28 @@ export default function ObservationsTable({
   }, [utils]);
   const { searchQuery, searchType, setSearchQuery, setSearchType } =
     useFullTextSearch();
+  const legacyTracingSearchConfig = api.public.tracingSearchConfig.useQuery(
+    { projectId },
+    {
+      enabled: !hideControls,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    },
+  );
+  const legacyTracingIoSearchEnabled =
+    legacyTracingSearchConfig.data?.legacyTracingIoSearchEnabled ?? true;
 
-  const { selectAll, setSelectAll } = useSelectAll(projectId, "observations");
-  const [showAddToDatasetDialog, setShowAddToDatasetDialog] = useState(false);
-
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
+  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
+    page: "pageIndex",
+    limit: "pageSize",
   });
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [storedRowHeight, setRowHeight] = useRowHeightLocalStorage(
     "generations",
     "s",
   );
+  const rowHeight = hideControls ? "s" : storedRowHeight;
 
   const [inputFilterState] = useQueryFilterState(
     // If the user loads saved table view presets, we should not apply the default type filter
@@ -230,10 +299,12 @@ export default function ObservationsTable({
 
   // Convert timeRange to absolute date range for compatibility
   // refreshTick forces recalculation on each refresh cycle
-  const dateRange = useMemo(() => {
+  const tableDateRange = useMemo(() => {
     return toAbsoluteTimeRange(timeRange) ?? undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeRange, refreshTick]);
+
+  const dateRange = externalDateRange ?? tableDateRange;
 
   const promptNameFilter: FilterState = promptName
     ? [
@@ -346,6 +417,7 @@ export default function ObservationsTable({
       ) ?? undefined;
 
     const scoresNumeric = filterOptions.data?.scores_avg ?? undefined;
+    const scoresBoolean = filterOptions.data?.score_booleans ?? undefined;
 
     return {
       environment:
@@ -408,14 +480,45 @@ export default function ObservationsTable({
       totalCost: [],
       score_categories: scoreCategories,
       scores_avg: scoresNumeric,
+      score_booleans: scoresBoolean,
     };
   }, [environmentFilterOptions.data, filterOptions.data]);
 
+  const isSidebarFilterLoading =
+    filterOptions.isPending || environmentFilterOptions.isPending;
+
+  const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(() => {
+    const baseOptions = {
+      loading: isSidebarFilterLoading,
+      implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+    };
+
+    if (peekContext) {
+      return {
+        ...baseOptions,
+        stateLocation: "peekContext",
+        context: peekContext,
+      };
+    }
+
+    if (hideControls) {
+      return {
+        ...baseOptions,
+        stateLocation: "memory",
+      };
+    }
+
+    return {
+      ...baseOptions,
+      stateLocation: "urlAndSessionStorage",
+      sessionFilterContextId: projectId,
+    };
+  }, [hideControls, isSidebarFilterLoading, peekContext, projectId]);
+
   const queryFilter = useSidebarFilterState(
-    observationFilterConfig,
+    observationsFilterConfig,
     newFilterOptions,
-    projectId,
-    filterOptions.isPending || environmentFilterOptions.isPending,
+    queryFilterOptions,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -427,17 +530,25 @@ export default function ObservationsTable({
     [],
   );
 
-  const filterState = queryFilter.filterState.concat(
+  const combinedFilterState = queryFilter.effectiveFilterState.concat(
     dateRangeFilter,
     promptNameFilter,
     promptVersionFilter,
     modelIdFilter,
   );
 
+  // Use external filter state if provided, otherwise use combined filter
+  // state. Even with an external filter, still apply the date-range bound so
+  // callers that pass an externalDateRange (e.g. the eval preview's "last 24
+  // hours" window) have it honored for the row query, not just score columns.
+  const filterState = externalFilterState
+    ? externalFilterState.concat(dateRangeFilter)
+    : combinedFilterState;
+
   const backendFilterState = transformFiltersForBackend(
     filterState,
     OBSERVATION_COLUMN_TO_BACKEND_KEY,
-    observationFilterConfig.columnDefinitions,
+    observationsFilterConfig.columnDefinitions,
   );
 
   const getCountPayload = {
@@ -445,15 +556,13 @@ export default function ObservationsTable({
     filter: backendFilterState,
     searchQuery,
     searchType,
-    page: 0,
-    limit: 0,
     orderBy: null,
   };
 
   const getAllPayload = {
     ...getCountPayload,
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
+    page: limitRows ? 0 : paginationState.pageIndex,
+    limit: limitRows ?? paginationState.pageSize,
     orderBy: orderByState,
   };
 
@@ -463,7 +572,6 @@ export default function ObservationsTable({
   const totalCountQuery = api.generations.countAll.useQuery(getCountPayload, {
     refetchOnWindowFocus: true,
   });
-
   const totalCount = totalCountQuery.data?.totalCount ?? null;
 
   const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
@@ -482,15 +590,16 @@ export default function ObservationsTable({
   useEffect(() => {
     if (generations.isSuccess) {
       setDetailPageList(
-        "observations",
+        detailPageListKeys.observations,
         generations.data.generations.map((g) => ({
           id: g.id,
-          params: g.traceTimestamp
-            ? {
-                timestamp: g.traceTimestamp.toISOString(),
-                traceId: g.traceId || "",
-              }
-            : undefined,
+          params: {
+            traceId: g.traceId || "",
+            ...(g.traceTimestamp
+              ? { timestamp: g.traceTimestamp.toISOString() }
+              : {}),
+            startTime: g.startTime.toISOString(),
+          },
         })),
       );
     }
@@ -508,7 +617,9 @@ export default function ObservationsTable({
   const { selectActionColumn } = TableSelectionManager<ObservationsTableRow>({
     projectId,
     tableName: "observations",
-    setSelectedRows,
+    setSelectedRows: observationsTableStore.getState().actions.setRowSelection,
+    setSelectAll: observationsTableStore.getState().actions.setSelectAll,
+    selectionStore: observationsTableStore,
   });
 
   const handleAddToAnnotationQueue = async ({
@@ -518,10 +629,11 @@ export default function ObservationsTable({
     projectId: string;
     targetId: string;
   }) => {
-    const selectedGenerationIds = Object.keys(selectedRows).filter(
-      (generationId) =>
-        generations.data?.generations.map((g) => g.id).includes(generationId),
-    );
+    const {
+      actions,
+      selectAll,
+      selectedPageRowIds: selectedGenerationIds,
+    } = observationsTableStore.getState();
 
     await addToQueueMutation.mutateAsync({
       projectId,
@@ -534,7 +646,7 @@ export default function ObservationsTable({
         orderBy: orderByState,
       },
     });
-    setSelectedRows({});
+    actions.clearSelection();
   };
 
   const tableActions: TableAction[] = [
@@ -561,15 +673,17 @@ export default function ObservationsTable({
     },
   ];
 
+  const enableSorting = !hideControls;
+
   const columns: LangfuseColumnDef<ObservationsTableRow>[] = [
-    selectActionColumn,
+    ...(hideControls ? [] : [selectActionColumn]),
     {
       accessorKey: "startTime",
       id: "startTime",
       header: "Start Time",
       size: 150,
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
       cell: ({ row }) => {
         const value: Date = row.getValue("startTime");
         return <LocalIsoDate date={value} />;
@@ -580,7 +694,8 @@ export default function ObservationsTable({
       id: "type",
       header: "Type",
       size: 50,
-      enableSorting: true,
+      loadingCell: <TableIconBadgeLoadingCell />,
+      enableSorting,
       cell: ({ row }) => {
         const value: ObservationType = row.getValue("type");
         return value ? (
@@ -595,7 +710,7 @@ export default function ObservationsTable({
       id: "name",
       header: "Name",
       size: 150,
-      enableSorting: true,
+      enableSorting,
       cell: ({ row }) => {
         const value: ObservationsTableRow["name"] = row.getValue("name");
         return value ?? undefined;
@@ -606,6 +721,14 @@ export default function ObservationsTable({
       header: "Input",
       id: "input",
       size: 300,
+      loadingCell: () => (
+        <MemoizedIOTableCell
+          isLoading
+          data={undefined}
+          className="bg-muted/50"
+          singleLine={rowHeight === "s"}
+        />
+      ),
       cell: ({ row }) => {
         const observationId: string = row.getValue("id");
         const traceId: string = row.getValue("traceId");
@@ -627,6 +750,14 @@ export default function ObservationsTable({
       id: "output",
       header: "Output",
       size: 300,
+      loadingCell: () => (
+        <MemoizedIOTableCell
+          isLoading
+          data={undefined}
+          className="bg-accent-light-green"
+          singleLine={rowHeight === "s"}
+        />
+      ),
       cell: ({ row }) => {
         const observationId: string = row.getValue("id");
         const traceId: string = row.getValue("traceId");
@@ -668,7 +799,7 @@ export default function ObservationsTable({
           </span>
         ) : undefined;
       },
-      enableSorting: true,
+      enableSorting,
     },
     {
       accessorKey: "statusMessage",
@@ -695,7 +826,7 @@ export default function ObservationsTable({
         ) : undefined;
       },
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
     },
     {
       accessorKey: "totalCost",
@@ -719,7 +850,7 @@ export default function ObservationsTable({
         ) : undefined;
       },
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
     },
     {
       accessorKey: "toolDefinitions",
@@ -727,7 +858,7 @@ export default function ObservationsTable({
       header: "Available Tools",
       size: 120,
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
       defaultHidden: true,
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("toolDefinitions");
@@ -742,7 +873,7 @@ export default function ObservationsTable({
       header: "Tool Calls",
       size: 100,
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
       defaultHidden: true,
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("toolCalls");
@@ -757,7 +888,7 @@ export default function ObservationsTable({
       header: "Time to First Token",
       size: 150,
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
       cell: ({ row }) => {
         const timeToFirstToken: number | undefined =
           row.getValue("timeToFirstToken");
@@ -796,7 +927,7 @@ export default function ObservationsTable({
         );
       },
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
     },
     {
       accessorKey: "model",
@@ -804,41 +935,18 @@ export default function ObservationsTable({
       header: "Model",
       size: 150,
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
       cell: ({ row }) => {
         const model = row.getValue("model") as string;
         const modelId = row.getValue("modelId") as string | undefined;
 
-        if (!model) return null;
-
-        return modelId ? (
-          <TableIdOrName value={model} />
-        ) : (
-          <UpsertModelFormDialog
-            action="create"
+        return (
+          <ProvidedModelNameCell
+            modelName={model}
+            modelId={modelId}
             projectId={projectId}
-            prefilledModelData={{
-              modelName: model,
-              prices:
-                Object.keys(row.original.usageDetails).length > 0
-                  ? Object.keys(row.original.usageDetails)
-                      .filter((key) => key != "total")
-                      .reduce(
-                        (acc, key) => {
-                          acc[key] = 0.000001;
-                          return acc;
-                        },
-                        {} as Record<string, number>,
-                      )
-                  : undefined,
-            }}
-            className="cursor-pointer"
-          >
-            <span className="flex items-center gap-1">
-              <span>{model}</span>
-              <PlusCircle className="h-3 w-3" />
-            </span>
-          </UpsertModelFormDialog>
+            usageDetails={row.original.usageDetails}
+          />
         );
       },
     },
@@ -852,7 +960,7 @@ export default function ObservationsTable({
       },
       size: 200,
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
       cell: ({ row }) => {
         const promptName = row.original.promptName;
         const promptVersion = row.original.promptVersion;
@@ -866,6 +974,7 @@ export default function ObservationsTable({
       id: "environment",
       size: 150,
       enableHiding: true,
+      loadingCell: <TableBadgeLoadingCell />,
       cell: ({ row }) => {
         const value: ObservationsTableRow["environment"] =
           row.getValue("environment");
@@ -873,6 +982,7 @@ export default function ObservationsTable({
           <Badge
             variant="secondary"
             className="max-w-fit truncate rounded-sm px-1 font-normal"
+            title={value}
           >
             {value}
           </Badge>
@@ -885,10 +995,12 @@ export default function ObservationsTable({
       header: "Trace Tags",
       size: 250,
       enableHiding: true,
+      loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const traceTags: string[] | undefined = row.getValue("traceTags");
         return (
-          traceTags && (
+          traceTags &&
+          traceTags.length > 0 && (
             <div
               className={cn(
                 "flex gap-x-2 gap-y-1",
@@ -905,6 +1017,13 @@ export default function ObservationsTable({
       accessorKey: "metadata",
       header: "Metadata",
       size: 300,
+      loadingCell: () => (
+        <MemoizedIOTableCell
+          isLoading
+          data={undefined}
+          singleLine={rowHeight === "s"}
+        />
+      ),
       headerTooltip: {
         description: "Add metadata to traces to track additional information.",
         href: "https://langfuse.com/docs/observability/features/metadata",
@@ -932,7 +1051,7 @@ export default function ObservationsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return isColumnLoading ? <Skeleton className="h-3 w-1/2" /> : null;
+        return isColumnLoading ? <TableTextLoadingCell /> : null;
       },
       columns: scoreColumns,
     },
@@ -942,7 +1061,7 @@ export default function ObservationsTable({
       header: "End Time",
       size: 150,
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
       defaultHidden: true,
       cell: ({ row }) => {
         const value: Date | undefined = row.getValue("endTime");
@@ -955,7 +1074,7 @@ export default function ObservationsTable({
       header: "ObservationID",
       size: 100,
       defaultHidden: true,
-      enableSorting: true,
+      enableSorting,
       enableHiding: true,
       cell: ({ row }) => {
         const observationId = row.getValue("id");
@@ -972,7 +1091,7 @@ export default function ObservationsTable({
       header: "Trace Name",
       size: 150,
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
       defaultHidden: true,
     },
     {
@@ -986,7 +1105,7 @@ export default function ObservationsTable({
           <TableIdOrName value={value} />
         ) : undefined;
       },
-      enableSorting: true,
+      enableSorting,
       enableHiding: true,
       defaultHidden: true,
     },
@@ -1008,7 +1127,7 @@ export default function ObservationsTable({
         href: "https://langfuse.com/docs/experimentation",
       },
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
       defaultHidden: true,
     },
     {
@@ -1018,9 +1137,7 @@ export default function ObservationsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return generations.isPending ? (
-          <Skeleton className="h-3 w-1/2" />
-        ) : null;
+        return generations.isPending ? <TableTextLoadingCell /> : null;
       },
       columns: [
         {
@@ -1028,7 +1145,7 @@ export default function ObservationsTable({
           id: "tokensPerSecond",
           header: "Tokens per second",
           size: 200,
-          cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
+          cell: ({ row }) => {
             const latency: number | undefined = row.getValue("latency");
             const usage: {
               promptTokens: number;
@@ -1046,17 +1163,18 @@ export default function ObservationsTable({
           },
           defaultHidden: true,
           enableHiding: true,
-          enableSorting: true,
+          enableSorting,
         },
         {
           accessorKey: "inputTokens",
           id: "inputTokens",
           header: "Input Tokens",
           size: 100,
+          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
-          enableSorting: true,
-          cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
+          enableSorting,
+          cell: ({ row }) => {
             const value: {
               inputUsage: number;
               outputUsage: number;
@@ -1070,10 +1188,11 @@ export default function ObservationsTable({
           id: "outputTokens",
           header: "Output Tokens",
           size: 100,
+          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
-          enableSorting: true,
-          cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
+          enableSorting,
+          cell: ({ row }) => {
             const value: {
               inputUsage: number;
               outputUsage: number;
@@ -1087,10 +1206,11 @@ export default function ObservationsTable({
           id: "totalTokens",
           header: "Total Tokens",
           size: 100,
+          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
-          enableSorting: true,
-          cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
+          enableSorting,
+          cell: ({ row }) => {
             const value: {
               inputUsage: number;
               outputUsage: number;
@@ -1099,7 +1219,7 @@ export default function ObservationsTable({
             return <span>{numberFormatter(value.totalUsage, 0)}</span>;
           },
         },
-      ],
+      ] satisfies LangfuseColumnDef<ObservationsTableRow>[],
     },
     {
       accessorKey: "cost",
@@ -1108,9 +1228,7 @@ export default function ObservationsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return generations.isPending ? (
-          <Skeleton className="h-3 w-1/2" />
-        ) : null;
+        return generations.isPending ? <TableTextLoadingCell /> : null;
       },
       columns: [
         {
@@ -1118,7 +1236,8 @@ export default function ObservationsTable({
           id: "inputCost",
           header: "Input Cost",
           size: 120,
-          cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
+          loadingCell: <TableTextLoadingCell />,
+          cell: ({ row }) => {
             const value: {
               inputCost: number | undefined;
               outputCost: number | undefined;
@@ -1130,14 +1249,15 @@ export default function ObservationsTable({
           },
           enableHiding: true,
           defaultHidden: true,
-          enableSorting: true,
+          enableSorting,
         },
         {
           accessorKey: "outputCost",
           id: "outputCost",
           header: "Output Cost",
           size: 120,
-          cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
+          loadingCell: <TableTextLoadingCell />,
+          cell: ({ row }) => {
             const value: {
               inputCost: number | undefined;
               outputCost: number | undefined;
@@ -1149,9 +1269,9 @@ export default function ObservationsTable({
           },
           enableHiding: true,
           defaultHidden: true,
-          enableSorting: true,
+          enableSorting,
         },
-      ],
+      ] satisfies LangfuseColumnDef<ObservationsTableRow>[],
     },
   ];
 
@@ -1167,11 +1287,18 @@ export default function ObservationsTable({
   );
 
   const peekNavigationProps = usePeekNavigation({
-    queryParams: ["observation", "display", "timestamp", "traceId"],
+    queryParams: [
+      "observation",
+      "display",
+      "timestamp",
+      "traceId",
+      "startTime",
+    ],
     paramsToMirrorPeekValue: ["observation"],
     extractParamsValuesFromRow: (row: ObservationsTableRow) => ({
       traceId: row.traceId || "",
       timestamp: row.timestamp?.toISOString() || "",
+      startTime: row.startTime.toISOString(),
     }),
     expandConfig: {
       basePath: `/project/${projectId}/traces`,
@@ -1185,28 +1312,31 @@ export default function ObservationsTable({
     stateUpdaters: {
       setOrderBy: setOrderByState,
       setFilters: setFiltersWrapper,
+      setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibilityState,
       setSearchQuery: setSearchQuery,
     },
     validationContext: {
       columns,
-      filterColumnDefinition: observationFilterConfig.columnDefinitions,
+      filterColumnDefinition: observationsFilterConfig.columnDefinitions,
+      expandableFilterColumns: observationsFilterConfig.facets.map(
+        (facet) => facet.column,
+      ),
     },
-    currentFilterState: queryFilter.filterState,
+    currentFilterState: queryFilter.explicitFilterState,
+    currentExpandedFilters: queryFilter.expanded,
+    disabled: hideControls,
   });
 
-  const peekConfig: DataTablePeekViewProps = useMemo(
-    () => ({
+  const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
+    if (hideControls) return undefined;
+    return {
       itemType: "TRACE",
-      customTitlePrefix: "Observation ID:",
-      detailNavigationKey: "observations",
-      children: <PeekViewObservationDetail projectId={projectId} />,
-      tableDataUpdatedAt: generations.dataUpdatedAt,
+      detailNavigationKey: detailPageListKeys.observations,
       ...peekNavigationProps,
-    }),
-    [projectId, generations.dataUpdatedAt, peekNavigationProps],
-  );
+    };
+  }, [peekNavigationProps, hideControls]);
 
   const rows: ObservationsTableRow[] = useMemo(() => {
     return generations.isSuccess
@@ -1253,95 +1383,94 @@ export default function ObservationsTable({
       : [];
   }, [generations]);
 
-  return (
-    <DataTableControlsProvider>
-      <div className="flex h-full w-full flex-col">
-        {/* Toolbar spanning full width */}
-        <DataTableToolbar
-          columns={columns}
-          filterState={queryFilter.filterState}
-          searchConfig={{
-            metadataSearchFields: ["ID", "Name", "Trace Name", "Model"],
-            updateQuery: setSearchQuery,
-            currentQuery: searchQuery ?? undefined,
-            searchType,
-            setSearchType,
-            tableAllowsFullTextSearch: true,
-          }}
-          viewConfig={{
-            tableName: TableViewPresetTableName.Observations,
-            projectId,
-            controllers: viewControllers,
-          }}
-          columnsWithCustomSelect={["model", "name", "traceName", "promptName"]}
-          columnVisibility={columnVisibility}
-          setColumnVisibility={setColumnVisibilityState}
-          columnOrder={columnOrder}
-          setColumnOrder={setColumnOrder}
-          orderByState={orderByState}
-          rowHeight={rowHeight}
-          setRowHeight={setRowHeight}
+  const pageRowIds = useMemo(() => rows.map((row) => row.id), [rows]);
+
+  // Layout effect so store-subscribed consumers (toolbar count) update before
+  // paint when the page rows change — no one-frame stale selection count.
+  useLayoutEffect(() => {
+    observationsTableStore.getState().actions.syncPageRows({
+      pageRowIds,
+      totalCount,
+    });
+  }, [observationsTableStore, pageRowIds, totalCount]);
+
+  const refreshConfig = {
+    onRefresh: handleRefresh,
+    isRefreshing: generations.isFetching || totalCountQuery.isFetching,
+    interval: refreshInterval,
+    setInterval: setRefreshInterval,
+  };
+
+  const content = (
+    <>
+      {showControlsInPageHeader && !hideControls && (
+        <TableHeaderControls
           timeRange={timeRange}
           setTimeRange={setTimeRange}
-          refreshConfig={{
-            onRefresh: handleRefresh,
-            isRefreshing: generations.isFetching || totalCountQuery.isFetching,
-            interval: refreshInterval,
-            setInterval: setRefreshInterval,
-          }}
-          actionButtons={[
-            <BatchExportTableButton
-              {...{
-                projectId,
-                filterState: backendFilterState,
-                orderByState,
-                searchQuery,
-                searchType,
-              }}
-              tableName={BatchExportTableName.Observations}
-              key="batchExport"
-            />,
-            Object.keys(selectedRows).filter((generationId) =>
-              generations.data?.generations
-                .map((g) => g.id)
-                .includes(generationId),
-            ).length > 0 ? (
-              <TableActionMenu
-                key="observations-multi-select-actions"
-                projectId={projectId}
-                actions={tableActions}
-                tableName={BatchExportTableName.Observations}
-                onCustomAction={(actionType) => {
-                  if (actionType === ActionId.ObservationAddToDataset) {
-                    setShowAddToDatasetDialog(true);
-                  }
-                }}
-              />
-            ) : null,
-          ]}
-          multiSelect={{
-            selectAll,
-            setSelectAll,
-            selectedRowIds: Object.keys(selectedRows).filter((generationId) =>
-              generations.data?.generations
-                .map((g) => g.id)
-                .includes(generationId),
-            ),
-            setRowSelection: setSelectedRows,
-            totalCount,
-            ...paginationState,
-          }}
+          refresh={refreshConfig}
         />
+      )}
+      <div className="flex h-full w-full flex-col">
+        {/* Toolbar spanning full width */}
+        {!hideControls && (
+          <ObservationsDataTableToolbar
+            columns={columns}
+            filterState={queryFilter.explicitFilterState}
+            searchConfig={{
+              metadataSearchFields: ["ID", "Name", "Trace Name", "Model"],
+              updateQuery: setSearchQuery,
+              currentQuery: searchQuery ?? undefined,
+              tableAllowsFullTextSearch: legacyTracingIoSearchEnabled,
+              searchType,
+              setSearchType,
+            }}
+            viewConfig={{
+              tableName: TableViewPresetTableName.Observations,
+              projectId,
+              controllers: viewControllers,
+            }}
+            columnsWithCustomSelect={[
+              "model",
+              "name",
+              "traceName",
+              "promptName",
+            ]}
+            columnVisibility={columnVisibility}
+            setColumnVisibility={setColumnVisibilityState}
+            columnOrder={columnOrder}
+            setColumnOrder={setColumnOrder}
+            orderByState={orderByState}
+            rowHeight={rowHeight}
+            setRowHeight={setRowHeight}
+            timeRange={showControlsInPageHeader ? undefined : timeRange}
+            setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
+            refreshConfig={showControlsInPageHeader ? undefined : refreshConfig}
+            projectId={projectId}
+            backendFilterState={backendFilterState}
+            searchQuery={searchQuery}
+            searchType={searchType}
+            tableActions={tableActions}
+            totalCount={totalCount}
+            paginationState={paginationState}
+          />
+        )}
 
         {/* Content area with sidebar and table */}
         <ResizableFilterLayout>
-          <DataTableControls queryFilter={queryFilter} />
+          {!hideControls && (
+            <DataTableControls
+              // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
+              key={viewControllers.selectedViewId ?? "no-view"}
+              queryFilter={queryFilter}
+            />
+          )}
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable
-              tableName={"observations"}
+              tableName="observations"
               columns={columns}
               peekView={peekConfig}
+              selectionStore={observationsTableStore}
               data={
                 generations.isPending || isViewLoading
                   ? { isLoading: true, isError: false }
@@ -1357,13 +1486,15 @@ export default function ObservationsTable({
                         data: rows,
                       }
               }
-              pagination={{
-                totalCount,
-                onChange: setPaginationState,
-                state: paginationState,
-              }}
-              rowSelection={selectedRows}
-              setRowSelection={setSelectedRows}
+              pagination={
+                limitRows
+                  ? undefined
+                  : {
+                      totalCount,
+                      onChange: setPaginationState,
+                      state: paginationState,
+                    }
+              }
               setOrderBy={setOrderByState}
               orderBy={orderByState}
               columnOrder={columnOrder}
@@ -1383,18 +1514,18 @@ export default function ObservationsTable({
                   const timestamp = row.timestamp;
 
                   if (traceId) {
-                    let observationUrl = `/project/${projectId}/traces/${encodeURIComponent(traceId)}`;
+                    const observationUrl = buildTraceDetailPath({
+                      projectId,
+                      traceId,
+                      observationId,
+                      timestamp,
+                    });
 
-                    const params = new URLSearchParams();
-                    params.set("observation", observationId);
-                    if (timestamp) {
-                      params.set("timestamp", timestamp.toISOString());
-                    }
-
-                    observationUrl += `?${params.toString()}`;
-
-                    const fullUrl = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${observationUrl}`;
-                    window.open(fullUrl, "_blank");
+                    window.open(
+                      getSafeRedirectPath(observationUrl),
+                      "_blank",
+                      "noopener,noreferrer",
+                    );
                   }
                 }
                 // For normal clicks, let the data-table handle opening the peek view
@@ -1402,46 +1533,169 @@ export default function ObservationsTable({
             />
           </div>
         </ResizableFilterLayout>
+        {peekConfig && (
+          <TablePeekViewObservationDetail
+            {...peekConfig}
+            projectId={projectId}
+          />
+        )}
       </div>
 
-      {/* Add to Dataset Dialog */}
-      {showAddToDatasetDialog && (
-        <AddObservationsToDatasetDialog
-          projectId={projectId}
-          selectedObservationIds={Object.keys(selectedRows).filter((id) =>
-            generations.data?.generations.map((g) => g.id).includes(id),
-          )}
-          query={{
-            filter: backendFilterState,
-            orderBy: orderByState,
-            searchQuery: searchQuery ?? undefined,
+      <ObservationsAddToDatasetDialog
+        projectId={projectId}
+        rows={rows}
+        backendFilterState={backendFilterState}
+        orderByState={orderByState}
+        searchQuery={searchQuery}
+        searchType={searchType}
+        totalCount={totalCount}
+      />
+    </>
+  );
+
+  return (
+    <DataTableControlsProvider tableName={observationsFilterConfig.tableName}>
+      <ObservationsTableStoreProvider store={observationsTableStore}>
+        {content}
+      </ObservationsTableStoreProvider>
+    </DataTableControlsProvider>
+  );
+}
+
+type ObservationsDataTableToolbarProps = Omit<
+  Parameters<typeof DataTableToolbar<ObservationsTableRow, unknown>>[0],
+  "actionButtons" | "multiSelect"
+> & {
+  backendFilterState: FilterState;
+  orderByState: OrderByState;
+  paginationState: {
+    pageIndex: number;
+    pageSize: number;
+  };
+  projectId: string;
+  searchQuery: string | null;
+  searchType: TracingSearchType[];
+  tableActions: TableAction[];
+  totalCount: number | null;
+};
+
+function ObservationsDataTableToolbar({
+  backendFilterState,
+  orderByState,
+  paginationState,
+  projectId,
+  searchQuery,
+  searchType,
+  tableActions,
+  totalCount,
+  ...toolbarProps
+}: ObservationsDataTableToolbarProps) {
+  const selectedObservationIds = useObservationsTableStore(
+    (state) => state.selectedPageRowIds,
+  );
+  const selectAll = useObservationsTableStore((state) => state.selectAll);
+  const actions = useObservationsTableStore((state) => state.actions);
+  const selectedObservationCount = selectAll
+    ? totalCount
+    : selectedObservationIds.length;
+
+  return (
+    <DataTableToolbar
+      {...toolbarProps}
+      orderByState={orderByState}
+      actionButtons={[
+        <BatchExportTableButton
+          {...{
+            projectId,
+            filterState: backendFilterState,
+            orderByState,
+            searchQuery,
             searchType,
           }}
-          selectAll={selectAll}
-          totalCount={totalCount ?? 0}
-          onClose={() => {
-            setShowAddToDatasetDialog(false);
-            setSelectedRows({});
-            setSelectAll(false);
-          }}
-          exampleObservation={(() => {
-            // Get the first selected observation to use for preview
-            const selectedIds = Object.keys(selectedRows).filter((id) =>
-              generations.data?.generations.map((g) => g.id).includes(id),
-            );
-            const firstId = selectedIds[0];
-            const firstGen = generations.data?.generations.find(
-              (g) => g.id === firstId,
-            );
-            return {
-              id: firstGen?.id ?? "",
-              traceId: firstGen?.traceId ?? "",
-              startTime: firstGen?.traceTimestamp ?? undefined,
-            };
-          })()}
-        />
-      )}
-    </DataTableControlsProvider>
+          tableName={BatchExportTableName.Observations}
+          key="batchExport"
+        />,
+        selectedObservationIds.length > 0 || selectAll ? (
+          <TableActionMenu
+            key="observations-multi-select-actions"
+            projectId={projectId}
+            actions={tableActions}
+            tableName={BatchExportTableName.Observations}
+            selectedCount={selectedObservationCount}
+            onClearSelection={actions.clearSelection}
+            onCustomAction={(actionType) => {
+              if (actionType === ActionId.ObservationAddToDataset) {
+                actions.setShowAddToDatasetDialog(true);
+              }
+            }}
+          />
+        ) : null,
+      ]}
+      multiSelect={{
+        selectAll,
+        setSelectAll: actions.setSelectAll,
+        selectedRowIds: selectedObservationIds,
+        setRowSelection: actions.setRowSelection,
+        totalCount,
+        ...paginationState,
+      }}
+    />
+  );
+}
+
+function ObservationsAddToDatasetDialog({
+  backendFilterState,
+  orderByState,
+  projectId,
+  rows,
+  searchQuery,
+  searchType,
+  totalCount,
+}: {
+  backendFilterState: FilterState;
+  orderByState: OrderByState;
+  projectId: string;
+  rows: ObservationsTableRow[];
+  searchQuery: string | null;
+  searchType: TracingSearchType[];
+  totalCount: number | null;
+}) {
+  const showAddToDatasetDialog = useObservationsTableStore(
+    (state) => state.showAddToDatasetDialog,
+  );
+  const selectedObservationIds = useObservationsTableStore(
+    (state) => state.selectedPageRowIds,
+  );
+  const selectAll = useObservationsTableStore((state) => state.selectAll);
+  const actions = useObservationsTableStore((state) => state.actions);
+
+  if (!showAddToDatasetDialog) return null;
+
+  const firstId = selectedObservationIds[0];
+  const firstRow = rows.find((row) => row.id === firstId);
+
+  return (
+    <AddObservationsToDatasetDialog
+      projectId={projectId}
+      selectedObservationIds={selectedObservationIds}
+      query={{
+        filter: backendFilterState,
+        orderBy: orderByState,
+        searchQuery: searchQuery ?? undefined,
+        searchType,
+      }}
+      selectAll={selectAll}
+      totalCount={totalCount ?? 0}
+      onClose={() => {
+        actions.setShowAddToDatasetDialog(false);
+        actions.clearSelection();
+      }}
+      exampleObservation={{
+        id: firstRow?.id ?? "",
+        traceId: firstRow?.traceId ?? "",
+        startTime: firstRow?.timestamp ?? undefined,
+      }}
+    />
   );
 }
 

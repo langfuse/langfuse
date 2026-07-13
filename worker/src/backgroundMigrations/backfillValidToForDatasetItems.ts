@@ -26,9 +26,7 @@ const backgroundMigrationId = "d4f5a6b7-c8d9-4e1f-a2b3-c4d5e6f7a8b8";
 
 const DEFAULT_BATCH_SIZE = 1000;
 
-export default class BackfillValidToForDatasetItems
-  implements IBackgroundMigration
-{
+export default class BackfillValidToForDatasetItems implements IBackgroundMigration {
   private isAborted = false;
 
   async validate(

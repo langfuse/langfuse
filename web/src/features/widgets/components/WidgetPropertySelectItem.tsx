@@ -2,8 +2,8 @@ import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
+  HoverCardPortal,
 } from "@/src/components/ui/hover-card";
-import { HoverCardPortal } from "@radix-ui/react-hover-card";
 import { SelectItem } from "@/src/components/ui/select";
 import * as React from "react";
 
@@ -31,12 +31,12 @@ export const PropertyHoverCard = ({
           {(unit || type) && (
             <div className="mb-2 flex flex-wrap gap-2 text-xs">
               {unit && (
-                <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground">
+                <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5">
                   Unit: {unit}
                 </span>
               )}
               {type && (
-                <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground">
+                <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5">
                   Type: {type}
                 </span>
               )}

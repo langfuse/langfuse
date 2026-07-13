@@ -28,7 +28,6 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { EditDatasetItemDialog } from "@/src/features/datasets/components/EditDatasetItemDialog";
 import { useDatasetVersion } from "@/src/features/datasets/hooks/useDatasetVersion";
 import { toDatasetSchema } from "@/src/features/datasets/utils/datasetItemUtils";
-
 export const DatasetItemDetailPage = ({
   activeTab,
   withPadding = true,
@@ -150,12 +149,12 @@ export const DatasetItemDetailPage = ({
                 <PopoverContent className="w-80" align="start" side="bottom">
                   <div className="flex flex-col gap-4">
                     <div className="space-y-2">
-                      <h4 className="font-medium leading-none">
+                      <h4 className="leading-none font-medium">
                         {item.data.status === DatasetStatus.ACTIVE
                           ? "Archive this item?"
                           : "Unarchive this item?"}
                       </h4>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-muted-foreground text-sm">
                         {item.data.status === DatasetStatus.ACTIVE
                           ? "Archiving an item will exclude it from new dataset runs."
                           : "Unarchiving an item will include it back in new dataset runs."}
@@ -224,7 +223,7 @@ export const DatasetItemDetailPage = ({
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="flex flex-col [&>*]:w-full [&>*]:justify-start">
+              <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
                 <DropdownMenuItem
                   onClick={() => setEditDialogOpen(true)}
                   disabled={!hasAccess || isViewingOldVersion || !item.data}

@@ -12,10 +12,16 @@ import {
 import { CreateExperimentsForm } from "@/src/features/experiments/components/CreateExperimentsForm";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { DatasetAnalytics } from "@/src/features/datasets/components/DatasetAnalytics";
-import { TimeseriesChart } from "@/src/features/scores/components/TimeseriesChart";
-import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { CompareViewAdapter } from "@/src/features/scores/adapters";
-import { RESOURCE_METRICS } from "@/src/features/dashboard/lib/score-analytics-utils";
+import {
+  RESOURCE_METRICS,
+  isEmptyChart,
+} from "@/src/features/dashboard/lib/score-analytics-utils";
+import {
+  compareViewChartDataToDataPoints,
+  getCompareViewChartUnit,
+} from "@/src/features/dashboard/lib/chart-data-adapters";
+import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
 import { SubHeaderLabel } from "@/src/components/layouts/header";
@@ -34,6 +40,7 @@ import {
   DATASET_RUN_COMPARE_TABS,
   getDatasetRunCompareTabs,
 } from "@/src/features/navigation/utils/dataset-run-compare-tabs";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 
 export default function DatasetCompare() {
   const router = useRouter();
@@ -129,7 +136,7 @@ export default function DatasetCompare() {
             </Dialog>
             <MultiSelectKeyValues
               key="select-runs"
-              title="Runs"
+              title="Experiments"
               showSelectedValueStrings={false}
               placeholder="Select runs to compare"
               className="w-fit"
@@ -165,12 +172,11 @@ export default function DatasetCompare() {
         ),
       }}
     >
-      <div className="grid flex-1 grid-cols-[1fr,auto] overflow-hidden">
+      <div className="grid flex-1 grid-cols-[1fr_auto] overflow-hidden">
         <div className="flex h-full flex-col gap-2 overflow-hidden px-3 py-2">
           <div className="flex w-full justify-end">
             <DatasetAnalytics
               key="dataset-analytics"
-              projectId={projectId}
               scoreOptions={scoreAnalyticsOptions}
               selectedMetrics={selectedMetrics}
               setSelectedMetrics={setSelectedMetrics}
@@ -188,47 +194,58 @@ export default function DatasetCompare() {
                   const { chartData, chartLabels } = adapter.toChartData();
 
                   const scoreData = scoreKeyToData.get(key);
-                  if (!scoreData)
+                  const title = scoreData
+                    ? `${getScoreDataTypeIcon(scoreData.dataType)} ${scoreData.name} (${scoreData.source.toLowerCase()})`
+                    : (RESOURCE_METRICS.find((metric) => metric.key === key)
+                        ?.label ?? key);
+
+                  if (isEmptyChart({ data: chartData })) {
                     return (
                       <div
                         key={key}
-                        className="max-h-52 min-h-0 min-w-0 max-w-full"
+                        className="flex min-h-[200px] max-w-full min-w-0 flex-col gap-2"
                       >
-                        <TimeseriesChart
-                          key={key}
-                          chartData={chartData}
-                          chartLabels={chartLabels}
-                          title={
-                            RESOURCE_METRICS.find(
-                              (metric) => metric.key === key,
-                            )?.label ?? key
-                          }
-                          type="numeric"
-                          maxFractionDigits={
-                            RESOURCE_METRICS.find(
-                              (metric) => metric.key === key,
-                            )?.maxFractionDigits
-                          }
+                        <span className="shrink-0 text-sm font-medium">
+                          {title}
+                        </span>
+                        <NoDataOrLoading
+                          isLoading={false}
+                          className="min-h-32 flex-1"
                         />
                       </div>
                     );
+                  }
+
+                  const dataPoints = compareViewChartDataToDataPoints(
+                    chartData,
+                    chartLabels,
+                    key,
+                  );
+
+                  const chartType =
+                    chartLabels.length === 1
+                      ? "LINE_TIME_SERIES"
+                      : "BAR_TIME_SERIES";
 
                   return (
                     <div
                       key={key}
-                      className="max-h-52 min-h-0 min-w-0 max-w-full"
+                      className="flex min-h-[200px] max-w-full min-w-0 flex-col gap-2"
                     >
-                      <TimeseriesChart
-                        key={key}
-                        chartData={chartData}
-                        chartLabels={chartLabels}
-                        title={`${getScoreDataTypeIcon(scoreData.dataType)} ${scoreData.name} (${scoreData.source.toLowerCase()})`}
-                        type={
-                          isNumericDataType(scoreData.dataType)
-                            ? "numeric"
-                            : "categorical"
-                        }
-                      />
+                      <span className="shrink-0 text-sm font-medium">
+                        {title}
+                      </span>
+                      <div className="min-h-[200px] min-w-0 flex-1">
+                        <Chart
+                          chartType={chartType}
+                          data={dataPoints}
+                          rowLimit={Math.max(dataPoints.length, 1)}
+                          chartConfig={{
+                            type: chartType,
+                            unit: getCompareViewChartUnit(key),
+                          }}
+                        />
+                      </div>
                     </div>
                   );
                 })}
@@ -236,7 +253,7 @@ export default function DatasetCompare() {
             ) : isLoading ? (
               <Skeleton className="h-52 w-full" />
             ) : (
-              <span className="-mt-2 text-sm text-muted-foreground">
+              <span className="text-muted-foreground -mt-2 text-sm">
                 {Boolean(chartDataMap?.size)
                   ? "All charts hidden. Enable them in the Charts dropdown."
                   : "Select more than one run to generate charts."}
@@ -256,7 +273,7 @@ export default function DatasetCompare() {
             <div className="w-full space-y-4">
               <div>
                 <SubHeaderLabel title="Description" />
-                <span className="text-sm text-muted-foreground">
+                <span className="text-muted-foreground text-sm">
                   {dataset.data?.description ?? "No description"}
                 </span>
               </div>

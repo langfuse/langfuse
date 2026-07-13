@@ -1,11 +1,14 @@
 import { expect, test, describe, beforeEach, vi, afterEach } from "vitest";
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
-import { pruneDatabase } from "./utils";
 import { LLMAdapter } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { createExperimentJobClickhouse } from "../features/experiments/experimentServiceClickhouse";
-import { createDatasetItem, logger } from "@langfuse/shared/src/server";
+import {
+  createDatasetItem,
+  createOrgProjectAndApiKey,
+  logger,
+} from "@langfuse/shared/src/server";
 
 // Mock the logger to capture log calls
 vi.mock("@langfuse/shared/src/server", async () => {
@@ -26,7 +29,6 @@ describe("create experiment jobs", () => {
   const mockLogger = vi.mocked(logger);
 
   beforeEach(async () => {
-    await pruneDatabase();
     vi.clearAllMocks();
   });
 
@@ -34,10 +36,10 @@ describe("create experiment jobs", () => {
     vi.restoreAllMocks();
   });
   test("processes valid experiment without throwing", async () => {
-    const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+    const { projectId } = await createOrgProjectAndApiKey();
     const datasetId = randomUUID();
     const runId = randomUUID();
-    const promptId = "03f834cc-c089-4bcb-9add-b14cadcdf47c";
+    const promptId = randomUUID();
 
     // Create required prompt
     await prisma.prompt.create({
@@ -116,7 +118,7 @@ describe("create experiment jobs", () => {
   });
 
   test("handles experiment validation failure (missing prompt_id) without throwing", async () => {
-    const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+    const { projectId } = await createOrgProjectAndApiKey();
     const datasetId = randomUUID();
     const runId = randomUUID();
 
@@ -170,10 +172,10 @@ describe("create experiment jobs", () => {
   });
 
   test("handles prompt with variables without throwing", async () => {
-    const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+    const { projectId } = await createOrgProjectAndApiKey();
     const datasetId = randomUUID();
     const runId = randomUUID();
-    const promptId = "03f834cc-c089-4bcb-9add-b14cadcdf47c";
+    const promptId = randomUUID();
 
     // Create dataset
     await prisma.dataset.create({
@@ -245,10 +247,10 @@ describe("create experiment jobs", () => {
   });
 
   test("handles mismatched dataset variables without throwing", async () => {
-    const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+    const { projectId } = await createOrgProjectAndApiKey();
     const datasetId = randomUUID();
     const runId = randomUUID();
-    const promptId = "03f834cc-c089-4bcb-9add-b14cadcdf47c";
+    const promptId = randomUUID();
     // Create prompt with variable that won't match dataset item
     await prisma.prompt.create({
       data: {
@@ -321,7 +323,6 @@ describe("create experiment jobs with placeholders", () => {
   const mockLogger = vi.mocked(logger);
 
   beforeEach(async () => {
-    await pruneDatabase();
     vi.clearAllMocks();
   });
 
@@ -329,10 +330,10 @@ describe("create experiment jobs with placeholders", () => {
     promptConfig: any,
     datasetItemInput: any,
   ) => {
-    const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+    const { projectId } = await createOrgProjectAndApiKey();
     const datasetId = randomUUID();
     const runId = randomUUID();
-    const promptId = "03f834cc-c089-4bcb-9add-b14cadcdf47c";
+    const promptId = randomUUID();
     // Create prompt
     await prisma.prompt.create({
       data: {
@@ -474,15 +475,14 @@ describe("create experiment jobs with placeholders", () => {
 
 describe("experiment processing integration", () => {
   beforeEach(async () => {
-    await pruneDatabase();
     vi.clearAllMocks();
   });
 
   test("processes experiment end-to-end without throwing", async () => {
-    const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+    const { projectId } = await createOrgProjectAndApiKey();
     const datasetId = randomUUID();
     const runId = randomUUID();
-    const promptId = "03f834cc-c089-4bcb-9add-b14cadcdf47c";
+    const promptId = randomUUID();
 
     // Create required prompt
     await prisma.prompt.create({

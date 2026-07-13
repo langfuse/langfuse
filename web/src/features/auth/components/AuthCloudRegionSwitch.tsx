@@ -17,41 +17,7 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-
-const regions =
-  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
-    ? [
-        {
-          name: "STAGING",
-          hostname: "staging.langfuse.com",
-          flag: "🇪🇺",
-        },
-      ]
-    : env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV"
-      ? [
-          {
-            name: "DEV",
-            hostname: null,
-            flag: "🚧",
-          },
-        ]
-      : [
-          {
-            name: "US",
-            hostname: "us.cloud.langfuse.com",
-            flag: "🇺🇸",
-          },
-          {
-            name: "EU",
-            hostname: "cloud.langfuse.com",
-            flag: "🇪🇺",
-          },
-          {
-            name: "HIPAA",
-            hostname: "hipaa.cloud.langfuse.com",
-            flag: "⚕️",
-          },
-        ];
+import { getAvailableCloudRegionOptions } from "@/src/features/organizations/cloudRegions";
 
 export function CloudRegionSwitch({
   isSignUpPage,
@@ -60,21 +26,24 @@ export function CloudRegionSwitch({
 }) {
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud, region: cloudRegion } = useLangfuseCloudRegion();
+  const regions = getAvailableCloudRegionOptions(
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? cloudRegion,
+  );
 
   if (!isLangfuseCloud) return null;
 
   const currentRegion = regions.find((region) => region.name === cloudRegion);
 
   return (
-    <div className="-mb-10 mt-8 rounded-lg bg-card px-6 py-6 text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
+    <div className="bg-card mt-8 -mb-10 rounded-lg px-6 py-6 text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
       <div className="flex w-full flex-col gap-2">
         <div>
-          <span className="text-sm font-medium leading-none">
+          <span className="text-sm leading-none font-medium">
             Data Region
             <DataRegionInfo />
           </span>
           {isSignUpPage && cloudRegion === "HIPAA" ? (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               Demo project is not available in the HIPAA data region.
             </p>
           ) : null}
@@ -104,15 +73,26 @@ export function CloudRegionSwitch({
           <SelectContent>
             {regions.map((region) => (
               <SelectItem key={region.name} value={region.name}>
-                <span className="mr-2 text-xl leading-none">{region.flag}</span>
-                {region.name}
+                <span className="flex items-center gap-2">
+                  <span
+                    className={
+                      // The HIPAA symbol glyph sits lower than flag emojis in the same font.
+                      region.name === "HIPAA"
+                        ? "translate-y-[-3px] text-xl leading-none"
+                        : "-translate-y-px text-xl leading-none"
+                    }
+                  >
+                    {region.flag}
+                  </span>
+                  <span>{region.name}</span>
+                </span>
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
 
         {cloudRegion === "HIPAA" && (
-          <div className="mt-2 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
+          <div className="bg-muted/50 text-muted-foreground mt-2 rounded-md p-3 text-xs">
             <p>
               The Business Associate Agreement (BAA) is only effective on the
               Cloud Pro and Teams plans.{" "}
@@ -120,7 +100,7 @@ export function CloudRegionSwitch({
                 href="https://langfuse.com/security/hipaa"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary-accent underline hover:text-hover-primary-accent"
+                className="text-link hover:text-link-hover underline"
               >
                 Learn more about HIPAA compliance →
               </a>
@@ -137,7 +117,7 @@ const DataRegionInfo = () => (
     <DialogTrigger asChild>
       <a
         href="#"
-        className="ml-1 text-xs text-primary-accent hover:text-hover-primary-accent"
+        className="text-link hover:text-link-hover ml-1 text-xs"
         title="What is this?"
         tabIndex={-1}
       >
@@ -150,10 +130,11 @@ const DataRegionInfo = () => (
       </DialogHeader>
       <DialogBody>
         <DialogDescription className="flex flex-col gap-2">
-          <p>Langfuse Cloud is available in three data regions:</p>
+          <p>Langfuse Cloud is available in four data regions:</p>
           <ul className="list-disc pl-5">
             <li>US: Oregon (AWS us-west-2)</li>
             <li>EU: Ireland (AWS eu-west-1)</li>
+            <li>JP: Tokyo (AWS ap-northeast-1)</li>
             <li>
               HIPAA: Oregon (AWS us-west-2) - HIPAA-compliant region (available
               with Pro and Teams plans)
@@ -174,7 +155,7 @@ const DataRegionInfo = () => (
               href="https://langfuse.com/security/data-regions"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary-accent underline"
+              className="text-link hover:text-link-hover underline"
             >
               data regions
             </a>{" "}
@@ -183,7 +164,7 @@ const DataRegionInfo = () => (
               href="https://langfuse.com/docs/data-security-privacy"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary-accent underline"
+              className="text-link hover:text-link-hover underline"
             >
               data security & privacy
             </a>

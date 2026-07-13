@@ -14,7 +14,7 @@ import {
   WidgetDomainSchema,
   DashboardDefinitionSchema,
 } from "./types";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { singleFilter } from "../../../";
 
 export class DashboardService {
@@ -109,15 +109,9 @@ export class DashboardService {
       data: {
         updatedBy: userId,
         definition: {
-          widgets: definition.widgets.map((widget) => ({
-            type: "widget",
-            id: widget.id,
-            widgetId: widget.widgetId,
-            x: widget.x,
-            y: widget.y,
-            x_size: widget.x_size,
-            y_size: widget.y_size,
-          })),
+          // Already sanitized: the input is parsed against
+          // DashboardDefinitionSchema, which strips unknown keys.
+          widgets: definition.widgets,
         },
       },
     });
@@ -285,6 +279,7 @@ export class DashboardService {
         filters: input.filters,
         chartType: input.chartType,
         chartConfig: input.chartConfig,
+        minVersion: input.minVersion ?? 1,
         createdBy: userId,
         updatedBy: userId,
       },
@@ -343,6 +338,9 @@ export class DashboardService {
         filters: input.filters,
         chartType: input.chartType,
         chartConfig: input.chartConfig,
+        ...(input.minVersion !== undefined
+          ? { minVersion: input.minVersion }
+          : {}),
         updatedBy: userId,
       },
     });
@@ -434,6 +432,7 @@ export class DashboardService {
           filters: sourceWidget.filters ?? [],
           chartType: sourceWidget.chartType,
           chartConfig: sourceWidget.chartConfig ?? {},
+          minVersion: sourceWidget.minVersion,
           projectId, // project owned
           createdBy: userId,
           updatedBy: userId,

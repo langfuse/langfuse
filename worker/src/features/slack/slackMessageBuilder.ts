@@ -1,6 +1,41 @@
-import { logger } from "@langfuse/shared/src/server";
-import type { WebhookInput } from "@langfuse/shared/src/server";
+import {
+  logger,
+  escapeSlackMrkdwn,
+  type WebhookInput,
+  type SlackMessage,
+} from "@langfuse/shared/src/server";
 import { env } from "../../env";
+
+type WebhookInputPayload = WebhookInput["payload"];
+type PromptVersionPayload = Extract<
+  WebhookInputPayload,
+  { type: "prompt-version" }
+>;
+
+const getProductBaseUrl = () => {
+  if (!env.NEXTAUTH_URL) return undefined;
+
+  const baseUrl = new URL(env.NEXTAUTH_URL);
+
+  baseUrl.pathname = baseUrl.pathname.replace(/\/api\/auth\/?$/, "/");
+  baseUrl.search = "";
+  baseUrl.hash = "";
+
+  const basePath = env.NEXT_PUBLIC_BASE_PATH?.replace(/\/$/, "");
+  if (
+    basePath &&
+    baseUrl.pathname !== basePath &&
+    !baseUrl.pathname.startsWith(`${basePath}/`)
+  ) {
+    baseUrl.pathname = `${basePath}${baseUrl.pathname}`;
+  }
+
+  if (!baseUrl.pathname.endsWith("/")) {
+    baseUrl.pathname = `${baseUrl.pathname}/`;
+  }
+
+  return baseUrl;
+};
 
 /**
  * Builds Slack Block Kit messages for different Langfuse event types
@@ -9,11 +44,12 @@ export class SlackMessageBuilder {
   /**
    * Build Block Kit message for prompt version events
    */
-  static buildPromptVersionMessage(payload: WebhookInput["payload"]): any[] {
+  static buildPromptVersionMessage(payload: PromptVersionPayload): any[] {
     const { action, prompt } = payload;
 
     // Determine action emoji and color
     const actionConfig = this.getActionConfig(action);
+    const promptUrl = this.buildPromptUrl(prompt);
 
     // Build the main message blocks
     const blocks = [
@@ -31,13 +67,17 @@ export class SlackMessageBuilder {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `*${prompt.name}* (version ${prompt.version}) has been *${action}*`,
+          text: `*${escapeSlackMrkdwn(prompt.name)}* (version ${prompt.version}) has been *${action}*`,
         },
       },
       // Details section with key information
       {
         type: "section",
         fields: [
+          {
+            type: "mrkdwn",
+            text: `*Change author:*\n${escapeSlackMrkdwn(payload.user?.name || payload.user?.email || "API User")}`,
+          },
           {
             type: "mrkdwn",
             text: `*Type:*\n${prompt.type}`,
@@ -52,7 +92,7 @@ export class SlackMessageBuilder {
           },
           {
             type: "mrkdwn",
-            text: `*Tags:*\n${prompt.tags.length > 0 ? prompt.tags.join(", ") : "None"}`,
+            text: `*Tags:*\n${prompt.tags.length > 0 ? prompt.tags.map(escapeSlackMrkdwn).join(", ") : "None"}`,
           },
         ],
       },
@@ -63,13 +103,13 @@ export class SlackMessageBuilder {
               type: "section",
               text: {
                 type: "mrkdwn",
-                text: `*Commit Message:*\n> ${prompt.commitMessage}`,
+                text: `*Commit Message:*\n> ${escapeSlackMrkdwn(prompt.commitMessage)}`,
               },
             },
           ]
         : []),
       // Action buttons
-      ...(env.NEXTAUTH_URL
+      ...(promptUrl
         ? [
             {
               type: "actions",
@@ -81,23 +121,13 @@ export class SlackMessageBuilder {
                     text: "View Prompt",
                     emoji: true,
                   },
-                  url: `${env.NEXTAUTH_URL}/project/${prompt.projectId}/prompts/${encodeURIComponent(prompt.name)}?version=${prompt.version}`,
+                  url: promptUrl,
                   style: "primary",
                 },
               ],
             },
           ]
         : []),
-      // Footer with timestamp
-      {
-        type: "context",
-        elements: [
-          {
-            type: "mrkdwn",
-            text: `🕒 ${new Date().toLocaleString()} | Langfuse`,
-          },
-        ],
-      },
     ];
 
     return blocks;
@@ -106,23 +136,18 @@ export class SlackMessageBuilder {
   /**
    * Build a simple fallback message for unsupported event types
    */
-  static buildFallbackMessage(payload: WebhookInput["payload"]): any[] {
+  static buildFallbackMessage(payload: WebhookInputPayload): any[] {
+    // Fallback handles malformed and not-yet-known payloads — narrow off the
+    // discriminated union and read `.action` opportunistically.
+    const action =
+      (payload as { action?: string }).action ?? payload.type ?? "event";
     return [
       {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `*Langfuse Notification*\n${payload.type} event: *${payload.action}*`,
+          text: `*Langfuse Notification*\n${payload.type} event: *${action}*`,
         },
-      },
-      {
-        type: "context",
-        elements: [
-          {
-            type: "mrkdwn",
-            text: `🕒 ${new Date().toLocaleString()} | Langfuse`,
-          },
-        ],
       },
     ];
   }
@@ -146,21 +171,36 @@ export class SlackMessageBuilder {
     }
   }
 
+  private static buildPromptUrl(prompt: PromptVersionPayload["prompt"]) {
+    const baseUrl = getProductBaseUrl();
+    if (!baseUrl) return undefined;
+
+    const url = new URL(
+      `project/${prompt.projectId}/prompts/${encodeURIComponent(prompt.name)}`,
+      baseUrl,
+    );
+    url.searchParams.set("version", String(prompt.version));
+
+    return url.toString();
+  }
+
   /**
    * Main entry point - builds appropriate message for event type
    */
-  static buildMessage(payload: WebhookInput["payload"]): any[] {
+  static buildMessage(payload: WebhookInputPayload): SlackMessage {
     try {
       switch (payload.type) {
         case "prompt-version":
-          return this.buildPromptVersionMessage(payload);
-        default:
-          logger.warn(`Unsupported Slack message type: ${payload.type}`);
-          return this.buildFallbackMessage(payload);
+          return { blocks: this.buildPromptVersionMessage(payload) };
+        default: {
+          const unknownType = (payload as { type: string }).type;
+          logger.warn(`Unsupported Slack message type: ${unknownType}`);
+          return { blocks: this.buildFallbackMessage(payload) };
+        }
       }
     } catch (error) {
       logger.error("Error building Slack message", { error, payload });
-      return this.buildFallbackMessage(payload);
+      return { blocks: this.buildFallbackMessage(payload) };
     }
   }
 }

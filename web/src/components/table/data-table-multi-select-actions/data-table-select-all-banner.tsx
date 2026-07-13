@@ -1,5 +1,6 @@
 import { type MultiSelect } from "@/src/components/table/data-table-toolbar";
 import { Button } from "@/src/components/ui/button";
+import { numberFormatter } from "@/src/utils/numbers";
 
 export function DataTableSelectAllBanner({
   selectAll,
@@ -7,16 +8,24 @@ export function DataTableSelectAllBanner({
   setRowSelection,
   pageSize,
   totalCount,
+  approximateCount,
 }: MultiSelect) {
+  const totalPages = totalCount ? Math.ceil(totalCount / pageSize) : null;
+  // Hide the precise number when the row count is not the affected-entity count.
+  const exactCount = approximateCount ? null : totalCount;
+
   return (
-    <div className="mb-2 flex flex-wrap items-center justify-center gap-2 rounded-sm bg-input p-2 @container">
+    <div className="bg-light-blue/40 dark:bg-light-blue/50 @container mb-2 flex flex-wrap items-center justify-center gap-2 rounded-sm p-2">
       {selectAll ? (
         <span className="text-sm">
-          All <span className="font-semibold">{totalCount}</span> items are
-          selected.{" "}
+          All{" "}
+          <span className="font-semibold">
+            {exactCount === null ? "matching" : numberFormatter(exactCount, 0)}
+          </span>{" "}
+          items are selected.{" "}
           <Button
             variant="ghost"
-            className="h-auto p-0 font-semibold text-accent-dark-blue hover:text-accent-dark-blue/80"
+            className="text-accent-dark-blue hover:text-accent-dark-blue/80 h-auto p-0 font-semibold"
             onClick={() => {
               setSelectAll(false);
               setRowSelection({});
@@ -27,16 +36,22 @@ export function DataTableSelectAllBanner({
         </span>
       ) : (
         <span className="text-sm">
-          All <span className="font-semibold">{pageSize}</span> items on this
-          page are selected.{" "}
+          All{" "}
+          <span className="font-semibold">{numberFormatter(pageSize, 0)}</span>{" "}
+          items on this page are selected.{" "}
           <Button
             variant="ghost"
-            className="h-auto p-0 font-semibold text-accent-dark-blue hover:text-accent-dark-blue/80"
+            className="text-accent-dark-blue hover:text-accent-dark-blue/80 h-auto p-0 font-semibold"
             onClick={() => {
               setSelectAll(true);
             }}
           >
-            Select all {totalCount} items
+            {exactCount === null || totalPages === null
+              ? "Select all matching items"
+              : `Select all ${numberFormatter(
+                  exactCount,
+                  0,
+                )} items across ${numberFormatter(totalPages, 0)} pages`}
           </Button>
         </span>
       )}

@@ -1,10 +1,13 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { encrypt } from "@langfuse/shared/encryption";
 import { SsoProviderSchema } from "./types";
+import { validateSsoConfig } from "@/src/ee/features/multi-tenant-sso/validateSsoConfig";
+import { TRPCError } from "@trpc/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { env } from "@/src/env.mjs";
 import { logger } from "@langfuse/shared/src/server";
 import { multiTenantSsoAvailable } from "@/src/ee/features/multi-tenant-sso/multiTenantSsoAvailable";
+import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 
 export async function createNewSsoConfigHandler(
   req: NextApiRequest,
@@ -22,26 +25,18 @@ export async function createNewSsoConfigHandler(
       res.status(405).json({ error: "Method Not Allowed" });
       return;
     }
-    // check if ADMIN_API_KEY is set
-    if (!env.ADMIN_API_KEY) {
-      res.status(500).json({ error: "ADMIN_API_KEY is not set" });
-      return;
-    }
     if (!env.ENCRYPTION_KEY) {
       res.status(500).json({ error: "ENCRYPTION_KEY is not set" });
       return;
     }
-    // check bearer token
-    const { authorization } = req.headers;
-    if (!authorization) {
-      res
-        .status(401)
-        .json({ error: "Unauthorized: No authorization header provided" });
-      return;
-    }
-    const [scheme, token] = authorization.split(" ");
-    if (scheme !== "Bearer" || !token || token !== env.ADMIN_API_KEY) {
-      res.status(401).json({ error: "Unauthorized: Invalid token" });
+    // Authenticate via ADMIN_API_KEY with timing-safe comparison.
+    // multiTenantSsoAvailable already restricts this endpoint to Langfuse
+    // Cloud, so explicitly opt in with isAllowedOnLangfuseCloud.
+    if (
+      !AdminApiAuthService.handleAdminAuth(req, res, {
+        isAllowedOnLangfuseCloud: true,
+      })
+    ) {
       return;
     }
 
@@ -65,6 +60,19 @@ export async function createNewSsoConfigHandler(
         error: `An SSO configuration already exists for domain '${domain}'`,
       });
       return;
+    }
+
+    // Pre-flight the IdP discovery doc so misconfigurations surface here
+    // instead of locking out users at first sign-in. Same check applied by
+    // the self-service tRPC `ssoConfig.save` mutation.
+    try {
+      await validateSsoConfig(body.data);
+    } catch (e) {
+      if (e instanceof TRPCError) {
+        res.status(412).json({ error: e.message });
+        return;
+      }
+      throw e;
     }
 
     const encryptedClientSecret = authConfig

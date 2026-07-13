@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 
-import { getPromptByName } from "@/src/features/prompts/server/actions/getPromptByName";
+import { getPromptForApi } from "@/src/features/prompts/server/prompt-api-service";
 import { deletePrompt } from "@/src/features/prompts/server/actions/deletePrompt";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { authorizePromptRequestOrThrow } from "../utils/authorizePromptRequest";
@@ -32,12 +32,12 @@ const getPromptNameHandler = async (
     req.query,
   );
 
-  const prompt = await getPromptByName({
+  const prompt = await getPromptForApi({
     promptName: promptName,
     projectId: authCheck.scope.projectId,
     version,
     label,
-    resolve: resolve ?? true, // Default to true for backward compatibility
+    resolve,
   });
 
   if (!prompt) {

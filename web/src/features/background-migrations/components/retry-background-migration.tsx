@@ -26,7 +26,7 @@ export function RetryBackgroundMigration({
   const mutRetryBackgroundMigration =
     api.backgroundMigrations.retry.useMutation({
       onSuccess: () => {
-        void utils.backgroundMigrations.invalidate();
+        utils.backgroundMigrations.invalidate();
         toast.success("Migration scheduled for retry");
         setIsOpen(false);
         setAdminApiKey("");
@@ -63,9 +63,7 @@ export function RetryBackgroundMigration({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-96">
-        <h2 className="text-md mb-3 font-semibold">
-          Retry Background Migration
-        </h2>
+        <h2 className="mb-3 font-semibold">Retry Background Migration</h2>
         <p className="mb-4 text-sm">
           This action schedules the migration for retry. Restart the worker
           containers to re-initiate the migration.
@@ -87,18 +85,18 @@ export function RetryBackgroundMigration({
             inputMode="text"
             name="admin-api-key"
           />
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="text-muted-foreground mt-1 text-xs">
             Required for security. This key must match your ADMIN_API_KEY
             environment variable{" ("}
             <a
               href="https://langfuse.com/self-hosting/administration/organization-management-api#authentication"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-muted-foreground underline hover:text-primary"
+              className="text-muted-foreground hover:text-primary underline"
             >
               Docs
             </a>
-            {")."}
+            ).
           </p>
         </div>
 

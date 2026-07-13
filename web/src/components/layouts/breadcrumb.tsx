@@ -13,13 +13,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import {
-  ChevronDownIcon,
-  LoaderCircle,
-  PlusIcon,
-  Settings,
-  Slash,
-} from "lucide-react";
+import { ChevronDownIcon, PlusIcon, Settings, Slash } from "lucide-react";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { Button } from "@/src/components/ui/button";
 import { env } from "@/src/env.mjs";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
@@ -36,7 +31,10 @@ import { Badge } from "@/src/components/ui/badge";
 
 const LoadingMenuItem = () => (
   <DropdownMenuItem>
-    <LoaderCircle className="mr-1.5 h-4 w-4 animate-spin" /> Loading...
+    <span className="mr-1.5 inline-flex">
+      <Spinner size="sm" />
+    </span>
+    Loading...
   </DropdownMenuItem>
 );
 
@@ -97,7 +95,7 @@ const BreadcrumbComponent = ({
       <BreadcrumbList>
         {organization && (
           <DropdownMenu>
-            <DropdownMenuTrigger className="flex items-center gap-1 text-sm text-primary">
+            <DropdownMenuTrigger className="text-primary flex items-center gap-1 text-sm">
               {organization?.name ?? "Organization"}
               {isCloudPlan(organization?.plan) &&
                 organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID && (
@@ -139,7 +137,7 @@ const BreadcrumbComponent = ({
                             className="flex cursor-pointer justify-between"
                           >
                             <span
-                              className="max-w-36 overflow-hidden overflow-ellipsis whitespace-nowrap"
+                              className="max-w-36 overflow-hidden text-ellipsis whitespace-nowrap"
                               title={dropdownOrg.name}
                             >
                               {dropdownOrg.name}
@@ -148,7 +146,7 @@ const BreadcrumbComponent = ({
                               asChild
                               variant="ghost"
                               size="xs"
-                              className="-my-1 ml-4 hover:bg-background"
+                              className="hover:bg-background -my-1 ml-4"
                             >
                               <div
                                 onClick={(e) => {
@@ -201,7 +199,7 @@ const BreadcrumbComponent = ({
               <Slash />
             </BreadcrumbSeparator>
             <DropdownMenu>
-              <DropdownMenuTrigger className="flex items-center gap-1 text-primary">
+              <DropdownMenuTrigger className="text-primary flex items-center gap-1">
                 {project?.name ?? "Project"}
                 <ChevronDownIcon className="h-4 w-4" />
               </DropdownMenuTrigger>
@@ -226,7 +224,7 @@ const BreadcrumbComponent = ({
                             className="flex cursor-pointer justify-between"
                           >
                             <span
-                              className="max-w-36 overflow-hidden overflow-ellipsis whitespace-nowrap"
+                              className="max-w-36 overflow-hidden text-ellipsis whitespace-nowrap"
                               title={dropdownProject.name}
                             >
                               {dropdownProject.name}
@@ -235,7 +233,7 @@ const BreadcrumbComponent = ({
                               asChild
                               variant="ghost"
                               size="xs"
-                              className="-my-1 ml-4 hover:bg-background"
+                              className="hover:bg-background -my-1 ml-4"
                             >
                               <div
                                 onClick={(e) => {

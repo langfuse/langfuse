@@ -1,7 +1,12 @@
-import z from "zod/v4";
+import z from "zod";
 import { OrderByState } from "../../../interfaces/orderBy";
-import { UiColumnMappings } from "../../../tableDefinitions";
+import {
+  findUiColumnMapping,
+  UiColumnMappings,
+} from "../../../tableDefinitions";
+import { InvalidRequestError } from "../../../errors";
 import { logger } from "../../logger";
+import type { OrderByDirection, OrderByEntry } from "./event-query-builder";
 
 type OrderByStateNotNull = Exclude<OrderByState, null>;
 
@@ -28,20 +33,18 @@ export function orderByToClickhouseSql(
     Boolean(o),
   )) {
     // Get column definition to map column to internal name, e.g. "t.id"
-    const col = tableColumns.find(
-      (c) => c.uiTableName === ob.column || c.uiTableId === ob.column,
-    );
+    const col = findUiColumnMapping(tableColumns, ob.column);
 
     if (!col) {
-      logger.warn("Invalid order by column", ob.column);
-      throw new Error("Invalid order by column: " + ob.column);
+      logger.warn(`Invalid order by column: ${ob.column}`);
+      throw new InvalidRequestError("Invalid order by column: " + ob.column);
     }
 
     // Assert that ob.order is either "asc" or "desc"
     const orderByOrder = z.enum(["ASC", "DESC"]);
     const order = orderByOrder.safeParse(ob.order);
     if (!order.success) {
-      logger.warn("Invalid order", ob.order);
+      logger.warn(`Invalid order: ${ob.order}. Expected "ASC" or "DESC"`);
       throw new Error("Invalid order: " + ob.order);
     }
 
@@ -55,4 +58,53 @@ export function orderByToClickhouseSql(
 
   // Join all order by clauses with a comma and return
   return `ORDER BY ${orderByClauses.join(", ")}`;
+}
+
+/**
+ * Convert OrderByState to structured OrderByEntry array for use with BaseEventsQueryBuilder.
+ * Returns empty array if no valid orderBy is provided.
+ */
+export function orderByToEntries(
+  orderBy: OrderByState | OrderByState[] = [],
+  tableColumns: UiColumnMappings,
+): OrderByEntry[] {
+  if (
+    !orderBy ||
+    (Array.isArray(orderBy) && orderBy.filter(Boolean).length === 0)
+  ) {
+    return [];
+  }
+
+  if (!Array.isArray(orderBy)) {
+    orderBy = [orderBy];
+  }
+
+  const entries: OrderByEntry[] = [];
+
+  for (const ob of orderBy.filter((o): o is OrderByStateNotNull =>
+    Boolean(o),
+  )) {
+    const col = findUiColumnMapping(tableColumns, ob.column);
+
+    if (!col) {
+      logger.warn(`Invalid order by column: ${ob.column}`);
+      throw new InvalidRequestError("Invalid order by column: " + ob.column);
+    }
+
+    const orderByOrder = z.enum(["ASC", "DESC"]);
+    const order = orderByOrder.safeParse(ob.order);
+    if (!order.success) {
+      logger.warn(`Invalid order: ${ob.order}. Expected "ASC" or "DESC"`);
+      throw new Error("Invalid order: " + ob.order);
+    }
+
+    const column = `${col.queryPrefix ? col.queryPrefix + "." : ""}${col.clickhouseSelect}`;
+
+    entries.push({
+      column,
+      direction: order.data as OrderByDirection,
+    });
+  }
+
+  return entries;
 }

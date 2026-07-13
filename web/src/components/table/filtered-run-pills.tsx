@@ -39,8 +39,8 @@ function operatorToText(operator: FilterCondition["operator"]): string {
 function formatFilterForPill(filter: FilterCondition) {
   const { operator, value } = filter;
 
-  // Handle score filters (numberObject and categoryOptions with key)
-  if (filter.type === "numberObject") {
+  // Handle score filters with key
+  if (filter.type === "numberObject" || filter.type === "booleanObject") {
     const valueStr = Array.isArray(value) ? value.join(", ") : String(value);
     return `${filter.key} ${operatorToText(operator)} ${valueStr}`;
   }
@@ -95,7 +95,7 @@ export function FilteredRunPills({
             <HoverCardTrigger asChild>
               <Badge
                 variant="secondary"
-                className="cursor-pointer text-xs transition-colors hover:bg-secondary/80"
+                className="hover:bg-secondary/80 cursor-pointer text-xs transition-colors"
               >
                 <ListFilter className="mr-1 h-3 w-3" />
                 <div className="font-normal">
@@ -109,7 +109,7 @@ export function FilteredRunPills({
                   {item.runName}
                 </div>
                 <div className="space-y-1">
-                  <div className="rounded-md bg-muted px-2 py-1 text-sm">
+                  <div className="bg-muted rounded-md px-2 py-1 text-sm">
                     {formatFilterForPill(item.filter)}
                   </div>
                 </div>

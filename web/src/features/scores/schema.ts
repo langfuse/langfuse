@@ -1,5 +1,5 @@
 import { ANNOTATION_SCORE_DATA_TYPES_ARRAY } from "@/src/features/scores/types";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 export const AnnotationScoreDataSchema = z.object({
   // Required for ClickHouse deduplication (not shown in UI)

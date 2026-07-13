@@ -1,0 +1,108 @@
+{
+  "e44e72cf2d221781": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "system",
+          "content": "You are a nice and polite assistant."
+        },
+        {
+          "role": "user",
+          "content": "Greet and say goodbye to the user in the same message. Use provided tools to generate a proper greeting. The user name is Bob."
+        },
+        {
+          "role": "tool",
+          "content": "[{\"function\":{\"name\":\"HelloTool\",\"arguments\":\"{\\\"name\\\": \\\"Bob\\\"}\"},\"id\":\"call_n2HaWg9KFP0BZDqXv6G4b3nJ\",\"type\":\"function\"}]"
+        },
+        {
+          "role": "tool",
+          "content": "Hello my darling Bob!"
+        },
+        {
+          "role": "tool",
+          "content": "[{\"function\":{\"name\":\"ByeTool\",\"arguments\":\"{\\\"name\\\": \\\"Bob\\\"}\"},\"id\":\"call_dOeEHJDI0liHrCdFWTpkTsuO\",\"type\":\"function\"}]"
+        },
+        {
+          "role": "tool",
+          "content": "Bye my dear Bob!"
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "content": "Hello my darling Bob! And, bye my dear Bob!"
+        }
+      ]
+    }
+  },
+  "33188493784a060d": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      0\n    ],\n    \"message\": \"Invalid input: expected object, received string\"\n  }\n]"
+      }
+    }
+  },
+  "66f269083a2fff81": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      0\n    ],\n    \"message\": \"Invalid input: expected object, received string\"\n  }\n]"
+      }
+    }
+  },
+  "042f9350c3729147": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "system",
+          "content": "You are a nice and polite assistant."
+        },
+        {
+          "role": "user",
+          "content": "Greet and say goodbye to the user in the same message. Use provided tools to generate a proper greeting. The user name is Bob."
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "content": "[{\"function\":{\"name\":\"HelloTool\",\"arguments\":\"{\\\"name\\\": \\\"Bob\\\"}\"},\"id\":\"call_n2HaWg9KFP0BZDqXv6G4b3nJ\",\"type\":\"function\"}]",
+          "json": {
+            "finish_reason": "tool_calls"
+          }
+        },
+        {
+          "role": "assistant",
+          "content": "[{\"function\":{\"name\":\"ByeTool\",\"arguments\":\"{\\\"name\\\": \\\"Bob\\\"}\"},\"id\":\"call_dOeEHJDI0liHrCdFWTpkTsuO\",\"type\":\"function\"}]",
+          "json": {
+            "finish_reason": "tool_calls"
+          }
+        }
+      ]
+    }
+  }
+}

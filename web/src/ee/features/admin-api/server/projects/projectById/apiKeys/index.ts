@@ -2,7 +2,7 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
 
 export const validateQueryAndExtractId = (query: unknown): string | null => {
@@ -25,6 +25,7 @@ export async function handleGetApiKeys(
     where: {
       projectId,
       scope: "PROJECT",
+      isInAppAgentKey: false,
     },
     select: {
       id: true,
@@ -48,6 +49,7 @@ export async function handleCreateApiKey(
   res: NextApiResponse,
   projectId: string,
   orgId: string,
+  createdByApiKeyId?: string,
 ) {
   // Validate the request body
   const createApiKeySchema = z.object({
@@ -61,7 +63,7 @@ export async function handleCreateApiKey(
   if (!validationResult.success) {
     return res.status(400).json({
       message: "Invalid request body",
-      details: validationResult.error.format(),
+      details: z.formatError(validationResult.error),
     });
   }
 
@@ -98,6 +100,7 @@ export async function handleCreateApiKey(
       entityId: projectId,
       note,
       scope: "PROJECT",
+      createdByApiKeyId,
       predefinedKeys:
         publicKey && secretKey ? { publicKey, secretKey } : undefined,
     });

@@ -92,11 +92,11 @@ export const MessagePlaceholderComponent: React.FC<{
         }
         onChange={handleInputChange}
         mode="json"
-        minHeight="none"
-        className={`max-h-[15rem] w-full resize-y p-1 font-mono text-xs focus:outline-none ${hasConflict ? "border border-red-500" : ""}`}
+        className={`max-h-60 w-full resize-y p-1 font-mono text-xs focus:outline-hidden ${hasConflict ? "border border-red-500" : ""}`}
         editable={true}
         lineNumbers={false}
         placeholder={`[\n  {\n    "role": "user",\n    "content": "Hello!"\n  },\n  {\n    "role": "assistant",\n    "content": "Hi there!"\n  }\n]`}
+        enableSearchKeymap={false}
       />
 
       {hasConflict && (

@@ -17,6 +17,12 @@ export const observationsTableTraceUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: 't."user_id"',
   },
   {
+    uiTableName: "Session ID",
+    uiTableId: "sessionId",
+    clickhouseTableName: "traces",
+    clickhouseSelect: 't."session_id"',
+  },
+  {
     uiTableName: "Trace Name",
     uiTableId: "traceName",
     clickhouseTableName: "traces",
@@ -67,6 +73,12 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "traceId",
     clickhouseTableName: "observations",
     clickhouseSelect: 'o."trace_id"',
+  },
+  {
+    uiTableName: "Parent Observation ID",
+    uiTableId: "parentObservationId",
+    clickhouseTableName: "observations",
+    clickhouseSelect: 'o."parent_observation_id"',
   },
 
   {
@@ -208,6 +220,12 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "score_categories",
     clickhouseTableName: "scores",
     clickhouseSelect: "s.score_categories",
+  },
+  {
+    uiTableName: "Scores (boolean)",
+    uiTableId: "score_booleans",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "s.score_booleans",
   },
   {
     uiTableName: "Version",

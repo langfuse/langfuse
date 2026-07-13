@@ -6,17 +6,18 @@ import {
   type AutomationDomain,
   AvailableWebhookApiSchema,
   WebhookDefaultHeaders,
+  TriggerEventSource,
   type ActionCreate,
   type ActionDomain,
 } from "@langfuse/shared";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 // Define the form schema for webhook actions
 // Exported to silence @typescript-eslint/no-unused-vars v8 warning
 // (used for type extraction via z.infer<typeof>, which is a legitimate pattern)
 export const WebhookActionFormSchema = z.object({
   webhook: z.object({
-    url: z.string().url("Invalid URL"),
+    url: z.url("Invalid URL"),
     headers: z
       .array(
         z.object({
@@ -43,9 +44,7 @@ type HeaderPair = {
   wasSecret: boolean;
 };
 
-export class WebhookActionHandler
-  implements BaseActionHandler<WebhookActionFormData>
-{
+export class WebhookActionHandler implements BaseActionHandler<WebhookActionFormData> {
   actionType = "WEBHOOK" as const;
 
   // Parse existing headers if available
@@ -74,9 +73,17 @@ export class WebhookActionHandler
     return [];
   }
 
-  getDefaultValues(automation?: AutomationDomain): WebhookActionFormData {
+  getDefaultValues(
+    automation?: AutomationDomain,
+    eventSource?: TriggerEventSource,
+  ): WebhookActionFormData {
     // Extract apiVersion from existing config
-    let apiVersion = { prompt: "v1" } as const;
+    let apiVersion: z.infer<typeof AvailableWebhookApiSchema> =
+      eventSource === TriggerEventSource.Monitor
+        ? { monitor: "v1" }
+        : eventSource === TriggerEventSource.ProjectNotification
+          ? { "project-notification": "v1" }
+          : { prompt: "v1" };
     if (
       automation?.action?.type === "WEBHOOK" &&
       automation?.action?.config &&

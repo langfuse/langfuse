@@ -2,10 +2,10 @@ import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
+  HoverCardPortal,
 } from "@/src/components/ui/hover-card";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
-import { Portal } from "@radix-ui/react-hover-card";
 import { Info } from "lucide-react";
 
 export type DocPopupProps = {
@@ -38,7 +38,7 @@ export default function DocPopup({
         asChild
       >
         <div
-          className="inline-block whitespace-nowrap text-muted-foreground sm:pl-0"
+          className="text-muted-foreground inline-block whitespace-nowrap sm:pl-0"
           onClick={(e) => {
             if (!href) return;
             e.preventDefault();
@@ -50,25 +50,21 @@ export default function DocPopup({
             });
           }}
         >
-          <Info className={"h-3 w-3"} />
+          <Info className="h-3 w-3" />
         </div>
       </HoverCardTrigger>
-      <Portal>
+      <HoverCardPortal>
         <HoverCardContent>
-          {typeof description === "string" ? (
-            <div
-              className={cn(
-                "whitespace-break-spaces text-xs font-normal text-primary sm:pl-0",
-                className,
-              )}
-            >
-              {description}
-            </div>
-          ) : (
-            description
-          )}
+          <div
+            className={cn(
+              "text-primary text-xs font-normal whitespace-break-spaces sm:pl-0",
+              className,
+            )}
+          >
+            {description}
+          </div>
         </HoverCardContent>
-      </Portal>
+      </HoverCardPortal>
     </HoverCard>
   );
 }
@@ -85,13 +81,9 @@ export function Popup({ triggerContent, description }: PopupProps) {
         <div>{triggerContent}</div>
       </HoverCardTrigger>
       <HoverCardContent>
-        {typeof description === "string" ? (
-          <div className="whitespace-break-spaces text-xs font-normal text-primary sm:pl-0">
-            {description}
-          </div>
-        ) : (
-          description
-        )}
+        <div className="text-primary text-xs font-normal whitespace-break-spaces sm:pl-0">
+          {description}
+        </div>
       </HoverCardContent>
     </HoverCard>
   );

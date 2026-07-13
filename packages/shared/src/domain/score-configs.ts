@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { isPresent } from "../utils/typeChecks";
 
 // Category type, used for categorical and boolean configs
@@ -6,6 +6,16 @@ export const ScoreConfigCategory = z.object({
   label: z.string().min(1),
   value: z.number(),
 });
+
+export const SCORE_CONFIG_NAME_MIN_LENGTH = 1;
+export const SCORE_CONFIG_NAME_MAX_LENGTH = 35;
+
+/** Input-only schema for score config names. Use at API/tRPC boundaries, not for DB reads. */
+export const ScoreConfigNameSchema = z
+  .string()
+  .min(SCORE_CONFIG_NAME_MIN_LENGTH)
+  .max(SCORE_CONFIG_NAME_MAX_LENGTH)
+  .regex(/^[\p{L}\p{N}_ .()-]+$/u, "Name contains invalid characters");
 
 // Numeric config fields
 export const NumericConfigFields = z.object({
@@ -47,7 +57,7 @@ export const validateCategories = (
   for (const category of categories) {
     if (uniqueNames.has(category.label)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: `Duplicate category label: ${category.label}, category labels must be unique`,
       });
       return;
@@ -56,7 +66,7 @@ export const validateCategories = (
 
     if (uniqueValues.has(category.value)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: `Duplicate category value: ${category.value}, category values must be unique`,
       });
       return;
@@ -70,6 +80,13 @@ export const CategoricalConfigFields = z.object({
   minValue: z.undefined().nullish(),
   dataType: z.literal("CATEGORICAL"),
   categories: z.array(ScoreConfigCategory).superRefine(validateCategories),
+});
+
+export const TextConfigFields = z.object({
+  maxValue: z.undefined().nullish(),
+  minValue: z.undefined().nullish(),
+  dataType: z.literal("TEXT"),
+  categories: z.undefined().nullish(),
 });
 
 const ScoreConfigBase = z.object({
@@ -93,7 +110,7 @@ export const validateNumericRangeFields = (
       data.maxValue <= data.minValue
     ) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: "Maximum value must be greater than Minimum value",
       });
     }
@@ -113,6 +130,10 @@ export const ScoreConfigSchema = z
     z.object({
       ...ScoreConfigBase.shape,
       ...BooleanConfigFields.shape,
+    }),
+    z.object({
+      ...ScoreConfigBase.shape,
+      ...TextConfigFields.shape,
     }),
   ])
   .superRefine(validateNumericRangeFields);

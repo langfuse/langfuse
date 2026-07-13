@@ -99,7 +99,7 @@ export const BillingSwitchPlanDialog = ({
                 return (
                   <div
                     key={product.stripeProductId}
-                    className="relative flex flex-col rounded-xl border bg-card p-4 shadow-sm transition-all hover:shadow-md"
+                    className="bg-card relative flex flex-col rounded-xl border p-4 shadow-xs transition-all hover:shadow-md"
                   >
                     <div className="mb-4">
                       {/* Labels above plan title */}
@@ -126,10 +126,10 @@ export const BillingSwitchPlanDialog = ({
                         {product.checkout?.title}
                       </h3>
                       <div className="mt-4 space-y-1">
-                        <div className="text-2xl font-bold text-primary">
+                        <div className="text-primary text-2xl font-bold">
                           {product.checkout?.price}
                         </div>
-                        <div className="text-sm text-muted-foreground">
+                        <div className="text-muted-foreground text-sm">
                           + {product.checkout?.usagePrice},{" "}
                           <a
                             href="https://langfuse.com/pricing#pricing-calculator"
@@ -142,12 +142,12 @@ export const BillingSwitchPlanDialog = ({
                         </div>
                       </div>
                     </div>
-                    <div className="mb-4 text-sm text-muted-foreground">
+                    <div className="text-muted-foreground mb-4 text-sm">
                       {product.checkout?.description}
                     </div>
                     <div className="space-y-2">
                       <div className="text-sm font-medium">Main features:</div>
-                      <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
+                      <ul className="text-muted-foreground list-inside list-disc space-y-1 text-sm">
                         {product.checkout?.mainFeatures.map(
                           (feature, index) => (
                             <li key={index}>{feature}</li>
@@ -158,7 +158,7 @@ export const BillingSwitchPlanDialog = ({
                     <Link
                       href="https://langfuse.com/pricing"
                       target="_blank"
-                      className="mt-auto block py-4 text-sm text-muted-foreground hover:text-foreground"
+                      className="text-muted-foreground hover:text-foreground mt-auto block py-4 text-sm"
                     >
                       Learn more about plan →
                     </Link>

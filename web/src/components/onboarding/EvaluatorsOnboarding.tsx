@@ -4,13 +4,21 @@ import {
   type ValueProposition,
 } from "@/src/components/ui/splash-screen";
 import { Bot, Gauge, Zap, BarChart4 } from "lucide-react";
+import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
+import { EvalTemplateSourceCodeLanguage } from "@langfuse/shared";
 
 interface EvaluatorsOnboardingProps {
   projectId: string;
 }
 
 export function EvaluatorsOnboarding({ projectId }: EvaluatorsOnboardingProps) {
-  const valuePropositions: ValueProposition[] = [
+  const { enabled, supportedSourceCodeLanguages } = useIsCodeEvalEnabled();
+  const codeEvaluatorLanguageDescription =
+    supportedSourceCodeLanguages.includes(EvalTemplateSourceCodeLanguage.PYTHON)
+      ? "TypeScript or Python"
+      : "TypeScript";
+
+  const llmAsJudgeValuePropositions: ValueProposition[] = [
     {
       title: "Automate evaluations",
       description:
@@ -37,11 +45,48 @@ export function EvaluatorsOnboarding({ projectId }: EvaluatorsOnboardingProps) {
     },
   ];
 
+  if (enabled) {
+    return (
+      <SplashScreen
+        title="Get started with evaluations"
+        description={
+          <>
+            Use evaluators to score traces and observations automatically.
+            Langfuse supports two evaluator types:
+            <ul className="text-muted-foreground mx-auto mt-2 max-w-2xl list-disc space-y-2 pl-5 text-left text-sm">
+              <li>
+                <span className="text-foreground font-medium">
+                  LLM-as-a-judge evaluators
+                </span>{" "}
+                use an LLM to score outputs against natural-language criteria.
+              </li>
+              <li>
+                <span className="text-foreground font-medium">
+                  Code evaluators
+                </span>{" "}
+                use {codeEvaluatorLanguageDescription} logic for deterministic,
+                custom scoring.
+              </li>
+            </ul>
+          </>
+        }
+        primaryAction={{
+          label: "Create Evaluator",
+          href: `/project/${projectId}/evals/new`,
+        }}
+        secondaryAction={{
+          label: "Learn More",
+          href: "https://langfuse.com/docs/evaluation",
+        }}
+      />
+    );
+  }
+
   return (
     <SplashScreen
       title="Get Started with LLM-as-a-Judge Evaluations"
       description="Create evaluation templates and evaluators to automatically score your traces with LLM-as-a-judge. Set up custom evaluation criteria and let AI help you measure the quality of your outputs."
-      valuePropositions={valuePropositions}
+      valuePropositions={llmAsJudgeValuePropositions}
       primaryAction={{
         label: "Create Evaluator",
         href: `/project/${projectId}/evals/new`,

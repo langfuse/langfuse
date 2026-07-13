@@ -114,7 +114,7 @@ export function HeatmapSkeleton({
         {showAxisLabels && (
           <div className="flex items-center justify-center">
             <div
-              className="h-16 w-3 animate-pulse rounded-sm bg-muted/40"
+              className="bg-muted/40 h-16 w-3 animate-pulse rounded-sm"
               style={{
                 writingMode: "vertical-rl",
                 transform: "rotate(180deg)",
@@ -134,7 +134,7 @@ export function HeatmapSkeleton({
           >
             {Array.from({ length: rows }).map((_, idx) => (
               <div key={idx} className="flex items-center justify-end">
-                <div className="h-3 w-10 animate-pulse rounded-sm bg-muted/40" />
+                <div className="bg-muted/40 h-3 w-10 animate-pulse rounded-sm" />
               </div>
             ))}
           </div>
@@ -158,7 +158,7 @@ export function HeatmapSkeleton({
             return (
               <div
                 key={idx}
-                className="rounded-sm border border-border/50 transition-all duration-150 hover:brightness-95"
+                className="border-border/50 rounded-sm border transition-all duration-150 hover:brightness-95"
                 style={{
                   backgroundColor: `hsl(var(--foreground) / ${opacity})`,
                 }}
@@ -185,7 +185,7 @@ export function HeatmapSkeleton({
           >
             {Array.from({ length: cols }).map((_, idx) => (
               <div key={idx} className="flex items-center justify-center">
-                <div className="h-2.5 w-8 animate-pulse rounded-sm bg-muted/40" />
+                <div className="bg-muted/40 h-2.5 w-8 animate-pulse rounded-sm" />
               </div>
             ))}
           </div>
@@ -198,7 +198,7 @@ export function HeatmapSkeleton({
       {/* X-axis label placeholder */}
       {showAxisLabels && (
         <div className="flex justify-center text-center">
-          <div className="h-3 w-16 animate-pulse rounded-sm bg-muted/40" />
+          <div className="bg-muted/40 h-3 w-16 animate-pulse rounded-sm" />
         </div>
       )}
     </div>

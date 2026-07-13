@@ -6,7 +6,7 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { parseCsvClient } from "@/src/features/datasets/lib/csv/helpers";
 import { DialogBody } from "@/src/components/ui/dialog";
 import {
@@ -82,7 +82,7 @@ export const UploadDatasetCsv = ({
             accept={{ "text/csv": [".csv"] }}
             maxFiles={1}
             maxSize={MAX_FILE_SIZE_BYTES}
-            className="border-dashed bg-secondary/50"
+            className="bg-secondary/50 border-dashed"
           >
             <DropzoneEmptyState />
           </Dropzone>

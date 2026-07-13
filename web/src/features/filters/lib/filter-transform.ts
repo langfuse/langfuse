@@ -1,4 +1,8 @@
-import { type FilterState, type ColumnDefinition } from "@langfuse/shared";
+import {
+  type FilterState,
+  type ColumnDefinition,
+  type SingleValueOption,
+} from "@langfuse/shared";
 
 /**
  * Maps frontend column IDs to backend-expected column IDs
@@ -22,7 +26,10 @@ export function normalizeFilterColumnNames(
 ): FilterState {
   return filters.map((filter) => {
     const colDef = columnDefinitions.find(
-      (c) => c.id === filter.column || c.name === filter.column,
+      (c) =>
+        c.id === filter.column ||
+        c.name === filter.column ||
+        c.aliases?.includes(filter.column),
     );
     if (colDef && colDef.id !== filter.column) {
       return { ...filter, column: colDef.id };
@@ -30,6 +37,23 @@ export function normalizeFilterColumnNames(
     return filter;
   });
 }
+
+type SingleValueOptionLike = Readonly<{
+  value: string;
+  count?: string | number;
+  displayValue?: string;
+}>;
+
+export const normalizeSingleValueOptions = (
+  options: readonly SingleValueOptionLike[] | undefined,
+): SingleValueOption[] =>
+  options?.map((option) => ({
+    value: option.value,
+    ...(option.count !== undefined ? { count: Number(option.count) } : {}),
+    ...(option.displayValue !== undefined
+      ? { displayValue: option.displayValue }
+      : {}),
+  })) ?? [];
 
 /**
  * Transforms frontend filter column IDs to backend-expected column IDs

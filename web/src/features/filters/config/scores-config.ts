@@ -8,6 +8,20 @@ export const SCORE_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
   tags: "trace_tags",
 };
 
+export type ScoresTableHiddenColumn =
+  | "traceId"
+  | "traceName"
+  | "observationId"
+  | "jobConfigurationId"
+  | "userId"
+  | "traceTags";
+
+const SCORES_HIDDEN_COLUMN_TO_FILTER_COLUMN: Partial<
+  Record<ScoresTableHiddenColumn, string>
+> = {
+  traceTags: "tags",
+};
+
 export const scoreFilterConfig: FilterConfig = {
   tableName: "scores",
 
@@ -41,15 +55,26 @@ export const scoreFilterConfig: FilterConfig = {
     {
       type: "numeric" as const,
       column: "value",
-      label: "Value",
+      label: "Numeric Value",
+      tooltip:
+        "Filters scores by numeric value. For BOOLEAN scores, use the 'Boolean Value' filter below. For CATEGORICAL scores, use the 'Categorical Value' filter below.",
       min: 0,
       max: 1,
       step: 0.01,
     },
     {
       type: "categorical" as const,
+      column: "booleanValue",
+      label: "Boolean Value",
+      tooltip: "Filters BOOLEAN scores by true or false.",
+      disableTextFilter: true,
+    },
+    {
+      type: "categorical" as const,
       column: "stringValue",
-      label: "String Value",
+      label: "Categorical Value",
+      tooltip:
+        "Filters scores by string value. Applies to CATEGORICAL data type scores only.",
     },
     {
       type: "string" as const,
@@ -83,3 +108,26 @@ export const scoreFilterConfig: FilterConfig = {
     },
   ],
 };
+
+export function getScoreFilterConfig(
+  hiddenColumns: ScoresTableHiddenColumn[] = [],
+): FilterConfig {
+  if (hiddenColumns.length === 0) {
+    return scoreFilterConfig;
+  }
+  const hiddenColumnSet = new Set<string>(
+    hiddenColumns.map(
+      (column) => SCORES_HIDDEN_COLUMN_TO_FILTER_COLUMN[column] ?? column,
+    ),
+  );
+
+  return {
+    ...scoreFilterConfig,
+    defaultExpanded: scoreFilterConfig.defaultExpanded?.filter(
+      (column) => !hiddenColumnSet.has(column),
+    ),
+    facets: scoreFilterConfig.facets.filter(
+      (facet) => !hiddenColumnSet.has(facet.column),
+    ),
+  };
+}

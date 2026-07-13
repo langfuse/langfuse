@@ -10,7 +10,6 @@ docs: |
   ## Exports
 
   - OpenAPI spec: https://cloud.langfuse.com/generated/api/openapi.yml
-  - Postman collection: https://cloud.langfuse.com/generated/postman/collection.json
 
 error-discrimination:
   strategy: status-code

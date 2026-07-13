@@ -84,7 +84,7 @@ export const Dropzone = ({
       <Button
         className={cn(
           "relative h-auto w-full flex-col overflow-hidden p-8",
-          isDragActive && "outline-none ring-1 ring-ring",
+          isDragActive && "ring-ring ring-1 outline-hidden",
           className,
         )}
         disabled={disabled}
@@ -130,19 +130,22 @@ export const DropzoneContent = ({
     return children;
   }
 
+  const text =
+    src.length > maxLabelItems
+      ? `${new Intl.ListFormat("en").format(
+          src.slice(0, maxLabelItems).map((file) => file.name),
+        )} and ${src.length - maxLabelItems} more`
+      : new Intl.ListFormat("en").format(src.map((file) => file.name));
+
   return (
     <div className={cn("flex flex-col items-center justify-center", className)}>
-      <div className="flex size-8 items-center justify-center rounded-md bg-muted text-muted-foreground">
+      <div className="bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-md">
         <UploadIcon size={16} />
       </div>
-      <p className="my-2 w-full truncate text-sm font-medium">
-        {src.length > maxLabelItems
-          ? `${new Intl.ListFormat("en").format(
-              src.slice(0, maxLabelItems).map((file) => file.name),
-            )} and ${src.length - maxLabelItems} more`
-          : new Intl.ListFormat("en").format(src.map((file) => file.name))}
+      <p className="my-2 w-full truncate text-sm font-medium" title={text}>
+        {text}
       </p>
-      <p className="w-full text-wrap text-xs text-muted-foreground">
+      <p className="text-muted-foreground w-full text-xs text-wrap">
         Drag and drop or click to replace
       </p>
     </div>
@@ -183,19 +186,28 @@ export const DropzoneEmptyState = ({
     caption += ` less than ${renderBytes(maxSize)}`;
   }
 
+  const text1 = `Upload ${maxFiles === 1 ? "a file" : "files"}`;
+  const text2 = "Drag and drop or click to upload";
+
   return (
     <div className={cn("flex flex-col items-center justify-center", className)}>
-      <div className="flex size-8 items-center justify-center rounded-md bg-muted text-muted-foreground">
+      <div className="bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-md">
         <UploadIcon size={16} />
       </div>
-      <p className="my-2 w-full truncate text-wrap text-sm font-medium">
-        Upload {maxFiles === 1 ? "a file" : "files"}
+      <p
+        className="my-2 w-full truncate text-sm font-medium text-wrap"
+        title={text1}
+      >
+        {text1}
       </p>
-      <p className="w-full truncate text-wrap text-xs text-muted-foreground">
-        Drag and drop or click to upload
+      <p
+        className="text-muted-foreground w-full truncate text-xs text-wrap"
+        title={text2}
+      >
+        {text2}
       </p>
       {caption && (
-        <p className="text-wrap text-xs text-muted-foreground">{caption}.</p>
+        <p className="text-muted-foreground text-xs text-wrap">{caption}.</p>
       )}
     </div>
   );

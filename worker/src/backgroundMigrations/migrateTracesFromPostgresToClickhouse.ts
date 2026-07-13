@@ -11,9 +11,7 @@ import { env } from "../env";
 // This is hard-coded in our migrations and uniquely identifies the row in background_migrations table
 const backgroundMigrationId = "5960f22a-748f-480c-b2f3-bc4f9d5d84bc";
 
-export default class MigrateTracesFromPostgresToClickhouse
-  implements IBackgroundMigration
-{
+export default class MigrateTracesFromPostgresToClickhouse implements IBackgroundMigration {
   private isAborted = false;
   private isFinished = false;
 

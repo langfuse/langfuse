@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 // Sentinel value for Bedrock default credential provider chain
 export const BEDROCK_USE_DEFAULT_CREDENTIALS =
@@ -11,12 +11,42 @@ export const VERTEXAI_USE_DEFAULT_CREDENTIALS =
 export const BedrockConfigSchema = z.object({ region: z.string() });
 export type BedrockConfig = z.infer<typeof BedrockConfigSchema>;
 
-export const BedrockCredentialSchema = z
+export const LLMConnectionConfigValueSchema = z.union([
+  z.string(),
+  z.boolean(),
+]);
+export const LLMConnectionConfigSchema = z.record(
+  z.string(),
+  LLMConnectionConfigValueSchema,
+);
+export type LLMConnectionConfig = z.infer<typeof LLMConnectionConfigSchema>;
+
+export const OpenAIConfigSchema = z
   .object({
-    accessKeyId: z.string(),
-    secretAccessKey: z.string(),
+    useResponsesApi: z.boolean().default(false),
   })
-  .optional();
+  .strict();
+export type OpenAIConfig = z.infer<typeof OpenAIConfigSchema>;
+
+export const BedrockAccessKeysSchema = z
+  .object({
+    accessKeyId: z.string().min(1),
+    secretAccessKey: z.string().min(1),
+  })
+  .strict();
+export type BedrockAccessKeys = z.infer<typeof BedrockAccessKeysSchema>;
+
+export const BedrockApiKeySchema = z
+  .object({
+    apiKey: z.string().min(1),
+  })
+  .strict();
+export type BedrockApiKey = z.infer<typeof BedrockApiKeySchema>;
+
+export const BedrockCredentialSchema = z.union([
+  BedrockAccessKeysSchema,
+  BedrockApiKeySchema,
+]);
 export type BedrockCredential = z.infer<typeof BedrockCredentialSchema>;
 
 export const VertexAIConfigSchema = z

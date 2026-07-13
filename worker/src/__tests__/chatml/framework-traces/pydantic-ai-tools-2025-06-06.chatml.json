@@ -1,0 +1,74 @@
+{
+  "0a4fac2553f22f2e": {
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "system",
+          "content": "You are a helpful assistant that answers questions clearly and concisely.",
+          "json": {
+            "gen_ai.message.index": 0,
+            "event.name": "gen_ai.system.message"
+          }
+        },
+        {
+          "role": "user",
+          "content": "What is Langfuse?",
+          "json": {
+            "gen_ai.message.index": 0,
+            "event.name": "gen_ai.user.message"
+          }
+        },
+        {
+          "role": "assistant",
+          "content": "Langfuse is a tool designed for observability and monitoring of applications that utilize large language models (LLMs). It provides features to trace, log, and visualize requests, helping developers understand the behavior of their LLM-powered applications more effectively. This can be particularly useful for debugging, performance optimization, and ensuring reliable operation of systems that depend on LLMs. Langfuse is designed to integrate easily with existing infrastructure, supporting both self-hosted implementations and cloud-based solutions.",
+          "json": {
+            "gen_ai.message.index": 1,
+            "event.name": "gen_ai.assistant.message"
+          }
+        }
+      ]
+    }
+  },
+  "5cb389a3bdd21a6e": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "system",
+          "content": "You are a helpful assistant that answers questions clearly and concisely.",
+          "json": {
+            "gen_ai.system": "openai",
+            "gen_ai.message.index": 0,
+            "event.name": "gen_ai.system.message"
+          }
+        },
+        {
+          "role": "user",
+          "content": "What is Langfuse?",
+          "json": {
+            "gen_ai.system": "openai",
+            "gen_ai.message.index": 0,
+            "event.name": "gen_ai.user.message"
+          }
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "json": {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "Langfuse is a tool designed for observability and monitoring of applications that utilize large language models (LLMs). It provides features to trace, log, and visualize requests, helping developers understand the behavior of their LLM-powered applications more effectively. This can be particularly useful for debugging, performance optimization, and ensuring reliable operation of systems that depend on LLMs. Langfuse is designed to integrate easily with existing infrastructure, supporting both self-hosted implementations and cloud-based solutions."
+            },
+            "gen_ai.system": "openai",
+            "event.name": "gen_ai.choice"
+          }
+        }
+      ]
+    }
+  }
+}

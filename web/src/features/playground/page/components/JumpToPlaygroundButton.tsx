@@ -4,7 +4,7 @@ import { useRouter } from "next/router";
 import { v4 as uuidv4 } from "uuid";
 
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
-import { Button } from "@/src/components/ui/button";
+import { Button, type ButtonProps } from "@/src/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
 import {
   type PlaygroundCache,
@@ -65,9 +65,9 @@ type JumpToPlaygroundButtonProps = (
       analyticsEventName: "trace_detail:test_in_playground_button_click";
     }
 ) & {
-  variant?: "outline" | "secondary";
+  variant?: ButtonProps["variant"];
   className?: string;
-  size?: "default" | "sm" | "xs" | "lg" | "icon" | "icon-xs" | "icon-sm";
+  size?: ButtonProps["size"];
 };
 
 export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
@@ -280,7 +280,7 @@ const parseGeneration = (
     output: string | null;
   },
   modelToProviderMap: Record<string, string>,
-  includeOutput: boolean = false,
+  includeOutput = false,
 ): PlaygroundCache => {
   if (!isGenerationLike(generation.type)) return null;
 

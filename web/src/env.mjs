@@ -20,13 +20,30 @@ const zAuthChecks = z
   .transform((s) => s?.split(",").map((s) => s.trim()))
   .pipe(z.array(z.enum(["nonce", "none", "pkce", "state"])).optional());
 
+const zIdTokenAlg = z
+  .enum([
+    "RS256",
+    "RS384",
+    "RS512",
+    "ES256",
+    "ES384",
+    "ES512",
+    "PS256",
+    "PS384",
+    "PS512",
+    "HS256",
+    "HS384",
+    "HS512",
+  ])
+  .optional();
+
 export const env = createEnv({
   /**
    * Specify your server-side environment variables schema here. This way you can ensure the app
    * isn't built with invalid env vars.
    */
   server: {
-    DATABASE_URL: z.string().url(),
+    DATABASE_URL: z.url(),
     NODE_ENV: z.enum(["development", "test", "production"]),
     BUILD_ID: z.string().optional(),
     NEXTAUTH_SECRET:
@@ -42,23 +59,58 @@ export const env = createEnv({
           ? process.env.VERCEL_URL
           : str,
       // VERCEL_URL doesn't include `https` so it can't be validated as a URL
-      process.env.VERCEL ? z.string().min(1) : z.string().url(),
+      process.env.VERCEL ? z.string().min(1) : z.url(),
     ),
+    LANGFUSE_MCP_ALLOWED_HOSTS: z
+      .string()
+      .optional()
+      .transform((val) =>
+        val
+          ? val
+              .split(",")
+              .map((host) => host.toLowerCase().trim())
+              .filter(Boolean)
+          : [],
+      ),
     NEXTAUTH_COOKIE_DOMAIN: z.string().optional(),
-    LANGFUSE_TEAM_SLACK_WEBHOOK: z.string().url().optional(),
-    LANGFUSE_NEW_USER_SIGNUP_WEBHOOK: z.string().url().optional(),
+    LANGFUSE_TEAM_SLACK_WEBHOOK: z.url().optional(),
+    LANGFUSE_NEW_USER_SIGNUP_WEBHOOK: z.url().optional(),
+    LANGFUSE_ADMIN_ACCESS_WEBHOOK: z.url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: z.enum(["true", "false"]).optional(),
     SALT: z.string({
-      required_error:
-        "A strong Salt is required to encrypt API keys securely. See: https://langfuse.com/self-hosting#deploy-the-container",
+      error: (issue) =>
+        issue.input === undefined
+          ? "A strong Salt is required to encrypt API keys securely. See: https://langfuse.com/self-hosting#deploy-the-container"
+          : "Invalid type",
     }),
-    // Add newly signed up users to default org and/or project with role
-    LANGFUSE_DEFAULT_ORG_ID: z.string().optional(),
+    // Add newly signed up users to default org(s) and/or project(s) with role
+    // Supports comma-separated IDs for multiple orgs/projects (e.g., "org1,org2,org3")
+    LANGFUSE_DEFAULT_ORG_ID: z
+      .string()
+      .optional()
+      .transform((val) =>
+        val
+          ? val
+              .split(",")
+              .map((id) => id.trim())
+              .filter(Boolean)
+          : undefined,
+      ),
     LANGFUSE_DEFAULT_ORG_ROLE: z
       .enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"])
       .optional(),
-    LANGFUSE_DEFAULT_PROJECT_ID: z.string().optional(),
+    LANGFUSE_DEFAULT_PROJECT_ID: z
+      .string()
+      .optional()
+      .transform((val) =>
+        val
+          ? val
+              .split(",")
+              .map((id) => id.trim())
+              .filter(Boolean)
+          : undefined,
+      ),
     LANGFUSE_DEFAULT_PROJECT_ROLE: z
       .enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"])
       .optional(),
@@ -68,6 +120,15 @@ export const env = createEnv({
       .default("false"),
     // Telemetry
     TELEMETRY_ENABLED: z.enum(["true", "false"]).optional(),
+    // Mulesoft SFDC sync (Langfuse Cloud only). All must be set for the
+    // SfdcService factory to return a non-null instance; otherwise the
+    // integration is a no-op.
+    MULESOFT_SFDC_USER_URL: z.url().optional(),
+    MULESOFT_SFDC_ORG_URL: z.url().optional(),
+    MULESOFT_SFDC_BASIC_AUTH_USER: z.string().optional(),
+    MULESOFT_SFDC_BASIC_AUTH_PASSWORD: z.string().optional(),
+    MULESOFT_SFDC_DEFAULT_COMPANY_NAME: z.string().default("[not provided]"),
+    MULESOFT_SFDC_REQUEST_TIMEOUT_MS: z.coerce.number().int().default(10_000),
     // AUTH
     AUTH_GOOGLE_CLIENT_ID: z.string().optional(),
     AUTH_GOOGLE_CLIENT_SECRET: z.string().optional(),
@@ -75,6 +136,7 @@ export const env = createEnv({
     AUTH_GOOGLE_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_GOOGLE_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_GOOGLE_CHECKS: zAuthChecks,
+    AUTH_GOOGLE_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_GITHUB_CLIENT_ID: z.string().optional(),
     AUTH_GITHUB_CLIENT_SECRET: z.string().optional(),
     AUTH_GITHUB_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
@@ -82,7 +144,7 @@ export const env = createEnv({
     AUTH_GITHUB_CHECKS: zAuthChecks,
     AUTH_GITHUB_ENTERPRISE_CLIENT_ID: z.string().optional(),
     AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET: z.string().optional(),
-    AUTH_GITHUB_ENTERPRISE_BASE_URL: z.string().optional(),
+    AUTH_GITHUB_ENTERPRISE_BASE_URL: z.url().optional(),
     AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING: z
       .enum(["true", "false"])
       .optional(),
@@ -94,55 +156,75 @@ export const env = createEnv({
     AUTH_GITLAB_ISSUER: z.string().optional(),
     AUTH_GITLAB_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_GITLAB_CHECKS: zAuthChecks,
-    AUTH_GITLAB_URL: z.string().url().optional().default("https://gitlab.com"),
+    AUTH_GITLAB_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
+    AUTH_GITLAB_URL: z.url().optional().default("https://gitlab.com"),
     AUTH_AZURE_AD_CLIENT_ID: z.string().optional(),
     AUTH_AZURE_AD_CLIENT_SECRET: z.string().optional(),
     AUTH_AZURE_AD_TENANT_ID: z.string().optional(),
     AUTH_AZURE_AD_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_AZURE_AD_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_AZURE_AD_CHECKS: zAuthChecks,
+    AUTH_AZURE_AD_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_OKTA_CLIENT_ID: z.string().optional(),
     AUTH_OKTA_CLIENT_SECRET: z.string().optional(),
     AUTH_OKTA_ISSUER: z.string().optional(),
     AUTH_OKTA_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_OKTA_CHECKS: zAuthChecks,
     AUTH_OKTA_CLIENT_AUTH_METHOD: zAuthMethod,
+    AUTH_OKTA_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_AUTHENTIK_CLIENT_ID: z.string().optional(),
     AUTH_AUTHENTIK_CLIENT_SECRET: z.string().optional(),
     AUTH_AUTHENTIK_ISSUER: z
       .string()
-      .regex(/^https:\/\/.+\/application\/o\/[^/]+$/, {
+      .regex(/^https:\/\/.+\/application\/o\/[^/]+\/?$/, {
         message:
-          "Authentik issuer must be in format https://<domain>/application/o/<slug> without trailing slash",
+          "Authentik issuer must be in format https://<domain>/application/o/<slug> with optional trailing slash",
       })
       .optional(),
     AUTH_AUTHENTIK_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_AUTHENTIK_CHECKS: zAuthChecks,
     AUTH_AUTHENTIK_CLIENT_AUTH_METHOD: zAuthMethod,
+    AUTH_AUTHENTIK_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
+    AUTH_AUTHENTIK_AUTHORIZATION_URL: z.url().optional(),
     AUTH_ONELOGIN_CLIENT_ID: z.string().optional(),
     AUTH_ONELOGIN_CLIENT_SECRET: z.string().optional(),
     AUTH_ONELOGIN_ISSUER: z.string().optional(),
     AUTH_ONELOGIN_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_ONELOGIN_CHECKS: zAuthChecks,
     AUTH_ONELOGIN_CLIENT_AUTH_METHOD: zAuthMethod,
+    AUTH_ONELOGIN_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_AUTH0_CLIENT_ID: z.string().optional(),
     AUTH_AUTH0_CLIENT_SECRET: z.string().optional(),
-    AUTH_AUTH0_ISSUER: z.string().url().optional(),
+    AUTH_AUTH0_ISSUER: z.url().optional(),
     AUTH_AUTH0_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_AUTH0_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_AUTH0_CHECKS: zAuthChecks,
+    AUTH_AUTH0_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
+    // Langfuse Cloud only: "Sign in with ClickHouse Cloud" (Auth0 under the hood).
+    // NOT intended for self-hosted Langfuse — use AUTH_AUTH0_* instead.
+    AUTH_CLICKHOUSE_CLOUD_CLIENT_ID: z.string().optional(),
+    AUTH_CLICKHOUSE_CLOUD_CLIENT_SECRET: z.string().optional(),
+    AUTH_CLICKHOUSE_CLOUD_ISSUER: z.url().optional(),
+    AUTH_CLICKHOUSE_CLOUD_ALLOW_ACCOUNT_LINKING: z
+      .enum(["true", "false"])
+      .optional(),
+    AUTH_CLICKHOUSE_CLOUD_CLIENT_AUTH_METHOD: zAuthMethod,
+    AUTH_CLICKHOUSE_CLOUD_CHECKS: zAuthChecks,
+    AUTH_CLICKHOUSE_CLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_COGNITO_CLIENT_ID: z.string().optional(),
     AUTH_COGNITO_CLIENT_SECRET: z.string().optional(),
-    AUTH_COGNITO_ISSUER: z.string().url().optional(),
+    AUTH_COGNITO_ISSUER: z.url().optional(),
     AUTH_COGNITO_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_COGNITO_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_COGNITO_CHECKS: zAuthChecks,
+    AUTH_COGNITO_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_KEYCLOAK_CLIENT_ID: z.string().optional(),
     AUTH_KEYCLOAK_CLIENT_SECRET: z.string().optional(),
     AUTH_KEYCLOAK_ISSUER: z.string().optional(),
     AUTH_KEYCLOAK_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_KEYCLOAK_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_KEYCLOAK_CHECKS: zAuthChecks,
+    AUTH_KEYCLOAK_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_KEYCLOAK_SCOPE: z.string().optional(),
     AUTH_KEYCLOAK_ID_TOKEN: z
       .enum(["true", "false"])
@@ -151,18 +233,20 @@ export const env = createEnv({
     AUTH_KEYCLOAK_NAME: z.string().optional(),
     AUTH_JUMPCLOUD_CLIENT_ID: z.string().optional(),
     AUTH_JUMPCLOUD_CLIENT_SECRET: z.string().optional(),
-    AUTH_JUMPCLOUD_ISSUER: z.string().url().optional(),
+    AUTH_JUMPCLOUD_ISSUER: z.url().optional(),
     AUTH_JUMPCLOUD_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_JUMPCLOUD_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_JUMPCLOUD_CHECKS: zAuthChecks,
+    AUTH_JUMPCLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_JUMPCLOUD_SCOPE: z.string().optional(),
     AUTH_CUSTOM_CLIENT_ID: z.string().optional(),
     AUTH_CUSTOM_CLIENT_SECRET: z.string().optional(),
-    AUTH_CUSTOM_ISSUER: z.string().url().optional(),
+    AUTH_CUSTOM_ISSUER: z.url().optional(),
     AUTH_CUSTOM_NAME: z.string().optional(),
     AUTH_CUSTOM_SCOPE: z.string().optional(),
     AUTH_CUSTOM_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_CUSTOM_CHECKS: zAuthChecks,
+    AUTH_CUSTOM_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_CUSTOM_ID_TOKEN: z.enum(["true", "false"]).optional().default("true"),
     AUTH_WORKOS_CLIENT_ID: z.string().optional(),
@@ -175,10 +259,14 @@ export const env = createEnv({
     AUTH_WORDPRESS_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_WORDPRESS_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_WORDPRESS_CHECKS: zAuthChecks,
+    AUTH_WORDPRESS_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT: z.string().optional(),
     AUTH_IGNORE_ACCOUNT_FIELDS: z.string().optional(),
     AUTH_DISABLE_USERNAME_PASSWORD: z.enum(["true", "false"]).optional(),
     AUTH_DISABLE_SIGNUP: z.enum(["true", "false"]).optional(),
+    AUTH_EMAIL_VERIFICATION_REQUIRED: z
+      .enum(["true", "false"])
+      .default("false"),
     AUTH_SESSION_MAX_AGE: z.coerce
       .number()
       .int()
@@ -188,9 +276,9 @@ export const env = createEnv({
       )
       .optional()
       .default(30 * 24 * 60), // default to 30 days
-    AUTH_HTTP_PROXY: z.string().url().optional(),
-    AUTH_HTTPS_PROXY: z.string().url().optional(),
-    AUTH_SSO_TIMEOUT: z.number().optional(),
+    AUTH_HTTP_PROXY: z.url().optional(),
+    AUTH_HTTPS_PROXY: z.url().optional(),
+    AUTH_SSO_TIMEOUT: z.coerce.number().int().positive().optional(),
     // EMAIL
     EMAIL_FROM_ADDRESS: z.string().optional(),
     SMTP_CONNECTION_URL: z.string().optional(),
@@ -200,30 +288,35 @@ export const env = createEnv({
     OTEL_SERVICE_NAME: z.string().default("web"),
     OTEL_TRACE_SAMPLING_RATIO: z.coerce.number().gt(0).lte(1).default(1),
 
+    // OTel Masking
+    LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS: z
+      .string()
+      .optional()
+      .transform((s) =>
+        s ? s.split(",").map((h) => h.toLowerCase().trim()) : [],
+      ),
+
     // clickhouse
-    CLICKHOUSE_URL: z.string().url(),
+    CLICKHOUSE_URL: z.url(),
     CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
     CLICKHOUSE_DB: z.string().default("default"),
     CLICKHOUSE_USER: z.string(),
     CLICKHOUSE_PASSWORD: z.string(),
     CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("true"),
-    CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY: z.coerce
-      .number()
-      .default(32_000_000_000), // ~32GB
 
     // EE ui customization
     LANGFUSE_UI_API_HOST: z.string().optional(),
-    LANGFUSE_UI_DOCUMENTATION_HREF: z.string().url().optional(),
-    LANGFUSE_UI_SUPPORT_HREF: z.string().url().optional(),
-    LANGFUSE_UI_FEEDBACK_HREF: z.string().url().optional(),
-    LANGFUSE_UI_LOGO_LIGHT_MODE_HREF: z.string().url().optional(),
-    LANGFUSE_UI_LOGO_DARK_MODE_HREF: z.string().url().optional(),
+    LANGFUSE_UI_DOCUMENTATION_HREF: z.url().optional(),
+    LANGFUSE_UI_SUPPORT_HREF: z.url().optional(),
+    LANGFUSE_UI_FEEDBACK_HREF: z.url().optional(),
+    LANGFUSE_UI_LOGO_LIGHT_MODE_HREF: z.url().optional(),
+    LANGFUSE_UI_LOGO_DARK_MODE_HREF: z.url().optional(),
     LANGFUSE_UI_DEFAULT_MODEL_ADAPTER: z
       .enum(["OpenAI", "Anthropic", "Azure"])
       .optional(),
-    LANGFUSE_UI_DEFAULT_BASE_URL_OPENAI: z.string().url().optional(),
-    LANGFUSE_UI_DEFAULT_BASE_URL_ANTHROPIC: z.string().url().optional(),
-    LANGFUSE_UI_DEFAULT_BASE_URL_AZURE: z.string().url().optional(),
+    LANGFUSE_UI_DEFAULT_BASE_URL_OPENAI: z.url().optional(),
+    LANGFUSE_UI_DEFAULT_BASE_URL_ANTHROPIC: z.url().optional(),
+    LANGFUSE_UI_DEFAULT_BASE_URL_AZURE: z.url().optional(),
 
     // EE License
     LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
@@ -268,7 +361,7 @@ export const env = createEnv({
       .refine((value) => {
         if (!value) return true;
         const creators = value.split(",");
-        const emailSchema = z.string().email();
+        const emailSchema = z.email();
         return creators.every(
           (creator) => emailSchema.safeParse(creator).success,
         );
@@ -289,7 +382,7 @@ export const env = createEnv({
     LANGFUSE_INIT_PROJECT_PUBLIC_KEY: z.string().optional(),
     LANGFUSE_INIT_PROJECT_SECRET_KEY: z.string().optional(),
     LANGFUSE_INIT_USER_EMAIL: z
-      .union([z.string().email(), z.string().length(0)])
+      .union([z.email(), z.string().length(0)])
       .optional(),
     LANGFUSE_INIT_USER_NAME: z.string().optional(),
     LANGFUSE_INIT_USER_PASSWORD: z.string().optional(),
@@ -298,8 +391,8 @@ export const env = createEnv({
       .positive()
       .default(50_000),
     PLAIN_AUTHENTICATION_SECRET: z.string().optional(),
-    PLAIN_API_KEY: z.string().optional(),
     PLAIN_CARDS_API_TOKEN: z.string().optional(),
+    PYLON_API_KEY: z.string().optional(),
 
     // UI customization - comma-separated list of visible product modules
     LANGFUSE_UI_VISIBLE_PRODUCT_MODULES: z.string().optional(),
@@ -312,6 +405,7 @@ export const env = createEnv({
 
     // AWS Bedrock for langfuse native AI feature such as natural language filters
     LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
+    LANGFUSE_AWS_BEDROCK_SMALL_MODEL: z.string().optional(),
 
     // Tracing for Langfuse AI Features
     LANGFUSE_AI_FEATURES_HOST: z.string().optional(),
@@ -327,30 +421,67 @@ export const env = createEnv({
     LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS: z
       .enum(["true", "false"])
       .default("false"),
-    // Whether to propagate the toTimestamp restriction (including a server-side offset)
-    // onto the observations CTE in GET /api/public/traces. Can be used to improve performance
-    // for self-hosters that have a trace known trace duration of less than multiple hours.
-    LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS: z
+    // API Traces endpoint controls (may induce breaking changes on API when changed!)
+    LANGFUSE_API_TRACES_DEFAULT_DATE_RANGE_DAYS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .optional(),
+    LANGFUSE_API_TRACES_REJECT_NO_DATE_RANGE: z
+      .enum(["true", "false"])
+      .default("false"),
+    LANGFUSE_API_TRACES_DEFAULT_FIELDS: z.string().optional(),
+    LANGFUSE_API_TRACEBYID_DEFAULT_FIELDS: z.string().optional(),
+
+    // V4 preview opt-in. See LFE-9778.
+    LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: z
       .enum(["true", "false"])
       .default("false"),
 
-    // Events table migration
-    LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS: z
+    // Legacy tracing search controls
+    LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH: z
       .enum(["true", "false"])
       .default("false"),
+    // V4 write mode. Mirrors worker/src/env.ts so the web package can gate
+    // public API routes that rely on the legacy traces/observations tables.
+    // The worker owns the writes; the web only needs to know whether legacy
+    // tables are still being populated to decide whether to serve reads.
+    LANGFUSE_MIGRATION_V4_WRITE_MODE: z
+      .enum(["legacy", "dual", "events_only"])
+      .default("legacy"),
 
-    LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS: z
+    // Temporary kill-switch for the observations v2 subquery-IN rewrite.
+    LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE: z
       .enum(["true", "false"])
       .default("false"),
+    LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY: z
+      .enum(["true", "false"])
+      .default("false"),
+    LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY_SAMPLE_RATE: z.coerce
+      .number()
+      .min(0)
+      .max(1)
+      .default(0.01),
 
-    // v2 APIs (events table based) - disabled by default for self-hosters
-    LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS: z
-      .enum(["true", "false"])
-      .default("false"),
-
-    LANGFUSE_ENABLE_QUERY_OPTIMIZATION_SHADOW_TEST: z
-      .enum(["true", "false"])
-      .default("false"),
+    // Blocked users for chat completion API (userId:reason format)
+    LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION: z
+      .string()
+      .optional()
+      .transform((val) => {
+        if (!val) return new Map();
+        const map = new Map();
+        for (const part of val.split(",")) {
+          const [userId, ...noteParts] = part.split(":");
+          if (userId?.trim()) {
+            map.set(userId.trim(), noteParts.join(":").trim() || "blocked");
+          }
+        }
+        return map;
+      }),
+    AWS_ACCESS_KEY_ID: z.string().optional(),
+    AWS_SECRET_ACCESS_KEY: z.string().optional(),
+    LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
+    LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
   },
 
   /**
@@ -365,8 +496,10 @@ export const env = createEnv({
 
     // NEXT_PUBLIC_CLIENTVAR: z.string().min(1),
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
-      .enum(["US", "EU", "STAGING", "DEV", "HIPAA"])
+      .enum(["US", "EU", "STAGING", "DEV", "HIPAA", "JP"])
       .optional(),
+    NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF: z.iso.datetime().optional(),
+    NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF: z.iso.datetime().optional(),
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
     NEXT_PUBLIC_DEMO_ORG_ID: z.string().optional(),
     NEXT_PUBLIC_SIGN_UP_DISABLED: z.enum(["true", "false"]).default("false"),
@@ -396,14 +529,34 @@ export const env = createEnv({
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
     NEXTAUTH_COOKIE_DOMAIN: process.env.NEXTAUTH_COOKIE_DOMAIN,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
+    LANGFUSE_MCP_ALLOWED_HOSTS: process.env.LANGFUSE_MCP_ALLOWED_HOSTS,
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION:
       process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+    NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF:
+      process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF,
+    NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF:
+      process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF,
     NEXT_PUBLIC_SIGN_UP_DISABLED: process.env.NEXT_PUBLIC_SIGN_UP_DISABLED,
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:
       process.env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
+    AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
+    AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
+    LANGFUSE_AWS_BEDROCK_REGION: process.env.LANGFUSE_AWS_BEDROCK_REGION,
+    LANGFUSE_IN_APP_AGENT_AWS_PROFILE:
+      process.env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE,
     LANGFUSE_TEAM_SLACK_WEBHOOK: process.env.LANGFUSE_TEAM_SLACK_WEBHOOK,
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK:
       process.env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK,
+    LANGFUSE_ADMIN_ACCESS_WEBHOOK: process.env.LANGFUSE_ADMIN_ACCESS_WEBHOOK,
+    MULESOFT_SFDC_USER_URL: process.env.MULESOFT_SFDC_USER_URL,
+    MULESOFT_SFDC_ORG_URL: process.env.MULESOFT_SFDC_ORG_URL,
+    MULESOFT_SFDC_BASIC_AUTH_USER: process.env.MULESOFT_SFDC_BASIC_AUTH_USER,
+    MULESOFT_SFDC_BASIC_AUTH_PASSWORD:
+      process.env.MULESOFT_SFDC_BASIC_AUTH_PASSWORD,
+    MULESOFT_SFDC_DEFAULT_COMPANY_NAME:
+      process.env.MULESOFT_SFDC_DEFAULT_COMPANY_NAME,
+    MULESOFT_SFDC_REQUEST_TIMEOUT_MS:
+      process.env.MULESOFT_SFDC_REQUEST_TIMEOUT_MS,
     SALT: process.env.SALT,
     LANGFUSE_CSP_ENFORCE_HTTPS: process.env.LANGFUSE_CSP_ENFORCE_HTTPS,
     TELEMETRY_ENABLED: process.env.TELEMETRY_ENABLED,
@@ -420,6 +573,8 @@ export const env = createEnv({
       process.env.AUTH_GOOGLE_ALLOW_ACCOUNT_LINKING,
     AUTH_GOOGLE_CLIENT_AUTH_METHOD: process.env.AUTH_GOOGLE_CLIENT_AUTH_METHOD,
     AUTH_GOOGLE_CHECKS: process.env.AUTH_GOOGLE_CHECKS,
+    AUTH_GOOGLE_ID_TOKEN_SIGNED_RESPONSE_ALG:
+      process.env.AUTH_GOOGLE_ID_TOKEN_SIGNED_RESPONSE_ALG,
     AUTH_GITHUB_CLIENT_ID: process.env.AUTH_GITHUB_CLIENT_ID,
     AUTH_GITHUB_CLIENT_SECRET: process.env.AUTH_GITHUB_CLIENT_SECRET,
     AUTH_GITHUB_ALLOW_ACCOUNT_LINKING:
@@ -444,6 +599,8 @@ export const env = createEnv({
       process.env.AUTH_GITLAB_ALLOW_ACCOUNT_LINKING,
     AUTH_GITLAB_CLIENT_AUTH_METHOD: process.env.AUTH_GITLAB_CLIENT_AUTH_METHOD,
     AUTH_GITLAB_CHECKS: process.env.AUTH_GITLAB_CHECKS,
+    AUTH_GITLAB_ID_TOKEN_SIGNED_RESPONSE_ALG:
+      process.env.AUTH_GITLAB_ID_TOKEN_SIGNED_RESPONSE_ALG,
     AUTH_GITLAB_URL: process.env.AUTH_GITLAB_URL,
     AUTH_AZURE_AD_CLIENT_ID: process.env.AUTH_AZURE_AD_CLIENT_ID,
     AUTH_AZURE_AD_CLIENT_SECRET: process.env.AUTH_AZURE_AD_CLIENT_SECRET,
@@ -456,6 +613,8 @@ export const env = createEnv({
       process.env.AUTH_AZURE_CLIENT_AUTH_METHOD, // fallback on old env var
     AUTH_AZURE_AD_CHECKS:
       process.env.AUTH_AZURE_AD_CHECKS ?? process.env.AUTH_AZURE_CHECKS, // fallback on old env var
+    AUTH_AZURE_AD_ID_TOKEN_SIGNED_RESPONSE_ALG:
+      process.env.AUTH_AZURE_AD_ID_TOKEN_SIGNED_RESPONSE_ALG,
     AUTH_OKTA_CLIENT_ID: process.env.AUTH_OKTA_CLIENT_ID,
     AUTH_OKTA_CLIENT_SECRET: process.env.AUTH_OKTA_CLIENT_SECRET,
     AUTH_OKTA_ISSUER: process.env.AUTH_OKTA_ISSUER,
@@ -463,6 +622,8 @@ export const env = createEnv({
       process.env.AUTH_OKTA_ALLOW_ACCOUNT_LINKING,
     AUTH_OKTA_CLIENT_AUTH_METHOD: process.env.AUTH_OKTA_CLIENT_AUTH_METHOD,
     AUTH_OKTA_CHECKS: process.env.AUTH_OKTA_CHECKS,
+    AUTH_OKTA_ID_TOKEN_SIGNED_RESPONSE_ALG:
+      process.env.AUTH_OKTA_ID_TOKEN_SIGNED_RESPONSE_ALG,
     AUTH_AUTHENTIK_CLIENT_ID: process.env.AUTH_AUTHENTIK_CLIENT_ID,
     AUTH_AUTHENTIK_CLIENT_SECRET: process.env.AUTH_AUTHENTIK_CLIENT_SECRET,
     AUTH_AUTHENTIK_ISSUER: process.env.AUTH_AUTHENTIK_ISSUER,
@@ -471,6 +632,10 @@ export const env = createEnv({
     AUTH_AUTHENTIK_CLIENT_AUTH_METHOD:
       process.env.AUTH_AUTHENTIK_CLIENT_AUTH_METHOD,
     AUTH_AUTHENTIK_CHECKS: process.env.AUTH_AUTHENTIK_CHECKS,
+    AUTH_AUTHENTIK_ID_TOKEN_SIGNED_RESPONSE_ALG:
+      process.env.AUTH_AUTHENTIK_ID_TOKEN_SIGNED_RESPONSE_ALG,
+    AUTH_AUTHENTIK_AUTHORIZATION_URL:
+      process.env.AUTH_AUTHENTIK_AUTHORIZATION_URL,
     AUTH_ONELOGIN_CLIENT_ID: process.env.AUTH_ONELOGIN_CLIENT_ID,
     AUTH_ONELOGIN_CLIENT_SECRET: process.env.AUTH_ONELOGIN_CLIENT_SECRET,
     AUTH_ONELOGIN_ISSUER: process.env.AUTH_ONELOGIN_ISSUER,
@@ -479,6 +644,8 @@ export const env = createEnv({
     AUTH_ONELOGIN_CLIENT_AUTH_METHOD:
       process.env.AUTH_ONELOGIN_CLIENT_AUTH_METHOD,
     AUTH_ONELOGIN_CHECKS: process.env.AUTH_ONELOGIN_CHECKS,
+    AUTH_ONELOGIN_ID_TOKEN_SIGNED_RESPONSE_ALG:
+      process.env.AUTH_ONELOGIN_ID_TOKEN_SIGNED_RESPONSE_ALG,
     AUTH_AUTH0_CLIENT_ID: process.env.AUTH_AUTH0_CLIENT_ID,
     AUTH_AUTH0_CLIENT_SECRET: process.env.AUTH_AUTH0_CLIENT_SECRET,
     AUTH_AUTH0_ISSUER: process.env.AUTH_AUTH0_ISSUER,
@@ -486,6 +653,20 @@ export const env = createEnv({
       process.env.AUTH_AUTH0_ALLOW_ACCOUNT_LINKING,
     AUTH_AUTH0_CLIENT_AUTH_METHOD: process.env.AUTH_AUTH0_CLIENT_AUTH_METHOD,
     AUTH_AUTH0_CHECKS: process.env.AUTH_AUTH0_CHECKS,
+    AUTH_AUTH0_ID_TOKEN_SIGNED_RESPONSE_ALG:
+      process.env.AUTH_AUTH0_ID_TOKEN_SIGNED_RESPONSE_ALG,
+    AUTH_CLICKHOUSE_CLOUD_CLIENT_ID:
+      process.env.AUTH_CLICKHOUSE_CLOUD_CLIENT_ID,
+    AUTH_CLICKHOUSE_CLOUD_CLIENT_SECRET:
+      process.env.AUTH_CLICKHOUSE_CLOUD_CLIENT_SECRET,
+    AUTH_CLICKHOUSE_CLOUD_ISSUER: process.env.AUTH_CLICKHOUSE_CLOUD_ISSUER,
+    AUTH_CLICKHOUSE_CLOUD_ALLOW_ACCOUNT_LINKING:
+      process.env.AUTH_CLICKHOUSE_CLOUD_ALLOW_ACCOUNT_LINKING,
+    AUTH_CLICKHOUSE_CLOUD_CLIENT_AUTH_METHOD:
+      process.env.AUTH_CLICKHOUSE_CLOUD_CLIENT_AUTH_METHOD,
+    AUTH_CLICKHOUSE_CLOUD_CHECKS: process.env.AUTH_CLICKHOUSE_CLOUD_CHECKS,
+    AUTH_CLICKHOUSE_CLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG:
+      process.env.AUTH_CLICKHOUSE_CLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG,
     AUTH_COGNITO_CLIENT_ID: process.env.AUTH_COGNITO_CLIENT_ID,
     AUTH_COGNITO_CLIENT_SECRET: process.env.AUTH_COGNITO_CLIENT_SECRET,
     AUTH_COGNITO_ISSUER: process.env.AUTH_COGNITO_ISSUER,
@@ -494,6 +675,8 @@ export const env = createEnv({
     AUTH_COGNITO_CLIENT_AUTH_METHOD:
       process.env.AUTH_COGNITO_CLIENT_AUTH_METHOD,
     AUTH_COGNITO_CHECKS: process.env.AUTH_COGNITO_CHECKS,
+    AUTH_COGNITO_ID_TOKEN_SIGNED_RESPONSE_ALG:
+      process.env.AUTH_COGNITO_ID_TOKEN_SIGNED_RESPONSE_ALG,
     AUTH_KEYCLOAK_CLIENT_ID: process.env.AUTH_KEYCLOAK_CLIENT_ID,
     AUTH_KEYCLOAK_CLIENT_SECRET: process.env.AUTH_KEYCLOAK_CLIENT_SECRET,
     AUTH_KEYCLOAK_ISSUER: process.env.AUTH_KEYCLOAK_ISSUER,
@@ -502,6 +685,8 @@ export const env = createEnv({
     AUTH_KEYCLOAK_CLIENT_AUTH_METHOD:
       process.env.AUTH_KEYCLOAK_CLIENT_AUTH_METHOD,
     AUTH_KEYCLOAK_CHECKS: process.env.AUTH_KEYCLOAK_CHECKS,
+    AUTH_KEYCLOAK_ID_TOKEN_SIGNED_RESPONSE_ALG:
+      process.env.AUTH_KEYCLOAK_ID_TOKEN_SIGNED_RESPONSE_ALG,
     AUTH_KEYCLOAK_SCOPE: process.env.AUTH_KEYCLOAK_SCOPE,
     AUTH_KEYCLOAK_ID_TOKEN: process.env.AUTH_KEYCLOAK_ID_TOKEN,
     AUTH_KEYCLOAK_NAME: process.env.AUTH_KEYCLOAK_NAME,
@@ -513,6 +698,8 @@ export const env = createEnv({
     AUTH_JUMPCLOUD_CLIENT_AUTH_METHOD:
       process.env.AUTH_JUMPCLOUD_CLIENT_AUTH_METHOD,
     AUTH_JUMPCLOUD_CHECKS: process.env.AUTH_JUMPCLOUD_CHECKS,
+    AUTH_JUMPCLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG:
+      process.env.AUTH_JUMPCLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG,
     AUTH_JUMPCLOUD_SCOPE: process.env.AUTH_JUMPCLOUD_SCOPE,
     AUTH_CUSTOM_CLIENT_ID: process.env.AUTH_CUSTOM_CLIENT_ID,
     AUTH_CUSTOM_CLIENT_SECRET: process.env.AUTH_CUSTOM_CLIENT_SECRET,
@@ -521,6 +708,8 @@ export const env = createEnv({
     AUTH_CUSTOM_SCOPE: process.env.AUTH_CUSTOM_SCOPE,
     AUTH_CUSTOM_CLIENT_AUTH_METHOD: process.env.AUTH_CUSTOM_CLIENT_AUTH_METHOD,
     AUTH_CUSTOM_CHECKS: process.env.AUTH_CUSTOM_CHECKS,
+    AUTH_CUSTOM_ID_TOKEN_SIGNED_RESPONSE_ALG:
+      process.env.AUTH_CUSTOM_ID_TOKEN_SIGNED_RESPONSE_ALG,
     AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING,
     AUTH_CUSTOM_ID_TOKEN: process.env.AUTH_CUSTOM_ID_TOKEN,
@@ -537,11 +726,15 @@ export const env = createEnv({
     AUTH_WORDPRESS_CLIENT_AUTH_METHOD:
       process.env.AUTH_WORDPRESS_CLIENT_AUTH_METHOD,
     AUTH_WORDPRESS_CHECKS: process.env.AUTH_WORDPRESS_CHECKS,
+    AUTH_WORDPRESS_ID_TOKEN_SIGNED_RESPONSE_ALG:
+      process.env.AUTH_WORDPRESS_ID_TOKEN_SIGNED_RESPONSE_ALG,
     AUTH_IGNORE_ACCOUNT_FIELDS: process.env.AUTH_IGNORE_ACCOUNT_FIELDS,
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT:
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
     AUTH_DISABLE_USERNAME_PASSWORD: process.env.AUTH_DISABLE_USERNAME_PASSWORD,
     AUTH_DISABLE_SIGNUP: process.env.AUTH_DISABLE_SIGNUP,
+    AUTH_EMAIL_VERIFICATION_REQUIRED:
+      process.env.AUTH_EMAIL_VERIFICATION_REQUIRED,
     AUTH_SESSION_MAX_AGE: process.env.AUTH_SESSION_MAX_AGE,
     AUTH_HTTP_PROXY: process.env.AUTH_HTTP_PROXY,
     AUTH_HTTPS_PROXY: process.env.AUTH_HTTPS_PROXY,
@@ -553,6 +746,9 @@ export const env = createEnv({
     OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
     OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME,
     OTEL_TRACE_SAMPLING_RATIO: process.env.OTEL_TRACE_SAMPLING_RATIO,
+
+    LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS:
+      process.env.LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS,
 
     // S3 media upload
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH:
@@ -582,8 +778,8 @@ export const env = createEnv({
     // Other
     NEXT_PUBLIC_PLAIN_APP_ID: process.env.NEXT_PUBLIC_PLAIN_APP_ID,
     PLAIN_AUTHENTICATION_SECRET: process.env.PLAIN_AUTHENTICATION_SECRET,
-    PLAIN_API_KEY: process.env.PLAIN_API_KEY,
     PLAIN_CARDS_API_TOKEN: process.env.PLAIN_CARDS_API_TOKEN,
+    PYLON_API_KEY: process.env.PYLON_API_KEY,
     // clickhouse
     CLICKHOUSE_URL: process.env.CLICKHOUSE_URL,
     CLICKHOUSE_CLUSTER_NAME: process.env.CLICKHOUSE_CLUSTER_NAME,
@@ -591,8 +787,6 @@ export const env = createEnv({
     CLICKHOUSE_USER: process.env.CLICKHOUSE_USER,
     CLICKHOUSE_PASSWORD: process.env.CLICKHOUSE_PASSWORD,
     CLICKHOUSE_CLUSTER_ENABLED: process.env.CLICKHOUSE_CLUSTER_ENABLED,
-    CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY:
-      process.env.CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY,
     // EE ui customization
     LANGFUSE_UI_API_HOST: process.env.LANGFUSE_UI_API_HOST,
     LANGFUSE_UI_DOCUMENTATION_HREF: process.env.LANGFUSE_UI_DOCUMENTATION_HREF,
@@ -656,13 +850,13 @@ export const env = createEnv({
 
     // AWS Bedrock for langfuse native AI feature such as natural language filters
     LANGFUSE_AWS_BEDROCK_MODEL: process.env.LANGFUSE_AWS_BEDROCK_MODEL,
+    LANGFUSE_AWS_BEDROCK_SMALL_MODEL:
+      process.env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL,
 
     // Langfuse Tracing AI Features
     LANGFUSE_AI_FEATURES_HOST: process.env.LANGFUSE_AI_FEATURES_HOST,
 
     // Api Performance Flags
-    LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS:
-      process.env.LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS,
     LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS:
       process.env.LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS,
 
@@ -673,15 +867,30 @@ export const env = createEnv({
       process.env.LANGFUSE_AI_FEATURES_SECRET_KEY,
     LANGFUSE_AI_FEATURES_PROJECT_ID:
       process.env.LANGFUSE_AI_FEATURES_PROJECT_ID,
-    // Events table migration
-    LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS:
-      process.env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS,
-    LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS:
-      process.env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS,
-    LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS:
-      process.env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS,
-    LANGFUSE_ENABLE_QUERY_OPTIMIZATION_SHADOW_TEST:
-      process.env.LANGFUSE_ENABLE_QUERY_OPTIMIZATION_SHADOW_TEST,
+    // API Traces endpoint controls
+    LANGFUSE_API_TRACES_DEFAULT_DATE_RANGE_DAYS:
+      process.env.LANGFUSE_API_TRACES_DEFAULT_DATE_RANGE_DAYS,
+    LANGFUSE_API_TRACES_REJECT_NO_DATE_RANGE:
+      process.env.LANGFUSE_API_TRACES_REJECT_NO_DATE_RANGE,
+    LANGFUSE_API_TRACES_DEFAULT_FIELDS:
+      process.env.LANGFUSE_API_TRACES_DEFAULT_FIELDS,
+    LANGFUSE_API_TRACEBYID_DEFAULT_FIELDS:
+      process.env.LANGFUSE_API_TRACEBYID_DEFAULT_FIELDS,
+    LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN:
+      process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN,
+    LANGFUSE_MIGRATION_V4_WRITE_MODE:
+      process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+    // Legacy tracing search controls
+    LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH:
+      process.env.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH,
+    LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE:
+      process.env.LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE,
+    LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY:
+      process.env.LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY,
+    LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY_SAMPLE_RATE:
+      process.env.LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY_SAMPLE_RATE,
+    LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION:
+      process.env.LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

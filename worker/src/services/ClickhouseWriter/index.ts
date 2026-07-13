@@ -13,12 +13,23 @@ import {
   TraceNullRecordInsertType,
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
+  buildClickHouseLogComment,
 } from "@langfuse/shared/src/server";
+
+import { Decimal } from "decimal.js";
 
 import { env } from "../../env";
 import { logger } from "@langfuse/shared/src/server";
 import { instrumentAsync } from "@langfuse/shared/src/server";
 import { backOff } from "exponential-backoff";
+
+// Decimal64(12): valid range is (-10^6, 10^6), i.e. 18 total digits with 12 fractional.
+// JS double can't represent 999999.999999999999 exactly (rounds to 1e6), so we use a
+// value with enough decimal places to be safe while staying representable as a JS number.
+const DECIMAL_64_12_LIMIT = new Decimal("1e6");
+const DECIMAL_64_12_MAX_NUM = 999_999.999_999;
+const DECIMAL_64_12_MIN_NUM = -DECIMAL_64_12_MAX_NUM;
+const MULTI_PROJECT_LOG_COMMENT_PROJECT_ID = "MULTI_PROJECT";
 
 export class ClickhouseWriter {
   private static instance: ClickhouseWriter | null = null;
@@ -46,7 +57,7 @@ export class ClickhouseWriter {
       [TableName.ObservationsBatchStaging]: [],
       [TableName.BlobStorageFileLog]: [],
       [TableName.DatasetRunItems]: [],
-      [TableName.Events]: [],
+      [TableName.EventsFull]: [],
     };
 
     this.start();
@@ -99,7 +110,7 @@ export class ClickhouseWriter {
     logger.info("ClickhouseWriter shutdown complete.");
   }
 
-  private async flushAll(fullQueue = false) {
+  public async flushAll(fullQueue = false) {
     return instrumentAsync(
       {
         name: "write-to-clickhouse",
@@ -114,7 +125,7 @@ export class ClickhouseWriter {
           this.flush(TableName.ObservationsBatchStaging, fullQueue),
           this.flush(TableName.BlobStorageFileLog, fullQueue),
           this.flush(TableName.DatasetRunItems, fullQueue),
-          this.flush(TableName.Events, fullQueue),
+          this.flush(TableName.EventsFull, fullQueue),
         ]).catch((err) => {
           logger.error("ClickhouseWriter.flushAll", err);
         });
@@ -268,6 +279,82 @@ export class ClickhouseWriter {
     return record;
   }
 
+  private static clampDecimal64Value(value: number): [number, boolean] {
+    if (!Number.isFinite(value)) return [0, true];
+    if (new Decimal(value).abs().gte(DECIMAL_64_12_LIMIT)) {
+      return [value >= 0 ? DECIMAL_64_12_MAX_NUM : DECIMAL_64_12_MIN_NUM, true];
+    }
+    return [value, false];
+  }
+
+  private clampDecimal64Map(
+    map: Record<string, number> | undefined,
+    context: { recordId: string; projectId: string; fieldName: string },
+  ): Record<string, number> | undefined {
+    if (!map) return map;
+
+    let result: Record<string, number> | undefined;
+    for (const [key, value] of Object.entries(map)) {
+      const [cv, wasClamped] = ClickhouseWriter.clampDecimal64Value(value);
+      if (wasClamped) {
+        result ??= { ...map };
+        result[key] = cv;
+      }
+    }
+    if (!result) return map;
+
+    logger.warn("Clamped Decimal64(12) overflow in cost map", {
+      projectId: context.projectId,
+      recordId: context.recordId,
+      fieldName: context.fieldName,
+    });
+    recordIncrement("langfuse.clickhouse_writer.decimal64_clamped");
+    return result;
+  }
+
+  private clampDecimal64Fields<T extends TableName>(
+    tableName: T,
+    record: RecordInsertType<T>,
+  ): RecordInsertType<T> {
+    const r = record as Record<string, unknown>;
+    const ctx = {
+      recordId: r.id as string,
+      projectId: r.project_id as string,
+    };
+
+    switch (tableName) {
+      case TableName.Observations:
+      case TableName.ObservationsBatchStaging:
+      case TableName.EventsFull: {
+        r.provided_cost_details = this.clampDecimal64Map(
+          r.provided_cost_details as Record<string, number> | undefined,
+          { ...ctx, fieldName: "provided_cost_details" },
+        );
+        r.cost_details = this.clampDecimal64Map(
+          r.cost_details as Record<string, number> | undefined,
+          { ...ctx, fieldName: "cost_details" },
+        );
+        if (r.total_cost != null && typeof r.total_cost === "number") {
+          const [cv, wasClamped] = ClickhouseWriter.clampDecimal64Value(
+            r.total_cost,
+          );
+          if (wasClamped) {
+            r.total_cost = cv;
+            logger.warn("Clamped Decimal64(12) overflow in total_cost", {
+              projectId: ctx.projectId,
+              recordId: ctx.recordId,
+              fieldName: "total_cost",
+            });
+            recordIncrement("langfuse.clickhouse_writer.decimal64_clamped");
+          }
+        }
+        break;
+      }
+    }
+
+    return record;
+  }
+
   private async flush<T extends TableName>(tableName: T, fullQueue = false) {
     const entityQueue = this.queue[tableName];
     if (entityQueue.length === 0) return;
@@ -296,6 +383,9 @@ export class ClickhouseWriter {
       const processingStartTime = Date.now();
 
       let recordsToWrite = queueItems.map((item) => item.data);
+      recordsToWrite = recordsToWrite.map((r) =>
+        this.clampDecimal64Fields(tableName, r),
+      );
       let hasBeenTruncated = false;
 
       await backOff(
@@ -376,15 +466,15 @@ export class ClickhouseWriter {
                 truncated: true,
               });
               return true;
-            } else {
-              logger.error(
-                `ClickHouse query failed with non-retryable error: ${error.message}`,
-                {
-                  error: error.message,
-                },
-              );
-              return false;
             }
+
+            logger.error(
+              `ClickHouse query failed with non-retryable error: ${error.message}`,
+              {
+                error: error.message,
+              },
+            );
+            return false;
           },
           startingDelay: 100,
           timeMultiple: 1,
@@ -417,6 +507,7 @@ export class ClickhouseWriter {
       logger.error(`ClickhouseWriter.flush ${tableName}`, err);
 
       // Re-add the records to the queue with incremented attempts
+      let droppedCount = 0;
       queueItems.forEach((item) => {
         if (item.attempts < this.maxAttempts) {
           entityQueue.push({
@@ -426,12 +517,33 @@ export class ClickhouseWriter {
         } else {
           // TODO - Add to a dead letter queue in Redis rather than dropping
           recordIncrement("langfuse.queue.clickhouse_writer.error");
-          logger.error(
-            `Max attempts reached for ${tableName} record. Dropping record.`,
-            { item: this.truncateOversizedRecord(tableName, item.data) },
-          );
+          droppedCount++;
         }
       });
+
+      if (droppedCount > 0) {
+        recordIncrement(
+          "langfuse.queue.clickhouse_writer.rows_dropped",
+          droppedCount,
+          { entity_type: tableName },
+        );
+
+        const droppedIds = queueItems
+          .filter((item) => item.attempts >= this.maxAttempts)
+          .map((item) => {
+            const r = item.data as Record<string, unknown>;
+            return {
+              project_id: r.project_id,
+              trace_id: r.trace_id ?? r.id,
+              id: r.id,
+            };
+          });
+
+        logger.error(
+          `ClickhouseWriter: Max attempts reached, dropped ${droppedCount} ${tableName} record(s)`,
+          { droppedIds },
+        );
+      }
     }
   }
 
@@ -467,14 +579,10 @@ export class ClickhouseWriter {
         format: "JSONEachRow",
         values: params.records,
         clickhouse_settings: {
-          log_comment: JSON.stringify({
-            feature: "ingestion",
-            type: params.table,
-            operation_name: "writeToClickhouse",
-            projectId:
-              params.records.length > 0
-                ? params.records[0].project_id
-                : undefined,
+          log_comment: buildClickHouseLogComment({
+            surface: "worker",
+            route: "clickhouse-writer",
+            projectId: MULTI_PROJECT_LOG_COMMENT_PROJECT_ID,
           }),
         },
       })
@@ -500,7 +608,7 @@ export enum TableName {
   ObservationsBatchStaging = "observations_batch_staging",
   BlobStorageFileLog = "blob_storage_file_log",
   DatasetRunItems = "dataset_run_items_rmt",
-  Events = "events",
+  EventsFull = "events_full", // Primary write target - MV auto-populates events_core
 }
 
 type RecordInsertType<T extends TableName> = T extends TableName.Scores
@@ -517,7 +625,7 @@ type RecordInsertType<T extends TableName> = T extends TableName.Scores
             ? BlobStorageFileLogInsertType
             : T extends TableName.DatasetRunItems
               ? DatasetRunItemRecordInsertType
-              : T extends TableName.Events
+              : T extends TableName.EventsFull
                 ? EventRecordInsertType
                 : never;
 

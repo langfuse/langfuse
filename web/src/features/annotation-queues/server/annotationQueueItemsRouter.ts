@@ -20,11 +20,14 @@ import {
 } from "@langfuse/shared";
 import {
   getObservationById,
+  getObservationByIdFromEventsTable,
+  getObservationsTraceIdsFromEventsTable,
   getTraceIdsForObservations,
   logger,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { z } from "zod/v4";
+import { z } from "zod";
+import { env } from "@/src/env.mjs";
 
 const isItemLocked = (item: AnnotationQueueItem) => {
   return (
@@ -37,7 +40,12 @@ const isItemLocked = (item: AnnotationQueueItem) => {
 const MAP_OBJECT_TYPE_TO_ACTION_PROPS: Record<
   AnnotationQueueObjectType,
   {
-    actionId: Exclude<ActionId, ActionId.ObservationAddToDataset>;
+    actionId: Exclude<
+      ActionId,
+      | ActionId.ObservationAddToDataset
+      | ActionId.ObservationBatchEvaluation
+      | ActionId.ExperimentCompare
+    >;
     tableName: BatchTableNames;
   }
 > = {
@@ -51,7 +59,10 @@ const MAP_OBJECT_TYPE_TO_ACTION_PROPS: Record<
   },
   [AnnotationQueueObjectType.OBSERVATION]: {
     actionId: ActionId.ObservationAddToAnnotationQueue,
-    tableName: BatchExportTableName.Observations,
+    tableName:
+      env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
+        ? BatchExportTableName.Events
+        : BatchExportTableName.Observations,
   },
 };
 
@@ -65,6 +76,12 @@ export const queueItemRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "annotationQueues:read",
+      });
+
       const item = await ctx.prisma.annotationQueueItem.findUnique({
         where: {
           id: input.itemId,
@@ -82,6 +99,7 @@ export const queueItemRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         itemId: z.string(),
+        isBetaEnabled: z.boolean().optional().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -119,10 +137,17 @@ export const queueItemRouter = createTRPCRouter({
       };
 
       if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {
-        const clickhouseObservation = await getObservationById({
-          id: item.objectId,
-          projectId: input.projectId,
-        });
+        const clickhouseObservation =
+          env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
+            ? await getObservationByIdFromEventsTable({
+                id: item.objectId,
+                projectId: input.projectId,
+              })
+            : // eslint-disable-next-line @typescript-eslint/no-deprecated
+              await getObservationById({
+                id: item.objectId,
+                projectId: input.projectId,
+              });
 
         if (!clickhouseObservation) {
           throw new LangfuseNotFoundError("Observation not found");
@@ -200,10 +225,21 @@ export const queueItemRouter = createTRPCRouter({
         )
         .map((item) => item.objectId);
 
-      const traceIds =
-        observationIds.length > 0
-          ? await getTraceIdsForObservations(input.projectId, observationIds)
-          : [];
+      const hasQueueItemsReferencingObservations = observationIds.length > 0;
+
+      let traceIds: { id: string; traceId: string }[];
+
+      if (hasQueueItemsReferencingObservations) {
+        traceIds =
+          env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
+            ? await getObservationsTraceIdsFromEventsTable({
+                projectId: input.projectId,
+                observationIds,
+              })
+            : await getTraceIdsForObservations(input.projectId, observationIds);
+      } else {
+        traceIds = [];
+      }
 
       return {
         queueItems: queueItems.map((item) => ({
@@ -264,10 +300,7 @@ export const queueItemRouter = createTRPCRouter({
       let createdCount = 0;
 
       if (input.isBatchAction && input.query) {
-        const actionProps =
-          MAP_OBJECT_TYPE_TO_ACTION_PROPS[
-            input.objectType as "TRACE" | "SESSION"
-          ];
+        const actionProps = MAP_OBJECT_TYPE_TO_ACTION_PROPS[input.objectType];
         if (!actionProps) {
           throw new TRPCError({
             code: "BAD_REQUEST",

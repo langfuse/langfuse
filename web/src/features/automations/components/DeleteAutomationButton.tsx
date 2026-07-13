@@ -42,7 +42,7 @@ export const DeleteAutomationButton: React.FC<DeleteAutomationButtonProps> = ({
           onSuccess();
         }
 
-        void utils.automations.invalidate();
+        utils.automations.invalidate();
       },
     },
   );
@@ -64,7 +64,7 @@ export const DeleteAutomationButton: React.FC<DeleteAutomationButtonProps> = ({
           <Button
             type="button"
             variant="outline"
-            className="flex items-center border-light-red"
+            className="border-light-red flex items-center"
             disabled={!hasAccess}
           >
             <span className="text-dark-red">Delete</span>
@@ -72,7 +72,7 @@ export const DeleteAutomationButton: React.FC<DeleteAutomationButtonProps> = ({
         )}
       </PopoverTrigger>
       <PopoverContent>
-        <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
+        <h2 className="mb-3 font-semibold">Please confirm</h2>
         <p className="mb-3 text-sm">
           This action permanently deletes this automation and execution history.
           This cannot be undone.
@@ -83,7 +83,7 @@ export const DeleteAutomationButton: React.FC<DeleteAutomationButtonProps> = ({
             variant="destructive"
             loading={deleteAutomationMutation.isPending}
             onClick={() => {
-              void deleteAutomationMutation.mutateAsync({
+              deleteAutomationMutation.mutateAsync({
                 projectId,
                 automationId,
               });

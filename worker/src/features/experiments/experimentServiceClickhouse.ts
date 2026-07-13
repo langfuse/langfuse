@@ -1,6 +1,13 @@
-import { DatasetItemDomain, Prisma } from "@langfuse/shared";
+import {
+  asRecord,
+  convertEventRecordToObservationForEval,
+  DatasetItemDomain,
+  Prisma,
+} from "@langfuse/shared";
 import {
   ChatMessage,
+  convertDateToClickhouseDateTime,
+  createUnknownSdkIngestionAttribution,
   createDatasetItemFilterState,
   DatasetRunItemUpsertQueue,
   eventTypes,
@@ -17,7 +24,7 @@ import {
   TraceSinkParams,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
-import z from "zod/v4";
+import z from "zod";
 import {
   parseDatasetItemInput,
   replaceVariablesInPrompt,
@@ -30,6 +37,8 @@ import {
 } from "@langfuse/shared";
 import { randomUUID } from "crypto";
 import { createW3CTraceId } from "../utils";
+import { scheduleExperimentObservationEvals } from "./scheduleExperimentEvals";
+import { createInternalEventsWriter } from "../internal-tracing/createInternalEventsWriter";
 
 async function getExistingRunItemDatasetItemIds(
   projectId: string,
@@ -51,12 +60,7 @@ async function getExistingRunItemDatasetItemIds(
       runId,
       datasetId,
     },
-    tags: {
-      feature: "dataset-run-item",
-      type: "read",
-      kind: "list",
-      projectId,
-    },
+    tags: { projectId },
   });
 
   return new Set(rows.map((row) => row.id));
@@ -85,22 +89,22 @@ async function processItem(
       datasetId: datasetItem.datasetId,
       runId: config.runId,
       datasetItemId: datasetItem.id,
+      datasetVersion: datasetItem.validFrom.toISOString(),
     },
   };
 
-  const ingestionResult = await processEventBatch(
-    [event],
-    {
-      validKey: true,
-      scope: {
-        projectId: config.projectId,
-        accessLevel: "project" as const,
-      },
+  const auth = {
+    validKey: true as const,
+    scope: {
+      projectId: config.projectId,
+      accessLevel: "project" as const,
     },
-    {
-      isLangfuseInternal: true,
-    },
-  );
+  };
+
+  const ingestionResult = await processEventBatch([event], auth, {
+    isLangfuseInternal: true,
+    attribution: createUnknownSdkIngestionAttribution({ authCheck: auth }),
+  });
 
   if (ingestionResult.errors.length > 0) {
     const error = ingestionResult.errors[0];
@@ -134,6 +138,7 @@ async function processItem(
         payload: {
           projectId,
           datasetItemId: datasetItem.id,
+          datasetItemValidFrom: datasetItem.validFrom,
           traceId: newTraceId,
         },
         id: randomUUID(),
@@ -168,7 +173,6 @@ async function processLLMCall(
     );
     return { success: false };
   }
-
   const traceSinkParams: TraceSinkParams = {
     environment: LangfuseInternalTraceEnvironment.PromptExperiments,
     traceName: `dataset-run-item-${runItemId.slice(0, 5)}`,
@@ -182,6 +186,24 @@ async function processLLMCall(
       experiment_run_name: config.experimentRunName,
     },
     prompt: config.prompt,
+    eventsWriter: createInternalEventsWriter({
+      experimentContext: {
+        id: config.runId,
+        name: config.datasetRun.name,
+        metadata: asRecord(config.datasetRun.metadata),
+        description: config.datasetRun.description,
+        datasetId: datasetItem.datasetId,
+        itemId: datasetItem.id,
+        itemVersion: convertDateToClickhouseDateTime(datasetItem.validFrom),
+        itemExpectedOutput: datasetItem.expectedOutput,
+        itemMetadata: asRecord(datasetItem.metadata),
+      },
+      onRootEventRecordReady: async (rootEventRecord) => {
+        await scheduleExperimentObservationEvals({
+          observation: convertEventRecordToObservationForEval(rootEventRecord),
+        });
+      },
+    }),
   };
 
   await fetchLLMCompletion({
@@ -208,13 +230,14 @@ async function getItemsToProcess(
   runId: string,
   config: PromptExperimentConfig,
 ) {
-  // Fetch all dataset items
+  // Fetch all dataset items at the specified version (if provided)
   const datasetItems = await getDatasetItems({
     projectId,
     filterState: createDatasetItemFilterState({
       datasetIds: [datasetId],
       status: "ACTIVE",
     }),
+    version: config.datasetVersion,
     includeIO: true,
   });
 
@@ -399,6 +422,7 @@ async function createAllDatasetRunItemsWithConfigError(
           datasetId: datasetItem.datasetId,
           runId: runId,
           datasetItemId: datasetItem.id,
+          datasetVersion: datasetItem.validFrom.toISOString(),
         },
       },
       // trace
@@ -435,16 +459,17 @@ async function createAllDatasetRunItemsWithConfigError(
       `Creating ${events.length / 3} dataset run items with config error`,
     );
 
-    await processEventBatch(
-      events,
-      {
-        validKey: true,
-        scope: {
-          projectId,
-          accessLevel: "project" as const,
-        },
+    const auth = {
+      validKey: true as const,
+      scope: {
+        projectId,
+        accessLevel: "project" as const,
       },
-      { isLangfuseInternal: true },
-    );
+    };
+
+    await processEventBatch(events, auth, {
+      isLangfuseInternal: true,
+      attribution: createUnknownSdkIngestionAttribution({ authCheck: auth }),
+    });
   }
 }

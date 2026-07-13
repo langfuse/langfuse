@@ -28,16 +28,15 @@ export default function TableLink({
   return (
     <Link
       className={cn(
-        "inline-block max-w-full text-xs font-semibold text-accent-dark-blue hover:text-primary-accent/60",
+        "text-link hover:text-link-hover inline-block max-w-full text-xs leading-normal font-semibold",
         className,
-        icon && "max-h-4",
       )}
       href={path}
       title={title || value}
       prefetch={false}
       onClick={handleClick}
     >
-      <span className="inline-block max-w-full overflow-hidden text-ellipsis text-nowrap">
+      <span className="inline-block max-w-full overflow-hidden align-middle leading-normal text-nowrap text-ellipsis">
         {icon ? <span className="inline-block">{icon}</span> : value}
       </span>
     </Link>

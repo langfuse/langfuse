@@ -21,7 +21,7 @@ export const DatasetItemViewModeContent = ({
   dataset,
 }: DatasetItemViewModeContentProps) => {
   if (isLoading) {
-    return <div className="text-sm text-muted-foreground">Loading...</div>;
+    return <div className="text-muted-foreground text-sm">Loading...</div>;
   }
 
   if (item === null) {
@@ -39,11 +39,15 @@ export const DatasetItemViewModeContent = ({
 
   return (
     <DatasetItemFields
-      inputValue={stringifyDatasetItemData(item.input)}
-      expectedOutputValue={stringifyDatasetItemData(item.expectedOutput)}
-      metadataValue={stringifyDatasetItemData(item.metadata)}
+      values={{
+        input: stringifyDatasetItemData(item.input),
+        expectedOutput: stringifyDatasetItemData(item.expectedOutput),
+        metadata: stringifyDatasetItemData(item.metadata),
+      }}
       dataset={dataset}
       editable={false}
+      projectId={item.projectId}
+      datasetItemId={item.id}
     />
   );
 };

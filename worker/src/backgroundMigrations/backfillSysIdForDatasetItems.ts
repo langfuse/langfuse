@@ -13,9 +13,7 @@ import { parseArgs } from "node:util";
  * - This migration is no longer needed as we have migrated to the new versioning/temporal table support
  *
  */
-export default class BackfillSysIdForDatasetItems
-  implements IBackgroundMigration
-{
+export default class BackfillSysIdForDatasetItems implements IBackgroundMigration {
   private isAborted = false;
 
   async validate(

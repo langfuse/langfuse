@@ -7,14 +7,14 @@ export const showVersionUpdateToast = () => {
       <div className="flex justify-between">
         <div className="flex min-w-[300px] flex-1 flex-col gap-2">
           <div className="flex items-center gap-2">
-            <div className="m-0 text-sm font-medium leading-tight text-foreground/70">
+            <div className="text-foreground/70 m-0 text-sm leading-tight font-medium">
               We have released a new version of Langfuse. Please refresh your
               browser to get the latest update.
             </div>
           </div>
           <Button
             variant="outline"
-            size={"sm"}
+            size="sm"
             className="text-foreground/50"
             onClick={() => {
               window.location.reload();

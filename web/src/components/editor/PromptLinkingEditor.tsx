@@ -11,7 +11,8 @@ type PromptLinkingEditorProps = {
   value: string;
   onChange?: (value: string) => void;
   onBlur?: () => void;
-  minHeight: "none" | 30 | 100 | 200;
+  minHeight?: number | string;
+  maxHeight?: number | string;
   className?: string;
 };
 
@@ -20,6 +21,7 @@ export function PromptLinkingEditor({
   onChange,
   onBlur,
   minHeight,
+  maxHeight = "60vh",
   className,
 }: PromptLinkingEditorProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -54,25 +56,28 @@ export function PromptLinkingEditor({
   };
 
   return (
-    <div className="relative">
+    <div className="flex flex-col gap-2">
       <CodeMirrorEditor
         value={value}
         onChange={onChange}
         onBlur={onBlur}
         mode="prompt"
         minHeight={minHeight}
+        maxHeight={maxHeight}
         className={className}
         editorRef={editorRef}
       />
-      <Button
-        type="button"
-        variant="outline"
-        className="absolute bottom-2 right-2 flex items-center gap-1 px-2 py-1"
-        onClick={() => setIsDialogOpen(true)}
-      >
-        <Plus className="mr-2 h-4 w-4" />
-        <span className="text-xs">Add prompt reference</span>
-      </Button>
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          variant="outline"
+          className="flex items-center gap-1 px-2 py-1"
+          onClick={() => setIsDialogOpen(true)}
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          <span className="text-xs">Add prompt reference</span>
+        </Button>
+      </div>
 
       {projectId && (
         <PromptSelectionDialog

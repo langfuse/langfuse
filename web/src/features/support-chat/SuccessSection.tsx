@@ -3,12 +3,7 @@ import { Separator } from "@/src/components/ui/separator";
 import { CheckCircle2 } from "lucide-react";
 import { IntroSection } from "@/src/features/support-chat/IntroSection";
 
-export function SuccessSection({
-  onAnother,
-}: {
-  onClose: () => void;
-  onAnother: () => void;
-}) {
+export function SuccessSection({ onAnother }: { onAnother: () => void }) {
   return (
     <div className="mt-1 flex flex-col gap-6">
       {/* Success card */}
@@ -17,7 +12,7 @@ export function SuccessSection({
           <CheckCircle2 className="mt-0.5 h-5 w-5 text-green-600" />
           <div className="space-y-0.5">
             <div className="text-sm font-medium">Thanks for your message</div>
-            <div className="text-sm text-muted-foreground">
+            <div className="text-muted-foreground text-sm">
               We created a support ticket and will reply via email.
             </div>
           </div>

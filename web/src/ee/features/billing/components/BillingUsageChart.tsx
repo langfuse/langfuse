@@ -1,7 +1,6 @@
 // Langfuse Cloud only
 
 import { api } from "@/src/utils/api";
-import { MarkerBar } from "@tremor/react";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { Card } from "@/src/components/ui/card";
 import { numberFormatter, compactNumberFormatter } from "@/src/utils/numbers";
@@ -44,10 +43,10 @@ export const BillingUsageChart = () => {
       <Card className="p-3">
         {usage.data !== undefined ? (
           <>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               {usage.data.billingPeriod
-                ? `${usageType} in current billing period (updated about once every 60 minutes)`
-                : `${usageType} / last 30d`}
+                ? `Consumed ${usageType} in current billing period (updated about once every 60 minutes)`
+                : `Consumed ${usageType} / last 30d`}
             </p>
             <div className="text-3xl font-bold">
               {numberFormatter(usage.data.usageCount, 0)}
@@ -60,18 +59,31 @@ export const BillingUsageChart = () => {
                     Plan limit: {compactNumberFormatter(hobbyPlanLimit)}
                   </span>
                 </div>
-                <MarkerBar
-                  value={Math.min(
+                <div
+                  className="bg-muted mt-3 h-2 w-full overflow-hidden rounded-full"
+                  role="progressbar"
+                  aria-valuenow={Math.min(
                     (usage.data.usageCount / hobbyPlanLimit) * 100,
                     100,
                   )}
-                  className="mt-3"
-                />
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                >
+                  <div
+                    className="bg-primary h-full rounded-full transition-all"
+                    style={{
+                      width: `${Math.min(
+                        (usage.data.usageCount / hobbyPlanLimit) * 100,
+                        100,
+                      )}%`,
+                    }}
+                  />
+                </div>
               </>
             )}
           </>
         ) : (
-          <span className="text-sm text-muted-foreground">
+          <span className="text-muted-foreground text-sm">
             Loading (might take a moment) ...
           </span>
         )}

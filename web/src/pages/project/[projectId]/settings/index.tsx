@@ -27,10 +27,13 @@ import { ModelsSettings } from "@/src/features/models/components/ModelSettings";
 import ConfigureRetention from "@/src/features/projects/components/ConfigureRetention";
 import ContainerPage from "@/src/components/layouts/container-page";
 import ProtectedLabelsSettings from "@/src/features/prompts/components/ProtectedLabelsSettings";
-import { Slack } from "lucide-react";
+import { SiSlack } from "react-icons/si";
 import { ScoreConfigSettings } from "@/src/features/score-configs/components/ScoreConfigSettings";
 import { env } from "@/src/env.mjs";
-import { NotificationSettings } from "@/src/features/notifications/components/NotificationSettings";
+import { PersonalNotificationSettings } from "@/src/features/notifications/components/PersonalNotificationSettings";
+import { ProjectNotificationChannels } from "@/src/features/notifications/components/ProjectNotificationChannels";
+import { WebCalloutIntegrationCard } from "@/src/features/web-callouts/components/WebCalloutSettingsPage";
+import { DeveloperToolsSettings } from "@/src/features/developer-tools/components/DeveloperToolsSettings";
 
 type ProjectSettingsPage = {
   title: string;
@@ -47,7 +50,6 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
   const showProtectedLabelsSettings = useHasEntitlement(
     "prompt-protected-labels",
   );
-
   if (!project || !organization || !router.query.projectId) {
     return [];
   }
@@ -137,6 +139,21 @@ export const getProjectSettingsPages = ({
     ),
   },
   {
+    title: "MCP & CLI",
+    slug: "developer-tools",
+    cmdKKeywords: [
+      "mcp",
+      "cli",
+      "skill",
+      "agent",
+      "model context protocol",
+      "command line",
+      "claude code",
+      "cursor",
+    ],
+    content: <DeveloperToolsSettings projectId={project.id} />,
+  },
+  {
     title: "LLM Connections",
     slug: "llm-connections",
     cmdKKeywords: [
@@ -158,7 +175,7 @@ export const getProjectSettingsPages = ({
     show: showLLMConnectionsSettings,
   },
   {
-    title: "Models",
+    title: "Model Definitions",
     slug: "models",
     cmdKKeywords: ["cost", "token"],
     content: <ModelsSettings projectId={project.id} />,
@@ -200,7 +217,7 @@ export const getProjectSettingsPages = ({
   {
     title: "Integrations",
     slug: "integrations",
-    cmdKKeywords: ["posthog", "mixpanel", "analytics"],
+    cmdKKeywords: ["posthog", "mixpanel", "analytics", "callback", "webhook"],
     content: <Integrations projectId={project.id} />,
   },
   {
@@ -224,8 +241,13 @@ export const getProjectSettingsPages = ({
   {
     title: "Notifications",
     slug: "notifications",
-    cmdKKeywords: ["inbox", "email", "mention", "alert"],
-    content: <NotificationSettings />,
+    cmdKKeywords: ["inbox", "email", "mention", "alert", "slack", "webhook"],
+    content: (
+      <div className="flex flex-col gap-6">
+        <PersonalNotificationSettings />
+        <ProjectNotificationChannels projectId={project.id} />
+      </div>
+    ),
   },
   {
     title: "Billing",
@@ -277,8 +299,8 @@ const Integrations = (props: { projectId: string }) => {
       <div className="space-y-6">
         <Card className="p-3">
           {}
-          <PostHogLogo className="mb-4 w-40 text-foreground" />
-          <p className="mb-4 text-sm text-primary">
+          <PostHogLogo className="text-foreground mb-4 w-40" />
+          <p className="text-primary mb-4 text-sm">
             We have teamed up with PostHog (OSS product analytics) to make
             Langfuse Events/Metrics available in your Posthog Dashboards.
           </p>
@@ -302,8 +324,8 @@ const Integrations = (props: { projectId: string }) => {
         </Card>
 
         <Card className="p-3">
-          <MixpanelLogo className="mb-4 w-20 text-foreground" />
-          <p className="mb-4 text-sm text-primary">
+          <MixpanelLogo className="text-foreground mb-4 w-20" />
+          <p className="text-primary mb-4 text-sm">
             Integrate with Mixpanel to sync your Langfuse traces, generations,
             and scores for advanced product analytics and insights.
           </p>
@@ -328,7 +350,7 @@ const Integrations = (props: { projectId: string }) => {
 
         <Card className="p-3">
           <span className="font-semibold">Blob Storage</span>
-          <p className="mb-4 text-sm text-primary">
+          <p className="text-primary mb-4 text-sm">
             Configure scheduled exports of your trace data to S3 compatible
             storages or Azure Blob Storage. Set up a scheduled export to your
             own storage for data analysis or backup purposes.
@@ -355,10 +377,10 @@ const Integrations = (props: { projectId: string }) => {
 
         <Card className="p-3">
           <div className="mb-4 flex items-center gap-2">
-            <Slack className="h-5 w-5 text-foreground" />
+            <SiSlack className="text-foreground h-5 w-5" />
             <span className="font-semibold">Slack</span>
           </div>
-          <p className="mb-4 text-sm text-primary">
+          <p className="text-primary mb-4 text-sm">
             Connect a Slack workspace and create channel automations to receive
             Langfuse alerts natively in Slack.
           </p>
@@ -372,6 +394,11 @@ const Integrations = (props: { projectId: string }) => {
             </ActionButton>
           </div>
         </Card>
+
+        <WebCalloutIntegrationCard
+          projectId={props.projectId}
+          hasAccess={hasAccess}
+        />
       </div>
     </div>
   );

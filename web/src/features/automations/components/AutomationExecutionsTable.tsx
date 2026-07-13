@@ -71,7 +71,7 @@ export const AutomationExecutionsTable: React.FC<
             <span className="text-xs">
               {formatDistanceToNow(date, { addSuffix: true })}
             </span>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-muted-foreground text-xs">
               {date.toLocaleString()}
             </span>
           </div>
@@ -158,7 +158,7 @@ export const AutomationExecutionsTable: React.FC<
         setRowHeight={setRowHeight}
       />
       <DataTable
-        tableName={"automationExecutions"}
+        tableName="automationExecutions"
         columns={columns}
         data={{
           isLoading,

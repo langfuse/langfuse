@@ -5,7 +5,7 @@
  * Common cross-feature validations live in /core/validation.ts
  */
 
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   PROMPT_NAME_MAX_LENGTH,
   PROMPT_LABEL_MAX_LENGTH,
@@ -13,6 +13,8 @@ import {
   PROMPT_LABEL_REGEX_ERROR,
   COMMIT_MESSAGE_MAX_LENGTH,
   LATEST_PROMPT_LABEL,
+  PRODUCTION_LABEL,
+  PromptLabelSchema,
 } from "@langfuse/shared";
 
 /**
@@ -27,7 +29,7 @@ export const ParamPromptName = z
 
 /**
  * Prompt label parameter (optional)
- * Defaults to "production" if not specified
+ * Defaults to "latest" if not specified
  */
 export const ParamPromptLabel = z
   .string()
@@ -36,7 +38,7 @@ export const ParamPromptLabel = z
   .regex(PROMPT_LABEL_REGEX, PROMPT_LABEL_REGEX_ERROR)
   .optional()
   .describe(
-    'Label to retrieve (e.g., "production", "staging"). Defaults to "production".',
+    'Label to retrieve (e.g., "production", "staging"). Defaults to "latest".',
   );
 
 /**
@@ -70,6 +72,20 @@ export const ParamCommitMessage = z
   .describe("Optional commit message describing the changes");
 
 /**
+ * Labels allowed while creating a new prompt version.
+ */
+export const ParamCreatePromptLabels = z
+  .array(PromptLabelSchema)
+  .refine((labels) => !labels.includes(PRODUCTION_LABEL), {
+    message:
+      "The 'production' label cannot be assigned when creating prompts through MCP. Create the prompt first, then use updatePromptLabels only when the user explicitly requests promotion to production.",
+  })
+  .optional()
+  .describe(
+    "Optional labels to assign. The 'production' label cannot be assigned during creation and the 'latest' label is auto-managed.",
+  );
+
+/**
  * New labels array for updating prompt labels
  */
 export const ParamNewLabels = z
@@ -83,4 +99,6 @@ export const ParamNewLabels = z
   .refine((labels) => !labels.includes(LATEST_PROMPT_LABEL), {
     message: "Label 'latest' is always assigned to the latest prompt version",
   })
-  .describe("Array of new labels to assign to the prompt version");
+  .describe(
+    "Array of new labels to assign to the prompt version. The 'latest' label is auto-managed and cannot be supplied.",
+  );

@@ -12,6 +12,8 @@
 import { type PropsWithChildren, useEffect } from "react";
 import { useRouter } from "next/router";
 import { signOut } from "next-auth/react";
+import posthog from "posthog-js";
+import { env } from "@/src/env.mjs";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { ErrorPageWithSentry } from "@/src/components/error-page";
 
@@ -64,9 +66,9 @@ export function AppLayout(props: PropsWithChildren) {
   // Handle auth guard actions (redirect or sign-out)
   useEffect(() => {
     if (authGuard.action === "redirect") {
-      void router.replace(authGuard.url);
+      router.replace(authGuard.url);
     } else if (authGuard.action === "sign-out") {
-      void signOut({ redirect: false });
+      signOut({ redirect: false });
     }
   }, [authGuard, router]);
 
@@ -127,7 +129,12 @@ export function AppLayout(props: PropsWithChildren) {
 
   const handleSignOut = async () => {
     sessionStorage.clear();
-    await signOut({ callbackUrl: `/auth/sign-in` });
+    if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
+      posthog.reset();
+    }
+    await signOut({
+      callbackUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/sign-in`,
+    });
   };
 
   return (

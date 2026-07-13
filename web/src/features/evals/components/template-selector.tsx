@@ -8,6 +8,7 @@ import {
   AlertCircle,
   ExternalLinkIcon,
 } from "lucide-react";
+import { Badge } from "@/src/components/ui/badge";
 import {
   Popover,
   PopoverContent,
@@ -24,7 +25,7 @@ import {
 } from "@/src/components/ui/input-command";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
 import Link from "next/link";
 import { useExperimentEvaluatorSelection } from "@/src/features/experiments/hooks/useExperimentEvaluatorSelection";
 import { useTemplatesValidation } from "@/src/features/evals/hooks/useTemplatesValidation";
@@ -36,17 +37,18 @@ import {
 import { useSingleTemplateValidation } from "@/src/features/evals/hooks/useSingleTemplateValidation";
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
+import { env } from "@/src/env.mjs";
+import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
+import { shouldShowEvalTemplate } from "@/src/features/evals/utils/code-eval-template-utils";
+import { getEvalTemplateFamilyKey } from "@/src/features/evals/utils/eval-template-family";
 
 type TemplateSelectorProps = {
   projectId: string;
   datasetId: string;
   evalTemplates: EvalTemplate[];
   disabled?: boolean;
-  activeTemplateIds?: string[];
-  inactiveTemplateIds?: string[];
   onConfigureTemplate?: (templateId: string) => void;
   onSelectEvaluator?: (templateId: string) => void;
-  onEvaluatorToggled?: () => void;
   className?: string;
 };
 
@@ -54,71 +56,75 @@ export const TemplateSelector = ({
   projectId,
   datasetId,
   evalTemplates,
-  activeTemplateIds,
-  inactiveTemplateIds,
   onConfigureTemplate,
   onSelectEvaluator,
-  onEvaluatorToggled,
   className,
   disabled = false,
 }: TemplateSelectorProps) => {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const codeEvalCapabilities = useIsCodeEvalEnabled();
+  const visibleEvalTemplates = evalTemplates.filter((template) =>
+    shouldShowEvalTemplate(template, codeEvalCapabilities),
+  );
   const {
-    activeTemplates,
+    existingEvaluators,
     isTemplateActive,
     isTemplateInactive,
     handleRowClick,
   } = useExperimentEvaluatorSelection({
     projectId: projectId,
     datasetId: datasetId,
-    initialActiveTemplateIds: activeTemplateIds,
-    initialInactiveTemplateIds: inactiveTemplateIds,
     onSelectEvaluator,
-    onEvaluatorToggled,
   });
+  const activeEvaluators = Object.values(existingEvaluators).filter(
+    (evaluator) => evaluator.isActive,
+  );
 
   // Validation for templates requiring default model
   const { isTemplateValid, hasDefaultModel } = useTemplatesValidation({
     projectId: projectId,
-    selectedTemplateIds: activeTemplates,
+    selectedTemplateIds: activeEvaluators.map(
+      (evaluator) => evaluator.evalTemplateId,
+    ),
   });
 
-  // Group templates by name and whether they are managed by Langfuse
-  const groupedTemplates = evalTemplates.reduce(
+  // latestTemplates already returns one row per evaluator family.
+  const groupedTemplates = visibleEvalTemplates.reduce(
     (acc, template) => {
       const group = template.projectId ? "custom" : "langfuse";
-      if (!acc[group][template.name]) {
-        acc[group][template.name] = [];
-      }
-      acc[group][template.name].push(template);
+      acc[group][getEvalTemplateFamilyKey(template)] = template;
       return acc;
     },
     {
-      langfuse: {} as Record<string, EvalTemplate[]>,
-      custom: {} as Record<string, EvalTemplate[]>,
+      langfuse: {} as Record<string, EvalTemplate>,
+      custom: {} as Record<string, EvalTemplate>,
     },
   );
 
   // Filter templates based on search
   const filteredTemplates = {
     langfuse: Object.entries(groupedTemplates.langfuse)
-      .filter(([name]) => name.toLowerCase().includes(search.toLowerCase()))
-      .sort(([nameA, templatesA], [nameB, templatesB]) => {
+      .filter(([, template]) =>
+        template.name.toLowerCase().includes(search.toLowerCase()),
+      )
+      .sort(([, templateA], [, templateB]) => {
         // Get partners
-        const partnerA = templatesA[0]?.partner;
-        const partnerB = templatesB[0]?.partner;
+        const partnerA = templateA.partner;
+        const partnerB = templateB.partner;
 
         // No partner comes before partner
         if (!partnerA && partnerB) return -1;
         if (partnerA && !partnerB) return 1;
 
         // Sort by name within each group
-        return nameA.localeCompare(nameB);
+        return templateA.name.localeCompare(templateB.name);
       }),
     custom: Object.entries(groupedTemplates.custom)
-      .filter(([name]) => name.toLowerCase().includes(search.toLowerCase()))
-      .sort(([a], [b]) => a.localeCompare(b)),
+      .filter(([, template]) =>
+        template.name.toLowerCase().includes(search.toLowerCase()),
+      )
+      .sort(([, a], [, b]) => a.name.localeCompare(b.name)),
   };
 
   const hasResults =
@@ -126,7 +132,7 @@ export const TemplateSelector = ({
     filteredTemplates.custom.length > 0;
 
   // Handle cog button click - configure template
-  const handleConfigureTemplate = (e: React.MouseEvent, templateId: string) => {
+  const handleConfigureTemplate = (e: MouseEvent, templateId: string) => {
     e.stopPropagation();
 
     // Check if this template requires a default model
@@ -144,6 +150,11 @@ export const TemplateSelector = ({
     projectId: projectId,
   });
 
+  const triggerLabel =
+    activeEvaluators.length > 0
+      ? `${activeEvaluators.length} active evaluators`
+      : "Select evaluators";
+
   return (
     <>
       <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
@@ -155,10 +166,8 @@ export const TemplateSelector = ({
             className={cn("w-full justify-between px-2 font-normal", className)}
           >
             <div className="flex items-center gap-1 overflow-hidden">
-              <span className="mr-1 truncate">
-                {activeTemplates.length > 0
-                  ? `${activeTemplates.length} active evaluators`
-                  : "Select evaluators"}
+              <span className="mr-1 truncate" title={triggerLabel}>
+                {triggerLabel}
               </span>
             </div>
             <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -175,7 +184,7 @@ export const TemplateSelector = ({
             />
             <div
               tabIndex={0}
-              className="overflow-y-auto focus:outline-none"
+              className="overflow-y-auto focus:outline-hidden"
               style={{ maxHeight: "300px" }}
               onWheel={(e) => {
                 // Prevent the wheel event from being captured by parent elements
@@ -193,20 +202,19 @@ export const TemplateSelector = ({
                       heading="Custom evaluators"
                       className="max-h-full"
                     >
-                      {filteredTemplates.custom.map(([name, templateData]) => {
-                        const latestTemplate =
-                          templateData[templateData.length - 1];
-                        const isActive = isTemplateActive(latestTemplate.id);
-                        const isInactive = isTemplateInactive(
-                          latestTemplate.id,
-                        );
-                        const isInvalid = isTemplateInvalid(latestTemplate);
+                      {filteredTemplates.custom.map(([familyKey, template]) => {
+                        const isActive = isTemplateActive(familyKey);
+                        const isInactive = isTemplateInactive(familyKey);
+                        const isInvalid = isTemplateInvalid(template);
+                        const isLegacy =
+                          existingEvaluators[familyKey]?.targetObject ===
+                          "dataset";
 
                         return (
                           <InputCommandItem
-                            key={`custom-${name}`}
+                            key={`custom-${familyKey}`}
                             onSelect={() => {
-                              handleRowClick(latestTemplate.id);
+                              handleRowClick(template.id, familyKey);
                             }}
                             disabled={isInvalid || disabled}
                           >
@@ -215,13 +223,18 @@ export const TemplateSelector = ({
                             ) : (
                               <div className="mr-2 h-4 w-4" />
                             )}
-                            {name}
+                            {template.name}
+                            {isLegacy && (
+                              <Badge variant="outline" className="ml-2 text-xs">
+                                legacy
+                              </Badge>
+                            )}
                             {isInvalid && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
                                 </TooltipTrigger>
-                                <TooltipContent className="max-h-[50dvh] overflow-y-auto whitespace-normal break-normal text-xs">
+                                <TooltipContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
                                   <p>Requires project-level evaluation model</p>
                                   <Link
                                     href={`/project/${projectId}/evals/default-model`}
@@ -238,7 +251,7 @@ export const TemplateSelector = ({
                             {isInactive && (
                               <div
                                 title="The evaluator has been used in the past but is currently paused. It will not run against outputs created in this dataset run. You can reactivate it if you wish"
-                                className="ml-2 text-xs text-muted-foreground"
+                                className="text-muted-foreground ml-2 text-xs"
                               >
                                 Paused
                               </div>
@@ -248,7 +261,11 @@ export const TemplateSelector = ({
                                 variant="ghost"
                                 size="icon-xs"
                                 onClick={(e) =>
-                                  handleConfigureTemplate(e, latestTemplate.id)
+                                  handleConfigureTemplate(
+                                    e,
+                                    existingEvaluators[familyKey]
+                                      ?.evalTemplateId ?? template.id,
+                                  )
                                 }
                                 className="ml-auto"
                                 title={
@@ -276,18 +293,19 @@ export const TemplateSelector = ({
                     heading="Langfuse managed evaluators"
                     className="max-h-full min-h-0"
                   >
-                    {filteredTemplates.langfuse.map(([name, templateData]) => {
-                      const latestTemplate =
-                        templateData[templateData.length - 1];
-                      const isActive = isTemplateActive(latestTemplate.id);
-                      const isInactive = isTemplateInactive(latestTemplate.id);
-                      const isInvalid = isTemplateInvalid(latestTemplate);
+                    {filteredTemplates.langfuse.map(([familyKey, template]) => {
+                      const isActive = isTemplateActive(familyKey);
+                      const isInactive = isTemplateInactive(familyKey);
+                      const isInvalid = isTemplateInvalid(template);
+                      const isLegacy =
+                        existingEvaluators[familyKey]?.targetObject ===
+                        "dataset";
 
                       return (
                         <InputCommandItem
-                          key={`langfuse-${name}`}
+                          key={`langfuse-${familyKey}`}
                           onSelect={() => {
-                            handleRowClick(latestTemplate.id);
+                            handleRowClick(template.id, familyKey);
                           }}
                           disabled={isInvalid || disabled}
                         >
@@ -296,16 +314,21 @@ export const TemplateSelector = ({
                           ) : (
                             <div className="mr-2 h-4 w-4" />
                           )}
-                          <div className="mr-1">{name}</div>
+                          <div className="mr-1">{template.name}</div>
                           <MaintainerTooltip
-                            maintainer={getMaintainer(latestTemplate)}
+                            maintainer={getMaintainer(template)}
                           />
+                          {isLegacy && (
+                            <Badge variant="outline" className="ml-2 text-xs">
+                              legacy
+                            </Badge>
+                          )}
                           {isInvalid && (
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
                               </TooltipTrigger>
-                              <TooltipContent className="max-h-[50dvh] overflow-y-auto whitespace-normal break-normal text-xs">
+                              <TooltipContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
                                 <p>Requires project-level evaluation model</p>
                                 <Link
                                   href={`/project/${projectId}/evals/default-model`}
@@ -322,7 +345,7 @@ export const TemplateSelector = ({
                           {isInactive && (
                             <div
                               title="The evaluator has been used in the past but is currently paused. It will not run against outputs created in this dataset run. You can reactivate it if you wish"
-                              className="ml-2 text-xs text-muted-foreground"
+                              className="text-muted-foreground ml-2 text-xs"
                             >
                               Paused
                             </div>
@@ -333,7 +356,11 @@ export const TemplateSelector = ({
                               size="icon-xs"
                               className="ml-auto"
                               onClick={(e) =>
-                                handleConfigureTemplate(e, latestTemplate.id)
+                                handleConfigureTemplate(
+                                  e,
+                                  existingEvaluators[familyKey]
+                                    ?.evalTemplateId ?? template.id,
+                                )
                               }
                               title={
                                 isInvalid
@@ -357,7 +384,7 @@ export const TemplateSelector = ({
                     onSelect={() => {
                       if (disabled) return;
                       window.open(
-                        `/project/${projectId}/evals/templates/new`,
+                        `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/project/${projectId}/evals/templates/new`,
                         "_blank",
                       );
                     }}
@@ -370,7 +397,7 @@ export const TemplateSelector = ({
                       onSelect={() => {
                         if (disabled) return;
                         window.open(
-                          `/project/${projectId}/evals/default-model`,
+                          `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/project/${projectId}/evals/default-model`,
                           "_blank",
                         );
                       }}

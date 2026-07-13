@@ -1,0 +1,126 @@
+{
+  "90d94774e8e3724d": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "What's the weather in Tokyo?"
+        },
+        {
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "call_Kud0j0DxWSmLzv9W5m6qVqXn",
+              "name": "get_weather",
+              "arguments": "{\"city\":\"Tokyo\"}",
+              "type": "function"
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "content": "The weather in Tokyo is sunny.",
+          "tool_call_id": "call_Kud0j0DxWSmLzv9W5m6qVqXn"
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "content": "The weather in Tokyo is currently sunny. If you need more details like temperature or forecast for the upcoming days, just let me know!",
+          "type": "message",
+          "tools": [
+            {
+              "name": "get_weather",
+              "description": "",
+              "parameters": {
+                "properties": {
+                  "city": {
+                    "title": "City",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "city"
+                ],
+                "title": "get_weather_args",
+                "type": "object",
+                "additionalProperties": false
+              }
+            }
+          ],
+          "json": {
+            "id": "msg_0f00ca5b7e22bb4c0068db9d019a78819d9fe1e4d3b6c96b68",
+            "status": "completed"
+          }
+        }
+      ]
+    }
+  },
+  "98870087af69bf06": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "What's the weather in Tokyo?"
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "tools": [
+            {
+              "name": "get_weather",
+              "description": "",
+              "parameters": {
+                "properties": {
+                  "city": {
+                    "title": "City",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "city"
+                ],
+                "title": "get_weather_args",
+                "type": "object",
+                "additionalProperties": false
+              }
+            }
+          ],
+          "tool_calls": [
+            {
+              "id": "call_Kud0j0DxWSmLzv9W5m6qVqXn",
+              "name": "get_weather",
+              "arguments": "{\"city\":\"Tokyo\"}",
+              "type": "function"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "5b99c3e3411ed17b": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      0\n    ],\n    \"message\": \"Invalid input: expected object, received string\"\n  }\n]"
+      }
+    }
+  }
+}

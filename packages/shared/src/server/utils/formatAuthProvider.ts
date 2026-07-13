@@ -57,6 +57,7 @@ export function formatAuthProviderName(provider: string): string {
     "azure-ad": "Azure AD",
     okta: "Okta",
     auth0: "Auth0",
+    "clickhouse-cloud": "ClickHouse Cloud",
     cognito: "AWS Cognito",
     keycloak: "Keycloak",
     authentik: "Authentik",

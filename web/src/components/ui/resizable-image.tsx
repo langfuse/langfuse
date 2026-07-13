@@ -8,6 +8,10 @@ import { api } from "@/src/utils/api";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { captureException } from "@sentry/nextjs";
 import { useSession } from "next-auth/react";
+import { buildResizableImageSrc } from "./resizable-image.utils";
+import { getSafeImageUrl } from "@/src/components/ui/safe-url";
+
+export const COMPACT_IMAGE_MAX_HEIGHT_REM = 16;
 
 /**
  * Implemented customLoader as we cannot whitelist user provided image domains
@@ -22,9 +26,7 @@ const customLoader = ({
   src: string;
   width: number;
   quality?: number;
-}) => {
-  return src + (width && quality ? `?w=${width}&q=${quality || 75}` : "");
-};
+}) => buildResizableImageSrc({ src, width, quality });
 
 const ImageErrorDisplay = ({
   src,
@@ -32,38 +34,60 @@ const ImageErrorDisplay = ({
 }: {
   src: string;
   displayError: string;
-}) => (
-  <div className="grid grid-cols-[auto,1fr] items-center gap-2">
-    <span title={displayError} className="h-4 w-4">
-      <ImageOff className="h-4 w-4" />
-    </span>
-    <Link href={src} className="truncate text-sm underline" target="_blank">
-      {src}
-    </Link>
-  </div>
-);
+}) => {
+  const safeSrc = getSafeImageUrl(src);
+
+  return (
+    <div className="grid grid-cols-[auto_1fr] items-center gap-2">
+      <span title={displayError} className="h-4 w-4">
+        <ImageOff className="h-4 w-4" />
+      </span>
+      {safeSrc ? (
+        <Link
+          href={safeSrc}
+          className="truncate text-sm underline"
+          title={src}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {src}
+        </Link>
+      ) : (
+        <span className="truncate text-sm" title={src}>
+          {src}
+        </span>
+      )}
+    </div>
+  );
+};
 
 export const ResizableImage = ({
   src,
   alt,
   isDefaultVisible = false,
   shouldValidateImageSource = true,
+  fitContent = false,
+  compactWidth,
 }: {
   src: string;
   alt?: string;
   isDefaultVisible?: boolean;
   shouldValidateImageSource?: boolean;
+  fitContent?: boolean;
+  compactWidth?: string;
 }) => {
+  const safeSrc = getSafeImageUrl(src);
   const [isZoomedIn, setIsZoomedIn] = useState(true);
   const [hasFetchError, setHasFetchError] = useState(false);
   const [isImageVisible, setIsImageVisible] = useState(isDefaultVisible);
   const session = useSession();
-  const isValidImage = api.utilities.validateImgUrl.useQuery(src, {
+  const isValidImage = api.utilities.validateImgUrl.useQuery(safeSrc ?? "", {
     enabled:
       session.status === "authenticated" &&
+      Boolean(safeSrc) &&
       isImageVisible &&
       shouldValidateImageSource,
-    initialData: { isValid: true },
+    initialData: shouldValidateImageSource ? undefined : { isValid: true },
   });
 
   if (session.status !== "authenticated") {
@@ -86,27 +110,39 @@ export const ResizableImage = ({
   const displayError = `Cannot load image. ${src.includes("http") ? "Http images are not rendered in Langfuse for security reasons" : "Invalid image URL"}`;
 
   return (
-    <div>
+    <div
+      className={cn(fitContent && (isZoomedIn ? "w-1/2" : "w-full"))}
+      style={
+        fitContent && isZoomedIn && compactWidth
+          ? { width: `min(50%, ${compactWidth})` }
+          : undefined
+      }
+    >
       {hasFetchError ? (
         <ImageErrorDisplay src={src} displayError={displayError} />
       ) : (
         <div
           className={cn(
-            "group relative w-full overflow-hidden",
-            isZoomedIn ? "h-1/2 w-1/2" : "h-full w-full",
+            "group relative overflow-hidden",
+            fitContent
+              ? "w-full"
+              : cn("w-full", isZoomedIn ? "h-1/2 w-1/2" : "h-full w-full"),
           )}
         >
-          {isImageVisible && isValidImage.data?.isValid ? (
+          {isImageVisible && safeSrc && isValidImage.data?.isValid ? (
             <>
               <Image
                 loader={customLoader}
-                src={src}
+                src={safeSrc}
                 alt={alt ?? `Markdown Image-${Math.random()}`}
                 loading="lazy"
                 width={0}
                 height={0}
-                title={src}
-                className="h-full w-full rounded border object-contain"
+                title={safeSrc ?? src}
+                className={cn(
+                  "rounded border",
+                  fitContent ? "h-auto w-full" : "h-full w-full object-contain",
+                )}
                 onError={(error) => {
                   setHasFetchError(true);
                   captureException(error);
@@ -114,7 +150,7 @@ export const ResizableImage = ({
               />
               <Button
                 type="button"
-                className="absolute right-0 top-0 mr-1 mt-1 h-8 w-8 opacity-0 group-hover:!bg-accent/30 group-hover:opacity-100"
+                className="group-hover:bg-accent/30! absolute top-0 right-0 mt-1 mr-1 h-8 w-8 opacity-0 group-hover:opacity-100"
                 variant="ghost"
                 size="icon"
                 onClick={() => setIsZoomedIn(!isZoomedIn)}
@@ -127,25 +163,33 @@ export const ResizableImage = ({
               </Button>
             </>
           ) : (
-            <div className="flex w-full items-center gap-2 rounded border border-dashed bg-muted/30 p-2 text-xs text-muted-foreground/60">
+            <div className="bg-muted/30 text-muted-foreground/60 flex w-full items-center gap-2 rounded border border-dashed p-2 text-xs">
               <Button
                 title="Render image"
                 type="button"
                 size="sm"
                 variant="secondary"
                 onClick={() => setIsImageVisible(!isImageVisible)}
+                disabled={!safeSrc}
               >
                 Load Image
               </Button>
               <div className="flex min-w-0 flex-1 items-center overflow-hidden">
-                <Link
-                  href={src}
-                  title={src}
-                  className="truncate underline"
-                  target="_blank"
-                >
-                  {src}
-                </Link>
+                {safeSrc ? (
+                  <Link
+                    href={safeSrc}
+                    title={src}
+                    className="truncate underline"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {src}
+                  </Link>
+                ) : (
+                  <span title={src} className="truncate">
+                    {src}
+                  </span>
+                )}
               </div>
             </div>
           )}

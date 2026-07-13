@@ -4,6 +4,7 @@ import { cn } from "@/src/utils/tailwind";
 import { Check, Copy } from "lucide-react";
 import { type FC, memo, useState } from "react";
 import { Highlight, themes } from "prism-react-renderer";
+import { useTheme } from "next-themes";
 
 interface Props {
   language: string;
@@ -45,17 +46,19 @@ export const programmingLanguages: languageMap = {
 
 const CodeBlock: FC<Props> = memo(({ language, value, theme, className }) => {
   const [isCopied, setIsCopied] = useState(false);
+  const { resolvedTheme } = useTheme();
+  const appliedTheme = theme ?? resolvedTheme;
   const handleCopy = () => {
     setIsCopied(true);
-    void copyTextToClipboard(value ?? "");
+    copyTextToClipboard(value ?? "");
     setTimeout(() => setIsCopied(false), 1000);
   };
 
   return (
-    <div className="codeblock relative w-full overflow-hidden rounded border font-sans dark:bg-zinc-950">
+    <div className="codeblock dark:bg-surface-code relative w-full overflow-hidden rounded border font-sans">
       <div
         className={cn(
-          "flex w-full items-center justify-between bg-secondary px-2",
+          "bg-secondary flex w-full items-center justify-between px-2",
           className,
         )}
       >
@@ -64,7 +67,7 @@ const CodeBlock: FC<Props> = memo(({ language, value, theme, className }) => {
           <Button
             variant="ghost"
             size="xs"
-            className="text-xs hover:bg-border focus-visible:ring-1 focus-visible:ring-offset-0"
+            className="hover:bg-border text-xs focus-visible:ring-1 focus-visible:ring-offset-0"
             onClick={handleCopy}
           >
             {isCopied ? (
@@ -77,7 +80,7 @@ const CodeBlock: FC<Props> = memo(({ language, value, theme, className }) => {
         </div>
       </div>
       <Highlight
-        theme={theme === "dark" ? themes.vsDark : themes.github}
+        theme={appliedTheme === "dark" ? themes.vsDark : themes.github}
         code={value}
         language={language}
       >

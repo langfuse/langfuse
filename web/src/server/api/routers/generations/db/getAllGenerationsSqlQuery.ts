@@ -1,12 +1,10 @@
-import { env } from "@/src/env.mjs";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
-  AGGREGATABLE_SCORE_TYPES,
   filterAndValidateDbScoreList,
+  LISTABLE_SCORE_TYPES,
 } from "@langfuse/shared";
 import {
   getObservationsTableWithModelData,
-  getObservationsWithModelDataFromEventsTable,
   getScoresForObservations,
   traceException,
 } from "@langfuse/shared/src/server";
@@ -29,10 +27,7 @@ export async function getAllGenerations({
     offset: input.page * input.limit,
     limit: input.limit,
   };
-  let generations =
-    env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
-      ? await getObservationsWithModelDataFromEventsTable(queryOpts)
-      : await getObservationsTableWithModelData(queryOpts);
+  let generations = await getObservationsTableWithModelData(queryOpts);
 
   const scores = await getScoresForObservations({
     projectId: input.projectId,
@@ -43,7 +38,7 @@ export async function getAllGenerations({
 
   const validatedScores = filterAndValidateDbScoreList({
     scores,
-    dataTypes: AGGREGATABLE_SCORE_TYPES,
+    dataTypes: LISTABLE_SCORE_TYPES,
     includeHasMetadata: true,
     onParseError: traceException,
   });

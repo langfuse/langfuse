@@ -9,9 +9,12 @@ import {
   NumberFilter,
   type ClickhouseOperator,
 } from "./clickhouse-sql/clickhouse-filter";
-import { z } from "zod/v4";
-import type { FilterState } from "../../types";
-import type { UiColumnMappings } from "../../tableDefinitions";
+import { z } from "zod";
+import type { EventsTableFilterState } from "../../types";
+import type {
+  UiColumnMappings,
+  ColumnDefinition,
+} from "../../tableDefinitions";
 import { createFilterFromFilterState } from "./clickhouse-sql/factory";
 
 export type ApiColumnMapping = {
@@ -83,8 +86,8 @@ const TRACES_COLUMN_DEFINITIONS = [
  * Convenience function: Get just the simple filter mappings for public API
  */
 export function createPublicApiTracesColumnMapping(
-  tableName: "traces" | "events",
-  tablePrefix: "t" | "e",
+  tableName: "traces",
+  tablePrefix: "t",
 ): ApiColumnMapping[] {
   const timestampColumn = "timestamp";
   const simpleFilters: ApiColumnMapping[] = [];
@@ -128,18 +131,32 @@ export function createPublicApiTracesColumnMapping(
  * Eliminates duplication between events and observations filter mappings.
  */
 export function createPublicApiObservationsColumnMapping(
-  tableName: "events" | "observations",
+  tableName: "events_proto" | "observations",
   tablePrefix: "e" | "o",
   parentFieldName: "parent_span_id" | "parent_observation_id",
 ): ApiColumnMapping[] {
+  // user_id is denormalized onto events_core/events_full, so the events_proto
+  // path filters directly without joining the traces CTE. The legacy
+  // observations table does not carry user_id, so that path still joins
+  // traces.
+  const userIdMapping: ApiColumnMapping =
+    tableName === "events_proto"
+      ? {
+          id: "userId",
+          clickhouseSelect: "user_id",
+          filterType: "StringFilter",
+          clickhouseTable: tableName,
+          clickhousePrefix: tablePrefix,
+        }
+      : {
+          id: "userId",
+          clickhouseSelect: "user_id",
+          filterType: "StringFilter",
+          clickhouseTable: "traces",
+          clickhousePrefix: "t",
+        };
   return [
-    {
-      id: "userId",
-      clickhouseSelect: "user_id",
-      filterType: "StringFilter",
-      clickhouseTable: "traces",
-      clickhousePrefix: "t",
-    },
+    userIdMapping,
     {
       id: "traceId",
       clickhouseSelect: "trace_id",
@@ -201,7 +218,7 @@ export function createPublicApiObservationsColumnMapping(
     {
       id: "environment",
       clickhouseSelect: "environment",
-      filterType: "StringFilter",
+      filterType: "StringOptionsFilter",
       clickhouseTable: tableName,
       clickhousePrefix: tablePrefix,
     },
@@ -227,15 +244,11 @@ export function convertApiProvidedFilterToClickhouseFilter(
       let filterInstance;
       switch (columnMapping.filterType) {
         case "DateTimeFilter": {
-          // get filter options from the filterOperators
-          // validate that the user provided operator is in the list of available operators
-          const availableOperators = z.enum(filterOperators.datetime);
-          const parsedOperator = availableOperators.safeParse(filter.operator);
-
-          // otherwise fall back to the operator provided in the column mapping
-          const finalOperator = parsedOperator.success
-            ? parsedOperator.data
-            : columnMapping.operator;
+          // The operator of a datetime column is fixed in the column mapping
+          // (e.g. fromTimestamp => ">=", toTimestamp => "<"). The user-provided
+          // `operator` query param targets the value filter and must not
+          // override it (#8630).
+          const finalOperator = columnMapping.operator;
 
           finalOperator &&
           typeof value === "string" &&
@@ -351,12 +364,17 @@ export function convertApiProvidedFilterToClickhouseFilter(
 export function deriveFilters<T extends BaseQueryType>(
   simpleFilterProps: T,
   filterParamsMapping: ApiColumnMapping[],
-  advancedFilters: FilterState | undefined,
+  advancedFilters: EventsTableFilterState | undefined,
   uiColumnDefinitions: UiColumnMappings,
+  columnDefinitions?: ColumnDefinition[],
 ): FilterList {
   // Start with advanced filters converted to FilterList
   const filterList = new FilterList(
-    createFilterFromFilterState(advancedFilters ?? [], uiColumnDefinitions),
+    createFilterFromFilterState(
+      advancedFilters ?? [],
+      uiColumnDefinitions,
+      columnDefinitions,
+    ),
   );
 
   // Convert simple parameters to filters

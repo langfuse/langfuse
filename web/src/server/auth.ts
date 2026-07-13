@@ -7,7 +7,10 @@ import {
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@langfuse/shared/src/db";
-import { verifyPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
+import {
+  hashPassword,
+  verifyPassword,
+} from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
@@ -41,7 +44,7 @@ import {
   loadSsoProviders,
 } from "@/src/ee/features/multi-tenant-sso/utils";
 import { ENTERPRISE_SSO_REQUIRED_MESSAGE } from "@/src/features/auth/constants";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { CloudConfigSchema } from "@langfuse/shared";
 import {
   CustomSSOProvider,
@@ -58,29 +61,10 @@ import {
   getSelfHostedInstancePlanServerSide,
 } from "@/src/features/entitlements/server/getPlan";
 import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
-
-function canCreateOrganizations(userEmail: string | null): boolean {
-  const instancePlan = getSelfHostedInstancePlanServerSide();
-
-  // if no allowlist is set or no entitlement for self-host-allowed-organization-creators, allow all users to create organizations
-  if (
-    !env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS ||
-    !hasEntitlementBasedOnPlan({
-      plan: instancePlan,
-      entitlement: "self-host-allowed-organization-creators",
-    })
-  )
-    return true;
-
-  if (!userEmail) return false;
-
-  const allowedOrgCreators =
-    env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS.toLowerCase().split(",");
-  return allowedOrgCreators.includes(userEmail.toLowerCase());
-}
+import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
+import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -121,11 +105,17 @@ const staticProviders: Provider[] = [
         },
       });
 
-      if (!dbUser) throw new Error("Invalid credentials");
-      if (dbUser.password === null)
+      if (!dbUser) {
+        // Keep bcrypt work comparable across failed login paths to reduce timing-based user enumeration.
+        await hashPassword(credentials.password);
+        throw new Error("Invalid credentials");
+      }
+
+      if (dbUser.password === null) {
         throw new Error(
           "Please sign in with the identity provider (e.g. Google, GitHub, Azure AD, etc.) that is linked to your account.",
         );
+      }
 
       const isValidPassword = await verifyPassword(
         credentials.password,
@@ -153,6 +143,8 @@ const staticProviders: Provider[] = [
 if (env.SMTP_CONNECTION_URL && env.EMAIL_FROM_ADDRESS) {
   staticProviders.push(
     EmailProvider({
+      // SMTP vs SES dispatch happens inside sendVerificationRequest via
+      // createMailTransport; NextAuth itself only forwards this string.
       server: env.SMTP_CONNECTION_URL,
       from: env.EMAIL_FROM_ADDRESS,
       maxAge: 3 * 60, // 3 minutes
@@ -183,6 +175,12 @@ if (
       },
       client: {
         token_endpoint_auth_method: env.AUTH_CUSTOM_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_CUSTOM_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_CUSTOM_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_CUSTOM_CHECKS ? { checks: env.AUTH_CUSTOM_CHECKS } : {}),
     }),
@@ -197,6 +195,12 @@ if (env.AUTH_GOOGLE_CLIENT_ID && env.AUTH_GOOGLE_CLIENT_SECRET)
         env.AUTH_GOOGLE_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_GOOGLE_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_GOOGLE_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_GOOGLE_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_GOOGLE_CHECKS ? { checks: env.AUTH_GOOGLE_CHECKS } : {}),
     }),
@@ -216,6 +220,12 @@ if (
         env.AUTH_OKTA_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_OKTA_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_OKTA_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_OKTA_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_OKTA_CHECKS ? { checks: env.AUTH_OKTA_CHECKS } : {}),
     }),
@@ -225,22 +235,53 @@ if (
   env.AUTH_AUTHENTIK_CLIENT_ID &&
   env.AUTH_AUTHENTIK_CLIENT_SECRET &&
   env.AUTH_AUTHENTIK_ISSUER
-)
-  staticProviders.push(
-    AuthentikProvider({
-      clientId: env.AUTH_AUTHENTIK_CLIENT_ID,
-      clientSecret: env.AUTH_AUTHENTIK_CLIENT_SECRET,
-      issuer: env.AUTH_AUTHENTIK_ISSUER,
-      allowDangerousEmailAccountLinking:
-        env.AUTH_AUTHENTIK_ALLOW_ACCOUNT_LINKING === "true",
-      client: {
-        token_endpoint_auth_method: env.AUTH_AUTHENTIK_CLIENT_AUTH_METHOD,
-      },
-      ...(env.AUTH_AUTHENTIK_CHECKS
-        ? { checks: env.AUTH_AUTHENTIK_CHECKS }
+) {
+  const authentikProvider = AuthentikProvider({
+    clientId: env.AUTH_AUTHENTIK_CLIENT_ID,
+    clientSecret: env.AUTH_AUTHENTIK_CLIENT_SECRET,
+    issuer: env.AUTH_AUTHENTIK_ISSUER,
+    allowDangerousEmailAccountLinking:
+      env.AUTH_AUTHENTIK_ALLOW_ACCOUNT_LINKING === "true",
+    client: {
+      token_endpoint_auth_method: env.AUTH_AUTHENTIK_CLIENT_AUTH_METHOD,
+      ...(env.AUTH_AUTHENTIK_ID_TOKEN_SIGNED_RESPONSE_ALG
+        ? {
+            id_token_signed_response_alg:
+              env.AUTH_AUTHENTIK_ID_TOKEN_SIGNED_RESPONSE_ALG,
+          }
         : {}),
-    }),
-  );
+    },
+    ...(env.AUTH_AUTHENTIK_CHECKS ? { checks: env.AUTH_AUTHENTIK_CHECKS } : {}),
+  });
+
+  if (env.AUTH_AUTHENTIK_AUTHORIZATION_URL) {
+    // For reverse proxy setups where authentik's external URL differs from
+    // the internal issuer, well-known discovery can't be used. We disable it
+    // and derive token/userinfo/JWKS endpoints from the issuer, assuming
+    // authentik's standard URL layout: <host>/application/o/<slug>.
+    const authentikIssuer = env.AUTH_AUTHENTIK_ISSUER.replace(/\/$/, "");
+    const authentikBase = authentikIssuer.replace(
+      /\/application\/o\/[^/]+$/,
+      "/application/o/",
+    );
+    const authentikJwksUrl = `${authentikIssuer}/jwks/`;
+
+    authentikProvider.wellKnown = undefined;
+    authentikProvider.authorization = {
+      url: env.AUTH_AUTHENTIK_AUTHORIZATION_URL,
+      params: { scope: "openid email profile" },
+    };
+    authentikProvider.token = {
+      url: `${authentikBase}token/`,
+    };
+    authentikProvider.userinfo = {
+      url: `${authentikBase}userinfo/`,
+    };
+    authentikProvider.jwks_endpoint = authentikJwksUrl;
+  }
+
+  staticProviders.push(authentikProvider);
+}
 
 if (
   env.AUTH_ONELOGIN_CLIENT_ID &&
@@ -256,6 +297,12 @@ if (
         env.AUTH_ONELOGIN_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_ONELOGIN_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_ONELOGIN_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_ONELOGIN_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_ONELOGIN_CHECKS ? { checks: env.AUTH_ONELOGIN_CHECKS } : {}),
     }),
@@ -275,8 +322,54 @@ if (
         env.AUTH_AUTH0_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_AUTH0_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_AUTH0_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_AUTH0_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_AUTH0_CHECKS ? { checks: env.AUTH_AUTH0_CHECKS } : {}),
+    }),
+  );
+
+// Langfuse Cloud only: "Sign in with ClickHouse Cloud"
+// Uses Auth0Provider with a custom provider ID so the callback URL becomes
+// /api/auth/callback/clickhouse-cloud. NOT intended for self-hosted Langfuse.
+if (
+  env.AUTH_CLICKHOUSE_CLOUD_CLIENT_ID &&
+  env.AUTH_CLICKHOUSE_CLOUD_CLIENT_SECRET &&
+  env.AUTH_CLICKHOUSE_CLOUD_ISSUER &&
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+)
+  staticProviders.push(
+    Auth0Provider({
+      id: "clickhouse-cloud",
+      name: "ClickHouse Cloud",
+      clientId: env.AUTH_CLICKHOUSE_CLOUD_CLIENT_ID,
+      clientSecret: env.AUTH_CLICKHOUSE_CLOUD_CLIENT_SECRET,
+      issuer: env.AUTH_CLICKHOUSE_CLOUD_ISSUER,
+      authorization: {
+        params: {
+          scope: "openid email profile",
+          // audience: "langfuse",
+        },
+      },
+      allowDangerousEmailAccountLinking:
+        env.AUTH_CLICKHOUSE_CLOUD_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method:
+          env.AUTH_CLICKHOUSE_CLOUD_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_CLICKHOUSE_CLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_CLICKHOUSE_CLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
+      },
+      ...(env.AUTH_CLICKHOUSE_CLOUD_CHECKS
+        ? { checks: env.AUTH_CLICKHOUSE_CLOUD_CHECKS }
+        : {}),
     }),
   );
 
@@ -285,6 +378,10 @@ if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)
     GitHubProvider({
       clientId: env.AUTH_GITHUB_CLIENT_ID,
       clientSecret: env.AUTH_GITHUB_CLIENT_SECRET,
+      // Required for RFC 9207: GitHub now sends iss in OAuth callbacks
+      // TODO perhaps add "https://github.com/login/oauth/.well-known/openid-configuration"
+      // when github starts providing userinfo
+      issuer: "https://github.com/login/oauth",
       allowDangerousEmailAccountLinking:
         env.AUTH_GITHUB_ALLOW_ACCOUNT_LINKING === "true",
       client: {
@@ -304,6 +401,7 @@ if (
       clientId: env.AUTH_GITHUB_ENTERPRISE_CLIENT_ID,
       clientSecret: env.AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET,
       enterprise: { baseUrl: env.AUTH_GITHUB_ENTERPRISE_BASE_URL },
+      issuer: new URL("/login/oauth", env.AUTH_GITHUB_ENTERPRISE_BASE_URL).href,
       allowDangerousEmailAccountLinking:
         env.AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING === "true",
       client: {
@@ -327,6 +425,12 @@ if (env.AUTH_GITLAB_CLIENT_ID && env.AUTH_GITLAB_CLIENT_SECRET)
       issuer: env.AUTH_GITLAB_ISSUER,
       client: {
         token_endpoint_auth_method: env.AUTH_GITLAB_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_GITLAB_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_GITLAB_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       authorization: {
         url: `${env.AUTH_GITLAB_URL}/oauth/authorize`,
@@ -352,6 +456,12 @@ if (
         env.AUTH_AZURE_AD_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_AZURE_AD_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_AZURE_AD_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_AZURE_AD_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_AZURE_AD_CHECKS ? { checks: env.AUTH_AZURE_AD_CHECKS } : {}),
     }),
@@ -371,6 +481,12 @@ if (
         env.AUTH_COGNITO_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_COGNITO_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_COGNITO_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_COGNITO_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_COGNITO_CHECKS
         ? { checks: env.AUTH_COGNITO_CHECKS }
@@ -396,6 +512,12 @@ if (
       },
       client: {
         token_endpoint_auth_method: env.AUTH_KEYCLOAK_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_KEYCLOAK_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_KEYCLOAK_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_KEYCLOAK_CHECKS ? { checks: env.AUTH_KEYCLOAK_CHECKS } : {}),
     }),
@@ -418,6 +540,12 @@ if (
       },
       client: {
         token_endpoint_auth_method: env.AUTH_JUMPCLOUD_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_JUMPCLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_JUMPCLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_JUMPCLOUD_CHECKS
         ? { checks: env.AUTH_JUMPCLOUD_CHECKS }
@@ -447,6 +575,12 @@ if (env.AUTH_WORDPRESS_CLIENT_ID && env.AUTH_WORDPRESS_CLIENT_SECRET)
         env.AUTH_WORDPRESS_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_WORDPRESS_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_WORDPRESS_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_WORDPRESS_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_WORDPRESS_CHECKS
         ? { checks: env.AUTH_WORDPRESS_CHECKS }
@@ -477,7 +611,7 @@ const extendedPrismaAdapter: Adapter = {
 
     const user = await prismaAdapter.createUser(profile);
 
-    await createProjectMembershipsOnSignup(user);
+    await createProjectMembershipsOnSignup(user, { userWasJustCreated: true });
 
     return user;
   },
@@ -516,7 +650,7 @@ const extendedPrismaAdapter: Adapter = {
     // This is idempotent - won't duplicate or overwrite existing memberships
     const user = await prisma.user.findUnique({
       where: { id: data.userId },
-      select: { id: true, email: true },
+      select: { id: true, email: true, name: true },
     });
     if (user) {
       await createProjectMembershipsOnSignup(user);
@@ -611,7 +745,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
     },
     callbacks: {
       async session({ session, token }): Promise<Session> {
-        return instrumentAsync({ name: "next-auth-session" }, async () => {
+        return instrumentAsync({ name: "next-auth-session" }, async (span) => {
           const dbUser = await prisma.user.findUnique({
             where: {
               email: token.email!.toLowerCase(),
@@ -622,9 +756,16 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               email: true,
               image: true,
               emailVerified: true,
+              password: true,
+              createdAt: true,
               featureFlags: true,
               admin: true,
+              v4BetaEnabled: true,
               organizationMemberships: {
+                // Newest first so demo project is last for the `project/~/` sentinel
+                orderBy: {
+                  createdAt: "desc",
+                },
                 include: {
                   organization: {
                     include: {
@@ -633,6 +774,9 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                           deletedAt: {
                             equals: null,
                           },
+                        },
+                        orderBy: {
+                          createdAt: "desc",
                         },
                       },
                     },
@@ -647,6 +791,32 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             },
           });
 
+          span.setAttribute("langfuse.user.email", dbUser?.email ?? "");
+          span.setAttribute("langfuse.user.id", dbUser?.id ?? "");
+          // V4 preview availability is governed by the write mode:
+          // - events_only: the legacy traces/observations tables are no longer
+          //   written, so the events-aware UI is the only correct read path —
+          //   force the preview on for everyone and hide the toggle.
+          // - legacy: the events tables are not written, so the preview cannot
+          //   read — keep it off and hide the toggle.
+          // - dual: both table sets are written, so the preview is optional. On
+          //   Cloud we keep the date-based rollout (new orgs are auto-enabled
+          //   and locked on at signup/org-creation, older orgs may toggle).
+          //   Self-hosted dual deployments are opt-in, but only once they have
+          //   also set LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN=true —
+          //   otherwise feature paths still gated on that flag would silently
+          //   fall back to legacy tables while the core UI reads events.
+          const v4WriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+          const isLangfuseCloud = Boolean(
+            env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+          );
+          // In dual mode the preview is available on Cloud (governed by the
+          // rollout below) or on self-hosted deployments that opted into the
+          // preview read path via ALLOW_PREVIEW_OPT_IN.
+          const dualPreviewAvailable =
+            isLangfuseCloud ||
+            env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
+
           return {
             ...session,
             environment: {
@@ -655,6 +825,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               // Enables features that are only available under an enterprise license when self-hosting Langfuse
               // If you edit this line, you risk executing code that is not MIT licensed (self-contained in /ee folders otherwise)
               selfHostedInstancePlan: getSelfHostedInstancePlanServerSide(),
+              v4WriteMode,
             },
             user:
               dbUser !== null
@@ -668,6 +839,35 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                       : undefined,
                     image: dbUser.image,
                     admin: dbUser.admin,
+                    v4BetaEnabled:
+                      v4WriteMode === "events_only"
+                        ? true
+                        : v4WriteMode === "dual" && dualPreviewAvailable
+                          ? dbUser.v4BetaEnabled
+                          : false,
+                    canToggleV4:
+                      v4WriteMode === "dual" && dualPreviewAvailable
+                        ? isLangfuseCloud
+                          ? canToggleV4(
+                              {
+                                userCreatedAt: dbUser.createdAt,
+                                organizations:
+                                  dbUser.organizationMemberships.map(
+                                    (orgMembership) => ({
+                                      id: orgMembership.organization.id,
+                                      createdAt:
+                                        orgMembership.organization.createdAt,
+                                    }),
+                                  ),
+                                excludedOrganizationIds:
+                                  env.NEXT_PUBLIC_DEMO_ORG_ID
+                                    ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
+                                    : [],
+                              },
+                              { isLangfuseCloudAdmin: dbUser.admin },
+                            )
+                          : true
+                        : false,
                     canCreateOrganizations: canCreateOrganizations(
                       dbUser.email,
                     ),
@@ -687,6 +887,8 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                             >) ?? {},
                           aiFeaturesEnabled:
                             orgMembership.organization.aiFeaturesEnabled,
+                          aiTelemetryEnabled:
+                            orgMembership.organization.aiTelemetryEnabled,
                           cloudConfig: parsedCloudConfig.data,
                           projects: orgMembership.organization.projects
                             .map((project) => {
@@ -701,12 +903,14 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                                 name: project.name,
                                 role: projectRole,
                                 retentionDays: project.retentionDays,
+                                hasTraces: project.hasTraces,
                                 deletedAt: project.deletedAt,
                                 metadata:
                                   (project.metadata as Record<
                                     string,
                                     unknown
                                   >) ?? {},
+                                createdAt: project.createdAt.toISOString(),
                               };
                             })
                             // Only include projects where the user has the required role
@@ -726,6 +930,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                     ),
                     emailVerified: dbUser.emailVerified?.toISOString(),
                     featureFlags: parseFlags(dbUser.featureFlags),
+                    hasPassword: Boolean(dbUser.password),
                   }
                 : null,
           };
@@ -739,7 +944,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             logger.error("No email found in user object");
             throw new Error("No email found in user object");
           }
-          if (z.string().email().safeParse(email).success === false) {
+          if (z.email().safeParse(email).success === false) {
             logger.error("Invalid email found in user object");
             throw new Error("Invalid email found in user object");
           }
@@ -787,6 +992,20 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
 
           // Only allow sign in via email link if user is already in db as this is used for password reset
           if (account?.provider === "email") {
+            const blockedDomains = getSSOBlockedDomains();
+            if (userDomain && blockedDomains.includes(userDomain)) {
+              logger.info(
+                "Blocked email-OTP sign in for domain enforced via AUTH_DOMAINS_WITH_SSO_ENFORCEMENT",
+                { email },
+              );
+              const params = new URLSearchParams({
+                reason: "sso_enforced_domain",
+              });
+              if (email) params.set("email", email);
+              params.set("attemptedProvider", "email");
+              return `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/enterprise-sso-required?${params.toString()}`;
+            }
+
             const user = await prisma.user.findUnique({
               where: {
                 email: email,
@@ -794,14 +1013,13 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             });
             if (user) {
               return true;
-            } else {
-              // Add random delay to prevent leaking if user exists as otherwise it would be instant compared to sending an email
-              await new Promise((resolve) =>
-                setTimeout(resolve, Math.random() * 2000 + 200),
-              );
-              // Prevents sign in with email link if user does not exist
-              return false;
             }
+            // Add random delay to prevent leaking if user exists as otherwise it would be instant compared to sending an email
+            await new Promise((resolve) =>
+              setTimeout(resolve, Math.random() * 2000 + 200),
+            );
+            // Prevents sign in with email link if user does not exist
+            return false;
           }
 
           // Optional configuration: validate authorised email domains for google provider

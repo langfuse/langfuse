@@ -53,7 +53,12 @@ describe("DataRetentionProcessingJob", () => {
   });
 
   it("should NOT delete event files from cloud storage if after expiry cutoff", async () => {
-    // Setup
+    // Setup: Set retention in database to match job payload
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays: 7 },
+    });
+
     const baseId = randomUUID();
     const fileName = `${s3Prefix}${baseId}.json`;
     const fileType = "application/json";
@@ -98,10 +103,21 @@ describe("DataRetentionProcessingJob", () => {
       `${baseId}-trace`,
     );
     expect(eventLogRecord).toHaveLength(1);
+
+    // Cleanup
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays: null },
+    });
   });
 
   it("should delete event files from cloud storage if expired", async () => {
-    // Setup
+    // Setup: Set retention in database to match job payload
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays: 7 },
+    });
+
     const baseId = randomUUID();
     const fileName = `${s3Prefix}${baseId}.json`;
     const fileType = "application/json";
@@ -146,10 +162,21 @@ describe("DataRetentionProcessingJob", () => {
       `${baseId}-trace`,
     );
     expect(eventLogRecord).toHaveLength(0);
+
+    // Cleanup
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays: null },
+    });
   });
 
   it("should NOT delete media files from cloud storage and database if after expiry cutoff", async () => {
-    // Setup
+    // Setup: Set retention in database to match job payload
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays: 7 },
+    });
+
     const fileName = `${s3Prefix}${randomUUID()}.txt`;
     const fileType = "text/plain";
     const data = "Hello, world!";
@@ -203,10 +230,21 @@ describe("DataRetentionProcessingJob", () => {
       where: { mediaId },
     });
     expect(traceMedia).toBeDefined();
+
+    // Cleanup
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays: null },
+    });
   });
 
   it("should delete media files from cloud storage and database if expired", async () => {
-    // Setup
+    // Setup: Set retention in database to match job payload
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays: 7 },
+    });
+
     const fileName = `${s3Prefix}${randomUUID()}.txt`;
     const fileType = "text/plain";
     const data = "Hello, world!";
@@ -260,10 +298,21 @@ describe("DataRetentionProcessingJob", () => {
       where: { mediaId },
     });
     expect(traceMedia).toBeNull();
+
+    // Cleanup
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays: null },
+    });
   });
 
   it("should delete traces older than retention days", async () => {
-    // Setup
+    // Setup: Set retention in database to match job payload
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays: 7 },
+    });
+
     const baseId = randomUUID();
     await createTracesCh([
       createTrace({
@@ -293,10 +342,21 @@ describe("DataRetentionProcessingJob", () => {
       projectId,
     });
     expect(traceNew).toBeDefined();
+
+    // Cleanup
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays: null },
+    });
   });
 
   it("should delete observations older than retention days", async () => {
-    // Setup
+    // Setup: Set retention in database to match job payload
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays: 7 },
+    });
+
     const baseId = randomUUID();
     await createObservationsCh([
       createObservation({
@@ -324,10 +384,21 @@ describe("DataRetentionProcessingJob", () => {
       projectId,
     });
     expect(observationNew).toBeDefined();
+
+    // Cleanup
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays: null },
+    });
   });
 
   it("should delete scores older than retention days", async () => {
-    // Setup
+    // Setup: Set retention in database to match job payload
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays: 7 },
+    });
+
     const baseId = randomUUID();
     await createScoresCh([
       createTraceScore({
@@ -357,5 +428,126 @@ describe("DataRetentionProcessingJob", () => {
       scoreId: `${baseId}-score-new`,
     });
     expect(scoresNew).toBeDefined();
+
+    // Cleanup
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays: null },
+    });
+  });
+
+  it("should skip deletion when retention is changed to 0 (indefinite) after job was queued", async () => {
+    // Setup: Create data that would be deleted if retention was still 7 days
+    const baseId = randomUUID();
+    await createTracesCh([
+      createTrace({
+        id: `${baseId}-trace-old`,
+        project_id: projectId,
+        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).getTime(), // 30 days in the past
+      }),
+    ]);
+
+    // Simulate that project retention was changed to 0 (indefinite)
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays: 0 },
+    });
+
+    // When: Process job that was queued with retention: 7
+    await handleDataRetentionProcessingJob({
+      data: { payload: { projectId, retention: 7 } }, // Job queued with 7 day retention
+    } as Job);
+
+    // Then: Data should NOT be deleted because current retention is 0
+    const traceOld = await getTraceById({
+      traceId: `${baseId}-trace-old`,
+      projectId,
+    });
+    expect(traceOld).toBeDefined();
+
+    // Cleanup
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays: null },
+    });
+  });
+
+  it("should skip deletion when retention is changed to null after job was queued", async () => {
+    // Setup: Create data that would be deleted if retention was still 7 days
+    const baseId = randomUUID();
+    await createTracesCh([
+      createTrace({
+        id: `${baseId}-trace-old-2`,
+        project_id: projectId,
+        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).getTime(), // 30 days in the past
+      }),
+    ]);
+
+    // Simulate that project retention was removed (null)
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays: null },
+    });
+
+    // When: Process job that was queued with retention: 7
+    await handleDataRetentionProcessingJob({
+      data: { payload: { projectId, retention: 7 } }, // Job queued with 7 day retention
+    } as Job);
+
+    // Then: Data should NOT be deleted because current retention is null
+    const traceOld = await getTraceById({
+      traceId: `${baseId}-trace-old-2`,
+      projectId,
+    });
+    expect(traceOld).toBeDefined();
+  });
+
+  it("should use current retention value if it changed from queued value", async () => {
+    // Setup: Create data with different ages
+    const baseId = randomUUID();
+    await createTracesCh([
+      createTrace({
+        id: `${baseId}-trace-very-old`,
+        project_id: projectId,
+        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 40).getTime(), // 40 days in the past
+      }),
+      createTrace({
+        id: `${baseId}-trace-old`,
+        project_id: projectId,
+        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 25).getTime(), // 25 days in the past
+      }),
+    ]);
+
+    // Simulate that project retention was changed from 7 to 30 days
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays: 30 },
+    });
+
+    // When: Process job that was queued with retention: 7
+    await handleDataRetentionProcessingJob({
+      data: { payload: { projectId, retention: 7 } }, // Job queued with 7 day retention
+    } as Job);
+
+    // Then: Should use current retention (30 days)
+    // - Trace at 40 days should be deleted
+    // - Trace at 25 days should remain
+    const traceVeryOld = await getTraceById({
+      traceId: `${baseId}-trace-very-old`,
+      projectId,
+    });
+    expect(traceVeryOld).toBeUndefined();
+
+    const traceOld = await getTraceById({
+      traceId: `${baseId}-trace-old`,
+      projectId,
+    });
+    expect(traceOld).toBeDefined();
+
+    // Cleanup
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays: null },
+    });
   });
 });

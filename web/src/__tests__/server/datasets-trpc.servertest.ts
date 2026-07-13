@@ -1,0 +1,230 @@
+import { appRouter } from "@/src/server/api/root";
+import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { prisma, type Role } from "@langfuse/shared/src/db";
+import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import type { Session } from "next-auth";
+import { v4 } from "uuid";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+
+const orgIds: string[] = [];
+
+async function prepare({
+  projectRole = "ADMIN",
+  admin = true,
+}: { projectRole?: Role; admin?: boolean } = {}) {
+  const { project, org } = await createOrgProjectAndApiKey();
+
+  const session: Session = {
+    expires: "1",
+    user: {
+      id: "user-1",
+      canCreateOrganizations: true,
+      name: "Demo User",
+      organizations: [
+        {
+          id: org.id,
+          name: org.name,
+          role: "OWNER",
+          plan: "cloud:hobby",
+          cloudConfig: undefined,
+          metadata: {},
+          projects: [
+            {
+              id: project.id,
+              role: projectRole,
+              retentionDays: 30,
+              deletedAt: null,
+              name: project.name,
+              metadata: {},
+            },
+          ],
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: true,
+        },
+      ],
+      featureFlags: {
+        excludeClickhouseRead: false,
+        templateFlag: true,
+      },
+      admin,
+    },
+    environment: {
+      enableExperimentalFeatures: false,
+      selfHostedInstancePlan: "cloud:hobby",
+    },
+  };
+
+  const ctx = createInnerTRPCContext({ session, headers: {} });
+  const caller = appRouter.createCaller({ ...ctx, prisma });
+
+  orgIds.push(org.id);
+
+  return { project, caller };
+}
+
+describe("datasets trpc", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  afterAll(async () => {
+    await prisma.organization.deleteMany({
+      where: {
+        id: { in: orgIds },
+      },
+    });
+  });
+
+  describe("datasets RBAC", () => {
+    it("allows viewers to read dataset metadata", async () => {
+      const { project, caller } = await prepare({
+        projectRole: "VIEWER",
+        admin: false,
+      });
+
+      await expect(
+        caller.datasets.allDatasetMeta({ projectId: project.id }),
+      ).resolves.toEqual([]);
+    });
+
+    it("allows viewers to read dataset item media", async () => {
+      const { project, caller } = await prepare({
+        projectRole: "VIEWER",
+        admin: false,
+      });
+
+      await expect(
+        caller.datasets.itemMediaByItemId({
+          projectId: project.id,
+          datasetItemId: v4(),
+        }),
+      ).resolves.toEqual([]);
+    });
+
+    it("rejects dataset reads when the project role lacks datasets:read", async () => {
+      const { project, caller } = await prepare({
+        projectRole: "NONE",
+        admin: false,
+      });
+
+      await expect(
+        caller.datasets.allDatasetMeta({ projectId: project.id }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+
+    it("rejects dataset item media reads when the project role lacks datasets:read", async () => {
+      const { project, caller } = await prepare({
+        projectRole: "NONE",
+        admin: false,
+      });
+
+      await expect(
+        caller.datasets.itemMediaByItemId({
+          projectId: project.id,
+          datasetItemId: v4(),
+        }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+  });
+
+  describe("datasets.deleteMany", () => {
+    it("deletes explicitly selected datasets and folder subtrees", async () => {
+      const { project, caller } = await prepare();
+      const selectedDatasetId = v4();
+
+      await prisma.dataset.createMany({
+        data: [
+          {
+            id: selectedDatasetId,
+            name: "selected",
+            projectId: project.id,
+          },
+          {
+            id: v4(),
+            name: "folder/child",
+            projectId: project.id,
+          },
+          {
+            id: v4(),
+            name: "folder/nested/child",
+            projectId: project.id,
+          },
+          {
+            id: v4(),
+            name: "folder-sibling/child",
+            projectId: project.id,
+          },
+        ],
+      });
+
+      await expect(
+        caller.datasets.deleteMany({
+          projectId: project.id,
+          datasetIds: [selectedDatasetId],
+          folderPaths: ["folder"],
+        }),
+      ).resolves.toEqual({ deletedCount: 3 });
+
+      await expect(
+        prisma.dataset.findMany({
+          where: { projectId: project.id },
+          select: { name: true },
+          orderBy: { name: "asc" },
+        }),
+      ).resolves.toEqual([{ name: "folder-sibling/child" }]);
+    });
+  });
+
+  describe("datasets.triggerRemoteExperiment", () => {
+    it("should execute remote experiments through the secure webhook fetch helper", async () => {
+      const { project, caller } = await prepare();
+      const datasetId = v4();
+      const remoteExperimentUrl = "https://example.com/remote-run";
+
+      await prisma.dataset.create({
+        data: {
+          id: datasetId,
+          name: "remote-experiment-dataset",
+          projectId: project.id,
+          remoteExperimentUrl,
+          remoteExperimentPayload: { default: true },
+          remoteExperimentEnabled: true,
+        },
+      });
+
+      const fetchMock = vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(new Response(null, { status: 200 }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const result = await caller.datasets.triggerRemoteExperiment({
+        projectId: project.id,
+        datasetId,
+        payload: "custom-payload",
+      });
+
+      expect(result).toEqual({ success: true });
+      expect(fetchMock).toHaveBeenCalledWith(
+        remoteExperimentUrl,
+        expect.objectContaining({
+          method: "POST",
+          redirect: "manual",
+        }),
+      );
+
+      const requestOptions = fetchMock.mock.calls[0]?.[1] as
+        | RequestInit
+        | undefined;
+
+      expect(new Headers(requestOptions?.headers).get("content-type")).toBe(
+        "application/json",
+      );
+      expect(JSON.parse(String(requestOptions?.body))).toEqual({
+        projectId: project.id,
+        datasetId,
+        datasetName: "remote-experiment-dataset",
+        payload: "custom-payload",
+      });
+    });
+  });
+});

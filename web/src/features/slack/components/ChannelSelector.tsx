@@ -1,8 +1,12 @@
-import React, { useState, useMemo } from "react";
-import { RefreshCw, Search, Hash, Lock } from "lucide-react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
+import { RefreshCw, Search, Hash, Lock, AlertTriangle } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-
-import { Select, SelectTrigger, SelectValue } from "@/src/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
+import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import {
   Command,
   CommandEmpty,
@@ -11,23 +15,12 @@ import {
   CommandItem,
   CommandList,
 } from "@/src/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
-import { Alert, AlertDescription } from "@/src/components/ui/alert";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { api } from "@/src/utils/api";
+import { env } from "@/src/env.mjs";
+import { type SlackChannel } from "@langfuse/shared/src/server";
 
-/**
- * Represents a Slack channel
- */
-export interface SlackChannel {
-  id: string;
-  name: string;
-  isPrivate: boolean;
-  isMember: boolean;
-}
+export type { SlackChannel };
 
 /**
  * Props for the ChannelSelector component
@@ -37,6 +30,8 @@ interface ChannelSelectorProps {
   projectId: string;
   /** Currently selected channel ID */
   selectedChannelId?: string;
+  /** Full channel object for display when the ID isn't in the fetched list (e.g. manual entry) */
+  selectedChannel?: SlackChannel | null;
   /** Callback when a channel is selected */
   onChannelSelect: (channel: SlackChannel) => void;
   /** Whether the component is disabled */
@@ -51,6 +46,63 @@ interface ChannelSelectorProps {
   showRefreshButton?: boolean;
 }
 
+const ITEM_HEIGHT = 32;
+const MAX_SLACK_CHANNEL_PAGES = 20;
+
+const useSlackChannels = (projectId: string) => {
+  const {
+    data: channelsPages,
+    isLoading,
+    isFetching,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    error,
+    refetch: refetchChannels,
+  } = api.slack.getChannels.useInfiniteQuery(
+    { projectId },
+    {
+      enabled: !!projectId,
+      getNextPageParam: (lastPage, allPages) =>
+        allPages.length >= MAX_SLACK_CHANNEL_PAGES
+          ? undefined
+          : lastPage.nextCursor,
+      staleTime: 5 * 60 * 1000,
+    },
+  );
+
+  const channelsData = useMemo(() => {
+    const pages = channelsPages?.pages ?? [];
+    if (pages.length === 0) return null;
+
+    return {
+      channels: pages.flatMap((page) => page.channels),
+      hasPrivateChannelAccess: pages.every(
+        (page) => page.hasPrivateChannelAccess,
+      ),
+    };
+  }, [channelsPages?.pages]);
+
+  const isLoadingChannels =
+    isLoading || isFetchingNextPage || (isFetching && !channelsData);
+
+  // useInfiniteQuery stores page state, but next pages are only loaded when requested.
+  useEffect(() => {
+    if (error || !hasNextPage || isFetchingNextPage) return;
+
+    fetchNextPage().catch((error) => {
+      console.error("Failed to load next Slack channels page", error);
+    });
+  }, [error, fetchNextPage, hasNextPage, isFetchingNextPage]);
+
+  return {
+    channelsData,
+    isLoadingChannels,
+    error,
+    refetchChannels,
+  };
+};
+
 /**
  * A dropdown component for selecting Slack channels with search and filtering capabilities.
  *
@@ -64,9 +116,11 @@ interface ChannelSelectorProps {
  *
  * The component uses a command palette style interface for better UX when dealing with
  * many channels. It supports both keyboard navigation and mouse interaction.
+ * Items are virtualized with @tanstack/react-virtual to handle large channel lists (~5k).
  *
  * @param projectId - The project ID for the Slack integration
  * @param selectedChannelId - Currently selected channel ID
+ * @param selectedChannel - Full channel object for display when the ID isn't in the fetched list (e.g. manual entry)
  * @param onChannelSelect - Callback when a channel is selected
  * @param disabled - Whether the component should be disabled
  * @param placeholder - Placeholder text for the selector
@@ -77,6 +131,7 @@ interface ChannelSelectorProps {
 export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
   projectId,
   selectedChannelId,
+  selectedChannel: selectedChannelProp,
   onChannelSelect,
   disabled = false,
   placeholder = "Select a channel",
@@ -87,21 +142,13 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
   const [open, setOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [scrollNode, setScrollNode] = useState<HTMLDivElement | null>(null);
+  const trimmedSearch = searchValue.trim();
+  const effectiveName = trimmedSearch.replace(/^#/, "");
 
   // Get available channels
-  const {
-    data: channelsData,
-    isLoading,
-    error,
-    refetch: refetchChannels,
-  } = api.slack.getChannels.useQuery(
-    { projectId },
-    {
-      enabled: !!projectId,
-      // Keep data fresh
-      staleTime: 5 * 60 * 1000, // 5 minutes
-    },
-  );
+  const { channelsData, isLoadingChannels, error, refetchChannels } =
+    useSlackChannels(projectId);
 
   // Handle refresh
   const handleRefresh = async () => {
@@ -130,99 +177,95 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
     }
 
     // Apply search filter
-    if (searchValue.trim()) {
-      const searchTerm = searchValue.toLowerCase().trim();
+    if (effectiveName) {
+      const searchTerm = effectiveName.toLowerCase();
       channels = channels.filter((channel) =>
         channel.name.toLowerCase().includes(searchTerm),
       );
     }
 
     // Sort channels: public channels first, then private, then by name
-    return channels.sort((a, b) => {
+    return [...channels].sort((a, b) => {
       if (a.isPrivate !== b.isPrivate) {
         return a.isPrivate ? 1 : -1;
       }
       return a.name.localeCompare(b.name);
     });
-  }, [channelsData?.channels, memberOnly, filterChannels, searchValue]);
+  }, [channelsData?.channels, memberOnly, filterChannels, effectiveName]);
 
-  // Get selected channel info
+  const virtualizer = useVirtualizer({
+    count: filteredChannels.length,
+    getScrollElement: () => scrollNode,
+    estimateSize: () => ITEM_HEIGHT,
+    overscan: 20,
+  });
+
+  // Get selected channel info — fall back to the prop for manual entries
   const selectedChannel = useMemo(() => {
-    if (!selectedChannelId || !channelsData?.channels) return null;
-    return channelsData.channels.find(
+    if (!selectedChannelId) return null;
+    const fromList = channelsData?.channels?.find(
       (channel) => channel.id === selectedChannelId,
     );
-  }, [selectedChannelId, channelsData?.channels]);
+    return fromList ?? selectedChannelProp ?? null;
+  }, [selectedChannelId, channelsData?.channels, selectedChannelProp]);
 
-  // Handle channel selection
-  const handleChannelSelect = (channel: SlackChannel) => {
-    onChannelSelect(channel);
-    setOpen(false);
-    setSearchValue("");
-  };
+  const selectAndClose = useCallback(
+    (channel: SlackChannel) => {
+      onChannelSelect(channel);
+      setOpen(false);
+      setSearchValue("");
+    },
+    [onChannelSelect],
+  );
+
+  const handleSelectByName = useCallback(() => {
+    const name = searchValue.trim().replace(/^#/, "");
+    if (!name) return;
+    selectAndClose({
+      id: `#${name}`,
+      name,
+      isPrivate: false,
+      isMember: false,
+    });
+  }, [searchValue, selectAndClose]);
+
+  useEffect(() => {
+    if (scrollNode) {
+      scrollNode.scrollTop = 0;
+    }
+  }, [effectiveName, scrollNode]);
 
   // Render channel item
   const renderChannelItem = (channel: SlackChannel) => (
     <div className="flex w-full items-center gap-2">
       {channel.isPrivate ? (
-        <Lock className="h-4 w-4 text-muted-foreground" />
+        <Lock className="text-muted-foreground h-4 w-4" />
       ) : (
-        <Hash className="h-4 w-4 text-muted-foreground" />
+        <Hash className="text-muted-foreground h-4 w-4" />
       )}
-      <span className="flex-1 truncate">{channel.name}</span>
+      <span className="flex-1 truncate" title={channel.name}>
+        {channel.name}
+      </span>
     </div>
   );
 
-  // Handle loading state
-  if (isLoading) {
-    return (
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Select disabled>
-            <SelectTrigger>
-              <SelectValue placeholder="Loading channels..." />
-            </SelectTrigger>
-          </Select>
-          {showRefreshButton && (
-            <Button variant="outline" size="sm" disabled>
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Handle error state
-  if (error) {
-    return (
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Select disabled>
-            <SelectTrigger>
-              <SelectValue placeholder="Error loading channels" />
-            </SelectTrigger>
-          </Select>
-          {showRefreshButton && (
-            <Button variant="outline" size="sm" onClick={handleRefresh}>
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-        <Alert>
-          <AlertDescription>
-            Failed to load channels. Please check your Slack connection and try
-            again.
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
+  const hasExactMatch = filteredChannels.some(
+    (channel) => channel.name.toLowerCase() === effectiveName.toLowerCase(),
+  );
+  const canUseTypedName = effectiveName.length > 0 && !hasExactMatch;
 
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <Popover open={open} onOpenChange={setOpen}>
+        <Popover
+          open={open}
+          onOpenChange={(newOpen) => {
+            setOpen(newOpen);
+            if (!newOpen) {
+              setSearchValue("");
+            }
+          }}
+        >
           <PopoverTrigger asChild>
             <Button
               variant="outline"
@@ -246,24 +289,75 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
                 value={searchValue}
                 onValueChange={setSearchValue}
               />
-              <CommandList>
-                <CommandEmpty>
-                  {searchValue
-                    ? "No channels match your search."
-                    : "No channels available."}
-                </CommandEmpty>
-                <CommandGroup>
-                  {filteredChannels.map((channel) => (
+              <CommandList ref={setScrollNode}>
+                {canUseTypedName && (
+                  <CommandGroup className="p-0">
                     <CommandItem
-                      key={channel.id}
-                      value={channel.id}
-                      onSelect={() => handleChannelSelect(channel)}
+                      value={`use-${effectiveName}`}
+                      onSelect={handleSelectByName}
                       className="cursor-pointer"
                     >
-                      {renderChannelItem(channel)}
+                      <Hash className="text-muted-foreground h-4 w-4" />
+                      <span
+                        className="flex-1 truncate"
+                        title={`Use &quot; ${effectiveName} &quot;`}
+                      >
+                        Use &quot;{effectiveName}&quot;
+                      </span>
                     </CommandItem>
-                  ))}
+                  </CommandGroup>
+                )}
+                {!isLoadingChannels &&
+                  !canUseTypedName &&
+                  filteredChannels.length === 0 && (
+                    <CommandEmpty>No channels available.</CommandEmpty>
+                  )}
+                <CommandGroup
+                  className="p-0"
+                  style={{
+                    height: virtualizer.getTotalSize(),
+                    position: "relative",
+                  }}
+                >
+                  {virtualizer.getVirtualItems().map((virtualRow) => {
+                    const channel = filteredChannels[virtualRow.index];
+                    return (
+                      <CommandItem
+                        key={channel.id}
+                        value={channel.id}
+                        onSelect={() => selectAndClose(channel)}
+                        className="cursor-pointer"
+                        style={{
+                          position: "absolute",
+                          top: virtualRow.start,
+                          left: 0,
+                          width: "100%",
+                          height: ITEM_HEIGHT,
+                        }}
+                      >
+                        {renderChannelItem(channel)}
+                      </CommandItem>
+                    );
+                  })}
                 </CommandGroup>
+                {isLoadingChannels && (
+                  <CommandGroup className="p-0">
+                    <CommandItem
+                      value="loading-slack-channels"
+                      disabled
+                      className="text-muted-foreground"
+                    >
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <span
+                        className="flex-1 truncate"
+                        title="Loading Slack channels. This can take a while for large workspaces."
+                      >
+                        Loading Slack channels. This can take a while for large
+                        workspaces.
+                      </span>
+                    </CommandItem>
+                  </CommandGroup>
+                )}
               </CommandList>
             </Command>
           </PopoverContent>
@@ -274,21 +368,54 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
             variant="outline"
             size="sm"
             onClick={handleRefresh}
-            disabled={disabled || isRefreshing}
+            disabled={disabled || isRefreshing || isLoadingChannels}
           >
             <RefreshCw
-              className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+              className={`h-4 w-4 ${isRefreshing || isLoadingChannels ? "animate-spin" : ""}`}
             />
           </Button>
         )}
       </div>
 
       {/* Channel stats */}
-      {channelsData?.channels && (
-        <div className="text-xs text-muted-foreground">
+      {channelsData?.channels && !isLoadingChannels ? (
+        <div className="text-muted-foreground text-xs">
           {filteredChannels.length} of {channelsData.channels.length} channels
           {memberOnly && " (member only)"}
         </div>
+      ) : null}
+
+      {error && (
+        <Alert>
+          <AlertDescription>
+            Failed to load channels. You can still enter a channel name
+            manually, or check your Slack connection and try again.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Private channel scope warning */}
+      {channelsData && !channelsData.hasPrivateChannelAccess && (
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Private channels are not visible. To access private channels,{" "}
+            <button
+              type="button"
+              className="font-medium underline"
+              onClick={() =>
+                window.open(
+                  `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/public/slack/install?projectId=${projectId}`,
+                  "slack-reauth",
+                  "width=600,height=700",
+                )
+              }
+            >
+              re-authenticate your Slack integration
+            </button>{" "}
+            to grant the required permissions.
+          </AlertDescription>
+        </Alert>
       )}
     </div>
   );

@@ -6,15 +6,12 @@
  * This is the ONLY way to modify existing prompts (labels only).
  */
 
-import { z } from "zod/v4";
+import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { ParamPromptName, ParamNewLabels } from "../validation";
-import { updatePrompt } from "@/src/features/prompts/server/actions/updatePrompts";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { prisma } from "@langfuse/shared/src/db";
-import { UserInputError } from "../../../core/errors";
-import { instrumentAsync } from "@langfuse/shared/src/server";
-import { SpanKind } from "@opentelemetry/api";
+import { updatePromptLabelsForApi } from "@/src/features/prompts/server/prompt-api-service";
+import { buildPromptUrl } from "@/src/utils/product-url";
+import { runMcpTool } from "../../../core/run-mcp-tool";
 
 import { PROMPT_NAME_MAX_LENGTH } from "@langfuse/shared";
 
@@ -36,7 +33,7 @@ const UpdatePromptLabelsBaseSchema = z.object({
   newLabels: z
     .array(z.string())
     .describe(
-      "Array of new labels to assign to the prompt version (can be empty to remove all labels)",
+      "Array of new labels to assign to the prompt version (can be empty to remove all labels). The 'latest' label is auto-managed and cannot be supplied.",
     ),
 });
 
@@ -67,6 +64,7 @@ export const [updatePromptLabelsTool, handleUpdatePromptLabels] = defineTool({
     "- Specified labels are added to the version (preserving others not mentioned)",
     "- Labels are unique across versions - setting a label on one version automatically removes it from others",
     "- 'latest' label is auto-managed and cannot be set manually",
+    "- Only add the 'production' label when the user explicitly asks to promote this prompt version to production",
     "- Cannot modify prompt content, type, or tags - use createTextPrompt or createChatPrompt for new versions",
     "",
     "Accepts: name, version (required), newLabels (array, can be empty to remove all labels)",
@@ -74,56 +72,22 @@ export const [updatePromptLabelsTool, handleUpdatePromptLabels] = defineTool({
   baseSchema: UpdatePromptLabelsBaseSchema,
   inputSchema: UpdatePromptLabelsInputSchema,
   handler: async (input, context) => {
-    return await instrumentAsync(
-      { name: "mcp.prompts.update_labels", spanKind: SpanKind.INTERNAL },
-      async (span) => {
+    return await runMcpTool({
+      spanName: "mcp.prompts.update_labels",
+      context,
+      attributes: {
+        "mcp.prompt_name": input.name,
+        "mcp.prompt_version": input.version,
+        "mcp.new_labels_count": input.newLabels.length,
+      },
+      fn: async () => {
         const { name, version, newLabels } = input;
 
-        // Set span attributes for observability
-        span.setAttributes({
-          "langfuse.project.id": context.projectId,
-          "langfuse.org.id": context.orgId,
-          "mcp.api_key_id": context.apiKeyId,
-          "mcp.prompt_name": name,
-          "mcp.prompt_version": version,
-          "mcp.new_labels_count": newLabels.length,
-        });
-
-        // Fetch existing prompt to capture "before" state for audit log
-        const existingPrompt = await prisma.prompt.findUnique({
-          where: {
-            projectId_name_version: {
-              projectId: context.projectId,
-              name,
-              version,
-            },
-          },
-        });
-
-        if (!existingPrompt) {
-          throw new UserInputError(
-            `Prompt '${name}' version ${version} not found in project`,
-          );
-        }
-
-        // Update prompt labels using existing action
-        const updatedPrompt = await updatePrompt({
+        const { updatedPrompt } = await updatePromptLabelsForApi({
+          context,
           promptName: name,
-          projectId: context.projectId, // Auto-injected from authenticated API key
           promptVersion: version,
           newLabels,
-        });
-
-        // Audit log the update with both before and after states
-        await auditLog({
-          action: "update",
-          resourceType: "prompt",
-          resourceId: updatedPrompt.id,
-          projectId: context.projectId,
-          orgId: context.orgId,
-          apiKeyId: context.apiKeyId,
-          before: existingPrompt,
-          after: updatedPrompt,
         });
 
         // Return formatted response
@@ -132,9 +96,15 @@ export const [updatePromptLabelsTool, handleUpdatePromptLabels] = defineTool({
           name: updatedPrompt.name,
           version: updatedPrompt.version,
           labels: updatedPrompt.labels,
+          url: buildPromptUrl({
+            projectId: context.projectId,
+            name: updatedPrompt.name,
+            version: updatedPrompt.version,
+          }),
           message: `Successfully updated labels for '${updatedPrompt.name}' version ${updatedPrompt.version}. Labels are now: ${updatedPrompt.labels.length > 0 ? updatedPrompt.labels.join(", ") : "(none)"}`,
         };
       },
-    );
+    });
   },
+  destructiveHint: true,
 });

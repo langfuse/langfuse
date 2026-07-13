@@ -13,7 +13,7 @@ export default async function handler(
 
   if (req.method !== "GET") {
     logger.error(
-      `Method not allowed for ${req.method} on /api/public/scim/ServiceProviderConfig`,
+      `[SCIM] Method not allowed for ${req.method} on /api/public/scim/ServiceProviderConfig`,
     );
     return res.status(405).json({
       schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],

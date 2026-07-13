@@ -8,14 +8,28 @@ export function SetupDefaultEvalModelCard({
   projectId: string;
 }) {
   return (
-    <Card className="mt-2 border-dark-yellow bg-light-yellow">
+    <Card className="border-dark-yellow bg-light-yellow mt-2">
       <CardContent className="mt-2 flex flex-col gap-1">
         <ManageDefaultEvalModel
           projectId={projectId}
-          setUpMessage="Set up default evaluation model to use this evaluator"
+          setUpMessage={
+            <>
+              No default model set. LLM-as-a-judge evaluations require an LLM
+              connection for scoring. This default is used by all templates that
+              don&apos;t specify their own model.{" "}
+              <a
+                href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge#how-llm-as-a-judge-works"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                Learn more.
+              </a>
+            </>
+          }
           variant="color-coded"
         />
-        <p className="text-xs text-dark-yellow/70">
+        <p className="text-dark-yellow/70 text-xs">
           This evaluator expects to use the default evaluation model for your
           project.
         </p>

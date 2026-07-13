@@ -28,6 +28,7 @@ import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvalua
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
 import { useExperimentNameValidation } from "@/src/features/experiments/hooks/useExperimentNameValidation";
 import { useExperimentPromptData } from "@/src/features/experiments/hooks/useExperimentPromptData";
+import { getExistingEvaluators } from "@/src/features/experiments/hooks/useExperimentEvaluatorSelection";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -121,6 +122,7 @@ export const MultiStepExperimentForm = ({
     defaultValues: {
       promptId: "",
       datasetId: "",
+      datasetVersion: undefined,
       modelConfig: {},
       name: "",
       runName: "",
@@ -130,15 +132,24 @@ export const MultiStepExperimentForm = ({
   });
 
   const datasetId = form.watch("datasetId");
+  const datasetVersion = form.watch("datasetVersion") as Date | undefined;
+
+  // Reset dataset version when dataset changes
+  useEffect(() => {
+    form.setValue("datasetVersion", undefined);
+  }, [datasetId, form]);
 
   const evaluators = api.evals.jobConfigsByTarget.useQuery(
-    { projectId, targetObject: "dataset" },
+    {
+      projectId,
+      targetObject: ["dataset", "experiment"],
+    },
     {
       enabled: hasEvalReadAccess && !!datasetId,
     },
   );
 
-  const evalTemplates = api.evals.allTemplates.useQuery(
+  const evalTemplates = api.evals.latestTemplates.useQuery(
     { projectId },
     {
       enabled: hasEvalReadAccess,
@@ -148,8 +159,6 @@ export const MultiStepExperimentForm = ({
   const { createDefaultEvaluator } = useEvaluatorDefaults();
 
   const {
-    activeEvaluators,
-    pausedEvaluators,
     selectedEvaluatorData,
     showEvaluatorForm,
     handleConfigureEvaluator,
@@ -165,13 +174,33 @@ export const MultiStepExperimentForm = ({
   });
 
   const {
+    promptId: promptIdFromHook,
+    promptsByName,
+    expectedColumns,
+    selectedPromptModelConfig,
+  } = useExperimentPromptData({
+    projectId,
+    form,
+  });
+
+  const {
     modelParams,
     updateModelParamValue,
     setModelParamEnabled,
     availableModels,
     providerModelCombinations,
     availableProviders,
-  } = useModelParams();
+  } = useModelParams(undefined, {
+    promptConfigModel: selectedPromptModelConfig
+      ? {
+          selectionKey: promptIdFromHook,
+          ...(selectedPromptModelConfig.provider
+            ? { provider: selectedPromptModelConfig.provider }
+            : {}),
+          model: selectedPromptModelConfig.model,
+        }
+      : null,
+  });
 
   useExperimentNameValidation({
     projectId,
@@ -193,15 +222,6 @@ export const MultiStepExperimentForm = ({
     }
   }, [modelParams, form]);
 
-  const {
-    promptId: promptIdFromHook,
-    promptsByName,
-    expectedColumns,
-  } = useExperimentPromptData({
-    projectId,
-    form,
-  });
-
   const experimentMutation = api.experiments.createExperiment.useMutation({
     onSuccess: handleExperimentSuccess ?? (() => {}),
     onError: (error) => {
@@ -218,6 +238,7 @@ export const MultiStepExperimentForm = ({
       projectId,
       promptId: promptIdFromHook as string,
       datasetId: datasetId as string,
+      datasetVersion: datasetVersion,
     },
     {
       enabled: Boolean(promptIdFromHook && datasetId),
@@ -241,15 +262,9 @@ export const MultiStepExperimentForm = ({
   );
 
   // Callback for preprocessing evaluator form values
+  // For new experiment evaluators (beta enabled), we only run on new data (not historic)
+  // For legacy dataset evaluators (beta disabled), allow user to choose
   const preprocessFormValues = (values: any) => {
-    const shouldRunOnHistoric = confirm(
-      "Do you also want to execute this evaluator on historic data? If not, click cancel.",
-    );
-
-    if (shouldRunOnHistoric && !values.timeScope.includes("EXISTING")) {
-      values.timeScope = [...values.timeScope, "EXISTING"];
-    }
-
     return values;
   };
 
@@ -306,10 +321,11 @@ export const MultiStepExperimentForm = ({
   }, [experimentName, form]);
 
   // Get evaluator names for review step
-  const activeEvaluatorNames =
-    evalTemplates.data?.templates
-      .filter((t) => activeEvaluators.includes(t.id))
-      .map((t) => t.name) ?? [];
+  const activeEvaluatorNames = Object.values(
+    getExistingEvaluators(evaluators.data, datasetId),
+  )
+    .filter((evaluator) => evaluator.isActive)
+    .map((evaluator) => evaluator.templateName);
 
   // Get dataset info for review step
   const selectedDataset = datasets.data?.find((d) => d.id === datasetId);
@@ -382,6 +398,7 @@ export const MultiStepExperimentForm = ({
     datasets: datasets.data,
     selectedDatasetId: datasetId,
     selectedDataset,
+    selectedDatasetVersion: datasetVersion,
     validationResult: validationResult.data,
     expectedColumnsForDataset: {
       inputVariables: expectedColumns || [],
@@ -390,8 +407,6 @@ export const MultiStepExperimentForm = ({
     },
   };
   const evaluatorState = {
-    activeEvaluators,
-    pausedEvaluators,
     evalTemplates: evalTemplates.data?.templates ?? [],
     activeEvaluatorNames,
     selectedEvaluatorData,
@@ -400,7 +415,6 @@ export const MultiStepExperimentForm = ({
     handleCloseEvaluatorForm,
     handleEvaluatorSuccess,
     handleSelectEvaluator,
-    handleEvaluatorToggled: () => void evaluators.refetch(),
     preprocessFormValues,
   };
   const permissions = { hasEvalReadAccess, hasEvalWriteAccess };
@@ -478,6 +492,7 @@ export const MultiStepExperimentForm = ({
 
               {activeStep === "dataset" && (
                 <DatasetStep
+                  projectId={projectId}
                   formState={formState}
                   datasetState={datasetState}
                   promptInfo={{

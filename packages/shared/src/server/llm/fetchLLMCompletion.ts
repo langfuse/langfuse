@@ -1,14 +1,17 @@
-// We need to use Zod3 for structured outputs due to a bug in
-// ChatVertexAI. See issue: https://github.com/langfuse/langfuse/issues/7429
-import { type ZodSchema } from "zod/v3";
+import { type ZodType, z } from "zod";
 
-import { ChatAnthropic } from "@langchain/anthropic";
-import { ChatVertexAI } from "@langchain/google-vertexai";
+import {
+  AnthropicVertex,
+  type ClientOptions as AnthropicVertexClientOptions,
+} from "@anthropic-ai/vertex-sdk";
+import { ChatAnthropic, ChatAnthropicInput } from "@langchain/anthropic";
+import { ChatGoogle } from "@langchain/google";
 import { ChatBedrockConverse } from "@langchain/aws";
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import {
   AIMessage,
+  AIMessageChunk,
   BaseMessage,
+  ContentBlock,
   HumanMessage,
   SystemMessage,
   ToolMessage,
@@ -21,8 +24,11 @@ import { IterableReadableStream } from "@langchain/core/utils/stream";
 import { ChatOpenAI, AzureChatOpenAI } from "@langchain/openai";
 import { env } from "../../env";
 import GCPServiceAccountKeySchema, {
+  BedrockAccessKeysSchema,
   BedrockConfigSchema,
   BedrockCredentialSchema,
+  LLMConnectionConfig,
+  OpenAIConfigSchema,
   VertexAIConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
@@ -37,26 +43,157 @@ import {
   LLMToolDefinition,
   ModelParams,
   OpenAIModel,
+  PROVIDERS_WITH_REQUIRED_USER_MESSAGE,
   ToolCallResponse,
   ToolCallResponseSchema,
   TraceSinkParams,
 } from "./types";
 import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
-import { HttpsProxyAgent } from "https-proxy-agent";
+import { ProxyAgent } from "undici";
+import { GoogleAuth, type GoogleAuthOptions } from "google-auth-library";
 import { getInternalTracingHandler } from "./getInternalTracingHandler";
 import { decrypt } from "../../encryption";
-import { decryptAndParseExtraHeaders } from "./utils";
+import {
+  decryptAndParseExtraHeaders,
+  executeWithRuntimeTimeout,
+  processOpenAIBaseURL,
+  RUNTIME_TIMEOUT_ADAPTERS,
+} from "./utils";
 import { logger } from "../logger";
-import { LLMCompletionError } from "./errors";
+import { executeAiSdkCompletion } from "./ai-sdk/executeAiSdkCompletion";
+import {
+  assertValidAnthropicVertexModelName,
+  assertValidVertexLocation,
+  isClaudeModel,
+} from "./ai-sdk/providers/vertex";
+import {
+  recordLlmExecutionDecision,
+  resolveLlmExecutionDecision,
+} from "./ai-sdk/resolveLlmExecutionDecision";
+import { mapToLLMCompletionError } from "./completionErrorMapping";
+import {
+  createSecureGoogleAIStudioApiClient,
+  createSecureVertexAIApiClient,
+} from "./googleSecureApiClient";
+import { createSecureLlmFetch } from "./secureLlmFetch";
+
+export type CompletionWithReasoning = { text: string; reasoning?: string };
+type SplitAIMessageContent = {
+  text: string;
+  // Standard `ContentBlock` shape exposed by `AIMessage#contentBlocks`, stripped
+  // of `tool_call` and `reasoning` blocks. A plain string is preserved when the
+  // upstream message carried plain-string content.
+  contentWithoutThinking: string | Array<ContentBlock.Standard>;
+  reasoning?: string;
+};
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+const AZURE_OPENAI_API_KEY_HEADER = "api-key";
+const ANTHROPIC_API_KEY_HEADER = "x-api-key";
+const VERTEX_AI_AUTH_HEADER = "authorization";
+const VERTEX_AI_AUTH_SCOPES = [
+  "https://www.googleapis.com/auth/cloud-platform",
+];
 
-const PROVIDERS_WITH_REQUIRED_USER_MESSAGE = [
+// Adapters whose models can return separate reasoning content. We route their
+// responses through `AIMessage#contentBlocks`, which normalizes provider-specific
+// shapes (Bedrock `reasoning_content`, Gemini `{ thought: true }` text parts, etc.)
+// into the documented `{ type: "reasoning", reasoning: string }` standard block.
+const ADAPTERS_WITH_REASONING_SUPPORT = new Set<LLMAdapter>([
+  LLMAdapter.Bedrock,
   LLMAdapter.VertexAI,
   LLMAdapter.GoogleAIStudio,
-  LLMAdapter.Anthropic,
-  LLMAdapter.Bedrock,
-];
+]);
+
+function adapterSupportsReasoning(adapter: LLMAdapter): boolean {
+  return ADAPTERS_WITH_REASONING_SUPPORT.has(adapter);
+}
+
+const ANTHROPIC_ALWAYS_ADAPTIVE_THINKING_MODELS = [
+  "claude-fable-5",
+  "claude-mythos-5",
+] as const;
+
+const ANTHROPIC_SAMPLING_PARAM_NORMALIZATION_MODELS = [
+  "claude-sonnet-5",
+  "claude-fable-5",
+  "claude-mythos-5",
+  "claude-opus-4-8",
+  "claude-opus-4-7",
+  "claude-sonnet-4-6",
+  "claude-sonnet-4-5",
+  "claude-opus-4-1",
+  "claude-opus-4-5",
+  "claude-opus-4-6",
+  "claude-haiku-4-5",
+] as const;
+
+function isAnthropicAlwaysAdaptiveThinkingModel(modelName: string): boolean {
+  return ANTHROPIC_ALWAYS_ADAPTIVE_THINKING_MODELS.some((model) =>
+    modelName.includes(model),
+  );
+}
+
+function shouldNormalizeAnthropicSamplingParams(modelName: string): boolean {
+  return ANTHROPIC_SAMPLING_PARAM_NORMALIZATION_MODELS.some((model) =>
+    modelName.includes(model),
+  );
+}
+
+function getAnthropicInvocationKwargs(modelParams: ModelParams) {
+  if (!isAnthropicAlwaysAdaptiveThinkingModel(modelParams.model)) {
+    return modelParams.providerOptions;
+  }
+
+  return {
+    // @langchain/anthropic currently defaults ChatAnthropic.thinking to
+    // { type: "disabled" } and serializes it into every request.
+    // Claude Fable 5 and Claude Mythos 5 reject that explicit disabled
+    // mode because thinking defaults to adaptive when the field is
+    // omitted. Newer ChatAnthropic versions might fix this default, but
+    // remove this guard only after a developer has verified that the
+    // pinned/newer version no longer sends thinking.disabled by default.
+    thinking: undefined,
+    ...modelParams.providerOptions,
+  };
+}
+
+function normalizeAnthropicSamplingParams(
+  chatModel: ChatAnthropic,
+  modelParams: ModelParams,
+) {
+  if (!shouldNormalizeAnthropicSamplingParams(modelParams.model)) {
+    return;
+  }
+
+  if (chatModel.topP === -1) {
+    chatModel.topP = undefined;
+  }
+
+  // TopP and temperature cannot be specified both,
+  // but Langchain is setting placeholder values despite that.
+  if (
+    modelParams.temperature !== undefined &&
+    modelParams.top_p === undefined
+  ) {
+    chatModel.topP = undefined;
+  }
+
+  if (
+    modelParams.top_p !== undefined &&
+    modelParams.temperature === undefined
+  ) {
+    chatModel.temperature = undefined;
+  }
+}
+
+function shouldNormalizeContentBlocks(modelParams: ModelParams): boolean {
+  return (
+    adapterSupportsReasoning(modelParams.adapter) ||
+    (modelParams.adapter === LLMAdapter.Anthropic &&
+      isAnthropicAlwaysAdaptiveThinkingModel(modelParams.model))
+  );
+}
 
 const transformSystemMessageToUserMessage = (
   messages: ChatMessage[],
@@ -68,6 +205,59 @@ const transformSystemMessageToUserMessage = (
   return [new HumanMessage(safeContent)];
 };
 
+const googleProviderOptionsSchema = z
+  .object({
+    thinkingBudget: z.number().optional(),
+    thinkingLevel: z.string().optional(), // intentionally loose as types differ / may be extended in the future and are passed through to API
+  })
+  .optional();
+
+// For using Bedrock API key in Bearer token format
+const createBedrockBearerAuth = (token: string) => ({
+  clientOptions: {
+    token: { token },
+    authSchemePreference: ["httpBearerAuth"],
+  },
+});
+
+export function resolveBedrockAuth(params: {
+  secretKey: string;
+  allowDefaultCredentials: boolean;
+}): {
+  credentials?: z.infer<typeof BedrockAccessKeysSchema>;
+  clientOptions?: {
+    token: { token: string };
+    authSchemePreference: string[];
+  };
+} {
+  const { secretKey, allowDefaultCredentials } = params;
+
+  if (
+    secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS &&
+    allowDefaultCredentials
+  ) {
+    return {};
+  }
+
+  try {
+    const parsedCredential = BedrockCredentialSchema.parse(
+      JSON.parse(secretKey),
+    );
+
+    if ("apiKey" in parsedCredential) {
+      return createBedrockBearerAuth(parsedCredential.apiKey);
+    }
+
+    return {
+      credentials: parsedCredential,
+    };
+  } catch {
+    throw new Error(
+      "Invalid Bedrock credentials. Expected AWS access key JSON or a Bedrock API key.",
+    );
+  }
+}
+
 type ProcessTracedEvents = () => Promise<void>;
 
 type LLMCompletionParams = {
@@ -77,9 +267,9 @@ type LLMCompletionParams = {
     secretKey: string;
     extraHeaders?: string | null;
     baseURL?: string | null;
-    config?: Record<string, string> | null;
+    config?: LLMConnectionConfig | null;
   };
-  structuredOutputSchema?: ZodSchema | LLMJSONSchema;
+  structuredOutputSchema?: ZodType | LLMJSONSchema;
   callbacks?: BaseCallbackHandler[];
   maxRetries?: number;
   traceSinkParams?: TraceSinkParams;
@@ -101,12 +291,12 @@ export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: false;
   },
-): Promise<string>;
+): Promise<string | CompletionWithReasoning>;
 
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: false;
-    structuredOutputSchema: ZodSchema;
+    structuredOutputSchema: ZodType;
   },
 ): Promise<Record<string, unknown>>;
 
@@ -115,12 +305,13 @@ export async function fetchLLMCompletion(
     streaming: false;
     tools: LLMToolDefinition[];
   },
-): Promise<ToolCallResponse>;
+): Promise<ToolCallResponse & { reasoning?: string }>;
 
 export async function fetchLLMCompletion(
   params: FetchLLMCompletionParams,
 ): Promise<
   | string
+  | CompletionWithReasoning
   | IterableReadableStream<Uint8Array>
   | Record<string, unknown>
   | ToolCallResponse
@@ -140,6 +331,57 @@ export async function fetchLLMCompletion(
   const { baseURL, config } = llmConnection;
   const apiKey = decrypt(llmConnection.secretKey); // the apiKey must never be printed to the console
   const extraHeaders = decryptAndParseExtraHeaders(llmConnection.extraHeaders);
+
+  // Common proxy configuration for all adapters
+  const proxyUrl = env.HTTPS_PROXY;
+  const proxyDispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
+  const timeoutMs = env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS;
+  const secureLlmFetch = (
+    logContext: string,
+    additionalSensitiveHeaders?: string[],
+  ) =>
+    createSecureLlmFetch({
+      logContext,
+      additionalSensitiveHeaders,
+      dispatcher: proxyDispatcher,
+    });
+
+  // Execution engine dispatch: adapters rolled out via
+  // LANGFUSE_LLM_COMPLETION_AI_SDK_ADAPTERS run on the AI SDK engine, which
+  // preserves all return shapes and error classification of the LangChain
+  // engine. Caller-provided LangChain callbacks are not invoked on this path;
+  // internal tracing is captured natively and routed through the regular OTel
+  // ingestion pipeline instead of the LangChain callback handler.
+  const executionDecision = resolveLlmExecutionDecision({
+    modelParams,
+    llmConnectionConfig: config,
+    baseURL,
+    shouldUseLangfuseAPIKey,
+    enabledAdapters: env.LANGFUSE_LLM_COMPLETION_AI_SDK_ADAPTERS,
+  });
+  recordLlmExecutionDecision(executionDecision);
+
+  logger.debug(`LLM Completion Execution engine: ${executionDecision.engine}`);
+
+  if (executionDecision.engine === "ai-sdk") {
+    return executeAiSdkCompletion({
+      messages,
+      tools,
+      modelParams,
+      streaming,
+      structuredOutputSchema: params.structuredOutputSchema,
+      apiKey,
+      baseURL,
+      extraHeaders,
+      llmConnectionConfig: config,
+      shouldUseLangfuseAPIKey,
+      maxRetries,
+      timeoutMs,
+      createFetch: secureLlmFetch,
+      decision: executionDecision,
+      traceSinkParams,
+    });
+  }
 
   let finalCallbacks: BaseCallbackHandler[] | undefined = callbacks ?? [];
   let processTracedEvents: ProcessTracedEvents = () => Promise.resolve();
@@ -222,72 +464,41 @@ export async function fetchLLMCompletion(
     (m) => m.content.length > 0 || "tool_calls" in m,
   );
 
-  // Common proxy configuration for all adapters
-  const proxyUrl = env.HTTPS_PROXY;
-  const proxyAgent = proxyUrl ? new HttpsProxyAgent(proxyUrl) : undefined;
-  const timeoutMs = env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS;
-
-  let chatModel:
-    | ChatOpenAI
-    | ChatAnthropic
-    | ChatBedrockConverse
-    | ChatVertexAI
-    | ChatGoogleGenerativeAI;
+  let chatModel: ChatOpenAI | ChatAnthropic | ChatBedrockConverse | ChatGoogle;
+  let usesOpenAIResponsesApi = false;
   if (modelParams.adapter === LLMAdapter.Anthropic) {
-    const isClaude45Family =
-      modelParams.model?.includes("claude-sonnet-4-5") ||
-      modelParams.model?.includes("claude-opus-4-1") ||
-      modelParams.model?.includes("claude-opus-4-5") ||
-      modelParams.model?.includes("claude-haiku-4-5");
-
-    const chatOptions: Record<string, any> = {
+    const chatOptions: ChatAnthropicInput = {
       anthropicApiKey: apiKey,
       anthropicApiUrl: baseURL ?? undefined,
-      modelName: modelParams.model,
+      model: modelParams.model,
       maxTokens: modelParams.max_tokens,
       callbacks: finalCallbacks,
       clientOptions: {
         maxRetries,
+        defaultHeaders: extraHeaders,
         timeout: timeoutMs,
-        ...(proxyAgent && { httpAgent: proxyAgent }),
+        fetch: secureLlmFetch("Anthropic LLM base URL", [
+          ANTHROPIC_API_KEY_HEADER,
+        ]),
       },
       temperature: modelParams.temperature,
       topP: modelParams.top_p,
-      invocationKwargs: modelParams.providerOptions,
+      invocationKwargs: getAnthropicInvocationKwargs(modelParams),
     };
 
     chatModel = new ChatAnthropic(chatOptions);
-
-    if (isClaude45Family) {
-      if (chatModel.topP === -1) {
-        chatModel.topP = undefined;
-      }
-
-      // TopP and temperature cannot be specified both,
-      // but Langchain is setting placeholder values despite that
-      if (
-        modelParams.temperature !== undefined &&
-        modelParams.top_p === undefined
-      ) {
-        chatModel.topP = undefined;
-      }
-
-      if (
-        modelParams.top_p !== undefined &&
-        modelParams.temperature === undefined
-      ) {
-        chatModel.temperature = undefined;
-      }
-    }
+    normalizeAnthropicSamplingParams(chatModel, modelParams);
   } else if (modelParams.adapter === LLMAdapter.OpenAI) {
     const processedBaseURL = processOpenAIBaseURL({
       url: baseURL,
       modelName: modelParams.model,
     });
+    const openAIConfig = OpenAIConfigSchema.parse(config ?? {});
+    usesOpenAIResponsesApi = openAIConfig.useResponsesApi;
 
     chatModel = new ChatOpenAI({
-      openAIApiKey: apiKey,
-      modelName: modelParams.model,
+      apiKey,
+      model: modelParams.model,
       temperature: modelParams.temperature,
       ...(isOpenAIReasoningModel(modelParams.model as OpenAIModel)
         ? { maxCompletionTokens: modelParams.max_tokens }
@@ -298,9 +509,11 @@ export async function fetchLLMCompletion(
       maxRetries,
       configuration: {
         baseURL: processedBaseURL,
+        timeout: timeoutMs,
         defaultHeaders: extraHeaders,
-        ...(proxyAgent && { httpAgent: proxyAgent }),
+        fetch: secureLlmFetch("OpenAI LLM base URL"),
       },
+      useResponsesApi: openAIConfig.useResponsesApi,
       modelKwargs: modelParams.providerOptions,
       timeout: timeoutMs,
     });
@@ -317,8 +530,11 @@ export async function fetchLLMCompletion(
       maxRetries,
       timeout: timeoutMs,
       configuration: {
+        timeout: timeoutMs,
         defaultHeaders: extraHeaders,
-        ...(proxyAgent && { httpAgent: proxyAgent }),
+        fetch: secureLlmFetch("Azure OpenAI LLM base URL", [
+          AZURE_OPENAI_API_KEY_HEADER,
+        ]),
       },
       modelKwargs: modelParams.providerOptions,
     });
@@ -330,16 +546,16 @@ export async function fetchLLMCompletion(
     // Handle both explicit credentials and default provider chain
     // Only allow default provider chain in self-hosted or internal AI features
     const isSelfHosted = !isLangfuseCloud;
-    const credentials =
-      apiKey === BEDROCK_USE_DEFAULT_CREDENTIALS &&
-      (isSelfHosted || shouldUseLangfuseAPIKey)
-        ? undefined // undefined = use AWS SDK default credential provider chain
-        : BedrockCredentialSchema.parse(JSON.parse(apiKey));
+    const { credentials, clientOptions } = resolveBedrockAuth({
+      secretKey: apiKey,
+      allowDefaultCredentials: isSelfHosted || shouldUseLangfuseAPIKey,
+    });
 
     chatModel = new ChatBedrockConverse({
       model: modelParams.model,
       region,
       credentials,
+      clientOptions,
       temperature: modelParams.temperature,
       maxTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
@@ -353,6 +569,11 @@ export async function fetchLLMCompletion(
       ? VertexAIConfigSchema.parse(config)
       : { location: undefined };
 
+    // location flows into the Vertex host both SDKs build from it
+    // (https://${location}-aiplatform.googleapis.com), so reject anything that
+    // could reshape that host and exfiltrate the Google OAuth bearer token.
+    assertValidVertexLocation(location);
+
     // Handle both explicit credentials and default provider chain (ADC)
     // Only allow default provider chain in self-hosted or internal AI features
     const shouldUseDefaultCredentials =
@@ -362,42 +583,119 @@ export async function fetchLLMCompletion(
     // This supports: GKE Workload Identity, Cloud Run service accounts, GCE metadata service, gcloud auth
     // Security: We intentionally ignore user-provided projectId when using ADC to prevent
     // privilege escalation attacks where users could access other GCP projects via the server's credentials
-    const authOptions = shouldUseDefaultCredentials
-      ? undefined // Always use ADC auto-detection, never allow user-specified projectId
-      : {
-          credentials: GCPServiceAccountKeySchema.parse(JSON.parse(apiKey)),
-          projectId: GCPServiceAccountKeySchema.parse(JSON.parse(apiKey))
-            .project_id,
-        };
+    const serviceAccountKey = shouldUseDefaultCredentials
+      ? undefined
+      : GCPServiceAccountKeySchema.parse(JSON.parse(apiKey));
+    const authOptions: GoogleAuthOptions | undefined = serviceAccountKey
+      ? {
+          credentials: serviceAccountKey,
+          projectId: serviceAccountKey.project_id,
+        }
+      : undefined; // Always use ADC auto-detection, never allow user-specified projectId
 
     // Requests time out after 60 seconds for both public and private endpoints by default
     // Reference: https://cloud.google.com/vertex-ai/docs/predictions/get-online-predictions#send-request
-    chatModel = new ChatVertexAI({
-      modelName: modelParams.model,
-      temperature: modelParams.temperature,
-      maxOutputTokens: modelParams.max_tokens,
-      topP: modelParams.top_p,
-      callbacks: finalCallbacks,
-      maxRetries,
-      location,
-      authOptions,
-      ...(modelParams.providerOptions && {
-        additionalModelRequestFields: modelParams.providerOptions,
-      }),
-    });
+    if (isClaudeModel(modelParams.model)) {
+      assertValidAnthropicVertexModelName(modelParams.model);
+      const anthropicVertexGoogleAuth = new GoogleAuth({
+        ...authOptions,
+        scopes: authOptions?.scopes ?? VERTEX_AI_AUTH_SCOPES,
+      });
+      const anthropicVertexRegion = location ?? "global";
+
+      // LangChain keeps Claude-on-Vertex on ChatAnthropic + AnthropicVertex
+      // while @langchain/google is still focused on Gemini/Gemma.
+      // https://github.com/langchain-ai/langchain-google/discussions/1422
+      chatModel = new ChatAnthropic({
+        model: modelParams.model,
+        temperature: modelParams.temperature,
+        maxTokens: modelParams.max_tokens,
+        topP: modelParams.top_p,
+        callbacks: finalCallbacks,
+        maxRetries,
+        invocationKwargs: (() => {
+          const { model: _ignoredModelOverride, ...sanitized } =
+            (getAnthropicInvocationKwargs(modelParams) ?? {}) as Record<
+              string,
+              unknown
+            >;
+          return sanitized;
+        })(),
+        clientOptions: {
+          timeout: timeoutMs,
+          defaultHeaders: extraHeaders,
+          fetch: secureLlmFetch("Anthropic Vertex AI endpoint", [
+            VERTEX_AI_AUTH_HEADER,
+          ]),
+        },
+        createClient: (options) =>
+          new AnthropicVertex({
+            ...options,
+            // The base Anthropic SDK defaults apiKey/authToken from
+            // ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN when undefined, which on
+            // Vertex would ship as headers that win over Google's OAuth token
+            // and leak the operator's Anthropic credentials. Force both null so
+            // auth comes only from googleAuth (the vertex-sdk type omits these
+            // fields though the base client still honors them).
+            ...({ apiKey: null, authToken: null } as {
+              apiKey: null;
+              authToken: null;
+            }),
+            region: anthropicVertexRegion,
+            projectId: serviceAccountKey?.project_id,
+            // @anthropic-ai/vertex-sdk depends on its own google-auth-library
+            // copy, so the structurally compatible GoogleAuth instance needs an
+            // explicit cast across duplicate private class declarations.
+            googleAuth: anthropicVertexGoogleAuth as unknown as NonNullable<
+              AnthropicVertexClientOptions["googleAuth"]
+            >,
+            maxRetries: 0,
+          }),
+      });
+      normalizeAnthropicSamplingParams(chatModel, modelParams);
+    } else {
+      const googleProviderOptions = googleProviderOptionsSchema.parse(
+        modelParams.providerOptions,
+      );
+
+      chatModel = new ChatGoogle({
+        model: modelParams.model,
+        temperature: modelParams.temperature,
+        maxOutputTokens: modelParams.max_tokens,
+        topP: modelParams.top_p,
+        callbacks: finalCallbacks,
+        maxRetries,
+        location,
+        vertexai: true,
+        apiClient: createSecureVertexAIApiClient({
+          authOptions,
+          dispatcher: proxyDispatcher,
+        }),
+        ...(modelParams.maxReasoningTokens !== undefined && {
+          maxReasoningTokens: modelParams.maxReasoningTokens,
+        }),
+        ...((googleProviderOptions as any) ?? {}), // Typecast as thinkingLevel is intentionally looser typed
+      });
+    }
   } else if (modelParams.adapter === LLMAdapter.GoogleAIStudio) {
-    chatModel = new ChatGoogleGenerativeAI({
+    const googleProviderOptions = googleProviderOptionsSchema.parse(
+      modelParams.providerOptions,
+    );
+
+    chatModel = new ChatGoogle({
       model: modelParams.model,
-      baseUrl: baseURL ?? undefined,
       temperature: modelParams.temperature,
       maxOutputTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
       callbacks: finalCallbacks,
       maxRetries,
       apiKey,
-      ...(modelParams.providerOptions && {
-        additionalModelRequestFields: modelParams.providerOptions,
+      apiClient: createSecureGoogleAIStudioApiClient({
+        apiKey,
+        baseURL,
+        dispatcher: proxyDispatcher,
       }),
+      ...((googleProviderOptions as any) ?? {}), // Typecast as thinkingLevel is intentionally looser typed
     });
   } else {
     const _exhaustiveCheck: never = modelParams.adapter;
@@ -413,12 +711,86 @@ export async function fetchLLMCompletion(
     metadata: traceSinkParams?.metadata,
   };
 
+  const runtimeTimeoutEnabled = RUNTIME_TIMEOUT_ADAPTERS.has(
+    modelParams.adapter,
+  );
+  const runtimeTimeoutController = runtimeTimeoutEnabled
+    ? new AbortController()
+    : undefined;
+  const runConfigWithTimeout = runtimeTimeoutController
+    ? {
+        ...runConfig,
+        signal: runtimeTimeoutController.signal,
+      }
+    : runConfig;
+
+  const supportsReasoning = adapterSupportsReasoning(modelParams.adapter);
+  const shouldNormalizeModelContentBlocks =
+    shouldNormalizeContentBlocks(modelParams);
+  const shouldNormalizeStreamingContentBlocks =
+    shouldNormalizeModelContentBlocks || usesOpenAIResponsesApi;
+
   try {
     // Important: await all generations in the try block as otherwise `processTracedEvents` will run too early in finally block
     if (params.structuredOutputSchema) {
-      const structuredOutput = await (chatModel as ChatOpenAI) // Typecast necessary due to https://github.com/langchain-ai/langchainjs/issues/6795
-        .withStructuredOutput(params.structuredOutputSchema)
-        .invoke(finalMessages, runConfig);
+      // Thinking-capable adapters may produce reasoning blocks that corrupt JSON schema
+      // parsing. Force function calling so the parser reads from tool_calls instead.
+      const structuredOutputSchema = params.structuredOutputSchema;
+      const structuredOutputConfig = supportsReasoning
+        ? { method: "functionCalling" as const }
+        : undefined;
+      const createStructuredOutputModel = () => {
+        const isAnthropicChatModel =
+          modelParams.adapter === LLMAdapter.Anthropic ||
+          (modelParams.adapter === LLMAdapter.VertexAI &&
+            isClaudeModel(modelParams.model));
+
+        if (
+          !isAnthropicChatModel ||
+          !isAnthropicAlwaysAdaptiveThinkingModel(modelParams.model)
+        ) {
+          return (chatModel as ChatOpenAI).withStructuredOutput(
+            structuredOutputSchema,
+            structuredOutputConfig,
+          );
+        }
+
+        const anthropicChatModel = chatModel as ChatAnthropic & {
+          thinking: ChatAnthropicInput["thinking"];
+        };
+        const originalThinking = anthropicChatModel.thinking;
+
+        try {
+          // Keep LangChain's structured-output decision in sync with
+          // Anthropic's Fable/Mythos semantics. In @langchain/anthropic 1.3.26,
+          // ChatAnthropic defaults this internal field to { type: "disabled" }.
+          // withStructuredOutput() reads that field before request serialization:
+          // disabled thinking makes it force tool_choice, while adaptive
+          // thinking avoids forced tool use. Fable/Mythos treat an omitted
+          // thinking field as always-on adaptive thinking, and Anthropic rejects
+          // adaptive thinking combined with forced tool use. Temporarily mirror
+          // the adaptive state only while constructing the structured-output
+          // runnable; the actual request still omits the thinking field via
+          // anthropicInvocationKwargs above.
+          anthropicChatModel.thinking = { type: "adaptive" };
+
+          return anthropicChatModel.withStructuredOutput(
+            structuredOutputSchema,
+            structuredOutputConfig,
+          );
+        } finally {
+          anthropicChatModel.thinking = originalThinking;
+        }
+      };
+      const structuredOutputModel = createStructuredOutputModel();
+
+      const structuredOutput = await executeWithRuntimeTimeout({
+        enabled: runtimeTimeoutEnabled,
+        timeoutMs,
+        abortController: runtimeTimeoutController,
+        operation: () =>
+          structuredOutputModel.invoke(finalMessages, runConfigWithTimeout),
+      });
 
       return structuredOutput;
     }
@@ -429,94 +801,156 @@ export async function fetchLLMCompletion(
         function: tool,
       }));
 
-      const result = await chatModel
-        .bindTools(langchainTools)
-        .invoke(finalMessages, runConfig);
+      const result = await executeWithRuntimeTimeout({
+        enabled: runtimeTimeoutEnabled,
+        timeoutMs,
+        abortController: runtimeTimeoutController,
+        operation: () =>
+          chatModel
+            .bindTools(langchainTools)
+            .invoke(finalMessages, runConfigWithTimeout),
+      });
 
-      const parsed = ToolCallResponseSchema.safeParse(result);
+      // Always normalize through `splitAIMessage` so we feed the schema the
+      // standard `contentBlocks` shape regardless of provider, instead of the
+      // raw, provider-specific message content.
+      const { contentWithoutThinking, reasoning } = splitAIMessage(result);
+      const parsed = ToolCallResponseSchema.safeParse({
+        content: contentWithoutThinking,
+        tool_calls: result.tool_calls,
+      });
       if (!parsed.success) throw Error("Failed to parse LLM tool call result");
 
-      return parsed.data;
+      return {
+        ...parsed.data,
+        ...(reasoning ? { reasoning } : {}),
+      };
     }
 
     if (streaming)
-      return chatModel
-        .pipe(new BytesOutputParser())
-        .stream(finalMessages, runConfig);
+      return await executeWithRuntimeTimeout({
+        enabled: runtimeTimeoutEnabled,
+        timeoutMs,
+        abortController: runtimeTimeoutController,
+        operation: () =>
+          chatModel
+            .pipe(
+              createBytesOutputParser(shouldNormalizeStreamingContentBlocks),
+            )
+            .stream(finalMessages, runConfigWithTimeout),
+      });
 
-    const completion = await chatModel
-      .pipe(new StringOutputParser())
-      .invoke(finalMessages, runConfig);
+    // content with thinking blocks can't be handled by StringOutputParser
+    // Invoke model directly and extract text + reasoning separately.
+    if (shouldNormalizeModelContentBlocks) {
+      const aiMessage = await executeWithRuntimeTimeout({
+        enabled: runtimeTimeoutEnabled,
+        timeoutMs,
+        abortController: runtimeTimeoutController,
+        operation: () => chatModel.invoke(finalMessages, runConfigWithTimeout),
+      });
+      const completion = extractCompletionWithReasoning(aiMessage);
+
+      // Bedrock only returns reasoning blocks for selected models. Preserve the
+      // historical plain-string shape when the response contains no reasoning.
+      if (
+        modelParams.adapter === LLMAdapter.Bedrock &&
+        completion.reasoning == null
+      ) {
+        return completion.text;
+      }
+
+      return completion;
+    }
+
+    const completion = await executeWithRuntimeTimeout({
+      enabled: runtimeTimeoutEnabled,
+      timeoutMs,
+      abortController: runtimeTimeoutController,
+      operation: () =>
+        chatModel
+          .pipe(new StringOutputParser())
+          .invoke(finalMessages, runConfigWithTimeout),
+    });
 
     return completion;
   } catch (e) {
-    const responseStatusCode =
-      (e as any)?.response?.status ?? (e as any)?.status ?? 500;
-    const message = e instanceof Error ? e.message : String(e);
-
-    // Check for non-retryable error patterns in message
-    const nonRetryablePatterns = [
-      "Request timed out",
-      "is not valid JSON",
-      "Unterminated string in JSON at position",
-      "TypeError",
-    ];
-
-    const hasNonRetryablePattern = nonRetryablePatterns.some((pattern) =>
-      message.includes(pattern),
-    );
-
-    // Determine retryability:
-    // - 429 (rate limit): retryable with custom delay
-    // - 5xx (server errors): retryable with custom delay
-    // - 4xx (client errors): not retryable
-    // - Non-retryable patterns: not retryable
-    let isRetryable = false;
-
-    if (
-      e instanceof Error &&
-      (e.name === "InsufficientQuotaError" || e.name === "ThrottlingException")
-    ) {
-      // Explicit 429 handling
-      isRetryable = true;
-    } else if (responseStatusCode >= 500) {
-      // 5xx errors are retryable (server issues)
-      isRetryable = true;
-    } else if (responseStatusCode === 429) {
-      // Rate limit is retryable
-      isRetryable = true;
-    }
-
-    // Override if error message indicates non-retryable issue
-    if (hasNonRetryablePattern) {
-      isRetryable = false;
-    }
-
-    throw new LLMCompletionError({
-      message,
-      responseStatusCode,
-      isRetryable,
-    });
+    throw mapToLLMCompletionError(e);
   } finally {
     await processTracedEvents();
   }
 }
 
-/**
- * Process baseURL template for OpenAI adapter only.
- * Replaces {model} placeholder with actual model name.
- * This is a workaround for proxies that require the model name in the URL azureOpenAIBasePath
- * while having OpenAI compliance otherwise
- */
-function processOpenAIBaseURL(params: {
-  url: string | null | undefined;
-  modelName: string;
-}): string | null | undefined {
-  const { url, modelName } = params;
+function extractCompletionWithReasoning(
+  message: AIMessage,
+): CompletionWithReasoning {
+  const { text, reasoning } = splitAIMessage(message);
 
-  if (!url || !url.includes("{model}")) {
-    return url;
+  return {
+    text,
+    ...(reasoning ? { reasoning } : {}),
+  };
+}
+
+function createBytesOutputParser(
+  normalizeContentBlocks: boolean,
+): BytesOutputParser {
+  return normalizeContentBlocks
+    ? new ContentBlockBytesOutputParser()
+    : new BytesOutputParser();
+}
+
+class ContentBlockBytesOutputParser extends BytesOutputParser {
+  // Override `_baseMessageToString` (not `_baseMessageContentToString`) so we
+  // have the whole AIMessage(Chunk) and can read `contentBlocks`, which the
+  // langchain provider translator normalizes into standard blocks. This strips
+  // reasoning blocks and also avoids serializing OpenAI Responses API lifecycle
+  // chunks such as empty `final_answer` phase markers.
+  protected _baseMessageToString(message: BaseMessage): string {
+    if (AIMessage.isInstance(message) || AIMessageChunk.isInstance(message)) {
+      return splitAIMessage(message).text;
+    }
+    return typeof message.content === "string"
+      ? message.content
+      : super._baseMessageToString(message);
+  }
+}
+
+// Reads the standard `contentBlocks` view of an AIMessage(Chunk) and splits it
+// into displayable text, reasoning, and a content array stripped of reasoning
+// and tool_call blocks (tool calls live on `message.tool_calls`).
+function splitAIMessage(
+  message: AIMessage | AIMessageChunk,
+): SplitAIMessageContent {
+  if (typeof message.content === "string") {
+    return { text: message.content, contentWithoutThinking: message.content };
   }
 
-  return url.replace("{model}", modelName);
+  const textParts: string[] = [];
+  const reasoningParts: string[] = [];
+  const contentWithoutThinking: Array<ContentBlock.Standard> = [];
+
+  for (const block of message.contentBlocks) {
+    if (block.type === "reasoning") {
+      if (typeof block.reasoning === "string")
+        reasoningParts.push(block.reasoning);
+      continue;
+    }
+    if (block.type === "tool_call") {
+      // Already represented in `message.tool_calls`; omit to avoid duplicates.
+      continue;
+    }
+    if (block.type === "text" && typeof block.text === "string") {
+      textParts.push(block.text);
+    }
+    contentWithoutThinking.push(block);
+  }
+
+  return {
+    text: textParts.join(""),
+    contentWithoutThinking,
+    ...(reasoningParts.length > 0
+      ? { reasoning: reasoningParts.join("") }
+      : {}),
+  };
 }

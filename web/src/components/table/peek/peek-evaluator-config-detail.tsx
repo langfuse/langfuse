@@ -9,18 +9,23 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { UserCircle2Icon } from "lucide-react";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { DeactivateEvalConfig } from "@/src/features/evals/components/deactivate-config";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
+import { LegacyEvalCallout } from "@/src/features/evals/components/legacy-eval-callout";
+import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
+import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
+import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
+import { TablePeekView } from "@/src/components/table/peek";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 
-export const PeekViewEvaluatorConfigDetail = ({
+const PeekViewEvaluatorConfigDetail = ({
   projectId,
 }: {
   projectId: string;
@@ -34,6 +39,11 @@ export const PeekViewEvaluatorConfigDetail = ({
     jobConfigurationId: peekId,
     projectId,
   });
+  const lazyExecutionCounts = useLazyEvaluatorExecutionCounts({
+    projectId,
+    evaluatorId: evalConfig?.id,
+    evaluator: evalConfig,
+  });
 
   const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
 
@@ -41,21 +51,26 @@ export const PeekViewEvaluatorConfigDetail = ({
     return <Skeleton className="h-full w-full rounded-none" />;
   }
 
+  const displayStatus =
+    lazyExecutionCounts.displayStatus ?? evalConfig.displayStatus;
+
   return (
-    <div className="grid h-full flex-1 grid-rows-[auto,auto,1fr] gap-2 overflow-hidden p-3 contain-layout">
+    <div className="grid h-full flex-1 grid-rows-[auto_auto_1fr] gap-2 overflow-hidden p-3 contain-layout">
       <div className="flex items-center justify-between">
         <div className="flex flex-row items-center gap-2">
           <span className="max-h-fit text-lg font-medium">Configuration</span>
           <div className="flex items-center gap-2">
             <StatusBadge
-              type={evalConfig.finalStatus.toLowerCase()}
+              type={displayStatus.toLowerCase()}
               isLive
               className="max-h-8"
             />
-            <DeactivateEvalConfig
-              projectId={projectId}
-              evalConfig={evalConfig}
-            />
+            {isLegacyEvalTarget(evalConfig.targetObject) && (
+              <DeactivateEvalConfig
+                projectId={projectId}
+                evalConfig={evalConfig}
+              />
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -67,7 +82,8 @@ export const PeekViewEvaluatorConfigDetail = ({
           <Switch
             disabled={
               !hasAccess ||
-              (evalConfig?.timeScope?.length === 1 &&
+              (isLegacyEvalTarget(evalConfig.targetObject) &&
+                evalConfig?.timeScope?.length === 1 &&
                 evalConfig.timeScope[0] === "EXISTING")
             }
             checked={isEditMode}
@@ -75,6 +91,20 @@ export const PeekViewEvaluatorConfigDetail = ({
           />
         </div>
       </div>
+
+      {evalConfig &&
+        evalConfig.targetObject &&
+        evalConfig.evalTemplate &&
+        displayStatus === "ACTIVE" && (
+          <LegacyEvalCallout
+            projectId={projectId}
+            evalConfigId={evalConfig.id}
+            targetObject={evalConfig.targetObject}
+          />
+        )}
+
+      <EvaluatorPausedCallout projectId={projectId} evalConfig={evalConfig} />
+
       <CardDescription className="flex items-center text-sm">
         <span className="mr-2 text-sm font-medium">Referenced Evaluator</span>
         {evalConfig.evalTemplate && (
@@ -129,5 +159,22 @@ export const PeekViewEvaluatorConfigDetail = ({
         />
       </div>
     </div>
+  );
+};
+
+export const TablePeekViewEvaluatorConfigDetail = (
+  props: Omit<
+    React.ComponentProps<typeof TablePeekView>,
+    "children" | "title"
+  > & {
+    projectId: string;
+  },
+) => {
+  const { projectId } = props;
+
+  return (
+    <TablePeekView {...props}>
+      <PeekViewEvaluatorConfigDetail projectId={projectId} />
+    </TablePeekView>
   );
 };

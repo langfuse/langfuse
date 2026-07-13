@@ -3,7 +3,57 @@ import {
   singleFilter,
   type SingleValueOption,
 } from "@langfuse/shared";
-import { encodeDelimitedArray, decodeDelimitedArray } from "use-query-params";
+import { normalizeLegacySessionPositionInTraceKey } from "@/src/components/session/session-position-in-trace";
+
+const encodeDelimitedArray = (values: string[], delimiter: string): string =>
+  values.join(delimiter);
+
+const decodeDelimitedArray = (
+  value: string,
+  delimiter: string,
+): string[] | undefined => {
+  if (value === "") {
+    return [];
+  }
+
+  return value.split(delimiter);
+};
+
+// Escape pipe characters in values to avoid conflicts with the delimiter
+// Uses backslash escaping: | → \|, and \ → \\
+export function escapePipeInValue(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
+}
+
+export function unescapePipeInValue(value: string): string {
+  return value.replace(/\\\|/g, "|").replace(/\\\\/g, "\\");
+}
+
+// Split on unescaped pipe characters only (pipes not preceded by backslash)
+export function splitOnUnescapedPipe(str: string): string[] {
+  const result: string[] = [];
+  let current = "";
+  let i = 0;
+
+  while (i < str.length) {
+    if (str[i] === "\\" && i + 1 < str.length) {
+      // Escaped character - include both backslash and next char
+      current += str[i] + str[i + 1];
+      i += 2;
+    } else if (str[i] === "|") {
+      // Unescaped pipe - split here
+      result.push(current);
+      current = "";
+      i++;
+    } else {
+      current += str[i];
+      i++;
+    }
+  }
+  result.push(current);
+
+  return result;
+}
 
 // Generic helpers for reusable encoding/decoding across feature areas
 export type GenericFilterOptions = Record<
@@ -12,9 +62,17 @@ export type GenericFilterOptions = Record<
 >;
 
 // Pure helper: compute UI-selected values from a filter entry and available values
+// Checkboxes always show the KEPT set: "no filter" renders every option
+// checked, and a `none of [excluded]` filter renders as everything-but-excluded
+// checked — for stringOptions and arrayOptions alike (LFE-10717). This makes
+// the deselect gesture round-trip: unchecking a value from the implicit-all
+// state persists `none of [value]`, which displays as exactly that value
+// unchecked.
 export function computeSelectedValues(
   availableValues: string[],
-  filterEntry: { operator?: string; value?: unknown } | undefined,
+  filterEntry:
+    | { operator?: string; value?: unknown; type?: string }
+    | undefined,
 ): string[] {
   if (!filterEntry) return availableValues;
   const values = (filterEntry.value as string[]) ?? [];
@@ -24,6 +82,17 @@ export function computeSelectedValues(
   }
   return values;
 }
+
+/**
+ * Upper bound for a serialized `?filter=` value that may be written to the
+ * URL. Browsers tolerate very long URLs, but the full request head (URL line
+ * + cookies + headers) is capped at ~16KB by Node's HTTP server and most
+ * proxies — an oversized filter query 431s the refresh/share round-trip it
+ * exists for (LFE-10717). States above this budget are kept in the
+ * session-storage mirror only: same-tab refreshes keep working, a copied link
+ * degrades to "no filter" instead of a dead page.
+ */
+export const MAX_URL_FILTER_QUERY_LENGTH = 4000;
 
 /**
  * Encodes FilterState to the legacy semicolon-delimited format
@@ -40,7 +109,9 @@ export function encodeFiltersGeneric(filters: FilterState): string {
           const key =
             f.type === "numberObject" ||
             f.type === "stringObject" ||
-            f.type === "categoryOptions"
+            f.type === "booleanObject" ||
+            f.type === "categoryOptions" ||
+            f.type === "positionInTrace"
               ? (f as any).key || ""
               : "";
 
@@ -53,7 +124,14 @@ export function encodeFiltersGeneric(filters: FilterState): string {
             f.type === "arrayOptions" ||
             f.type === "categoryOptions"
           ) {
-            encodedValue = encodeURIComponent((f.value as string[]).join("|"));
+            // Escape pipe characters in individual values before joining with pipe delimiter
+            const escapedValues = (f.value as string[]).map(escapePipeInValue);
+            encodedValue = encodeURIComponent(escapedValues.join("|"));
+          } else if (f.type === "positionInTrace") {
+            encodedValue =
+              f.value === undefined || f.value === null
+                ? ""
+                : encodeURIComponent(String(f.value));
           } else {
             encodedValue = encodeURIComponent(String(f.value));
           }
@@ -89,6 +167,10 @@ export function decodeFiltersGeneric(query: string): FilterState {
 
     const decodedOperator = decodeURIComponent(operator);
     const decodedKey = key ? decodeURIComponent(key) : "";
+    const normalizedKey =
+      type === "positionInTrace"
+        ? normalizeLegacySessionPositionInTraceKey(decodedKey)
+        : decodedKey;
     const decodedValue = decodeURIComponent(encodedValue);
 
     // Parse value based on type
@@ -97,17 +179,22 @@ export function decodeFiltersGeneric(query: string): FilterState {
       parsedValue = new Date(decodedValue);
     } else if (type === "number" || type === "numberObject") {
       parsedValue = Number(decodedValue);
+    } else if (type === "positionInTrace") {
+      parsedValue = decodedValue === "" ? undefined : Number(decodedValue);
     } else if (
       type === "stringOptions" ||
       type === "arrayOptions" ||
       type === "categoryOptions"
     ) {
+      // Split on unescaped pipe characters only, then unescape each value
       parsedValue = decodedValue
-        ? decodedValue.split("|")
-        : decodedValue === ""
-          ? [""] // allow empty strings (i.e, filter for empty trace name)
-          : [decodedValue];
-    } else if (type === "boolean") {
+        ? splitOnUnescapedPipe(decodedValue).map(unescapePipeInValue)
+        : type === "arrayOptions"
+          ? [] // Empty array for arrayOptions — empty strings are not valid array values (e.g., tags)
+          : decodedValue === ""
+            ? [""] // allow empty strings for stringOptions (i.e, filter for empty trace name)
+            : [decodedValue];
+    } else if (type === "boolean" || type === "booleanObject") {
       parsedValue = decodedValue === "true";
     } else {
       parsedValue = decodedValue;
@@ -122,13 +209,16 @@ export function decodeFiltersGeneric(query: string): FilterState {
     };
 
     // Add key field for types that need it
-    if (
-      decodedKey &&
-      (type === "categoryOptions" ||
+    if (normalizedKey) {
+      if (
+        type === "categoryOptions" ||
         type === "numberObject" ||
-        type === "stringObject")
-    ) {
-      filter.key = decodedKey;
+        type === "booleanObject" ||
+        type === "stringObject" ||
+        type === "positionInTrace"
+      ) {
+        filter.key = normalizedKey;
+      }
     }
 
     // Validate with zod

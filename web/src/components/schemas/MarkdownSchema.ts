@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 const MARKDOWN_PATTERNS = [
   "(\\*\\*?|__?)(.*?)\\1", // Matches bold (** or __) and italic (* or _) with proper escaping

@@ -1,5 +1,8 @@
 import { type CaptureResult, type CaptureOptions } from "posthog-js";
 import { usePostHog } from "posthog-js/react";
+import { useCallback } from "react";
+
+export const V4_BETA_ENABLED_POSTHOG_PROPERTY = "v4BetaEnabled";
 
 // resource:action, only use snake_case
 // Exported to silence @typescript-eslint/no-unused-vars v8 warning
@@ -32,7 +35,17 @@ export const events = {
     "download_button_click",
     "view_mode_switch",
     "tree_panel_toggle",
+    "graph_view_toggle",
+    // Aggregated vs expanded graph build mode (LFE-10676).
+    "graph_mode_switch",
+    // Fired from the tree, timeline, graph, and search-result click handlers;
+    // `source` says which surface drove the navigation.
+    "node_selected",
   ],
+  // The shared table peek panel (opened via the `peek` URL param). Props carry
+  // `routePattern` (the Next.js route pattern, never a concrete URL) so opens
+  // can be sliced by surface without leaking ids.
+  peek: ["opened", "closed", "expand_toggle", "resized", "open_in_new_tab"],
   generations: ["export"],
   saved_views: [
     "create",
@@ -49,6 +62,19 @@ export const events = {
     "permalink_visit",
     "update_name",
     "search_views",
+    "system_preset_selected",
+    "category_chip_open",
+    "category_chip_apply",
+    "category_preset_preview",
+    "category_preset_coming_soon_click",
+    // Fired when a chip popover closes; carries durationMs + outcome
+    // ("applied" | "cleared" | "previewed_only" | "no_interaction") so the
+    // explore → activate funnel and dwell time read from one event.
+    "category_chip_close",
+    // A bookmarked/stored system-preset id that the catalog retired — the
+    // user was shown the one-time notice and landed on the default view.
+    "retired_view_redirect",
+    "applied",
   ],
   score: [
     "create",
@@ -108,7 +134,11 @@ export const events = {
   ],
   sign_in: ["cloud_region_switch", "button_click"],
   sign_up: ["button_click"],
-  auth: ["reset_password_email_requested", "update_password_form_submit"],
+  auth: [
+    "reset_password_email_requested",
+    "update_password_form_submit",
+    "set_password_form_submit",
+  ],
   playground: [
     "execute_button_click",
     "save_to_new_prompt_button_click",
@@ -116,6 +146,25 @@ export const events = {
   ],
   dashboard: [
     "clone_dashboard",
+    "home_dashboard_viewed",
+    "home_dashboard_peeked",
+    "home_dashboard_set_default",
+    "home_edit_pencil_click",
+    "locked_edit_attempt",
+    "clone_first_cancelled",
+    "clone_open_existing_click",
+    "widget_copy_first_open",
+    "widget_copied_to_project",
+    "widget_json_downloaded",
+    "widget_copied_to_clipboard",
+    "widget_pasted",
+    "widget_paste_rejected",
+    "widget_duplicated",
+    "dashboard_json_imported",
+    "add_widget_dialog_open",
+    "add_widget_tab_switch",
+    "widget_added",
+    "dashboard_renamed_inline",
     "chart_tab_switch",
     "date_range_changed",
     "new_widget_form_open",
@@ -124,17 +173,21 @@ export const events = {
     "delete_dashboard_form_open",
     "delete_dashboard_button_click",
   ],
+  monitors: ["delete_form_open", "delete_monitor_button_click"],
   datasets: [
     "delete_form_open",
     "delete_dataset_button_click",
     "update_form_open",
-    "delete_form_open",
     "new_form_open",
     "new_form_submit",
     "update_form_submit",
     "delete_form_submit",
   ],
-  organizations: ["new_form_submit", "new_form_open"],
+  organizations: [
+    "new_form_submit",
+    "new_form_open",
+    "demo_project_button_click",
+  ],
   projects: ["new_form_submit", "new_form_open"],
   dataset_item: [
     "archive_toggle",
@@ -144,6 +197,7 @@ export const events = {
     "new_from_trace_form_open",
     "upload_csv_button_click",
     "upload_csv_form_submit",
+    "select_observations_button_click",
     "delete",
   ],
   dataset_run: [
@@ -160,13 +214,19 @@ export const events = {
     "compare_run_removed",
   ],
   notification: ["click_link", "dismiss_notification"],
+  toast: ["report_issue", "dismiss"],
   tag: [
     "add_existing_tag",
     "remove_tag",
     "modal_open",
     "create_new_button_click",
   ],
-  onboarding: ["code_example_tab_switch", "tracing_check_active"],
+  onboarding: [
+    "code_example_tab_switch",
+    "tracing_check_active",
+    "tracing_agent_prompt_copy_clicked",
+    "tracing_manual_docs_link_clicked",
+  ],
   user_settings: ["theme_changed"],
   project_settings: [
     "project_delete",
@@ -193,12 +253,34 @@ export const events = {
     "pricing_dialog_opened",
     "delete_organization",
     "ai_features_toggle",
+    "ai_telemetry_toggle",
   ],
   help_popup: ["opened", "href_clicked"],
   navigate_detail_pages: ["button_click_prev_or_next"],
-  support_chat: ["initiated", "opened", "message_sent"], // also used on landing page for consistency
+  support_chat: [
+    "initiated",
+    "opened",
+    "message_sent",
+    "community_hours_click",
+  ], // also used on landing page for consistency
+  in_app_agent: ["new_chat_started", "new_chat_turn"],
   cmd_k_menu: ["opened", "search_entered", "navigated"],
   spend_alert: ["created", "updated", "deleted"],
+  sidebar: ["book_a_call_clicked", "v4_beta_toggled"],
+  // Filter/search-bar usage analytics (LFE-10781). METADATA ONLY — payloads
+  // never carry a raw filter value, search text, or AI prompt (PII). Only
+  // type/column/operator/key(field-name)/counts/lengths/booleans/enums.
+  // `isV4` on every event reflects fast-mode (v4 events table) at action time.
+  filters: [
+    "applied",
+    "cleared",
+    "facet_operator_toggled",
+    "search_submitted",
+    "search_error",
+    "ai_generate_requested",
+    "ai_generate_applied",
+    "ai_generate_failed",
+  ],
 } as const;
 
 // type that represents all possible event names, e.g. "traces:bookmark"
@@ -209,14 +291,16 @@ type EventName = {
 export const usePostHogClientCapture = () => {
   const posthog = usePostHog();
 
-  // wrapped posthog.capture function that only allows events that are in the allowlist
-  function capture(
-    eventName: EventName,
-    properties?: Record<string, any> | null,
-    options?: CaptureOptions,
-  ): CaptureResult | void {
-    return posthog.capture(eventName, properties, options);
-  }
-
-  return capture;
+  // wrapped posthog.capture function that only allows events that are in the
+  // allowlist; stable identity so it is safe in useCallback/useMemo deps
+  return useCallback(
+    function capture(
+      eventName: EventName,
+      properties?: Record<string, any> | null,
+      options?: CaptureOptions,
+    ): CaptureResult | void {
+      return posthog.capture(eventName, properties, options);
+    },
+    [posthog],
+  );
 };

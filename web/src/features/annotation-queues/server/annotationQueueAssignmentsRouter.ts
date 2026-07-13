@@ -10,8 +10,8 @@ import {
   Prisma,
 } from "@langfuse/shared";
 import { getUserProjectRoles } from "@langfuse/shared/src/server";
-import { partition } from "lodash";
-import z from "zod/v4";
+import partition from "lodash/partition";
+import z from "zod";
 
 export const queueAssignmentRouter = createTRPCRouter({
   createMany: protectedProjectProcedure

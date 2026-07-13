@@ -2,7 +2,7 @@
 
 import * as fs from "fs";
 import { randomUUID } from "crypto";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { getQueue, QueueName, QueueJobs } from "@langfuse/shared/src/server";
 import { ProjectQueueEventSchema } from "@langfuse/shared/src/server";
 

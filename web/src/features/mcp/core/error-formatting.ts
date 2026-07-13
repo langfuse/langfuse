@@ -6,7 +6,7 @@
  */
 
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
-import { ZodError } from "zod/v4";
+import { ZodError } from "zod";
 import { isUserInputError, isApiServerError } from "./errors";
 import {
   BaseError,

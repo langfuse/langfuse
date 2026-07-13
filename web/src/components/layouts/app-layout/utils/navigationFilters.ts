@@ -72,6 +72,14 @@ export const filters = {
   featureFlags: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (route.featureFlag === undefined) return route;
 
+    if (route.featureFlag === "experimentsV4Enabled") {
+      return ctx.session?.user?.v4BetaEnabled === true ? route : null;
+    }
+
+    if (route.featureFlag === "v4BetaToggleVisible") {
+      return ctx.session?.user?.canToggleV4 === true ? route : null;
+    }
+
     const hasFlag =
       ctx.enableExperimentalFeatures ||
       ctx.cloudAdmin ||
@@ -150,12 +158,17 @@ export const filters = {
    */
   customShow: (
     route: Route,
-    _ctx: NavigationFilterContext,
+    ctx: NavigationFilterContext,
     organization: Organization,
   ): Route | null => {
     if (!route.show) return route;
     // Convert null to undefined for route.show compatibility
-    return route.show({ organization: organization ?? undefined })
+    return route.show({
+      organization: organization ?? undefined,
+      projectId: ctx.routerProjectId,
+      isLangfuseCloud: ctx.isLangfuseCloud,
+      v4WriteMode: ctx.session?.environment?.v4WriteMode,
+    })
       ? route
       : null;
   },

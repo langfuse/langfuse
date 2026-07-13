@@ -9,7 +9,6 @@ import {
   traceException,
 } from "@langfuse/shared/src/server";
 import { retryLLMRateLimitError } from "../features/utils";
-import { delayInMs } from "./utils/delays";
 import { createExperimentJobClickhouse } from "../features/experiments/experimentServiceClickhouse";
 import { isUnrecoverableError } from "../errors/UnrecoverableError";
 
@@ -23,16 +22,16 @@ export const experimentCreateQueueProcessor = async (
     return true;
   } catch (e) {
     if (isLLMCompletionError(e) && e.isRetryable) {
-      await retryLLMRateLimitError(job, {
+      const retryResult = await retryLLMRateLimitError(job, {
         table: "dataset_runs",
         idField: "runId",
         queue: ExperimentCreateQueue.getInstance(),
         queueName: QueueName.ExperimentCreate,
         jobName: QueueJobs.ExperimentCreateJob,
-        delayFn: delayInMs,
       });
 
-      return;
+      if (retryResult.outcome === "scheduled") return;
+      if (retryResult.outcome === "queue_unavailable") throw e;
     }
 
     if (isLLMCompletionError(e) || isUnrecoverableError(e)) return;

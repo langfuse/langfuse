@@ -1,11 +1,7 @@
 import { Queue } from "bullmq";
 import { env } from "../../env";
 import { QueueName, QueueJobs } from "../queues";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
 
 export class CloudUsageMeteringQueue {
@@ -20,15 +16,12 @@ export class CloudUsageMeteringQueue {
       return CloudUsageMeteringQueue.instance;
     }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
-    CloudUsageMeteringQueue.instance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
+      QueueName.CloudUsageMeteringQueue,
+    );
+    CloudUsageMeteringQueue.instance = queueOptionsWithRedis
       ? new Queue(QueueName.CloudUsageMeteringQueue, {
-          connection: newRedis,
-          prefix: getQueuePrefix(QueueName.CloudUsageMeteringQueue),
+          ...queueOptionsWithRedis,
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100,
@@ -51,21 +44,40 @@ export class CloudUsageMeteringQueue {
         jobId: "cloud-usage-metering-recurring",
         timestamp: new Date().toISOString(),
       });
-      CloudUsageMeteringQueue.instance.add(
-        QueueJobs.CloudUsageMeteringJob,
-        {},
-        {
-          // Run at minute 5 of every hour (e.g. 1:05, 2:05, 3:05, etc)
-          repeat: { pattern: "5 * * * *" },
-        },
-      );
+      CloudUsageMeteringQueue.instance
+        .add(
+          QueueJobs.CloudUsageMeteringJob,
+          {},
+          {
+            // Run at minute 5 of every hour (e.g. 1:05, 2:05, 3:05, etc)
+            repeat: { pattern: "5 * * * *" },
+          },
+        )
+        .catch((err) => {
+          logger.error(
+            "[CloudUsageMeteringQueue] Failed to schedule recurring job",
+            err,
+          );
+        });
 
       logger.info("[CloudUsageMeteringQueue] Scheduling bootstrap job", {
         jobId: "cloud-usage-metering-bootstrap",
         timestamp: new Date().toISOString(),
       });
-      // Bootstrap job to run immediately on startup
-      CloudUsageMeteringQueue.instance.add(QueueJobs.CloudUsageMeteringJob, {});
+      // Bootstrap job to run immediately on startup. Safe to enqueue from
+      // multiple replicas: the handler (handleCloudUsageMeteringJob) is
+      // idempotent — it acquires a DB lock via optimistic concurrency on the
+      // cronJobs row and exits early ("not due yet") if the metering interval
+      // hasn't elapsed. Duplicate jobs are processed sequentially (concurrency: 1)
+      // and no-op harmlessly.
+      CloudUsageMeteringQueue.instance
+        .add(QueueJobs.CloudUsageMeteringJob, {})
+        .catch((err) => {
+          logger.error(
+            "[CloudUsageMeteringQueue] Failed to schedule bootstrap job",
+            err,
+          );
+        });
     }
 
     return CloudUsageMeteringQueue.instance;

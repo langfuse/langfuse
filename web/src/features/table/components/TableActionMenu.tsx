@@ -1,85 +1,151 @@
-import { useState } from "react";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/src/components/ui/dropdown-menu";
+import { useEffect, useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { ChevronDown, Trash } from "lucide-react";
+import { X, Trash } from "lucide-react";
 import { Plus } from "lucide-react";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import {
   type TableAction,
   type CustomDialogTableAction,
 } from "@/src/features/table/types";
 import { TableActionDialog } from "@/src/features/table/components/TableActionDialog";
 import { type BatchExportTableName } from "@langfuse/shared";
+import { numberFormatter } from "@/src/utils/numbers";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 
 type TableActionMenuProps = {
   projectId: string;
   actions: TableAction[];
   tableName: BatchExportTableName;
+  selectedCount: number | null;
+  // When the selected-row count is not the affected-entity count (e.g. datasets
+  // select-all, where folder rows expand on delete), render a non-numeric label
+  // instead of the count/loading spinner.
+  approximateCount?: boolean;
+  onClearSelection: () => void;
   onCustomAction?: (actionType: CustomDialogTableAction["id"]) => void;
 };
 
 const getDefaultIcon = (type: TableAction["type"]) => {
   if (type === "create") {
-    return <Plus className="mr-2 h-4 w-4" />;
+    return <Plus className="h-4 w-4 sm:mr-2" />;
   }
-  return <Trash className="mr-2 h-4 w-4" />;
+  return <Trash className="h-4 w-4 sm:mr-2" />;
 };
 
 export function TableActionMenu({
   projectId,
   actions,
   tableName,
+  selectedCount,
+  approximateCount = false,
+  onClearSelection,
   onCustomAction,
 }: TableActionMenuProps) {
-  const [selectedAction, setSelectedAction] = useState<TableAction | null>(
-    null,
-  );
+  const [selectedActionId, setSelectedActionId] = useState<
+    TableAction["id"] | null
+  >(null);
   const [isDialogOpen, setDialogOpen] = useState(false);
+
+  // Derive the action from props on every render (ids are unique within one
+  // menu) so the dialog shows live data — e.g. descriptions embedding lazily
+  // resolved select-all counts — instead of a snapshot frozen at click time.
+  // If the action disappears from `actions` while open, the dialog unmounts.
+  const selectedAction =
+    selectedActionId !== null
+      ? actions.find((action) => action.id === selectedActionId)
+      : undefined;
 
   const handleActionSelect = (action: TableAction) => {
     if ("customDialog" in action && action.customDialog) {
       onCustomAction?.(action.id);
       return;
     }
-    setSelectedAction(action);
+    setSelectedActionId(action.id);
     setDialogOpen(true);
   };
 
   const handleClose = () => {
-    setSelectedAction(null);
+    setSelectedActionId(null);
     setDialogOpen(false);
   };
 
+  // If the selected action leaves `actions` while its dialog is open, the
+  // dialog unmounts without firing onClose; reset the open/selected state so
+  // the dialog cannot reappear without a click if the action returns.
+  useEffect(() => {
+    if (selectedActionId !== null && selectedAction === undefined) {
+      setSelectedActionId(null);
+      setDialogOpen(false);
+    }
+  }, [selectedActionId, selectedAction]);
+
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button>
-            Actions
-            <ChevronDown className="h-5 w-5" />
+      <div className="pointer-events-none fixed inset-x-0 bottom-16 z-50 flex justify-center">
+        <div className="ring-dark-blue/20 dark:border-dark-blue/30 dark:ring-dark-blue/30 bg-background pointer-events-auto flex items-center gap-2 rounded-lg border px-3 py-2 opacity-95 shadow-lg ring-2 backdrop-blur-md dark:shadow-none">
+          <div className="text-sm font-medium">
+            {approximateCount ? (
+              <span> All matching selected</span>
+            ) : selectedCount !== null ? (
+              <span> {`${numberFormatter(selectedCount, 0)} selected`}</span>
+            ) : (
+              <Spinner size="sm" />
+            )}
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={onClearSelection}
+          >
+            <X className="h-4 w-4" />
           </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent>
-          {actions.map((action) => (
-            <DropdownMenuItem
-              key={action.id}
-              onClick={() => handleActionSelect(action)}
-            >
-              {action.icon || getDefaultIcon(action.type)}
-              <span>{action.label}</span>
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+          <div className="bg-border h-5 w-px" />
+          <div className="flex items-center gap-2">
+            {actions.map((action) => {
+              const menuItem = (
+                <Button
+                  key={action.id}
+                  variant="outline"
+                  size="sm"
+                  className="h-8"
+                  title={action.label}
+                  disabled={action.disabled}
+                  onClick={() => handleActionSelect(action)}
+                >
+                  {action.icon || getDefaultIcon(action.type)}
+                  <span className="hidden sm:inline">{action.label}</span>
+                </Button>
+              );
+
+              if (action.disabled && action.disabledReason) {
+                return (
+                  <Tooltip key={action.id}>
+                    <TooltipTrigger asChild>
+                      <span>{menuItem}</span>
+                    </TooltipTrigger>
+                    <TooltipContent side="left">
+                      {action.disabledReason}
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              }
+
+              return menuItem;
+            })}
+          </div>
+        </div>
+      </div>
 
       {selectedAction && (
         <TableActionDialog
           isOpen={isDialogOpen}
           onClose={handleClose}
+          onSuccess={onClearSelection}
           action={selectedAction}
           projectId={projectId}
           tableName={tableName}

@@ -36,6 +36,7 @@ export const convertRunItemToItemsByRunUiTableRow = (
     id: item.id,
     runAt: item.createdAt,
     datasetItemId: item.datasetItemId,
+    datasetItemVersion: item.datasetItemVersion ?? undefined,
     trace: !!item.trace?.id
       ? {
           traceId: item.trace.id,

@@ -25,7 +25,7 @@ export const DeleteModelButton = ({
   const capture = usePostHogClientCapture();
   const mut = api.models.delete.useMutation({
     onSuccess: () => {
-      void utils.models.invalidate();
+      utils.models.invalidate();
       onSuccess?.();
     },
   });
@@ -42,13 +42,13 @@ export const DeleteModelButton = ({
           variant="outline"
           title="Delete model"
           disabled={!hasAccess}
-          className="flex items-center border-light-red"
+          className="border-light-red flex items-center"
         >
           <span className="text-dark-red">Delete</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent>
-        <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
+        <h2 className="mb-3 font-semibold">Please confirm</h2>
         <p className="mb-3 text-sm">
           This action permanently deletes this model definition.
         </p>

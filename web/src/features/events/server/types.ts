@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { singleFilter, TracingSearchType, orderBy } from "@langfuse/shared";
 
 export const EventsTableOptions = z.object({

@@ -1,11 +1,14 @@
-import z from "zod/v4";
+import z from "zod";
+import type { IngestionAttribution } from "../ingestion/ingestionAttribution";
+import { UNKNOWN_INGESTION_SDK_VALUE } from "../ingestion/ingestionAttribution";
+import { DEFAULT_TRACE_ENVIRONMENT } from "../ingestion/types";
 
 export const clickhouseStringDateSchema = z
   .string()
   // clickhouse stores UTC like '2024-05-23 18:33:41.602000'
   // we need to convert it to '2024-05-23T18:33:41.602000Z'
   .transform((str) => str.replace(" ", "T") + "Z")
-  .pipe(z.string().datetime());
+  .pipe(z.iso.datetime());
 
 //https://clickhouse.com/docs/en/integrations/javascript#integral-types-int64-int128-int256-uint64-uint128-uint256
 // clickhouse returns int64 as string
@@ -18,7 +21,7 @@ export const UsageCostSchema = z
         const parsed = Number(val[key]);
         if (isNaN(parsed)) {
           ctx.addIssue({
-            code: z.ZodIssueCode.custom,
+            code: "custom",
             message: `Key ${key} is not a number`,
           });
         } else {
@@ -95,6 +98,9 @@ export type ObservationRecordInsertType = z.infer<
 
 export const observationBatchStagingRecordInsertSchema =
   observationRecordInsertSchema.extend({
+    ingestion_api_key: z.string(),
+    ingestion_sdk_name: z.string(),
+    ingestion_sdk_version: z.string(),
     s3_first_seen_timestamp: z.number(),
   });
 export type ObservationBatchStagingRecordInsertType = z.infer<
@@ -113,6 +119,11 @@ export const eventsObservationRecordReadSchema =
   observationRecordReadSchema.extend({
     user_id: z.string().nullish(),
     session_id: z.string().nullish(),
+    trace_name: z.string().nullish(),
+    release: z.string().nullish(),
+    tags: z.array(z.string()).optional(),
+    bookmarked: z.boolean().optional(),
+    public: z.boolean().optional(),
   });
 export type EventsObservationRecordReadType = z.infer<
   typeof eventsObservationRecordReadSchema
@@ -221,6 +232,9 @@ export const scoreRecordBaseSchema = z.object({
   long_string_value: z.string(),
   queue_id: z.string().nullish(),
   execution_trace_id: z.string().nullish(),
+  ingestion_api_key: z.string(),
+  ingestion_sdk_name: z.string(),
+  ingestion_sdk_version: z.string(),
   is_deleted: z.number(),
 });
 
@@ -377,6 +391,7 @@ export const convertScoreReadToInsert = (
 export const convertTraceToStagingObservation = (
   traceRecord: TraceRecordInsertType,
   s3FirstSeenTimestamp: number,
+  attribution: IngestionAttribution,
 ): ObservationBatchStagingRecordInsertType => {
   return {
     // Identity - trace acts as its own span. Modify traceId to avoid cases where users set spanId = traceId.
@@ -424,6 +439,11 @@ export const convertTraceToStagingObservation = (
     tool_definitions: undefined,
     tool_calls: undefined,
     tool_call_names: undefined,
+
+    // Ingestion attribution
+    ingestion_api_key: attribution.ingestionApiKey,
+    ingestion_sdk_name: attribution.ingestionSdkName,
+    ingestion_sdk_version: attribution.ingestionSdkVersion,
 
     // System fields
     created_at: traceRecord.created_at,
@@ -618,6 +638,9 @@ export const convertPostgresScoreToInsert = (
     long_string_value: "",
     queue_id: score.queue_id,
     execution_trace_id: null, // Postgres scores do not have eval execution traces
+    ingestion_api_key: "",
+    ingestion_sdk_name: UNKNOWN_INGESTION_SDK_VALUE,
+    ingestion_sdk_version: UNKNOWN_INGESTION_SDK_VALUE,
     created_at: score.created_at?.getTime(),
     updated_at: score.updated_at?.getTime(),
     event_ts: score.timestamp?.getTime(),
@@ -638,13 +661,14 @@ export const eventRecordBaseSchema = z.object({
   // Core properties
   name: z.string(),
   type: z.string(),
-  environment: z.string().default("default"),
+  environment: z.string().default(DEFAULT_TRACE_ENVIRONMENT),
   version: z.string().nullish(),
   release: z.string().nullish(),
 
   trace_name: z.string().nullish(),
   user_id: z.string().nullish(),
   session_id: z.string().nullish(),
+  is_app_root: z.boolean().default(false),
 
   // User updatable flags
   tags: z.array(z.string()).default([]),
@@ -657,7 +681,7 @@ export const eventRecordBaseSchema = z.object({
   // Prompt
   prompt_id: z.string().nullish(),
   prompt_name: z.string().nullish(),
-  prompt_version: z.string().nullish(),
+  prompt_version: z.number().nullish(),
 
   // Model
   model_id: z.string().nullish(),
@@ -683,8 +707,8 @@ export const eventRecordBaseSchema = z.object({
   output: z.string().nullish(),
 
   // Metadata
-  metadata: z.record(z.string(), z.string()),
   metadata_names: z.array(z.string()).default([]),
+  metadata_values: z.array(z.string()).default([]),
 
   // Experiment properties
   experiment_id: z.string().nullish(),
@@ -702,6 +726,9 @@ export const eventRecordBaseSchema = z.object({
 
   // Source metadata (Instrumentation)
   source: z.string(),
+  ingestion_api_key: z.string(),
+  ingestion_sdk_name: z.string(),
+  ingestion_sdk_version: z.string(),
   service_name: z.string().nullish(),
   service_version: z.string().nullish(),
   scope_name: z.string().nullish(),
@@ -716,10 +743,10 @@ export const eventRecordBaseSchema = z.object({
   is_deleted: z.number(),
 });
 
+// Base type for event records - used by converters that work with both Insert and Read types
+export type EventRecordBaseType = z.infer<typeof eventRecordBaseSchema>;
+
 export const eventRecordReadSchema = eventRecordBaseSchema.extend({
-  metadata_prefixes: z.array(z.string()).default([]),
-  metadata_hashes: z.array(z.number().int()).default([]),
-  metadata_long_values: z.record(z.number().int(), z.string()).default({}),
   total_cost: z.number().nullish(),
 
   start_time: clickhouseStringDateSchema,
@@ -732,7 +759,6 @@ export const eventRecordReadSchema = eventRecordBaseSchema.extend({
 export type EventRecordReadType = z.infer<typeof eventRecordReadSchema>;
 
 export const eventRecordInsertSchema = eventRecordBaseSchema.extend({
-  metadata_raw_values: z.array(z.string().nullish()).default([]),
   start_time: z.number(),
   end_time: z.number().nullish(),
   completion_start_time: z.number().nullish(),

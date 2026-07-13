@@ -3,24 +3,28 @@ import {
   clickhouseClient,
   getClickhouseEntityType,
   getCurrentSpan,
-  getQueue,
   getS3EventStorageClient,
   hasS3SlowdownFlag,
   IngestionEventType,
   isS3SlowDownError,
   logger,
+  markProjectIngestFailure,
   markProjectS3Slowdown,
   QueueName,
+  rawEventBucketPrefix,
   recordDistribution,
   recordHistogram,
   recordIncrement,
   redis,
+  SecondaryIngestionQueue,
   TQueueJobTypes,
   traceException,
+  type IngestionAttribution,
+  UNKNOWN_INGESTION_SDK_VALUE,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 
-import { env } from "../env";
+import { env, v4WritesToEventsTable } from "../env";
 import { IngestionService } from "../services/IngestionService";
 import { ClickhouseWriter, TableName } from "../services/ClickhouseWriter";
 import { chunk } from "lodash";
@@ -59,28 +63,27 @@ export const ingestionQueueProcessorBuilder = (
       // We write the new file into the ClickHouse event log to keep track for retention and deletions
       const clickhouseWriter = ClickhouseWriter.getInstance();
 
-      if (
-        env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG === "true" &&
-        job.data.payload.data.fileKey &&
-        job.data.payload.data.fileKey
-      ) {
-        const fileName = `${job.data.payload.data.fileKey}.json`;
-        clickhouseWriter.addToQueue(TableName.BlobStorageFileLog, {
-          id: randomUUID(),
-          project_id: job.data.payload.authCheck.scope.projectId,
-          entity_type: getClickhouseEntityType(job.data.payload.data.type),
-          entity_id: job.data.payload.data.eventBodyId,
-          event_id: job.data.payload.data.fileKey,
-          bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-          bucket_path: `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${getClickhouseEntityType(job.data.payload.data.type)}/${job.data.payload.data.eventBodyId}/${fileName}`,
-          created_at: new Date().getTime(),
-          updated_at: new Date().getTime(),
-          event_ts: new Date().getTime(),
-          is_deleted: 0,
+      // Prefer the producer-supplied bucket prefix so writer and reader
+      // never disagree, even if `LANGFUSE_S3_EVENT_KEY_MAX_SEGMENT_BYTES`
+      // (or other env values that feed the key) drifts between web and
+      // worker. Fall back to local reconstruction for in-flight jobs that
+      // predate the payload field (rolling deploy).
+      //
+      // The fallback uses `rawEventBucketPrefix` because the producer that
+      // enqueued without a `bucketPrefix` field is the pre- sanitization
+      // code path, which wrote S3 with verbatim `${eventBodyId}` interpolation.
+      // The queue-payload `eventBodyId` is therefore the literal S3-side segment.
+      const bucketPrefix =
+        job.data.payload.data.bucketPrefix ??
+        rawEventBucketPrefix({
+          projectId: job.data.payload.authCheck.scope.projectId,
+          entityType: getClickhouseEntityType(job.data.payload.data.type),
+          rawEntityIdSegment: job.data.payload.data.eventBodyId,
         });
-      }
 
       // If fileKey was processed within the last minutes, i.e. has a match in redis, we skip processing.
+      // `eventBodyId` is the raw (un-sanitized) ID; for legacy pre-fix data
+      // it may contain "/" which is unusual but valid in a Redis key.
       if (
         env.LANGFUSE_ENABLE_REDIS_SEEN_EVENT_CACHE === "true" &&
         redis &&
@@ -97,12 +100,12 @@ export const ingestionQueueProcessorBuilder = (
             `Skipping ingestion event ${job.data.payload.data.fileKey} for project ${job.data.payload.authCheck.scope.projectId}`,
           );
           return;
-        } else {
-          recordIncrement("langfuse.ingestion.recently_processed_cache", 1, {
-            type: job.data.payload.data.type,
-            skipped: "false",
-          });
         }
+
+        recordIncrement("langfuse.ingestion.recently_processed_cache", 1, {
+          type: job.data.payload.data.type,
+          skipped: "false",
+        });
       }
 
       // Check if project should be redirected to secondary queue
@@ -121,7 +124,10 @@ export const ingestionQueueProcessorBuilder = (
             reason: shouldRedirectSlowdown ? "s3_slowdown_flag" : "env_config",
           },
         );
-        const secondaryQueue = getQueue(QueueName.IngestionSecondaryQueue);
+        const shardingKey = `${projectId}-${job.data.payload.data.eventBodyId}`;
+        const secondaryQueue = SecondaryIngestionQueue.getInstance({
+          shardingKey,
+        });
         if (secondaryQueue) {
           await secondaryQueue.add(QueueName.IngestionSecondaryQueue, job.data);
           // If we don't redirect, we continue with the ingestion. Otherwise, we finish here.
@@ -155,7 +161,7 @@ export const ingestionQueueProcessorBuilder = (
       const shouldSkipS3List =
         // The producer sets skipS3List to true if it's an OTel observation
         job.data.payload.data.skipS3List && job.data.payload.data.fileKey;
-      const s3Prefix = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${clickhouseEntityType}/${job.data.payload.data.eventBodyId}/`;
+      const s3Prefix = bucketPrefix;
 
       let totalS3DownloadSizeBytes = 0;
 
@@ -265,23 +271,62 @@ export const ingestionQueueProcessorBuilder = (
       // Use explicit flag from job payload if provided, otherwise fall back to env flags
       const forwardToEventsTable =
         job.data.payload.data.forwardToEventsTable ??
-        (env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true" &&
-          env.QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED === "true" &&
-          env.LANGFUSE_EXPERIMENT_EARLY_EXIT_EVENT_BATCH_JOB !== "true");
+        v4WritesToEventsTable(env);
+      const attribution: IngestionAttribution = {
+        ingestionApiKey: job.data.payload.data.ingestionApiKey ?? "",
+        ingestionSdkName:
+          job.data.payload.data.ingestionSdkName || UNKNOWN_INGESTION_SDK_VALUE,
+        ingestionSdkVersion:
+          job.data.payload.data.ingestionSdkVersion ||
+          UNKNOWN_INGESTION_SDK_VALUE,
+      };
+
+      // Recover the canonical entity id from the downloaded event body, not
+      // from the queue payload. On replay, `payload.data.eventBodyId` is the
+      // literal S3-side segment (sanitized + hashed for any post-PR write
+      // where safeBlobKeySegment fired); using it as the ClickHouse row id
+      // would write a divergent row. `event.body.id` is the raw SDK id that
+      // the original producer stored, so it always matches normal-ingest's
+      // row id. The producer's reducer in `processEventBatch.ts` filters out
+      // events without `body.id`, so this is non-null in practice; the
+      // fallback handles any defensive edge case.
+      const canonicalEntityId =
+        events[0].body?.id ?? job.data.payload.data.eventBodyId;
+
+      if (
+        env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG === "true" &&
+        job.data.payload.data.fileKey
+      ) {
+        const fileName = `${job.data.payload.data.fileKey}.json`;
+        clickhouseWriter.addToQueue(TableName.BlobStorageFileLog, {
+          id: randomUUID(),
+          project_id: job.data.payload.authCheck.scope.projectId,
+          entity_type: clickhouseEntityType,
+          entity_id: canonicalEntityId,
+          event_id: job.data.payload.data.fileKey,
+          bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+          bucket_path: `${bucketPrefix}${fileName}`,
+          created_at: new Date().getTime(),
+          updated_at: new Date().getTime(),
+          event_ts: new Date().getTime(),
+          is_deleted: 0,
+        });
+      }
 
       await new IngestionService(
         redis,
         prisma,
         clickhouseWriter,
         clickhouseClient(),
-      ).mergeAndWrite(
-        getClickhouseEntityType(events[0].type),
-        job.data.payload.authCheck.scope.projectId,
-        job.data.payload.data.eventBodyId,
-        firstS3WriteTime,
+      ).mergeAndWrite({
+        eventType: getClickhouseEntityType(events[0].type),
+        projectId: job.data.payload.authCheck.scope.projectId,
+        entityId: canonicalEntityId,
+        createdAtTimestamp: firstS3WriteTime,
         events,
         forwardToEventsTable,
-      );
+        attribution,
+      });
     } catch (e) {
       // Check if this is a SlowDown error and mark the project for secondary queue
       if (isS3SlowDownError(e)) {
@@ -291,6 +336,15 @@ export const ingestionQueueProcessorBuilder = (
           { projectId, error: e },
         );
         await markProjectS3Slowdown(projectId);
+        markProjectIngestFailure(projectId, {
+          source: "ingestion_queue",
+          reason: "s3_slowdown",
+        });
+      } else {
+        markProjectIngestFailure(job.data.payload.authCheck.scope.projectId, {
+          source: "ingestion_queue",
+          reason: "processing_error",
+        });
       }
 
       logger.error(

@@ -7,9 +7,8 @@ import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { getDatasetRunAggregateColumnProps } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
 import { useDatasetRunAggregateColumns } from "@/src/features/datasets/hooks/useDatasetRunAggregateColumns";
-import { NumberParam } from "use-query-params";
-import { useQueryParams, withDefault } from "use-query-params";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { LayoutList } from "lucide-react";
@@ -29,7 +28,7 @@ import { useColumnFilterState } from "@/src/features/filters/hooks/useColumnFilt
 import { type Prisma } from "@langfuse/shared";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 
 export type DatasetCompareRunRowData = {
   id: string;
@@ -44,7 +43,6 @@ function DatasetCompareRunsTableInternal(props: {
   projectId: string;
   datasetId: string;
   runIds: string[];
-  localExperiments: { key: string; value: string }[];
 }) {
   const { toggleField, isFieldSelected } = useDatasetCompareFields();
   const [isFieldsDropdownOpen, setIsFieldsDropdownOpen] = useState(false);
@@ -68,17 +66,19 @@ function DatasetCompareRunsTableInternal(props: {
     });
   }, [props.runIds, convertToColumnFilterList, updateRunFilters]);
 
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
+  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
+    page: "pageIndex",
+    limit: "pageSize",
   });
+  const activeRunFilters = convertToColumnFilterList();
+  const hasActiveRunFilters = activeRunFilters.length > 0;
 
   const datasetItemsWithRunData = api.datasets.datasetItemsWithRunData.useQuery(
     {
       projectId: props.projectId,
       datasetId: props.datasetId,
       runIds: props.runIds,
-      filterByRun: convertToColumnFilterList(),
+      filterByRun: activeRunFilters,
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
     },
@@ -88,7 +88,7 @@ function DatasetCompareRunsTableInternal(props: {
     projectId: props.projectId,
     datasetId: props.datasetId,
     runIds: props.runIds,
-    filterByRun: convertToColumnFilterList(),
+    filterByRun: activeRunFilters,
   });
 
   const totalCount = totalCountQuery.data?.totalCount ?? null;
@@ -112,6 +112,16 @@ function DatasetCompareRunsTableInternal(props: {
       basePath: `/project/${props.projectId}/traces`,
     },
   });
+
+  const peekConfig = useMemo(
+    () => ({
+      itemType: "TRACE" as const,
+      closePeek,
+      expandPeek,
+      // openPeek is handled by DatasetAggregateTableCell's custom handleOpenPeek
+    }),
+    [closePeek, expandPeek],
+  );
 
   const { runAggregateColumns, isLoading: cellsLoading } =
     useDatasetRunAggregateColumns({
@@ -256,11 +266,11 @@ function DatasetCompareRunsTableInternal(props: {
       <FilteredRunPills
         projectId={props.projectId}
         datasetId={props.datasetId}
-        filteredRuns={convertToColumnFilterList()}
+        filteredRuns={activeRunFilters}
         className="px-2 pb-2"
       />
       <DataTable
-        tableName={"datasetCompareRuns"}
+        tableName="datasetCompareRuns"
         columns={columns}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
@@ -290,15 +300,19 @@ function DatasetCompareRunsTableInternal(props: {
           m: "h-64",
           l: "h-96",
         }}
-        peekView={{
-          itemType: "TRACE",
-          children: <PeekViewTraceDetail projectId={props.projectId} />,
-          tableDataUpdatedAt: datasetItemsWithRunData.dataUpdatedAt,
-          closePeek,
-          expandPeek,
-          // openPeek is handled by DatasetAggregateTableCell's custom handleOpenPeek
-        }}
+        noResultsMessage={
+          hasActiveRunFilters ? (
+            <div className="text-muted-foreground flex flex-col items-center gap-1 text-sm">
+              <span>No dataset run items match the current filters.</span>
+              <span className="text-xs">
+                Adjust or clear filters to compare items again.
+              </span>
+            </div>
+          ) : undefined
+        }
+        peekView={peekConfig}
       />
+      <TablePeekViewTraceDetail {...peekConfig} projectId={props.projectId} />
     </>
   );
 }
@@ -307,7 +321,6 @@ export function DatasetCompareRunsTable(props: {
   projectId: string;
   datasetId: string;
   runIds: string[];
-  localExperiments: { key: string; value: string }[];
 }) {
   return (
     <DatasetCompareFieldsProvider>

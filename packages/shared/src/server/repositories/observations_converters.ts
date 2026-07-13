@@ -18,10 +18,66 @@ import {
   DEFAULT_RENDERING_PROPS,
   applyInputOutputRendering,
 } from "../utils/rendering";
+import { parseJsonPrioritised } from "../../utils/json";
 import { logger } from "../logger";
+import { prisma } from "../../db";
 import type { Model, Price } from "@prisma/client";
 
-type ModelWithPrice = Model & { Price: Price[] };
+export type ModelWithPrice = Model & { Price: Price[] };
+
+/**
+ * Creates a model cache that fetches models from the database on demand and stores them in memory.
+ * Only queries the database if a model ID is not already in the cache.
+ */
+export const createModelCache = (projectId: string) => {
+  const modelCache = new Map<string, ModelWithPrice | null>();
+
+  const getModel = async (
+    internalModelId: string | null | undefined,
+  ): Promise<ModelWithPrice | null> => {
+    if (!internalModelId) return null;
+
+    if (modelCache.has(internalModelId)) {
+      return modelCache.get(internalModelId) ?? null;
+    }
+
+    const model = await prisma.model.findFirst({
+      where: {
+        id: internalModelId,
+        OR: [{ projectId }, { projectId: null }],
+      },
+      include: {
+        Price: true,
+      },
+    });
+
+    modelCache.set(internalModelId, model);
+
+    logger.debug(`Model ${internalModelId} fetched from database`);
+    return model;
+  };
+
+  return { getModel };
+};
+
+/**
+ * Converts a Record<string, number> to ensure all values are numbers.
+ * Avoids Object.entries/fromEntries chain for better performance.
+ * @param record - The record to convert (can be null/undefined)
+ * @returns A new object with all values converted to numbers, or empty object if input is null/undefined
+ */
+export function convertNumericRecord(
+  record: Record<string, number> | null | undefined,
+): Record<string, number> {
+  if (!record) return {};
+  const result: Record<string, number> = {};
+  for (const key in record) {
+    if (Object.prototype.hasOwnProperty.call(record, key)) {
+      result[key] = Number(record[key]);
+    }
+  }
+  return result;
+}
 
 /**
  * Validates that all ObservationCoreFields are present and not undefined in a ClickHouse record.
@@ -40,6 +96,7 @@ function ensureObservationCoreFields(
   if (record.trace_id === undefined) missingFields.push("trace_id");
   if (record.start_time === undefined) missingFields.push("start_time");
   if (record.project_id === undefined) missingFields.push("project_id");
+  if (record.type === undefined) missingFields.push("type");
 
   if (missingFields.length > 0) {
     const errorMessage = `Missing required ObservationCoreFields: ${missingFields.join(", ")}${record.id ? ` (record: ${record.id})` : ""}`;
@@ -51,8 +108,12 @@ function ensureObservationCoreFields(
     id: record.id!,
     traceId: record.trace_id ?? null,
     startTime: parseClickhouseUTCDateTimeFormat(record.start_time!),
+    endTime: record.end_time
+      ? parseClickhouseUTCDateTimeFormat(record.end_time)
+      : null,
     projectId: record.project_id!,
     parentObservationId: record.parent_observation_id ?? null,
+    type: record.type! as ObservationType,
   };
 }
 
@@ -184,42 +245,34 @@ export function convertObservationPartial(
       internalModelId: record.internal_model_id ?? null,
     }),
     ...(record.model_parameters !== undefined && {
+      // ClickHouse stores model_parameters as a free-form string; SDKs can
+      // write non-JSON sentinels here, so fall back to the raw value instead
+      // of throwing for the whole row.
       modelParameters: record.model_parameters
         ? ((typeof record.model_parameters === "string"
-            ? JSON.parse(record.model_parameters)
+            ? parseJsonPrioritised(record.model_parameters)
             : record.model_parameters) ?? null)
         : null,
     }),
 
     // Usage fields
     ...(record.usage_details !== undefined && {
-      usageDetails: Object.fromEntries(
-        Object.entries(record.usage_details ?? {}).map(([key, value]) => [
-          key,
-          Number(value),
-        ]),
-      ),
+      usageDetails: convertNumericRecord(record.usage_details),
       inputUsage: reducedUsageDetails.input ?? 0,
       outputUsage: reducedUsageDetails.output ?? 0,
       totalUsage: reducedUsageDetails.total ?? 0,
     }),
     ...(record.cost_details !== undefined && {
-      costDetails: Object.fromEntries(
-        Object.entries(record.cost_details ?? {}).map(([key, value]) => [
-          key,
-          Number(value),
-        ]),
-      ),
+      costDetails: convertNumericRecord(record.cost_details),
       inputCost: reducedCostDetails.input,
       outputCost: reducedCostDetails.output,
       totalCost: reducedCostDetails.total,
     }),
+    ...(record.provided_usage_details !== undefined && {
+      providedUsageDetails: convertNumericRecord(record.provided_usage_details),
+    }),
     ...(record.provided_cost_details !== undefined && {
-      providedCostDetails: Object.fromEntries(
-        Object.entries(record.provided_cost_details ?? {}).map(
-          ([key, value]) => [key, Number(value)],
-        ),
-      ),
+      providedCostDetails: convertNumericRecord(record.provided_cost_details),
     }),
 
     // Prompt fields
@@ -308,6 +361,7 @@ export function convertObservationPartial(
     promptVersion: partial.promptVersion ?? null,
     latency: partial.latency ?? null,
     timeToFirstToken: partial.timeToFirstToken ?? null,
+    providedUsageDetails: partial.providedUsageDetails ?? {},
     usageDetails: partial.usageDetails ?? {},
     costDetails: partial.costDetails ?? {},
     providedCostDetails: partial.providedCostDetails ?? {},
@@ -351,19 +405,38 @@ export function convertEventsObservation(
   renderingProps: RenderingProps = DEFAULT_RENDERING_PROPS,
   complete: boolean,
 ): EventsObservation | PartialEventsObservation {
-  // Branch based on complete flag to use correct overload
-  const baseObservation = complete
-    ? convertObservationPartial(
-        record as ObservationRecordReadType,
-        renderingProps,
-        true,
-      )
-    : convertObservationPartial(record, renderingProps, false);
+  if (complete) {
+    const baseObservation = convertObservationPartial(
+      record as ObservationRecordReadType,
+      renderingProps,
+      true,
+    );
+    return {
+      ...baseObservation,
+      userId: record.user_id ?? null,
+      sessionId: record.session_id ?? null,
+      traceName: record.trace_name ?? null,
+      release: record.release ?? null,
+      tags: record.tags ?? null,
+      bookmarked: record.bookmarked!,
+      public: record.public!,
+    };
+  }
 
+  const baseObservation = convertObservationPartial(
+    record,
+    renderingProps,
+    false,
+  );
   return {
     ...baseObservation,
-    userId: record.user_id ?? null,
-    sessionId: record.session_id ?? null,
+    ...(record.user_id !== undefined && { userId: record.user_id }),
+    ...(record.session_id !== undefined && { sessionId: record.session_id }),
+    ...(record.trace_name !== undefined && { traceName: record.trace_name }),
+    ...(record.release !== undefined && { release: record.release }),
+    ...(record.tags !== undefined && { tags: record.tags }),
+    ...(record.bookmarked !== undefined && { bookmarked: record.bookmarked }),
+    ...(record.public !== undefined && { public: record.public }),
   };
 }
 

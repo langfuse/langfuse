@@ -1,11 +1,6 @@
 import { Queue } from "bullmq";
 import { QueueName, QueueJobs } from "../queues";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
-import { env } from "../../env";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
 
 export class EventPropagationQueue {
@@ -16,15 +11,12 @@ export class EventPropagationQueue {
       return EventPropagationQueue.instance;
     }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
-    EventPropagationQueue.instance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
+      QueueName.EventPropagationQueue,
+    );
+    EventPropagationQueue.instance = queueOptionsWithRedis
       ? new Queue(QueueName.EventPropagationQueue, {
-          connection: newRedis,
-          prefix: getQueuePrefix(QueueName.EventPropagationQueue),
+          ...queueOptionsWithRedis,
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100,
@@ -42,18 +34,13 @@ export class EventPropagationQueue {
     });
 
     if (EventPropagationQueue.instance) {
-      logger.debug(
-        `Setting global concurrency for EventPropagationQueue to ${env.LANGFUSE_EVENT_PROPAGATION_WORKER_GLOBAL_CONCURRENCY}`,
-      );
-      EventPropagationQueue.instance
-        .setGlobalConcurrency(
-          env.LANGFUSE_EVENT_PROPAGATION_WORKER_GLOBAL_CONCURRENCY,
-        )
-        .catch(() => {
-          logger.warn(
-            "Failed to set global concurrency for EventPropagationQueue",
-          );
-        });
+      // Enforce global concurrency of 1 to ensure sequential partition processing.
+      // This works together with cursor-based tracking to guarantee ordered processing.
+      EventPropagationQueue.instance.setGlobalConcurrency(1).catch(() => {
+        logger.warn(
+          "Failed to set global concurrency for EventPropagationQueue",
+        );
+      });
 
       logger.debug("Scheduling jobs for EventPropagationQueue");
       EventPropagationQueue.instance

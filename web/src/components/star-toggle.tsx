@@ -1,10 +1,15 @@
 import { StarIcon } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { api } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type RouterInput } from "@/src/utils/types";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 
@@ -14,24 +19,43 @@ export function StarToggle({
   onClick,
   size = "icon",
   isLoading,
+  showLabel = false,
+  tooltip = false,
 }: {
   value: boolean;
   disabled?: boolean;
   onClick: (value: boolean) => Promise<unknown>;
   size?: "icon" | "icon-xs";
   isLoading: boolean;
+  /** When set, render as a full-width labeled menu item instead of an icon. */
+  showLabel?: boolean;
+  /** When set, wrap the icon button in a hover tooltip announcing the state. */
+  tooltip?: boolean;
 }) {
-  return (
+  // Single source of truth for the accessible name, the menu label, AND the
+  // tooltip — all derived from `value`, so an optimistic flip updates the icon
+  // and every text surface together, and a screen reader always hears the real
+  // state in both the toolbar and the menu (LFE-10535).
+  const stateLabel = value ? "Remove bookmark" : "Bookmark";
+
+  const button = (
     <Button
       variant="ghost"
-      size={size}
+      size={showLabel ? "sm" : size}
+      className={
+        showLabel ? "w-full justify-start gap-2 font-normal" : undefined
+      }
       onClick={(e) => {
         e.stopPropagation();
-        void onClick(!value);
+        onClick(!value);
       }}
       disabled={disabled}
       loading={isLoading}
-      aria-label="bookmark"
+      aria-label={stateLabel}
+      // Stable behaviour hook (decoupled from the human-facing label): the
+      // table marks this selector as "don't close the peek" so you can bookmark
+      // a row without dismissing the open peek.
+      data-bookmark-toggle="true"
     >
       <StarIcon
         className="h-4 w-4"
@@ -39,7 +63,19 @@ export function StarToggle({
         stroke={value ? "#ca8a04" : "currentColor"}
         strokeWidth={2}
       />
+      {showLabel ? <span className="text-sm">{stateLabel}</span> : null}
     </Button>
+  );
+
+  if (!tooltip) return button;
+
+  // TooltipTrigger asChild wraps the real <Button> (not a <span>), so Radix puts
+  // aria-describedby on the focusable control and SR users hear the tooltip.
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent>{stateLabel}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -124,15 +160,19 @@ export function StarTraceToggle({
 export function StarTraceDetailsToggle({
   projectId,
   traceId,
-  timestamp,
   value,
   size = "icon",
+  showLabel = false,
+  tooltip = false,
 }: {
   projectId: string;
   traceId: string;
-  timestamp?: Date;
   value: boolean;
   size?: "icon" | "icon-xs";
+  /** Render as a full-width labeled menu item (label tracks the optimistic state). */
+  showLabel?: boolean;
+  /** Wrap the icon button in a hover tooltip announcing the optimistic state. */
+  tooltip?: boolean;
 }) {
   const utils = api.useUtils();
   const hasAccess = useHasProjectAccess({
@@ -141,70 +181,52 @@ export function StarTraceDetailsToggle({
   });
   const capture = usePostHogClientCapture();
   const [isLoading, setIsLoading] = useState(false);
+  const [optimisticValue, setOptimisticValue] = useState(value);
+
+  useEffect(() => {
+    setOptimisticValue(value);
+  }, [value]);
 
   const mutBookmarkTrace = api.traces.bookmark.useMutation({
-    onMutate: async (newBookmarkState) => {
-      // Cancel any outgoing refetches
-      // (so they don't overwrite our optimistic update)
-      await utils.traces.byIdWithObservationsAndScores.cancel();
-
-      setIsLoading(true);
-
-      // Snapshot the previous value
-      const prevData = utils.traces.byIdWithObservationsAndScores.getData({
-        traceId,
-        projectId,
-        timestamp,
-      });
-
-      // Optimistically update to the new value
-      utils.traces.byIdWithObservationsAndScores.setData(
-        { traceId, projectId, timestamp },
-        (oldQueryData) => {
-          return oldQueryData
-            ? {
-                ...oldQueryData,
-                bookmarked: newBookmarkState.bookmarked,
-              }
-            : undefined;
-        },
-      );
-
-      return { prevData };
-    },
-    onError: (err, _newTodo, context) => {
+    onError: (err) => {
       setIsLoading(false);
       trpcErrorToast(err);
-      // Rollback to the previous value if mutation fails
-      utils.traces.byIdWithObservationsAndScores.setData(
-        { traceId, projectId, timestamp },
-        context?.prevData,
-      );
     },
     onSettled: () => {
       setIsLoading(false);
       // Refetch to ensure we have the latest data from the server
-      void utils.traces.byIdWithObservationsAndScores.invalidate();
-      void utils.traces.all.invalidate();
+      utils.traces.byIdWithObservationsAndScores.invalidate();
+      utils.traces.all.invalidate();
+      utils.events.byTraceId.invalidate();
     },
   });
 
   return (
     <StarToggle
-      value={value}
+      value={optimisticValue}
       size={size}
+      showLabel={showLabel}
+      tooltip={tooltip}
       disabled={!hasAccess}
       isLoading={isLoading}
-      onClick={(value) => {
+      onClick={(nextValue) => {
+        const previousValue = optimisticValue;
+        setIsLoading(true);
+        setOptimisticValue(nextValue);
         capture("trace_detail:bookmark_button_click", {
           id: traceId,
-          value: value,
+          value: nextValue,
         });
-        return mutBookmarkTrace.mutateAsync({
-          projectId,
-          traceId,
-          bookmarked: value,
-        });
+        return mutBookmarkTrace
+          .mutateAsync({
+            projectId,
+            traceId,
+            bookmarked: nextValue,
+          })
+          .catch((error) => {
+            setOptimisticValue(previousValue);
+            throw error;
+          });
       }}
     />
   );
@@ -229,7 +251,7 @@ export function StarSessionToggle({
   const capture = usePostHogClientCapture();
   const mutBookmarkSession = api.sessions.bookmark.useMutation({
     onSuccess: () => {
-      void utils.sessions.invalidate();
+      utils.sessions.invalidate();
     },
   });
 

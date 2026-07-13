@@ -7,20 +7,68 @@ import { server } from "../index";
 import { freeAllTokenizers } from "../features/tokenisation/usage";
 import { getTokenCountWorkerManager } from "../features/tokenisation/async-usage";
 import { WorkerManager } from "../queues/workerManager";
+import { logInFlightBlobExportsOnShutdown } from "../features/blobstorage/inFlightExports";
 import { prisma } from "@langfuse/shared/src/db";
 import { BackgroundMigrationManager } from "../backgroundMigrations/backgroundMigrationManager";
-import { MutationMonitor } from "../features/mutation-monitoring/mutationMonitor";
+import {
+  batchProjectCleaners,
+  batchDataRetentionCleaners,
+  mediaRetentionCleaner,
+  batchProjectMediaCleaner,
+  batchProjectBlobCleaner,
+  batchTraceDeletionCleaner,
+  traceDeleteBatchActionRunner,
+  deletedMaskCleaner,
+  queueMetricsRunner,
+  monitorRunners,
+} from "../app";
 
 export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   logger.info(`Received ${signal}, closing server...`);
   setSigtermReceived();
 
   // Stop accepting new connections
-  server.close();
+  server?.close();
   logger.info("Server has been closed.");
 
-  // Stop mutation monitor
-  MutationMonitor.stop();
+  // Stop batch project cleaners
+  for (const cleaner of batchProjectCleaners) {
+    cleaner.stop();
+  }
+
+  // Stop batch data retention cleaners
+  for (const cleaner of batchDataRetentionCleaners) {
+    cleaner.stop();
+  }
+
+  // Stop media retention cleaner
+  mediaRetentionCleaner?.stop();
+
+  // Stop batch project media cleaner
+  batchProjectMediaCleaner?.stop();
+
+  // Stop batch project blob cleaner
+  batchProjectBlobCleaner?.stop();
+
+  // Stop batch trace deletion cleaner
+  batchTraceDeletionCleaner?.stop();
+
+  // Stop durable trace-delete batch action runner
+  traceDeleteBatchActionRunner?.stop();
+
+  // Stop deleted-mask cleaner
+  deletedMaskCleaner?.stop();
+
+  // Stop queue metrics runner
+  queueMetricsRunner?.stop();
+
+  // Stop monitor runners
+  for (const runner of monitorRunners) {
+    runner.stop();
+  }
+
+  // Before closeWorkers(), while the registry is still populated (LFE-10388).
+  logInFlightBlobExportsOnShutdown();
 
   // Shutdown workers (https://docs.bullmq.io/guide/going-to-production#gracefully-shut-down-workers)
   await WorkerManager.closeWorkers();

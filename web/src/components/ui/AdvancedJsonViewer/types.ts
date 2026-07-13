@@ -452,6 +452,9 @@ export interface JsonSection {
 
   /** Minimum height for section content (CSS value, e.g., "200px", "50vh") */
   minHeight?: string;
+
+  /** Hide the data/key-value display, only show header/footer */
+  hideData?: boolean;
 }
 
 /**

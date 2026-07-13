@@ -93,29 +93,28 @@ export const UpsertModelFormDialog = (({
         tokenizerConfig: JSON.stringify(props.modelData.tokenizerConfig ?? {}),
         pricingTiers: loadedTiers,
       };
-    } else {
-      // CREATE: Start with 1 default tier
-      return {
-        modelName: props.prefilledModelData?.modelName ?? "",
-        matchPattern: props.prefilledModelData?.modelName
-          ? `(?i)^(${props.prefilledModelData?.modelName})$`
-          : "",
-        tokenizerId: null,
-        tokenizerConfig: null,
-        pricingTiers: [
-          {
-            name: "Standard",
-            isDefault: true,
-            priority: 0,
-            conditions: [],
-            prices: props.prefilledModelData?.prices ?? {
-              input: 0.000001,
-              output: 0.000002,
-            },
-          },
-        ],
-      };
     }
+    // CREATE: Start with 1 default tier
+    return {
+      modelName: props.prefilledModelData?.modelName ?? "",
+      matchPattern: props.prefilledModelData?.modelName
+        ? `(?i)^(${props.prefilledModelData?.modelName})$`
+        : "",
+      tokenizerId: null,
+      tokenizerConfig: null,
+      pricingTiers: [
+        {
+          name: "Standard",
+          isDefault: true,
+          priority: 0,
+          conditions: [],
+          prices: props.prefilledModelData?.prices ?? {
+            input: 0.000001,
+            output: 0.000002,
+          },
+        },
+      ],
+    };
   }, [props]);
 
   const form = useForm({
@@ -418,7 +417,6 @@ export const UpsertModelFormDialog = (({
                         mode="json"
                         value={field.value ?? "{}"}
                         onChange={field.onChange}
-                        minHeight="none"
                       />
                       <FormDescription>
                         The config for the tokenizer. Required for openai. See
@@ -454,7 +452,7 @@ export const UpsertModelFormDialog = (({
             </DialogFooter>
           </form>
           {formError ? (
-            <p className="my-2 text-center text-sm font-medium text-destructive">
+            <p className="text-destructive my-2 text-center text-sm font-medium">
               <span className="font-semibold">Error:</span> {formError}
             </p>
           ) : null}

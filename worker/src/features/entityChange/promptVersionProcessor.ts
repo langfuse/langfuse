@@ -10,7 +10,7 @@ import {
   WebhookQueue,
   QueueName,
   QueueJobs,
-  InMemoryFilterService,
+  matchesTriggerFilter,
   type PromptResult,
   getAutomations,
   EntityChangeEventType,
@@ -27,10 +27,12 @@ export const promptVersionProcessor = async (
   event: EntityChangeEventType,
 ): Promise<void> => {
   try {
-    logger.info(
-      `Processing prompt version change event for prompt ${event.promptId} for project ${event.projectId}`,
-      { event: JSON.stringify(event, null, 2) },
-    );
+    if (logger.isLevelEnabled("debug")) {
+      logger.debug(
+        `Processing prompt version change event for prompt ${event.promptId} for project ${event.projectId}`,
+        { event: JSON.stringify(event, null, 2) },
+      );
+    }
 
     // Get active prompt triggers
     const triggers = await getTriggerConfigurations({
@@ -48,29 +50,9 @@ export const promptVersionProcessor = async (
     // Process each trigger
     for (const trigger of triggers) {
       try {
-        // Create a unified data object that includes both prompt data and the action
-        const eventData = {
-          ...event.prompt,
-          action: event.action,
-        };
-
-        // Create a field mapper for all data including action
-        const fieldMapper = (data: typeof eventData, column: string) => {
-          switch (column) {
-            case "action":
-              return data.action;
-            case "Name":
-              return data.name;
-            default:
-              return undefined;
-          }
-        };
-
-        // Use InMemoryFilterService for all filtering including actions
-        const eventMatches = InMemoryFilterService.evaluateFilter(
-          eventData,
-          trigger.filter,
-          fieldMapper,
+        const eventMatches = matchesTriggerFilter(
+          { Name: event.prompt.name, action: event.action },
+          trigger,
         );
 
         if (!eventMatches) {
@@ -118,6 +100,7 @@ export const promptVersionProcessor = async (
               triggerId: trigger.id,
               actionId,
               projectId: event.projectId,
+              user: event.user,
             });
           }),
         );
@@ -146,12 +129,14 @@ async function enqueueAutomationAction({
   triggerId,
   actionId,
   projectId,
+  user,
 }: {
   promptData: PromptResult;
   action: string;
   triggerId: string;
   actionId: string;
   projectId: string;
+  user?: { id: string; name: string | null; email: string | null };
 }): Promise<void> {
   // Get automations for this action
   const automations = await getAutomations({
@@ -207,6 +192,7 @@ async function enqueueAutomationAction({
           prompt: jsonSchemaNullable.parse(promptData.prompt),
           config: jsonSchemaNullable.parse(promptData.config),
         },
+        ...(user ? { user } : {}),
       },
     },
     name: QueueJobs.WebhookJob,

@@ -8,7 +8,7 @@ import { AutomationFailureBanner } from "./AutomationFailureBanner";
 import {
   type AutomationDomain,
   JobConfigState,
-  type TriggerEventSource,
+  TriggerEventSource,
 } from "@langfuse/shared";
 import {
   TabsBar,
@@ -79,7 +79,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
 
   if (!automation) {
     return (
-      <div className="py-4 text-center text-muted-foreground">
+      <div className="text-muted-foreground py-4 text-center">
         Automation not found.
       </div>
     );
@@ -137,37 +137,45 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
             automationId={automationId}
           />
 
-          <TabsBar
-            value={activeTab}
-            onValueChange={setActiveTab}
-            className="w-full"
-          >
-            <TabsBarList>
-              <TabsBarTrigger value="executions">
-                Execution History
-              </TabsBarTrigger>
-              <TabsBarTrigger value="configuration">
-                Configuration
-              </TabsBarTrigger>
-            </TabsBarList>
+          {automation.trigger.eventSource === TriggerEventSource.Monitor ? (
+            <AutomationForm
+              projectId={projectId}
+              automation={automationForForm}
+              isEditing={false}
+            />
+          ) : (
+            <TabsBar
+              value={activeTab}
+              onValueChange={setActiveTab}
+              className="w-full"
+            >
+              <TabsBarList>
+                <TabsBarTrigger value="executions">
+                  Execution History
+                </TabsBarTrigger>
+                <TabsBarTrigger value="configuration">
+                  Configuration
+                </TabsBarTrigger>
+              </TabsBarList>
 
-            <TabsBarContent value="executions" className="mt-6">
-              <SettingsTableCard>
-                <AutomationExecutionsTable
+              <TabsBarContent value="executions" className="mt-6">
+                <SettingsTableCard>
+                  <AutomationExecutionsTable
+                    projectId={projectId}
+                    automationId={automationId}
+                  />
+                </SettingsTableCard>
+              </TabsBarContent>
+
+              <TabsBarContent value="configuration" className="mt-6">
+                <AutomationForm
                   projectId={projectId}
-                  automationId={automationId}
+                  automation={automationForForm}
+                  isEditing={false}
                 />
-              </SettingsTableCard>
-            </TabsBarContent>
-
-            <TabsBarContent value="configuration" className="mt-6">
-              <AutomationForm
-                projectId={projectId}
-                automation={automationForForm}
-                isEditing={false}
-              />
-            </TabsBarContent>
-          </TabsBar>
+              </TabsBarContent>
+            </TabsBar>
+          )}
         </>
       )}
     </div>

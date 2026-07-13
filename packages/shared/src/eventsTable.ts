@@ -1,8 +1,22 @@
 import { type ColumnDefinition } from "./tableDefinitions";
 
+export const eventsTableHasParentObservationSql = "e.parent_span_id != ''";
+export const eventsTableIsRootObservationSql =
+  "(e.parent_span_id = '' OR e.is_app_root = true)";
+// True when the observation carries input / output. NULL/'' both count as
+// absent (NULL != '' is NULL, i.e. not true), so only real payloads match.
+export const eventsTableHasInputSql = "e.input != ''";
+export const eventsTableHasOutputSql = "e.output != ''";
+
+type MutableDeep<T> = T extends readonly (infer U)[]
+  ? MutableDeep<U>[]
+  : T extends object
+    ? { -readonly [K in keyof T]: MutableDeep<T[K]> }
+    : T;
+
 // Column definitions for the ClickHouse events table
 // Used for filtering, sorting, and mapping UI columns to ClickHouse columns
-export const eventsTableCols: ColumnDefinition[] = [
+const eventsTableColsDefinition = [
   {
     name: "ID",
     id: "id",
@@ -74,6 +88,14 @@ export const eventsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
+    name: "Trace Name",
+    id: "traceName",
+    type: "stringOptions",
+    internal: "e.trace_name",
+    options: [], // to be added at runtime
+    nullable: true,
+  },
+  {
     name: "Level",
     id: "level",
     type: "stringOptions",
@@ -96,6 +118,13 @@ export const eventsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
+    name: "Prompt Version",
+    id: "promptVersion",
+    type: "number",
+    internal: "e.prompt_version",
+    nullable: true,
+  },
+  {
     name: "Model ID",
     id: "modelId",
     type: "stringOptions",
@@ -112,7 +141,7 @@ export const eventsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
-    name: "Total Cost ($)",
+    name: "Cost ($)",
     id: "totalCost",
     type: "number",
     internal:
@@ -206,7 +235,7 @@ export const eventsTableCols: ColumnDefinition[] = [
     name: "Trace Tags",
     id: "traceTags",
     type: "arrayOptions",
-    internal: "t.tags",
+    internal: "e.tags",
     options: [], // to be added at runtime
   },
   {
@@ -224,6 +253,34 @@ export const eventsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
+    name: "Scores (boolean)",
+    id: "score_booleans",
+    type: "booleanObject",
+    internal: "score_booleans",
+    nullable: true,
+  },
+  {
+    name: "Trace Scores (numeric)",
+    id: "trace_scores_avg",
+    type: "numberObject",
+    internal: "trace_scores_avg",
+  },
+  {
+    name: "Trace Scores (categorical)",
+    id: "trace_score_categories",
+    type: "categoryOptions",
+    internal: "trace_score_categories",
+    options: [], // to be added at runtime
+    nullable: true,
+  },
+  {
+    name: "Trace Scores (boolean)",
+    id: "trace_score_booleans",
+    type: "booleanObject",
+    internal: "trace_score_booleans",
+    nullable: true,
+  },
+  {
     name: "Comment Count",
     id: "commentCount",
     type: "number",
@@ -235,4 +292,149 @@ export const eventsTableCols: ColumnDefinition[] = [
     type: "string",
     internal: "", // handled by comment filter helpers
   },
-];
+  {
+    name: "Has Parent Observation",
+    id: "hasParentObservation",
+    type: "boolean",
+    internal: eventsTableHasParentObservationSql,
+  },
+  {
+    name: "Is Root Observation",
+    id: "isRootObservation",
+    type: "boolean",
+    internal: eventsTableIsRootObservationSql,
+  },
+  {
+    name: "Has Input",
+    id: "hasInput",
+    type: "boolean",
+    internal: eventsTableHasInputSql,
+  },
+  {
+    name: "Has Output",
+    id: "hasOutput",
+    type: "boolean",
+    internal: eventsTableHasOutputSql,
+  },
+  {
+    name: "Experiment Dataset ID",
+    id: "experimentDatasetId",
+    type: "stringOptions",
+    internal: "e.experiment_dataset_id",
+    options: [], // to be added at runtime
+    nullable: true,
+  },
+  {
+    name: "Experiment ID",
+    id: "experimentId",
+    type: "stringOptions",
+    internal: "e.experiment_id",
+    options: [], // to be added at runtime
+    nullable: true,
+  },
+  {
+    name: "Experiment Name",
+    id: "experimentName",
+    type: "stringOptions",
+    internal: "e.experiment_name",
+    options: [], // to be added at runtime
+    nullable: true,
+  },
+  {
+    name: "Available Tool Names",
+    id: "toolNames",
+    type: "arrayOptions",
+    internal: "mapKeys(e.tool_definitions)",
+    options: [],
+    nullable: true,
+  },
+  {
+    name: "Called Tool Names",
+    id: "calledToolNames",
+    type: "arrayOptions",
+    internal: "e.tool_call_names",
+    options: [],
+    nullable: true,
+  },
+  {
+    name: "Available Tools",
+    id: "toolDefinitions",
+    type: "number",
+    internal: "length(mapKeys(e.tool_definitions))",
+    nullable: true,
+  },
+  {
+    name: "Tool Calls",
+    id: "toolCalls",
+    type: "number",
+    internal: "length(e.tool_calls)",
+    nullable: true,
+  },
+  {
+    name: "Is Experiment Item Root Span",
+    id: "isExperimentItemRootSpan",
+    type: "boolean",
+    internal: "e.experiment_item_root_span_id = e.span_id",
+  },
+] as const satisfies readonly ColumnDefinition[];
+
+// TODO: Remove MutableDeep once consumers accept readonly column definitions.
+export const eventsTableCols =
+  eventsTableColsDefinition as unknown as MutableDeep<
+    typeof eventsTableColsDefinition
+  > &
+    ColumnDefinition[];
+
+type EventsTableColumnId = (typeof eventsTableColsDefinition)[number]["id"];
+
+export type NumericEventsTableColumnId = Extract<
+  (typeof eventsTableColsDefinition)[number],
+  { type: "number" }
+>["id"];
+
+export const isNumericEventsTableColumnId = (
+  column: EventsTableColumnId,
+): column is NumericEventsTableColumnId =>
+  eventsTableColsDefinition.some(
+    (col) => col.id === column && col.type === "number",
+  );
+
+// Subset of columns that are allowed to be used as filters in the MCP observations API
+const OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMN_IDS = [
+  "id",
+  "traceId",
+  "startTime",
+  "endTime",
+  "name",
+  "type",
+  "environment",
+  "version",
+  "userId",
+  "sessionId",
+  "traceName",
+  "level",
+  "statusMessage",
+  "promptName",
+  "promptVersion",
+  "modelId",
+  "providedModelName",
+  "totalCost",
+  "inputTokens",
+  "outputTokens",
+  "totalTokens",
+  "inputCost",
+  "outputCost",
+  "latency",
+  "timeToFirstToken",
+  "input",
+  "output",
+  "metadata",
+  "traceTags",
+  "hasParentObservation",
+] as const satisfies readonly EventsTableColumnId[];
+
+export type ObservationMcpAllowedEventsTableFilterColumn =
+  (typeof OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMN_IDS)[number];
+
+export const OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMNS: ReadonlySet<EventsTableColumnId> =
+  new Set(OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMN_IDS);

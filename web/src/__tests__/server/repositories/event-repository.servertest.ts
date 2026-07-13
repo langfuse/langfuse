@@ -1,0 +1,3750 @@
+import {
+  createEvent,
+  createEventsCh,
+  getObservationsForTraceFromEventsTable,
+  getObservationsWithModelDataFromEventsTable,
+  getObservationsCountFromEventsTable,
+  getObservationsCountsFromEventsTable,
+  getObservationByIdFromEventsTable,
+  getObservationsFromEventsTableForPublicApi,
+  getObservationsCountFromEventsTableForPublicApi,
+  updateEvents,
+  getTraceByIdFromEventsTable,
+  getObservationsBatchIOFromEventsTable,
+  getLatestSdkVersionInfoFromEvents,
+  getTracesIdentifierForSessionFromEvents,
+  getEventsFilterOptionsForColumns,
+  getEventsFilterOptionValuesPage,
+  createScoresCh,
+  createTraceScore,
+  type EventFilterOptionColumn,
+} from "@langfuse/shared/src/server";
+import {
+  getEventFilterNumericRange,
+  getEventFilterOptions,
+  getEventFilterValuePage,
+} from "@/src/features/events/server/eventsService";
+import { prisma } from "@langfuse/shared/src/db";
+import { randomUUID } from "crypto";
+import { env } from "@/src/env.mjs";
+import { type FilterCondition } from "@langfuse/shared";
+import waitForExpect from "wait-for-expect";
+
+const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+
+const maybe =
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
+    ? describe
+    : describe.skip;
+
+function idFilter(id: string): FilterCondition {
+  return {
+    type: "string",
+    column: "id",
+    operator: "=",
+    value: id,
+  };
+}
+
+const findFilterOption = (
+  rows: Awaited<ReturnType<typeof getEventsFilterOptionsForColumns>>,
+  column: EventFilterOptionColumn,
+  value: string,
+) => rows.find((row) => row.column === column && row.value === value);
+
+describe("Clickhouse Events Repository Test", () => {
+  it("should kill redis connection", () => {
+    // we need at least one test case to avoid hanging
+    // redis connection when everything else is skipped.
+  });
+
+  maybe("getObservationsWithModelDataFromEventsTable", () => {
+    it("should return trace tags for events table observations", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "tagged-event",
+          tags: ["chat", "prod"],
+        }),
+      ]);
+
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [idFilter(observationId)],
+        limit: 1000,
+        offset: 0,
+      });
+
+      const observation = result.find((o) => o.id === observationId);
+      expect(observation).toBeDefined();
+      expect(observation?.traceTags).toEqual(["chat", "prod"]);
+    });
+
+    it("should return observations with model data", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+      const modelId = randomUUID();
+
+      // Create a model with pricing
+      await prisma.model.create({
+        data: {
+          id: modelId,
+          projectId,
+          modelName: `gpt-4-${modelId}`,
+          matchPattern: `(?i)^(gpt-?4-${modelId})$`,
+          startDate: new Date("2023-01-01"),
+          unit: "TOKENS",
+
+          pricingTiers: {
+            create: {
+              isDefault: true,
+              conditions: [],
+              name: "Standard",
+              priority: 0,
+              prices: {
+                create: [
+                  {
+                    usageType: "input",
+                    price: 0.03,
+                    modelId,
+                  },
+                  {
+                    usageType: "output",
+                    price: 0.06,
+                    modelId,
+                  },
+                  {
+                    usageType: "total",
+                    price: 0.09,
+                    modelId,
+                  },
+                ],
+              },
+            },
+          },
+        },
+      });
+
+      const nowMicro = Date.now() * 1000;
+      // Create event with model reference
+      const event = createEvent({
+        id: generationId,
+        span_id: generationId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: `test-generation-${generationId}`,
+        input: "Hello world, this is a test input",
+        output: "This is a test response output",
+        model_id: modelId,
+        provided_model_name: `gpt-4-${modelId}`,
+        start_time: nowMicro,
+        end_time: nowMicro + 2000000, // +2 seconds
+        completion_start_time: nowMicro + 2000000, // +2 seconds
+      });
+
+      await createEventsCh([event]);
+
+      // Query observations
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [idFilter(generationId)],
+        limit: 1000,
+        offset: 0,
+        selectIOAndMetadata: true,
+      });
+
+      expect(result).toBeDefined();
+      expect(result.length).toBeGreaterThan(0);
+      const observation = result.find((o) => o.id === generationId);
+      expect(observation).toBeDefined();
+      expect(observation?.id).toBe(generationId);
+      expect(observation?.traceId).toBe(traceId);
+      expect(observation?.name).toBe(`test-generation-${generationId}`);
+      expect(observation?.type).toBe("GENERATION");
+      expect(observation?.internalModelId).toBe(modelId);
+      expect(Number(observation?.inputPrice)).toBeCloseTo(0.03, 5);
+      expect(Number(observation?.outputPrice)).toBeCloseTo(0.06, 5);
+      expect(Number(observation?.totalPrice)).toBeCloseTo(0.09, 5);
+      expect(observation?.latency).toBeGreaterThan(0);
+      expect(observation?.timeToFirstToken).toBeGreaterThan(0);
+
+      // Cleanup
+      await prisma.model.delete({ where: { id: modelId } });
+    });
+
+    it("should return observations without model data when model is not found", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+
+      const event = createEvent({
+        id: generationId,
+        span_id: generationId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "test-generation-no-model",
+        input: "Test input",
+        output: "Test output",
+        model_id: null,
+        provided_model_name: "unknown-model",
+      });
+
+      await createEventsCh([event]);
+
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [idFilter(generationId)],
+        limit: 1000,
+        offset: 0,
+        selectIOAndMetadata: true,
+      });
+
+      const observation = result.find((o) => o.id === generationId);
+      expect(observation).toBeDefined();
+      expect(observation?.id).toBe(generationId);
+      // Model data should be null or empty string
+      expect(observation?.internalModelId || null).toBeNull();
+      expect(observation?.inputPrice).toBeNull();
+      expect(observation?.outputPrice).toBeNull();
+      expect(observation?.totalPrice).toBeNull();
+    });
+
+    it("should respect limit and offset parameters", async () => {
+      const traceId = randomUUID();
+      const events = Array.from({ length: 5 }, (_, i) =>
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: `test-event-${i}`,
+          start_time: Date.now() + i * 1000,
+        }),
+      );
+
+      await createEventsCh(events);
+
+      const result1 = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [],
+        limit: 2,
+        offset: 0,
+      });
+
+      const result2 = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [],
+        limit: 2,
+        offset: 2,
+      });
+
+      expect(result1.length).toBeLessThanOrEqual(2);
+      expect(result2.length).toBeLessThanOrEqual(2);
+    });
+
+    it("should return release field in the result set", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "release-field-test",
+          release: "1.2.3",
+          version: "V2",
+        }),
+      ]);
+
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [idFilter(observationId)],
+        limit: 1000,
+        offset: 0,
+      });
+
+      const observation = result.find((o) => o.id === observationId);
+      expect(observation).toBeDefined();
+      expect(observation?.release).toBe("1.2.3");
+      expect(observation?.version).toBe("V2");
+    });
+
+    it("should handle events without end_time (null latency)", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+
+      const event = createEvent({
+        id: generationId,
+        span_id: generationId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "no-end-time",
+        end_time: null,
+      });
+
+      await createEventsCh([event]);
+
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [idFilter(generationId)],
+        limit: 1000,
+        offset: 0,
+      });
+
+      const observation = result.find((o) => o.id === generationId);
+      expect(observation).toBeDefined();
+      expect(observation?.latency).toBeNull();
+    });
+
+    it("should handle events without completion_start_time (null ttft)", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+
+      const event = createEvent({
+        id: generationId,
+        span_id: generationId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "no-completion-start",
+        completion_start_time: null,
+      });
+
+      await createEventsCh([event]);
+
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [idFilter(generationId)],
+        limit: 1000,
+        offset: 0,
+      });
+
+      const observation = result.find((o) => o.id === generationId);
+      expect(observation).toBeDefined();
+      expect(observation?.timeToFirstToken).toBeNull();
+    });
+
+    it("should respect selectIOAndMetadata parameter", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+
+      const event = createEvent({
+        id: generationId,
+        span_id: generationId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "io-metadata-test",
+        input: "Test input content",
+        output: "Test output content",
+        metadata: { key: "value" },
+      });
+
+      await createEventsCh([event]);
+
+      const resultWithIO = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [idFilter(generationId)],
+        limit: 1000,
+        offset: 0,
+        selectIOAndMetadata: true,
+      });
+
+      const resultWithoutIO = await getObservationsWithModelDataFromEventsTable(
+        {
+          projectId,
+          filter: [idFilter(generationId)],
+          limit: 1000,
+          offset: 0,
+          selectIOAndMetadata: false,
+        },
+      );
+
+      expect(resultWithIO.length).toBeGreaterThanOrEqual(1);
+      expect(resultWithoutIO.length).toBeGreaterThanOrEqual(1);
+      expect(resultWithIO[0]?.input).toBeDefined();
+      expect(resultWithoutIO[0]?.output).toBeDefined();
+    });
+
+    it("should not throw when model_parameters is not valid JSON", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+
+      const event = createEvent({
+        id: generationId,
+        span_id: generationId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "poisoned-model-parameters",
+        provided_model_name: "gpt-5-mini",
+        model_parameters: "<not serializable object of type: dict>",
+      });
+
+      await createEventsCh([event]);
+
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [idFilter(generationId)],
+        limit: 1000,
+        offset: 0,
+        selectIOAndMetadata: true,
+      });
+
+      const observation = result.find((o) => o.id === generationId);
+      expect(observation).toBeDefined();
+      expect(observation?.modelParameters).toBe(
+        "<not serializable object of type: dict>",
+      );
+
+      const byId = await getObservationByIdFromEventsTable({
+        id: generationId,
+        projectId,
+        fetchWithInputOutput: true,
+      });
+      expect(byId?.modelParameters).toBe(
+        "<not serializable object of type: dict>",
+      );
+    });
+  });
+
+  maybe("getObservationsCountFromEventsTable", () => {
+    it("should return 0 for non-existent project", async () => {
+      const nonExistentProjectId = randomUUID();
+
+      const count = await getObservationsCountFromEventsTable({
+        projectId: nonExistentProjectId,
+        filter: [],
+      });
+
+      expect(count).toBe(0);
+    });
+
+    it("should match the length of observations returned by getObservationsWithModelDataFromEventsTable", async () => {
+      const uniqueProjectId = randomUUID();
+      const uniqueTraceId = randomUUID();
+      const events = Array.from({ length: 5 }, (_, i) =>
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: uniqueTraceId,
+          type: "GENERATION",
+          name: `matching-count-test-${i}`,
+        }),
+      );
+
+      await createEventsCh(events);
+
+      // Use the unique project ID to isolate our test data (no filters needed)
+      const observations = await getObservationsWithModelDataFromEventsTable({
+        projectId: uniqueProjectId,
+        filter: [],
+        limit: 100,
+        offset: 0,
+      });
+
+      const count = await getObservationsCountFromEventsTable({
+        projectId: uniqueProjectId,
+        filter: [],
+      });
+
+      expect(count).toBe(5);
+      expect(observations.length).toBe(5);
+    });
+  });
+
+  maybe("getObservationsCountsFromEventsTable", () => {
+    it("should return zero counts for non-existent project", async () => {
+      const nonExistentProjectId = randomUUID();
+
+      const counts = await getObservationsCountsFromEventsTable({
+        projectId: nonExistentProjectId,
+        filter: [],
+      });
+
+      expect(counts).toEqual({ totalCount: 0, uniqueTraceCount: 0 });
+    });
+
+    it("should return total event count and unique trace count in one query", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceIds = [randomUUID(), randomUUID(), randomUUID()];
+      // 6 events across 3 distinct traces (2 events per trace)
+      const events = traceIds.flatMap((traceId, traceIndex) =>
+        Array.from({ length: 2 }, (_, i) =>
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: `counts-test-${traceIndex}-${i}`,
+          }),
+        ),
+      );
+
+      await createEventsCh(events);
+
+      const counts = await getObservationsCountsFromEventsTable({
+        projectId: uniqueProjectId,
+        filter: [],
+      });
+
+      expect(counts.totalCount).toBe(6);
+      expect(counts.uniqueTraceCount).toBe(3);
+    });
+
+    it("should apply filters to both counts", async () => {
+      const uniqueProjectId = randomUUID();
+      const matchingTraceId = randomUUID();
+      const otherTraceId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: matchingTraceId,
+          type: "SPAN",
+          name: "counts-filter-match",
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: matchingTraceId,
+          type: "SPAN",
+          name: "counts-filter-match",
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: otherTraceId,
+          type: "SPAN",
+          name: "counts-filter-other",
+        }),
+      ]);
+
+      const counts = await getObservationsCountsFromEventsTable({
+        projectId: uniqueProjectId,
+        filter: [
+          {
+            type: "string",
+            column: "name",
+            operator: "=",
+            value: "counts-filter-match",
+          },
+        ],
+      });
+
+      expect(counts.totalCount).toBe(2);
+      expect(counts.uniqueTraceCount).toBe(1);
+    });
+  });
+
+  maybe("Search Query Tests", () => {
+    it("should not throw when searchQuery is combined with score filter", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      const event = createEvent({
+        id: spanId,
+        span_id: spanId,
+        project_id: uniqueProjectId,
+        trace_id: traceId,
+        type: "SPAN",
+        name: "test-span",
+      });
+
+      await createEventsCh([event]);
+
+      // Verify that search columns qualified with e.* prefix do not conflict
+      // with the scores_agg LEFT JOIN when both are present.
+      const scoreFilter: FilterCondition = {
+        type: "numberObject" as const,
+        column: "scores_avg",
+        operator: ">" as const,
+        key: "Clinical Risk",
+        value: 0,
+      };
+
+      const count = await getObservationsCountFromEventsTable({
+        projectId: uniqueProjectId,
+        filter: [scoreFilter],
+        searchQuery: "test",
+      });
+
+      expect(count).toBeGreaterThanOrEqual(0);
+    });
+
+    it("filters observations by observation-level boolean scores", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const matchingSpanId = randomUUID();
+      const otherSpanId = randomUUID();
+      const now = Date.now();
+
+      await createEventsCh([
+        createEvent({
+          id: matchingSpanId,
+          span_id: matchingSpanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "boolean-score-match",
+          start_time: now * 1000,
+        }),
+        createEvent({
+          id: otherSpanId,
+          span_id: otherSpanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "boolean-score-other",
+          start_time: now * 1000,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: matchingSpanId,
+          name: "is_hallucination",
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "True",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: otherSpanId,
+          name: "is_hallucination",
+          data_type: "BOOLEAN",
+          value: 0,
+          string_value: "False",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+      ]);
+
+      const booleanFilter: FilterCondition = {
+        type: "booleanObject",
+        column: "score_booleans",
+        operator: "=",
+        key: "is_hallucination",
+        value: true,
+      };
+
+      await waitForExpect(async () => {
+        const observations = await getObservationsWithModelDataFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [booleanFilter],
+          limit: 100,
+          offset: 0,
+        });
+        const count = await getObservationsCountFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [booleanFilter],
+        });
+
+        expect(count).toBe(1);
+        expect(observations.map((o) => o.id)).toEqual([matchingSpanId]);
+      });
+    });
+
+    it("filters observations by trace-level boolean scores", async () => {
+      const uniqueProjectId = randomUUID();
+      const matchingTraceId = randomUUID();
+      const otherTraceId = randomUUID();
+      const matchingSpanId = randomUUID();
+      const otherSpanId = randomUUID();
+      const now = Date.now();
+
+      await createEventsCh([
+        createEvent({
+          id: matchingSpanId,
+          span_id: matchingSpanId,
+          project_id: uniqueProjectId,
+          trace_id: matchingTraceId,
+          type: "SPAN",
+          name: "trace-boolean-score-match",
+          start_time: now * 1000,
+        }),
+        createEvent({
+          id: otherSpanId,
+          span_id: otherSpanId,
+          project_id: uniqueProjectId,
+          trace_id: otherTraceId,
+          type: "SPAN",
+          name: "trace-boolean-score-other",
+          start_time: now * 1000,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: matchingTraceId,
+          observation_id: null,
+          name: "passes_guardrail",
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "True",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: otherTraceId,
+          observation_id: null,
+          name: "passes_guardrail",
+          data_type: "BOOLEAN",
+          value: 0,
+          string_value: "False",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+      ]);
+
+      const booleanFilter: FilterCondition = {
+        type: "booleanObject",
+        column: "trace_score_booleans",
+        operator: "=",
+        key: "passes_guardrail",
+        value: true,
+      };
+
+      await waitForExpect(async () => {
+        const observations = await getObservationsWithModelDataFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [booleanFilter],
+          limit: 100,
+          offset: 0,
+        });
+        const count = await getObservationsCountFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [booleanFilter],
+        });
+
+        expect(count).toBe(1);
+        expect(observations.map((o) => o.id)).toEqual([matchingSpanId]);
+      });
+    });
+
+    it("should not throw when searchQuery is provided without filters", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      const event = createEvent({
+        id: spanId,
+        span_id: spanId,
+        project_id: uniqueProjectId,
+        trace_id: traceId,
+        type: "SPAN",
+        name: "test-span",
+      });
+
+      await createEventsCh([event]);
+
+      // Verify basic search with qualified e.* columns works without errors.
+      const count = await getObservationsCountFromEventsTable({
+        projectId: uniqueProjectId,
+        filter: [],
+        searchQuery: "test",
+      });
+
+      expect(count).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  maybe("getEventFilterOptions", () => {
+    it("applies a default 30 day startTime bound when none is provided", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const now = Date.now();
+      const recentLevel = "WARNING";
+      const oldLevel = "ERROR";
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "recent-filter-option-event",
+          level: recentLevel,
+          start_time: (now - 7 * 24 * 60 * 60 * 1000) * 1000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "old-filter-option-event",
+          level: oldLevel,
+          start_time: (now - 45 * 24 * 60 * 60 * 1000) * 1000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const options = await getEventFilterOptions({
+          projectId: uniqueProjectId,
+        });
+        expect(options.level.map((level) => level.value)).toContain(
+          recentLevel,
+        );
+      });
+
+      const defaultOptions = await getEventFilterOptions({
+        projectId: uniqueProjectId,
+      });
+      const defaultLevels = defaultOptions.level.map((level) => level.value);
+
+      expect(defaultLevels).toContain(recentLevel);
+      expect(defaultLevels).not.toContain(oldLevel);
+
+      const upperOnlyOptions = await getEventFilterOptions({
+        projectId: uniqueProjectId,
+        startTimeFilter: [
+          {
+            column: "startTime",
+            type: "datetime",
+            operator: "<=",
+            value: new Date(now),
+          },
+        ],
+      });
+      const upperOnlyLevels = upperOnlyOptions.level.map(
+        (level) => level.value,
+      );
+
+      expect(upperOnlyLevels).toContain(recentLevel);
+      expect(upperOnlyLevels).not.toContain(oldLevel);
+
+      await waitForExpect(async () => {
+        const explicitOptions = await getEventFilterOptions({
+          projectId: uniqueProjectId,
+          startTimeFilter: [
+            {
+              column: "startTime",
+              type: "datetime",
+              operator: ">=",
+              value: new Date(now - 60 * 24 * 60 * 60 * 1000),
+            },
+          ],
+        });
+        const explicitLevels = explicitOptions.level.map(
+          (level) => level.value,
+        );
+
+        expect(explicitLevels).toContain(recentLevel);
+        expect(explicitLevels).toContain(oldLevel);
+      });
+    });
+
+    it("only loads requested filter option columns", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const now = Date.now();
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "unrequested-filter-option-name",
+          level: "WARNING",
+          tags: ["unrequested-filter-option-tag"],
+          start_time: now * 1000,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          name: "unrequested-filter-option-score",
+          data_type: "NUMERIC",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          name: "unrequested-filter-option-category",
+          data_type: "CATEGORICAL",
+          string_value: "unrequested-category-value",
+          value: 1,
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          name: "unrequested-filter-option-boolean",
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "True",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const options = await getEventFilterOptions({
+          projectId: uniqueProjectId,
+          columns: ["level"],
+        });
+
+        expect(options.level?.map((level) => level.value)).toContain("WARNING");
+        // Unrequested columns are absent (not empty arrays), so the client can
+        // distinguish "loaded, no values" from "not requested yet" for lazy loading.
+        expect(options.name).toBeUndefined();
+        expect(options.traceTags).toBeUndefined();
+        expect(options.scores_avg).toBeUndefined();
+        expect(options.score_categories).toBeUndefined();
+        expect(options.score_booleans).toBeUndefined();
+        expect(options.trace_scores_avg).toBeUndefined();
+        expect(options.trace_score_categories).toBeUndefined();
+        expect(options.trace_score_booleans).toBeUndefined();
+      });
+    });
+
+    it("loads requested boolean score filter option columns", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+      const now = Date.now();
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "requested-boolean-filter-option",
+          start_time: now * 1000,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: spanId,
+          name: "requested-observation-boolean",
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "True",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: null,
+          name: "requested-trace-boolean",
+          data_type: "BOOLEAN",
+          value: 0,
+          string_value: "False",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const options = await getEventFilterOptions({
+          projectId: uniqueProjectId,
+          columns: ["score_booleans", "trace_score_booleans"],
+        });
+
+        expect(options.score_booleans).toContain(
+          "requested-observation-boolean",
+        );
+        expect(options.trace_score_booleans).toContain(
+          "requested-trace-boolean",
+        );
+        expect(options.trace_score_booleans).not.toContain(
+          "requested-observation-boolean",
+        );
+      });
+    });
+
+    it("applies the default startTime bound to paged and numeric filter values", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const now = Date.now();
+      const dayMs = 24 * 60 * 60 * 1000;
+      const recentLevel = "WARNING";
+      const oldLevel = "ERROR";
+      const recentStart = now - 7 * dayMs;
+      const oldStart = now - 45 * dayMs;
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "recent-filter-value-event",
+          level: recentLevel,
+          start_time: recentStart * 1000,
+          end_time: (recentStart + 1000) * 1000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "old-filter-value-event",
+          level: oldLevel,
+          start_time: oldStart * 1000,
+          end_time: (oldStart + 10_000) * 1000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const page = await getEventFilterValuePage({
+          projectId: uniqueProjectId,
+          column: "level",
+          limit: 10,
+          offset: 0,
+        });
+
+        expect(page.values.map((level) => level.value)).toContain(recentLevel);
+      });
+
+      const page = await getEventFilterValuePage({
+        projectId: uniqueProjectId,
+        column: "level",
+        limit: 10,
+        offset: 0,
+      });
+      const levels = page.values.map((level) => level.value);
+
+      expect(levels).toContain(recentLevel);
+      expect(levels).not.toContain(oldLevel);
+
+      await waitForExpect(async () => {
+        const range = await getEventFilterNumericRange({
+          projectId: uniqueProjectId,
+          column: "latency",
+        });
+
+        expect(range).not.toBeNull();
+        expect(Number(range?.count)).toBe(1);
+        expect(Number(range?.min)).toBeCloseTo(1, 3);
+        expect(Number(range?.max)).toBeCloseTo(1, 3);
+      });
+    });
+  });
+
+  maybe("events filter option repository helpers", () => {
+    it("executes the bulk filter option query for scalar, array, and boolean facets", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const rootSpanId = randomUUID();
+      const childSpanId = randomUUID();
+      const otherRootSpanId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: rootSpanId,
+          span_id: rootSpanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          parent_span_id: "",
+          is_app_root: true,
+          type: "GENERATION",
+          name: "runtime-filter-alpha",
+          level: "WARNING",
+          tags: ["zeta", "alpha", "alpha"],
+          tool_definitions: { search: "{}", calculator: "{}" },
+          tool_call_names: ["search"],
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: childSpanId,
+          span_id: childSpanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          parent_span_id: rootSpanId,
+          type: "SPAN",
+          name: "runtime-filter-beta",
+          level: "WARNING",
+          tags: ["beta"],
+          tool_definitions: { search: "{}" },
+          tool_call_names: ["lookup", "search"],
+          start_time: nowMicro + 1_000,
+          event_ts: nowMicro + 1_000,
+        }),
+        createEvent({
+          id: otherRootSpanId,
+          span_id: otherRootSpanId,
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          parent_span_id: "",
+          is_app_root: true,
+          type: "GENERATION",
+          name: "runtime-filter-alpha",
+          level: "ERROR",
+          tags: ["alpha"],
+          tool_definitions: { lookup: "{}" },
+          tool_call_names: ["lookup"],
+          start_time: nowMicro + 2_000,
+          event_ts: nowMicro + 2_000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const rows = await getEventsFilterOptionsForColumns({
+          projectId: uniqueProjectId,
+          filter: [],
+          columns: [
+            "name",
+            "level",
+            "traceTags",
+            "isRootObservation",
+            "hasParentObservation",
+            "toolNames",
+            "calledToolNames",
+          ],
+          topN: 20,
+        });
+
+        expect(Number(findFilterOption(rows, "level", "WARNING")?.count)).toBe(
+          2,
+        );
+        expect(Number(findFilterOption(rows, "level", "ERROR")?.count)).toBe(1);
+        expect(
+          Number(findFilterOption(rows, "name", "runtime-filter-alpha")?.count),
+        ).toBe(2);
+        expect(
+          Number(findFilterOption(rows, "name", "runtime-filter-beta")?.count),
+        ).toBe(1);
+        expect(
+          Number(findFilterOption(rows, "traceTags", "alpha")?.count),
+        ).toBe(2);
+        expect(Number(findFilterOption(rows, "traceTags", "beta")?.count)).toBe(
+          1,
+        );
+        expect(Number(findFilterOption(rows, "traceTags", "zeta")?.count)).toBe(
+          1,
+        );
+        expect(
+          rows
+            .filter((row) => row.column === "traceTags")
+            .map((row) => row.value),
+        ).toEqual(["alpha", "beta", "zeta"]);
+        expect(
+          rows
+            .filter((row) => row.column === "isRootObservation")
+            .map((row) => row.value),
+        ).toEqual(["false", "true"]);
+        expect(
+          Number(findFilterOption(rows, "isRootObservation", "false")?.count),
+        ).toBe(1);
+        expect(
+          Number(findFilterOption(rows, "isRootObservation", "true")?.count),
+        ).toBe(2);
+        expect(
+          Number(
+            findFilterOption(rows, "hasParentObservation", "false")?.count,
+          ),
+        ).toBe(2);
+        expect(
+          Number(findFilterOption(rows, "hasParentObservation", "true")?.count),
+        ).toBe(1);
+        expect(
+          Number(findFilterOption(rows, "toolNames", "search")?.count),
+        ).toBe(2);
+        expect(
+          Number(findFilterOption(rows, "toolNames", "calculator")?.count),
+        ).toBe(1);
+        expect(
+          Number(findFilterOption(rows, "calledToolNames", "lookup")?.count),
+        ).toBe(2);
+        expect(
+          Number(findFilterOption(rows, "calledToolNames", "search")?.count),
+        ).toBe(2);
+      });
+    });
+
+    it("executes the exact single-column array filter option query with paging", async () => {
+      const uniqueProjectId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          tags: ["gamma", "alpha", "alpha"],
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          tags: ["beta", "alpha"],
+          start_time: nowMicro + 1_000,
+          event_ts: nowMicro + 1_000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const firstPage = await getEventsFilterOptionValuesPage({
+          projectId: uniqueProjectId,
+          filter: [],
+          column: "traceTags",
+          limit: 2,
+          offset: 0,
+        });
+
+        expect(firstPage.map((row) => row.value)).toEqual(["alpha", "beta"]);
+        expect(Number(firstPage[0]?.count)).toBe(2);
+        expect(Number(firstPage[1]?.count)).toBe(1);
+      });
+
+      const secondPage = await getEventsFilterOptionValuesPage({
+        projectId: uniqueProjectId,
+        filter: [],
+        column: "traceTags",
+        limit: 2,
+        offset: 2,
+      });
+
+      expect(secondPage.map((row) => row.value)).toEqual(["gamma"]);
+      expect(Number(secondPage[0]?.count)).toBe(1);
+    });
+  });
+
+  maybe("Filter Tests", () => {
+    describe("Timestamp Filters", () => {
+      it("should filter observations by start time with >= operator", async () => {
+        const uniqueProjectId = randomUUID();
+        const traceId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+
+        const events = [
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "old-event-gte",
+            start_time: (now - 10000) * 1000,
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "exact-event-gte",
+            start_time: filterTime.getTime() * 1000,
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "new-event-gte",
+            start_time: now * 1000,
+          }),
+        ];
+
+        await createEventsCh(events);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: filterTime,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.length).toBe(2);
+        const names = result.map((o) => o.name).sort();
+        expect(names).toEqual(["exact-event-gte", "new-event-gte"]);
+      });
+
+      it("should filter observations by start time with <= operator", async () => {
+        const uniqueProjectId = randomUUID();
+        const traceId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+
+        const events = [
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "old-event-lte",
+            start_time: (now - 10000) * 1000,
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "exact-event-lte",
+            start_time: filterTime.getTime() * 1000,
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "new-event-lte",
+            start_time: now * 1000,
+          }),
+        ];
+
+        await createEventsCh(events);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: "<=",
+              value: filterTime,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.length).toBe(2);
+        const names = result.map((o) => o.name).sort();
+        expect(names).toEqual(["exact-event-lte", "old-event-lte"]);
+      });
+
+      it("should filter observations by end time", async () => {
+        const uniqueProjectId = randomUUID();
+        const traceId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 2000);
+
+        const events = [
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "event-no-end",
+            start_time: (now - 10000) * 1000,
+            end_time: null,
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "event-old-end",
+            start_time: (now - 10000) * 1000,
+            end_time: (now - 5000) * 1000,
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "event-recent-end",
+            start_time: (now - 5000) * 1000,
+            end_time: now * 1000,
+          }),
+        ];
+
+        await createEventsCh(events);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [
+            {
+              type: "datetime",
+              column: "endTime",
+              operator: ">",
+              value: filterTime,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.length).toBe(1);
+        expect(result[0].name).toBe("event-recent-end");
+      });
+    });
+
+    describe("Prompt Filters", () => {
+      it("should filter observations by prompt name and prompt version", async () => {
+        const uniqueProjectId = randomUUID();
+        const traceId = randomUUID();
+        const matchingEventId = randomUUID();
+
+        const events = [
+          createEvent({
+            id: matchingEventId,
+            span_id: matchingEventId,
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "GENERATION",
+            name: "prompt-match",
+            prompt_name: "chat-parent",
+            prompt_version: 1,
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "GENERATION",
+            name: "wrong-version",
+            prompt_name: "chat-parent",
+            prompt_version: 2,
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "GENERATION",
+            name: "wrong-name",
+            prompt_name: "other-prompt",
+            prompt_version: 1,
+          }),
+        ];
+
+        await createEventsCh(events);
+
+        const filter: FilterCondition[] = [
+          {
+            type: "string",
+            column: "Prompt Name",
+            operator: "=",
+            value: "chat-parent",
+          },
+          {
+            type: "number",
+            column: "Prompt Version",
+            operator: "=",
+            value: 1,
+          },
+        ];
+
+        const [observations, count] = await Promise.all([
+          getObservationsWithModelDataFromEventsTable({
+            projectId: uniqueProjectId,
+            filter,
+            limit: 100,
+            offset: 0,
+          }),
+          getObservationsCountFromEventsTable({
+            projectId: uniqueProjectId,
+            filter,
+          }),
+        ]);
+
+        expect(count).toBe(1);
+        expect(observations).toHaveLength(1);
+        expect(observations[0]?.id).toBe(matchingEventId);
+        expect(observations[0]?.promptName).toBe("chat-parent");
+        expect(observations[0]?.promptVersion).toBe(1);
+      });
+    });
+
+    describe("Trace ID Filters", () => {
+      it("should filter observations by multiple trace IDs with 'any of' operator", async () => {
+        const traceId1 = randomUUID();
+        const traceId2 = randomUUID();
+        const traceId3 = randomUUID();
+
+        const events = [
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId1,
+            type: "SPAN",
+            name: "trace-1-event",
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId2,
+            type: "SPAN",
+            name: "trace-2-event",
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId3,
+            type: "SPAN",
+            name: "trace-3-event",
+          }),
+        ];
+
+        await createEventsCh(events);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            {
+              type: "stringOptions",
+              column: "traceId",
+              operator: "any of",
+              value: [traceId1, traceId2],
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        const filteredObservations = result.filter((o) =>
+          [traceId1, traceId2, traceId3].includes(o.traceId ?? ""),
+        );
+        expect(filteredObservations.length).toBe(2);
+        const traceIds = filteredObservations.map((o) => o.traceId).sort();
+        expect(traceIds).toEqual([traceId1, traceId2].sort());
+      });
+    });
+
+    describe("User ID Filters", () => {
+      it("should filter observations by single user ID with stringOptions", async () => {
+        const traceId1 = randomUUID();
+        const traceId2 = randomUUID();
+        const userId1 = "user-123";
+        const userId2 = "user-456";
+
+        const events = [
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId1,
+            user_id: userId1,
+            type: "SPAN",
+            name: "user-1-event",
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId2,
+            user_id: userId2,
+            type: "SPAN",
+            name: "user-2-event",
+          }),
+        ];
+
+        await createEventsCh(events);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            {
+              type: "stringOptions",
+              column: "userId",
+              operator: "any of",
+              value: [userId1],
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        const filteredObservations = result.filter(
+          (o) => o.traceId === traceId1 || o.traceId === traceId2,
+        );
+        expect(filteredObservations.length).toBe(1);
+        expect(filteredObservations[0].name).toBe("user-1-event");
+      });
+
+      it("should filter observations by multiple user IDs with 'any of' operator", async () => {
+        const traceId1 = randomUUID();
+        const traceId2 = randomUUID();
+        const traceId3 = randomUUID();
+        const userId1 = "user-alpha";
+        const userId2 = "user-beta";
+        const userId3 = "user-gamma";
+
+        const events = [
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId1,
+            user_id: userId1,
+            type: "SPAN",
+            name: "user-alpha-event",
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId2,
+            user_id: userId2,
+            type: "SPAN",
+            name: "user-beta-event",
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId3,
+            user_id: userId3,
+            type: "SPAN",
+            name: "user-gamma-event",
+          }),
+        ];
+
+        await createEventsCh(events);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            {
+              type: "stringOptions",
+              column: "userId",
+              operator: "any of",
+              value: [userId1, userId2],
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        const filteredObservations = result.filter((o) =>
+          [traceId1, traceId2, traceId3].includes(o.traceId ?? ""),
+        );
+        expect(filteredObservations.length).toBe(2);
+        const names = filteredObservations.map((o) => o.name).sort();
+        expect(names).toEqual(["user-alpha-event", "user-beta-event"]);
+      });
+
+      it("should filter observations by user ID with 'none of' operator", async () => {
+        const traceId1 = randomUUID();
+        const traceId2 = randomUUID();
+        const traceId3 = randomUUID();
+        const userId1 = `user-exclude-1-${randomUUID()}`;
+        const userId2 = `user-exclude-2-${randomUUID()}`;
+        const userId3 = `user-include-${randomUUID()}`;
+
+        const events = [
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId1,
+            user_id: userId1,
+            type: "SPAN",
+            name: "excluded-1",
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId2,
+            user_id: userId2,
+            type: "SPAN",
+            name: "excluded-2",
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId3,
+            user_id: userId3,
+            type: "SPAN",
+            name: "included",
+          }),
+        ];
+
+        await createEventsCh(events);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            {
+              type: "stringOptions",
+              column: "traceId",
+              operator: "any of",
+              value: [traceId1, traceId2, traceId3],
+            },
+            {
+              type: "stringOptions",
+              column: "userId",
+              operator: "none of",
+              value: [userId1, userId2],
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.length).toBe(1);
+        expect(result[0].name).toBe("included");
+        expect(result[0].traceId).toBe(traceId3);
+      });
+
+      it("should handle observations with null user IDs", async () => {
+        const traceId1 = randomUUID();
+        const traceId2 = randomUUID();
+        const userId = "user-with-id";
+
+        const events = [
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId1,
+            user_id: userId,
+            type: "SPAN",
+            name: "event-with-user",
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId2,
+            user_id: null,
+            type: "SPAN",
+            name: "event-without-user",
+          }),
+        ];
+
+        await createEventsCh(events);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            {
+              type: "stringOptions",
+              column: "userId",
+              operator: "any of",
+              value: [userId],
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        const filteredObservations = result.filter(
+          (o) => o.traceId === traceId1 || o.traceId === traceId2,
+        );
+        expect(filteredObservations.length).toBe(1);
+        expect(filteredObservations[0].name).toBe("event-with-user");
+      });
+    });
+
+    describe("Combined Filters", () => {
+      it("should filter observations by timestamp AND user ID", async () => {
+        const traceId1 = randomUUID();
+        const traceId2 = randomUUID();
+        const traceId3 = randomUUID();
+        const userId1 = "combined-user-1";
+        const userId2 = "combined-user-2";
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+
+        const events = [
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId1,
+            user_id: userId1,
+            type: "SPAN",
+            name: "old-user-1",
+            start_time: (now - 10000) * 1000,
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId2,
+            user_id: userId1,
+            type: "SPAN",
+            name: "new-user-1",
+            start_time: now * 1000,
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId3,
+            user_id: userId2,
+            type: "SPAN",
+            name: "new-user-2",
+            start_time: now * 1000,
+          }),
+        ];
+
+        await createEventsCh(events);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">",
+              value: filterTime,
+            },
+            {
+              type: "stringOptions",
+              column: "userId",
+              operator: "any of",
+              value: [userId1],
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        const filteredObservations = result.filter((o) =>
+          [traceId1, traceId2, traceId3].includes(o.traceId ?? ""),
+        );
+        expect(filteredObservations.length).toBe(1);
+        expect(filteredObservations[0].name).toBe("new-user-1");
+      });
+    });
+    describe("Metadata filters", () => {
+      it("should filter observations by stringObject", async () => {
+        const traceId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+
+        const events = [
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "md1",
+            metadata_names: ["source", "region"],
+            metadata_values: ["api-server", "us-east"],
+            start_time: now * 1000,
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "md2",
+            metadata_names: ["source", "region"],
+            metadata_values: ["UI", "us-east"],
+            start_time: now * 1000,
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "md3",
+            metadata_names: ["source", "region"],
+            metadata_values: ["UI", "us-west"],
+            start_time: now * 1000,
+          }),
+        ];
+
+        await createEventsCh(events);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            {
+              type: "stringObject",
+              column: "metadata",
+              operator: "contains",
+              key: "source",
+              value: "api",
+            },
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: filterTime,
+            },
+            {
+              type: "string",
+              column: "traceId",
+              operator: "=",
+              value: traceId,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.length).toBe(1);
+        expect(result[0].name).toBe("md1");
+      });
+
+      it("should return the first value when metadata_names contains duplicates", async () => {
+        const traceId = randomUUID();
+        const observationId = randomUUID();
+        const now = Date.now();
+
+        // Insert event with duplicate key "foo" in metadata_names.
+        // metadata_names = ["foo", "foo"], metadata_raw_values = ["bar", "baz"]
+        // Expected: reading metadata["foo"] should return "bar" (first occurrence wins).
+        const event = createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "duplicate-metadata-read",
+          metadata_names: ["foo", "foo"],
+          metadata_values: ["bar", "baz"],
+          start_time: now * 1000,
+        });
+
+        await createEventsCh([event]);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [idFilter(observationId)],
+          limit: 1000,
+          offset: 0,
+          selectIOAndMetadata: true,
+        });
+
+        expect(result.length).toBe(1);
+        expect(result[0].metadata).toBeDefined();
+        expect((result[0].metadata as Record<string, string>)["foo"]).toBe(
+          "bar",
+        );
+      });
+
+      it("should filter on the first value when metadata_names contains duplicates", async () => {
+        const traceId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+
+        const matchId = randomUUID();
+        const matchEvent = createEvent({
+          id: matchId,
+          span_id: matchId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "dup-filter-match",
+          metadata_names: ["foo", "foo"],
+          metadata_values: ["bar", "baz"],
+          start_time: now * 1000,
+        });
+
+        await createEventsCh([matchEvent]);
+
+        // Filter for foo = "bar" (first value) should match
+        const resultBar = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            {
+              type: "stringObject",
+              column: "metadata",
+              operator: "=",
+              key: "foo",
+              value: "bar",
+            },
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: filterTime,
+            },
+            {
+              type: "string",
+              column: "traceId",
+              operator: "=",
+              value: traceId,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(resultBar.length).toBe(1);
+        expect(resultBar[0].name).toBe("dup-filter-match");
+
+        // Filter for foo = "baz" (second value) should NOT match
+        const resultBaz = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            {
+              type: "stringObject",
+              column: "metadata",
+              operator: "=",
+              key: "foo",
+              value: "baz",
+            },
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: filterTime,
+            },
+            {
+              type: "string",
+              column: "traceId",
+              operator: "=",
+              value: traceId,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(resultBaz.length).toBe(0);
+      });
+
+      it("equality on absent key with empty value does NOT match", async () => {
+        // Today arr[indexOf(names, missing)] resolves to '' (Array(String)
+        // default), so `metadata.foo = ''` would match rows that never had
+        // the key. The has(metadata_names, ?) conjunct fixes this.
+        const traceId = randomUUID();
+        const observationId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+
+        await createEventsCh([
+          createEvent({
+            id: observationId,
+            span_id: observationId,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "no-foo-key-eq-empty",
+            metadata_names: ["bar"],
+            metadata_values: ["baz"],
+            start_time: now * 1000,
+          }),
+        ]);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            {
+              type: "stringObject",
+              column: "metadata",
+              operator: "=",
+              key: "foo",
+              value: "",
+            },
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: filterTime,
+            },
+            {
+              type: "string",
+              column: "traceId",
+              operator: "=",
+              value: traceId,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.length).toBe(0);
+      });
+
+      it("'does not contain' on absent key with non-empty needle does NOT match", async () => {
+        // Headline correctness fix: previously rows with the key absent
+        // matched `does not contain V` (because position('', V) = 0 is true
+        // for non-empty V). The has(metadata_names, ?) conjunct restricts
+        // the result to rows where the key actually exists.
+        const traceId = randomUUID();
+        const observationId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+
+        await createEventsCh([
+          createEvent({
+            id: observationId,
+            span_id: observationId,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "no-foo-key-dnc",
+            metadata_names: ["bar"],
+            metadata_values: ["baz"],
+            start_time: now * 1000,
+          }),
+        ]);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            {
+              type: "stringObject",
+              column: "metadata",
+              operator: "does not contain",
+              key: "foo",
+              value: "anything",
+            },
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: filterTime,
+            },
+            {
+              type: "string",
+              column: "traceId",
+              operator: "=",
+              value: traceId,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.length).toBe(0);
+      });
+    });
+  });
+
+  maybe("getObservationByIdFromEventsTable", () => {
+    it("should return trace-level fields for event observations", async () => {
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "test-trace-fields-byid",
+          trace_name: "trace-with-tags",
+          tags: ["chat", "prod"],
+          user_id: "user-123",
+          session_id: "session-123",
+        }),
+      ]);
+
+      const observation = await getObservationByIdFromEventsTable({
+        id: spanId,
+        projectId,
+      });
+
+      expect(observation).toBeDefined();
+      expect(observation?.traceName).toBe("trace-with-tags");
+      expect(observation?.traceTags).toEqual(["chat", "prod"]);
+      expect(observation?.userId).toBe("user-123");
+      expect(observation?.sessionId).toBe("session-123");
+    });
+
+    it("should return release field when fetching observation by id", async () => {
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "release-byid-test",
+          release: "2.0.0",
+          version: "V3",
+        }),
+      ]);
+
+      const observation = await getObservationByIdFromEventsTable({
+        id: spanId,
+        projectId,
+      });
+
+      expect(observation).toBeDefined();
+      expect(observation?.release).toBe("2.0.0");
+      expect(observation?.version).toBe("V3");
+    });
+
+    it("should return observation by id with input and output", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+
+      const nowMicro = Date.now() * 1000;
+      const event = createEvent({
+        id: generationId,
+        span_id: generationId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "test-generation-byid",
+        input: "Test input for byId",
+        output: "Test output for byId",
+        provided_model_name: "gpt-4",
+        start_time: nowMicro,
+        end_time: nowMicro + 1000000,
+      });
+
+      await createEventsCh([event]);
+
+      const observation = await getObservationByIdFromEventsTable({
+        id: generationId,
+        projectId,
+        fetchWithInputOutput: true,
+      });
+
+      expect(observation).toBeDefined();
+      expect(observation?.id).toBe(generationId);
+      expect(observation?.traceId).toBe(traceId);
+      expect(observation?.name).toBe("test-generation-byid");
+      expect(observation?.type).toBe("GENERATION");
+      expect(observation?.input).toBeDefined();
+      expect(observation?.output).toBeDefined();
+    });
+
+    it("should return observation by id without input and output", async () => {
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      const event = createEvent({
+        id: spanId,
+        span_id: spanId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "SPAN",
+        name: "test-span-byid",
+        input: "Should not be returned",
+        output: "Should not be returned",
+      });
+
+      await createEventsCh([event]);
+
+      const observation = await getObservationByIdFromEventsTable({
+        id: spanId,
+        projectId,
+        fetchWithInputOutput: false,
+      });
+
+      expect(observation).toBeDefined();
+      expect(observation?.id).toBe(spanId);
+      expect(observation?.input).toBeNull();
+      expect(observation?.output).toBeNull();
+    });
+
+    it("should return observation by id with truncated input and output", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+
+      const longInput = "x".repeat(50000);
+      const longOutput = "y".repeat(50000);
+
+      const event = createEvent({
+        id: generationId,
+        span_id: generationId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "test-generation-truncated",
+        input: longInput,
+        output: longOutput,
+        provided_model_name: "gpt-4",
+      });
+
+      await createEventsCh([event]);
+
+      const observation = await getObservationByIdFromEventsTable({
+        id: generationId,
+        projectId,
+        fetchWithInputOutput: true,
+        renderingProps: {
+          truncated: true,
+          shouldJsonParse: false,
+        },
+      });
+
+      expect(observation).toBeDefined();
+      expect(observation?.id).toBe(generationId);
+      expect(observation?.input).toBeDefined();
+      expect(observation?.output).toBeDefined();
+      // Input and output should be truncated
+      if (typeof observation?.input === "string") {
+        expect(observation.input.length).toBeLessThan(longInput.length);
+      }
+      if (typeof observation?.output === "string") {
+        expect(observation.output.length).toBeLessThan(longOutput.length);
+      }
+    });
+
+    it("should filter by traceId when provided", async () => {
+      const traceId1 = randomUUID();
+      const traceId2 = randomUUID();
+      const spanId = randomUUID();
+
+      // Create observation in trace1
+      const event = createEvent({
+        id: spanId,
+        span_id: spanId,
+        project_id: projectId,
+        trace_id: traceId1,
+        type: "SPAN",
+        name: "test-span-trace-filter",
+      });
+
+      await createEventsCh([event]);
+
+      // Should find with correct traceId
+      const observation = await getObservationByIdFromEventsTable({
+        id: spanId,
+        projectId,
+        traceId: traceId1,
+      });
+
+      expect(observation).toBeDefined();
+      expect(observation?.traceId).toBe(traceId1);
+
+      // Should not find with wrong traceId
+      await expect(
+        getObservationByIdFromEventsTable({
+          id: spanId,
+          projectId,
+          traceId: traceId2,
+        }),
+      ).rejects.toThrow();
+    });
+
+    it("should filter by type when provided", async () => {
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      const event = createEvent({
+        id: spanId,
+        span_id: spanId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "SPAN",
+        name: "test-type-filter",
+      });
+
+      await createEventsCh([event]);
+
+      // Should find with correct type
+      const observation = await getObservationByIdFromEventsTable({
+        id: spanId,
+        projectId,
+        type: "SPAN",
+      });
+
+      expect(observation).toBeDefined();
+      expect(observation?.type).toBe("SPAN");
+
+      // Should not find with wrong type
+      await expect(
+        getObservationByIdFromEventsTable({
+          id: spanId,
+          projectId,
+          type: "GENERATION",
+        }),
+      ).rejects.toThrow();
+    });
+
+    it("should throw error when observation not found", async () => {
+      const nonExistentId = randomUUID();
+
+      await expect(
+        getObservationByIdFromEventsTable({
+          id: nonExistentId,
+          projectId,
+        }),
+      ).rejects.toThrow("Observation with id");
+    });
+
+    it("should filter by startTime when provided", async () => {
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      const startTime = new Date("2024-01-15T12:00:00Z");
+      const startTimeMicro = startTime.getTime() * 1000;
+
+      const event = createEvent({
+        id: spanId,
+        span_id: spanId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "SPAN",
+        name: "test-starttime-filter",
+        start_time: startTimeMicro,
+      });
+
+      await createEventsCh([event]);
+
+      // Should find with correct startTime
+      const observation = await getObservationByIdFromEventsTable({
+        id: spanId,
+        projectId,
+        startTime,
+      });
+
+      expect(observation).toBeDefined();
+
+      // Should not find with different date
+      const wrongDate = new Date("2024-01-16T12:00:00Z");
+      await expect(
+        getObservationByIdFromEventsTable({
+          id: spanId,
+          projectId,
+          startTime: wrongDate,
+        }),
+      ).rejects.toThrow();
+    });
+  });
+
+  maybe("getObservationsForTraceFromEventsTable", () => {
+    it("should return usage pricing tier fields even when tool payloads are omitted", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: generationId,
+          span_id: generationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "test-trace-pricing-tier-export",
+          usage_pricing_tier_id: "tier-enterprise",
+          usage_pricing_tier_name: "Enterprise",
+        }),
+      ]);
+
+      const { observations, totalCount } =
+        await getObservationsForTraceFromEventsTable({
+          traceId,
+          projectId,
+          selectIOAndMetadata: false,
+          selectToolData: false,
+        });
+
+      expect(totalCount).toBe(1);
+      expect(observations).toHaveLength(1);
+      expect(observations[0]).toMatchObject({
+        id: generationId,
+        usagePricingTierId: "tier-enterprise",
+        usagePricingTierName: "Enterprise",
+      });
+    });
+  });
+
+  maybe("getObservationsFromEventsTableForPublicApi", () => {
+    it("should return observations with pagination", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+
+      const events = Array.from({ length: 5 }, (_, i) =>
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: `pub-api-test-${i}`,
+          start_time: (Date.now() + i * 1000) * 1000,
+        }),
+      );
+
+      await createEventsCh(events);
+
+      const result = await getObservationsFromEventsTableForPublicApi({
+        projectId: uniqueProjectId,
+        page: 1,
+        limit: 3,
+      });
+
+      expect(result).toBeDefined();
+      expect(result.length).toBeLessThanOrEqual(3);
+
+      // Fetching the second page
+      const resultPage2 = await getObservationsFromEventsTableForPublicApi({
+        projectId: uniqueProjectId,
+        page: 2,
+        limit: 3,
+      });
+
+      expect(resultPage2).toBeDefined();
+      expect(resultPage2.length).toBeLessThanOrEqual(2);
+
+      // Count should ignore pagination
+      const count = await getObservationsCountFromEventsTableForPublicApi({
+        projectId: uniqueProjectId,
+        page: 1,
+        limit: 3,
+      });
+
+      expect(count).toBe(5);
+    });
+
+    it("should filter by traceId", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId1 = randomUUID();
+      const traceId2 = randomUUID();
+
+      const events = [
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId1,
+          type: "GENERATION",
+          name: "trace-1-obs",
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId2,
+          type: "GENERATION",
+          name: "trace-2-obs",
+        }),
+      ];
+
+      await createEventsCh(events);
+
+      const result = await getObservationsFromEventsTableForPublicApi({
+        projectId: uniqueProjectId,
+        page: 1,
+        limit: 10,
+        traceId: traceId1,
+      });
+
+      expect(result.length).toBe(1);
+      expect(result[0]?.traceId).toBe(traceId1);
+      expect(result[0]?.name).toBe("trace-1-obs");
+    });
+
+    it("should filter by type", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+
+      const events = [
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "generation-obs",
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "span-obs",
+        }),
+      ];
+
+      await createEventsCh(events);
+
+      const result = await getObservationsFromEventsTableForPublicApi({
+        projectId: uniqueProjectId,
+        page: 1,
+        limit: 10,
+        type: "GENERATION",
+      });
+
+      expect(result.length).toBe(1);
+      expect(result[0]?.type).toBe("GENERATION");
+      expect(result[0]?.name).toBe("generation-obs");
+    });
+
+    it("should filter by level", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+
+      const events = [
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "EVENT",
+          level: "ERROR",
+          name: "error-obs",
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "EVENT",
+          level: "DEFAULT",
+          name: "default-obs",
+        }),
+      ];
+
+      await createEventsCh(events);
+
+      const result = await getObservationsFromEventsTableForPublicApi({
+        projectId: uniqueProjectId,
+        page: 1,
+        limit: 10,
+        level: "ERROR",
+      });
+
+      expect(result.length).toBe(1);
+      expect(result[0]?.level).toBe("ERROR");
+      expect(result[0]?.name).toBe("error-obs");
+    });
+
+    it("should filter by time range", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const now = Date.now();
+      const fromTime = new Date(now - 5000).toISOString();
+      const toTime = new Date(now + 5000).toISOString();
+
+      const events = [
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "old-obs",
+          start_time: (now - 10000) * 1000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "recent-obs",
+          start_time: now * 1000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "future-obs",
+          start_time: (now + 10000) * 1000,
+        }),
+      ];
+
+      await createEventsCh(events);
+
+      const result = await getObservationsFromEventsTableForPublicApi({
+        projectId: uniqueProjectId,
+        page: 1,
+        limit: 10,
+        fromStartTime: fromTime,
+        toStartTime: toTime,
+      });
+
+      expect(result.length).toBe(1);
+      expect(result[0]?.name).toBe("recent-obs");
+    });
+
+    it("should combine multiple filters", async () => {
+      const uniqueProjectId = randomUUID();
+      const userId = "test-user";
+
+      // Create events in different traces so userId filtering works at trace level
+      const trace1 = randomUUID();
+      const trace2 = randomUUID();
+
+      const events = [
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: trace1,
+          user_id: userId,
+          type: "GENERATION",
+          level: "ERROR",
+          name: "matching-obs",
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: trace1,
+          user_id: userId,
+          type: "SPAN",
+          level: "ERROR",
+          name: "wrong-type",
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: trace2,
+          user_id: "other-user",
+          type: "GENERATION",
+          level: "ERROR",
+          name: "wrong-user",
+        }),
+      ];
+
+      await createEventsCh(events);
+
+      const result = await getObservationsFromEventsTableForPublicApi({
+        projectId: uniqueProjectId,
+        page: 1,
+        limit: 10,
+        userId,
+        type: "GENERATION",
+        level: "ERROR",
+      });
+
+      // Should only return "matching-obs" because:
+      // - userId filters at trace level (excludes trace2 with "other-user")
+      // - type="GENERATION" excludes "wrong-type" (SPAN)
+      expect(result.length).toBe(1);
+      expect(result[0]?.name).toBe("matching-obs");
+    });
+
+    it("should enrich observations with model data", async () => {
+      const traceId = randomUUID();
+      const modelId = randomUUID();
+
+      // Create a model with pricing
+      await prisma.model.create({
+        data: {
+          id: modelId,
+          projectId: projectId,
+          modelName: `test-model-${modelId}`,
+          matchPattern: `(?i)^(test-model-${modelId})$`,
+          startDate: new Date("2023-01-01"),
+          unit: "TOKENS",
+          pricingTiers: {
+            create: {
+              isDefault: true,
+              conditions: [],
+              name: "Standard",
+              priority: 0,
+              prices: {
+                create: [
+                  {
+                    usageType: "input",
+                    price: 0.01,
+                    modelId,
+                  },
+                  {
+                    usageType: "output",
+                    price: 0.02,
+                    modelId,
+                  },
+                ],
+              },
+            },
+          },
+        },
+      });
+
+      const event = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "model-enriched-obs",
+        model_id: modelId,
+        provided_model_name: `test-model-${modelId}`,
+      });
+
+      await createEventsCh([event]);
+
+      const result = await getObservationsFromEventsTableForPublicApi({
+        projectId: projectId,
+        traceId: traceId,
+        page: 1,
+        limit: 10,
+      });
+
+      expect(result.length).toBe(1);
+      expect(result[0]?.internalModelId).toBe(modelId);
+      expect(Number(result[0]?.inputPrice)).toBeCloseTo(0.01, 5);
+      expect(Number(result[0]?.outputPrice)).toBeCloseTo(0.02, 5);
+
+      // Cleanup
+      await prisma.model.delete({ where: { id: modelId } });
+    });
+  });
+
+  maybe("getTracesIdentifierForSessionFromEvents", () => {
+    it("should return distinct traces for a session ordered by earliest trace timestamp", async () => {
+      const uniqueProjectId = randomUUID();
+      const sessionId = randomUUID();
+      const otherSessionId = randomUUID();
+      const traceId1 = randomUUID();
+      const traceId2 = randomUUID();
+      const traceId3 = randomUUID();
+      const nowMicro = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId1,
+          trace_name: "trace-one-initial",
+          session_id: sessionId,
+          user_id: "user-1-old",
+          environment: "staging",
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId1,
+          trace_name: "trace-one-latest",
+          session_id: sessionId,
+          user_id: "user-1-new",
+          environment: "production",
+          start_time: nowMicro + 1_000,
+          event_ts: nowMicro + 1_000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId2,
+          trace_name: "trace-two",
+          session_id: sessionId,
+          user_id: "user-2",
+          environment: "default",
+          start_time: nowMicro + 5_000,
+          event_ts: nowMicro + 5_000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId3,
+          trace_name: "trace-three-other-session",
+          session_id: otherSessionId,
+          user_id: "user-3",
+          start_time: nowMicro + 10_000,
+          event_ts: nowMicro + 10_000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const traces = await getTracesIdentifierForSessionFromEvents(
+          uniqueProjectId,
+          sessionId,
+        );
+
+        expect(traces).toHaveLength(2);
+        expect(traces.map((trace) => trace.id)).toEqual([traceId1, traceId2]);
+        expect(traces[0]).toMatchObject({
+          id: traceId1,
+          name: "trace-one-latest",
+          userId: "user-1-new",
+          environment: "production",
+        });
+        expect(traces[0]?.timestamp.getTime()).toBe(nowMicro / 1000);
+        expect(traces[1]).toMatchObject({
+          id: traceId2,
+          name: "trace-two",
+          userId: "user-2",
+          environment: "default",
+        });
+        expect(traces[1]?.timestamp.getTime()).toBe((nowMicro + 5_000) / 1000);
+      });
+    });
+
+    it("should resolve session membership from the latest non-empty session_id in the trace aggregation", async () => {
+      const uniqueProjectId = randomUUID();
+      const originalSessionId = randomUUID();
+      const latestSessionId = randomUUID();
+      const traceId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          trace_name: "trace-before-session-change",
+          session_id: originalSessionId,
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          trace_name: "trace-after-session-change",
+          session_id: latestSessionId,
+          start_time: nowMicro + 2_000,
+          event_ts: nowMicro + 2_000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        await expect(
+          getTracesIdentifierForSessionFromEvents(
+            uniqueProjectId,
+            originalSessionId,
+          ),
+        ).resolves.toEqual([]);
+
+        await expect(
+          getTracesIdentifierForSessionFromEvents(
+            uniqueProjectId,
+            latestSessionId,
+          ),
+        ).resolves.toEqual([
+          expect.objectContaining({
+            id: traceId,
+            name: "trace-after-session-change",
+          }),
+        ]);
+      });
+    });
+  });
+
+  maybe("Update methods", () => {
+    it("should allow to set/unset bookmarked", async () => {
+      const traceId = randomUUID();
+      const traceId2 = randomUUID();
+      const rootSpanId = randomUUID();
+      const rootEvent = createEvent({
+        id: rootSpanId,
+        span_id: rootSpanId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "root-event",
+        bookmarked: false,
+        parent_span_id: "",
+      });
+      const rootEvent2 = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: traceId2,
+        type: "GENERATION",
+        name: "root-event2",
+        bookmarked: true,
+        parent_span_id: "",
+      });
+
+      const events = Array(3)
+        .keys()
+        .map((i) => {
+          const id = randomUUID();
+          return createEvent({
+            id: id,
+            span_id: id,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "GENERATION",
+            name: "event-" + i,
+            bookmarked: false,
+            parent_span_id: rootSpanId,
+          });
+        });
+
+      await createEventsCh([rootEvent, rootEvent2, ...events]);
+
+      var result = await getTraceByIdFromEventsTable({ projectId, traceId });
+      expect(result).toBeDefined();
+      expect(result?.bookmarked).toBe(false);
+
+      async function checkTraceIdsBookmarked(
+        traceId: string,
+        bookmarkedExp: boolean,
+      ) {
+        await waitForExpect(async () => {
+          // Verify events_core
+          const eventTrace = await getTraceByIdFromEventsTable({
+            projectId,
+            traceId: traceId,
+            renderingProps: {
+              truncated: true,
+              shouldJsonParse: false,
+            },
+          });
+          expect(eventTrace).toBeDefined();
+          expect(eventTrace?.bookmarked).toBe(bookmarkedExp);
+
+          // Verify events_full
+          const eventTraceFull = await getTraceByIdFromEventsTable({
+            projectId,
+            traceId: traceId,
+            renderingProps: {
+              truncated: false,
+              shouldJsonParse: true,
+            },
+          });
+          expect(eventTraceFull).toBeDefined();
+          expect(eventTraceFull?.bookmarked).toBe(bookmarkedExp);
+        });
+      }
+
+      // Model setting bookmark as true on the root span
+      await updateEvents(
+        projectId,
+        { traceIds: [traceId], rootOnly: true },
+        { bookmarked: true },
+      );
+
+      await checkTraceIdsBookmarked(traceId, true);
+
+      // Non-root event on bookmarked
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "event-hijack",
+          bookmarked: true,
+          parent_span_id: rootSpanId,
+        }),
+      ]);
+
+      // Removing bookmark on all span in a trace
+      // including the non-root, added above
+      await updateEvents(
+        projectId,
+        { traceIds: [traceId] },
+        { bookmarked: false },
+      );
+
+      await checkTraceIdsBookmarked(traceId, false);
+
+      // Trace id 2 should remain bookmarked
+      await checkTraceIdsBookmarked(traceId2, true);
+    });
+
+    it("should allow to set/unset public", async () => {
+      const traceId = randomUUID();
+      const traceId2 = randomUUID();
+      const rootSpanId = randomUUID();
+      const rootEvent = createEvent({
+        id: rootSpanId,
+        span_id: rootSpanId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "root-event",
+        public: false,
+        parent_span_id: "",
+      });
+      const rootEvent2 = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: traceId2,
+        type: "GENERATION",
+        name: "root-event2",
+        public: true,
+        parent_span_id: "",
+      });
+
+      async function checkTraceIdsPublic(traceId: string, publicExp: boolean) {
+        await waitForExpect(async () => {
+          // Verify events_core
+          const eventTrace = await getTraceByIdFromEventsTable({
+            projectId,
+            traceId: traceId,
+            renderingProps: {
+              truncated: true,
+              shouldJsonParse: false,
+            },
+          });
+          expect(eventTrace).toBeDefined();
+          expect(eventTrace?.public).toBe(publicExp);
+
+          // Verify events_full
+          const eventTraceFull = await getTraceByIdFromEventsTable({
+            projectId,
+            traceId: traceId,
+            renderingProps: {
+              truncated: false,
+              shouldJsonParse: true,
+            },
+          });
+          expect(eventTraceFull).toBeDefined();
+          expect(eventTraceFull?.public).toBe(publicExp);
+        });
+      }
+
+      await createEventsCh([rootEvent, rootEvent2]);
+
+      await checkTraceIdsPublic(traceId, false);
+
+      await updateEvents(projectId, { traceIds: [traceId] }, { public: true });
+
+      await checkTraceIdsPublic(traceId, true);
+
+      await updateEvents(projectId, { traceIds: [traceId] }, { public: false });
+
+      await checkTraceIdsPublic(traceId, false);
+
+      // Non-root event with public
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "event-hijack",
+          public: true,
+          parent_span_id: rootSpanId,
+        }),
+      ]);
+
+      await checkTraceIdsPublic(traceId, true);
+
+      // Clearing public on non-root
+      await updateEvents(projectId, { traceIds: [traceId] }, { public: false });
+
+      await checkTraceIdsPublic(traceId, false);
+
+      // Trace id 2 should remain public
+      await checkTraceIdsPublic(traceId2, true);
+    });
+  });
+
+  maybe("getObservationsBatchIOFromEventsTable", () => {
+    it("should fetch I/O and metadata for multiple observations", async () => {
+      const traceId = randomUUID();
+      const observation1Id = randomUUID();
+      const observation2Id = randomUUID();
+      const observation3Id = randomUUID();
+
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+      const observation3Input = JSON.stringify({
+        prototype: "input",
+        safeKey: "input-value",
+      });
+      const observation3Output = JSON.stringify({
+        prototype: "output",
+        safeKey: "output-value",
+      });
+
+      // Create events with different I/O content and metadata
+      const events = [
+        createEvent({
+          id: observation1Id,
+          span_id: observation1Id,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "test-observation-1",
+          input: "This is input for observation 1",
+          output: "This is output for observation 1",
+          metadata_names: ["key1", "source"],
+          metadata_values: ["value1", "test"],
+          start_time: nowMicro,
+        }),
+        createEvent({
+          id: observation2Id,
+          span_id: observation2Id,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "test-observation-2",
+          input: "This is input for observation 2",
+          output: "This is output for observation 2",
+          metadata_names: ["key2", "environment"],
+          metadata_values: ["value2", "production"],
+          start_time: nowMicro + 1000,
+        }),
+        createEvent({
+          id: observation3Id,
+          span_id: observation3Id,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "test-observation-3",
+          input: observation3Input,
+          output: observation3Output,
+          metadata_names: ["key3"],
+          metadata_values: ["value3"],
+          start_time: nowMicro + 2000,
+        }),
+      ];
+
+      await createEventsCh(events);
+
+      // Batch fetch I/O and metadata
+      const result = await getObservationsBatchIOFromEventsTable({
+        projectId,
+        observations: [
+          { id: observation1Id, traceId },
+          { id: observation2Id, traceId },
+          { id: observation3Id, traceId },
+        ],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
+      });
+
+      expect(result).toBeDefined();
+      expect(result.length).toBe(3);
+
+      // Check observation 1
+      const io1 = result.find((r) => r.id === observation1Id);
+      expect(io1).toBeDefined();
+      expect(io1?.input).toBe("This is input for observation 1");
+      expect(io1?.output).toBe("This is output for observation 1");
+      expect(io1?.metadata).toBeDefined();
+      expect(io1?.metadata?.key1).toBe("value1");
+      expect(io1?.metadata?.source).toBe("test");
+
+      // Check observation 2
+      const io2 = result.find((r) => r.id === observation2Id);
+      expect(io2).toBeDefined();
+      expect(io2?.input).toBe("This is input for observation 2");
+      expect(io2?.output).toBe("This is output for observation 2");
+      expect(io2?.metadata).toBeDefined();
+      expect(io2?.metadata?.key2).toBe("value2");
+      expect(io2?.metadata?.environment).toBe("production");
+
+      // Check observation 3
+      const io3 = result.find((r) => r.id === observation3Id);
+      expect(io3).toBeDefined();
+      expect(io3?.input).toBe(observation3Input);
+      expect(io3?.output).toBe(observation3Output);
+      expect(JSON.parse(io3?.input ?? "{}")).toEqual({
+        prototype: "input",
+        safeKey: "input-value",
+      });
+      expect(JSON.parse(io3?.output ?? "{}")).toEqual({
+        prototype: "output",
+        safeKey: "output-value",
+      });
+      expect(io3?.metadata).toBeDefined();
+      expect(io3?.metadata?.key3).toBe("value3");
+    });
+
+    it("should handle empty observation array", async () => {
+      const result = await getObservationsBatchIOFromEventsTable({
+        projectId,
+        observations: [],
+      });
+
+      expect(result).toBeDefined();
+      expect(result).toEqual([]);
+    });
+
+    it("should handle partial results when some observations not found", async () => {
+      const traceId = randomUUID();
+      const existingId = randomUUID();
+      const nonExistentId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+
+      // Create only one event
+      const event = createEvent({
+        id: existingId,
+        span_id: existingId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "test-existing",
+        input: "Existing input",
+        output: "Existing output",
+        start_time: nowMicro,
+      });
+
+      await createEventsCh([event]);
+
+      // Request I/O for both existing and non-existent
+      const result = await getObservationsBatchIOFromEventsTable({
+        projectId,
+        observations: [
+          { id: existingId, traceId },
+          { id: nonExistentId, traceId },
+        ],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
+      });
+
+      // Should only return the existing one
+      expect(result).toBeDefined();
+      expect(result.length).toBe(1);
+      expect(result[0]?.id).toBe(existingId);
+      expect(result[0]?.input).toBe("Existing input");
+      expect(result[0]?.output).toBe("Existing output");
+    });
+
+    it("should filter by projectId correctly", async () => {
+      const differentProjectId = randomUUID();
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+
+      // Create event in different project
+      const event = createEvent({
+        id: observationId,
+        span_id: observationId,
+        project_id: differentProjectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "test-different-project",
+        input: "Secret input",
+        output: "Secret output",
+        start_time: nowMicro,
+      });
+
+      await createEventsCh([event]);
+
+      // Try to fetch with wrong projectId
+      const result = await getObservationsBatchIOFromEventsTable({
+        projectId, // Using default projectId, not differentProjectId
+        observations: [{ id: observationId, traceId }],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
+      });
+
+      // Should not return anything since projectId doesn't match
+      expect(result).toBeDefined();
+      expect(result.length).toBe(0);
+    });
+
+    it("should fetch tool call fields only when includeToolCallFields is set", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+      const storedToolCall = JSON.stringify({
+        id: "call_1",
+        arguments: JSON.stringify({ city: "Berlin" }),
+        type: "function",
+        index: 0,
+      });
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "test-tool-calls",
+          input: "tool call input",
+          output: "tool call output",
+          tool_calls: [storedToolCall],
+          tool_call_names: ["get_weather"],
+          start_time: nowMicro,
+        }),
+      ]);
+
+      const baseParams = {
+        projectId,
+        observations: [{ id: observationId, traceId }],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
+      };
+
+      const withoutToolCalls =
+        await getObservationsBatchIOFromEventsTable(baseParams);
+      expect(withoutToolCalls.length).toBe(1);
+      expect(withoutToolCalls[0]).not.toHaveProperty("toolCalls");
+      expect(withoutToolCalls[0]).not.toHaveProperty("toolCallNames");
+
+      const withToolCalls = await getObservationsBatchIOFromEventsTable({
+        ...baseParams,
+        includeToolCallFields: true,
+      });
+      expect(withToolCalls.length).toBe(1);
+      expect(withToolCalls[0]?.toolCalls).toEqual([storedToolCall]);
+      expect(withToolCalls[0]?.toolCallNames).toEqual(["get_weather"]);
+    });
+  });
+
+  maybe("getLatestSdkVersionInfoFromEvents", () => {
+    it("should return isOtel: false for classic ingestion data (no OTel source)", async () => {
+      const uniqueProjectId = randomUUID();
+
+      // v2 SDK via classic batch ingestion: not OTel-compatible
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: Date.now() * 1000,
+          source: "ingestion-api-dual-write",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "2.60.1",
+          telemetry_sdk_language: "",
+        }),
+      ]);
+
+      const result = await getLatestSdkVersionInfoFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.isOtel).toBe(false);
+    });
+
+    it("should return isOtel: true with attribution from the newest OTel event", async () => {
+      const uniqueProjectId = randomUUID();
+      const now = Date.now() * 1000;
+
+      // Insert v2 data (classic ingestion, must be skipped)
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now - 10000000, // older
+          source: "ingestion-api-dual-write",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "2.60.1",
+          telemetry_sdk_language: "",
+        }),
+      ]);
+
+      // Insert v3 data - Langfuse SDK via OTLP, attribution from headers
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now, // newer
+          source: "otel",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "3.14.6",
+          telemetry_sdk_language: "python",
+        }),
+      ]);
+
+      const result = await getLatestSdkVersionInfoFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.isOtel).toBe(true);
+      expect(result.name).toBe("python");
+      expect(result.version).toBe("3.14.6");
+      expect(result.language).toBe("python");
+    });
+
+    it("should match dual-write OTel events and return the newest attribution", async () => {
+      const uniqueProjectId = randomUUID();
+      const now = Date.now() * 1000;
+
+      // Older direct-write event
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now - 10000000,
+          source: "otel",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "3.14.6",
+          telemetry_sdk_language: "python",
+        }),
+      ]);
+
+      // Newest event arrived via the dual-write propagation path
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now, // newest
+          source: "otel-dual-write",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "4.2.0",
+          telemetry_sdk_language: "python",
+        }),
+      ]);
+
+      const result = await getLatestSdkVersionInfoFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.isOtel).toBe(true);
+      expect(result.name).toBe("python");
+      expect(result.version).toBe("4.2.0");
+    });
+
+    it("should return isOtel: true without name/version for raw OTel clients (e.g. Vercel AI SDK)", async () => {
+      const uniqueProjectId = randomUUID();
+      const now = Date.now() * 1000;
+
+      // Vercel AI SDK: sent via OTel but without Langfuse SDK headers,
+      // so ingestion attribution carries the 'unknown' sentinel
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now,
+          source: "otel",
+          ingestion_sdk_name: "unknown",
+          ingestion_sdk_version: "unknown",
+          telemetry_sdk_language: "nodejs",
+        }),
+      ]);
+
+      const result = await getLatestSdkVersionInfoFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.isOtel).toBe(true);
+      expect(result.name).toBeUndefined();
+      expect(result.version).toBeUndefined();
+      expect(result.language).toBe("nodejs");
+    });
+  });
+
+  // LFE-10596: trace-level score filtering returned empty in v4. The events
+  // table splits scores into observation-scoped (`scores_avg`, joined on
+  // span_id) and trace-scoped (`trace_scores_avg`, joined on trace_id). A
+  // trace-level score (observation_id NULL) can only match the trace-scoped
+  // column, so its NAME must be offered under `trace_scores_avg` only — never
+  // under `scores_avg`, where a filter on it can never match.
+  maybe("LFE-10596 trace-level score filtering", () => {
+    it("trace-level score matches trace_scores_avg but not scores_avg", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "Help Assistant",
+        }),
+      ]);
+
+      await createScoresCh([
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: null,
+          name: "CSAT",
+          value: 1,
+          data_type: "NUMERIC",
+        }),
+      ]);
+
+      const scoresAvgFilter: FilterCondition = {
+        type: "numberObject",
+        column: "scores_avg",
+        operator: "=",
+        key: "CSAT",
+        value: 1,
+      };
+      const traceScoresAvgFilter: FilterCondition = {
+        type: "numberObject",
+        column: "trace_scores_avg",
+        operator: "=",
+        key: "CSAT",
+        value: 1,
+      };
+
+      const [noFilterCount, scoresAvgCount, traceScoresAvgCount] =
+        await Promise.all([
+          getObservationsCountFromEventsTable({
+            projectId: uniqueProjectId,
+            filter: [],
+          }),
+          getObservationsCountFromEventsTable({
+            projectId: uniqueProjectId,
+            filter: [scoresAvgFilter],
+          }),
+          getObservationsCountFromEventsTable({
+            projectId: uniqueProjectId,
+            filter: [traceScoresAvgFilter],
+          }),
+        ]);
+
+      expect(noFilterCount).toBe(1);
+      expect(traceScoresAvgCount).toBe(1);
+      expect(scoresAvgCount).toBe(0);
+    });
+
+    it("offers a trace-level numeric score under trace_scores_avg, not scores_avg", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+      const observationId = randomUUID();
+      const traceScoreName = `csat-${randomUUID()}`;
+      const observationScoreName = `latency-rating-${randomUUID()}`;
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "Help Assistant",
+        }),
+      ]);
+
+      await createScoresCh([
+        // Trace-level score (observation_id NULL) -> trace_scores_avg only.
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: null,
+          name: traceScoreName,
+          value: 1,
+          data_type: "NUMERIC",
+        }),
+        // Observation-level score -> scores_avg only.
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: observationId,
+          name: observationScoreName,
+          value: 1,
+          data_type: "NUMERIC",
+        }),
+      ]);
+
+      const options = await getEventFilterOptions({
+        projectId: uniqueProjectId,
+      });
+
+      expect(options.trace_scores_avg).toContain(traceScoreName);
+      expect(options.scores_avg).not.toContain(traceScoreName);
+
+      expect(options.scores_avg).toContain(observationScoreName);
+      expect(options.trace_scores_avg).not.toContain(observationScoreName);
+    });
+
+    it("offers a trace-level categorical score under trace_score_categories, not score_categories", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+      const observationId = randomUUID();
+      const traceCategoryName = `hallucination-check-${randomUUID()}`;
+      const observationCategoryName = `answer-relevancy-${randomUUID()}`;
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "Help Assistant",
+        }),
+      ]);
+
+      await createScoresCh([
+        // Trace-level categorical (observation_id NULL) -> trace_score_categories only.
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: null,
+          name: traceCategoryName,
+          value: 0,
+          string_value: "faithful",
+          data_type: "CATEGORICAL",
+        }),
+        // Observation-level categorical -> score_categories only.
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: observationId,
+          name: observationCategoryName,
+          value: 0,
+          string_value: "relevant",
+          data_type: "CATEGORICAL",
+        }),
+      ]);
+
+      const options = await getEventFilterOptions({
+        projectId: uniqueProjectId,
+      });
+
+      const scoreCategoryLabels = options.score_categories.map((c) => c.label);
+      const traceScoreCategoryLabels = options.trace_score_categories.map(
+        (c) => c.label,
+      );
+
+      expect(traceScoreCategoryLabels).toContain(traceCategoryName);
+      expect(scoreCategoryLabels).not.toContain(traceCategoryName);
+
+      expect(scoreCategoryLabels).toContain(observationCategoryName);
+      expect(traceScoreCategoryLabels).not.toContain(observationCategoryName);
+    });
+  });
+});

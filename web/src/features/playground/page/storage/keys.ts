@@ -1,6 +1,7 @@
 import { MULTI_WINDOW_CONFIG } from "../types";
 
 export const WINDOW_IDS_KEY = "playgroundWindowIds";
+export const STREAMING_PREF_KEY = "langfuse-playground-streaming";
 
 const getPrefixedKey = (prefix: string, windowId: string) => {
   const effectiveWindowId = windowId || MULTI_WINDOW_CONFIG.DEFAULT_WINDOW_ID;

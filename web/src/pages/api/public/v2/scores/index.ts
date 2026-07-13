@@ -7,13 +7,13 @@ import {
   InvalidRequestError,
 } from "@langfuse/shared";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
-import { logger } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "/api/public/scores",
     querySchema: GetScoresQueryV2,
     responseSchema: GetScoresResponseV2,
+    rejectInEventsOnlyMode: true,
     fn: async ({ query, auth }) => {
       // Validate that trace filters are not used when trace field is excluded
       const requestedFields = query.fields ?? ["score", "trace"];
@@ -24,10 +24,6 @@ export default withMiddlewares({
 
       const includesTrace = requestedFields.includes("trace");
       const hasTraceFilters = Boolean(query.userId || query.traceTags);
-
-      logger.info(
-        `fields: ${query.fields}, includesTrace: ${includesTrace}, hasTraceFilters: ${hasTraceFilters}`,
-      );
 
       if (!includesTrace && hasTraceFilters) {
         throw new InvalidRequestError(
@@ -44,6 +40,7 @@ export default withMiddlewares({
         configId: query.configId ?? undefined,
         sessionId: query.sessionId ?? undefined,
         traceId: query.traceId ?? undefined,
+        observationId: query.observationId ?? undefined,
         datasetRunId: query.datasetRunId ?? undefined,
         queueId: query.queueId ?? undefined,
         traceTags: query.traceTags ?? undefined,
@@ -51,12 +48,12 @@ export default withMiddlewares({
         fromTimestamp: query.fromTimestamp ?? undefined,
         toTimestamp: query.toTimestamp ?? undefined,
         environment: query.environment ?? undefined,
-        traceEnvironment: query.environment ?? undefined,
         source: query.source ?? undefined,
         value: query.value ?? undefined,
         operator: query.operator ?? undefined,
         scoreIds: query.scoreIds ?? undefined,
         fields: query.fields ?? undefined,
+        advancedFilters: query.filter,
       };
       const scoresApiService = new ScoresApiService("v2");
       const [items, count] = await Promise.all([

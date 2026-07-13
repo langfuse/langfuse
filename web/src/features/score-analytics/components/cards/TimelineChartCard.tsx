@@ -7,7 +7,6 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { Loader2 } from "lucide-react";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { ScoreTimeSeriesChart } from "../charts/ScoreTimeSeriesChart";
 import { SamplingDetailsHoverCard } from "../SamplingDetailsHoverCard";
@@ -15,6 +14,7 @@ import {
   getScoreCategoryColors,
   getScoreBooleanColors,
 } from "@/src/features/score-analytics/lib/color-scales";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 type TimelineTab = "score1" | "score2" | "all" | "matched";
 
@@ -212,7 +212,7 @@ export function TimelineChartCard() {
           <CardDescription>Loading chart...</CardDescription>
         </CardHeader>
         <CardContent className="flex h-[340px] grow items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Spinner size="xl" variant="muted" />
         </CardContent>
       </Card>
     );
@@ -226,7 +226,7 @@ export function TimelineChartCard() {
           <CardTitle>Trend Over Time</CardTitle>
           <CardDescription>No data available</CardDescription>
         </CardHeader>
-        <CardContent className="flex h-[340px] items-center justify-center text-sm text-muted-foreground">
+        <CardContent className="text-muted-foreground flex h-[340px] items-center justify-center text-sm">
           Select a score to view trends
         </CardContent>
       </Card>
@@ -337,7 +337,7 @@ export function TimelineChartCard() {
             colors={chartColors}
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+          <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
             No time series data available for the selected time range
           </div>
         )}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Decimal } from "decimal.js";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { validateRegexPattern } from "@langfuse/shared";
 import {
   matchPricingTier,
@@ -251,6 +251,34 @@ describe("default-model-prices.json", () => {
     expect(largeContextResult).not.toBeNull();
     expect(largeContextResult?.pricingTierName).toBe("Large Context");
     expect(largeContextResult?.prices.input.toNumber()).toBe(0.000006);
+  });
+
+  it("should price Gemini 3 Google Search grounding queries", () => {
+    const gemini3ModelNames = [
+      "gemini-3-pro-preview",
+      "gemini-3.1-pro-preview",
+      "gemini-3.5-flash",
+      "gemini-3-flash-preview",
+      "gemini-3.1-flash-lite",
+      "gemini-3.1-flash-lite-preview",
+    ];
+    const groundingUsageKeys = [
+      "grounding_queries",
+      "groundingQueries",
+      "web_search_queries",
+      "webSearchQueries",
+    ];
+
+    for (const modelName of gemini3ModelNames) {
+      const model = defaultModelPrices.find((m) => m.modelName === modelName);
+      expect(model, modelName).toBeDefined();
+
+      for (const tier of model!.pricingTiers) {
+        for (const usageKey of groundingUsageKeys) {
+          expect(tier.prices[usageKey], `${modelName}/${usageKey}`).toBe(14e-3);
+        }
+      }
+    }
   });
 });
 

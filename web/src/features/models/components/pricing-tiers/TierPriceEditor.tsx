@@ -24,24 +24,31 @@ export function TierPriceEditor({
   return (
     <div className="space-y-3">
       <FormLabel>Prices</FormLabel>
-      <div className="grid grid-cols-2 gap-1 text-sm text-muted-foreground">
+      <div className="text-muted-foreground grid grid-cols-2 gap-1 text-sm">
         <span>Usage type</span>
         <span>Price</span>
       </div>
-      {Object.entries(prices).map(([key, value], priceIndex) => (
-        <div key={priceIndex} className="grid grid-cols-2 gap-1">
+      {Object.entries(prices).map(([key, value], index) => (
+        <div key={index} className="grid grid-cols-2 gap-1">
           <Input
             placeholder="Key (e.g. input, output)"
             value={key}
             disabled={!isDefault}
             onChange={(e) => {
+              const newKey = e.target.value;
+
+              // Prevent overwriting existing keys (unless it's the same key)
+              if (newKey !== key && prices[newKey] !== undefined) {
+                return; // Don't allow the change
+              }
+
               const newPrices = { ...prices };
               const oldValue = newPrices[key];
               delete newPrices[key];
-              newPrices[e.target.value] = oldValue;
+              newPrices[newKey] = oldValue;
               form.setValue(`pricingTiers.${tierIndex}.prices`, newPrices);
             }}
-            className={!isDefault ? "cursor-not-allowed bg-muted" : ""}
+            className={!isDefault ? "bg-muted cursor-not-allowed" : ""}
           />
           <div className="flex gap-1">
             <Input
