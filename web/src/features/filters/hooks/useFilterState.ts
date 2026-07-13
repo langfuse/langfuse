@@ -210,11 +210,24 @@ const tableCols = {
   ],
 };
 
+export function normalizeFilterColumnIdentifier(identifier: string): string {
+  return identifier
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "");
+}
+
 function getColumnId(table: TableName, name: string): string | undefined {
-  // TODO: make this more robust, will change with new filters
-  // to give more leeway to LLMs, we check against name or id
-  return tableCols[table]?.find((col) => col.name === name || col.id === name)
-    ?.id;
+  const normalizedName = normalizeFilterColumnIdentifier(name);
+
+  return tableCols[table]?.find((col) => {
+    const normalizedColumnName = normalizeFilterColumnIdentifier(col.name);
+    const normalizedColumnId = normalizeFilterColumnIdentifier(col.id);
+    return (
+      normalizedColumnName === normalizedName ||
+      normalizedColumnId === normalizedName
+    );
+  })?.id;
 }
 
 function getColumnName(table: TableName, id: string): string | undefined {
