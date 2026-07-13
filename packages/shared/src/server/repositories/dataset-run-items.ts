@@ -292,17 +292,6 @@ const getDatasetRunsTableInternal = async <T>(
 
   const baseFilter = datasetRunItemsFilter.apply();
 
-  const scoresFilter = new FilterList([
-    new StringFilter({
-      clickhouseTable: "scores",
-      field: "project_id",
-      operator: "=",
-      value: projectId,
-    }),
-  ]);
-
-  const appliedScoresFilter = scoresFilter.apply();
-
   const userFilters = createFilterFromFilterState(
     filter,
     datasetRunsTableUiColumnDefinitions,
@@ -330,8 +319,35 @@ const getDatasetRunsTableInternal = async <T>(
     datasetRunsTableUiColumnDefinitions,
   );
 
+  const datasetRunItemsScopedCte = `
+   WITH dataset_run_items_scoped AS (
+      SELECT *
+      FROM dataset_run_items_rmt dri
+      WHERE ${baseFilter.query}
+    ),
+    dataset_run_items_deduped AS (
+      SELECT *
+      FROM dataset_run_items_scoped dri
+      ORDER BY dri.created_at DESC
+      LIMIT 1 BY dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id
+    ),
+    dataset_run_items_trace_scope AS (
+      SELECT DISTINCT
+        dri.project_id,
+        dri.trace_id
+      FROM dataset_run_items_deduped dri
+      WHERE dri.trace_id IS NOT NULL
+    ),
+    dataset_run_items_bounds AS (
+      SELECT
+        min(dri.dataset_run_created_at) - INTERVAL 1 DAY as min_start_time,
+        max(dri.dataset_run_created_at) + INTERVAL 1 DAY as max_start_time
+      FROM dataset_run_items_deduped dri
+    ),
+  `;
+
   const scoresCte = `
-   WITH scores_aggregated AS (
+   scores_aggregated AS (
       SELECT
         dri.dataset_run_id,
         dri.project_id,
@@ -346,25 +362,23 @@ const getDatasetRunsTableInternal = async <T>(
           s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)
         ) AS score_categories,
         ${scoreBooleansAggregation("s.")} AS score_booleans
-      FROM dataset_run_items_rmt dri
+      FROM dataset_run_items_deduped dri
       LEFT JOIN (
         SELECT
-          project_id,
-          trace_id,
+          s.project_id,
+          s.trace_id,
           name,
           data_type,
           string_value,
           avg(value) as avg_value
         FROM scores s FINAL
-        WHERE ${appliedScoresFilter.query}
-        AND s.trace_id IN (
-          SELECT dri.trace_id
-          FROM dataset_run_items_rmt dri
-          WHERE ${baseFilter.query}
-        )
+        INNER JOIN dataset_run_items_trace_scope dri_scope
+          ON dri_scope.project_id = s.project_id
+          AND dri_scope.trace_id = s.trace_id
+        WHERE s.project_id = {projectId: String}
         GROUP BY
-          project_id,
-          trace_id,
+          s.project_id,
+          s.trace_id,
           name,
           data_type,
           string_value
@@ -385,34 +399,15 @@ const getDatasetRunsTableInternal = async <T>(
         o.end_time,
         o.total_cost
       FROM observations o
+      INNER JOIN dataset_run_items_trace_scope dri_scope
+        ON dri_scope.project_id = o.project_id
+        AND dri_scope.trace_id = o.trace_id
+      CROSS JOIN dataset_run_items_bounds dri_bounds
       WHERE o.project_id = {projectId: String}
-        AND o.start_time >= (
-          SELECT min(dri.dataset_run_created_at) - INTERVAL 1 DAY 
-          FROM dataset_run_items_rmt dri 
-          WHERE ${baseFilter.query}
-        )
-        AND o.start_time <= (
-          SELECT max(dri.dataset_run_created_at) + INTERVAL 1 DAY 
-          FROM dataset_run_items_rmt dri 
-          WHERE ${baseFilter.query}
-        )
-        AND o.trace_id in  (
-          SELECT dri.trace_id
-          FROM dataset_run_items_rmt dri 
-          WHERE ${baseFilter.query}
-        )
+        AND o.start_time >= dri_bounds.min_start_time
+        AND o.start_time <= dri_bounds.max_start_time
       ORDER BY o.event_ts DESC
       LIMIT 1 by id, project_id
-    ),
-  `;
-
-  const datasetRunItemsDedupedCte = `
-    dataset_run_items_deduped AS (
-      SELECT *
-      FROM dataset_run_items_rmt dri
-      WHERE ${baseFilter.query}
-      ORDER BY dri.created_at DESC
-      LIMIT 1 BY dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id
     ),
   `;
 
@@ -472,9 +467,9 @@ const getDatasetRunsTableInternal = async <T>(
   `;
 
   const query = `
+    ${datasetRunItemsScopedCte}
     ${scoresCte}
     ${filteredObservationsCte}
-    ${datasetRunItemsDedupedCte}
     ${traceMetricsCte}
     ${datasetRunMetricsCte}
     SELECT ${opts.select === "count" ? "" : "DISTINCT"}
@@ -492,7 +487,6 @@ const getDatasetRunsTableInternal = async <T>(
       projectId,
       datasetId,
       ...(runIds && runIds.length > 0 ? { runIds } : {}),
-      ...appliedScoresFilter.params,
       ...baseFilter.params,
       ...appliedFilter.params,
       ...(limit !== undefined && offset !== undefined ? { limit, offset } : {}),
