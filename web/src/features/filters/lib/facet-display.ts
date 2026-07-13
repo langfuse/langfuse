@@ -39,7 +39,21 @@ export function getFacetSummary(filter: UIFilter): string | null {
     if (!filter.isActive) {
       // "All" only makes sense once there are options to keep; while options
       // are loading or absent the header stays quiet.
-      return filter.options.length > 0 ? "All" : null;
+      if (filter.options.length === 0) return null;
+      // An inactive facet can still keep a strict subset: the managed
+      // environment policy applies an implicit `none of [hidden]` default
+      // that never counts as user-authored (isActive stays false, no Clear).
+      // Saying "All" there would contradict the visibly unchecked hidden
+      // environments — describe the kept set instead.
+      if (
+        filter.value.length > 0 &&
+        filter.value.length < filter.options.length
+      ) {
+        return filter.value.length === 1
+          ? displayValue(filter.value[0], filter.displayByValue)
+          : `${filter.value.length} selected`;
+      }
+      return "All";
     }
 
     if (filter.operator === "none of") {

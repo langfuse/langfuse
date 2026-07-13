@@ -41,6 +41,25 @@ describe("getFacetSummary", () => {
     expect(getFacetSummary(categorical({}))).toBeNull();
   });
 
+  it("describes the kept subset of an inactive facet under an implicit default (managed environments)", () => {
+    expect(
+      getFacetSummary(
+        categorical({
+          options: ["default", "sdk-experiment", "langfuse-evaluation"],
+          value: ["default"],
+        }),
+      ),
+    ).toBe("default");
+    expect(
+      getFacetSummary(
+        categorical({
+          options: ["default", "dev", "sdk-experiment"],
+          value: ["default", "dev"],
+        }),
+      ),
+    ).toBe("2 selected");
+  });
+
   it("names a single selected value, honoring display labels", () => {
     expect(
       getFacetSummary(
