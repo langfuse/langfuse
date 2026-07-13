@@ -407,7 +407,7 @@ export const requireLangfuseCloud = t.middleware(({ next }) => {
 
 /** requireV4Writes rejects calls from deployments without v4 event tables */
 export const requireV4Writes = t.middleware(({ next }) => {
-  if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE == "legacy") {
+  if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy") {
     throw new TRPCError({ code: "NOT_FOUND", message: "Not found" });
   }
   return next();

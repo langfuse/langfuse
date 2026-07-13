@@ -21,7 +21,7 @@ export function MonitorPagePermissions({
   const v4WriteMode = useLangfuseV4WriteMode();
   const hasAccess = useHasProjectAccess({ projectId, scope });
 
-  if (!v4WriteMode || v4WriteMode == "legacy") {
+  if (!v4WriteMode || v4WriteMode === "legacy") {
     return <ErrorPage title="Not found" message="This page does not exist." />;
   }
 

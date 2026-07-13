@@ -18,7 +18,7 @@ import {
   UpdateMonitorSchema,
 } from "@langfuse/shared/monitors/server";
 
-/** monitorsProcedure protects monitor routes behand a v4Writes check. */
+/** monitorsProcedure protects monitor routes behind a v4Writes check. */
 const monitorsProcedure = protectedProjectProcedure.use(requireV4Writes);
 
 /** sessionContextFromCtx adapts a tRPC session into a MonitorService SessionContext. */

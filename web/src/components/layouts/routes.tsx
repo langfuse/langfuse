@@ -133,7 +133,7 @@ export const ROUTES: Route[] = [
     pathname: "/project/[projectId]/monitors",
     icon: BellRing,
     projectRbacScopes: ["monitors:read"],
-    show: ({ v4WriteMode }) => !!v4WriteMode && v4WriteMode != "legacy",
+    show: ({ v4WriteMode }) => Boolean(v4WriteMode) && v4WriteMode !== "legacy",
     group: RouteGroup.Observability,
     section: RouteSection.Main,
   },
