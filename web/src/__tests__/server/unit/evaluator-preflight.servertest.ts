@@ -25,6 +25,14 @@ const numericOutputDefinition = createNumericEvalOutputDefinition({
   scoreDescription: "A score between 0 and 1",
 });
 
+// The real config carries a full parsed LLM API key record plus the adapter;
+// the preflight only reads the connection fields stubbed below, so the
+// fixture stays minimal behind a cast.
+type ValidModelConfig = Extract<
+  Awaited<ReturnType<typeof DefaultEvalModelService.fetchValidModelConfig>>,
+  { valid: true }
+>["config"];
+
 describe("evaluator preflight", () => {
   const mockFetchValidModelConfig = vi.mocked(
     DefaultEvalModelService.fetchValidModelConfig,
@@ -49,7 +57,7 @@ describe("evaluator preflight", () => {
           config: null,
           adapter: LLMAdapter.OpenAI,
         },
-      },
+      } as unknown as ValidModelConfig,
     });
   });
 

@@ -12,6 +12,21 @@ export const langfuseS3EventKeyMaxSegmentBytesSchema = z.coerce
   .max(2048)
   .default(2048);
 
+// Socket-level watchdog for all Redis connections: ioredis destroys and
+// reconnects a socket that received no data for this long, so a hung
+// connection cannot pin BullMQ concurrency slots forever. Must be 0 (disabled)
+// or >= 10s: BullMQ blocking commands (BZPOPMIN) legitimately idle ~5s between
+// packets, and lower values make healthy idle workers cycle through
+// reconnects (#12944).
+export const redisSocketTimeoutMsSchema = z.coerce
+  .number()
+  .int()
+  .refine((ms) => ms === 0 || ms >= 10_000, {
+    message:
+      "REDIS_SOCKET_TIMEOUT_MS must be 0 (disabled) or at least 10000; BullMQ blocking commands idle ~5s between packets",
+  })
+  .default(30_000);
+
 const EnvSchema = z.object({
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z.string().optional(),
   // Dev-only override: set to an ISO datetime string to shift the legacy blob
@@ -55,6 +70,7 @@ const EnvSchema = z.object({
   REDIS_TLS_HONOR_CIPHER_ORDER: z.enum(["true", "false"]).optional(),
   REDIS_TLS_KEY_PASSPHRASE: z.string().optional(),
   REDIS_ENABLE_AUTO_PIPELINING: z.enum(["true", "false"]).default("true"),
+  REDIS_SOCKET_TIMEOUT_MS: redisSocketTimeoutMsSchema,
   LANGFUSE_BULLMQ_SKIP_REDIS_VERSION_CHECK: z
     .enum(["true", "false"])
     .default("false"),

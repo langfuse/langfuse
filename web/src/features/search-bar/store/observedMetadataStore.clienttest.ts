@@ -179,8 +179,8 @@ describe("mergeIntoProject", () => {
     // "mixed" forever (review find: greptile/claude on PR #14771). Built from
     // tuples, not an object literal: TS contextual typing breaks on literal
     // properties named after Object.prototype members (the values widen to
-    // `string` and fail assignability — broke the `next build` type pass,
-    // which unlike tsconfig.build.json includes clienttest files).
+    // `string` and fail assignability — broke the `next build` type pass
+    // before clienttest files were covered by the regular typecheck).
     const shadowing = new Map<string, StoredKeyInfo>([
       ["toString", { type: "string", values: ["hello"] }],
       ["constructor", { type: "number", values: ["1"] }],

@@ -1,4 +1,10 @@
 import type { Session } from "next-auth";
+
+// Session fixture sub-object types; casts keep the runtime fixtures unchanged
+// while satisfying newer required fields on the session user type.
+type SessionUser = NonNullable<Session["user"]>;
+type SessionOrgs = SessionUser["organizations"];
+type SessionFeatureFlags = SessionUser["featureFlags"];
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -15,7 +21,7 @@ const createSession = (opts: { admin: boolean; member: boolean }): Session => ({
     canCreateOrganizations: true,
     name: "Test User",
     organizations: opts.member
-      ? [
+      ? ([
           {
             id: orgId,
             name: "Admin Org Context Test Org",
@@ -32,19 +38,22 @@ const createSession = (opts: { admin: boolean; member: boolean }): Session => ({
               },
             ],
           },
-        ]
+        ] as SessionOrgs)
       : [],
     featureFlags: {
       excludeClickhouseRead: false,
       templateFlag: true,
-    },
+    } as SessionFeatureFlags,
     admin: opts.admin,
   },
   environment: {} as any,
 });
 
 const createCaller = (opts: { admin: boolean; member: boolean }) => {
-  const ctx = createInnerTRPCContext({ session: createSession(opts) });
+  const ctx = createInnerTRPCContext({
+    session: createSession(opts),
+    headers: {},
+  });
   return appRouter.createCaller({ ...ctx, prisma });
 };
 
