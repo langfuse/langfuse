@@ -549,6 +549,48 @@ describe("traces trpc", () => {
       expect(traceRes?.timestamp).toEqual(new Date(trace.timestamp));
     });
 
+    // In dual write mode, internally produced traces (e.g. code-eval execution
+    // traces) exist ONLY in the events tables. Trace access must fall back to
+    // the events table instead of 404ing on the legacy `traces` miss — the
+    // fast-preview list showed such traces while the detail view threw
+    // "Trace not found".
+    // Gate matches the code: events-table reads work in dual (fallback) and
+    // events_only (getTraceById routing); legacy deployments (azure /
+    // redis-cluster CI) have no events tables and skip.
+    const eventsTraceReadable =
+      env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy";
+    (eventsTraceReadable ? it : it.skip)(
+      "access trace that only exists in the events table",
+      async () => {
+        const traceId = randomUUID();
+
+        await createEventsCh([
+          createEvent({
+            id: traceId,
+            span_id: traceId,
+            trace_id: traceId,
+            project_id: projectId,
+            parent_span_id: null,
+          }),
+        ]);
+
+        // Precondition: legacy `traces` has no row.
+        expect(
+          await getTraceByIdFromTracesTable({ traceId, projectId }),
+        ).toBeUndefined();
+
+        // ClickHouse insert visibility can lag.
+        await waitForExpect(async () => {
+          const traceRes = await caller.traces.byId({
+            projectId,
+            traceId,
+          });
+          expect(traceRes?.id).toEqual(traceId);
+          expect(traceRes?.projectId).toEqual(projectId);
+        });
+      },
+    );
+
     it("access trace without any authentication", async () => {
       const unAuthedSession = createInnerTRPCContext({ session: null });
       const unAuthedCaller = appRouter.createCaller({
