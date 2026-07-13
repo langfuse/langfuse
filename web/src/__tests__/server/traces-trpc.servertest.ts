@@ -42,6 +42,9 @@ describe("traces trpc", () => {
           role: "OWNER",
           plan: "cloud:hobby",
           cloudConfig: undefined,
+          metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: false,
           projects: [
             {
               id: projectId,
@@ -49,6 +52,9 @@ describe("traces trpc", () => {
               retentionDays: 30,
               deletedAt: null,
               name: "Test Project",
+              hasTraces: true,
+              metadata: {},
+              createdAt: new Date().toISOString(),
             },
           ],
         },
@@ -56,13 +62,17 @@ describe("traces trpc", () => {
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: true,
+        searchBar: false,
+        v4BetaToggleVisible: false,
+        observationEvals: false,
+        experimentsV4Enabled: false,
       },
       admin: true,
     },
     environment: {} as any,
   };
 
-  const ctx = createInnerTRPCContext({ session });
+  const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
   afterEach(() => {
@@ -378,8 +388,10 @@ describe("traces trpc", () => {
     it("should search traces by input only", async () => {
       const trace = createTrace({
         project_id: projectId,
-        input: { query: "unique_trace_input_keyword" },
-        output: { result: "different output" },
+        // The insert type declares IO as string, but the ClickHouse client
+        // serializes object fixtures on insert — keep them via casts.
+        input: { query: "unique_trace_input_keyword" } as unknown as string,
+        output: { result: "different output" } as unknown as string,
         name: "input-search-trace",
       });
 
@@ -412,8 +424,11 @@ describe("traces trpc", () => {
     it("should search traces by output only", async () => {
       const trace = createTrace({
         project_id: projectId,
-        input: { query: "simple input" },
-        output: { result: "unique_trace_output_keyword for testing" },
+        // See input-search test above for why these fixtures are cast.
+        input: { query: "simple input" } as unknown as string,
+        output: {
+          result: "unique_trace_output_keyword for testing",
+        } as unknown as string,
         name: "output-search-trace",
       });
 
@@ -475,8 +490,6 @@ describe("traces trpc", () => {
         ],
         searchQuery: null,
         searchType: ["id"],
-        page: 0,
-        limit: 50,
         orderBy: {
           column: "timestamp",
           order: "DESC",
@@ -550,7 +563,10 @@ describe("traces trpc", () => {
     });
 
     it("access trace without any authentication", async () => {
-      const unAuthedSession = createInnerTRPCContext({ session: null });
+      const unAuthedSession = createInnerTRPCContext({
+        session: null,
+        headers: {},
+      });
       const unAuthedCaller = appRouter.createCaller({
         ...unAuthedSession,
         prisma,
@@ -814,10 +830,14 @@ describe("traces trpc", () => {
       });
 
       expect(metrics).toHaveLength(1);
-      expect(metrics[0]?.scores[aggregateKey]?.average).toBeCloseTo(0.6, 5);
-      expect(metrics[0]?.scores[aggregateKey]?.values).toEqual(
-        expect.arrayContaining([0.4, 0.8]),
-      );
+      const aggregate = metrics[0]?.scores[aggregateKey];
+      if (aggregate?.type !== "NUMERIC") {
+        throw new Error(
+          `Expected a NUMERIC aggregate for ${aggregateKey}, got ${aggregate?.type}`,
+        );
+      }
+      expect(aggregate.average).toBeCloseTo(0.6, 5);
+      expect(aggregate.values).toEqual(expect.arrayContaining([0.4, 0.8]));
     });
   });
 
@@ -847,7 +867,10 @@ describe("traces trpc", () => {
 
   describe("traces.getAgentGraphData", () => {
     it("should allow unauthenticated access to public trace agent graph data", async () => {
-      const unAuthedSession = createInnerTRPCContext({ session: null });
+      const unAuthedSession = createInnerTRPCContext({
+        session: null,
+        headers: {},
+      });
       const unAuthedCaller = appRouter.createCaller({
         ...unAuthedSession,
         prisma,
@@ -886,7 +909,10 @@ describe("traces trpc", () => {
     });
 
     it("should deny unauthenticated access to private trace agent graph data", async () => {
-      const unAuthedSession = createInnerTRPCContext({ session: null });
+      const unAuthedSession = createInnerTRPCContext({
+        session: null,
+        headers: {},
+      });
       const unAuthedCaller = appRouter.createCaller({
         ...unAuthedSession,
         prisma,
@@ -956,13 +982,19 @@ describe("traces trpc", () => {
                   retentionDays: null,
                   deletedAt: null,
                   name: "legacy-onboarding",
+                  hasTraces: false,
+                  metadata: {},
+                  createdAt: new Date().toISOString(),
                 },
               ],
             },
           ],
         },
       };
-      const freshCtx = createInnerTRPCContext({ session: freshSession });
+      const freshCtx = createInnerTRPCContext({
+        session: freshSession,
+        headers: {},
+      });
       const freshCaller = appRouter.createCaller({ ...freshCtx, prisma });
 
       try {
