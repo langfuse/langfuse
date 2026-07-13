@@ -682,7 +682,10 @@ describe("in-app agent public API route auth", () => {
 
       expect(response.status).toBe(429);
       await expect(response.json()).resolves.toEqual({
-        error: "Rate limit exceeded",
+        code: "rate_limited",
+        details: {
+          retryAfterSeconds: 60,
+        },
       });
       expect(response.headers.get("Retry-After")).toBe("60");
       expect(rateLimitMocks.rateLimitRequest).toHaveBeenCalledWith(

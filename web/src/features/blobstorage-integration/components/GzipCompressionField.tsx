@@ -13,17 +13,12 @@ import { type BlobStorageFormControl } from "@/src/features/blobstorage-integrat
 
 export const GzipCompressionField = ({
   control,
-  isParquetOverride,
 }: {
   control: BlobStorageFormControl;
-  isParquetOverride: boolean;
 }) => {
   const watchedFileType = useWatch({ control, name: "fileType" });
   // Parquet compresses internally — gzip does not apply.
-  const isParquetExport =
-    isParquetOverride ||
-    watchedFileType === BlobStorageIntegrationFileType.PARQUET;
-  if (isParquetExport) return null;
+  if (watchedFileType === BlobStorageIntegrationFileType.PARQUET) return null;
 
   return (
     <FormField
