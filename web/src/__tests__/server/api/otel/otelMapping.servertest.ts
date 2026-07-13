@@ -504,6 +504,56 @@ describe("OTel Resource Span Mapping", () => {
         environment: "production",
       });
     });
+
+    it("should copy app-root observation I/O to a trace when its parent was filtered", async () => {
+      const resourceSpan = {
+        scopeSpans: [
+          {
+            scope: { name: "langfuse-sdk", version: "5.9.1" },
+            spans: [
+              {
+                traceId: Buffer.from("95f3b926c7d009925bcb5dbc27311120", "hex"),
+                spanId: Buffer.from("d43e37b7d17e5476", "hex"),
+                parentSpanId: Buffer.from("834e28b5917fbef6", "hex"),
+                name: "chat-handler",
+                kind: 1,
+                startTimeUnixNano: "1746452553936000000",
+                endTimeUnixNano: "1746452554038000000",
+                attributes: [
+                  {
+                    key: "langfuse.internal.is_app_root",
+                    value: { boolValue: true },
+                  },
+                  {
+                    key: "langfuse.observation.input",
+                    value: { stringValue: '{"messages":["hello"]}' },
+                  },
+                  {
+                    key: "langfuse.observation.output",
+                    value: { stringValue: '"Hi there"' },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+        publicKey,
+      );
+      const traceEvent = events.find((event) => event.type === "trace-create");
+
+      expect(traceEvent?.body).toMatchObject({
+        id: "95f3b926c7d009925bcb5dbc27311120",
+        name: "chat-handler",
+        input: '{"messages":["hello"]}',
+        output: '"Hi there"',
+      });
+    });
   });
 
   describe("Vendor Spans", () => {
