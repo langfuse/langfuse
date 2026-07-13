@@ -10,10 +10,7 @@ import {
   isLegacyBlobExporter,
   type BlobStorageIntegration,
 } from "@langfuse/shared";
-import {
-  parquetEnabledFromTuning,
-  type BlobStorageIntegrationFormSchema,
-} from "@/src/features/blobstorage-integration/types";
+import { type BlobStorageIntegrationFormSchema } from "@/src/features/blobstorage-integration/types";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { buildBlobStorageFormValues } from "@/src/features/blobstorage-integration/components/formValues";
@@ -123,7 +120,6 @@ export const BlobStorageIntegrationContainer = ({
       )}
       availability={availability}
       persistedExportSource={config?.exportSource}
-      isParquetOverride={parquetEnabledFromTuning(config?.exportTuning)}
       isSaving={mut.isPending}
       onSubmit={handleSubmit}
     >

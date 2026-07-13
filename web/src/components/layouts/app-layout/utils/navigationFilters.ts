@@ -167,6 +167,7 @@ export const filters = {
       organization: organization ?? undefined,
       projectId: ctx.routerProjectId,
       isLangfuseCloud: ctx.isLangfuseCloud,
+      v4WriteMode: ctx.session?.environment?.v4WriteMode,
     })
       ? route
       : null;

@@ -379,7 +379,7 @@ describe("MCP public API tools", () => {
     ).resolves.toBe(assignmentAuditLogCount + 1);
 
     const auditLogCreateSpy = vi
-      .spyOn(prisma.auditLog, "create")
+      .spyOn(prisma, "$transaction")
       .mockRejectedValueOnce(new Error("audit failed"));
 
     try {
