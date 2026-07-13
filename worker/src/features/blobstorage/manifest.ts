@@ -23,7 +23,10 @@ export type BlobExportManifest = {
   version: number;
   projectId: string;
   exportSource: string;
-  /** Export window [minTimestamp, maxTimestamp). */
+  /**
+   * Export window, both bounds inclusive — a row at exactly maxTimestamp also
+   * falls into the next run's window.
+   */
   window: { minTimestamp: string; maxTimestamp: string };
   /** Equals window.maxTimestamp; also the manifest key stem. */
   maxTimestamp: string;

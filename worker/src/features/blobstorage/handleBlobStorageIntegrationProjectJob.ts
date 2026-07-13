@@ -351,13 +351,8 @@ const processBlobStorageExport = async (config: {
   projectId: string;
   minTimestamp: Date;
   maxTimestamp: Date;
-  bucketName: string;
-  endpoint: string | null;
-  region: string;
-  accessKeyId: string | undefined;
-  secretAccessKey: string | undefined;
+  storageService: StorageService;
   prefix?: string;
-  forcePathStyle?: boolean;
   type: BlobStorageIntegrationType;
   table: "traces" | "observations" | "scores" | "observations_v2"; // observations_v2 is the events table
   fileType: BlobStorageIntegrationFileType;
@@ -383,7 +378,7 @@ const processBlobStorageExport = async (config: {
     `[BLOB INTEGRATION] Processing ${config.table} export for project ${config.projectId}`,
   );
 
-  const storageService = createBlobStorageService(config);
+  const storageService = config.storageService;
 
   return await instrumentAsync(
     {
@@ -451,7 +446,6 @@ const processBlobStorageExport = async (config: {
       // Outside the try so the catch can distinguish a real upload success from
       // a failure.
       let uploadSucceeded = false;
-      let manifestFile: BlobExportManifestFile | undefined;
       let heartbeat: ReturnType<typeof setInterval> | undefined;
 
       // Per-stage errors so the catch can name the originating cause instead of
@@ -804,7 +798,7 @@ const processBlobStorageExport = async (config: {
 
           // rowCount null on parquet: sourceStats.rows stays 0 for the binary
           // stream and would misreport as an empty file.
-          manifestFile = {
+          const manifestFile: BlobExportManifestFile = {
             key: filePath,
             table: config.table,
             fileType: parquetEligible
@@ -882,6 +876,8 @@ const processBlobStorageExport = async (config: {
                 ? ` gzipLevel=${gzipStats.level} compressedBytes=${compressedCounter.bytes}`
                 : ""),
           );
+
+          return manifestFile;
         } finally {
           span.setAttribute("blob.rows", sourceStats.rows);
           // Same chReadMs / uploadWaitMs derivation as the success path above.
@@ -1062,14 +1058,6 @@ const processBlobStorageExport = async (config: {
         span.setAttribute("blob.eventLoopDelay.p99Ms", Math.round(p99Ms));
         span.setAttribute("blob.eventLoopDelay.meanMs", Math.round(meanMs));
       }
-
-      // Always populated on the success path (the catch above rethrows).
-      if (!manifestFile) {
-        throw new Error(
-          `[BLOB INTEGRATION] Missing manifest entry after a successful ${config.table} export for project ${config.projectId}`,
-        );
-      }
-      return manifestFile;
     },
   );
 };
@@ -1077,7 +1065,7 @@ const processBlobStorageExport = async (config: {
 // Small JSON body, so single-shot uploadFile instead of the buffered multipart
 // path the table streams use.
 const writeBlobExportManifest = async (params: {
-  connection: BlobStorageConnectionConfig;
+  storageService: StorageService;
   prefix?: string;
   projectId: string;
   exportSource: string;
@@ -1099,8 +1087,7 @@ const writeBlobExportManifest = async (params: {
     maxTimestamp: params.maxTimestamp,
   });
 
-  const storageService = createBlobStorageService(params.connection);
-  await storageService.uploadFile({
+  await params.storageService.uploadFile({
     fileName: key,
     fileType: "application/json; charset=utf-8",
     // Trailing newline for POSIX-friendly shell tooling.
@@ -1259,10 +1246,8 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
-    const executionConfig = {
-      projectId,
-      minTimestamp,
-      maxTimestamp,
+    // One client per run, shared by all table uploads and the manifest write.
+    const storageService = createBlobStorageService({
       bucketName: blobStorageIntegration.bucketName,
       endpoint: blobStorageIntegration.endpoint,
       region: blobStorageIntegration.region || "auto",
@@ -1270,8 +1255,16 @@ export const handleBlobStorageIntegrationProjectJob = async (
       secretAccessKey: blobStorageIntegration.secretAccessKey
         ? decrypt(blobStorageIntegration.secretAccessKey)
         : undefined,
-      prefix: blobStorageIntegration.prefix || undefined,
       forcePathStyle: blobStorageIntegration.forcePathStyle || undefined,
+      type: blobStorageIntegration.type,
+    });
+
+    const executionConfig = {
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+      storageService,
+      prefix: blobStorageIntegration.prefix || undefined,
       type: blobStorageIntegration.type,
       fileType: blobStorageIntegration.fileType,
       compressed: blobStorageIntegration.compressed,
@@ -1370,7 +1363,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
     // table upload succeeded. A failure here fails the run, so lastSyncAt does
     // not advance and the retry idempotently overwrites the table files.
     await writeBlobExportManifest({
-      connection: executionConfig,
+      storageService,
       prefix: blobStorageIntegration.prefix || undefined,
       projectId,
       exportSource: blobStorageIntegration.exportSource,
