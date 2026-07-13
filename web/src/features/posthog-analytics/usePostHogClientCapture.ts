@@ -108,6 +108,20 @@ export const events = {
     "duplicate_button_click",
     "duplicate_form_submit",
   ],
+  skills: [
+    "new_form_submit",
+    "new_form_open",
+    "update_form_open",
+    "update_form_submit",
+  ],
+  skill_detail: [
+    "add_label_submit",
+    "apply_labels",
+    "version_delete_open",
+    "version_delete_submit",
+    "duplicate_button_click",
+    "duplicate_form_submit",
+  ],
   session_detail: ["publish_button_click", "download_button_click"],
   eval_config: [
     "new_form_submit",

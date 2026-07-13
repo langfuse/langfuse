@@ -42,6 +42,7 @@ export type TableName =
   | "sessions"
   | "scores"
   | "prompts"
+  | "skills"
   | "dashboard"
   | "widgets"
   | "users"

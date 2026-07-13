@@ -1,0 +1,137 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  commons: ./commons.yml
+  pagination: ./utils/pagination.yml
+service:
+  auth: true
+  base-path: /api/public/v2
+  endpoints:
+    get:
+      docs: Get a skill
+      method: GET
+      path: /skills/{skillName}
+      path-parameters:
+        skillName:
+          type: string
+          docs: |
+            The name of the skill. If the skill is in a folder (e.g., "folder/subfolder/skill-name"),
+            the folder path must be URL encoded.
+      request:
+        name: GetSkillRequest
+        query-parameters:
+          version:
+            type: optional<integer>
+            docs: Version of the skill to be retrieved.
+          label:
+            type: optional<string>
+            docs: Label of the skill to be retrieved. Defaults to "production" if no label or version is set.
+      response: Skill
+
+    list:
+      docs: Get a list of skill names with versions and labels
+      method: GET
+      path: /skills
+      request:
+        name: ListSkillsMetaRequest
+        query-parameters:
+          name: optional<string>
+          label: optional<string>
+          tag: optional<string>
+          page:
+            type: optional<integer>
+            docs: page number, starts at 1
+          limit:
+            type: optional<integer>
+            docs: limit of items per page
+          fromUpdatedAt:
+            type: optional<datetime>
+            docs: Optional filter to only include skill versions created/updated on or after a certain datetime (ISO 8601)
+          toUpdatedAt:
+            type: optional<datetime>
+            docs: Optional filter to only include skill versions created/updated before a certain datetime (ISO 8601)
+
+      response: SkillMetaListResponse
+
+    create:
+      docs: Create a new version for the skill with the given `name`
+      method: POST
+      path: /skills
+      request: CreateSkillRequest
+      response: Skill
+
+    delete:
+      docs: Delete skill versions. If neither version nor label is specified, all versions of the skill are deleted.
+      method: DELETE
+      path: /skills/{skillName}
+      path-parameters:
+        skillName:
+          type: string
+          docs: The name of the skill
+      request:
+        name: DeleteSkillRequest
+        query-parameters:
+          label:
+            type: optional<string>
+            docs: Optional label to filter deletion. If specified, deletes all skill versions that have this label.
+          version:
+            type: optional<integer>
+            docs: Optional version to filter deletion. If specified, deletes only this specific version of the skill.
+
+types:
+  SkillMetaListResponse:
+    properties:
+      data: list<SkillMeta>
+      meta: pagination.MetaResponse
+
+  SkillMeta:
+    properties:
+      name: string
+      versions: list<integer>
+      labels: list<string>
+      tags: list<string>
+      lastUpdatedAt: datetime
+
+  CreateSkillRequest:
+    properties:
+      name: string
+      description:
+        type: string
+        docs: A short description of what the skill does and when to use it (SKILL.md frontmatter).
+      instructions:
+        type: string
+        docs: The instructions body of the skill (SKILL.md content).
+      metadata:
+        type: optional<unknown>
+        docs: Arbitrary metadata object for this skill version.
+      allowedTools:
+        type: optional<list<string>>
+        docs: List of tools this skill is allowed to use.
+      labels:
+        type: optional<list<string>>
+        docs: List of deployment labels of this skill version.
+      tags:
+        type: optional<list<string>>
+        docs: List of tags to apply to all versions of this skill.
+      commitMessage:
+        type: optional<string>
+        docs: Commit message for this skill version.
+
+  Skill:
+    properties:
+      name: string
+      version: integer
+      description: string
+      instructions: string
+      metadata: unknown
+      allowedTools:
+        type: list<string>
+        docs: List of tools this skill is allowed to use.
+      labels:
+        type: list<string>
+        docs: List of deployment labels of this skill version.
+      tags:
+        type: list<string>
+        docs: List of tags. Used to filter via UI and API. The same across versions of a skill.
+      commitMessage:
+        type: optional<string>
+        docs: Commit message for this skill version.

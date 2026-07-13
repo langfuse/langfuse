@@ -38,6 +38,10 @@ export const projectScopes = [
   "prompts:read",
   "promptProtectedLabels:CUD",
 
+  "skills:CUD",
+  "skills:read",
+  "skillProtectedLabels:CUD",
+
   "dashboards:read",
   "dashboards:CUD",
 
@@ -115,6 +119,9 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "prompts:CUD",
     "prompts:read",
     "promptProtectedLabels:CUD",
+    "skills:CUD",
+    "skills:read",
+    "skillProtectedLabels:CUD",
     "models:CUD",
     "evalTemplate:CUD",
     "evalTemplate:read",
@@ -173,6 +180,9 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "prompts:CUD",
     "prompts:read",
     "promptProtectedLabels:CUD",
+    "skills:CUD",
+    "skills:read",
+    "skillProtectedLabels:CUD",
     "models:CUD",
     "evalTemplate:CUD",
     "evalTemplate:read",
@@ -225,6 +235,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "datasets:CUD",
     "prompts:CUD",
     "prompts:read",
+    "skills:CUD",
+    "skills:read",
     "evalTemplate:CUD",
     "evalTemplate:read",
     "evalJob:read",
@@ -258,6 +270,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
   VIEWER: [
     "project:read",
     "prompts:read",
+    "skills:read",
     "evalTemplate:read",
     "scoreConfigs:read",
     "evalJob:read",

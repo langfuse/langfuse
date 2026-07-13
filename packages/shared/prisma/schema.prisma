@@ -167,6 +167,8 @@ model Project {
   LlmSchema                 LlmSchema[]
   LlmTool                   LlmTool[]
   PromptProtectedLabels     PromptProtectedLabels[]
+  Skill                     Skill[]
+  SkillProtectedLabels      SkillProtectedLabels[]
   Dashboard                 Dashboard[]
   DashboardWidget           DashboardWidget[]
   TableViewPreset           TableViewPreset[]
@@ -921,6 +923,46 @@ model PromptProtectedLabels {
 
   @@unique([projectId, label])
   @@map("prompt_protected_labels")
+}
+
+model Skill {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdBy String @map("created_by")
+
+  name          String
+  version       Int
+  description   String
+  instructions  String
+  metadata      Json     @default("{}") @db.Json
+  allowedTools  String[] @default([]) @map("allowed_tools")
+  tags          String[] @default([])
+  labels        String[] @default([])
+  commitMessage String?  @map("commit_message")
+
+  @@unique([projectId, name, version])
+  @@index([projectId, id])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([tags(ops: ArrayOps)], type: Gin)
+  @@map("skills")
+}
+
+model SkillProtectedLabels {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  projectId String   @map("project_id")
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  label     String
+
+  @@unique([projectId, label])
+  @@map("skill_protected_labels")
 }
 
 // Update ObservationView below when making changes to this model!
