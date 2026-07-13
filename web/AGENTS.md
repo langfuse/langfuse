@@ -65,7 +65,7 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 - Large frontend feature, virtualized-list, local state, and React
   effect-free data-flow architecture:
   [`../.agents/skills/frontend-large-feature-architecture/SKILL.md`](../.agents/skills/frontend-large-feature-architecture/SKILL.md)
-- Avoidable React effect audits, refactors, module migrations, and lint gates:
+- Avoidable React effect audits, refactors, and module migrations:
   [`../.agents/skills/refactor-react-effects/SKILL.md`](../.agents/skills/refactor-react-effects/SKILL.md)
 - React composition and component API design:
   [`web/.agents/skills/vercel-composition-patterns/SKILL.md`](.agents/skills/vercel-composition-patterns/SKILL.md)

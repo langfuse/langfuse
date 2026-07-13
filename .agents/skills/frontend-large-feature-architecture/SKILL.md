@@ -87,8 +87,7 @@ changing field does not rerender unrelated UI.
 Complex user workflows should live in `actions/*.ts` files or store actions.
 The component wires hooks and passes dependencies; the action owns the workflow.
 
-For a complete effect audit, component-splitting recipes, or a module-wide lint
-ratchet, use
+For a complete effect audit or component-splitting recipes, use
 [`../refactor-react-effects/SKILL.md`](../refactor-react-effects/SKILL.md).
 
 ## When To Read References

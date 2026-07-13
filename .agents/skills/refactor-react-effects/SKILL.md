@@ -5,7 +5,7 @@ description: |
   adding, reviewing, or removing effects; initializing forms or local UI state
   from query data; synchronizing client and server state; moving mutations or
   async workflows out of components; cleaning every effect from a frontend
-  submodule; or adding a scoped ESLint guard after a migration.
+  submodule; or reviewing whether an effect has a valid external-system owner.
 ---
 
 # Refactor React Effects
@@ -34,9 +34,6 @@ If the first question has no concrete answer, do not use an effect.
 - Read
   [`references/refactoring-patterns.md`](references/refactoring-patterns.md)
   before implementing a refactor.
-- Read
-  [`references/eslint-rollout.md`](references/eslint-rollout.md) when migrating
-  a complete submodule or adding a lint restriction.
 
 ## Decision Rules
 
@@ -89,7 +86,7 @@ fails. For a behavior-preserving migration, reuse existing coverage where it
 protects the relevant behavior; add focused coverage only for a meaningful
 behavior risk such as draft preservation, entity changes, refetches, submits,
 or cleanup. Do not add tests that inspect source code or merely assert that a
-hook is absent; lint owns that constraint.
+hook is absent. Use behavior tests and the effect inventory instead.
 
 ### 2. Inventory Every Effect
 
@@ -133,22 +130,14 @@ Repeat the inventory after each slice. Before declaring a submodule clean:
 - confirm refetches do not overwrite local edits;
 - confirm entity changes have deliberate preserve/reset semantics;
 - confirm complex actions are callable without rendering the feature;
-- document any real external integration effect that remains outside the lint
-  target.
+- document any real external integration effect that remains outside the
+  refactoring target.
 
-### 5. Add the Lint Gate Last
+Do not add or modify effect-specific ESLint rules or pre-commit checks as part
+of this workflow. Treat enforcement policy as separate, explicitly requested
+work.
 
-Only add a scoped ESLint restriction after the lint target contains no direct
-React effects. Follow
-[`references/eslint-rollout.md`](references/eslint-rollout.md). Do not enable a
-repo-wide ban while legacy usages remain.
-
-If a legitimate integration effect prevents a whole-submodule ban, narrow the
-lint scope or propose an explicit file-level configuration exception. The repo
-forbids adding or widening lint exceptions without user approval for the exact
-rule and scope; never add an inline disable as a shortcut.
-
-### 6. Verify
+### 5. Verify
 
 Run, at minimum:
 
