@@ -65,6 +65,8 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 - Large frontend feature, virtualized-list, local state, and React
   effect-free data-flow architecture:
   [`../.agents/skills/frontend-large-feature-architecture/SKILL.md`](../.agents/skills/frontend-large-feature-architecture/SKILL.md)
+- Avoidable React effect audits, refactors, and module migrations:
+  [`../.agents/skills/refactor-react-effects/SKILL.md`](../.agents/skills/refactor-react-effects/SKILL.md)
 - React composition and component API design:
   [`web/.agents/skills/vercel-composition-patterns/SKILL.md`](.agents/skills/vercel-composition-patterns/SKILL.md)
 - React/Next.js performance and rendering best practices:
@@ -100,6 +102,18 @@ action should emit an analytics event.
   must be installed, ask the user before doing so.
 - Tailwind is the default styling layer; use the shared palette and globals in
   `src/styles/globals.css`.
+- Do not add `useEffect` by default. Use it only when a component must
+  synchronize with a concrete system outside React, such as a subscription,
+  browser event listener, observer, timer, or imperative third-party API.
+  Before writing an effect, name that external system and its setup/cleanup
+  lifecycle. If there is no external system, do not use an effect. In
+  particular, do not use effects to derive render state, mirror props or query
+  data into local state, react to user actions, or reset state when an ID
+  changes. Derive during render, run work in the initiating event handler, use
+  query APIs for server state, or mount a keyed child once required data is
+  available. Do not evade this rule with `useLayoutEffect`, a custom wrapper
+  hook, an ESLint suppression, or disabled dependency checks. Use
+  `../.agents/skills/refactor-react-effects/SKILL.md` for effect work.
 - In flex layouts, prefer `gap-*` over margin-based `space-x-*`/`space-y-*`.
 - Treat `!` Tailwind classes as a smell. Step back and fix the owning layout,
   variant, or primitive before overriding with higher specificity.
