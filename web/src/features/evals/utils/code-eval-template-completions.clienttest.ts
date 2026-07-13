@@ -269,6 +269,48 @@ describe("code evaluator context completions", () => {
     ).toBeUndefined();
   });
 
+  it("completes inside string interpolations", () => {
+    const templateString = "`${ctx.observation.}`";
+    expect(
+      runCompletionSource(
+        templateString,
+        "TYPESCRIPT",
+        templateString.indexOf(".}") + 1,
+      )?.options.map((option) => option.label),
+    ).toEqual(["input", "output", "metadata", "toolCalls"]);
+
+    const formatString = 'f"{ctx.observation.}"';
+    expect(
+      runCompletionSource(
+        formatString,
+        "PYTHON",
+        formatString.indexOf(".}") + 1,
+      )?.options.map((option) => option.label),
+    ).toEqual(["input", "output", "metadata", "tool_calls"]);
+  });
+
+  it("invalidates aliases shadowed by loop, catch, and with bindings", () => {
+    expect(
+      getCompletions(
+        "def evaluate(ctx):\n  observation = ctx.observation\n  for observation in items:\n    observation.",
+        "PYTHON",
+      ).labels,
+    ).toBeUndefined();
+    expect(
+      getCompletions(
+        "function evaluate(ctx) {\n  const observation = ctx.observation;\n  for (const observation of items) {\n    observation.",
+        "TYPESCRIPT",
+      ).labels,
+    ).toBeUndefined();
+    // The iterated expression is a read, not a binding.
+    expect(
+      getCompletions(
+        "def evaluate(ctx):\n  observation = ctx.observation\n  for item in observation.tool_calls:\n    pass\n  observation.",
+        "PYTHON",
+      ).labels,
+    ).toEqual(["input", "output", "metadata", "tool_calls"]);
+  });
+
   it("invalidates aliases behind tuple, destructuring, and multi-declarator targets", () => {
     expect(
       getCompletions(
@@ -513,6 +555,18 @@ describe("code evaluator context completions", () => {
         completeSource.indexOf('""') + 1,
       )?.options.map((option) => option.label),
     ).toEqual(['"NUMERIC"', '"BOOLEAN"', '"CATEGORICAL"', '"TEXT"']);
+
+    // Accepting mid-value replaces the whole quoted value so no suffix of the
+    // old value survives ("CA|TEGORY" must not become "NUMERICTEGORY").
+    const midValueSource = `${scorePrefix}"CATEGORY" }] }; }`;
+    const midValue = runCompletionSource(
+      midValueSource,
+      "TYPESCRIPT",
+      midValueSource.indexOf('"CATEGORY') + 3,
+    );
+    expect(midValue?.to).toBe(
+      midValueSource.indexOf('"CATEGORY') + '"CATEGORY'.length,
+    );
   });
 
   it("completes Python score data type values before typing a value", () => {

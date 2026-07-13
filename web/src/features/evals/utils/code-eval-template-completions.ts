@@ -101,7 +101,7 @@ const CONTROL_FLOW_NODES = new Set([
   "SwitchStatement",
 ]);
 
-export const STRING_AND_COMMENT_SYNTAX_NODES: ReadonlySet<string> = new Set([
+const STRING_AND_COMMENT_SYNTAX_NODES: ReadonlySet<string> = new Set([
   "String",
   "FormatString",
   "TemplateString",
@@ -112,6 +112,20 @@ export const STRING_AND_COMMENT_SYNTAX_NODES: ReadonlySet<string> = new Set([
 const DATA_TYPE_IGNORED_SYNTAX_NODES: ReadonlySet<string> = new Set(
   [...STRING_AND_COMMENT_SYNTAX_NODES].filter((node) => node !== "String"),
 );
+// `${…}` / f"{…}" interpolations embed real code inside string literals.
+const INTERPOLATION_NODES = new Set(["Interpolation", "FormatReplacement"]);
+
+export function isInsideStringOrComment(node: SyntaxNode) {
+  for (
+    let ancestor: SyntaxNode | null = node;
+    ancestor;
+    ancestor = ancestor.parent
+  ) {
+    if (INTERPOLATION_NODES.has(ancestor.name)) return false;
+    if (STRING_AND_COMMENT_SYNTAX_NODES.has(ancestor.name)) return true;
+  }
+  return false;
+}
 
 const TYPESCRIPT_PROPERTY_NAME = /^(?:[$A-Za-z_][$A-Za-z0-9_]*)?$/;
 const PYTHON_PROPERTY_NAME = /^(?:[A-Za-z_][A-Za-z0-9_]*)?$/;
@@ -312,6 +326,61 @@ function readAssignmentTargets(
   return targets;
 }
 
+// Constructs that rebind names without an assignment node. "ForStatement" and
+// "TryStatement" match both grammars; the TS variants keep their targets in
+// ForOfSpec/ForInSpec/CatchClause children, so the flat rules find nothing.
+const BINDING_NODES = new Set([
+  "ForOfSpec",
+  "ForInSpec",
+  "CatchClause",
+  "ForStatement",
+  "WithStatement",
+  "TryStatement",
+]);
+
+function readBindingTargetNames(node: SyntaxNode, context: CompletionContext) {
+  const names: string[] = [];
+
+  if (
+    node.name === "ForOfSpec" ||
+    node.name === "ForInSpec" ||
+    node.name === "CatchClause"
+  ) {
+    for (let child = node.firstChild; child; child = child.nextSibling) {
+      if (
+        child.name === "of" ||
+        child.name === "in" ||
+        child.name === "Block"
+      ) {
+        break;
+      }
+      collectTargetNames(child, context, names);
+    }
+    return names;
+  }
+
+  if (node.name === "ForStatement") {
+    // PY `for x in items:` — everything after `in` is a read, not a target.
+    for (
+      let child = node.firstChild;
+      child && child.name !== "in";
+      child = child.nextSibling
+    ) {
+      collectTargetNames(child, context, names);
+    }
+    return names;
+  }
+
+  // PY WithStatement / TryStatement: only the name directly after `as` is
+  // bound (`except ValueError as e:` reads ValueError, binds e).
+  for (let child = node.firstChild; child; child = child.nextSibling) {
+    if (child.name === "as" && child.nextSibling?.name === "VariableName") {
+      names.push(sliceNode(context, child.nextSibling));
+    }
+  }
+  return names;
+}
+
 function isOnCursorPath(
   node: SyntaxNode,
   scope: SyntaxNode,
@@ -347,6 +416,14 @@ function getContractAliases(context: CompletionContext, inner: SyntaxNode) {
   function visit(node: SyntaxNode) {
     if (node.from >= context.pos) return;
     if (node !== scope && NESTED_SCOPE_NODES.has(node.name)) return;
+
+    // Bindings shadow for their whole statement (the cursor may sit inside
+    // the loop body), so invalidate regardless of where the node ends.
+    if (BINDING_NODES.has(node.name)) {
+      for (const name of readBindingTargetNames(node, context)) {
+        aliases.delete(name);
+      }
+    }
 
     if (ASSIGNMENT_NODES.has(node.name) && node.to <= context.pos) {
       const allowAlias = isOnCursorPath(node, scope, cursorAncestors);
@@ -719,7 +796,9 @@ function getQuotedEnumValueCompletion(
 
   return {
     from,
-    to: context.pos,
+    // Replace through the closing quote's content so accepting mid-value
+    // does not leave the old suffix behind ("CA|TEGORY" → "NUMERIC").
+    to: hasClosingQuote && value ? value.to - 1 : context.pos,
     options: values.map((value) => ({
       label: `${quote}${value}${quote}`,
       // Keep an auto-inserted closing quote outside the filtered range and
@@ -873,9 +952,7 @@ export function getCodeEvalCompletionSource(
     const dataTypeValue = config.dataTypeHandler(context, inner);
     if (dataTypeValue) return dataTypeValue;
 
-    for (let node: SyntaxNode | null = inner; node; node = node.parent) {
-      if (STRING_AND_COMMENT_SYNTAX_NODES.has(node.name)) return null;
-    }
+    if (isInsideStringOrComment(inner)) return null;
 
     for (const handler of config.handlers) {
       const result = handler(context, inner);

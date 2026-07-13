@@ -28,7 +28,7 @@ import {
 } from "@/src/features/evals/utils/code-eval-template-hover-docs";
 import {
   getCodeEvalCompletionExtension,
-  STRING_AND_COMMENT_SYNTAX_NODES,
+  isInsideStringOrComment,
 } from "@/src/features/evals/utils/code-eval-template-completions";
 import {
   formatPythonCodeEvalSourceWithRuff,
@@ -80,13 +80,7 @@ function createCodeEvalHoverExtension(hoverDocs: CodeEvalHoverDocs) {
     const to = from + word.length;
 
     const node = syntaxTree(view.state).resolveInner(from, 1);
-    for (
-      let ancestor: typeof node | null = node;
-      ancestor;
-      ancestor = ancestor.parent
-    ) {
-      if (STRING_AND_COMMENT_SYNTAX_NODES.has(ancestor.name)) return null;
-    }
+    if (isInsideStringOrComment(node)) return null;
     // `type`, `index`, ... are ToolCall properties but also everyday
     // identifiers; only document them on actual property accesses.
     if (
