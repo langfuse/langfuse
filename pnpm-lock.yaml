@@ -435,6 +435,9 @@ importers:
       '@baselime/trpc-opentelemetry-middleware':
         specifier: ^0.1.2
         version: 0.1.2(@opentelemetry/api@1.9.1)(@trpc/server@11.13.4(typescript@6.0.3))
+      '@codemirror/autocomplete':
+        specifier: ^6.17.0
+        version: 6.17.0(@codemirror/language@6.12.3)(@codemirror/state@6.6.0)(@codemirror/view@6.42.0)(@lezer/common@1.5.1)
       '@codemirror/lang-javascript':
         specifier: ^6.2.5
         version: 6.2.5

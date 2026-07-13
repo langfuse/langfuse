@@ -1,6 +1,21 @@
-import type { CodeEvalSourceCodeLanguage } from "@/src/features/evals/utils/code-eval-template-starter-examples";
+import {
+  CODE_EVAL_COMPLETION_CONTRACT,
+  type CodeEvalSourceCodeLanguage,
+  type PythonCodeEvalCompletionName,
+  type TypeScriptCodeEvalCompletionName,
+} from "@/src/features/evals/utils/code-eval-template-starter-examples";
 
 export type CodeEvalHoverDocs = Record<string, string>;
+
+// ToolCall-only hover keys collide with everyday identifiers (`type Foo`, a
+// local `index` or `id`), so the hover extension only documents them on
+// actual property accesses. `name` stays word-keyed: it doubles as the Score
+// property / keyword argument. Labels are identical across both languages.
+export const PROPERTY_ACCESS_ONLY_HOVER_KEYS: ReadonlySet<string> = new Set(
+  CODE_EVAL_COMPLETION_CONTRACT.TYPESCRIPT.toolCallProperties
+    .map((property) => property.label)
+    .filter((label) => label !== "name"),
+);
 
 const TYPESCRIPT_SCORE_DOC = `type Score =
   | (ScoreBase & { dataType: "NUMERIC"; value: number })
@@ -85,6 +100,18 @@ The observation selected by the evaluator target.`,
   toolCalls: `property observation.toolCalls: ToolCall[]
 
 The tool calls recorded on the observation, in the order the model emitted them.`,
+  id: `property ToolCall.id: string
+
+The tool call identifier emitted by the model provider.`,
+  arguments: `property ToolCall.arguments: unknown
+
+The parsed tool arguments when the recorded value was valid JSON.`,
+  type: `property ToolCall.type: string
+
+The recorded tool-call type.`,
+  index: `property ToolCall.index: number
+
+The tool call position in the model response.`,
   experiment: `property EvaluationContext.experiment?: {
   itemExpectedOutput: any;
   itemMetadata: any;
@@ -122,16 +149,17 @@ The Langfuse score data type.`,
   value: `property Score.value: number | string | boolean
 
 The score value. The allowed value depends on dataType: NUMERIC uses number, BOOLEAN uses boolean, and CATEGORICAL or TEXT use string.`,
-  name: `property Score.name: string
+  name: `property Score.name or ToolCall.name: string
 
-The score name.`,
+The score name, or the function name invoked by a tool call.`,
   comment: `property Score.comment?: string
 
 The reasoning or explanation stored with the score.`,
   configId: `property Score.configId?: string | null
 
 The score config id to attach to the score.`,
-} satisfies CodeEvalHoverDocs;
+} satisfies CodeEvalHoverDocs &
+  Record<TypeScriptCodeEvalCompletionName, string>;
 
 export const PYTHON_CODE_EVAL_HOVER_DOCS = {
   evaluate: `def evaluate(ctx: EvaluationContext) -> EvaluationResult
@@ -160,6 +188,18 @@ The observation selected by the evaluator target.`,
 The tool calls recorded on the observation, in the order the model emitted
 them. arguments is the parsed argument object when the recorded value was
 valid JSON.`,
+  id: `property ToolCall.id: str
+
+The tool call identifier emitted by the model provider.`,
+  arguments: `property ToolCall.arguments: Any
+
+The parsed tool arguments when the recorded value was valid JSON.`,
+  type: `property ToolCall.type: str
+
+The recorded tool-call type.`,
+  index: `property ToolCall.index: int
+
+The tool call position in the model response.`,
   ExperimentContext: `@dataclass
 class ExperimentContext:
     item_expected_output: Any = None
@@ -208,16 +248,16 @@ The Langfuse score data type. Use NUMERIC, BOOLEAN, CATEGORICAL, or TEXT.`,
   value: `property score.value: int | float | str | bool
 
 The score value. The allowed value depends on data_type: NUMERIC uses a number, BOOLEAN uses a boolean, and CATEGORICAL or TEXT use a string.`,
-  name: `property score.name: str
+  name: `property score.name or ToolCall.name: str
 
-The score name.`,
+The score name, or the function name invoked by a tool call.`,
   comment: `property score.comment: str | None
 
 The reasoning or explanation stored with the score.`,
   config_id: `property score.config_id: str | None
 
 The score config id to attach to the score.`,
-} satisfies CodeEvalHoverDocs;
+} satisfies CodeEvalHoverDocs & Record<PythonCodeEvalCompletionName, string>;
 
 export function getCodeEvalHoverDocs(
   sourceCodeLanguage: CodeEvalSourceCodeLanguage,

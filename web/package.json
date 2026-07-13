@@ -38,6 +38,7 @@
     "@aws-crypto/sha256-browser": "^5.2.0",
     "@aws-sdk/credential-providers": "catalog:",
     "@baselime/trpc-opentelemetry-middleware": "^0.1.2",
+    "@codemirror/autocomplete": "^6.17.0",
     "@codemirror/lang-javascript": "^6.2.5",
     "@codemirror/lang-json": "^6.0.2",
     "@codemirror/lang-python": "^6.2.1",
