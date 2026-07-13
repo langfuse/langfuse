@@ -77,6 +77,7 @@ import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextS
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
+import { InAppAgentAnalyzeSelectionButton } from "@/src/ee/features/in-app-agent/components/InAppAgentTraceButtons";
 import { type TableAction } from "@/src/features/table/types";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
@@ -1806,7 +1807,13 @@ export default function ObservationsEventsTable({
                         setShowAddToDatasetDialog(true);
                       }
                     }}
-                  />
+                  >
+                    <InAppAgentAnalyzeSelectionButton
+                      traceIds={selectedTraceIds}
+                      observationIds={selectedObservationIds}
+                      selectAll={selectAll}
+                    />
+                  </TableActionMenu>
                 ) : null,
               ]}
               multiSelect={{

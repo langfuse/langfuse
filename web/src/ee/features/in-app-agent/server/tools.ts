@@ -305,6 +305,14 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES: Record<
     approval: "approval",
     availability: { scope: "dashboards:CUD" },
   },
+  createDashboard: {
+    approval: "approval",
+    availability: { scope: "dashboards:CUD" },
+  },
+  addWidgetToDashboard: {
+    approval: "approval",
+    availability: { scope: "dashboards:CUD" },
+  },
 };
 
 export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES = new Set<McpToolName>(

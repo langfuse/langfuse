@@ -76,6 +76,7 @@ import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import { SupportDrawerProvider } from "@/src/features/support-chat/SupportDrawerProvider";
 import { InAppAiAgentProvider } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
+import { InAppAgentHost } from "@/src/ee/features/in-app-agent/components/InAppAgentHost";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheContext";
 import { CorrectionCacheProvider } from "@/src/features/corrections/contexts/CorrectionCacheContext";
@@ -157,6 +158,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
                               <Component {...pageProps} />
                               <UserTracking />
                             </AppLayout>
+                            <InAppAgentHost />
                           </InAppAiAgentProvider>
                         </SupportDrawerProvider>
                       </CorrectionCacheProvider>

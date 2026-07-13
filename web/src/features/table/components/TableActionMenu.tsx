@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { X, Trash } from "lucide-react";
 import { Plus } from "lucide-react";
@@ -27,6 +27,7 @@ type TableActionMenuProps = {
   approximateCount?: boolean;
   onClearSelection: () => void;
   onCustomAction?: (actionType: CustomDialogTableAction["id"]) => void;
+  children?: ReactNode;
 };
 
 const getDefaultIcon = (type: TableAction["type"]) => {
@@ -44,6 +45,7 @@ export function TableActionMenu({
   approximateCount = false,
   onClearSelection,
   onCustomAction,
+  children,
 }: TableActionMenuProps) {
   const [selectedActionId, setSelectedActionId] = useState<
     TableAction["id"] | null
@@ -106,6 +108,7 @@ export function TableActionMenu({
           </Button>
           <div className="bg-border h-5 w-px" />
           <div className="flex items-center gap-2">
+            {children}
             {actions.map((action) => {
               const menuItem = (
                 <Button

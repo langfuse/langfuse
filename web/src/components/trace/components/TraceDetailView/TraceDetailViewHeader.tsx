@@ -42,6 +42,7 @@ import {
 import { aggregateTraceMetrics } from "@/src/components/trace/lib/trace-aggregation";
 import { resolveEvalExecutionMetadata } from "@/src/components/trace/lib/resolve-metadata";
 import { useViewPreferences } from "@/src/components/trace/contexts/ViewPreferencesContext";
+import { InAppAgentExplainErrorButton } from "@/src/ee/features/in-app-agent/components/InAppAgentTraceButtons";
 
 export interface TraceDetailViewHeaderProps {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
@@ -78,6 +79,9 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
     () => aggregateTraceMetrics(observations),
     [observations],
   );
+  const hasErrors = observations.some(
+    (observation) => observation.level === "ERROR",
+  );
 
   const targetTraceId =
     trace.environment === LangfuseInternalTraceEnvironment.LLMJudge
@@ -104,6 +108,12 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
         </div>
         {/* Action buttons */}
         <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
+          {hasErrors && (
+            <InAppAgentExplainErrorButton
+              traceId={trace.id}
+              label="Investigate errors"
+            />
+          )}
           <NewDatasetItemFromExistingObject
             traceId={trace.id}
             projectId={projectId}

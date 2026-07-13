@@ -9,6 +9,7 @@ import { Label } from "@/src/components/ui/label";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { InAppAgentDashboardComposer } from "@/src/ee/features/in-app-agent/components/InAppAgentDashboardButtons";
 
 export default function NewDashboard() {
   const router = useRouter();
@@ -98,24 +99,29 @@ export default function NewDashboard() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="dashboard-description">Description</Label>
+          <Label htmlFor="dashboard-description">Purpose</Label>
           <Textarea
             id="dashboard-description"
             value={dashboardDescription}
             onChange={(e) => {
               setDashboardDescription(e.target.value);
             }}
-            placeholder="Describe the purpose of this dashboard. Optional, but very helpful."
+            placeholder="Describe what this dashboard should help you monitor or understand."
             rows={4}
           />
         </div>
 
-        <div className="text-muted-foreground text-sm">
-          <p>
-            After creating the dashboard, you can add widgets to visualize your
-            data.
-          </p>
-        </div>
+        {hasCUDAccess && (
+          <InAppAgentDashboardComposer
+            name={dashboardName}
+            description={dashboardDescription}
+          />
+        )}
+
+        <p className="text-muted-foreground text-sm">
+          You can also create the empty dashboard now and add widgets manually
+          later.
+        </p>
       </div>
     </Page>
   );

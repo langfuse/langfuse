@@ -97,6 +97,12 @@ export const buildProjectPath = (params: { projectId: string }) =>
 export const buildDashboardsPath = (params: { projectId: string }) =>
   `${buildProjectPath(params)}/dashboards`;
 
+export const buildDashboardPath = (params: {
+  projectId: string;
+  dashboardId: string;
+}) =>
+  `${buildDashboardsPath(params)}/${encodeURIComponent(params.dashboardId)}`;
+
 export const buildDashboardWidgetsPath = (params: { projectId: string }) =>
   `${buildProjectPath(params)}/widgets`;
 
@@ -479,6 +485,11 @@ export const buildDashboardWidgetUrl = (params: {
   projectId: string;
   widgetId: string;
 }) => buildProductUrl(buildDashboardWidgetPath(params));
+
+export const buildDashboardUrl = (params: {
+  projectId: string;
+  dashboardId: string;
+}) => buildProductUrl(buildDashboardPath(params));
 
 export const buildEvaluatorUrl = (params: {
   projectId: string;

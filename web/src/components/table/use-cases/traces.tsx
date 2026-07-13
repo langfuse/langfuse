@@ -62,6 +62,7 @@ import { InfoIcon, MoreVertical } from "lucide-react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import React from "react";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
+import { InAppAgentAnalyzeSelectionButton } from "@/src/ee/features/in-app-agent/components/InAppAgentTraceButtons";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
@@ -1485,7 +1486,13 @@ export default function TracesTable({
                     setSelectedRows({});
                     setSelectAll(false);
                   }}
-                />
+                >
+                  <InAppAgentAnalyzeSelectionButton
+                    traceIds={selectedTraceIds}
+                    observationIds={[]}
+                    selectAll={selectAll}
+                  />
+                </TableActionMenu>
               ) : null,
               <BatchExportTableButton
                 {...{

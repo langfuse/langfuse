@@ -43,11 +43,68 @@ import {
   getInAppAgentError,
   isInAppAgentRateLimited,
 } from "@/src/ee/features/in-app-agent/components/utils/utils";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { InAppAgentDisabledDialog } from "./InAppAgentDisabledDialog";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
 const OPEN_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-open";
 const FEEDBACK_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-feedback";
+
+export type InAppAgentEntryPoint =
+  | "page_header"
+  | "sidebar"
+  | "trace_error"
+  | "trace_selection"
+  | "dashboard_create"
+  | "dashboard_widget";
+
+export type InAppAgentInvocation =
+  | {
+      source: "trace_error";
+      traceId: string;
+      observationId?: string;
+    }
+  | {
+      source: "trace_selection";
+      traceIds: string[];
+      observationIds: string[];
+    }
+  | {
+      source: "dashboard_create";
+      name: string;
+      description: string;
+      includeWidgets: boolean;
+    }
+  | {
+      source: "dashboard_widget";
+      dashboardId: string;
+      request: string;
+    };
+
+const getInvocationPrompt = (invocation: InAppAgentInvocation): string => {
+  if (invocation.source === "trace_error") {
+    const observationContext = invocation.observationId
+      ? ` Focus on observation ${invocation.observationId}.`
+      : "";
+
+    return `Investigate the errors in trace ${invocation.traceId}.${observationContext} Explain the likely cause, cite the relevant evidence from the trace, and suggest concrete debugging steps.`;
+  }
+
+  if (invocation.source === "trace_selection") {
+    return `Analyze the selected traces (${invocation.traceIds.join(", ")}) and observations (${invocation.observationIds.join(", ")}). Compare them, identify common failures and meaningful outliers, cite the relevant evidence, and suggest concrete next steps.`;
+  }
+
+  if (invocation.source === "dashboard_create") {
+    const widgetInstruction = invocation.includeWidgets
+      ? "Design useful widgets for this purpose, create them, and place them on the dashboard."
+      : "Create the dashboard without adding widgets.";
+
+    return `Create a dashboard named "${invocation.name}". Its purpose is: ${invocation.description}\n\n${widgetInstruction} Briefly explain the plan, then use the available dashboard tools. Each write will still require my approval.`;
+  }
+
+  return `Create and add a widget to dashboard ${invocation.dashboardId}. The widget should satisfy this request:\n\n${invocation.request}\n\nChoose an appropriate data view, metrics, dimensions, filters, and chart type. Briefly explain the plan, then create the widget and place it on this dashboard. Each write will still require my approval.`;
+};
 
 const MastraSuspendEventSchema = z.object({
   type: z.literal("mastra_suspend"),
@@ -70,6 +127,8 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   isAvailable: false,
   open: false,
   setOpen: () => undefined,
+  openAssistant: () => false,
+  startAssistantRun: async () => false,
   isExpanded: false,
   setIsExpanded: () => undefined,
   isRunning: false,
@@ -115,6 +174,8 @@ type InAppAiAgentContextType = {
   isAvailable: boolean;
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
+  openAssistant: (source: InAppAgentEntryPoint) => boolean;
+  startAssistantRun: (invocation: InAppAgentInvocation) => Promise<boolean>;
   isExpanded: boolean;
   setIsExpanded: Dispatch<SetStateAction<boolean>>;
   isRunning: boolean;
@@ -211,6 +272,8 @@ function InAppAiAgentProviderInner({
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const session = useSession();
+  const { organization } = useQueryProjectOrOrganization();
+  const [enableDialogOpen, setEnableDialogOpen] = useState(false);
   const [selectedConversationId, setSelectedConversationId] = useSessionStorage<
     string | null
   >(`${SELECTED_CONVERSATION_STORAGE_KEY_PREFIX}:${projectId}`, null);
@@ -696,7 +759,7 @@ function InAppAiAgentProviderInner({
   );
 
   const submit = useCallback(
-    async (content: string) => {
+    async (content: string, options?: { newConversation?: boolean }) => {
       if (
         !content ||
         isRunning ||
@@ -713,9 +776,15 @@ function InAppAiAgentProviderInner({
 
       let startedRun = false;
       try {
-        const isNewConversation = !selectedConversationId;
-        const conversationId =
-          selectedConversationId ?? createInAppAgentConversationId();
+        const isNewConversation =
+          options?.newConversation === true || !selectedConversationId;
+        const conversationId = isNewConversation
+          ? createInAppAgentConversationId()
+          : selectedConversationId;
+
+        if (!conversationId) {
+          return false;
+        }
 
         if (isNewConversation) {
           setSelectedConversationId(conversationId);
@@ -956,11 +1025,51 @@ function InAppAiAgentProviderInner({
     [resumeToolApproval],
   );
 
+  const openAssistant = useCallback(
+    (source: InAppAgentEntryPoint) => {
+      capture("in_app_agent:entry_point_click", { source });
+
+      if (organization && !organization.aiFeaturesEnabled) {
+        setEnableDialogOpen(true);
+        return false;
+      }
+
+      setOpen(true);
+      return true;
+    },
+    [capture, organization, setOpen],
+  );
+
+  const startAssistantRun = useCallback(
+    async (invocation: InAppAgentInvocation) => {
+      if (invocation.source === "trace_selection") {
+        const selectedIds = new Set(
+          invocation.observationIds.length > 0
+            ? invocation.observationIds
+            : invocation.traceIds,
+        );
+
+        if (selectedIds.size === 0 || selectedIds.size > 20) {
+          return false;
+        }
+      }
+
+      if (!openAssistant(invocation.source)) {
+        return false;
+      }
+
+      return submit(getInvocationPrompt(invocation), { newConversation: true });
+    },
+    [openAssistant, submit],
+  );
+
   const value = useMemo<InAppAiAgentContextType>(
     () => ({
       isAvailable: true,
       open,
       setOpen,
+      openAssistant,
+      startAssistantRun,
       isExpanded,
       setIsExpanded,
       isRunning,
@@ -996,6 +1105,8 @@ function InAppAiAgentProviderInner({
       loadMoreConversations,
       messagesWithFeedback,
       open,
+      openAssistant,
+      startAssistantRun,
       pendingToolApprovals,
       rejectToolCall,
       invalidateConversations,
@@ -1010,6 +1121,11 @@ function InAppAiAgentProviderInner({
   return (
     <InAppAiAgentContext.Provider value={value}>
       {children}
+      <InAppAgentDisabledDialog
+        open={enableDialogOpen}
+        onOpenChange={setEnableDialogOpen}
+        organizationId={organization?.id}
+      />
     </InAppAiAgentContext.Provider>
   );
 }

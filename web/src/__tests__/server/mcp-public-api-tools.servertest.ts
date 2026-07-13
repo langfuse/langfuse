@@ -242,7 +242,9 @@ describe("MCP public API tools", () => {
       .sort();
     expect(destructiveToolNames).toEqual(
       [
+        "addWidgetToDashboard",
         "createChatPrompt",
+        "createDashboard",
         "createDashboardWidget",
         "createEvaluationRule",
         "upsertEvaluator",

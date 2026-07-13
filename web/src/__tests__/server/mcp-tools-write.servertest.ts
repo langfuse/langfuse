@@ -85,6 +85,14 @@ import {
   createDashboardWidgetTool,
   handleCreateDashboardWidget,
 } from "@/src/features/mcp/features/dashboardWidgets/tools/createDashboardWidget";
+import {
+  createDashboardTool,
+  handleCreateDashboard,
+} from "@/src/features/mcp/features/dashboardWidgets/tools/createDashboard";
+import {
+  addWidgetToDashboardTool,
+  handleAddWidgetToDashboard,
+} from "@/src/features/mcp/features/dashboardWidgets/tools/addWidgetToDashboard";
 
 const createScoreConfig = async (projectId: string) =>
   prisma.scoreConfig.create({
@@ -471,6 +479,152 @@ describe("MCP Write Tools", () => {
           action: "create",
         }),
       ).resolves.toMatchObject({ resourceId: result.id, action: "create" });
+    });
+  });
+
+  describe("dashboard composition tools", () => {
+    it("should create a dashboard and audit the write", async () => {
+      const setup = await createMcpTestSetup();
+      const name = `mcp-dashboard-${nanoid()}`;
+
+      verifyToolAnnotations(createDashboardTool, { destructiveHint: true });
+
+      const result = (await handleCreateDashboard(
+        { name, description: "Created by MCP" },
+        setup.context,
+      )) as { id: string; name: string; url: string };
+
+      expect(result).toMatchObject({
+        id: expect.any(String),
+        name,
+        url: expect.stringContaining(`/project/${setup.projectId}/dashboards/`),
+      });
+      await expect(
+        prisma.dashboard.findFirst({
+          where: { id: result.id, projectId: setup.projectId },
+        }),
+      ).resolves.toMatchObject({ name, definition: { widgets: [] } });
+      await expect(
+        verifyAuditLog({
+          projectId: setup.projectId,
+          apiKeyId: setup.apiKeyId,
+          resourceType: "dashboard",
+          resourceId: result.id,
+          action: "create",
+        }),
+      ).resolves.toMatchObject({ resourceId: result.id, action: "create" });
+    });
+
+    it("should place a project widget at the bottom of a dashboard", async () => {
+      const setup = await createMcpTestSetup();
+      const dashboard = await prisma.dashboard.create({
+        data: {
+          projectId: setup.projectId,
+          name: `mcp-dashboard-${nanoid()}`,
+          description: "Dashboard",
+          definition: {
+            widgets: [
+              {
+                type: "preset",
+                id: "existing",
+                presetId: "home-traces",
+                x: 0,
+                y: 0,
+                x_size: 6,
+                y_size: 4,
+              },
+            ],
+          },
+        },
+      });
+      const widget = await prisma.dashboardWidget.create({
+        data: {
+          projectId: setup.projectId,
+          name: `mcp-widget-${nanoid()}`,
+          description: "Widget",
+          view: "OBSERVATIONS",
+          dimensions: [],
+          metrics: [{ measure: "count", agg: "count" }],
+          filters: [],
+          chartType: "NUMBER",
+          chartConfig: { type: "NUMBER" },
+          minVersion: 2,
+        },
+      });
+
+      verifyToolAnnotations(addWidgetToDashboardTool, {
+        destructiveHint: true,
+      });
+
+      await handleAddWidgetToDashboard(
+        { dashboardId: dashboard.id, widgetId: widget.id },
+        setup.context,
+      );
+
+      await expect(
+        prisma.dashboard.findFirstOrThrow({
+          where: { id: dashboard.id, projectId: setup.projectId },
+        }),
+      ).resolves.toMatchObject({
+        definition: {
+          widgets: expect.arrayContaining([
+            expect.objectContaining({
+              type: "widget",
+              widgetId: widget.id,
+              x: 0,
+              y: 4,
+              x_size: 6,
+              y_size: 6,
+            }),
+          ]),
+        },
+      });
+      await expect(
+        verifyAuditLog({
+          projectId: setup.projectId,
+          apiKeyId: setup.apiKeyId,
+          resourceType: "dashboard",
+          resourceId: dashboard.id,
+          action: "update",
+        }),
+      ).resolves.toMatchObject({
+        resourceId: dashboard.id,
+        action: "update",
+      });
+    });
+
+    it("should reject a widget from another project", async () => {
+      const setup = await createMcpTestSetup();
+      const foreignSetup = await createMcpTestSetup();
+      const dashboard = await prisma.dashboard.create({
+        data: {
+          projectId: setup.projectId,
+          name: `mcp-dashboard-${nanoid()}`,
+          description: "Dashboard",
+          definition: { widgets: [] },
+        },
+      });
+      const foreignWidget = await prisma.dashboardWidget.create({
+        data: {
+          projectId: foreignSetup.projectId,
+          name: `mcp-widget-${nanoid()}`,
+          description: "Widget",
+          view: "OBSERVATIONS",
+          dimensions: [],
+          metrics: [{ measure: "count", agg: "count" }],
+          filters: [],
+          chartType: "NUMBER",
+          chartConfig: { type: "NUMBER" },
+          minVersion: 2,
+        },
+      });
+
+      await expect(
+        handleAddWidgetToDashboard(
+          { dashboardId: dashboard.id, widgetId: foreignWidget.id },
+          setup.context,
+        ),
+      ).rejects.toThrow("Dashboard widget not found");
     });
   });
 

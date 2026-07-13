@@ -60,6 +60,7 @@ import {
 } from "@/src/components/ui/drawer";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { DualAnnotationContent } from "@/src/features/scores/components/DualAnnotationContent";
+import { InAppAgentExplainErrorButton } from "@/src/ee/features/in-app-agent/components/InAppAgentTraceButtons";
 
 export interface ObservationDetailViewHeaderProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -149,6 +150,12 @@ export const ObservationDetailViewHeader = memo(
           </div>
           {/* Action buttons */}
           <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
+            {observation.level === "ERROR" && (
+              <InAppAgentExplainErrorButton
+                traceId={traceId}
+                observationId={observation.id}
+              />
+            )}
             {observationWithIO && (
               <NewDatasetItemFromExistingObject
                 traceId={traceId}
