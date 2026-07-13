@@ -30,6 +30,7 @@ import {
   type InAppAgentRuntimeState,
   type InAppAgentToolApprovalRequest,
 } from "@/src/ee/features/in-app-agent/schema";
+import type { InAppAgentError } from "@/src/ee/features/in-app-agent/components/utils/utils";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api } from "@/src/utils/api";
@@ -38,6 +39,10 @@ import {
   createInAppAgentUserContext,
 } from "@/src/ee/features/in-app-agent/context";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  getInAppAgentError,
+  isInAppAgentRateLimited,
+} from "@/src/ee/features/in-app-agent/components/utils/utils";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
@@ -116,7 +121,7 @@ type InAppAiAgentContextType = {
   isSubmitting: boolean;
   pendingToolApprovals: InAppAgentPendingToolApproval[];
   isSelectedConversationHydrating: boolean;
-  error: string | null;
+  error: InAppAgentError | null;
   messages: InAppAiAgentMessage[];
   conversations: InAppAiAgentConversation[];
   hasMoreConversations: boolean;
@@ -222,7 +227,7 @@ function InAppAiAgentProviderInner({
   const [isRunning, setIsRunning] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<InAppAgentError | null>(null);
   const agentRef = useRef<HttpAgent | null>(null);
   const activeRunIdRef = useRef<string | null>(null);
   const intentionalAbortRef = useRef(false);
@@ -410,6 +415,34 @@ function InAppAiAgentProviderInner({
     };
   }, [resetAgent]);
 
+  const rateLimitRetryAt = error?.type === "rate_limit" ? error.retryAt : null;
+
+  useEffect(() => {
+    if (rateLimitRetryAt === null) {
+      return;
+    }
+
+    const timeout = window.setTimeout(
+      () => {
+        setError((currentError) => {
+          if (
+            currentError?.type !== "rate_limit" ||
+            currentError.retryAt !== rateLimitRetryAt
+          ) {
+            return currentError;
+          }
+
+          return null;
+        });
+      },
+      Math.max(0, rateLimitRetryAt - Date.now()),
+    );
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [rateLimitRetryAt]);
+
   const ensureSubscription = useCallback(
     (agent: HttpAgent) => {
       if (subscriptionRef.current) {
@@ -454,13 +487,20 @@ function InAppAiAgentProviderInner({
             return nextApprovals;
           });
         },
+        onToolCallResultEvent: ({ event }) => {
+          updatePendingToolApprovals((currentApprovals) =>
+            currentApprovals.filter(
+              (approval) =>
+                approval.approvalRequest.toolCallId !== event.toolCallId,
+            ),
+          );
+        },
         onRunErrorEvent: ({ event }) => {
           if (intentionalAbortRef.current) {
             return;
           }
 
-          const errorMessage = getAgentErrorMessage(event);
-          setError(errorMessage);
+          setError(getInAppAgentError(event));
           console.error("In-app agent drawer run error", event);
         },
         onMessagesChanged: ({ messages }) => {
@@ -552,8 +592,7 @@ function InAppAiAgentProviderInner({
             throw error;
           }
 
-          const errorMessage = getAgentErrorMessage(error);
-          setError(errorMessage);
+          setError(getInAppAgentError(error));
           console.error("In-app agent drawer error", error);
           return false;
         })
@@ -591,7 +630,9 @@ function InAppAiAgentProviderInner({
         return;
       }
 
-      setError(null);
+      setError((currentError) =>
+        isInAppAgentRateLimited(currentError) ? currentError : null,
+      );
       resetAgent();
       setMessages([]);
       setSelectedConversationId(conversationId);
@@ -659,6 +700,7 @@ function InAppAiAgentProviderInner({
       if (
         !content ||
         isRunning ||
+        isInAppAgentRateLimited(error) ||
         isSelectedConversationHydrating ||
         submitInFlightRef.current
       ) {
@@ -716,8 +758,7 @@ function InAppAiAgentProviderInner({
         runAgent(agent, conversationId);
         return true;
       } catch (error) {
-        const errorMessage = getAgentErrorMessage(error);
-        setError(errorMessage);
+        setError(getInAppAgentError(error));
         console.error("Failed to start in-app agent conversation", error);
         return false;
       } finally {
@@ -730,6 +771,7 @@ function InAppAiAgentProviderInner({
       conversationQuery.data,
       capture,
       ensureSubscription,
+      error,
       getOrCreateAgent,
       isSelectedConversationHydrating,
       isRunning,
@@ -809,7 +851,12 @@ function InAppAiAgentProviderInner({
         (approval) => approval.id === approvalId,
       );
 
-      if (!approval || !selectedConversationId || isRunning) {
+      if (
+        !approval ||
+        !selectedConversationId ||
+        isRunning ||
+        isInAppAgentRateLimited(error)
+      ) {
         return;
       }
 
@@ -869,7 +916,10 @@ function InAppAiAgentProviderInner({
               (currentApproval) => currentApproval.id !== approvalId,
             ),
           );
-          setError("This tool approval is no longer valid. Please try again.");
+          setError({
+            type: "generic",
+            message: "This tool approval is no longer valid. Please try again.",
+          });
           console.error("Failed to resume in-app agent tool call", error);
           return;
         }
@@ -881,12 +931,13 @@ function InAppAiAgentProviderInner({
               : currentApproval,
           ),
         );
-        setError(errorMessage);
+        setError(getInAppAgentError(error));
         console.error("Failed to resume in-app agent tool call", error);
       }
     },
     [
       ensureSubscription,
+      error,
       isRunning,
       pendingToolApprovals,
       runAgent,

@@ -508,6 +508,7 @@ const meta = preview.meta({
     conversations,
     hasMoreConversations: false,
     isLoadingMoreConversations: false,
+    isAssistantTurnInProgress: false,
     selectedConversationId: undefined,
     onDeleteConversation: fn(),
     onLoadMoreConversations: fn(),
@@ -850,6 +851,89 @@ export const LoadingAfterToolCall = meta.story({
   },
 });
 
+export const FeedbackControlsWaitForTurnEnd = meta.story({
+  name: "(Test) Feedback Controls Wait For Turn End",
+  args: {
+    selectedConversationId: "conversation-1",
+    isInputDisabled: true,
+    isAssistantTurnInProgress: true,
+    onSubmitFeedback: fn(),
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Summarize recent ingestion errors.",
+        },
+      },
+      {
+        id: "assistant-1",
+        runId: "run-1",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "I found a cluster of ingestion errors around malformed JSON payloads",
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    await canvas.findByText(
+      "I found a cluster of ingestion errors around malformed JSON payloads",
+    );
+
+    await waitFor(() => {
+      expect(
+        canvas.queryByRole("button", { name: "Good response" }),
+      ).not.toBeInTheDocument();
+      expect(
+        canvas.queryByRole("button", { name: "Bad response" }),
+      ).not.toBeInTheDocument();
+    });
+  },
+});
+
+export const FeedbackControlsShowAfterTurnEnd = meta.story({
+  name: "(Test) Feedback Controls Show After Turn End",
+  args: {
+    selectedConversationId: "conversation-1",
+    isAssistantTurnInProgress: false,
+    onSubmitFeedback: fn(),
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Summarize recent ingestion errors.",
+        },
+      },
+      {
+        id: "assistant-1",
+        runId: "run-1",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "The errors were caused by malformed JSON payloads.",
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(
+      canvas.findByRole("button", { name: "Good response" }),
+    ).resolves.toBeInTheDocument();
+    await expect(
+      canvas.findByRole("button", { name: "Bad response" }),
+    ).resolves.toBeInTheDocument();
+  },
+});
+
 export const Connecting = meta.story({
   args: {
     isInputDisabled: true,
@@ -876,7 +960,10 @@ export const Connecting = meta.story({
 
 export const Error = meta.story({
   args: {
-    error: "Assistant is not enabled for this user",
+    error: {
+      type: "generic",
+      message: "Assistant is not enabled for this user",
+    },
     messages: [
       {
         id: "user-1",
@@ -887,6 +974,49 @@ export const Error = meta.story({
         },
       },
     ],
+  },
+});
+
+export const RateLimited = meta.story({
+  name: "(Test) Rate Limited",
+  args: {
+    error: null,
+    messages: [],
+  },
+  render: function Render(args) {
+    const [retryAt] = useState(() => Date.now() + 12_000);
+
+    return (
+      <StatefulInAppAgentWindow
+        {...args}
+        error={{ type: "rate_limit", retryAt }}
+      />
+    );
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+    const alert = canvas.getByRole("alert");
+    const initialAlertText = alert.textContent;
+
+    await expect(alert).toHaveTextContent(
+      "You've reached the assistant request limit",
+    );
+    await expect(alert).toHaveTextContent("Try again in about");
+    await waitFor(() => expect(alert.textContent).not.toBe(initialAlertText), {
+      timeout: 2_000,
+    });
+    await expect(
+      canvas.getByRole("textbox", { name: "Ask the assistant a question" }),
+    ).toBeDisabled();
+    await expect(
+      canvas.getByRole("button", { name: "Get started with Langfuse" }),
+    ).toBeDisabled();
+    await expect(
+      canvas.getByRole("button", { name: "Start new conversation" }),
+    ).toBeEnabled();
+    await expect(
+      canvas.getByRole("button", { name: "Conversation history" }),
+    ).toBeEnabled();
   },
 });
 

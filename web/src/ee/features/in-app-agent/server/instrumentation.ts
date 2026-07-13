@@ -32,6 +32,7 @@ export type InAppAgentTracingConfig = {
 export type InAppAgentInstrumentationParams = {
   input: AgUiRunAgentInput;
   tracing?: InAppAgentTracingConfig;
+  model?: string;
 };
 
 export type InAppAgentPromptMetadata = {
@@ -64,10 +65,18 @@ type AgentRunSkillDefinition = {
   name: string;
   description?: string;
 };
+// Matches the ChatML thinking content part
+// (packages/shared/src/utils/IORepresentation/chatML/types.ts) so the trace UI
+// renders reasoning as collapsible "Thinking" blocks.
+type AgentRunThinkingPart = {
+  type: "thinking";
+  content: string;
+};
 type AgentRunChatMessage = {
   role: string;
   name?: string;
   content?: unknown;
+  thinking?: AgentRunThinkingPart[];
   tool_calls?: AgentRunToolCall[];
   tool_call_id?: string;
 };
@@ -90,6 +99,7 @@ type ToolCallApprovalStatus = "approved" | "rejected";
 export function createInAppAgentInstrumentation({
   input,
   tracing,
+  model,
 }: InAppAgentInstrumentationParams) {
   if (!tracing?.targetProjectId) {
     return undefined;
@@ -107,6 +117,7 @@ export function createInAppAgentInstrumentation({
       targetProjectId: tracing.targetProjectId,
       environment: tracing.environment,
       prompt: tracing.prompt,
+      model,
     });
   } catch (error) {
     logger.warn("Failed to initialize in-app agent Langfuse tracing", error);
@@ -140,9 +151,12 @@ export class InAppAgentInstrumentation {
   private readonly agentRunOutputMessages: AgentRunChatMessage[] = [];
   private readonly agentRunToolCalls: AgentRunToolCall[] = [];
   private output = "";
-  private reasoning = "";
+  private currentReasoning = "";
+  private pendingThinking: AgentRunThinkingPart[] = [];
   private completionStartTime?: Date;
   private ended = false;
+  private readonly model?: string;
+  private usageDetails?: Record<string, number>;
 
   constructor(params: {
     input: AgUiRunAgentInput;
@@ -155,6 +169,7 @@ export class InAppAgentInstrumentation {
     targetProjectId: string;
     environment: string;
     prompt?: InAppAgentPromptMetadata;
+    model?: string;
   }) {
     this.metadata = {
       ...params.metadata,
@@ -172,6 +187,7 @@ export class InAppAgentInstrumentation {
     };
     this.agentRunInput = getAgentRunInput(params.input);
     this.prompt = params.prompt;
+    this.model = params.model;
 
     const traceSinkParams = {
       targetProjectId: params.targetProjectId,
@@ -250,6 +266,50 @@ export class InAppAgentInstrumentation {
     this.toolCallApprovals.set(approval.toolCallId, approval.status);
   }
 
+  // Receives Mastra's per-LLM-call onStepFinish event and accumulates its
+  // token usage onto the agent-turn generation, since the AG-UI event stream
+  // itself never carries usage.
+  recordStepFinish(event: unknown) {
+    if (this.ended) {
+      return;
+    }
+
+    const usage = isRecord(event) ? event.usage : undefined;
+    if (!isRecord(usage)) {
+      return;
+    }
+
+    const inputTokens = getFiniteNumber(usage.inputTokens);
+    const outputTokens = getFiniteNumber(usage.outputTokens);
+    if (inputTokens === undefined && outputTokens === undefined) {
+      return;
+    }
+
+    const cacheReadTokens = getFiniteNumber(usage.cachedInputTokens) ?? 0;
+    const cacheWriteTokens =
+      getFiniteNumber(usage.cacheCreationInputTokens) ?? 0;
+    const totals = (this.usageDetails ??= {
+      input: 0,
+      output: 0,
+      cache_read_input_tokens: 0,
+      cache_creation_input_tokens: 0,
+      total: 0,
+    });
+
+    // Mastra's inputTokens includes cache reads/writes, while Langfuse model
+    // prices bill `input` as non-cached input tokens with separate cache keys.
+    totals.input += Math.max(
+      0,
+      (inputTokens ?? 0) - cacheReadTokens - cacheWriteTokens,
+    );
+    totals.output += outputTokens ?? 0;
+    totals.cache_read_input_tokens += cacheReadTokens;
+    totals.cache_creation_input_tokens += cacheWriteTokens;
+    totals.total +=
+      getFiniteNumber(usage.totalTokens) ??
+      (inputTokens ?? 0) + (outputTokens ?? 0);
+  }
+
   recordAvailableSkills(skills: unknown[]) {
     if (this.ended) {
       return;
@@ -274,6 +334,7 @@ export class InAppAgentInstrumentation {
 
     const message = error instanceof Error ? error.message : String(error);
     this.endOpenToolSpans({ error: message }, message);
+    this.flushTrailingThinking();
     this.agentRun.update({
       name: IN_APP_AGENT_TURN_NAME,
       input: this.agentRunInput,
@@ -281,11 +342,11 @@ export class InAppAgentInstrumentation {
       ...(this.completionStartTime
         ? { completionStartTime: this.completionStartTime }
         : {}),
+      ...this.getAgentRunUsage(),
       level: "ERROR",
       statusMessage: message,
       metadata: {
         ...this.metadata,
-        ...(this.reasoning ? { reasoning: this.reasoning } : {}),
         error: message,
       },
       ...(this.prompt
@@ -310,9 +371,9 @@ export class InAppAgentInstrumentation {
     }
 
     this.endOpenToolSpans(params?.aborted ? { aborted: true } : undefined);
+    this.flushTrailingThinking();
     const metadata = {
       ...this.metadata,
-      ...(this.reasoning ? { reasoning: this.reasoning } : {}),
       ...(params?.aborted ? { aborted: true } : {}),
       ...(params?.result ? { result: params.result } : {}),
     };
@@ -323,6 +384,7 @@ export class InAppAgentInstrumentation {
       ...(this.completionStartTime
         ? { completionStartTime: this.completionStartTime }
         : {}),
+      ...this.getAgentRunUsage(),
       metadata,
       ...(this.prompt
         ? {
@@ -362,8 +424,16 @@ export class InAppAgentInstrumentation {
       event.type === EventType.REASONING_MESSAGE_CONTENT
     ) {
       if (typeof event.delta === "string") {
-        this.reasoning += event.delta;
+        this.currentReasoning += event.delta;
       }
+      return;
+    }
+
+    if (
+      event.type === EventType.REASONING_MESSAGE_START ||
+      event.type === EventType.REASONING_MESSAGE_END
+    ) {
+      this.flushCurrentReasoning();
       return;
     }
 
@@ -416,8 +486,6 @@ export class InAppAgentInstrumentation {
       event.type === EventType.STEP_FINISHED ||
       event.type === EventType.TOOL_CALL_CHUNK ||
       event.type === EventType.REASONING_START ||
-      event.type === EventType.REASONING_MESSAGE_START ||
-      event.type === EventType.REASONING_MESSAGE_END ||
       event.type === EventType.REASONING_END ||
       event.type === EventType.REASONING_ENCRYPTED_VALUE ||
       // eslint-disable-next-line @typescript-eslint/no-deprecated
@@ -569,6 +637,19 @@ export class InAppAgentInstrumentation {
     ).enqueue("tool-create", body);
   }
 
+  // Model is only set alongside provided usage; on its own it would make
+  // ingestion tokenize the agent-turn input/output into estimated usage.
+  private getAgentRunUsage() {
+    if (!this.usageDetails) {
+      return {};
+    }
+
+    return {
+      usageDetails: this.usageDetails,
+      ...(this.model ? { model: this.model } : {}),
+    };
+  }
+
   private endOpenToolSpans(
     metadata?: Record<string, unknown>,
     statusMessage?: string,
@@ -582,12 +663,56 @@ export class InAppAgentInstrumentation {
     }
   }
 
+  // Reasoning that no assistant message followed (e.g. aborted or errored
+  // turns) still gets recorded as its own thinking-only assistant message.
+  private flushTrailingThinking() {
+    const thinking = this.takePendingThinking();
+    if (!thinking) {
+      return;
+    }
+
+    this.agentRunOutputMessages.push({
+      role: "assistant",
+      content: "",
+      thinking,
+    });
+  }
+
+  private flushCurrentReasoning() {
+    if (!this.currentReasoning) {
+      return;
+    }
+
+    this.pendingThinking.push({
+      type: "thinking",
+      content: this.currentReasoning,
+    });
+    this.currentReasoning = "";
+  }
+
+  // Reasoning always precedes the assistant action it produced, so pending
+  // thinking parts attach to the next assistant output message.
+  private takePendingThinking(): AgentRunThinkingPart[] | undefined {
+    this.flushCurrentReasoning();
+
+    if (this.pendingThinking.length === 0) {
+      return undefined;
+    }
+
+    return this.pendingThinking.splice(0);
+  }
+
   private recordAssistantText(delta: string) {
     this.output += delta;
     this.completionStartTime ??= new Date();
 
+    const thinking = this.takePendingThinking();
     const lastMessage = this.agentRunOutputMessages.at(-1);
-    if (lastMessage?.role === "assistant" && !lastMessage.tool_calls?.length) {
+    if (
+      !thinking &&
+      lastMessage?.role === "assistant" &&
+      !lastMessage.tool_calls?.length
+    ) {
       lastMessage.content = `${typeof lastMessage.content === "string" ? lastMessage.content : ""}${delta}`;
       return;
     }
@@ -595,6 +720,7 @@ export class InAppAgentInstrumentation {
     this.agentRunOutputMessages.push({
       role: "assistant",
       content: delta,
+      ...(thinking ? { thinking } : {}),
     });
   }
 
@@ -616,10 +742,12 @@ export class InAppAgentInstrumentation {
       type: "function",
     };
 
+    const thinking = this.takePendingThinking();
     this.agentRunToolCalls.push(toolCall);
     this.agentRunOutputMessages.push({
       role: "assistant",
       content: "",
+      ...(thinking ? { thinking } : {}),
       tool_calls: [toolCall],
     });
 
@@ -873,6 +1001,12 @@ function normalizeToolOutput(output: unknown): unknown {
 
 function isToolError(output: unknown): boolean {
   return isRecord(output) && output.error === true;
+}
+
+function getFiniteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
 }
 
 function getSerializableToolParameters(tool: Record<string, unknown>): unknown {
