@@ -269,7 +269,7 @@ describe("MCP Write Tools", () => {
           enabled: false,
           target: "observation",
           filter: [],
-        },
+        } as unknown as Parameters<typeof handleCreateEvaluationRule>[0],
         context,
       )) as { id: string };
       expect(rule.id).toBeDefined();

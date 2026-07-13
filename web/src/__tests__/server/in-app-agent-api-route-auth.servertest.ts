@@ -194,7 +194,7 @@ describe("in-app agent public API route auth", () => {
         resume: {
           approved: true,
           approvalRequest: {
-            type: "tool_approval_request",
+            type: "tool_approval_request" as const,
             toolCallId: "tool-call-1",
             toolName: "langfuse_upsertDataset",
             args: { name: "Approved dataset" },
