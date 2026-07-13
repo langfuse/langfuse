@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../../db";
 import {
   LangfuseConflictError,
@@ -18,6 +20,104 @@ import { z } from "zod";
 import { singleFilter } from "../../../";
 
 export class DashboardService {
+  /**
+   * Places a reusable widget below the existing content of a project-owned
+   * dashboard. The scoped reads and definition update are one serializable
+   * operation so concurrent placements cannot overwrite each other.
+   */
+  public static async addWidgetToDashboard(props: {
+    dashboardId: string;
+    widgetId: string;
+    projectId: string;
+    userId?: string;
+  }): Promise<{
+    beforeDashboard: DashboardDomain;
+    updatedDashboard: DashboardDomain;
+    widget: WidgetDomain;
+  }> {
+    const { dashboardId, widgetId, projectId, userId } = props;
+
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        return await prisma.$transaction(
+          async (tx) => {
+            const [dashboard, widget] = await Promise.all([
+              tx.dashboard.findFirst({
+                where: { id: dashboardId, projectId },
+              }),
+              tx.dashboardWidget.findFirst({
+                where: {
+                  id: widgetId,
+                  OR: [{ projectId }, { projectId: null }],
+                },
+              }),
+            ]);
+
+            if (!dashboard) {
+              throw new LangfuseNotFoundError("Dashboard not found");
+            }
+            if (!widget) {
+              throw new LangfuseNotFoundError("Dashboard widget not found");
+            }
+
+            const beforeDashboard = DashboardDomainSchema.parse({
+              ...dashboard,
+              owner: "PROJECT",
+            });
+            const domainWidget = WidgetDomainSchema.parse({
+              ...widget,
+              owner: widget.projectId ? "PROJECT" : "LANGFUSE",
+            });
+            const maxY = beforeDashboard.definition.widgets.reduce(
+              (currentMax, placement) =>
+                Math.max(currentMax, placement.y + placement.y_size),
+              0,
+            );
+
+            const updated = await tx.dashboard.update({
+              where: { id: dashboardId, projectId },
+              data: {
+                updatedBy: userId,
+                definition: {
+                  widgets: [
+                    ...beforeDashboard.definition.widgets,
+                    {
+                      type: "widget",
+                      id: randomUUID(),
+                      widgetId: domainWidget.id,
+                      x: 0,
+                      y: maxY,
+                      x_size: 6,
+                      y_size: 6,
+                    },
+                  ],
+                },
+              },
+            });
+
+            return {
+              beforeDashboard,
+              updatedDashboard: DashboardDomainSchema.parse({
+                ...updated,
+                owner: "PROJECT",
+              }),
+              widget: domainWidget,
+            };
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+      } catch (error) {
+        const shouldRetry =
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2034" &&
+          attempt < 2;
+        if (!shouldRetry) {
+          throw error;
+        }
+      }
+    }
+  }
+
   /**
    * Retrieves a list of dashboards for a given project.
    */

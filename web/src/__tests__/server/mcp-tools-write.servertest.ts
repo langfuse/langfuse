@@ -626,6 +626,77 @@ describe("MCP Write Tools", () => {
         ),
       ).rejects.toThrow("Dashboard widget not found");
     });
+
+    it("should reject a dashboard from another project", async () => {
+      const setup = await createMcpTestSetup();
+      const foreignSetup = await createMcpTestSetup();
+      const foreignDashboard = await prisma.dashboard.create({
+        data: {
+          projectId: foreignSetup.projectId,
+          name: `mcp-dashboard-${nanoid()}`,
+          description: "Dashboard",
+          definition: { widgets: [] },
+        },
+      });
+      const widget = await prisma.dashboardWidget.create({
+        data: {
+          projectId: setup.projectId,
+          name: `mcp-widget-${nanoid()}`,
+          description: "Widget",
+          view: "OBSERVATIONS",
+          dimensions: [],
+          metrics: [{ measure: "count", agg: "count" }],
+          filters: [],
+          chartType: "NUMBER",
+          chartConfig: { type: "NUMBER" },
+          minVersion: 2,
+        },
+      });
+
+      await expect(
+        handleAddWidgetToDashboard(
+          { dashboardId: foreignDashboard.id, widgetId: widget.id },
+          setup.context,
+        ),
+      ).rejects.toThrow("Dashboard not found");
+    });
+
+    it("should reject a Langfuse-managed dashboard", async () => {
+      const setup = await createMcpTestSetup();
+      const managedDashboard = await prisma.dashboard.create({
+        data: {
+          projectId: null,
+          name: `managed-dashboard-${nanoid()}`,
+          description: "Managed dashboard",
+          definition: { widgets: [] },
+        },
+      });
+      const widget = await prisma.dashboardWidget.create({
+        data: {
+          projectId: setup.projectId,
+          name: `mcp-widget-${nanoid()}`,
+          description: "Widget",
+          view: "OBSERVATIONS",
+          dimensions: [],
+          metrics: [{ measure: "count", agg: "count" }],
+          filters: [],
+          chartType: "NUMBER",
+          chartConfig: { type: "NUMBER" },
+          minVersion: 2,
+        },
+      });
+
+      try {
+        await expect(
+          handleAddWidgetToDashboard(
+            { dashboardId: managedDashboard.id, widgetId: widget.id },
+            setup.context,
+          ),
+        ).rejects.toThrow("Dashboard not found");
+      } finally {
+        await prisma.dashboard.delete({ where: { id: managedDashboard.id } });
+      }
+    });
   });
 
   describe("createTextPrompt tool", () => {

@@ -64,6 +64,16 @@ export function InAppAgentWidgetComposer({
           onChange={(event) => {
             setRequest(event.target.value);
           }}
+          onKeyDown={(event) => {
+            if (
+              event.key === "Enter" &&
+              !event.shiftKey &&
+              !event.nativeEvent.isComposing
+            ) {
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            }
+          }}
         />
         <Button
           type="submit"
@@ -128,6 +138,7 @@ export function InAppAgentDashboardComposer({
         <Checkbox
           id="assistant-dashboard-widgets"
           checked={includeWidgets}
+          disabled={isRunning || isSubmitting}
           onCheckedChange={(checked) => {
             setIncludeWidgets(checked === true);
           }}

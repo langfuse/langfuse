@@ -6,11 +6,12 @@ import {
 } from "./InAppAgentDashboardButtons";
 
 const startAssistantRun = vi.fn().mockResolvedValue(true);
+let isRunning = false;
 
 vi.mock("./InAppAiAgentProvider", () => ({
   useInAppAiAgent: () => ({
     isAvailable: true,
-    isRunning: false,
+    isRunning,
     isSubmitting: false,
     startAssistantRun,
   }),
@@ -29,10 +30,11 @@ describe("in-app agent dashboard entry points", () => {
   });
 
   beforeEach(() => {
+    isRunning = false;
     startAssistantRun.mockClear();
   });
 
-  it("creates the requested widget from the add-widget dialog", async () => {
+  it("creates the requested widget once when Enter is pressed", async () => {
     const onSubmitted = vi.fn();
     render(
       <InAppAgentWidgetComposer
@@ -44,13 +46,10 @@ describe("in-app agent dashboard entry points", () => {
     fireEvent.change(screen.getByLabelText("Describe the widget you want"), {
       target: { value: "Show p95 latency by model" },
     });
-    const form = screen
-      .getByRole("button", { name: "Create with Assistant" })
-      .closest("form");
-    if (!form) {
-      throw new Error("Expected widget composer form");
-    }
-    fireEvent.submit(form);
+    fireEvent.keyDown(screen.getByLabelText("Describe the widget you want"), {
+      key: "Enter",
+      code: "Enter",
+    });
 
     await waitFor(() => {
       expect(startAssistantRun).toHaveBeenCalledWith({
@@ -59,6 +58,7 @@ describe("in-app agent dashboard entry points", () => {
         request: "Show p95 latency by model",
       });
     });
+    expect(startAssistantRun).toHaveBeenCalledOnce();
     expect(onSubmitted).toHaveBeenCalledOnce();
   });
 
@@ -88,5 +88,25 @@ describe("in-app agent dashboard entry points", () => {
         includeWidgets: false,
       });
     });
+  });
+
+  it("locks the dashboard creation preferences while the assistant runs", () => {
+    isRunning = true;
+
+    render(
+      <InAppAgentDashboardComposer
+        name="Reliability"
+        description="Track production reliability"
+      />,
+    );
+
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Design and add widgets for this dashboard",
+      }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Continue with Assistant" }),
+    ).toBeDisabled();
   });
 });

@@ -10,10 +10,13 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { InAppAgentDashboardComposer } from "@/src/ee/features/in-app-agent/components/InAppAgentDashboardButtons";
+import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
 
 export default function NewDashboard() {
   const router = useRouter();
   const { projectId } = router.query as { projectId: string };
+  const { dashboardOwnership } = useInAppAiAgent();
+  const isAssistantOwned = dashboardOwnership !== null;
 
   // State for new dashboard
   const [dashboardName, setDashboardName] = useState("New Dashboard");
@@ -74,6 +77,7 @@ export default function NewDashboard() {
               disabled={
                 !dashboardName.trim() ||
                 createDashboard.isPending ||
+                isAssistantOwned ||
                 !hasCUDAccess
               }
               loading={createDashboard.isPending}
@@ -95,6 +99,7 @@ export default function NewDashboard() {
             }}
             placeholder="Enter dashboard name"
             required
+            disabled={isAssistantOwned}
           />
         </div>
 
@@ -108,6 +113,7 @@ export default function NewDashboard() {
             }}
             placeholder="Describe what this dashboard should help you monitor or understand."
             rows={4}
+            disabled={isAssistantOwned}
           />
         </div>
 
@@ -116,6 +122,13 @@ export default function NewDashboard() {
             name={dashboardName}
             description={dashboardDescription}
           />
+        )}
+
+        {isAssistantOwned && (
+          <p className="border-border bg-muted/30 rounded-md border p-3 text-sm">
+            The assistant owns this dashboard draft while it is running. Manual
+            changes will be available again when the run finishes.
+          </p>
         )}
 
         <p className="text-muted-foreground text-sm">

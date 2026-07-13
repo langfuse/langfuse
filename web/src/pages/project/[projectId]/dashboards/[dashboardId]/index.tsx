@@ -80,6 +80,7 @@ import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboa
 import { extractTransferFiles } from "@/src/components/editor/fileDropPaste";
 import { Layer } from "@/src/components/ui/layer";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
 
 // Position for a tile inserted "next to" an anchor tile: same size,
 // immediately to the right when that fits the 12-column grid, otherwise
@@ -98,6 +99,7 @@ export default function DashboardDetail() {
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
+  const { dashboardOwnership, dashboardUpdate } = useInAppAiAgent();
 
   const { projectId, dashboardId, addWidgetId } = router.query as {
     projectId: string;
@@ -113,13 +115,18 @@ export default function DashboardDetail() {
     projectId,
     dashboardId,
   });
+  const refetchDashboard = dashboard.refetch;
 
   const hasRbacCUDAccess = useHasProjectAccess({
     projectId,
     scope: "dashboards:CUD",
   });
   const isLockedDashboard = dashboard.data?.owner === "LANGFUSE";
-  const hasCUDAccess = hasRbacCUDAccess && !isLockedDashboard;
+  const isAssistantOwned =
+    dashboardOwnership?.type === "dashboard" &&
+    dashboardOwnership.dashboardId === dashboardId;
+  const hasCUDAccess =
+    hasRbacCUDAccess && !isLockedDashboard && !isAssistantOwned;
 
   // Langfuse-managed dashboards keep full edit affordances; edit attempts
   // route through the clone-first flow instead of mutating.
@@ -984,6 +991,22 @@ export default function DashboardDetail() {
     }
   }, [dashboard.data, localDashboardDefinition]);
 
+  useEffect(() => {
+    if (dashboardUpdate?.dashboardId !== dashboardId) {
+      return;
+    }
+
+    refetchDashboard()
+      .then((result) => {
+        if (result.data) {
+          setLocalDashboardDefinition(result.data.definition);
+        }
+      })
+      .catch((error) => {
+        showErrorToast("Error refreshing dashboard", error.message);
+      });
+  }, [dashboardId, dashboardUpdate, refetchDashboard]);
+
   // Initialize filters from dashboard data
   useEffect(() => {
     if (dashboard.data?.filters) {
@@ -1202,7 +1225,7 @@ export default function DashboardDetail() {
                     : "Save Filters"}
                 </Button>
               )}
-              {hasRbacCUDAccess && (
+              {hasRbacCUDAccess && !isAssistantOwned && (
                 <Button onClick={handleAddWidget}>
                   <PlusIcon size={16} className="mr-1 h-4 w-4" />
                   Add Widget
@@ -1218,7 +1241,7 @@ export default function DashboardDetail() {
                   Clone
                 </Button>
               )}
-              {hasRbacCUDAccess && (
+              {hasRbacCUDAccess && !isAssistantOwned && (
                 <DropdownMenu onOpenChange={setIsDashboardMenuOpen}>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -1275,6 +1298,12 @@ export default function DashboardDetail() {
           ),
         }}
       >
+        {isAssistantOwned && (
+          <div className="border-border bg-muted/30 mb-4 rounded-md border p-3 text-sm">
+            The assistant owns this dashboard while it is running. Editing will
+            be available again when the run finishes.
+          </div>
+        )}
         <PageHeaderControlsPortal>
           <TimeRangePicker
             timeRange={timeRange}
@@ -1367,7 +1396,7 @@ export default function DashboardDetail() {
                   widgets: updatedWidgets,
                 });
               }}
-              canEdit={hasRbacCUDAccess}
+              canEdit={hasRbacCUDAccess && !isAssistantOwned}
               dashboardId={dashboardId}
               projectId={projectId}
               dateRange={absoluteTimeRange}

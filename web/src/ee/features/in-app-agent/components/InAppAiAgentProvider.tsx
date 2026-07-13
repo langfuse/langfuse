@@ -45,6 +45,7 @@ import {
 } from "@/src/ee/features/in-app-agent/components/utils/utils";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { InAppAgentDisabledDialog } from "./InAppAgentDisabledDialog";
+import { parseDashboardToolResultContent } from "./dashboard-tool-result";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
@@ -81,6 +82,23 @@ export type InAppAgentInvocation =
       dashboardId: string;
       request: string;
     };
+
+export type InAppAgentDashboardOwnership =
+  | { type: "create" }
+  | { type: "dashboard"; dashboardId: string };
+
+export type InAppAgentDashboardUpdate = {
+  dashboardId: string;
+  sequence: number;
+};
+
+const CreatedDashboardToolResultSchema = z.object({
+  id: z.string().min(1),
+});
+
+const UpdatedDashboardToolResultSchema = z.object({
+  dashboardId: z.string().min(1),
+});
 
 const getInvocationPrompt = (invocation: InAppAgentInvocation): string => {
   if (invocation.source === "trace_error") {
@@ -133,6 +151,8 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   setIsExpanded: () => undefined,
   isRunning: false,
   isSubmitting: false,
+  dashboardOwnership: null,
+  dashboardUpdate: null,
   pendingToolApprovals: [],
   isSelectedConversationHydrating: false,
   error: null,
@@ -180,6 +200,8 @@ type InAppAiAgentContextType = {
   setIsExpanded: Dispatch<SetStateAction<boolean>>;
   isRunning: boolean;
   isSubmitting: boolean;
+  dashboardOwnership: InAppAgentDashboardOwnership | null;
+  dashboardUpdate: InAppAgentDashboardUpdate | null;
   pendingToolApprovals: InAppAgentPendingToolApproval[];
   isSelectedConversationHydrating: boolean;
   error: InAppAgentError | null;
@@ -269,6 +291,7 @@ function InAppAiAgentProviderInner({
   open,
   setOpen,
 }: InAppAiAgentProviderInnerProps) {
+  const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const session = useSession();
@@ -290,6 +313,11 @@ function InAppAiAgentProviderInner({
   const [isRunning, setIsRunning] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dashboardOwnership, setDashboardOwnership] =
+    useState<InAppAgentDashboardOwnership | null>(null);
+  const [dashboardUpdate, setDashboardUpdate] =
+    useState<InAppAgentDashboardUpdate | null>(null);
+  const dashboardUpdateSequenceRef = useRef(0);
   const [error, setError] = useState<InAppAgentError | null>(null);
   const agentRef = useRef<HttpAgent | null>(null);
   const activeRunIdRef = useRef<string | null>(null);
@@ -551,12 +579,72 @@ function InAppAiAgentProviderInner({
           });
         },
         onToolCallResultEvent: ({ event }) => {
+          const completedApproval = pendingToolApprovalsRef.current.find(
+            (approval) =>
+              approval.approvalRequest.toolCallId === event.toolCallId,
+          );
+
           updatePendingToolApprovals((currentApprovals) =>
             currentApprovals.filter(
               (approval) =>
                 approval.approvalRequest.toolCallId !== event.toolCallId,
             ),
           );
+
+          if (
+            !completedApproval ||
+            ("error" in event && typeof event.error === "string")
+          ) {
+            return;
+          }
+
+          const result = parseDashboardToolResultContent(event.content);
+          const toolName = completedApproval.approvalRequest.toolName;
+
+          if (toolName === "langfuse_createDashboard") {
+            const dashboard =
+              CreatedDashboardToolResultSchema.safeParse(result);
+            if (!dashboard.success) {
+              return;
+            }
+
+            setDashboardOwnership({
+              type: "dashboard",
+              dashboardId: dashboard.data.id,
+            });
+            Promise.all([
+              utils.dashboard.invalidate(),
+              router.push(
+                `/project/${projectId}/dashboards/${dashboard.data.id}`,
+              ),
+            ]).catch((error) => {
+              console.error("Failed to refresh the created dashboard", error);
+            });
+            return;
+          }
+
+          if (toolName === "langfuse_createDashboardWidget") {
+            utils.dashboardWidgets.invalidate().catch((error) => {
+              console.error("Failed to refresh dashboard widgets", error);
+            });
+            return;
+          }
+
+          if (toolName === "langfuse_addWidgetToDashboard") {
+            const update = UpdatedDashboardToolResultSchema.safeParse(result);
+            if (!update.success) {
+              return;
+            }
+
+            dashboardUpdateSequenceRef.current += 1;
+            setDashboardUpdate({
+              dashboardId: update.data.dashboardId,
+              sequence: dashboardUpdateSequenceRef.current,
+            });
+            utils.dashboard.invalidate().catch((error) => {
+              console.error("Failed to refresh the updated dashboard", error);
+            });
+          }
         },
         onRunErrorEvent: ({ event }) => {
           if (intentionalAbortRef.current) {
@@ -584,7 +672,7 @@ function InAppAiAgentProviderInner({
         },
       });
     },
-    [updatePendingToolApprovals],
+    [projectId, router, updatePendingToolApprovals, utils],
   );
 
   const getOrCreateAgent = useCallback(
@@ -662,6 +750,7 @@ function InAppAiAgentProviderInner({
         .finally(() => {
           const runId = activeRunIdRef.current;
           setIsRunning(false);
+          setDashboardOwnership(null);
           setMessages(
             attachActiveRunIdToAssistantMessages(
               agent.messages.filter(isAgentConversationMessage),
@@ -1058,7 +1147,22 @@ function InAppAiAgentProviderInner({
         return false;
       }
 
-      return submit(getInvocationPrompt(invocation), { newConversation: true });
+      if (invocation.source === "dashboard_create") {
+        setDashboardOwnership({ type: "create" });
+      } else if (invocation.source === "dashboard_widget") {
+        setDashboardOwnership({
+          type: "dashboard",
+          dashboardId: invocation.dashboardId,
+        });
+      }
+
+      const started = await submit(getInvocationPrompt(invocation), {
+        newConversation: true,
+      });
+      if (!started) {
+        setDashboardOwnership(null);
+      }
+      return started;
     },
     [openAssistant, submit],
   );
@@ -1074,6 +1178,8 @@ function InAppAiAgentProviderInner({
       setIsExpanded,
       isRunning,
       isSubmitting,
+      dashboardOwnership,
+      dashboardUpdate,
       pendingToolApprovals,
       isSelectedConversationHydrating,
       error,
@@ -1101,6 +1207,8 @@ function InAppAiAgentProviderInner({
       isRunning,
       isSelectedConversationHydrating,
       isSubmitting,
+      dashboardOwnership,
+      dashboardUpdate,
       deleteConversation,
       loadMoreConversations,
       messagesWithFeedback,

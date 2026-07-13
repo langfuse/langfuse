@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-import { LangfuseNotFoundError } from "@langfuse/shared";
 import { DashboardService } from "@langfuse/shared/src/server";
 import { z } from "zod";
 
@@ -32,63 +30,31 @@ export const [addWidgetToDashboardTool, handleAddWidgetToDashboard] =
           "mcp.dashboard_widget_id": input.widgetId,
         },
         fn: async () => {
-          const [dashboard, widget] = await Promise.all([
-            DashboardService.getDashboard(input.dashboardId, context.projectId),
-            DashboardService.getWidget(input.widgetId, context.projectId),
-          ]);
-
-          if (!dashboard || dashboard.projectId !== context.projectId) {
-            throw new LangfuseNotFoundError("Dashboard not found");
-          }
-          if (!widget) {
-            throw new LangfuseNotFoundError("Dashboard widget not found");
-          }
-
-          const maxY = dashboard.definition.widgets.reduce(
-            (currentMax, placement) =>
-              Math.max(currentMax, placement.y + placement.y_size),
-            0,
-          );
-          const definition = {
-            widgets: [
-              ...dashboard.definition.widgets,
-              {
-                type: "widget" as const,
-                id: randomUUID(),
-                widgetId: widget.id,
-                x: 0,
-                y: maxY,
-                x_size: 6,
-                y_size: 6,
-              },
-            ],
-          };
-
-          const updatedDashboard =
-            await DashboardService.updateDashboardDefinition(
-              dashboard.id,
-              context.projectId,
-              definition,
-              context.userId,
-            );
+          const { beforeDashboard, updatedDashboard, widget } =
+            await DashboardService.addWidgetToDashboard({
+              dashboardId: input.dashboardId,
+              widgetId: input.widgetId,
+              projectId: context.projectId,
+              userId: context.userId,
+            });
 
           await auditLog({
             action: "update",
             resourceType: "dashboard",
-            resourceId: dashboard.id,
+            resourceId: beforeDashboard.id,
             projectId: context.projectId,
             orgId: context.orgId,
             apiKeyId: context.apiKeyId,
-            before: dashboard,
+            before: beforeDashboard,
             after: updatedDashboard,
           });
 
           return {
-            dashboardId: dashboard.id,
+            dashboardId: updatedDashboard.id,
             widgetId: widget.id,
             url: buildDashboardUrl({
               projectId: context.projectId,
-              dashboardId: dashboard.id,
+              dashboardId: updatedDashboard.id,
             }),
           };
         },
