@@ -298,6 +298,15 @@ const EnvSchema = z.object({
     .default("legacy"),
 
   LANGFUSE_S3_LIST_MAX_KEYS: z.coerce.number().positive().default(200),
+  // Checksum algorithm for S3 DeleteObjects requests; unset keeps the SDK
+  // default (CRC32). Some S3-compatible stores reject CRC32 with 400
+  // MissingContentMD5 and need "MD5" (sent as the legacy Content-MD5 header),
+  // e.g. MinIO before RELEASE.2025-02-03 (langfuse/langfuse-k8s#356). MD5 is
+  // unavailable on FIPS runtimes; stores that support it also accept e.g.
+  // SHA256 as a FIPS-approved alternative.
+  LANGFUSE_S3_DELETE_OBJECTS_CHECKSUM_ALGORITHM: z
+    .enum(["MD5", "CRC32", "CRC32C", "CRC64NVME", "SHA1", "SHA256"])
+    .optional(),
   LANGFUSE_S3_RATE_ERROR_SLOWDOWN_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
