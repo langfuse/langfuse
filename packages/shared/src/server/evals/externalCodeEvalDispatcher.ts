@@ -11,6 +11,9 @@ import {
   type DispatchResult,
 } from "./codeEvalDispatcherTypes";
 
+// External invokes hold the HTTP request open through cold starts and user code execution.
+const EXTERNAL_INVOKE_REQUEST_TIMEOUT_MS = 10_000;
+
 export class ExternalCodeEvalDispatcher implements CodeEvalDispatcher {
   public readonly name = "external";
   private readonly endpoint: string;
@@ -50,15 +53,37 @@ export class ExternalCodeEvalDispatcher implements CodeEvalDispatcher {
       Buffer.byteLength(serializedPayload, "utf8"),
     );
 
-    const response = await fetch(this.endpoint, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-      },
-      body: serializedPayload,
-    });
+    const timeoutSignal = AbortSignal.timeout(
+      EXTERNAL_INVOKE_REQUEST_TIMEOUT_MS,
+    );
+    let response: Response;
+    let responseText: string;
 
-    const responseText = await response.text();
+    try {
+      response = await fetch(this.endpoint, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: serializedPayload,
+        signal: timeoutSignal,
+      });
+      responseText = await response.text();
+    } catch (error) {
+      if (timeoutSignal.aborted) {
+        throw new CodeEvalDispatcherError(
+          `External code eval request timed out after ${EXTERNAL_INVOKE_REQUEST_TIMEOUT_MS}ms`,
+          {
+            code: CodeEvalDispatcherErrorCodes.EXTERNAL_INVOCATION_ERROR,
+            retryable: true,
+            cause: error,
+          },
+        );
+      }
+
+      throw error;
+    }
+
     const responseBytes = Buffer.byteLength(responseText, "utf8");
     assertDispatchResultWithinByteLimit(responseBytes);
 
