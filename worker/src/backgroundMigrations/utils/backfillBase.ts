@@ -306,7 +306,7 @@ export async function fireQuery({
       // its default request timeout, which kills long chunk queries after the
       // abort (#14999). Override per-query so interactive queries stay capped;
       // retry settings keep precedence.
-      max_execution_time: env.LANGFUSE_BACKGROUND_MIGRATION_MAX_EXECUTION_TIME_S,
+      max_execution_time: 0,
       timeout_before_checking_execution_speed: 0,
       ...retrySetting,
     },
