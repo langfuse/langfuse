@@ -84,7 +84,10 @@ jobs:
           set -euo pipefail
           commit_sha="$(git rev-parse HEAD)"
           short_sha="${commit_sha:0:12}"
-          image_tag="pr-${PR_NUMBER}-${short_sha}"
+          # The ApplicationSet deploys pr-<n>-{{.head_sha}} — Argo's FULL 40-char
+          # SHA — so the pushed tag MUST use the full SHA or the deployed image
+          # never resolves (permanent ImagePullBackOff). short_sha is display-only.
+          image_tag="pr-${PR_NUMBER}-${commit_sha}"
           {
             echo "commit_sha=${commit_sha}"
             echo "image_tag=${image_tag}"
