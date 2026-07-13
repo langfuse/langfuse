@@ -686,10 +686,11 @@ SETTINGS enable_full_text_index = 1;
 -- PROD ROLLOUT: unlike analytics_scores (managed via numbered migrations),
 -- this view is NOT migration-managed because events_core only exists in
 -- cloud environments (see header note). Any change here must be applied
--- manually as CREATE OR REPLACE VIEW in every cloud region (eu, us, hipaa,
--- jp) and recorded in the migrations doc linked in the header — otherwise
--- the DWH S3 export silently misses the new columns.
-CREATE OR REPLACE VIEW analytics_events_core AS
+-- manually as DROP VIEW IF EXISTS followed by CREATE VIEW in every cloud
+-- region (eu, us, hipaa, jp) and recorded in the migrations doc linked in the
+-- header — otherwise the DWH S3 export silently misses the new columns.
+DROP VIEW IF EXISTS analytics_events_core;
+CREATE VIEW analytics_events_core AS
 SELECT
   project_id,
   toStartOfHour(start_time) AS hour,
