@@ -210,7 +210,7 @@ const MonitorAutomationsListRow = ({
       }
     }}
     className={cn(
-      "hover:bg-muted/60 focus-visible:ring-ring block flex cursor-pointer items-center gap-2 rounded-md border p-2 text-xs outline-hidden transition-colors focus-visible:ring-2",
+      "hover:bg-muted/60 focus-visible:ring-ring flex cursor-pointer items-center gap-2 rounded-md border p-2 text-xs outline-hidden transition-colors focus-visible:ring-2",
       isDisabled && "pointer-events-none opacity-50",
     )}
   >
