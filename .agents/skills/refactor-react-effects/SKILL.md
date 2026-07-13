@@ -10,9 +10,19 @@ description: |
 
 # Refactor React Effects
 
-Treat `useEffect` as an external-system synchronization primitive, not as a
-general control-flow or state-management tool. If there is no external system,
-remove the effect.
+Do not add `useEffect` by default. Use it only to synchronize a component with
+a concrete system outside React. If there is no external system, remove the
+effect.
+
+Before adding or retaining an effect, answer all of these questions:
+
+1. Which external system is being synchronized?
+2. What starts or updates the synchronization?
+3. What cleanup, if any, prevents leaks or duplicate subscriptions?
+4. Why can an event handler, query API, render derivation, conditional mount,
+   or existing integration hook not own the behavior?
+
+If the first question has no concrete answer, do not use an effect.
 
 ## Required Context
 
@@ -75,16 +85,18 @@ Refactor when any of these shapes appear:
 
 Identify the state owner, query owner, user events, external systems, and
 loading/error states. For a bug fix, add the failing test first and confirm it
-fails. For a behavior-preserving migration, identify or add focused coverage
-for draft preservation, entity changes, refetches, submits, and cleanup as
-applicable.
+fails. For a behavior-preserving migration, reuse existing coverage where it
+protects the relevant behavior; add focused coverage only for a meaningful
+behavior risk such as draft preservation, entity changes, refetches, submits,
+or cleanup. Do not add tests that inspect source code or merely assert that a
+hook is absent; lint owns that constraint.
 
 ### 2. Inventory Every Effect
 
 Search the full target module, including tests and stories:
 
 ```bash
-rg -n '\b(useEffect|React\.useEffect)\b' 'web/src/features/<feature>'
+rg -n '\b(use(?:Layout)?Effect|React\.use(?:Layout)?Effect)\b' 'web/src/features/<feature>'
 ```
 
 Classify every result as:
@@ -126,8 +138,8 @@ Repeat the inventory after each slice. Before declaring a submodule clean:
 
 ### 5. Add the Lint Gate Last
 
-Only add a scoped ESLint restriction after the lint target contains no effects.
-Follow
+Only add a scoped ESLint restriction after the lint target contains no direct
+React effects. Follow
 [`references/eslint-rollout.md`](references/eslint-rollout.md). Do not enable a
 repo-wide ban while legacy usages remain.
 

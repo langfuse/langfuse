@@ -5,7 +5,7 @@ substitute for classifying effects.
 
 ## Preconditions
 
-- The lint target has no `useEffect` calls.
+- The lint target has no direct React `useEffect` or `useLayoutEffect` calls.
 - Every effect retained in the broader submodule synchronizes with a named
   external system and sits outside the lint target for a documented reason.
 - Focused tests cover initialization, refetch, draft preservation/reset, user
@@ -25,15 +25,21 @@ Add a named, path-scoped block to `web/eslint.config.mjs`:
       "error",
       {
         selector:
-          "ImportDeclaration[source.value='react'] > ImportSpecifier[imported.name='useEffect']",
+          "ImportDeclaration[source.value='react'] > ImportSpecifier[imported.name=/^use(Layout)?Effect$/]",
         message:
-          "Do not use useEffect in this module. Derive during render, gate required data before mounting a stateful child, run workflows from events, or isolate a real external integration outside this scope.",
+          "Do not import useEffect or useLayoutEffect in this module. Derive during render, gate required data before mounting a stateful child, run workflows from events, or isolate a real external integration outside this scope.",
       },
       {
         selector:
-          "CallExpression[callee.type='MemberExpression'][callee.property.name='useEffect']",
+          "CallExpression[callee.type='MemberExpression'][callee.property.name=/^use(Layout)?Effect$/]",
         message:
-          "Do not call React.useEffect in this module. Use the approved effect-free ownership patterns.",
+          "Do not call React.useEffect or React.useLayoutEffect in this module. Use the approved direct-effect-free ownership patterns.",
+      },
+      {
+        selector:
+          "CallExpression[callee.type='MemberExpression'][callee.computed=true][callee.property.value=/^use(Layout)?Effect$/]",
+        message:
+          "Do not call a computed React effect hook in this module. Use the approved direct-effect-free ownership patterns.",
       },
     ],
   },
@@ -64,10 +70,10 @@ Do not move ordinary state synchronization into an “integration” folder mere
 to pass lint. Do not add inline disables. Any new or widened lint exception
 requires explicit user approval for the exact rule and scope.
 
-If the repo later adopts a centrally owned `useMountEffect`-style hook, the
-module restriction should continue to ban direct React effects while allowing
-imports of that one reviewed integration boundary. Do not create feature-local
-aliases or wrappers to evade the rule.
+Do not create feature-local aliases or wrapper hooks to evade the restriction.
+The lint rule is a backstop for direct React effects, not proof that a migration
+did not hide synchronization in an imported hook; review the inventory and
+ownership boundaries for that guarantee.
 
 ## Verify the Ratchet
 
@@ -79,15 +85,16 @@ pnpm --filter web exec eslint 'src/features/<feature>/**/*.{ts,tsx}' --no-cache 
 pnpm --filter web run lint
 ```
 
-Prove the rule catches regressions before finalizing it: temporarily add a
-minimal `useEffect` import or call in a target file, run the direct lint check
-and observe the expected failure, then revert that temporary probe. Never leave
-the probe in the worktree.
+Prove the rule catches conventional `useEffect`, `useLayoutEffect`, and
+`React.useEffect` usage before finalizing it: temporarily add a minimal import
+or call in a target file, run the direct lint check and observe the expected
+failure, then revert that temporary probe. Never leave the probe in the
+worktree. Do not add a source-inspection test that duplicates the lint rule.
 
 Search once more for audit visibility:
 
 ```bash
-rg -n '\b(useEffect|React\.useEffect)\b' 'web/src/features/<feature>'
+rg -n '\b(use(?:Layout)?Effect|React\.use(?:Layout)?Effect)\b' 'web/src/features/<feature>'
 ```
 
 The ESLint result is the enforcement evidence; the text search is a readable

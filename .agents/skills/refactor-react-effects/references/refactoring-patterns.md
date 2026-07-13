@@ -17,12 +17,7 @@ function UserFormContainer({ userId }: { userId: string }) {
 
   const initialValues = toUserFormValues(userQuery.data);
 
-  return (
-    <UserForm
-      key={userQuery.data.id}
-      initialValues={initialValues}
-    />
-  );
+  return <UserForm key={userQuery.data.id} initialValues={initialValues} />;
 }
 
 function UserForm({ initialValues }: { initialValues: UserFormValues }) {
@@ -44,8 +39,7 @@ overwrite a selection store every time query data changes.
 
 ```tsx
 const selectedUserId = useUserStore((state) => state.selectedUserId);
-const selectedUser =
-  users.find((user) => user.id === selectedUserId) ?? null;
+const selectedUser = users.find((user) => user.id === selectedUserId) ?? null;
 ```
 
 This avoids a synchronization effect and preserves enough information to show
@@ -153,26 +147,6 @@ function PlayerArea({ ready }: { ready: boolean }) {
 The integration component now has one lifecycle: mount means connect; unmount
 means disconnect. A `key` can provide a fresh lifecycle when an entity ID
 changes.
-
-## Optional Direct-Effect Escape Hatch
-
-The source article uses one centrally owned `useMountEffect` wrapper so feature
-code never calls `useEffect` directly. Langfuse does not currently have that
-approved abstraction. If repeated, legitimate mount/unmount integrations need
-it, propose one shared hook rather than adding feature-local wrappers.
-
-Such a hook must:
-
-- accept only mount setup and optional unmount cleanup;
-- remain outside the effect-free lint target;
-- be safe under React Strict Mode's setup/cleanup probe;
-- capture only values that remain stable for that mounted instance;
-- rely on conditional mounting or a `key` for lifecycle identity changes;
-- never become an escape hatch for state derivation, fetching, or action
-  relays.
-
-If its implementation needs a lint exception, obtain explicit approval for the
-exact rule and file before adding it.
 
 ## Stable References
 
