@@ -90,6 +90,7 @@ export type InAppAgentWindowProps = {
   conversations: InAppAgentWindowConversation[];
   error: string | null;
   hasMoreConversations: boolean;
+  isAssistantTurnInProgress: boolean;
   isHeaderDragHandleEnabled?: boolean;
   isExpanded: boolean;
   isInputDisabled: boolean;
@@ -118,6 +119,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     conversations,
     error,
     hasMoreConversations,
+    isAssistantTurnInProgress,
     isHeaderDragHandleEnabled = false,
     isExpanded,
     isInputDisabled,
@@ -486,7 +488,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               {visibleMessages.map((message, index) => {
                 const hasFullWidthContent =
                   message.content.type === "toolGroup" ||
-                  message.content.type === "redirectAction";
+                  message.content.type === "redirectAction" ||
+                  message.content.type === "reasoning";
 
                 const nextUserMessageIndex = visibleMessages.findIndex(
                   (nextMessage, nextIndex) =>
@@ -496,12 +499,15 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   nextUserMessageIndex === -1
                     ? visibleMessages.length
                     : nextUserMessageIndex;
+                const isCurrentTurnInProgress =
+                  isAssistantTurnInProgress && nextUserMessageIndex === -1;
                 const isLastMessageOfTurn = visibleMessages
                   .slice(index + 1, nextTurnStartIndex)
                   .every((nextMessage) => nextMessage.role !== "assistant");
                 const feedbackRunId =
                   message.role === "assistant" &&
                   message.content.type === "text" &&
+                  !isCurrentTurnInProgress &&
                   isLastMessageOfTurn
                     ? message.runId
                     : undefined;
@@ -619,7 +625,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               placeholder="Ask the assistant a question..."
               rows={1}
               className={cn(
-                "bg-background placeholder:text-muted-foreground w-full flex-1 resize-none overflow-y-auto rounded-md text-sm leading-5 disabled:cursor-not-allowed disabled:opacity-60",
+                "bg-background placeholder:text-foreground-tertiary w-full flex-1 resize-none overflow-y-auto rounded-md text-sm leading-5 disabled:cursor-not-allowed disabled:opacity-60",
                 isExpanded
                   ? "max-h-40 min-h-14 border-none ring-0"
                   : "border-input max-h-40 min-h-8 px-3 py-1",

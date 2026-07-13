@@ -450,8 +450,9 @@ const EnvSchema = z.object({
     .positive()
     .default(120_000), // 2 minutes
 
-  // Comma-separated list of LLM adapters (e.g. "openai") whose completions run
-  // on the AI SDK execution engine instead of LangChain
+  // Comma-separated list of LLM adapters (LLMAdapter enum values: "openai",
+  // "anthropic", "azure", "bedrock", "google-vertex-ai", "google-ai-studio")
+  // whose completions run on the AI SDK execution engine instead of LangChain
   LANGFUSE_LLM_COMPLETION_AI_SDK_ADAPTERS: z
     .string()
     .optional()

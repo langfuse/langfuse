@@ -14,14 +14,15 @@ const SheetTrigger = SheetPrimitive.Trigger;
 
 const SheetClose = SheetPrimitive.Close;
 
-// Route the portal into the `modal` overlay layer (null until mounted →
+// Route the portal into the `panel` overlay layer (null until mounted →
 // falls back to <body>, SSR-parity). Layer order, not z-index, stacks it.
-// The non-modal table peek (modal={false}) portals here too; the `toast`
-// layer is ordered after `modal`, so toasts paint above the peek by DOM order.
+// The non-modal table peek (modal={false}) portals here too; the `agent`,
+// `modal`, and `toast` layers are ordered after `panel`, so they paint above
+// panel surfaces by DOM order.
 const SheetPortal = ({
   ...props
 }: React.ComponentPropsWithoutRef<typeof SheetPrimitive.Portal>) => {
-  const container = useLayerContainer("modal");
+  const container = useLayerContainer("panel");
   return <SheetPrimitive.Portal container={container} {...props} />;
 };
 SheetPortal.displayName = "SheetPortal";

@@ -16,6 +16,7 @@ const NON_RETRYABLE_LLM_ERROR_PATTERNS = [
   "Only HTTPS base URLs are allowed",
   "Blocked hostname detected",
   "Blocked IP address detected",
+  "DNS lookup failed",
   "Redirect validation failed",
   "Maximum redirects",
   "Circular redirect detected",

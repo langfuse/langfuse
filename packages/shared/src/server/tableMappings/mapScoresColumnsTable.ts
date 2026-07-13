@@ -1,4 +1,5 @@
 import { UiColumnMappings } from "../../tableDefinitions";
+import { SCORE_BOOLEAN_VALUE_SQL } from "./mapScoresTable";
 
 export const scoresColumnsTableUiColumnDefinitions: UiColumnMappings = [
   // scores native columns
@@ -19,6 +20,13 @@ export const scoresColumnsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "datasetRunIds",
     clickhouseTableName: "scores",
     clickhouseSelect: 's."dataset_run_id"',
+  },
+  {
+    uiTableName: "Boolean Value",
+    uiTableId: "booleanValue",
+    clickhouseTableName: "scores",
+    clickhouseSelect: SCORE_BOOLEAN_VALUE_SQL,
+    emptyEqualsNull: true,
   },
   {
     uiTableName: "Observation ID",

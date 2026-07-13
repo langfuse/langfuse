@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "3.208.0",
+  "version": "3.212.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -31,7 +31,7 @@
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
     "@appsignal/opentelemetry-instrumentation-bullmq": "^0.8.0",
-    "@aws-sdk/client-s3": "^3.1013.0",
+    "@aws-sdk/client-s3": "catalog:",
     "@langfuse/shared": "workspace:*",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.219.0",
@@ -84,10 +84,9 @@
     "google-auth-library": "^10.6.2",
     "msw": "^2.6.5",
     "prettier": "^3.8.3",
-    "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
     "tsx": "^4.20.5",
-    "typescript": "^5.7.2",
+    "typescript": "catalog:",
     "vitest": "^4.1.8",
     "wait-for-expect": "^3.0.2"
   }

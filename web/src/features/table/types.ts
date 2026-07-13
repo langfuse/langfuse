@@ -1,6 +1,10 @@
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
 import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
-import { type BatchActionType, type ActionId } from "@langfuse/shared";
+import {
+  type BatchActionType,
+  type ActionId,
+  type BatchExportTableName,
+} from "@langfuse/shared";
 import { type ReactElement } from "react";
 
 type BaseTableAction = {
@@ -10,6 +14,11 @@ type BaseTableAction = {
   icon?: ReactElement<any>;
   disabled?: boolean;
   disabledReason?: string;
+  // Batch action rows are registered per (projectId, actionId, tableName).
+  // When an action dispatches under a different table than the hosting view
+  // (e.g. TraceDelete from the events view registers under "traces"), set
+  // this so the in-progress poll targets the table the job is stored under.
+  tableName?: BatchExportTableName;
   accessCheck: {
     scope: ProjectScope;
     entitlement?: Entitlement;

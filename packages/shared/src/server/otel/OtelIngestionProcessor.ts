@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import {
   ForbiddenError,
   ObservationLevel,
+  ObservationType,
   ObservationTypeDomain,
 } from "../../";
 import {
@@ -400,6 +401,17 @@ export class OtelIngestionProcessor {
                     ? normalizedTools.toolCallNames
                     : undefined;
 
+                const observationType =
+                  observationTypeMapper.mapToObservationType(
+                    spanAttributes,
+                    resourceAttributes,
+                    scopeSpan?.scope,
+                    span.name,
+                  );
+                // Prompts can only be linked to GENERATION observations
+                const canLinkPrompt =
+                  observationType === ObservationType.GENERATION;
+
                 events.push({
                   projectId: this.projectId,
                   traceId,
@@ -407,12 +419,7 @@ export class OtelIngestionProcessor {
                   parentSpanId,
 
                   name,
-                  type: observationTypeMapper.mapToObservationType(
-                    spanAttributes,
-                    resourceAttributes,
-                    scopeSpan?.scope,
-                    span.name,
-                  ),
+                  type: observationType,
                   environment: this.extractEnvironment(
                     spanAttributes,
                     resourceAttributes,
@@ -442,21 +449,23 @@ export class OtelIngestionProcessor {
                     span.status?.message ??
                     null,
 
-                  promptName:
-                    spanAttributes?.[
-                      LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME
-                    ] ??
-                    spanAttributes["langfuse.prompt.name"] ??
-                    this.parseLangfusePromptFromAISDK(spanAttributes)?.name ??
-                    null,
-                  promptVersion:
-                    spanAttributes?.[
-                      LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION
-                    ] ??
-                    spanAttributes["langfuse.prompt.version"] ??
-                    this.parseLangfusePromptFromAISDK(spanAttributes)
-                      ?.version ??
-                    null,
+                  promptName: canLinkPrompt
+                    ? (spanAttributes?.[
+                        LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME
+                      ] ??
+                      spanAttributes["langfuse.prompt.name"] ??
+                      this.parseLangfusePromptFromAISDK(spanAttributes)?.name ??
+                      null)
+                    : null,
+                  promptVersion: canLinkPrompt
+                    ? (spanAttributes?.[
+                        LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION
+                      ] ??
+                      spanAttributes["langfuse.prompt.version"] ??
+                      this.parseLangfusePromptFromAISDK(spanAttributes)
+                        ?.version ??
+                      null)
+                    : null,
 
                   modelParameters: this.extractModelParameters(
                     spanAttributes,
@@ -1026,6 +1035,15 @@ export class OtelIngestionProcessor {
     // model-call spans — skip model/usage/cost for them.
     const isAiSdkAgentSpan = this.isAiSdkAgentOperation(attributes);
 
+    const mappedObservationType = observationTypeMapper.mapToObservationType(
+      attributes,
+      resourceAttributes,
+      scopeSpan?.scope,
+      span.name,
+    );
+    // Prompts can only be linked to GENERATION observations
+    const canLinkPrompt = mappedObservationType === ObservationType.GENERATION;
+
     const observation = {
       id: this.parseId(span.spanId?.data ?? span.spanId),
       traceId,
@@ -1060,16 +1078,20 @@ export class OtelIngestionProcessor {
         instrumentationScopeName,
       ) as any,
       model: isAiSdkAgentSpan ? undefined : this.extractModelName(attributes),
-      promptName:
-        attributes?.[LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME] ??
-        attributes["langfuse.prompt.name"] ??
-        this.parseLangfusePromptFromAISDK(attributes)?.name ??
-        null,
-      promptVersion:
-        attributes?.[LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION] ??
-        attributes["langfuse.prompt.version"] ??
-        this.parseLangfusePromptFromAISDK(attributes)?.version ??
-        null,
+      promptName: canLinkPrompt
+        ? (attributes?.[LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME] ??
+          attributes["langfuse.prompt.name"] ??
+          this.parseLangfusePromptFromAISDK(attributes)?.name ??
+          null)
+        : null,
+      promptVersion: canLinkPrompt
+        ? (attributes?.[
+            LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION
+          ] ??
+          attributes["langfuse.prompt.version"] ??
+          this.parseLangfusePromptFromAISDK(attributes)?.version ??
+          null)
+        : null,
       usageDetails: isAiSdkAgentSpan
         ? {}
         : this.extractUsageDetails(
@@ -1084,12 +1106,6 @@ export class OtelIngestionProcessor {
       output,
     };
 
-    const mappedObservationType = observationTypeMapper.mapToObservationType(
-      attributes,
-      resourceAttributes,
-      scopeSpan?.scope,
-      span.name,
-    );
     const observationType =
       mappedObservationType && typeof mappedObservationType === "string"
         ? mappedObservationType.toLowerCase()
@@ -1673,6 +1689,30 @@ export class OtelIngestionProcessor {
           output: this.parseJsonPayload(flueOutput) ?? flueOutput ?? null,
           filteredAttributes,
         };
+      }
+    }
+
+    // OpenTelemetry GenAI semconv v1.37+ records prompts and completions on a
+    // gen_ai.client.inference.operation.details span event instead of span
+    // attributes (https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-events/)
+    const operationDetailsEvents = events.filter(
+      (event: Record<string, unknown>) =>
+        event.name === "gen_ai.client.inference.operation.details",
+    );
+    for (const event of operationDetailsEvents) {
+      const eventAttributes: Record<string, unknown> =
+        event.attributes?.reduce(
+          (acc: Record<string, unknown>, attr: any) => {
+            acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
+            return acc;
+          },
+          {} as Record<string, unknown>,
+        ) ?? {};
+
+      const genAiInputOutput =
+        this.extractOpenTelemetryGenAiInputAndOutput(eventAttributes);
+      if (genAiInputOutput) {
+        return { ...genAiInputOutput, filteredAttributes };
       }
     }
 

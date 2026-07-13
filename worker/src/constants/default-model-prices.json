@@ -4118,6 +4118,162 @@
     ]
   },
   {
+    "id": "7f3d2e1a-4b5c-4d6e-8f9a-0b1c2d3e4f5a",
+    "modelName": "gpt-5.6-sol",
+    "matchPattern": "(?i)^(openai/)?(gpt-5.6-sol)$",
+    "createdAt": "2026-07-09T00:00:00.000Z",
+    "updatedAt": "2026-07-09T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "7f3d2e1a-4b5c-4d6e-8f9a-0b1c2d3e4f5a_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 5e-6,
+          "input_cached_tokens": 0.5e-6,
+          "input_cache_read": 0.5e-6,
+          "output": 30e-6,
+          "output_reasoning_tokens": 30e-6,
+          "output_reasoning": 30e-6
+        }
+      },
+      {
+        "id": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+        "name": "Large Context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "input",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 10e-6,
+          "input_cached_tokens": 1e-6,
+          "input_cache_read": 1e-6,
+          "output": 45e-6,
+          "output_reasoning_tokens": 45e-6,
+          "output_reasoning": 45e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "8a4e3f2b-5c6d-4e7f-9a0b-1c2d3e4f5a6b",
+    "modelName": "gpt-5.6-terra",
+    "matchPattern": "(?i)^(openai/)?(gpt-5.6-terra)$",
+    "createdAt": "2026-07-09T00:00:00.000Z",
+    "updatedAt": "2026-07-09T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "8a4e3f2b-5c6d-4e7f-9a0b-1c2d3e4f5a6b_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 2.5e-6,
+          "input_cached_tokens": 0.25e-6,
+          "input_cache_read": 0.25e-6,
+          "output": 15e-6,
+          "output_reasoning_tokens": 15e-6,
+          "output_reasoning": 15e-6
+        }
+      },
+      {
+        "id": "2b3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e",
+        "name": "Large Context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "input",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 5e-6,
+          "input_cached_tokens": 0.5e-6,
+          "input_cache_read": 0.5e-6,
+          "output": 22.5e-6,
+          "output_reasoning_tokens": 22.5e-6,
+          "output_reasoning": 22.5e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "9b5f4a3c-6d7e-4f8a-ab1c-2d3e4f5a6b7c",
+    "modelName": "gpt-5.6-luna",
+    "matchPattern": "(?i)^(openai/)?(gpt-5.6-luna)$",
+    "createdAt": "2026-07-09T00:00:00.000Z",
+    "updatedAt": "2026-07-09T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "9b5f4a3c-6d7e-4f8a-ab1c-2d3e4f5a6b7c_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 1e-6,
+          "input_cached_tokens": 0.1e-6,
+          "input_cache_read": 0.1e-6,
+          "output": 6e-6,
+          "output_reasoning_tokens": 6e-6,
+          "output_reasoning": 6e-6
+        }
+      },
+      {
+        "id": "3c4d5e6f-7a8b-9c0d-1e2f-3a4b5c6d7e8f",
+        "name": "Large Context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "input",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 2e-6,
+          "input_cached_tokens": 0.2e-6,
+          "input_cache_read": 0.2e-6,
+          "output": 9e-6,
+          "output_reasoning_tokens": 9e-6,
+          "output_reasoning": 9e-6
+        }
+      }
+    ]
+  },
+  {
     "id": "6ed696e7-5f3a-4113-a233-019155fb3ff0",
     "modelName": "gemini-3.5-flash",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.5-flash)$",

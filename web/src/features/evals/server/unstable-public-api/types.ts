@@ -18,7 +18,7 @@ import type {
   PUBLIC_EVALUATOR_TYPE_CODE,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
-import type { CODE_EVAL_TEMPLATE_VARIABLES } from "@/src/features/evals/utils/code-eval-template-utils";
+import type { CODE_EVAL_TEMPLATE_VARIABLES } from "@langfuse/shared";
 
 export type PrismaClientLike =
   | typeof prisma

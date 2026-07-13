@@ -19,6 +19,7 @@ import {
   mapToLLMCompletionError,
 } from "../completionErrorMapping";
 import { LLMCompletionError } from "../errors";
+import type { LLMConnectionConfig } from "../../../interfaces/customLLMProviderConfigSchemas";
 import {
   ChatMessage,
   LLMJSONSchema,
@@ -29,7 +30,8 @@ import {
   TraceSinkParams,
 } from "../types";
 import { mapChatMessagesToModelMessages } from "./messages";
-import { buildOpenAIModel, type OpenAIApiMode } from "./providers/openai";
+import { buildAiSdkModel, type CreateSecureFetch } from "./providers";
+import type { AiSdkEngineDecision } from "./resolveLlmExecutionDecision";
 import {
   createAiSdkTelemetryCapture,
   type AiSdkTelemetryCapture,
@@ -59,11 +61,12 @@ export type AiSdkCompletionParams = {
   apiKey: string;
   baseURL?: string | null;
   extraHeaders?: Record<string, string>;
+  llmConnectionConfig?: LLMConnectionConfig | null;
+  shouldUseLangfuseAPIKey?: boolean;
   maxRetries?: number;
   timeoutMs: number;
-  fetch: typeof fetch;
-  apiMode: OpenAIApiMode;
-  translatedProviderOptions?: Record<string, unknown>;
+  createFetch: CreateSecureFetch;
+  decision: AiSdkEngineDecision;
   traceSinkParams?: TraceSinkParams;
 };
 
@@ -90,7 +93,7 @@ export async function executeAiSdkCompletion(
     structuredOutputSchema,
     maxRetries,
     timeoutMs,
-    translatedProviderOptions,
+    decision,
     traceSinkParams,
   } = params;
 
@@ -101,8 +104,19 @@ export async function executeAiSdkCompletion(
   let modelMessages: ModelMessage[];
   let capture: AiSdkTelemetryCapture | undefined;
   try {
-    model = buildOpenAIModel(params);
-    modelMessages = mapChatMessagesToModelMessages(messages);
+    model = await buildAiSdkModel({
+      decision,
+      modelParams,
+      apiKey: params.apiKey,
+      baseURL: params.baseURL,
+      extraHeaders: params.extraHeaders,
+      config: params.llmConnectionConfig,
+      shouldUseLangfuseAPIKey: params.shouldUseLangfuseAPIKey ?? false,
+      createFetch: params.createFetch,
+    });
+    modelMessages = mapChatMessagesToModelMessages(messages, {
+      adapter: modelParams.adapter,
+    });
     capture = traceSinkParams
       ? createAiSdkTelemetryCapture({
           traceSinkParams,
@@ -129,10 +143,11 @@ export async function executeAiSdkCompletion(
     topP: modelParams.top_p,
     maxRetries,
     timeout: timeoutMs,
-    ...(translatedProviderOptions
+    ...(decision.translatedProviderOptions
       ? {
           providerOptions: {
-            openai: translatedProviderOptions as Record<string, JSONValue>,
+            [decision.providerOptionsName]:
+              decision.translatedProviderOptions as Record<string, JSONValue>,
           },
         }
       : {}),

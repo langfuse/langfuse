@@ -10,7 +10,10 @@ import {
   type CompletionOption,
   type InputCompletionContext,
 } from "@/src/features/search-bar/lib/completions";
-import type { ObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import {
+  toObservedOptions,
+  type ObservedOptions,
+} from "@/src/features/search-bar/lib/observed-options";
 
 const OBSERVED: ObservedOptions = {
   level: [
@@ -20,6 +23,7 @@ const OBSERVED: ObservedOptions = {
   environment: [{ value: "production" }, { value: "dev" }],
   scores_avg: [{ value: "accuracy" }],
   score_categories: [{ value: "feedback" }],
+  score_booleans: [{ value: "flag" }],
   "score_categories.feedback": [{ value: "positive" }, { value: "negative" }],
   "metadata.region": [{ value: "eu" }, { value: "us" }],
 };
@@ -254,19 +258,41 @@ describe("planInputCompletions", () => {
     const labels = flattenOptions(p).map((o) => o.label);
     expect(labels).toContain("scores.accuracy");
     expect(labels).toContain("scores.feedback");
+    expect(labels).toContain("scores.flag");
+  });
+
+  it("shows overlapping boolean score names as boolean-only", () => {
+    const observed = toObservedOptions(
+      {
+        scores_avg: [{ value: "flag" }],
+        score_categories: [],
+        score_booleans: [{ value: "flag" }],
+      },
+      false,
+    );
+
+    const option = flattenOptions(plan("scores.", 7, { observed })).find(
+      (o) => o.label === "scores.flag",
+    );
+
+    expect(option).toMatchObject({
+      label: "scores.flag",
+      detail: "boolean score",
+    });
   });
 
   it("suggests trace-score names for every accepted alias incl. singular tracescore.", () => {
     // The parser resolves tracescore./tracescores./trace_scores.; each must also
     // produce the score-name dropdown, or that spelling parses but suggests
     // nothing. (The singular form was previously missing from PATH_PREFIXES.)
-    // Both trace score-name columns are requested + returned together, so model
-    // the categorical one as loaded-but-empty (lazy mode keys loading on column
-    // presence, not value count).
+    // All three trace score-name columns are requested + returned together, so
+    // model the categorical/boolean ones as loaded-but-empty (lazy mode keys
+    // loading on column presence, not value count).
     const observed = {
       ...OBSERVED,
       trace_scores_avg: [{ value: "nps" }],
       trace_score_categories: [],
+      trace_score_booleans: [],
     };
     for (const prefix of ["tracescore.", "tracescores.", "trace_scores."]) {
       const p = plan(prefix, prefix.length, { observed });
@@ -283,6 +309,14 @@ describe("planInputCompletions", () => {
       "positive",
       "negative",
     ]);
+  });
+
+  it("suggests boolean score values", () => {
+    const p = plan("scores.flag:", 12);
+    const values = flattenOptions(p)
+      .filter((o) => o.kind === "value")
+      .map((o) => o.label);
+    expect(values).toEqual(["true", "false"]);
   });
 
   it("suggests metadata values for known keys", () => {
@@ -615,12 +649,16 @@ describe("planInputCompletions", () => {
       expect(p?.requestColumns).toBeUndefined();
     });
 
-    it("requests both score-name columns and shows loading on a score path", () => {
+    it("requests all score-name columns and shows loading on a score path", () => {
       const p = plan("scores.", 7, {
         observed: { level: [{ value: "ERROR" }] },
       });
       expect(p?.loading).toBe(true);
-      expect(p?.requestColumns).toEqual(["scores_avg", "score_categories"]);
+      expect(p?.requestColumns).toEqual([
+        "scores_avg",
+        "score_categories",
+        "score_booleans",
+      ]);
     });
 
     it("requests trace score-name columns while typing a trace score value", () => {
@@ -631,6 +669,7 @@ describe("planInputCompletions", () => {
       expect(p?.requestColumns).toEqual([
         "trace_scores_avg",
         "trace_score_categories",
+        "trace_score_booleans",
       ]);
     });
 
@@ -647,7 +686,11 @@ describe("planInputCompletions", () => {
 
       const score = plan("scores.", 7, {
         observed: { level: [{ value: "ERROR" }] },
-        erroredColumns: new Set(["scores_avg", "score_categories"]),
+        erroredColumns: new Set([
+          "scores_avg",
+          "score_categories",
+          "score_booleans",
+        ]),
       });
       expect(score?.loading).not.toBe(true);
       expect(score?.requestColumns).toBeUndefined();
