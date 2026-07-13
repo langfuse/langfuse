@@ -10,7 +10,10 @@ name: AWS preview build
 # AUTHOR's code with an AWS (ECR push) credential, so it also requires the PR
 # author to be on AWS_PREVIEW_ALLOWED_USERS. Fork PRs cannot mint an OIDC token
 # (public repo, read-only token), so they can never push regardless — and the
-# ECR-push role's trust policy is additionally scoped to event_name=pull_request.
+# ECR-push role's trust policy is additionally scoped to
+# sub=repo:langfuse/langfuse:pull_request AND ref=refs/pull/* (GitHub OIDC has no
+# event_name claim), so pull_request_target / review — which carry the base
+# branch ref — cannot assume it either.
 on:
   pull_request:
     types: [labeled, synchronize, reopened]
