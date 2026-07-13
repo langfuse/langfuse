@@ -263,13 +263,19 @@ export default async function handler(request: Request) {
       ? sanitizedInput.forwardedProps.command.resume.approvalRequest
       : undefined;
 
+    const approvedResumeApprovalRequest =
+      isResumeAgentInput(sanitizedInput) &&
+      sanitizedInput.forwardedProps.command.resume.approved
+        ? sanitizedInput.forwardedProps.command.resume.approvalRequest
+        : undefined;
+
     return await withInAppAgentMcpApiKeyCleanup(
       {
         projectId,
         runId: sanitizedInput.runId,
         userId,
         toolName: getInAppAgentMcpRegistryToolName(
-          resumeApprovalRequest?.toolName,
+          approvedResumeApprovalRequest?.toolName,
         ),
       },
       async (mcpApiKey, runOverride, cleanupMcpApiKey) => {
@@ -281,7 +287,7 @@ export default async function handler(request: Request) {
         const restorePendingToolApprovalIfRetryable = () => {
           if (
             !pendingToolApprovalConsumed ||
-            !resumeApprovalRequest ||
+            !approvedResumeApprovalRequest ||
             approvedToolResultPersisted
           ) {
             return;
@@ -290,7 +296,7 @@ export default async function handler(request: Request) {
           return storePendingToolApproval({
             projectId,
             conversationId: conversation.id,
-            approvalRequest: resumeApprovalRequest,
+            approvalRequest: approvedResumeApprovalRequest,
           });
         };
 
