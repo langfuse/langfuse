@@ -116,7 +116,7 @@ jobs:
           body: |
             ### 🟡 AWS preview building
 
-            Building images for `${{ steps.meta.outputs.commit_sha }}` (first build ~15–20 min).
+            Building images for `${{ steps.meta.outputs.commit_sha }}` (~5 min).
             Argo CD deploys the preview once the push completes; it may briefly
             show `ImagePullBackOff` until this image propagates.
 
