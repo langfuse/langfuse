@@ -52,6 +52,43 @@ Always fetch pricing from the provider's official docs before editing.
   10% of the base input price (e.g. Gemini 2.5 Flash: $0.30/MTok input → $0.03/MTok
   cached). If a cache-read price in the file diverges from this ratio, treat it as
   suspicious and verify against the official page before correcting.
+- **Anthropic flat large-context models** — The Anthropic pricing page lists models with
+  "full 1M token context window at standard pricing" in a dedicated "Long context pricing"
+  section. As of July 2026 this list includes: Claude Fable 5, Claude Mythos 5, Claude
+  Mythos Preview, Claude Opus 4.8, Opus 4.7, Opus 4.6, Sonnet 5, and Sonnet 4.6. These
+  models must NOT have a Large Context tier in the pricing file. Models not on this list
+  (e.g. Sonnet 4.5, Haiku 4.5) may retain a Large Context tier if it was previously set.
+  The Sonnet 4.6 Large Context tier was found and removed during the June 2026 audit.
+- **Claude Sonnet 5 introductory pricing** — The API model ID is `claude-sonnet-5` (no
+  date suffix; pinned snapshot, not an alias). Introductory pricing of $2/$10 per
+  input/output MTok is in effect through August 31, 2026; standard pricing of $3/$15 will
+  apply from September 1, 2026. Cache write 5m = $2.50/MTok, 1h = $4/MTok, read =
+  $0.20/MTok during introductory period. Since the pricing schema cannot express
+  time-based tiers, the file holds the current introductory prices; update to $3/$15 and
+  cache equivalents ($3.75/$6/$0.30) after August 31, 2026. AWS Bedrock ID:
+  `anthropic.claude-sonnet-5`. The model is in the flat long-context list (no Large
+  Context tier). Added to pricing file and `anthropicModels` in July 2026 audit.
+- **Claude Mythos Preview** — Listed in the Anthropic long-context pricing section and on
+  the models page (access is invitation-only via Project Glasswing) but has NO separate
+  pricing row in the main model pricing table and NO selectable-model entry in types.ts.
+  Do not add a pricing entry without an explicit official price.
+- **OpenAI WebFetch permissions** — In CI or restricted harness runs the WebFetch tool may
+  be blocked by the harness permissions layer (error: "Claude requested permissions to use
+  WebFetch, but you haven't granted it yet"), not a website-level HTTP 403. If the
+  `developers.openai.com/api/docs/pricing` fetch fails for either reason, leave OpenAI
+  prices unchanged and report it as an unresolved finding.
+- **GPT-5.6 model family (added July 2026)** — OpenAI introduced a three-variant naming
+  scheme for GPT-5.6: `gpt-5.6-sol` (flagship, $5/$0.50/$30 per MTok input/cached/output),
+  `gpt-5.6-terra` (balanced, $2.50/$0.25/$15), and `gpt-5.6-luna` (cost-efficient,
+  $1.00/$0.10/$6.00). All three are reasoning models; no date-stamped snapshot versions were
+  present at launch. If dated versions appear (e.g. `gpt-5.6-sol-2026-07-xx`), add them
+  as separate pricing entries following the gpt-5.4 / gpt-5.5 precedent.
+  **Long context pricing** applies when input tokens exceed **272,000**: prices are 2× input
+  and 1.5× output for the full request (cached input also doubles). Individual model page
+  URLs: `https://developers.openai.com/api/docs/models/gpt-5.6-sol` (and -terra, -luna).
+  Long context prices: sol $10/$1.00/$45, terra $5/$0.50/$22.50, luna $2/$0.20/$9
+  per MTok input/cached/output. Added Large Context (>272K) tiers to the pricing file in
+  July 2026. The threshold of 272K is unique to this family; most other models use 200K.
 
 Capture:
 

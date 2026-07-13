@@ -4,8 +4,8 @@ import {
   clickhouseClient,
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
+  EXCEPTION_TAG_HEADER_NAME,
 } from "../clickhouse/client";
-import { EXCEPTION_TAG_HEADER_NAME } from "@clickhouse/client-common";
 import { ClickhouseExecExceptionTagTransform } from "./clickhouseExecExceptionTag";
 import { logger } from "../logger";
 import { getTracer, instrumentAsync } from "../instrumentation";
@@ -31,6 +31,14 @@ import {
   type ClickHouseQueryTags,
   type NormalizedClickHouseQueryTags,
 } from "../clickhouse/queryTags";
+
+/**
+ * Re-exported so callers can build `Array(Tuple(...))` query parameters without
+ * importing `@clickhouse/client` directly (e.g. composite `(col_a, col_b) IN`
+ * predicates). A plain JS array serializes as an `Array`; `TupleParam` is what
+ * renders each element as a `(...)` tuple, with string contents escaped.
+ */
+export { TupleParam } from "@clickhouse/client";
 
 /**
  * Custom error class for ClickHouse resource-related errors

@@ -88,7 +88,9 @@ export function EstimatedCostRow(props: EstimatedCostRowProps) {
                       key={id}
                       className="flex justify-between gap-4 text-xs"
                     >
-                      <span className="truncate">{name}</span>
+                      <span className="truncate" title={name}>
+                        {name}
+                      </span>
                       <span className="shrink-0 tabular-nums">
                         {entry
                           ? formatCostEstimate(entry.avgCost * observationCount)

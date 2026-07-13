@@ -95,9 +95,12 @@ export default function Traces() {
               resolves. */}
         </>
       ) : isBetaEnabled ? (
-        <ObservationsEventsTable projectId={projectId} />
+        <ObservationsEventsTable
+          projectId={projectId}
+          showControlsInPageHeader
+        />
       ) : (
-        <TracesTable projectId={projectId} />
+        <TracesTable projectId={projectId} showControlsInPageHeader />
       )}
     </Page>
   );

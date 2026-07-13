@@ -30,9 +30,11 @@ function operatorToText(operator: FilterCondition["operator"]): string {
 function formatFilterForPill(filter: FilterCondition): string {
   const { column, operator, value } = filter;
 
-  // Handle object filters (numberObject, stringObject) with key
+  // Handle object filters with key
   if (
-    (filter.type === "numberObject" || filter.type === "stringObject") &&
+    (filter.type === "numberObject" ||
+      filter.type === "stringObject" ||
+      filter.type === "booleanObject") &&
     "key" in filter
   ) {
     const valueStr = Array.isArray(value) ? value.join(", ") : String(value);
@@ -79,6 +81,7 @@ function FilterPillWithTarget({
   onRemove,
 }: FilterPillWithTargetProps) {
   const [open, setOpen] = useState(false);
+  const filterLabel = formatFilterForPill(filter);
 
   return (
     <Badge
@@ -86,8 +89,8 @@ function FilterPillWithTarget({
       className="flex max-w-full items-center gap-1 px-2 py-1 text-xs"
     >
       <ListFilter className="h-3 w-3 shrink-0" />
-      <span className="truncate" title={formatFilterForPill(filter)}>
-        {formatFilterForPill(filter)}
+      <span className="truncate" title={filterLabel}>
+        {filterLabel}
       </span>
       <span className="text-muted-foreground shrink-0">→</span>
       <Popover open={open} onOpenChange={setOpen}>
@@ -96,7 +99,9 @@ function FilterPillWithTarget({
             className="flex shrink-0 items-center gap-0.5 font-medium hover:underline"
             title={experimentName}
           >
-            <span className="max-w-[100px] truncate">{experimentName}</span>
+            <span className="max-w-[100px] truncate" title={experimentName}>
+              {experimentName}
+            </span>
             <ChevronsUpDown className="h-3 w-3 opacity-50" />
           </button>
         </PopoverTrigger>

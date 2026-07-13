@@ -26,6 +26,14 @@ import { useLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseE
 
 type ApiKeyScope = "project" | "organization";
 type ApiKeyEntity = { id: string; note: string | null };
+type ApiKeyCreator = {
+  createdByUser: {
+    id: string;
+    name: string | null;
+    email: string | null;
+  } | null;
+  createdByApiKey: { id: string; publicKey: string } | null;
+};
 
 export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
   const { entityId, scope } = props;
@@ -100,6 +108,9 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
               <TableHead className="text-primary hidden md:table-cell">
                 Created
               </TableHead>
+              <TableHead className="text-primary hidden md:table-cell">
+                Created By
+              </TableHead>
               <TableHead className="text-primary">Note</TableHead>
               <TableHead className="text-primary">Public Key</TableHead>
               <TableHead className="text-primary">Secret Key</TableHead>
@@ -112,7 +123,7 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
               <TableRow>
                 <TableCell
                   density="comfortable"
-                  colSpan={5}
+                  colSpan={6}
                   className="text-center"
                 >
                   None
@@ -130,6 +141,12 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
                   >
                     {apiKey.createdAt.toLocaleDateString()}
                   </TableCell>
+                  <TableCell
+                    density="comfortable"
+                    className="hidden md:table-cell"
+                  >
+                    <ApiKeyCreatedBy apiKey={apiKey} />
+                  </TableCell>
                   <TableCell density="comfortable">
                     <ApiKeyNote
                       apiKey={apiKey}
@@ -141,6 +158,7 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
                     density="comfortable"
                     text={apiKey.publicKey}
                     className="truncate font-mono"
+                    title={apiKey.publicKey}
                   />
                   <TableCell density="comfortable" className="font-mono">
                     {apiKey.displaySecretKey}
@@ -245,6 +263,28 @@ function DeleteApiKeyButton(props: {
       onConfirm={handleDelete}
     />
   );
+}
+
+function ApiKeyCreatedBy({ apiKey }: { apiKey: ApiKeyCreator }) {
+  if (apiKey.createdByUser) {
+    const { name, email } = apiKey.createdByUser;
+    return (
+      <span className="truncate" title={email ?? undefined}>
+        {name ?? email ?? "Unknown user"}
+      </span>
+    );
+  }
+  if (apiKey.createdByApiKey) {
+    return (
+      <span
+        className="truncate font-mono"
+        title={`Created via API by key ${apiKey.createdByApiKey.publicKey}`}
+      >
+        {apiKey.createdByApiKey.publicKey}
+      </span>
+    );
+  }
+  return <span>—</span>;
 }
 
 function ApiKeyNote({

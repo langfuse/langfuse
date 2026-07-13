@@ -36,19 +36,32 @@ export function ControlledInAppAgentWindow(
     isRunning,
     isSelectedConversationHydrating,
     isSubmitting,
+    invalidateConversations,
     loadMoreConversations,
     messages,
+    pendingToolApprovals,
+    approveToolCall,
+    rejectToolCall,
     selectConversation,
     selectedConversationId,
     submit,
     submitFeedback,
   } = useInAppAiAgent();
   const isInputDisabled =
-    isRunning || isSubmitting || isSelectedConversationHydrating;
+    isRunning ||
+    isSubmitting ||
+    isSelectedConversationHydrating ||
+    pendingToolApprovals.length > 0;
 
   const drawerMessages = useMemo(
-    () => getDrawerMessages({ error, isRunning, messages }),
-    [error, isRunning, messages],
+    () =>
+      getDrawerMessages({
+        error,
+        isRunning,
+        messages,
+        pendingToolApprovals,
+      }),
+    [error, isRunning, messages, pendingToolApprovals],
   );
 
   const closeButtonProps =
@@ -59,6 +72,7 @@ export function ControlledInAppAgentWindow(
   return (
     <InAppAgentWindow
       error={error}
+      isAssistantTurnInProgress={isRunning || pendingToolApprovals.length > 0}
       isHeaderDragHandleEnabled={props.isHeaderDragHandleEnabled}
       isExpanded={props.isExpanded}
       isInputDisabled={isInputDisabled}
@@ -68,11 +82,16 @@ export function ControlledInAppAgentWindow(
       isLoadingMoreConversations={isLoadingMoreConversations}
       selectedConversationId={selectedConversationId}
       onLoadMoreConversations={loadMoreConversations}
+      onOpenConversationHistory={invalidateConversations}
       onDeleteConversation={props.onDeleteConversation}
       onSelectConversation={selectConversation}
-      onNewConversation={() => selectConversation(null)}
+      onNewConversation={() => {
+        selectConversation(null);
+      }}
       onExpandedChange={props.onExpandedChange}
       onSubmit={submit}
+      onApproveToolCall={approveToolCall}
+      onRejectToolCall={rejectToolCall}
       onSubmitFeedback={submitFeedback}
       {...closeButtonProps}
     />

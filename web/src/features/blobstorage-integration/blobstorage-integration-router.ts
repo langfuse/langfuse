@@ -29,6 +29,7 @@ import { decrypt } from "@langfuse/shared/encryption";
 import {
   AnalyticsIntegrationExportSource,
   BlobStorageIntegrationType,
+  BlobStorageIntegrationFileType,
   InvalidRequestError,
   isEnrichedBlobExportAvailable,
 } from "@langfuse/shared";
@@ -106,6 +107,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           // Drop the base schema default so an omitted value preserves the
           // persisted source instead of rewriting it to the legacy default.
           exportSource: z.enum(AnalyticsIntegrationExportSource).optional(),
+          // Same for fileType: drop the base default so an omitted value
+          // preserves the persisted fileType instead of rewriting it.
+          fileType: z.enum(BlobStorageIntegrationFileType).optional(),
         })
         .superRefine(validateAzureContainerName)
         .superRefine(validateExportFieldGroups),
@@ -122,9 +126,6 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         const isV4PreviewEnabled =
           env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
 
-        // Feeds both gates: the legacy gate needs createdAt for an explicit
-        // source; the enriched gate needs the persisted source to reject a
-        // stale enriched value on an omitted update.
         const existingIntegration =
           await ctx.prisma.blobStorageIntegration.findUnique({
             where: { projectId: input.projectId },

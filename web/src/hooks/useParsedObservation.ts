@@ -261,6 +261,7 @@ export function useParsedObservation({
   const eventsQuery = api.events.batchIO.useQuery(
     {
       projectId,
+      traceId,
       observations: [{ id: observationId, traceId }],
       minStartTime,
       maxStartTime,

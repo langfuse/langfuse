@@ -17,19 +17,29 @@ import { TRPCError } from "@trpc/server";
 import {
   ChatMessageRole,
   ChatMessageType,
-  fetchLLMCompletion,
   LangfuseInternalTraceEnvironment,
-  LLMAdapter,
   logger,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { z } from "zod";
-import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "@langfuse/shared";
-import { encrypt } from "@langfuse/shared/encryption";
-import { randomBytes } from "crypto";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  MAX_SCORE_NAME_LENGTH,
+  MAX_SCORE_NAMES_PER_TYPE,
+} from "../lib/observed-options";
 import { buildFilterSystemPrompt } from "./buildFilterPrompt";
 import { parseGeneratedFilters } from "./parseFilterCompletion";
+import {
+  fetchLangfuseAICompletion,
+  getLangfuseAITraceSinkParams,
+  isLangfuseAITracingConfigured,
+} from "@/src/features/ai-features/server/bedrockCompletion";
+
+// Caps shared with `observedScoreNamesFromOptions` (the client-side builder),
+// which sends a set as undefined instead of ever exceeding them.
+const scoreNameList = z
+  .array(z.string().max(MAX_SCORE_NAME_LENGTH))
+  .max(MAX_SCORE_NAMES_PER_TYPE);
 
 const GenerateFilterInput = z.object({
   projectId: z.string(),
@@ -39,6 +49,17 @@ const GenerateFilterInput = z.object({
   /** Project data context (observed values, metadata keys, result count) built
    *  on the client from already-loaded filterOptions + visible rows. */
   dataContext: z.string().max(16000).optional(),
+  /** Observed score names by column type (from filterOptions), used to
+   *  validate/correct the score names the model returns. A set left undefined
+   *  means that column hasn't loaded client-side — it is not enforced. */
+  scoreNames: z
+    .object({
+      numeric: scoreNameList.optional(),
+      categorical: scoreNameList.optional(),
+      traceNumeric: scoreNameList.optional(),
+      traceCategorical: scoreNameList.optional(),
+    })
+    .optional(),
 });
 
 export const searchBarRouter = createTRPCRouter({
@@ -83,7 +104,11 @@ export const searchBarRouter = createTRPCRouter({
           });
         }
 
-        if (!env.LANGFUSE_AWS_BEDROCK_MODEL) {
+        const model =
+          env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL ??
+          env.LANGFUSE_AWS_BEDROCK_MODEL;
+
+        if (!model) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
             message:
@@ -102,44 +127,15 @@ export const searchBarRouter = createTRPCRouter({
         );
 
         const aiTelemetryEnabled = project.organization.aiTelemetryEnabled;
-        const targetProjectId = aiTelemetryEnabled
-          ? env.LANGFUSE_AI_FEATURES_PROJECT_ID
-          : undefined;
 
-        if (aiTelemetryEnabled && !targetProjectId) {
+        if (aiTelemetryEnabled && !isLangfuseAITracingConfigured()) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: "Langfuse AI Features not configured.",
           });
         }
 
-        const traceSinkParams = targetProjectId
-          ? {
-              environment:
-                LangfuseInternalTraceEnvironment.NaturalLanguageFilter,
-              traceName: "search-bar-filter",
-              traceId: randomBytes(16).toString("hex"),
-              targetProjectId,
-              userId: ctx.session.user.id,
-              metadata: {
-                langfuse_ai_feature: "search-bar-filter",
-                langfuse_user_id: ctx.session.user.id,
-                langfuse_project_id: ctx.session.projectId,
-                // Debugging context for prompt iteration: a trace alone should
-                // explain WHY the model produced what it did. refine_mode marks
-                // refine vs. from-scratch; current_query is the filters being
-                // refined (the #1 thing to inspect when refine misbehaves);
-                // data_context_chars is how much observed-project context we
-                // injected. (Model + token usage are auto-captured on the
-                // generation.)
-                langfuse_refine_mode: Boolean(input.currentQuery?.trim()),
-                langfuse_current_query: input.currentQuery?.trim() || null,
-                langfuse_data_context_chars: input.dataContext?.length ?? 0,
-              },
-            }
-          : undefined;
-
-        const llmCompletion = await fetchLLMCompletion({
+        const llmCompletion = await fetchLangfuseAICompletion({
           messages: [
             {
               role: ChatMessageRole.System,
@@ -152,23 +148,36 @@ export const searchBarRouter = createTRPCRouter({
               type: ChatMessageType.PublicAPICreated,
             },
           ],
-          modelParams: {
-            provider: "bedrock",
-            adapter: LLMAdapter.Bedrock,
-            model: env.LANGFUSE_AWS_BEDROCK_MODEL,
-            // Intentionally NO temperature/top_p: newer Bedrock models (e.g.
-            // Claude Opus 4.8, the prod AI-features model) reject them with
-            // `ValidationException: '<param>' is deprecated for this model`,
-            // which 500s the whole request. Filter generation is fine at model
-            // defaults, and omitting them is robust across model changes.
-            max_tokens: 2048,
-          },
-          llmConnection: {
-            secretKey: encrypt(BEDROCK_USE_DEFAULT_CREDENTIALS),
-          },
-          streaming: false,
-          traceSinkParams,
-          shouldUseLangfuseAPIKey: true,
+          model,
+          maxTokens: 2048,
+          traceSinkParams: aiTelemetryEnabled
+            ? getLangfuseAITraceSinkParams({
+                environment:
+                  LangfuseInternalTraceEnvironment.NaturalLanguageFilter,
+                feature: "search-bar-filter",
+                projectId: ctx.session.projectId,
+                traceName: "search-bar-filter",
+                userId: ctx.session.user.id,
+                metadata: {
+                  langfuse_user_id: ctx.session.user.id,
+                  ...(ctx.session.user.email
+                    ? { langfuse_user_email: ctx.session.user.email }
+                    : {}),
+                  langfuse_user_project_role: ctx.session.projectRole,
+                  langfuse_cloud_region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+                  // Debugging context for prompt iteration: a trace alone should
+                  // explain WHY the model produced what it did. refine_mode marks
+                  // refine vs. from-scratch; current_query is the filters being
+                  // refined (the #1 thing to inspect when refine misbehaves);
+                  // data_context_chars is how much observed-project context we
+                  // injected. (Model + token usage are auto-captured on the
+                  // generation.)
+                  langfuse_refine_mode: Boolean(input.currentQuery?.trim()),
+                  langfuse_current_query: input.currentQuery?.trim() || null,
+                  langfuse_data_context_chars: input.dataContext?.length ?? 0,
+                },
+              })
+            : undefined,
         });
 
         if (typeof llmCompletion !== "string") {
@@ -177,8 +186,12 @@ export const searchBarRouter = createTRPCRouter({
 
         // Parse the model output and keep only the filters that round-trip to
         // bar grammar — a hallucinated/non-v4 column is dropped, never applied.
-        const { filters, queryText, droppedCount } =
-          parseGeneratedFilters(llmCompletion);
+        // Score names are validated against the observed sets (exact keeps, a
+        // unique `_`/`-`/space/case-normalized match corrects, anything else is
+        // dropped and reported) so a misspelled score name can never apply as a
+        // dead filter that silently matches nothing.
+        const { filters, queryText, droppedCount, unknownScoreNames } =
+          parseGeneratedFilters(llmCompletion, input.scoreNames);
 
         if (droppedCount > 0) {
           logger.warn(
@@ -186,11 +199,12 @@ export const searchBarRouter = createTRPCRouter({
             {
               projectId: input.projectId,
               droppedCount,
+              unknownScoreNames,
             },
           );
         }
 
-        return { filters, queryText };
+        return { filters, queryText, unknownScoreNames };
       } catch (error) {
         // Already-shaped rejections (auth / precondition / not-found) are
         // expected control flow, not backend faults — rethrow them without

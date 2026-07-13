@@ -1,4 +1,7 @@
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { filterInAppAgentAvailableLangfuseMcpTools } from "@/src/ee/features/in-app-agent/server/tools";
+import { storePendingToolApproval } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
+import type { InAppAgentToolApprovalRequest } from "@/src/ee/features/in-app-agent/schema";
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -141,6 +144,476 @@ describe("in-app agent public API route auth", () => {
     expect(res._getJSONData()).toEqual({ ok: true });
   });
 
+  it("filters Langfuse MCP tools using the in-app agent user's access", () => {
+    const tools = {
+      createModel: { id: "createModel" },
+      listDatasets: { id: "listDatasets" },
+      getPrompt: { id: "getPrompt" },
+    };
+
+    expect(
+      filterInAppAgentAvailableLangfuseMcpTools({
+        tools,
+        userAccess: {
+          projectRole: "MEMBER",
+          isAdmin: false,
+        },
+      }),
+    ).toEqual({
+      listDatasets: { id: "listDatasets" },
+      getPrompt: { id: "getPrompt" },
+    });
+
+    expect(
+      filterInAppAgentAvailableLangfuseMcpTools({
+        tools,
+        userAccess: {
+          projectRole: "OWNER",
+          isAdmin: false,
+        },
+      }),
+    ).toEqual(tools);
+  });
+
+  it("passes validated resume forwarded props without requiring a user message", async () => {
+    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    const originalBedrockModel = env.LANGFUSE_AWS_BEDROCK_MODEL;
+    const originalAiFeaturesPublicKey = env.LANGFUSE_AI_FEATURES_PUBLIC_KEY;
+    const originalAiFeaturesSecretKey = env.LANGFUSE_AI_FEATURES_SECRET_KEY;
+
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+    (env as any).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
+    (env as any).LANGFUSE_AI_FEATURES_PUBLIC_KEY = "pk-lf-test";
+    (env as any).LANGFUSE_AI_FEATURES_SECRET_KEY = "sk-lf-test";
+
+    const { org, project } = await createOrgProjectAndApiKey();
+    const userId = randomUUID();
+    const conversationId = `conversation-${randomUUID()}`;
+    const forwardedProps = {
+      command: {
+        resume: {
+          approved: true,
+          approvalRequest: {
+            type: "tool_approval_request" as const,
+            toolCallId: "tool-call-1",
+            toolName: "langfuse_upsertDataset",
+            args: { name: "Approved dataset" },
+            runId: "suspended-run-1",
+          },
+        },
+      },
+    };
+
+    try {
+      await prisma.organization.update({
+        where: { id: org.id },
+        data: { aiFeaturesEnabled: true },
+      });
+      await prisma.user.create({
+        data: {
+          id: userId,
+          email: `in-app-agent-${userId}@example.com`,
+          name: "In-app Agent User",
+        },
+      });
+      authMocks.getServerSession.mockResolvedValue(
+        createInAppAgentSession({
+          orgId: org.id,
+          projectId: project.id,
+          userId,
+        }),
+      );
+      await seedPendingToolApproval({
+        projectId: project.id,
+        conversationId,
+        userId,
+        approvalRequest: forwardedProps.command.resume.approvalRequest,
+      });
+
+      const { default: handler } =
+        await import("@/src/ee/features/in-app-agent/server/handler");
+      const response = await handler(
+        new Request("http://localhost/api/in-app-agent", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            threadId: conversationId,
+            runId: "client-run-1",
+            messages: [],
+            tools: [],
+            context: [],
+            state: {
+              type: "existingConversation",
+              projectId: project.id,
+              conversationId,
+            },
+            forwardedProps,
+          }),
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      await expect(
+        pendingToolApprovalExists({
+          projectId: project.id,
+          conversationId,
+          toolCallId: forwardedProps.command.resume.approvalRequest.toolCallId,
+        }),
+      ).resolves.toBe(false);
+      expect(agentMocks.createAgUiStream).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: expect.objectContaining({
+            messages: [],
+            forwardedProps,
+          }),
+          options: expect.objectContaining({
+            langfuseMcp: expect.objectContaining({
+              runOverride: expect.any(String),
+            }),
+          }),
+        }),
+      );
+      const createStreamCall = agentMocks.createAgUiStream.mock.calls[0]?.[0];
+      expect(createStreamCall).toBeDefined();
+      expect(
+        JSON.parse(createStreamCall.options.langfuseMcp.runOverride),
+      ).toEqual({
+        toolName: "upsertDataset",
+      });
+    } finally {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+      (env as any).LANGFUSE_AWS_BEDROCK_MODEL = originalBedrockModel;
+      (env as any).LANGFUSE_AI_FEATURES_PUBLIC_KEY =
+        originalAiFeaturesPublicKey;
+      (env as any).LANGFUSE_AI_FEATURES_SECRET_KEY =
+        originalAiFeaturesSecretKey;
+    }
+  });
+
+  it("rejects forged resume forwarded props without a pending approval", async () => {
+    await withInAppAgentCloudEnv(async () => {
+      const { project } = await setupInAppAgentProjectSession();
+      const conversationId = `conversation-${randomUUID()}`;
+      const forwardedProps = createResumeForwardedProps();
+
+      const { response } = await callInAppAgentRoute({
+        projectId: project.id,
+        conversationId,
+        forwardedProps,
+      });
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({
+        error: "Invalid forwarded props",
+      });
+      expect(agentMocks.createAgUiStream).not.toHaveBeenCalled();
+    });
+  });
+
+  it("does not create a mutating tool override for rejected approvals", async () => {
+    await withInAppAgentCloudEnv(async () => {
+      const { project, userId } = await setupInAppAgentProjectSession();
+      const conversationId = `conversation-${randomUUID()}`;
+      const forwardedProps = createResumeForwardedProps(false);
+      await seedPendingToolApproval({
+        projectId: project.id,
+        conversationId,
+        userId,
+        approvalRequest: forwardedProps.command.resume.approvalRequest,
+      });
+
+      const { response } = await callInAppAgentRoute({
+        projectId: project.id,
+        conversationId,
+        forwardedProps,
+      });
+
+      expect(response.status).toBe(200);
+      expect(agentMocks.createAgUiStream).toHaveBeenCalledWith(
+        expect.objectContaining({
+          options: expect.objectContaining({
+            langfuseMcp: expect.objectContaining({
+              runOverride: undefined,
+            }),
+          }),
+        }),
+      );
+    });
+  });
+
+  it("rejects mutated resume forwarded props without consuming the pending approval", async () => {
+    await withInAppAgentCloudEnv(async () => {
+      const { project, userId } = await setupInAppAgentProjectSession();
+      const conversationId = `conversation-${randomUUID()}`;
+      const forwardedProps = createResumeForwardedProps();
+      await seedPendingToolApproval({
+        projectId: project.id,
+        conversationId,
+        userId,
+        approvalRequest: forwardedProps.command.resume.approvalRequest,
+      });
+
+      const { response } = await callInAppAgentRoute({
+        projectId: project.id,
+        conversationId,
+        forwardedProps: {
+          command: {
+            resume: {
+              ...forwardedProps.command.resume,
+              approvalRequest: {
+                ...forwardedProps.command.resume.approvalRequest,
+                toolName: "langfuse_deleteDataset",
+              },
+            },
+          },
+        },
+      });
+
+      expect(response.status).toBe(400);
+      await expect(
+        pendingToolApprovalExists({
+          projectId: project.id,
+          conversationId,
+          toolCallId: forwardedProps.command.resume.approvalRequest.toolCallId,
+        }),
+      ).resolves.toBe(true);
+      expect(agentMocks.createAgUiStream).not.toHaveBeenCalled();
+    });
+  });
+
+  it("rejects replayed resume forwarded props after approval consumption", async () => {
+    await withInAppAgentCloudEnv(async () => {
+      const { project, userId } = await setupInAppAgentProjectSession();
+      const conversationId = `conversation-${randomUUID()}`;
+      const forwardedProps = createResumeForwardedProps();
+      await seedPendingToolApproval({
+        projectId: project.id,
+        conversationId,
+        userId,
+        approvalRequest: forwardedProps.command.resume.approvalRequest,
+      });
+
+      const firstAttempt = await callInAppAgentRoute({
+        projectId: project.id,
+        conversationId,
+        forwardedProps,
+      });
+      const secondAttempt = await callInAppAgentRoute({
+        projectId: project.id,
+        conversationId,
+        forwardedProps,
+      });
+
+      expect(firstAttempt.response.status).toBe(200);
+      expect(secondAttempt.response.status).toBe(400);
+      expect(agentMocks.createAgUiStream).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("prevents concurrent resume attempts from starting the same approved tool call twice", async () => {
+    await withInAppAgentCloudEnv(async () => {
+      const { project, userId } = await setupInAppAgentProjectSession();
+      const conversationId = `conversation-${randomUUID()}`;
+      const forwardedProps = createResumeForwardedProps();
+      await prisma.inAppAgentConversation.create({
+        data: {
+          id: conversationId,
+          projectId: project.id,
+          createdByUserId: userId,
+          title: "Concurrent resume test",
+        },
+      });
+      await seedPendingToolApproval({
+        projectId: project.id,
+        conversationId,
+        userId,
+        approvalRequest: forwardedProps.command.resume.approvalRequest,
+      });
+
+      agentMocks.createAgUiStream.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            setTimeout(() => resolve(new ReadableStream()), 25);
+          }),
+      );
+
+      const attempts = await Promise.all([
+        callInAppAgentRoute({
+          projectId: project.id,
+          conversationId,
+          runId: "client-run-concurrent-1",
+          forwardedProps,
+        }),
+        callInAppAgentRoute({
+          projectId: project.id,
+          conversationId,
+          runId: "client-run-concurrent-2",
+          forwardedProps,
+        }),
+      ]);
+
+      expect(attempts.map(({ response }) => response.status).sort()).toEqual([
+        200, 409,
+      ]);
+      expect(agentMocks.createAgUiStream).toHaveBeenCalledTimes(1);
+      await expect(
+        pendingToolApprovalExists({
+          projectId: project.id,
+          conversationId,
+          toolCallId: forwardedProps.command.resume.approvalRequest.toolCallId,
+        }),
+      ).resolves.toBe(false);
+    });
+  });
+
+  it("keeps pending approval retryable when resumed stream initialization fails", async () => {
+    await withInAppAgentCloudEnv(async () => {
+      const { project, userId } = await setupInAppAgentProjectSession();
+      const conversationId = `conversation-${randomUUID()}`;
+      const forwardedProps = createResumeForwardedProps();
+      await seedPendingToolApproval({
+        projectId: project.id,
+        conversationId,
+        userId,
+        approvalRequest: forwardedProps.command.resume.approvalRequest,
+      });
+
+      agentMocks.createAgUiStream.mockRejectedValueOnce(
+        new Error("stream init failed"),
+      );
+
+      await expect(
+        callInAppAgentRoute({
+          projectId: project.id,
+          conversationId,
+          runId: "client-run-failed",
+          forwardedProps,
+        }),
+      ).rejects.toThrow("stream init failed");
+      await expect(
+        pendingToolApprovalExists({
+          projectId: project.id,
+          conversationId,
+          toolCallId: forwardedProps.command.resume.approvalRequest.toolCallId,
+        }),
+      ).resolves.toBe(true);
+
+      const retry = await callInAppAgentRoute({
+        projectId: project.id,
+        conversationId,
+        runId: "client-run-retry",
+        forwardedProps,
+      });
+
+      expect(retry.response.status).toBe(200);
+      await expect(
+        pendingToolApprovalExists({
+          projectId: project.id,
+          conversationId,
+          toolCallId: forwardedProps.command.resume.approvalRequest.toolCallId,
+        }),
+      ).resolves.toBe(false);
+      expect(agentMocks.createAgUiStream).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("does not restore a rejected approval when stream initialization fails", async () => {
+    await withInAppAgentCloudEnv(async () => {
+      const { project, userId } = await setupInAppAgentProjectSession();
+      const conversationId = `conversation-${randomUUID()}`;
+      const forwardedProps = createResumeForwardedProps(false);
+      await seedPendingToolApproval({
+        projectId: project.id,
+        conversationId,
+        userId,
+        approvalRequest: forwardedProps.command.resume.approvalRequest,
+      });
+
+      agentMocks.createAgUiStream.mockRejectedValueOnce(
+        new Error("stream init failed"),
+      );
+
+      await expect(
+        callInAppAgentRoute({
+          projectId: project.id,
+          conversationId,
+          runId: "client-run-rejected-failed",
+          forwardedProps,
+        }),
+      ).rejects.toThrow("stream init failed");
+      await expect(
+        pendingToolApprovalExists({
+          projectId: project.id,
+          conversationId,
+          toolCallId: forwardedProps.command.resume.approvalRequest.toolCallId,
+        }),
+      ).resolves.toBe(false);
+    });
+  });
+
+  it("keeps pending approval retryable when a resumed stream errors after creation", async () => {
+    await withInAppAgentCloudEnv(async () => {
+      const { project, userId } = await setupInAppAgentProjectSession();
+      const conversationId = `conversation-${randomUUID()}`;
+      const forwardedProps = createResumeForwardedProps();
+      await seedPendingToolApproval({
+        projectId: project.id,
+        conversationId,
+        userId,
+        approvalRequest: forwardedProps.command.resume.approvalRequest,
+      });
+      let streamErrorHandled: Promise<void> | undefined;
+
+      agentMocks.createAgUiStream.mockImplementationOnce((params) => {
+        streamErrorHandled = new Promise((resolve, reject) =>
+          setTimeout(() => {
+            Promise.resolve(
+              params.options.onError?.(new Error("stream failed")),
+            )
+              .then(() => resolve())
+              .catch(reject);
+          }, 0),
+        );
+
+        return new ReadableStream();
+      });
+
+      const { response } = await callInAppAgentRoute({
+        projectId: project.id,
+        conversationId,
+        runId: "client-run-post-stream-failed",
+        forwardedProps,
+      });
+
+      expect(response.status).toBe(200);
+      await streamErrorHandled;
+      await expect(
+        pendingToolApprovalExists({
+          projectId: project.id,
+          conversationId,
+          toolCallId: forwardedProps.command.resume.approvalRequest.toolCallId,
+        }),
+      ).resolves.toBe(true);
+
+      const retry = await callInAppAgentRoute({
+        projectId: project.id,
+        conversationId,
+        runId: "client-run-post-stream-retry",
+        forwardedProps,
+      });
+
+      expect(retry.response.status).toBe(200);
+      await expect(
+        pendingToolApprovalExists({
+          projectId: project.id,
+          conversationId,
+          toolCallId: forwardedProps.command.resume.approvalRequest.toolCallId,
+        }),
+      ).resolves.toBe(false);
+      expect(agentMocks.createAgUiStream).toHaveBeenCalledTimes(2);
+    });
+  });
+
   it("returns 429 when an in-app agent run exceeds the rate limit", async () => {
     const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     const originalBedrockModel = env.LANGFUSE_AWS_BEDROCK_MODEL;
@@ -209,7 +682,10 @@ describe("in-app agent public API route auth", () => {
 
       expect(response.status).toBe(429);
       await expect(response.json()).resolves.toEqual({
-        error: "Rate limit exceeded",
+        code: "rate_limited",
+        details: {
+          retryAfterSeconds: 60,
+        },
       });
       expect(response.headers.get("Retry-After")).toBe("60");
       expect(rateLimitMocks.rateLimitRequest).toHaveBeenCalledWith(
@@ -507,7 +983,7 @@ async function createPersistedInAppAgentSession(params: {
 function createInAppAgentSession(params: {
   orgId: string;
   projectId: string;
-  userId: string;
+  userId?: string;
   admin?: boolean;
   includeProjectMembership?: boolean;
 }): Session {
@@ -517,7 +993,7 @@ function createInAppAgentSession(params: {
     expires: new Date(Date.now() + 60_000).toISOString(),
     environment: { enableExperimentalFeatures: false },
     user: {
-      id: params.userId,
+      id: params.userId ?? "user-1",
       name: "Test User",
       email: "test@example.com",
       image: null,
@@ -551,4 +1027,137 @@ function createInAppAgentSession(params: {
         : [],
     },
   } as Session;
+}
+
+async function withInAppAgentCloudEnv<T>(run: () => Promise<T>): Promise<T> {
+  const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  const originalBedrockModel = env.LANGFUSE_AWS_BEDROCK_MODEL;
+  const originalAiFeaturesPublicKey = env.LANGFUSE_AI_FEATURES_PUBLIC_KEY;
+  const originalAiFeaturesSecretKey = env.LANGFUSE_AI_FEATURES_SECRET_KEY;
+
+  (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+  (env as any).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
+  (env as any).LANGFUSE_AI_FEATURES_PUBLIC_KEY = "pk-lf-test";
+  (env as any).LANGFUSE_AI_FEATURES_SECRET_KEY = "sk-lf-test";
+
+  try {
+    return await run();
+  } finally {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+    (env as any).LANGFUSE_AWS_BEDROCK_MODEL = originalBedrockModel;
+    (env as any).LANGFUSE_AI_FEATURES_PUBLIC_KEY = originalAiFeaturesPublicKey;
+    (env as any).LANGFUSE_AI_FEATURES_SECRET_KEY = originalAiFeaturesSecretKey;
+  }
+}
+
+async function setupInAppAgentProjectSession() {
+  const { org, project } = await createOrgProjectAndApiKey();
+  const userId = randomUUID();
+
+  await prisma.organization.update({
+    where: { id: org.id },
+    data: { aiFeaturesEnabled: true },
+  });
+  await prisma.user.create({
+    data: {
+      id: userId,
+      email: `in-app-agent-${userId}@example.com`,
+      name: "In-app Agent User",
+    },
+  });
+  authMocks.getServerSession.mockResolvedValue(
+    createInAppAgentSession({ orgId: org.id, projectId: project.id, userId }),
+  );
+
+  return { org, project, userId };
+}
+
+function createResumeForwardedProps(approved = true) {
+  return {
+    command: {
+      resume: {
+        approved,
+        approvalRequest: {
+          type: "tool_approval_request" as const,
+          toolCallId: `tool-call-${randomUUID()}`,
+          toolName: "langfuse_upsertDataset",
+          args: { name: "Approved dataset" },
+          runId: `suspended-run-${randomUUID()}`,
+        },
+      },
+    },
+  };
+}
+
+async function callInAppAgentRoute(params: {
+  projectId: string;
+  conversationId: string;
+  runId?: string;
+  forwardedProps: ReturnType<typeof createResumeForwardedProps>;
+}) {
+  const { default: handler } =
+    await import("@/src/ee/features/in-app-agent/server/handler");
+  const response = await handler(
+    new Request("http://localhost/api/in-app-agent", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        threadId: params.conversationId,
+        runId: params.runId ?? "client-run-1",
+        messages: [],
+        tools: [],
+        context: [],
+        state: {
+          type: "existingConversation",
+          projectId: params.projectId,
+          conversationId: params.conversationId,
+        },
+        forwardedProps: params.forwardedProps,
+      }),
+    }),
+  );
+
+  return { response };
+}
+
+async function seedPendingToolApproval(params: {
+  projectId: string;
+  conversationId: string;
+  userId: string;
+  approvalRequest: InAppAgentToolApprovalRequest;
+}) {
+  await prisma.inAppAgentConversation.upsert({
+    where: {
+      id_projectId: {
+        id: params.conversationId,
+        projectId: params.projectId,
+      },
+    },
+    create: {
+      id: params.conversationId,
+      projectId: params.projectId,
+      createdByUserId: params.userId,
+      title: "Pending approval test",
+    },
+    update: {},
+  });
+
+  await storePendingToolApproval(params);
+}
+
+async function pendingToolApprovalExists(params: {
+  projectId: string;
+  conversationId: string;
+  toolCallId: string;
+}) {
+  const pendingApproval = await prisma.inAppAgentPendingToolApproval.findUnique(
+    {
+      where: {
+        projectId_conversationId_toolCallId: params,
+      },
+      select: { toolCallId: true },
+    },
+  );
+
+  return Boolean(pendingApproval);
 }

@@ -32,6 +32,11 @@ import { useViewPreferences } from "../contexts/ViewPreferencesContext";
 import { useTraceData } from "../contexts/TraceDataContext";
 import type Decimal from "decimal.js";
 
+// How many distinct score groups to show inline on a tree/search row before
+// collapsing the rest into a "+N" pill. Keeps dense-score rows compact; the
+// full set is always on the node's Scores tab. (The timeline caps at 3.)
+const MAX_INLINE_SCORE_GROUPS = 3;
+
 interface SpanContentProps {
   node: TreeNode;
   parentTotalCost?: Decimal;
@@ -109,6 +114,8 @@ export function SpanContent({
           )
         : mergedScores.filter((s) => s.observationId === node.id);
 
+  const nodeDisplayName = node.name || `Unnamed ${node.type.toLowerCase()}`;
+
   return (
     <button
       type="button"
@@ -126,8 +133,8 @@ export function SpanContent({
       <div className="flex min-w-0 flex-col">
         {/* Name and badges row */}
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-          <span className="shrink truncate text-xs">
-            {node.name || `Unnamed ${node.type.toLowerCase()}`}
+          <span className="shrink truncate text-xs" title={nodeDisplayName}>
+            {nodeDisplayName}
           </span>
 
           <div className="flex items-center gap-x-2">
@@ -167,7 +174,7 @@ export function SpanContent({
                     : "Own span duration"
                 }
                 className={cn(
-                  "text-muted-foreground text-xs",
+                  "text-foreground-tertiary text-xs",
                   parentTotalDuration &&
                     colorCodeMetrics &&
                     heatMapTextColor({
@@ -187,7 +194,7 @@ export function SpanContent({
             {shouldRenderSubtreeDuration ? (
               <span
                 title="Subtree wall-clock duration (first start → last end)"
-                className="text-muted-foreground text-xs"
+                className="text-foreground-tertiary text-xs"
               >
                 {"∑ "}
                 {formatIntervalSeconds(subtreeWallClockOverflowMs / 1000)}
@@ -197,7 +204,7 @@ export function SpanContent({
             {/* Token counts */}
             {shouldRenderCostTokens &&
             (node.inputUsage || node.outputUsage || node.totalUsage) ? (
-              <span className="text-muted-foreground text-xs">
+              <span className="text-foreground-tertiary text-xs">
                 {formatTokenCounts(
                   node.inputUsage,
                   node.outputUsage,
@@ -215,7 +222,7 @@ export function SpanContent({
                     : undefined
                 }
                 className={cn(
-                  "text-muted-foreground text-xs",
+                  "text-foreground-tertiary text-xs",
                   parentTotalCost &&
                     colorCodeMetrics &&
                     heatMapTextColor({
@@ -231,10 +238,16 @@ export function SpanContent({
           </div>
         )}
 
-        {/* Scores row */}
+        {/* Scores row. Cap the inline badges and roll the rest into a "+N"
+            pill (hover to see them) so a node with many scores stays a compact
+            one/two-line row instead of a tall wrapping grid. */}
         {showScores && nodeScores.length > 0 && (
           <div className="flex flex-wrap gap-1">
-            <GroupedScoreBadges compact scores={nodeScores} />
+            <GroupedScoreBadges
+              compact
+              scores={nodeScores}
+              maxVisible={MAX_INLINE_SCORE_GROUPS}
+            />
           </div>
         )}
       </div>

@@ -26,12 +26,18 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { cn } from "@/src/utils/tailwind";
+import { formatApproximateDuration } from "@/src/utils/dates";
 import {
   InAppAgentMessage,
   type InAppAgentMessageContent,
   type InAppAgentMessageRole,
 } from "./InAppAgentMessage";
 import type { InAppAgentMessageFeedbackValue } from "@/src/ee/features/in-app-agent/schema";
+import { InAppAgentToolCallCard } from "@/src/ee/features/in-app-agent/components/InAppAgentToolCallCard";
+import {
+  type InAppAgentError,
+  isInAppAgentRateLimited,
+} from "@/src/ee/features/in-app-agent/components/utils/utils";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
@@ -87,8 +93,9 @@ type InAppAgentWindowCloseButtonProps =
 
 export type InAppAgentWindowProps = {
   conversations: InAppAgentWindowConversation[];
-  error: string | null;
+  error: InAppAgentError | null;
   hasMoreConversations: boolean;
+  isAssistantTurnInProgress: boolean;
   isHeaderDragHandleEnabled?: boolean;
   isExpanded: boolean;
   isInputDisabled: boolean;
@@ -98,6 +105,9 @@ export type InAppAgentWindowProps = {
   onDeleteConversation: (conversation: InAppAgentWindowConversation) => void;
   onLoadMoreConversations: () => void;
   onNewConversation: () => void;
+  onApproveToolCall: (approvalId: string) => Promise<void>;
+  onRejectToolCall: (approvalId: string) => Promise<void>;
+  onOpenConversationHistory: () => void;
   onSelectConversation: (conversationId: string) => void;
   onSubmit: (input: string) => boolean | Promise<boolean>;
   onSubmitFeedback: (params: {
@@ -109,33 +119,132 @@ export type InAppAgentWindowProps = {
   selectedConversationId: string | undefined;
 } & InAppAgentWindowCloseButtonProps;
 
+function InAppAgentRateLimitError({
+  error,
+  isExpanded,
+}: {
+  error: Extract<InAppAgentError, { type: "rate_limit" }>;
+  isExpanded: boolean;
+}) {
+  const [secondsRemaining, setSecondsRemaining] = useState(() =>
+    Math.ceil((error.retryAt - Date.now()) / 1_000),
+  );
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      const secondsRemaining = Math.ceil((error.retryAt - Date.now()) / 1_000);
+      setSecondsRemaining(secondsRemaining);
+
+      if (secondsRemaining <= 1) {
+        window.clearInterval(interval);
+      }
+    }, 1_000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [error.retryAt]);
+
+  return (
+    <div
+      role="alert"
+      className={cn(
+        "border-border bg-muted/60 text-foreground rounded-lg border px-2 py-1",
+        isExpanded ? "text-sm" : "text-xs",
+      )}
+    >
+      <div className="space-y-0.5">
+        <p className="font-medium">
+          You&apos;ve reached the assistant request limit
+        </p>
+        <p>Try again in about {formatApproximateDuration(secondsRemaining)}.</p>
+      </div>
+    </div>
+  );
+}
+
+function InAppAgentGenericError({
+  error,
+  isExpanded,
+}: {
+  error: Extract<InAppAgentError, { type: "generic" }>;
+  isExpanded: boolean;
+}) {
+  return (
+    <div
+      role="alert"
+      className={cn(
+        "border-destructive/40 dark:bg-destructive dark:border-destructive-foreground/20 bg-destructive/10 dark:text-destructive-foreground text-destructive rounded-lg border px-2 py-1",
+        isExpanded ? "text-sm" : "text-xs",
+      )}
+    >
+      {error.message}
+    </div>
+  );
+}
+
 export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const {
     conversations,
     error,
     hasMoreConversations,
+    isAssistantTurnInProgress,
     isHeaderDragHandleEnabled = false,
     isExpanded,
-    isInputDisabled,
+    isInputDisabled: baseIsInputDisabled,
     isLoadingMoreConversations,
     messages,
     onDeleteConversation,
     onExpandedChange,
     onLoadMoreConversations,
     onNewConversation,
+    onApproveToolCall,
+    onRejectToolCall,
+    onOpenConversationHistory,
     onSelectConversation,
     onSubmit,
     onSubmitFeedback,
     selectedConversationId,
   } = props;
+  const isRateLimited = isInAppAgentRateLimited(error);
+  const isInputDisabled = baseIsInputDisabled || isRateLimited;
   const viewportRef = useRef<HTMLDivElement>(null);
   const isAutoScrollAttachedRef = useRef(true);
   const previousScrollTopRef = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const previousIsInputDisabledRef = useRef(isInputDisabled);
   const [input, setInput] = useState("");
   const [isConversationHistoryOpen, setIsConversationHistoryOpen] =
     useState(false);
   const hasUserMessage = messages.some((message) => message.role === "user");
+  const pendingToolCalls = messages.flatMap((message) =>
+    message.content.type === "toolGroup"
+      ? message.content.tools.filter((tool) => tool.approval)
+      : [],
+  );
+  const visibleMessages = messages
+    .map((message) => {
+      if (message.content.type !== "toolGroup") {
+        return message;
+      }
+
+      const visibleTools = message.content.tools.filter(
+        (tool) => !tool.approval,
+      );
+
+      if (visibleTools.length === 0) {
+        return null;
+      }
+
+      return {
+        ...message,
+        content: {
+          ...message.content,
+          tools: visibleTools,
+        },
+      } satisfies InAppAgentWindowMessage;
+    })
+    .filter((message): message is InAppAgentWindowMessage => message !== null);
 
   const submitInput = (content: string) => {
     const trimmedContent = content.trim();
@@ -153,9 +262,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             currentInput.trim() === trimmedContent ? "" : currentInput,
           );
 
-          window.requestAnimationFrame(() =>
-            scrollViewportToBottom(viewportRef.current),
-          );
+          window.requestAnimationFrame(() => {
+            scrollViewportToBottom(viewportRef.current);
+          });
         }
       })
       .catch(() => undefined);
@@ -175,6 +284,17 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
 
     scrollViewportToBottom(viewportRef.current);
   }, [selectedConversationId]);
+
+  useEffect(() => {
+    const wasInputDisabled = previousIsInputDisabledRef.current;
+    previousIsInputDisabledRef.current = isInputDisabled;
+
+    if (!wasInputDisabled || isInputDisabled) {
+      return;
+    }
+
+    inputRef.current?.focus();
+  }, [isInputDisabled]);
 
   useEffect(() => {
     const input = inputRef.current;
@@ -202,7 +322,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         )}
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <p className="shrink-0 truncate text-sm font-semibold">Assistant</p>
+          <p
+            className="shrink-0 truncate text-sm font-semibold"
+            title="Assistant"
+          >
+            Assistant
+          </p>
           <span className="text-muted-foreground rounded border px-1.5 py-1 text-xs leading-none font-medium">
             Beta
           </span>
@@ -219,7 +344,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 size="icon"
                 className="size-6 shrink-0"
                 onClick={onNewConversation}
-                disabled={isInputDisabled}
+                disabled={baseIsInputDisabled}
                 aria-label="Start new conversation"
               >
                 <Plus className="size-3" />
@@ -229,7 +354,13 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           </Tooltip>
           <DropdownMenu
             open={isConversationHistoryOpen}
-            onOpenChange={setIsConversationHistoryOpen}
+            onOpenChange={(nextOpen) => {
+              setIsConversationHistoryOpen(nextOpen);
+
+              if (nextOpen) {
+                onOpenConversationHistory();
+              }
+            }}
           >
             <Tooltip delayDuration={100} disableHoverableContent>
               <TooltipTrigger asChild>
@@ -239,7 +370,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     variant="ghost"
                     size="icon"
                     className="size-6 shrink-0"
-                    disabled={isInputDisabled}
+                    disabled={baseIsInputDisabled}
                     aria-label="Conversation history"
                   >
                     <History className="size-3" />
@@ -259,37 +390,47 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   No conversations yet
                 </DropdownMenuItem>
               ) : (
-                conversations.map((conversation) => (
-                  <DropdownMenuItem
-                    key={conversation.id}
-                    className={cn(
-                      "flex items-center gap-1",
-                      conversation.id === selectedConversationId &&
-                        "bg-accent text-accent-foreground",
-                    )}
-                    onSelect={() => onSelectConversation(conversation.id)}
-                  >
-                    <span className="min-w-0 flex-1 truncate">
-                      {conversation.title?.trim() || "Untitled conversation"}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-xs"
-                      className="text-muted-foreground hover:text-destructive -mr-1.5 shrink-0"
-                      disabled={isInputDisabled}
-                      aria-label="Delete conversation"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        setIsConversationHistoryOpen(false);
-                        onDeleteConversation(conversation);
+                conversations.map((conversation) => {
+                  const conversationTitle =
+                    conversation.title?.trim() || "Untitled conversation";
+
+                  return (
+                    <DropdownMenuItem
+                      key={conversation.id}
+                      className={cn(
+                        "flex items-center gap-1",
+                        conversation.id === selectedConversationId &&
+                          "bg-accent text-accent-foreground",
+                      )}
+                      onSelect={() => {
+                        onSelectConversation(conversation.id);
                       }}
                     >
-                      <Trash2 className="size-3" />
-                    </Button>
-                  </DropdownMenuItem>
-                ))
+                      <span
+                        className="min-w-0 flex-1 truncate"
+                        title={conversationTitle}
+                      >
+                        {conversationTitle}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        className="text-muted-foreground hover:text-destructive -mr-1.5 shrink-0"
+                        disabled={baseIsInputDisabled}
+                        aria-label="Delete conversation"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setIsConversationHistoryOpen(false);
+                          onDeleteConversation(conversation);
+                        }}
+                      >
+                        <Trash2 className="size-3" />
+                      </Button>
+                    </DropdownMenuItem>
+                  );
+                })
               )}
               {hasMoreConversations ? (
                 <>
@@ -312,7 +453,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 size="icon"
                 className="size-6"
                 aria-label={isExpanded ? "Collapse window" : "Expand window"}
-                onClick={() => onExpandedChange(!isExpanded)}
+                onClick={() => {
+                  onExpandedChange(!isExpanded);
+                }}
               >
                 {isExpanded ? (
                   <Minimize2 className="size-3" />
@@ -370,7 +513,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         >
           <div
             className={cn(
-              "flex h-full w-full flex-col py-4",
+              "flex min-h-full w-full flex-col py-4",
               isExpanded && "mx-auto max-w-3xl",
               isExpanded ? "px-0" : "px-3",
             )}
@@ -401,7 +544,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                           : "rounded-xl px-2 py-1.5",
                       )}
                       disabled={isInputDisabled}
-                      onClick={() => submitInput(message)}
+                      onClick={() => {
+                        submitInput(message);
+                      }}
                     >
                       {label}
                     </button>
@@ -411,25 +556,29 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             ) : null}
 
             <ol className="flex w-full flex-col gap-3 pb-4">
-              {messages.map((message, index) => {
+              {visibleMessages.map((message, index) => {
                 const hasFullWidthContent =
                   message.content.type === "toolGroup" ||
-                  message.content.type === "redirectAction";
+                  message.content.type === "redirectAction" ||
+                  message.content.type === "reasoning";
 
-                const nextUserMessageIndex = messages.findIndex(
+                const nextUserMessageIndex = visibleMessages.findIndex(
                   (nextMessage, nextIndex) =>
                     nextIndex > index && nextMessage.role === "user",
                 );
                 const nextTurnStartIndex =
                   nextUserMessageIndex === -1
-                    ? messages.length
+                    ? visibleMessages.length
                     : nextUserMessageIndex;
-                const isLastMessageOfTurn = messages
+                const isCurrentTurnInProgress =
+                  isAssistantTurnInProgress && nextUserMessageIndex === -1;
+                const isLastMessageOfTurn = visibleMessages
                   .slice(index + 1, nextTurnStartIndex)
                   .every((nextMessage) => nextMessage.role !== "assistant");
                 const feedbackRunId =
                   message.role === "assistant" &&
                   message.content.type === "text" &&
+                  !isCurrentTurnInProgress &&
                   isLastMessageOfTurn
                     ? message.runId
                     : undefined;
@@ -447,7 +596,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       role={message.role}
                       content={message.content}
                       isCompact={!isExpanded}
-                      isFeedbackDisabled={isInputDisabled}
+                      isFeedbackDisabled={baseIsInputDisabled}
                       onSubmitFeedback={
                         feedbackRunId
                           ? (params) =>
@@ -464,19 +613,42 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               })}
             </ol>
 
-            {error ? (
-              <div
-                role="alert"
-                className={cn(
-                  "border-destructive/40 dark:bg-destructive dark:border-destructive-foreground/20 bg-destructive/10 dark:text-destructive-foreground text-destructive rounded-lg border px-2 py-1",
-                  isExpanded ? "text-sm" : "text-xs",
-                )}
-              >
-                {error}
-              </div>
-            ) : null}
+            {error?.type === "generic" && (
+              <InAppAgentGenericError error={error} isExpanded={isExpanded} />
+            )}
           </div>
         </div>
+        {pendingToolCalls.length > 0 ? (
+          <div
+            className={cn(
+              "shrink-0 pt-1.5",
+              isExpanded ? "px-1.5 pb-2" : "px-3 pb-2",
+            )}
+          >
+            <div
+              className={cn(
+                "flex flex-col gap-2",
+                isExpanded && "mx-auto max-w-3xl",
+              )}
+            >
+              {pendingToolCalls.map((tool, index) => (
+                <InAppAgentToolCallCard
+                  key={`${tool.approval?.id ?? tool.name}-${index}`}
+                  tool={tool}
+                  isCompact={!isExpanded}
+                  isDisabled={isRateLimited}
+                  onApproveToolCall={onApproveToolCall}
+                  onRejectToolCall={onRejectToolCall}
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {error?.type === "rate_limit" && (
+          <div className="p-2">
+            <InAppAgentRateLimitError error={error} isExpanded={isExpanded} />
+          </div>
+        )}
         <div
           className={cn(
             "p-1.5",
@@ -504,7 +676,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               autoFocus={!isExpanded}
               ref={inputRef}
               value={input}
-              onChange={(event) => setInput(event.target.value)}
+              onChange={(event) => {
+                setInput(event.target.value);
+              }}
               onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
                 if (
                   event.key === "Enter" &&
@@ -520,7 +694,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               placeholder="Ask the assistant a question..."
               rows={1}
               className={cn(
-                "bg-background placeholder:text-muted-foreground w-full flex-1 resize-none overflow-y-auto rounded-md text-sm leading-5 disabled:cursor-not-allowed disabled:opacity-60",
+                "bg-background placeholder:text-foreground-tertiary w-full flex-1 resize-none overflow-y-auto rounded-md text-sm leading-5 disabled:cursor-not-allowed disabled:opacity-60",
                 isExpanded
                   ? "max-h-40 min-h-14 border-none ring-0"
                   : "border-input max-h-40 min-h-8 px-3 py-1",

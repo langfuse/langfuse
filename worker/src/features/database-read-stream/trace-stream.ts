@@ -13,6 +13,7 @@ import {
   tracesTableUiColumnDefinitions,
   clickhouseSearchCondition,
   parseClickhouseUTCDateTimeFormat,
+  scoreBooleansAggregation,
   StringFilter,
 } from "@langfuse/shared/src/server";
 import { Readable } from "stream";
@@ -135,7 +136,9 @@ export const getTraceStream = async (props: {
         groupArrayIf(
           tuple(name, string_value, data_type),
           data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)
-        ) AS score_categories_tuples
+        ) AS score_categories_tuples,
+        -- boolean score existence entries for booleanObject filters (has())
+        ${scoreBooleansAggregation()} AS score_booleans
       FROM (
         SELECT
           project_id,

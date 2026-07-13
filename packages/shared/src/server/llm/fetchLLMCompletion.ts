@@ -16,7 +16,6 @@ import {
   SystemMessage,
   ToolMessage,
 } from "@langchain/core/messages";
-import { ContextOverflowError } from "@langchain/core/errors";
 import {
   BytesOutputParser,
   StringOutputParser,
@@ -44,6 +43,7 @@ import {
   LLMToolDefinition,
   ModelParams,
   OpenAIModel,
+  PROVIDERS_WITH_REQUIRED_USER_MESSAGE,
   ToolCallResponse,
   ToolCallResponseSchema,
   TraceSinkParams,
@@ -56,10 +56,21 @@ import { decrypt } from "../../encryption";
 import {
   decryptAndParseExtraHeaders,
   executeWithRuntimeTimeout,
+  processOpenAIBaseURL,
   RUNTIME_TIMEOUT_ADAPTERS,
 } from "./utils";
 import { logger } from "../logger";
-import { LLMCompletionError } from "./errors";
+import { executeAiSdkCompletion } from "./ai-sdk/executeAiSdkCompletion";
+import {
+  assertValidAnthropicVertexModelName,
+  assertValidVertexLocation,
+  isClaudeModel,
+} from "./ai-sdk/providers/vertex";
+import {
+  recordLlmExecutionDecision,
+  resolveLlmExecutionDecision,
+} from "./ai-sdk/resolveLlmExecutionDecision";
+import { mapToLLMCompletionError } from "./completionErrorMapping";
 import {
   createSecureGoogleAIStudioApiClient,
   createSecureVertexAIApiClient,
@@ -75,25 +86,6 @@ type SplitAIMessageContent = {
   contentWithoutThinking: string | Array<ContentBlock.Standard>;
   reasoning?: string;
 };
-
-const NON_RETRYABLE_LLM_ERROR_PATTERNS = [
-  "Request timed out",
-  "is not valid JSON",
-  "Unterminated string in JSON at position",
-  "TypeError",
-  "reached the end of its life",
-  "prompt is too long",
-  // secureLlmFetch validation failures: synchronous, status-less errors that
-  // would otherwise default to 500 + retryable and burn the eval-retry budget
-  // on permanent config or redirect-target failures.
-  "Only HTTP and HTTPS protocols are allowed",
-  "Only HTTPS base URLs are allowed",
-  "Blocked hostname detected",
-  "Blocked IP address detected",
-  "Redirect validation failed",
-  "Maximum redirects",
-  "Circular redirect detected",
-] as const;
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 const AZURE_OPENAI_API_KEY_HEADER = "api-key";
@@ -117,19 +109,13 @@ function adapterSupportsReasoning(adapter: LLMAdapter): boolean {
   return ADAPTERS_WITH_REASONING_SUPPORT.has(adapter);
 }
 
-const PROVIDERS_WITH_REQUIRED_USER_MESSAGE = [
-  LLMAdapter.VertexAI,
-  LLMAdapter.GoogleAIStudio,
-  LLMAdapter.Anthropic,
-  LLMAdapter.Bedrock,
-];
-
 const ANTHROPIC_ALWAYS_ADAPTIVE_THINKING_MODELS = [
   "claude-fable-5",
   "claude-mythos-5",
 ] as const;
 
 const ANTHROPIC_SAMPLING_PARAM_NORMALIZATION_MODELS = [
+  "claude-sonnet-5",
   "claude-fable-5",
   "claude-mythos-5",
   "claude-opus-4-8",
@@ -141,14 +127,6 @@ const ANTHROPIC_SAMPLING_PARAM_NORMALIZATION_MODELS = [
   "claude-opus-4-6",
   "claude-haiku-4-5",
 ] as const;
-
-const ANTHROPIC_VERTEX_MODEL_NAME_PATTERN = /^[A-Za-z0-9_.@-]+$/;
-
-// Vertex region identifiers are lowercase alphanumerics plus hyphens
-// (e.g. "us-east5", "europe-west1") with the special "global"/"us"/"eu"
-// endpoints. Disallowing every URL delimiter keeps an attacker-controlled
-// location from reshaping the Vertex host the SDKs build from it.
-const VERTEX_LOCATION_PATTERN = /^[a-z0-9-]+$/;
 
 function isAnthropicAlwaysAdaptiveThinkingModel(modelName: string): boolean {
   return ANTHROPIC_ALWAYS_ADAPTIVE_THINKING_MODELS.some((model) =>
@@ -206,21 +184,6 @@ function normalizeAnthropicSamplingParams(
     modelParams.temperature === undefined
   ) {
     chatModel.temperature = undefined;
-  }
-}
-
-function isClaudeModel(modelName: string): boolean {
-  return modelName.toLowerCase().includes("claude");
-}
-
-function assertValidAnthropicVertexModelName(modelName: string) {
-  if (
-    !ANTHROPIC_VERTEX_MODEL_NAME_PATTERN.test(modelName) ||
-    modelName.includes("..")
-  ) {
-    throw new Error(
-      "Invalid Anthropic Vertex AI model name. Model names must be a single Vertex model ID segment.",
-    );
   }
 }
 
@@ -369,6 +332,57 @@ export async function fetchLLMCompletion(
   const apiKey = decrypt(llmConnection.secretKey); // the apiKey must never be printed to the console
   const extraHeaders = decryptAndParseExtraHeaders(llmConnection.extraHeaders);
 
+  // Common proxy configuration for all adapters
+  const proxyUrl = env.HTTPS_PROXY;
+  const proxyDispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
+  const timeoutMs = env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS;
+  const secureLlmFetch = (
+    logContext: string,
+    additionalSensitiveHeaders?: string[],
+  ) =>
+    createSecureLlmFetch({
+      logContext,
+      additionalSensitiveHeaders,
+      dispatcher: proxyDispatcher,
+    });
+
+  // Execution engine dispatch: adapters rolled out via
+  // LANGFUSE_LLM_COMPLETION_AI_SDK_ADAPTERS run on the AI SDK engine, which
+  // preserves all return shapes and error classification of the LangChain
+  // engine. Caller-provided LangChain callbacks are not invoked on this path;
+  // internal tracing is captured natively and routed through the regular OTel
+  // ingestion pipeline instead of the LangChain callback handler.
+  const executionDecision = resolveLlmExecutionDecision({
+    modelParams,
+    llmConnectionConfig: config,
+    baseURL,
+    shouldUseLangfuseAPIKey,
+    enabledAdapters: env.LANGFUSE_LLM_COMPLETION_AI_SDK_ADAPTERS,
+  });
+  recordLlmExecutionDecision(executionDecision);
+
+  logger.debug(`LLM Completion Execution engine: ${executionDecision.engine}`);
+
+  if (executionDecision.engine === "ai-sdk") {
+    return executeAiSdkCompletion({
+      messages,
+      tools,
+      modelParams,
+      streaming,
+      structuredOutputSchema: params.structuredOutputSchema,
+      apiKey,
+      baseURL,
+      extraHeaders,
+      llmConnectionConfig: config,
+      shouldUseLangfuseAPIKey,
+      maxRetries,
+      timeoutMs,
+      createFetch: secureLlmFetch,
+      decision: executionDecision,
+      traceSinkParams,
+    });
+  }
+
   let finalCallbacks: BaseCallbackHandler[] | undefined = callbacks ?? [];
   let processTracedEvents: ProcessTracedEvents = () => Promise.resolve();
 
@@ -449,20 +463,6 @@ export async function fetchLLMCompletion(
   finalMessages = finalMessages.filter(
     (m) => m.content.length > 0 || "tool_calls" in m,
   );
-
-  // Common proxy configuration for all adapters
-  const proxyUrl = env.HTTPS_PROXY;
-  const proxyDispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
-  const timeoutMs = env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS;
-  const secureLlmFetch = (
-    logContext: string,
-    additionalSensitiveHeaders?: string[],
-  ) =>
-    createSecureLlmFetch({
-      logContext,
-      additionalSensitiveHeaders,
-      dispatcher: proxyDispatcher,
-    });
 
   let chatModel: ChatOpenAI | ChatAnthropic | ChatBedrockConverse | ChatGoogle;
   let usesOpenAIResponsesApi = false;
@@ -572,11 +572,7 @@ export async function fetchLLMCompletion(
     // location flows into the Vertex host both SDKs build from it
     // (https://${location}-aiplatform.googleapis.com), so reject anything that
     // could reshape that host and exfiltrate the Google OAuth bearer token.
-    if (location !== undefined && !VERTEX_LOCATION_PATTERN.test(location)) {
-      throw new Error(
-        "Invalid Vertex AI location. Locations must be a single Vertex region identifier.",
-      );
-    }
+    assertValidVertexLocation(location);
 
     // Handle both explicit credentials and default provider chain (ADC)
     // Only allow default provider chain in self-hosted or internal AI features
@@ -879,54 +875,7 @@ export async function fetchLLMCompletion(
 
     return completion;
   } catch (e) {
-    const responseStatusCode = getErrorResponseStatusCode(e) ?? 500;
-    const rawMessage = e instanceof Error ? e.message : String(e);
-    // Anthropic/OpenAI/Azure SDKs wrap synchronous fetch errors as
-    // `APIConnectionError { message: "Connection error.", cause: original }`,
-    // hiding the actual secureLlmFetch validation reason. Walk the `.cause`
-    // chain for both retryability classification and the user-visible message
-    // so operators see "Blocked hostname detected" / "Redirect validation
-    // failed ..." instead of the unhelpful wrapper text.
-    const nonRetryableCauseMessage = findNonRetryableCauseMessage(e);
-    const message =
-      nonRetryableCauseMessage ?? extractCleanErrorMessage(rawMessage);
-
-    const hasNonRetryablePattern = nonRetryableCauseMessage !== undefined;
-
-    // Determine retryability:
-    // - 429 (rate limit): retryable with custom delay
-    // - 5xx (server errors): retryable with custom delay
-    // - 4xx (client errors): not retryable
-    // - Non-retryable patterns: not retryable
-    let isRetryable = false;
-
-    if (ContextOverflowError.isInstance(e)) {
-      isRetryable = false;
-    } else if (
-      e instanceof Error &&
-      (e.name === "InsufficientQuotaError" || e.name === "ThrottlingException")
-    ) {
-      // Explicit 429 handling
-      isRetryable = true;
-    } else if (responseStatusCode >= 500) {
-      // 5xx errors are retryable (server issues)
-      isRetryable = true;
-    } else if (responseStatusCode === 429) {
-      // Rate limit is retryable
-      isRetryable = true;
-    }
-
-    // Override if error message indicates non-retryable issue
-    if (hasNonRetryablePattern) {
-      isRetryable = false;
-    }
-
-    throw new LLMCompletionError({
-      message,
-      responseStatusCode,
-      isRetryable,
-      cause: e,
-    });
+    throw mapToLLMCompletionError(e);
   } finally {
     await processTracedEvents();
   }
@@ -1004,105 +953,4 @@ function splitAIMessage(
       ? { reasoning: reasoningParts.join("") }
       : {}),
   };
-}
-
-/**
- * Process baseURL template for OpenAI adapter only.
- * Replaces {model} placeholder with actual model name.
- * This is a workaround for proxies that require the model name in the URL azureOpenAIBasePath
- * while having OpenAI compliance otherwise
- */
-function processOpenAIBaseURL(params: {
-  url: string | null | undefined;
-  modelName: string;
-}): string | null | undefined {
-  const { url, modelName } = params;
-
-  if (!url || !url.includes("{model}")) {
-    return url;
-  }
-
-  return url.replace("{model}", modelName);
-}
-
-// Walks an error and its `.cause` chain (cycle-safe), yielding each link.
-function* walkCauseChain(error: unknown): Generator<unknown> {
-  const visited = new Set<unknown>();
-  for (
-    let current: unknown = error;
-    current && !visited.has(current);
-    current = (current as any).cause
-  ) {
-    visited.add(current);
-    yield current;
-  }
-}
-
-function findNonRetryableCauseMessage(error: unknown): string | undefined {
-  for (const current of walkCauseChain(error)) {
-    if (!(current instanceof Error)) continue;
-    const message = extractCleanErrorMessage(current.message);
-    if (NON_RETRYABLE_LLM_ERROR_PATTERNS.some((p) => message.includes(p))) {
-      return message;
-    }
-  }
-  return undefined;
-}
-
-function getErrorResponseStatusCode(error: unknown): number | undefined {
-  for (const current of walkCauseChain(error)) {
-    if (!current || typeof current !== "object") continue;
-    const errorLike = current as any;
-    const statusCode = [
-      errorLike.response?.status,
-      errorLike.status,
-      errorLike.statusCode,
-      // Bedrock errors have status code in $metadata.httpStatusCode.
-      errorLike.$metadata?.httpStatusCode,
-    ]
-      .map(toHttpStatusCode)
-      .find((code) => code !== undefined);
-    if (statusCode !== undefined) return statusCode;
-  }
-  return undefined;
-}
-
-function toHttpStatusCode(value: unknown): number | undefined {
-  return typeof value === "number" &&
-    Number.isInteger(value) &&
-    value >= 100 &&
-    value <= 599
-    ? value
-    : undefined;
-}
-
-function extractCleanErrorMessage(rawMessage: string): string {
-  // Try to parse JSON error format (common in Google/Vertex AI errors)
-  // Example: '[{"error":{"code":404,"message":"Model not found..."}}]'
-  try {
-    // Check if the message starts with [ or { indicating JSON
-    const trimmed = rawMessage.trim();
-    if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
-      const parsed = JSON.parse(trimmed);
-
-      // Handle array format: [{"error": {"message": "..."}}]
-      if (Array.isArray(parsed) && parsed[0]?.error?.message) {
-        return parsed[0].error.message;
-      }
-
-      // Handle object format: {"error": {"message": "..."}}
-      if (parsed?.error?.message) {
-        return parsed.error.message;
-      }
-
-      // Handle direct message format: {"message": "..."}
-      if (parsed?.message) {
-        return parsed.message;
-      }
-    }
-  } catch {
-    // Not valid JSON, return as-is
-  }
-
-  return rawMessage;
 }
