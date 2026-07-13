@@ -3186,10 +3186,6 @@ export class OtelIngestionProcessor {
   }
 
   /**
-   * Count the total number of spans across all resource spans.
-   * Returns -1 if an error occurs during counting to avoid throwing exceptions.
-   */
-  /**
    * Attribution context for conversion failure logs so a Datadog log line
    * answers which SDK/version/instrumentation produced a malformed batch and
    * how many spans were lost. Must never throw.
@@ -3235,6 +3231,10 @@ export class OtelIngestionProcessor {
     }
   }
 
+  /**
+   * Count the total number of spans across all resource spans.
+   * Returns -1 if an error occurs during counting to avoid throwing exceptions.
+   */
   private getTotalSpanCount(resourceSpans: ResourceSpan[]): number {
     try {
       if (!Array.isArray(resourceSpans)) {
