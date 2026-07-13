@@ -405,6 +405,14 @@ export const requireLangfuseCloud = t.middleware(({ next }) => {
   return next();
 });
 
+/** requireV4Writes rejects calls from deployments without v4 event tables */
+export const requireV4Writes = t.middleware(({ next }) => {
+  if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy") {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Not found" });
+  }
+  return next();
+});
+
 export const protectedProjectProcedureWithoutTracing = t.procedure
   .use(withErrorHandling)
   .use(enforceUserIsAuthedAndProjectMember);
@@ -469,10 +477,11 @@ export const protectedOrganizationProcedure = withOtelTracingProcedure
  * Protect trace-level getter routes.
  * - Users need to be member of the project to access the trace.
  * - Alternatively, the trace needs to be public.
+ * - Without a traceId, falls back to the project-membership check (trace: null).
  */
 
 const inputTraceSchema = z.object({
-  traceId: z.string(),
+  traceId: z.string().optional(),
   projectId: z.string(),
   timestamp: z.date().nullish(),
   fromTimestamp: z.date().nullish(),
@@ -499,19 +508,21 @@ const enforceTraceAccess = t.middleware(async (opts) => {
   const fromTimestamp = result.data.fromTimestamp;
   const verbosity = result.data.verbosity;
 
-  // eslint-disable-next-line @typescript-eslint/no-deprecated
-  const clickhouseTrace = await getTraceById({
-    traceId,
-    projectId,
-    timestamp: timestamp ?? undefined,
-    fromTimestamp: fromTimestamp ?? undefined,
-    renderingProps: {
-      truncated: verbosity === "truncated",
-      shouldJsonParse: false, // we do not want to parse the input/output for tRPC
-    },
-  });
+  const clickhouseTrace = traceId
+    ? // eslint-disable-next-line @typescript-eslint/no-deprecated
+      await getTraceById({
+        traceId,
+        projectId,
+        timestamp: timestamp ?? undefined,
+        fromTimestamp: fromTimestamp ?? undefined,
+        renderingProps: {
+          truncated: verbosity === "truncated",
+          shouldJsonParse: false, // we do not want to parse the input/output for tRPC
+        },
+      })
+    : null;
 
-  if (!clickhouseTrace) {
+  if (traceId && !clickhouseTrace) {
     logger.error(`Trace with id ${traceId} not found for project ${projectId}`);
     throw new TRPCError({
       code: "NOT_FOUND",
@@ -519,17 +530,19 @@ const enforceTraceAccess = t.middleware(async (opts) => {
     });
   }
 
-  const trace = {
-    ...clickhouseTrace,
-    input: parseIO(clickhouseTrace.input, verbosity),
-    output: parseIO(clickhouseTrace.output, verbosity),
-  };
+  const trace = clickhouseTrace
+    ? {
+        ...clickhouseTrace,
+        input: parseIO(clickhouseTrace.input, verbosity),
+        output: parseIO(clickhouseTrace.output, verbosity),
+      }
+    : null;
 
   const sessionProject = ctx.session?.user?.organizations
     .flatMap((org) => org.projects)
     .find(({ id }) => id === projectId);
 
-  const traceSession = !!trace.sessionId
+  const traceSession = !!trace?.sessionId
     ? await ctx.prisma.traceSession.findFirst({
         where: {
           id: trace.sessionId,
@@ -544,7 +557,7 @@ const enforceTraceAccess = t.middleware(async (opts) => {
   const isSessionPublic = traceSession?.public === true;
 
   if (
-    !trace.public &&
+    !trace?.public &&
     !sessionProject &&
     !isSessionPublic &&
     ctx.session?.user?.admin !== true

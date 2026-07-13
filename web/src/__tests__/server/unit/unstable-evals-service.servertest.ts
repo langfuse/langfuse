@@ -127,10 +127,8 @@ import {
   PUBLIC_EVALUATOR_TYPE_CODE,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
-import {
-  CODE_EVAL_TEMPLATE_VARIABLES,
-  getCodeEvalVariableMapping,
-} from "@/src/features/evals/utils/code-eval-template-utils";
+import { CODE_EVAL_TEMPLATE_VARIABLES } from "@langfuse/shared";
+import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval-template-utils";
 import { PostUnstableEvaluationRuleBody } from "@/src/features/public-api/types/unstable-evaluation-rules";
 
 const numericOutputDefinition = createNumericEvalOutputDefinition({
@@ -656,6 +654,61 @@ describe("unstable public eval services", () => {
 
     expect(mockEvalTemplateCreate).not.toHaveBeenCalled();
     expect(mockJobConfigurationUpdate).not.toHaveBeenCalled();
+  });
+
+  it("adopts the canonical mapping when upgrading rules linked to a code evaluator", async () => {
+    // Code-eval mappings are synthesized, never user-authored: a stored
+    // snapshot predating a canonical-variable addition (e.g. toolCalls) must
+    // be overwritten on upgrade, not validated against nextVariables (which
+    // would 409 even though there is nothing the user could supply).
+    mockEvalTemplateFindMany.mockResolvedValueOnce([
+      {
+        id: "tmpl_code_v1",
+        version: 1,
+      },
+    ]);
+    mockJobConfigurationFindMany.mockResolvedValueOnce([
+      {
+        id: "ceval_code_stale",
+        scoreName: "exact_match",
+        targetObject: EvalTargetObject.EVENT,
+        // pre-toolCalls snapshot
+        variableMapping: getCodeEvalVariableMapping().filter(
+          (mapping) => mapping.templateVariable !== "toolCalls",
+        ),
+      },
+    ]);
+    mockEvalTemplateCreate.mockResolvedValueOnce({
+      ...projectTemplate,
+      id: "tmpl_code_v2",
+      type: EvalTemplateType.CODE,
+      prompt: null,
+      vars: [...CODE_EVAL_TEMPLATE_VARIABLES],
+      sourceCode: codeEvaluatorSourceCode,
+      sourceCodeLanguage: "TYPESCRIPT",
+      version: 2,
+    });
+
+    await createPublicEvaluator({
+      projectId: "project_123",
+      input: {
+        name: "Exact match",
+        type: PUBLIC_EVALUATOR_TYPE_CODE,
+        sourceCode: codeEvaluatorSourceCode,
+        sourceCodeLanguage: "TYPESCRIPT",
+      },
+    });
+
+    expect(mockJobConfigurationUpdate).toHaveBeenCalledWith({
+      where: {
+        id: "ceval_code_stale",
+        projectId: "project_123",
+      },
+      data: {
+        evalTemplateId: "tmpl_code_v2",
+        variableMapping: getCodeEvalVariableMapping(),
+      },
+    });
   });
 
   it("resolves an older evaluator version to the latest version when creating an evaluation rule", async () => {

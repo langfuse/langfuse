@@ -36,6 +36,7 @@ import {
   type CodeEvalScoreWithName,
 } from "@langfuse/shared/src/server";
 import {
+  inMemoryFilterRequiresMetadata,
   mapTraceFilterColumn,
   requiresDatabaseLookup,
 } from "./traceFilterUtils";
@@ -73,7 +74,6 @@ import {
   compileEvalPrompt,
   buildEvalMessages,
   buildEvalExecutionMetadata,
-  buildEvalPromptCacheKey,
   getEnvironmentFromVariables,
 } from "./evalRuntime";
 import {
@@ -259,6 +259,21 @@ export const createEvalJobs = async ({
   recordIncrement("langfuse.evaluation-execution.config_count", configs.length);
   if (configs.length > 1) {
     try {
+      // Metadata is the heaviest column on this fetch. Skip it unless a
+      // trace-target config's filter reads it during in-memory evaluation;
+      // keep it for unparsable filters so a metadata filter never evaluates
+      // against an empty object.
+      const cachedTraceNeedsMetadata = configs.some((config) => {
+        if (config.targetObject !== EvalTargetObject.TRACE) {
+          return false;
+        }
+        const parsedFilter = z.array(singleFilter).safeParse(config.filter);
+        return (
+          !parsedFilter.success ||
+          inMemoryFilterRequiresMetadata(parsedFilter.data)
+        );
+      });
+
       // Fetch trace data and store it. If observation data is required, we'll make a separate lookup.
       // Those fields are used rarely, though.
       // eslint-disable-next-line @typescript-eslint/no-deprecated
@@ -272,11 +287,12 @@ export const createEvalJobs = async ({
               ? new Date(event.timestamp)
               : new Date(jobTimestamp),
         excludeInputOutput: true,
-        excludeMetadata: false, // Metadata needed for in-memory filter evaluation
+        excludeMetadata: !cachedTraceNeedsMetadata,
       });
 
       recordIncrement("langfuse.evaluation-execution.trace_cache_fetch", 1, {
         found: Boolean(cachedTrace).toString(),
+        withMetadata: cachedTraceNeedsMetadata.toString(),
       });
       logger.debug("Fetched trace for evaluation optimization", {
         traceId: event.traceId,
@@ -858,13 +874,6 @@ export async function runLLMAsJudgeEvaluation({
 
       // Prepare LLM call
       const messages = buildEvalMessages(prompt);
-      const promptCacheKey = buildEvalPromptCacheKey({
-        projectId,
-        templateId: template.id,
-        templateVersion: template.version,
-        provider: modelConfig.config.provider,
-        model: modelConfig.config.model,
-      });
 
       const executionTraceId = createW3CTraceId(jobExecutionId);
 
@@ -887,7 +896,7 @@ export async function runLLMAsJudgeEvaluation({
           llmSpan.setAttribute("eval.model.name", modelConfig.config.model);
           llmSpan.setAttribute(
             "eval.model.adapter",
-            modelConfig.config.apiKey.adapter,
+            modelConfig.config.adapter,
           );
 
           try {
@@ -896,7 +905,6 @@ export async function runLLMAsJudgeEvaluation({
               modelConfig: modelConfig.config,
               structuredOutputSchema:
                 compiledOutputDefinition.outputResultSchema,
-              promptCacheKey,
               traceSinkParams: {
                 targetProjectId: projectId,
                 traceId: executionTraceId,

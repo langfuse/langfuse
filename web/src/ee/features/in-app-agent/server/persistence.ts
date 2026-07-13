@@ -655,6 +655,8 @@ export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
     event.type === EventType.STEP_STARTED ||
     event.type === EventType.STEP_FINISHED ||
     event.type === EventType.TOOL_CALL_CHUNK ||
+    // Reasoning is a live responsiveness signal. Keep plaintext reasoning out
+    // of persisted conversation history and replay.
     event.type === EventType.REASONING_START ||
     event.type === EventType.REASONING_MESSAGE_START ||
     event.type === EventType.REASONING_MESSAGE_CHUNK ||
@@ -910,6 +912,7 @@ export function createConversationMessageAccumulator(
       event.type === EventType.STEP_STARTED ||
       event.type === EventType.STEP_FINISHED ||
       event.type === EventType.TOOL_CALL_CHUNK ||
+      // Reasoning is live-only; do not reconstruct it from persisted history.
       event.type === EventType.REASONING_START ||
       event.type === EventType.REASONING_MESSAGE_START ||
       event.type === EventType.REASONING_MESSAGE_CHUNK ||

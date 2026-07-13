@@ -46,7 +46,7 @@ const CommandDialog = ({
       <DialogContent
         className={cn(
           commandDialogSurfaceClass,
-          "top-[calc(var(--banner-offset)+clamp(4rem,14dvh,8rem))] translate-y-0 overflow-hidden border p-0 shadow-2xl dark:border-slate-700/70 dark:shadow-[0_32px_96px_-28px_rgb(0_0_0/0.95),0_16px_40px_-24px_rgb(0_0_0/0.9),0_0_0_1px_rgb(148_163_184/0.1)]",
+          "dark:border-border-contrast/70 top-[calc(var(--banner-offset)+clamp(4rem,14dvh,8rem))] translate-y-0 overflow-hidden border p-0 shadow-2xl dark:shadow-[0_32px_96px_-28px_rgb(0_0_0/0.95),0_16px_40px_-24px_rgb(0_0_0/0.9),0_0_0_1px_rgb(148_163_184/0.1)]",
         )}
         closeOnInteractionOutside
         overlayMode="invisible"

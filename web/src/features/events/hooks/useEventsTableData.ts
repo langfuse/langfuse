@@ -174,6 +174,11 @@ export function useEventsTableData({
   const totalCount = selectAll
     ? (totalCountQuery.data?.totalCount ?? null)
     : null;
+  // Approximate distinct trace_id count over the same filtered set, computed
+  // alongside totalCount; shares its loading/error state below.
+  const uniqueTraceCount = selectAll
+    ? (totalCountQuery.data?.uniqueTraceCount ?? null)
+    : null;
   const isTotalCountLoading =
     selectAll && totalCount === null && totalCountQuery.isFetching;
   const isTotalCountError =
@@ -233,6 +238,7 @@ export function useEventsTableData({
     observations: joinedData,
     dataUpdatedAt: observations.dataUpdatedAt,
     totalCount,
+    uniqueTraceCount,
     isTotalCountLoading,
     isTotalCountError,
     hasMore,

@@ -24,7 +24,9 @@ import {
   convertEventsObservation,
   shouldSkipObservationsFinal,
   EventsQueryBuilder,
+  eventSearchCondition,
   eventsScoresAggregation,
+  scoreBooleansAggregation,
 } from "@langfuse/shared/src/server";
 import { Readable } from "stream";
 import { env } from "../../env";
@@ -33,7 +35,6 @@ import {
   prepareScoresForOutput,
 } from "./getDatabaseReadStream";
 import { fetchCommentsForExport } from "./fetchCommentsForExport";
-import { eventSearchCondition } from "./event-stream";
 
 const DEFAULT_BATCH_SIZE = 1000;
 const REDUCED_BATCH_SIZE = 200; // Smaller batch for JSON/JSONL which hold parsed objects in memory
@@ -170,7 +171,9 @@ export const getObservationStream = async (
           groupArrayIf(
             tuple(name, string_value, data_type),
             data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)
-          ) AS score_categories_tuples
+          ) AS score_categories_tuples,
+          -- boolean score existence entries for booleanObject filters (has())
+          ${scoreBooleansAggregation()} AS score_booleans
         FROM (
           SELECT
             trace_id,

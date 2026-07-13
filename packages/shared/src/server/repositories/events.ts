@@ -1,5 +1,4 @@
 import { prisma } from "../../db";
-import { Readable } from "stream";
 import type { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import type {
   EventsObservation,
@@ -35,6 +34,7 @@ import {
   type Filter,
   FilterList,
   FullEventsObservations,
+  eventSearchCondition,
   orderByToClickhouseSql,
   orderByToEntries,
   createPublicApiObservationsColumnMapping,
@@ -48,11 +48,7 @@ import {
   ObservationPriceFields,
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
-import type {
-  EventsTableFilterState,
-  FilterCondition,
-  FilterState,
-} from "../../types";
+import type { EventsTableFilterState, FilterState } from "../../types";
 import type { TracingSearchType } from "../../interfaces/search";
 import {
   eventsScoresAggregation,
@@ -61,7 +57,6 @@ import {
   eventsTracesAggregation,
   eventsTracesScoresAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
-import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import {
   eventsTableNativeUiColumnDefinitions,
   eventsTableUiColumnDefinitions,
@@ -129,17 +124,31 @@ import {
 import { tracesTableCols } from "../../tableDefinitions/tracesTable";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 
-type EventBatchIOStringOutput = {
+export type EventBatchIOStringOutput = {
   id: string;
   input: string | null;
   output: string | null;
   metadata: MetadataDomain;
 };
 
-type EventBatchIOWithExperimentOutput = EventBatchIOStringOutput & {
+/** Raw ClickHouse storage shape: name-less JSON strings, names in the parallel toolCallNames array. */
+export type EventBatchIOToolCallFields = {
+  toolCalls: string[];
+  toolCallNames: string[];
+};
+
+export type EventBatchIOWithExperimentOutput = EventBatchIOStringOutput & {
   experimentItemExpectedOutput: string | null;
   experimentItemMetadata: MetadataDomain;
 };
+
+export type EventBatchIOResult<
+  TIncludeExperiment extends boolean,
+  TIncludeToolCalls extends boolean,
+> = (TIncludeExperiment extends true
+  ? EventBatchIOWithExperimentOutput
+  : EventBatchIOStringOutput) &
+  (TIncludeToolCalls extends true ? EventBatchIOToolCallFields : object);
 
 const BATCH_IO_STRING_RENDERING_PROPS: RenderingProps = {
   // Batch I/O truncation is handled in SQL via leftUTF8 for performance.
@@ -159,27 +168,6 @@ type ObservationsTableQueryResultWitouhtTraceFields = Omit<
   ObservationsTableQueryResult,
   "trace_tags" | "trace_name" | "trace_user_id"
 >;
-
-const EVENT_SEARCH_COLUMNS = [
-  "span_id",
-  "name",
-  "trace_name",
-  "user_id",
-  "session_id",
-  "trace_id",
-] as const;
-
-const eventSearchCondition = (opts: {
-  query?: string;
-  searchType?: TracingSearchType[];
-}) =>
-  clickhouseSearchCondition({
-    query: opts.query,
-    searchType: opts.searchType,
-    tablePrefix: "e",
-    searchColumns: EVENT_SEARCH_COLUMNS,
-    useEventsTablePath: true,
-  });
 
 /**
  * Internal helper: enrich observations with model pricing data
@@ -480,6 +468,28 @@ export const getObservationsCountFromEventsTable = async (
   return Number(count[0].count);
 };
 
+/**
+ * Row count plus approximate distinct trace count over the same filtered set,
+ * computed in a single ClickHouse pass. Powers the events-table select-all
+ * batch-delete confirmation ("N items spanning M unique traces").
+ */
+export const getObservationsCountsFromEventsTable = async (
+  opts: ObservationTableQuery,
+): Promise<{ totalCount: number; uniqueTraceCount: number }> => {
+  const counts = await getObservationsFromEventsTableInternal<{
+    count: string;
+    unique_trace_count: string;
+  }>({
+    ...opts,
+    select: "count-with-unique-traces",
+  });
+
+  return {
+    totalCount: Number(counts[0].count),
+    uniqueTraceCount: Number(counts[0].unique_trace_count),
+  };
+};
+
 export const getObservationsWithModelDataFromEventsTable = async (
   opts: ObservationTableQuery,
 ): Promise<FullEventsObservations> => {
@@ -560,7 +570,11 @@ export const getTraceDeleteCursorPageFromEvents = async (props: {
 
 async function getObservationsFromEventsTableInternal<T>(
   opts: ObservationTableQuery & {
-    select: "count" | "rows" | "trace-delete-cursor";
+    select:
+      | "count"
+      | "count-with-unique-traces"
+      | "rows"
+      | "trace-delete-cursor";
     selectToolData?: boolean;
     cursor?: PublicApiObservationsQuery["cursor"];
     preferredClickhouseService?: PreferredClickhouseService;
@@ -601,8 +615,10 @@ async function getObservationsFromEventsTableInternal<T>(
       column === "scores" ||
       column === "scores_avg" ||
       column === "score_categories" ||
+      column === "score_booleans" ||
       column === "scores (numeric)" ||
-      column === "scores (categorical)"
+      column === "scores (categorical)" ||
+      column === "scores (boolean)"
     );
   });
   const hasTraceScoresFilter = baseFilter.some((f) => {
@@ -610,8 +626,10 @@ async function getObservationsFromEventsTableInternal<T>(
     return (
       column === "trace_scores_avg" ||
       column === "trace_score_categories" ||
+      column === "trace_score_booleans" ||
       column === "trace scores (numeric)" ||
-      column === "trace scores (categorical)"
+      column === "trace scores (categorical)" ||
+      column === "trace scores (boolean)"
     );
   });
   const orderByEntries = orderByToEntries(
@@ -624,6 +642,8 @@ async function getObservationsFromEventsTableInternal<T>(
 
   if (opts.select === "count") {
     queryBuilder.selectFieldSet("count");
+  } else if (opts.select === "count-with-unique-traces") {
+    queryBuilder.selectFieldSet("countWithUniqueTraces");
   } else if (opts.select === "trace-delete-cursor") {
     queryBuilder.selectRaw(
       "e.span_id AS id",
@@ -822,143 +842,6 @@ export const getObservationByIdFromEventsTable = async ({
     );
   }
   return mapped.shift();
-};
-
-/**
- * Lightweight event stream for batch observation evaluation.
- * Selects the eval field set and maps ClickHouse aliases toward ObservationForEval.
- */
-export const getEventsStreamForEval = async (props: {
-  projectId: string;
-  cutoffCreatedAt?: Date;
-  filter: FilterCondition[] | null;
-  searchQuery?: string;
-  searchType?: TracingSearchType[];
-  rowLimit: number;
-}): Promise<Readable> => {
-  const {
-    projectId,
-    cutoffCreatedAt,
-    filter = [],
-    searchQuery,
-    searchType,
-    rowLimit,
-  } = props;
-
-  const eventOnlyFilters = (filter ?? []).filter((f) => {
-    const columnDef = eventsTableUiColumnDefinitions.find(
-      (col) => col.uiTableName === f.column || col.uiTableId === f.column,
-    );
-
-    return (
-      columnDef?.clickhouseTableName !== "scores" &&
-      columnDef?.clickhouseTableName !== "comments"
-    );
-  });
-
-  const filterConditions: FilterCondition[] = [...eventOnlyFilters];
-  if (cutoffCreatedAt) {
-    filterConditions.push({
-      column: "startTime",
-      operator: "<",
-      value: cutoffCreatedAt,
-      type: "datetime",
-    });
-  }
-
-  const eventsFilter = new FilterList(
-    createFilterFromFilterState(
-      filterConditions,
-      eventsTableUiColumnDefinitions,
-      eventsTableCols,
-    ),
-  );
-
-  const appliedEventsFilter = eventsFilter.apply();
-
-  const search = eventSearchCondition({
-    query: searchQuery,
-    searchType,
-  });
-
-  const eventsQuery = new EventsQueryBuilder({ projectId })
-    .selectFieldSet("eval")
-    .selectIO(false)
-    .selectFieldSet("metadata")
-    .when(search.requiresEventsFull, (b) => b.forceFullTable())
-    .where(appliedEventsFilter)
-    .where(search)
-    .whereRaw("e.is_deleted = 0")
-    .orderByDefault()
-    .limitBy("e.span_id", "e.project_id")
-    .limit(rowLimit);
-
-  const { query, params: queryParams } = eventsQuery.buildWithParams();
-
-  type EvalEventRow = {
-    id: string;
-    trace_id: string;
-    project_id: string;
-    parent_observation_id: string | null;
-    type: string;
-    name: string | null;
-    environment: string | null;
-    version: string | null;
-    level: string;
-    status_message: string | null;
-    trace_name: string | null;
-    user_id: string | null;
-    session_id: string | null;
-    tags: string[];
-    release: string | null;
-    provided_model_name: string | null;
-    model_parameters: unknown;
-    prompt_id: string | null;
-    prompt_name: string | null;
-    prompt_version: number | null;
-    provided_usage_details: Record<string, number>;
-    usage_details: Record<string, number>;
-    provided_cost_details: Record<string, number>;
-    cost_details: Record<string, number>;
-    tool_definitions: Record<string, unknown>;
-    tool_calls: unknown[];
-    tool_call_names: string[];
-    input: unknown;
-    output: unknown;
-    metadata: Record<string, unknown> | null;
-    experiment_id: string | null;
-    experiment_item_root_span_id: string | null;
-    experiment_item_expected_output: string | null;
-    experiment_item_metadata: Record<string, unknown> | null;
-  };
-
-  const asyncGenerator = queryClickhouseStream<EvalEventRow>({
-    query,
-    params: queryParams,
-    clickhouseConfigs: {
-      request_timeout: 180_000,
-      clickhouse_settings: {
-        http_send_timeout: 300,
-        http_receive_timeout: 300,
-      },
-    },
-    tags: { projectId },
-    preferredClickhouseService: "EventsReadOnly",
-  });
-
-  // Remap ClickHouse aliases to schema field names.
-  // Schema validation is left to the consumer so per-row errors can be handled gracefully.
-  return Readable.from(
-    (async function* () {
-      for await (const row of asyncGenerator) {
-        yield {
-          ...row,
-          span_id: row.id,
-          parent_span_id: row.parent_observation_id,
-        };
-      }
-    })(),
-  );
 };
 
 async function getObservationByIdFromEventsTableInternal({
@@ -1457,6 +1340,12 @@ function applyObservationsCursorFilter(
   cursor: PublicApiObservationsQuery["cursor"] | undefined,
   queryBuilder: EventsQueryBuilder,
 ): EventsQueryBuilder {
+  // The cursor carries start_time at millisecond precision (JS Date round-trip),
+  // while the column is DateTime64(6). This is lossless only because every
+  // ingestion path writes ms-aligned start_time values (OTel nanos are floored
+  // to ms). If ingestion ever preserves sub-millisecond precision, this bound
+  // floors to the boundary row's millisecond and permanently skips rows at page
+  // boundaries — carry the raw ClickHouse string through the cursor instead (LFE-10405).
   return queryBuilder.when(Boolean(cursor), (b) => {
     const currentCursor = cursor;
     if (!currentCursor) {
@@ -1757,7 +1646,10 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
 
   // Check if filters specifically reference score aggregation columns
   const hasScoreAggregationFilters = tracesFilter.some(
-    (f) => f.field === "s.scores_avg" || f.field === "s.score_categories",
+    (f) =>
+      f.field === "s.scores_avg" ||
+      f.field === "s.score_categories" ||
+      f.field === "s.score_booleans",
   );
 
   // Build traces CTE using eventsTracesAggregation WITHOUT filters
@@ -1791,6 +1683,7 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
           "score_ids",
           "scores_avg",
           "score_categories",
+          "score_booleans",
         ],
       })
       .leftJoin(
@@ -2447,6 +2340,7 @@ export const deleteEventsOlderThanDays = async (
 
 export const getObservationsBatchIOFromEventsTable = async <
   TIncludeExperiment extends boolean = false,
+  TIncludeToolCalls extends boolean = false,
 >(opts: {
   projectId: string;
   observations: Array<{
@@ -2457,12 +2351,10 @@ export const getObservationsBatchIOFromEventsTable = async <
   maxStartTime: Date;
   truncated?: boolean; // Default true for performance, false for full data
   includeExperimentFields?: TIncludeExperiment;
+  /** Opt-in: tool-call arrays can be large; only eval consumers need them. */
+  includeToolCallFields?: TIncludeToolCalls;
 }): Promise<
-  Array<
-    TIncludeExperiment extends true
-      ? EventBatchIOWithExperimentOutput
-      : EventBatchIOStringOutput
-  >
+  Array<EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls>>
 > => {
   if (opts.observations.length === 0) {
     return [];
@@ -2492,6 +2384,12 @@ export const getObservationsBatchIOFromEventsTable = async <
       mapFromArrays(arrayReverse(e.experiment_item_metadata_names), arrayReverse(e.experiment_item_metadata_values)) as experiment_item_metadata,
     `
     : "";
+  const toolCallFieldsSelect = opts.includeToolCallFields
+    ? `
+      e.tool_calls as tool_calls,
+      e.tool_call_names as tool_call_names,
+    `
+    : "";
 
   const query = `
     SELECT
@@ -2499,6 +2397,7 @@ export const getObservationsBatchIOFromEventsTable = async <
       ${inputSelect},
       ${outputSelect},
       ${experimentFieldsSelect}
+      ${toolCallFieldsSelect}
       mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) as metadata
     FROM ${tableName} e
     WHERE e.project_id = {projectId: String}
@@ -2513,6 +2412,8 @@ export const getObservationsBatchIOFromEventsTable = async <
     input: string | null;
     output: string | null;
     metadata: Record<string, string>;
+    tool_calls?: string[];
+    tool_call_names?: string[];
     experiment_item_expected_output?: string | null;
     experiment_item_metadata?: Record<string, string>;
   }>({
@@ -2534,6 +2435,12 @@ export const getObservationsBatchIOFromEventsTable = async <
     output: applyBatchIOStringRendering(r.output),
     metadata:
       r.metadata !== undefined ? parseMetadataCHRecordToDomain(r.metadata) : {},
+    ...(opts.includeToolCallFields
+      ? {
+          toolCalls: r.tool_calls ?? [],
+          toolCallNames: r.tool_call_names ?? [],
+        }
+      : {}),
     ...(opts.includeExperimentFields
       ? {
           experimentItemExpectedOutput: r.experiment_item_expected_output,
@@ -2543,11 +2450,7 @@ export const getObservationsBatchIOFromEventsTable = async <
               : {},
         }
       : {}),
-  })) as Array<
-    TIncludeExperiment extends true
-      ? EventBatchIOWithExperimentOutput
-      : EventBatchIOStringOutput
-  >;
+  })) as Array<EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls>>;
 };
 
 /**
