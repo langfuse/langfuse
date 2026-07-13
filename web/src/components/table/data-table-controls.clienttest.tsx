@@ -6,7 +6,10 @@ import {
   DataTableControls,
   type QueryFilter,
 } from "./data-table-controls";
-import type { UIFilter } from "@/src/features/filters/hooks/useSidebarFilterState";
+import type {
+  CategoricalUIFilter,
+  UIFilter,
+} from "@/src/features/filters/hooks/useSidebarFilterState";
 
 // Radix ScrollArea (wrapping the facet list) needs ResizeObserver, which
 // jsdom does not implement.
@@ -263,7 +266,7 @@ describe("DataTableControls facet ordering", () => {
     column: string,
     label: string,
     isActive: boolean,
-  ): UIFilter => ({
+  ): CategoricalUIFilter => ({
     type: "categorical",
     column,
     label,
@@ -323,8 +326,9 @@ describe("DataTableControls facet ordering", () => {
     );
     expect(labelOrder("Beta", "Alpha")).toBe(true);
 
-    // Any interaction inside the panel freezes the current order…
-    fireEvent.keyDown(screen.getByText("Filters"));
+    // Any interaction inside the facet LIST freezes the current order
+    // (header actions like Clear all deliberately stay live)…
+    fireEvent.keyDown(screen.getByText("Alpha"));
 
     // …so Alpha becoming active (as a click on its checkbox would make it)
     // must NOT re-sort it above Beta while the user is working in the list.

@@ -180,6 +180,11 @@ export function DataTableControls({
 
   const handleFiltersGenerated = useCallback(
     (filters: FilterState) => {
+      // Un-freeze so the facets the AI just activated promote to the top —
+      // opening the popover necessarily interacted with the panel earlier,
+      // and nothing is under the user's cursor inside the list right now.
+      setFrozenOrder(null);
+
       // Apply filters
       queryFilter.setFilterState(filters);
 
@@ -242,10 +247,6 @@ export function DataTableControls({
           "bg-background flex h-full w-full flex-col overflow-hidden border-t",
           "group-data-[expanded=false]/controls:hidden",
         )}
-        // Capture-phase so the order freezes BEFORE the click that would
-        // change it lands (see the frozenOrder comment above).
-        onPointerDownCapture={freezeFacetOrder}
-        onKeyDownCapture={freezeFacetOrder}
       >
         <div className="bg-background flex h-10 shrink-0 items-center justify-between border-b px-3">
           <div className="flex items-center gap-1.5">
@@ -307,7 +308,19 @@ export function DataTableControls({
             )}
           </div>
         </div>
-        <ScrollArea className="min-h-0 flex-1">
+        <ScrollArea
+          className="min-h-0 flex-1"
+          // Capture-phase so the order freezes BEFORE the click that would
+          // change it lands (see the frozenOrder comment above). Scoped to the
+          // facet LIST: header actions (Clear all, AI filters) deliberately
+          // stay live — clearing returns the list to config order, AI-applied
+          // filters promote — since neither moves rows under the cursor.
+          onPointerDownCapture={freezeFacetOrder}
+          onKeyDownCapture={freezeFacetOrder}
+          // Wheel too: a late-arriving URL filter must not reorder rows
+          // while the user is scroll-reading the list.
+          onWheelCapture={freezeFacetOrder}
+        >
           <div className="pt-1 pb-10">
             <Accordion
               type="multiple"
@@ -706,9 +719,11 @@ export function FilterAccordionItem({
             </span>
           )}
           {summary && (
+            // shrink-0 + own max-w: a long facet label wraps rather than
+            // crushing the chip to nothing at the 200px minimum panel width.
             <span
               className={cn(
-                "max-w-[10rem] min-w-0 truncate text-xs",
+                "max-w-[8rem] shrink-0 truncate text-xs",
                 isActive
                   ? "bg-accent text-accent-foreground rounded px-1.5 py-0.5 font-medium"
                   : "text-muted-foreground/60 font-normal",
@@ -737,7 +752,7 @@ export function FilterAccordionItem({
                       onReset();
                     }
                   }}
-                  className="text-muted-foreground hover:bg-accent hover:text-foreground flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-sm"
+                  className="text-muted-foreground hover:bg-accent hover:text-foreground -my-1 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-sm"
                   aria-label={`Clear ${label} filter`}
                 >
                   <IconX className="h-3.5 w-3.5" />
@@ -794,19 +809,28 @@ export function CategoricalFacet({
   // Which input mode the facet is in (checkbox select vs contains/does-not-
   // contain text). Seeded from the applied filters so a deep link carrying
   // text filters opens in text mode instead of hiding them behind the tab.
+  const hasTextFilters = (textFilters?.length ?? 0) > 0;
   const [filterMode, setFilterMode] = useState<"select" | "text">(() =>
-    textFilters && textFilters.length > 0 ? "text" : "select",
+    hasTextFilters ? "text" : "select",
   );
+  // Adopt DURING render as well: on a hard reload the Pages Router delivers
+  // `?filter=` a few renders after mount (see the frozenOrder comment), so
+  // the mount seed alone would leave a text-filter deep link on the Select
+  // tab. Only the 0→n transition switches — removing the last text filter
+  // or picking a tab by hand is never overridden.
+  const [prevHasTextFilters, setPrevHasTextFilters] = useState(hasTextFilters);
+  if (hasTextFilters !== prevHasTextFilters) {
+    setPrevHasTextFilters(hasTextFilters);
+    if (hasTextFilters) setFilterMode("text");
+  }
 
-  // Handle mode change with auto-clear of filters from the other mode
-  const handleModeChange = (newMode: "select" | "text") => {
-    setFilterMode(newMode);
-    if (newMode === "select") {
-      textFilters?.forEach((f) => onTextFilterRemove?.(f.operator, f.value));
-    } else {
-      onChange([]);
-    }
-  };
+  // Switching modes is NON-destructive: the other mode's applied filters stay
+  // until the user applies something in the new mode — the state hook already
+  // enforces select/text mutual exclusivity at apply time (updateFilter drops
+  // the column's text filters, addTextFilter drops its checkbox filters).
+  // Clearing on the tab click itself deleted a shared link's filters one
+  // exploratory click after opening it, with no undo.
+  const handleModeChange = setFilterMode;
 
   return (
     <FilterAccordionItem

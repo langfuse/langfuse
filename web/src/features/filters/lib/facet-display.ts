@@ -26,19 +26,9 @@ const displayValue = (
  */
 export function getFacetSummary(filter: UIFilter): string | null {
   if (filter.type === "categorical") {
-    if (filter.textFilters && filter.textFilters.length > 0) {
-      if (filter.textFilters.length === 1) {
-        const entry = filter.textFilters[0];
-        return entry.operator === "contains"
-          ? `contains "${entry.value}"`
-          : `excludes "${entry.value}"`;
-      }
-      return `${filter.textFilters.length} text filters`;
-    }
-
     if (!filter.isActive) {
-      // "All" only makes sense once there are options to keep; while options
-      // are loading or absent the header stays quiet.
+      // "All" only makes sense once there are several options to keep; while
+      // options are loading, absent, or a lone value the header stays quiet.
       if (filter.options.length === 0) return null;
       // An inactive facet can still keep a strict subset: the managed
       // environment policy applies an implicit `none of [hidden]` default
@@ -53,30 +43,58 @@ export function getFacetSummary(filter: UIFilter): string | null {
           ? displayValue(filter.value[0], filter.displayByValue)
           : `${filter.value.length} selected`;
       }
-      return "All";
+      return filter.options.length > 1 ? "All" : null;
     }
+
+    // A column can carry BOTH a checkbox filter and text filters (authorable
+    // via URL or the search bar even though the sidebar applies them
+    // mutually exclusively) — report every part, not just one.
+    const parts: string[] = [];
 
     if (filter.operator === "none of") {
       // Checkboxes show the KEPT complement (LFE-10717); the applied filter
       // is the unchecked rest. Exclusions that fell out of the current
       // option list are invisible here, so the count can come up 0 — the
-      // filter is still live, say so generically.
+      // filter is still live; the generic fallback below covers it.
       const kept = new Set(filter.value);
-      const excludedCount = filter.options.filter(
-        (option) => !kept.has(option),
-      ).length;
-      if (excludedCount === 0) return "filtered";
-      if (excludedCount === 1) {
-        const excluded = filter.options.find((option) => !kept.has(option))!;
-        return `not ${displayValue(excluded, filter.displayByValue)}`;
+      const excluded = filter.options.filter((option) => !kept.has(option));
+      if (excluded.length === 1) {
+        parts.push(`not ${displayValue(excluded[0], filter.displayByValue)}`);
+      } else if (excluded.length > 1) {
+        parts.push(`not ${excluded.length} values`);
       }
-      return `${excludedCount} excluded`;
+    } else if (
+      filter.value.length === 1 &&
+      // a real checkbox filter (operator set) or a strict subset — NOT the
+      // all-checked default of a single-option facet under a text filter
+      (filter.operator !== undefined ||
+        filter.value.length < filter.options.length)
+    ) {
+      parts.push(displayValue(filter.value[0], filter.displayByValue));
+    } else if (
+      filter.value.length > 1 &&
+      (filter.value.length < filter.options.length ||
+        filter.operator === "all of" ||
+        // explicit all-selected filters persist for the managed env column
+        filter.operator === "any of")
+    ) {
+      parts.push(`${filter.value.length} selected`);
     }
 
-    if (filter.value.length === 1) {
-      return displayValue(filter.value[0], filter.displayByValue);
+    if (filter.textFilters && filter.textFilters.length > 0) {
+      if (filter.textFilters.length === 1) {
+        const entry = filter.textFilters[0];
+        parts.push(
+          entry.operator === "contains"
+            ? `contains "${entry.value}"`
+            : `not "${entry.value}"`,
+        );
+      } else {
+        parts.push(`${filter.textFilters.length} text filters`);
+      }
     }
-    return `${filter.value.length} selected`;
+
+    return parts.length > 0 ? parts.join(" · ") : "filtered";
   }
 
   if (filter.type === "numeric") {

@@ -105,7 +105,29 @@ describe("getFacetSummary", () => {
           value: ["a"],
         }),
       ),
-    ).toBe("2 excluded");
+    ).toBe("not 2 values");
+  });
+
+  it("stays quiet on single-option facets instead of a meaningless 'All'", () => {
+    expect(
+      getFacetSummary(
+        categorical({ options: ["default"], value: ["default"] }),
+      ),
+    ).toBeNull();
+  });
+
+  it("reports both checkbox and text parts when a column carries both", () => {
+    expect(
+      getFacetSummary(
+        categorical({
+          isActive: true,
+          operator: "any of",
+          options: ["a", "b", "c"],
+          value: ["a"],
+          textFilters: [{ operator: "does not contain", value: "x" }],
+        }),
+      ),
+    ).toBe('a · not "x"');
   });
 
   it("says 'filtered' for a live none-of whose exclusions fell out of the option list", () => {
