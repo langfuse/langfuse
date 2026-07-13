@@ -1,6 +1,25 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { Accordion } from "@/src/components/ui/accordion";
-import { CategoricalFacet } from "./data-table-controls";
+import { TooltipProvider } from "@/src/components/ui/tooltip";
+import {
+  CategoricalFacet,
+  DataTableControls,
+  type QueryFilter,
+} from "./data-table-controls";
+import type { UIFilter } from "@/src/features/filters/hooks/useSidebarFilterState";
+
+// Radix ScrollArea (wrapping the facet list) needs ResizeObserver, which
+// jsdom does not implement.
+beforeAll(() => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+});
 
 describe("CategoricalFacet", () => {
   it("shows selected values even when the backend returns no options", () => {
@@ -20,6 +39,9 @@ describe("CategoricalFacet", () => {
           onReset={() => {}}
         />
       </Accordion>,
+      // The active-facet clear affordance renders a Tooltip, which needs the
+      // provider the app supplies globally.
+      { wrapper: TooltipProvider },
     );
 
     expect(screen.getByText("AGENT")).toBeInTheDocument();
@@ -43,6 +65,9 @@ describe("CategoricalFacet", () => {
           onReset={() => {}}
         />
       </Accordion>,
+      // The active-facet clear affordance renders a Tooltip, which needs the
+      // provider the app supplies globally.
+      { wrapper: TooltipProvider },
     );
 
     expect(screen.getByLabelText("Clear Type filter")).toBeInTheDocument();
@@ -68,6 +93,9 @@ describe("CategoricalFacet", () => {
           onReset={() => {}}
         />
       </Accordion>,
+      // The active-facet clear affordance renders a Tooltip, which needs the
+      // provider the app supplies globally.
+      { wrapper: TooltipProvider },
     );
 
     // The list is long enough to be capped...
@@ -107,6 +135,9 @@ describe("CategoricalFacet", () => {
           onReset={() => {}}
         />
       </Accordion>,
+      // The active-facet clear affordance renders a Tooltip, which needs the
+      // provider the app supplies globally.
+      { wrapper: TooltipProvider },
     );
 
     // The cap is preserved: "Show more" still renders and a deep value stays hidden.
@@ -137,6 +168,9 @@ describe("CategoricalFacet", () => {
           onReset={() => {}}
         />
       </Accordion>,
+      // The active-facet clear affordance renders a Tooltip, which needs the
+      // provider the app supplies globally.
+      { wrapper: TooltipProvider },
     );
 
     expect(
@@ -171,6 +205,9 @@ describe("CategoricalFacet", () => {
           onReset={() => {}}
         />
       </Accordion>,
+      // The active-facet clear affordance renders a Tooltip, which needs the
+      // provider the app supplies globally.
+      { wrapper: TooltipProvider },
     );
 
     // The cap still applies...
@@ -206,6 +243,9 @@ describe("CategoricalFacet", () => {
           onReset={() => {}}
         />
       </Accordion>,
+      // The active-facet clear affordance renders a Tooltip, which needs the
+      // provider the app supplies globally.
+      { wrapper: TooltipProvider },
     );
 
     // No cap, no "Show more": the natural order is preserved (a, b, c) — the
@@ -215,5 +255,137 @@ describe("CategoricalFacet", () => {
     expect(
       a.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+});
+
+describe("DataTableControls facet ordering", () => {
+  const categoricalFilter = (
+    column: string,
+    label: string,
+    isActive: boolean,
+  ): UIFilter => ({
+    type: "categorical",
+    column,
+    label,
+    loading: false,
+    expanded: false,
+    isActive,
+    isDisabled: false,
+    onReset: () => {},
+    value: isActive ? ["x"] : [],
+    options: ["x", "y"],
+    counts: new Map(),
+    onChange: () => {},
+  });
+
+  const queryFilter = (filters: UIFilter[]): QueryFilter => ({
+    filters,
+    expanded: [],
+    onExpandedChange: () => {},
+    clearAll: () => {},
+    isFiltered: filters.some((f) => f.isActive),
+    setFilterState: () => {},
+  });
+
+  const labelOrder = (first: string, second: string) => {
+    const a = screen.getByText(first);
+    const b = screen.getByText(second);
+    return Boolean(
+      a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  };
+
+  it("promotes facets with an active filter above inactive ones", () => {
+    render(
+      <TooltipProvider>
+        <DataTableControls
+          queryFilter={queryFilter([
+            categoricalFilter("alpha", "Alpha", false),
+            categoricalFilter("beta", "Beta", true),
+          ])}
+        />
+      </TooltipProvider>,
+    );
+
+    // Config order is [Alpha, Beta]; active Beta renders first.
+    expect(labelOrder("Beta", "Alpha")).toBe(true);
+  });
+
+  it("freezes the order on first interaction so facets don't jump mid-click", () => {
+    const filters = [
+      categoricalFilter("alpha", "Alpha", false),
+      categoricalFilter("beta", "Beta", true),
+    ];
+    const { rerender } = render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={queryFilter(filters)} />
+      </TooltipProvider>,
+    );
+    expect(labelOrder("Beta", "Alpha")).toBe(true);
+
+    // Any interaction inside the panel freezes the current order…
+    fireEvent.keyDown(screen.getByText("Filters"));
+
+    // …so Alpha becoming active (as a click on its checkbox would make it)
+    // must NOT re-sort it above Beta while the user is working in the list.
+    rerender(
+      <TooltipProvider>
+        <DataTableControls
+          queryFilter={queryFilter([
+            categoricalFilter("alpha", "Alpha", true),
+            categoricalFilter("beta", "Beta", true),
+          ])}
+        />
+      </TooltipProvider>,
+    );
+    expect(labelOrder("Beta", "Alpha")).toBe(true);
+  });
+
+  it("tracks activity live before any interaction (late-arriving URL filters)", () => {
+    const { rerender } = render(
+      <TooltipProvider>
+        <DataTableControls
+          queryFilter={queryFilter([
+            categoricalFilter("alpha", "Alpha", false),
+            categoricalFilter("beta", "Beta", false),
+          ])}
+        />
+      </TooltipProvider>,
+    );
+    expect(labelOrder("Alpha", "Beta")).toBe(true);
+
+    // Filters decoded from the URL a few renders after mount still promote.
+    rerender(
+      <TooltipProvider>
+        <DataTableControls
+          queryFilter={queryFilter([
+            categoricalFilter("alpha", "Alpha", false),
+            categoricalFilter("beta", "Beta", true),
+          ])}
+        />
+      </TooltipProvider>,
+    );
+    expect(labelOrder("Beta", "Alpha")).toBe(true);
+  });
+
+  it("shows the 'what is selected' summary in the facet header", () => {
+    render(
+      <TooltipProvider>
+        <DataTableControls
+          queryFilter={queryFilter([
+            {
+              ...categoricalFilter("alpha", "Alpha", true),
+              value: ["x", "y"],
+              options: ["x", "y", "z"],
+            },
+            categoricalFilter("beta", "Beta", false),
+          ])}
+        />
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByText("2 selected")).toBeInTheDocument();
+    // Inactive checkbox facet reads "All" — all-checked means no filter.
+    expect(screen.getByText("All")).toBeInTheDocument();
   });
 });

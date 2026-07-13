@@ -28,6 +28,7 @@ import {
   type FieldRef,
 } from "./fields";
 import { quoteIfNeeded } from "./quoting";
+import { rankFilter } from "./rank";
 import type { ObservedOptions } from "./observed-options";
 
 export type CompletionStage =
@@ -169,26 +170,8 @@ const PATTERN_OPTIONS: CompletionOption[] = [
   },
 ];
 
-/** Case-insensitive match; prefix matches rank before substring matches. */
-function filterRank(label: string, query: string): number | null {
-  if (query.length === 0) return 0;
-  const l = label.toLowerCase();
-  const q = query.toLowerCase();
-  if (l.startsWith(q)) return 0;
-  if (l.includes(q)) return 1;
-  return null;
-}
-
-function rankFilter<T extends { label: string }>(
-  options: T[],
-  query: string,
-): T[] {
-  return options
-    .map((o) => ({ o, rank: filterRank(o.label, query) }))
-    .filter((x): x is { o: T; rank: number } => x.rank !== null)
-    .sort((a, b) => a.rank - b.rank)
-    .map((x) => x.o);
-}
+// Ranking (prefix-before-substring) lives in ./rank so the filter sidebar's
+// per-facet value search can share it — see that module's header.
 
 function fieldOptions(includeVirtual = true): CompletionOption[] {
   const opts: CompletionOption[] = FIELDS.map((f: FieldDef) => ({

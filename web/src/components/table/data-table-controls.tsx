@@ -7,6 +7,19 @@ import {
   useRef,
   useCallback,
 } from "react";
+import { ScrollArea } from "@/src/components/ui/scroll-area";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
+import {
+  getFacetSummary,
+  rankFacetOptions,
+} from "@/src/features/filters/lib/facet-display";
 import { useMediaQuery } from "react-responsive";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { cn } from "@/src/utils/tailwind";
@@ -118,6 +131,20 @@ interface DataTableControlsProps {
   filterWithAI?: boolean;
 }
 
+// Stable sort into a previously captured column order; columns missing from
+// the captured order keep their relative position at the end.
+function sortFacetsByColumnOrder(
+  filters: UIFilter[],
+  order: string[],
+): UIFilter[] {
+  const index = new Map(order.map((column, i) => [column, i]));
+  return [...filters].sort(
+    (a, b) =>
+      (index.get(a.column) ?? order.length) -
+      (index.get(b.column) ?? order.length),
+  );
+}
+
 export function DataTableControls({
   queryFilter,
   filterWithAI,
@@ -128,6 +155,28 @@ export function DataTableControls({
   const activeFilterCount = queryFilter.filters.filter(
     (filter) => filter.isActive,
   ).length;
+
+  // Selected filters on top: facets with an active filter are promoted above
+  // the rest (config order preserved within each group), so landing on a
+  // filtered view — deep link, saved view, restored session — shows what is
+  // filtered without scrolling. The order FREEZES on the first user
+  // interaction with the sidebar: re-sorting live would teleport the facet a
+  // user is ticking checkboxes in to the top of the list mid-interaction,
+  // moving the very rows under their cursor. Until that first interaction the
+  // order tracks activity live, which also covers URL filters that arrive a
+  // few renders late (Pages Router populates query params after the first
+  // render — see LFE-10164 in useSidebarFilterState). A remount (navigation,
+  // saved-view switch) recomputes the promotion.
+  const [frozenOrder, setFrozenOrder] = useState<string[] | null>(null);
+  const orderedFilters = frozenOrder
+    ? sortFacetsByColumnOrder(queryFilter.filters, frozenOrder)
+    : [...queryFilter.filters].sort(
+        (a, b) => Number(b.isActive) - Number(a.isActive),
+      );
+  const orderedColumns = orderedFilters.map((filter) => filter.column);
+  const freezeFacetOrder = () => {
+    setFrozenOrder((current) => current ?? orderedColumns);
+  };
 
   const handleFiltersGenerated = useCallback(
     (filters: FilterState) => {
@@ -190,11 +239,15 @@ export function DataTableControls({
       </div>
       <div
         className={cn(
-          "bg-background flex h-full w-full flex-col overflow-auto border-t",
+          "bg-background flex h-full w-full flex-col overflow-hidden border-t",
           "group-data-[expanded=false]/controls:hidden",
         )}
+        // Capture-phase so the order freezes BEFORE the click that would
+        // change it lands (see the frozenOrder comment above).
+        onPointerDownCapture={freezeFacetOrder}
+        onKeyDownCapture={freezeFacetOrder}
       >
-        <div className="bg-background sticky top-0 z-20 mb-1 flex h-10 shrink-0 items-center justify-between border-b px-3">
+        <div className="bg-background flex h-10 shrink-0 items-center justify-between border-b px-3">
           <div className="flex items-center gap-1.5">
             <Tooltip>
               <TooltipTrigger asChild>
@@ -211,6 +264,11 @@ export function DataTableControls({
               <TooltipContent>Hide filters</TooltipContent>
             </Tooltip>
             <span className="text-sm font-medium">Filters</span>
+            {activeFilterCount > 0 && (
+              <Badge variant="secondary" className="h-5 px-1.5 text-xs">
+                {activeFilterCount}
+              </Badge>
+            )}
           </div>
           <div className="flex items-center gap-1">
             {queryFilter.isFiltered && (
@@ -249,179 +307,188 @@ export function DataTableControls({
             )}
           </div>
         </div>
-        <div className="pb-10">
-          <Accordion
-            type="multiple"
-            className="w-full"
-            value={queryFilter.expanded}
-            onValueChange={queryFilter.onExpandedChange}
-          >
-            {queryFilter.filters.map((filter) => {
-              if (filter.type === "categorical") {
-                return (
-                  <CategoricalFacet
-                    key={filter.column}
-                    filterKey={filter.column}
-                    label={filter.label}
-                    tooltip={filter.tooltip}
-                    help={filter.help}
-                    expanded={filter.expanded}
-                    options={filter.options}
-                    counts={filter.counts}
-                    displayByValue={filter.displayByValue}
-                    loading={filter.loading}
-                    value={filter.value}
-                    onChange={filter.onChange}
-                    onOnlyChange={filter.onOnlyChange}
-                    renderIcon={filter.renderIcon}
-                    isActive={filter.isActive}
-                    onReset={filter.onReset}
-                    operator={filter.operator}
-                    onOperatorChange={filter.onOperatorChange}
-                    textFilters={filter.textFilters}
-                    onTextFilterAdd={filter.onTextFilterAdd}
-                    onTextFilterRemove={filter.onTextFilterRemove}
-                    isDisabled={filter.isDisabled}
-                    disabledReason={filter.disabledReason}
-                  />
-                );
-              }
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="pt-1 pb-10">
+            <Accordion
+              type="multiple"
+              className="w-full"
+              value={queryFilter.expanded}
+              onValueChange={queryFilter.onExpandedChange}
+            >
+              {orderedFilters.map((filter) => {
+                if (filter.type === "categorical") {
+                  return (
+                    <CategoricalFacet
+                      key={filter.column}
+                      filterKey={filter.column}
+                      label={filter.label}
+                      tooltip={filter.tooltip}
+                      help={filter.help}
+                      summary={getFacetSummary(filter)}
+                      expanded={filter.expanded}
+                      options={filter.options}
+                      counts={filter.counts}
+                      displayByValue={filter.displayByValue}
+                      loading={filter.loading}
+                      value={filter.value}
+                      onChange={filter.onChange}
+                      onOnlyChange={filter.onOnlyChange}
+                      renderIcon={filter.renderIcon}
+                      isActive={filter.isActive}
+                      onReset={filter.onReset}
+                      operator={filter.operator}
+                      onOperatorChange={filter.onOperatorChange}
+                      textFilters={filter.textFilters}
+                      onTextFilterAdd={filter.onTextFilterAdd}
+                      onTextFilterRemove={filter.onTextFilterRemove}
+                      isDisabled={filter.isDisabled}
+                      disabledReason={filter.disabledReason}
+                    />
+                  );
+                }
 
-              if (filter.type === "numeric") {
-                return (
-                  <NumericFacet
-                    key={filter.column}
-                    filterKey={filter.column}
-                    label={filter.label}
-                    tooltip={filter.tooltip}
-                    help={filter.help}
-                    expanded={filter.expanded}
-                    loading={filter.loading}
-                    min={filter.min}
-                    max={filter.max}
-                    value={filter.value}
-                    onChange={filter.onChange}
-                    unit={filter.unit}
-                    isActive={filter.isActive}
-                    onReset={filter.onReset}
-                    isDisabled={filter.isDisabled}
-                    disabledReason={filter.disabledReason}
-                  />
-                );
-              }
+                if (filter.type === "numeric") {
+                  return (
+                    <NumericFacet
+                      key={filter.column}
+                      filterKey={filter.column}
+                      label={filter.label}
+                      tooltip={filter.tooltip}
+                      help={filter.help}
+                      summary={getFacetSummary(filter)}
+                      expanded={filter.expanded}
+                      loading={filter.loading}
+                      min={filter.min}
+                      max={filter.max}
+                      value={filter.value}
+                      onChange={filter.onChange}
+                      unit={filter.unit}
+                      isActive={filter.isActive}
+                      onReset={filter.onReset}
+                      isDisabled={filter.isDisabled}
+                      disabledReason={filter.disabledReason}
+                    />
+                  );
+                }
 
-              if (filter.type === "string") {
-                return (
-                  <StringFacet
-                    key={filter.column}
-                    filterKey={filter.column}
-                    label={filter.label}
-                    tooltip={filter.tooltip}
-                    help={filter.help}
-                    expanded={filter.expanded}
-                    loading={filter.loading}
-                    value={filter.value}
-                    onChange={filter.onChange}
-                    isActive={filter.isActive}
-                    onReset={filter.onReset}
-                    isDisabled={filter.isDisabled}
-                    disabledReason={filter.disabledReason}
-                  />
-                );
-              }
+                if (filter.type === "string") {
+                  return (
+                    <StringFacet
+                      key={filter.column}
+                      filterKey={filter.column}
+                      label={filter.label}
+                      tooltip={filter.tooltip}
+                      help={filter.help}
+                      summary={getFacetSummary(filter)}
+                      expanded={filter.expanded}
+                      loading={filter.loading}
+                      value={filter.value}
+                      onChange={filter.onChange}
+                      isActive={filter.isActive}
+                      onReset={filter.onReset}
+                      isDisabled={filter.isDisabled}
+                      disabledReason={filter.disabledReason}
+                    />
+                  );
+                }
 
-              if (filter.type === "keyValue") {
-                return (
-                  <KeyValueFacet
-                    key={filter.column}
-                    filterKey={filter.column}
-                    label={filter.label}
-                    tooltip={filter.tooltip}
-                    help={filter.help}
-                    expanded={filter.expanded}
-                    loading={filter.loading}
-                    keyOptions={filter.keyOptions}
-                    availableValues={filter.availableValues}
-                    value={filter.value}
-                    onChange={filter.onChange}
-                    isActive={filter.isActive}
-                    onReset={filter.onReset}
-                    keyPlaceholder="Name"
-                    isDisabled={filter.isDisabled}
-                    disabledReason={filter.disabledReason}
-                  />
-                );
-              }
+                if (filter.type === "keyValue") {
+                  return (
+                    <KeyValueFacet
+                      key={filter.column}
+                      filterKey={filter.column}
+                      label={filter.label}
+                      tooltip={filter.tooltip}
+                      help={filter.help}
+                      summary={getFacetSummary(filter)}
+                      expanded={filter.expanded}
+                      loading={filter.loading}
+                      keyOptions={filter.keyOptions}
+                      availableValues={filter.availableValues}
+                      value={filter.value}
+                      onChange={filter.onChange}
+                      isActive={filter.isActive}
+                      onReset={filter.onReset}
+                      keyPlaceholder="Name"
+                      isDisabled={filter.isDisabled}
+                      disabledReason={filter.disabledReason}
+                    />
+                  );
+                }
 
-              if (filter.type === "numericKeyValue") {
-                return (
-                  <NumericKeyValueFacet
-                    key={filter.column}
-                    filterKey={filter.column}
-                    label={filter.label}
-                    tooltip={filter.tooltip}
-                    help={filter.help}
-                    expanded={filter.expanded}
-                    loading={filter.loading}
-                    keyOptions={filter.keyOptions}
-                    value={filter.value}
-                    onChange={filter.onChange}
-                    isActive={filter.isActive}
-                    onReset={filter.onReset}
-                    keyPlaceholder="Name"
-                    isDisabled={filter.isDisabled}
-                    disabledReason={filter.disabledReason}
-                  />
-                );
-              }
+                if (filter.type === "numericKeyValue") {
+                  return (
+                    <NumericKeyValueFacet
+                      key={filter.column}
+                      filterKey={filter.column}
+                      label={filter.label}
+                      tooltip={filter.tooltip}
+                      help={filter.help}
+                      summary={getFacetSummary(filter)}
+                      expanded={filter.expanded}
+                      loading={filter.loading}
+                      keyOptions={filter.keyOptions}
+                      value={filter.value}
+                      onChange={filter.onChange}
+                      isActive={filter.isActive}
+                      onReset={filter.onReset}
+                      keyPlaceholder="Name"
+                      isDisabled={filter.isDisabled}
+                      disabledReason={filter.disabledReason}
+                    />
+                  );
+                }
 
-              if (filter.type === "booleanKeyValue") {
-                return (
-                  <BooleanKeyValueFacet
-                    key={filter.column}
-                    filterKey={filter.column}
-                    label={filter.label}
-                    tooltip={filter.tooltip}
-                    help={filter.help}
-                    expanded={filter.expanded}
-                    loading={filter.loading}
-                    keyOptions={filter.keyOptions}
-                    value={filter.value}
-                    onChange={filter.onChange}
-                    isActive={filter.isActive}
-                    onReset={filter.onReset}
-                    keyPlaceholder="Name"
-                    isDisabled={filter.isDisabled}
-                    disabledReason={filter.disabledReason}
-                  />
-                );
-              }
+                if (filter.type === "booleanKeyValue") {
+                  return (
+                    <BooleanKeyValueFacet
+                      key={filter.column}
+                      filterKey={filter.column}
+                      label={filter.label}
+                      tooltip={filter.tooltip}
+                      help={filter.help}
+                      summary={getFacetSummary(filter)}
+                      expanded={filter.expanded}
+                      loading={filter.loading}
+                      keyOptions={filter.keyOptions}
+                      value={filter.value}
+                      onChange={filter.onChange}
+                      isActive={filter.isActive}
+                      onReset={filter.onReset}
+                      keyPlaceholder="Name"
+                      isDisabled={filter.isDisabled}
+                      disabledReason={filter.disabledReason}
+                    />
+                  );
+                }
 
-              if (filter.type === "stringKeyValue") {
-                return (
-                  <StringKeyValueFacet
-                    key={filter.column}
-                    filterKey={filter.column}
-                    label={filter.label}
-                    tooltip={filter.tooltip}
-                    help={filter.help}
-                    expanded={filter.expanded}
-                    loading={filter.loading}
-                    keyOptions={filter.keyOptions}
-                    value={filter.value}
-                    onChange={filter.onChange}
-                    isActive={filter.isActive}
-                    onReset={filter.onReset}
-                    isDisabled={filter.isDisabled}
-                    disabledReason={filter.disabledReason}
-                  />
-                );
-              }
+                if (filter.type === "stringKeyValue") {
+                  return (
+                    <StringKeyValueFacet
+                      key={filter.column}
+                      filterKey={filter.column}
+                      label={filter.label}
+                      tooltip={filter.tooltip}
+                      help={filter.help}
+                      summary={getFacetSummary(filter)}
+                      expanded={filter.expanded}
+                      loading={filter.loading}
+                      keyOptions={filter.keyOptions}
+                      value={filter.value}
+                      onChange={filter.onChange}
+                      isActive={filter.isActive}
+                      onReset={filter.onReset}
+                      isDisabled={filter.isDisabled}
+                      disabledReason={filter.disabledReason}
+                    />
+                  );
+                }
 
-              return null;
-            })}
-          </Accordion>
-        </div>
+                return null;
+              })}
+            </Accordion>
+          </div>
+        </ScrollArea>
       </div>
     </>
   );
@@ -434,6 +501,8 @@ interface BaseFacetProps {
     description: React.ReactNode;
     href?: string;
   };
+  /** One-line "what is selected?" header summary; see getFacetSummary. */
+  summary?: string | null;
   filterKey: string;
   filterKeyShort?: string | null;
   expanded?: boolean;
@@ -515,7 +584,9 @@ const FilterAccordionTrigger = ({
   children,
   ...props
 }: React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger>) => (
-  <AccordionPrimitive.Header className="bg-background sticky top-10 z-10 flex">
+  // top-0: the panel header row sits outside the scroll container
+  // (ScrollArea wraps only the facet list), so triggers stick to its top.
+  <AccordionPrimitive.Header className="bg-background sticky top-0 z-10 flex">
     <AccordionPrimitive.Trigger
       className={cn(
         "flex flex-1 items-center justify-between text-left font-medium hover:underline [&[data-state=open]>svg]:rotate-180",
@@ -546,6 +617,8 @@ interface FilterAccordionItemProps {
     description: React.ReactNode;
     href?: string;
   };
+  /** One-line "what is selected?" summary rendered before the chevron. */
+  summary?: string | null;
   filterKey: string;
   filterKeyShort?: string | null;
   children: React.ReactNode;
@@ -559,6 +632,7 @@ export function FilterAccordionItem({
   label,
   tooltip,
   help,
+  summary,
   filterKey,
   filterKeyShort,
   children,
@@ -572,11 +646,12 @@ export function FilterAccordionItem({
       <FilterAccordionTrigger
         className={cn(
           "text-muted-foreground hover:text-foreground px-3 py-1.5 text-sm font-normal hover:no-underline",
+          isActive && "text-foreground",
           isDisabled &&
             "text-muted-foreground/60 hover:text-muted-foreground/60 cursor-not-allowed",
         )}
       >
-        <div className="flex grow items-center gap-1.5 pr-2">
+        <div className="flex min-w-0 grow items-center gap-1.5 pr-2">
           {isDisabled && disabledReason ? (
             <Tooltip delayDuration={80}>
               <TooltipTrigger asChild>
@@ -630,27 +705,48 @@ export function FilterAccordionItem({
               )}
             </span>
           )}
-          {isActive && onReset && (
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={(e) => {
-                e.stopPropagation();
-                onReset();
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  onReset();
-                }
-              }}
-              className="bg-background hover:bg-accent hover:text-accent-foreground inline-flex h-5 cursor-pointer items-center gap-1 rounded-full border px-2 text-xs"
-              aria-label={`Clear ${label} filter`}
+          {summary && (
+            <span
+              className={cn(
+                "max-w-[10rem] min-w-0 truncate text-xs",
+                isActive
+                  ? "bg-accent text-accent-foreground rounded px-1.5 py-0.5 font-medium"
+                  : "text-muted-foreground/60 font-normal",
+              )}
+              title={summary}
             >
-              <span>Clear</span>
-              <IconX className="h-3 w-3" />
-            </div>
+              {summary}
+            </span>
+          )}
+          {isActive && onReset && (
+            <Tooltip delayDuration={80}>
+              <TooltipTrigger asChild>
+                {/* div[role=button], not <Button>: the accordion trigger is
+                    already a <button> and buttons cannot nest. */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onReset();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      onReset();
+                    }
+                  }}
+                  className="text-muted-foreground hover:bg-accent hover:text-foreground flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-sm"
+                  aria-label={`Clear ${label} filter`}
+                >
+                  <IconX className="h-3.5 w-3.5" />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="text-xs">
+                Clear {label.toLowerCase()} filter
+              </TooltipContent>
+            </Tooltip>
           )}
         </div>
       </FilterAccordionTrigger>
@@ -673,9 +769,10 @@ export function CategoricalFacet({
   label,
   tooltip,
   help,
+  summary,
   filterKey,
   filterKeyShort,
-  expanded,
+  expanded: _expanded,
   loading,
   options,
   counts,
@@ -694,34 +791,107 @@ export function CategoricalFacet({
   onTextFilterAdd,
   onTextFilterRemove,
 }: CategoricalFacetProps) {
-  const [showAll, setShowAll] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  // Track which filter mode is active (select checkboxes vs text filters)
-  const [filterMode, setFilterMode] = useState<"select" | "text">("select");
-
-  // Reset showAll and searchQuery state when accordion is collapsed
-  useEffect(() => {
-    if (!expanded) {
-      setShowAll(false);
-      setSearchQuery("");
-    }
-  }, [expanded]);
-
-  // Handle mode change with auto-clear of filters from the other mode
-  const handleModeChange = useCallback(
-    (newMode: "select" | "text") => {
-      setFilterMode(newMode);
-
-      // Clear filters from the other mode
-      if (newMode === "select") {
-        textFilters?.forEach((f) => onTextFilterRemove?.(f.operator, f.value));
-      } else {
-        onChange([]);
-      }
-    },
-    [textFilters, onTextFilterRemove, onChange],
+  // Which input mode the facet is in (checkbox select vs contains/does-not-
+  // contain text). Seeded from the applied filters so a deep link carrying
+  // text filters opens in text mode instead of hiding them behind the tab.
+  const [filterMode, setFilterMode] = useState<"select" | "text">(() =>
+    textFilters && textFilters.length > 0 ? "text" : "select",
   );
 
+  // Handle mode change with auto-clear of filters from the other mode
+  const handleModeChange = (newMode: "select" | "text") => {
+    setFilterMode(newMode);
+    if (newMode === "select") {
+      textFilters?.forEach((f) => onTextFilterRemove?.(f.operator, f.value));
+    } else {
+      onChange([]);
+    }
+  };
+
+  return (
+    <FilterAccordionItem
+      label={label}
+      tooltip={tooltip}
+      help={help}
+      summary={summary}
+      filterKey={filterKey}
+      filterKeyShort={filterKeyShort}
+      isActive={isActive}
+      isDisabled={isDisabled}
+      disabledReason={disabledReason}
+      onReset={onReset}
+    >
+      <div className="flex flex-col">
+        {/* Tab switcher - only show when text filtering is supported */}
+        {onTextFilterAdd && (
+          <FilterModeTabs mode={filterMode} onModeChange={handleModeChange} />
+        )}
+
+        {/* SELECT MODE: checkboxes with optional counts */}
+        {filterMode === "select" && (
+          <CategoricalSelectContent
+            filterKey={filterKey}
+            loading={loading}
+            options={options}
+            counts={counts}
+            displayByValue={displayByValue}
+            value={value}
+            onChange={onChange}
+            onOnlyChange={onOnlyChange}
+            renderIcon={renderIcon}
+            operator={operator}
+            onOperatorChange={onOperatorChange}
+          />
+        )}
+
+        {/* TEXT MODE: Contains/Does Not Contain filters */}
+        {filterMode === "text" && onTextFilterAdd && (
+          <div className="px-2 py-1">
+            <TextFilterSection
+              allFilters={textFilters ?? []}
+              onAdd={onTextFilterAdd}
+              onRemove={onTextFilterRemove}
+            />
+          </div>
+        )}
+      </div>
+    </FilterAccordionItem>
+  );
+}
+
+// Select-mode body of a categorical facet. A separate stateful child so its
+// transient list UI state (value search, "show more") lives inside the
+// accordion content and unmounts — and therefore resets — when the facet is
+// collapsed (Radix unmounts closed content), instead of a reset effect in
+// the always-mounted facet wrapper.
+function CategoricalSelectContent({
+  filterKey,
+  loading,
+  options,
+  counts,
+  displayByValue,
+  value,
+  onChange,
+  onOnlyChange,
+  renderIcon,
+  operator,
+  onOperatorChange,
+}: Pick<
+  CategoricalFacetProps,
+  | "filterKey"
+  | "loading"
+  | "options"
+  | "counts"
+  | "displayByValue"
+  | "value"
+  | "onChange"
+  | "onOnlyChange"
+  | "renderIcon"
+  | "operator"
+  | "onOperatorChange"
+>) {
+  const [showAll, setShowAll] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const { tableName = "data" } = useContext(ControlsContext) ?? {};
 
   const MAX_VISIBLE_OPTIONS = 12;
@@ -730,16 +900,11 @@ export function CategoricalFacet({
   );
   const hasMoreOptions = visibleOptionValues.length > MAX_VISIBLE_OPTIONS;
 
-  // Filter options by search query (check both raw value and display label)
+  // Filter options by search query (raw value and display label), ranked the
+  // way the search bar ranks its completions: prefix matches before
+  // substring matches, instead of plain unordered substring filtering.
   const filteredOptions = searchQuery
-    ? visibleOptionValues.filter((option) => {
-        const search = searchQuery.toLowerCase();
-        const displayLabel = displayByValue?.get(option) ?? option;
-        return (
-          option.toLowerCase().includes(search) ||
-          displayLabel.toLowerCase().includes(search)
-        );
-      })
+    ? rankFacetOptions(visibleOptionValues, searchQuery, displayByValue)
     : visibleOptionValues;
 
   // Order the applied filter to the top of the list so it is immediately
@@ -817,237 +982,180 @@ export function CategoricalFacet({
   };
 
   return (
-    <FilterAccordionItem
-      label={label}
-      tooltip={tooltip}
-      help={help}
-      filterKey={filterKey}
-      filterKeyShort={filterKeyShort}
-      isActive={isActive}
-      isDisabled={isDisabled}
-      disabledReason={disabledReason}
-      onReset={onReset}
-    >
-      <div className="flex flex-col">
-        {/* Tab switcher - only show when text filtering is supported */}
-        {onTextFilterAdd && (
-          <FilterModeTabs mode={filterMode} onModeChange={handleModeChange} />
-        )}
+    <div className="px-2">
+      {/* Any of / All of / None of operator toggle for arrayOptions filters
 
-        {/* SELECT MODE: Checkboxes with optional counts */}
-        {filterMode === "select" && (
-          <div className="px-2">
-            {/* SOME/ALL/NONE operator toggle for arrayOptions filters
+          This toggle appears for multi-valued array columns (arrayOptions)
+          like tags. It switches between the supported array matching modes:
+          - Any of: match items with ANY selected value (OR logic)
+          - All of: match items with ALL selected values (AND logic)
+          - None of: exclude items carrying any UNCHECKED value (the filter
+            stores the exclusions; checkboxes show the kept complement,
+            LFE-10717)
 
-                This toggle appears for multi-valued array columns (arrayOptions) like tags.
-                It allows switching between the supported array matching modes:
-                - SOME: Match items with ANY selected value (OR logic)
-                - ALL: Match items with ALL selected values (AND logic)
-                - NONE: Exclude items carrying any UNCHECKED value (the filter
-                  stores the exclusions; checkboxes show the kept complement,
-                  LFE-10717)
+          Toggling between modes carries the stored value list over, so
+          any-of "match a or b" becomes none-of "exclude a and b" — the
+          checked set visually flips to its complement.
 
-                Toggling between modes carries the stored value list over, so
-                SOME "match a or b" becomes NONE "exclude a and b" — the
-                checked set visually flips to its complement.
+          None-of mode usually engages by itself: unchecking a value from
+          the all-checked default persists `none of [value]`. The toggle
+          remains for converting an existing selection or persisting an
+          operator preference before any values are selected. Other
+          filter types (stringOptions, boolean, numeric) don't get this
+          toggle because these array-specific modes are not semantically
+          meaningful there.
 
-                NONE mode usually engages by itself: unchecking a value from
-                the all-checked default persists `none of [value]`. The toggle
-                remains for converting an existing selection or persisting an
-                operator preference before any values are selected. Other
-                filter types (stringOptions, boolean, numeric) don't get this
-                toggle because these array-specific modes are not semantically
-                meaningful there.
+          Currently enabled for:
+          - Traces: tags
+          - Sessions: userIds, tags
+          - Prompts: labels, tags
+          - Monitors: tags
+      */}
+      {onOperatorChange && (
+        <div className="mb-2 px-2">
+          <Tabs
+            value={operator ?? "any of"}
+            onValueChange={(newOperator) =>
+              onOperatorChange(newOperator as "any of" | "all of" | "none of")
+            }
+          >
+            <TabsList className="grid h-6 w-full grid-cols-3 p-0.5">
+              <TabsTrigger value="any of" className="h-5 px-1 text-xs">
+                Any of
+              </TabsTrigger>
+              <TabsTrigger value="all of" className="h-5 px-1 text-xs">
+                All of
+              </TabsTrigger>
+              <TabsTrigger value="none of" className="h-5 px-1 text-xs">
+                None of
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+      )}
 
-                Currently enabled for:
-                - Traces: tags
-                - Sessions: userIds, tags
-                - Prompts: labels, tags
-                - Monitors: tags
-            */}
-            {onOperatorChange && (
-              <div className="mb-1.5 flex items-center gap-1.5 px-2">
-                <span className="text-muted-foreground/80 text-[10px]">
-                  Match:
-                </span>
-                <div className="border-input/50 bg-background inline-flex rounded border text-[10px]">
-                  <button
-                    onClick={() => onOperatorChange("any of")}
-                    className={cn(
-                      "rounded-l px-1.5 py-0.5 transition-colors",
-                      operator === "any of" || !operator
-                        ? "bg-accent text-accent-foreground font-medium"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    SOME
-                  </button>
-                  <div className="bg-border/50 w-px" />
-                  <button
-                    onClick={() => onOperatorChange("all of")}
-                    className={cn(
-                      "px-1.5 py-0.5 transition-colors",
-                      operator === "all of"
-                        ? "bg-accent text-accent-foreground font-medium"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    ALL
-                  </button>
-                  <div className="bg-border/50 w-px" />
-                  <button
-                    onClick={() => onOperatorChange("none of")}
-                    className={cn(
-                      "rounded-r px-1.5 py-0.5 transition-colors",
-                      operator === "none of"
-                        ? "bg-accent text-accent-foreground font-medium"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    NONE
-                  </button>
-                </div>
+      {/* Loading / Empty / Options */}
+      {loading ? (
+        <>
+          {[1, 2].map((i) => (
+            <div key={i} className="relative flex items-center px-2">
+              <div className="group/checkbox flex items-center rounded-sm p-1">
+                <Skeleton className="h-4 w-4 rounded-sm" />
               </div>
-            )}
-
-            {/* Loading / Empty / Options */}
-            {loading ? (
-              <>
-                {[1, 2].map((i) => (
-                  <div key={i} className="relative flex items-center px-2">
-                    <div className="group/checkbox flex items-center rounded-sm p-1">
-                      <Skeleton className="h-4 w-4 rounded-sm" />
-                    </div>
-                    <div className="group/label flex min-w-0 flex-1 items-center rounded-sm px-1 py-1">
-                      <Skeleton className="h-3 w-24" />
-                      <Skeleton className="ml-auto h-3 w-8" />
-                    </div>
-                  </div>
-                ))}
-              </>
-            ) : visibleOptionValues.length === 0 ? (
-              <div className="text-muted-foreground py-1 text-xs">
-                {filterKey === "sessionId" ? (
-                  <span>
-                    Sessions group {tableName} together, which is useful for
-                    tracing multi-step workflows.{" "}
-                    <a
-                      href="https://langfuse.com/docs/observability/features/sessions"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-foreground underline"
-                    >
-                      See docs
-                    </a>{" "}
-                    to learn how to add sessions to your {tableName}.
-                  </span>
-                ) : filterKey === "name" ? (
-                  <span>
-                    No {tableName} names found in the given time range.
-                  </span>
-                ) : filterKey === "tags" ? (
-                  <span>
-                    Tags let you filter {tableName} according to custom
-                    categories (e.g. feature flags).{" "}
-                    <a
-                      href="https://langfuse.com/docs/observability/features/tags"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-foreground underline"
-                    >
-                      See docs
-                    </a>{" "}
-                    to learn how to add tags to your {tableName}.
-                  </span>
-                ) : (
-                  "No options found"
-                )}
+              <div className="group/label flex min-w-0 flex-1 items-center rounded-sm px-1 py-1">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="ml-auto h-3 w-8" />
               </div>
-            ) : (
-              <>
-                {/* Search box for many options */}
-                {hasMoreOptions && (
-                  <div className="mb-2 px-2">
-                    <div className="relative">
-                      <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
-                      <Input
-                        placeholder="Filter values"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="h-8 pl-7 text-xs"
-                      />
-                    </div>
-                  </div>
-                )}
+            </div>
+          ))}
+        </>
+      ) : visibleOptionValues.length === 0 ? (
+        <div className="text-muted-foreground py-1 text-xs">
+          {filterKey === "sessionId" ? (
+            <span>
+              Sessions group {tableName} together, which is useful for tracing
+              multi-step workflows.{" "}
+              <a
+                href="https://langfuse.com/docs/observability/features/sessions"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-foreground underline"
+              >
+                See docs
+              </a>{" "}
+              to learn how to add sessions to your {tableName}.
+            </span>
+          ) : filterKey === "name" ? (
+            <span>No {tableName} names found in the given time range.</span>
+          ) : filterKey === "tags" ? (
+            <span>
+              Tags let you filter {tableName} according to custom categories
+              (e.g. feature flags).{" "}
+              <a
+                href="https://langfuse.com/docs/observability/features/tags"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-foreground underline"
+              >
+                See docs
+              </a>{" "}
+              to learn how to add tags to your {tableName}.
+            </span>
+          ) : (
+            "No options found"
+          )}
+        </div>
+      ) : (
+        <>
+          {/* Search box for many options */}
+          {hasMoreOptions && (
+            <div className="mb-2 px-2">
+              <div className="relative">
+                <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
+                <Input
+                  placeholder="Filter values"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-8 pl-7 text-xs"
+                />
+              </div>
+            </div>
+          )}
 
-                {/* Checkbox list */}
-                {filteredOptions.length === 0 ? (
-                  <div className="text-muted-foreground py-1 text-center text-sm">
-                    No matches found
-                  </div>
-                ) : (
-                  <>
-                    {/* Applied-filter rows (selected, or excluded under
+          {/* Checkbox list */}
+          {filteredOptions.length === 0 ? (
+            <div className="text-muted-foreground py-1 text-center text-sm">
+              No matches found
+            </div>
+          ) : (
+            <>
+              {/* Applied-filter rows (selected, or excluded under
                         `none of`), pinned to the top (long lists only) */}
-                    {visiblePinnedOptions.map(renderOption)}
+              {visiblePinnedOptions.map(renderOption)}
 
-                    {/* Separator between the pinned rows and the rest */}
-                    {visiblePinnedOptions.length > 0 &&
-                      visibleRemainingOptions.length > 0 && (
-                        <div
-                          className="border-border/60 mx-3 my-1 border-t"
-                          aria-hidden
-                        />
-                      )}
-
-                    {/* Remaining options, capped */}
-                    {visibleRemainingOptions.map(renderOption)}
-                    {hasMoreFilteredOptions && !showAll && (
-                      <div className="px-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setShowAll(true)}
-                          className="mt-1 h-auto w-full justify-start py-1 pl-7 text-xs"
-                        >
-                          Show more values
-                        </Button>
-                      </div>
-                    )}
-                  </>
+              {/* Separator between the pinned rows and the rest */}
+              {visiblePinnedOptions.length > 0 &&
+                visibleRemainingOptions.length > 0 && (
+                  <div
+                    className="border-border/60 mx-3 my-1 border-t"
+                    aria-hidden
+                  />
                 )}
-                {filterKey === "environment" &&
-                visibleOptionValues.length === 1 &&
-                visibleOptionValues[0]?.toLowerCase() === "default" ? (
-                  <div className="text-muted-foreground mt-2 px-2 text-xs">
-                    <a
-                      href="https://langfuse.com/docs/observability/features/environments"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-foreground underline"
-                    >
-                      See docs
-                    </a>{" "}
-                    on how to add environments to your {tableName}.
-                  </div>
-                ) : null}
-              </>
-            )}
-          </div>
-        )}
 
-        {/* TEXT MODE: Contains/Does Not Contain filters */}
-        {filterMode === "text" && onTextFilterAdd && (
-          <div className="px-2 py-1">
-            <TextFilterSection
-              allFilters={textFilters ?? []}
-              onAdd={onTextFilterAdd}
-              onRemove={onTextFilterRemove}
-            />
-          </div>
-        )}
-      </div>
-    </FilterAccordionItem>
+              {/* Remaining options, capped */}
+              {visibleRemainingOptions.map(renderOption)}
+              {hasMoreFilteredOptions && !showAll && (
+                <div className="px-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowAll(true)}
+                    className="mt-1 h-auto w-full justify-start py-1 pl-7 text-xs"
+                  >
+                    Show more values
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+          {filterKey === "environment" &&
+          visibleOptionValues.length === 1 &&
+          visibleOptionValues[0]?.toLowerCase() === "default" ? (
+            <div className="text-muted-foreground mt-2 px-2 text-xs">
+              <a
+                href="https://langfuse.com/docs/observability/features/environments"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-foreground underline"
+              >
+                See docs
+              </a>{" "}
+              on how to add environments to your {tableName}.
+            </div>
+          ) : null}
+        </>
+      )}
+    </div>
   );
 }
 
@@ -1055,6 +1163,7 @@ export function NumericFacet({
   label,
   tooltip,
   help,
+  summary,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -1070,11 +1179,16 @@ export function NumericFacet({
   onReset,
 }: NumericFacetProps) {
   const [localValue, setLocalValue] = useState<[number, number]>(value);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
+  // Adopt external value changes (reset, URL navigation) during render — the
+  // "adjust state when a prop changes" pattern — rather than via a mirror
+  // effect. `lastValue` tracks the last adopted prop so pending local edits
+  // (which lead the prop while the debounce runs) survive unrelated renders.
+  const [lastValue, setLastValue] = useState<[number, number]>(value);
+  if (lastValue[0] !== value[0] || lastValue[1] !== value[1]) {
+    setLastValue(value);
     setLocalValue(value);
-  }, [value]);
+  }
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -1139,6 +1253,7 @@ export function NumericFacet({
       label={label}
       tooltip={tooltip}
       help={help}
+      summary={summary}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -1221,6 +1336,7 @@ export function StringFacet({
   label,
   tooltip,
   help,
+  summary,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -1233,11 +1349,13 @@ export function StringFacet({
   onReset,
 }: StringFacetProps) {
   const [localValue, setLocalValue] = useState<string>(value);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
+  // Same render-time adoption as NumericFacet above (no mirror effect).
+  const [lastValue, setLastValue] = useState<string>(value);
+  if (lastValue !== value) {
+    setLastValue(value);
     setLocalValue(value);
-  }, [value]);
+  }
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -1271,6 +1389,7 @@ export function StringFacet({
       label={label}
       tooltip={tooltip}
       help={help}
+      summary={summary}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -1300,6 +1419,7 @@ export function KeyValueFacet({
   label,
   tooltip,
   help,
+  summary,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -1319,6 +1439,7 @@ export function KeyValueFacet({
       label={label}
       tooltip={tooltip}
       help={help}
+      summary={summary}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -1348,6 +1469,7 @@ export function NumericKeyValueFacet({
   label,
   tooltip,
   help,
+  summary,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -1366,6 +1488,7 @@ export function NumericKeyValueFacet({
       label={label}
       tooltip={tooltip}
       help={help}
+      summary={summary}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -1394,6 +1517,7 @@ export function BooleanKeyValueFacet({
   label,
   tooltip,
   help,
+  summary,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -1412,6 +1536,7 @@ export function BooleanKeyValueFacet({
       label={label}
       tooltip={tooltip}
       help={help}
+      summary={summary}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -1440,6 +1565,7 @@ export function StringKeyValueFacet({
   label,
   tooltip,
   help,
+  summary,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -1458,6 +1584,7 @@ export function StringKeyValueFacet({
       label={label}
       tooltip={tooltip}
       help={help}
+      summary={summary}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -1490,33 +1617,20 @@ interface FilterModeTabsProps {
 
 function FilterModeTabs({ mode, onModeChange }: FilterModeTabsProps) {
   return (
-    <div className="@container mb-2 flex flex-wrap items-center gap-1.5 px-4">
-      <span className="text-muted-foreground/80 text-[10px]">Mode:</span>
-      <div className="border-input/50 bg-background flex flex-1 flex-col rounded border text-[10px] @[7.5rem]:min-w-[140px] @[7.5rem]:flex-row">
-        <button
-          onClick={() => onModeChange("select")}
-          className={cn(
-            "flex-1 rounded-t px-3 py-0.5 transition-colors @[7.5rem]:rounded-l @[7.5rem]:rounded-tr-none",
-            mode === "select"
-              ? "bg-accent text-accent-foreground font-medium"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          SELECT
-        </button>
-        <div className="bg-border/50 h-px @[7.5rem]:h-auto @[7.5rem]:w-px" />
-        <button
-          onClick={() => onModeChange("text")}
-          className={cn(
-            "flex-1 rounded-b px-3 py-0.5 transition-colors @[7.5rem]:rounded-r @[7.5rem]:rounded-bl-none",
-            mode === "text"
-              ? "bg-accent text-accent-foreground font-medium"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          TEXT
-        </button>
-      </div>
+    <div className="mb-2 px-4">
+      <Tabs
+        value={mode}
+        onValueChange={(newMode) => onModeChange(newMode as "select" | "text")}
+      >
+        <TabsList className="grid h-6 w-full grid-cols-2 p-0.5">
+          <TabsTrigger value="select" className="h-5 px-2 text-xs">
+            Select
+          </TabsTrigger>
+          <TabsTrigger value="text" className="h-5 px-2 text-xs">
+            Text
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
     </div>
   );
 }
@@ -1547,33 +1661,26 @@ function TextFilterSection({
 
   return (
     <div className="space-y-2">
-      {/* Operator toggle */}
-      <div className="flex items-center gap-1 px-2">
-        <div className="border-input/50 bg-background inline-flex rounded border text-[10px]">
-          <button
-            onClick={() => setSelectedOperator("contains")}
-            className={cn(
-              "rounded-l px-2 py-0.5 transition-colors",
-              selectedOperator === "contains"
-                ? "bg-accent text-accent-foreground font-medium"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            contains
-          </button>
-          <div className="bg-border/50 w-px" />
-          <button
-            onClick={() => setSelectedOperator("does not contain")}
-            className={cn(
-              "rounded-r px-2 py-0.5 transition-colors",
-              selectedOperator === "does not contain"
-                ? "bg-accent text-accent-foreground font-medium"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            does not contain
-          </button>
-        </div>
+      {/* Operator picker */}
+      <div className="px-2">
+        <Select
+          value={selectedOperator}
+          onValueChange={(operator) =>
+            setSelectedOperator(operator as "contains" | "does not contain")
+          }
+        >
+          <SelectTrigger className="h-7 w-full text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="contains" className="text-xs">
+              contains
+            </SelectItem>
+            <SelectItem value="does not contain" className="text-xs">
+              does not contain
+            </SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Input + Add button */}
