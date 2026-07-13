@@ -1,6 +1,7 @@
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { Sheet, SheetPortal } from "@/src/components/ui/sheet";
 import { Drawer, DrawerContent, DrawerTitle } from "@/src/components/ui/drawer";
+import { Separator } from "@/src/components/ui/separator";
 import { type LangfuseItemType } from "@/src/components/ItemBadge";
 import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { cn } from "@/src/utils/tailwind";
@@ -88,6 +89,11 @@ type TablePeekViewProps = Pick<
    * The content to display in the peek view.
    */
   children: React.ReactNode;
+  /**
+   * Optional footer content to display at the bottom of the peek view.
+   * Useful for navigation controls or contextual actions.
+   */
+  footer?: React.ReactNode;
 };
 
 // Shared DataTable selection controls live outside the peek but must never
@@ -142,7 +148,7 @@ export const shouldClosePeekAfterDelete = (
 ): boolean => currentPeekTraceId === deletedTraceId;
 
 function TablePeekViewComponent(props: TablePeekViewProps) {
-  const { title, children } = props;
+  const { title, children, footer } = props;
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const { isBetaEnabled: isV4 } = useV4Beta();
@@ -256,6 +262,12 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
       <div className="flex-1 overflow-auto" key={itemId}>
         {children}
       </div>
+      {footer && (
+        <>
+          <Separator />
+          <div className="shrink-0 px-3 py-2.5">{footer}</div>
+        </>
+      )}
     </div>
   );
 

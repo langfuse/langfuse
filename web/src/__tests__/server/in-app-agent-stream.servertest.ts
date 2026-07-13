@@ -33,6 +33,7 @@ const instrumentationMocks = vi.hoisted(() => {
     recordEvents: vi.fn(),
     recordAvailableTools: vi.fn(),
     recordToolCallApproval: vi.fn(),
+    recordStepFinish: vi.fn(),
     end: vi.fn(),
     endWithError: vi.fn(),
     flush: vi.fn(),
@@ -831,7 +832,16 @@ describe("createAgUiStream", () => {
           version: 2,
         },
       }),
+      model: "eu.anthropic.claude-opus-4-8",
     });
+    const onStepFinish = agentConfig?.defaultOptions?.onStepFinish as
+      | ((event: unknown) => void)
+      | undefined;
+    expect(onStepFinish).toEqual(expect.any(Function));
+    onStepFinish?.({ usage: { inputTokens: 10, outputTokens: 5 } });
+    expect(
+      instrumentationMocks.instrumentation.recordStepFinish,
+    ).toHaveBeenCalledWith({ usage: { inputTokens: 10, outputTokens: 5 } });
     expect(
       instrumentationMocks.instrumentation.recordEvents.mock.calls.flatMap(
         ([events]) => (events as AgUiEvent[]).map((event) => event.type),

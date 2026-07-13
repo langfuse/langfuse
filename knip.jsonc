@@ -15,8 +15,18 @@
       "namespaceMembers",
       "duplicates",
     ],
+    "packages/shared/**": [
+      "files",
+      "exports",
+      "nsExports",
+      "types",
+      "nsTypes",
+      "enumMembers",
+      "namespaceMembers",
+      "duplicates",
+    ],
   },
-  "ignoreWorkspaces": ["worker", "packages/shared"],
+  "ignoreWorkspaces": ["worker"],
   "workspaces": {
     "web": {
       // Include runtime JavaScript modules such as src/env.mjs in dependency analysis.

@@ -1,3 +1,155 @@
+import type { ToolCallForEval } from "@langfuse/shared";
+
+// Compact contract metadata drives editor completions and type-checks hover-doc
+// coverage. Keep the executable declarations below readable for users.
+const SCORE_DATA_TYPE_VALUES = [
+  "NUMERIC",
+  "BOOLEAN",
+  "CATEGORICAL",
+  "TEXT",
+] as const;
+
+export const CODE_EVAL_COMPLETION_CONTRACT = {
+  TYPESCRIPT: {
+    pathProperties: {
+      ctx: [
+        { label: "observation", detail: 'EvaluationContext["observation"]' },
+        {
+          label: "experiment",
+          detail: 'EvaluationContext["experiment"]',
+        },
+      ],
+      "ctx.observation": [
+        { label: "input", detail: "any" },
+        { label: "output", detail: "any" },
+        { label: "metadata", detail: "any" },
+        { label: "toolCalls", detail: "ToolCall[]" },
+      ],
+      "ctx.experiment": [
+        { label: "itemExpectedOutput", detail: "any" },
+        { label: "itemMetadata", detail: "any" },
+      ],
+    },
+    toolCallProperties: [
+      { label: "id", detail: "string" },
+      { label: "name", detail: "string" },
+      { label: "arguments", detail: "unknown" },
+      { label: "type", detail: "string" },
+      { label: "index", detail: "number" },
+    ],
+    resultType: { label: "EvaluationResult", detail: "{ scores: Score[] }" },
+    resultProperties: [{ label: "scores", detail: "Score[]" }],
+    scoreProperties: [
+      { label: "name", detail: "string" },
+      { label: "value", detail: "number | string | boolean" },
+      {
+        label: "dataType",
+        detail: '"NUMERIC" | "BOOLEAN" | "CATEGORICAL" | "TEXT"',
+      },
+      { label: "comment", detail: "string | undefined" },
+      { label: "configId", detail: "string | null | undefined" },
+      {
+        label: "metadata",
+        detail: "Record<string, unknown> | undefined",
+      },
+    ],
+    dataTypeValues: SCORE_DATA_TYPE_VALUES,
+  },
+  PYTHON: {
+    pathProperties: {
+      ctx: [
+        { label: "observation", detail: "ObservationContext" },
+        { label: "experiment", detail: "ExperimentContext | None" },
+      ],
+      "ctx.observation": [
+        { label: "input", detail: "Any" },
+        { label: "output", detail: "Any" },
+        { label: "metadata", detail: "Any" },
+        { label: "tool_calls", detail: "list[ToolCall]" },
+      ],
+      "ctx.experiment": [
+        { label: "item_expected_output", detail: "Any" },
+        { label: "item_metadata", detail: "Any" },
+      ],
+    },
+    toolCallProperties: [
+      { label: "id", detail: "str" },
+      { label: "name", detail: "str" },
+      { label: "arguments", detail: "Any" },
+      { label: "type", detail: "str" },
+      { label: "index", detail: "int" },
+    ],
+    resultConstructors: [
+      { label: "EvaluationResult", detail: "dataclass" },
+      { label: "Score", detail: "dataclass" },
+    ],
+    constructorParameters: {
+      EvaluationResult: [{ label: "scores", detail: "list[Score]" }],
+      Score: [
+        { label: "value", detail: "int | float | str | bool" },
+        { label: "name", detail: "str" },
+        { label: "data_type", detail: "str | None" },
+        { label: "comment", detail: "str | None" },
+        { label: "config_id", detail: "str | None" },
+        { label: "metadata", detail: "dict[str, Any] | None" },
+      ],
+    },
+    dataTypeValues: SCORE_DATA_TYPE_VALUES,
+  },
+} as const;
+
+type Labels<T> = T extends readonly { label: infer Label extends string }[]
+  ? Label
+  : never;
+
+type TypeScriptCompletionContract =
+  (typeof CODE_EVAL_COMPLETION_CONTRACT)["TYPESCRIPT"];
+type TypeScriptPathProperties =
+  TypeScriptCompletionContract["pathProperties"][keyof TypeScriptCompletionContract["pathProperties"]];
+
+export type TypeScriptCodeEvalCompletionName =
+  | Labels<TypeScriptPathProperties>
+  | Labels<TypeScriptCompletionContract["toolCallProperties"]>
+  | TypeScriptCompletionContract["resultType"]["label"]
+  | Labels<TypeScriptCompletionContract["resultProperties"]>
+  | Labels<TypeScriptCompletionContract["scoreProperties"]>;
+
+type PythonCompletionContract =
+  (typeof CODE_EVAL_COMPLETION_CONTRACT)["PYTHON"];
+type PythonPathProperties =
+  PythonCompletionContract["pathProperties"][keyof PythonCompletionContract["pathProperties"]];
+type PythonConstructorParameters =
+  PythonCompletionContract["constructorParameters"][keyof PythonCompletionContract["constructorParameters"]];
+
+export type PythonCodeEvalCompletionName =
+  | Labels<PythonPathProperties>
+  | Labels<PythonCompletionContract["toolCallProperties"]>
+  | Labels<PythonCompletionContract["resultConstructors"]>
+  | Labels<PythonConstructorParameters>;
+
+type MutuallyExtends<A, B> = [A] extends [B]
+  ? [B] extends [A]
+    ? true
+    : false
+  : false;
+type Expect<T extends true> = T;
+
+// Compile-time lockstep with the runtime evaluator payload: adding or
+// removing a field on ToolCallForEval breaks the web build until the editor
+// completions (and, via the hover-doc Record checks, the hover docs) follow.
+export type TypeScriptToolCallCompletionsMatchRuntime = Expect<
+  MutuallyExtends<
+    Labels<TypeScriptCompletionContract["toolCallProperties"]>,
+    keyof ToolCallForEval
+  >
+>;
+export type PythonToolCallCompletionsMatchRuntime = Expect<
+  MutuallyExtends<
+    Labels<PythonCompletionContract["toolCallProperties"]>,
+    keyof ToolCallForEval
+  >
+>;
+
 export const TYPESCRIPT_CODE_EVAL_CONTRACT = `type ToolCall = {
   id: string;
   name: string;

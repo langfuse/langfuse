@@ -10,6 +10,19 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {
+  /* Disable unused built-in Tailwind color palettes. */
+  --color-lime-*: initial;
+  --color-cyan-*: initial;
+  --color-sky-*: initial;
+  --color-fuchsia-*: initial;
+  --color-rose-*: initial;
+  --color-neutral-*: initial;
+  --color-stone-*: initial;
+  --color-slate-*: initial;
+
+  /* TODO: Disable the remaining default palettes: red, orange, amber, yellow,
+     green, emerald, teal, blue, indigo, violet, purple, pink, gray, zinc. */
+
   --spacing-banner-offset: var(--banner-offset);
   --spacing-screen-with-banner: calc(100svh - var(--banner-offset));
 
