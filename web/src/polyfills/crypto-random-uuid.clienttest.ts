@@ -26,7 +26,14 @@ describe("installCryptoRandomUUIDPolyfill", () => {
   });
 
   it("no-ops when no crypto object exists at all", () => {
-    expect(() => installCryptoRandomUUIDPolyfill(undefined)).not.toThrow();
+    // Stub the global itself: explicitly passing `undefined` would trigger
+    // the `globalThis.crypto` default parameter instead of the guard.
+    vi.stubGlobal("crypto", undefined);
+    try {
+      expect(() => installCryptoRandomUUIDPolyfill()).not.toThrow();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("polyfills the global crypto object on module import (non-secure context)", async () => {
