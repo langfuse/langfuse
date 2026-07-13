@@ -117,9 +117,9 @@
     "@langchain/google": "^0.1.11",
     "@langchain/openai": "^1.4.2",
     "@opentelemetry/api": ">=1.0.0 <1.10.0",
-    "@opentelemetry/otlp-transformer": "^0.219.0",
-    "@opentelemetry/resources": "^2.8.0",
-    "@opentelemetry/sdk-trace-base": "^2.8.0",
+    "@opentelemetry/otlp-transformer": "^0.220.0",
+    "@opentelemetry/resources": "^2.9.0",
+    "@opentelemetry/sdk-trace-base": "^2.9.0",
     "@prisma/client": "^6.19.3",
     "@react-email/components": "^0.5.1",
     "@react-email/render": "^1.2.1",
@@ -157,7 +157,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@opentelemetry/context-async-hooks": "^2.8.0",
+    "@opentelemetry/context-async-hooks": "^2.9.0",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/lodash": "^4.17.24",
