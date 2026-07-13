@@ -37,7 +37,6 @@ export const BlobStorageIntegrationForm = ({
   initialValues,
   availability,
   persistedExportSource,
-  isParquetOverride,
   isSaving,
   onSubmit,
   children,
@@ -45,10 +44,6 @@ export const BlobStorageIntegrationForm = ({
   initialValues: BlobStorageFormValues;
   availability: ExportSourceAvailability;
   persistedExportSource: AnalyticsIntegrationExportSource | null | undefined;
-  // Internal `exportTuning.parquet` override (no write path); reflected
-  // read-only since the worker forces Parquet over the persisted fileType
-  // + gzip.
-  isParquetOverride: boolean;
   isSaving: boolean;
   onSubmit: (values: BlobStorageIntegrationFormSchema) => void;
   // Entity-scoped action buttons (Validate / Run Now / Reset) rendered by
@@ -89,23 +84,14 @@ export const BlobStorageIntegrationForm = ({
         onSubmit={blobStorageForm.handleSubmit(onSubmit)}
       >
         <StorageProviderFields control={control} />
-        <ExportScheduleFields
-          control={control}
-          isParquetOverride={isParquetOverride}
-        />
+        <ExportScheduleFields control={control} />
         <ExportSourceField
           control={control}
           persistedExportSource={persistedExportSource}
           availability={availability}
         />
-        <ExportFieldGroupsField
-          control={control}
-          isParquetOverride={isParquetOverride}
-        />
-        <GzipCompressionField
-          control={control}
-          isParquetOverride={isParquetOverride}
-        />
+        <ExportFieldGroupsField control={control} />
+        <GzipCompressionField control={control} />
         <FormField
           control={control}
           name="enabled"

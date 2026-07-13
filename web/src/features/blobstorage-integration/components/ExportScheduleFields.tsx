@@ -25,12 +25,8 @@ import { type BlobStorageFormControl } from "@/src/features/blobstorage-integrat
 // mode requires one).
 export const ExportScheduleFields = ({
   control,
-  isParquetOverride,
 }: {
   control: BlobStorageFormControl;
-  // Internal `exportTuning.parquet` override (no write path); reflected
-  // read-only since the worker forces Parquet over the persisted fileType.
-  isParquetOverride: boolean;
 }) => {
   const watchedExportMode = useWatch({ control, name: "exportMode" });
 
@@ -73,11 +69,7 @@ export const ExportScheduleFields = ({
           <FormItem>
             <FormLabel>File Type</FormLabel>
             <FormControl>
-              <Select
-                value={isParquetOverride ? "PARQUET" : field.value}
-                onValueChange={field.onChange}
-                disabled={isParquetOverride}
-              >
+              <Select value={field.value} onValueChange={field.onChange}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select file type" />
                 </SelectTrigger>
@@ -90,11 +82,9 @@ export const ExportScheduleFields = ({
               </Select>
             </FormControl>
             <FormDescription>
-              {isParquetOverride
-                ? "Exporting as Apache Parquet — a columnar binary format encoded and compressed by ClickHouse. This is configured for your project and overrides the file type; gzip compression is not applicable."
-                : field.value === BlobStorageIntegrationFileType.PARQUET
-                  ? "Apache Parquet — a columnar binary format encoded and compressed by ClickHouse. Gzip compression does not apply."
-                  : "The file format for exported data."}
+              {field.value === BlobStorageIntegrationFileType.PARQUET
+                ? "Apache Parquet — a columnar binary format encoded and compressed by ClickHouse. Gzip compression does not apply."
+                : "The file format for exported data."}
             </FormDescription>
             <FormMessage />
           </FormItem>

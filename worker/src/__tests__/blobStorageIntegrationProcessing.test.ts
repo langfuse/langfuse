@@ -2016,7 +2016,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
   });
 
   maybeDescribe("Parquet export (LFE-10463)", () => {
-    // E2e: exportTuning.parquet runs the real handler → MinIO. Parquet magic is
+    // E2e: fileType=PARQUET runs the real handler → MinIO. Parquet magic is
     // ASCII, so it survives the string download at both ends of the body.
     const PARQUET_MAGIC = "PAR1";
 
@@ -2051,8 +2051,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           lastSyncAt: twoHoursAgo,
           // compressed must be ignored on the parquet path (no .gz suffix).
           compressed: true,
-          fileType: BlobStorageIntegrationFileType.JSONL,
-          exportTuning: { parquet: true },
+          fileType: BlobStorageIntegrationFileType.PARQUET,
         },
       });
 
