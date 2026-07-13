@@ -671,7 +671,7 @@ export const traceTreeScenario: ScenarioDefinition = {
       flag: "payload-style",
       type: "string",
       default: "json",
-      description: "json | text | malformed | unicode | bignum",
+      description: "json | text | malformed | unicode | bignum | base64",
     },
     {
       flag: "v4",
