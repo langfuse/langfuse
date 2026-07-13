@@ -55,7 +55,12 @@ export function ControlledInAppAgentWindow(
 
   const drawerMessages = useMemo(
     () =>
-      getDrawerMessages({ error, isRunning, messages, pendingToolApprovals }),
+      getDrawerMessages({
+        error,
+        isRunning,
+        messages,
+        pendingToolApprovals,
+      }),
     [error, isRunning, messages, pendingToolApprovals],
   );
 
