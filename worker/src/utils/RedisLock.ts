@@ -98,7 +98,7 @@ export class RedisLock {
         String(this.ttlSeconds),
       );
 
-      if (result === 1) {
+      if (Number(result) === 1) {
         logger.debug(
           `[${this.name}] Extended lock with TTL ${this.ttlSeconds}s`,
         );
@@ -220,7 +220,7 @@ export class RedisLock {
         this.lockKey,
         this.lockValue,
       );
-      if (result === 1) {
+      if (Number(result) === 1) {
         logger.debug(`[${this.name}] Released lock`);
         return true;
       }
