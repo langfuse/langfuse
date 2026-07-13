@@ -97,6 +97,15 @@ export const buildProjectPath = (params: { projectId: string }) =>
 export const buildDashboardsPath = (params: { projectId: string }) =>
   `${buildProjectPath(params)}/dashboards`;
 
+export const buildDashboardWidgetsPath = (params: { projectId: string }) =>
+  `${buildProjectPath(params)}/widgets`;
+
+export const buildDashboardWidgetPath = (params: {
+  projectId: string;
+  widgetId: string;
+}) =>
+  `${buildDashboardWidgetsPath(params)}/${encodeURIComponent(params.widgetId)}`;
+
 export const buildDatasetsPath = (params: {
   projectId: string;
   folder?: string;
@@ -110,6 +119,14 @@ export const buildEvalsPath = (params: { projectId: string }) =>
 
 export const buildExperimentsPath = (params: { projectId: string }) =>
   `${buildProjectPath(params)}/experiments`;
+
+export const buildExperimentPath = (params: {
+  projectId: string;
+  experimentId: string;
+}) =>
+  appendProductPathQuery(`${buildExperimentsPath(params)}/results`, {
+    baseline: params.experimentId,
+  });
 
 export const buildModelsPath = (params: { projectId: string }) =>
   `${buildProjectPath(params)}/models`;
@@ -430,6 +447,11 @@ export const buildDatasetRunUrl = (params: {
     `/project/${encodeURIComponent(params.projectId)}/datasets/${encodeURIComponent(params.datasetId)}/runs/${encodeURIComponent(params.datasetRunId)}`,
   );
 
+export const buildExperimentUrl = (params: {
+  projectId: string;
+  experimentId: string;
+}) => buildProductUrl(buildExperimentPath(params));
+
 export const buildAnnotationQueueUrl = (params: {
   projectId: string;
   queueId: string;
@@ -452,6 +474,11 @@ export const buildModelUrl = (params: { projectId: string; modelId: string }) =>
   buildProductUrl(
     `/project/${encodeURIComponent(params.projectId)}/settings/models/${encodeURIComponent(params.modelId)}`,
   );
+
+export const buildDashboardWidgetUrl = (params: {
+  projectId: string;
+  widgetId: string;
+}) => buildProductUrl(buildDashboardWidgetPath(params));
 
 export const buildEvaluatorUrl = (params: {
   projectId: string;

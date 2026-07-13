@@ -42,6 +42,7 @@ import {
 } from "@langfuse/shared";
 import {
   fetchObservationEvalConfigs,
+  isObservationAllowedForQueuedObservationEvals,
   scheduleObservationEvals,
   createObservationEvalSchedulerDeps,
 } from "../features/evaluation/observationEval";
@@ -214,6 +215,7 @@ export const otelIngestionQueueProcessorBuilder = (
       const publicKey = job.data.payload.data.publicKey ?? "";
       const fileKey = job.data.payload.data.fileKey;
       const auth = job.data.payload.authCheck;
+      const isLangfuseInternal = job.data.payload.isLangfuseInternal === true;
       const attribution: IngestionAttribution = {
         ingestionApiKey: publicKey,
         ingestionSdkName:
@@ -321,7 +323,7 @@ export const otelIngestionQueueProcessorBuilder = (
         (e) => getClickhouseEntityType(e.type) !== "observation",
       );
       // We need to parse each incoming observation through our ingestion schema to make use of its included transformations.
-      const ingestionSchema = createIngestionEventSchema();
+      const ingestionSchema = createIngestionEventSchema(isLangfuseInternal);
       const observations = events
         .filter((e) => getClickhouseEntityType(e.type) === "observation")
         .map((o) => ingestionSchema.safeParse(o))
@@ -467,6 +469,7 @@ export const otelIngestionQueueProcessorBuilder = (
             source: "otel",
             forwardToEventsTable: shouldForwardToEventsTable,
             attribution,
+            isLangfuseInternal,
           }),
         ]);
       }
@@ -531,17 +534,22 @@ export const otelIngestionQueueProcessorBuilder = (
             return;
           }
 
-          // Step 2: Schedule observation evals (independent of event writes)
+          // Step 2: Schedule observation evals (independent of event writes).
+          // Internal langfuse-* environments are excluded to prevent
+          // eval-on-eval recursion, except experiment run-item roots; see
+          // isObservationAllowedForQueuedObservationEvals.
           if (hasEvalConfigs && evalSchedulerDeps) {
             try {
               const observation =
                 convertEventRecordToObservationForEval(eventRecord);
 
-              await scheduleObservationEvals({
-                observation,
-                configs: evalConfigs,
-                schedulerDeps: evalSchedulerDeps,
-              });
+              if (isObservationAllowedForQueuedObservationEvals(observation)) {
+                await scheduleObservationEvals({
+                  observation,
+                  configs: evalConfigs,
+                  schedulerDeps: evalSchedulerDeps,
+                });
+              }
             } catch (error) {
               traceException(error);
 

@@ -14,6 +14,10 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { type ObservationLevelType, ObservationLevel } from "@langfuse/shared";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import {
+  GRAPH_VIEW_MODES,
+  type GraphViewMode,
+} from "@/src/features/trace-graph-view/types";
 
 /** Log view ordering mode */
 export type LogViewMode = "chronological" | "tree-order";
@@ -23,6 +27,9 @@ export type LogViewTreeStyle = "flat" | "indented";
 
 /** JSON view preference (formatted/pretty vs raw JSON vs advanced JSON beta) */
 export type JsonViewPreference = "pretty" | "json" | "json-beta";
+
+/** Context in which trace is rendered - affects feature availability */
+export type TraceRenderContext = "fullscreen" | "peek" | "annotation";
 
 interface ViewPreferencesContextValue {
   showDuration: boolean;
@@ -37,8 +44,13 @@ interface ViewPreferencesContextValue {
   setShowComments: (value: boolean) => void;
   showGraph: boolean;
   setShowGraph: (value: boolean) => void;
+  /** Graph panel build mode (aggregated vs expanded "as it ran") */
+  graphViewMode: GraphViewMode;
+  setGraphViewMode: (value: GraphViewMode) => void;
   minObservationLevel: ObservationLevelType;
   setMinObservationLevel: (value: ObservationLevelType) => void;
+  /** Context in which trace is rendered (also an analytics dimension) */
+  traceContext: TraceRenderContext;
   /** Whether trace is rendered in peek mode (e.g., table peek views) */
   isPeekMode: boolean;
   /** Whether trace is rendered in annotation mode (annotation queue processing) */
@@ -73,7 +85,7 @@ export function useViewPreferences(): ViewPreferencesContextValue {
 interface ViewPreferencesProviderProps {
   children: ReactNode;
   /** Context in which trace is rendered - affects feature availability */
-  traceContext?: "fullscreen" | "peek" | "annotation";
+  traceContext?: TraceRenderContext;
 }
 
 export function ViewPreferencesProvider({
@@ -100,6 +112,13 @@ export function ViewPreferencesProvider({
   );
   const [showComments, setShowComments] = useLocalStorage("showComments", true);
   const [showGraph, setShowGraph] = useLocalStorage("showGraph", true);
+  const [storedGraphViewMode, setGraphViewMode] =
+    useLocalStorage<GraphViewMode>("graphViewMode", "aggregated");
+  // Sanitize persisted values: the mode enum may evolve and a stale
+  // localStorage entry must degrade to the default, not break the graph.
+  const graphViewMode = GRAPH_VIEW_MODES.includes(storedGraphViewMode)
+    ? storedGraphViewMode
+    : "aggregated";
   const [minObservationLevel, setMinObservationLevel] =
     useLocalStorage<ObservationLevelType>(
       "minObservationLevel",
@@ -135,8 +154,11 @@ export function ViewPreferencesProvider({
       setShowComments,
       showGraph,
       setShowGraph,
+      graphViewMode,
+      setGraphViewMode,
       minObservationLevel,
       setMinObservationLevel,
+      traceContext,
       isPeekMode,
       isAnnotationMode,
       logViewMode,
@@ -161,8 +183,11 @@ export function ViewPreferencesProvider({
       setShowComments,
       showGraph,
       setShowGraph,
+      graphViewMode,
+      setGraphViewMode,
       minObservationLevel,
       setMinObservationLevel,
+      traceContext,
       isPeekMode,
       isAnnotationMode,
       logViewMode,

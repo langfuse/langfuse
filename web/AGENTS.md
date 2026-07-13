@@ -68,12 +68,16 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
   [`web/.agents/skills/vercel-composition-patterns/SKILL.md`](.agents/skills/vercel-composition-patterns/SKILL.md)
 - React/Next.js performance and rendering best practices:
   [`web/.agents/skills/vercel-react-best-practices/SKILL.md`](.agents/skills/vercel-react-best-practices/SKILL.md)
+- PostHog product analytics — when and how to instrument user actions:
+  [`../.agents/skills/posthog-instrumentation/SKILL.md`](../.agents/skills/posthog-instrumentation/SKILL.md)
 
 Read these package-local skills before substantial frontend refactors when the
 task involves component composition, reusable component APIs, rendering
 performance, virtualized lists, local feature stores, bundle size,
 React/Next.js performance patterns, or browser-based signoff of user-visible
-changes.
+changes. When adding a meaningful user action (button, handler, form,
+mutation, feature surface), read the PostHog instrumentation skill and decide
+explicitly whether the action should emit an analytics event.
 
 ## Web Conventions
 
@@ -125,8 +129,10 @@ changes.
   z-index.** The app renders inside `#__next`, isolated into one stacking
   context (`globals.css`), so its z-indexes can't escape; overlays go in layers
   that sit outside it and always win. `LAYER_ORDER` is
-  `["agent", "modal", "popover", "tooltip", "toast"]` — containers declared in
-  `_document.tsx`, ordered by that array (later = on top), carrying NO z-index.
+  `["panel", "agent", "modal", "popover", "tooltip", "toast"]` — containers declared
+  in `_document.tsx`, ordered by that array (later = on top), carrying NO z-index.
+  `panel` is for docked side surfaces like Sheet, Drawer, and the table peek;
+  `modal` is for true blocking Dialog and AlertDialog surfaces.
   **THE RULE (see `src/components/ui/layer.tsx` JSDoc — source of truth): every
   overlay portals through a layer container; never let a Radix/Vaul `*.Portal`
   fall back to `<body>`.** Radix/Vaul primitives route via their `*.Portal`'s
@@ -140,6 +146,12 @@ changes.
   Dialog as a SIBLING (trigger inside, dialog outside), as
   `useAddLlmConnectionSelect` in `src/components/ModelParameters/index.tsx` does
   (LFE-10615).
+- Never import `prettier/plugins/typescript` in client code — it embeds the
+  TypeScript compiler, which the SWC minifier miscompiles (dropped bindings →
+  production-only `ReferenceError`; caught by the CI client-bundle scan,
+  LFE-10645). Format TypeScript with `parser: "babel-ts"` +
+  `prettier/plugins/babel` instead, as the eval-template editor does
+  (`src/features/evals/components/code-eval-template-form-body.tsx`).
 - Public API routes should use
   `src/features/public-api/server/withMiddlewares.ts`, define strict request and
   response types in `src/features/public-api/types/*`, add server tests, and
@@ -200,7 +212,10 @@ changes.
 1. Prefer `src/features/<feature>/*` for feature-local code.
 2. Put broadly reusable components in `src/components/*`.
 3. Keep server logic near feature server folders when possible.
-4. Review the affected user flow in a real browser with the Playwright MCP
+4. For meaningful user actions (buttons, form submits, mode switches), decide
+   explicitly whether to instrument them with PostHog. Use
+   `../.agents/skills/posthog-instrumentation/SKILL.md`.
+5. Review the affected user flow in a real browser with the Playwright MCP
    server before signoff. Use
    `../.agents/skills/frontend-browser-review/SKILL.md`.
 

@@ -27,12 +27,11 @@ import {
   BlobStorageIntegrationProcessingQueue,
   queryClickhouse,
   QueueJobs,
-  sendBlobStorageExportFailedEmail,
-  getProjectAdminEmails,
   enrichObservationWithModelData,
   createModelCache,
   blobStorageEndpointConnectionValidationOptions,
   validateBlobStorageEndpoint,
+  dispatchProjectNotification,
 } from "@langfuse/shared/src/server";
 import {
   registerInFlightBlobExport,
@@ -47,11 +46,13 @@ import {
 } from "./abortClassification";
 import { isSigtermReceived } from "../health";
 import { TimedGzip, ZLIB_DEFAULT_LEVEL, type GzipStats } from "./gzipStream";
+import { isCustomerFaultError } from "./isCustomerFaultError";
 import { ByteCounter, TimedByteCounter } from "./byteCounters";
 import { WORKER_HOST_ID } from "../../utils/hostId";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
+  BatchExportFileFormat,
   BlobStorageExportMode,
   OBSERVATION_FIELD_GROUPS_FULL,
   type ObservationFieldGroupFull,
@@ -82,9 +83,12 @@ export const BlobExportFormat = {
 export type BlobExportFormat =
   (typeof BlobExportFormat)[keyof typeof BlobExportFormat];
 
-const FORMAT_LOOKUP: Record<
-  BlobStorageIntegrationFileType,
-  { raw: BlobExportFormat; gzip: BlobExportFormat }
+// Text formats only; PARQUET is absent because callers branch on parquetEligible first.
+const FORMAT_LOOKUP: Partial<
+  Record<
+    BlobStorageIntegrationFileType,
+    { raw: BlobExportFormat; gzip: BlobExportFormat }
+  >
 > = {
   [BlobStorageIntegrationFileType.JSON]: {
     raw: BlobExportFormat.JSON_RAW,
@@ -105,6 +109,9 @@ function resolveBlobExportFormat(
   compressed: boolean,
 ): BlobExportFormat {
   const entry = FORMAT_LOOKUP[fileType];
+  if (!entry) {
+    throw new Error(`No text export format for file type: ${fileType}`);
+  }
   return compressed ? entry.gzip : entry.raw;
 }
 
@@ -269,6 +276,11 @@ const getFileTypeProperties = (fileType: BlobStorageIntegrationFileType) => {
         contentType: "application/x-ndjson; charset=utf-8",
         extension: "jsonl",
       };
+    case BlobStorageIntegrationFileType.PARQUET:
+      return {
+        contentType: "application/vnd.apache.parquet",
+        extension: "parquet",
+      };
     default:
       // eslint-disable-next-line no-case-declarations
       const _exhaustiveCheck: never = fileType;
@@ -414,7 +426,6 @@ const processBlobStorageExport = async (config: {
       recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
         outcome: "started" satisfies BlobTableExportOutcome,
         table: config.table,
-        projectId: config.projectId,
       });
 
       // Outside the try so the catch can distinguish a real upload success from
@@ -429,12 +440,10 @@ const processBlobStorageExport = async (config: {
       try {
         const blobStorageProps = getFileTypeProperties(config.fileType);
 
-        // LFE-10463: per-project opt-in spanning all tables/file types. Overrides
-        // fileType and compressed (Parquet compresses internally) and outranks
-        // rawPassthrough (enforced in resolveBlobExportTuning). It isn't a
-        // BlobStorageIntegrationFileType member, so extension/content-type are set
-        // inline below rather than via getFileTypeProperties.
-        const parquetEligible = config.parquet;
+        // Both paths converge: legacy exportTuning.parquet override and the new fileType=PARQUET.
+        const parquetEligible =
+          config.parquet ||
+          config.fileType === BlobStorageIntegrationFileType.PARQUET;
 
         // Raw passthrough (LFE-10402) is opt-in per project and only valid for
         // JSONL output of the enriched-observation tables — the only formats
@@ -700,7 +709,13 @@ const processBlobStorageExport = async (config: {
           }
 
           const dataStream = countedStream(rawStream, sourceStats);
-          const formatTransform = streamTransformations[config.fileType]();
+          if (config.fileType === BlobStorageIntegrationFileType.PARQUET) {
+            throw new Error(
+              `Reached the text-format export path with fileType=PARQUET for project ${config.projectId}; the parquetEligible branch should have handled it`,
+            );
+          }
+          const formatTransform =
+            streamTransformations[config.fileType as BatchExportFileFormat]();
 
           fileStream =
             compressedCounter && gzipStats
@@ -763,7 +778,6 @@ const processBlobStorageExport = async (config: {
           recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
             outcome: "success" satisfies BlobTableExportOutcome,
             table: config.table,
-            projectId: config.projectId,
           });
 
           const exportFormat = parquetEligible
@@ -977,7 +991,6 @@ const processBlobStorageExport = async (config: {
             outcome: "failure" satisfies BlobTableExportOutcome,
             abortReason: origin.reason,
             table: config.table,
-            projectId: config.projectId,
           });
         }
         logger.error(
@@ -1208,6 +1221,9 @@ export const handleBlobStorageIntegrationProjectJob = async (
     // dispatch and is intentionally not warned about (avoids ~hourly log noise).
     if (
       exportTuning.rawPassthrough &&
+      !exportTuning.parquet &&
+      blobStorageIntegration.fileType !==
+        BlobStorageIntegrationFileType.PARQUET &&
       (blobStorageIntegration.fileType !==
         BlobStorageIntegrationFileType.JSONL ||
         isTraceOnlyProject)
@@ -1218,12 +1234,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
           `Passthrough requires JSONL output of observations or observations_v2.`,
       );
     }
-
-    // Elapsed time spent exporting this one window's data, used to detect
-    // exporters that can't keep up (see metric emit below). Monotonic
-    // performance.now() — matches the file's other deltas and avoids a clock
-    // step (NTP/suspend) producing a negative duration.
-    const exportStartedAt = performance.now();
 
     if (isTraceOnlyProject) {
       // Only process traces table for projects in the trace-only list (legacy behavior)
@@ -1271,35 +1281,8 @@ export const handleBlobStorageIntegrationProjectJob = async (
       await Promise.all(processPromises);
     }
 
-    const exportDurationMs = performance.now() - exportStartedAt;
-
     // Determine if we've caught up with present-day data
     const caughtUp = maxTimestamp.getTime() >= uncappedMaxTimestamp.getTime();
-
-    // Falling-behind signal: how long it took to export one window's data
-    // relative to that window's scheduling cadence (the frequency interval).
-    // A ratio > 1 means a single run takes longer than the period it covers, so
-    // the exporter cannot keep up and lag grows over time. frequencyIntervalMs
-    // is the stable denominator the user reasons about ("exports every 20 min")
-    // — the actual data window collapses toward zero near the lag buffer in
-    // steady state and would make the ratio meaningless (LFE-10521). caughtUp
-    // is tagged so steady-state lag can be separated from expected back-to-back
-    // catch-up runs.
-    const durationTags = {
-      projectId,
-      exportFrequency: blobStorageIntegration.exportFrequency,
-      caughtUp: String(caughtUp),
-    };
-    recordHistogram(
-      "langfuse.blobstorage.window_export_duration_seconds",
-      exportDurationMs / 1000,
-      durationTags,
-    );
-    recordGauge(
-      "langfuse.blobstorage.window_export_duration_ratio",
-      exportDurationMs / frequencyIntervalMs,
-      durationTags,
-    );
 
     let nextSyncAt: Date;
     if (caughtUp) {
@@ -1357,8 +1340,26 @@ export const handleBlobStorageIntegrationProjectJob = async (
   } catch (error) {
     const errorMessage = extractStorageErrorMessage(error);
 
+    // A deterministic customer-config/credential fault can't succeed until the
+    // customer fixes it. Once BullMQ exhausts its retries, disable the
+    // integration so it stops re-scheduling and spamming. attemptsMade is
+    // 0-based, so the final attempt is attempts - 1.
+    const isFinalAttempt =
+      (job.attemptsMade ?? 0) >= (job.opts?.attempts ?? 1) - 1;
+    const disableForCustomerFault =
+      isFinalAttempt && isCustomerFaultError(error);
+
+    // True only for the worker that actually flips enabled true→false, so the
+    // "disabled" email (which bypasses the cooldown) is sent exactly once and
+    // never claims a state we failed to write. The atomic claim also dedups
+    // concurrent terminal failures — e.g. a scheduled run racing a manual Run
+    // Now across pods, which have distinct jobIds and so aren't queue-deduped.
+    let persistedDisable = false;
+    let disableClaimRan = false;
+    // Assume enabled when the read-back fails; worst case is today's email.
+    let enabledAfterPersist = true;
     try {
-      await prisma.blobStorageIntegration.update({
+      const updated = await prisma.blobStorageIntegration.update({
         where: { projectId },
         data: {
           lastError: errorMessage,
@@ -1366,6 +1367,20 @@ export const handleBlobStorageIntegrationProjectJob = async (
           runStartedAt: null,
         },
       });
+      enabledAfterPersist = updated.enabled;
+      if (disableForCustomerFault) {
+        const { count } = await prisma.blobStorageIntegration.updateMany({
+          where: { projectId, enabled: true },
+          data: { enabled: false },
+        });
+        disableClaimRan = true;
+        persistedDisable = count === 1;
+        if (persistedDisable) {
+          logger.warn(
+            `[BLOB INTEGRATION] Disabled blob storage integration for project ${projectId} after a customer-config/credential failure: ${errorMessage}`,
+          );
+        }
+      }
     } catch (persistError) {
       logger.error(
         `[BLOB INTEGRATION] Failed to persist blob storage error for project ${projectId}`,
@@ -1373,7 +1388,26 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
-    notifyBlobStorageExportFailedInBackground(projectId);
+    // Notify only after BullMQ exhausts its retries — an email on an earlier
+    // attempt fires even when a later retry succeeds, and would double up
+    // with the "disabled" email on customer faults. Skip only when a
+    // concurrent terminal failure won the disable claim (the winner already
+    // notified); if the claim never ran because persistence threw, fall back
+    // to the informational email so the failure isn't silent.
+    const lostDisableRaceToConcurrentRun =
+      disableForCustomerFault && disableClaimRan && !persistedDisable;
+    // The informational email promises a retry at the next scheduled run,
+    // which is false once the integration is disabled (a concurrent run's
+    // customer-fault disable or a user toggle mid-run) — skip it then.
+    const disabledOutFromUnderUs =
+      !disableForCustomerFault && !enabledAfterPersist;
+    if (
+      isFinalAttempt &&
+      !lostDisableRaceToConcurrentRun &&
+      !disabledOutFromUnderUs
+    ) {
+      notifyBlobStorageExportFailedInBackground(projectId, persistedDisable);
+    }
 
     const chain = errorChainText(error);
     logger.error(
@@ -1390,75 +1424,87 @@ export const handleBlobStorageIntegrationProjectJob = async (
   }
 };
 
-function notifyBlobStorageExportFailedInBackground(projectId: string): void {
+function notifyBlobStorageExportFailedInBackground(
+  projectId: string,
+  disabled = false,
+): void {
   (async () => {
     try {
-      const cooldownMs =
-        env.LANGFUSE_BLOB_STORAGE_FAILURE_NOTIFICATION_COOLDOWN_HOURS *
-        60 *
-        60 *
-        1000;
+      // Called once per exhausted run. The cooldown gates across scheduled
+      // runs (the scheduler re-enqueues every frequency period, and each
+      // failing run would otherwise email again). The disable notification
+      // bypasses it: it is a one-time, terminal event — the integration
+      // won't run again until the customer re-enables it — and a cooldown
+      // claim could silently drop the one email that says it was turned off.
+      if (!disabled) {
+        const cooldownMs =
+          env.LANGFUSE_BLOB_STORAGE_FAILURE_NOTIFICATION_COOLDOWN_HOURS *
+          60 *
+          60 *
+          1000;
 
-      // Atomic claim: set timestamp before sending to prevent duplicate emails on concurrent retries.
-      // If the email send subsequently fails, the cooldown still applies — the next failure
-      // after cooldown expiry will retry the notification.
-      const claimed = await prisma.blobStorageIntegration.updateMany({
-        where: {
-          projectId,
-          OR: [
-            { lastFailureNotificationSentAt: null },
-            {
-              lastFailureNotificationSentAt: {
-                lt: new Date(Date.now() - cooldownMs),
+        // Atomic claim: set timestamp before sending to prevent duplicate emails on concurrent retries.
+        // If the email send subsequently fails, the cooldown still applies — the next failure
+        // after cooldown expiry will retry the notification.
+        const claimed = await prisma.blobStorageIntegration.updateMany({
+          where: {
+            projectId,
+            OR: [
+              { lastFailureNotificationSentAt: null },
+              {
+                lastFailureNotificationSentAt: {
+                  lt: new Date(Date.now() - cooldownMs),
+                },
               },
-            },
-          ],
-        },
-        data: { lastFailureNotificationSentAt: new Date() },
-      });
+            ],
+          },
+          data: { lastFailureNotificationSentAt: new Date() },
+        });
 
-      if (claimed.count === 0) {
-        logger.info(
-          `[BLOB INTEGRATION] Skipping failure notification for project ${projectId}, cooldown still active`,
-        );
-        return;
+        if (claimed.count === 0) {
+          logger.info(
+            `[BLOB INTEGRATION] Skipping failure notification for project ${projectId}, cooldown still active`,
+          );
+          return;
+        }
       }
 
-      const emailEnv = {
-        EMAIL_FROM_ADDRESS: env.EMAIL_FROM_ADDRESS,
-        SMTP_CONNECTION_URL: env.SMTP_CONNECTION_URL,
-        NEXTAUTH_URL: env.NEXTAUTH_URL,
-        CLOUD_CRM_EMAIL: env.CLOUD_CRM_EMAIL,
-      };
-
-      if (
-        !emailEnv.EMAIL_FROM_ADDRESS ||
-        !emailEnv.SMTP_CONNECTION_URL ||
-        !emailEnv.NEXTAUTH_URL
-      ) {
-        return;
-      }
-
-      const [adminEmails, project] = await Promise.all([
-        getProjectAdminEmails(projectId),
+      const [project, integration] = await Promise.all([
         prisma.project.findUnique({
           where: { id: projectId },
           select: { name: true },
         }),
+        prisma.blobStorageIntegration.findUnique({
+          where: { projectId },
+          select: { bucketName: true },
+        }),
       ]);
-
-      if (adminEmails.length === 0) {
-        return;
-      }
-
       const projectName = project?.name ?? projectId;
-      const settingsUrl = `${emailEnv.NEXTAUTH_URL}/project/${projectId}/settings/integrations/blobstorage`;
+      const settingsPath = `/project/${projectId}/settings/integrations/blobstorage`;
 
-      await sendBlobStorageExportFailedEmail({
-        env: emailEnv,
-        projectName,
-        settingsUrl,
-        receiverEmails: adminEmails,
+      // Route to configured notification channels and admin emails. The
+      // cooldown claim above already deduped, so no extra throttle is needed.
+      // `disabled` marks the terminal "export turned off" notification, which
+      // selects the disabled email/subject variant downstream.
+      await dispatchProjectNotification({
+        projectId,
+        event: {
+          eventType: "blob-export-failed",
+          severity: "ALERT",
+          projectId,
+          projectName,
+          // The integration is keyed by projectId (1:1); the bucket name is
+          // the most useful human label for the failing export destination.
+          resourceId: projectId,
+          resourceName: integration?.bucketName ?? "Blob storage integration",
+          message: disabled
+            ? `Blob storage export disabled for project "${projectName}" after repeated failures.`
+            : `Blob storage export failed for project "${projectName}".`,
+          url: env.NEXTAUTH_URL
+            ? `${env.NEXTAUTH_URL}${settingsPath}`
+            : undefined,
+          disabled,
+        },
       });
     } catch (error) {
       logger.error(

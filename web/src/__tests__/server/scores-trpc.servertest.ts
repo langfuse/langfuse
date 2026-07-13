@@ -1,5 +1,16 @@
-const mockAddScoreDelete = vi.fn();
-const mockAddBatchAction = vi.fn();
+const {
+  mockAddScoreDelete,
+  mockAddBatchAction,
+  mockGetEventsGroupedByTraceTags,
+  mockGetEventsGroupedByTraceName,
+  mockGetEventsGroupedByUserId,
+} = vi.hoisted(() => ({
+  mockAddScoreDelete: vi.fn(),
+  mockAddBatchAction: vi.fn(),
+  mockGetEventsGroupedByTraceTags: vi.fn(async () => []),
+  mockGetEventsGroupedByTraceName: vi.fn(async () => []),
+  mockGetEventsGroupedByUserId: vi.fn(async () => []),
+}));
 
 vi.mock("@langfuse/shared/src/server", async () => {
   const originalModule = await vi.importActual("@langfuse/shared/src/server");
@@ -15,6 +26,9 @@ vi.mock("@langfuse/shared/src/server", async () => {
         add: mockAddBatchAction,
       })),
     },
+    getEventsGroupedByTraceTags: mockGetEventsGroupedByTraceTags,
+    getEventsGroupedByTraceName: mockGetEventsGroupedByTraceName,
+    getEventsGroupedByUserId: mockGetEventsGroupedByUserId,
   };
 });
 
@@ -48,6 +62,9 @@ describe("scores trpc", () => {
     orgId = setup.orgId;
     mockAddScoreDelete.mockClear();
     mockAddBatchAction.mockClear();
+    mockGetEventsGroupedByTraceTags.mockClear();
+    mockGetEventsGroupedByTraceName.mockClear();
+    mockGetEventsGroupedByUserId.mockClear();
 
     const session: Session = {
       expires: "1",
@@ -84,6 +101,129 @@ describe("scores trpc", () => {
 
     const ctx = createInnerTRPCContext({ session });
     caller = appRouter.createCaller({ ...ctx, prisma });
+  });
+
+  describe("scores.all", () => {
+    it("does not match empty boolean representations when filtering boolean values", async () => {
+      const trueBooleanScore = createTraceScore({
+        project_id: projectId,
+        name: "boolean-score-true",
+        data_type: "BOOLEAN",
+        value: 1,
+        string_value: "True",
+      });
+      const falseBooleanScore = createTraceScore({
+        project_id: projectId,
+        name: "boolean-score-false",
+        data_type: "BOOLEAN",
+        value: 0,
+        string_value: "False",
+      });
+      const emptyBooleanScore = createTraceScore({
+        project_id: projectId,
+        name: "boolean-score-empty",
+        data_type: "BOOLEAN",
+        value: 1,
+        string_value: "",
+      });
+      const numericScore = createTraceScore({
+        project_id: projectId,
+        name: "numeric-score",
+        data_type: "NUMERIC",
+        value: 0.7,
+        string_value: null,
+      });
+
+      await createScoresCh([
+        trueBooleanScore,
+        falseBooleanScore,
+        emptyBooleanScore,
+        numericScore,
+      ]);
+
+      const payload = {
+        projectId,
+        filter: [
+          {
+            column: "booleanValue",
+            type: "stringOptions",
+            operator: "none of",
+            value: ["false"],
+          },
+        ],
+        orderBy: { column: "timestamp", order: "DESC" },
+        page: 0,
+        limit: 50,
+      } as const;
+
+      const result = await caller.scores.all(payload);
+      const resultFromEvents = await caller.scores.allFromEvents(payload);
+
+      expect(result.scores.map((score) => score.id)).toEqual([
+        trueBooleanScore.id,
+      ]);
+      expect(resultFromEvents.scores.map((score) => score.id)).toEqual([
+        trueBooleanScore.id,
+      ]);
+    });
+  });
+
+  describe("scores.createAnnotationScore", () => {
+    it("rejects empty stringValue for boolean annotation scores", async () => {
+      const configId = randomUUID();
+      const scoreName = `boolean-annotation-score-${configId.slice(0, 8)}`;
+
+      await expect(
+        caller.scores.createAnnotationScore({
+          projectId,
+          name: scoreName,
+          value: 1,
+          stringValue: "",
+          dataType: "BOOLEAN",
+          scoreTarget: { type: "trace", traceId: randomUUID() },
+          configId,
+          environment: "default",
+        } as any),
+      ).rejects.toThrow();
+    });
+
+    it("accepts explicit boolean annotation stringValue labels", async () => {
+      const traceId = randomUUID();
+      const configId = randomUUID();
+      const scoreName = `boolean-annotation-score-${configId.slice(0, 8)}`;
+
+      await createTracesCh([
+        createTrace({
+          id: traceId,
+          project_id: projectId,
+        }),
+      ]);
+      await prisma.scoreConfig.create({
+        data: {
+          id: configId,
+          projectId,
+          name: scoreName,
+          dataType: ScoreConfigDataType.BOOLEAN,
+          categories: [
+            { label: "True", value: 1 },
+            { label: "False", value: 0 },
+          ],
+        },
+      });
+
+      const score = await caller.scores.createAnnotationScore({
+        projectId,
+        name: scoreName,
+        value: 1,
+        stringValue: "True",
+        dataType: "BOOLEAN",
+        scoreTarget: { type: "trace", traceId },
+        configId,
+        environment: "default",
+      });
+
+      expect(score.stringValue).toBe("True");
+    });
   });
 
   describe("scores.deleteMany", () => {
@@ -256,6 +396,22 @@ describe("scores trpc", () => {
       expect(
         traceLevelColumns.scoreColumns.map((column) => column.name),
       ).toEqual(["trace_level_score"]);
+    });
+  });
+
+  describe("scores.filterOptions", () => {
+    it("returns static boolean value options for both scores views", async () => {
+      await expect(
+        caller.scores.filterOptions({ projectId }),
+      ).resolves.toMatchObject({
+        booleanValue: [{ value: "true" }, { value: "false" }],
+      });
+
+      await expect(
+        caller.scores.filterOptionsFromEvents({ projectId }),
+      ).resolves.toMatchObject({
+        booleanValue: [{ value: "true" }, { value: "false" }],
+      });
     });
   });
 

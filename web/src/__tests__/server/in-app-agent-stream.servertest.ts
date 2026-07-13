@@ -33,6 +33,7 @@ const instrumentationMocks = vi.hoisted(() => {
     recordEvents: vi.fn(),
     recordAvailableTools: vi.fn(),
     recordToolCallApproval: vi.fn(),
+    recordStepFinish: vi.fn(),
     end: vi.fn(),
     endWithError: vi.fn(),
     flush: vi.fn(),
@@ -522,7 +523,7 @@ describe("createAgUiStream", () => {
     });
   });
 
-  it("serializes valid events including adapter message snapshots", async () => {
+  it("serializes valid events including adapter snapshots and reasoning messages", async () => {
     const { createAgUiStream } =
       await import("@/src/ee/features/in-app-agent/server/agent");
     const input = {
@@ -585,6 +586,20 @@ describe("createAgUiStream", () => {
         ],
       },
       {
+        type: EventType.REASONING_MESSAGE_START,
+        messageId: "reasoning-message-1",
+        role: "reasoning",
+      },
+      {
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: "reasoning-message-1",
+        delta: "Checking the current trace context.",
+      },
+      {
+        type: EventType.REASONING_MESSAGE_END,
+        messageId: "reasoning-message-1",
+      },
+      {
         type: EventType.TEXT_MESSAGE_START,
         messageId: "assistant-message-1",
         role: "assistant",
@@ -614,7 +629,9 @@ describe("createAgUiStream", () => {
           eventOrder.push(`persist:${event.type}`);
           await Promise.resolve();
         },
-        awsBedrock: { modelId: "test-model" },
+        awsBedrock: {
+          modelId: "eu.anthropic.claude-opus-4-8",
+        },
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -642,6 +659,7 @@ describe("createAgUiStream", () => {
     });
 
     expect(streamedText).toContain(EventType.MESSAGES_SNAPSHOT);
+    expect(streamedText).toContain(EventType.REASONING_MESSAGE_CONTENT);
     expect(adapterEvents.inputs).toEqual([input]);
     const { Agent } = await import("@mastra/core/agent");
     expect(Agent).toHaveBeenCalledWith(
@@ -673,6 +691,16 @@ describe("createAgUiStream", () => {
       }),
     );
     const agentConfig = vi.mocked(Agent).mock.calls[0]?.[0];
+    expect(agentConfig?.defaultOptions).toMatchObject({
+      maxSteps: 10,
+      providerOptions: {
+        bedrock: {
+          additionalModelRequestFields: {
+            thinking: { type: "adaptive", display: "summarized" },
+          },
+        },
+      },
+    });
     expect(agentConfig?.tools).not.toHaveProperty("langfuse_search");
     expect(agentConfig?.tools?.langfuse_getHealth).not.toHaveProperty(
       "requireApproval",
@@ -713,6 +741,18 @@ describe("createAgUiStream", () => {
       href: "/project/project-1/traces/trace-1",
     });
 
+    await expect(
+      redirectTool?.execute?.({
+        label: "Open widget",
+        destination: "dashboardWidget",
+        params: { widgetId: "widget-1" },
+      }),
+    ).resolves.toEqual({
+      type: "redirectAction",
+      label: "Open widget",
+      href: "/project/project-1/widgets/widget-1",
+    });
+
     expect(promptMocks.getPrompt).toHaveBeenCalledWith(
       "in-app-agent-system-prompt",
       undefined,
@@ -748,6 +788,9 @@ describe("createAgUiStream", () => {
     expect(persistedEvents.map((event) => event.type)).toEqual([
       EventType.RUN_STARTED,
       EventType.MESSAGES_SNAPSHOT,
+      EventType.REASONING_MESSAGE_START,
+      EventType.REASONING_MESSAGE_CONTENT,
+      EventType.REASONING_MESSAGE_END,
       EventType.TEXT_MESSAGE_START,
       EventType.TEXT_MESSAGE_CONTENT,
       EventType.TEXT_MESSAGE_END,
@@ -762,6 +805,12 @@ describe("createAgUiStream", () => {
       `stream:${EventType.RUN_STARTED}`,
       `persist:${EventType.MESSAGES_SNAPSHOT}`,
       `stream:${EventType.MESSAGES_SNAPSHOT}`,
+      `persist:${EventType.REASONING_MESSAGE_START}`,
+      `stream:${EventType.REASONING_MESSAGE_START}`,
+      `persist:${EventType.REASONING_MESSAGE_CONTENT}`,
+      `stream:${EventType.REASONING_MESSAGE_CONTENT}`,
+      `persist:${EventType.REASONING_MESSAGE_END}`,
+      `stream:${EventType.REASONING_MESSAGE_END}`,
       `persist:${EventType.TEXT_MESSAGE_START}`,
       `stream:${EventType.TEXT_MESSAGE_START}`,
       `persist:${EventType.TEXT_MESSAGE_CONTENT}`,
@@ -783,7 +832,16 @@ describe("createAgUiStream", () => {
           version: 2,
         },
       }),
+      model: "eu.anthropic.claude-opus-4-8",
     });
+    const onStepFinish = agentConfig?.defaultOptions?.onStepFinish as
+      | ((event: unknown) => void)
+      | undefined;
+    expect(onStepFinish).toEqual(expect.any(Function));
+    onStepFinish?.({ usage: { inputTokens: 10, outputTokens: 5 } });
+    expect(
+      instrumentationMocks.instrumentation.recordStepFinish,
+    ).toHaveBeenCalledWith({ usage: { inputTokens: 10, outputTokens: 5 } });
     expect(
       instrumentationMocks.instrumentation.recordEvents.mock.calls.flatMap(
         ([events]) => (events as AgUiEvent[]).map((event) => event.type),
@@ -791,6 +849,9 @@ describe("createAgUiStream", () => {
     ).toEqual([
       EventType.RUN_STARTED,
       EventType.MESSAGES_SNAPSHOT,
+      EventType.REASONING_MESSAGE_START,
+      EventType.REASONING_MESSAGE_CONTENT,
+      EventType.REASONING_MESSAGE_END,
       EventType.TEXT_MESSAGE_START,
       EventType.TEXT_MESSAGE_CONTENT,
       EventType.TEXT_MESSAGE_END,
@@ -798,6 +859,78 @@ describe("createAgUiStream", () => {
     ]);
     expect(instrumentationMocks.instrumentation.end).toHaveBeenCalledWith({});
     expect(instrumentationMocks.instrumentation.flush).toHaveBeenCalled();
+  });
+
+  it("does not enable Bedrock reasoning for non-Claude models", async () => {
+    const { createAgUiStream } =
+      await import("@/src/ee/features/in-app-agent/server/agent");
+    const input = {
+      threadId: "conversation-1",
+      runId: "run-1",
+      messages: [
+        {
+          id: "user-message-1",
+          role: "user" as const,
+          content: "hello",
+        },
+      ],
+      tools: [],
+      context: [],
+      state: {
+        type: "existingConversation" as const,
+        projectId: "project-1",
+        conversationId: "conversation-1",
+      },
+      forwardedProps: {},
+    };
+    const langfuseClient = {
+      getPrompt: promptMocks.getPrompt,
+    };
+
+    adapterEvents.items = [
+      {
+        type: EventType.RUN_STARTED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+    ];
+
+    const stream = await createAgUiStream({
+      input,
+      signal: new AbortController().signal,
+      options: {
+        awsBedrock: {
+          modelId: "meta.llama3-70b-instruct-v1:0",
+        },
+        langfuseMcp: {
+          url: "https://example.com/api/public/mcp",
+          publicKey: "pk",
+          secretKey: "sk",
+          userAccess: defaultInAppAgentUserAccess,
+          runOverride: "run-override",
+        },
+        redirectAction: {
+          projectId: "project-1",
+          isV4Enabled: false,
+        },
+        langfuseClient,
+        useLocalPrompt: false,
+      },
+    });
+
+    await readStream(stream);
+
+    const { Agent } = await import("@mastra/core/agent");
+    const agentConfig = vi.mocked(Agent).mock.calls[0]?.[0];
+    expect(agentConfig?.defaultOptions).toMatchObject({
+      maxSteps: 10,
+    });
+    expect(agentConfig?.defaultOptions).not.toHaveProperty("providerOptions");
   });
 
   it("executes approved tools manually and continues with tool result history", async () => {
@@ -1183,7 +1316,7 @@ describe("createAgUiStream", () => {
     );
   });
 
-  it("aborts rejected tools after streaming the rejected tool result", async () => {
+  it("continues after rejected tools and asks the user how to proceed", async () => {
     const { createAgUiStream } =
       await import("@/src/ee/features/in-app-agent/server/agent");
     const input = createToolApprovalResumeInput(false);
@@ -1191,6 +1324,25 @@ describe("createAgUiStream", () => {
     adapterEvents.items = [
       {
         type: EventType.RUN_STARTED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+      {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId: "assistant-message-1",
+        role: "assistant",
+      },
+      {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: "assistant-message-1",
+        delta: "The action was not completed. How would you like to continue?",
+      },
+      {
+        type: EventType.TEXT_MESSAGE_END,
+        messageId: "assistant-message-1",
+      },
+      {
+        type: EventType.RUN_FINISHED,
         threadId: input.threadId,
         runId: input.runId,
       },
@@ -1216,7 +1368,6 @@ describe("createAgUiStream", () => {
           publicKey: "pk",
           secretKey: "sk",
           userAccess: defaultInAppAgentUserAccess,
-          runOverride: "run-override",
         },
         redirectAction: {
           projectId: "project-1",
@@ -1231,9 +1382,39 @@ describe("createAgUiStream", () => {
       streamedEvents.push(event);
     });
 
-    expect(adapterEvents.inputs).toEqual([]);
-    expect(vi.mocked(MCPClient)).not.toHaveBeenCalled();
-    expect(vi.mocked(Agent)).not.toHaveBeenCalled();
+    expect(adapterEvents.inputs).toEqual([
+      expect.objectContaining({
+        forwardedProps: {},
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            id: "tool-call-1-approval-tool-call",
+            role: "assistant",
+            toolCalls: [
+              expect.objectContaining({
+                id: "tool-call-1",
+              }),
+            ],
+          }),
+          expect.objectContaining({
+            id: "tool-call-1-approval-tool-result",
+            role: "tool",
+            toolCallId: "tool-call-1",
+            content: "Tool call was not approved by the user.",
+            error: "Tool call was not approved by the user.",
+          }),
+          expect.objectContaining({
+            id: "tool-call-1-approval-rejection-guidance",
+            role: "developer",
+            content: expect.stringContaining(
+              "ask the user how they would like to continue",
+            ),
+          }),
+        ]),
+      }),
+    ]);
+    expect(adapterEvents.createScoreConfigExecute).not.toHaveBeenCalled();
+    expect(vi.mocked(MCPClient)).toHaveBeenCalledOnce();
+    expect(vi.mocked(Agent)).toHaveBeenCalledOnce();
     expect(persistedEvents).toEqual([
       {
         type: EventType.RUN_STARTED,
@@ -1267,6 +1448,25 @@ describe("createAgUiStream", () => {
         content: "Tool call was not approved by the user.",
         role: "tool",
         error: "Tool call was not approved by the user.",
+      },
+      {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId: "assistant-message-1",
+        role: "assistant",
+      },
+      {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: "assistant-message-1",
+        delta: "The action was not completed. How would you like to continue?",
+      },
+      {
+        type: EventType.TEXT_MESSAGE_END,
+        messageId: "assistant-message-1",
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        threadId: input.threadId,
+        runId: input.runId,
       },
     ]);
     expect(streamedEvents).toEqual(persistedEvents);

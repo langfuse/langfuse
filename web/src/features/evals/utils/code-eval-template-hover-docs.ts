@@ -15,7 +15,7 @@ type ScoreBase = {
   metadata?: Record<string, unknown>;
 }
 
-A Langfuse score returned by a TypeScript evaluator. The contract is shown at the top of the editor and is locked.`;
+A Langfuse score returned by a TypeScript evaluator.`;
 
 const PYTHON_SCORE_DOC = `@dataclass
 class Score:
@@ -27,6 +27,28 @@ class Score:
     metadata: dict[str, Any] | None = None
 
 A Langfuse score returned by a Python evaluator.`;
+
+const TYPESCRIPT_TOOL_CALL_DOC = `type ToolCall = {
+  id: string;
+  name: string;
+  arguments: unknown;
+  type: string;
+  index: number;
+}
+
+A tool call recorded on the observation. arguments is the parsed
+argument object when the recorded value was valid JSON.`;
+
+const PYTHON_TOOL_CALL_DOC = `@dataclass
+class ToolCall:
+    id: str = ""
+    name: str = ""
+    arguments: Any = None
+    type: str = ""
+    index: int = 0
+
+A tool call recorded on the observation. arguments is the parsed
+argument object when the recorded value was valid JSON.`;
 
 export const TYPESCRIPT_CODE_EVAL_HOVER_DOCS = {
   evaluate: `function evaluate(ctx: EvaluationContext): EvaluationResult
@@ -40,6 +62,7 @@ The TypeScript value Langfuse passes to evaluate.`,
     input: any;
     output: any;
     metadata: any;
+    toolCalls: ToolCall[];
   };
   experiment:
     | {
@@ -49,14 +72,19 @@ The TypeScript value Langfuse passes to evaluate.`,
     | undefined;
 }
 
-The data Langfuse passes to a TypeScript evaluator. The definition is locked at the top of the editor.`,
+The data Langfuse passes to a TypeScript evaluator.`,
   observation: `property EvaluationContext.observation: {
   input: any;
   output: any;
   metadata: any;
+  toolCalls: ToolCall[];
 }
 
 The observation selected by the evaluator target.`,
+  ToolCall: TYPESCRIPT_TOOL_CALL_DOC,
+  toolCalls: `property observation.toolCalls: ToolCall[]
+
+The tool calls recorded on the observation, in the order the model emitted them.`,
   experiment: `property EvaluationContext.experiment?: {
   itemExpectedOutput: any;
   itemMetadata: any;
@@ -123,8 +151,15 @@ class ObservationContext:
     input: Any = None
     output: Any = None
     metadata: Any = None
+    tool_calls: list[ToolCall] = field(default_factory=list)
 
 The observation selected by the evaluator target.`,
+  ToolCall: PYTHON_TOOL_CALL_DOC,
+  tool_calls: `property observation.tool_calls: list[ToolCall]
+
+The tool calls recorded on the observation, in the order the model emitted
+them. arguments is the parsed argument object when the recorded value was
+valid JSON.`,
   ExperimentContext: `@dataclass
 class ExperimentContext:
     item_expected_output: Any = None

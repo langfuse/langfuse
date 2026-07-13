@@ -13,6 +13,8 @@ import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/Pee
 import { PeekHeader } from "@/src/components/table/peek/PeekHeader";
 import { usePeekPanelState } from "@/src/components/table/peek/usePeekPanelState";
 import { shouldIgnoreOutsideInteraction } from "@/src/utils/outside-interaction";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 // Peek view-mode URL param (also cleared by usePeekNavigation on close). When
 // `expanded`, the desktop peek widens to viewport − sidebar — shareable + back-able.
@@ -142,6 +144,8 @@ export const shouldClosePeekAfterDelete = (
 function TablePeekViewComponent(props: TablePeekViewProps) {
   const { title, children } = props;
   const router = useRouter();
+  const capture = usePostHogClientCapture();
+  const { isBetaEnabled: isV4 } = useV4Beta();
   const itemId = router.query.peek as string | undefined;
   const isExpanded = router.query[PEEK_VIEW_PARAM] === PEEK_VIEW_EXPANDED;
   const isMobile = useIsMobile();
@@ -158,6 +162,13 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
       // No-op when the flag already matches: skip the redundant shallow
       // router.replace (and the re-render it would otherwise trigger).
       if (expanded === currentlyExpanded) return;
+      // Header button, drag-past-threshold, and keyboard all commit through
+      // here, so this (post no-op guard) fires once per real toggle.
+      capture("peek:expand_toggle", {
+        isExpanded: expanded,
+        routePattern: router.pathname,
+        isV4,
+      });
       if (expanded) params.set(PEEK_VIEW_PARAM, PEEK_VIEW_EXPANDED);
       else params.delete(PEEK_VIEW_PARAM);
       router.replace(
@@ -169,13 +180,25 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
         { shallow: true },
       );
     },
-    [router],
+    [router, capture, isV4],
   );
 
   const panel = usePeekPanelState({
     isOpen: !!itemId,
     isExpanded,
     onExpandedChange: setExpanded,
+    onResized: useCallback(
+      (widthFraction: number, trigger: "drag" | "keyboard") => {
+        capture("peek:resized", {
+          // Bucketed viewport percentage — coarse metadata, not px.
+          widthPercent: Math.round((widthFraction * 100) / 5) * 5,
+          trigger,
+          routePattern: router.pathname,
+          isV4,
+        });
+      },
+      [capture, router.pathname, isV4],
+    ),
   });
   const ignoredSelectors = props.peekEventOptions?.ignoredSelectors ?? [];
 

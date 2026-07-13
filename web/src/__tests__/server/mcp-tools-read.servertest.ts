@@ -2434,6 +2434,20 @@ describe("MCP Read Tools", () => {
         ),
       ).rejects.toThrow(/minValue/i);
     });
+
+    it("should reject invalid name characters at runtime despite the relaxed advertised schema", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleCreateScoreConfig(
+          {
+            name: "css-injection}*{background:red}/*",
+            dataType: "TEXT",
+          },
+          context,
+        ),
+      ).rejects.toThrow(/invalid characters/i);
+    });
   });
 
   describe("updateScoreConfig tool", () => {
@@ -2518,6 +2532,20 @@ describe("MCP Read Tools", () => {
           context,
         ),
       ).rejects.toThrow(/minValue/i);
+    });
+
+    it("should reject invalid name characters at runtime despite the relaxed advertised schema", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleUpdateScoreConfig(
+          {
+            configId: randomUUID(),
+            name: "css-injection}*{background:red}/*",
+          },
+          context,
+        ),
+      ).rejects.toThrow(/invalid characters/i);
     });
 
     it("should not archive score configs through update", async () => {

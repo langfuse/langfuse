@@ -1,23 +1,11 @@
-import CodeMirror, {
-  EditorView,
-  ExternalChange,
-  hoverTooltip,
-} from "@uiw/react-codemirror";
+import CodeMirror, { EditorView, hoverTooltip } from "@uiw/react-codemirror";
 import { EditorState, Prec } from "@codemirror/state";
 import { linter, type Diagnostic } from "@codemirror/lint";
 import { javascript } from "@codemirror/lang-javascript";
 import { python } from "@codemirror/lang-python";
-import { foldEffect, foldable } from "@codemirror/language";
 import { EvalTemplateSourceCodeLanguage } from "@langfuse/shared";
 import { useTheme } from "next-themes";
-import {
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, useCallback, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
@@ -30,8 +18,6 @@ import {
 } from "@/src/features/evals/utils/code-eval-template-hover-docs";
 import {
   formatPythonCodeEvalSourceWithRuff,
-  PYTHON_CODE_EVAL_CONTRACT,
-  TYPESCRIPT_CODE_EVAL_CONTRACT,
   type CodeEvalSourceCodeLanguage,
   type CodeEvalValidationResult,
 } from "@/src/features/evals/utils/code-eval-template-validation";
@@ -45,19 +31,9 @@ type CodeEvalTemplateFormBodyProps = {
   headerAction?: ReactNode;
 };
 
-type ProtectedRange = {
-  from: number;
-  to: number;
-};
-
-type ContractRanges = {
-  prelude: ProtectedRange | null;
-  signature: ProtectedRange;
-};
-
-const PYTHON_EVALUATE_SIGNATURE_PATTERN =
-  /(?:^|\n)def evaluate\s*\(\s*ctx\s*:\s*EvaluationContext\s*\)\s*->\s*EvaluationResult\s*:/;
 const FORMAT_SHORTCUT_ARIA = "Alt+Shift+F";
+const FUNCTION_CONTRACT_DOCS_URL =
+  "https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators#function-contract";
 
 function createCodeEvalHoverExtension(hoverDocs: CodeEvalHoverDocs) {
   return hoverTooltip((view, pos) => {
@@ -87,169 +63,20 @@ function createCodeEvalHoverExtension(hoverDocs: CodeEvalHoverDocs) {
   });
 }
 
-function findPythonContractRanges(source: string): ContractRanges | null {
-  const match = source.match(PYTHON_EVALUATE_SIGNATURE_PATTERN);
-  if (!match || match.index === undefined) return null;
-
-  const signatureStart = match.index + (match[0].startsWith("\n") ? 1 : 0);
-  const signatureLineEnd = source.indexOf("\n", signatureStart);
-  const signatureTo =
-    signatureLineEnd === -1 ? source.length : signatureLineEnd + 1;
-
-  return {
-    prelude: signatureStart > 0 ? { from: 0, to: signatureStart } : null,
-    signature: { from: signatureStart, to: signatureTo },
-  };
-}
-
-function findTypeScriptContractRanges(source: string): ContractRanges | null {
-  if (!source.startsWith(TYPESCRIPT_CODE_EVAL_CONTRACT)) return null;
-
-  return {
-    prelude: { from: 0, to: TYPESCRIPT_CODE_EVAL_CONTRACT.length },
-    signature: {
-      from: TYPESCRIPT_CODE_EVAL_CONTRACT.length,
-      to: TYPESCRIPT_CODE_EVAL_CONTRACT.length,
-    },
-  };
-}
-
-function getProtectedContractRanges(source: string): ProtectedRange[] {
-  const ranges =
-    findPythonContractRanges(source) ?? findTypeScriptContractRanges(source);
-  if (!ranges) return [];
-
-  return [
-    ...(ranges.prelude ? [ranges.prelude] : []),
-    ...(ranges.signature.from < ranges.signature.to ? [ranges.signature] : []),
-  ];
-}
-
-function isChangeInProtectedRange(
-  from: number,
-  to: number,
-  range: ProtectedRange,
-) {
-  if (from === to) {
-    return from >= range.from && from < range.to;
-  }
-
-  return from < range.to && to > range.from;
-}
-
-const contractReadOnlyExtension = EditorState.changeFilter.of((tr) => {
-  if (!tr.docChanged) return true;
-  if (tr.annotation(ExternalChange)) return true;
-
-  const protectedRanges = getProtectedContractRanges(
-    tr.startState.doc.toString(),
-  );
-  if (protectedRanges.length === 0) return true;
-
-  let touchesProtectedRange = false;
-  tr.changes.iterChangedRanges((fromA, toA) => {
-    if (
-      protectedRanges.some((range) =>
-        isChangeInProtectedRange(fromA, toA, range),
-      )
-    ) {
-      touchesProtectedRange = true;
-    }
-  }, true);
-
-  return !touchesProtectedRange;
-});
-
-const contractReadOnlyExtensions = [contractReadOnlyExtension];
-
 async function formatTypeScriptSource(source: string) {
-  const [{ format }, typescriptPlugin, estreePlugin] = await Promise.all([
+  // babel-ts instead of the typescript plugin: the latter embeds the
+  // TypeScript compiler, which the SWC minifier miscompiles (dropped
+  // bindings — LFE-10645, caught by scripts/scan-client-bundle.mjs).
+  const [{ format }, babelPlugin, estreePlugin] = await Promise.all([
     import("prettier/standalone"),
-    import("prettier/plugins/typescript"),
+    import("prettier/plugins/babel"),
     import("prettier/plugins/estree"),
   ]);
 
-  const ranges = findTypeScriptContractRanges(source);
-  if (!ranges?.prelude) {
-    return format(source, {
-      parser: "typescript",
-      plugins: [typescriptPlugin, estreePlugin],
-    });
-  }
-
-  const formattedEditableSource = await format(
-    source.slice(ranges.prelude.to),
-    {
-      parser: "typescript",
-      plugins: [typescriptPlugin, estreePlugin],
-    },
-  );
-
-  return `${source.slice(0, ranges.prelude.to)}\n${formattedEditableSource.trimStart()}`;
-}
-
-async function formatPythonSource(source: string) {
-  const ranges = findPythonContractRanges(source);
-  if (!ranges?.prelude) {
-    return formatPythonCodeEvalSourceWithRuff(source);
-  }
-
-  const formattedEditableSource = await formatPythonCodeEvalSourceWithRuff(
-    source.slice(ranges.prelude.to),
-  );
-
-  return `${source.slice(0, ranges.prelude.to).trimEnd()}\n\n\n${formattedEditableSource.trimStart()}`;
-}
-
-function scrollCodeMirrorToBottom(view: EditorView) {
-  if (typeof window === "undefined") return;
-
-  window.requestAnimationFrame(() => {
-    if (!view.dom.isConnected) return;
-
-    view.dispatch({
-      effects: EditorView.scrollIntoView(view.state.doc.length, { y: "end" }),
-    });
+  return format(source, {
+    parser: "babel-ts",
+    plugins: [babelPlugin, estreePlugin],
   });
-}
-
-function foldContractTypes(
-  view: EditorView,
-  sourceCodeLanguage: CodeEvalSourceCodeLanguage,
-) {
-  if (typeof window === "undefined") return;
-
-  const contractLength =
-    sourceCodeLanguage === "PYTHON"
-      ? PYTHON_CODE_EVAL_CONTRACT.length
-      : TYPESCRIPT_CODE_EVAL_CONTRACT.length;
-
-  const doFold = () => {
-    if (!view.dom.isConnected) return;
-
-    const effects: ReturnType<typeof foldEffect.of>[] = [];
-    const state = view.state;
-
-    // Find all foldable ranges within the contract section
-    let pos = 0;
-    while (pos < contractLength && pos < state.doc.length) {
-      const line = state.doc.lineAt(pos);
-      const range = foldable(state, line.from, line.to);
-      if (range && range.from < contractLength) {
-        effects.push(foldEffect.of({ from: range.from, to: range.to }));
-      }
-      pos = line.to + 1;
-    }
-
-    if (effects.length > 0) {
-      view.dispatch({ effects });
-    }
-  };
-
-  // Delay to ensure the language parser has time to analyze the document.
-  // Python parsing may need more time than TypeScript.
-  const delay = sourceCodeLanguage === "PYTHON" ? 100 : 50;
-  setTimeout(doFold, delay);
 }
 
 export function CodeEvalTemplateFormBody({
@@ -261,7 +88,6 @@ export function CodeEvalTemplateFormBody({
   headerAction,
 }: CodeEvalTemplateFormBodyProps) {
   const { resolvedTheme } = useTheme();
-  const codeMirrorViewRef = useRef<EditorView | null>(null);
   const [isFormatting, setIsFormatting] = useState(false);
   const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;
   const languageLabel =
@@ -269,32 +95,6 @@ export function CodeEvalTemplateFormBody({
       ? "Python"
       : "TypeScript";
   const shouldShowFormatButton = editable;
-
-  const handleCreateEditor = useCallback(
-    (view: EditorView) => {
-      codeMirrorViewRef.current = view;
-      foldContractTypes(view, sourceCodeLanguage);
-      scrollCodeMirrorToBottom(view);
-    },
-    [sourceCodeLanguage],
-  );
-
-  useEffect(() => {
-    const view = codeMirrorViewRef.current;
-    if (!view) return;
-
-    // Don't re-fold on every sourceCode change, only on language change
-    scrollCodeMirrorToBottom(view);
-  }, [sourceCode]);
-
-  useEffect(() => {
-    const view = codeMirrorViewRef.current;
-    if (!view) return;
-
-    // Re-fold when language changes
-    foldContractTypes(view, sourceCodeLanguage);
-    scrollCodeMirrorToBottom(view);
-  }, [sourceCodeLanguage]);
 
   const diagnostics = useMemo(
     () => validationResult?.diagnostics ?? [],
@@ -308,9 +108,11 @@ export function CodeEvalTemplateFormBody({
     try {
       const formatted =
         sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
-          ? await formatPythonSource(sourceCode)
+          ? await formatPythonCodeEvalSourceWithRuff(sourceCode)
           : await formatTypeScriptSource(sourceCode);
-      onSourceCodeChange(formatted);
+      // Prettier and Ruff always emit a trailing newline, which CodeMirror
+      // would render as an empty final line.
+      onSourceCodeChange(formatted.trimEnd());
     } catch (error) {
       console.error(error);
     } finally {
@@ -375,10 +177,6 @@ export function CodeEvalTemplateFormBody({
       createCodeEvalHoverExtension(getCodeEvalHoverDocs(sourceCodeLanguage)),
     [sourceCodeLanguage],
   );
-  const protectedContractExtensions = useMemo(
-    () => contractReadOnlyExtensions,
-    [],
-  );
 
   return (
     <div className="space-y-2">
@@ -424,7 +222,6 @@ export function CodeEvalTemplateFormBody({
         extensions={[
           ...(!editable ? [EditorState.readOnly.of(true)] : []),
           languageExtension,
-          ...protectedContractExtensions,
           codeEvalHoverExtension,
           linterExtension,
           ...(shouldShowFormatButton ? [formatShortcutExtension] : []),
@@ -433,20 +230,27 @@ export function CodeEvalTemplateFormBody({
             "&.cm-focused": { outline: "none" },
             ".cm-gutters": { borderRight: "1px solid" },
             ".cm-scroller": {
-              minHeight: "360px",
               maxHeight: "60dvh",
               overflow: "auto",
-            },
-            ".cm-content": {
-              minHeight: "360px",
             },
           }),
         ]}
         editable={editable}
-        onCreateEditor={handleCreateEditor}
         onChange={onSourceCodeChange}
         className="overflow-hidden rounded-md border text-xs"
       />
+      <p className="text-muted-foreground text-xs">
+        The evaluate function receives an EvaluationContext and returns an
+        EvaluationResult with one or more scores.{" "}
+        <a
+          href={FUNCTION_CONTRACT_DOCS_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline"
+        >
+          See type definitions.
+        </a>
+      </p>
     </div>
   );
 }

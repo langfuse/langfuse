@@ -94,7 +94,10 @@ const MainPage = ({ projectId }: { projectId: string }) => {
           ...headerProps,
           actionButtonsRight: (
             <>
-              <FilterToggleButton />
+              {/* Desktop uses the sidebar's own header toggle + collapsed
+                  rail; this toggle only remains for the mobile stacked
+                  layout. */}
+              <FilterToggleButton className="md:hidden" />
               <AutomationButton projectId={projectId} />
               <ActionButton
                 icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
