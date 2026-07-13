@@ -53,6 +53,43 @@ Comprehensive guidance for ClickHouse covering schema design, query optimization
   with `SETTINGS mutations_sync = 2`. The matching `unclustered/` file runs
   against plain `MergeTree` and does not need (and should not duplicate)
   these settings.
+- Never use `CREATE OR REPLACE VIEW` (nor `CREATE OR REPLACE TABLE` /
+  `EXCHANGE TABLES`) in ClickHouse migrations. The atomic replace requires
+  `renameat2` filesystem support, which NFS-backed self-hosted deployments
+  (e.g. ClickHouse data on AWS EFS) lack — the migration fails and the
+  deployment aborts on startup (GitHub issue #14906). Redefine a plain view as
+  two statements in the same migration file: `DROP VIEW IF EXISTS <name>
+  [ON CLUSTER default];` then `CREATE VIEW <name> [ON CLUSTER default] AS …`.
+  The migration runner passes `x-multi-statement=true` and golang-migrate
+  splits files on `;` without parsing SQL, so keep semicolons out of comments
+  and string literals. Keep every statement idempotent
+  (`IF EXISTS`/`IF NOT EXISTS`) so a dirty, half-applied migration can be
+  re-run after `migrate force`. Readers hitting the view inside the
+  drop→create window fail transiently — acceptable for the `analytics_*`
+  export views, so keep plain views off product hot paths.
+- Never drop-and-recreate a materialized view whose source table receives live
+  inserts: every row inserted between `DROP` and `CREATE` is silently and
+  permanently missing from the target table. Change an MV's SELECT with
+  `ALTER TABLE <mv> [ON CLUSTER default] MODIFY QUERY <select>`, which swaps
+  the transformation without interrupting ingestion. When the change adds
+  columns, `ALTER` the target table(s) first (`ADD COLUMN IF NOT EXISTS …`),
+  then `MODIFY QUERY`; in `clustered/` files those target-table `ALTER`s must
+  carry `SETTINGS alter_sync = 2` so no host applies the new MV query before
+  its target replica has the new columns. `MODIFY QUERY` is only viable for
+  TO-table MVs (all Langfuse MVs use `TO`); see the `events_core_mv` sequence
+  in `packages/shared/clickhouse/scripts/dev-tables.sh` for the canonical
+  target-first pattern. For structural rebuilds (engine/`ORDER BY` changes),
+  create a new MV plus target table and backfill across a timestamp cutoff
+  instead.
+- `alter_sync` only affects `ALTER`/`OPTIMIZE`/`TRUNCATE` on replicated
+  tables; it does nothing for `CREATE`/`DROP` statements. Likewise,
+  `mutations_sync` only affects mutation-creating statements
+  (`ALTER TABLE … UPDATE/DELETE`, `MATERIALIZE INDEX/COLUMN/TTL`) that
+  rewrite data parts — view DDL and `MODIFY QUERY` are metadata-only and
+  never create mutations, so neither setting applies to them. Consecutive
+  `ON CLUSTER` DDL statements already execute in order on every host via the
+  distributed DDL queue, so a `DROP VIEW` + `CREATE VIEW` pair needs no extra
+  sync settings.
 
 ---
 
@@ -80,6 +117,8 @@ Comprehensive guidance for ClickHouse covering schema design, query optimization
 - [ ] Partition key cardinality bounded (100-1,000 values)
 - [ ] ReplacingMergeTree has version column if used
 - [ ] Clustered migration files with multiple ALTERs on the same table use `SETTINGS alter_sync = 2` (metadata) and `SETTINGS mutations_sync = 2` (`MATERIALIZE …`, `UPDATE`, `DELETE`); unclustered mirror has none
+- [ ] No `CREATE OR REPLACE VIEW/TABLE` or `EXCHANGE TABLES` in migrations (breaks NFS/EFS self-hosting); plain views are redefined via `DROP VIEW IF EXISTS` + `CREATE VIEW` in the same file
+- [ ] Materialized views are never dropped and recreated while their source table takes inserts; SELECT changes go through `ALTER TABLE <mv> MODIFY QUERY` after the target-table `ALTER`s
 
 ### For Query Reviews (SELECT, JOIN, aggregations)
 
