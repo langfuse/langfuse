@@ -56,7 +56,11 @@ function runCompletionSource(
     extensions: [languageExtensionFor(sourceCodeLanguage)],
   });
   const source = getCodeEvalCompletionSource(sourceCodeLanguage);
-  return source(new CompletionContext(state, position, false));
+  const result = source(new CompletionContext(state, position, false));
+  if (result instanceof Promise) {
+    throw new Error("code eval completion source must resolve synchronously");
+  }
+  return result;
 }
 
 function mountEditor(
