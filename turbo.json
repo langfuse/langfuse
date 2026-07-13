@@ -89,6 +89,7 @@
     },
     "build:check": {
       "dependsOn": ["db:generate", "^build"],
+      "env": ["NEXT_IGNORE_BUILD_ERRORS"],
       "outputs": [".next-check/**", "!.next-check/cache/**"],
       "cache": true,
       "outputLogs": "errors-only"
