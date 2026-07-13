@@ -6,11 +6,15 @@ name: AWS preview auto-label
 # by hand; the build workflow re-checks the PR author before building with a
 # cloud credential, so a manual label from a non-allowlisted author is inert.
 #
-# Runs as pull_request_target, i.e. THIS reviewed, default-branch workflow —
-# never the PR's — so an untrusted PR cannot alter this gate. It holds no cloud
-# credentials, never checks out or executes PR code, and only reads metadata.
+# Uses the plain `pull_request` trigger (NOT pull_request_target): it holds no
+# cloud credentials, never checks out or executes PR code, and only calls
+# issues.addLabels. The label is not a security boundary — the build workflow
+# independently re-checks the PR author before using any credential — so
+# pull_request_target's tamper-resistance isn't needed here, and avoiding it
+# keeps this off the dangerous-triggers list. Same-repo PRs get a write token to
+# add the label; fork PRs are short-circuited below (and get a read-only token).
 on:
-  pull_request_target:
+  pull_request:
     types: [opened, reopened]
 
 permissions: {}
