@@ -333,9 +333,6 @@ const processBlobStorageExport = async (config: {
   convertV4LatencyToSeconds: boolean;
   exportFieldGroups?: ObservationFieldGroupFull[];
   rawPassthrough: boolean;
-  // LFE-10463: when true, export via ClickHouse-native `FORMAT Parquet`,
-  // overriding `fileType` and `compressed`. Takes precedence over rawPassthrough.
-  parquet: boolean;
   // undefined concurrency/attempts => backend keeps its native default.
   partSizeBytes: number;
   maxConcurrentParts: number | undefined;
@@ -440,9 +437,7 @@ const processBlobStorageExport = async (config: {
       try {
         const blobStorageProps = getFileTypeProperties(config.fileType);
 
-        // Both paths converge: legacy exportTuning.parquet override and the new fileType=PARQUET.
         const parquetEligible =
-          config.parquet ||
           config.fileType === BlobStorageIntegrationFileType.PARQUET;
 
         // Raw passthrough (LFE-10402) is opt-in per project and only valid for
@@ -1198,7 +1193,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
       exportFieldGroups:
         blobStorageIntegration.exportFieldGroups as ObservationFieldGroupFull[],
       rawPassthrough: exportTuning.rawPassthrough,
-      parquet: exportTuning.parquet,
       partSizeBytes: exportTuning.partSizeBytes,
       maxConcurrentParts: exportTuning.maxConcurrentParts,
       maxPartAttempts: exportTuning.maxPartAttempts,
@@ -1221,7 +1215,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
     // dispatch and is intentionally not warned about (avoids ~hourly log noise).
     if (
       exportTuning.rawPassthrough &&
-      !exportTuning.parquet &&
       blobStorageIntegration.fileType !==
         BlobStorageIntegrationFileType.PARQUET &&
       (blobStorageIntegration.fileType !==

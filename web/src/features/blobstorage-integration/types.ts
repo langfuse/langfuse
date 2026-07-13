@@ -52,17 +52,6 @@ export const blobStorageIntegrationFormSchemaBase = z.object({
   compressed: z.boolean().default(true),
 });
 
-// True when the internal, DB-set `exportTuning.parquet` override is on (no UI
-// write path). Mirrors the worker resolver: only `{ parquet: true }` counts.
-export function parquetEnabledFromTuning(exportTuning: unknown): boolean {
-  return (
-    typeof exportTuning === "object" &&
-    exportTuning !== null &&
-    !Array.isArray(exportTuning) &&
-    (exportTuning as Record<string, unknown>).parquet === true
-  );
-}
-
 export const blobStorageIntegrationFormSchema =
   blobStorageIntegrationFormSchemaBase
     .superRefine(validateAzureContainerName)

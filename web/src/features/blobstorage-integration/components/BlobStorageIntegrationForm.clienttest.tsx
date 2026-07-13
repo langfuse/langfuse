@@ -39,7 +39,6 @@ const ui = (
       initialValues={initialValues}
       availability={availability}
       persistedExportSource={null}
-      isParquetOverride={false}
       isSaving={false}
       onSubmit={onSubmit}
     />
