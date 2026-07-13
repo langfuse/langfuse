@@ -6,6 +6,8 @@
  */
 
 import { z } from "zod";
+import { recordIncrement } from "@langfuse/shared/src/server";
+import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { wrapErrorHandling } from "./error-formatting";
 import type { ServerContext } from "../types";
 
@@ -61,6 +63,19 @@ export interface ToolDefinition<TName extends string = string> {
 }
 
 type JsonSchemaObject = Record<string, unknown>;
+type McpToolOutcome = "success" | "client_error" | "server_error";
+
+function getErrorOutcome(error: unknown): McpToolOutcome {
+  if (
+    error instanceof McpError &&
+    (error.code === ErrorCode.InvalidParams ||
+      error.code === ErrorCode.InvalidRequest)
+  ) {
+    return "client_error";
+  }
+
+  return "server_error";
+}
 
 function isObjectJsonSchema(schema: JsonSchemaObject): boolean {
   return schema.type === "object";
@@ -167,13 +182,34 @@ export function defineTool<TInput, const TName extends string>(
   }
 
   // Wrap handler with validation and error handling
-  const wrappedHandler: ToolHandler<TInput> = wrapErrorHandling(
+  const validatedHandler: ToolHandler<TInput> = wrapErrorHandling(
     async (rawInput: unknown, context: ServerContext) => {
       // Validate input with the full schema (including refinements)
       const validatedInput = inputSchema.parse(rawInput);
       return await handler(validatedInput, context);
     },
   );
+
+  const wrappedHandler: ToolHandler<TInput> = async (input, context) => {
+    const client = context.inAppAgent ? "in-app-agent" : "external";
+
+    try {
+      const result = await validatedHandler(input, context);
+      recordIncrement("langfuse.mcp.tool_call", 1, {
+        tool: name,
+        outcome: "success",
+        client,
+      });
+      return result;
+    } catch (error) {
+      recordIncrement("langfuse.mcp.tool_call", 1, {
+        tool: name,
+        outcome: getErrorOutcome(error),
+        client,
+      });
+      throw error;
+    }
+  };
 
   return [toolDefinition, wrappedHandler];
 }

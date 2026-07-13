@@ -1,8 +1,98 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { recordIncrement } from "@langfuse/shared/src/server";
 import { defineTool } from "../../../features/mcp/core/define-tool";
+import type { ServerContext } from "../../../features/mcp/types";
+
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal()),
+  recordIncrement: vi.fn(),
+}));
+
+const externalContext = {
+  projectId: "project-id",
+  orgId: "org-id",
+  apiKeyId: "api-key-id",
+  accessLevel: "project",
+  publicKey: "public-key",
+} satisfies ServerContext;
+
+const inAppAgentContext = {
+  ...externalContext,
+  inAppAgent: { permissions: "read" },
+} satisfies ServerContext;
 
 describe("defineTool", () => {
+  beforeEach(() => {
+    vi.mocked(recordIncrement).mockClear();
+  });
+
+  it("records successful external tool calls", async () => {
+    const schema = z.object({ name: z.string() });
+    const [, handler] = defineTool({
+      name: "plainTool",
+      description: "",
+      baseSchema: schema,
+      inputSchema: schema,
+      handler: async (input) => input,
+    });
+
+    await handler({ name: "Langfuse" }, externalContext);
+
+    expect(recordIncrement).toHaveBeenCalledOnce();
+    expect(recordIncrement).toHaveBeenCalledWith("langfuse.mcp.tool_call", 1, {
+      tool: "plainTool",
+      outcome: "success",
+      client: "external",
+    });
+  });
+
+  it("records in-app agent validation failures as client errors", async () => {
+    const schema = z.object({ name: z.string() });
+    const [, handler] = defineTool({
+      name: "plainTool",
+      description: "",
+      baseSchema: schema,
+      inputSchema: schema,
+      handler: async (input) => input,
+    });
+
+    await expect(
+      handler({ name: 42 } as unknown as { name: string }, inAppAgentContext),
+    ).rejects.toThrow("Validation failed");
+
+    expect(recordIncrement).toHaveBeenCalledOnce();
+    expect(recordIncrement).toHaveBeenCalledWith("langfuse.mcp.tool_call", 1, {
+      tool: "plainTool",
+      outcome: "client_error",
+      client: "in-app-agent",
+    });
+  });
+
+  it("records unexpected handler failures as server errors", async () => {
+    const schema = z.object({ name: z.string() });
+    const [, handler] = defineTool({
+      name: "plainTool",
+      description: "",
+      baseSchema: schema,
+      inputSchema: schema,
+      handler: async () => {
+        throw new Error("Database unavailable");
+      },
+    });
+
+    await expect(
+      handler({ name: "Langfuse" }, externalContext),
+    ).rejects.toThrow("An unexpected error occurred");
+
+    expect(recordIncrement).toHaveBeenCalledOnce();
+    expect(recordIncrement).toHaveBeenCalledWith("langfuse.mcp.tool_call", 1, {
+      tool: "plainTool",
+      outcome: "server_error",
+      client: "external",
+    });
+  });
+
   it("rejects intersection schemas", () => {
     const schema = z.object({ id: z.string() }).and(
       z.object({
