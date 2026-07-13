@@ -634,7 +634,12 @@ function createInAppAgentRateLimitResponse(rateLimitRes: RateLimitResult) {
   }
 
   return Response.json(
-    { error: "Rate limit exceeded" },
+    {
+      code: "rate_limited",
+      details: {
+        retryAfterSeconds: Math.ceil(rateLimitRes.msBeforeNext / 1_000),
+      },
+    },
     { status: 429, headers },
   );
 }

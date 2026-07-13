@@ -65,6 +65,7 @@ export type Route = {
     organization: User["organizations"][number] | undefined;
     projectId: string | undefined;
     isLangfuseCloud: boolean;
+    v4WriteMode: undefined | "legacy" | "dual" | "events_only"; // undefined until the session has loaded
   }) => boolean;
   group?: RouteGroup; // group this route belongs to (within a section)
 };
@@ -132,10 +133,9 @@ export const ROUTES: Route[] = [
     pathname: "/project/[projectId]/monitors",
     icon: BellRing,
     projectRbacScopes: ["monitors:read"],
-    show: ({ isLangfuseCloud }) => isLangfuseCloud,
+    show: ({ v4WriteMode }) => Boolean(v4WriteMode) && v4WriteMode !== "legacy",
     group: RouteGroup.Observability,
     section: RouteSection.Main,
-    label: "Beta",
   },
   {
     title: "Prompts",

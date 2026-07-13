@@ -19,10 +19,8 @@ import { type BlobStorageFormControl } from "@/src/features/blobstorage-integrat
 // selected export source and file type.
 export const ExportFieldGroupsField = ({
   control,
-  isParquetOverride,
 }: {
   control: BlobStorageFormControl;
-  isParquetOverride: boolean;
 }) => {
   const [watchedExportSource, watchedFileType] = useWatch({
     control,
@@ -30,7 +28,6 @@ export const ExportFieldGroupsField = ({
   });
   const { errors } = useFormState({ control, name: "exportFieldGroups" });
   const isParquetExport =
-    isParquetOverride ||
     watchedFileType === BlobStorageIntegrationFileType.PARQUET;
   // The legacy observations table contains fewer columns than the enriched
   // observations, so the per-group field lists differ for legacy-only exports.

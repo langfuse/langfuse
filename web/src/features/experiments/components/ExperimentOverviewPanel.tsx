@@ -4,7 +4,7 @@ import { Button } from "@/src/components/ui/button";
 import { ExperimentComparisonSelector } from "./ExperimentComparisonSelector";
 import { ExperimentBaselineControls } from "./ExperimentBaselineControls";
 import Link from "next/link";
-import { ExternalLink, InfoIcon } from "lucide-react";
+import { InfoIcon } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -15,9 +15,6 @@ import {
   ExperimentOverviewField,
   ExperimentOverviewSectionHeading,
 } from "./ExperimentOverviewField";
-
-const EXPERIMENT_BASELINE_DOCS_URL =
-  "https://langfuse.com/docs/evaluation/dataset-runs";
 
 const isSafeHttpUrl = (value: string | undefined) => {
   if (!value) return false;
@@ -119,15 +116,6 @@ export function ExperimentOverviewPanel({
                   all other selected runs.
                 </TooltipContent>
               </Tooltip>
-              <Link
-                href={EXPERIMENT_BASELINE_DOCS_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Open experiment baseline documentation"
-                className="text-muted-foreground hover:text-primary"
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-              </Link>
             </span>
           </ExperimentOverviewSectionHeading>
           <ExperimentBaselineControls
