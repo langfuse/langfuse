@@ -24,14 +24,9 @@ import {
  *                   — removeUser  (type:"removeUser")  on member removal
  *
  * Every payload carries `isLangfuse: true` to distinguish Langfuse traffic.
- * Date formats follow the SFDC field types behind the Mulesoft mapping
- * (which passes values through verbatim and falls back to `now` when a date
- * field is absent):
- *   - user `createdAt` — ISO-8601 UTC seconds precision
- *     (`YYYY-MM-DDThh:mm:ssZ`); the Lead field accepts datetimes.
- *   - org `createdAt` / `convertedToPaidAt` — date-only (`YYYY-MM-DD`); the
- *     org fields are SFDC Date-typed and reject datetimes with
- *     INVALID_TYPE_ON_FIELD_IN_RECORD.
+ * Dates are sent as ISO-8601 UTC with seconds precision
+ * (`YYYY-MM-DDThh:mm:ssZ`) — the format agreed with the Mulesoft side, which
+ * falls back to `now` for absent date fields.
  *
  * Contract for callers: every public method is fire-and-forget safe.
  * Methods NEVER throw/reject — missing emails, NONE roles, validation
@@ -92,12 +87,9 @@ export function toSfdcPlan(plan: Plan): SfdcPlan | null {
     : null;
 }
 
-/** Datetime-accepting SFDC fields: ISO-8601 UTC, seconds precision, no millis. */
+/** Mulesoft date contract: ISO-8601 UTC, seconds precision, no millis. */
 const toIsoUtcSeconds = (date: Date): string =>
   date.toISOString().replace(/\.\d{3}Z$/, "Z");
-
-/** SFDC Date-typed fields (the org dates) accept only `YYYY-MM-DD` (UTC). */
-const toIsoUtcDate = (date: Date): string => date.toISOString().slice(0, 10);
 
 const UpsertUserPayload = z.object({
   userId: z.string().min(1),
@@ -116,16 +108,14 @@ const SyncableRole = LangfuseRole.exclude(["NONE"]).transform(
 const UpsertOrgPayload = z.object({
   orgId: z.string().min(1),
   orgName: z.string().min(1),
-  // -> SFDC "Langfuse Created Date" (Langfuse_Created_Date__c), Date-typed:
-  // date-only strings, datetimes are rejected.
-  createdAt: z.iso.date(),
+  // -> SFDC "Langfuse Created Date" (Langfuse_Created_Date__c)
+  createdAt: z.iso.datetime(),
   // -> SFDC "Langfuse Tier" (Langfuse_Active_Plan__c)
   plan: z.enum(cloudConfigPlans),
-  // -> SFDC "Converted to Paid" (Converted_to_Paid_Date__c), Date-typed.
-  // Only sent when the org left Hobby at least once; omitted otherwise so
-  // SFDC keeps any previously written value (e.g. across a later downgrade
-  // push).
-  convertedToPaidAt: z.iso.date().optional(),
+  // -> SFDC "Converted to Paid" (Converted_to_Paid_Date__c). Only sent when
+  // the org left Hobby at least once; omitted otherwise so SFDC keeps any
+  // previously written value (e.g. across a later downgrade push).
+  convertedToPaidAt: z.iso.datetime().optional(),
 });
 
 const SetUserRolePayload = z.object({
@@ -260,10 +250,10 @@ export class SfdcService {
       const parsed = UpsertOrgPayload.safeParse({
         orgId: input.orgId,
         orgName: input.orgName,
-        createdAt: toIsoUtcDate(input.createdAt),
+        createdAt: toIsoUtcSeconds(input.createdAt),
         plan: input.plan,
         ...(input.convertedToPaidAt
-          ? { convertedToPaidAt: toIsoUtcDate(input.convertedToPaidAt) }
+          ? { convertedToPaidAt: toIsoUtcSeconds(input.convertedToPaidAt) }
           : {}),
       });
       if (!parsed.success) {

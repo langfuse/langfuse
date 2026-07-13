@@ -151,16 +151,14 @@ function expectedBasicAuthHeader(): string {
   return "Basic " + Buffer.from("mule-user:mule-pass").toString("base64");
 }
 
-// Fixed dates with millisecond components — payload asserts verify the wire
-// formats: user dates are seconds-precision ISO UTC (millis stripped), org
-// dates are date-only (the SFDC org fields are Date-typed and reject
-// datetimes).
+// Fixed dates with millisecond components — payload asserts verify the
+// Mulesoft contract of seconds-precision ISO UTC (millis stripped).
 const SIGNUP_AT = new Date("2026-07-08T09:41:23.123Z");
 const SIGNUP_AT_ISO_SECONDS = "2026-07-08T09:41:23Z";
 const ORG_CREATED_AT = new Date("2026-06-01T08:30:00.900Z");
-const ORG_CREATED_AT_ISO_DATE = "2026-06-01";
+const ORG_CREATED_AT_ISO_SECONDS = "2026-06-01T08:30:00Z";
 const CONVERTED_AT = new Date("2026-06-15T12:00:00.450Z");
-const CONVERTED_AT_ISO_DATE = "2026-06-15";
+const CONVERTED_AT_ISO_SECONDS = "2026-06-15T12:00:00Z";
 
 /** Minimal valid upsertUser input; tests override what they assert on. */
 function upsertUserInput(overrides: Record<string, unknown> = {}) {
@@ -325,7 +323,7 @@ describe("SfdcService.upsertOrg", () => {
       type: "updateOrg",
       orgId: "org-1",
       orgName: "Org One",
-      createdAt: ORG_CREATED_AT_ISO_DATE,
+      createdAt: ORG_CREATED_AT_ISO_SECONDS,
       plan: "Pro",
       // Cloud region the org lives in, sourced from NEXT_PUBLIC_LANGFUSE_CLOUD_REGION.
       langfuseDataRegion: "STAGING",
@@ -343,14 +341,14 @@ describe("SfdcService.upsertOrg", () => {
     expect(body).not.toHaveProperty("convertedToPaidAt");
   });
 
-  it("sends convertedToPaidAt (date-only) when the org has converted", async () => {
+  it("sends convertedToPaidAt (seconds precision) when the org has converted", async () => {
     fetchMock.mockResolvedValueOnce(emptyOkResponse());
     await SfdcService.tryCreate()!.upsertOrg(
       upsertOrgInput({ plan: "Team", convertedToPaidAt: CONVERTED_AT }),
     );
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
     expect(body.plan).toBe("Team");
-    expect(body.convertedToPaidAt).toBe(CONVERTED_AT_ISO_DATE);
+    expect(body.convertedToPaidAt).toBe(CONVERTED_AT_ISO_SECONDS);
   });
 
   it("sends langfuseDataRegion from NEXT_PUBLIC_LANGFUSE_CLOUD_REGION", async () => {
@@ -569,9 +567,9 @@ describe("syncOrgPlanChangeToSfdc — plan-change gate for billing updates", () 
       type: "updateOrg",
       orgId: "org-1",
       orgName: "Org One",
-      createdAt: ORG_CREATED_AT_ISO_DATE,
+      createdAt: ORG_CREATED_AT_ISO_SECONDS,
       plan: "Pro",
-      convertedToPaidAt: CONVERTED_AT_ISO_DATE,
+      convertedToPaidAt: CONVERTED_AT_ISO_SECONDS,
     });
     expect(body).not.toHaveProperty("userId");
   });
@@ -586,7 +584,7 @@ describe("syncOrgPlanChangeToSfdc — plan-change gate for billing updates", () 
     expect(fetchMock).toHaveBeenCalledOnce();
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
     expect(body.plan).toBe("Team");
-    expect(body.convertedToPaidAt).toBe(CONVERTED_AT_ISO_DATE);
+    expect(body.convertedToPaidAt).toBe(CONVERTED_AT_ISO_SECONDS);
   });
 
   it("pushes a Hobby downgrade WITHOUT convertedToPaidAt so SFDC keeps the old value", async () => {
@@ -851,7 +849,7 @@ describe("call site: tRPC organizations.create", () => {
       type: "updateOrg",
       orgId: "org-new",
       orgName: "New Org",
-      createdAt: ORG_CREATED_AT_ISO_DATE,
+      createdAt: ORG_CREATED_AT_ISO_SECONDS,
       plan: "Hobby", // a freshly created org is always on Hobby
     });
     // Mulesoft ignores user fields on updateOrg — they must not be sent.
@@ -934,7 +932,7 @@ describe("call site: createProjectMembershipsOnSignup", () => {
     expect(orgBody).toMatchObject({
       type: "updateOrg",
       orgId: "org-starter",
-      createdAt: ORG_CREATED_AT_ISO_DATE,
+      createdAt: ORG_CREATED_AT_ISO_SECONDS,
       plan: "Hobby",
     });
     expect(orgBody).not.toHaveProperty("userId");
