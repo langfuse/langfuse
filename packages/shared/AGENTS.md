@@ -103,7 +103,7 @@ the same PR.
    - Redefining views or materialized views follows strict patterns (no
      `CREATE OR REPLACE VIEW`; MV SELECT changes via
      `ALTER TABLE … MODIFY QUERY`) — apply the "Langfuse-Specific Rules" in
-     `.agents/skills/clickhouse-best-practices/SKILL.md`.
+     `.agents/skills/clickhouse-best-practices/SKILL.md` for any new ClickHouse migration.
 2. Update ClickHouse query/mapping logic in `src/server/clickhouse/*` and
    related repositories.
 3. Validate ingestion/read path impact in both `web` and `worker`.

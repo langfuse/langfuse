@@ -76,20 +76,7 @@ Comprehensive guidance for ClickHouse covering schema design, query optimization
   then `MODIFY QUERY`; in `clustered/` files those target-table `ALTER`s must
   carry `SETTINGS alter_sync = 2` so no host applies the new MV query before
   its target replica has the new columns. `MODIFY QUERY` is only viable for
-  TO-table MVs (all Langfuse MVs use `TO`); see the `events_core_mv` sequence
-  in `packages/shared/clickhouse/scripts/dev-tables.sh` for the canonical
-  target-first pattern. For structural rebuilds (engine/`ORDER BY` changes),
-  create a new MV plus target table and backfill across a timestamp cutoff
-  instead.
-- `alter_sync` only affects `ALTER`/`OPTIMIZE`/`TRUNCATE` on replicated
-  tables; it does nothing for `CREATE`/`DROP` statements. Likewise,
-  `mutations_sync` only affects mutation-creating statements
-  (`ALTER TABLE … UPDATE/DELETE`, `MATERIALIZE INDEX/COLUMN/TTL`) that
-  rewrite data parts — view DDL and `MODIFY QUERY` are metadata-only and
-  never create mutations, so neither setting applies to them. Consecutive
-  `ON CLUSTER` DDL statements already execute in order on every host via the
-  distributed DDL queue, so a `DROP VIEW` + `CREATE VIEW` pair needs no extra
-  sync settings.
+  TO-table MVs (all Langfuse MVs use `TO`).
 
 ---
 
