@@ -68,6 +68,15 @@ describe("getCodeEvalCapabilities", () => {
     });
   });
 
+  it("enables TypeScript and Python for self-hosted external dispatching", async () => {
+    await expect(
+      getCapabilitiesForEnv({ LANGFUSE_CODE_EVAL_DISPATCHER: "external" }),
+    ).resolves.toEqual({
+      enabled: true,
+      supportedSourceCodeLanguages: ["TYPESCRIPT", "PYTHON"],
+    });
+  });
+
   it("enables only TypeScript for self-hosted insecure-local dispatching", async () => {
     await expect(
       getCapabilitiesForEnv({
