@@ -153,6 +153,13 @@ export class OtelIngestionProcessor {
 
   private seenTraces: Set<string> = new Set();
   private isInitialized = false;
+  private skippedSpans: Array<{
+    spanId: string | null;
+    scopeName?: string;
+    path: "event" | "ingestion";
+    reason: string;
+    error?: string;
+  }> = [];
   private traceEventCounts = {
     shallow: 0,
     rootSpanClosed: 0,
@@ -256,295 +263,301 @@ export class OtelIngestionProcessor {
           return [];
         }
 
-        return resourceSpans
+        const events = resourceSpans
           .filter((r) => Boolean(r))
           .flatMap((resourceSpan) => {
             const resourceAttributes =
               this.extractResourceAttributes(resourceSpan);
-            const events: any[] = [];
+            const resourceSpanEvents: any[] = [];
 
             for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
               const scopeAttributes = this.extractScopeAttributes(scopeSpan);
-              for (const span of scopeSpan?.spans ?? []) {
-                const spanAttributes = this.extractSpanAttributes(span);
-                const traceId = this.parseId(span.traceId);
-                const spanId = this.parseId(span.spanId);
-                const parentSpanId = span?.parentSpanId
-                  ? this.parseId(span.parentSpanId)
-                  : null;
-                const name = this.extractName(span.name, spanAttributes);
-                const { startTimeISO, endTimeISO } =
-                  OtelIngestionProcessor.resolveSpanTimestamps({
-                    startTimeUnixNano: span.startTimeUnixNano,
-                    endTimeUnixNano: span.endTimeUnixNano,
-                  });
-
-                const isLangfuseSDKSpans =
-                  scopeSpan.scope?.name?.startsWith("langfuse-sdk") ?? false;
-
-                // Extract metadata from different sources
-                const spanMetadata = this.extractMetadata(
-                  spanAttributes,
-                  "observation",
-                );
-                const traceMetadata = this.extractMetadata(
-                  spanAttributes,
-                  "trace",
-                );
-
-                const { input, output, filteredAttributes } =
-                  this.extractInputAndOutput({
-                    events: span?.events ?? [],
-                    attributes: spanAttributes,
-                    instrumentationScopeName: scopeSpan?.scope?.name ?? "",
-                  });
-
-                // Construct metadata object with the specified structure
-                // Match v3 path: store full scope object (name, version, attributes)
-                const metadata = {
-                  ...(isLangfuseSDKSpans
-                    ? {}
-                    : { attributes: filteredAttributes }),
-                  resourceAttributes: resourceAttributes,
-                  scope: {
-                    ...(scopeSpan.scope || {}),
-                    attributes: scopeAttributes,
-                  },
-                  // Note: top-level user metadata can overwrite `scope` here.
-                  // This preserves the v3 behavior/shape, even though it means
-                  // the instrumentation scope object is not guaranteed to win.
-                  ...spanMetadata,
-                  ...traceMetadata,
-                };
-                const normalizedTools = normalizeToolsForObservation(
-                  input,
-                  output,
-                  metadata,
-                );
-
-                // Extract instrumentation metadata
-                const serviceName = resourceAttributes?.["service.name"] as
-                  | string
-                  | undefined;
-                const serviceVersion = resourceAttributes?.[
-                  "service.version"
-                ] as string | undefined;
-                const telemetrySdkLanguage = resourceAttributes?.[
-                  "telemetry.sdk.language"
-                ] as string | undefined;
-                const telemetrySdkName = resourceAttributes?.[
-                  "telemetry.sdk.name"
-                ] as string | undefined;
-                const telemetrySdkVersion = resourceAttributes?.[
-                  "telemetry.sdk.version"
-                ] as string | undefined;
-                const scopeName = scopeSpan?.scope?.name;
-                const scopeVersion = scopeSpan?.scope?.version;
-
-                const stringifiedSpan = JSON.stringify(span);
-                const eventBytes = Buffer.byteLength(stringifiedSpan, "utf8");
-
-                recordDistribution(
-                  "langfuse.ingestion.otel.event.byte_length",
-                  eventBytes,
-                  {
-                    source: "otel",
-                    sdk_language: telemetrySdkLanguage || "",
-                  },
-                );
-
-                this.logOversizedSpan(span, spanAttributes, {
-                  spanId,
-                  traceId,
-                  eventBytes,
-                });
-
-                const experimentFields =
-                  this.extractExperimentFields(spanAttributes);
-
-                const spanContext = {
-                  spanId,
-                  traceId,
-                  source: "event" as const,
-                };
-
-                // AI SDK agent spans carry aggregate usage duplicating their
-                // child model-call spans — skip model/usage/cost for them.
-                const isAiSdkAgentSpan =
-                  this.isAiSdkAgentOperation(spanAttributes);
-
-                const usageDetails = UsageDetails.safeParse(
-                  isAiSdkAgentSpan
-                    ? {}
-                    : this.extractUsageDetails(
-                        spanAttributes,
-                        scopeSpan?.scope?.name ?? "",
-                        spanContext,
-                      ),
-                );
-                if (!usageDetails.success) {
-                  logger.warn(
-                    `Invalid usage details extracted from OTEL span for traceId ${traceId}: ${JSON.stringify(usageDetails.error)}`,
-                  );
-                }
-
-                const toolDefinitions =
-                  Object.keys(normalizedTools.toolDefinitions).length > 0
-                    ? normalizedTools.toolDefinitions
-                    : undefined;
-                const toolCalls =
-                  normalizedTools.toolCalls.length > 0
-                    ? normalizedTools.toolCalls
-                    : undefined;
-                const toolCallNames =
-                  normalizedTools.toolCallNames.length > 0
-                    ? normalizedTools.toolCallNames
-                    : undefined;
-
-                const observationType =
-                  observationTypeMapper.mapToObservationType(
-                    spanAttributes,
-                    resourceAttributes,
-                    scopeSpan?.scope,
-                    span.name,
-                  );
-                // Prompts can only be linked to GENERATION observations
-                const canLinkPrompt =
-                  observationType === ObservationType.GENERATION;
-
-                events.push({
-                  projectId: this.projectId,
-                  traceId,
-                  spanId,
-                  parentSpanId,
-
-                  name,
-                  type: observationType,
-                  environment: this.extractEnvironment(
-                    spanAttributes,
-                    resourceAttributes,
+              for (const otelSpan of scopeSpan?.spans ?? []) {
+                resourceSpanEvents.push(
+                  ...this.isolateSpanConversion(
+                    otelSpan,
+                    scopeSpan,
+                    "event",
+                    () => [
+                      this.convertSpanToEventRecord({
+                        span: otelSpan,
+                        scopeSpan,
+                        resourceAttributes,
+                        scopeAttributes,
+                      }),
+                    ],
                   ),
-                  version:
-                    spanAttributes?.[LangfuseOtelSpanAttributes.VERSION] ??
-                    resourceAttributes?.["service.version"] ??
-                    null,
-
-                  startTimeISO,
-                  endTimeISO,
-
-                  level:
-                    spanAttributes[
-                      LangfuseOtelSpanAttributes.OBSERVATION_LEVEL
-                    ] ??
-                    (span.status?.code === 2
-                      ? ObservationLevel.ERROR
-                      : scopeSpan?.scope?.name === "livekit-agents" &&
-                          LIVEKIT_DEBUG_SPAN_NAMES.has(span.name)
-                        ? ObservationLevel.DEBUG
-                        : ObservationLevel.DEFAULT),
-                  statusMessage:
-                    spanAttributes[
-                      LangfuseOtelSpanAttributes.OBSERVATION_STATUS_MESSAGE
-                    ] ??
-                    span.status?.message ??
-                    null,
-
-                  promptName: canLinkPrompt
-                    ? (spanAttributes?.[
-                        LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME
-                      ] ??
-                      spanAttributes["langfuse.prompt.name"] ??
-                      this.parseLangfusePromptFromAISDK(spanAttributes)?.name ??
-                      null)
-                    : null,
-                  promptVersion: canLinkPrompt
-                    ? (spanAttributes?.[
-                        LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION
-                      ] ??
-                      spanAttributes["langfuse.prompt.version"] ??
-                      this.parseLangfusePromptFromAISDK(spanAttributes)
-                        ?.version ??
-                      null)
-                    : null,
-
-                  modelParameters: this.extractModelParameters(
-                    spanAttributes,
-                    scopeSpan?.scope?.name ?? "",
-                  ),
-                  modelName: isAiSdkAgentSpan
-                    ? undefined
-                    : this.extractModelName(spanAttributes),
-                  completionStartTime: this.extractCompletionStartTime(
-                    spanAttributes,
-                    startTimeISO,
-                  ),
-
-                  // Usage and cost details
-                  providedUsageDetails: usageDetails.success
-                    ? usageDetails.data
-                    : undefined,
-                  providedCostDetails: isAiSdkAgentSpan
-                    ? {}
-                    : this.extractCostDetails(spanAttributes, spanContext),
-
-                  // Properties
-                  tags: this.extractTags(spanAttributes),
-                  public: this.extractPublic(spanAttributes),
-                  isAppRoot: this.extractIsAppRoot(spanAttributes),
-                  traceName:
-                    spanAttributes?.[LangfuseOtelSpanAttributes.TRACE_NAME] ??
-                    null,
-                  userId: this.extractUserId(spanAttributes),
-                  sessionId: this.extractSessionId(spanAttributes),
-                  release:
-                    (spanAttributes?.[
-                      LangfuseOtelSpanAttributes.RELEASE
-                    ] as string) ??
-                    resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
-                    null,
-
-                  input: normalizedTools.input,
-                  output: normalizedTools.output,
-
-                  // Metadata
-                  metadata: normalizedTools.metadata,
-
-                  // Instrumentation metadata
-                  source: "otel",
-                  ingestionApiKey: this.publicKey,
-                  ingestionSdkName: this.sdkName,
-                  ingestionSdkVersion: this.sdkVersion,
-                  serviceName,
-                  serviceVersion,
-                  scopeName,
-                  scopeVersion,
-                  telemetrySdkLanguage,
-                  telemetrySdkName,
-                  telemetrySdkVersion,
-
-                  // Source data
-                  // eventRaw: stringifiedSpan,
-                  eventBytes,
-
-                  // Experiment fields
-                  ...experimentFields,
-
-                  // Tool calling
-                  toolDefinitions,
-                  toolCalls,
-                  toolCallNames,
-                });
+                );
               }
             }
 
-            return events;
+            return resourceSpanEvents;
           });
+
+        this.flushSkippedSpanWarning();
+        return events;
       } catch (error) {
+        this.flushSkippedSpanWarning();
         logger.error("Error processing OTEL spans to events:", error);
         traceException(error, span);
         throw error;
       }
     });
+  }
+
+  private convertSpanToEventRecord(params: {
+    span: any;
+    scopeSpan: any;
+    resourceAttributes: Record<string, unknown>;
+    scopeAttributes: Record<string, unknown>;
+  }): any {
+    const { span, scopeSpan, resourceAttributes, scopeAttributes } = params;
+    const spanAttributes = this.extractSpanAttributes(span);
+    // Unwrap {data: [...]} like the v3 path (processSpan) so both paths
+    // accept and skip the identical span set
+    const traceId = this.parseId(span.traceId?.data ?? span.traceId);
+    const spanId = this.parseId(span.spanId?.data ?? span.spanId);
+    const parentSpanId = span?.parentSpanId
+      ? this.parseId(span.parentSpanId?.data ?? span.parentSpanId)
+      : null;
+    const name = this.extractName(span.name, spanAttributes);
+    const { startTimeISO, endTimeISO } =
+      OtelIngestionProcessor.resolveSpanTimestamps({
+        startTimeUnixNano: span.startTimeUnixNano,
+        endTimeUnixNano: span.endTimeUnixNano,
+      });
+
+    const isLangfuseSDKSpans =
+      scopeSpan.scope?.name?.startsWith("langfuse-sdk") ?? false;
+
+    // Extract metadata from different sources
+    const spanMetadata = this.extractMetadata(spanAttributes, "observation");
+    const traceMetadata = this.extractMetadata(spanAttributes, "trace");
+
+    const { input, output, filteredAttributes } = this.extractInputAndOutput({
+      events: span?.events ?? [],
+      attributes: spanAttributes,
+      instrumentationScopeName: scopeSpan?.scope?.name ?? "",
+    });
+
+    // Construct metadata object with the specified structure
+    // Match v3 path: store full scope object (name, version, attributes)
+    const metadata = {
+      ...(isLangfuseSDKSpans ? {} : { attributes: filteredAttributes }),
+      resourceAttributes: resourceAttributes,
+      scope: {
+        ...(scopeSpan.scope || {}),
+        attributes: scopeAttributes,
+      },
+      // Note: top-level user metadata can overwrite `scope` here.
+      // This preserves the v3 behavior/shape, even though it means
+      // the instrumentation scope object is not guaranteed to win.
+      ...spanMetadata,
+      ...traceMetadata,
+    };
+    const normalizedTools = normalizeToolsForObservation(
+      input,
+      output,
+      metadata,
+    );
+
+    // Extract instrumentation metadata
+    const serviceName = resourceAttributes?.["service.name"] as
+      | string
+      | undefined;
+    const serviceVersion = resourceAttributes?.["service.version"] as
+      | string
+      | undefined;
+    const telemetrySdkLanguage = resourceAttributes?.[
+      "telemetry.sdk.language"
+    ] as string | undefined;
+    const telemetrySdkName = resourceAttributes?.["telemetry.sdk.name"] as
+      | string
+      | undefined;
+    const telemetrySdkVersion = resourceAttributes?.[
+      "telemetry.sdk.version"
+    ] as string | undefined;
+    const scopeName = scopeSpan?.scope?.name;
+    const scopeVersion = scopeSpan?.scope?.version;
+
+    const stringifiedSpan = JSON.stringify(span);
+    const eventBytes = Buffer.byteLength(stringifiedSpan, "utf8");
+
+    recordDistribution(
+      "langfuse.ingestion.otel.event.byte_length",
+      eventBytes,
+      {
+        source: "otel",
+        sdk_language: telemetrySdkLanguage || "",
+      },
+    );
+
+    this.logOversizedSpan(span, spanAttributes, {
+      spanId,
+      traceId,
+      eventBytes,
+    });
+
+    const experimentFields = this.extractExperimentFields(spanAttributes);
+
+    const spanContext = {
+      spanId,
+      traceId,
+      source: "event" as const,
+    };
+
+    // AI SDK agent spans carry aggregate usage duplicating their
+    // child model-call spans — skip model/usage/cost for them.
+    const isAiSdkAgentSpan = this.isAiSdkAgentOperation(spanAttributes);
+
+    const usageDetails = UsageDetails.safeParse(
+      isAiSdkAgentSpan
+        ? {}
+        : this.extractUsageDetails(
+            spanAttributes,
+            scopeSpan?.scope?.name ?? "",
+            spanContext,
+          ),
+    );
+    if (!usageDetails.success) {
+      logger.warn(
+        `Invalid usage details extracted from OTEL span for traceId ${traceId}: ${JSON.stringify(usageDetails.error)}`,
+      );
+    }
+
+    const toolDefinitions =
+      Object.keys(normalizedTools.toolDefinitions).length > 0
+        ? normalizedTools.toolDefinitions
+        : undefined;
+    const toolCalls =
+      normalizedTools.toolCalls.length > 0
+        ? normalizedTools.toolCalls
+        : undefined;
+    const toolCallNames =
+      normalizedTools.toolCallNames.length > 0
+        ? normalizedTools.toolCallNames
+        : undefined;
+
+    const observationType = observationTypeMapper.mapToObservationType(
+      spanAttributes,
+      resourceAttributes,
+      scopeSpan?.scope,
+      span.name,
+    );
+    // Prompts can only be linked to GENERATION observations
+    const canLinkPrompt = observationType === ObservationType.GENERATION;
+
+    return {
+      projectId: this.projectId,
+      traceId,
+      spanId,
+      parentSpanId,
+
+      name,
+      type: observationType,
+      environment: this.extractEnvironment(spanAttributes, resourceAttributes),
+      version:
+        spanAttributes?.[LangfuseOtelSpanAttributes.VERSION] ??
+        resourceAttributes?.["service.version"] ??
+        null,
+
+      startTimeISO,
+      endTimeISO,
+
+      level:
+        spanAttributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL] ??
+        (span.status?.code === 2
+          ? ObservationLevel.ERROR
+          : scopeSpan?.scope?.name === "livekit-agents" &&
+              LIVEKIT_DEBUG_SPAN_NAMES.has(span.name)
+            ? ObservationLevel.DEBUG
+            : ObservationLevel.DEFAULT),
+      statusMessage:
+        spanAttributes[LangfuseOtelSpanAttributes.OBSERVATION_STATUS_MESSAGE] ??
+        span.status?.message ??
+        null,
+
+      promptName: canLinkPrompt
+        ? (spanAttributes?.[
+            LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME
+          ] ??
+          spanAttributes["langfuse.prompt.name"] ??
+          this.parseLangfusePromptFromAISDK(spanAttributes)?.name ??
+          null)
+        : null,
+      promptVersion: canLinkPrompt
+        ? (spanAttributes?.[
+            LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION
+          ] ??
+          spanAttributes["langfuse.prompt.version"] ??
+          this.parseLangfusePromptFromAISDK(spanAttributes)?.version ??
+          null)
+        : null,
+
+      modelParameters: this.extractModelParameters(
+        spanAttributes,
+        scopeSpan?.scope?.name ?? "",
+      ),
+      modelName: isAiSdkAgentSpan
+        ? undefined
+        : this.extractModelName(spanAttributes),
+      completionStartTime: this.extractCompletionStartTime(
+        spanAttributes,
+        startTimeISO,
+      ),
+
+      // Usage and cost details
+      providedUsageDetails: usageDetails.success
+        ? usageDetails.data
+        : undefined,
+      providedCostDetails: isAiSdkAgentSpan
+        ? {}
+        : this.extractCostDetails(spanAttributes, spanContext),
+
+      // Properties
+      tags: this.extractTags(spanAttributes),
+      public: this.extractPublic(spanAttributes),
+      isAppRoot: this.extractIsAppRoot(spanAttributes),
+      traceName:
+        spanAttributes?.[LangfuseOtelSpanAttributes.TRACE_NAME] ?? null,
+      userId: this.extractUserId(spanAttributes),
+      sessionId: this.extractSessionId(spanAttributes),
+      release:
+        (spanAttributes?.[LangfuseOtelSpanAttributes.RELEASE] as string) ??
+        resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
+        null,
+
+      input: normalizedTools.input,
+      output: normalizedTools.output,
+
+      // Metadata
+      metadata: normalizedTools.metadata,
+
+      // Instrumentation metadata
+      source: "otel",
+      ingestionApiKey: this.publicKey,
+      ingestionSdkName: this.sdkName,
+      ingestionSdkVersion: this.sdkVersion,
+      serviceName,
+      serviceVersion,
+      scopeName,
+      scopeVersion,
+      telemetrySdkLanguage,
+      telemetrySdkName,
+      telemetrySdkVersion,
+
+      // Source data
+      // eventRaw: stringifiedSpan,
+      eventBytes,
+
+      // Experiment fields
+      ...experimentFields,
+
+      // Tool calling
+      toolDefinitions,
+      toolCalls,
+      toolCallNames,
+    };
   }
 
   /**
@@ -591,6 +604,8 @@ export class OtelIngestionProcessor {
           // Filter out redundant shallow trace events
           const finalEvents = this.filterRedundantShallowTraces(allEvents);
 
+          this.flushSkippedSpanWarning();
+
           span.setAttribute("events_generated", finalEvents.length);
 
           this.traceEventCounts.shallow = Math.max(
@@ -611,6 +626,7 @@ export class OtelIngestionProcessor {
 
           return finalEvents;
         } catch (error) {
+          this.flushSkippedSpanWarning();
           if (error instanceof ForbiddenError) {
             traceException(error, span);
             throw error;
@@ -758,12 +774,18 @@ export class OtelIngestionProcessor {
       }
 
       for (const span of scopeSpan?.spans ?? []) {
-        const spanEvents = this.processSpan(
+        const spanEvents = this.isolateSpanConversion(
           span,
           scopeSpan,
-          resourceAttributes,
-          scopeAttributes,
-          isLangfuseSDKSpans,
+          "ingestion",
+          () =>
+            this.processSpan(
+              span,
+              scopeSpan,
+              resourceAttributes,
+              scopeAttributes,
+              isLangfuseSDKSpans,
+            ),
         );
         events.push(...spanEvents);
       }
@@ -808,7 +830,29 @@ export class OtelIngestionProcessor {
     const hasTraceUpdates = this.hasTraceUpdates(attributes);
 
     // Handle trace creation logic with internal seen traces management
-    if (isRootSpan || hasTraceUpdates || !this.seenTraces.has(traceId)) {
+    const shouldCreateTraceEvent =
+      isRootSpan || hasTraceUpdates || !this.seenTraces.has(traceId);
+
+    // Build the observation event BEFORE creating the trace event and
+    // mutating seenTraces: conversion throws are caught per-span by
+    // isolateSpanConversion, and a throw after the seenTraces mutation would
+    // suppress the trace-create event for all later spans of this trace.
+    const observationEvent = this.createObservationEvent({
+      span,
+      traceId,
+      parentObservationId,
+      attributes,
+      resourceAttributes,
+      resourceAttributeMetadata,
+      spanAttributeMetadata,
+      scopeSpan,
+      scopeAttributes,
+      isLangfuseSDKSpans,
+      startTimeISO,
+      endTimeISO,
+    });
+
+    if (shouldCreateTraceEvent) {
       const traceEvent = this.createTraceEvent({
         traceId,
         startTimeISO,
@@ -829,21 +873,6 @@ export class OtelIngestionProcessor {
       this.seenTraces.add(traceId);
     }
 
-    // Create observation event
-    const observationEvent = this.createObservationEvent({
-      span,
-      traceId,
-      parentObservationId,
-      attributes,
-      resourceAttributes,
-      resourceAttributeMetadata,
-      spanAttributeMetadata,
-      scopeSpan,
-      scopeAttributes,
-      isLangfuseSDKSpans,
-      startTimeISO,
-      endTimeISO,
-    });
     events.push(observationEvent);
 
     return events;
@@ -1170,7 +1199,9 @@ export class OtelIngestionProcessor {
   ): Record<string, unknown> {
     return (
       resourceSpan?.resource?.attributes?.reduce((acc: any, attr: any) => {
-        acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
+        if (attr?.value != null) {
+          acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
+        }
         return acc;
       }, {}) ?? {}
     );
@@ -1179,7 +1210,9 @@ export class OtelIngestionProcessor {
   private extractScopeAttributes(scopeSpan: any): Record<string, unknown> {
     return (
       scopeSpan?.scope?.attributes?.reduce((acc: any, attr: any) => {
-        acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
+        if (attr?.value != null) {
+          acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
+        }
         return acc;
       }, {}) ?? {}
     );
@@ -1188,7 +1221,9 @@ export class OtelIngestionProcessor {
   private extractSpanAttributes(span: any): Record<string, unknown> {
     return (
       span?.attributes?.reduce((acc: any, attr: any) => {
-        acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
+        if (attr?.value != null) {
+          acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
+        }
         return acc;
       }, {}) ?? {}
     );
@@ -1333,6 +1368,10 @@ export class OtelIngestionProcessor {
   }
 
   private convertValueToPlainJavascript(value: Record<string, any>): any {
+    // OTLP AnyValue may legally arrive with no value field set
+    if (value == null) {
+      return null;
+    }
     if (value.stringValue !== undefined) {
       return value.stringValue;
     }
@@ -1703,7 +1742,9 @@ export class OtelIngestionProcessor {
       const eventAttributes: Record<string, unknown> =
         event.attributes?.reduce(
           (acc: Record<string, unknown>, attr: any) => {
-            acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
+            if (attr?.value != null) {
+              acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
+            }
             return acc;
           },
           {} as Record<string, unknown>,
@@ -1734,9 +1775,11 @@ export class OtelIngestionProcessor {
           ? inputEvents.map((event: any) => {
               const eventAttributes =
                 event.attributes?.reduce((acc: any, attr: any) => {
-                  acc[attr.key] = this.convertValueToPlainJavascript(
-                    attr.value,
-                  );
+                  if (attr?.value != null) {
+                    acc[attr.key] = this.convertValueToPlainJavascript(
+                      attr.value,
+                    );
+                  }
                   return acc;
                 }, {}) ?? {};
 
@@ -1752,9 +1795,11 @@ export class OtelIngestionProcessor {
           ? outputEvents.map((event: any) => {
               const eventAttributes =
                 event.attributes?.reduce((acc: any, attr: any) => {
-                  acc[attr.key] = this.convertValueToPlainJavascript(
-                    attr.value,
-                  );
+                  if (attr?.value != null) {
+                    acc[attr.key] = this.convertValueToPlainJavascript(
+                      attr.value,
+                    );
+                  }
                   return acc;
                 }, {}) ?? {};
 
@@ -1786,12 +1831,16 @@ export class OtelIngestionProcessor {
     if (input || output) {
       input =
         input?.reduce((acc: any, attr: any) => {
-          acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
+          if (attr?.value != null) {
+            acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
+          }
           return acc;
         }, {}) ?? {};
       output =
         output?.reduce((acc: any, attr: any) => {
-          acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
+          if (attr?.value != null) {
+            acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
+          }
           return acc;
         }, {}) ?? {};
 
@@ -3000,7 +3049,10 @@ export class OtelIngestionProcessor {
       resourceSpans.forEach((resourceSpan) => {
         for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
           for (const span of scopeSpan?.spans ?? []) {
-            traceIds.add(this.parseId(span.traceId?.data ?? span.traceId));
+            const rawTraceId = span?.traceId?.data ?? span?.traceId;
+            if (OtelIngestionProcessor.isParseableId(rawTraceId)) {
+              traceIds.add(this.parseId(rawTraceId));
+            }
           }
         }
       });
@@ -3040,7 +3092,121 @@ export class OtelIngestionProcessor {
   private parseId(data: any): string {
     // JS SDK sends IDs already in hex strings
     // Python SDK sends Int array
-    return typeof data === "string" ? data : Buffer.from(data).toString("hex");
+    if (typeof data === "string") {
+      return data;
+    }
+    if (data == null) {
+      // Callers must skip id-less spans via isolateSpanConversion; this
+      // throw is only reached on unexpected call paths.
+      throw new Error("Cannot parse missing OTEL span/trace id");
+    }
+    return Buffer.from(data).toString("hex");
+  }
+
+  /**
+   * Runs a single span's conversion in isolation so one malformed span cannot
+   * discard its siblings (one OTLP POST = one batch = up to ~512 spans).
+   * Spans without parseable ids are skipped up front — they cannot be stored.
+   * Any conversion throw skips only that span; the batch-level catches in
+   * processToEvent/processToIngestionEvents remain as backstop for
+   * non-span-scoped errors. A skipped span may be the parent of others; its
+   * children still ingest (as orphans) rather than cascading the skip.
+   */
+  private isolateSpanConversion<T>(
+    span: any,
+    scopeSpan: any,
+    path: "event" | "ingestion",
+    convert: () => T[],
+  ): T[] {
+    const skipReason = OtelIngestionProcessor.getSpanSkipReason(span);
+    if (skipReason) {
+      this.recordSkippedSpan(span, scopeSpan, path, skipReason);
+      return [];
+    }
+    try {
+      return convert();
+    } catch (error) {
+      this.recordSkippedSpan(span, scopeSpan, path, "conversion_error", error);
+      return [];
+    }
+  }
+
+  private static getSpanSkipReason(span: any): string | null {
+    if (span == null || typeof span !== "object") {
+      return "span_not_object";
+    }
+    if (
+      !OtelIngestionProcessor.isParseableId(span.traceId?.data ?? span.traceId)
+    ) {
+      return "missing_trace_id";
+    }
+    if (
+      !OtelIngestionProcessor.isParseableId(span.spanId?.data ?? span.spanId)
+    ) {
+      return "missing_span_id";
+    }
+    return null;
+  }
+
+  // Accepts every id shape parseId handled before per-span isolation existed
+  // (including empty strings/arrays) so only previously-crashing spans skip.
+  private static isParseableId(data: unknown): boolean {
+    return (
+      typeof data === "string" ||
+      Array.isArray(data) ||
+      data instanceof Uint8Array
+    );
+  }
+
+  private recordSkippedSpan(
+    span: any,
+    scopeSpan: any,
+    path: "event" | "ingestion",
+    reason: string,
+    error?: unknown,
+  ): void {
+    // The worker runs both conversion paths over the same batch, so each
+    // malformed span is recorded once per path — the path tag keeps the
+    // counts distinguishable and surfaces path divergence.
+    recordIncrement(OtelIngestionProcessor.OTEL_CONVERSION_FAILURE_METRIC, 1, {
+      failure_type: "span_skipped",
+      reason,
+      path,
+      project_id: this.projectId,
+    });
+    const rawSpanId = span?.spanId?.data ?? span?.spanId;
+    this.skippedSpans.push({
+      spanId: OtelIngestionProcessor.isParseableId(rawSpanId)
+        ? this.parseId(rawSpanId)
+        : null,
+      scopeName: scopeSpan?.scope?.name,
+      path,
+      reason,
+      ...(error instanceof Error ? { error: error.message } : {}),
+    });
+  }
+
+  /**
+   * Logs one aggregated warning per batch for all skipped spans so a
+   * systematically malformed SDK stays visible without log spam.
+   */
+  private flushSkippedSpanWarning(): void {
+    if (this.skippedSpans.length === 0) return;
+    const reasonCounts: Record<string, number> = {};
+    for (const skipped of this.skippedSpans) {
+      reasonCounts[skipped.reason] = (reasonCounts[skipped.reason] ?? 0) + 1;
+    }
+    logger.warn(
+      `Skipped ${this.skippedSpans.length} malformed OTEL span(s) during conversion`,
+      {
+        projectId: this.projectId,
+        reasonCounts,
+        spans: this.skippedSpans.slice(0, 20),
+        sdkName: this.sdkName,
+        sdkVersion: this.sdkVersion,
+      },
+    );
+    this.skippedSpans = [];
   }
 
   /**
