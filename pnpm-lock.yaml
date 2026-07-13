@@ -197,9 +197,6 @@ importers:
       '@ai-sdk/openai':
         specifier: ^4.0.0
         version: 4.0.5(zod@4.3.6)
-      '@anthropic-ai/tokenizer':
-        specifier: ^0.0.4
-        version: 0.0.4
       '@anthropic-ai/vertex-sdk':
         specifier: ^0.17.1
         version: 0.17.1(zod@4.3.6)
@@ -387,24 +384,18 @@ importers:
       '@types/nodemailer':
         specifier: ^8.0.1
         version: 8.0.1
-      '@types/pg':
-        specifier: ^8.11.10
-        version: 8.15.6
       '@types/react':
         specifier: 19.2.14
         version: 19.2.14
+      dotenv-cli:
+        specifier: ^7.4.4
+        version: 7.4.4
       eslint:
         specifier: ^9.39.2
         version: 9.39.4(jiti@2.7.0)
-      prettier:
-        specifier: ^3.8.3
-        version: 3.8.3
       prisma:
         specifier: ^6.19.3
         version: 6.19.3(magicast@0.5.2)(typescript@6.0.3)
-      tsc-watch:
-        specifier: ^6.2.0
-        version: 6.2.0(typescript@6.0.3)
       tsx:
         specifier: ^4.20.5
         version: 4.20.5
