@@ -636,10 +636,29 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       }
 
       const files = await s3StorageService.listFiles(s3Prefix);
-      const projectFiles = files.filter((f) => f.file.includes(projectId));
+      const projectFiles = files.filter(
+        (f) => f.file.includes(projectId) && !f.file.includes("/manifests/"),
+      );
 
       // Should have 4 files (traces, observations, scores, events)
       expect(projectFiles).toHaveLength(4);
+
+      const manifestFile = files.find((f) => f.file.includes("/manifests/"));
+      expect(manifestFile).toBeDefined();
+      const manifest = JSON.parse(
+        await s3StorageService.download(manifestFile!.file),
+      );
+      expect(manifest.version).toBe(1);
+      expect(manifest.projectId).toBe(projectId);
+      expect(manifest.exportSource).toBe("TRACES_OBSERVATIONS_EVENTS");
+      expect(new Set(manifest.tables)).toEqual(
+        new Set(["traces", "observations", "scores", "observations_v2"]),
+      );
+      expect(manifest.files).toHaveLength(4);
+      expect(
+        new Set(manifest.files.map((f: { key: string }) => f.key)),
+      ).toEqual(new Set(projectFiles.map((f) => f.file)));
+      expect(manifest.window.maxTimestamp).toBe(manifest.maxTimestamp);
 
       // Check file paths follow the expected pattern
       const traceFile = projectFiles.find((f) => f.file.includes("/traces/"));
@@ -1046,7 +1065,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         // Get files for this file type
         const files = await s3StorageService.listFiles(prefix);
         const projectFiles = files.filter(
-          (f) => f.file.includes(projectId) && f.file.includes(fileTypePrefix),
+          (f) =>
+            f.file.includes(projectId) &&
+            f.file.includes(fileTypePrefix) &&
+            !f.file.includes("/manifests/"),
         );
 
         // Should have 4 files (traces, observations, scores, events)
@@ -1643,7 +1665,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         } as Job);
 
         const files = await s3StorageService.listFiles(s3Prefix);
-        const projectFiles = files.filter((f) => f.file.includes(projectId));
+        const projectFiles = files.filter(
+          (f) => f.file.includes(projectId) && !f.file.includes("/manifests/"),
+        );
 
         expect(projectFiles.length).toBeGreaterThan(0);
         expect(projectFiles.every((f) => f.file.endsWith(".csv.gz"))).toBe(
@@ -1695,7 +1719,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         } as Job);
 
         const files = await s3StorageService.listFiles(s3Prefix);
-        const projectFiles = files.filter((f) => f.file.includes(projectId));
+        const projectFiles = files.filter(
+          (f) => f.file.includes(projectId) && !f.file.includes("/manifests/"),
+        );
 
         expect(projectFiles.length).toBeGreaterThan(0);
         expect(
@@ -1757,12 +1783,126 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         } as Job);
 
         const files = await s3StorageService.listFiles(s3Prefix);
-        const projectFiles = files.filter((f) => f.file.includes(projectId));
+        const projectFiles = files.filter(
+          (f) => f.file.includes(projectId) && !f.file.includes("/manifests/"),
+        );
 
         expect(projectFiles.length).toBeGreaterThan(0);
         expect(projectFiles.every((f) => f.file.endsWith(".jsonl.gz"))).toBe(
           true,
         );
+      },
+    );
+  });
+
+  // Uses the non-enriched TRACES_OBSERVATIONS source so it runs on every CI
+  // leg, independent of the V4-preview opt-in.
+  describe("run-completion manifest (LFE-10843)", () => {
+    maybeIt(
+      "writes a manifest listing every file, the window, and per-file format",
+      async () => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        s3Prefix = `${projectId}/`;
+        const now = new Date();
+        const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+        const dataTime = now.getTime() - 40 * 60 * 1000;
+
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId,
+            type: BlobStorageIntegrationType.S3,
+            bucketName,
+            prefix: s3Prefix,
+            accessKeyId: minioAccessKeyId,
+            secretAccessKey: encrypt(minioAccessKeySecret),
+            region: region ? region : "auto",
+            endpoint: minioEndpoint,
+            forcePathStyle:
+              env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+            enabled: true,
+            exportFrequency: "hourly",
+            exportSource: "TRACES_OBSERVATIONS",
+            fileType: BlobStorageIntegrationFileType.JSONL,
+            compressed: false,
+            lastSyncAt: oneHourAgo,
+          },
+        });
+
+        const traceId = randomUUID();
+        await Promise.all([
+          createTracesCh([
+            createTrace({
+              id: traceId,
+              project_id: projectId,
+              timestamp: dataTime,
+              name: "Manifest Trace",
+            }),
+          ]),
+          createObservationsCh([
+            createObservation({
+              id: randomUUID(),
+              trace_id: traceId,
+              project_id: projectId,
+              start_time: dataTime,
+              end_time: dataTime + 5000,
+              name: "Manifest Observation",
+            }),
+          ]),
+          createScoresCh([
+            createTraceScore({
+              id: randomUUID(),
+              trace_id: traceId,
+              project_id: projectId,
+              timestamp: dataTime,
+              name: "Manifest Score",
+              value: 0.5,
+            }),
+          ]),
+        ]);
+
+        await handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job);
+
+        const files = await s3StorageService.listFiles(s3Prefix);
+        const tableFiles = files.filter(
+          (f) => f.file.includes(projectId) && !f.file.includes("/manifests/"),
+        );
+        expect(tableFiles).toHaveLength(3); // scores, traces, observations
+
+        const manifestFile = files.find((f) => f.file.includes("/manifests/"));
+        expect(manifestFile).toBeDefined();
+        expect(manifestFile!.file).toContain(
+          `${s3Prefix}${projectId}/manifests/`,
+        );
+        expect(manifestFile!.file.endsWith(".json")).toBe(true);
+
+        const manifest = JSON.parse(
+          await s3StorageService.download(manifestFile!.file),
+        );
+        expect(manifest.version).toBe(1);
+        expect(manifest.projectId).toBe(projectId);
+        expect(manifest.exportSource).toBe("TRACES_OBSERVATIONS");
+        expect(new Set(manifest.tables)).toEqual(
+          new Set(["scores", "traces", "observations"]),
+        );
+
+        expect(
+          new Set(manifest.files.map((f: { key: string }) => f.key)),
+        ).toEqual(new Set(tableFiles.map((f) => f.file)));
+
+        const tracesEntry = manifest.files.find(
+          (f: { table: string }) => f.table === "traces",
+        );
+        expect(tracesEntry.fileType).toBe("JSONL");
+        expect(tracesEntry.format).toBe("jsonl-raw");
+        expect(tracesEntry.compressed).toBe(false);
+        expect(tracesEntry.rowCount).toBe(1);
+        expect(typeof tracesEntry.sizeBytes).toBe("number");
+
+        expect(typeof manifest.window.minTimestamp).toBe("string");
+        expect(manifest.maxTimestamp).toBe(manifest.window.maxTimestamp);
+        expect(typeof manifest.createdAt).toBe("string");
       },
     );
   });
@@ -2111,13 +2251,28 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       } as Job);
 
       const files = await s3StorageService.listFiles(s3Prefix);
-      const projectFiles = files.filter((f) => f.file.includes(projectId));
+      const projectFiles = files.filter(
+        (f) => f.file.includes(projectId) && !f.file.includes("/manifests/"),
+      );
 
       // traces, observations, scores, observations_v2 (events).
       expect(projectFiles).toHaveLength(4);
       for (const f of projectFiles) {
         expect(f.file.endsWith(".parquet")).toBe(true);
         expect(f.file).not.toContain(".gz");
+      }
+
+      const manifestFile = files.find((f) => f.file.includes("/manifests/"));
+      expect(manifestFile).toBeDefined();
+      const manifest = JSON.parse(
+        await s3StorageService.download(manifestFile!.file),
+      );
+      expect(manifest.files).toHaveLength(4);
+      for (const f of manifest.files) {
+        expect(f.fileType).toBe("PARQUET");
+        expect(f.format).toBe("parquet");
+        expect(f.compressed).toBe(false);
+        expect(f.rowCount).toBeNull();
       }
 
       // Every object is a valid Parquet file (magic at both ends).
