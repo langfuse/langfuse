@@ -7,6 +7,10 @@ evaluating, and debugging AI applications.
 
 - Read the minimal local context required for the task.
 - Keep changes scoped and avoid unrelated refactors.
+- If you are about to write a `useEffect` — or sync fetched data into state, or
+  wire form initial values from loaded data — read
+  `.agents/skills/frontend-large-feature-architecture/SKILL.md` first. Most
+  such effects should not exist.
 - For bug fixes, write the failing test first, confirm it fails, then fix the
   bug. If the bug depends on a data shape, pause and ask: can
   `pnpm run seed` prefill that shape locally? If not, consider extending a
@@ -72,6 +76,11 @@ langfuse/
 - Dev worker only: `pnpm run dev:worker`
 - Lint all: `pnpm run lint`
 - Typecheck all: `pnpm run typecheck` / `pnpm tc`
+- Run a single test file (vitest filters on the filename argument):
+  - web server tests: `pnpm --filter web run test <file>`
+    (client tests: `pnpm --filter web run test-client <file>`)
+  - worker: `pnpm --filter worker run test <file>`
+  - shared: `pnpm --filter @langfuse/shared run test <file>`
 - Build check: `pnpm run build:check`
 - Full build: `pnpm run build`
 - Worktree bootstrap: `bash scripts/codex/setup.sh`
@@ -111,6 +120,11 @@ langfuse/
   runtime-only `ReferenceError`s that dev builds and type checks cannot see
   (LFE-10645). On failure, `scripts/scan-client-bundle.mjs`'s header explains
   the canonical fix.
+
+End your turn with evidence, not claims: quote each check's summary line —
+e.g. `Tasks: 8 successful, 8 total` (turbo lint/typecheck) or
+`Tests  12 passed (12)` (vitest) — say which checks you skipped and why,
+never report unverified work as done, and never end with work pending.
 
 ## Generated Files
 

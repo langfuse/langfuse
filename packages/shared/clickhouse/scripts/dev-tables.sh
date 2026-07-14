@@ -123,6 +123,14 @@ SELECT
     byteSize(*) AS total_size
 FROM traces;
 
+-- PROD ROLLOUT: unlike analytics_scores (managed via numbered migrations),
+-- this view is NOT migration-managed because it is a Cloud-only diagnostic
+-- over events_core. Any change here must be applied manually as DROP VIEW IF
+-- EXISTS followed by CREATE VIEW in every cloud region (eu, us, hipaa, jp)
+-- and recorded in the migrations doc
+-- (https://docs.google.com/document/d/1bvz3FUFn3T4rfJ_U1qIh36FcJGfUVQwdAIOAHa3wPnA)
+-- — otherwise the DWH S3 export silently misses the new columns.
+DROP VIEW IF EXISTS analytics_events_core;
 CREATE VIEW analytics_events_core AS
 SELECT
   project_id,
@@ -155,7 +163,8 @@ SELECT
   uniqIf(service_name, service_name != '') as count_service_names,
   sumMap(map(if(scope_name = '', '-', concat(scope_name, '-', scope_version)), toUInt64(1))) AS count_scopes,
   sumMap(map(if(telemetry_sdk_language = '', '-', telemetry_sdk_language), toUInt64(1))) AS count_telemetry_sdk_languages,
-  sumMap(map(if(telemetry_sdk_name = '', '-', concat(telemetry_sdk_language, '-', telemetry_sdk_name, '-', telemetry_sdk_version)), toUInt64(1))) AS count_sdk_telemetry_sdks
+  sumMap(map(if(telemetry_sdk_name = '', '-', concat(telemetry_sdk_language, '-', telemetry_sdk_name, '-', telemetry_sdk_version)), toUInt64(1))) AS count_sdk_telemetry_sdks,
+  sumMap(map(concat(if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name), '@', if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version)), toUInt64(1))) AS ingested_sdks
 FROM events_core
 WHERE toStartOfHour(start_time) <= toStartOfHour(subtractHours(now(), 1))
 GROUP BY project_id, hour;

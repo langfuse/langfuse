@@ -42,6 +42,7 @@ import {
   hasAnySession,
   getScoresForSessions,
   getNumericScoresGroupedByName,
+  getBooleanScoresGroupedByName,
   getCategoricalScoresGroupedByName,
   tracesTableUiColumnDefinitions,
   getEventsGroupedByUserId,
@@ -544,27 +545,33 @@ export const sessionRouter = createTRPCRouter({
             }))
           : [];
 
-      const [userIds, tags, numericScoreNames, categoricalScoreNames] =
-        await Promise.all([
-          getTracesGroupedByUsers(
-            input.projectId,
-            filter,
-            undefined,
-            1000,
-            0,
-            columns,
-          ),
-          getTracesGroupedByTags({
-            projectId: input.projectId,
-            filter,
-            columns,
-          }),
-          getNumericScoresGroupedByName(input.projectId, scoreTimestampFilter),
-          getCategoricalScoresGroupedByName(
-            input.projectId,
-            scoreTimestampFilter,
-          ),
-        ]);
+      const [
+        userIds,
+        tags,
+        numericScoreNames,
+        categoricalScoreNames,
+        booleanScoreNames,
+      ] = await Promise.all([
+        getTracesGroupedByUsers(
+          input.projectId,
+          filter,
+          undefined,
+          1000,
+          0,
+          columns,
+        ),
+        getTracesGroupedByTags({
+          projectId: input.projectId,
+          filter,
+          columns,
+        }),
+        getNumericScoresGroupedByName(input.projectId, scoreTimestampFilter),
+        getCategoricalScoresGroupedByName(
+          input.projectId,
+          scoreTimestampFilter,
+        ),
+        getBooleanScoresGroupedByName(input.projectId, scoreTimestampFilter),
+      ]);
 
       return {
         userIds: userIds.map((row) => ({
@@ -575,6 +582,7 @@ export const sessionRouter = createTRPCRouter({
         tags: tags,
         scores_avg: numericScoreNames.map((s) => s.name),
         score_categories: categoricalScoreNames,
+        score_booleans: booleanScoreNames.map((s) => s.name),
       };
     }),
   filterOptionsFromEvents: protectedProjectProcedure
@@ -613,16 +621,22 @@ export const sessionRouter = createTRPCRouter({
             }))
           : [];
 
-      const [userIds, tags, numericScoreNames, categoricalScoreNames] =
-        await Promise.all([
-          getEventsGroupedByUserId(input.projectId, eventsFilter),
-          getEventsGroupedByTraceTags(input.projectId, eventsFilter),
-          getNumericScoresGroupedByName(input.projectId, scoreTimestampFilter),
-          getCategoricalScoresGroupedByName(
-            input.projectId,
-            scoreTimestampFilter,
-          ),
-        ]);
+      const [
+        userIds,
+        tags,
+        numericScoreNames,
+        categoricalScoreNames,
+        booleanScoreNames,
+      ] = await Promise.all([
+        getEventsGroupedByUserId(input.projectId, eventsFilter),
+        getEventsGroupedByTraceTags(input.projectId, eventsFilter),
+        getNumericScoresGroupedByName(input.projectId, scoreTimestampFilter),
+        getCategoricalScoresGroupedByName(
+          input.projectId,
+          scoreTimestampFilter,
+        ),
+        getBooleanScoresGroupedByName(input.projectId, scoreTimestampFilter),
+      ]);
 
       return {
         userIds: userIds.map((row) => ({
@@ -635,6 +649,7 @@ export const sessionRouter = createTRPCRouter({
         })),
         scores_avg: numericScoreNames.map((s) => s.name),
         score_categories: categoricalScoreNames,
+        score_booleans: booleanScoreNames.map((s) => s.name),
       };
     }),
   byIdWithScores: protectedGetSessionProcedure

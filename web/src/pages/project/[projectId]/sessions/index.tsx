@@ -5,7 +5,6 @@ import Page from "@/src/components/layouts/page";
 import { SessionsOnboarding } from "@/src/components/onboarding/SessionsOnboarding";
 import { api } from "@/src/utils/api";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { TableTimeRangeHeaderPicker } from "@/src/components/table/table-time-range-header-picker";
 
 export default function Sessions() {
   const router = useRouter();
@@ -67,9 +66,6 @@ export default function Sessions() {
           ),
           href: "https://langfuse.com/docs/observability/features/sessions",
         },
-        actionButtonsLeft: showOnboarding ? undefined : (
-          <TableTimeRangeHeaderPicker projectId={projectId} />
-        ),
       }}
       scrollable={showOnboarding}
     >
@@ -80,7 +76,7 @@ export default function Sessions() {
         <SessionsTable
           projectId={projectId}
           isBetaEnabled={isBetaEnabled}
-          hideTimeRangePicker
+          showControlsInPageHeader
         />
       )}
     </Page>

@@ -387,9 +387,14 @@ export const ModelUsageChart = ({
                 queryResult.isPending ? (
                   <NoDataOrLoading
                     isLoading={isLoading || queryResult.isPending}
+                    className="h-auto grow"
                   />
                 ) : (
-                  <div className="h-80 w-full shrink-0">
+                  // The height is the flex basis (floor); grow lets the chart absorb
+                  // extra tile height. On grid (lg) screens the floor is smaller so
+                  // tiles fit narrow viewports — grow recovers the height above the
+                  // grid's rowHeight floor. (LFE-10813)
+                  <div className="h-80 w-full shrink-0 grow lg:h-56">
                     <DashboardLineTimeSeriesChart
                       data={item.data}
                       label={item.chartMetricLabel}
@@ -397,6 +402,8 @@ export const ModelUsageChart = ({
                       // Token/cost totals are additive sums. (LFE-10498)
                       legendSummary="sum"
                       syncId={syncId}
+                      // Additive sums: a bucket without data honestly sums to 0. (LFE-10694)
+                      missingValue="zero"
                     />
                   </div>
                 )}

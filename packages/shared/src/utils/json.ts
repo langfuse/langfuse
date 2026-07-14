@@ -440,3 +440,11 @@ export const parseJsonPrioritised = (
     return json;
   }
 };
+
+/**
+ * Parses a value that may be a JSON string. Non-strings and unparsable
+ * strings pass through unchanged; parsing preserves big-integer precision
+ * (parseJsonPrioritised).
+ */
+export const parseJsonIfString = (value: unknown): unknown =>
+  typeof value === "string" ? parseJsonPrioritised(value) : value;

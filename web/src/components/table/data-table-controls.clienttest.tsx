@@ -146,6 +146,49 @@ describe("CategoricalFacet", () => {
     expect(screen.getAllByRole("checkbox").length).toBeLessThanOrEqual(12);
   });
 
+  it("pins the excluded (unchecked) options to the top for none-of filters (LFE-10717)", () => {
+    // Under the checked=kept model a `none of [opt-18]` exclusion reports
+    // every option EXCEPT opt-18 as selected. The applied filter — the thing
+    // LFE-10494 pinning exists to surface — is the excluded value, so it must
+    // be pinned above the kept options instead of sinking below the cap.
+    const options = Array.from({ length: 20 }, (_, i) => `opt-${i}`);
+    const value = options.filter((option) => option !== "opt-18");
+    render(
+      <Accordion type="multiple" value={["c"]}>
+        <CategoricalFacet
+          label="C"
+          filterKey="c"
+          expanded
+          loading={false}
+          options={options}
+          counts={new Map()}
+          value={value}
+          operator="none of"
+          onOperatorChange={() => {}}
+          onChange={() => {}}
+          isActive
+          isDisabled={false}
+          onReset={() => {}}
+        />
+      </Accordion>,
+    );
+
+    // The cap still applies...
+    expect(
+      screen.getByRole("button", { name: "Show more values" }),
+    ).toBeInTheDocument();
+
+    // ...yet the excluded value is visible despite sitting at position 19,
+    // and it precedes the first kept option in DOM order (pinned to top).
+    const excluded = screen.getByText("opt-18");
+    const firstKept = screen.getByText("opt-0");
+    expect(excluded).toBeInTheDocument();
+    expect(
+      excluded.compareDocumentPosition(firstKept) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("does not reorder short, fully-visible lists", () => {
     render(
       <Accordion type="multiple" value={["c"]}>
