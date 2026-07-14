@@ -1,6 +1,7 @@
 import { SpanKind, type Span } from "@opentelemetry/api";
 import { z } from "zod";
 import { instrumentAsync } from "../instrumentation";
+import { logger } from "../logger";
 import {
   assertDispatchInputWithinLimits,
   assertDispatchResultWithinByteLimit,
@@ -23,6 +24,17 @@ const RETRYABLE_EXTERNAL_HTTP_STATUS_CODES = new Set([409, 429, 500]);
 const RETRYABLE_ERROR_CODES = new Set<CodeEvalDispatcherErrorCode>([
   CodeEvalDispatcherErrorCodes.TIMEOUT,
   CodeEvalDispatcherErrorCodes.EXTERNAL_INVOCATION_ERROR,
+]);
+
+// Skipped from warn-level logging so routine user failures don't drown out
+// infrastructure issues in Datadog.
+const USER_ERROR_CODES = new Set<CodeEvalDispatcherErrorCode>([
+  CodeEvalDispatcherErrorCodes.INVALID_RESULT,
+  CodeEvalDispatcherErrorCodes.INVALID_SOURCE,
+  CodeEvalDispatcherErrorCodes.PAYLOAD_TOO_LARGE,
+  CodeEvalDispatcherErrorCodes.RESULT_TOO_LARGE,
+  CodeEvalDispatcherErrorCodes.SOURCE_TOO_LARGE,
+  CodeEvalDispatcherErrorCodes.USER_CODE_ERROR,
 ]);
 
 // `.strict()` ensures a runner that returns a valid dispatch result alongside
@@ -61,7 +73,17 @@ export class ExternalCodeEvalDispatcher implements CodeEvalDispatcher {
         traceScope: "code-eval-dispatcher",
         startNewTrace: true,
       },
-      async (span) => this.dispatchWithTracing(input, span),
+      async (span) => {
+        try {
+          return await this.dispatchWithTracing(input, span);
+        } catch (error) {
+          if (error instanceof CodeEvalDispatcherError) {
+            setDispatcherErrorSpanAttributes(span, error);
+            logDispatcherError(error);
+          }
+          throw error;
+        }
+      },
     );
   }
 
@@ -162,6 +184,27 @@ export class ExternalCodeEvalDispatcher implements CodeEvalDispatcher {
 
     return result;
   }
+}
+
+// Warn on non-user errors only, so infrastructure issues surface in Datadog
+// without drowning the channel in routine user-template failures.
+function logDispatcherError(error: CodeEvalDispatcherError): void {
+  if (USER_ERROR_CODES.has(error.code)) return;
+
+  logger.warn(`External code eval dispatcher failed: ${error.message}`, {
+    code: error.code,
+    retryable: error.retryable,
+  });
+}
+
+function setDispatcherErrorSpanAttributes(
+  span: Span,
+  error: CodeEvalDispatcherError,
+): void {
+  span.setAttributes({
+    "langfuse.code_eval.error.code": error.code,
+    "langfuse.code_eval.error.retryable": error.retryable,
+  });
 }
 
 function parseExternalResponsePayload(responseBody: string): DispatchResult {
