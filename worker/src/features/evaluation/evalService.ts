@@ -34,6 +34,7 @@ import {
   blockEvaluatorConfigs,
   EvaluatorBlockSource,
   type CodeEvalScoreWithName,
+  type EvaluatorLlmErrorClassification,
 } from "@langfuse/shared/src/server";
 import {
   inMemoryFilterRequiresMetadata,
@@ -85,7 +86,10 @@ import {
   createProductionEvalExecutionDeps,
 } from "./evalExecutionDeps";
 import { type ExtractedVariable } from "@langfuse/shared/src/server";
-import { buildEvalExecutionSpanAttributes } from "./evalSpanAttributes";
+import {
+  buildEvalExecutionSpanAttributes,
+  buildEvaluatorLlmErrorSpanAttributes,
+} from "./evalSpanAttributes";
 
 /**
  * Determines which eval jobs to create for a given event (traces or dataset run items).
@@ -776,6 +780,10 @@ export async function runLLMAsJudgeEvaluation({
       span.setAttribute("eval.job_execution.id", jobExecutionId);
       span.setAttribute("eval.template.name", template.name);
       span.setAttribute("eval.template.id", template.id);
+      span.setAttribute("eval.template.version", template.version);
+      span.setAttribute("eval.score.name", config.scoreName);
+      span.setAttributes(buildEvalExecutionSpanAttributes({ config }));
+      span.setAttribute("eval.execution.stage", "compile_prompt");
       if (job.jobInputTraceId) {
         span.setAttribute("eval.target.trace_id", job.jobInputTraceId);
       }
@@ -804,6 +812,7 @@ export async function runLLMAsJudgeEvaluation({
           variables: extractedVariables,
         });
       } catch (e) {
+        span.setAttribute("eval.prompt.compilation_fallback", true);
         logger.error(
           `Failed to compile prompt for job ${jobExecutionId}. Eval will fail. ${e}`,
         );
@@ -815,12 +824,14 @@ export async function runLLMAsJudgeEvaluation({
       );
 
       // Parse and validate output definition
+      span.setAttribute("eval.execution.stage", "validate_template");
       const parsedOutputDefinition =
         PersistedEvalOutputDefinitionSchema.safeParse(
           template.outputDefinition,
         );
 
       if (!parsedOutputDefinition.success) {
+        span.setAttribute("eval.execution.outcome", "invalid_template");
         throw new UnrecoverableError(
           "Output definition not found or invalid in evaluation template",
         );
@@ -830,15 +841,13 @@ export async function runLLMAsJudgeEvaluation({
         parsedOutputDefinition.data,
       );
 
-      span.setAttributes(buildEvalExecutionSpanAttributes({ config }));
-      span.setAttribute("eval.template.version", template.version);
-      span.setAttribute("eval.score.name", config.scoreName);
       span.setAttribute(
         "eval.score.data_type",
         compiledOutputDefinition.resolvedOutputDefinition.dataType,
       );
 
       // Get model configuration
+      span.setAttribute("eval.execution.stage", "resolve_model_config");
       const modelConfig = await deps.fetchModelConfig({
         projectId,
         provider: template.provider ?? undefined,
@@ -853,6 +862,13 @@ export async function runLLMAsJudgeEvaluation({
           error: modelConfig.error,
         });
 
+        span.setAttributes({
+          "eval.execution.outcome": "blocked",
+          "eval.llm.blocked": true,
+          "eval.llm.block.reason": blockReason,
+          "eval.llm.block.source": EvaluatorBlockSource.INVALID_MODEL_CONFIG,
+        });
+
         await blockEvaluatorConfigs({
           projectId,
           where: { id: config.id },
@@ -860,6 +876,7 @@ export async function runLLMAsJudgeEvaluation({
           blockMessage: getEvaluatorBlockMetadata(blockReason).message,
           source: EvaluatorBlockSource.INVALID_MODEL_CONFIG,
         });
+        span.setAttribute("eval.llm.block.applied", true);
 
         logger.warn(
           `Eval job ${jobExecutionId} will fail. ${modelConfig.error}`,
@@ -871,83 +888,113 @@ export async function runLLMAsJudgeEvaluation({
 
       span.setAttribute("eval.model.provider", modelConfig.config.provider);
       span.setAttribute("eval.model.name", modelConfig.config.model);
+      span.setAttribute("eval.model.adapter", modelConfig.config.adapter);
 
       // Prepare LLM call
       const messages = buildEvalMessages(prompt);
 
       const executionTraceId = createW3CTraceId(jobExecutionId);
+      span.setAttributes({
+        "eval.execution.trace_id": executionTraceId,
+        "eval.execution.stage": "call_llm",
+      });
 
       // Call LLM
-      const llmOutput = await instrumentAsync(
-        { name: "eval.call-llm" },
-        async (llmSpan) => {
-          llmSpan.setAttribute("eval.job_configuration.id", config.id);
-          llmSpan.setAttribute("eval.template.id", template.id);
-          llmSpan.setAttribute("eval.template.version", template.version);
-          llmSpan.setAttribute("eval.score.name", config.scoreName);
-          llmSpan.setAttribute(
-            "eval.score.data_type",
-            compiledOutputDefinition.resolvedOutputDefinition.dataType,
-          );
-          llmSpan.setAttribute(
-            "eval.model.provider",
-            modelConfig.config.provider,
-          );
-          llmSpan.setAttribute("eval.model.name", modelConfig.config.model);
-          llmSpan.setAttribute(
-            "eval.model.adapter",
-            modelConfig.config.adapter,
-          );
+      let llmErrorClassification:
+        | EvaluatorLlmErrorClassification
+        | null
+        | undefined;
+      let llmOutput: unknown;
+      try {
+        llmOutput = await instrumentAsync(
+          { name: "eval.call-llm" },
+          async (llmSpan) => {
+            llmSpan.setAttribute("langfuse.project.id", projectId);
+            llmSpan.setAttribute("eval.job_execution.id", jobExecutionId);
+            llmSpan.setAttribute("eval.execution.trace_id", executionTraceId);
+            llmSpan.setAttribute("eval.job_configuration.id", config.id);
+            llmSpan.setAttribute("eval.template.id", template.id);
+            llmSpan.setAttribute("eval.template.version", template.version);
+            llmSpan.setAttribute("eval.score.name", config.scoreName);
+            llmSpan.setAttribute(
+              "eval.score.data_type",
+              compiledOutputDefinition.resolvedOutputDefinition.dataType,
+            );
+            llmSpan.setAttribute(
+              "eval.model.provider",
+              modelConfig.config.provider,
+            );
+            llmSpan.setAttribute("eval.model.name", modelConfig.config.model);
+            llmSpan.setAttribute(
+              "eval.model.adapter",
+              modelConfig.config.adapter,
+            );
 
-          try {
-            return await deps.callLLM({
-              messages,
-              modelConfig: modelConfig.config,
-              structuredOutputSchema:
-                compiledOutputDefinition.outputResultSchema,
-              traceSinkParams: {
-                targetProjectId: projectId,
-                traceId: executionTraceId,
-                traceName: `Execute evaluator: ${template.name}`,
-                environment: LangfuseInternalTraceEnvironment.LLMJudge,
-                metadata: {
-                  ...executionMetadata,
+            try {
+              const output = await deps.callLLM({
+                messages,
+                modelConfig: modelConfig.config,
+                structuredOutputSchema:
+                  compiledOutputDefinition.outputResultSchema,
+                traceSinkParams: {
+                  targetProjectId: projectId,
+                  traceId: executionTraceId,
+                  traceName: `Execute evaluator: ${template.name}`,
+                  environment: LangfuseInternalTraceEnvironment.LLMJudge,
+                  metadata: {
+                    ...executionMetadata,
+                  },
                 },
-              },
-            });
-          } catch (e) {
-            const llmError = classifyEvaluatorLlmError(e);
-            if (llmError) {
-              if (llmError.statusCode !== undefined) {
-                llmSpan.setAttribute(
-                  "http.response.status_code",
-                  llmError.statusCode,
-                );
-              }
-
-              if (llmError.blockReason) {
-                const blockReason = llmError.blockReason;
-
-                await blockEvaluatorConfigs({
-                  projectId,
-                  where: { id: config.id },
-                  blockReason,
-                  blockMessage: getEvaluatorBlockMetadata(blockReason).message,
-                  source: EvaluatorBlockSource.LLM_COMPLETION_ERROR,
-                });
-              }
+              });
+              llmSpan.setAttribute("eval.llm.outcome", "success");
+              return output;
+            } catch (e) {
+              llmErrorClassification = classifyEvaluatorLlmError(e);
+              llmSpan.setAttributes(
+                buildEvaluatorLlmErrorSpanAttributes(llmErrorClassification),
+              );
+              llmSpan.setAttribute(
+                "eval.llm.outcome",
+                llmErrorClassification?.blockReason ? "blocked" : "error",
+              );
+              throw e;
             }
-            throw e;
-          }
-        },
-      );
+          },
+        );
+      } catch (e) {
+        const classification =
+          llmErrorClassification ?? classifyEvaluatorLlmError(e);
+        span.setAttributes(
+          buildEvaluatorLlmErrorSpanAttributes(classification),
+        );
+        span.setAttribute(
+          "eval.execution.outcome",
+          classification?.blockReason ? "blocked" : "llm_error",
+        );
 
+        if (classification?.blockReason) {
+          const blockReason = classification.blockReason;
+          await blockEvaluatorConfigs({
+            projectId,
+            where: { id: config.id },
+            blockReason,
+            blockMessage: getEvaluatorBlockMetadata(blockReason).message,
+            source: EvaluatorBlockSource.LLM_COMPLETION_ERROR,
+          });
+          span.setAttribute("eval.llm.block.applied", true);
+        }
+
+        throw e;
+      }
+
+      span.setAttribute("eval.execution.stage", "validate_llm_output");
       const parsedLLMOutput = validateEvalOutputResult({
         response: llmOutput,
         compiledOutputDefinition,
       });
 
       if (!parsedLLMOutput.success) {
+        span.setAttribute("eval.execution.outcome", "invalid_model_output");
         throw new UnrecoverableError(
           `Invalid LLM response format from model ${modelConfig.config.model}. Error: ${parsedLLMOutput.error}`,
         );
@@ -969,6 +1016,10 @@ export async function runLLMAsJudgeEvaluation({
       });
 
       span.setAttribute("eval.score.count", scores.length);
+      span.setAttributes({
+        "eval.execution.stage": "completed",
+        "eval.execution.outcome": "success",
+      });
 
       return {
         scores,
