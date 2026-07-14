@@ -7,12 +7,15 @@ import {
   getAppRootFilterChangeDecision,
   removeAppRootDefaultFilter,
   storedViewOwnsEventsTableState,
-  supportsAppRootFiltering,
-} from "./appRootDefaultPolicy";
+} from "./appRootDefaultFilterPolicy";
 import {
-  appRootCapabilityStorageKey,
   appRootPreferenceStorageKey,
 } from "./appRootDefaultStorage";
+import {
+  getSdkVersionCapability,
+  sdkVersionStorageKeys,
+  toSdkVersionInfo,
+} from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
 
 const levelFilter: FilterState[number] = {
   column: "level",
@@ -25,7 +28,12 @@ const basePolicy = {
   enabled: true,
   routerReady: true,
   hasUserId: true,
-  cachedCapability: "2026-07-14T12:00:00.000Z",
+  appRootSupported: getSdkVersionCapability(
+    { language: "javascript", version: "5.4.0" },
+    "appRootObservations",
+  ),
+  sdkCheckedAt: "2026-07-14T12:00:00.000Z",
+  sdkCheckSettled: false,
   preference: null,
   defaultViewSettled: true,
   savedViewOwnsState: false,
@@ -45,36 +53,49 @@ describe("app-root default policy", () => {
     ["python", "4.7.0rc1", false],
     ["unknown", "99.0.0", false],
   ])("classifies %s %s", (name, version, expected) => {
-    expect(supportsAppRootFiltering({ isOtel: true, name, version })).toBe(
-      expected,
-    );
+    expect(
+      getSdkVersionCapability(
+        toSdkVersionInfo({ isOtel: true, name, version }),
+        "appRootObservations",
+      ),
+    ).toBe(expected);
   });
 
   it.each([
     [{}, true, false],
     [{ enabled: false }, false, false],
-    [{ cachedCapability: null }, false, true],
+    [{ sdkCheckedAt: null }, false, true],
+    [
+      {
+        appRootSupported: getSdkVersionCapability(
+          { language: "python", version: "4.6.9" },
+          "appRootObservations",
+        ),
+      },
+      false,
+      false,
+    ],
     [{ preference: "suppressed" }, false, false],
     [{ owner: "url" as const }, false, false],
     [{ savedViewOwnsState: true }, false, false],
   ])("resolves table eligibility %#", (override, apply, querySdk) => {
     const policy = getAppRootDefaultPolicy({ ...basePolicy, ...override });
     expect(policy.shouldApplyFilter).toBe(apply);
-    expect(policy.shouldQueryCapability).toBe(querySdk);
+    expect(policy.shouldQuerySdkVersion).toBe(querySdk);
   });
 
   it("tracks URL ownership while SDK capability is unknown", () => {
     expect(
       getAppRootDefaultPolicy({
         ...basePolicy,
-        cachedCapability: null,
+        sdkCheckedAt: null,
         owner: "pending",
       }).owner,
     ).toBe("neutral");
     expect(
       getAppRootDefaultPolicy({
         ...basePolicy,
-        cachedCapability: null,
+        sdkCheckedAt: null,
         urlOwnsState: true,
       }).owner,
     ).toBe("url");
@@ -83,11 +104,13 @@ describe("app-root default policy", () => {
   it("handles persisted storage values", () => {
     expect(storedViewOwnsEventsTableState("null")).toBe(false);
     expect(storedViewOwnsEventsTableState('"view-id"')).toBe(true);
-    expect(appRootCapabilityStorageKey("project-a")).toBe(
-      "events-app-root-capability:project-a",
-    );
+    expect(sdkVersionStorageKeys("project-a")).toEqual({
+      language: "events-sdk-language:project-a",
+      version: "events-sdk-version:project-a",
+      checkedAt: "events-sdk-checkedAt:project-a",
+    });
     expect(appRootPreferenceStorageKey("user-a", "project-a")).toBe(
-      "events-app-root-default:user-a:project-a",
+      "events-filter-app-root-default:user-a:project-a",
     );
   });
 
@@ -125,7 +148,7 @@ describe("app-root default policy", () => {
         filters,
         dateRange: { from: new Date(now - daysAgo * 86_400_000) },
         now,
-      }).shouldInvalidateCapability;
+      }).shouldInvalidateSdkVersion;
 
     expect(fallback([APP_ROOT_OBSERVATION_FILTER], 1)).toBe(true);
     expect(fallback([levelFilter, APP_ROOT_OBSERVATION_FILTER], 1)).toBe(false);

@@ -1,10 +1,6 @@
-import { normalizeIngestionSdkName, type FilterState } from "@langfuse/shared";
+import type { FilterState } from "@langfuse/shared";
+import { sdkVersionNeedsRefresh } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
 
-const SDK_MINIMUMS = {
-  javascript: [5, 4, 0],
-  python: [4, 7, 0],
-} as const;
-const CAPABILITY_RECHECK_MS = 30 * 86_400_000;
 const URL_STATE_PARAMS = ["filter", "search", "searchType", "orderBy"];
 const OWNER_BY_ORIGIN = {
   user: "user",
@@ -30,12 +26,6 @@ export type AppRootDefaultOwner =
   | "fallback";
 export type AppRootFilterChangeOrigin = "user" | "saved_view" | "system";
 
-type SdkMetadata = {
-  isOtel: boolean;
-  name?: string;
-  version?: string;
-};
-
 const hasQueryValue = (value: string | string[] | undefined) =>
   Array.isArray(value) ? value.length > 0 : Boolean(value);
 
@@ -53,30 +43,13 @@ export const urlOwnsEventsTableState = (
 export const storedViewOwnsEventsTableState = (value: string | null) =>
   Boolean(value) && value !== "null";
 
-export const supportsAppRootFiltering = (sdk: SdkMetadata) => {
-  const name = normalizeIngestionSdkName(sdk.name);
-  const minimum = name ? SDK_MINIMUMS[name] : undefined;
-  const match = sdk.version
-    ?.trim()
-    .match(/^v?(\d+)\.(\d+)\.(\d+)(?:\+[0-9A-Za-z.-]+)?$/);
-  if (!sdk.isOtel || !minimum || !match) return false;
-
-  const version = match.slice(1, 4).map(Number);
-  if (!version.every(Number.isSafeInteger)) return false;
-  for (let index = 0; index < version.length; index++) {
-    if (version[index] !== minimum[index]) {
-      return version[index]! > minimum[index]!;
-    }
-  }
-  return true;
-};
-
 export const getAppRootDefaultPolicy = (params: {
   enabled: boolean;
   routerReady: boolean;
   hasUserId: boolean;
-  sdkMetadata?: SdkMetadata;
-  cachedCapability: string | null;
+  appRootSupported: boolean;
+  sdkCheckedAt: string | null;
+  sdkCheckSettled: boolean;
   preference: string | null;
   defaultViewSettled: boolean;
   savedViewOwnsState: boolean;
@@ -84,16 +57,10 @@ export const getAppRootDefaultPolicy = (params: {
   urlOwnsState: boolean;
   now: number;
 }) => {
-  const capabilityDetected = params.sdkMetadata
-    ? supportsAppRootFiltering(params.sdkMetadata)
-    : false;
-  const hasCachedCapability = params.cachedCapability !== null;
-  const cachedAt = Date.parse(params.cachedCapability ?? "");
-  const capabilityNeedsRecheck =
-    !hasCachedCapability ||
-    !Number.isFinite(cachedAt) ||
-    params.now - cachedAt >= CAPABILITY_RECHECK_MS;
-  const capabilitySupported = hasCachedCapability || capabilityDetected;
+  const sdkCheckCached = Number.isFinite(Date.parse(params.sdkCheckedAt ?? ""));
+  const sdkNeedsRefresh = sdkVersionNeedsRefresh(params.sdkCheckedAt, params.now);
+  const capabilitySupported =
+    params.appRootSupported && (sdkCheckCached || params.sdkCheckSettled);
   let owner = params.owner;
 
   if (params.routerReady && owner === "pending") {
@@ -122,16 +89,14 @@ export const getAppRootDefaultPolicy = (params: {
     shouldApplyFilter,
     isAutoManaged: shouldApplyFilter,
     shouldPersistAuto: shouldApplyFilter && params.preference === null,
-    shouldWriteCapabilityTimestamp:
+    shouldPersistSdkVersion:
       active &&
-      capabilityNeedsRecheck &&
+      sdkNeedsRefresh &&
       owner !== "fallback" &&
-      (capabilityDetected ||
-        (hasCachedCapability && params.sdkMetadata !== undefined)),
-    shouldQueryCapability:
+      params.sdkCheckSettled,
+    shouldQuerySdkVersion:
       active &&
-      params.preference !== "suppressed" &&
-      capabilityNeedsRecheck &&
+      sdkNeedsRefresh &&
       owner !== "fallback",
   };
 };
@@ -208,7 +173,7 @@ export const getAppRootFallbackDecision = (params: {
     nextFilters: shouldRemoveFilter
       ? removeAppRootDefaultFilter(params.filters)
       : params.filters,
-    shouldInvalidateCapability:
+    shouldInvalidateSdkVersion:
       shouldRemoveFilter &&
       params.filters.length === 1 &&
       !params.searchQuery &&

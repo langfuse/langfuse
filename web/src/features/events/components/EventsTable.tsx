@@ -682,7 +682,7 @@ export default function ObservationsEventsTable({
     searchQuery,
     dateRange,
     setFilterState: queryFilter.setFilterState,
-    removeCapabilityCache: appRootDefault.removeCapabilityCache,
+    removeSdkVersionCache: appRootDefault.removeSdkVersionCache,
   });
 
   // Disabled for now because perhaps confusing

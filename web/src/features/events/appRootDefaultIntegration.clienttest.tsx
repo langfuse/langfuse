@@ -3,7 +3,7 @@ import { useState } from "react";
 
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { getObservationEventsFilterConfig } from "./config/filter-config";
-import { APP_ROOT_OBSERVATION_FILTER } from "./lib/appRootDefaultPolicy";
+import { APP_ROOT_OBSERVATION_FILTER } from "./lib/appRootDefaultFilterPolicy";
 
 vi.mock("use-query-params", async () => {
   const actual = await vi.importActual("use-query-params");

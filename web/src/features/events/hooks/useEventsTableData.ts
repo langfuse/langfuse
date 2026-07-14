@@ -13,7 +13,7 @@ import { type EventBatchIOOutput } from "@/src/features/events/server/eventsRout
 import {
   removeAppRootDefaultFilter,
   shouldRunAppRootFallbackQuery,
-} from "@/src/features/events/lib/appRootDefaultPolicy";
+} from "@/src/features/events/lib/appRootDefaultFilterPolicy";
 
 type FullEventsObservation = FullEventsObservations[number] & {
   scores?: ScoreAggregate;
