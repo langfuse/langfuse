@@ -173,7 +173,7 @@ describe("SCIM API", () => {
     });
 
     it("should return 401 when invalid API keys are provided", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ detail: string }>(
         "GET",
         "/api/public/scim/ServiceProviderConfig",
         undefined,
@@ -184,7 +184,7 @@ describe("SCIM API", () => {
     });
 
     it("should return 403 when using project API key instead of organization API key", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ detail: string }>(
         "GET",
         "/api/public/scim/ServiceProviderConfig",
         undefined,
@@ -197,7 +197,7 @@ describe("SCIM API", () => {
     });
 
     it("should return 405 for non-GET methods", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ detail: string }>(
         "POST",
         "/api/public/scim/ServiceProviderConfig",
         {},
@@ -230,7 +230,7 @@ describe("SCIM API", () => {
     });
 
     it("should return 401 when invalid API keys are provided", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ detail: string }>(
         "GET",
         "/api/public/scim/Schemas",
         undefined,
@@ -241,7 +241,7 @@ describe("SCIM API", () => {
     });
 
     it("should return 403 when using project API key instead of organization API key", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ detail: string }>(
         "GET",
         "/api/public/scim/Schemas",
         undefined,
@@ -254,7 +254,7 @@ describe("SCIM API", () => {
     });
 
     it("should return 405 for non-GET methods", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ detail: string }>(
         "POST",
         "/api/public/scim/Schemas",
         {},
@@ -288,7 +288,7 @@ describe("SCIM API", () => {
     });
 
     it("should return 401 when invalid API keys are provided", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ detail: string }>(
         "GET",
         "/api/public/scim/ResourceTypes",
         undefined,
@@ -299,7 +299,7 @@ describe("SCIM API", () => {
     });
 
     it("should return 403 when using project API key instead of organization API key", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ detail: string }>(
         "GET",
         "/api/public/scim/ResourceTypes",
         undefined,
@@ -312,7 +312,7 @@ describe("SCIM API", () => {
     });
 
     it("should return 405 for non-GET methods", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ detail: string }>(
         "POST",
         "/api/public/scim/ResourceTypes",
         {},
@@ -358,7 +358,7 @@ describe("SCIM API", () => {
       it("should support filtering by userName", async () => {
         // First create a test user
         const uniqueEmail = `test.user.${randomUUID().substring(0, 8)}@example.com`;
-        const createResponse = await makeAPICall(
+        const createResponse = await makeAPICall<{ id: string }>(
           "POST",
           "/api/public/scim/Users",
           {
@@ -397,7 +397,7 @@ describe("SCIM API", () => {
       });
 
       it("should return 401 when invalid API keys are provided", async () => {
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ detail: string }>(
           "GET",
           "/api/public/scim/Users",
           undefined,
@@ -408,7 +408,7 @@ describe("SCIM API", () => {
       });
 
       it("should return 403 when using project API key instead of organization API key", async () => {
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ detail: string }>(
           "GET",
           "/api/public/scim/Users",
           undefined,
@@ -421,7 +421,7 @@ describe("SCIM API", () => {
       });
 
       it("should return 405 for non-GET/POST methods", async () => {
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ detail: string }>(
           "PUT",
           "/api/public/scim/Users",
           {},
@@ -459,8 +459,8 @@ describe("SCIM API", () => {
 
         expect(response.status).toBe(201);
         expect(response.body.userName).toBe(uniqueEmail);
-        expect(response.body.name.formatted).toBe("Test User");
-        expect(response.body.emails[0].value).toBe(uniqueEmail);
+        expect(response.body.name!.formatted).toBe("Test User");
+        expect(response.body.emails![0].value).toBe(uniqueEmail);
 
         testUserId = response.body.id;
 
@@ -501,10 +501,12 @@ describe("SCIM API", () => {
 
         expect(response.status).toBe(201);
         expect(response.body.userName).toBe(uniqueEmail);
-        expect(response.body.name.formatted).toBe("Test User With Password");
-        expect(response.body.emails[0].value).toBe(uniqueEmail);
+        expect(response.body.name!.formatted).toBe("Test User With Password");
+        expect(response.body.emails![0].value).toBe(uniqueEmail);
         // Password should not be returned in the response
-        expect(response.body.password).toBeUndefined();
+        expect(
+          (response.body as unknown as { password?: string }).password,
+        ).toBeUndefined();
 
         testUserId = response.body.id;
 
@@ -521,7 +523,7 @@ describe("SCIM API", () => {
       });
 
       it("should return 400 when userName is missing", async () => {
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ detail: string }>(
           "POST",
           "/api/public/scim/Users",
           {
@@ -562,7 +564,7 @@ describe("SCIM API", () => {
 
         expect(response.status).toBe(201);
         expect(response.body.userName).toBe(uniqueEmail);
-        expect(response.body.name.formatted).toBe("Test User With Role");
+        expect(response.body.name!.formatted).toBe("Test User With Role");
 
         testUserId = response.body.id;
 
@@ -576,7 +578,7 @@ describe("SCIM API", () => {
 
       it("should write an audit log entry when creating a user", async () => {
         const uniqueEmail = `test.user.${randomUUID().substring(0, 8)}@example.com`;
-        const response = await makeAPICall(
+        const response = await makeAPICall<{ id: string }>(
           "POST",
           "/api/public/scim/Users",
           {
@@ -615,7 +617,7 @@ describe("SCIM API", () => {
         const uniqueEmail = `test.user.${randomUUID().substring(0, 8)}@example.com`;
 
         // First create a user
-        const createResponse = await makeAPICall(
+        const createResponse = await makeAPICall<{ id: string }>(
           "POST",
           "/api/public/scim/Users",
           {
@@ -630,7 +632,7 @@ describe("SCIM API", () => {
         testUserId = createResponse.body.id;
 
         // Try to create another user with the same userName
-        const duplicateResult = await makeAPICall(
+        const duplicateResult = await makeAPICall<{ detail: string }>(
           "POST",
           "/api/public/scim/Users",
           {
@@ -651,7 +653,7 @@ describe("SCIM API", () => {
         const lowerCaseEmail = `${localPart.toLowerCase()}@example.com`;
 
         // Create with mixed-case userName
-        const createResponse = await makeAPICall(
+        const createResponse = await makeAPICall<{ id: string }>(
           "POST",
           "/api/public/scim/Users",
           {
@@ -672,7 +674,7 @@ describe("SCIM API", () => {
         expect(storedUser?.email).toBe(lowerCaseEmail);
 
         // Re-POST with a case-variant userName: must be detected as duplicate
-        const duplicateResult = await makeAPICall(
+        const duplicateResult = await makeAPICall<{ detail: string }>(
           "POST",
           "/api/public/scim/Users",
           {
@@ -727,12 +729,12 @@ describe("SCIM API", () => {
 
         expect(response.status).toBe(200);
         expect(response.body.id).toBe(testUserId);
-        expect(response.body.name.formatted).toBe("Test User");
+        expect(response.body.name!.formatted).toBe("Test User");
       });
 
       it("should return 404 when user does not exist", async () => {
         const nonExistentUserId = randomUUID();
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ detail: string }>(
           "GET",
           `/api/public/scim/Users/${nonExistentUserId}`,
           undefined,
@@ -851,8 +853,131 @@ describe("SCIM API", () => {
         expect(orgMemberships[0].role).toBe("MEMBER");
       });
 
+      it("should create the membership with NONE when no roles are provided (PUT active:true)", async () => {
+        await prisma.organizationMembership.deleteMany({
+          where: { userId: testUserId, orgId: orgId },
+        });
+
+        const response = await makeAPICall(
+          "PUT",
+          `/api/public/scim/Users/${testUserId}`,
+          {
+            schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            id: testUserId,
+            userName: "test.user@example.com",
+            active: true,
+          },
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+        );
+        expect(response.status).toBe(200);
+
+        const membership = await prisma.organizationMembership.findFirst({
+          where: { userId: testUserId, orgId: orgId },
+        });
+        expect(membership).not.toBeNull();
+        expect(membership!.role).toBe("NONE");
+
+        // Provisioning a new membership writes a create audit entry.
+        const auditLogs = await prisma.auditLog.findMany({
+          where: {
+            resourceType: "orgMembership",
+            resourceId: membership!.id,
+            action: "create",
+            orgId: orgId,
+          },
+        });
+        expect(auditLogs.length).toBe(1);
+        expect(auditLogs[0].apiKeyId).not.toBeNull();
+        expect(auditLogs[0].userId).toBeNull();
+        expect(auditLogs[0].after).toContain(membership!.id);
+      });
+
+      it("should NOT modify an existing member's role when no roles are provided (PUT active:true, no downgrade)", async () => {
+        // Simulate a real, elevated member (the role someone set in-app or via
+        // the create flow).
+        await prisma.organizationMembership.updateMany({
+          where: { userId: testUserId, orgId: orgId },
+          data: { role: "MEMBER" },
+        });
+        const before = await prisma.organizationMembership.findFirst({
+          where: { userId: testUserId, orgId: orgId },
+        });
+        expect(before?.role).toBe("MEMBER");
+
+        // A periodic IdP full-sync re-sends active:true WITHOUT roles — it must
+        // not touch the existing role.
+        const response = await makeZodVerifiedAPICall(
+          ScimUserSchema,
+          "PUT",
+          `/api/public/scim/Users/${testUserId}`,
+          {
+            schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            id: testUserId,
+            userName: "test.user@example.com",
+            active: true,
+          },
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+          200,
+        );
+        expect(response.status).toBe(200);
+
+        const after = await prisma.organizationMembership.findMany({
+          where: { userId: testUserId, orgId: orgId },
+        });
+        expect(after.length).toBe(1);
+        expect(after[0].role).toBe("MEMBER");
+        expect(after[0].id).toBe(before!.id);
+
+        // No-op must not write an audit log entry.
+        const auditLogs = await prisma.auditLog.findMany({
+          where: {
+            resourceType: "orgMembership",
+            resourceId: before!.id,
+            orgId: orgId,
+          },
+        });
+        expect(auditLogs.length).toBe(0);
+      });
+
+      it("should write a delete audit log when PUT active:false deprovisions a membership", async () => {
+        const before = await prisma.organizationMembership.findFirst({
+          where: { userId: testUserId, orgId: orgId },
+        });
+        expect(before).not.toBeNull();
+
+        const response = await makeAPICall(
+          "PUT",
+          `/api/public/scim/Users/${testUserId}`,
+          {
+            schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            id: testUserId,
+            userName: "test.user@example.com",
+            active: false,
+          },
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+        );
+        expect(response.status).toBe(200);
+
+        const remaining = await prisma.organizationMembership.findMany({
+          where: { userId: testUserId, orgId: orgId },
+        });
+        expect(remaining.length).toBe(0);
+
+        const auditLogs = await prisma.auditLog.findMany({
+          where: {
+            resourceType: "orgMembership",
+            resourceId: before!.id,
+            action: "delete",
+            orgId: orgId,
+          },
+        });
+        expect(auditLogs.length).toBe(1);
+        expect(auditLogs[0].apiKeyId).not.toBeNull();
+        expect(auditLogs[0].before).toContain(before!.id);
+      });
+
       it("should return 400 when SCIM schema is missing", async () => {
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ detail: string }>(
           "PUT",
           `/api/public/scim/Users/${testUserId}`,
           {
@@ -868,7 +993,7 @@ describe("SCIM API", () => {
 
       it("should return 404 when user does not exist", async () => {
         const nonExistentUserId = randomUUID();
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ detail: string }>(
           "PUT",
           `/api/public/scim/Users/${nonExistentUserId}`,
           {
@@ -922,9 +1047,90 @@ describe("SCIM API", () => {
         expect(orgMemberships.length).toBe(0);
       });
 
+      it("should write a delete audit log when DELETE removes a membership", async () => {
+        const before = await prisma.organizationMembership.findFirst({
+          where: { userId: testUserId, orgId: orgId },
+        });
+        expect(before).not.toBeNull();
+
+        try {
+          await makeAPICall(
+            "DELETE",
+            `/api/public/scim/Users/${testUserId}`,
+            undefined,
+            createBasicAuthHeader(orgApiKey, orgSecretKey),
+          );
+        } catch (_e) {
+          // ignore
+        }
+
+        const auditLogs = await prisma.auditLog.findMany({
+          where: {
+            resourceType: "orgMembership",
+            resourceId: before!.id,
+            action: "delete",
+            orgId: orgId,
+          },
+        });
+        expect(auditLogs.length).toBe(1);
+        expect(auditLogs[0].apiKeyId).not.toBeNull();
+        expect(auditLogs[0].before).toContain(before!.id);
+      });
+
+      it("should capture cascade-deleted project memberships in the delete audit before payload", async () => {
+        // Seeded project that belongs to seed-org-id.
+        const seededProjectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+        const orgMembership =
+          await prisma.organizationMembership.findFirstOrThrow({
+            where: { userId: testUserId, orgId: orgId },
+          });
+        // Give the user project-level access. This row is cascade-deleted when
+        // the org membership is removed, so the audit before payload is the
+        // only place it can be preserved.
+        await prisma.projectMembership.create({
+          data: {
+            orgMembershipId: orgMembership.id,
+            projectId: seededProjectId,
+            userId: testUserId,
+            role: "VIEWER",
+          },
+        });
+
+        try {
+          await makeAPICall(
+            "DELETE",
+            `/api/public/scim/Users/${testUserId}`,
+            undefined,
+            createBasicAuthHeader(orgApiKey, orgSecretKey),
+          );
+        } catch (_e) {
+          // ignore
+        }
+
+        // The cascaded project membership is gone from the DB...
+        const remainingProjectMemberships =
+          await prisma.projectMembership.findMany({
+            where: { userId: testUserId },
+          });
+        expect(remainingProjectMemberships.length).toBe(0);
+
+        // ...but recoverable from the delete audit before payload.
+        const auditLog = await prisma.auditLog.findFirst({
+          where: {
+            resourceType: "orgMembership",
+            resourceId: orgMembership.id,
+            action: "delete",
+            orgId: orgId,
+          },
+        });
+        expect(auditLog).not.toBeNull();
+        expect(auditLog!.before).toContain("ProjectMemberships");
+        expect(auditLog!.before).toContain(seededProjectId);
+      });
+
       it("should return 404 when user does not exist", async () => {
         const nonExistentUserId = randomUUID();
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ detail: string }>(
           "DELETE",
           `/api/public/scim/Users/${nonExistentUserId}`,
           undefined,
@@ -932,6 +1138,129 @@ describe("SCIM API", () => {
         );
         expect(result.status).toBe(404);
         expect(result.body.detail).toContain("User not found");
+      });
+    });
+
+    describe("PATCH /api/public/scim/Users/{id}", () => {
+      const patchAuth = () => createBasicAuthHeader(orgApiKey, orgSecretKey);
+      const provisionOp = {
+        schemas: ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+        Operations: [{ op: "replace", value: { active: true } }],
+      };
+      const deprovisionOp = {
+        schemas: ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+        Operations: [{ op: "replace", value: { active: false } }],
+      };
+
+      beforeEach(async () => {
+        const uniqueEmail = `test.user.${randomUUID().substring(0, 8)}@example.com`;
+        const user = await prisma.user.create({
+          data: { email: uniqueEmail, name: "Test User" },
+        });
+        await prisma.organizationMembership.create({
+          data: { userId: user.id, orgId: orgId, role: "NONE" },
+        });
+        testUserId = user.id;
+      });
+
+      it("should not modify an existing member's role on PATCH active:true (no-op, no audit)", async () => {
+        await prisma.organizationMembership.updateMany({
+          where: { userId: testUserId, orgId: orgId },
+          data: { role: "MEMBER" },
+        });
+        const before = await prisma.organizationMembership.findFirst({
+          where: { userId: testUserId, orgId: orgId },
+        });
+
+        const result = await makeAPICall(
+          "PATCH",
+          `/api/public/scim/Users/${testUserId}`,
+          provisionOp,
+          patchAuth(),
+        );
+        expect(result.status).toBe(200);
+
+        const after = await prisma.organizationMembership.findMany({
+          where: { userId: testUserId, orgId: orgId },
+        });
+        expect(after.length).toBe(1);
+        expect(after[0].role).toBe("MEMBER");
+
+        const auditLogs = await prisma.auditLog.findMany({
+          where: {
+            resourceType: "orgMembership",
+            resourceId: before!.id,
+            orgId: orgId,
+          },
+        });
+        expect(auditLogs.length).toBe(0);
+      });
+
+      it("should write a create audit log when PATCH active:true provisions a missing membership", async () => {
+        await prisma.organizationMembership.deleteMany({
+          where: { userId: testUserId, orgId: orgId },
+        });
+
+        const result = await makeAPICall(
+          "PATCH",
+          `/api/public/scim/Users/${testUserId}`,
+          provisionOp,
+          patchAuth(),
+        );
+        expect(result.status).toBe(200);
+
+        const membership = await prisma.organizationMembership.findFirst({
+          where: { userId: testUserId, orgId: orgId },
+        });
+        expect(membership).not.toBeNull();
+        expect(membership!.role).toBe("NONE");
+
+        const auditLogs = await prisma.auditLog.findMany({
+          where: {
+            resourceType: "orgMembership",
+            resourceId: membership!.id,
+            action: "create",
+            orgId: orgId,
+          },
+        });
+        expect(auditLogs.length).toBe(1);
+        expect(auditLogs[0].apiKeyId).not.toBeNull();
+      });
+
+      it("should write a delete audit log when PATCH active:false deprovisions a membership", async () => {
+        const before = await prisma.organizationMembership.findFirst({
+          where: { userId: testUserId, orgId: orgId },
+        });
+        expect(before).not.toBeNull();
+
+        const result = await makeAPICall(
+          "PATCH",
+          `/api/public/scim/Users/${testUserId}`,
+          deprovisionOp,
+          patchAuth(),
+        );
+        // PATCH ends by delegating to handleGet, so after a successful
+        // deprovision the user is no longer a member and the endpoint responds
+        // 404. The deprovision (and its audit log) still happened — asserted
+        // below. (PUT active:false returns 200 instead; this PATCH quirk is
+        // pre-existing and out of scope here.)
+        expect(result.status).toBe(404);
+
+        const remaining = await prisma.organizationMembership.findMany({
+          where: { userId: testUserId, orgId: orgId },
+        });
+        expect(remaining.length).toBe(0);
+
+        const auditLogs = await prisma.auditLog.findMany({
+          where: {
+            resourceType: "orgMembership",
+            resourceId: before!.id,
+            action: "delete",
+            orgId: orgId,
+          },
+        });
+        expect(auditLogs.length).toBe(1);
+        expect(auditLogs[0].before).toContain(before!.id);
       });
     });
 
@@ -946,7 +1275,13 @@ describe("SCIM API", () => {
 
       beforeEach(async () => {
         const org = await prisma.organization.create({
-          data: { name: `scim-last-owner-${randomUUID().substring(0, 8)}` },
+          data: {
+            name: `scim-last-owner-${randomUUID().substring(0, 8)}`,
+            // Team plan carries the `admin-api` entitlement that gates SCIM, so
+            // these requests reach the last-OWNER guard rather than the plan
+            // check.
+            cloudConfig: { plan: "Team" },
+          },
         });
         scopedOrgId = org.id;
 
@@ -980,7 +1315,7 @@ describe("SCIM API", () => {
       });
 
       it("DELETE rejects removing the only remaining OWNER", async () => {
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ detail: string }>(
           "DELETE",
           `/api/public/scim/Users/${scopedOwnerUserId}`,
           undefined,
@@ -1000,7 +1335,7 @@ describe("SCIM API", () => {
       });
 
       it("PUT active:false rejects removing the only remaining OWNER", async () => {
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ detail: string }>(
           "PUT",
           `/api/public/scim/Users/${scopedOwnerUserId}`,
           {
@@ -1025,7 +1360,7 @@ describe("SCIM API", () => {
       });
 
       it("PATCH active:false rejects removing the only remaining OWNER", async () => {
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ detail: string }>(
           "PATCH",
           `/api/public/scim/Users/${scopedOwnerUserId}`,
           {
@@ -1045,6 +1380,74 @@ describe("SCIM API", () => {
         });
         expect(remaining.length).toBe(1);
         expect(remaining[0].role).toBe("OWNER");
+      });
+
+      it("PUT active:true with a lower role rejects demoting the only remaining OWNER", async () => {
+        const result = await makeAPICall<{ detail: string }>(
+          "PUT",
+          `/api/public/scim/Users/${scopedOwnerUserId}`,
+          {
+            schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            id: scopedOwnerUserId,
+            userName: "owner@example.com",
+            active: true,
+            roles: ["MEMBER"],
+          },
+          createBasicAuthHeader(scopedOrgPublicKey, scopedOrgSecretKey),
+        );
+
+        expect(result.status).toBe(403);
+        expect(String(result.body.detail).toLowerCase()).toContain(
+          "last owner",
+        );
+
+        const remaining = await prisma.organizationMembership.findMany({
+          where: { userId: scopedOwnerUserId, orgId: scopedOrgId },
+        });
+        expect(remaining.length).toBe(1);
+        expect(remaining[0].role).toBe("OWNER");
+      });
+
+      it("PUT active:true with a lower role allows demoting an OWNER when another OWNER remains", async () => {
+        const secondOwner = await prisma.user.create({
+          data: {
+            email: `owner2.${randomUUID().substring(0, 8)}@example.com`,
+            name: "Second Owner",
+          },
+        });
+        await prisma.organizationMembership.create({
+          data: {
+            userId: secondOwner.id,
+            orgId: scopedOrgId,
+            role: "OWNER",
+          },
+        });
+
+        try {
+          const result = await makeAPICall(
+            "PUT",
+            `/api/public/scim/Users/${scopedOwnerUserId}`,
+            {
+              schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+              id: scopedOwnerUserId,
+              userName: "owner@example.com",
+              active: true,
+              roles: ["MEMBER"],
+            },
+            createBasicAuthHeader(scopedOrgPublicKey, scopedOrgSecretKey),
+          );
+          expect(result.status).toBe(200);
+
+          const demoted = await prisma.organizationMembership.findFirst({
+            where: { userId: scopedOwnerUserId, orgId: scopedOrgId },
+          });
+          expect(demoted?.role).toBe("MEMBER");
+        } finally {
+          await prisma.organizationMembership.deleteMany({
+            where: { userId: secondOwner.id, orgId: scopedOrgId },
+          });
+          await prisma.user.deleteMany({ where: { id: secondOwner.id } });
+        }
       });
 
       it("DELETE allows removing an OWNER when another OWNER remains", async () => {
@@ -1078,6 +1481,161 @@ describe("SCIM API", () => {
         } finally {
           await prisma.user.deleteMany({ where: { id: secondOwner.id } });
         }
+      });
+    });
+  });
+
+  // SCIM provisioning is gated behind the `admin-api` entitlement, matching the
+  // sibling organization admin REST endpoints (memberships, projects, apiKeys).
+  // Plans without that entitlement (e.g. Hobby) must be rejected before any
+  // user account is created or any membership is mutated.
+  describe("Entitlement gating (admin-api)", () => {
+    const PLAN_DETAIL = "This feature is not available on your current plan.";
+
+    let hobbyOrgId: string;
+    let hobbyPublicKey: string;
+    let hobbySecretKey: string;
+
+    let teamOrgId: string;
+    let teamPublicKey: string;
+    let teamSecretKey: string;
+
+    beforeAll(async () => {
+      // Hobby has no `admin-api` entitlement → SCIM must be blocked.
+      const hobbyOrg = await prisma.organization.create({
+        data: {
+          name: `scim-gate-hobby-${randomUUID().substring(0, 8)}`,
+          cloudConfig: { plan: "Hobby" },
+        },
+      });
+      hobbyOrgId = hobbyOrg.id;
+      hobbyPublicKey = `pk-lf-org-${randomUUID().substring(0, 8)}`;
+      hobbySecretKey = `sk-lf-org-${randomUUID().substring(0, 8)}`;
+      await createAndAddApiKeysToDb({
+        prisma,
+        entityId: hobbyOrgId,
+        scope: "ORGANIZATION",
+        predefinedKeys: {
+          publicKey: hobbyPublicKey,
+          secretKey: hobbySecretKey,
+        },
+      });
+
+      // Team carries `admin-api` → positive control that the gate does not
+      // over-block entitled plans.
+      const teamOrg = await prisma.organization.create({
+        data: {
+          name: `scim-gate-team-${randomUUID().substring(0, 8)}`,
+          cloudConfig: { plan: "Team" },
+        },
+      });
+      teamOrgId = teamOrg.id;
+      teamPublicKey = `pk-lf-org-${randomUUID().substring(0, 8)}`;
+      teamSecretKey = `sk-lf-org-${randomUUID().substring(0, 8)}`;
+      await createAndAddApiKeysToDb({
+        prisma,
+        entityId: teamOrgId,
+        scope: "ORGANIZATION",
+        predefinedKeys: {
+          publicKey: teamPublicKey,
+          secretKey: teamSecretKey,
+        },
+      });
+    });
+
+    afterAll(async () => {
+      await prisma.organization.deleteMany({
+        where: { id: { in: [hobbyOrgId, teamOrgId] } },
+      });
+    });
+
+    it("POST /Users is rejected on a plan without admin-api and creates no account", async () => {
+      const uniqueEmail = `scim.gate.${randomUUID().substring(0, 8)}@example.com`;
+      const result = await makeAPICall<{ detail: string }>(
+        "POST",
+        "/api/public/scim/Users",
+        {
+          schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+          userName: uniqueEmail,
+          name: { formatted: "Backdoor" },
+          password: "Backdoor2026!",
+          roles: ["OWNER"],
+          active: true,
+        },
+        createBasicAuthHeader(hobbyPublicKey, hobbySecretKey),
+      );
+
+      expect(result.status).toBe(403);
+      expect(result.body.detail).toBe(PLAN_DETAIL);
+
+      // The blocked request must not have created the user account.
+      const user = await prisma.user.findUnique({
+        where: { email: uniqueEmail.toLowerCase() },
+      });
+      expect(user).toBeNull();
+    });
+
+    it("GET /Users is rejected on a plan without admin-api", async () => {
+      const result = await makeAPICall<{ detail: string }>(
+        "GET",
+        "/api/public/scim/Users",
+        undefined,
+        createBasicAuthHeader(hobbyPublicKey, hobbySecretKey),
+      );
+
+      expect(result.status).toBe(403);
+      expect(result.body.detail).toBe(PLAN_DETAIL);
+    });
+
+    it("PUT /Users/{id} is rejected on a plan without admin-api (before user lookup)", async () => {
+      const result = await makeAPICall<{ detail: string }>(
+        "PUT",
+        `/api/public/scim/Users/${randomUUID()}`,
+        {
+          schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+          userName: "someone@example.com",
+          active: true,
+          roles: ["OWNER"],
+        },
+        createBasicAuthHeader(hobbyPublicKey, hobbySecretKey),
+      );
+
+      expect(result.status).toBe(403);
+      expect(result.body.detail).toBe(PLAN_DETAIL);
+    });
+
+    it("DELETE /Users/{id} is rejected on a plan without admin-api", async () => {
+      const result = await makeAPICall<{ detail: string }>(
+        "DELETE",
+        `/api/public/scim/Users/${randomUUID()}`,
+        undefined,
+        createBasicAuthHeader(hobbyPublicKey, hobbySecretKey),
+      );
+
+      expect(result.status).toBe(403);
+      expect(result.body.detail).toBe(PLAN_DETAIL);
+    });
+
+    it("POST /Users still succeeds on a plan with admin-api", async () => {
+      const uniqueEmail = `scim.gate.ok.${randomUUID().substring(0, 8)}@example.com`;
+      const result = await makeAPICall<{ userName: string }>(
+        "POST",
+        "/api/public/scim/Users",
+        {
+          schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+          userName: uniqueEmail,
+          name: { formatted: "Allowed User" },
+          active: true,
+        },
+        createBasicAuthHeader(teamPublicKey, teamSecretKey),
+      );
+
+      expect(result.status).toBe(201);
+      expect(result.body.userName).toBe(uniqueEmail);
+
+      // Cleanup the account created by the positive-control request.
+      await prisma.user.deleteMany({
+        where: { email: uniqueEmail.toLowerCase() },
       });
     });
   });

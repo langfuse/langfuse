@@ -38,6 +38,11 @@ import {
   useOptionalMessageSearchPageId,
 } from "./MessageSearch";
 
+export type MessageRowRefs = {
+  rowRef: RefObject<HTMLDivElement | null>;
+  editorRef: RefObject<ReactCodeMirrorRef | null>;
+};
+
 type ChatMessageProps = Pick<
   MessagesContext,
   | "deleteMessage"
@@ -45,7 +50,13 @@ type ChatMessageProps = Pick<
   | "availableRoles"
   | "toolCallIds"
   | "replaceMessage"
-> & { message: ChatMessageWithId; index: number };
+> & {
+  message: ChatMessageWithId;
+  index: number;
+  // Lets the parent ChatMessages track this row's DOM + editor refs so it can
+  // scroll to and focus a freshly added message (LFE-6864).
+  registerRow?: (id: string, refs: MessageRowRefs | null) => void;
+};
 
 const ROLES: ChatMessageRole[] = [
   ChatMessageRole.User,
@@ -94,6 +105,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   availableRoles,
   index: _index,
   toolCallIds,
+  registerRow,
 }) => {
   const [roleIndex, setRoleIndex] = useState(1);
   const playgroundContext = useOptionalPlaygroundContext();
@@ -243,7 +255,21 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
     unregisterMessageTarget,
   ]);
 
+  // Keep the parent ChatMessages registry in sync so it can scroll to and
+  // focus this row when it is the newly added message (LFE-6864). The actual
+  // registration happens in handleEditorMount once CodeMirror has mounted and
+  // editorRef.current is populated — registering here on first render would
+  // store a null editor (CodeMirror mounts async). This effect only handles
+  // unregistering the row when it unmounts.
+  useEffect(() => {
+    return () => {
+      registerRow?.(message.id, null);
+    };
+  }, [message.id, registerRow]);
+
   const handleEditorMount = useCallback(() => {
+    registerRow?.(message.id, { rowRef, editorRef });
+
     if (!pageId || !registerMessageTarget) {
       return;
     }
@@ -252,7 +278,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
       rowRef,
       editorRef,
     });
-  }, [message.id, pageId, registerMessageTarget]);
+  }, [message.id, pageId, registerMessageTarget, registerRow]);
 
   return (
     <Card
@@ -274,9 +300,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
         >
           <GripVertical className="h-3 w-3" />
         </div>
-        <CardContent
-          className={cn("flex flex-1 flex-row items-center gap-2 p-0 pl-1")}
-        >
+        <CardContent className="flex flex-1 flex-row items-center gap-2 p-0 pl-1">
           <div className="bg-background sticky top-0 bottom-0 z-10 flex w-16 shrink-0 flex-col gap-1">
             {isPlaceholder ? (
               <span className="bg-accent text-muted-foreground inline-flex h-6 w-full items-center justify-center rounded-md px-4 font-mono text-[9px]">

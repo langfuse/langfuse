@@ -1,4 +1,3 @@
-import React from "react";
 import { useRouter } from "next/router";
 import ObservationsTable from "@/src/components/table/use-cases/observations";
 import Page from "@/src/components/layouts/page";
@@ -68,9 +67,12 @@ export default function Generations() {
               resolves. */}
         </>
       ) : isBetaEnabled ? (
-        <ObservationsEventsTable projectId={projectId} />
+        <ObservationsEventsTable
+          projectId={projectId}
+          showControlsInPageHeader
+        />
       ) : (
-        <ObservationsTable projectId={projectId} />
+        <ObservationsTable projectId={projectId} showControlsInPageHeader />
       )}
     </Page>
   );

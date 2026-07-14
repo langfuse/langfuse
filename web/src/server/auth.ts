@@ -1,7 +1,6 @@
 import { type GetServerSidePropsContext } from "next";
 import {
   getServerSession,
-  type User,
   type NextAuthOptions,
   type Session,
 } from "next-auth";
@@ -52,7 +51,6 @@ import {
   JumpCloudProvider,
   traceException,
   sendResetPasswordVerificationRequest,
-  buildMailServerConfig,
   instrumentAsync,
   logger,
   resolveProjectRole,
@@ -62,30 +60,10 @@ import {
   getSelfHostedInstancePlanServerSide,
 } from "@/src/features/entitlements/server/getPlan";
 import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
 import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
-
-function canCreateOrganizations(userEmail: string | null): boolean {
-  const instancePlan = getSelfHostedInstancePlanServerSide();
-
-  // if no allowlist is set or no entitlement for self-host-allowed-organization-creators, allow all users to create organizations
-  if (
-    !env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS ||
-    !hasEntitlementBasedOnPlan({
-      plan: instancePlan,
-      entitlement: "self-host-allowed-organization-creators",
-    })
-  )
-    return true;
-
-  if (!userEmail) return false;
-
-  const allowedOrgCreators =
-    env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS.toLowerCase().split(",");
-  return allowedOrgCreators.includes(userEmail.toLowerCase());
-}
+import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -144,7 +122,7 @@ const staticProviders: Provider[] = [
       );
       if (!isValidPassword) throw new Error("Invalid credentials");
 
-      const userObj: User = {
+      const userObj = {
         id: dbUser.id,
         name: dbUser.name,
         email: dbUser.email,
@@ -164,7 +142,9 @@ const staticProviders: Provider[] = [
 if (env.SMTP_CONNECTION_URL && env.EMAIL_FROM_ADDRESS) {
   staticProviders.push(
     EmailProvider({
-      server: buildMailServerConfig(env.SMTP_CONNECTION_URL),
+      // SMTP vs SES dispatch happens inside sendVerificationRequest via
+      // createMailTransport; NextAuth itself only forwards this string.
+      server: env.SMTP_CONNECTION_URL,
       from: env.EMAIL_FROM_ADDRESS,
       maxAge: 3 * 60, // 3 minutes
       async generateVerificationToken() {
@@ -669,7 +649,7 @@ const extendedPrismaAdapter: Adapter = {
     // This is idempotent - won't duplicate or overwrite existing memberships
     const user = await prisma.user.findUnique({
       where: { id: data.userId },
-      select: { id: true, email: true },
+      select: { id: true, email: true, name: true },
     });
     if (user) {
       await createProjectMembershipsOnSignup(user);
@@ -781,6 +761,10 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               admin: true,
               v4BetaEnabled: true,
               organizationMemberships: {
+                // Newest first so demo project is last for the `project/~/` sentinel
+                orderBy: {
+                  createdAt: "desc",
+                },
                 include: {
                   organization: {
                     include: {
@@ -789,6 +773,9 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                           deletedAt: {
                             equals: null,
                           },
+                        },
+                        orderBy: {
+                          createdAt: "desc",
                         },
                       },
                     },
@@ -860,20 +847,24 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                     canToggleV4:
                       v4WriteMode === "dual" && dualPreviewAvailable
                         ? isLangfuseCloud
-                          ? canToggleV4({
-                              userCreatedAt: dbUser.createdAt,
-                              organizations: dbUser.organizationMemberships.map(
-                                (orgMembership) => ({
-                                  id: orgMembership.organization.id,
-                                  createdAt:
-                                    orgMembership.organization.createdAt,
-                                }),
-                              ),
-                              excludedOrganizationIds:
-                                env.NEXT_PUBLIC_DEMO_ORG_ID
-                                  ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
-                                  : [],
-                            })
+                          ? canToggleV4(
+                              {
+                                userCreatedAt: dbUser.createdAt,
+                                organizations:
+                                  dbUser.organizationMemberships.map(
+                                    (orgMembership) => ({
+                                      id: orgMembership.organization.id,
+                                      createdAt:
+                                        orgMembership.organization.createdAt,
+                                    }),
+                                  ),
+                                excludedOrganizationIds:
+                                  env.NEXT_PUBLIC_DEMO_ORG_ID
+                                    ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
+                                    : [],
+                              },
+                              { isLangfuseCloudAdmin: dbUser.admin },
+                            )
                           : true
                         : false,
                     canCreateOrganizations: canCreateOrganizations(
@@ -1021,14 +1012,13 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             });
             if (user) {
               return true;
-            } else {
-              // Add random delay to prevent leaking if user exists as otherwise it would be instant compared to sending an email
-              await new Promise((resolve) =>
-                setTimeout(resolve, Math.random() * 2000 + 200),
-              );
-              // Prevents sign in with email link if user does not exist
-              return false;
             }
+            // Add random delay to prevent leaking if user exists as otherwise it would be instant compared to sending an email
+            await new Promise((resolve) =>
+              setTimeout(resolve, Math.random() * 2000 + 200),
+            );
+            // Prevents sign in with email link if user does not exist
+            return false;
           }
 
           // Optional configuration: validate authorised email domains for google provider

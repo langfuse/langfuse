@@ -7,6 +7,56 @@ const BLOCK_REASON_PATTERNS = [
     pattern: "Model use case details have not been submitted for this account",
     blockReason: EvaluatorBlockReason.PROVIDER_ACCOUNT_NOT_READY,
   },
+  // Google AI Studio rejects invalid API keys with a 400, so this cannot rely
+  // on the 401 status check above.
+  {
+    pattern: "API key not valid",
+    blockReason: EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID,
+  },
+  // google-auth-library reports deleted/revoked Vertex service accounts as a
+  // status-less OAuth error, not a 401.
+  {
+    pattern: "invalid_grant",
+    blockReason: EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID,
+  },
+  // secureLlmFetch DNS validation: the custom base URL's hostname resolved to
+  // no address via any strategy. Terminal until the connection's endpoint is
+  // fixed; often hidden behind SDK "Connection error." wrappers, so the
+  // matching non-retryable pattern must also exist in completionErrorMapping
+  // for the cause-chain message extraction to surface it here.
+  {
+    pattern: "DNS lookup failed",
+    blockReason: EvaluatorBlockReason.LLM_CONNECTION_ENDPOINT_UNREACHABLE,
+  },
+  // Exhausted credits or spend budgets are terminal until a human tops up the
+  // provider account, but providers report them with inconsistent status
+  // codes (OpenRouter 402, Anthropic 400, LiteLLM 400/429, OpenAI 429), so
+  // they must be matched by message.
+  {
+    pattern: "Insufficient credits",
+    blockReason: EvaluatorBlockReason.LLM_CONNECTION_BILLING_EXHAUSTED,
+  },
+  {
+    pattern: "credit balance is too low",
+    blockReason: EvaluatorBlockReason.LLM_CONNECTION_BILLING_EXHAUSTED,
+  },
+  {
+    pattern: "prepayment credits are depleted",
+    blockReason: EvaluatorBlockReason.LLM_CONNECTION_BILLING_EXHAUSTED,
+  },
+  {
+    pattern: "Budget has been exceeded",
+    blockReason: EvaluatorBlockReason.LLM_CONNECTION_BILLING_EXHAUSTED,
+  },
+  {
+    pattern: "exceeded your current quota",
+    blockReason: EvaluatorBlockReason.LLM_CONNECTION_BILLING_EXHAUSTED,
+  },
+  // OpenRouter monthly key limits near exhaustion.
+  {
+    pattern: "requires more credits",
+    blockReason: EvaluatorBlockReason.LLM_CONNECTION_BILLING_EXHAUSTED,
+  },
 ] as const;
 
 export function inferLLMCompletionBlockReason(params: {
@@ -15,6 +65,10 @@ export function inferLLMCompletionBlockReason(params: {
 }): EvaluatorBlockReason | null {
   if (params.responseStatusCode === 401) {
     return EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID;
+  }
+
+  if (params.responseStatusCode === 402) {
+    return EvaluatorBlockReason.LLM_CONNECTION_BILLING_EXHAUSTED;
   }
 
   if (params.responseStatusCode === 404) {
@@ -37,16 +91,21 @@ export class LLMCompletionError extends Error {
     message: string;
     responseStatusCode?: number;
     isRetryable?: boolean;
+    cause?: unknown;
   }) {
-    super(params.message);
+    super(params.message, { cause: params.cause });
 
     this.name = LLMCompletionErrorName;
     this.responseStatusCode = params.responseStatusCode ?? 500;
-    this.isRetryable = params.isRetryable ?? false; // Default to false - be explicit about retryability
     this.blockReason = inferLLMCompletionBlockReason({
       responseStatusCode: this.responseStatusCode,
       message: this.message,
     });
+    // A block-worthy error is terminal by definition: retrying would burn the
+    // eval retry budget on a config that is being paused anyway. This matters
+    // for billing errors that arrive as otherwise-retryable 429s.
+    this.isRetryable =
+      this.blockReason !== null ? false : (params.isRetryable ?? false); // Default to false - be explicit about retryability
 
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this);

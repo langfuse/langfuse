@@ -4,7 +4,11 @@ import {
   type ObservationEvalSchedulerDeps,
 } from "./types";
 import { shouldSampleObservation } from "./shouldSampleObservation";
-import { InMemoryFilterService, logger } from "@langfuse/shared/src/server";
+import {
+  InMemoryFilterService,
+  LangfuseInternalTraceEnvironment,
+  logger,
+} from "@langfuse/shared/src/server";
 import {
   EvalTargetObject,
   JobExecutionStatus,
@@ -20,6 +24,43 @@ interface ScheduleObservationEvalsParams {
   configs: ObservationEvalConfig[];
   schedulerDeps: ObservationEvalSchedulerDeps;
   executionMode?: JobConfigExecutionMode;
+}
+
+/**
+ * Whether queue-driven (asynchronous OTel ingestion) observation-eval
+ * scheduling is allowed for an observation.
+ *
+ * Internal Langfuse environments are excluded: LLM-as-a-judge executions
+ * publish their own telemetry through the OTel ingestion pipeline
+ * (fetchLLMCompletion AI SDK engine), and scheduling evals on eval
+ * observations would recurse indefinitely — the observation-eval counterpart
+ * of the trace-upsert safeguard in evalService.ts createEvalJobs().
+ *
+ * Single exception: prompt-experiment run-item ROOT observations
+ * (span_id === experiment_item_root_span_id), so experiments executed on the
+ * AI SDK engine get their evals scheduled from the queue — the async
+ * equivalent of the LangChain path's synchronous onRootEventRecordReady
+ * scheduling, which only ever offered the root record. Loop safety holds
+ * because evals triggered on experiment roots execute in the
+ * langfuse-llm-as-a-judge environment, which stays blocked here, and
+ * experiment child spans carry the root's span id, so they never match.
+ */
+export function isObservationAllowedForQueuedObservationEvals(
+  observation: Pick<
+    ObservationForEval,
+    "environment" | "span_id" | "experiment_item_root_span_id"
+  >,
+): boolean {
+  if (!observation.environment?.startsWith("langfuse")) {
+    return true;
+  }
+
+  return (
+    observation.environment ===
+      LangfuseInternalTraceEnvironment.PromptExperiments &&
+    observation.experiment_item_root_span_id != null &&
+    observation.span_id === observation.experiment_item_root_span_id
+  );
 }
 
 /**
@@ -88,6 +129,7 @@ export async function scheduleObservationEvals(
   // Upload observation to S3 once
   const observationS3Path = await schedulerDeps.uploadObservationToS3({
     projectId: observation.project_id,
+    traceId: observation.trace_id,
     observationId: observation.span_id,
     data: observation,
   });
@@ -133,7 +175,12 @@ async function processMatchingConfig(
   } = params;
 
   const jobExecutionId = createW3CTraceId(
-    `${matchingConfig.id}:${observation.span_id}`,
+    JSON.stringify([
+      "observation-eval",
+      matchingConfig.id,
+      observation.trace_id,
+      observation.span_id,
+    ]),
   );
 
   // Create job execution

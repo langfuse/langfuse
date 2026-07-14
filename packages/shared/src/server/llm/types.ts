@@ -245,6 +245,15 @@ export enum LLMAdapter {
   GoogleAIStudio = "google-ai-studio",
 }
 
+// Some providers require at least 1 user message; both execution engines
+// convert a lone message into a user message for them.
+export const PROVIDERS_WITH_REQUIRED_USER_MESSAGE: readonly LLMAdapter[] = [
+  LLMAdapter.VertexAI,
+  LLMAdapter.GoogleAIStudio,
+  LLMAdapter.Anthropic,
+  LLMAdapter.Bedrock,
+];
+
 export const TextPromptContentSchema = z.string().min(1, "Enter a prompt");
 
 export const PromptContentSchema = z.union([
@@ -303,6 +312,13 @@ export const openAIModels = [
   "gpt-4.1-mini-2025-04-14",
   "gpt-4.1-nano",
   "gpt-4.1-nano-2025-04-14",
+  "gpt-5.6-sol",
+  "gpt-5.6-terra",
+  "gpt-5.6-luna",
+  "gpt-5.5",
+  "gpt-5.5-2026-04-23",
+  "gpt-5.5-pro",
+  "gpt-5.5-pro-2026-04-23",
   "gpt-5.4",
   "gpt-5.4-2026-03-05",
   "gpt-5.4-pro",
@@ -354,6 +370,13 @@ export const openAIModels = [
 type OpenAIReasoningMap = Record<OpenAIModel, boolean>;
 export const openAIModelToReasoning: OpenAIReasoningMap = {
   // reasoning models
+  "gpt-5.6-sol": true,
+  "gpt-5.6-terra": true,
+  "gpt-5.6-luna": true,
+  "gpt-5.5": true,
+  "gpt-5.5-2026-04-23": true,
+  "gpt-5.5-pro": true,
+  "gpt-5.5-pro-2026-04-23": true,
   "gpt-5.4": true,
   "gpt-5.4-2026-03-05": true,
   "gpt-5.4-pro": true,
@@ -419,6 +442,9 @@ export type OpenAIModel = (typeof openAIModels)[number];
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const anthropicModels = [
   "claude-sonnet-4-5-20250929",
+  "claude-sonnet-5",
+  "claude-fable-5",
+  "claude-mythos-5",
   "claude-haiku-4-5-20251001",
   "claude-opus-4-8",
   "claude-opus-4-7",
@@ -532,6 +558,7 @@ export enum LangfuseInternalTraceEnvironment {
   LLMJudge = "langfuse-llm-as-a-judge",
   CodeEval = "langfuse-code-eval",
   NaturalLanguageFilter = "langfuse-natural-language-filter",
+  InAppAgent = "langfuse-in-app-agent",
 }
 
 export type ProcessedTraceEvent = {

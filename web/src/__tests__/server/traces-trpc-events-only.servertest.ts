@@ -71,6 +71,9 @@ maybe("traces trpc (events_only write mode)", () => {
           role: "OWNER",
           plan: "cloud:hobby",
           cloudConfig: undefined,
+          metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: false,
           projects: [
             {
               id: projectId,
@@ -78,6 +81,9 @@ maybe("traces trpc (events_only write mode)", () => {
               retentionDays: 30,
               deletedAt: null,
               name: "Test Project",
+              hasTraces: true,
+              metadata: {},
+              createdAt: new Date().toISOString(),
             },
           ],
         },
@@ -85,13 +91,17 @@ maybe("traces trpc (events_only write mode)", () => {
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: true,
+        searchBar: false,
+        v4BetaToggleVisible: false,
+        observationEvals: false,
+        experimentsV4Enabled: false,
       },
       admin: true,
     },
     environment: {} as any,
   };
 
-  const ctx = createInnerTRPCContext({ session });
+  const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
   // Sanity check that the forced write mode reached the parsed shared env that
@@ -99,6 +109,92 @@ maybe("traces trpc (events_only write mode)", () => {
   // silently fall back to reading the (empty) legacy table.
   it("forces events_only write mode", () => {
     expect(env.LANGFUSE_MIGRATION_V4_WRITE_MODE).toBe("events_only");
+  });
+
+  // On a fresh events_only deployment tracing data is written ONLY to the
+  // events tables; the legacy `traces` table stays intentionally empty. The
+  // onboarding gate must detect data in the events table, otherwise the
+  // Traces UI is stuck on the "Set up tracing" screen forever (#14827).
+  it("should clear the tracing onboarding gate from events-table data", async () => {
+    // Fresh project: `hasTraces` flag unset, no legacy rows, no retention.
+    const freshProjectId = randomUUID();
+    await prisma.project.create({
+      data: {
+        id: freshProjectId,
+        name: "events-only-onboarding",
+        orgId: "seed-org-id",
+      },
+    });
+
+    const freshSession: Session = {
+      ...session,
+      user: {
+        ...session.user!,
+        organizations: [
+          {
+            ...session.user!.organizations[0],
+            projects: [
+              {
+                id: freshProjectId,
+                role: "ADMIN",
+                retentionDays: null,
+                deletedAt: null,
+                name: "events-only-onboarding",
+                hasTraces: false,
+                metadata: {},
+                createdAt: new Date().toISOString(),
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const freshCtx = createInnerTRPCContext({
+      session: freshSession,
+      headers: {},
+    });
+    const freshCaller = appRouter.createCaller({ ...freshCtx, prisma });
+
+    try {
+      // Gate stays closed before any data is ingested.
+      await expect(
+        freshCaller.traces.hasTracingConfigured({
+          projectId: freshProjectId,
+        }),
+      ).resolves.toBe(false);
+
+      // Trace is written to the events table only - NOT the legacy table.
+      const traceId = randomUUID();
+      await createEventsCh([
+        createEvent({
+          id: traceId,
+          span_id: traceId,
+          trace_id: traceId,
+          project_id: freshProjectId,
+          parent_span_id: null,
+        }),
+      ]);
+
+      // Gate must open from events-table data alone (ClickHouse insert
+      // visibility can lag).
+      await waitForExpect(async () => {
+        expect(
+          await freshCaller.traces.hasTracingConfigured({
+            projectId: freshProjectId,
+          }),
+        ).toBe(true);
+      });
+
+      // A positive detection persists to the project's hasTraces flag so the
+      // UI can stop polling ClickHouse.
+      const project = await prisma.project.findUnique({
+        where: { id: freshProjectId },
+        select: { hasTraces: true },
+      });
+      expect(project?.hasTraces).toBe(true);
+    } finally {
+      await prisma.project.delete({ where: { id: freshProjectId } });
+    }
   });
 
   // A trace ingested after the legacy->events cutover lives ONLY in the events
@@ -124,7 +220,6 @@ maybe("traces trpc (events_only write mode)", () => {
     const legacyTrace = await getTraceByIdFromTracesTable({
       traceId,
       projectId,
-      clickhouseFeatureTag: "tracing-test",
     });
     expect(legacyTrace).toBeUndefined();
 
@@ -185,7 +280,6 @@ maybe("traces trpc (events_only write mode)", () => {
     const legacyTrace = await getTraceByIdFromTracesTable({
       traceId,
       projectId,
-      clickhouseFeatureTag: "tracing-test",
     });
     expect(legacyTrace).toBeUndefined();
 

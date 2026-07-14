@@ -14,6 +14,7 @@ const DOCS_HREF =
 export function AgentToolsBanner() {
   return (
     <Callout
+      className="mb-4"
       id="agent-tools-banner:v1"
       variant="info"
       align="middle"

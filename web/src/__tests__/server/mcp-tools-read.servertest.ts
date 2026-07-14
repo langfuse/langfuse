@@ -19,6 +19,16 @@ vi.mock("@/src/features/media/server/getMediaStorageClient", () => ({
   }),
 }));
 
+// Skip the LLM model preflight so llm_as_judge evaluators don't require a
+// provisioned default eval model.
+vi.mock(
+  "@/src/features/evals/server/evaluator-preflight",
+  async (importActual) => ({
+    ...(await importActual<object>()),
+    getEvaluatorDefinitionPreflightError: vi.fn(async () => null),
+  }),
+);
+
 import { nanoid } from "nanoid";
 import { createHash, randomUUID } from "crypto";
 import { z } from "zod";
@@ -33,6 +43,7 @@ import { ScoreConfigDataType } from "@langfuse/shared";
 import {
   createMcpTestSetup,
   createPromptInDb,
+  mcpEvalOutputDefinition,
   mockServerContext,
   verifyAuditLog,
   verifyToolAnnotations,
@@ -40,6 +51,12 @@ import {
 import { env } from "@/src/env.mjs";
 import "@/src/features/mcp/server/bootstrap";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
+import {
+  buildEvaluatorUrl,
+  buildObservationUrl,
+  buildPromptUrl,
+  buildTraceUrl,
+} from "@/src/utils/product-url";
 
 // Import MCP tool handlers directly
 import {
@@ -119,6 +136,24 @@ import {
   handleGetMedia,
 } from "@/src/features/mcp/features/media/tools/getMedia";
 import {
+  getEvaluatorTool,
+  handleGetEvaluator,
+} from "@/src/features/mcp/features/evals/tools/getEvaluator";
+import {
+  listEvaluatorsTool,
+  handleListEvaluators,
+} from "@/src/features/mcp/features/evals/tools/listEvaluators";
+import {
+  getEvaluationRuleTool,
+  handleGetEvaluationRule,
+} from "@/src/features/mcp/features/evals/tools/getEvaluationRule";
+import {
+  listEvaluationRulesTool,
+  handleListEvaluationRules,
+} from "@/src/features/mcp/features/evals/tools/listEvaluationRules";
+import { handleUpsertEvaluator } from "@/src/features/mcp/features/evals/tools/upsertEvaluator";
+import { handleCreateEvaluationRule } from "@/src/features/mcp/features/evals/tools/createEvaluationRule";
+import {
   GetDatasetItemsMcpInput,
   GetDatasetMcpInput,
   GetDatasetRunMcpInput,
@@ -132,6 +167,56 @@ const maybeEventsTable =
     : describe.skip;
 const maybeEventsTableIt =
   env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
+
+const createLlmEvaluatorForMcpReadTest = async (
+  setup: Awaited<ReturnType<typeof createMcpTestSetup>>,
+  name = `mcp-eval-${nanoid()}`,
+) => {
+  return (await handleUpsertEvaluator(
+    {
+      name,
+      type: "llm_as_judge",
+      prompt: "Judge {{input}} against {{output}}",
+      outputDefinition: mcpEvalOutputDefinition,
+      modelConfig: null,
+    },
+    setup.context,
+  )) as { id: string; name: string };
+};
+
+const createEvaluationRuleForMcpReadTest = async (
+  setup: Awaited<ReturnType<typeof createMcpTestSetup>>,
+) => {
+  const evaluatorName = `mcp-eval-${nanoid()}`;
+  const evaluator = await createLlmEvaluatorForMcpReadTest(
+    setup,
+    evaluatorName,
+  );
+  const ruleName = `mcp-rule-${nanoid()}`;
+  const rule = (await handleCreateEvaluationRule(
+    {
+      name: ruleName,
+      evaluator: {
+        name: evaluatorName,
+        scope: "project",
+        type: "llm_as_judge",
+      },
+      enabled: false,
+      sampling: 1,
+      target: "observation",
+      filter: [
+        { column: "version", operator: "=", value: "1.0.0", type: "string" },
+      ],
+      mapping: [
+        { variable: "input", source: "input" },
+        { variable: "output", source: "output" },
+      ],
+    },
+    setup.context,
+  )) as { id: string; name: string };
+
+  return { evaluator, rule };
+};
 
 const createObservationEvent = (params: {
   projectId: string;
@@ -245,6 +330,138 @@ describe("MCP Read Tools", () => {
     });
   });
 
+  describe("listEvaluators tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(listEvaluatorsTool, { readOnlyHint: true });
+    });
+
+    it("should be available to in-app agent keys", async () => {
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
+
+      await expect(
+        toolRegistry.getEnabledTool(listEvaluatorsTool.name, context),
+      ).resolves.toMatchObject({
+        definition: expect.objectContaining({ name: listEvaluatorsTool.name }),
+      });
+    });
+
+    it("should list evaluators for the current project", async () => {
+      const setup = await createMcpTestSetup();
+      const { context } = setup;
+      const evaluator = await createLlmEvaluatorForMcpReadTest(setup);
+
+      const result = (await handleListEvaluators(
+        { page: 1, limit: 50 },
+        context,
+      )) as { data: Array<{ id: string; url: string }> };
+
+      expect(result.data.map((item) => item.id)).toContain(evaluator.id);
+      expect(result.data.find((item) => item.id === evaluator.id)?.url).toBe(
+        buildEvaluatorUrl({
+          projectId: setup.projectId,
+          evaluatorId: evaluator.id,
+        }),
+      );
+    });
+  });
+
+  describe("getEvaluator tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(getEvaluatorTool, { readOnlyHint: true });
+    });
+
+    it("should be available to in-app agent keys", async () => {
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
+
+      await expect(
+        toolRegistry.getEnabledTool(getEvaluatorTool.name, context),
+      ).resolves.toMatchObject({
+        definition: expect.objectContaining({ name: getEvaluatorTool.name }),
+      });
+    });
+
+    it("should fetch an evaluator by id", async () => {
+      const setup = await createMcpTestSetup();
+      const evaluator = await createLlmEvaluatorForMcpReadTest(setup);
+
+      await expect(
+        handleGetEvaluator({ evaluatorId: evaluator.id }, setup.context),
+      ).resolves.toMatchObject({
+        id: evaluator.id,
+        name: evaluator.name,
+        url: buildEvaluatorUrl({
+          projectId: setup.projectId,
+          evaluatorId: evaluator.id,
+        }),
+      });
+    });
+  });
+
+  describe("listEvaluationRules tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(listEvaluationRulesTool, { readOnlyHint: true });
+    });
+
+    it("should be available to in-app agent keys", async () => {
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
+
+      await expect(
+        toolRegistry.getEnabledTool(listEvaluationRulesTool.name, context),
+      ).resolves.toMatchObject({
+        definition: expect.objectContaining({
+          name: listEvaluationRulesTool.name,
+        }),
+      });
+    });
+
+    it("should list evaluation rules for the current project", async () => {
+      const setup = await createMcpTestSetup();
+      const { rule } = await createEvaluationRuleForMcpReadTest(setup);
+
+      const result = (await handleListEvaluationRules(
+        { page: 1, limit: 50 },
+        setup.context,
+      )) as { data: Array<{ id: string }> };
+
+      expect(result.data.map((item) => item.id)).toContain(rule.id);
+    });
+  });
+
+  describe("getEvaluationRule tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(getEvaluationRuleTool, { readOnlyHint: true });
+    });
+
+    it("should be available to in-app agent keys", async () => {
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
+
+      await expect(
+        toolRegistry.getEnabledTool(getEvaluationRuleTool.name, context),
+      ).resolves.toMatchObject({
+        definition: expect.objectContaining({
+          name: getEvaluationRuleTool.name,
+        }),
+      });
+    });
+
+    it("should fetch an evaluation rule by id", async () => {
+      const setup = await createMcpTestSetup();
+      const { rule } = await createEvaluationRuleForMcpReadTest(setup);
+
+      await expect(
+        handleGetEvaluationRule({ evaluationRuleId: rule.id }, setup.context),
+      ).resolves.toMatchObject({ id: rule.id, name: rule.name });
+    });
+  });
+
   describe("getMedia tool", () => {
     it("should have readOnlyHint annotation", () => {
       verifyToolAnnotations(getMediaTool, { readOnlyHint: true });
@@ -297,7 +514,9 @@ describe("MCP Read Tools", () => {
     });
 
     maybeEventsTableIt("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({ isInAppAgentKey: true });
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
 
       await expect(
         toolRegistry.getEnabledTool(
@@ -366,7 +585,9 @@ describe("MCP Read Tools", () => {
     });
 
     maybeEventsTableIt("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({ isInAppAgentKey: true });
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
 
       await expect(
         toolRegistry.getEnabledTool(
@@ -387,6 +608,12 @@ describe("MCP Read Tools", () => {
       expect(result.resource).toBe("observation");
       expect(result.columns.providedModelName.type).toBe("stringOptions");
       expect(result.columns.tags.type).toBe("arrayOptions");
+      expect(result.columns.metadata).toEqual(
+        expect.objectContaining({
+          type: "stringObject",
+          requiresKey: true,
+        }),
+      );
       expect(result.columns.traceTags).toBeUndefined();
       expect(result.columns.comments).toBeUndefined();
       expect(result.columns.scores).toBeUndefined();
@@ -440,7 +667,9 @@ describe("MCP Read Tools", () => {
     });
 
     it("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({ isInAppAgentKey: true });
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
 
       await expect(
         toolRegistry.getEnabledTool(listObservationsTool.name, context),
@@ -448,11 +677,22 @@ describe("MCP Read Tools", () => {
     });
 
     it("should expose object-shaped advanced filters in the tool schema", () => {
-      const filterSchema = listObservationsTool.inputSchema.properties
-        .filter as
+      const filterSchema = (
+        listObservationsTool.inputSchema.properties as Record<string, unknown>
+      ).filter as
         | {
             type?: string;
             items?: {
+              type?: string;
+              required?: string[];
+              properties?: Record<
+                string,
+                {
+                  const?: unknown;
+                  enum?: unknown[];
+                  type?: string;
+                }
+              >;
               anyOf?: Array<{
                 type?: string;
                 properties?: Record<
@@ -495,8 +735,63 @@ describe("MCP Read Tools", () => {
           operator: expect.objectContaining({ type: "string" }),
           value: expect.any(Object),
           type: expect.objectContaining({ type: "string" }),
+          key: expect.objectContaining({ type: "string" }),
         }),
       );
+    });
+
+    it("should filter by metadata advanced filters", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const matchingObservation = createObservationEvent({
+        projectId,
+        traceId,
+        name: `mcp-filter-metadata-match-${nanoid()}`,
+        metadata: { region: "us-east", tenant: "acme" },
+      });
+      const nonMatchingObservation = createObservationEvent({
+        projectId,
+        traceId,
+        name: `mcp-filter-metadata-miss-${nanoid()}`,
+        metadata: { region: "eu-west", tenant: "acme" },
+      });
+
+      await createEventsCh([matchingObservation, nonMatchingObservation]);
+
+      const result = (await handleListObservations(
+        {
+          filter: [
+            {
+              type: "stringOptions",
+              column: "id",
+              operator: "any of",
+              value: [matchingObservation.id, nonMatchingObservation.id],
+            },
+            {
+              type: "stringObject",
+              column: "metadata",
+              key: "region",
+              operator: "contains",
+              value: "us-",
+            },
+          ],
+          fields: ["id", "name"],
+          limit: 100,
+        },
+        context,
+      )) as { data: Array<{ id: string; name: string; url: string }> };
+
+      expect(result.data).toEqual([
+        {
+          id: matchingObservation.id,
+          name: matchingObservation.name,
+          url: buildObservationUrl({
+            projectId,
+            traceId,
+            observationId: matchingObservation.id,
+          }),
+        },
+      ]);
     });
 
     it("should list observations with compact default projection", async () => {
@@ -533,6 +828,11 @@ describe("MCP Read Tools", () => {
         type: "GENERATION",
         level: "DEFAULT",
         providedModelName: "gpt-4o-mini",
+        url: buildObservationUrl({
+          projectId,
+          traceId,
+          observationId: observation.id,
+        }),
       });
       expect(createdObservation?.input).toBeUndefined();
       expect(createdObservation?.output).toBeUndefined();
@@ -553,10 +853,17 @@ describe("MCP Read Tools", () => {
 
       const result = (await handleListObservations(
         { traceId, fields: ["id"], limit: 100 },
-        { ...context, isInAppAgentKey: true },
-      )) as { data: Array<{ id: string }> };
+        { ...context, inAppAgent: { permissions: "read" } },
+      )) as { data: Array<{ id: string; url: string }> };
 
       expect(result.data.map((item) => item.id)).toContain(observation.id);
+      expect(result.data.find((item) => item.id === observation.id)?.url).toBe(
+        buildObservationUrl({
+          projectId,
+          traceId,
+          observationId: observation.id,
+        }),
+      );
     });
 
     it("should project only requested fields", async () => {
@@ -583,6 +890,11 @@ describe("MCP Read Tools", () => {
         id: observation.id,
         name: observation.name,
         type: "GENERATION",
+        url: buildObservationUrl({
+          projectId,
+          traceId,
+          observationId: observation.id,
+        }),
       });
     });
 
@@ -648,11 +960,18 @@ describe("MCP Read Tools", () => {
           limit: 100,
         },
         context,
-      )) as { data: Array<{ id: string; userId: string | null }> };
+      )) as { data: Array<{ id: string; userId: string | null; url: string }> };
 
-      expect(result.data).toEqual([
-        { userId: matchingUserId, id: expect.any(String) },
-      ]);
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0]).toEqual({
+        userId: matchingUserId,
+        id: expect.any(String),
+        url: buildObservationUrl({
+          projectId,
+          traceId,
+          observationId: result.data[0]!.id,
+        }),
+      });
     });
 
     it("should match advanced input filters beyond the events_core truncation boundary", async () => {
@@ -689,9 +1008,18 @@ describe("MCP Read Tools", () => {
           limit: 100,
         },
         context,
-      )) as { data: Array<{ id: string }> };
+      )) as { data: Array<{ id: string; url: string }> };
 
-      expect(result.data).toEqual([{ id: matchingObservation.id }]);
+      expect(result.data).toEqual([
+        {
+          id: matchingObservation.id,
+          url: buildObservationUrl({
+            projectId,
+            traceId,
+            observationId: matchingObservation.id,
+          }),
+        },
+      ]);
     });
 
     it("should require selective scope for full io and metadata access", async () => {
@@ -784,10 +1112,18 @@ describe("MCP Read Tools", () => {
           limit: 100,
         },
         context,
-      )) as { data: Array<{ id: string; name: string }> };
+      )) as { data: Array<{ id: string; name: string; url: string }> };
 
       expect(result.data).toEqual([
-        { id: matchingObservation.id, name: matchingObservation.name },
+        {
+          id: matchingObservation.id,
+          name: matchingObservation.name,
+          url: buildObservationUrl({
+            projectId,
+            traceId,
+            observationId: matchingObservation.id,
+          }),
+        },
       ]);
     });
 
@@ -886,9 +1222,18 @@ describe("MCP Read Tools", () => {
           limit: 100,
         },
         context,
-      )) as { data: Array<{ id: string }> };
+      )) as { data: Array<{ id: string; url: string }> };
 
-      expect(result.data).toEqual([{ id: matchingObservation.id }]);
+      expect(result.data).toEqual([
+        {
+          id: matchingObservation.id,
+          url: buildObservationUrl({
+            projectId,
+            traceId,
+            observationId: matchingObservation.id,
+          }),
+        },
+      ]);
     });
 
     it("should return a cursor when more results are available", async () => {
@@ -985,7 +1330,10 @@ describe("MCP Read Tools", () => {
     });
 
     it("should expose object-shaped metrics query input in the tool schema", () => {
-      const properties = queryMetricsTool.inputSchema.properties;
+      const properties = queryMetricsTool.inputSchema.properties as Record<
+        string,
+        unknown
+      >;
 
       expect(properties.view).toBeDefined();
       expect(properties.dimensions).toBeDefined();
@@ -1027,7 +1375,7 @@ describe("MCP Read Tools", () => {
               },
             ],
             ...metricsWindow,
-          },
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
           context,
         ),
       );
@@ -1075,7 +1423,7 @@ describe("MCP Read Tools", () => {
             ],
             orderBy: [{ field: "count", direction: "desc" }],
             ...metricsWindow,
-          },
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
           context,
         ),
       );
@@ -1144,7 +1492,7 @@ describe("MCP Read Tools", () => {
             ],
             orderBy: [{ field: "value", direction: "desc" }],
             ...metricsWindow,
-          },
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
           context,
         ),
       );
@@ -1167,7 +1515,7 @@ describe("MCP Read Tools", () => {
             metrics: [{ measure: "count", aggregation: "count" }],
             orderBy: [{ field: "observations.name", direction: "asc" }],
             ...metricsWindow,
-          },
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
           context,
         ),
       ).rejects.toThrow(/Use returned metric aliases.*getMetricsSchema/i);
@@ -1203,7 +1551,7 @@ describe("MCP Read Tools", () => {
               },
             ],
             ...metricsWindow,
-          },
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
           context,
         ),
       );
@@ -1242,7 +1590,7 @@ describe("MCP Read Tools", () => {
             ],
             config: { row_limit: 5 },
             ...metricsWindow,
-          },
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
           context,
         ),
       );
@@ -1261,7 +1609,7 @@ describe("MCP Read Tools", () => {
             metrics: [{ measure: "count", aggregation: "count" }],
             orderBy: [{ field: "count_count", direction: "desc" }],
             ...metricsWindow,
-          },
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
           context,
         ),
       ).rejects.toThrow(
@@ -1332,7 +1680,9 @@ describe("MCP Read Tools", () => {
     });
 
     it("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({ isInAppAgentKey: true });
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
 
       await expect(
         toolRegistry.getEnabledTool(getObservationTool.name, context),
@@ -1360,6 +1710,11 @@ describe("MCP Read Tools", () => {
         name: observation.name,
         type: "GENERATION",
         providedModelName: "gpt-4o-mini",
+        url: buildObservationUrl({
+          projectId,
+          traceId: observation.trace_id,
+          observationId: observation.id,
+        }),
       });
       expect(result.input).toBeUndefined();
       expect(result.output).toBeUndefined();
@@ -1377,10 +1732,17 @@ describe("MCP Read Tools", () => {
 
       const result = (await handleGetObservation(
         { observationId: observation.id, fields: ["id"] },
-        { ...context, isInAppAgentKey: true },
+        { ...context, inAppAgent: { permissions: "read" } },
       )) as Record<string, unknown>;
 
-      expect(result).toEqual({ id: observation.id });
+      expect(result).toEqual({
+        id: observation.id,
+        url: buildObservationUrl({
+          projectId,
+          traceId: observation.trace_id,
+          observationId: observation.id,
+        }),
+      });
     });
 
     it("should return requested fields for a single observation", async () => {
@@ -1401,6 +1763,11 @@ describe("MCP Read Tools", () => {
       expect(result).toEqual({
         id: observation.id,
         metadata: { customer: "acme" },
+        url: buildObservationUrl({
+          projectId,
+          traceId: observation.trace_id,
+          observationId: observation.id,
+        }),
       });
     });
 
@@ -1437,7 +1804,9 @@ describe("MCP Read Tools", () => {
     });
 
     it("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({ isInAppAgentKey: true });
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
 
       await expect(
         toolRegistry.getEnabledTool(
@@ -1697,6 +2066,10 @@ describe("MCP Read Tools", () => {
         expect.objectContaining({
           id: matchingScore.id,
           dataType: "NUMERIC",
+          url: buildTraceUrl({
+            projectId,
+            traceId: matchingScore.trace_id!,
+          }),
         }),
       ]);
       expect(data).toEqual([
@@ -1751,6 +2124,7 @@ describe("MCP Read Tools", () => {
         name: score.name,
         dataType: "NUMERIC",
         value: 0.8,
+        url: buildTraceUrl({ projectId, traceId: score.trace_id! }),
       });
     });
 
@@ -1781,11 +2155,12 @@ describe("MCP Read Tools", () => {
     it("should create a score using v1 route semantics", async () => {
       const { context, projectId, apiKeyId } = await createMcpTestSetup();
       const scoreId = randomUUID();
+      const traceId = randomUUID();
 
       const result = await handleCreateScore(
         {
           id: scoreId,
-          traceId: randomUUID(),
+          traceId,
           name: `mcp-create-score-${nanoid(8)}`,
           value: 1,
           dataType: "NUMERIC",
@@ -1795,7 +2170,10 @@ describe("MCP Read Tools", () => {
         context,
       );
 
-      expect(result).toEqual({ id: scoreId });
+      expect(result).toEqual({
+        id: scoreId,
+        url: buildTraceUrl({ projectId, traceId }),
+      });
       await expect(
         verifyAuditLog({
           projectId,
@@ -2003,7 +2381,10 @@ describe("MCP Read Tools", () => {
     ])("should create %s score configs", async (_type, input) => {
       const { context, projectId, apiKeyId } = await createMcpTestSetup();
 
-      const result = (await handleCreateScoreConfig(input, context)) as any;
+      const result = (await handleCreateScoreConfig(
+        input as unknown as Parameters<typeof handleCreateScoreConfig>[0],
+        context,
+      )) as any;
 
       expect(result).toMatchObject({
         projectId,
@@ -2029,7 +2410,7 @@ describe("MCP Read Tools", () => {
         {
           name: `mcp-bool-${nanoid(8)}`,
           dataType: "BOOLEAN",
-        },
+        } as unknown as Parameters<typeof handleCreateScoreConfig>[0],
         context,
       );
 
@@ -2054,7 +2435,7 @@ describe("MCP Read Tools", () => {
               { label: "Duplicate", value: 1 },
               { label: "Duplicate", value: 2 },
             ],
-          },
+          } as unknown as Parameters<typeof handleCreateScoreConfig>[0],
           context,
         ),
       ).rejects.toThrow(/Category labels must be unique/i);
@@ -2073,6 +2454,20 @@ describe("MCP Read Tools", () => {
           context,
         ),
       ).rejects.toThrow(/minValue/i);
+    });
+
+    it("should reject invalid name characters at runtime despite the relaxed advertised schema", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleCreateScoreConfig(
+          {
+            name: "css-injection}*{background:red}/*",
+            dataType: "TEXT",
+          } as unknown as Parameters<typeof handleCreateScoreConfig>[0],
+          context,
+        ),
+      ).rejects.toThrow(/invalid characters/i);
     });
   });
 
@@ -2115,7 +2510,7 @@ describe("MCP Read Tools", () => {
           name: "mcp-updated",
           description: "Updated through MCP",
           numericMinValue: -1,
-        },
+        } as unknown as Parameters<typeof handleUpdateScoreConfig>[0],
         context,
       );
 
@@ -2158,6 +2553,20 @@ describe("MCP Read Tools", () => {
           context,
         ),
       ).rejects.toThrow(/minValue/i);
+    });
+
+    it("should reject invalid name characters at runtime despite the relaxed advertised schema", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleUpdateScoreConfig(
+          {
+            configId: randomUUID(),
+            name: "css-injection}*{background:red}/*",
+          },
+          context,
+        ),
+      ).rejects.toThrow(/invalid characters/i);
     });
 
     it("should not archive score configs through update", async () => {
@@ -2236,7 +2645,9 @@ describe("MCP Read Tools", () => {
     });
 
     it("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({ isInAppAgentKey: true });
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
 
       await expect(
         toolRegistry.getEnabledTool(getPromptTool.name, context),
@@ -2268,12 +2679,16 @@ describe("MCP Read Tools", () => {
         version: number;
         prompt: string;
         labels: string[];
+        url: string;
       };
 
       expect(result.name).toBe(promptName);
       expect(result.version).toBe(2);
       expect(result.prompt).toBe("Latest prompt");
       expect(result.labels).toContain("latest");
+      expect(result.url).toBe(
+        buildPromptUrl({ projectId, name: promptName, version: 2 }),
+      );
     });
 
     it("should fetch production prompt when production label is explicit", async () => {
@@ -2526,7 +2941,9 @@ describe("MCP Read Tools", () => {
     });
 
     it("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({ isInAppAgentKey: true });
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
 
       await expect(
         toolRegistry.getEnabledTool(listPromptsTool.name, context),
@@ -2906,7 +3323,9 @@ describe("MCP Read Tools", () => {
     });
 
     it("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({ isInAppAgentKey: true });
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
 
       await expect(
         toolRegistry.getEnabledTool(getPromptUnresolvedTool.name, context),

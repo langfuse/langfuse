@@ -17,8 +17,10 @@ import {
   formatMetricName,
   shouldUseWidgetSSE,
   getWidgetMetricPresentation,
+  getWidgetMissingBucketValue,
   type WidgetChartConfig,
 } from "@/src/features/widgets/utils";
+import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { cn } from "@/src/utils/tailwind";
 
@@ -254,14 +256,42 @@ export function WidgetContent({
         xAxisValue = String(item["time_dimension"]);
       }
 
+      const isTimeSeries = isTimeSeriesChart(chartType);
+      const dimensionValue = item[dimensionField];
+
+      // A gap-filled empty bucket arrives as a row with no dimension and the
+      // metric column's type default: NULL for nullable aggregations
+      // (avg/percentiles), 0 for non-nullable ones (count/uniq/sum). Keep it
+      // as a pure bucket marker (holds the spot on the x axis) instead of
+      // inventing an "n/a" series. The 0 form is only treated as filler for
+      // additive metrics, where the marker is lossless (prepareDenseSeries
+      // re-derives the honest 0 for any series that exists); a real
+      // dimension-less avg/percentile 0 stays a visible data point. (LFE-10694)
+      const isFillerMetricValue =
+        metricValue == null ||
+        (getWidgetMissingBucketValue(metric.agg) === "zero" &&
+          Number(metricValue) === 0);
+      if (
+        isTimeSeries &&
+        (dimensionValue === null || dimensionValue === "") &&
+        isFillerMetricValue
+      ) {
+        return {
+          time_dimension: xAxisValue,
+          dimension: undefined,
+          metric: null,
+        };
+      }
+
       // Handle series dimension (for legend)
       let seriesDimension: string;
-      if (item[dimensionField] !== undefined) {
-        const val = item[dimensionField];
-        if (typeof val === "string") {
-          seriesDimension = val;
-        } else if (val === null || val === undefined || val === "") {
+      if (dimensionValue !== undefined) {
+        const val = dimensionValue;
+        // Empty first: "" is a string, so the order matters. (LFE-10694)
+        if (val === null || val === undefined || val === "") {
           seriesDimension = "n/a";
+        } else if (typeof val === "string") {
+          seriesDimension = val;
         } else if (Array.isArray(val)) {
           seriesDimension = val.join(", ");
         } else {
@@ -277,7 +307,11 @@ export function WidgetContent({
         dimension: seriesDimension,
         metric: Array.isArray(metricValue)
           ? metricValue
-          : Number(metricValue || 0),
+          : // On a time series a missing value stays null — the chart renders
+            // it by the metric's missing-bucket semantics instead of a fake 0.
+            isTimeSeries && metricValue == null
+            ? null
+            : Number(metricValue || 0),
       };
     });
 
@@ -384,9 +418,7 @@ export function WidgetContent({
 
   if (isExternalLoading) {
     return (
-      <div
-        className={`bg-background flex items-center justify-center rounded-lg border p-4`}
-      >
+      <div className="bg-background flex items-center justify-center rounded-lg border p-4">
         <div className="text-muted-foreground">Loading...</div>
       </div>
     );
@@ -408,6 +440,7 @@ export function WidgetContent({
         onSortChange={chartType === "PIVOT_TABLE" ? onSortChange : undefined}
         isLoading={queryResult.isPending || isExternalLoading}
         metricFormatter={chartPresentation?.metricFormatter}
+        missingValue={getWidgetMissingBucketValue(metrics[0]?.agg ?? "count")}
       />
       <ChartLoadingState
         isLoading={chartLoadingState.isLoading}

@@ -200,6 +200,7 @@ describe("scheduleObservationEvals", () => {
       expect(schedulerDeps.uploadObservationToS3).toHaveBeenCalledTimes(1);
       expect(schedulerDeps.uploadObservationToS3).toHaveBeenCalledWith({
         projectId: "project-789",
+        traceId: "trace-456",
         observationId: "obs-123",
         data: observation,
       });
@@ -342,7 +343,12 @@ describe("scheduleObservationEvals", () => {
       });
 
       const expectedJobExecutionId = createW3CTraceId(
-        `${config.id}:${observation.span_id}`,
+        JSON.stringify([
+          "observation-eval",
+          config.id,
+          observation.trace_id,
+          observation.span_id,
+        ]),
       );
       expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledWith({
         id: expectedJobExecutionId,
@@ -370,7 +376,12 @@ describe("scheduleObservationEvals", () => {
       });
 
       const expectedJobExecutionId = createW3CTraceId(
-        `${config.id}:${observation.span_id}`,
+        JSON.stringify([
+          "observation-eval",
+          config.id,
+          observation.trace_id,
+          observation.span_id,
+        ]),
       );
       expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalledWith({
         jobExecutionId: expectedJobExecutionId,
@@ -397,6 +408,73 @@ describe("scheduleObservationEvals", () => {
       expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalledWith(
         expect.objectContaining({
           evalTemplateType: EvalTemplateType.CODE,
+        }),
+      );
+    });
+
+    it("should create distinct job executions for repeated observation ids on different traces", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const config = createMockConfig();
+      const firstObservation = createMockObservation({
+        span_id: "reused-observation-id",
+        trace_id: "trace-a",
+      });
+      const secondObservation = createMockObservation({
+        span_id: "reused-observation-id",
+        trace_id: "trace-b",
+      });
+
+      await scheduleObservationEvals({
+        observation: firstObservation,
+        configs: [config],
+        schedulerDeps,
+      });
+      await scheduleObservationEvals({
+        observation: secondObservation,
+        configs: [config],
+        schedulerDeps,
+      });
+
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledTimes(2);
+
+      const firstJobExecutionId = createW3CTraceId(
+        JSON.stringify([
+          "observation-eval",
+          config.id,
+          firstObservation.trace_id,
+          firstObservation.span_id,
+        ]),
+      );
+      const secondJobExecutionId = createW3CTraceId(
+        JSON.stringify([
+          "observation-eval",
+          config.id,
+          secondObservation.trace_id,
+          secondObservation.span_id,
+        ]),
+      );
+
+      expect(firstJobExecutionId).not.toBe(secondJobExecutionId);
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ id: firstJobExecutionId }),
+      );
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ id: secondJobExecutionId }),
+      );
+      expect(schedulerDeps.uploadObservationToS3).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          traceId: firstObservation.trace_id,
+          observationId: firstObservation.span_id,
+        }),
+      );
+      expect(schedulerDeps.uploadObservationToS3).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          traceId: secondObservation.trace_id,
+          observationId: secondObservation.span_id,
         }),
       );
     });

@@ -362,10 +362,34 @@ export default withMiddlewares({
 - Input/output validated with Zod schemas
 - Delegate to services for business logic
 
+### Versioned API Type Location
+
+When a feature has versioned public API types, place them in `packages/shared/`
+under the feature's `interfaces/api/` folder, one subdirectory per version.
+The scores feature (`packages/shared/src/features/scores/interfaces/api/`) is
+the canonical example — the `GetScoresQueryV1` / `GetScoresResponseV1` symbols
+imported from `@langfuse/shared` originate there.
+
+Do not create a flat file (e.g. `<domain>-api-v2.ts`) and do not place
+versioned types in `web/src/features/public-api/types/`.
+
+```
+packages/shared/src/features/<domain>/interfaces/api/
+├── v1/
+│   ├── schemas.ts     # Zod schemas for request/response shapes
+│   ├── endpoints.ts   # Composed request/response types
+│   └── validation.ts  # Cross-field validation helpers
+├── v2/
+│   └── ...
+└── vN/
+    └── ...
+```
+
 ### Fern API Definitions
 
-When modifying public API types in `web/src/features/public-api/types/`, update
-the matching Fern API definitions in `fern/apis/server/definition/`.
+When modifying public API types in `web/src/features/public-api/types/` or under
+`packages/shared/src/features/<domain>/interfaces/api/`, update the matching
+Fern API definitions in `fern/apis/server/definition/`.
 
 **Zod to Fern Type Mapping:**
 

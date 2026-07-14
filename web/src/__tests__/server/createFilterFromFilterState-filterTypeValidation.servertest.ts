@@ -48,6 +48,24 @@ describe("createFilterFromFilterState filter type validation", () => {
       clickhouseTableName: "scores",
       clickhouseSelect: "s.score_categories",
     },
+    scores: {
+      uiTableName: "Scores",
+      uiTableId: "scores",
+      clickhouseTableName: "scores",
+      clickhouseSelect: "s.scores_avg",
+    },
+    scores_avg: {
+      uiTableName: "Scores (numeric)",
+      uiTableId: "scores_avg",
+      clickhouseTableName: "scores",
+      clickhouseSelect: "s.scores_avg",
+    },
+    score_booleans: {
+      uiTableName: "Scores (boolean)",
+      uiTableId: "score_booleans",
+      clickhouseTableName: "scores",
+      clickhouseSelect: "s.score_booleans",
+    },
     eventInput: {
       uiTableName: "Input",
       uiTableId: "input",
@@ -65,6 +83,13 @@ describe("createFilterFromFilterState filter type validation", () => {
       uiTableId: "metadata",
       clickhouseTableName: "events_proto",
       clickhouseSelect: "metadata",
+      queryPrefix: "e",
+    },
+    experimentMetadata: {
+      uiTableName: "Metadata",
+      uiTableId: "metadata",
+      clickhouseTableName: "events_proto",
+      clickhouseSelect: "experiment_metadata",
       queryPrefix: "e",
     },
     eventName: {
@@ -115,6 +140,18 @@ describe("createFilterFromFilterState filter type validation", () => {
       type: "categoryOptions",
       internal: "s.score_categories",
       options: [],
+    },
+    {
+      name: "Scores (numeric)",
+      id: "scores_avg",
+      type: "numberObject",
+      internal: "s.scores_avg",
+    },
+    {
+      name: "Scores (boolean)",
+      id: "score_booleans",
+      type: "booleanObject",
+      internal: "s.score_booleans",
     },
     {
       name: "Input",
@@ -224,6 +261,114 @@ describe("createFilterFromFilterState filter type validation", () => {
 
   it.each([
     {
+      filter: {
+        type: "categoryOptions",
+        operator: "any of",
+        key: "attack_class",
+        value: ["Novel probe"],
+      },
+      expectedColumn: "s.score_categories",
+    },
+    {
+      filter: {
+        type: "numberObject",
+        operator: ">=",
+        key: "quality",
+        value: 0.5,
+      },
+      expectedColumn: "s.scores_avg",
+    },
+    {
+      filter: {
+        type: "booleanObject",
+        operator: "=",
+        key: "approved",
+        value: true,
+      },
+      expectedColumn: "s.score_booleans",
+    },
+  ] as const)(
+    "routes a legacy scores $filter.type filter to $expectedColumn",
+    ({ filter, expectedColumn }) => {
+      const [result] = createFilterFromFilterState(
+        [{ column: "scores", ...filter } as any],
+        Object.values(mappings),
+        columnDefinitions,
+      );
+
+      expect(result.apply().query).toContain(expectedColumn);
+    },
+  );
+
+  it("falls back to the legacy scores mapping when the numeric mapping is unavailable", () => {
+    const filters = [
+      {
+        column: "scores",
+        type: "numberObject",
+        operator: ">=",
+        key: "quality",
+        value: 0.5,
+      },
+    ] satisfies EventsTableFilterState;
+
+    const [result] = createFilterFromFilterState(filters, [mappings.scores]);
+
+    expect(result.apply().query).toContain("s.scores_avg");
+  });
+
+  it.each([
+    {
+      type: "categoryOptions",
+      operator: "any of",
+      key: "attack_class",
+      value: ["Novel probe"],
+    },
+    {
+      type: "booleanObject",
+      operator: "=",
+      key: "approved",
+      value: true,
+    },
+  ] as const)(
+    "rejects a legacy scores $type filter when its typed mapping is unavailable",
+    (filter) => {
+      expect(() =>
+        createFilterFromFilterState(
+          [{ column: "scores", ...filter } as any],
+          [mappings.scores],
+          columnDefinitions,
+        ),
+      ).toThrow(InvalidRequestError);
+    },
+  );
+
+  it.each([
+    {
+      type: "stringOptions",
+      operator: "any of",
+      value: ["quality:good"],
+    },
+    {
+      type: "null",
+      operator: "is null",
+      value: "",
+    },
+  ] as const)("rejects an unsupported legacy scores $type filter", (filter) => {
+    expect(() =>
+      createFilterFromFilterState(
+        [{ column: "scores", ...filter } as any],
+        Object.values(mappings),
+        columnDefinitions,
+      ),
+    ).toThrow(
+      new InvalidRequestError(
+        `Invalid filter type '${filter.type}' for legacy score column 'scores'. Expected one of 'categoryOptions', 'numberObject', or 'booleanObject'.`,
+      ),
+    );
+  });
+
+  it.each([
+    {
       scenario: "matching filter type",
       column: "metadata",
       filter: {
@@ -310,9 +455,14 @@ describe("createFilterFromFilterState filter type validation", () => {
     const { query, params } = result.apply();
     const paramName = Object.keys(params)[0];
 
-    expect(query).toBe(
-      `(position(lower(e.output), lower({${paramName}: String})) > 0 AND hasAllTokens(lower(e.output), lower({${paramName}: String})))`,
+    expect(query).toContain(
+      `position(lower(e.output), lower({${paramName}: String})) > 0`,
     );
+    expect(query).toContain("arraySlice");
+    expect(query).toContain(
+      `hasAllTokens(lower(e.output), arraySlice(arrayDistinct(tokens(lower({${paramName}: String}))), 1, 64))`,
+    );
+    expect(query).toContain(`tokens(lower({${paramName}: String}))`);
     expect(params).toEqual({ [paramName]: "needle" });
   });
 
@@ -333,7 +483,8 @@ describe("createFilterFromFilterState filter type validation", () => {
     const { query } = result.apply();
 
     expect(query).toContain("e.input =");
-    expect(query).toContain("hasAllTokens(lower(e.input), lower(");
+    expect(query).toContain("arraySlice");
+    expect(query).toContain("hasAllTokens(lower(e.input), arraySlice(");
   });
 
   it("generates case-sensitive FTS SQL for event metadata matches", () => {
@@ -363,6 +514,64 @@ describe("createFilterFromFilterState filter type validation", () => {
     expect(query).not.toContain("hasAllTokens(e.metadata_values[indexOf");
     expect(query).not.toContain("lower(");
     expect(Object.values(params)).toEqual(["source", "needle"]);
+  });
+
+  it("adds ngram prefilter params for event metadata substring filters", () => {
+    const filters = [
+      {
+        column: "metadata",
+        type: "stringObject",
+        operator: "contains",
+        key: "environment",
+        value: "prod%_\\west",
+      },
+    ] satisfies EventsTableFilterState;
+
+    const [result] = createFilterFromFilterState(
+      filters,
+      [mappings.eventMetadata],
+      columnDefinitions,
+    );
+
+    const { query, params } = result.apply();
+
+    expect(query).toContain("like(arrayStringConcat(e.metadata_values),");
+    expect(query).toContain("has(e.metadata_names,");
+    expect(query).toContain(
+      "position(e.metadata_values[indexOf(e.metadata_names,",
+    );
+    expect(Object.values(params)).toEqual([
+      "environment",
+      "prod%_\\west",
+      "%prod\\%\\_\\\\west%",
+    ]);
+  });
+
+  it("does not add the event metadata ngram prefilter for experiment metadata arrays", () => {
+    const filters = [
+      {
+        column: "metadata",
+        type: "stringObject",
+        operator: "contains",
+        key: "environment",
+        value: "production",
+      },
+    ] satisfies EventsTableFilterState;
+
+    const [result] = createFilterFromFilterState(
+      filters,
+      [mappings.experimentMetadata],
+      columnDefinitions,
+    );
+
+    const { query, params } = result.apply();
+
+    expect(query).toContain("has(e.experiment_metadata_names,");
+    expect(query).toContain(
+      "position(e.experiment_metadata_values[indexOf(e.experiment_metadata_names,",
+    );
+    expect(query).not.toContain("arrayStringConcat");
+    expect(Object.values(params)).toEqual(["environment", "production"]);
   });
 
   it.each([

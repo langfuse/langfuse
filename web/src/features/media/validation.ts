@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { datasetItemMediaFields } from "@langfuse/shared";
+
 export enum MediaEnabledFields {
   Input = "input",
   Output = "output",
@@ -119,9 +121,7 @@ export enum MediaFileExtension {
   SEVEN_Z = "7z",
 }
 
-export const GetMediaUploadUrlQuerySchema = z.object({
-  traceId: z.string(),
-  observationId: z.string().nullish(),
+const commonMediaUploadFields = {
   contentType: z.enum(MediaContentType, {
     message: `Invalid content type. Only supporting ${Object.values(
       MediaContentType,
@@ -134,12 +134,38 @@ export const GetMediaUploadUrlQuerySchema = z.object({
       /^[A-Za-z0-9+/=]{44}$/,
       "Must be a 44 character base64 encoded SHA-256 hash",
     ),
-  field: z.enum(MediaEnabledFields, {
-    message: `Invalid field. Only supporting ${Object.values(
-      MediaEnabledFields,
-    ).join(", ")}`,
-  }),
+};
+
+// Media is attached to exactly one context: a trace/observation, or a dataset
+// item (which need not exist yet). The union enforces the required ids and the
+// per-context field set. The absent context's ids may be omitted or sent as
+// null (the active side still demands real strings, so the XOR holds) — this
+// lets SDKs that serialize unset fields as null validate without omitting keys.
+const TraceMediaUploadSchema = z.object({
+  ...commonMediaUploadFields,
+  traceId: z.string(),
+  observationId: z.string().nullish(),
+  field: z.enum(Object.values(MediaEnabledFields) as [string, ...string[]]),
+  datasetId: z.null().optional(),
+  datasetItemId: z.null().optional(),
 });
+
+const DatasetItemMediaUploadSchema = z.object({
+  ...commonMediaUploadFields,
+  datasetId: z.string(),
+  datasetItemId: z.string(),
+  field: z.enum(datasetItemMediaFields),
+  traceId: z.null().optional(),
+  observationId: z.null().optional(),
+});
+
+export const GetMediaUploadUrlQuerySchema = z.union(
+  [TraceMediaUploadSchema, DatasetItemMediaUploadSchema],
+  {
+    message:
+      "Provide either traceId with field input/output/metadata, or datasetId + datasetItemId with field input/expectedOutput/metadata.",
+  },
+);
 
 export type GetMediaUploadUrlQuery = z.infer<
   typeof GetMediaUploadUrlQuerySchema

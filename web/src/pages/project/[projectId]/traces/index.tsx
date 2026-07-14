@@ -1,4 +1,3 @@
-import React from "react";
 import { useRouter } from "next/router";
 import TracesTable from "@/src/components/table/use-cases/traces";
 import Page from "@/src/components/layouts/page";
@@ -96,9 +95,12 @@ export default function Traces() {
               resolves. */}
         </>
       ) : isBetaEnabled ? (
-        <ObservationsEventsTable projectId={projectId} />
+        <ObservationsEventsTable
+          projectId={projectId}
+          showControlsInPageHeader
+        />
       ) : (
-        <TracesTable projectId={projectId} />
+        <TracesTable projectId={projectId} showControlsInPageHeader />
       )}
     </Page>
   );

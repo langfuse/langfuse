@@ -798,16 +798,48 @@ describe("Saved view validation", () => {
         internal: "positionInTrace",
       },
     ];
+    // LFE-10520: the default view is "All observations with I/O", expressed as
+    // a real, renderable boolean filter (not a hidden flag). Selecting a
+    // generation preset still applies its positionInTrace filters.
     const defaultPreset = getSessionDetailPresetToApply({
       selectedViewId: null,
+      hasFilters: false,
+    });
+    expect(defaultPreset).toEqual(SESSION_DETAIL_SYSTEM_PRESETS[0]);
+    expect(defaultPreset?.name).toBe("All observations with I/O");
+    expect(defaultPreset?.filters).toEqual([
+      {
+        column: "hasInput",
+        type: "boolean",
+        operator: "=",
+        value: true,
+      },
+      {
+        column: "hasOutput",
+        type: "boolean",
+        operator: "=",
+        value: true,
+      },
+    ]);
+    // The view filter must validate against the session columns so it renders
+    // in the "Filter observations" UI like any other filter.
+    expect(
+      validateFilters(defaultPreset?.filters ?? [], sessionEventColumns),
+    ).toEqual(defaultPreset?.filters ?? []);
+
+    const firstGenerationPreset = SESSION_DETAIL_SYSTEM_PRESETS.find(
+      (preset) => preset.name === "First Generation in Trace",
+    );
+    const appliedFirstGeneration = getSessionDetailPresetToApply({
+      selectedViewId: firstGenerationPreset?.id ?? null,
       hasFilters: false,
     });
     const lastPreset = SESSION_DETAIL_SYSTEM_PRESETS.find(
       (preset) => preset.name === "Last Generation in Trace",
     );
 
-    expect(defaultPreset).toEqual(SESSION_DETAIL_SYSTEM_PRESETS[0]);
-    expect(defaultPreset?.filters).toEqual([
+    expect(appliedFirstGeneration).toEqual(firstGenerationPreset);
+    expect(firstGenerationPreset?.filters).toEqual([
       {
         column: "type",
         type: "stringOptions",
@@ -822,8 +854,11 @@ describe("Saved view validation", () => {
       },
     ]);
     expect(
-      validateFilters(defaultPreset?.filters ?? [], sessionEventColumns),
-    ).toEqual(defaultPreset?.filters ?? []);
+      validateFilters(
+        firstGenerationPreset?.filters ?? [],
+        sessionEventColumns,
+      ),
+    ).toEqual(firstGenerationPreset?.filters ?? []);
     expect(lastPreset?.filters).toEqual([
       {
         column: "type",
@@ -850,36 +885,103 @@ describe("resolveCheckboxOperator (arrayOptions vs stringOptions)", () => {
   const availableValues = ["tag-1", "tag-2", "tag-3", "tag-4", "tag-5"];
 
   describe("arrayOptions (e.g., tags)", () => {
-    it('should use "any of" with selected values when no existing filter', () => {
+    it('converts a deselect-from-implicit-all into "none of [deselected]" (LFE-10717)', () => {
+      // No existing filter = the facet renders every option checked. Unchecking
+      // tag-3 means "exclude tag-3". For a multi-valued column that is only
+      // expressible as `none of [tag-3]` — `any of [remaining]` still matches
+      // rows carrying tag-3 alongside another tag, and materializes
+      // O(option-count) state into the URL (HTTP 431 at ~1000 user IDs).
       const result = resolveCheckboxOperator({
         colType: "arrayOptions",
         existingFilter: undefined,
-        values: ["tag-1", "tag-2"],
+        values: ["tag-1", "tag-2", "tag-4", "tag-5"],
         availableValues,
       });
 
       expect(result).toEqual({
-        finalOperator: "any of",
-        finalValues: ["tag-1", "tag-2"],
+        finalOperator: "none of",
+        finalValues: ["tag-3"],
       });
     });
 
-    it('should preserve "none of" for arrayOptions', () => {
+    it('accumulates exclusions while a "none of" filter is active', () => {
+      // The facet shows the kept set (all-but-excluded checked); unchecking
+      // another value grows the exclusion list.
       const result = resolveCheckboxOperator({
         colType: "arrayOptions",
         existingFilter: {
           column: "tags",
           type: "arrayOptions",
           operator: "none of",
-          value: ["tag-3", "tag-4", "tag-5"],
+          value: ["tag-3"],
         },
-        values: ["tag-1", "tag-2"],
+        values: ["tag-1", "tag-2", "tag-5"],
         availableValues,
       });
 
       expect(result).toEqual({
         finalOperator: "none of",
-        finalValues: ["tag-1", "tag-2"],
+        finalValues: ["tag-3", "tag-4"],
+      });
+    });
+
+    it("drops an exclusion when its value is re-checked", () => {
+      const result = resolveCheckboxOperator({
+        colType: "arrayOptions",
+        existingFilter: {
+          column: "tags",
+          type: "arrayOptions",
+          operator: "none of",
+          value: ["tag-3", "tag-4"],
+        },
+        values: ["tag-1", "tag-2", "tag-3", "tag-5"],
+        availableValues,
+      });
+
+      expect(result).toEqual({
+        finalOperator: "none of",
+        finalValues: ["tag-4"],
+      });
+    });
+
+    it("preserves exclusions that fell out of the current option list", () => {
+      // An excluded value can drop out of the top-N-capped / time-scoped
+      // option list; interacting with other checkboxes must not silently
+      // resurrect it.
+      const result = resolveCheckboxOperator({
+        colType: "arrayOptions",
+        existingFilter: {
+          column: "tags",
+          type: "arrayOptions",
+          operator: "none of",
+          value: ["stale-tag"],
+        },
+        values: ["tag-1", "tag-2", "tag-4", "tag-5"],
+        availableValues,
+      });
+
+      expect(result).toEqual({
+        finalOperator: "none of",
+        finalValues: ["stale-tag", "tag-3"],
+      });
+    });
+
+    it('returns an empty "none of" when every exclusion is re-checked (caller clears the filter)', () => {
+      const result = resolveCheckboxOperator({
+        colType: "arrayOptions",
+        existingFilter: {
+          column: "tags",
+          type: "arrayOptions",
+          operator: "none of",
+          value: ["tag-3"],
+        },
+        values: availableValues,
+        availableValues,
+      });
+
+      expect(result).toEqual({
+        finalOperator: "none of",
+        finalValues: [],
       });
     });
 
@@ -957,6 +1059,28 @@ describe("resolveCheckboxOperator (arrayOptions vs stringOptions)", () => {
       });
     });
 
+    it("preserves exclusions that fell out of the current option list (parity with arrayOptions)", () => {
+      // stringOptions option lists are top-N-capped / filter-scoped too; an
+      // invisible exclusion cannot have been re-checked and must survive
+      // other checkbox interactions.
+      const result = resolveCheckboxOperator({
+        colType: "stringOptions",
+        existingFilter: {
+          column: "name",
+          type: "stringOptions",
+          operator: "none of",
+          value: ["stale-name"],
+        },
+        values: ["tag-1", "tag-2", "tag-4", "tag-5"],
+        availableValues,
+      });
+
+      expect(result).toEqual({
+        finalOperator: "none of",
+        finalValues: ["stale-name", "tag-3"],
+      });
+    });
+
     it('should use "any of" when existing filter is "any of" for stringOptions', () => {
       const result = resolveCheckboxOperator({
         colType: "stringOptions",
@@ -979,10 +1103,23 @@ describe("resolveCheckboxOperator (arrayOptions vs stringOptions)", () => {
 });
 
 describe("computeSelectedValues", () => {
-  it('should keep excluded values checked for arrayOptions "none of" filters', () => {
+  it('inverts arrayOptions "none of" into the kept set, like stringOptions (LFE-10717)', () => {
+    // Unified checked=kept display model: a `none of [tag-2]` exclusion
+    // renders as everything-but-tag-2 checked, so the deselect gesture
+    // round-trips (uncheck tag-2 → none of [tag-2] → tag-2 shown unchecked).
     const result = computeSelectedValues(["tag-1", "tag-2", "tag-3"], {
       type: "arrayOptions",
       operator: "none of",
+      value: ["tag-2"],
+    });
+
+    expect(result).toEqual(["tag-1", "tag-3"]);
+  });
+
+  it('keeps arrayOptions "any of" selections as-is', () => {
+    const result = computeSelectedValues(["tag-1", "tag-2", "tag-3"], {
+      type: "arrayOptions",
+      operator: "any of",
       value: ["tag-2"],
     });
 
@@ -1014,7 +1151,6 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
   const strip = (explicitFilters: FilterState) =>
     stripImplicitEnvironmentFilterFromExplicitState({
       explicitFilters,
-      availableEnvironmentValues: [...availableValues],
       config: managedEnvironmentConfig,
     });
 
@@ -1055,7 +1191,11 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
     ).toEqual([]);
   });
 
-  it("strips default-equivalent env filters before URL/session persistence", () => {
+  it("strips only the system-shaped implicit default, keeping user-authored selections", () => {
+    // The implicit default the sidebar auto-derives — and that the facet
+    // re-creates when the user clears back to the default selection — is the
+    // `none of [hidden]` shape. That is the ONLY env filter we strip before
+    // persistence, so returning to default leaves a clean URL.
     const explicitWithExactDefault: FilterState = [
       {
         column: "environment",
@@ -1080,16 +1220,19 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
       },
     ]);
 
-    expect(
-      strip([
-        {
-          column: "environment",
-          type: "stringOptions",
-          operator: "any of",
-          value: ["production", "staging"],
-        },
-      ]),
-    ).toEqual([]);
+    // A user-authored POSITIVE selection (typed in the search bar or stored in a
+    // saved view) is kept explicit even when it happens to equal the current
+    // default set — we never silently remove what the user committed to. The
+    // user returns to the default by removing the filter, not by us guessing.
+    const userAuthoredDefaultSet: FilterState = [
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["production", "staging"],
+      },
+    ];
+    expect(strip(userAuthoredDefaultSet)).toEqual(userAuthoredDefaultSet);
   });
 
   it("keeps explicit overrides that enable hidden environments", () => {

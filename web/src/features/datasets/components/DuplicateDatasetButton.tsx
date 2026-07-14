@@ -15,7 +15,7 @@ export const DuplicateDatasetButton: React.FC<{
   });
   const duplicateDataset = api.datasets.duplicateDataset.useMutation({
     onSuccess: ({ id }) => {
-      router.push(`/project/${projectId}/datasets/${id}`);
+      router.push(`/project/${projectId}/datasets/${id}/items`);
     },
   });
 

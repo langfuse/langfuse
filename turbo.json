@@ -2,11 +2,18 @@
   "$schema": "https://turbo.build/schema.json",
   "noUpdateNotifier": true,
   "globalDependencies": [".env"],
-  "globalEnv": ["NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF"],
+  "globalEnv": [
+    "NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF",
+    "NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF"
+  ],
   "envMode": "loose",
   "tasks": {
     "build": {
       "dependsOn": ["db:generate", "^build"],
+      // NEXT_IGNORE_BUILD_ERRORS toggles the Next.js type check, so builds
+      // with and without it must not share a cache entry — a cached
+      // unchecked build would otherwise replay as a "type-checked" one.
+      "env": ["NEXT_IGNORE_BUILD_ERRORS"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
       "cache": true,
       "outputLogs": "errors-only"
@@ -82,6 +89,7 @@
     },
     "build:check": {
       "dependsOn": ["db:generate", "^build"],
+      "env": ["NEXT_IGNORE_BUILD_ERRORS"],
       "outputs": [".next-check/**", "!.next-check/cache/**"],
       "cache": true,
       "outputLogs": "errors-only"

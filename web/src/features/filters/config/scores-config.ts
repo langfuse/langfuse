@@ -55,15 +55,26 @@ export const scoreFilterConfig: FilterConfig = {
     {
       type: "numeric" as const,
       column: "value",
-      label: "Value",
+      label: "Numeric Value",
+      tooltip:
+        "Filters scores by numeric value. For BOOLEAN scores, use the 'Boolean Value' filter below. For CATEGORICAL scores, use the 'Categorical Value' filter below.",
       min: 0,
       max: 1,
       step: 0.01,
     },
     {
       type: "categorical" as const,
+      column: "booleanValue",
+      label: "Boolean Value",
+      tooltip: "Filters BOOLEAN scores by true or false.",
+      disableTextFilter: true,
+    },
+    {
+      type: "categorical" as const,
       column: "stringValue",
-      label: "String Value",
+      label: "Categorical Value",
+      tooltip:
+        "Filters scores by string value. Applies to CATEGORICAL data type scores only.",
     },
     {
       type: "string" as const,

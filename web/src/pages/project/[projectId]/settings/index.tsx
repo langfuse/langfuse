@@ -30,7 +30,9 @@ import ProtectedLabelsSettings from "@/src/features/prompts/components/Protected
 import { SiSlack } from "react-icons/si";
 import { ScoreConfigSettings } from "@/src/features/score-configs/components/ScoreConfigSettings";
 import { env } from "@/src/env.mjs";
-import { NotificationSettings } from "@/src/features/notifications/components/NotificationSettings";
+import { PersonalNotificationSettings } from "@/src/features/notifications/components/PersonalNotificationSettings";
+import { ProjectNotificationChannels } from "@/src/features/notifications/components/ProjectNotificationChannels";
+import { WebCalloutIntegrationCard } from "@/src/features/web-callouts/components/WebCalloutSettingsPage";
 import { DeveloperToolsSettings } from "@/src/features/developer-tools/components/DeveloperToolsSettings";
 
 type ProjectSettingsPage = {
@@ -48,7 +50,6 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
   const showProtectedLabelsSettings = useHasEntitlement(
     "prompt-protected-labels",
   );
-
   if (!project || !organization || !router.query.projectId) {
     return [];
   }
@@ -150,7 +151,7 @@ export const getProjectSettingsPages = ({
       "claude code",
       "cursor",
     ],
-    content: <DeveloperToolsSettings />,
+    content: <DeveloperToolsSettings projectId={project.id} />,
   },
   {
     title: "LLM Connections",
@@ -216,7 +217,7 @@ export const getProjectSettingsPages = ({
   {
     title: "Integrations",
     slug: "integrations",
-    cmdKKeywords: ["posthog", "mixpanel", "analytics"],
+    cmdKKeywords: ["posthog", "mixpanel", "analytics", "callback", "webhook"],
     content: <Integrations projectId={project.id} />,
   },
   {
@@ -240,8 +241,13 @@ export const getProjectSettingsPages = ({
   {
     title: "Notifications",
     slug: "notifications",
-    cmdKKeywords: ["inbox", "email", "mention", "alert"],
-    content: <NotificationSettings />,
+    cmdKKeywords: ["inbox", "email", "mention", "alert", "slack", "webhook"],
+    content: (
+      <div className="flex flex-col gap-6">
+        <PersonalNotificationSettings />
+        <ProjectNotificationChannels projectId={project.id} />
+      </div>
+    ),
   },
   {
     title: "Billing",
@@ -388,6 +394,11 @@ const Integrations = (props: { projectId: string }) => {
             </ActionButton>
           </div>
         </Card>
+
+        <WebCalloutIntegrationCard
+          projectId={props.projectId}
+          hasAccess={hasAccess}
+        />
       </div>
     </div>
   );

@@ -763,6 +763,83 @@ describe("Playground Jump Full Pipeline", () => {
     }
   });
 
+  it("should normalize standalone OpenAI Responses function_call output", () => {
+    const output = {
+      id: "fc_order_status",
+      type: "function_call",
+      status: "completed",
+      arguments: '{"orderIds":null}',
+      call_id: "call_order_status",
+      name: "getOrderStatus",
+    };
+
+    const outputResult = normalizeOutput(output, { framework: "openai" });
+    expect(outputResult.success).toBe(true);
+
+    expect(outputResult.data![0]).toMatchObject({
+      role: "assistant",
+      tool_calls: [
+        {
+          id: "call_order_status",
+          name: "getOrderStatus",
+          arguments: '{"orderIds":null}',
+          type: "function",
+        },
+      ],
+    });
+  });
+
+  it("should normalize OpenAI Responses function_call output arrays", () => {
+    const output = [
+      {
+        id: "fc_order_status",
+        type: "function_call",
+        status: "completed",
+        arguments: '{"orderIds":null}',
+        call_id: "call_order_status",
+        name: "getOrderStatus",
+      },
+      {
+        id: "fc_promotions",
+        type: "function_call",
+        status: "completed",
+        arguments: "{}",
+        call_id: "call_promotions",
+        name: "getPromotions",
+      },
+    ];
+
+    const outputResult = normalizeOutput(output, {
+      observationName: "OpenAI.responses",
+    });
+    expect(outputResult.success).toBe(true);
+
+    expect(outputResult.data).toEqual([
+      expect.objectContaining({
+        role: "assistant",
+        tool_calls: [
+          {
+            id: "call_order_status",
+            name: "getOrderStatus",
+            arguments: '{"orderIds":null}',
+            type: "function",
+          },
+        ],
+      }),
+      expect.objectContaining({
+        role: "assistant",
+        tool_calls: [
+          {
+            id: "call_promotions",
+            name: "getPromotions",
+            arguments: "{}",
+            type: "function",
+          },
+        ],
+      }),
+    ]);
+  });
+
   it("should handle VAPI camelCase toolCalls and preserve IDs", () => {
     // VAPI uses camelCase toolCalls instead of tool_calls
     // Critical: Tool call IDs must be preserved for OpenAI API compatibility
@@ -1031,6 +1108,73 @@ describe("Playground Jump Full Pipeline", () => {
         properties: { topic: { type: "string" } },
       },
     });
+  });
+
+  it("should pass metadata attributes.tools into playground tools", () => {
+    const input = [
+      {
+        role: "assistant",
+        tool_calls: [
+          {
+            id: "call_demo_lookup",
+            function: {
+              name: "demo_lookup",
+              arguments: '{"query":"example"}',
+            },
+            type: "function",
+          },
+        ],
+      },
+      {
+        role: "tool",
+        content: '{"status":"ok"}',
+        tool_call_id: "call_demo_lookup",
+      },
+    ];
+    const expectedTool = {
+      name: "demo_lookup",
+      description: "Lookup a demo value.",
+      parameters: {
+        type: "object",
+        properties: { query: { type: "string" } },
+        required: ["query"],
+      },
+    };
+    const metadata = {
+      attributes: {
+        tools: JSON.stringify([
+          {
+            type: "function",
+            function: expectedTool,
+          },
+        ]),
+        tool_count: "1",
+      },
+    };
+    const ctx = { metadata, observationName: "llm" };
+
+    const inResult = normalizeInput(input, ctx);
+    expect(inResult.success).toBe(true);
+    if (!inResult.data) throw new Error("Expected data to be defined");
+
+    const playgroundMessages = inResult.data
+      .map(convertChatMlToPlayground)
+      .filter((msg) => msg !== null);
+
+    expect(
+      playgroundMessages.some((msg) => msg.type === "assistant-tool-call"),
+    ).toBe(true);
+    expect(playgroundMessages.some((msg) => msg.type === "tool-result")).toBe(
+      true,
+    );
+
+    // Same merge behavior as JumpToPlaygroundButton.parseGeneration.
+    const normalizedTools = extractTools(inResult.data, ctx.metadata);
+    const rawTools = extractTools(input, metadata);
+    const mergedTools = normalizedTools.length > 0 ? normalizedTools : rawTools;
+
+    expect(mergedTools).toHaveLength(1);
+    expect(mergedTools[0]).toMatchObject(expectedTool);
   });
 
   it("should handle double-stringified messages array", () => {

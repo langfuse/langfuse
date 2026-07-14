@@ -30,8 +30,19 @@ const widgetMetricSchema = MetricSchema.extend({
   agg: metricAggregations,
 });
 
-const widgetImportBaseSchema = z
+/**
+ * Widget JSON file-format version. `$langfuseWidget: true` marks a JSON
+ * payload (file or clipboard text) as a Langfuse widget export and `version`
+ * is the version of that envelope — bump it when the export shape changes
+ * incompatibly. Distinct from the widget's own `minVersion`, which is the
+ * query-engine (v1/v2) version.
+ */
+export const WIDGET_FILE_FORMAT_VERSION = 1;
+
+export const widgetImportBaseSchema = z
   .object({
+    $langfuseWidget: z.literal(true).optional(),
+    version: z.number().int().positive().optional(),
     name: z.string(),
     description: z.string(),
     view: views,
@@ -53,10 +64,35 @@ export const widgetImportSchema = widgetImportBaseSchema.superRefine(
         message: "chartConfig.type must match chartType",
       });
     }
+    if (
+      widget.$langfuseWidget === true &&
+      (widget.version ?? 1) > WIDGET_FILE_FORMAT_VERSION
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["version"],
+        message: `Unsupported widget format version ${widget.version}`,
+      });
+    }
   },
 );
 
-type WidgetImport = z.infer<typeof widgetImportSchema>;
+export type WidgetImport = z.infer<typeof widgetImportSchema>;
+
+/**
+ * True when a parsed JSON payload carries the Langfuse widget envelope.
+ * Clipboard and drag-drop flows use this to distinguish "not a widget at all"
+ * (silently ignore) from "claims to be a widget but is malformed" (surface an
+ * error).
+ */
+export function isLangfuseWidgetPayload(parsed: unknown): boolean {
+  return (
+    typeof parsed === "object" &&
+    parsed !== null &&
+    "$langfuseWidget" in parsed &&
+    (parsed as Record<string, unknown>).$langfuseWidget === true
+  );
+}
 
 export type WidgetImportOptionSets = {
   environmentValues?: string[];
@@ -150,21 +186,28 @@ export function buildWidgetImportAllowedValues(
   return allowedValuesByColumn;
 }
 
-export function downloadWidgetJson(
-  widget: Pick<
-    WidgetImport,
-    | "name"
-    | "description"
-    | "view"
-    | "dimensions"
-    | "metrics"
-    | "filters"
-    | "chartType"
-    | "chartConfig"
-    | "minVersion"
-  >,
-) {
-  const exportWidget = {
+export type WidgetExportSource = Pick<
+  WidgetImport,
+  | "name"
+  | "description"
+  | "view"
+  | "dimensions"
+  | "metrics"
+  | "filters"
+  | "chartType"
+  | "chartConfig"
+  | "minVersion"
+>;
+
+/**
+ * The canonical widget export shape: the widget's portable configuration
+ * wrapped in the Langfuse widget envelope. Downloaded files and
+ * copied-to-clipboard widgets both serialize exactly this object.
+ */
+export function buildWidgetExport(widget: WidgetExportSource) {
+  return {
+    $langfuseWidget: true as const,
+    version: WIDGET_FILE_FORMAT_VERSION,
     name: widget.name,
     description: widget.description,
     view: widget.view,
@@ -175,8 +218,10 @@ export function downloadWidgetJson(
     chartConfig: widget.chartConfig,
     minVersion: widget.minVersion,
   };
+}
 
-  const blob = new Blob([JSON.stringify(exportWidget, null, 2)], {
+export function downloadWidgetJson(widget: WidgetExportSource) {
+  const blob = new Blob([JSON.stringify(buildWidgetExport(widget), null, 2)], {
     type: "application/json",
   });
   const url = URL.createObjectURL(blob);
@@ -409,24 +454,28 @@ function normalizeImportedWidgetVersion(widget: WidgetImport): WidgetImport {
   };
 }
 
-export async function importWidgetFile(params: {
-  file: File;
-  optionSets: WidgetImportOptionSets;
+/**
+ * Full import pipeline for one parsed widget JSON payload: schema parse,
+ * filter normalization (value-level pruning only when option sets are
+ * provided — clipboard/drop flows skip the option queries and pass none),
+ * traces-view version normalization, and view-declaration validation.
+ * Throws on any payload that cannot become a valid widget.
+ */
+export function parseImportedWidgetJson(params: {
+  parsedJson: unknown;
+  optionSets?: WidgetImportOptionSets;
   isBetaEnabled: boolean;
-}): Promise<ImportedWidgetResult> {
-  const rawContent = await params.file.text();
-  const parsedJson: unknown = JSON.parse(rawContent);
-  const allowedValuesByColumn = buildWidgetImportAllowedValues(
-    params.optionSets,
-    parsedJson,
-  );
+}): { widget: WidgetImport; removedValues: boolean; removedFilters: boolean } {
+  const allowedValuesByColumn = params.optionSets
+    ? buildWidgetImportAllowedValues(params.optionSets, params.parsedJson)
+    : new Map<string, Set<string>>();
 
   const {
     widget: importedWidget,
     removedValues,
     removedFilters,
   } = parseAndNormalizeImportedWidget({
-    parsedJson,
+    parsedJson: params.parsedJson,
     allowedValuesByColumn,
   });
 
@@ -443,9 +492,96 @@ export async function importWidgetFile(params: {
     importedViewVersion,
   });
 
+  return { widget: normalizedWidget, removedValues, removedFilters };
+}
+
+export async function importWidgetFile(params: {
+  file: File;
+  optionSets: WidgetImportOptionSets;
+  isBetaEnabled: boolean;
+}): Promise<ImportedWidgetResult> {
+  const rawContent = await params.file.text();
+  const parsedJson: unknown = JSON.parse(rawContent);
+
+  const { widget, removedValues, removedFilters } = parseImportedWidgetJson({
+    parsedJson,
+    optionSets: params.optionSets,
+    isBetaEnabled: params.isBetaEnabled,
+  });
+
   return {
-    snapshot: toImportedWidgetFormSnapshot(normalizedWidget),
+    snapshot: toImportedWidgetFormSnapshot(widget),
     removedValues,
     removedFilters,
+  };
+}
+
+export type PastedWidgetParseResult =
+  | { status: "not-widget" }
+  | { status: "invalid"; reason: string }
+  | { status: "widget"; widget: WidgetImport; removedFilters: boolean };
+
+/**
+ * Parses clipboard or dropped text into a widget. Anything that does not
+ * carry the Langfuse widget envelope is "not-widget" (callers ignore it
+ * silently); an enveloped payload that fails validation is "invalid" with a
+ * user-facing reason.
+ */
+export function parsePastedWidget(
+  text: string,
+  params: { isBetaEnabled: boolean },
+): PastedWidgetParseResult {
+  let parsedJson: unknown;
+  try {
+    parsedJson = JSON.parse(text);
+  } catch {
+    return { status: "not-widget" };
+  }
+
+  if (!isLangfuseWidgetPayload(parsedJson)) {
+    return { status: "not-widget" };
+  }
+
+  const declaredVersion = (parsedJson as Record<string, unknown>).version;
+  if (
+    typeof declaredVersion === "number" &&
+    declaredVersion > WIDGET_FILE_FORMAT_VERSION
+  ) {
+    return {
+      status: "invalid",
+      reason: `This widget uses format version ${declaredVersion}; this Langfuse version supports up to ${WIDGET_FILE_FORMAT_VERSION}.`,
+    };
+  }
+
+  try {
+    const { widget, removedFilters } = parseImportedWidgetJson({
+      parsedJson,
+      isBetaEnabled: params.isBetaEnabled,
+    });
+    return { status: "widget", widget, removedFilters };
+  } catch {
+    return {
+      status: "invalid",
+      reason: "The widget configuration is malformed or not supported.",
+    };
+  }
+}
+
+/**
+ * Portable widget fields in the shape of the `dashboardWidgets.create`
+ * mutation input (minus projectId) — used to recreate a pasted, dropped, or
+ * duplicated widget as a new project-owned widget.
+ */
+export function toWidgetCreateFields(widget: WidgetExportSource) {
+  return {
+    name: widget.name,
+    description: widget.description,
+    view: widget.view,
+    dimensions: widget.dimensions,
+    metrics: widget.metrics,
+    filters: widget.filters,
+    chartType: widget.chartType,
+    chartConfig: widget.chartConfig,
+    minVersion: widget.minVersion,
   };
 }

@@ -14,7 +14,6 @@ import { ExperimentDisplaySettings } from "@/src/features/experiments/components
 import { Button } from "@/src/components/ui/button";
 import { X } from "lucide-react";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
-import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
 import {
   EXPERIMENT_RUN_TABS,
   getExperimentRunTabs,
@@ -53,12 +52,13 @@ export default function ExperimentResults() {
     setLastResultsUrl(window.location.pathname + window.location.search);
   }, [setLastResultsUrl]);
 
-  const {
-    canUseExperimentsBetaToggle,
-    isExperimentsBetaEnabled,
-    setExperimentsBetaEnabled,
-    isExperimentsBetaActive,
-  } = useExperimentAccess();
+  const { isExperimentsBetaActive, isInitializing } = useExperimentAccess();
+
+  useEffect(() => {
+    if (isInitializing || isExperimentsBetaActive || !projectId) return;
+
+    router.replace(`/project/${projectId}/datasets`);
+  }, [isExperimentsBetaActive, isInitializing, projectId, router]);
 
   // Fetch experiment to get dataset ID and other details
   const { data: experiment } = api.experiments.byId.useQuery(
@@ -71,14 +71,7 @@ export default function ExperimentResults() {
     },
   );
 
-  // Auto-redirect to datasets page when beta is off
-  useEffect(() => {
-    if (!isExperimentsBetaActive) {
-      router.push(`/project/${projectId}/datasets`);
-    }
-  }, [isExperimentsBetaActive, projectId, router]);
-
-  // Show spinner while redirecting when beta is off
+  // Show spinner while session loads or while redirecting when beta is off
   if (!isExperimentsBetaActive) {
     return (
       <Page headerProps={{ title: "Experiments" }}>
@@ -88,15 +81,6 @@ export default function ExperimentResults() {
       </Page>
     );
   }
-
-  const handleBetaSwitchChange = (enabled: boolean) => {
-    setExperimentsBetaEnabled(enabled);
-
-    // When switching OFF, redirect to datasets page
-    if (!enabled) {
-      router.push(`/project/${projectId}/datasets`);
-    }
-  };
 
   return (
     <Page
@@ -112,12 +96,6 @@ export default function ExperimentResults() {
           tabs: getExperimentRunTabs(projectId),
           activeTab: EXPERIMENT_RUN_TABS.RESULTS,
         },
-        actionButtonsLeft: canUseExperimentsBetaToggle ? (
-          <ExperimentsBetaSwitch
-            enabled={isExperimentsBetaEnabled}
-            onEnabledChange={handleBetaSwitchChange}
-          />
-        ) : undefined,
         actionButtonsRight: (
           <>
             {hasBaseline && comparisonIds.length > 0 && (

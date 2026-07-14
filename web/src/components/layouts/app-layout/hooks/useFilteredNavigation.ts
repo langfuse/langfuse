@@ -5,7 +5,7 @@
 
 import { useRouter } from "next/router";
 import { useMemo } from "react";
-import type { Session, User } from "next-auth";
+import type { Session } from "next-auth";
 import { useEntitlements } from "@/src/features/entitlements/hooks";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
@@ -21,7 +21,10 @@ import type { NavigationFilterContext } from "../utils/navigationFilters.types";
 import { isPathActive } from "../utils/pathClassification";
 
 /** Organization type from user session (can be null when not in project/org context) */
-type Organization = User["organizations"][number] | null | undefined;
+type Organization =
+  | NonNullable<Session["user"]>["organizations"][number]
+  | null
+  | undefined;
 
 /** Grouped navigation structure */
 type GroupedNavigation = {
@@ -83,7 +86,7 @@ export function useFilteredNavigation(
   const router = useRouter();
   const entitlements = useEntitlements();
   const uiCustomization = useUiCustomization();
-  const { isLangfuseCloud, region } = useLangfuseCloudRegion();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
 
   const routerProjectId = router.query.projectId as string | undefined;
   const routerOrganizationId = router.query.organizationId as
@@ -98,9 +101,7 @@ export function useFilteredNavigation(
       session,
       enableExperimentalFeatures:
         session?.environment?.enableExperimentalFeatures ?? false,
-      cloudAdmin: Boolean(
-        session?.user?.admin && isLangfuseCloud && region !== "DEV",
-      ),
+      cloudAdmin: Boolean(session?.user?.admin && isLangfuseCloud),
       entitlements,
       uiCustomization,
       isLangfuseCloud,
@@ -114,7 +115,6 @@ export function useFilteredNavigation(
       uiCustomization,
       router.asPath,
       isLangfuseCloud,
-      region,
     ],
   );
 

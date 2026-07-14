@@ -4,10 +4,12 @@ import {
   filterOperators,
 } from "../../../interfaces/filters";
 import { clickhouseCompliantRandomCharacters } from "../../repositories";
+import { escapeSqlLikePattern } from "../../utils/sqlLike";
 import {
   assertValidFtsMatchFilter,
   FTS_OPERATOR_DESCRIPTORS,
   isFtsEventsTable,
+  isFtsMetadataField,
   isFtsTextTarget,
 } from "./fts";
 
@@ -26,6 +28,10 @@ type ClickhouseFilter = {
   query: string;
   params: { [x: string]: any } | {};
 };
+
+const NGRAM_ACCELERATED_METADATA_OPERATORS = new Set<
+  (typeof filterOperators)["stringObject"][number]
+>(["contains", "starts with", "ends with"]);
 
 export class StringFilter implements Filter {
   public clickhouseTable: string;
@@ -355,6 +361,16 @@ export class StringObjectFilter implements Filter {
       const valueAccessor = `${valuesColumn}[indexOf(${namesColumn}, {${varKeyName}: String})]`;
       const hasKey = `has(${namesColumn}, {${varKeyName}: String})`;
       const valueParam = `{${varValueName}: String}`;
+      const ngramPrefilterParamName = `stringObjectNgramFilter${clickhouseCompliantRandomCharacters()}`;
+      const shouldUseNgramPrefilter =
+        this.operator !== FTS_MATCH_OPERATOR &&
+        isFtsMetadataField(this.field) &&
+        NGRAM_ACCELERATED_METADATA_OPERATORS.has(this.operator) &&
+        this.value.length > 0;
+      const ngramPrefilter = shouldUseNgramPrefilter
+        ? `like(arrayStringConcat(${valuesColumn}), {${ngramPrefilterParamName}: String})`
+        : undefined;
+      const ngramConjunct = ngramPrefilter ? ` AND ${ngramPrefilter}` : "";
 
       switch (this.operator) {
         case "=":
@@ -366,16 +382,16 @@ export class StringObjectFilter implements Filter {
           });
           break;
         case "contains":
-          query = `${hasKey} AND (position(${valueAccessor}, ${valueParam}) > 0)`;
+          query = `${hasKey}${ngramConjunct} AND (position(${valueAccessor}, ${valueParam}) > 0)`;
           break;
         case "does not contain":
           query = `${hasKey} AND (position(${valueAccessor}, ${valueParam}) = 0)`;
           break;
         case "starts with":
-          query = `${hasKey} AND (startsWith(${valueAccessor}, ${valueParam}))`;
+          query = `${hasKey}${ngramConjunct} AND (startsWith(${valueAccessor}, ${valueParam}))`;
           break;
         case "ends with":
-          query = `${hasKey} AND (endsWith(${valueAccessor}, ${valueParam}))`;
+          query = `${hasKey}${ngramConjunct} AND (endsWith(${valueAccessor}, ${valueParam}))`;
           break;
         case FTS_MATCH_OPERATOR:
           assertValidFtsMatchFilter({
@@ -395,6 +411,17 @@ export class StringObjectFilter implements Filter {
           break;
         default:
           throw new Error(`Unsupported operator: ${this.operator}`);
+      }
+
+      if (ngramPrefilter) {
+        return {
+          query,
+          params: {
+            [varKeyName]: this.key,
+            [varValueName]: this.value,
+            [ngramPrefilterParamName]: `%${escapeSqlLikePattern(this.value)}%`,
+          },
+        };
       }
     } else {
       // For observations/traces tables, use Map access: metadata[key]
@@ -549,6 +576,54 @@ export class NumberObjectFilter implements Filter {
     return {
       query: `empty(arrayFilter(x -> (((x.1) = {${varKeyName}: String}) AND ((x.2) ${this.operator} {${varValueName}: Decimal64(12)})), ${column})) = 0`,
       params: { [varKeyName]: this.key, [varValueName]: this.value },
+    };
+  }
+}
+
+/**
+ * Encodes one boolean-score entry the way the `score_booleans` ClickHouse
+ * aggregation stores it (`scoreBooleansAggregation` in query-fragments.ts:
+ * `concat(name, ':', lowerUTF8(string_value))`). BooleanObjectFilter and
+ * InMemoryFilterService must build lookup targets through this helper so the
+ * two filter paths and the SQL producer cannot drift apart.
+ */
+export const encodeBooleanScoreEntry = (key: string, value: boolean): string =>
+  `${key}:${value ? "true" : "false"}`;
+
+export class BooleanObjectFilter implements Filter {
+  public clickhouseTable: string;
+  public field: string;
+  public key: string;
+  public value: boolean;
+  public operator: (typeof filterOperators)["booleanObject"][number];
+  public tablePrefix?: string;
+
+  constructor(opts: {
+    clickhouseTable: string;
+    field: string;
+    operator: (typeof filterOperators)["booleanObject"][number];
+    key: string;
+    value: boolean;
+    tablePrefix?: string;
+  }) {
+    this.clickhouseTable = opts.clickhouseTable;
+    this.field = opts.field;
+    this.value = opts.value;
+    this.operator = opts.operator;
+    this.tablePrefix = opts.tablePrefix;
+    this.key = opts.key;
+  }
+
+  apply(): ClickhouseFilter {
+    const uid = clickhouseCompliantRandomCharacters();
+    const varName = `booleanObjectFilter${uid}`;
+    const column = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
+    const value = encodeBooleanScoreEntry(this.key, this.value);
+    const predicate = `has(${column}, {${varName}: String})`;
+
+    return {
+      query: this.operator === "<>" ? `NOT ${predicate}` : predicate,
+      params: { [varName]: value },
     };
   }
 }

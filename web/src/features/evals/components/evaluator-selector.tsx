@@ -3,12 +3,7 @@ import {
   EvalTemplateType,
   type EvalTemplate,
 } from "@langfuse/shared";
-import {
-  AlertCircle,
-  CheckIcon,
-  ExternalLink,
-  ExternalLinkIcon,
-} from "lucide-react";
+import { AlertCircle, CheckIcon } from "lucide-react";
 import {
   InputCommand,
   InputCommandEmpty,
@@ -101,6 +96,7 @@ interface EvaluatorSelectorProps {
   projectId: string;
   evalTemplates: EvalTemplate[];
   selectedTemplateId?: string;
+  showMissingProviderWarning?: boolean;
   onTemplateSelect: (
     templateId: string,
     name: string,
@@ -112,6 +108,7 @@ export function EvaluatorSelector({
   projectId,
   evalTemplates,
   selectedTemplateId,
+  showMissingProviderWarning = true,
   onTemplateSelect,
 }: EvaluatorSelectorProps) {
   const [search, setSearch] = useState("");
@@ -120,56 +117,31 @@ export function EvaluatorSelector({
     shouldShowEvalTemplate(template, codeEvalCapabilities),
   );
 
-  // Group templates by name and whether they are managed by Langfuse
-  const groupedTemplates = visibleEvalTemplates.reduce(
-    (acc, template) => {
-      const group = template.projectId ? "custom" : "langfuse";
-      if (!acc[group][template.name]) {
-        acc[group][template.name] = [];
-      }
-      acc[group][template.name].push(template);
-      return acc;
-    },
-    {
-      langfuse: {} as Record<string, EvalTemplate[]>,
-      custom: {} as Record<string, EvalTemplate[]>,
-    },
-  );
-
-  // Ensure per-name arrays are sorted by createdAt ascending so last is latest
-  const sortByCreatedAt = (arr: EvalTemplate[]) =>
-    arr.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-  Object.values(groupedTemplates.custom).forEach(sortByCreatedAt);
-  Object.values(groupedTemplates.langfuse).forEach(sortByCreatedAt);
-
-  // Filter templates based on search
+  // latestTemplates already returns one row per evaluator family.
+  const matchesSearch = (template: EvalTemplate) =>
+    template.name.toLowerCase().includes(search.toLowerCase());
   const filteredTemplates = {
-    langfuse: Object.entries(groupedTemplates.langfuse)
-      .filter(([name]) => name.toLowerCase().includes(search.toLowerCase()))
-      .sort(([nameA, templatesA], [nameB, templatesB]) => {
-        // Get partners
-        const partnerA = templatesA[0]?.partner;
-        const partnerB = templatesB[0]?.partner;
-
+    langfuse: visibleEvalTemplates
+      .filter((template) => !template.projectId && matchesSearch(template))
+      .sort((templateA, templateB) => {
         // No partner comes before partner
-        if (!partnerA && partnerB) return -1;
-        if (partnerA && !partnerB) return 1;
+        if (!templateA.partner && templateB.partner) return -1;
+        if (templateA.partner && !templateB.partner) return 1;
 
-        // Sort by name within each group
-        return nameA.localeCompare(nameB);
+        return templateA.name.localeCompare(templateB.name);
       }),
-    custom: Object.entries(groupedTemplates.custom)
-      .filter(([name]) => name.toLowerCase().includes(search.toLowerCase()))
-      .sort(([a], [b]) => a.localeCompare(b)),
+    custom: visibleEvalTemplates
+      .filter((template) => template.projectId && matchesSearch(template))
+      .sort((a, b) => a.name.localeCompare(b.name)),
   };
 
   // Check if we have results
   const hasResults =
     filteredTemplates.langfuse.length > 0 ||
     filteredTemplates.custom.length > 0;
-
   const { isTemplateInvalid } = useSingleTemplateValidation({
     projectId,
+    enabled: showMissingProviderWarning,
   });
 
   return (
@@ -189,47 +161,42 @@ export function EvaluatorSelector({
         {filteredTemplates.custom.length > 0 && (
           <>
             <InputCommandGroup heading="Custom evaluators">
-              {filteredTemplates.custom.map(([name, templateData]) => {
-                const latestVersion = templateData[templateData.length - 1];
-                const isInvalid = isTemplateInvalid(latestVersion);
+              {filteredTemplates.custom.map((template) => {
+                const isInvalid = isTemplateInvalid(template);
 
                 return (
                   <InputCommandItem
-                    key={`custom-${name}`}
+                    key={`custom-${template.id}`}
                     disabled={isInvalid}
                     onSelect={() => {
                       onTemplateSelect(
-                        latestVersion.id,
-                        name,
-                        latestVersion.version,
+                        template.id,
+                        template.name,
+                        template.version,
                       );
                     }}
                     className={cn(
-                      "group",
-                      templateData.some((t) => t.id === selectedTemplateId) &&
-                        "bg-secondary",
+                      template.id === selectedTemplateId && "bg-secondary",
                     )}
                   >
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <div className="flex min-w-0 items-center">
-                          <span className="truncate">{name}</span>
-                          {latestVersion.type === EvalTemplateType.CODE ? (
+                          <span className="truncate" title={template.name}>
+                            {template.name}
+                          </span>
+                          {template.type === EvalTemplateType.CODE ? (
                             <CodeTemplateLanguageIcon
-                              sourceCodeLanguage={
-                                latestVersion.sourceCodeLanguage
-                              }
+                              sourceCodeLanguage={template.sourceCodeLanguage}
                             />
                           ) : null}
                         </div>
                       </TooltipTrigger>
                       <TooltipContent
                         side="right"
-                        className="max-h-[300px] max-w-[400px] overflow-y-auto"
+                        className="max-h-[70dvh] w-[720px] max-w-[calc(100vw-3rem)] overflow-y-auto"
                       >
-                        <TemplatePreviewTooltipContent
-                          template={latestVersion}
-                        />
+                        <TemplatePreviewTooltipContent template={template} />
                       </TooltipContent>
                     </Tooltip>
                     {isInvalid && (
@@ -241,41 +208,17 @@ export function EvaluatorSelector({
                           <p>Requires project-level evaluation model</p>
                           <Link
                             href={`/project/${projectId}/evals/default-model`}
-                            className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
+                            className="mt-2 block text-blue-600 hover:underline"
                             target="_blank"
                             rel="noopener noreferrer"
                           >
-                            <ExternalLinkIcon className="h-3 w-3" />
                             Configure default model
                           </Link>
                         </TooltipContent>
                       </Tooltip>
                     )}
-                    {templateData.some((t) => t.id === selectedTemplateId) ? (
-                      <>
-                        <Link
-                          href={`/project/${projectId}/evals/templates/${latestVersion.id}`}
-                          target="_blank"
-                          className="ml-auto opacity-0 group-hover:opacity-100 hover:opacity-100"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                          }}
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </Link>
-                        <CheckIcon className={cn("ml-2 h-4 w-4")} />
-                      </>
-                    ) : (
-                      <Link
-                        href={`/project/${projectId}/evals/templates/${latestVersion.id}`}
-                        target="_blank"
-                        className="ml-auto opacity-0 group-hover:opacity-100 hover:opacity-100"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                        }}
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </Link>
+                    {template.id === selectedTemplateId && (
+                      <CheckIcon className="ml-auto h-4 w-4" />
                     )}
                   </InputCommandItem>
                 );
@@ -288,52 +231,45 @@ export function EvaluatorSelector({
         {filteredTemplates.langfuse.length > 0 && (
           <>
             <InputCommandGroup heading="Langfuse managed evaluators">
-              {filteredTemplates.langfuse.map(([name, templateData]) => {
-                const latestVersion = templateData[templateData.length - 1];
-                const isInvalid = isTemplateInvalid(latestVersion);
+              {filteredTemplates.langfuse.map((template) => {
+                const isInvalid = isTemplateInvalid(template);
 
                 return (
                   <InputCommandItem
-                    key={`langfuse-${name}`}
+                    key={`langfuse-${template.id}`}
                     disabled={isInvalid}
                     onSelect={() => {
                       onTemplateSelect(
-                        latestVersion.id,
-                        name,
-                        latestVersion.version,
+                        template.id,
+                        template.name,
+                        template.version,
                       );
                     }}
                     className={cn(
-                      "group",
-                      templateData.some((t) => t.id === selectedTemplateId) &&
-                        "bg-secondary",
+                      template.id === selectedTemplateId && "bg-secondary",
                     )}
                   >
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <div className="mr-1 flex min-w-0 items-center">
-                          <span className="truncate">{name}</span>
-                          {latestVersion.type === EvalTemplateType.CODE ? (
+                          <span className="truncate" title={template.name}>
+                            {template.name}
+                          </span>
+                          {template.type === EvalTemplateType.CODE ? (
                             <CodeTemplateLanguageIcon
-                              sourceCodeLanguage={
-                                latestVersion.sourceCodeLanguage
-                              }
+                              sourceCodeLanguage={template.sourceCodeLanguage}
                             />
                           ) : null}
                         </div>
                       </TooltipTrigger>
                       <TooltipContent
                         side="right"
-                        className="max-h-[300px] max-w-[400px] overflow-y-auto"
+                        className="max-h-[70dvh] w-[720px] max-w-[calc(100vw-3rem)] overflow-y-auto"
                       >
-                        <TemplatePreviewTooltipContent
-                          template={latestVersion}
-                        />
+                        <TemplatePreviewTooltipContent template={template} />
                       </TooltipContent>
                     </Tooltip>
-                    <MaintainerTooltip
-                      maintainer={getMaintainer(latestVersion)}
-                    />
+                    <MaintainerTooltip maintainer={getMaintainer(template)} />
                     {isInvalid && (
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -343,41 +279,17 @@ export function EvaluatorSelector({
                           <p>Requires project-level evaluation model</p>
                           <Link
                             href={`/project/${projectId}/evals/default-model`}
-                            className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
+                            className="mt-2 block text-blue-600 hover:underline"
                             target="_blank"
                             rel="noopener noreferrer"
                           >
-                            <ExternalLinkIcon className="h-3 w-3" />
                             Configure default model
                           </Link>
                         </TooltipContent>
                       </Tooltip>
                     )}
-                    {templateData.some((t) => t.id === selectedTemplateId) ? (
-                      <>
-                        <Link
-                          href={`/project/${projectId}/evals/templates/${latestVersion.id}`}
-                          target="_blank"
-                          className="ml-auto opacity-0 group-hover:opacity-100 hover:opacity-100"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                          }}
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </Link>
-                        <CheckIcon className={cn("ml-2 h-4 w-4")} />
-                      </>
-                    ) : (
-                      <Link
-                        href={`/project/${projectId}/evals/templates/${latestVersion.id}`}
-                        target="_blank"
-                        className="ml-auto opacity-0 group-hover:opacity-100 hover:opacity-100"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                        }}
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </Link>
+                    {template.id === selectedTemplateId && (
+                      <CheckIcon className="ml-auto h-4 w-4" />
                     )}
                   </InputCommandItem>
                 );

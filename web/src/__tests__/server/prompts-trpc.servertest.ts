@@ -24,14 +24,18 @@ async function prepare() {
           plan: "cloud:hobby",
           cloudConfig: undefined,
           metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: false,
           projects: [
             {
               id: project.id,
               role: "ADMIN",
               retentionDays: 30,
               deletedAt: null,
+              hasTraces: false,
               name: project.name,
               metadata: {},
+              createdAt: new Date().toISOString(),
             },
           ],
         },
@@ -39,6 +43,10 @@ async function prepare() {
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: true,
+        searchBar: false,
+        v4BetaToggleVisible: false,
+        observationEvals: false,
+        experimentsV4Enabled: false,
       },
       admin: true,
     },
@@ -753,6 +761,62 @@ describe("prompts trpc", () => {
           }),
         );
       });
+    });
+
+    it("should not delete an unlabeled prompt version referenced by version", async () => {
+      const { project, caller } = await prepare();
+      const childName = `test-prompt-delete-unlabeled-dependency-${v4()}`;
+      const parentName = `test-prompt-delete-unlabeled-dependent-${v4()}`;
+
+      const childPrompt = await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: childName,
+          version: 1,
+          type: "text",
+          prompt: "child content",
+          createdBy: "test-user",
+          labels: [],
+        },
+      });
+
+      const parentPrompt = await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: parentName,
+          version: 1,
+          type: "text",
+          prompt: `Depends on @@@langfusePrompt:name=${childName}|version=1@@@`,
+          createdBy: "test-user",
+          labels: ["latest"],
+        },
+      });
+
+      await prisma.promptDependency.create({
+        data: {
+          projectId: project.id,
+          parentId: parentPrompt.id,
+          childName,
+          childVersion: 1,
+        },
+      });
+
+      await expect(
+        caller.prompts.deleteVersion({
+          projectId: project.id,
+          promptVersionId: childPrompt.id,
+        }),
+      ).rejects.toThrow(/depending on the prompt version/);
+
+      const remainingChild = await prisma.prompt.findUnique({
+        where: {
+          id: childPrompt.id,
+          projectId: project.id,
+        },
+      });
+      expect(remainingChild).not.toBeNull();
     });
   });
 
@@ -1637,6 +1701,82 @@ describe("prompts trpc", () => {
           isSingleVersion: true,
         }),
       ).rejects.toThrow(/already exist/i);
+    });
+
+    it("should roll back latest-only duplication when a rewritten label dependency would be missing", async () => {
+      const { project, caller } = await prepare();
+      const folderPrefix = `dup-missing-label-${v4().slice(0, 8)}`;
+      const sourcePath = `${folderPrefix}/source`;
+      const targetPath = `${folderPrefix}/copy`;
+      const parentName = `${sourcePath}/parent`;
+      const childName = `${sourcePath}/child`;
+
+      const parentPrompt = await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: parentName,
+          version: 1,
+          type: "text",
+          prompt: `Depends on @@@langfusePrompt:name=${childName}|label=cause@@@`,
+          createdBy: "test-user",
+          labels: ["latest"],
+        },
+      });
+
+      await prisma.prompt.createMany({
+        data: [
+          {
+            id: v4(),
+            projectId: project.id,
+            name: childName,
+            version: 1,
+            type: "text",
+            prompt: "cause-labeled child",
+            createdBy: "test-user",
+            labels: ["cause"],
+          },
+          {
+            id: v4(),
+            projectId: project.id,
+            name: childName,
+            version: 2,
+            type: "text",
+            prompt: "latest child",
+            createdBy: "test-user",
+            labels: ["latest"],
+          },
+        ],
+      });
+
+      await prisma.promptDependency.create({
+        data: {
+          projectId: project.id,
+          parentId: parentPrompt.id,
+          childName,
+          childLabel: "cause",
+        },
+      });
+
+      await expect(
+        caller.prompts.duplicateFolder({
+          projectId: project.id,
+          sourcePath,
+          targetPath,
+          isSingleVersion: true,
+          rewritePromptReferences: true,
+        }),
+      ).rejects.toThrow(/Copy all versions or disable reference rewriting/);
+
+      const copiedPrompts = await prisma.prompt.findMany({
+        where: {
+          projectId: project.id,
+          name: {
+            startsWith: `${targetPath}/`,
+          },
+        },
+      });
+      expect(copiedPrompts).toHaveLength(0);
     });
   });
 });

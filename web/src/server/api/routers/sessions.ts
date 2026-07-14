@@ -42,11 +42,13 @@ import {
   hasAnySession,
   getScoresForSessions,
   getNumericScoresGroupedByName,
+  getBooleanScoresGroupedByName,
   getCategoricalScoresGroupedByName,
   tracesTableUiColumnDefinitions,
   getEventsGroupedByUserId,
   getEventsGroupedByTraceTags,
   hasAnySessionFromEventsTable,
+  parseClickhouseUTCDateTimeFormat,
 } from "@langfuse/shared/src/server";
 import chunk from "lodash/chunk";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
@@ -543,27 +545,33 @@ export const sessionRouter = createTRPCRouter({
             }))
           : [];
 
-      const [userIds, tags, numericScoreNames, categoricalScoreNames] =
-        await Promise.all([
-          getTracesGroupedByUsers(
-            input.projectId,
-            filter,
-            undefined,
-            1000,
-            0,
-            columns,
-          ),
-          getTracesGroupedByTags({
-            projectId: input.projectId,
-            filter,
-            columns,
-          }),
-          getNumericScoresGroupedByName(input.projectId, scoreTimestampFilter),
-          getCategoricalScoresGroupedByName(
-            input.projectId,
-            scoreTimestampFilter,
-          ),
-        ]);
+      const [
+        userIds,
+        tags,
+        numericScoreNames,
+        categoricalScoreNames,
+        booleanScoreNames,
+      ] = await Promise.all([
+        getTracesGroupedByUsers(
+          input.projectId,
+          filter,
+          undefined,
+          1000,
+          0,
+          columns,
+        ),
+        getTracesGroupedByTags({
+          projectId: input.projectId,
+          filter,
+          columns,
+        }),
+        getNumericScoresGroupedByName(input.projectId, scoreTimestampFilter),
+        getCategoricalScoresGroupedByName(
+          input.projectId,
+          scoreTimestampFilter,
+        ),
+        getBooleanScoresGroupedByName(input.projectId, scoreTimestampFilter),
+      ]);
 
       return {
         userIds: userIds.map((row) => ({
@@ -574,6 +582,7 @@ export const sessionRouter = createTRPCRouter({
         tags: tags,
         scores_avg: numericScoreNames.map((s) => s.name),
         score_categories: categoricalScoreNames,
+        score_booleans: booleanScoreNames.map((s) => s.name),
       };
     }),
   filterOptionsFromEvents: protectedProjectProcedure
@@ -612,16 +621,22 @@ export const sessionRouter = createTRPCRouter({
             }))
           : [];
 
-      const [userIds, tags, numericScoreNames, categoricalScoreNames] =
-        await Promise.all([
-          getEventsGroupedByUserId(input.projectId, eventsFilter),
-          getEventsGroupedByTraceTags(input.projectId, eventsFilter),
-          getNumericScoresGroupedByName(input.projectId, scoreTimestampFilter),
-          getCategoricalScoresGroupedByName(
-            input.projectId,
-            scoreTimestampFilter,
-          ),
-        ]);
+      const [
+        userIds,
+        tags,
+        numericScoreNames,
+        categoricalScoreNames,
+        booleanScoreNames,
+      ] = await Promise.all([
+        getEventsGroupedByUserId(input.projectId, eventsFilter),
+        getEventsGroupedByTraceTags(input.projectId, eventsFilter),
+        getNumericScoresGroupedByName(input.projectId, scoreTimestampFilter),
+        getCategoricalScoresGroupedByName(
+          input.projectId,
+          scoreTimestampFilter,
+        ),
+        getBooleanScoresGroupedByName(input.projectId, scoreTimestampFilter),
+      ]);
 
       return {
         userIds: userIds.map((row) => ({
@@ -634,6 +649,7 @@ export const sessionRouter = createTRPCRouter({
         })),
         scores_avg: numericScoreNames.map((s) => s.name),
         score_categories: categoricalScoreNames,
+        score_booleans: booleanScoreNames.map((s) => s.name),
       };
     }),
   byIdWithScores: protectedGetSessionProcedure
@@ -722,6 +738,12 @@ export const sessionRouter = createTRPCRouter({
         totalCost: sessionMetrics
           ? Number(sessionMetrics.session_total_cost)
           : 0,
+        minTimestamp: parseClickhouseUTCDateTimeFormat(
+          sessionMetrics.min_timestamp,
+        ),
+        maxTimestamp: parseClickhouseUTCDateTimeFormat(
+          sessionMetrics.max_timestamp,
+        ),
         environment: sessionMetrics?.environment,
         scores: toDomainArrayWithStringifiedMetadata(validatedScores),
       };

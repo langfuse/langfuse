@@ -1,14 +1,12 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import {
   deletePublicEvaluationRule,
   getPublicEvaluationRule,
   updatePublicEvaluationRule,
 } from "@/src/features/evals/server/unstable-public-api";
 import {
-  createUnstablePublicEvalsRoute,
-  withUnstablePublicEvalsMiddlewares,
-} from "@/src/features/public-api/server/unstable-public-evals-route";
+  createUnstablePublicApiRoute,
+  withUnstablePublicApiMiddlewares,
+} from "@/src/features/public-api/server/unstable-public-api-route";
 import {
   DeleteUnstableEvaluationRuleQuery,
   DeleteUnstableEvaluationRuleResponse,
@@ -19,8 +17,8 @@ import {
   PatchUnstableEvaluationRuleResponse,
 } from "@/src/features/public-api/types/unstable-evaluation-rules";
 
-export default withUnstablePublicEvalsMiddlewares({
-  GET: createUnstablePublicEvalsRoute({
+export default withUnstablePublicApiMiddlewares({
+  GET: createUnstablePublicApiRoute({
     name: "Get Unstable Evaluation Rule",
     querySchema: GetUnstableEvaluationRuleQuery,
     responseSchema: GetUnstableEvaluationRuleResponse,
@@ -30,60 +28,29 @@ export default withUnstablePublicEvalsMiddlewares({
         evaluationRuleId: query.evaluationRuleId,
       }),
   }),
-  PATCH: createUnstablePublicEvalsRoute({
+  PATCH: createUnstablePublicApiRoute({
     name: "Update Unstable Evaluation Rule",
     querySchema: PatchUnstableEvaluationRuleQuery,
     bodySchema: PatchUnstableEvaluationRuleBody,
     responseSchema: PatchUnstableEvaluationRuleResponse,
-    fn: async ({ query, body, auth }) => {
-      const before = await getPublicEvaluationRule({
-        projectId: auth.scope.projectId,
-        evaluationRuleId: query.evaluationRuleId,
-      });
-
-      const evaluationRule = await updatePublicEvaluationRule({
+    fn: async ({ query, body, auth }) =>
+      updatePublicEvaluationRule({
+        orgId: auth.scope.orgId,
         projectId: auth.scope.projectId,
         evaluationRuleId: query.evaluationRuleId,
         input: body,
-      });
-
-      await auditLog({
-        action: "update",
-        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
-        resourceId: evaluationRule.id,
-        projectId: auth.scope.projectId,
-        orgId: auth.scope.orgId,
-        apiKeyId: auth.scope.apiKeyId,
-        before,
-        after: evaluationRule,
-      });
-
-      return evaluationRule;
-    },
+        auditScope: auth.scope,
+      }),
   }),
-  DELETE: createUnstablePublicEvalsRoute({
+  DELETE: createUnstablePublicApiRoute({
     name: "Delete Unstable Evaluation Rule",
     querySchema: DeleteUnstableEvaluationRuleQuery,
     responseSchema: DeleteUnstableEvaluationRuleResponse,
     fn: async ({ query, auth }) => {
-      const before = await getPublicEvaluationRule({
-        projectId: auth.scope.projectId,
-        evaluationRuleId: query.evaluationRuleId,
-      });
-
       await deletePublicEvaluationRule({
         projectId: auth.scope.projectId,
         evaluationRuleId: query.evaluationRuleId,
-      });
-
-      await auditLog({
-        action: "delete",
-        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
-        resourceId: query.evaluationRuleId,
-        projectId: auth.scope.projectId,
-        orgId: auth.scope.orgId,
-        apiKeyId: auth.scope.apiKeyId,
-        before,
+        auditScope: auth.scope,
       });
 
       return {

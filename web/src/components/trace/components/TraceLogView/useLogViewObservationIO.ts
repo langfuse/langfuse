@@ -7,7 +7,7 @@
 
 import { useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { api } from "@/src/utils/api";
+import { api, sendAsPostOption } from "@/src/utils/api";
 import { type FlatLogItem } from "./log-view-types";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
@@ -54,12 +54,14 @@ export function useLogViewObservationIO({
   const eventsQuery = api.events.batchIO.useQuery(
     {
       projectId,
+      traceId,
       observations: [{ id: observationId, traceId }],
       minStartTime: startTime,
       maxStartTime: startTime,
       truncated: false,
     },
     {
+      ...sendAsPostOption,
       enabled: enabled && isBetaEnabled,
       staleTime: Infinity,
       refetchOnWindowFocus: false,

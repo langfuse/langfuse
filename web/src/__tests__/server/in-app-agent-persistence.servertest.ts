@@ -1,26 +1,48 @@
+vi.mock("@langfuse/shared/src/server", async () => {
+  const actual = await vi.importActual("@langfuse/shared/src/server");
+  return {
+    ...actual,
+    fetchLLMCompletion: vi.fn(),
+  };
+});
+
 import type { Session } from "next-auth";
+import type { Flags } from "@/src/features/feature-flags/types";
 import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
+import { vi } from "vitest";
 
+import type { Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import {
+  createOrgProjectAndApiKey,
+  fetchLLMCompletion,
+} from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import {
   createInAppAgentConversationId,
   createInAppAgentRunId,
-} from "@/src/features/in-app-agent/ids";
-import type { AgUiEvent } from "@/src/features/in-app-agent/schema";
-import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
+} from "@/src/ee/features/in-app-agent/ids";
+import { type AgUiEvent } from "@/src/ee/features/in-app-agent/schema";
+import { inAppAgentRouter } from "@/src/ee/features/in-app-agent/server/router";
 import {
   createRun,
   ensureOwnedConversation,
   finishRun,
   getConversationMessagesForReplay,
+  maybeInferAndPersistConversationTitle,
   replaceRunEvents,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
-} from "@/src/features/in-app-agent/server/persistence";
+} from "@/src/ee/features/in-app-agent/server/persistence";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
+
+vi.mock("@/src/server/auth", () => ({
+  getServerAuthSession: vi.fn(),
+}));
+
+const mockFetchLLMCompletion = vi.mocked(fetchLLMCompletion);
 
 describe("in-app agent persistence", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
@@ -31,9 +53,13 @@ describe("in-app agent persistence", () => {
 
   afterEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+    mockFetchLLMCompletion.mockReset();
   });
 
-  const createCaller = async (userId = `user-${randomUUID()}`) => {
+  const createCaller = async (
+    userId = `user-${randomUUID()}`,
+    plan: Plan = "cloud:hobby",
+  ) => {
     const setup = await createOrgProjectAndApiKey();
 
     await prisma.organization.update({
@@ -58,10 +84,12 @@ describe("in-app agent persistence", () => {
           {
             id: setup.orgId,
             role: "OWNER",
-            plan: "cloud:hobby",
+            plan,
             cloudConfig: undefined,
             name: "Test Organization",
             metadata: {},
+            aiFeaturesEnabled: true,
+            aiTelemetryEnabled: true,
             projects: [
               {
                 id: setup.projectId,
@@ -69,16 +97,14 @@ describe("in-app agent persistence", () => {
                 name: "Test Project",
                 deletedAt: null,
                 retentionDays: null,
+                hasTraces: false,
                 metadata: {},
+                createdAt: new Date().toISOString(),
               },
             ],
           },
         ],
-        featureFlags: {
-          inAppAgent: true,
-          templateFlag: true,
-          excludeClickhouseRead: false,
-        },
+        featureFlags: {} as Flags,
         admin: false,
       },
       environment: {} as any,
@@ -121,6 +147,20 @@ describe("in-app agent persistence", () => {
       model: "haiku",
       mcpApiKeyId: "api-key-id-1",
     });
+
+  it("rejects users without the in-app agent entitlement", async () => {
+    const { caller, projectId } = await createCaller(
+      `user-${randomUUID()}`,
+      "oss",
+    );
+
+    await expect(caller.listConversations({ projectId })).rejects.toMatchObject(
+      {
+        code: "FORBIDDEN",
+        message: expect.stringContaining("in-app-agent"),
+      },
+    );
+  });
 
   const startCompactRun = async (params: {
     projectId: string;
@@ -330,6 +370,7 @@ describe("in-app agent persistence", () => {
         id: "assistant-message-1",
         role: "assistant",
         content: "I will inspect recent traces and look for outliers.",
+        runId: run1.id,
       },
       {
         id: "user-message-2",
@@ -340,6 +381,7 @@ describe("in-app agent persistence", () => {
         id: "assistant-message-2",
         role: "assistant",
         content: "Next trace inspected.",
+        runId: run2.id,
       },
     ]);
 
@@ -403,6 +445,135 @@ describe("in-app agent persistence", () => {
     expect(listedConversations.conversations.map((item) => item.id)).toContain(
       conversation.id,
     );
+  });
+
+  it("does not overwrite user-renamed conversation titles", async () => {
+    const originalBedrockSmallModel = env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL;
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+
+    await caller.renameConversation({
+      projectId,
+      conversationId: conversation.id,
+      title: "My custom title",
+    });
+
+    try {
+      (env as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = "small-title-model";
+
+      await maybeInferAndPersistConversationTitle({
+        prisma,
+        projectId,
+        conversationId: conversation.id,
+        userId,
+        aiTelemetryEnabled: false,
+      });
+
+      await expect(
+        prisma.inAppAgentConversation.findUniqueOrThrow({
+          where: { id_projectId: { id: conversation.id, projectId } },
+          select: { title: true, renamedByUserAt: true },
+        }),
+      ).resolves.toEqual({
+        title: "My custom title",
+        renamedByUserAt: expect.any(Date),
+      });
+      expect(mockFetchLLMCompletion).not.toHaveBeenCalled();
+    } finally {
+      (env as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = originalBedrockSmallModel;
+    }
+  });
+
+  it("keeps the default title when title generation fails", async () => {
+    const originalBedrockSmallModel = env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL;
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const originalTitle = conversation.title;
+    const run = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      messageId: "failed-title-user",
+      content: "Inspect latency regressions",
+    });
+
+    try {
+      (env as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = "small-title-model";
+      mockFetchLLMCompletion.mockRejectedValue(new Error("Bedrock failed"));
+
+      await expect(
+        maybeInferAndPersistConversationTitle({
+          prisma,
+          projectId,
+          conversationId: conversation.id,
+          userId,
+          aiTelemetryEnabled: false,
+        }),
+      ).resolves.toBeUndefined();
+
+      await expect(
+        prisma.inAppAgentConversation.findUniqueOrThrow({
+          where: { id_projectId: { id: conversation.id, projectId } },
+          select: { title: true },
+        }),
+      ).resolves.toEqual({ title: originalTitle });
+    } finally {
+      (env as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = originalBedrockSmallModel;
+    }
+  });
+
+  it("requires feedback run ids to match persisted assistant messages", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const run = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    const events = await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      messageId: "feedback-user",
+      content: "Answer me",
+    });
+    await appendAssistantText({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      events,
+      messageId: "feedback-assistant",
+      chunks: ["Here is an answer"],
+    });
+
+    await expect(
+      caller.submitFeedback({
+        projectId,
+        conversationId: conversation.id,
+        messageId: "feedback-assistant",
+        runId: createInAppAgentRunId(),
+        value: null,
+        comment: null,
+      }),
+    ).rejects.toThrow(
+      "Feedback can only be submitted for persisted assistant messages",
+    );
+
+    await expect(
+      caller.submitFeedback({
+        projectId,
+        conversationId: conversation.id,
+        messageId: "feedback-assistant",
+        runId: run.id,
+        value: null,
+        comment: null,
+      }),
+    ).resolves.toEqual({ feedback: null });
   });
 
   it("does not reduce partial assistant content before the end event", async () => {
@@ -599,6 +770,20 @@ describe("in-app agent persistence", () => {
         where: { projectId, conversationId: conversation.id, runId: run.id },
       }),
     ).resolves.toBe(9);
+
+    const persistedEventTypes = (
+      await prisma.inAppAgentEvent.findMany({
+        where: { projectId, conversationId: conversation.id, runId: run.id },
+        select: { type: true },
+      })
+    ).map((event) => event.type);
+    expect(persistedEventTypes).not.toContain(
+      EventType.REASONING_MESSAGE_START,
+    );
+    expect(persistedEventTypes).not.toContain(
+      EventType.REASONING_MESSAGE_CONTENT,
+    );
+    expect(persistedEventTypes).not.toContain(EventType.REASONING_MESSAGE_END);
   });
 
   it("stores only compact events and skips raw adapter payloads", async () => {
@@ -915,6 +1100,174 @@ describe("in-app agent persistence", () => {
         content: "[]",
         toolCallId: "paired-tool-call",
       },
+    ]);
+  });
+
+  it("drops assistant tool calls without results from loaded conversation history", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const run = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    const events = await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      messageId: "user-1",
+      content: "search",
+    });
+    const process = (event: AgUiEvent) =>
+      processAndPersistEvent({
+        projectId,
+        conversationId: conversation.id,
+        runId: run.id,
+        events,
+        event,
+      });
+
+    await process({
+      type: EventType.TEXT_MESSAGE_START,
+      messageId: "assistant-1",
+      role: "assistant",
+    });
+    await process({
+      type: EventType.TOOL_CALL_START,
+      toolCallId: "paired-tool-call",
+      toolCallName: "list_traces",
+      parentMessageId: "assistant-1",
+    });
+    await process({
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: "paired-tool-call",
+      delta: "{}",
+    });
+    await process({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: "paired-tool-call",
+    });
+    await process({
+      type: EventType.TOOL_CALL_START,
+      toolCallId: "unapproved-tool-call",
+      toolCallName: "get_trace",
+      parentMessageId: "assistant-1",
+    });
+    await process({
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: "unapproved-tool-call",
+      delta: "{}",
+    });
+    await process({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: "unapproved-tool-call",
+    });
+    await process({
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      messageId: "assistant-1",
+      delta: "calling tools",
+    });
+    await process({
+      type: EventType.TEXT_MESSAGE_END,
+      messageId: "assistant-1",
+    });
+    await process({
+      type: EventType.TOOL_CALL_RESULT,
+      messageId: "tool-result-1",
+      toolCallId: "paired-tool-call",
+      content: "[]",
+      role: "tool",
+    });
+
+    const detail = await caller.getConversation({
+      projectId,
+      conversationId: conversation.id,
+    });
+
+    expect(detail.messages).toEqual([
+      { id: "user-1", role: "user", content: "search" },
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: "calling tools",
+        runId: run.id,
+        toolCalls: [
+          {
+            id: "paired-tool-call",
+            type: "function",
+            function: { name: "list_traces", arguments: "{}" },
+          },
+        ],
+      },
+      {
+        id: "tool-result-1",
+        role: "tool",
+        content: "[]",
+        toolCallId: "paired-tool-call",
+      },
+    ]);
+  });
+
+  it("drops failed redirect tool results before replay", async () => {
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const run = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    const events = await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      messageId: "user-1",
+      content: "open a trace",
+    });
+    const process = (event: AgUiEvent) =>
+      processAndPersistEvent({
+        projectId,
+        conversationId: conversation.id,
+        runId: run.id,
+        events,
+        event,
+      });
+
+    await process({
+      type: EventType.TEXT_MESSAGE_START,
+      messageId: "assistant-1",
+      role: "assistant",
+    });
+    await process({
+      type: EventType.TOOL_CALL_START,
+      toolCallId: "redirect-tool-call",
+      toolCallName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
+      parentMessageId: "assistant-1",
+    });
+    await process({
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: "redirect-tool-call",
+      delta: '{"destination":"trace"}',
+    });
+    await process({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: "redirect-tool-call",
+    });
+    await process({
+      type: EventType.TOOL_CALL_RESULT,
+      messageId: "tool-result-1",
+      toolCallId: "redirect-tool-call",
+      content: "Tool validation failed: trace params are required",
+      role: "tool",
+    });
+
+    await expect(
+      getConversationMessagesForReplay({
+        prisma,
+        projectId,
+        conversationId: conversation.id,
+      }),
+    ).resolves.toEqual([
+      { id: "user-1", role: "user", content: "open a trace" },
     ]);
   });
 

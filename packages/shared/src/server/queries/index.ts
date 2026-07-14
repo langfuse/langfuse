@@ -17,6 +17,7 @@ export {
   NumberObjectFilter,
   StringObjectFilter,
   NullFilter,
+  encodeBooleanScoreEntry,
   type ClickhouseOperator,
 } from "./clickhouse-sql/clickhouse-filter";
 export {
@@ -63,10 +64,20 @@ export {
   buildEventsFullTableSplitQuery,
   type CTESchema,
   type CTEWithSchema,
+  type QueryWithParams,
   type ExperimentsAggregationFieldSetName,
   type SessionEventsMetricsRow,
   type SplitQueryBuilder,
 } from "./clickhouse-sql/event-query-builder";
+export {
+  buildEventsFilterOptionColumnQuery,
+  buildEventsFilterOptionsForColumnsQuery,
+  EVENTS_FILTER_OPTION_TOP_N,
+  normalizeEventFilterOptionColumn,
+  type EventFilterOptionRow,
+  type EventFilterOptionColumn,
+  type EventFilterOptionScope,
+} from "./clickhouse-sql/event-filter-options";
 export {
   eventsScoresAggregation,
   eventsSessionsAggregation,
@@ -74,4 +85,11 @@ export {
   eventsTraceMetadata,
   eventsTracesAggregation,
   eventsTracesScoresAggregation,
+  scoreBooleansAggregation,
 } from "./clickhouse-sql/query-fragments";
+export {
+  buildEventsStreamQuery,
+  eventSearchCondition,
+  type EventsStreamQuery,
+  type EventsStreamQueryInput,
+} from "./clickhouse-sql/events-stream-query";

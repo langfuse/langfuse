@@ -13,7 +13,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useEffect } from "react";
-import { api } from "@/src/utils/api";
+import { api, sendAsPostOption } from "@/src/utils/api";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { type EventBatchIOOutput } from "@/src/features/events/server/eventsRouter";
 import {
@@ -225,12 +225,14 @@ export function useParsedObservation({
   const eventsQuery = api.events.batchIO.useQuery(
     {
       projectId,
+      traceId,
       observations: [{ id: observationId, traceId }],
       minStartTime: startTime ?? new Date(0),
       maxStartTime: startTime ?? new Date(),
       truncated: false,
     },
     {
+      ...sendAsPostOption,
       enabled: isBetaEnabled,
       staleTime: 5 * 60 * 1000, // 5 minutes
       select: (data) => data[0], // Extract single result from batch

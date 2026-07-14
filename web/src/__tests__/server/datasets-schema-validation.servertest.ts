@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { prisma } from "@langfuse/shared/src/db";
+import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   makeAPICall,
   makeZodVerifiedAPICall,
@@ -340,6 +340,55 @@ describe("Unit Tests - DatasetItemValidator", () => {
       validateOpts: { normalizeUndefinedToNull: true },
     });
     expect(result.success).toBe(true);
+  });
+
+  it("should preserve unsafe JSON numbers as strings during normalization", () => {
+    const validator = new DatasetItemValidator({
+      inputSchema: null,
+      expectedOutputSchema: null,
+    });
+
+    const result = validator.validateAndNormalize({
+      input: '{"input_number":107505301260286111,"safe_number":42}',
+      expectedOutput: '{"output_number":107505301260286111}',
+      metadata: '{"metadata_number":107505301260286111}',
+      validateOpts: { normalizeUndefinedToNull: true },
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.input).toEqual({
+        input_number: "107505301260286111",
+        safe_number: 42,
+      });
+      expect(result.expectedOutput).toEqual({
+        output_number: "107505301260286111",
+      });
+      expect(result.metadata).toEqual({
+        metadata_number: "107505301260286111",
+      });
+    }
+  });
+
+  it("should normalize JSON null literals to database null", () => {
+    const validator = new DatasetItemValidator({
+      inputSchema: null,
+      expectedOutputSchema: null,
+    });
+
+    const result = validator.validateAndNormalize({
+      input: "null",
+      expectedOutput: "null",
+      metadata: "null",
+      validateOpts: { normalizeUndefinedToNull: true },
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.input).toBe(Prisma.DbNull);
+      expect(result.expectedOutput).toBe(Prisma.DbNull);
+      expect(result.metadata).toBe(Prisma.DbNull);
+    }
   });
 });
 

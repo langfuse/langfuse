@@ -121,22 +121,21 @@ export function UpsertScoreConfigDialog({
           form.reset();
           onOpenChange(false);
         });
-    } else {
-      return createScoreConfig
-        .mutateAsync({
-          projectId,
-          ...values,
-          description: values.description ?? null,
-          categories: values.categories?.length ? values.categories : undefined,
-        })
-        .then(() => {
-          capture("score_configs:create_form_submit", {
-            dataType: values.dataType,
-          });
-          form.reset();
-          onOpenChange(false);
-        });
     }
+    return createScoreConfig
+      .mutateAsync({
+        projectId,
+        ...values,
+        description: values.description ?? null,
+        categories: values.categories?.length ? values.categories : undefined,
+      })
+      .then(() => {
+        capture("score_configs:create_form_submit", {
+          dataType: values.dataType,
+        });
+        form.reset();
+        onOpenChange(false);
+      });
   }
 
   return (
@@ -313,7 +312,7 @@ export function UpsertScoreConfigDialog({
                           {fields.map((category, index) => (
                             <div
                               key={`${category.id}-langfuseObject`}
-                              className="items-top mb-2 grid grid-cols-[1fr_3fr] gap-2 text-left sm:grid-cols-[1fr_7fr]"
+                              className="mb-2 grid grid-cols-[1fr_3fr] gap-2 text-left sm:grid-cols-[1fr_7fr]"
                             >
                               <FormField
                                 control={form.control}
@@ -377,7 +376,7 @@ export function UpsertScoreConfigDialog({
                           {isCategoricalDataType(
                             form.getValues("dataType"),
                           ) && (
-                            <div className="grid-cols-auto grid">
+                            <div className="grid">
                               <Button
                                 type="button"
                                 variant="secondary"
@@ -431,7 +430,7 @@ export function UpsertScoreConfigDialog({
               <DialogFooter>
                 <div className="flex w-full flex-col items-end gap-4">
                   {formError ? (
-                    <p className="text-red w-full text-center">
+                    <p className="w-full text-center">
                       <span className="font-bold">Error:</span> {formError}
                     </p>
                   ) : null}

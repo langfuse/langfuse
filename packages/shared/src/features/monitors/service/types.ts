@@ -6,8 +6,10 @@ import { paginationZod } from "../../../utils/zod";
 
 import {
   MonitorSchema,
+  MonitorSeveritySchema,
   MonitorWriteStatusSchema,
-  validateQuery,
+  validateAtLeastOneTrigger,
+  validateMonitorQuery,
   validateThresholdOrder,
 } from "../types";
 
@@ -34,8 +36,9 @@ const omitOnWrite = {
   severityChangedAt: true,
   alertedAt: true,
   nextRunAt: true,
-  lastPublishedRunAt: true,
-  lastCompletedRunAt: true,
+  lastPublishedAt: true,
+  lastClaimedAt: true,
+  lastCompletedAt: true,
 } as const;
 
 /** CreateMonitorSchema is the input for MonitorService.create. */
@@ -43,16 +46,19 @@ export const CreateMonitorSchema = MonitorSchema.omit({
   ...omitOnWrite,
   id: true,
 })
-  .extend({ status: MonitorWriteStatusSchema.default("active") })
-  .superRefine(validateQuery)
-  .superRefine(validateThresholdOrder);
+  .extend({ status: MonitorWriteStatusSchema.default("ACTIVE") })
+  .superRefine(validateMonitorQuery)
+  .superRefine(validateThresholdOrder)
+  .superRefine(validateAtLeastOneTrigger);
 export type CreateMonitor = z.infer<typeof CreateMonitorSchema>;
 
 /** UpdateMonitorSchema is the input for MonitorService.update. */
 export const UpdateMonitorSchema = MonitorSchema.omit(omitOnWrite)
-  .extend({ status: MonitorWriteStatusSchema.default("active") })
-  .superRefine(validateQuery)
-  .superRefine(validateThresholdOrder);
+  // status has no default: a default would un-pause a monitor on a form save.
+  .extend({ status: MonitorWriteStatusSchema.optional() })
+  .superRefine(validateMonitorQuery)
+  .superRefine(validateThresholdOrder)
+  .superRefine(validateAtLeastOneTrigger);
 export type UpdateMonitor = z.infer<typeof UpdateMonitorSchema>;
 
 /** GetMonitorByIdSchema is the input for MonitorService.getById. */
@@ -69,6 +75,14 @@ export const DeleteMonitorSchema = z.object({
 });
 export type DeleteMonitor = z.infer<typeof DeleteMonitorSchema>;
 
+/** GetMonitorFilterOptionsSchema is the input for MonitorService.getFilterOptions. */
+export const GetMonitorFilterOptionsSchema = z.object({
+  projectId: z.string(),
+});
+export type GetMonitorFilterOptions = z.infer<
+  typeof GetMonitorFilterOptionsSchema
+>;
+
 /** MonitorListOrderBySchema is the set of columns MonitorService.list can sort by. */
 export const MonitorListOrderBySchema = z.enum([
   "name",
@@ -81,6 +95,43 @@ export const MonitorListOrderBySchema = z.enum([
 ]);
 export type MonitorListOrderBy = z.infer<typeof MonitorListOrderBySchema>;
 
+/** ListMonitorSeverityFilterSchema is the severity row of a ListMonitorFilter. */
+export const ListMonitorSeverityFilterSchema = z.object({
+  type: z.literal("stringOptions"),
+  column: z.literal("severity"),
+  operator: z.enum(["any of", "none of"]),
+  value: z.array(MonitorSeveritySchema).min(1),
+});
+export type ListMonitorSeverityFilter = z.infer<
+  typeof ListMonitorSeverityFilterSchema
+>;
+
+/** ListMonitorTagsFilterSchema is the tags row of a ListMonitorFilter. */
+export const ListMonitorTagsFilterSchema = z.object({
+  type: z.literal("arrayOptions"),
+  column: z.literal("tags"),
+  operator: z.enum(["any of", "all of", "none of"]),
+  value: z.array(z.string()),
+});
+export type ListMonitorTagsFilter = z.infer<typeof ListMonitorTagsFilterSchema>;
+
+/** ErrorListMonitorFilterDuplicateColumn is the message for a repeated column. */
+export const ErrorListMonitorFilterDuplicateColumn =
+  "Each column may appear at most once in a ListMonitorFilter";
+
+/** ListMonitorFilterSchema is the typed subset of `singleFilter[]` accepted by MonitorService.list. */
+export const ListMonitorFilterSchema = z
+  .array(
+    z.discriminatedUnion("column", [
+      ListMonitorSeverityFilterSchema,
+      ListMonitorTagsFilterSchema,
+    ]),
+  )
+  .refine((rows) => new Set(rows.map((r) => r.column)).size === rows.length, {
+    message: ErrorListMonitorFilterDuplicateColumn,
+  });
+export type ListMonitorFilter = z.infer<typeof ListMonitorFilterSchema>;
+
 /** ListMonitorsSchema is the input for MonitorService.list. */
 export const ListMonitorsSchema = z.object({
   projectId: z.string(),
@@ -90,6 +141,7 @@ export const ListMonitorsSchema = z.object({
       order: z.enum(["ASC", "DESC"]),
     })
     .nullable(),
+  filter: ListMonitorFilterSchema.optional(),
   ...paginationZod,
 });
 export type ListMonitors = z.infer<typeof ListMonitorsSchema>;
