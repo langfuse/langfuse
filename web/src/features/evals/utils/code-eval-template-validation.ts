@@ -1,4 +1,7 @@
-import type * as ts from "typescript";
+// "typescript6" aliases @typescript/typescript6: this module needs the TS
+// JavaScript compiler API, which typescript@7 (the project's `typescript`,
+// used by next build's CLI checker) does not ship until 7.1.
+import type * as ts from "typescript6";
 import type { Diagnostic as RuffDiagnostic } from "@astral-sh/ruff-wasm-web";
 import {
   PYTHON_CODE_EVAL_CONTRACT,
@@ -612,7 +615,7 @@ export async function validateCodeEvalSourceWithLanguage({
 export async function validateCodeEvalSourceWithTypescript(
   source: string,
 ): Promise<CodeEvalValidationResult> {
-  const tsModule = await import("typescript");
+  const tsModule = await import("typescript6");
   return validateCodeEvalSource(source, tsModule);
 }
 
