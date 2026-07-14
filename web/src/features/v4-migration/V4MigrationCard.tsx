@@ -35,19 +35,19 @@ export function V4MigrationCard() {
     <button
       type="button"
       onClick={handleClick}
-      className="w-full rounded-md border border-yellow-300 bg-yellow-50 px-2.5 py-2.5 text-left group-data-[collapsible=icon]:hidden hover:bg-yellow-100 dark:border-yellow-700 dark:bg-yellow-950 dark:hover:bg-yellow-900"
+      className="border-dark-yellow/30 bg-light-yellow hover:border-dark-yellow/60 w-full rounded-md border px-2.5 py-2.5 text-left group-data-[collapsible=icon]:hidden"
     >
       <div className="flex items-center justify-between gap-1.5">
         <div className="flex min-w-0 items-center gap-1.5">
-          <TriangleAlert className="h-4 w-4 shrink-0 text-yellow-700 dark:text-yellow-500" />
+          <TriangleAlert className="text-dark-yellow h-4 w-4 shrink-0" />
           <span
-            className="truncate text-sm font-semibold text-yellow-700 dark:text-yellow-500"
+            className="text-dark-yellow truncate text-sm font-semibold"
             title="Action required"
           >
             Action required
           </span>
         </div>
-        <ChevronRight className="text-muted-foreground h-4 w-4 shrink-0" />
+        <ChevronRight className="text-dark-yellow h-4 w-4 shrink-0" />
       </div>
     </button>
   );

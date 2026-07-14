@@ -2,6 +2,7 @@ import { type ReactNode } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import {
+  ChevronRight,
   Code,
   Copy,
   Lightbulb,
@@ -13,12 +14,18 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
+import { RainbowButton } from "@/src/components/magicui/rainbow-button";
 import {
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbList,
   BreadcrumbPage,
 } from "@/src/components/ui/breadcrumb";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/src/components/ui/collapsible";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -105,19 +112,22 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <div className="border-b">
-      <div className="flex w-full items-center gap-2.5 py-3">
+    <Collapsible className="border-b">
+      <CollapsibleTrigger className="group flex w-full items-center gap-2.5 py-3 text-left">
+        <ChevronRight className="text-muted-foreground h-4 w-4 shrink-0 transition-transform group-data-[state=open]:rotate-90" />
         {icon}
         <span className="flex-1 text-sm">{title}</span>
         {chip}
-      </div>
-      <div className="pb-3.5 pl-6.5">{children}</div>
-    </div>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="pt-0.5 pb-3.5 pl-13">{children}</div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
 function MonoValue({ children }: { children: ReactNode }) {
-  return <span className="text-foreground font-mono">{children}</span>;
+  return <span className="text-foreground font-medium">{children}</span>;
 }
 
 function ExternalLink({
@@ -164,18 +174,18 @@ function SdkCaseCopy({ sdkCase }: { sdkCase: number }) {
       return (
         <>
           This project sends traces via OTel, which adds a{" "}
-          <span className="text-dark-yellow font-mono">~15 min</span> delay. To
-          see real-time data, update your OTel instrumentation to include the
-          write header.
+          <span className="text-dark-yellow">~15 min</span> delay. To see
+          real-time data, update your OTel instrumentation to include the write
+          header.
         </>
       );
     case 5:
       return (
         <>
           This project uses <MonoValue>SDK v3</MonoValue>, which adds a{" "}
-          <span className="text-dark-yellow font-mono">~15 min</span> delay.
-          Update for real-time data. Requires changes to your instrumentation to
-          adjust how traces are sent.
+          <span className="text-dark-yellow">~15 min</span> delay. Update for
+          real-time data. Requires changes to your instrumentation to adjust how
+          traces are sent.
         </>
       );
     case 6:
@@ -279,17 +289,12 @@ export const V4MigrationPanel = ({
             <ExternalLink href={V4_DOCS_URL}>deprecated by Oct 1</ExternalLink>.
           </p>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" asChild>
-              <a href={V4_DOCS_URL} target="_blank" rel="noopener noreferrer">
-                Docs
-              </a>
-            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button size="sm">
-                  <Copy className="mr-1.5 h-3.5 w-3.5" />
+                <RainbowButton className="w-full">
+                  <Copy className="mr-1.5 h-4 w-4" />
                   Update with agent
-                </Button>
+                </RainbowButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-[340px]">
                 {showInAppAgentOption && (
@@ -331,6 +336,11 @@ export const V4MigrationPanel = ({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            <Button variant="outline" asChild>
+              <a href={V4_DOCS_URL} target="_blank" rel="noopener noreferrer">
+                Docs
+              </a>
+            </Button>
           </div>
         </div>
 
@@ -373,8 +383,8 @@ export const V4MigrationPanel = ({
                 <>
                   <p className="text-muted-foreground mb-2 text-sm">
                     Editing is frozen; stops running{" "}
-                    <span className="text-dark-yellow font-mono">Oct 1</span>.
-                    Repoint each to an observation.
+                    <span className="text-dark-yellow">Oct 1</span>. Repoint
+                    each to an observation.
                   </p>
                   <div className="flex flex-col gap-2">
                     {DEPRECATED_EVALS.map((name) =>
@@ -382,12 +392,12 @@ export const V4MigrationPanel = ({
                         <Link
                           key={name}
                           href={evalsUrl}
-                          className="text-primary self-start font-mono text-sm font-medium hover:underline"
+                          className="text-primary self-start text-sm font-medium hover:underline"
                         >
                           {name}
                         </Link>
                       ) : (
-                        <span key={name} className="font-mono text-sm">
+                        <span key={name} className="text-sm">
                           {name}
                         </span>
                       ),
@@ -422,11 +432,11 @@ export const V4MigrationPanel = ({
                   >
                     <ExternalLink
                       href="https://api.reference.langfuse.com"
-                      className="font-mono text-sm"
+                      className="text-sm"
                     >
                       {api.endpoint}
                     </ExternalLink>
-                    <span className="text-muted-foreground font-mono text-xs">
+                    <span className="text-muted-foreground text-xs">
                       {api.volume}
                     </span>
                   </div>
@@ -449,12 +459,12 @@ export const V4MigrationPanel = ({
                     {typeof projectId === "string" ? (
                       <Link
                         href={`/project/${projectId}/settings/integrations`}
-                        className="text-primary font-mono text-sm font-medium hover:underline"
+                        className="text-primary text-sm font-medium hover:underline"
                       >
                         {name}
                       </Link>
                     ) : (
-                      <span className="font-mono text-sm">{name}</span>
+                      <span className="text-sm">{name}</span>
                     )}
                   </div>
                 ))}
