@@ -2978,7 +2978,7 @@ export class OtelIngestionProcessor {
       return stringValue;
     }
     logger.warn(
-      "OTEL invalid experiment item version, dropping. Expected format: YYYY-MM-DD HH:MM:SS.SSSSSS",
+      "OTEL invalid experiment item version, dropping. Expected timestamp.",
     );
     return undefined;
   }
