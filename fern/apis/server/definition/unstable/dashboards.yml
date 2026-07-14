@@ -1,0 +1,98 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  errors: ./errors.yml
+
+service:
+  auth: true
+  base-path: /api/public/unstable
+  endpoints:
+    list:
+      method: GET
+      path: /dashboards
+      response: DashboardList
+    create:
+      method: POST
+      path: /dashboards
+      request: CreateDashboardRequest
+      response: Dashboard
+    get:
+      method: GET
+      path: /dashboards/{dashboardId}
+      path-parameters:
+        dashboardId: string
+      response: Dashboard
+    update:
+      method: PATCH
+      path: /dashboards/{dashboardId}
+      path-parameters:
+        dashboardId: string
+      request: UpdateDashboardRequest
+      response: Dashboard
+    delete:
+      method: DELETE
+      path: /dashboards/{dashboardId}
+      path-parameters:
+        dashboardId: string
+      response: DeleteDashboardResponse
+
+types:
+  DashboardPlacement:
+    discriminant: type
+    union:
+      widget:
+        type: WidgetPlacement
+      preset:
+        type: PresetPlacement
+  WidgetPlacement:
+    properties:
+      id: string
+      widgetId: string
+      x: integer
+      y: integer
+      x_size: integer
+      y_size: integer
+  PresetPlacement:
+    properties:
+      id: string
+      presetId: string
+      x: integer
+      y: integer
+      x_size: integer
+      y_size: integer
+  DashboardDefinition:
+    properties:
+      widgets: list<DashboardPlacement>
+  Dashboard:
+    properties:
+      id: string
+      createdAt: datetime
+      updatedAt: datetime
+      name: string
+      description: string
+      definition: DashboardDefinition
+      filters: list<unknown>
+  DashboardList:
+    properties:
+      data: list<Dashboard>
+      meta: DashboardPagination
+  DashboardPagination:
+    properties:
+      page: integer
+      limit: integer
+      totalItems: integer
+      totalPages: integer
+  CreateDashboardRequest:
+    properties:
+      name: string
+      description: optional<string>
+      definition: optional<DashboardDefinition>
+      filters: optional<list<unknown>>
+  UpdateDashboardRequest:
+    properties:
+      name: optional<string>
+      description: optional<string>
+      definition: optional<DashboardDefinition>
+      filters: optional<list<unknown>>
+  DeleteDashboardResponse:
+    properties:
+      message: string

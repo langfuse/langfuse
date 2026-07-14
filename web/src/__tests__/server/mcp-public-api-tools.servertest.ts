@@ -242,7 +242,9 @@ describe("MCP public API tools", () => {
       .sort();
     expect(destructiveToolNames).toEqual(
       [
+        "addDashboardPlacement",
         "createChatPrompt",
+        "createDashboard",
         "createDashboardWidget",
         "createEvaluationRule",
         "upsertEvaluator",
@@ -251,6 +253,9 @@ describe("MCP public API tools", () => {
         "createTextPrompt",
         "deleteAnnotationQueueAssignment",
         "deleteAnnotationQueueItem",
+        "deleteDashboard",
+        "deleteDashboardPlacement",
+        "deleteDashboardWidget",
         "deleteDatasetItem",
         "deleteDatasetRun",
         "deleteEvaluationRule",
@@ -258,6 +263,9 @@ describe("MCP public API tools", () => {
         "deleteModel",
         "deleteScoreConfig",
         "updateAnnotationQueueItem",
+        "updateDashboard",
+        "updateDashboardPlacement",
+        "updateDashboardWidget",
         "updateEvaluationRule",
         "updatePromptLabels",
         "updateScoreConfig",

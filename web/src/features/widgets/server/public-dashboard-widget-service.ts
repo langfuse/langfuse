@@ -20,6 +20,7 @@ import {
   PostUnstableDashboardWidgetResponse,
   type PostUnstableDashboardWidgetBodyType,
 } from "@/src/features/public-api/types/unstable-dashboard-widgets";
+import { LangfuseNotFoundError } from "@langfuse/shared";
 import {
   getWidgetImportFilterConfig,
   partitionStoredUiTableFiltersToView,
@@ -247,4 +248,118 @@ export async function createPublicDashboardWidget(params: {
   });
 
   return toApiDashboardWidget(widget);
+}
+
+function toPublicWidgetInput(
+  widget: WidgetDomain,
+): PostUnstableDashboardWidgetBodyType {
+  return PostUnstableDashboardWidgetResponse.pick({
+    name: true,
+    description: true,
+    view: true,
+    dimensions: true,
+    metrics: true,
+    filters: true,
+    chartType: true,
+    chartConfig: true,
+    minVersion: true,
+  }).parse(toApiDashboardWidget(widget));
+}
+
+async function getProjectWidgetOrThrow(projectId: string, widgetId: string) {
+  const widget = await DashboardService.getWidget(widgetId, projectId);
+  if (!widget || widget.projectId !== projectId) {
+    throw new LangfuseNotFoundError(`Dashboard widget ${widgetId} not found`);
+  }
+  return widget;
+}
+
+export async function listPublicDashboardWidgets(params: {
+  projectId: string;
+  page: number;
+  limit: number;
+}) {
+  const result = await DashboardService.listWidgets(params);
+  return {
+    data: result.widgets.map(toApiDashboardWidget),
+    meta: {
+      page: params.page,
+      limit: params.limit,
+      totalItems: result.totalCount,
+      totalPages: Math.ceil(result.totalCount / params.limit),
+    },
+  };
+}
+
+export async function getPublicDashboardWidget(params: {
+  projectId: string;
+  widgetId: string;
+}) {
+  return toApiDashboardWidget(
+    await getProjectWidgetOrThrow(params.projectId, params.widgetId),
+  );
+}
+
+export async function updatePublicDashboardWidget(params: {
+  projectId: string;
+  widgetId: string;
+  input: Partial<PostUnstableDashboardWidgetBodyType>;
+  auditScope: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
+}) {
+  const current = await getProjectWidgetOrThrow(
+    params.projectId,
+    params.widgetId,
+  );
+  const input = normalizePublicDashboardWidgetInput(
+    PostUnstableDashboardWidgetResponse.pick({
+      name: true,
+      description: true,
+      view: true,
+      dimensions: true,
+      metrics: true,
+      filters: true,
+      chartType: true,
+      chartConfig: true,
+      minVersion: true,
+    }).parse({ ...toPublicWidgetInput(current), ...params.input }),
+  );
+  validatePublicDashboardWidgetInput(input);
+  const updated = await DashboardService.updateWidget(
+    params.projectId,
+    params.widgetId,
+    { ...input, view: viewMapping[input.view] },
+  );
+  const result = toApiDashboardWidget(updated);
+  await auditLog({
+    action: "update",
+    resourceType: "dashboardWidget",
+    resourceId: updated.id,
+    projectId: params.projectId,
+    orgId: params.auditScope.orgId,
+    apiKeyId: params.auditScope.apiKeyId,
+    before: toApiDashboardWidget(current),
+    after: result,
+  });
+  return result;
+}
+
+export async function deletePublicDashboardWidget(params: {
+  projectId: string;
+  widgetId: string;
+  auditScope: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
+}) {
+  const current = await getProjectWidgetOrThrow(
+    params.projectId,
+    params.widgetId,
+  );
+  await DashboardService.deleteWidget(params.widgetId, params.projectId);
+  await auditLog({
+    action: "delete",
+    resourceType: "dashboardWidget",
+    resourceId: current.id,
+    projectId: params.projectId,
+    orgId: params.auditScope.orgId,
+    apiKeyId: params.auditScope.apiKeyId,
+    before: toApiDashboardWidget(current),
+  });
 }
