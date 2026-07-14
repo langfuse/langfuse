@@ -5,18 +5,21 @@ name: AWS preview build
 # tag exists for a labeled PR; this workflow only builds and pushes, then posts
 # the preview URL on the PR.
 #
-# Trust boundary is WRITE access: this builds a SAME-REPO PR's code with an AWS
-# (ECR push) credential, and opening a same-repo PR requires push access — so
-# only write-access members can trigger a build (applying the `preview` label is
-# itself a write action). No per-author allowlist. Fork PRs are excluded (the
-# head.repo check below) and can't mint an OIDC token anyway (public repo,
-# read-only token) — and the ECR-push role's trust is scoped to
+# Builds every SAME-REPO PR on open/update (write access is the gate — opening a
+# same-repo PR requires push access). It deliberately does NOT trigger on the
+# `preview` label: the auto-labeler applies that label with the default
+# GITHUB_TOKEN, and GitHub does not start workflow runs from GITHUB_TOKEN-applied
+# events (anti-recursion), so a `labeled` trigger would never fire for
+# auto-labeled PRs. The label is only the Argo *deploy* filter (infra repo), and
+# the deploy allowlist lives in the ApplicationSet — not here. Fork PRs are
+# excluded (the head.repo check below) and can't mint an OIDC token anyway
+# (public repo, read-only token); the ECR-push role's trust is scoped to
 # sub=repo:langfuse/langfuse:pull_request AND ref=refs/pull/* (GitHub OIDC has no
 # event_name claim), so pull_request_target / review — which carry the base
 # branch ref — cannot assume it either.
 on:
   pull_request:
-    types: [labeled, synchronize, reopened]
+    types: [opened, synchronize, reopened]
 
 permissions: {}
 
@@ -27,13 +30,13 @@ concurrency:
 jobs:
   build:
     name: Build and push preview images
-    # Any SAME-REPO PR (= write access) carrying the `preview` label builds.
-    # Fork PRs are excluded (head.repo check) and can't mint OIDC anyway; there
-    # is no per-author allowlist. AWS_PREVIEW_ECR_PUSH_ROLE_ARN doubles as the
-    # feature flag: unset => the workflow no-ops instead of failing per PR.
+    # Any SAME-REPO PR (= write access) builds on open/update. No label gate here:
+    # the auto-labeler's GITHUB_TOKEN-applied label can't trigger this workflow,
+    # and the label is the Argo deploy filter, not the build trigger. Fork PRs are
+    # excluded (head.repo check) and can't mint OIDC anyway.
+    # AWS_PREVIEW_ECR_PUSH_ROLE_ARN doubles as the feature flag: unset => no-op.
     if: >-
       vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != '' &&
-      contains(github.event.pull_request.labels.*.name, 'preview') &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
