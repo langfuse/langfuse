@@ -4,6 +4,7 @@ import { z } from "zod";
 import { InvalidRequestError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import type { McpToolName } from "@/src/features/mcp/server/bootstrap";
+import { IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE } from "@/src/ee/features/in-app-agent/constants";
 import { IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES } from "@/src/ee/features/in-app-agent/server/tools";
 import { safeJsonParse, stableJsonStringify } from "@/src/utils/json";
 import {
@@ -14,9 +15,14 @@ import {
   type ResumeForwardedProps,
 } from "@/src/ee/features/in-app-agent/schema";
 
-export const IN_APP_AGENT_PENDING_TOOL_APPROVAL_TTL_SECONDS = 60 * 60;
 const MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE =
   "Tool call was not approved by the user.";
+const MANUAL_TOOL_APPROVAL_REJECTION_ERROR = JSON.stringify({
+  code: IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
+  message: MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE,
+});
+
+export const IN_APP_AGENT_PENDING_TOOL_APPROVAL_TTL_SECONDS = 60 * 60;
 
 const PendingToolApprovalSchema = z.object({
   toolCallId: z.string().min(1),
@@ -183,7 +189,7 @@ export async function createManualToolApprovalRunInput(params: {
       role: "tool",
       content: MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE,
       toolCallId: approvalRequest.toolCallId,
-      error: MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE,
+      error: MANUAL_TOOL_APPROVAL_REJECTION_ERROR,
     };
 
     return {
@@ -200,7 +206,7 @@ export async function createManualToolApprovalRunInput(params: {
       syntheticEvents: createManualToolApprovalEvents({
         approvalRequest,
         toolResultContent: MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE,
-        toolError: MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE,
+        toolError: MANUAL_TOOL_APPROVAL_REJECTION_ERROR,
       }),
       toolCallApproval: {
         toolCallId: approvalRequest.toolCallId,
