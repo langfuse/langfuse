@@ -55,8 +55,9 @@ export function ControlledInAppAgentWindow(
     isSubmitting ||
     isSelectedConversationHydrating ||
     pendingToolApprovals.length > 0;
-  const screenContextDescription = getInAppAgentScreenContextDescription(
-    router.asPath,
+  const screenContextDescription = useMemo(
+    () => getInAppAgentScreenContextDescription(router.asPath),
+    [router.asPath],
   );
 
   const drawerMessages = useMemo(

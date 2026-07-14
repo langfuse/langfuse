@@ -752,15 +752,21 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   {screenContextNotice}
                 </span>
               </p>
-              {error?.type === "rate_limit" && (
-                <InAppAgentRateLimitError
-                  error={error}
-                  isExpanded={isExpanded}
-                />
-              )}
             </div>
           </div>
         </div>
+        {error?.type === "rate_limit" && (
+          <div
+            className={cn(
+              "shrink-0 px-2 pb-2",
+              isAssistantTurnInProgress && "pt-2",
+            )}
+          >
+            <div className={cn(isExpanded && "mx-auto max-w-3xl")}>
+              <InAppAgentRateLimitError error={error} isExpanded={isExpanded} />
+            </div>
+          </div>
+        )}
         {isAssistantTurnInProgress && pendingToolCalls.length === 0 ? (
           <div
             className={cn(

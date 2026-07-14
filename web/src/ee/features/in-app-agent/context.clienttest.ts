@@ -23,6 +23,11 @@ describe("getInAppAgentScreenContextDescription", () => {
       expected: { type: "observation" },
     },
     {
+      name: "observation peek in V4 events table",
+      url: "/project/project-1/traces?peek=trace-1&observation=observation-1",
+      expected: { type: "observation" },
+    },
+    {
       name: "trace peek",
       url: "/project/project-1/traces?peek=trace-1",
       expected: { type: "trace" },

@@ -988,7 +988,28 @@ export const RateLimited = meta.story({
   name: "(Test) Rate Limited",
   args: {
     error: null,
-    messages: [],
+    isAssistantTurnInProgress: true,
+    isInputDisabled: true,
+    messages: [
+      {
+        id: "approval-1",
+        role: "assistant",
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              type: "tool",
+              name: "langfuse_upsertDataset",
+              args: JSON.stringify({ name: "regression-examples" }),
+              approval: {
+                id: "approval-1",
+                status: "pending",
+              },
+            },
+          ],
+        },
+      },
+    ],
   },
   render: function Render(args) {
     const [retryAt] = useState(() => Date.now() + 12_000);
@@ -1016,14 +1037,15 @@ export const RateLimited = meta.story({
       canvas.getByRole("textbox", { name: "Ask the assistant a question" }),
     ).toBeDisabled();
     await expect(
-      canvas.getByRole("button", { name: "Get started with Langfuse" }),
+      canvas.getByRole("button", { name: "Confirm" }),
     ).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "Reject" })).toBeDisabled();
     await expect(
       canvas.getByRole("button", { name: "Start new conversation" }),
-    ).toBeEnabled();
+    ).toBeDisabled();
     await expect(
       canvas.getByRole("button", { name: "Conversation history" }),
-    ).toBeEnabled();
+    ).toBeDisabled();
   },
 });
 

@@ -76,7 +76,7 @@ export function getInAppAgentScreenContextDescription(
   );
 
   if (
-    (section === "traces" && detailId && observationId) ||
+    (section === "traces" && observationId && (detailId || peekId)) ||
     (section === "observations" && peekId)
   ) {
     return { type: "observation" };
