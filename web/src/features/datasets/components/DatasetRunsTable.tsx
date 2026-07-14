@@ -693,9 +693,6 @@ export function DatasetRunsTable(props: {
                             type: chartType,
                             unit: getCompareViewChartUnit(key),
                           }}
-                          legendPosition={
-                            chartLabels.length > 1 ? "above" : "none"
-                          }
                         />
                       </div>
                     </div>
@@ -711,6 +708,7 @@ export function DatasetRunsTable(props: {
           >
             <DataTableToolbar
               columns={columns}
+              tableName="dataset-runs"
               filterColumnDefinition={transformedFilterOptions}
               filterState={userFilterState}
               setFilterState={setFilterState}
@@ -776,6 +774,7 @@ export function DatasetRunsTable(props: {
         <>
           <DataTableToolbar
             columns={columns}
+            tableName="dataset-runs"
             filterColumnDefinition={transformedFilterOptions}
             filterState={userFilterState}
             setFilterState={setFilterState}

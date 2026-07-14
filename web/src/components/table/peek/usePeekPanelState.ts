@@ -18,6 +18,10 @@ import {
 } from "@/src/components/table/peek/store/peekPanelStore";
 import { beginPeekResize } from "@/src/components/table/peek/actions/resizePeekPanel";
 
+// A burst of keyboard nudges is one resize action — trailing-debounce it into
+// a single onResized notification.
+const KEYBOARD_RESIZE_NOTIFY_DEBOUNCE_MS = 1000;
+
 export type PeekPanelView = {
   /** Whether the panel is expanded to max width (viewport − sidebar). */
   isExpanded: boolean;
@@ -66,16 +70,43 @@ export function usePeekPanelState({
   isOpen,
   isExpanded,
   onExpandedChange,
+  onResized,
 }: {
   isOpen: boolean;
   isExpanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
+  /**
+   * Notified once per user resize gesture that lands on a widget width — a
+   * completed drag, or a burst of keyboard nudges (debounced). The host's
+   * analytics seam; expand-commits and cancelled drags don't notify.
+   */
+  onResized?: (widthFraction: number, trigger: "drag" | "keyboard") => void;
 }): PeekPanelView {
   const [store] = useState(() => createPeekPanelStore());
 
   const isResizing = useStore(store, selectIsResizing);
   const draftExpanded = useStore(store, selectDraftExpanded);
   const widgetWidth = useStore(store, selectWidgetWidth);
+
+  // Keep the latest callback in a ref so drag/keyboard closures never go
+  // stale and the memoized handlers don't churn on a new callback identity.
+  const onResizedRef = useRef(onResized);
+  useEffect(() => {
+    onResizedRef.current = onResized;
+  }, [onResized]);
+  const keyboardResizeNotifyTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  // Cancelled whenever another gesture takes over (a drag starts) or the peek
+  // closes — a pending keyboard notification must not fire with the new
+  // gesture's width (mislabeled trigger) or after dismissal.
+  const cancelKeyboardResizeNotify = useCallback(() => {
+    if (keyboardResizeNotifyTimeoutRef.current) {
+      clearTimeout(keyboardResizeNotifyTimeoutRef.current);
+      keyboardResizeNotifyTimeoutRef.current = null;
+    }
+  }, []);
+  useEffect(() => cancelKeyboardResizeNotify, [cancelKeyboardResizeNotify]);
 
   // Locally-committed expanded value, held until the URL reflects it.
   const [pendingExpanded, setPendingExpanded] = useState<boolean | null>(null);
@@ -143,12 +174,16 @@ export function usePeekPanelState({
     store.getState().actions.cancelResize();
   }, [store]);
   useEffect(() => {
-    if (!isOpen) endActiveDrag();
-  }, [isOpen, endActiveDrag]);
+    if (!isOpen) {
+      endActiveDrag();
+      cancelKeyboardResizeNotify();
+    }
+  }, [isOpen, endActiveDrag, cancelKeyboardResizeNotify]);
   useEffect(() => endActiveDrag, [endActiveDrag]);
 
   const onPointerDown = useCallback(
     (event: ReactPointerEvent) => {
+      cancelKeyboardResizeNotify();
       // The drag flips to expanded at the sidebar edge (viewport − sidebar),
       // clamped to the widget bounds, so it can't overshoot onto the sidebar.
       const vw = typeof window === "undefined" ? 0 : window.innerWidth;
@@ -165,9 +200,16 @@ export function usePeekPanelState({
         commitExpanded,
         expandAtFraction,
         effectiveExpanded,
+        (fraction) => onResizedRef.current?.(fraction, "drag"),
       );
     },
-    [store, commitExpanded, sidebarOffset, effectiveExpanded],
+    [
+      store,
+      commitExpanded,
+      sidebarOffset,
+      effectiveExpanded,
+      cancelKeyboardResizeNotify,
+    ],
   );
 
   const onKeyDown = useCallback(
@@ -177,12 +219,20 @@ export function usePeekPanelState({
       if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
         event.preventDefault();
         commitExpanded(false);
+        const before = store.getState().widthFraction;
         store
           .getState()
           .actions.nudgeWidth(event.key === "ArrowLeft" ? "grow" : "shrink");
+        // Nudging against the min/max clamp changes nothing — notify nothing.
+        if (store.getState().widthFraction === before) return;
+        cancelKeyboardResizeNotify();
+        keyboardResizeNotifyTimeoutRef.current = setTimeout(() => {
+          keyboardResizeNotifyTimeoutRef.current = null;
+          onResizedRef.current?.(store.getState().widthFraction, "keyboard");
+        }, KEYBOARD_RESIZE_NOTIFY_DEBOUNCE_MS);
       }
     },
-    [store, commitExpanded],
+    [store, commitExpanded, cancelKeyboardResizeNotify],
   );
 
   // Toggle relative to what the button currently SHOWS (effectiveExpanded),

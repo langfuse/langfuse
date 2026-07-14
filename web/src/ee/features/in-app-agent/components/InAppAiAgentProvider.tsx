@@ -10,7 +10,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { HttpAgent } from "@ag-ui/client";
+import { EventType, HttpAgent } from "@ag-ui/client";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 import { z } from "zod";
@@ -22,6 +22,7 @@ import {
   createInAppAgentMessageId,
   createInAppAgentRunId,
 } from "@/src/ee/features/in-app-agent/ids";
+import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
 import {
   AgUiMessageSchema,
   type AgUiMessage,
@@ -30,6 +31,7 @@ import {
   type InAppAgentRuntimeState,
   type InAppAgentToolApprovalRequest,
 } from "@/src/ee/features/in-app-agent/schema";
+import type { InAppAgentError } from "@/src/ee/features/in-app-agent/components/utils/utils";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api } from "@/src/utils/api";
@@ -38,6 +40,11 @@ import {
   createInAppAgentUserContext,
 } from "@/src/ee/features/in-app-agent/context";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  getInAppAgentError,
+  isInAppAgentRateLimited,
+} from "@/src/ee/features/in-app-agent/components/utils/utils";
+import { type InAppAiAgentMessage } from "@/src/ee/features/in-app-agent/components/utils/utils";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
@@ -87,8 +94,6 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   submitFeedback: async () => undefined,
 };
 
-type InAppAiAgentMessage = AgUiMessage;
-
 type InAppAiAgentFeedbackByConversationId = Record<
   string,
   Record<string, InAppAgentMessageFeedback>
@@ -116,7 +121,7 @@ type InAppAiAgentContextType = {
   isSubmitting: boolean;
   pendingToolApprovals: InAppAgentPendingToolApproval[];
   isSelectedConversationHydrating: boolean;
-  error: string | null;
+  error: InAppAgentError | null;
   messages: InAppAiAgentMessage[];
   conversations: InAppAiAgentConversation[];
   hasMoreConversations: boolean;
@@ -139,9 +144,9 @@ type InAppAiAgentContextType = {
 
 const InAppAiAgentContext = createContext<InAppAiAgentContextType | null>(null);
 
-export interface InAppAiAgentProviderProps extends PropsWithChildren {
+export type InAppAiAgentProviderProps = PropsWithChildren<{
   defaultOpen?: boolean;
-}
+}>;
 
 export function InAppAiAgentProvider({
   children,
@@ -214,7 +219,7 @@ function InAppAiAgentProviderInner({
       `${FEEDBACK_STORAGE_KEY_PREFIX}:${projectId}`,
       {},
     );
-  const [messages, setMessages] = useState<InAppAiAgentMessage[]>([]);
+  const [messages, setMessages] = useState<AgUiMessage[]>([]);
   const [pendingToolApprovals, setPendingToolApprovals] = useState<
     InAppAgentPendingToolApproval[]
   >([]);
@@ -222,7 +227,10 @@ function InAppAiAgentProviderInner({
   const [isRunning, setIsRunning] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loadingEventIds, setLoadingEventIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const [error, setError] = useState<InAppAgentError | null>(null);
   const agentRef = useRef<HttpAgent | null>(null);
   const activeRunIdRef = useRef<string | null>(null);
   const intentionalAbortRef = useRef(false);
@@ -260,16 +268,41 @@ function InAppAiAgentProviderInner({
   );
   const hasMoreConversations = conversationListQuery.hasNextPage === true;
   const isLoadingMoreConversations = conversationListQuery.isFetchingNextPage;
-  const messagesWithFeedback = useMemo(
-    () =>
-      mergeMessagesWithFeedback(
-        messages,
-        selectedConversationId
-          ? feedbackByConversationId[selectedConversationId]
-          : undefined,
-      ),
-    [feedbackByConversationId, messages, selectedConversationId],
-  );
+  const messagesWithUiState = useMemo(() => {
+    const messagesWithFeedback = mergeMessagesWithFeedback(
+      messages,
+      selectedConversationId
+        ? feedbackByConversationId[selectedConversationId]
+        : undefined,
+    );
+
+    return messagesWithFeedback.map((message) => {
+      if (message.role === "reasoning") {
+        return { ...message, isLoading: loadingEventIds.has(message.id) };
+      }
+
+      if (message.role !== "assistant") {
+        return message;
+      }
+
+      return {
+        ...message,
+        isLoading:
+          loadingEventIds.has(message.id) ||
+          (message.toolCalls?.some(
+            (toolCall) =>
+              toolCall.function.name !== IN_APP_AGENT_REDIRECT_TOOL_NAME &&
+              loadingEventIds.has(toolCall.id),
+          ) ??
+            false),
+      };
+    });
+  }, [
+    feedbackByConversationId,
+    loadingEventIds,
+    messages,
+    selectedConversationId,
+  ]);
   const fetchNextConversationsPage = conversationListQuery.fetchNextPage;
   const loadMoreConversations = useCallback(() => {
     if (!hasMoreConversations || isLoadingMoreConversations) {
@@ -320,24 +353,51 @@ function InAppAiAgentProviderInner({
     },
     [],
   );
+  const updateLoadingEvent = useCallback(
+    (eventId: string, isLoading: boolean) => {
+      setLoadingEventIds((currentIds) => {
+        if (currentIds.has(eventId) === isLoading) {
+          return currentIds;
+        }
 
-  const resetAgent = useCallback((options?: { preserveAgent?: boolean }) => {
-    if (options?.preserveAgent) {
-      return;
-    }
-
-    if (agentRef.current?.isRunning) {
-      intentionalAbortRef.current = true;
-    }
-
-    subscriptionRef.current?.unsubscribe();
-    subscriptionRef.current = null;
-    agentRef.current?.abortRun();
-    agentRef.current = null;
-    activeRunIdRef.current = null;
-    pendingToolApprovalsRef.current = [];
-    setPendingToolApprovals([]);
+        const nextIds = new Set(currentIds);
+        if (isLoading) {
+          nextIds.add(eventId);
+        } else {
+          nextIds.delete(eventId);
+        }
+        return nextIds;
+      });
+    },
+    [],
+  );
+  const clearLoadingEvents = useCallback(() => {
+    setLoadingEventIds((currentIds) =>
+      currentIds.size > 0 ? new Set() : currentIds,
+    );
   }, []);
+
+  const resetAgent = useCallback(
+    (options?: { preserveAgent?: boolean }) => {
+      if (options?.preserveAgent) {
+        return;
+      }
+
+      if (agentRef.current?.isRunning) {
+        intentionalAbortRef.current = true;
+      }
+
+      subscriptionRef.current?.unsubscribe();
+      subscriptionRef.current = null;
+      agentRef.current?.abortRun();
+      agentRef.current = null;
+      activeRunIdRef.current = null;
+      pendingToolApprovalsRef.current = [];
+      setPendingToolApprovals([]);
+      clearLoadingEvents();
+    },
+    [clearLoadingEvents],
+  );
 
   // Hydrate local state from the selected persisted conversation once it loads.
   useEffect(() => {
@@ -410,6 +470,34 @@ function InAppAiAgentProviderInner({
     };
   }, [resetAgent]);
 
+  const rateLimitRetryAt = error?.type === "rate_limit" ? error.retryAt : null;
+
+  useEffect(() => {
+    if (rateLimitRetryAt === null) {
+      return;
+    }
+
+    const timeout = window.setTimeout(
+      () => {
+        setError((currentError) => {
+          if (
+            currentError?.type !== "rate_limit" ||
+            currentError.retryAt !== rateLimitRetryAt
+          ) {
+            return currentError;
+          }
+
+          return null;
+        });
+      },
+      Math.max(0, rateLimitRetryAt - Date.now()),
+    );
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [rateLimitRetryAt]);
+
   const ensureSubscription = useCallback(
     (agent: HttpAgent) => {
       if (subscriptionRef.current) {
@@ -417,8 +505,51 @@ function InAppAiAgentProviderInner({
       }
 
       subscriptionRef.current = agent.subscribe({
-        onRunStartedEvent: ({ event }) => {
-          activeRunIdRef.current = event.runId;
+        onRunStartedEvent: (payload: { event: unknown }) => {
+          if (
+            typeof payload.event === "object" &&
+            payload.event !== null &&
+            "runId" in payload.event &&
+            typeof payload.event.runId === "string"
+          ) {
+            activeRunIdRef.current = payload.event.runId;
+          }
+        },
+        onEvent: ({ event }) => {
+          if (
+            event.type === EventType.REASONING_MESSAGE_START ||
+            event.type === EventType.TEXT_MESSAGE_START
+          ) {
+            updateLoadingEvent(event.messageId, true);
+            return;
+          }
+
+          if (
+            event.type === EventType.REASONING_MESSAGE_END ||
+            event.type === EventType.TEXT_MESSAGE_END
+          ) {
+            updateLoadingEvent(event.messageId, false);
+            return;
+          }
+
+          if (event.type === EventType.TOOL_CALL_START) {
+            updateLoadingEvent(event.toolCallId, true);
+            return;
+          }
+
+          // TOOL_CALL_END only finishes argument streaming. The tool remains
+          // active until its result arrives.
+          if (event.type === EventType.TOOL_CALL_RESULT) {
+            updateLoadingEvent(event.toolCallId, false);
+            return;
+          }
+
+          if (
+            event.type === EventType.RUN_FINISHED ||
+            event.type === EventType.RUN_ERROR
+          ) {
+            clearLoadingEvents();
+          }
         },
         onCustomEvent: ({ event }) => {
           const approvalRequest = parseInAppAgentInterruptEvent(event);
@@ -447,13 +578,20 @@ function InAppAiAgentProviderInner({
             return nextApprovals;
           });
         },
+        onToolCallResultEvent: ({ event }) => {
+          updatePendingToolApprovals((currentApprovals) =>
+            currentApprovals.filter(
+              (approval) =>
+                approval.approvalRequest.toolCallId !== event.toolCallId,
+            ),
+          );
+        },
         onRunErrorEvent: ({ event }) => {
           if (intentionalAbortRef.current) {
             return;
           }
 
-          const errorMessage = getAgentErrorMessage(event);
-          setError(errorMessage);
+          setError(getInAppAgentError(event));
           console.error("In-app agent drawer run error", event);
         },
         onMessagesChanged: ({ messages }) => {
@@ -474,13 +612,13 @@ function InAppAiAgentProviderInner({
         },
       });
     },
-    [updatePendingToolApprovals],
+    [clearLoadingEvents, updateLoadingEvent, updatePendingToolApprovals],
   );
 
   const getOrCreateAgent = useCallback(
     (
       conversationId: string,
-      initialMessages: InAppAiAgentMessage[],
+      initialMessages: AgUiMessage[],
       isNewConversation: boolean,
     ) => {
       if (agentRef.current?.threadId === conversationId) {
@@ -518,6 +656,7 @@ function InAppAiAgentProviderInner({
       conversationId: string,
       runParameters?: Parameters<HttpAgent["runAgent"]>[0],
     ) => {
+      clearLoadingEvents();
       setIsRunning(true);
       return agent
         .runAgent({
@@ -545,13 +684,13 @@ function InAppAiAgentProviderInner({
             throw error;
           }
 
-          const errorMessage = getAgentErrorMessage(error);
-          setError(errorMessage);
+          setError(getInAppAgentError(error));
           console.error("In-app agent drawer error", error);
           return false;
         })
         .finally(() => {
           const runId = activeRunIdRef.current;
+          clearLoadingEvents();
           setIsRunning(false);
           setMessages(
             attachActiveRunIdToAssistantMessages(
@@ -571,6 +710,7 @@ function InAppAiAgentProviderInner({
     },
     [
       projectId,
+      clearLoadingEvents,
       releaseSubmitLock,
       session.data?.user?.name,
       utils.inAppAgent.getConversation,
@@ -584,7 +724,9 @@ function InAppAiAgentProviderInner({
         return;
       }
 
-      setError(null);
+      setError((currentError) =>
+        isInAppAgentRateLimited(currentError) ? currentError : null,
+      );
       resetAgent();
       setMessages([]);
       setSelectedConversationId(conversationId);
@@ -652,6 +794,7 @@ function InAppAiAgentProviderInner({
       if (
         !content ||
         isRunning ||
+        isInAppAgentRateLimited(error) ||
         isSelectedConversationHydrating ||
         submitInFlightRef.current
       ) {
@@ -709,8 +852,7 @@ function InAppAiAgentProviderInner({
         runAgent(agent, conversationId);
         return true;
       } catch (error) {
-        const errorMessage = getAgentErrorMessage(error);
-        setError(errorMessage);
+        setError(getInAppAgentError(error));
         console.error("Failed to start in-app agent conversation", error);
         return false;
       } finally {
@@ -723,6 +865,7 @@ function InAppAiAgentProviderInner({
       conversationQuery.data,
       capture,
       ensureSubscription,
+      error,
       getOrCreateAgent,
       isSelectedConversationHydrating,
       isRunning,
@@ -802,7 +945,12 @@ function InAppAiAgentProviderInner({
         (approval) => approval.id === approvalId,
       );
 
-      if (!approval || !selectedConversationId || isRunning) {
+      if (
+        !approval ||
+        !selectedConversationId ||
+        isRunning ||
+        isInAppAgentRateLimited(error)
+      ) {
         return;
       }
 
@@ -862,7 +1010,10 @@ function InAppAiAgentProviderInner({
               (currentApproval) => currentApproval.id !== approvalId,
             ),
           );
-          setError("This tool approval is no longer valid. Please try again.");
+          setError({
+            type: "generic",
+            message: "This tool approval is no longer valid. Please try again.",
+          });
           console.error("Failed to resume in-app agent tool call", error);
           return;
         }
@@ -874,12 +1025,13 @@ function InAppAiAgentProviderInner({
               : currentApproval,
           ),
         );
-        setError(errorMessage);
+        setError(getInAppAgentError(error));
         console.error("Failed to resume in-app agent tool call", error);
       }
     },
     [
       ensureSubscription,
+      error,
       isRunning,
       pendingToolApprovals,
       runAgent,
@@ -910,7 +1062,7 @@ function InAppAiAgentProviderInner({
       pendingToolApprovals,
       isSelectedConversationHydrating,
       error,
-      messages: messagesWithFeedback,
+      messages: messagesWithUiState,
       conversations,
       hasMoreConversations,
       isLoadingMoreConversations,
@@ -936,7 +1088,7 @@ function InAppAiAgentProviderInner({
       isSubmitting,
       deleteConversation,
       loadMoreConversations,
-      messagesWithFeedback,
+      messagesWithUiState,
       open,
       pendingToolApprovals,
       rejectToolCall,
@@ -956,18 +1108,16 @@ function InAppAiAgentProviderInner({
   );
 }
 
-function isAgentConversationMessage(
-  message: unknown,
-): message is InAppAiAgentMessage {
+function isAgentConversationMessage(message: unknown): message is AgUiMessage {
   const result = AgUiMessageSchema.safeParse(message);
 
   return result.success;
 }
 
 function getHydratedMessages(
-  localMessages: InAppAiAgentMessage[],
+  localMessages: AgUiMessage[],
   storedMessages: readonly unknown[] | undefined,
-): InAppAiAgentMessage[] {
+): AgUiMessage[] {
   if (localMessages.length > 0) {
     return localMessages;
   }
@@ -976,9 +1126,9 @@ function getHydratedMessages(
 }
 
 function mergeMessagesWithFeedback(
-  messages: InAppAiAgentMessage[],
+  messages: AgUiMessage[],
   feedbackByMessageId: Record<string, InAppAgentMessageFeedback> | undefined,
-): InAppAiAgentMessage[] {
+): AgUiMessage[] {
   if (!feedbackByMessageId || Object.keys(feedbackByMessageId).length === 0) {
     return messages;
   }
@@ -998,9 +1148,9 @@ function mergeMessagesWithFeedback(
 }
 
 function attachActiveRunIdToAssistantMessages(
-  messages: InAppAiAgentMessage[],
+  messages: AgUiMessage[],
   runId: string | null,
-): InAppAiAgentMessage[] {
+): AgUiMessage[] {
   if (!runId) {
     return messages;
   }

@@ -6,6 +6,7 @@ import {
   ObservationLevel,
   eventsTableSingleFilter,
   optionalCommaSeparatedStringArray,
+  optionalJsonParam,
   paginationMetaResponseZod,
   publicApiPaginationZod,
   singleFilter,
@@ -227,20 +228,7 @@ export const GetObservationsV1Query = z.object({
   fromStartTime: stringDateTime,
   toStartTime: stringDateTime,
   useEventsTable: useEventsTableSchema,
-  filter: z
-    .string()
-    .optional()
-    .transform((str) => {
-      if (!str) return undefined;
-      try {
-        const parsed = JSON.parse(str);
-        return parsed;
-      } catch (e) {
-        if (e instanceof InvalidRequestError) throw e;
-        throw new InvalidRequestError("Invalid JSON in filter parameter");
-      }
-    })
-    .pipe(z.array(singleFilter).optional()),
+  filter: optionalJsonParam(z.array(singleFilter), "filter"),
 });
 export const GetObservationsV1Response = z
   .object({
@@ -346,20 +334,7 @@ export const GetObservationsV2Query = z.object({
   environment: z.union([z.array(z.string()), z.string()]).nullish(),
   fromStartTime: stringDateTime.optional(),
   toStartTime: stringDateTime.optional(),
-  filter: z
-    .string()
-    .optional()
-    .transform((str) => {
-      if (!str) return undefined;
-      try {
-        const parsed = JSON.parse(str);
-        return parsed;
-      } catch (e) {
-        if (e instanceof InvalidRequestError) throw e;
-        throw new InvalidRequestError("Invalid JSON in filter parameter");
-      }
-    })
-    .pipe(z.array(eventsTableSingleFilter).optional()),
+  filter: optionalJsonParam(z.array(eventsTableSingleFilter), "filter"),
 });
 
 /**

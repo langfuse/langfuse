@@ -1,3 +1,5 @@
+import { parseJsonIfString as parseIfString } from "../json";
+
 export function removeNullFields(obj: unknown): Record<string, unknown> {
   if (!obj || typeof obj !== "object") return {};
 
@@ -96,16 +98,6 @@ export function getNestedProperty(
     current = (current as Record<string, unknown>)[key];
   }
   return current;
-}
-
-function parseIfString(value: unknown): unknown {
-  if (typeof value !== "string") return value;
-
-  try {
-    return JSON.parse(value);
-  } catch {
-    return value;
-  }
 }
 
 function parseArrayIfString(value: unknown): unknown[] | undefined {

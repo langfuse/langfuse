@@ -140,6 +140,28 @@ describe("buildFilterColumnsParams", () => {
     expect(values.length).toBeGreaterThan(0);
   });
 
+  it("maps filterOptions.name into a searchable Observation Name stringOptions column", () => {
+    const params = buildFilterColumnsParams({
+      view: "observations",
+      filterOptions: {
+        name: [{ value: "generation-alpha" }, { value: "generation-beta" }],
+      } as Parameters<typeof buildFilterColumnsParams>[0]["filterOptions"],
+      datasets: undefined,
+    });
+    const column = getWidgetFilterColumns(params).find(
+      (c) => c.id === "observationName",
+    );
+    expect(column?.type).toBe("stringOptions");
+    const values =
+      column?.type === "stringOptions"
+        ? column.options.map((o) => o.value)
+        : [];
+    expect(values).toEqual(["generation-alpha", "generation-beta"]);
+    expect(getWidgetColumnsWithCustomSelect(params)).toContain(
+      "observationName",
+    );
+  });
+
   it("keeps Type/Level as non-searchable columns (they rely on complete option lists)", () => {
     // Confirms the fix must be complete enum lists: Type/Level are NOT custom
     // (searchable/free-text) selects, so an empty option list is a hard dead-end.

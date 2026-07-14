@@ -37,8 +37,9 @@ export const BatchActionQuerySchema = z.object({
   searchQuery: z.string().optional(),
   searchType: z.array(TracingSearchType).optional(),
   pathPrefix: z.string().optional(),
-  // Dispatch-time snapshot of the user's v4 beta flag; routes the sessions
-  // read stream to the events table instead of the legacy traces path.
+  // Routes worker reads to the events table instead of the legacy tables.
+  // The v4 events view declares it and the server validates the declaration;
+  // otherwise createBatchActionJob snapshots the user's v4 beta flag.
   useEventsTable: z.boolean().optional(),
 });
 

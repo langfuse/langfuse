@@ -43,14 +43,6 @@ vi.mock("@langfuse/shared/src/server", async () => {
   };
 });
 
-// The parquet whitelist ships as an in-code constant (empty by default), so the
-// helper is mocked to exercise both sides of the gate deterministically.
-const isParquetFileTypeAllowedMock = vi.hoisted(() => vi.fn(() => false));
-
-vi.mock("@/src/features/blobstorage-integration/parquetFileType", () => ({
-  isParquetFileTypeAllowed: isParquetFileTypeAllowedMock,
-}));
-
 const __orgIds: string[] = [];
 
 const prepare = async () => {
@@ -70,14 +62,18 @@ const prepare = async () => {
           plan: "cloud:hobby",
           cloudConfig: undefined,
           metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: false,
           projects: [
             {
               id: project.id,
               role: "ADMIN",
               retentionDays: 30,
               deletedAt: null,
+              hasTraces: false,
               name: project.name,
               metadata: {},
+              createdAt: new Date().toISOString(),
             },
           ],
         },
@@ -85,6 +81,10 @@ const prepare = async () => {
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: true,
+        searchBar: false,
+        v4BetaToggleVisible: false,
+        observationEvals: false,
+        experimentsV4Enabled: false,
       },
       admin: true,
     },
@@ -1057,31 +1057,8 @@ describe("Blob Storage Integration tRPC Router", () => {
     });
   });
 
-  describe("parquet fileType whitelist gate", () => {
-    beforeEach(() => {
-      isParquetFileTypeAllowedMock.mockReset();
-      isParquetFileTypeAllowedMock.mockReturnValue(false);
-    });
-
-    it("rejects changing fileType to PARQUET for a non-whitelisted project", async () => {
-      const { caller, project } = await prepare();
-
-      await expect(
-        caller.blobStorageIntegration.update({
-          projectId: project.id,
-          ...baseConfig,
-          fileType: "PARQUET" as const,
-        }),
-      ).rejects.toThrow("Parquet export is not available for this project.");
-
-      const row = await prisma.blobStorageIntegration.findUnique({
-        where: { projectId: project.id },
-      });
-      expect(row).toBeNull();
-    });
-
-    it("persists PARQUET for a whitelisted project", async () => {
-      isParquetFileTypeAllowedMock.mockReturnValue(true);
+  describe("parquet fileType", () => {
+    it("persists PARQUET for any project", async () => {
       const { caller, project } = await prepare();
 
       await caller.blobStorageIntegration.update({
@@ -1096,7 +1073,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       expect(row.fileType).toBe("PARQUET");
     });
 
-    it("still saves edits for a de-whitelisted project that already persists PARQUET", async () => {
+    it("saves edits alongside a persisted PARQUET fileType", async () => {
       const { caller, project } = await prepare();
       await createIntegration({ projectId: project.id });
       await prisma.blobStorageIntegration.update({
@@ -1104,8 +1081,6 @@ describe("Blob Storage Integration tRPC Router", () => {
         data: { fileType: "PARQUET" },
       });
 
-      // Whitelist off: only a *change to* PARQUET is gated, so re-submitting the
-      // persisted PARQUET alongside an unrelated edit must not lock the user out.
       await caller.blobStorageIntegration.update({
         projectId: project.id,
         ...baseConfig,
@@ -1121,8 +1096,8 @@ describe("Blob Storage Integration tRPC Router", () => {
     });
 
     it("preserves persisted PARQUET when fileType is omitted from the update input", async () => {
-      // Without the router-level .optional() the base schema would default an
-      // omitted fileType to JSONL and silently downgrade the persisted PARQUET.
+      // The router-level .optional() drops the base default so an omitted
+      // fileType preserves the persisted value instead of rewriting it.
       const { caller, project } = await prepare();
       await createIntegration({ projectId: project.id });
       await prisma.blobStorageIntegration.update({
@@ -1144,8 +1119,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       expect(row.enabled).toBe(false);
     });
 
-    it("defaults to JSONL when fileType is omitted on CREATE", async () => {
-      // The Prisma column default is CSV; the historical Zod default was JSONL.
+    it("defaults to PARQUET when fileType is omitted on CREATE", async () => {
       const { caller, project } = await prepare();
 
       const { fileType: _fileType, ...configWithoutFileType } = baseConfig;
@@ -1157,7 +1131,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
         where: { projectId: project.id },
       });
-      expect(row.fileType).toBe("JSONL");
+      expect(row.fileType).toBe("PARQUET");
     });
   });
 });

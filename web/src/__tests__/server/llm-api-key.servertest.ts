@@ -62,7 +62,9 @@ describe("llmApiKey.all RPC", () => {
     const setup = await createOrgProjectAndApiKey();
     projectId = setup.projectId;
     orgId = setup.orgId;
-    mockFetchLLMCompletion.mockReset().mockResolvedValue({});
+    mockFetchLLMCompletion
+      .mockReset()
+      .mockResolvedValue({} as Awaited<ReturnType<typeof fetchLLMCompletion>>);
 
     session = {
       expires: "1",
@@ -78,6 +80,8 @@ describe("llmApiKey.all RPC", () => {
             cloudConfig: undefined,
             name: "Test Organization",
             metadata: {},
+            aiFeaturesEnabled: false,
+            aiTelemetryEnabled: false,
             projects: [
               {
                 id: projectId,
@@ -85,14 +89,20 @@ describe("llmApiKey.all RPC", () => {
                 name: "Test Project",
                 deletedAt: null,
                 retentionDays: null,
+                hasTraces: false,
                 metadata: {},
+                createdAt: new Date().toISOString(),
               },
             ],
           },
         ],
         featureFlags: {
+          searchBar: false,
           templateFlag: true,
           excludeClickhouseRead: false,
+          observationEvals: false,
+          v4BetaToggleVisible: false,
+          experimentsV4Enabled: false,
         },
         admin: true,
       },
@@ -540,7 +550,7 @@ describe("llmApiKey.all RPC", () => {
     const llmConnection = mockFetchLLMCompletion.mock.calls[0][0].llmConnection;
     expect(llmConnection.baseURL).toBe("https://api.openai.com/v1");
     expect(decrypt(llmConnection.secretKey)).toBe("sk-original");
-    expect(JSON.parse(decrypt(llmConnection.extraHeaders))).toEqual(
+    expect(JSON.parse(decrypt(llmConnection.extraHeaders!))).toEqual(
       existingExtraHeaders,
     );
   });

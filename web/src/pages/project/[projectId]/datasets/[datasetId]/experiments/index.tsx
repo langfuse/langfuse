@@ -115,7 +115,7 @@ export default function Dataset() {
     scope: "evalJob:CUD",
   });
 
-  const evalTemplates = api.evals.allTemplates.useQuery({
+  const evalTemplates = api.evals.latestTemplates.useQuery({
     projectId,
   });
 
@@ -129,9 +129,6 @@ export default function Dataset() {
   const { createDefaultEvaluator } = useEvaluatorDefaults();
 
   const {
-    activeEvaluators,
-    pausedEvaluators,
-    evaluatorTargetObjects,
     selectedEvaluatorData,
     showEvaluatorForm,
     handleConfigureEvaluator,
@@ -150,7 +147,11 @@ export default function Dataset() {
   // For experiment evaluators, we only run on new data (not historic)
   const preprocessFormValues = useCallback((values: any) => values, []);
 
-  const breadcrumb = getDatasetBreadcrumb(projectId, dataset.data?.name);
+  const breadcrumb = getDatasetBreadcrumb(
+    projectId,
+    datasetId,
+    dataset.data?.name,
+  );
 
   if (isExperimentsBetaActive) {
     return (
@@ -200,9 +201,6 @@ export default function Dataset() {
                     evalTemplates={evalTemplates.data?.templates ?? []}
                     onConfigureTemplate={handleConfigureEvaluator}
                     onSelectEvaluator={handleSelectEvaluator}
-                    activeTemplateIds={activeEvaluators}
-                    inactiveTemplateIds={pausedEvaluators}
-                    evaluatorTargetObjects={evaluatorTargetObjects}
                     disabled={!hasEvalWriteAccess}
                   />
                 </div>
@@ -280,9 +278,6 @@ export default function Dataset() {
                   evalTemplates={evalTemplates.data?.templates ?? []}
                   onConfigureTemplate={handleConfigureEvaluator}
                   onSelectEvaluator={handleSelectEvaluator}
-                  activeTemplateIds={activeEvaluators}
-                  inactiveTemplateIds={pausedEvaluators}
-                  evaluatorTargetObjects={evaluatorTargetObjects}
                   disabled={!hasEvalWriteAccess}
                 />
               </div>

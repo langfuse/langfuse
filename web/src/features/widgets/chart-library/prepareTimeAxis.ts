@@ -139,6 +139,17 @@ export type TimeAxis = {
   formatTooltip: (raw: unknown) => string;
   mode: AxisMode;
   /**
+   * Whether the chart draws vertical grid lines. True on temporal axes, where
+   * a line under each shown tick (a day/hour/month boundary) helps the eye
+   * carry a bucket up into the plot; the tick budget already thinned those
+   * ticks to what fits, so the lines inherit "only when there's space" (pair
+   * with recharts' `syncWithTicks` so lines land exactly on the shown ticks).
+   * False for categorical axes: their angled entity-name labels are kept by a
+   * width-dependent collision test, and gridlines under arbitrary names add
+   * noise, not orientation. (LFE-10576)
+   */
+  showVerticalGrid: boolean;
+  /**
    * Tick-label props the visualiser spreads onto the recharts `XAxis`.
    * Time / date / month ticks are short single-units rendered flat (`{}` → the
    * spread is a no-op, so dashboards are unchanged). Categorical entity names
@@ -198,6 +209,7 @@ export function prepareTimeAxis(rawValues: unknown[], maxTicks = 6): TimeAxis {
       formatTick: (raw: unknown) => truncateCategoryLabel(full(raw)),
       formatTooltip: full,
       mode: "category",
+      showVerticalGrid: false,
       tickProps: {
         angle: -30,
         textAnchor: "end",
@@ -282,5 +294,12 @@ export function prepareTimeAxis(rawValues: unknown[], maxTicks = 6): TimeAxis {
 
   // Time / date / month ticks are short single-units — rendered flat, exactly
   // as the dashboards do today (no orientation change → pixel-identical).
-  return { interval, formatTick, formatTooltip, mode, tickProps: {} };
+  return {
+    interval,
+    formatTick,
+    formatTooltip,
+    mode,
+    showVerticalGrid: true,
+    tickProps: {},
+  };
 }
