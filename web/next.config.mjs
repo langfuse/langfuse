@@ -106,6 +106,9 @@ const nextConfig = {
   },
   experimental: {
     turbopackFileSystemCacheForBuild: true,
+    // Run the project-local native tsc (TypeScript 7) for build type checks
+    // while TS 7 has no JS compiler API (expected in 7.1).
+    useTypeScriptCli: true,
   },
 
   /**

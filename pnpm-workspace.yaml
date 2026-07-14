@@ -12,13 +12,56 @@ catalog:
   "@aws-sdk/credential-providers": 3.1056.0
   "@aws-sdk/lib-storage": 3.1056.0
   "@aws-sdk/s3-request-presigner": 3.1056.0
-  typescript: ^6.0.3
+  # The official TS 6 side-by-side wrapper (resolves to typescript 6.0.3):
+  # provides the JS compiler API for typescript-eslint/next/tsx consumers but
+  # ships no `tsc` bin, so package scripts fall through to the workspace-root
+  # ts7 alias and build/typecheck with the native TypeScript 7 compiler.
+  # web overrides this with real typescript@^7 for next build's CLI checker.
+  typescript: npm:@typescript/typescript6@^6.0.2
 # 5 day delay for new dep upgrades to reduce supply chain attack risk
 minimumReleaseAge: 7200
 # the exclusions are temporary so that we can set the 5 day limit without downgrading packages.
 # this list is version-specific
 minimumReleaseAgeExclude:
   - "@clickhouse/client@1.23.1"
+  # TypeScript 7 GA (2026-07-08) + the 6.0 API wrapper (2026-07-06) are newer
+  # than the 5-day window; platform binaries are exact-version companions of
+  # typescript@7.0.2.
+  - "typescript@7.0.2"
+  - "@typescript/typescript6@6.0.2"
+  - "@typescript/typescript-aix-ppc64@7.0.2"
+  - "@typescript/typescript-darwin-arm64@7.0.2"
+  - "@typescript/typescript-darwin-x64@7.0.2"
+  - "@typescript/typescript-freebsd-arm64@7.0.2"
+  - "@typescript/typescript-freebsd-x64@7.0.2"
+  - "@typescript/typescript-linux-arm@7.0.2"
+  - "@typescript/typescript-linux-arm64@7.0.2"
+  - "@typescript/typescript-linux-loong64@7.0.2"
+  - "@typescript/typescript-linux-mips64el@7.0.2"
+  - "@typescript/typescript-linux-ppc64@7.0.2"
+  - "@typescript/typescript-linux-riscv64@7.0.2"
+  - "@typescript/typescript-linux-s390x@7.0.2"
+  - "@typescript/typescript-linux-x64@7.0.2"
+  - "@typescript/typescript-netbsd-arm64@7.0.2"
+  - "@typescript/typescript-netbsd-x64@7.0.2"
+  - "@typescript/typescript-openbsd-arm64@7.0.2"
+  - "@typescript/typescript-openbsd-x64@7.0.2"
+  - "@typescript/typescript-sunos-x64@7.0.2"
+  - "@typescript/typescript-win32-arm64@7.0.2"
+  - "@typescript/typescript-win32-x64@7.0.2"
+  # next 16.3.0-preview.6 (2026-07-13) for experimental.useTypeScriptCli
+  # (native TS 7 type-checking in next build); swc binaries are exact-version
+  # companions.
+  - "next@16.3.0-preview.6"
+  - "@next/env@16.3.0-preview.6"
+  - "@next/swc-darwin-arm64@16.3.0-preview.6"
+  - "@next/swc-darwin-x64@16.3.0-preview.6"
+  - "@next/swc-linux-arm64-gnu@16.3.0-preview.6"
+  - "@next/swc-linux-arm64-musl@16.3.0-preview.6"
+  - "@next/swc-linux-x64-gnu@16.3.0-preview.6"
+  - "@next/swc-linux-x64-musl@16.3.0-preview.6"
+  - "@next/swc-win32-arm64-msvc@16.3.0-preview.6"
+  - "@next/swc-win32-x64-msvc@16.3.0-preview.6"
 allowBuilds:
   "@prisma/client": true
   "@prisma/engines": true

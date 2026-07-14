@@ -33,5 +33,8 @@
   "peerDependencies": {
     "eslint": "^9.39.0",
     "typescript": ">=5.0.0"
+  },
+  "devDependencies": {
+    "typescript": "npm:@typescript/typescript6@^6.0.2"
   }
 }
