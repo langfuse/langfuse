@@ -55,6 +55,7 @@ export function useAppRootDefault(params: {
   );
   const currentUrlOwnsState = urlOwnsEventsTableState(router.query);
   const currentViewOwnsState = viewOwnsEventsTableState(router.query);
+  const now = Date.now();
   const queryPolicy = getAppRootDefaultPolicy({
     enabled,
     routerReady: router.isReady,
@@ -65,6 +66,7 @@ export function useAppRootDefault(params: {
     savedViewOwnsState: false,
     owner,
     urlOwnsState: currentUrlOwnsState,
+    now,
   });
 
   const capabilityQuery = api.events.getSdkVersionInfo.useQuery(
@@ -94,28 +96,32 @@ export function useAppRootDefault(params: {
     enabled,
     routerReady: router.isReady,
     hasUserId: Boolean(userId),
-    sdkMetadata: capabilityQuery.data,
+    sdkMetadata:
+      capabilityQuery.isSuccess && !capabilityQuery.isFetching
+        ? capabilityQuery.data
+        : undefined,
     cachedCapability,
     preference,
     defaultViewSettled: !defaultViewQuery.isLoading,
     savedViewOwnsState,
     owner,
     urlOwnsState: currentUrlOwnsState,
+    now,
   });
   if (ownerState.projectId !== projectId || policy.owner !== owner) {
     setOwnerState({ projectId, owner: policy.owner });
   }
 
   useEffect(() => {
-    if (policy.shouldCacheCapability) {
-      writeStorage("localStorage", capabilityKey, "supported");
+    if (policy.shouldWriteCapabilityTimestamp) {
+      writeStorage("localStorage", capabilityKey, new Date().toISOString());
     }
     if (policy.shouldPersistAuto) {
       writeStorage("localStorage", preferenceKey, "auto");
     }
   }, [
     capabilityKey,
-    policy.shouldCacheCapability,
+    policy.shouldWriteCapabilityTimestamp,
     policy.shouldPersistAuto,
     preferenceKey,
   ]);

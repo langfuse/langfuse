@@ -20,16 +20,18 @@ const levelFilter: FilterState[number] = {
   operator: "any of",
   value: ["ERROR"],
 };
+const now = new Date("2026-07-14T12:00:00Z").getTime();
 const basePolicy = {
   enabled: true,
   routerReady: true,
   hasUserId: true,
-  cachedCapability: "supported",
+  cachedCapability: "2026-07-14T12:00:00.000Z",
   preference: null,
   defaultViewSettled: true,
   savedViewOwnsState: false,
   owner: "neutral" as const,
   urlOwnsState: false,
+  now,
 };
 
 describe("app-root default policy", () => {
@@ -81,9 +83,11 @@ describe("app-root default policy", () => {
   it("handles persisted storage values", () => {
     expect(storedViewOwnsEventsTableState("null")).toBe(false);
     expect(storedViewOwnsEventsTableState('"view-id"')).toBe(true);
-    expect(appRootCapabilityStorageKey("project-a")).toContain("project-a");
-    expect(appRootPreferenceStorageKey("user-a", "project-a")).toContain(
-      "user-a:project-a",
+    expect(appRootCapabilityStorageKey("project-a")).toBe(
+      "events-app-root-capability:project-a",
+    );
+    expect(appRootPreferenceStorageKey("user-a", "project-a")).toBe(
+      "events-app-root-default:user-a:project-a",
     );
   });
 

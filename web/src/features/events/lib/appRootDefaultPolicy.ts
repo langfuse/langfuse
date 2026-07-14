@@ -4,6 +4,7 @@ const SDK_MINIMUMS = {
   javascript: [5, 4, 0],
   python: [4, 7, 0],
 } as const;
+const CAPABILITY_RECHECK_MS = 30 * 86_400_000;
 const URL_STATE_PARAMS = ["filter", "search", "searchType", "orderBy"];
 const OWNER_BY_ORIGIN = {
   user: "user",
@@ -81,12 +82,18 @@ export const getAppRootDefaultPolicy = (params: {
   savedViewOwnsState: boolean;
   owner: AppRootDefaultOwner;
   urlOwnsState: boolean;
+  now: number;
 }) => {
   const capabilityDetected = params.sdkMetadata
     ? supportsAppRootFiltering(params.sdkMetadata)
     : false;
-  const capabilitySupported =
-    params.cachedCapability === "supported" || capabilityDetected;
+  const hasCachedCapability = params.cachedCapability !== null;
+  const cachedAt = Date.parse(params.cachedCapability ?? "");
+  const capabilityNeedsRecheck =
+    !hasCachedCapability ||
+    !Number.isFinite(cachedAt) ||
+    params.now - cachedAt >= CAPABILITY_RECHECK_MS;
+  const capabilitySupported = hasCachedCapability || capabilityDetected;
   let owner = params.owner;
 
   if (params.routerReady && owner === "pending") {
@@ -115,11 +122,16 @@ export const getAppRootDefaultPolicy = (params: {
     shouldApplyFilter,
     isAutoManaged: shouldApplyFilter,
     shouldPersistAuto: shouldApplyFilter && params.preference === null,
-    shouldCacheCapability: capabilityDetected && owner !== "fallback",
+    shouldWriteCapabilityTimestamp:
+      active &&
+      capabilityNeedsRecheck &&
+      owner !== "fallback" &&
+      (capabilityDetected ||
+        (hasCachedCapability && params.sdkMetadata !== undefined)),
     shouldQueryCapability:
       active &&
       params.preference !== "suppressed" &&
-      params.cachedCapability !== "supported" &&
+      capabilityNeedsRecheck &&
       owner !== "fallback",
   };
 };
