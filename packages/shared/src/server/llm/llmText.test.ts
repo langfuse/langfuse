@@ -416,6 +416,87 @@ describe("legacy compatibility boundary", () => {
     });
   });
 
+  it("passes unknown OpenAI provider options through for OpenAI-compatible endpoints", () => {
+    const mapped = mapLegacyLLMCompletionParams({
+      messages: legacyMessages,
+      modelParams: {
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        model: "openai-compatible-reasoning-model",
+        providerOptions: {
+          reasoning_effort: "high",
+          service_tier: "flex",
+          parallel_tool_calls: false,
+          thinkingBudget: 1024,
+          thinkingLevel: "high",
+        },
+      },
+      connection: {
+        ...encryptedConnection,
+        baseURL: "https://openai-compatible.example.com/v1",
+      },
+    });
+
+    expect(mapped.providerOptions).toEqual({
+      openai: {
+        reasoningEffort: "high",
+        service_tier: "flex",
+        parallel_tool_calls: false,
+        thinkingBudget: 1024,
+        thinkingLevel: "high",
+      },
+    });
+  });
+
+  it("keeps strict OpenAI option handling for Responses API custom base URLs", () => {
+    expect(() =>
+      mapLegacyLLMCompletionParams({
+        messages: legacyMessages,
+        modelParams: {
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          model: "gpt-4o",
+          providerOptions: { thinkingBudget: 1024 },
+        },
+        connection: {
+          ...encryptedConnection,
+          baseURL: "https://openai-proxy.example.com/v1",
+          config: { useResponsesApi: true },
+        },
+      }),
+    ).toThrow(
+      expect.objectContaining<Partial<LLMCompletionError>>({
+        name: "LLMCompletionError",
+        responseStatusCode: 400,
+        isRetryable: false,
+      }),
+    );
+  });
+
+  it("keeps rejecting unknown OpenAI provider options for first-party OpenAI", () => {
+    expect(() =>
+      mapLegacyLLMCompletionParams({
+        messages: legacyMessages,
+        modelParams: {
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          model: "gpt-4o",
+          providerOptions: { thinkingBudget: 1024 },
+        },
+        connection: {
+          ...encryptedConnection,
+          baseURL: "https://api.openai.com/v1",
+        },
+      }),
+    ).toThrow(
+      expect.objectContaining<Partial<LLMCompletionError>>({
+        name: "LLMCompletionError",
+        responseStatusCode: 400,
+        isRetryable: false,
+      }),
+    );
+  });
+
   it("rejects options that cannot be translated instead of falling back", () => {
     expect(() =>
       mapLegacyLLMCompletionParams({
@@ -441,10 +522,7 @@ describe("legacy compatibility boundary", () => {
     await expect(
       generateLLMText({
         model: { adapter: LLMAdapter.Azure, id: "deployment" },
-        connection: {
-          ...encryptedConnection,
-          baseURL: "https://example.com/openai",
-        },
+        connection: encryptedConnection,
         messages: [...messages],
       }),
     ).rejects.toMatchObject({

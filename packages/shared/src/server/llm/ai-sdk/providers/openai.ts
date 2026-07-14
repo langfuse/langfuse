@@ -1,4 +1,5 @@
 import { createOpenAI } from "@ai-sdk/openai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { LanguageModel } from "ai";
 
 import { processOpenAIBaseURL } from "../../utils";
@@ -22,6 +23,22 @@ export function buildOpenAIModel(params: {
     modelName: modelId,
   });
 
+  if (
+    apiMode === "chat-completions" &&
+    isOpenAICompatibleEndpoint(processedBaseURL)
+  ) {
+    const provider = createOpenAICompatible({
+      name: "openai",
+      apiKey,
+      baseURL: processedBaseURL,
+      headers: extraHeaders,
+      fetch: params.fetch,
+      supportsStructuredOutputs: true,
+    });
+
+    return provider.languageModel(modelId);
+  }
+
   const provider = createOpenAI({
     apiKey,
     baseURL: processedBaseURL ?? undefined,
@@ -37,15 +54,34 @@ export function buildOpenAIModel(params: {
     : provider.chat(modelId);
 }
 
+export function isOpenAICompatibleEndpoint(
+  baseURL: string | null | undefined,
+): baseURL is string {
+  if (!baseURL) return false;
+
+  try {
+    const url = new URL(baseURL.replace("{model}", "model"));
+    if (!["http:", "https:"].includes(url.protocol) || !url.hostname) {
+      return false;
+    }
+
+    const hostname = url.hostname;
+    return hostname !== "api.openai.com";
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Translation of Langfuse `modelParams.providerOptions` to AI SDK OpenAI
  * provider options.
  *
  * Persisted provider options contain snake_case OpenAI request-body fields.
  * The AI SDK instead accepts a typed, camelCase whitelist under
- * `providerOptions.openai` and silently drops unknown keys. Silent dropping is
- * unacceptable: the compatibility boundary rejects any key it cannot
- * translate.
+ * `providerOptions.openai` and may silently drop unknown keys. Silent dropping
+ * is unacceptable for first-party OpenAI, so the compatibility boundary rejects
+ * unknown keys there. OpenAI-compatible endpoints can have provider-specific
+ * option surfaces, so callers may opt into best-effort unknown-key passthrough.
  */
 const OPENAI_PROVIDER_OPTION_KEY_MAP: Record<string, string> = {
   // snake_case persisted OpenAI request-body fields
@@ -67,26 +103,63 @@ const OPENAI_PROVIDER_OPTION_KEY_MAP: Record<string, string> = {
   textVerbosity: "textVerbosity",
 };
 
+const OPENAI_COMPATIBLE_PROVIDER_OPTION_KEY_MAP: Record<string, string> = {
+  // Keep request-body fields in wire shape for the compatible provider. It
+  // spreads unknown options directly into the body instead of using OpenAI's
+  // stricter camelCase option schema.
+  service_tier: "service_tier",
+  parallel_tool_calls: "parallel_tool_calls",
+  logit_bias: "logit_bias",
+  max_completion_tokens: "max_completion_tokens",
+  store: "store",
+  user: "user",
+  serviceTier: "service_tier",
+  parallelToolCalls: "parallel_tool_calls",
+  logitBias: "logit_bias",
+  maxCompletionTokens: "max_completion_tokens",
+  // These two are special compatible-provider options. Keeping them camelCase
+  // lets the provider emit `reasoning_effort` and `verbosity` in the body.
+  reasoning_effort: "reasoningEffort",
+  reasoningEffort: "reasoningEffort",
+  text_verbosity: "textVerbosity",
+  verbosity: "textVerbosity",
+  textVerbosity: "textVerbosity",
+};
+
 export function translateOpenAIProviderOptions(
   providerOptions: Record<string, unknown> | undefined,
+  options?: {
+    passthroughUnknown?: boolean;
+    target?: "openai" | "openai-compatible";
+  },
 ): TranslatedProviderOptions {
   if (!providerOptions || Object.keys(providerOptions).length === 0) {
     return { ok: true, value: undefined };
   }
 
+  const keyMap =
+    options?.target === "openai-compatible"
+      ? OPENAI_COMPATIBLE_PROVIDER_OPTION_KEY_MAP
+      : OPENAI_PROVIDER_OPTION_KEY_MAP;
   const translated: Record<string, unknown> = {};
   const unknownKeys: string[] = [];
 
   for (const [key, value] of Object.entries(providerOptions)) {
     if (key === "openai" && isPlainObject(value)) {
-      // Nested `openai` object is treated as already AI SDK-shaped.
-      Object.assign(translated, value);
+      for (const [nestedKey, nestedValue] of Object.entries(value)) {
+        const mappedKey = keyMap[nestedKey] ?? nestedKey;
+        translated[mappedKey] = nestedValue;
+      }
       continue;
     }
 
-    const mappedKey = OPENAI_PROVIDER_OPTION_KEY_MAP[key];
+    const mappedKey = keyMap[key];
     if (mappedKey === undefined) {
-      unknownKeys.push(key);
+      if (options?.passthroughUnknown) {
+        translated[key] = value;
+      } else {
+        unknownKeys.push(key);
+      }
       continue;
     }
 
