@@ -741,6 +741,8 @@ export const Conversation = meta.story({
 
 export const Streaming = meta.story({
   args: {
+    isAssistantTurnInProgress: true,
+    isInputDisabled: true,
     selectedConversationId: "conversation-1",
     messages: streamingSeedMessages,
   },
@@ -749,6 +751,8 @@ export const Streaming = meta.story({
 
 export const LoadingResponse = meta.story({
   args: {
+    isAssistantTurnInProgress: true,
+    isInputDisabled: true,
     messages: [
       {
         id: "user-1",
@@ -771,6 +775,7 @@ export const LoadingResponse = meta.story({
 
 export const LoadingAfterToolCall = meta.story({
   args: {
+    isAssistantTurnInProgress: true,
     isInputDisabled: true,
     messages: [
       {
@@ -936,6 +941,7 @@ export const FeedbackControlsShowAfterTurnEnd = meta.story({
 
 export const Connecting = meta.story({
   args: {
+    isAssistantTurnInProgress: true,
     isInputDisabled: true,
     messages: [
       {
