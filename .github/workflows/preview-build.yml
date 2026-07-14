@@ -5,18 +5,21 @@ name: AWS preview build
 # tag exists for a labeled PR; this workflow only builds and pushes, then posts
 # the preview URL on the PR.
 #
-# Authorization is intentionally stricter than "the PR is labeled": the
-# `preview` label can be applied by any org member, but this job builds the PR
-# AUTHOR's code with an AWS (ECR push) credential, so it also requires the PR
-# author to be on AWS_PREVIEW_ALLOWED_USERS. Fork PRs cannot mint an OIDC token
-# (public repo, read-only token), so they can never push regardless — and the
-# ECR-push role's trust policy is additionally scoped to
+# Builds every SAME-REPO PR on open/update (write access is the gate — opening a
+# same-repo PR requires push access). It deliberately does NOT trigger on the
+# `preview` label: the auto-labeler applies that label with the default
+# GITHUB_TOKEN, and GitHub does not start workflow runs from GITHUB_TOKEN-applied
+# events (anti-recursion), so a `labeled` trigger would never fire for
+# auto-labeled PRs. The label is only the Argo *deploy* filter (infra repo), and
+# the deploy allowlist lives in the ApplicationSet — not here. Fork PRs are
+# excluded (the head.repo check below) and can't mint an OIDC token anyway
+# (public repo, read-only token); the ECR-push role's trust is scoped to
 # sub=repo:langfuse/langfuse:pull_request AND ref=refs/pull/* (GitHub OIDC has no
 # event_name claim), so pull_request_target / review — which carry the base
 # branch ref — cannot assume it either.
 on:
   pull_request:
-    types: [labeled, synchronize, reopened]
+    types: [opened, synchronize, reopened]
 
 permissions: {}
 
@@ -25,45 +28,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  authorize:
-    name: Authorize
-    runs-on: ubuntu-latest
-    # AWS_PREVIEW_ECR_PUSH_ROLE_ARN doubles as the feature flag: unset => the
-    # whole workflow no-ops instead of failing on every labeled PR.
-    if: >-
-      vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != '' &&
-      contains(github.event.pull_request.labels.*.name, 'preview') &&
-      github.event.pull_request.head.repo.full_name == github.repository
-    permissions:
-      pull-requests: read
-    outputs:
-      authorized: ${{ steps.gate.outputs.authorized }}
-    steps:
-      - name: Require an allowlisted PR author
-        id: gate
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        env:
-          ALLOWED_USERS: ${{ vars.AWS_PREVIEW_ALLOWED_USERS }}
-        with:
-          script: |
-            const author = context.payload.pull_request.user.login.toLowerCase();
-            const allowed = (process.env.ALLOWED_USERS || "")
-              .split(/[\s,]+/)
-              .filter(Boolean)
-              .map((u) => u.toLowerCase());
-            const ok = allowed.includes(author);
-            if (!ok) {
-              core.warning(
-                `PR author ${author} is not on the preview allowlist; not building. ` +
-                  "Ask an admin to add the author to AWS_PREVIEW_ALLOWED_USERS.",
-              );
-            }
-            core.setOutput("authorized", ok ? "true" : "false");
-
   build:
     name: Build and push preview images
-    needs: authorize
-    if: needs.authorize.outputs.authorized == 'true'
+    # Any SAME-REPO PR (= write access) builds on open/update. No label gate here:
+    # the auto-labeler's GITHUB_TOKEN-applied label can't trigger this workflow,
+    # and the label is the Argo deploy filter, not the build trigger. Fork PRs are
+    # excluded (head.repo check) and can't mint OIDC anyway.
+    # AWS_PREVIEW_ECR_PUSH_ROLE_ARN doubles as the feature flag: unset => no-op.
+    if: >-
+      vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != '' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
@@ -86,10 +60,9 @@ jobs:
         run: |
           set -euo pipefail
           commit_sha="$(git rev-parse HEAD)"
-          short_sha="${commit_sha:0:12}"
           # The ApplicationSet deploys pr-<n>-{{.head_sha}} — Argo's FULL 40-char
           # SHA — so the pushed tag MUST use the full SHA or the deployed image
-          # never resolves (permanent ImagePullBackOff). short_sha is display-only.
+          # never resolves (permanent ImagePullBackOff).
           image_tag="pr-${PR_NUMBER}-${commit_sha}"
           {
             echo "commit_sha=${commit_sha}"
@@ -141,36 +114,44 @@ jobs:
           # tag fails. Tags embed the commit SHA, so an existing tag is byte-for-
           # byte the same image — skip build+push if it is already there (this
           # makes workflow re-runs on an unchanged commit idempotent).
-          image_present() {
-            local image="$1" repo tag
-            repo="${image%:*}"; repo="${repo##*/}"
+          #
+          # Only a definitive ImageNotFoundException counts as "absent -> build".
+          # A present image -> skip. ANY OTHER describe failure (throttling, a
+          # transient network blip, a missing ecr:DescribeImages grant) is
+          # inconclusive, so fail loudly here rather than falling through to a
+          # push that would hard-fail on the immutable tag with a confusing
+          # ImageAlreadyExistsException.
+          ensure_image() {
+            local image="$1"; shift   # remaining args: docker build flags
+            local repo tag describe_out
+            repo="${image%:*}"; repo="${repo#*/}"   # strip only the registry host; keep any namespace
             tag="${image##*:}"
-            aws ecr describe-images --repository-name "${repo}" \
-              --image-ids imageTag="${tag}" >/dev/null 2>&1
+
+            if describe_out="$(aws ecr describe-images --repository-name "${repo}" \
+                  --image-ids imageTag="${tag}" 2>&1)"; then
+              echo "${image} already present — skipping."
+              return 0
+            fi
+            if ! grep -q 'ImageNotFoundException' <<<"${describe_out}"; then
+              echo "::error::Cannot confirm ${image} in ECR — describe-images failed" \
+                   "for a reason other than ImageNotFound; refusing to build+push" \
+                   "against the tag-immutable repo. ${describe_out}"
+              return 1
+            fi
+
+            echo "${image} not found — building and pushing."
+            docker build "$@" -t "${image}" .
+            docker push "${image}"
           }
 
-          if image_present "${WEB_IMAGE}"; then
-            echo "${WEB_IMAGE} already present — skipping."
-          else
-            docker build \
-              --build-arg NEXT_PUBLIC_BUILD_ID="${COMMIT_SHA}" \
-              --build-arg NEXT_PUBLIC_SIGN_UP_DISABLED=true \
-              -f ./web/Dockerfile \
-              -t "${WEB_IMAGE}" \
-              .
-            docker push "${WEB_IMAGE}"
-          fi
+          ensure_image "${WEB_IMAGE}" \
+            --build-arg NEXT_PUBLIC_BUILD_ID="${COMMIT_SHA}" \
+            --build-arg NEXT_PUBLIC_SIGN_UP_DISABLED=true \
+            -f ./web/Dockerfile
 
-          if image_present "${WORKER_IMAGE}"; then
-            echo "${WORKER_IMAGE} already present — skipping."
-          else
-            docker build \
-              --build-arg NEXT_PUBLIC_BUILD_ID="${COMMIT_SHA}" \
-              -f ./worker/Dockerfile \
-              -t "${WORKER_IMAGE}" \
-              .
-            docker push "${WORKER_IMAGE}"
-          fi
+          ensure_image "${WORKER_IMAGE}" \
+            --build-arg NEXT_PUBLIC_BUILD_ID="${COMMIT_SHA}" \
+            -f ./worker/Dockerfile
 
       - name: Mark preview image pushed
         uses: ./.github/actions/preview-comment
@@ -187,8 +168,7 @@ jobs:
             **API keys:** `${{ steps.meta.outputs.public_key }}` / `${{ steps.meta.outputs.secret_key }}`
             **Commit:** ${{ steps.meta.outputs.commit_sha }}
 
-            Synthetic preview data only — never enter a real credential. Remove
-            the `preview` label or close the PR to destroy the environment.
+            Synthetic preview data only. Never add production data to public accounts.
 
       - name: Report failure
         if: failure()
