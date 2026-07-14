@@ -4,7 +4,6 @@ import { instrumentAsync } from "../instrumentation";
 import { logger } from "../logger";
 import {
   assertDispatchInputWithinLimits,
-  assertDispatchResultWithinByteLimit,
   CodeEvalDispatcherError,
   CodeEvalDispatcherErrorCode,
   CodeEvalDispatcherErrorCodes,
@@ -13,6 +12,7 @@ import {
   type DispatchInput,
   type DispatchResult,
 } from "./codeEvalDispatcherTypes";
+import { readExternalCodeEvalResponse } from "./externalCodeEvalResponse";
 
 // External invokes hold the HTTP request open through cold starts and user code execution.
 const EXTERNAL_INVOKE_REQUEST_TIMEOUT_MS = 10_000;
@@ -160,8 +160,12 @@ export class ExternalCodeEvalDispatcher implements CodeEvalDispatcher {
 
     let responseText: string;
     try {
-      responseText = await response.text();
+      responseText = await readExternalCodeEvalResponse(response, span);
     } catch (error) {
+      if (error instanceof CodeEvalDispatcherError) {
+        throw error;
+      }
+
       throw new CodeEvalDispatcherError(
         `Failed to read external code eval response: ${error instanceof Error ? error.message : String(error)}`,
         {
@@ -171,13 +175,6 @@ export class ExternalCodeEvalDispatcher implements CodeEvalDispatcher {
         },
       );
     }
-
-    const responseBytes = Buffer.byteLength(responseText, "utf8");
-    span.setAttribute(
-      "langfuse.code_eval.external.response_payload.bytes",
-      responseBytes,
-    );
-    assertDispatchResultWithinByteLimit(responseBytes);
 
     const result = parseExternalResponsePayload(responseText);
     span.setAttribute("eval.score.count", result.scores.length);
