@@ -741,6 +741,8 @@ export const Conversation = meta.story({
 
 export const Streaming = meta.story({
   args: {
+    isAssistantTurnInProgress: true,
+    isInputDisabled: true,
     selectedConversationId: "conversation-1",
     messages: streamingSeedMessages,
   },
@@ -749,6 +751,8 @@ export const Streaming = meta.story({
 
 export const LoadingResponse = meta.story({
   args: {
+    isAssistantTurnInProgress: true,
+    isInputDisabled: true,
     messages: [
       {
         id: "user-1",
@@ -771,6 +775,7 @@ export const LoadingResponse = meta.story({
 
 export const LoadingAfterToolCall = meta.story({
   args: {
+    isAssistantTurnInProgress: true,
     isInputDisabled: true,
     messages: [
       {
@@ -900,7 +905,6 @@ export const FeedbackControlsShowAfterTurnEnd = meta.story({
   name: "(Test) Feedback Controls Show After Turn End",
   args: {
     selectedConversationId: "conversation-1",
-    isInputDisabled: false,
     isAssistantTurnInProgress: false,
     onSubmitFeedback: fn(),
     messages: [
@@ -937,6 +941,7 @@ export const FeedbackControlsShowAfterTurnEnd = meta.story({
 
 export const Connecting = meta.story({
   args: {
+    isAssistantTurnInProgress: true,
     isInputDisabled: true,
     messages: [
       {
@@ -961,7 +966,10 @@ export const Connecting = meta.story({
 
 export const Error = meta.story({
   args: {
-    error: "Assistant is not enabled for this user",
+    error: {
+      type: "generic",
+      message: "Assistant is not enabled for this user",
+    },
     messages: [
       {
         id: "user-1",
@@ -972,6 +980,49 @@ export const Error = meta.story({
         },
       },
     ],
+  },
+});
+
+export const RateLimited = meta.story({
+  name: "(Test) Rate Limited",
+  args: {
+    error: null,
+    messages: [],
+  },
+  render: function Render(args) {
+    const [retryAt] = useState(() => Date.now() + 12_000);
+
+    return (
+      <StatefulInAppAgentWindow
+        {...args}
+        error={{ type: "rate_limit", retryAt }}
+      />
+    );
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+    const alert = canvas.getByRole("alert");
+    const initialAlertText = alert.textContent;
+
+    await expect(alert).toHaveTextContent(
+      "You've reached the assistant request limit",
+    );
+    await expect(alert).toHaveTextContent("Try again in about");
+    await waitFor(() => expect(alert.textContent).not.toBe(initialAlertText), {
+      timeout: 2_000,
+    });
+    await expect(
+      canvas.getByRole("textbox", { name: "Ask the assistant a question" }),
+    ).toBeDisabled();
+    await expect(
+      canvas.getByRole("button", { name: "Get started with Langfuse" }),
+    ).toBeDisabled();
+    await expect(
+      canvas.getByRole("button", { name: "Start new conversation" }),
+    ).toBeEnabled();
+    await expect(
+      canvas.getByRole("button", { name: "Conversation history" }),
+    ).toBeEnabled();
   },
 });
 

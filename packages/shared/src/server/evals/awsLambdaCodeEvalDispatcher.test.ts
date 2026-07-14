@@ -12,12 +12,14 @@ const mocks = vi.hoisted(() => {
   return {
     span,
     instrumentAsync: vi.fn(async (_ctx, callback) => callback(span)),
+    recordDistribution: vi.fn(),
     traceException: vi.fn(),
   };
 });
 
 vi.mock("../instrumentation", () => ({
   instrumentAsync: mocks.instrumentAsync,
+  recordDistribution: mocks.recordDistribution,
   traceException: mocks.traceException,
 }));
 
@@ -49,6 +51,18 @@ const baseInput: DispatchInput = {
 function expectSpanAttributes(attributes: Record<string, unknown>): void {
   expect(mocks.span.setAttributes).toHaveBeenCalledWith(
     expect.objectContaining(attributes),
+  );
+}
+
+function expectDispatchDurationRecorded(): void {
+  expect(mocks.recordDistribution).toHaveBeenCalledExactlyOnceWith(
+    "langfuse.code_eval.dispatch_duration",
+    expect.any(Number),
+    {
+      project_id: "project-1",
+      language: "TYPESCRIPT",
+      unit: "milliseconds",
+    },
   );
 }
 
@@ -107,6 +121,7 @@ describe("AwsLambdaCodeEvalDispatcher observability", () => {
       "aws.sdk.attempts": 2,
       "aws.sdk.total_retry_delay_ms": 15,
     });
+    expectDispatchDurationRecorded();
   });
 
   it("records the original AWS SDK error before throwing the derived dispatcher error", async () => {
@@ -146,6 +161,7 @@ describe("AwsLambdaCodeEvalDispatcher observability", () => {
       "aws.sdk.attempts": 3,
       "aws.sdk.total_retry_delay_ms": 25,
     });
+    expectDispatchDurationRecorded();
   });
 
   it("records dispatch context and error code for preflight limit failures", async () => {

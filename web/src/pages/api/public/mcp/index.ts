@@ -129,6 +129,7 @@ export default async function handler(
       apiKeyId: authCheck.scope.apiKeyId,
       accessLevel: "project",
       publicKey: authCheck.scope.publicKey,
+      userAgent: req.headers["user-agent"],
       inAppAgent: getInAppAgentContext(req, authCheck.scope.isInAppAgentKey),
     };
 

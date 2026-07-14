@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { encrypt } from "../../../packages/shared/src/encryption";
 import { env } from "../../../packages/shared/src/env";
+import { LLMAdapter } from "../../../packages/shared/src/server/llm/types";
 import {
-  ChatMessageType,
-  LLMAdapter,
-} from "../../../packages/shared/src/server/llm/types";
-import { fetchLLMCompletion } from "../../../packages/shared/src/server/llm/fetchLLMCompletion";
+  generateLLMText,
+  streamLLMText,
+} from "../../../packages/shared/src/server/llm/llmText";
 import {
   createSecureLlmFetch,
   fetchSecureLlmUrl,
@@ -84,6 +84,7 @@ const OPENAI_RESPONSES_RESPONSE = JSON.parse(OPENAI_RESPONSES_BODY);
 
 describe("secure LLM fetch", () => {
   const originalWhitelistedHosts = env.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST;
+  const originalWhitelistedIps = env.LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS;
   // env is the zod-validated object: read from process.env at module load and
   // not refreshed afterward. Mutating process.env later is a no-op for the
   // code under test, so we mutate `env.*` directly and restore in afterEach.
@@ -93,12 +94,14 @@ describe("secure LLM fetch", () => {
   beforeEach(() => {
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
     env.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST = ["127.0.0.1"];
+    env.LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS = ["127.0.0.1"];
   });
 
   afterEach(async () => {
     vi.restoreAllMocks();
     await Promise.all(servers.splice(0).map((s) => s.close()));
     env.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST = originalWhitelistedHosts;
+    env.LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS = originalWhitelistedIps;
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   });
 
@@ -120,29 +123,26 @@ describe("secure LLM fetch", () => {
           res.end(OPENAI_RESPONSE_BODY);
         });
 
-        const completion = await fetchLLMCompletion({
-          streaming: false,
+        const completion = await generateLLMText({
           messages: [
             {
               role: "user",
               content: "What is 2+2? Answer only with the number.",
-              type: ChatMessageType.PublicAPICreated,
             },
           ],
-          modelParams: {
-            provider: "openai",
+          model: {
             adapter: LLMAdapter.OpenAI,
-            model: "gpt-4o-mini",
-            temperature: 0,
-            max_tokens: 10,
+            id: "gpt-4o-mini",
           },
-          llmConnection: {
+          temperature: 0,
+          maxOutputTokens: 10,
+          connection: {
             secretKey: encrypt("openai-api-key"),
             baseURL: `${server.url}/v1`,
           },
         });
 
-        expect(completion).toBe("4");
+        expect(completion.text).toBe("4");
         expect(server.requests).toHaveLength(1);
         const [request] = server.requests;
         expect(request.method).toBe("POST");
@@ -164,23 +164,20 @@ describe("secure LLM fetch", () => {
           res.end(OPENAI_RESPONSES_BODY);
         });
 
-        const completion = await fetchLLMCompletion({
-          streaming: false,
+        const completion = await generateLLMText({
           messages: [
             {
               role: "user",
               content: "What is 2+2? Answer only with the number.",
-              type: ChatMessageType.PublicAPICreated,
             },
           ],
-          modelParams: {
-            provider: "openai",
+          model: {
             adapter: LLMAdapter.OpenAI,
-            model: "gpt-4o-mini",
-            temperature: 0,
-            max_tokens: 10,
+            id: "gpt-4o-mini",
           },
-          llmConnection: {
+          temperature: 0,
+          maxOutputTokens: 10,
+          connection: {
             secretKey: encrypt("openai-api-key"),
             baseURL: `${server.url}/v1`,
             config: {
@@ -189,7 +186,7 @@ describe("secure LLM fetch", () => {
           },
         });
 
-        expect(completion).toBe("4");
+        expect(completion.text).toBe("4");
         expect(server.requests).toHaveLength(1);
         const [request] = server.requests;
         expect(request.method).toBe("POST");
@@ -250,23 +247,20 @@ describe("secure LLM fetch", () => {
           res.end();
         });
 
-        const stream = await fetchLLMCompletion({
-          streaming: true,
+        const stream = await streamLLMText({
           messages: [
             {
               role: "user",
               content: "What is 2+2? Answer only with the number.",
-              type: ChatMessageType.PublicAPICreated,
             },
           ],
-          modelParams: {
-            provider: "openai",
+          model: {
             adapter: LLMAdapter.OpenAI,
-            model: "gpt-4o-mini",
-            temperature: 0,
-            max_tokens: 10,
+            id: "gpt-4o-mini",
           },
-          llmConnection: {
+          temperature: 0,
+          maxOutputTokens: 10,
+          connection: {
             secretKey: encrypt("openai-api-key"),
             baseURL: `${server.url}/v1`,
             config: {
@@ -275,15 +269,53 @@ describe("secure LLM fetch", () => {
           },
         });
 
-        const decoder = new TextDecoder();
         let text = "";
-        for await (const chunk of stream) {
-          text += decoder.decode(chunk);
+        for await (const chunk of stream.textStream) {
+          text += chunk;
         }
 
         expect(text).toBe("pong");
         expect(server.requests).toHaveLength(1);
         expect(server.requests[0].url).toBe("/v1/responses");
+      },
+    );
+
+    test(
+      "strips encrypted connection headers from cross-origin redirects",
+      { timeout: 30_000 },
+      async () => {
+        const target = await spinUp((_req, _body, res) => {
+          res.setHeader("content-type", "application/json");
+          res.end(OPENAI_RESPONSE_BODY);
+        });
+        const redirector = await spinUp((_req, _body, res) => {
+          res.statusCode = 307;
+          res.setHeader("location", `${target.url}/v1/chat/completions`);
+          res.end();
+        });
+
+        const completion = await generateLLMText({
+          messages: [{ role: "user", content: "Say 4" }],
+          model: {
+            adapter: LLMAdapter.OpenAI,
+            id: "gpt-4o-mini",
+          },
+          connection: {
+            secretKey: encrypt("openai-api-key"),
+            baseURL: `${redirector.url}/v1`,
+            extraHeaders: encrypt(
+              JSON.stringify({ "x-gateway-token": "gateway-secret" }),
+            ),
+          },
+        });
+
+        expect(completion.text).toBe("4");
+        expect(redirector.requests).toHaveLength(1);
+        expect(redirector.requests[0].headers["x-gateway-token"]).toBe(
+          "gateway-secret",
+        );
+        expect(target.requests).toHaveLength(1);
+        expect(target.requests[0].headers["x-gateway-token"]).toBeUndefined();
       },
     );
   });

@@ -23,8 +23,8 @@ const toSafeContent = (content: unknown): string =>
   typeof content === "string" ? content : safeStringify(content);
 
 /**
- * Maps Langfuse `ChatMessage[]` to AI SDK `ModelMessage[]`, mirroring the
- * LangChain mapping in `fetchLLMCompletion`:
+ * Maps persisted/playground Langfuse `ChatMessage[]` to AI SDK
+ * `ModelMessage[]`:
  * - the first system/developer message becomes `system`, later ones `user`
  * - non-string content is safely JSON-stringified
  * - messages with empty content are dropped unless they carry tool calls
@@ -32,8 +32,7 @@ const toSafeContent = (content: unknown): string =>
  *   tool-call messages; orphan tool results fail fast as a non-retryable
  *   error instead of a provider-side 400
  * - for providers that require at least one user message, a lone message
- *   becomes a user message regardless of its role (LangChain-parity:
- *   `transformSystemMessageToUserMessage`)
+ *   becomes a user message regardless of its role (provider compatibility)
  */
 export function mapChatMessagesToModelMessages(
   messages: ChatMessage[],

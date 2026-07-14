@@ -15,7 +15,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
   return {
     ...actual,
-    fetchLLMCompletion: vi.fn().mockResolvedValue({ id: "test-id" }),
+    generateLLMText: vi.fn().mockResolvedValue({ text: "test output" }),
     logger: {
       info: vi.fn(),
       error: vi.fn(),

@@ -30,7 +30,7 @@ import {
 import { buildFilterSystemPrompt } from "./buildFilterPrompt";
 import { parseGeneratedFilters } from "./parseFilterCompletion";
 import {
-  fetchLangfuseAICompletion,
+  generateLangfuseAIText,
   getLangfuseAITraceSinkParams,
   isLangfuseAITracingConfigured,
 } from "@/src/features/ai-features/server/bedrockCompletion";
@@ -135,7 +135,7 @@ export const searchBarRouter = createTRPCRouter({
           });
         }
 
-        const llmCompletion = await fetchLangfuseAICompletion({
+        const llmCompletion = await generateLangfuseAIText({
           messages: [
             {
               role: ChatMessageRole.System,
@@ -179,10 +179,6 @@ export const searchBarRouter = createTRPCRouter({
               })
             : undefined,
         });
-
-        if (typeof llmCompletion !== "string") {
-          throw new Error("Expected LLM completion to be a string");
-        }
 
         // Parse the model output and keep only the filters that round-trip to
         // bar grammar — a hallucinated/non-v4 column is dropped, never applied.
