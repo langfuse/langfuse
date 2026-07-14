@@ -39,12 +39,9 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     createW3CTraceId: mocks.createW3CTraceId,
     runCodeBasedEvaluationDispatch,
     resolveConfiguredCodeEvalDispatcher: vi.fn(() => mocks.dispatcher),
+    writeInternalTraceViaOtelIngestion: mocks.writeInternalTrace,
   };
 });
-
-vi.mock("../../internal-tracing/createInternalEventsWriter", () => ({
-  createInternalEventsWriter: () => ({ write: mocks.writeInternalTrace }),
-}));
 
 import { executeCodeBasedEvaluation } from "./executeCodeBasedEvaluation";
 
