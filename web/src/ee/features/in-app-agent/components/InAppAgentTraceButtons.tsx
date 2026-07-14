@@ -54,7 +54,7 @@ export function InAppAgentAnalyzeSelectionButton({
   const selectedCount = new Set(
     observationIds.length > 0 ? observationIds : traceIds,
   ).size;
-  const isDisabled = selectAll || selectedCount === 0 || selectedCount > 20;
+  const isDisabled = selectAll || selectedCount === 0;
 
   if (!isAvailable) {
     return null;
@@ -84,10 +84,8 @@ export function InAppAgentAnalyzeSelectionButton({
   }
 
   const explanation = selectAll
-    ? "Select up to 20 individual traces or observations to analyze."
-    : selectedCount > 20
-      ? "The assistant can analyze up to 20 selected traces or observations."
-      : "Select at least one trace or observation to analyze.";
+    ? "Select individual traces or observations to analyze."
+    : "Select at least one trace or observation to analyze.";
 
   return (
     <Tooltip>

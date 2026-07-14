@@ -12,6 +12,7 @@ import type { Langfuse } from "langfuse";
 import {
   type AgUiEvent,
   type AgUiRunAgentInput,
+  type InAppAgentTraceSelection,
   type InAppAgentToolApprovalRequest,
   type ResumeForwardedProps,
 } from "@/src/ee/features/in-app-agent/schema";
@@ -23,6 +24,7 @@ import type {
 import { createInAppAgentInstrumentation } from "@/src/ee/features/in-app-agent/server/instrumentation";
 import {
   createRedirectActionTool,
+  createSelectedTraceIdentifiersTool,
   filterInAppAgentAvailableLangfuseMcpTools,
   type InAppAgentUserAccess,
   withInAppAgentToolApproval,
@@ -31,6 +33,7 @@ import { LANGFUSE_IN_APP_AGENT_SKILLS } from "@/src/ee/features/in-app-agent/ser
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
 import { logger } from "@langfuse/shared/src/server";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
+import { IN_APP_AGENT_TRACE_SELECTION_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
 import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@/src/ee/features/in-app-agent/constants";
 import { assertUnreachable } from "@/src/utils/types";
 
@@ -160,6 +163,7 @@ type CreateAgUiStreamOptions = {
     projectId: string;
     isV4Enabled: boolean;
   };
+  traceSelection?: InAppAgentTraceSelection;
   langfuseClient: Langfuse;
   useLocalPrompt: boolean;
   langfuseTracing?: InAppAgentTracingConfig;
@@ -743,6 +747,12 @@ async function createMastraAdapter(params: {
         projectId: params.options.redirectAction.projectId,
         isV4Enabled: params.options.redirectAction.isV4Enabled,
       }),
+      ...(params.options.traceSelection
+        ? {
+            [IN_APP_AGENT_TRACE_SELECTION_TOOL_NAME]:
+              createSelectedTraceIdentifiersTool(params.options.traceSelection),
+          }
+        : {}),
     });
     params.onToolsAvailable?.(tools);
 

@@ -457,6 +457,10 @@ export default async function handler(request: Request) {
                 projectId,
                 isV4Enabled: user?.v4BetaEnabled ?? false,
               },
+              traceSelection:
+                parsedState.data.type === "newConversation"
+                  ? parsedState.data.traceSelection
+                  : undefined,
               langfuseClient,
               useLocalPrompt,
               langfuseTracing: (() => {

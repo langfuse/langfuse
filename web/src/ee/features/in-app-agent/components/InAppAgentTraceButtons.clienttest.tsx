@@ -1,5 +1,4 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { TooltipProvider } from "@/src/components/ui/tooltip";
 
 import {
   InAppAgentAnalyzeSelectionButton,
@@ -58,18 +57,24 @@ describe("InAppAgentExplainErrorButton", () => {
     });
   });
 
-  it("disables analysis when more than 20 rows are selected", () => {
+  it("passes selections larger than 20 rows to the assistant", () => {
+    const traceIds = Array.from({ length: 21 }, (_, index) => `trace-${index}`);
+
     render(
-      <TooltipProvider>
-        <InAppAgentAnalyzeSelectionButton
-          traceIds={Array.from({ length: 21 }, (_, index) => `trace-${index}`)}
-          observationIds={[]}
-        />
-      </TooltipProvider>,
+      <InAppAgentAnalyzeSelectionButton
+        traceIds={traceIds}
+        observationIds={[]}
+      />,
     );
 
-    expect(
+    fireEvent.click(
       screen.getByRole("button", { name: "Analyze with Assistant" }),
-    ).toBeDisabled();
+    );
+
+    expect(startAssistantRun).toHaveBeenCalledWith({
+      source: "trace_selection",
+      traceIds,
+      observationIds: [],
+    });
   });
 });

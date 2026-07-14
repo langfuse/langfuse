@@ -24,7 +24,11 @@ import z from "zod";
 import { TABLE_AGGREGATION_OPTIONS } from "@/src/utils/date-range-utils";
 import { ObservationLevelDomain, TracingSearchType } from "@langfuse/shared";
 import { Role } from "@langfuse/shared/src/db";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
+import {
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  IN_APP_AGENT_TRACE_SELECTION_TOOL_NAME,
+} from "@/src/ee/features/in-app-agent/constants";
+import type { InAppAgentTraceSelection } from "@/src/ee/features/in-app-agent/schema";
 import type { McpToolName } from "@/src/features/mcp/server/bootstrap";
 
 type InAppAgentMcpToolApproval = "auto" | "approval";
@@ -321,6 +325,7 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES = new Set<McpToolName>(
 
 export const IN_APP_AGENT_AUTO_APPROVED_EXTERNAL_TOOL_NAMES = new Set([
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  IN_APP_AGENT_TRACE_SELECTION_TOOL_NAME,
 ]);
 
 // Tools in this set can run without a human-in-the-loop approval prompt. Every
@@ -383,6 +388,38 @@ export function filterInAppAgentAvailableLangfuseMcpTools<TTool>(params: {
 }
 
 type InAppAgentTool = object;
+
+const SELECTED_TRACE_IDENTIFIER_PAGE_SIZE = 50;
+
+export function createSelectedTraceIdentifiersTool(
+  selection: InAppAgentTraceSelection,
+) {
+  const ids = [...new Set(selection.ids)];
+
+  return createTool({
+    id: IN_APP_AGENT_TRACE_SELECTION_TOOL_NAME,
+    description:
+      "Read the trace or observation identifiers explicitly selected by the user. Call this before analyzing a selected set. Results are paginated; continue with nextCursor until it is null, and inspect each page with the corresponding Langfuse trace or observation read tools.",
+    inputSchema: z.object({
+      cursor: z.number().int().nonnegative().optional(),
+    }),
+    execute: async ({ cursor = 0 }) => {
+      const pageIds = ids.slice(
+        cursor,
+        cursor + SELECTED_TRACE_IDENTIFIER_PAGE_SIZE,
+      );
+      const nextCursor =
+        cursor + pageIds.length < ids.length ? cursor + pageIds.length : null;
+
+      return {
+        kind: selection.kind,
+        ids: pageIds,
+        totalCount: ids.length,
+        nextCursor,
+      };
+    },
+  });
+}
 
 export function withInAppAgentToolApproval<TTool extends InAppAgentTool>(
   tools: Record<string, TTool>,

@@ -108,7 +108,6 @@ export function TableActionMenu({
           </Button>
           <div className="bg-border h-5 w-px" />
           <div className="flex items-center gap-2">
-            {children}
             {actions.map((action) => {
               const menuItem = (
                 <Button
@@ -140,6 +139,7 @@ export function TableActionMenu({
 
               return menuItem;
             })}
+            {children}
           </div>
         </div>
       </div>

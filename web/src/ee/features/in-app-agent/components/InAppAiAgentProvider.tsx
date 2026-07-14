@@ -28,6 +28,7 @@ import {
   type InAppAgentMessageFeedback,
   type InAppAgentMessageFeedbackValue,
   type InAppAgentRuntimeState,
+  type InAppAgentTraceSelection,
   type InAppAgentToolApprovalRequest,
 } from "@/src/ee/features/in-app-agent/schema";
 import type { InAppAgentError } from "@/src/ee/features/in-app-agent/components/utils/utils";
@@ -110,7 +111,7 @@ const getInvocationPrompt = (invocation: InAppAgentInvocation): string => {
   }
 
   if (invocation.source === "trace_selection") {
-    return `Analyze the selected traces (${invocation.traceIds.join(", ")}) and observations (${invocation.observationIds.join(", ")}). Compare them, identify common failures and meaningful outliers, cite the relevant evidence, and suggest concrete next steps.`;
+    return "Analyze the currently selected traces or observations. Use the selected-trace identifier tool to read the selection in bounded pages, then compare the selected items, identify common failures and meaningful outliers, cite the relevant evidence, and suggest concrete next steps.";
   }
 
   if (invocation.source === "dashboard_create") {
@@ -136,9 +137,10 @@ const getConversationAgentState = (
   projectId: string,
   conversationId: string,
   isNewConversation: boolean,
+  traceSelection?: InAppAgentTraceSelection,
 ): InAppAgentRuntimeState =>
   isNewConversation
-    ? { type: "newConversation", projectId }
+    ? { type: "newConversation", projectId, traceSelection }
     : { type: "existingConversation", projectId, conversationId };
 
 const NOOP_CONTEXT: InAppAiAgentContextType = {
@@ -680,6 +682,7 @@ function InAppAiAgentProviderInner({
       conversationId: string,
       initialMessages: InAppAiAgentMessage[],
       isNewConversation: boolean,
+      traceSelection?: InAppAgentTraceSelection,
     ) => {
       if (agentRef.current?.threadId === conversationId) {
         return agentRef.current;
@@ -695,6 +698,7 @@ function InAppAiAgentProviderInner({
           projectId,
           conversationId,
           isNewConversation,
+          traceSelection,
         ),
       });
 
@@ -848,7 +852,13 @@ function InAppAiAgentProviderInner({
   );
 
   const submit = useCallback(
-    async (content: string, options?: { newConversation?: boolean }) => {
+    async (
+      content: string,
+      options?: {
+        newConversation?: boolean;
+        traceSelection?: InAppAgentTraceSelection;
+      },
+    ) => {
       if (
         !content ||
         isRunning ||
@@ -892,6 +902,7 @@ function InAppAiAgentProviderInner({
           conversationId,
           initialMessages,
           isNewConversation,
+          options?.traceSelection,
         );
 
         if (agent.isRunning) {
@@ -1138,7 +1149,7 @@ function InAppAiAgentProviderInner({
             : invocation.traceIds,
         );
 
-        if (selectedIds.size === 0 || selectedIds.size > 20) {
+        if (selectedIds.size === 0) {
           return false;
         }
       }
@@ -1158,6 +1169,20 @@ function InAppAiAgentProviderInner({
 
       const started = await submit(getInvocationPrompt(invocation), {
         newConversation: true,
+        ...(invocation.source === "trace_selection"
+          ? {
+              traceSelection: {
+                kind:
+                  invocation.observationIds.length > 0
+                    ? ("observations" as const)
+                    : ("traces" as const),
+                ids:
+                  invocation.observationIds.length > 0
+                    ? invocation.observationIds
+                    : invocation.traceIds,
+              },
+            }
+          : {}),
       });
       if (!started) {
         setDashboardOwnership(null);

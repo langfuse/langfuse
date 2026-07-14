@@ -248,10 +248,20 @@ export const ResumeForwardedPropsSchema = z.object({
 
 export type ResumeForwardedProps = z.infer<typeof ResumeForwardedPropsSchema>;
 
+export const InAppAgentTraceSelectionSchema = z.object({
+  kind: z.enum(["traces", "observations"]),
+  ids: z.array(z.string().min(1).max(200)).min(1),
+});
+
+export type InAppAgentTraceSelection = z.infer<
+  typeof InAppAgentTraceSelectionSchema
+>;
+
 export const InAppAgentRuntimeStateSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("newConversation"),
     projectId: z.string(),
+    traceSelection: InAppAgentTraceSelectionSchema.optional(),
   }),
   z.object({
     type: z.literal("existingConversation"),

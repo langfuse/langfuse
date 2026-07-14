@@ -1,6 +1,11 @@
 // Avoid renaming this as the FE is aware of this when rendering, renaming it would cause history issues
 export const IN_APP_AGENT_REDIRECT_TOOL_NAME = "langfuse_proposeRedirect";
 
+// Selection identifiers are supplied as trusted run context and exposed to the
+// model in bounded pages instead of being interpolated into the user prompt.
+export const IN_APP_AGENT_TRACE_SELECTION_TOOL_NAME =
+  "langfuse_getSelectedTraceIdentifiers";
+
 // Header used only by Langfuse's server-side in-app agent when it calls the
 // Langfuse MCP endpoint with a temporary in-app-agent API key and run override.
 export const IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER =
