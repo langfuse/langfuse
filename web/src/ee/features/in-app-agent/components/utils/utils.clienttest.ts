@@ -24,7 +24,7 @@ describe("getInAppAgentTurnProgressIndicatorState", () => {
     },
   };
 
-  it("shows the status during a turn with completed reasoning", () => {
+  it("shows the status for a running turn with a user message", () => {
     expect(
       getInAppAgentTurnProgressIndicatorState({
         error: null,
@@ -35,77 +35,7 @@ describe("getInAppAgentTurnProgressIndicatorState", () => {
     ).toBe("active");
   });
 
-  it("keeps the persistent status visible during live reasoning, loading, and tool activity", () => {
-    const baseArgs = {
-      error: null,
-      hasPendingToolApprovals: false,
-      isAssistantTurnInProgress: true,
-    };
-
-    expect(
-      getInAppAgentTurnProgressIndicatorState({
-        ...baseArgs,
-        messages: [
-          userMessage,
-          {
-            ...completedReasoning,
-            content: { ...completedReasoning.content, isStreaming: true },
-          },
-        ],
-      }),
-    ).toBe("active");
-    expect(
-      getInAppAgentTurnProgressIndicatorState({
-        ...baseArgs,
-        messages: [
-          userMessage,
-          {
-            id: "loading-1",
-            role: "assistant",
-            content: { type: "loading" },
-          },
-        ],
-      }),
-    ).toBe("active");
-    expect(
-      getInAppAgentTurnProgressIndicatorState({
-        ...baseArgs,
-        messages: [
-          userMessage,
-          {
-            id: "tool-1",
-            role: "assistant",
-            content: {
-              type: "toolGroup",
-              isLoading: true,
-              tools: [],
-            },
-          },
-        ],
-      }),
-    ).toBe("active");
-  });
-
-  it("stays visible while the assistant moves on from a completed block", () => {
-    expect(
-      getInAppAgentTurnProgressIndicatorState({
-        error: null,
-        hasPendingToolApprovals: false,
-        isAssistantTurnInProgress: true,
-        messages: [
-          userMessage,
-          completedReasoning,
-          {
-            id: "answer-1",
-            role: "assistant",
-            content: { type: "text", text: "I found the slow traces." },
-          },
-        ],
-      }),
-    ).toBe("active");
-  });
-
-  it("hides after the turn ends or errors", () => {
+  it("hides after the turn ends, errors, or without a user message", () => {
     expect(
       getInAppAgentTurnProgressIndicatorState({
         error: null,
@@ -120,6 +50,14 @@ describe("getInAppAgentTurnProgressIndicatorState", () => {
         hasPendingToolApprovals: false,
         isAssistantTurnInProgress: true,
         messages: [userMessage, completedReasoning],
+      }),
+    ).toBe("hidden");
+    expect(
+      getInAppAgentTurnProgressIndicatorState({
+        error: null,
+        hasPendingToolApprovals: false,
+        isAssistantTurnInProgress: true,
+        messages: [completedReasoning],
       }),
     ).toBe("hidden");
   });
