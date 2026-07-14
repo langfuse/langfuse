@@ -5,6 +5,7 @@ import {
   getAppRootDefaultPolicy,
   getAppRootFallbackDecision,
   getAppRootFilterChangeDecision,
+  getAppRootSavedViewComparisonFilters,
   removeAppRootDefaultFilter,
   storedViewOwnsEventsTableState,
 } from "./appRootDefaultFilterPolicy";
@@ -25,7 +26,6 @@ const now = new Date("2026-07-14T12:00:00Z").getTime();
 const basePolicy = {
   enabled: true,
   routerReady: true,
-  hasUserId: true,
   appRootSupported: getSdkVersionCapability(
     { language: "javascript", version: "5.4.0" },
     "appRootObservations",
@@ -131,6 +131,21 @@ describe("app-root default policy", () => {
         nextFilters: [],
       }),
     ).toEqual({ owner: "saved_view", preferenceToPersist: null });
+  });
+
+  it("does not treat the automatic root filter as applied saved-view state", () => {
+    expect(
+      getAppRootSavedViewComparisonFilters(
+        [levelFilter, APP_ROOT_OBSERVATION_FILTER],
+        true,
+      ),
+    ).toEqual([levelFilter]);
+    expect(
+      getAppRootSavedViewComparisonFilters(
+        [levelFilter, APP_ROOT_OBSERVATION_FILTER],
+        false,
+      ),
+    ).toEqual([levelFilter, APP_ROOT_OBSERVATION_FILTER]);
   });
 
   it("removes only the root filter and invalidates only a neutral recent probe", () => {

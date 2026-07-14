@@ -91,6 +91,7 @@ import {
   useAppRootDefault,
   useApplyAppRootFallback,
 } from "@/src/features/events/hooks/useAppRootDefault";
+import { getAppRootSavedViewComparisonFilters } from "@/src/features/events/lib/appRootDefaultFilterPolicy";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { buildTraceDetailPath } from "@/src/utils/navigation";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
@@ -1599,7 +1600,10 @@ export default function ObservationsEventsTable({
       ),
       migrateFilterState: eventsFilterConfig.migrateFilterState,
     },
-    currentFilterState: queryFilter.explicitFilterState,
+    currentFilterState: getAppRootSavedViewComparisonFilters(
+      queryFilter.explicitFilterState,
+      appRootDefault.isAutoManaged,
+    ),
     currentExpandedFilters: queryFilter.expanded,
     disabled: hideControls,
     allowBackendSystemPresets: true,

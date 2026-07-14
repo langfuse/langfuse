@@ -33,7 +33,7 @@ export function useAppRootDefault(params: {
 }) {
   const { enabled, projectId } = params;
   const router = useRouter();
-  const userId = useSession().data?.user?.id;
+  const userId = useSession().data!.user!.id;
   const utils = api.useUtils();
   const [ownerState, setOwnerState] = useState<{
     projectId: string;
@@ -47,10 +47,7 @@ export function useAppRootDefault(params: {
     version: sdkVersionKey,
     checkedAt: sdkCheckedAtKey,
   } = sdkVersionStorageKeys(projectId);
-  const preferenceKey = appRootPreferenceStorageKey(
-    userId ?? "anonymous",
-    projectId,
-  );
+  const preferenceKey = appRootPreferenceStorageKey(userId, projectId);
   const savedViewKey = appRootSavedViewSessionStorageKey(projectId);
   const sdkLanguage = useBrowserStorageValue("localStorage", sdkLanguageKey);
   const sdkVersion = useBrowserStorageValue("localStorage", sdkVersionKey);
@@ -70,7 +67,6 @@ export function useAppRootDefault(params: {
   const queryPolicy = getAppRootDefaultPolicy({
     enabled,
     routerReady: router.isReady,
-    hasUserId: Boolean(userId),
     appRootSupported: cachedAppRootSupported,
     sdkCheckedAt,
     sdkCheckSettled: false,
@@ -86,7 +82,6 @@ export function useAppRootDefault(params: {
     { projectId },
     {
       enabled: queryPolicy.shouldQuerySdkVersion,
-      staleTime: 5 * 60 * 1000,
       refetchOnWindowFocus: false,
       retry: false,
     },
@@ -95,7 +90,7 @@ export function useAppRootDefault(params: {
   const defaultViewQuery = api.TableViewPresets.getDefault.useQuery(
     { projectId, viewName: TableViewPresetTableName.ObservationsEvents },
     {
-      enabled: enabled && router.isReady && Boolean(userId),
+      enabled: enabled && router.isReady,
       staleTime: 5 * 60 * 1000,
     },
   );
@@ -119,7 +114,6 @@ export function useAppRootDefault(params: {
   const policy = getAppRootDefaultPolicy({
     enabled,
     routerReady: router.isReady,
-    hasUserId: Boolean(userId),
     appRootSupported,
     sdkCheckedAt,
     sdkCheckSettled,

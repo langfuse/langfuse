@@ -46,7 +46,6 @@ export const storedViewOwnsEventsTableState = (value: string | null) =>
 export const getAppRootDefaultPolicy = (params: {
   enabled: boolean;
   routerReady: boolean;
-  hasUserId: boolean;
   appRootSupported: boolean;
   sdkCheckedAt: string | null;
   sdkCheckSettled: boolean;
@@ -78,7 +77,7 @@ export const getAppRootDefaultPolicy = (params: {
     owner = "url";
   }
 
-  const active = params.enabled && params.routerReady && params.hasUserId;
+  const active = params.enabled && params.routerReady;
   const shouldApplyFilter =
     active &&
     capabilitySupported &&
@@ -118,6 +117,11 @@ export const removeAppRootDefaultFilter = (filters: FilterState) =>
       filter.operator !== "=" ||
       filter.value !== true,
   );
+
+export const getAppRootSavedViewComparisonFilters = (
+  filters: FilterState,
+  isAutoManaged: boolean,
+) => (isAutoManaged ? removeAppRootDefaultFilter(filters) : filters);
 
 export const getAppRootFilterChangeDecision = (params: {
   origin: AppRootFilterChangeOrigin;
