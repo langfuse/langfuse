@@ -32,6 +32,23 @@ const CUSTOMER_FAULT_ERROR_CODES = new Set<string>([
   "InvalidResourceName",
 ]);
 
+// Langfuse outbound-URL / SSRF validation rejections (OutboundUrlValidationError
+// from @langfuse/shared/.../outbound-url). Every code here is a deterministic
+// property of the endpoint config, so it is safe to auto-disable on. We
+// deliberately omit `dns-lookup-failed`: resolvability depends on runtime
+// resolver state, not the config, so a transient DNS outage across the retry
+// window must not permanently disable a working integration. secureLlmFetch
+// makes the same distinction (dns-lookup-failed -> "endpoint-unreachable").
+const CUSTOMER_FAULT_OUTBOUND_URL_CODES = new Set<string>([
+  "blocked-hostname",
+  "blocked-ip",
+  "invalid-syntax",
+  "invalid-encoding",
+  "https-required",
+  "protocol-not-allowed",
+  "url-credentials-not-allowed",
+]);
+
 // GCS JSON-API reasons (only reachable via a GCS-native client; S3-interop uses
 // the S3 codes above). Narrow on purpose: object-level notFound stays `other`.
 const CUSTOMER_FAULT_GCS_REASONS = new Set<string>(["forbidden"]);
@@ -87,7 +104,22 @@ function extractGcsReasons(err: object): string[] {
     .filter((r): r is string => typeof r === "string");
 }
 
+// Duck-type on `.name` (survives cross-package module duplication where
+// `instanceof` is unreliable) rather than importing the class, then gate on the
+// deterministic-code allowlist so transient reasons like `dns-lookup-failed`
+// stay non-disabling.
+function isOutboundUrlValidationCustomerFault(err: object): boolean {
+  if ((err as { name?: unknown }).name !== "OutboundUrlValidationError") {
+    return false;
+  }
+  const code = (err as { code?: unknown }).code;
+  return (
+    typeof code === "string" && CUSTOMER_FAULT_OUTBOUND_URL_CODES.has(code)
+  );
+}
+
 function isCustomerFaultLink(err: object): boolean {
+  if (isOutboundUrlValidationCustomerFault(err)) return true;
   if (extractErrorCodes(err).some((c) => CUSTOMER_FAULT_ERROR_CODES.has(c))) {
     return true;
   }

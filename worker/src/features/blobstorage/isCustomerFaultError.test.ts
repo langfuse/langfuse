@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { OutboundUrlValidationError } from "@langfuse/shared/src/server";
 import { isCustomerFaultError } from "./isCustomerFaultError";
 
 // Builds the wrapper the handler actually sees: StorageService.handleStorageError
@@ -148,6 +149,55 @@ describe("isCustomerFaultError", () => {
       expect(isCustomerFaultError(undefined)).toBe(false);
       expect(isCustomerFaultError("AccessDenied")).toBe(false);
       expect(isCustomerFaultError(403)).toBe(false);
+    });
+  });
+
+  describe("customer_fault — outbound-URL / SSRF validation rejection", () => {
+    it.each([
+      "blocked-ip",
+      "blocked-hostname",
+      "invalid-syntax",
+      "invalid-encoding",
+      "https-required",
+      "protocol-not-allowed",
+      "url-credentials-not-allowed",
+    ] as const)(
+      "classifies a %s validation rejection as customer_fault",
+      (code) => {
+        const err = new OutboundUrlValidationError(code, "blocked");
+        expect(isCustomerFaultError(err)).toBe(true);
+        expect(isCustomerFaultError(wrapped(err))).toBe(true);
+      },
+    );
+
+    it("classifies dns-lookup-failed as other, not customer_fault", () => {
+      // Resolvability depends on runtime resolver state, not the endpoint
+      // config: a transient DNS outage across the retry window must not
+      // permanently disable a working integration. Keep it investigable,
+      // consistent with the network EAI_AGAIN case above.
+      const err = new OutboundUrlValidationError(
+        "dns-lookup-failed",
+        "DNS lookup failed for host.example",
+      );
+      expect(isCustomerFaultError(err)).toBe(false);
+      expect(isCustomerFaultError(wrapped(err))).toBe(false);
+    });
+
+    it("classifies a validation rejection re-wrapped with guidance (code preserved) as customer_fault", () => {
+      // Mirrors validateBlobStorageEndpoint's catch: a new typed error carrying
+      // the same deterministic code, with no `cause` chained.
+      const rewrapped = new OutboundUrlValidationError(
+        "blocked-ip",
+        "Blocked IP address detected For self-hosted deployments ...",
+      );
+      expect(isCustomerFaultError(wrapped(rewrapped))).toBe(true);
+    });
+
+    it("does NOT classify a code-less error that merely shares the message as customer_fault", () => {
+      // Classification is code-based, not message-based: a bare 'DNS lookup
+      // failed' Error (e.g. some future unrelated throw site) stays investigable.
+      const err = new Error("DNS lookup failed for host.example");
+      expect(isCustomerFaultError(wrapped(err))).toBe(false);
     });
   });
 
