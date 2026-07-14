@@ -37,7 +37,10 @@ import { buildAiSdkModel } from "./ai-sdk/providers";
 import { translateAnthropicProviderOptions } from "./ai-sdk/providers/anthropic";
 import { translateBedrockProviderOptions } from "./ai-sdk/providers/bedrock";
 import { translateGoogleProviderOptions } from "./ai-sdk/providers/google";
-import { translateOpenAIProviderOptions } from "./ai-sdk/providers/openai";
+import {
+  isOpenAICompatibleEndpoint,
+  translateOpenAIProviderOptions,
+} from "./ai-sdk/providers/openai";
 import type {
   LLMCredentialSource,
   TranslatedProviderOptions,
@@ -520,7 +523,10 @@ export function mapLegacyLLMCompletionParams(params: {
   credentialSource?: LLMCredentialSource;
 }): LegacyLLMTextOptions {
   const { modelParams } = params;
-  const providerOptions = translateLegacyProviderOptions(modelParams);
+  const providerOptions = translateLegacyProviderOptions({
+    modelParams,
+    connection: params.connection,
+  });
 
   return {
     model: { adapter: modelParams.adapter, id: modelParams.model },
@@ -536,16 +542,24 @@ export function mapLegacyLLMCompletionParams(params: {
   };
 }
 
-function translateLegacyProviderOptions(
-  modelParams: ModelParams,
-): ProviderOptions | undefined {
+function translateLegacyProviderOptions(params: {
+  modelParams: ModelParams;
+  connection: LLMConnection;
+}): ProviderOptions | undefined {
+  const { modelParams, connection } = params;
   let namespace: string;
   let translated: TranslatedProviderOptions;
 
   switch (modelParams.adapter) {
     case LLMAdapter.OpenAI: {
       namespace = "openai";
-      translated = translateOpenAIProviderOptions(modelParams.providerOptions);
+      const useOpenAICompatibleChat =
+        connection.config?.useResponsesApi !== true &&
+        isOpenAICompatibleEndpoint(connection.baseURL);
+      translated = translateOpenAIProviderOptions(modelParams.providerOptions, {
+        passthroughUnknown: useOpenAICompatibleChat,
+        target: useOpenAICompatibleChat ? "openai-compatible" : "openai",
+      });
       if (
         translated.ok &&
         isOpenAINonReasoningChatModel(modelParams.model) &&

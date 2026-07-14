@@ -11,13 +11,19 @@ export type AzureBaseURLTranslation =
   | { ok: false; reason: string };
 
 /**
- * Langfuse stores the Azure base path as
- * `https://{instance}.openai.azure.com/openai/deployments`, with the
- * deployment and chat-completions path appended at request time. The AI SDK's
- * `useDeploymentBasedUrls` mode appends `/deployments/{deployment}{path}` to
- * its `baseURL`, so the stored URL maps by stripping the trailing
- * `/deployments` segment. Any other shape has no AI SDK equivalent and is
- * rejected rather than silently changing the request URL.
+ * Langfuse historically passed Azure base paths directly to LangChain as
+ * `azureOpenAIBasePath`. Existing connections therefore contain several valid
+ * shapes:
+ *
+ * - `https://{instance}.openai.azure.com/openai`
+ * - `https://{instance}.openai.azure.com/openai/deployments`
+ * - `https://{instance}.openai.azure.com/openai/deployments/{deployment}`
+ * - a proxy-specific prefix that is not an Azure resource URL
+ *
+ * The AI SDK's deployment-based mode appends
+ * `/deployments/{deployment}{path}` to its `baseURL`, so any persisted URL that
+ * already contains `/deployments` is normalized back to its parent prefix.
+ * Unknown custom prefixes are passed through for proxy compatibility.
  */
 export function translateAzureBaseURL(
   baseURL: string | null | undefined,
@@ -27,14 +33,21 @@ export function translateAzureBaseURL(
   }
 
   const trimmed = trimTrailingSlashes(baseURL);
-  if (!trimmed.endsWith("/deployments")) {
+  const [pathWithoutQuery] = trimmed.split(/[?#]/, 1);
+  const pathSegments = pathWithoutQuery.split("/");
+  const deploymentsIndex = pathSegments.findIndex(
+    (segment) => segment === "deployments",
+  );
+  if (deploymentsIndex >= 0) {
     return {
-      ok: false,
-      reason: "Azure base URL does not end with /deployments",
+      ok: true,
+      value: trimTrailingSlashes(
+        pathSegments.slice(0, deploymentsIndex).join("/"),
+      ),
     };
   }
 
-  return { ok: true, value: trimmed.slice(0, -"/deployments".length) };
+  return { ok: true, value: trimmed };
 }
 
 export function buildAzureModel(params: {
