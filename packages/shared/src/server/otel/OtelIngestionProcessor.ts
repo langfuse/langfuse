@@ -21,7 +21,6 @@ import {
   UsageDetails,
   normalizeToolsForObservation,
   normalizeToolMetadataForObservation,
-  convertDateToClickhouseDateTime,
 } from "../";
 
 import { LangfuseOtelSpanAttributes } from "./attributes";
@@ -2976,7 +2975,7 @@ export class OtelIngestionProcessor {
     if (value == null || value === "") return undefined;
     const stringValue = String(value);
     if (isValidDateString(stringValue)) {
-      return convertDateToClickhouseDateTime(new Date(stringValue));
+      return stringValue;
     }
     logger.warn(
       "OTEL invalid experiment item version, dropping. Expected format: YYYY-MM-DD HH:MM:SS.SSSSSS",
