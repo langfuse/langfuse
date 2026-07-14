@@ -10,6 +10,7 @@ async function getCapabilitiesForEnv(
   process.env = { ...originalEnv };
   delete process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   delete process.env.LANGFUSE_CODE_EVAL_DISPATCHER;
+  delete process.env.LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT;
 
   for (const [key, value] of Object.entries(overrides)) {
     if (value === undefined) {
@@ -70,7 +71,11 @@ describe("getCodeEvalCapabilities", () => {
 
   it("enables TypeScript and Python for self-hosted external dispatching", async () => {
     await expect(
-      getCapabilitiesForEnv({ LANGFUSE_CODE_EVAL_DISPATCHER: "external" }),
+      getCapabilitiesForEnv({
+        LANGFUSE_CODE_EVAL_DISPATCHER: "external",
+        LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT:
+          "http://langfuse-code-eval:3001/evaluations",
+      }),
     ).resolves.toEqual({
       enabled: true,
       supportedSourceCodeLanguages: ["TYPESCRIPT", "PYTHON"],
