@@ -26,10 +26,7 @@ const now = new Date("2026-07-14T12:00:00Z").getTime();
 const basePolicy = {
   enabled: true,
   routerReady: true,
-  appRootSupported: getSdkVersionCapability(
-    { language: "javascript", version: "5.4.0" },
-    "appRootObservations",
-  ),
+  appRootSupported: true,
   sdkCheckedAt: "2026-07-14T12:00:00.000Z",
   sdkCheckSettled: false,
   preference: null,
@@ -43,7 +40,7 @@ describe("app-root default policy", () => {
   it.each([
     ["javascript", "5.4.0", true],
     ["javascript", "5.3.9", false],
-    ["@langfuse/tracing", "5.10.0", true],
+    ["typescript", "5.10.0", true],
     ["python", "4.7.0", true],
     ["python", "4.6.9", false],
     ["python", "4.7.0rc1", false],
@@ -61,15 +58,7 @@ describe("app-root default policy", () => {
     [{}, true],
     [{ enabled: false }, false],
     [{ sdkCheckedAt: null }, false],
-    [
-      {
-        appRootSupported: getSdkVersionCapability(
-          { language: "python", version: "4.6.9" },
-          "appRootObservations",
-        ),
-      },
-      false,
-    ],
+    [{ appRootSupported: false }, false],
     [{ preference: "suppressed" }, false],
     [{ dismissed: true }, false],
     [{ savedViewOwnsState: true }, false],
